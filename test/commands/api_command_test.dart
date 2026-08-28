@@ -66,6 +66,8 @@ class Product {
   final String id;
 
   const Product({required this.id});
+
+  Map<String, dynamic> toJson() => {'id': id};
 }
 ''');
     });

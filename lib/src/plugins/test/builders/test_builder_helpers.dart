@@ -54,14 +54,15 @@ extension TestBuilderHelpers on TestBuilder {
   }
 
   /// Generates a `Fake{Name}` class that [implements] [interfaceName] and
-  /// returns a sensible default value for every abstract method.
+  /// returns a sensible default value for every declared instance member.
   ///
   /// Uses the analyzer to parse [filePath], find the first class declaration,
-  /// and emit `@override` method stubs whose bodies return:
+  /// and emit separate `@override` method/getter/setter stubs whose bodies return:
   /// - `Future.value(<default>)` for async methods
   /// - `Stream.value(<default>)` for stream methods
   /// - `<default>` for synchronous methods
   /// - empty body for void methods
+  /// - `UnimplementedError` when no non-null typed default is available
   ///
   /// [entityTypes] — entity names in scope, used to construct sample values
   /// (e.g. `Product()` for an entity-typed return).
@@ -79,20 +80,23 @@ extension TestBuilderHelpers on TestBuilder {
     if (unit == null) return null;
 
     ast.ClassDeclaration? targetClass;
+    final baseInterfaceName = interfaceName.split('<').first.trim();
     for (final node in unit.declarations) {
       if (node is ast.ClassDeclaration &&
-          node.namePart.typeName.lexeme == interfaceName) {
+          (node.namePart.typeName.lexeme == baseInterfaceName ||
+              node.namePart.typeName.lexeme == '\$$baseInterfaceName')) {
         targetClass = node;
         break;
       }
     }
     if (targetClass == null) return null;
 
-    final methodBodies = <String>[];
+    final methods = <Method>[];
     for (final member in targetClass.body.members) {
-      if (member is ast.MethodDeclaration && member.isAbstract) {
-        final methodStr = _generateFakeMethod(member, entityTypes);
-        if (methodStr.isNotEmpty) methodBodies.add(methodStr);
+      if (member is ast.MethodDeclaration && !member.isStatic) {
+        methods.add(_generateFakeMethod(member, entityTypes));
+      } else if (member is ast.FieldDeclaration && !member.isStatic) {
+        methods.addAll(_generateFakeFieldAccessors(member, entityTypes));
       }
     }
 
@@ -100,55 +104,183 @@ extension TestBuilderHelpers on TestBuilder {
       (c) => c
         ..name = className
         ..implements.add(refer(interfaceName))
-        ..methods.add(Method((m) => m
-          ..body = Code(methodBodies.join('\n\n')))),
+        ..methods.addAll(methods),
     );
   }
 
-  /// Generates a single `@override` method stub string for [method].
-  /// Returns an empty string for constructors, getters, setters, and
-  /// operators (only normal methods are emitted).
-  String _generateFakeMethod(
+  /// Returns a parsed dependency fake or fails before invalid Dart is emitted.
+  Future<Class> _requireFakeClassForDependency({
+    required String className,
+    required String interfaceName,
+    required String? filePath,
+    required String packageName,
+    required String projectRoot,
+    required Set<String> entityTypes,
+  }) async {
+    if (filePath == null) {
+      throw StateError(
+        'Cannot generate $className: source for $interfaceName was not found.',
+      );
+    }
+
+    final fakeClass = await _generateFakeClassForDependency(
+      className: className,
+      interfaceName: interfaceName,
+      filePath: filePath,
+      packageName: packageName,
+      projectRoot: projectRoot,
+      entityTypes: entityTypes,
+    );
+    if (fakeClass == null) {
+      throw StateError(
+        'Cannot generate $className: $interfaceName was not declared in '
+        '$filePath.',
+      );
+    }
+    return fakeClass;
+  }
+
+  /// Generates one concrete override for a declared interface member.
+  Method _generateFakeMethod(
     ast.MethodDeclaration method,
     Set<String> entityTypes,
   ) {
     final name = method.name.lexeme;
-    final returnType = method.returnType;
-
-    // Only emit normal methods (not constructors, getters, setters).
-    if (method.isGetter || method.isSetter) {
-      return '';
+    if (method.isOperator) {
+      throw StateError(
+        'Cannot generate a fake for operator ${method.name.lexeme}; '
+        'operator members are not representable by code_builder.Method.',
+      );
     }
 
-    final returnTypeStr = returnType?.toString() ?? 'dynamic';
+    final returnType = method.returnType?.toSource() ?? 'dynamic';
+    final defaultValue = method.isSetter || returnType == 'void'
+        ? ''
+        : _defaultValueForType(returnType, entityTypes);
 
-    if (!method.isAbstract) return ''; // Abstract methods only.
+    return Method((builder) {
+      builder
+        ..name = name
+        ..annotations.add(refer('override'))
+        ..body = _fakeMemberBody(name, defaultValue);
 
-    final bodyStr = returnTypeStr == 'void'
-        ? '{}'
-        : '{ return ${_defaultValueForType(returnTypeStr, entityTypes)}; }';
+      if (method.isGetter) {
+        builder
+          ..type = MethodType.getter
+          ..returns = refer(returnType);
+      } else if (method.isSetter) {
+        builder.type = MethodType.setter;
+      } else {
+        builder.returns = refer(returnType);
+      }
 
-    final params = <String>[];
-    for (final p in method.parameters?.parameters ?? []) {
-      params.add('${p.declaredElement?.type} ${p.declaredElement?.name}');
+      for (final typeParameter
+          in method.typeParameters?.typeParameters ?? const []) {
+        builder.types.add(refer(typeParameter.toSource()));
+      }
+
+      for (final parameter in method.parameters?.parameters ?? const []) {
+        final generated = _parameterFromAst(parameter);
+        if (parameter.isNamed || parameter.isOptionalPositional) {
+          builder.optionalParameters.add(generated);
+        } else {
+          builder.requiredParameters.add(generated);
+        }
+      }
+    });
+  }
+
+  List<Method> _generateFakeFieldAccessors(
+    ast.FieldDeclaration field,
+    Set<String> entityTypes,
+  ) {
+    final type = field.fields.type?.toSource() ?? 'dynamic';
+    final defaultValue = _defaultValueForType(type, entityTypes);
+    final methods = <Method>[];
+
+    for (final variable in field.fields.variables) {
+      final name = variable.name.lexeme;
+      methods.add(
+        Method(
+          (builder) => builder
+            ..name = name
+            ..type = MethodType.getter
+            ..returns = refer(type)
+            ..annotations.add(refer('override'))
+            ..body = _fakeMemberBody(name, defaultValue),
+        ),
+      );
+      if (!field.fields.isFinal && !field.fields.isConst) {
+        methods.add(
+          Method(
+            (builder) => builder
+              ..name = name
+              ..type = MethodType.setter
+              ..annotations.add(refer('override'))
+              ..requiredParameters.add(
+                Parameter(
+                  (parameter) => parameter
+                    ..name = 'value'
+                    ..type = refer(type),
+                ),
+              )
+              ..body = const Code(''),
+          ),
+        );
+      }
+    }
+    return methods;
+  }
+
+  Parameter _parameterFromAst(ast.FormalParameter parameter) {
+    var declaration = parameter.toSource();
+    final defaultClause = parameter.defaultClause;
+    if (defaultClause != null) {
+      final separatorOffset = defaultClause.separator.offset - parameter.offset;
+      declaration = declaration.substring(0, separatorOffset).trimRight();
     }
 
-    return '@override\n$returnTypeStr $name(${params.join(', ')}) $bodyStr';
+    return Parameter((builder) {
+      builder
+        ..name = declaration
+        ..named = parameter.isNamed;
+      if (defaultClause != null) {
+        builder.defaultTo = Code(defaultClause.value.toSource());
+      }
+    });
+  }
+
+  Code _fakeMemberBody(String memberName, String? defaultValue) {
+    if (defaultValue == '') return const Code('');
+    if (defaultValue == null) {
+      return Code(
+        "throw UnimplementedError('No typed fake value for $memberName');",
+      );
+    }
+    return Code('return $defaultValue;');
   }
 
   /// Determines the raw Dart expression string for a default value of
   /// [returnType] — handles `Future<T>`, `Stream<T>`, nullable types,
   /// collection types, entity types, and built-in primitives.
-  String _defaultValueForType(String returnType, Set<String> entityTypes) {
+  String? _defaultValueForType(String returnType, Set<String> entityTypes) {
     // Future<T> → Future.value(<innerDefault>)
     if (returnType.startsWith('Future<') && returnType.endsWith('>')) {
       final inner = _extractInnerType(returnType);
-      return 'Future.value(${_defaultValueForType(inner, entityTypes)})';
+      final innerDefault = _defaultValueForType(inner, entityTypes);
+      if (innerDefault == null) return null;
+      return innerDefault.isEmpty
+          ? 'Future.value()'
+          : 'Future.value($innerDefault)';
     }
     // Stream<T> → Stream.value(<innerDefault>)
     if (returnType.startsWith('Stream<') && returnType.endsWith('>')) {
       final inner = _extractInnerType(returnType);
-      return 'Stream.value(${_defaultValueForType(inner, entityTypes)})';
+      final innerDefault = _defaultValueForType(inner, entityTypes);
+      if (innerDefault == null) return null;
+      return innerDefault.isEmpty
+          ? 'Stream.empty()'
+          : 'Stream.value($innerDefault)';
     }
     // T? → null
     if (returnType.endsWith('?')) {
@@ -170,11 +302,13 @@ extension TestBuilderHelpers on TestBuilder {
     return switch (returnType) {
       'String' => "'x'",
       'int' => '0',
+      'num' => '0',
       'double' => '0.0',
       'bool' => 'false',
-      'dynamic' || 'Object' => 'null',
+      'dynamic' => 'null',
+      'Object' => 'Object()',
       'void' => '',
-      _ => 'null',
+      _ => null,
     };
   }
 
@@ -260,7 +394,7 @@ extension TestBuilderHelpers on TestBuilder {
       'double' => literal(1.0),
       'bool' => literalBool(true),
       'dynamic' => literalNull,
-      _ => refer('t$type'),
+      _ => refer('t${type.split('<').first.trim()}'),
     };
   }
 

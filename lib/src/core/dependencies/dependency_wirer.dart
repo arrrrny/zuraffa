@@ -135,6 +135,8 @@ class DependencyWirer {
         kind: DependencyKind.regular,
       ),
       const DependencySpec(name: 'build_runner', kind: DependencyKind.dev),
+      if (!isFlutter)
+        const DependencySpec(name: 'test', kind: DependencyKind.dev),
       // #281: json_serializable is registered as a builder in build.yaml; it
       // must also be a direct dev dep so build_runner resolves the builder and
       // depend_on_referenced_packages is satisfied.

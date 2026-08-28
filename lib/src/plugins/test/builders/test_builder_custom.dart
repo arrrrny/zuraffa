@@ -61,12 +61,18 @@ extension TestBuilderCustom on TestBuilder {
     final fakeSpecs = <Class>[];
 
     if (paramsType != 'NoParams' && !KnownTypes.isDartPrimitive(paramsType)) {
-      // Fake paramsType: minimal stub, never stubbed or verified.
+      final paramsBaseType = paramsType.split('<').first.trim();
+      final paramsFile = discovery.findFileSync(
+        '${StringUtils.camelToSnake(paramsBaseType)}.dart',
+      );
       fakeSpecs.add(
-        Class(
-          (c) => c
-            ..name = 'Fake$paramsType'
-            ..implements.add(refer(paramsType)),
+        await _requireFakeClassForDependency(
+          className: 'Fake$paramsBaseType',
+          interfaceName: paramsType,
+          filePath: paramsFile?.path,
+          packageName: packageName,
+          projectRoot: projectRoot,
+          entityTypes: entityTypeSet,
         ),
       );
     }
@@ -80,39 +86,17 @@ extension TestBuilderCustom on TestBuilder {
       directives.add(Directive.import(repoSourcePath));
 
       // Generate a Fake{repo} using AST-parsed method signatures.
-      final repoFile = discovery.findFileSync(
-        '${repoSnake}_repository.dart',
-      );
-      if (repoFile != null) {
-        final fakeClass = await _generateFakeClassForDependency(
+      final repoFile = discovery.findFileSync('${repoSnake}_repository.dart');
+      fakeSpecs.add(
+        await _requireFakeClassForDependency(
           className: 'Fake$repo',
           interfaceName: repo,
-          filePath: repoFile.path,
+          filePath: repoFile?.path,
           packageName: packageName,
           projectRoot: projectRoot,
           entityTypes: entityTypeSet,
-        );
-        if (fakeClass != null) {
-          fakeSpecs.add(fakeClass);
-        } else {
-          // Fallback: minimal fake.
-          fakeSpecs.add(
-            Class(
-              (c) => c
-                ..name = 'Fake$repo'
-                ..implements.add(refer(repo)),
-            ),
-          );
-        }
-      } else {
-        fakeSpecs.add(
-          Class(
-            (c) => c
-              ..name = 'Fake$repo'
-              ..implements.add(refer(repo)),
-          ),
-        );
-      }
+        ),
+      );
     }
 
     final serviceName = config.effectiveService;
@@ -127,35 +111,16 @@ extension TestBuilderCustom on TestBuilder {
       final serviceFile = discovery.findFileSync(
         '${serviceSnake}_service.dart',
       );
-      if (serviceFile != null) {
-        final fakeClass = await _generateFakeClassForDependency(
+      fakeSpecs.add(
+        await _requireFakeClassForDependency(
           className: 'Fake$serviceName',
           interfaceName: serviceName,
-          filePath: serviceFile.path,
+          filePath: serviceFile?.path,
           packageName: packageName,
           projectRoot: projectRoot,
           entityTypes: entityTypeSet,
-        );
-        if (fakeClass != null) {
-          fakeSpecs.add(fakeClass);
-        } else {
-          fakeSpecs.add(
-            Class(
-              (c) => c
-                ..name = 'Fake$serviceName'
-                ..implements.add(refer(serviceName)),
-            ),
-          );
-        }
-      } else {
-        fakeSpecs.add(
-          Class(
-            (c) => c
-              ..name = 'Fake$serviceName'
-              ..implements.add(refer(serviceName)),
-          ),
-        );
-      }
+        ),
+      );
     }
 
     final mainMethod = Method(
@@ -223,10 +188,11 @@ extension TestBuilderCustom on TestBuilder {
           final groupBody = Block((g) {
             if (paramsType != 'NoParams' &&
                 !KnownTypes.isDartPrimitive(paramsType)) {
+              final paramsBaseType = paramsType.split('<').first.trim();
               g.statements.add(
                 declareFinal(
-                  't$paramsType',
-                ).assign(refer('Fake$paramsType').call([])).statement,
+                  't$paramsBaseType',
+                ).assign(refer('Fake$paramsBaseType').call([])).statement,
               );
             }
 

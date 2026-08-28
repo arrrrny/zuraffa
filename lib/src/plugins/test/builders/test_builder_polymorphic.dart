@@ -39,34 +39,30 @@ extension TestBuilderPolymorphic on TestBuilder {
         final repoSnake = StringUtils.camelToSnake(
           repoBase.replaceAll('Repository', ''),
         );
+        final repoFile = discovery.findFileSync('${repoSnake}_repository.dart');
+        if (repoFile == null) {
+          print(
+            '  ⚠️  Skipping test generation for $className: Repository '
+            'file (${repoSnake}_repository.dart) not found.',
+          );
+          continue;
+        }
+
         final repoSourcePath =
             'package:$packageName/src/domain/repositories/${repoSnake}_repository.dart';
         directives.add(Directive.import(repoSourcePath));
 
         // Generate a Fake{repo}Repository using AST-parsed method signatures.
-        final repoFile = discovery.findFileSync(
-          '${repoSnake}_repository.dart',
-        );
-        if (repoFile != null) {
-          final fakeClass = await _generateFakeClassForDependency(
+        fakeSpecs.add(
+          await _requireFakeClassForDependency(
             className: 'Fake$repoName',
             interfaceName: repoName,
             filePath: repoFile.path,
             packageName: packageName,
             projectRoot: projectRoot,
             entityTypes: {config.name},
-          );
-          if (fakeClass != null) fakeSpecs.add(fakeClass);
-        } else {
-          // Fallback: empty fake (methods never called if file not found).
-          fakeSpecs.add(
-            Class(
-              (c) => c
-                ..name = 'Fake$repoName'
-                ..implements.add(refer(repoName)),
-            ),
-          );
-        }
+          ),
+        );
       }
 
       final mainMethod = Method(

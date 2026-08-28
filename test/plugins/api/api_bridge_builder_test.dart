@@ -46,16 +46,80 @@ void main() {
     required String outputDir,
     required String entitySnake,
     required String entityName,
+    bool includeToJson = true,
   }) async {
     final dir = Directory('$outputDir/domain/entities/$entitySnake');
     await dir.create(recursive: true);
     await File('${dir.path}/$entitySnake.dart').writeAsString(
       'class $entityName { final String id; $entityName({required this.id}); '
-      'Map<String, dynamic> toJson() => {"id": id}; }',
+      '${includeToJson ? 'Map<String, dynamic> toJson() => {"id": id};' : ''} }',
     );
   }
 
   group('ApiBridgeBuilder.generate()', () {
+    test('rejects return entities without a toJson serializer', () async {
+      await createEntity(
+        outputDir: outputDir,
+        entitySnake: 'product',
+        entityName: 'Product',
+        includeToJson: false,
+      );
+      await createUseCase(
+        outputDir: outputDir,
+        entitySnake: 'product',
+        className: 'GetProductUseCase',
+        content: 'class GetProductUseCase extends UseCase<Product, String> {}',
+      );
+
+      final builder = ApiBridgeBuilder(
+        outputDir: outputDir,
+        options: const GeneratorOptions(dryRun: false, force: true),
+      );
+
+      expect(
+        () => builder.generate(
+          GeneratorConfig(name: 'Product', outputDir: outputDir),
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('Product does not expose a toJson() serializer'),
+          ),
+        ),
+      );
+    });
+
+    test('accepts a serializer exposed by generated entity extension', () async {
+      await createEntity(
+        outputDir: outputDir,
+        entitySnake: 'product',
+        entityName: 'Product',
+        includeToJson: false,
+      );
+      await File(
+        '$outputDir/domain/entities/product/product.zorphy.dart',
+      ).writeAsString('''
+part of 'product.dart';
+extension ProductSerialization on Product {
+  Map<String, dynamic> toJson() => {'id': id};
+}
+''');
+      await createUseCase(
+        outputDir: outputDir,
+        entitySnake: 'product',
+        className: 'GetProductUseCase',
+        content: 'class GetProductUseCase extends UseCase<Product, String> {}',
+      );
+
+      final files = await ApiBridgeBuilder(
+        outputDir: outputDir,
+        options: const GeneratorOptions(dryRun: false, force: true),
+      ).generate(GeneratorConfig(name: 'Product', outputDir: outputDir));
+
+      expect(files, hasLength(1));
+    });
+
     test('generates file at correct path for Product entity', () async {
       await createEntity(
         outputDir: outputDir,

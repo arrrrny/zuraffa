@@ -39,6 +39,12 @@ void main() {
       await Directory(
         path.join(outputDir, 'data', 'repositories'),
       ).create(recursive: true);
+      await Directory(
+        path.join(outputDir, 'data', 'datasources', 'product'),
+      ).create(recursive: true);
+      await Directory(
+        path.join(outputDir, 'data', 'mock'),
+      ).create(recursive: true);
 
       // Entity file (so DiscoveryEngine.findFile resolves).
       await File(
@@ -89,6 +95,36 @@ void main() {
           'product_usecase.dart',
         ),
       ).writeAsString('class ProductUseCase {}');
+
+      await File(
+        path.join(
+          outputDir,
+          'data',
+          'datasources',
+          'product',
+          'product_datasource.dart',
+        ),
+      ).writeAsString('abstract class ProductDataSource {}');
+      await File(
+        path.join(
+          outputDir,
+          'data',
+          'datasources',
+          'product',
+          'product_mock_datasource.dart',
+        ),
+      ).writeAsString('class ProductMockDataSource {}');
+      await File(
+        path.join(outputDir, 'data', 'mock', 'product_mock_data.dart'),
+      ).writeAsString('class ProductMockData {}');
+      await File(
+        path.join(
+          outputDir,
+          'data',
+          'repositories',
+          'data_product_repository.dart',
+        ),
+      ).writeAsString('class DataProductRepository {}');
     });
 
     tearDown(() async {

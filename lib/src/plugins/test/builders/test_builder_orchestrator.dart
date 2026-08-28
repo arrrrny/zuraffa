@@ -62,35 +62,16 @@ extension TestBuilderOrchestrator on TestBuilder {
       final usecaseFile = discovery.findFileSync(
         '${usecaseSnake}_usecase.dart',
       );
-      if (usecaseFile != null) {
-        final fakeClass = await _generateFakeClassForDependency(
+      fakeSpecs.add(
+        await _requireFakeClassForDependency(
           className: 'Fake${usecase}UseCase',
           interfaceName: '${usecase}UseCase',
-          filePath: usecaseFile.path,
+          filePath: usecaseFile?.path,
           packageName: packageName,
           projectRoot: projectRoot,
           entityTypes: entityTypes.toSet(),
-        );
-        if (fakeClass != null) {
-          fakeSpecs.add(fakeClass);
-        } else {
-          fakeSpecs.add(
-            Class(
-              (c) => c
-                ..name = 'Fake${usecase}UseCase'
-                ..implements.add(refer('${usecase}UseCase')),
-            ),
-          );
-        }
-      } else {
-        fakeSpecs.add(
-          Class(
-            (c) => c
-              ..name = 'Fake${usecase}UseCase'
-              ..implements.add(refer('${usecase}UseCase')),
-          ),
-        );
-      }
+        ),
+      );
     }
 
     final mainMethod = Method(
