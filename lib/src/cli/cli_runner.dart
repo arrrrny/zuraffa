@@ -30,7 +30,13 @@ import 'plugin_loader.dart';
 class CliRunner {
   final bool exitOnCompletion;
   late final CommandRunner<void> _runner;
-  bool _initialized = false;
+  bool _coreInitialized = false;
+
+  /// Plugin commands are registered separately from the core commands so a
+  /// prior plugin-free command (e.g. `xray`) that skips the plugin boot does
+  /// not prevent a later plugin-backed command from being registered in a
+  /// reused [CliRunner] (issue #531 regression).
+  bool _pluginsInitialized = false;
 
   CliRunner({this.exitOnCompletion = true}) {
     _runner =
@@ -61,39 +67,27 @@ class CliRunner {
   };
 
   void _ensureInitialized([List<String> args = const []]) {
-    if (_initialized) return;
-    _initialized = true;
-
-    // The registry is a process-global singleton. It is always available so
-    // registry-consuming core commands (make/manifest/apply) can bind to it;
-    // for commands that don't need plugins we simply skip populating it.
-    final registry = PluginRegistry.instance;
-
     final skipPlugins =
         args.isNotEmpty && _noPluginCommands.contains(args.first);
 
-    if (!skipPlugins) {
-      final loader = PluginLoader(
-        outputDir: 'lib/src',
-        dryRun: false,
-        force: false,
-        verbose: false,
-        config: PluginConfig(),
-      );
-      final loadedRegistry = loader.buildRegistry();
-      for (final plugin in loadedRegistry.plugins) {
-        if (!registry.plugins.any((p) => p.id == plugin.id)) {
-          registry.register(plugin);
-        }
-      }
-
-      // Add all commands from the registry
-      for (final plugin in registry.plugins.whereType<CliAwarePlugin>()) {
-        _runner.addCommand(plugin.createCommand());
-      }
+    if (!_coreInitialized) {
+      _coreInitialized = true;
+      _addCoreCommands();
     }
 
-    // Add core commands that aren't plugins
+    // Plugin-backed commands are loaded lazily and tracked separately, so a
+    // prior `xray` invocation (which skips the plugin boot) cannot leave a
+    // later non-xray command without its plugin commands in a reused runner.
+    if (!_pluginsInitialized && !skipPlugins) {
+      _pluginsInitialized = true;
+      _loadAndRegisterPlugins();
+    }
+  }
+
+  void _addCoreCommands() {
+    // The registry is a process-global singleton, always available so
+    // registry-consuming core commands (make/manifest/apply) can bind to it.
+    final registry = PluginRegistry.instance;
     _runner.addCommand(SchemaCommand());
     _runner.addCommand(ValidateCommand());
     _runner.addCommand(_CreateCommand());
@@ -112,6 +106,28 @@ class CliRunner {
     _runner.addCommand(UpdateCommand());
     _runner.addCommand(SetupCommand());
     _runner.addCommand(AppCommand());
+  }
+
+  void _loadAndRegisterPlugins() {
+    final registry = PluginRegistry.instance;
+    final loader = PluginLoader(
+      outputDir: 'lib/src',
+      dryRun: false,
+      force: false,
+      verbose: false,
+      config: PluginConfig(),
+    );
+    final loadedRegistry = loader.buildRegistry();
+    for (final plugin in loadedRegistry.plugins) {
+      if (!registry.plugins.any((p) => p.id == plugin.id)) {
+        registry.register(plugin);
+      }
+    }
+
+    // Add all commands from the registry
+    for (final plugin in registry.plugins.whereType<CliAwarePlugin>()) {
+      _runner.addCommand(plugin.createCommand());
+    }
   }
 
   /// Run CLI with arguments.
