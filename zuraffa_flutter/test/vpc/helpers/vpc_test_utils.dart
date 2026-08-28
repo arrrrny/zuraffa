@@ -98,7 +98,6 @@ dependencies:
     path: ${path.normalize(path.join(repoRoot, 'zuraffa_flutter'))}
   get_it: ^9.0.0
 dev_dependencies:
-  mocktail: ^1.0.4
 dependency_overrides:
   meta: ^1.19.0
   analyzer: ^14.0.0

@@ -18,7 +18,7 @@ class ToggleParams<I, F> extends Params {
     Map<String, dynamic>? this.params,
     required I this.id,
     required F this.field,
-    required bool this.value,
+    dynamic this.value,
   }) : super();
 
   factory ToggleParams.fromJson(
@@ -34,13 +34,13 @@ class ToggleParams<I, F> extends Params {
 
   final F field;
 
-  final bool value;
+  final dynamic value;
 
   ToggleParams copyWith({
     Map<String, dynamic>? params,
     I? id,
     F? field,
-    bool? value,
+    dynamic value,
   }) {
     return ToggleParams(
       params: params ?? this.params,
@@ -54,7 +54,7 @@ class ToggleParams<I, F> extends Params {
     Map<String, dynamic>? params,
     I? id,
     F? field,
-    bool? value,
+    dynamic value,
   }) {
     return copyWith(params: params, id: id, field: field, value: value);
   }
@@ -93,7 +93,7 @@ class ToggleParams<I, F> extends Params {
                     : (_patchMap[ToggleParams$.value] is Patch)
                     ? _patchMap[ToggleParams$.value].applyTo(this.value)
                     : _patchMap[ToggleParams$.value])
-                as bool
+                as dynamic
           : this.value,
     );
   }
@@ -157,7 +157,7 @@ class ToggleParamsPatch extends PatchBase<ToggleParams, ToggleParams$> {
     return this;
   }
 
-  ToggleParamsPatch withValue(bool? value) {
+  ToggleParamsPatch withValue(dynamic value) {
     patchMap[ToggleParams$.value] = value;
     return this;
   }
@@ -192,12 +192,12 @@ abstract final class ToggleParamsFields<I, F> {
     return Field<ToggleParams<I, F>, F>('field', _$field<I, F>);
   }
 
-  static bool _$value<I, F>(ToggleParams<I, F> e) {
+  static dynamic _$value<I, F>(ToggleParams<I, F> e) {
     return e.value;
   }
 
-  static Field<ToggleParams<I, F>, bool> value<I, F>() {
-    return Field<ToggleParams<I, F>, bool>('value', _$value<I, F>);
+  static Field<ToggleParams<I, F>, dynamic> value<I, F>() {
+    return Field<ToggleParams<I, F>, dynamic>('value', _$value<I, F>);
   }
 }
 

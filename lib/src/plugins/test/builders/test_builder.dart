@@ -1,6 +1,8 @@
+import 'package:analyzer/dart/ast/ast.dart' as ast;
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
+import '../../../core/ast/file_parser.dart';
 import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';

@@ -196,7 +196,6 @@ void main() {
       expect(names, contains('build_runner'));
       expect(names, contains('json_annotation'));
       expect(names, contains('json_serializable'));
-      expect(names, contains('mocktail'));
       expect(names, contains('flutter_lints'));
       expect(names, contains('analyzer'));
     });
@@ -225,7 +224,6 @@ dependencies:
 dev_dependencies:
   build_runner: ^2.15.2
   json_serializable: ^6.13.2
-  mocktail: ^1.0.4
   flutter_lints: ^6.0.0
 dependency_overrides:
   analyzer: ^13.1.0

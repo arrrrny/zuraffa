@@ -1,19 +1,50 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:path/path.dart' as path;
-import 'package:zuraffa/src/cli/cli_runner.dart';
+import '../helpers/project_root.dart';
 
 void main() {
   group('ApiCommand', () {
     late Directory workspace;
-    late String previousCwd;
+    late String zfaSourceBin;
+    // Handle to the child `dart` process so tearDown can guarantee it is
+    // terminated before the workspace is deleted.
+    Process? zfaProcess;
+
+    // Runs zfa from SOURCE (never a stale compiled binary) as a subprocess
+    // with an explicit workingDirectory. The child process owns its own CWD,
+    // so this test never mutates the parent isolate's `Directory.current` —
+    // which is what previously let the generated bridge leak into the repo
+    // root when this file ran alongside others in a combined suite.
+    Future<ProcessResult> runZfa(List<String> args) async {
+      final process = await Process.start(
+        'dart',
+        [zfaSourceBin, ...args],
+        workingDirectory: workspace.path,
+      );
+      zfaProcess = process;
+
+      final stdoutFuture = process.stdout.transform(utf8.decoder).join();
+      final stderrFuture = process.stderr.transform(utf8.decoder).join();
+      final exitCode = await process.exitCode;
+      final stdout = await stdoutFuture;
+      final stderr = await stderrFuture;
+      return ProcessResult(process.pid, exitCode, stdout, stderr);
+    }
+
+    setUpAll(() async {
+      final projectRoot = await findProjectRoot();
+      zfaSourceBin = path.join(projectRoot, 'bin', 'zfa.dart');
+    });
 
     setUp(() async {
       workspace = await Directory.systemTemp.createTemp('zfa_api_command_');
+
       // UseCases are discovered under lib/src/domain/usecases/<entity>/
       // and the bridge is written under lib/src/api/bridges/ — both
-      // relative to the current working directory.
+      // relative to the child process's working directory (the workspace).
       final usecaseDir = Directory(
         path.join(workspace.path, 'lib', 'src', 'domain', 'usecases', 'product'),
       );
@@ -35,80 +66,91 @@ class Product {
   final String id;
 
   const Product({required this.id});
+
+  Map<String, dynamic> toJson() => {'id': id};
 }
 ''');
-
-      previousCwd = Directory.current.path;
-      Directory.current = workspace.path;
     });
 
     tearDown(() async {
-      // Restore CWD to a known-valid directory before deleting the workspace
-      // so other test files that call findProjectRoot() at startup don't
-      // inherit a deleted temp path as their CWD.
-      try {
-        if (Directory(previousCwd).existsSync()) {
-          Directory.current = previousCwd;
-        } else {
-          Directory.current = Directory.systemTemp.path;
-        }
-      } catch (_) {
+      // Terminate any still-running subprocess BEFORE deleting its workspace
+      // (a timed-out child may still be holding the directory).
+      if (zfaProcess != null) {
         try {
-          Directory.current = Directory.systemTemp.path;
-        } catch (_) {}
+          zfaProcess!.kill(ProcessSignal.sigkill);
+        } catch (_) {
+          // Already exited — ignore.
+        }
+        await zfaProcess!.exitCode
+            .timeout(const Duration(seconds: 10))
+            .catchError((_) => -1);
+        zfaProcess = null;
       }
       if (workspace.existsSync()) {
-        await workspace.delete(recursive: true);
+        try {
+          await workspace.delete(recursive: true);
+        } on PathNotFoundException {
+          // A late-exiting child may still be removing files concurrently;
+          // tolerate ENOENT during recursive enumeration.
+        }
       }
     });
 
-    test('zfa api <Entity> generates the bridge and does not throw',
-        () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing(['api', 'Product']);
+    test(
+      'zfa api <Entity> generates the bridge and does not throw',
+      timeout: const Timeout(Duration(minutes: 2)),
+      () async {
+        final result = await runZfa(['api', 'Product']);
+        expect(
+          result.exitCode,
+          equals(0),
+          reason: 'stderr: ${result.stderr}\nstdout: ${result.stdout}',
+        );
 
-      // Must not be a UsageException / unknown-subcommand failure.
-      expect(output, isNot(contains('Could not find a subcommand')));
-      expect(output, isNot(contains('Usage:')));
+        final bridge = File(
+          path.join(
+            workspace.path,
+            'lib',
+            'src',
+            'api',
+            'bridges',
+            'product_api_bridge.dart',
+          ),
+        );
+        expect(bridge.existsSync(), isTrue,
+            reason: 'expected lib/src/api/bridges/product_api_bridge.dart');
+      },
+    );
 
-      final bridge = File(
-        path.join(
-          workspace.path,
-          'lib',
-          'src',
+    test(
+      'zfa api <Entity> --domain <name> still generates the bridge',
+      timeout: const Timeout(Duration(minutes: 2)),
+      () async {
+        final result = await runZfa([
           'api',
-          'bridges',
-          'product_api_bridge.dart',
-        ),
-      );
-      expect(bridge.existsSync(), isTrue,
-          reason: 'expected lib/src/api/bridges/product_api_bridge.dart');
-    });
+          'Product',
+          '--domain',
+          'billing',
+        ]);
+        expect(
+          result.exitCode,
+          equals(0),
+          reason: 'stderr: ${result.stderr}\nstdout: ${result.stdout}',
+        );
 
-    test('zfa api <Entity> --domain <name> still generates the bridge',
-        () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing([
-        'api',
-        'Product',
-        '--domain',
-        'billing',
-      ]);
-
-      expect(output, isNot(contains('Could not find a subcommand')));
-
-      final bridge = File(
-        path.join(
-          workspace.path,
-          'lib',
-          'src',
-          'api',
-          'bridges',
-          'product_api_bridge.dart',
-        ),
-      );
-      expect(bridge.existsSync(), isTrue,
-          reason: 'expected bridge with --domain flag');
-    });
+        final bridge = File(
+          path.join(
+            workspace.path,
+            'lib',
+            'src',
+            'api',
+            'bridges',
+            'product_api_bridge.dart',
+          ),
+        );
+        expect(bridge.existsSync(), isTrue,
+            reason: 'expected bridge with --domain flag');
+      },
+    );
   });
 }

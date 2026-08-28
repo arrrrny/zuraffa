@@ -145,7 +145,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  mocktail: ^1.0.4
 ''';
     File('$dir/pubspec.yaml').writeAsStringSync(content);
     if (verbose) print('  Created $dir/pubspec.yaml');

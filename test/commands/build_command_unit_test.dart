@@ -570,6 +570,9 @@ Analyzing lib/...
       test(
         'runs `dart analyze lib` without the rejected --fatal-infos=value '
         'flag and reports no errors on the current (warning/info-only) lib',
+        // `dart analyze lib` over the whole package takes ~30s on this repo,
+        // so the default 30s per-test timeout is too tight. Give it headroom.
+        timeout: const Timeout(Duration(minutes: 2)),
         () async {
           // Regression for #415: the guard previously invoked
           // `dart analyze --fatal-infos=false lib`, which the analyzer rejects
