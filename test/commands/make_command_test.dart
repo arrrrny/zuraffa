@@ -787,6 +787,36 @@ abstract class \$ChatMessage {
     /// Pre-existing usecase sources (the #508 premise: the usecases already
     /// exist; --test only regenerates their test files). The marker comment
     /// lets the red-path test prove no file was touched.
+    /// Native mock infrastructure (datasource interface, mock datasource, mock
+    /// data, and the Data*Repository) at the canonical locations the test
+    /// builder resolves via the discovery engine. Contents are stubs — the
+    /// regenerated usecase tests are never executed by this suite, the
+    /// assertions only check they were produced and reference the right field.
+    Future<void> writeExistingMockInfra() async {
+      final dsDir = Directory(
+        path.join(outputDir, 'data', 'datasources', 'chat_message'),
+      );
+      await dsDir.create(recursive: true);
+      await File(
+        path.join(dsDir.path, 'chat_message_datasource.dart'),
+      ).writeAsString('// FIXTURE-STUB datasource\n');
+      await File(
+        path.join(dsDir.path, 'chat_message_mock_datasource.dart'),
+      ).writeAsString('// FIXTURE-STUB mock datasource\n');
+
+      final mockDir = Directory(path.join(outputDir, 'data', 'mock'));
+      await mockDir.create(recursive: true);
+      await File(
+        path.join(mockDir.path, 'chat_message_mock_data.dart'),
+      ).writeAsString('// FIXTURE-STUB mock data\n');
+
+      final repoDir = Directory(path.join(outputDir, 'data', 'repositories'));
+      await repoDir.create(recursive: true);
+      await File(
+        path.join(repoDir.path, 'data_chat_message_repository.dart'),
+      ).writeAsString('// FIXTURE-STUB data repository\n');
+    }
+
     Future<void> writeExistingUseCases() async {
       final dir = Directory(
         path.join(outputDir, 'domain', 'usecases', 'chat_message'),
@@ -797,6 +827,11 @@ abstract class \$ChatMessage {
           path.join(dir.path, '${method}_chat_message_usecase.dart'),
         ).writeAsString('// FIXTURE-STUB $method\n');
       }
+      // Seed the native mock infrastructure that `zfa make <Entity> --mock`
+      // would generate. The id-neutral (--test) regeneration path requires
+      // these to exist, otherwise the test builder skips generation with
+      // "Native mock file (…) not found" and no usecase test is produced.
+      await writeExistingMockInfra();
     }
 
     test(
