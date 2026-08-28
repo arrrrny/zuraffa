@@ -163,11 +163,14 @@ class GenerateCommandsCommand extends Command<void> {
 
   String _renderMarkdown(_CommandEntry entry) {
     final title = _titleCase(entry.capabilityName);
+    final name = _yamlEscape(entry.commandName);
+    final description = _yamlEscape(entry.description);
+    final category = _yamlEscape(entry.category);
     return '''
 ---
-name: "${entry.commandName}"
-description: "${entry.description}"
-category: "${entry.category}"
+name: "$name"
+description: "$description"
+category: "$category"
 ---
 
 # $title: ${entry.description}
@@ -222,3 +225,7 @@ String _titleCase(String name) =>
       if (part.isEmpty) return part;
       return part[0].toUpperCase() + part.substring(1);
     }).join(' ');
+
+/// Escapes double quotes so untrusted capability metadata can't break the
+/// double-quoted YAML frontmatter emitted by [_renderMarkdown].
+String _yamlEscape(String value) => value.replaceAll('"', r'\"');
