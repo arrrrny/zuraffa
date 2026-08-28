@@ -656,6 +656,16 @@ export 'src/cli/standard/standard.dart';
 // `package:zuraffa/src/agent/ui_render/ui_vocabulary_schema.dart` directly.
 export 'src/agent/ui_render/ui_render.dart' hide ValidationResult, ValidationError;
 
+// ── 026-agent-kernel-mission — mission coalescing, cancellation, partial-salvage ──
+// The agent kernel's efficiency + safety core. Identical missions coalesce
+// into one execution via a composite key (spark type + normalized value +
+// country + strategy variant); mid-execution cancellation triggers a grace
+// period that disposes resources and salvages partials as `cancelled_partial`;
+// an idempotency cache serves repeated submissions within TTL. Single-isolate
+// assumption documented; MissionExecutor is the multi-isolate extension point.
+// Pure-Dart (no package:flutter import anywhere in this subtree).
+export 'src/agent/kernel/agent_kernel.dart' hide CancelToken;
+
 // ============================================================
 // Framework Configuration
 // ============================================================
