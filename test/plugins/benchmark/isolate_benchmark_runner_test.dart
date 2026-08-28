@@ -2,7 +2,6 @@
 // behaviors U44–U46 of specs/015-benchmark-plugin/tdd/test-list.md.
 import 'package:test/test.dart';
 import 'package:zuraffa/src/core/benchmark/benchmark_result.dart';
-import 'package:zuraffa/src/core/benchmark/benchmark_runner.dart';
 import 'package:zuraffa/src/core/benchmark/isolate_benchmark_runner.dart';
 
 import 'helpers/fake_scenarios.dart';

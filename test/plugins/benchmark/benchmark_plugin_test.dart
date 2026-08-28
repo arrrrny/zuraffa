@@ -1,10 +1,7 @@
 // Tests for lib/src/plugins/benchmark/benchmark_plugin.dart — behaviors
 // U57–U60 of specs/015-benchmark-plugin/tdd/test-list.md.
 import 'package:test/test.dart';
-import 'package:zuraffa/src/core/benchmark/benchmark_contract.dart';
-import 'package:zuraffa/src/core/benchmark/benchmark_result.dart';
 import 'package:zuraffa/src/plugins/benchmark/benchmark_plugin.dart';
-import 'package:zuraffa/src/plugins/benchmark/scenario_provider.dart';
 
 import 'helpers/fake_scenarios.dart';
 
@@ -118,7 +115,6 @@ void main() {
 class _FakeProvider implements BenchmarkScenarioProvider {
   _FakeProvider(this.scenarios);
 
-  @override
   final List<BenchmarkContract> scenarios;
 
   @override

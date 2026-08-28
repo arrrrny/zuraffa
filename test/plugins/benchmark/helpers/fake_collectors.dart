@@ -15,8 +15,8 @@ class RecordingCollector implements MetricCollector {
   final Map<String, num> metrics;
   final bool throwInCollect;
 
-  /// Ordered lifecycle calls: 'initialize', 'beforeBenchmark:<id>',
-  /// 'collect:<id>', 'finalize'.
+  /// Ordered lifecycle calls: 'initialize', 'beforeBenchmark:MYID',
+  /// 'collect:MYID', 'finalize'.
   final List<String> calls = [];
 
   /// The contexts received by collect, keyed by scenario id.

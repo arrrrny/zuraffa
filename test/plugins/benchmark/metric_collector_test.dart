@@ -3,7 +3,6 @@
 import 'package:test/test.dart';
 import 'package:zuraffa/src/core/benchmark/benchmark_result.dart';
 import 'package:zuraffa/src/core/benchmark/benchmark_runner.dart';
-import 'package:zuraffa/src/core/benchmark/metric_collector.dart';
 
 import 'helpers/fake_collectors.dart';
 import 'helpers/fake_scenarios.dart';
