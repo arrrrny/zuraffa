@@ -77,7 +77,7 @@ void main() {
       await plugin.discoverAndRegisterScenarios();
 
       final output = await captureOutput(
-        () => runner.run(['benchmark', 'run']),
+        () => runner.run(['benchmark', 'run', '--store', tempDir.path]),
       );
 
       // Per-benchmark results and the aggregate verdict are printed.
