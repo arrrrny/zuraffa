@@ -14,8 +14,10 @@ void main() {
     group('bind resolves from host DI (FR-007)', () {
       test('U36: bind resolves dependencies from host container', () async {
         final container = FakeDiContainer();
-        container.register<UserRepository>('UserRepository',
-          UserRepositoryImpl());
+        container.register<UserRepository>(
+          'UserRepository',
+          UserRepositoryImpl(),
+        );
 
         final shared = SharedCommand.of(
           StandardCommand(

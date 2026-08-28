@@ -80,8 +80,10 @@ void main() {
         registry.register(makeCommand('list'), ownerApp: 'B');
         final all = registry.enumerate();
         expect(all, hasLength(2));
-        expect(all.map((c) => c.key.toString()).toSet(),
-            equals({'A/greet', 'B/list'}));
+        expect(
+          all.map((c) => c.key.toString()).toSet(),
+          equals({'A/greet', 'B/list'}),
+        );
       });
 
       test('U26: enumerateFor scopes by owner', () {

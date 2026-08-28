@@ -37,25 +37,25 @@ void main() {
     'zfa xray mock CLI integration',
     timeout: const Timeout(Duration(minutes: 2)),
     () {
-    test('scaffolds @XRayMock onto a usecase file', () async {
-      // Create the usecases directory so the command proceeds past
-      // the directory-exists check, but leave it empty.
-      Directory(
-        p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'),
-      ).createSync(recursive: true);
+      test('scaffolds @XRayMock onto a usecase file', () async {
+        // Create the usecases directory so the command proceeds past
+        // the directory-exists check, but leave it empty.
+        Directory(
+          p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'),
+        ).createSync(recursive: true);
 
-      // Scaffold a usecase file.
-      final usecaseDir = p.join(
-        tempDir.path,
-        'lib',
-        'src',
-        'domain',
-        'usecases',
-        'user',
-      );
-      final usecaseFile = File(p.join(usecaseDir, 'get_user_usecase.dart'));
-      usecaseFile.parent.createSync(recursive: true);
-      usecaseFile.writeAsStringSync('''
+        // Scaffold a usecase file.
+        final usecaseDir = p.join(
+          tempDir.path,
+          'lib',
+          'src',
+          'domain',
+          'usecases',
+          'user',
+        );
+        final usecaseFile = File(p.join(usecaseDir, 'get_user_usecase.dart'));
+        usecaseFile.parent.createSync(recursive: true);
+        usecaseFile.writeAsStringSync('''
 import 'package:zuraffa/zuraffa.dart';
 
 class GetUserUseCase extends UseCase<User, String> {
@@ -67,143 +67,152 @@ class GetUserUseCase extends UseCase<User, String> {
 }
 ''');
 
-      // Run the CLI command.
-      await runZfaSource(
-        ['xray', 'mock', 'User', '--root', tempDir.path],
-        workingDirectory: zfaProjectRoot,
+        // Run the CLI command.
+        await runZfaSource([
+          'xray',
+          'mock',
+          'User',
+          '--root',
+          tempDir.path,
+        ], workingDirectory: zfaProjectRoot);
+
+        // Verify the annotation was injected.
+        final content = usecaseFile.readAsStringSync();
+        expect(content, contains('@XRayMock('));
+        expect(content, contains("name: 'Valid entry'"));
+        expect(
+          content,
+          contains("import 'package:zuraffa_flutter/zuraffa_flutter.dart';"),
+        );
+      });
+
+      test(
+        'prints a helpful message when no usecase files are found',
+        () async {
+          // Create the usecases directory so the command proceeds past
+          // the directory-exists check, but leave it empty.
+          Directory(
+            p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'),
+          ).createSync(recursive: true);
+
+          final result = await runZfaSource([
+            'xray',
+            'mock',
+            'Nonexistent',
+            '--root',
+            tempDir.path,
+          ], workingDirectory: zfaProjectRoot);
+
+          expect(combinedOutput(result), contains('No usecase files found'));
+        },
       );
 
-      // Verify the annotation was injected.
-      final content = usecaseFile.readAsStringSync();
-      expect(content, contains('@XRayMock('));
-      expect(content, contains("name: 'Valid entry'"));
-      expect(
-        content,
-        contains("import 'package:zuraffa_flutter/zuraffa_flutter.dart';"),
-      );
-    });
+      test('dry-run does not modify files', () async {
+        // Create the usecases directory so the command proceeds past
+        // the directory-exists check, but leave it empty.
+        Directory(
+          p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'),
+        ).createSync(recursive: true);
 
-    test('prints a helpful message when no usecase files are found', () async {
-      // Create the usecases directory so the command proceeds past
-      // the directory-exists check, but leave it empty.
-      Directory(
-        p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'),
-      ).createSync(recursive: true);
-
-      final result = await runZfaSource([
-        'xray',
-        'mock',
-        'Nonexistent',
-        '--root',
-        tempDir.path,
-      ], workingDirectory: zfaProjectRoot);
-
-      expect(combinedOutput(result), contains('No usecase files found'));
-    });
-
-    test('dry-run does not modify files', () async {
-      // Create the usecases directory so the command proceeds past
-      // the directory-exists check, but leave it empty.
-      Directory(
-        p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'),
-      ).createSync(recursive: true);
-
-      final usecaseDir = p.join(
-        tempDir.path,
-        'lib',
-        'src',
-        'domain',
-        'usecases',
-        'product',
-      );
-      final usecaseFile = File(p.join(usecaseDir, 'get_product_usecase.dart'));
-      usecaseFile.parent.createSync(recursive: true);
-      final original = '''
+        final usecaseDir = p.join(
+          tempDir.path,
+          'lib',
+          'src',
+          'domain',
+          'usecases',
+          'product',
+        );
+        final usecaseFile = File(
+          p.join(usecaseDir, 'get_product_usecase.dart'),
+        );
+        usecaseFile.parent.createSync(recursive: true);
+        final original = '''
 class GetProductUseCase extends UseCase<Product, String> {}
 ''';
-      usecaseFile.writeAsStringSync(original);
+        usecaseFile.writeAsStringSync(original);
 
-      final result = await runZfaSource([
-        'xray',
-        'mock',
-        'Product',
-        '--root',
-        tempDir.path,
-        '--dry-run',
-      ], workingDirectory: zfaProjectRoot);
+        final result = await runZfaSource([
+          'xray',
+          'mock',
+          'Product',
+          '--root',
+          tempDir.path,
+          '--dry-run',
+        ], workingDirectory: zfaProjectRoot);
 
-      expect(result.exitCode, 0, reason: 'dry-run must exit successfully');
-      expect(usecaseFile.readAsStringSync(), equals(original));
-    });
+        expect(result.exitCode, 0, reason: 'dry-run must exit successfully');
+        expect(usecaseFile.readAsStringSync(), equals(original));
+      });
 
-    test('zfa xray --help lists the mock subcommand', () async {
-      final result = await runZfaSource(
-        ['xray', '--help'],
-        workingDirectory: zfaProjectRoot,
-      );
-      expect(combinedOutput(result), contains('mock'));
-    });
+      test('zfa xray --help lists the mock subcommand', () async {
+        final result = await runZfaSource([
+          'xray',
+          '--help',
+        ], workingDirectory: zfaProjectRoot);
+        expect(combinedOutput(result), contains('mock'));
+      });
 
-    test('next-step deck hint includes the required --source', () async {
-      Directory(
-        p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'),
-      ).createSync(recursive: true);
+      test('next-step deck hint includes the required --source', () async {
+        Directory(
+          p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'),
+        ).createSync(recursive: true);
 
-      final usecaseDir = p.join(
-        tempDir.path,
-        'lib',
-        'src',
-        'domain',
-        'usecases',
-        'order',
-      );
-      final usecaseFile = File(p.join(usecaseDir, 'get_order_usecase.dart'));
-      usecaseFile.parent.createSync(recursive: true);
-      usecaseFile.writeAsStringSync('''
+        final usecaseDir = p.join(
+          tempDir.path,
+          'lib',
+          'src',
+          'domain',
+          'usecases',
+          'order',
+        );
+        final usecaseFile = File(p.join(usecaseDir, 'get_order_usecase.dart'));
+        usecaseFile.parent.createSync(recursive: true);
+        usecaseFile.writeAsStringSync('''
 class GetOrderUseCase extends UseCase<Order, String> {}
 ''');
 
-      final output = await runZfaSource([
-        'xray',
-        'mock',
-        'Order',
-        '--root',
-        tempDir.path,
-      ], workingDirectory: zfaProjectRoot);
+        final output = await runZfaSource([
+          'xray',
+          'mock',
+          'Order',
+          '--root',
+          tempDir.path,
+        ], workingDirectory: zfaProjectRoot);
 
-      final outputStr = combinedOutput(output);
+        final outputStr = combinedOutput(output);
 
-      // The printed deck command must be runnable as-is: `zfa xray deck`
-      // errors out with "provide --source and/or --yaml" when --source is
-      // missing (issue #360 review finding).
-      expect(outputStr, contains('zfa xray deck --entity Order --source'));
-      expect(
-        outputStr,
-        contains('lib/src/domain/usecases/order/get_order_usecase.dart'),
-      );
+        // The printed deck command must be runnable as-is: `zfa xray deck`
+        // errors out with "provide --source and/or --yaml" when --source is
+        // missing (issue #360 review finding).
+        expect(outputStr, contains('zfa xray deck --entity Order --source'));
+        expect(
+          outputStr,
+          contains('lib/src/domain/usecases/order/get_order_usecase.dart'),
+        );
 
-      // Execute the hinted deck command verbatim — it must generate the
-      // deck + barrel without further flags.
-      final deckResult = await runZfaSource([
-        'xray',
-        'deck',
-        '--entity',
-        'Order',
-        '--source',
-        'lib/src/domain/usecases/order/get_order_usecase.dart',
-        '--root',
-        tempDir.path,
-      ], workingDirectory: zfaProjectRoot);
+        // Execute the hinted deck command verbatim — it must generate the
+        // deck + barrel without further flags.
+        final deckResult = await runZfaSource([
+          'xray',
+          'deck',
+          '--entity',
+          'Order',
+          '--source',
+          'lib/src/domain/usecases/order/get_order_usecase.dart',
+          '--root',
+          tempDir.path,
+        ], workingDirectory: zfaProjectRoot);
 
-      final deckOutput = combinedOutput(deckResult);
-      expect(deckOutput, contains('Generated'));
-      expect(deckOutput, isNot(contains('provide --source')));
-      expect(
-        File(
-          p.join(tempDir.path, 'lib', 'src', 'xray', 'order_xray_deck.dart'),
-        ).existsSync(),
-        isTrue,
-      );
-    });
-  });
+        final deckOutput = combinedOutput(deckResult);
+        expect(deckOutput, contains('Generated'));
+        expect(deckOutput, isNot(contains('provide --source')));
+        expect(
+          File(
+            p.join(tempDir.path, 'lib', 'src', 'xray', 'order_xray_deck.dart'),
+          ).existsSync(),
+          isTrue,
+        );
+      });
+    },
+  );
 }

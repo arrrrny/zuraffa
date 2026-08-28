@@ -541,9 +541,7 @@ class MakeCommand extends Command<void> {
                 'plugins implied by config defaults (${dropped.join(', ')}) '
                 'so id-neutral (--test/--mock) regeneration can proceed.',
               );
-              activePlugins.removeWhere(
-                (p) => impliedIdDependent.contains(p),
-              );
+              activePlugins.removeWhere((p) => impliedIdDependent.contains(p));
             } else {
               print(
                 '❌ Cannot generate architecture for "$entityName": the entity '
@@ -695,15 +693,18 @@ class MakeCommand extends Command<void> {
 
     // `--methods` implies the usecase plugin (PlanResolver._hasEntityMethods).
     final methods = _splitListOption(
-      ar.options.contains('methods') ? ar['methods'] : normalizedOptions['methods'],
+      ar.options.contains('methods')
+          ? ar['methods']
+          : normalizedOptions['methods'],
     );
     if (ar.wasParsed('methods') && methods.isNotEmpty) {
       explicit.add('usecase');
     }
 
     // `--service` implies usecase + service + provider.
-    final service =
-        ar.options.contains('service') ? ar['service'] : normalizedOptions['service'];
+    final service = ar.options.contains('service')
+        ? ar['service']
+        : normalizedOptions['service'];
     if (ar.wasParsed('service') &&
         (service == true || (service is String && service.isNotEmpty))) {
       explicit

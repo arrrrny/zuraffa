@@ -16,9 +16,7 @@ void main() {
         final sink = FakeInvocationSink();
         final cmd = sink.command(
           name: 'greet',
-          arguments: const [
-            CommandArgument(name: 'who', required: true),
-          ],
+          arguments: const [CommandArgument(name: 'who', required: true)],
         );
         // Simulate the invocation the CliApp would build.
         final inv = CliInvocation(
@@ -54,9 +52,7 @@ void main() {
         final sink = FakeInvocationSink();
         final cmd = sink.command(
           name: 'greet',
-          flags: const [
-            CommandFlag(name: '--loud', defaultsTo: false),
-          ],
+          flags: const [CommandFlag(name: '--loud', defaultsTo: false)],
         );
         final inv = CliInvocation(
           arguments: const [],
@@ -116,9 +112,7 @@ void main() {
         final cmd = StandardCommand(
           name: 'greet',
           description: 'test',
-          flags: const [
-            CommandFlag(name: '--name', takesValue: true),
-          ],
+          flags: const [CommandFlag(name: '--name', takesValue: true)],
           handler: (_) async => const SuccessResult(),
         );
         // The command's declared flag set is the contract; an undeclared

@@ -22,48 +22,50 @@ void main() {
 
   group('useZorphy flag for update method in mock provider', () {
     test(
-        'mock provider emits EntityPatch when useZorphy=true (default)',
-        () async {
-      // Scaffold the entity file
-      await _scaffoldEntity(outputDir, 'Product');
+      'mock provider emits EntityPatch when useZorphy=true (default)',
+      () async {
+        // Scaffold the entity file
+        await _scaffoldEntity(outputDir, 'Product');
 
-      final plugin = MockPlugin(
-        outputDir: outputDir,
-        options: const GeneratorOptions(
-          dryRun: false,
-          force: true,
-          verbose: false,
-        ),
-      );
-      final config = GeneratorConfig(
-        name: 'Product',
-        service: 'Product',
-        domain: 'product',
-        methods: ['update'],
-        generateMock: true,
-        generateData: true, // Required to trigger mock provider generation
-        useZorphy: true,
-        outputDir: outputDir,
-      );
-      final files = await plugin.generate(config);
-      // Filter for mock provider files
-      final mockProviderFiles =
-          files.where((f) => f.type == 'mock_provider').toList();
-      expect(mockProviderFiles.isNotEmpty, isTrue);
-      final content = mockProviderFiles.first.content ?? '';
+        final plugin = MockPlugin(
+          outputDir: outputDir,
+          options: const GeneratorOptions(
+            dryRun: false,
+            force: true,
+            verbose: false,
+          ),
+        );
+        final config = GeneratorConfig(
+          name: 'Product',
+          service: 'Product',
+          domain: 'product',
+          methods: ['update'],
+          generateMock: true,
+          generateData: true, // Required to trigger mock provider generation
+          useZorphy: true,
+          outputDir: outputDir,
+        );
+        final files = await plugin.generate(config);
+        // Filter for mock provider files
+        final mockProviderFiles = files
+            .where((f) => f.type == 'mock_provider')
+            .toList();
+        expect(mockProviderFiles.isNotEmpty, isTrue);
+        final content = mockProviderFiles.first.content ?? '';
 
-      // With useZorphy=true (default), should emit ProductPatch
-      expect(
-        content.contains('UpdateParams<String, ProductPatch>'),
-        isTrue,
-        reason: 'useZorphy=true should emit EntityPatch for update params',
-      );
-      expect(
-        content.contains('Partial<Product>'),
-        isFalse,
-        reason: 'useZorphy=true should NOT emit Partial<Entity>',
-      );
-    });
+        // With useZorphy=true (default), should emit ProductPatch
+        expect(
+          content.contains('UpdateParams<String, ProductPatch>'),
+          isTrue,
+          reason: 'useZorphy=true should emit EntityPatch for update params',
+        );
+        expect(
+          content.contains('Partial<Product>'),
+          isFalse,
+          reason: 'useZorphy=true should NOT emit Partial<Entity>',
+        );
+      },
+    );
 
     test('mock provider emits Partial<Entity> when useZorphy=false', () async {
       // Scaffold the entity file
@@ -89,8 +91,9 @@ void main() {
       );
       final files = await plugin.generate(config);
       // Filter for mock provider files
-      final mockProviderFiles =
-          files.where((f) => f.type == 'mock_provider').toList();
+      final mockProviderFiles = files
+          .where((f) => f.type == 'mock_provider')
+          .toList();
       expect(mockProviderFiles.isNotEmpty, isTrue);
       final content = mockProviderFiles.first.content ?? '';
 

@@ -52,7 +52,8 @@ abstract class StatefulScreen extends nocterm.StatefulComponent {
 /// Subclasses override [build] to declare the component tree and call
 /// [setState] whenever the state mutates. The framework schedules a re-render
 /// of the affected view (FR-003).
-abstract class TuiScreenState<T extends StatefulScreen> extends nocterm.State<T> {
+abstract class TuiScreenState<T extends StatefulScreen>
+    extends nocterm.State<T> {
   /// Called when a keyboard event is delivered to this screen while focused.
   ///
   /// Default implementation does nothing. Override to handle navigation,

@@ -3,45 +3,42 @@ import 'package:zuraffa/src/plugins/tui/theme/theme.dart';
 
 void main() {
   group('ZuraffaTuiTheme (FR-005, SC-003)', () {
-    test(
-      'A8 / U20: defaultTheme() returns a complete vocabulary — colors, '
-      'emphasis, spacing, status semantics',
-      () {
-        final theme = ZuraffaTuiTheme.defaultTheme();
+    test('A8 / U20: defaultTheme() returns a complete vocabulary — colors, '
+        'emphasis, spacing, status semantics', () {
+      final theme = ZuraffaTuiTheme.defaultTheme();
 
-        // Primary / secondary / accent / background.
-        expect(theme.primary, isA<TuiColor>());
-        expect(theme.primary.fg, isNotEmpty);
-        expect(theme.secondary, isA<TuiColor>());
-        expect(theme.accent, isA<TuiColor>());
-        expect(theme.background, isA<TuiColor>());
+      // Primary / secondary / accent / background.
+      expect(theme.primary, isA<TuiColor>());
+      expect(theme.primary.fg, isNotEmpty);
+      expect(theme.secondary, isA<TuiColor>());
+      expect(theme.accent, isA<TuiColor>());
+      expect(theme.background, isA<TuiColor>());
 
-        // Emphasis levels.
-        expect(theme.emphasis.high, isA<TuiColor>());
-        expect(theme.emphasis.medium, isA<TuiColor>());
-        expect(theme.emphasis.low, isA<TuiColor>());
-        expect(theme.emphasis.muted, isA<TuiColor>());
+      // Emphasis levels.
+      expect(theme.emphasis.high, isA<TuiColor>());
+      expect(theme.emphasis.medium, isA<TuiColor>());
+      expect(theme.emphasis.low, isA<TuiColor>());
+      expect(theme.emphasis.muted, isA<TuiColor>());
 
-        // Spacing scale.
-        expect(theme.spacing.xxs, isA<int>());
-        expect(theme.spacing.sm, lessThan(theme.spacing.lg));
+      // Spacing scale.
+      expect(theme.spacing.xxs, isA<int>());
+      expect(theme.spacing.sm, lessThan(theme.spacing.lg));
 
-        // Status semantics.
-        expect(theme.status.success, isA<TuiColor>());
-        expect(theme.status.warning, isA<TuiColor>());
-        expect(theme.status.error, isA<TuiColor>());
-        expect(theme.status.info, isA<TuiColor>());
+      // Status semantics.
+      expect(theme.status.success, isA<TuiColor>());
+      expect(theme.status.warning, isA<TuiColor>());
+      expect(theme.status.error, isA<TuiColor>());
+      expect(theme.status.info, isA<TuiColor>());
 
-        // Each status color must be distinct (semantic, not aesthetic).
-        final statuses = {
-          theme.status.success,
-          theme.status.warning,
-          theme.status.error,
-          theme.status.info,
-        };
-        expect(statuses.length, 4, reason: 'each status color must be unique');
-      },
-    );
+      // Each status color must be distinct (semantic, not aesthetic).
+      final statuses = {
+        theme.status.success,
+        theme.status.warning,
+        theme.status.error,
+        theme.status.info,
+      };
+      expect(statuses.length, 4, reason: 'each status color must be unique');
+    });
 
     test('ZuraffaTuiTheme is immutable: same defaults are ==', () {
       final a = ZuraffaTuiTheme.defaultTheme();

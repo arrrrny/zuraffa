@@ -216,7 +216,9 @@ class PluginCommand {
   /// directory). Tests and advanced users pass it explicitly so the command
   /// is hermetic and does not depend on the process working directory.
   void _addPlugin(String packageName, {String? root}) {
-    final mainFile = File(p.join(root ?? Directory.current.path, 'lib', 'main.dart'));
+    final mainFile = File(
+      p.join(root ?? Directory.current.path, 'lib', 'main.dart'),
+    );
     if (!mainFile.existsSync()) {
       print(
         'Error: lib/main.dart not found. Run from your Flutter project root.',

@@ -1,4 +1,3 @@
-
 import 'package:args/command_runner.dart';
 
 import '../migration/migration_models.dart';

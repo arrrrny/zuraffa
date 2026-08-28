@@ -20,26 +20,11 @@ library;
 
 // Primitive + layout primitives (FR-004).
 export 'package:nocterm/nocterm.dart'
-    show
-        Text,
-        SizedBox,
-        Row,
-        Column,
-        Center,
-        Divider,
-        Spacer,
-        Stack,
-        Scrollbar;
+    show Text, SizedBox, Row, Column, Center, Divider, Spacer, Stack, Scrollbar;
 
 // Standard interactive widgets (FR-004).
 export 'package:nocterm/nocterm.dart'
-    show
-        ListView,
-        TextField,
-        Focusable,
-        FocusScope,
-        Navigator,
-        ProgressBar;
+    show ListView, TextField, Focusable, FocusScope, Navigator, ProgressBar;
 
 // Zuraffa-specific widget additions.
 export 'table.dart' show Table;

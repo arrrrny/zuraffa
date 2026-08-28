@@ -62,9 +62,7 @@ class CliRunner {
   /// per-test timeout on the `xray` integration tests (issue #531). We skip
   /// the heavy plugin boot for them; the core commands below are always
   /// registered regardless.
-  static const Set<String> _noPluginCommands = {
-    'xray',
-  };
+  static const Set<String> _noPluginCommands = {'xray'};
 
   void _ensureInitialized([List<String> args = const []]) {
     final skipPlugins =

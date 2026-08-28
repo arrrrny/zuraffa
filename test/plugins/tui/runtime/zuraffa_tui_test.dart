@@ -19,12 +19,13 @@ void main() {
         expect(
           run,
           isA<
-              Future<void> Function(
-            Screen, {
-            ZuraffaDIContainer? di,
-            ZuraffaTuiTheme? theme,
-            KeyBindings? keys,
-          })>(),
+            Future<void> Function(
+              Screen, {
+              ZuraffaDIContainer? di,
+              ZuraffaTuiTheme? theme,
+              KeyBindings? keys,
+            })
+          >(),
           reason: 'ZuraffaTui.run must accept a Screen + named di/theme/keys',
         );
       },

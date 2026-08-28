@@ -25,7 +25,8 @@ class Table extends nocterm.StatelessComponent {
 
   @override
   nocterm.Component build(nocterm.BuildContext context) {
-    final widths = columnWidths ??
+    final widths =
+        columnWidths ??
         List<int>.generate(headers.length, (i) {
           var max = headers[i].length;
           for (final row in rows) {

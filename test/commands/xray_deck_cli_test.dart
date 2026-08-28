@@ -64,10 +64,7 @@ void main() {
       expect(content, contains('XRayMockType.valid'));
       expect(content, contains("name: 'Invalid Barcode'"));
       expect(content, contains('XRayMockType.error'));
-      expect(
-        content,
-        contains("description: 'Triggers validation failure'"),
-      );
+      expect(content, contains("description: 'Triggers validation failure'"));
       expect(content, contains('registerScanBarcodeXRayDeck'));
       expect(content, contains('XRayControlDeckRegistry.registerEntries'));
     });

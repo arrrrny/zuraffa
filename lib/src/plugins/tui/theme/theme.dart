@@ -45,7 +45,8 @@ class TuiColor {
   int get hashCode => Object.hash(fg, bg, bold, italic);
 
   @override
-  String toString() => 'TuiColor(fg: $fg, bg: $bg, bold: $bold, italic: $italic)';
+  String toString() =>
+      'TuiColor(fg: $fg, bg: $bg, bold: $bold, italic: $italic)';
 }
 
 /// Text emphasis levels (FR-005: "emphasis" vocabulary).
@@ -194,31 +195,24 @@ class ZuraffaTuiTheme {
   /// token set is fixed (FR-005). The defaults follow GitHub's dark-theme
   /// palette so Zuraffa TUIs feel familiar to terminal users.
   factory ZuraffaTuiTheme.defaultTheme() => const ZuraffaTuiTheme(
-        primary: TuiColor('#58a6ff', '#0d1117', bold: true),
-        secondary: TuiColor('#79c0ff', '#0d1117'),
-        accent: TuiColor('#1f6feb', '#0d1117', bold: true),
-        background: TuiColor('#c9d1d9', '#0d1117'),
-        emphasis: TuiEmphasis(
-          high: TuiColor('#f0f6fc', '#0d1117', bold: true),
-          medium: TuiColor('#c9d1d9', '#0d1117'),
-          low: TuiColor('#8b949e', '#0d1117'),
-          muted: TuiColor('#484f58', '#0d1117', italic: true),
-        ),
-        spacing: TuiSpacing(
-          xxs: 0,
-          xs: 1,
-          sm: 2,
-          md: 4,
-          lg: 8,
-          xl: 16,
-        ),
-        status: TuiStatusColors(
-          success: TuiColor('#3fb950', '#0d1117', bold: true),
-          warning: TuiColor('#d29922', '#0d1117', bold: true),
-          error: TuiColor('#f85149', '#0d1117', bold: true),
-          info: TuiColor('#58a6ff', '#0d1117'),
-        ),
-      );
+    primary: TuiColor('#58a6ff', '#0d1117', bold: true),
+    secondary: TuiColor('#79c0ff', '#0d1117'),
+    accent: TuiColor('#1f6feb', '#0d1117', bold: true),
+    background: TuiColor('#c9d1d9', '#0d1117'),
+    emphasis: TuiEmphasis(
+      high: TuiColor('#f0f6fc', '#0d1117', bold: true),
+      medium: TuiColor('#c9d1d9', '#0d1117'),
+      low: TuiColor('#8b949e', '#0d1117'),
+      muted: TuiColor('#484f58', '#0d1117', italic: true),
+    ),
+    spacing: TuiSpacing(xxs: 0, xs: 1, sm: 2, md: 4, lg: 8, xl: 16),
+    status: TuiStatusColors(
+      success: TuiColor('#3fb950', '#0d1117', bold: true),
+      warning: TuiColor('#d29922', '#0d1117', bold: true),
+      error: TuiColor('#f85149', '#0d1117', bold: true),
+      info: TuiColor('#58a6ff', '#0d1117'),
+    ),
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -235,14 +229,14 @@ class ZuraffaTuiTheme {
 
   @override
   int get hashCode => Object.hash(
-        primary,
-        secondary,
-        accent,
-        background,
-        emphasis,
-        spacing,
-        status,
-      );
+    primary,
+    secondary,
+    accent,
+    background,
+    emphasis,
+    spacing,
+    status,
+  );
 
   @override
   String toString() => 'ZuraffaTuiTheme(primary: $primary, status: $status)';

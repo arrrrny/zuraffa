@@ -224,9 +224,12 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
               }
               final enumItems = await fs.list(item);
               for (final enumItem in enumItems) {
-                if (!await fs.isDirectory(enumItem) && enumItem.endsWith('.dart')) {
+                if (!await fs.isDirectory(enumItem) &&
+                    enumItem.endsWith('.dart')) {
                   final content = await fs.read(enumItem);
-                  final enumMatches = RegExp(r'enum\s+(\w+)').allMatches(content);
+                  final enumMatches = RegExp(
+                    r'enum\s+(\w+)',
+                  ).allMatches(content);
                   for (final match in enumMatches) {
                     available.add(match.group(1)!);
                   }
@@ -370,7 +373,8 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
       if (entity == entityName && enumExists) {
         importPath = enumImportPath;
       } else {
-        importPath = '../domain/entities/$entitySnakeName/$entitySnakeName.dart';
+        importPath =
+            '../domain/entities/$entitySnakeName/$entitySnakeName.dart';
       }
 
       if (!existingEntityEntries.contains(entity)) {

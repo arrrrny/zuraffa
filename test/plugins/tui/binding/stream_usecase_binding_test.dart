@@ -9,33 +9,30 @@ import 'package:zuraffa/src/domain/usecase.dart';
 
 void main() {
   group('StreamUseCaseBinding (FR-007, SC-004)', () {
-    test(
-      'A11 / U26: subscribes to a StreamUseCase, propagates each successful '
-      'domain value into the screen via onValue, with no developer-written '
-      'listener and no TUI-local duplicate store',
-      () async {
-        final events = <String>[];
-        final useCase = _FakeStreamUseCase<String, String>(
-          (params, cancelToken) => Stream.fromIterable(['a', 'b', 'c']),
-        );
+    test('A11 / U26: subscribes to a StreamUseCase, propagates each successful '
+        'domain value into the screen via onValue, with no developer-written '
+        'listener and no TUI-local duplicate store', () async {
+      final events = <String>[];
+      final useCase = _FakeStreamUseCase<String, String>(
+        (params, cancelToken) => Stream.fromIterable(['a', 'b', 'c']),
+      );
 
-        final binding = StreamUseCaseBinding<String, String>(
-          useCase: useCase,
-          params: 'p',
-          onValue: events.add,
-        );
+      final binding = StreamUseCaseBinding<String, String>(
+        useCase: useCase,
+        params: 'p',
+        onValue: events.add,
+      );
 
-        binding.start();
-        // Give the stream subscription a turn to pump events.
-        await Future.delayed(Duration.zero);
+      binding.start();
+      // Give the stream subscription a turn to pump events.
+      await Future.delayed(Duration.zero);
 
-        expect(events, ['a', 'b', 'c']);
-        expect(binding.value, 'c');
-        expect(binding.state.hasFailure, isFalse);
+      expect(events, ['a', 'b', 'c']);
+      expect(binding.value, 'c');
+      expect(binding.state.hasFailure, isFalse);
 
-        binding.dispose();
-      },
-    );
+      binding.dispose();
+    });
 
     test(
       'A12: on failure, exposes a renderable failure state while retaining '
@@ -70,136 +67,135 @@ void main() {
         controller.addError(UnknownFailure('boom'));
         await Future.delayed(Duration.zero);
         expect(binding.state.hasFailure, isTrue);
-        expect(binding.value, 'first',
-            reason: 'last successful value must be retained on failure');
-        expect(events, containsAll(['first', predicate((f) => f is AppFailure)]));
+        expect(
+          binding.value,
+          'first',
+          reason: 'last successful value must be retained on failure',
+        );
+        expect(
+          events,
+          containsAll(['first', predicate((f) => f is AppFailure)]),
+        );
 
         // FR-007: "a non-terminal source remains subscribed" — we verify this
         // by checking that the binding has not auto-disposed after the
         // failure: its cancel token is still active and dispose() can still
         // be called explicitly.
-        expect(binding.cancelToken.isCancelled, isFalse,
-            reason: 'binding must NOT auto-cancel on failure');
+        expect(
+          binding.cancelToken.isCancelled,
+          isFalse,
+          reason: 'binding must NOT auto-cancel on failure',
+        );
 
         await controller.close();
         binding.dispose();
       },
     );
 
-    test(
-      'A13 / U25: on screen disposal, the binding unsubscribes and cancels '
-      'any in-flight refresh',
-      () async {
-        final controller = StreamController<String>.broadcast();
-        var subscribed = false;
-        var cancelled = false;
-        final useCase = _FakeStreamUseCase<String, String>(
-          (params, cancelToken) {
-            subscribed = true;
-            cancelToken?.onCancel.listen((_) => cancelled = true);
-            return controller.stream;
-          },
-        );
+    test('A13 / U25: on screen disposal, the binding unsubscribes and cancels '
+        'any in-flight refresh', () async {
+      final controller = StreamController<String>.broadcast();
+      var subscribed = false;
+      var cancelled = false;
+      final useCase = _FakeStreamUseCase<String, String>((params, cancelToken) {
+        subscribed = true;
+        cancelToken?.onCancel.listen((_) => cancelled = true);
+        return controller.stream;
+      });
 
-        final binding = StreamUseCaseBinding<String, String>(
-          useCase: useCase,
-          params: 'p',
-        );
+      final binding = StreamUseCaseBinding<String, String>(
+        useCase: useCase,
+        params: 'p',
+      );
 
-        binding.start();
-        await Future.delayed(Duration.zero);
-        expect(subscribed, isTrue);
+      binding.start();
+      await Future.delayed(Duration.zero);
+      expect(subscribed, isTrue);
 
-        binding.dispose();
-        await Future.delayed(Duration.zero);
+      binding.dispose();
+      await Future.delayed(Duration.zero);
 
-        expect(cancelled, isTrue,
-            reason: 'dispose MUST cancel the binding\'s CancelToken');
-        expect(controller.hasListener, isFalse,
-            reason: 'dispose MUST unsubscribe from the stream');
+      expect(
+        cancelled,
+        isTrue,
+        reason: 'dispose MUST cancel the binding\'s CancelToken',
+      );
+      expect(
+        controller.hasListener,
+        isFalse,
+        reason: 'dispose MUST unsubscribe from the stream',
+      );
 
-        await controller.close();
-      },
-    );
+      await controller.close();
+    });
 
-    test(
-      'A18: parent CancelToken cancellation propagates to the binding',
-      () {
-        final parentToken = CancelToken();
-        final useCase = _FakeStreamUseCase<String, String>(
-          (params, cancelToken) => const Stream.empty(),
-        );
+    test('A18: parent CancelToken cancellation propagates to the binding', () {
+      final parentToken = CancelToken();
+      final useCase = _FakeStreamUseCase<String, String>(
+        (params, cancelToken) => const Stream.empty(),
+      );
 
-        final binding = StreamUseCaseBinding<String, String>(
-          useCase: useCase,
-          params: 'p',
-          parentCancelToken: parentToken,
-        );
+      final binding = StreamUseCaseBinding<String, String>(
+        useCase: useCase,
+        params: 'p',
+        parentCancelToken: parentToken,
+      );
 
-        binding.start();
-        expect(binding.cancelToken.isCancelled, isFalse);
+      binding.start();
+      expect(binding.cancelToken.isCancelled, isFalse);
 
-        // Cancel the parent — the child must follow.
-        parentToken.cancel('user quit');
-        expect(binding.cancelToken.isCancelled, isTrue);
-      },
-    );
+      // Cancel the parent — the child must follow.
+      parentToken.cancel('user quit');
+      expect(binding.cancelToken.isCancelled, isTrue);
+    });
   });
 
   group('UseCaseResultBinding (FR-007, U28)', () {
-    test(
-      'A11: refresh() invokes the UseCase and propagates the result; the '
-      'state transitions initial → inFlight → value',
-      () async {
-        final useCase = _FakeUseCase<int, String>(
-          (params, cancelToken) async => const Success(42),
-        );
+    test('A11: refresh() invokes the UseCase and propagates the result; the '
+        'state transitions initial → inFlight → value', () async {
+      final useCase = _FakeUseCase<int, String>(
+        (params, cancelToken) async => const Success(42),
+      );
 
-        final events = <int>[];
-        final binding = UseCaseResultBinding<int, String>(
-          useCase: useCase,
-          params: 'p',
-          onValue: events.add,
-        );
+      final events = <int>[];
+      final binding = UseCaseResultBinding<int, String>(
+        useCase: useCase,
+        params: 'p',
+        onValue: events.add,
+      );
 
-        expect(binding.state.isInitial, isTrue);
+      expect(binding.state.isInitial, isTrue);
 
-        await binding.mount();
+      await binding.mount();
 
-        expect(events, [42]);
-        expect(binding.value, 42);
-        expect(binding.state.isInFlight, isFalse);
-        expect(binding.state.hasFailure, isFalse);
-      },
-    );
+      expect(events, [42]);
+      expect(binding.value, 42);
+      expect(binding.state.isInFlight, isFalse);
+      expect(binding.state.hasFailure, isFalse);
+    });
 
-    test(
-      'A12: failure retains the last successful value',
-      () async {
-        var callCount = 0;
-        final useCase = _FakeUseCase<int, String>(
-          (params, cancelToken) async {
-            callCount++;
-            if (callCount == 1) return const Success(100);
-            return Failure(UnknownFailure('refresh failed'));
-          },
-        );
+    test('A12: failure retains the last successful value', () async {
+      var callCount = 0;
+      final useCase = _FakeUseCase<int, String>((params, cancelToken) async {
+        callCount++;
+        if (callCount == 1) return const Success(100);
+        return Failure(UnknownFailure('refresh failed'));
+      });
 
-        final binding = UseCaseResultBinding<int, String>(
-          useCase: useCase,
-          params: 'p',
-        );
+      final binding = UseCaseResultBinding<int, String>(
+        useCase: useCase,
+        params: 'p',
+      );
 
-        await binding.mount();
-        expect(binding.value, 100);
-        expect(binding.state.hasFailure, isFalse);
+      await binding.mount();
+      expect(binding.value, 100);
+      expect(binding.state.hasFailure, isFalse);
 
-        await binding.refresh();
-        expect(binding.value, 100, reason: 'last value retained on failure');
-        expect(binding.state.hasFailure, isTrue);
-        expect(binding.state.failure, isA<UnknownFailure>());
-      },
-    );
+      await binding.refresh();
+      expect(binding.value, 100, reason: 'last value retained on failure');
+      expect(binding.state.hasFailure, isTrue);
+      expect(binding.state.failure, isA<UnknownFailure>());
+    });
   });
 
   group('RepositoryBinding (FR-007, U27)', () {
@@ -245,14 +241,14 @@ class _FakeUseCase<T, P> extends UseCase<T, P> {
   _FakeUseCase(this._fn);
 
   final Future<Result<T, AppFailure>> Function(
-      P params, CancelToken? cancelToken) _fn;
+    P params,
+    CancelToken? cancelToken,
+  )
+  _fn;
 
   @override
   Future<T> execute(P params, CancelToken? cancelToken) async {
     final result = await _fn(params, cancelToken);
-    return result.fold(
-      (value) => value,
-      (failure) => throw failure,
-    );
+    return result.fold((value) => value, (failure) => throw failure);
   }
 }

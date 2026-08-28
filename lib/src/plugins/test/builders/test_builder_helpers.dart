@@ -462,9 +462,8 @@ extension TestBuilderHelpers on TestBuilder {
   /// tooling (e.g. speckit-tdd-setup) can detect zuraffa-native mocking without
   /// a third-party double library. Works for both Flutter and pure-Dart apps
   /// because `zuraffa` is always resolvable in a zuraffa app.
-  Directive _zuraffaCoreImport(bool isFlutter) => Directive.import(
-    'package:zuraffa/mock.dart',
-  );
+  Directive _zuraffaCoreImport(bool isFlutter) =>
+      Directive.import('package:zuraffa/mock.dart');
 }
 
 extension ExpressionClosure on Expression {

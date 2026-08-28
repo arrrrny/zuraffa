@@ -39,7 +39,10 @@ class OutputFormat {
   /// `data` field (success/warning) or an `error` field (error). The output
   /// is a single line with no trailing newline, suitable for piping into
   /// `jq` or another JSON consumer.
-  String json(CommandResult result, {CliContract contract = CliContract.standard}) {
+  String json(
+    CommandResult result, {
+    CliContract contract = CliContract.standard,
+  }) {
     final map = <String, Object?>{
       '\$schema': contract.outputSchemaName,
       'outcome': result.outcome,
@@ -51,11 +54,7 @@ class OutputFormat {
         map['data'] = data;
         map['warning'] = message;
       case ErrorResult(:final code, :final message, :final details):
-        map['error'] = {
-          'code': code,
-          'message': message,
-          'details': details,
-        };
+        map['error'] = {'code': code, 'message': message, 'details': details};
     }
     return jsonEncode(map);
   }

@@ -24,9 +24,9 @@ void main() {
   });
 
   SyncPlugin _plugin() => SyncPlugin(
-        outputDir: outputDir,
-        options: const GeneratorOptions(force: true),
-      );
+    outputDir: outputDir,
+    options: const GeneratorOptions(force: true),
+  );
 
   test('exposes plugin identity metadata', () {
     final plugin = _plugin();
@@ -91,13 +91,7 @@ void main() {
       paths.any((p) => p.endsWith('product_sync_metadata_store.dart')),
       isTrue,
     );
-    expect(
-      paths.any((p) => p.endsWith('product_sync_strategy.dart')),
-      isTrue,
-    );
-    expect(
-      paths.any((p) => p.endsWith('product_sync_usecase.dart')),
-      isTrue,
-    );
+    expect(paths.any((p) => p.endsWith('product_sync_strategy.dart')), isTrue);
+    expect(paths.any((p) => p.endsWith('product_sync_usecase.dart')), isTrue);
   });
 }

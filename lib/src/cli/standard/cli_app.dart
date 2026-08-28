@@ -44,8 +44,8 @@ class CliApp {
     CommandRegistry? registry,
     this.stdout,
     this.stderr,
-  })  : contract = contract ?? CliContract.standard,
-        registry = registry ?? CommandRegistry();
+  }) : contract = contract ?? CliContract.standard,
+       registry = registry ?? CommandRegistry();
 
   /// Construct with the standard contract and a pre-built registry.
   CliApp.withStandardContract({
@@ -54,8 +54,8 @@ class CliApp {
     CommandRegistry? registry,
     this.stdout,
     this.stderr,
-  })  : contract = CliContract.standard,
-        registry = registry ?? CommandRegistry();
+  }) : contract = CliContract.standard,
+       registry = registry ?? CommandRegistry();
 
   /// The app name (shown in `--version` and the help header).
   final String name;
@@ -127,7 +127,11 @@ class CliApp {
     // Strip global flags from the front of the args vector before parsing.
     // The first non-flag token is the command name; the rest is the
     // command's args + flags.
-    final parse = _ParseResult.parse(args, contract: contract, registry: registry);
+    final parse = _ParseResult.parse(
+      args,
+      contract: contract,
+      registry: registry,
+    );
     if (parse.usageError != null) {
       final result = ErrorResult(
         code: 'usage',
@@ -158,9 +162,7 @@ class CliApp {
       final result = ErrorResult(
         code: 'runtime',
         message: '${e.runtimeType}: $e',
-        details: {
-          if (parse.verbose) 'stackTrace': st.toString(),
-        },
+        details: {if (parse.verbose) 'stackTrace': st.toString()},
       );
       _emit(out, err, result, fmt, parse.outputKind);
       return contract.exitCode.runtime;
@@ -215,7 +217,9 @@ class CliApp {
   }
 
   Future<CommandResult> _invoke(
-      RegisteredCommand entry, _ParseResult parse) async {
+    RegisteredCommand entry,
+    _ParseResult parse,
+  ) async {
     // Parse the command-specific flags + args.
     final parsedFlags = <String, Object?>{};
     for (final f in entry.command.flags) {
@@ -246,8 +250,9 @@ class CliApp {
     OutputFormat fmt,
     OutputFormatKind kind,
   ) {
-    final rendered =
-        kind == OutputFormatKind.json ? fmt.json(result, contract: contract) : fmt.text(result);
+    final rendered = kind == OutputFormatKind.json
+        ? fmt.json(result, contract: contract)
+        : fmt.text(result);
     if (result is ErrorResult) {
       err.writeln(rendered);
     } else {
@@ -265,7 +270,9 @@ class CliApp {
       out.writeln('  (no commands registered)');
     } else {
       for (final c in cmds) {
-        out.writeln('  ${c.key.toString().padRight(28)} ${c.command.description}');
+        out.writeln(
+          '  ${c.key.toString().padRight(28)} ${c.command.description}',
+        );
       }
     }
     out.writeln('');
@@ -322,8 +329,11 @@ class _ParseResult {
     this.usageError,
   });
 
-  factory _ParseResult.parse(List<String> args,
-      {required CliContract contract, required CommandRegistry registry}) {
+  factory _ParseResult.parse(
+    List<String> args, {
+    required CliContract contract,
+    required CommandRegistry registry,
+  }) {
     var outputKind = OutputFormatKind.text;
     var verbose = false;
     final rest = <String>[];

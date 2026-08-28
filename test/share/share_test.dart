@@ -34,23 +34,24 @@ void main() {
   });
 
   group('ShareService', () {
-    test('shareText/shareFiles compose the request for the port',
-        () async {
+    test('shareText/shareFiles compose the request for the port', () async {
       final port = InMemoryShareAdapter();
       final service = ShareService(port: port);
 
       await service.shareText('Look!', subject: 'News');
       await service.shareFiles(['/a.pdf', '/b.pdf'], text: 'Two files');
 
-      expect(port.requests.first, const ShareRequest(text: 'Look!', subject: 'News'));
+      expect(
+        port.requests.first,
+        const ShareRequest(text: 'Look!', subject: 'News'),
+      );
       expect(
         port.requests.last,
         const ShareRequest(text: 'Two files', files: ['/a.pdf', '/b.pdf']),
       );
     });
 
-    test('empty text with no files fails fast through the facade',
-        () async {
+    test('empty text with no files fails fast through the facade', () async {
       final service = ShareService();
 
       await expectLater(

@@ -55,29 +55,30 @@ void main() {
     },
   );
 
-  test(
-    'A26 / FR-012 (extra): nocterm dependency is pinned and pubspec.lock '
-    'has no resolved flutter package',
-    () {
-      final pubspec = File('pubspec.yaml').readAsStringSync();
-      expect(pubspec, contains('nocterm: ^0.9.0'));
+  test('A26 / FR-012 (extra): nocterm dependency is pinned and pubspec.lock '
+      'has no resolved flutter package', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    expect(pubspec, contains('nocterm: ^0.9.0'));
 
-      // pubspec.lock is the resolved dependency tree. If nocturn or any of
-      // its transitive deps pulled in flutter, a `flutter:` package would
-      // appear in the lockfile's packages section.
-      final lockFile = File('pubspec.lock');
-      expect(lockFile.existsSync(), isTrue,
-          reason: 'pubspec.lock must exist after dart pub get');
-      final lock = lockFile.readAsStringSync();
+    // pubspec.lock is the resolved dependency tree. If nocturn or any of
+    // its transitive deps pulled in flutter, a `flutter:` package would
+    // appear in the lockfile's packages section.
+    final lockFile = File('pubspec.lock');
+    expect(
+      lockFile.existsSync(),
+      isTrue,
+      reason: 'pubspec.lock must exist after dart pub get',
+    );
+    final lock = lockFile.readAsStringSync();
 
-      // Look for the SDk constraint `sdk: flutter` (which would only appear
-      // if a Flutter SDK package was resolved).
-      expect(
-        lock.contains('sdk: flutter'),
-        isFalse,
-        reason: 'No package in the resolved tree may declare `sdk: flutter` '
-            '(FR-012 — pure-Dart)',
-      );
-    },
-  );
+    // Look for the SDk constraint `sdk: flutter` (which would only appear
+    // if a Flutter SDK package was resolved).
+    expect(
+      lock.contains('sdk: flutter'),
+      isFalse,
+      reason:
+          'No package in the resolved tree may declare `sdk: flutter` '
+          '(FR-012 — pure-Dart)',
+    );
+  });
 }

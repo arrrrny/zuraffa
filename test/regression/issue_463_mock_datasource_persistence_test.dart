@@ -87,32 +87,36 @@ void main() {
       expect(
         content.contains('TaskMockData.tasks.add(item);'),
         isTrue,
-        reason: 'create must persist the created item so a follow-up '
+        reason:
+            'create must persist the created item so a follow-up '
             'get/getList can retrieve it',
       );
     });
 
-    test('update applies the patch and replaces the entry in the collection',
-        () async {
-      final content = await generateTaskMockDataSource();
+    test(
+      'update applies the patch and replaces the entry in the collection',
+      () async {
+        final content = await generateTaskMockDataSource();
 
-      expect(
-        content.contains('params.data.applyTo(existing)'),
-        isTrue,
-        reason: 'update must apply the TaskPatch to the existing entry',
-      );
-      expect(
-        content.contains('TaskMockData.tasks[index] = updated;'),
-        isTrue,
-        reason: 'update must write the patched entry back into the '
-            'backing collection',
-      );
-      expect(
-        content.contains('return updated;'),
-        isTrue,
-        reason: 'update must return the patched entity, not the stale one',
-      );
-    });
+        expect(
+          content.contains('params.data.applyTo(existing)'),
+          isTrue,
+          reason: 'update must apply the TaskPatch to the existing entry',
+        );
+        expect(
+          content.contains('TaskMockData.tasks[index] = updated;'),
+          isTrue,
+          reason:
+              'update must write the patched entry back into the '
+              'backing collection',
+        );
+        expect(
+          content.contains('return updated;'),
+          isTrue,
+          reason: 'update must return the patched entity, not the stale one',
+        );
+      },
+    );
 
     test('delete removes the entry from the backing collection', () async {
       final content = await generateTaskMockDataSource();
@@ -139,23 +143,25 @@ void main() {
       );
     });
 
-    test('update on a NoParams entity patches the head of the collection',
-        () async {
-      final content = await generateTaskMockDataSource(
-        methods: const ['update'],
-        idFieldType: 'NoParams',
-      );
+    test(
+      'update on a NoParams entity patches the head of the collection',
+      () async {
+        final content = await generateTaskMockDataSource(
+          methods: const ['update'],
+          idFieldType: 'NoParams',
+        );
 
-      expect(
-        content.contains('params.data.applyTo(existing)'),
-        isTrue,
-        reason: 'NoParams update must still apply the patch',
-      );
-      expect(
-        content.contains('TaskMockData.tasks[0] = updated;'),
-        isTrue,
-        reason: 'NoParams update must persist into the collection head',
-      );
-    });
+        expect(
+          content.contains('params.data.applyTo(existing)'),
+          isTrue,
+          reason: 'NoParams update must still apply the patch',
+        );
+        expect(
+          content.contains('TaskMockData.tasks[0] = updated;'),
+          isTrue,
+          reason: 'NoParams update must persist into the collection head',
+        );
+      },
+    );
   });
 }

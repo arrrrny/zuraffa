@@ -163,8 +163,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final normalizedOptions = context.getShared<Map<String, dynamic>>(
       'normalizedOptions',
     );
-    if (normalizedOptions != null &&
-        normalizedOptions.containsKey('sqlite')) {
+    if (normalizedOptions != null && normalizedOptions.containsKey('sqlite')) {
       return normalizedOptions['sqlite'] == true;
     }
     if (context.data.containsKey('enableSqlite')) {
@@ -457,17 +456,16 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                     ..statements.add(
                       declareFinal('db')
                           .assign(
-                            refer('sqlite3')
-                                .property('open')
-                                .call([literalString('$baseSnake.db')]),
+                            refer('sqlite3').property('open').call([
+                              literalString('$baseSnake.db'),
+                            ]),
                           )
                           .statement,
                     )
                     ..statements.add(
-                      refer(dataSourceName)
-                          .call([refer('db')])
-                          .returned
-                          .statement,
+                      refer(
+                        dataSourceName,
+                      ).call([refer('db')]).returned.statement,
                     ),
                 ),
             ).closure,

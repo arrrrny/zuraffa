@@ -10,28 +10,24 @@
 // anywhere in this subdirectory.
 
 // The contract.
-export 'cli_contract.dart' show
-    CliContract,
-    CliExitCodes,
-    CliGlobalFlag,
-    CliGlobalFlags;
+export 'cli_contract.dart'
+    show CliContract, CliExitCodes, CliGlobalFlag, CliGlobalFlags;
 
 // The declarative command model.
-export 'command_model.dart' show
-    CommandResult,
-    SuccessResult,
-    ErrorResult,
-    WarningResult,
-    CliInvocation,
-    CommandArgument,
-    CommandFlag,
-    StandardCommand;
+export 'command_model.dart'
+    show
+        CommandResult,
+        SuccessResult,
+        ErrorResult,
+        WarningResult,
+        CliInvocation,
+        CommandArgument,
+        CommandFlag,
+        StandardCommand;
 
 // The shared command registry.
-export 'command_registry.dart' show
-    CommandRegistry,
-    RegisteredCommand,
-    RegistryKey;
+export 'command_registry.dart'
+    show CommandRegistry, RegisteredCommand, RegistryKey;
 
 // Cross-app invocation.
 export 'cross_app_invoker.dart' show CrossAppInvoker;
@@ -40,26 +36,24 @@ export 'cross_app_invoker.dart' show CrossAppInvoker;
 export 'shared_command.dart' show SharedCommand;
 
 // DI binding.
-export 'di_binding.dart' show
-    DiBinding,
-    DiContainer,
-    DependencyRequest,
-    BoundInvocation;
+export 'di_binding.dart'
+    show DiBinding, DiContainer, DependencyRequest, BoundInvocation;
 
 // Output formatting.
 export 'output_format.dart' show OutputFormat, OutputFormatKind;
 
 // Edge-case exceptions.
-export 'edge_cases.dart' show
-    CliEdgeCaseException,
-    UnknownCommandException,
-    AmbiguousCommandException,
-    ReferencedAppMissingException,
-    CircularReferenceException,
-    VersionMismatchException,
-    NonInteractiveContextException,
-    CommandAlreadyRegistered,
-    BindingException;
+export 'edge_cases.dart'
+    show
+        CliEdgeCaseException,
+        UnknownCommandException,
+        AmbiguousCommandException,
+        ReferencedAppMissingException,
+        CircularReferenceException,
+        VersionMismatchException,
+        NonInteractiveContextException,
+        CommandAlreadyRegistered,
+        BindingException;
 
 // The standardized entry point.
 export 'cli_app.dart' show CliApp, CliUsageException;
