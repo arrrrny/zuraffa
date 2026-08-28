@@ -1,7 +1,6 @@
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tui/di/tui_di_resolver.dart';
 import 'package:get_it/get_it.dart';
-import 'package:zuraffa/src/core/module/di_container.dart';
 
 void main() {
   group('TuiDiResolver (FR-008)', () {

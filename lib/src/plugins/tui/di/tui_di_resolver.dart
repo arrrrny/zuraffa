@@ -16,7 +16,6 @@ library;
 import 'package:get_it/get_it.dart';
 
 import '../../../core/module/di_container.dart';
-import '../../../core/module/interceptor.dart';
 
 export '../../../core/module/di_container.dart' show ZuraffaDIContainer;
 

@@ -23,6 +23,7 @@ import '../plugins/api/api_plugin.dart';
 import '../plugins/method_append/method_append_plugin.dart';
 import '../plugins/presenter/presenter_plugin.dart';
 import '../plugins/repository/repository_plugin.dart';
+import '../plugins/tui/tui_plugin.dart';
 import '../plugins/service/service_plugin.dart';
 import '../plugins/usecase/usecase_plugin.dart';
 import '../plugins/view/view_plugin.dart';
@@ -137,6 +138,10 @@ class PluginLoader {
       MethodAppendPlugin(outputDir: outputDir, options: options),
       ModuleGeneratorPlugin(outputDir: outputDir, options: options),
       McpPlugin(outputDir: outputDir, options: options),
+      // Native TUI plugin (specs/017-tui-plugin): pure-Dart, no Flutter.
+      // Adds the `--with=tui` capability that emits list/detail TUI screens
+      // wired to an entity's existing use cases (FR-011, SC-005).
+      TuiPlugin(outputDir: outputDir, options: options),
     ];
   }
 }
