@@ -360,34 +360,35 @@ dependency_overrides:
       }
     });
 
-    test('dry-run prints git init intent without touching the filesystem',
-        () async {
-      final dir = await Directory.systemTemp.createTemp('zfa_git_');
-      try {
-        final prints = <String>[];
-        await runZoned(
-          () => SetupCommand().initializeGit(
-                projectRoot: dir.path,
-                noGit: false,
-                dryRun: true,
-                verbose: false,
-              ),
-          zoneSpecification: ZoneSpecification(
-            print: (self, parent, zone, message) => prints.add(message),
-          ),
-        );
-        expect(prints.join('\n'), contains('Would run: git init'));
-        expect(Directory('${dir.path}/.git').existsSync(), isFalse);
-      } finally {
-        await dir.delete(recursive: true);
-      }
-    });
+    test(
+      'dry-run prints git init intent without touching the filesystem',
+      () async {
+        final dir = await Directory.systemTemp.createTemp('zfa_git_');
+        try {
+          final prints = <String>[];
+          await runZoned(
+            () => SetupCommand().initializeGit(
+              projectRoot: dir.path,
+              noGit: false,
+              dryRun: true,
+              verbose: false,
+            ),
+            zoneSpecification: ZoneSpecification(
+              print: (self, parent, zone, message) => prints.add(message),
+            ),
+          );
+          expect(prints.join('\n'), contains('Would run: git init'));
+          expect(Directory('${dir.path}/.git').existsSync(), isFalse);
+        } finally {
+          await dir.delete(recursive: true);
+        }
+      },
+    );
   });
 
   group('SetupCommand run (dry-run)', () {
     test('prints git init intent during dry-run bootstrap', () async {
-      final runner = CommandRunner('zfa', 'test')
-        ..addCommand(SetupCommand());
+      final runner = CommandRunner('zfa', 'test')..addCommand(SetupCommand());
       final prints = <String>[];
       await runZoned(
         () => runner.run(['setup', 'demo_app', '--dry-run', '--flutter']),

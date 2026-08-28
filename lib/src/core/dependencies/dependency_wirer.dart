@@ -482,8 +482,7 @@ class DependencyWirer {
       // rootUri is relative to the directory containing package_config.json
       // (i.e. the `.dart_tool` directory), not the project root.
       final configDir = path.join(root, '.dart_tool');
-      final pkgRoot =
-          Uri.directory(configDir).resolve(rootUri).toFilePath();
+      final pkgRoot = Uri.directory(configDir).resolve(rootUri).toFilePath();
       final pubspecFile = File(path.join(pkgRoot, 'pubspec.yaml'));
       if (!pubspecFile.existsSync()) return const {};
       final pubspec = loadYaml(pubspecFile.readAsStringSync()) as YamlMap;
