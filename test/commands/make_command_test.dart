@@ -767,9 +767,10 @@ dependencies:
           Directory.current = Directory.systemTemp.path;
         } catch (_) {}
       }
-      // A late-exiting child subprocess may still hold the workspace when a
-      // test times out; deleting it races and throws PathNotFoundException.
-      // Tolerate ENOENT during recursive delete (issue #503).
+      // A late-exiting child subprocess (or the in-process CLI runner still
+      // resolving its CWD) may still hold the workspace when a test times out;
+      // deleting it races and throws PathNotFoundException. Tolerate ENOENT
+      // during recursive delete instead of failing teardown (issue #503).
       if (workspace.existsSync()) {
         try {
           await workspace.delete(recursive: true);
