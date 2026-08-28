@@ -263,3 +263,47 @@ class SchemaScenario extends BenchmarkScenario {
     );
   }
 }
+
+/// A minimal, metadata-complete fake for registry-level tests.
+class FakeScenario extends BenchmarkScenario {
+  FakeScenario(this._id, {String? name, List<String> tags = const []})
+      : _name = name ?? 'Scenario for $_id',
+        _tags = tags;
+
+  final String _id;
+  final String _name;
+  final List<String> _tags;
+
+  @override
+  String get id => _id;
+
+  @override
+  String get name => _name;
+
+  @override
+  String get version => '1.0.0';
+
+  @override
+  List<String> get tags => _tags;
+
+  @override
+  Map<String, dynamic> get configSchema => const {
+        'type': 'object',
+        'properties': {
+          'iterations': {'type': 'integer', 'minimum': 1, 'default': 10},
+        },
+      };
+
+  @override
+  Future<BenchmarkResult> run(Map<String, dynamic> config) async =>
+      BenchmarkResult(
+        scenarioId: id,
+        scenarioName: name,
+        scenarioVersion: version,
+        status: BenchmarkStatus.passed,
+        metrics: const {'ops': 1},
+        thresholdViolations: const [],
+        duration: const Duration(milliseconds: 1),
+        timestamp: DateTime.now(),
+      );
+}
