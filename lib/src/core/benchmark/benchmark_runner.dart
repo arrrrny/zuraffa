@@ -22,7 +22,6 @@ import 'dart:io';
 import 'benchmark_contract.dart';
 import 'benchmark_result.dart';
 import 'metric_collector.dart';
-import 'standard_metrics.dart';
 
 /// Runner-level configuration.
 class BenchmarkRunnerConfig {
@@ -167,7 +166,7 @@ class DefaultBenchmarkRunner implements BenchmarkRunner {
         if (index >= scenarios.length) return;
         final scenario = scenarios[index];
         final merged = {
-          ...this.config.globalConfig,
+          ...config.globalConfig,
           ...?globalConfig,
         };
         final scenarioStartedAt = DateTime.now();
