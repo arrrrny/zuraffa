@@ -109,11 +109,17 @@ apply_overrides pubspec.yaml \
     "zorphy_annotation=$ZORPHY_ROOT/zorphy_annotation"
 
 echo ""
-echo "📦 zuraffa_flutter"
-apply_overrides zuraffa_flutter/pubspec.yaml \
-    "zuraffa=.." \
-    "zorphy=$ZORPHY_ROOT/zorphy" \
-    "zorphy_annotation=$ZORPHY_ROOT/zorphy_annotation"
+# zuraffa_flutter split into its own repo (6.1.0+); its dev overrides are
+# managed there, not here.
+if [ -f zuraffa_flutter/pubspec.yaml ]; then
+    echo "📦 zuraffa_flutter"
+    apply_overrides zuraffa_flutter/pubspec.yaml \
+        "zuraffa=.." \
+        "zorphy=$ZORPHY_ROOT/zorphy" \
+        "zorphy_annotation=$ZORPHY_ROOT/zorphy_annotation"
+else
+    echo "ℹ️  zuraffa_flutter is a separate repo now — skipping its dev overrides here."
+fi
 
 # Local consumers (demo apps, examples) — only those that depend on zuraffa.
 for pubspec in apps/*/pubspec.yaml examples/*/pubspec.yaml; do
@@ -133,12 +139,17 @@ done
 echo ""
 echo "⬇️  Resolving dependencies..."
 dart pub get
-( cd zuraffa_flutter && flutter pub get )
+if [ -d zuraffa_flutter ]; then
+    ( cd zuraffa_flutter && flutter pub get )
+else
+    echo "ℹ️  zuraffa_flutter is a separate repo now — skipping its pub get here."
+fi
 
 echo ""
 echo "🔬 Verifying path overrides"
 issues=0
 for pubspec in pubspec.yaml zuraffa_flutter/pubspec.yaml; do
+    [ -f "$pubspec" ] || continue
     count=$(grep -cE "^\s+path: " "$pubspec" || true)
     if [ "$count" -eq 0 ]; then
         echo "⚠️  $pubspec has no path overrides"

@@ -9,6 +9,8 @@ if [ -z "$VERSION" ]; then echo "❌ Version required"; exit 1; fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_DIR="$(dirname "$SCRIPT_DIR")"
+# zuraffa_flutter split into its own repo (6.1.0+). Default: sibling checkout.
+ZURAFFA_FLUTTER_DIR="${ZURAFFA_FLUTTER_DIR:-$(cd "$PACKAGE_DIR/.." && pwd)/zuraffa_flutter}"
 cd "$PACKAGE_DIR"
 
 DATE=$(date +%Y-%m-%d)
@@ -76,7 +78,6 @@ wait_for_pubdev() {
 # ============================================================
 if [[ "$OSTYPE" == "darwin"* ]]; then
     sed -i '' "s/^version: .*/version: $VERSION/" pubspec.yaml
-    sed -i '' "s/^version: .*/version: $VERSION/" zuraffa_flutter/pubspec.yaml
     # zfa_cli.dart may not carry a version const in every layout.
     sed -i '' "s/^const version = '.*'/const version = '$VERSION'/" lib/src/zfa_cli.dart 2>/dev/null || true
     # example/ is optional and may not exist in this repo layout.
@@ -85,7 +86,6 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     fi
 else
     sed -i "s/^version: .*/version: $VERSION/" pubspec.yaml
-    sed -i "s/^version: .*/version: $VERSION/" zuraffa_flutter/pubspec.yaml
     sed -i "s/^const version = '.*'/const version = '$VERSION'/" lib/src/zfa_cli.dart 2>/dev/null || true
     if [ -f example/pubspec.yaml ]; then
         sed -i "s/^version: .*/version: $VERSION/" example/pubspec.yaml
@@ -165,7 +165,7 @@ echo "   zuraffa-zed pinned to: $ZED_NEW_SHA"
 # Step 3: Commit and push main repo (now includes correct submodule pointer)
 # ============================================================
 echo "🔨 Committing and tagging main repo..."
-git add pubspec.yaml CHANGELOG.md lib/src/zfa_cli.dart zuraffa_flutter/pubspec.yaml
+git add pubspec.yaml CHANGELOG.md lib/src/zfa_cli.dart
 # example/ is optional — only stage it if present (otherwise `git add` aborts under set -e).
 if [ -f example/pubspec.yaml ]; then
     git add example/pubspec.yaml
@@ -196,55 +196,98 @@ else
 fi
 
 # ============================================================
-# Step 5: Publish zuraffa_flutter. Verify it locally first (the sibling path
-# override still applies here), then wait for pub.dev to serve the new
-# zuraffa, strip the local override, and publish against the hosted core.
+# Step 5: Publish zuraffa_flutter from its OWN repo (split since 6.1.0).
+# It depends on the freshly published `zuraffa: ^$VERSION`, so we await zuraffa
+# being resolvable, bump zuraffa_flutter to $VERSION, pin the zuraffa dep to
+# ^$VERSION, strip the dev-only dependency_overrides block, publish, then
+# restore the dev pubspec.
 # ============================================================
 if pubdev_has_version zuraffa_flutter "$VERSION"; then
     echo "ℹ️  zuraffa_flutter $VERSION already on pub.dev — skipping."
 else
-    echo "📦 Verifying zuraffa_flutter locally (pub get + analyze)..."
-    ( cd zuraffa_flutter && flutter pub get && flutter analyze )
+    if [ ! -d "$ZURAFFA_FLUTTER_DIR" ]; then
+        echo "❌ zuraffa_flutter repo not found at $ZURAFFA_FLUTTER_DIR"
+        echo "   Set ZURAFFA_FLUTTER_DIR to the checkout of arrrrny/zuraffa_flutter."
+        exit 1
+    fi
 
+    cd "$ZURAFFA_FLUTTER_DIR"
+    ZF_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    echo "📦 Preparing zuraffa_flutter $VERSION in $ZURAFFA_FLUTTER_DIR (branch $ZF_BRANCH)..."
+
+    # Bump version + pin zuraffa dependency to the freshly published core.
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/^version: .*/version: $VERSION/" pubspec.yaml
+        sed -i '' -E "s|^(  zuraffa: )\\^.*|\\1^$VERSION|" pubspec.yaml
+    else
+        sed -i "s/^version: .*/version: $VERSION/" pubspec.yaml
+        sed -i -E "s|^(  zuraffa: )\\^.*|\\1^$VERSION|" pubspec.yaml
+    fi
+
+    # Backup full dev pubspec so we can restore it after publishing.
+    ZF_PUBSPEC_BACKUP="$(mktemp)"
+    cp pubspec.yaml "$ZF_PUBSPEC_BACKUP"
+    restore_zf_pubspec() {
+        if [ -f "$ZF_PUBSPEC_BACKUP" ]; then
+            cp "$ZF_PUBSPEC_BACKUP" pubspec.yaml
+            rm -f "$ZF_PUBSPEC_BACKUP"
+            echo "↩️  Restored dev pubspec in zuraffa_flutter"
+            flutter pub get >/dev/null 2>&1 || true
+        fi
+    }
+    trap restore_zf_pubspec EXIT
+
+    # Strip the dev-only dependency_overrides block (analyzer/meta) — pub.dev
+    # rejects published packages that carry dependency_overrides.
+    echo "🧹 Stripping dev dependency_overrides from zuraffa_flutter for publishing..."
+    python3 - pubspec.yaml <<'PY'
+import re, sys
+path = sys.argv[1]
+text = open(path).read()
+text = re.sub(r"\ndependency_overrides:(?:\n[ \t]+[^:\n]+:[^\n]*)*\n?", "\n", text)
+open(path, "w").write(text)
+PY
+    grep -q "^dependency_overrides:" pubspec.yaml && {
+        echo "❌ zuraffa_flutter pubspec still contains dependency_overrides — aborting."
+        exit 1
+    }
+
+    # CHANGELOG (create if missing)
+    if [ ! -f CHANGELOG.md ]; then
+        printf '## [%s] - %s\n\n### Change\n- %s\n' "$VERSION" "$DATE" "$DESCRIPTION" > CHANGELOG.md
+    elif ! grep -q "^## \[$VERSION\]" CHANGELOG.md 2>/dev/null; then
+        awk -v version="$VERSION" -v date="$DATE" -v desc="$DESCRIPTION" '
+        BEGIN { print "## [" version "] - " date "\n\n### Change\n- " desc "\n" }
+        { print }
+        ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
+    fi
+
+    echo "📦 Verifying zuraffa_flutter locally (pub get + analyze)..."
+    flutter pub get && flutter analyze
+
+    # Commit + tag + push the flutter package at the new version.
+    git add pubspec.yaml CHANGELOG.md
+    git commit -m "chore: release $VERSION" || true
+    if ! git rev-parse "v$VERSION" >/dev/null 2>&1; then
+        git tag -a "v$VERSION" -m "Release $VERSION"
+    fi
+    git push origin "$ZF_BRANCH"
+    git push origin "v$VERSION"
+
+    # Block until the new zuraffa is actually resolvable (API-listed AND
+    # downloadable) — mirrors the zikzak_inappwebview ordered-publish gate.
     wait_for_pubdev zuraffa "$VERSION" || {
         echo "❌ zuraffa $VERSION is not resolvable yet — publish zuraffa_flutter manually once it is."
         exit 1
     }
 
-    FLUTTER_PUBSPEC="zuraffa_flutter/pubspec.yaml"
-    FLUTTER_PUBSPEC_BACKUP="$(mktemp)"
-    cp "$FLUTTER_PUBSPEC" "$FLUTTER_PUBSPEC_BACKUP"
-    restore_flutter_pubspec() {
-        if [ -f "$FLUTTER_PUBSPEC_BACKUP" ]; then
-            cp "$FLUTTER_PUBSPEC_BACKUP" "$FLUTTER_PUBSPEC"
-            rm -f "$FLUTTER_PUBSPEC_BACKUP"
-            echo "↩️  Restored local dev override in $FLUTTER_PUBSPEC"
-        fi
-    }
-    trap restore_flutter_pubspec EXIT
-
-    echo "🧹 Removing local 'zuraffa: path: ../' override for publishing..."
-    python3 - "$FLUTTER_PUBSPEC" <<'PY'
-import re, sys
-path = sys.argv[1]
-text = open(path).read()
-# Drop the `zuraffa:` override block (and its leading comment lines) so the
-# published archive resolves the hosted `zuraffa` constraint instead.
-text = re.sub(r"\n(?:[ \t]*#[^\n]*\n)*[ \t]{2}zuraffa:\n[ \t]{4}path:[^\n]*\n", "\n", text)
-open(path, "w").write(text)
-PY
-    grep -q "path: \.\./" "$FLUTTER_PUBSPEC" && {
-        echo "❌ $FLUTTER_PUBSPEC still contains a path dependency — aborting."
-        exit 1
-    }
-
-    echo "📦 Publishing zuraffa_flutter against hosted zuraffa $VERSION..."
-    ( cd zuraffa_flutter && flutter pub get && dart pub publish --force )
+    echo "📦 Publishing zuraffa_flutter $VERSION against hosted zuraffa ^$VERSION..."
+    dart pub publish --force
     echo "✅ zuraffa_flutter $VERSION published to pub.dev!"
 
-    restore_flutter_pubspec
+    restore_zf_pubspec
     trap - EXIT
-    ( cd zuraffa_flutter && flutter pub get >/dev/null )
+    cd "$PACKAGE_DIR"
 fi
 
 echo "✅ Published $VERSION (zuraffa + zuraffa_flutter) successfully!"
