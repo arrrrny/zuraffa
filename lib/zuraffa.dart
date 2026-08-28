@@ -682,6 +682,19 @@ export 'src/agent/kernel/agent_kernel.dart' hide CancelToken;
 // guard. All hooks composable and individually disableable. Pure-Dart.
 export 'src/agent/policy/policy_shell.dart';
 
+// ── 028-agent-runtime-plugin — AgentRuntimePlugin + McpToolProvider SPI ──
+// In-proc kernel host over dart_agent_core. McpToolProvider SPI for device
+// packages to self-describe; McpToolRegistry assembles a flat, collision-safe
+// tool registry from SPI providers + generated usecase tools + remote MCP
+// servers. AgentKernel delegates the agent loop entirely to
+// StatefulAgent.runStream (no loop duplication — FR-013). Composes system
+// prompt from playbook + tool manifests; wires FallbackLLMClient as default;
+// persists per-mission session state via FileStateStorage; supports ordered
+// AgentHook registration for policy concerns; exposes kernel.status().
+// Pure-Dart (no package:flutter import anywhere in this subtree).
+export 'src/agent/runtime/agent_runtime_plugin.dart'
+    hide McpTool, AgentHook, McpToolRegistry, AgentKernel;
+
 // ============================================================
 // Framework Configuration
 // ============================================================
