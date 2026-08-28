@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:args/command_runner.dart';
@@ -304,6 +305,99 @@ dependency_overrides:
       expect(dartNames, contains('zuraffa'));
       expect(dartNames, isNot(contains('zuraffa_flutter')));
       expect(dartNames, isNot(contains('flutter_lints')));
+    });
+  });
+
+  group('SetupCommand git init', () {
+    test('exposes --no-git flag', () {
+      final cmd = SetupCommand();
+      expect(cmd.argParser.options, contains('no-git'));
+    });
+
+    test('initializeGit creates .git in a fresh directory', () async {
+      final dir = await Directory.systemTemp.createTemp('zfa_git_');
+      try {
+        await SetupCommand().initializeGit(
+          projectRoot: dir.path,
+          noGit: false,
+          dryRun: false,
+          verbose: false,
+        );
+        expect(Directory('${dir.path}/.git').existsSync(), isTrue);
+      } finally {
+        await dir.delete(recursive: true);
+      }
+    });
+
+    test('initializeGit skips when --no-git is set', () async {
+      final dir = await Directory.systemTemp.createTemp('zfa_git_');
+      try {
+        await SetupCommand().initializeGit(
+          projectRoot: dir.path,
+          noGit: true,
+          dryRun: false,
+          verbose: false,
+        );
+        expect(Directory('${dir.path}/.git').existsSync(), isFalse);
+      } finally {
+        await dir.delete(recursive: true);
+      }
+    });
+
+    test('initializeGit is idempotent when .git already exists', () async {
+      final dir = await Directory.systemTemp.createTemp('zfa_git_');
+      try {
+        await Directory('${dir.path}/.git').create();
+        await SetupCommand().initializeGit(
+          projectRoot: dir.path,
+          noGit: false,
+          dryRun: false,
+          verbose: false,
+        );
+        expect(Directory('${dir.path}/.git').existsSync(), isTrue);
+      } finally {
+        await dir.delete(recursive: true);
+      }
+    });
+
+    test('dry-run prints git init intent without touching the filesystem',
+        () async {
+      final dir = await Directory.systemTemp.createTemp('zfa_git_');
+      try {
+        final prints = <String>[];
+        await runZoned(
+          () => SetupCommand().initializeGit(
+                projectRoot: dir.path,
+                noGit: false,
+                dryRun: true,
+                verbose: false,
+              ),
+          zoneSpecification: ZoneSpecification(
+            print: (self, parent, zone, message) => prints.add(message),
+          ),
+        );
+        expect(prints.join('\n'), contains('Would run: git init'));
+        expect(Directory('${dir.path}/.git').existsSync(), isFalse);
+      } finally {
+        await dir.delete(recursive: true);
+      }
+    });
+  });
+
+  group('SetupCommand run (dry-run)', () {
+    test('prints git init intent during dry-run bootstrap', () async {
+      final runner = CommandRunner('zfa', 'test')
+        ..addCommand(SetupCommand());
+      final prints = <String>[];
+      await runZoned(
+        () => runner.run(['setup', 'demo_app', '--dry-run', '--flutter']),
+        zoneSpecification: ZoneSpecification(
+          print: (self, parent, zone, message) => prints.add(message),
+        ),
+      );
+      final out = prints.join('\n');
+      expect(out, contains('Would run: git init'));
+      expect(out, contains('flutter create'));
     });
   });
 }

@@ -341,13 +341,16 @@ class DependencyWirer {
     // first place, so they must be in the pubspec before anything resolves.
     if (overrideSpecs.isNotEmpty) {
       var newContent = pubspecFile.readAsStringSync();
+      // Prefer the versions the source package actually declares; fall back to
+      // the hardcoded constants when the package isn't resolvable yet.
+      final resolved = DependencyWirer.resolvePackageOverrides(
+        isFlutter ? 'zuraffa_flutter' : 'zuraffa',
+        projectRoot: root,
+      );
       for (final spec in overrideSpecs) {
-        newContent = addOverrideToPubspec(
-          newContent,
-          spec.name,
-          spec.version ?? '',
-        );
-        print('   ✅ Added override:${spec.name}=${spec.version}');
+        final version = resolved[spec.name] ?? spec.version ?? '';
+        newContent = addOverrideToPubspec(newContent, spec.name, version);
+        print('   ✅ Added override:${spec.name}=$version');
       }
       try {
         await pubspecFile.writeAsString(newContent);
@@ -434,6 +437,65 @@ class DependencyWirer {
       }
     }
     return args;
+  }
+
+  /// Resolves the `dependency_overrides` declared by [packageName] from the
+  /// resolved package set under [projectRoot] (via
+  /// `.dart_tool/package_config.json` → package root → `pubspec.yaml`).
+  ///
+  /// Returns an empty map when resolution is unavailable — e.g. before
+  /// `pub get`, offline, or the package is not yet resolved — so callers fall
+  /// back to the hardcoded [analyzerOverrideVersion] /
+  /// [flutterAnalyzerOverrideVersion] / [flutterMetaOverrideVersion]
+  /// constants. This keeps bootstrapped apps' overrides in sync with the
+  /// versions `zuraffa` / `zuraffa_flutter` actually declare, instead of
+  /// drifting from hand-maintained literals.
+  static Map<String, String> resolvePackageOverrides(
+    String packageName, {
+    String? projectRoot,
+  }) {
+    try {
+      final root = projectRoot ?? Directory.current.path;
+      final configFile = File(
+        path.join(root, '.dart_tool', 'package_config.json'),
+      );
+      if (!configFile.existsSync()) return const {};
+      final config = loadYaml(configFile.readAsStringSync()) as YamlMap;
+      final packagesNode = config['packages'];
+      YamlMap? entry;
+      if (packagesNode is YamlMap) {
+        // Defensive: some tooling may emit a map keyed by package name.
+        entry = packagesNode[packageName] as YamlMap?;
+      } else if (packagesNode is YamlList) {
+        // The real `.dart_tool/package_config.json` is an array of entries.
+        for (final node in packagesNode) {
+          final map = node as YamlMap;
+          if (map['name'].toString() == packageName) {
+            entry = map;
+            break;
+          }
+        }
+      }
+      if (entry == null) return const {};
+      final rootUri = (entry['rootUri'] as String?)?.toString();
+      if (rootUri == null) return const {};
+      // rootUri is relative to the directory containing package_config.json
+      // (i.e. the `.dart_tool` directory), not the project root.
+      final configDir = path.join(root, '.dart_tool');
+      final pkgRoot =
+          Uri.directory(configDir).resolve(rootUri).toFilePath();
+      final pubspecFile = File(path.join(pkgRoot, 'pubspec.yaml'));
+      if (!pubspecFile.existsSync()) return const {};
+      final pubspec = loadYaml(pubspecFile.readAsStringSync()) as YamlMap;
+      final overrides = pubspec['dependency_overrides'] as YamlMap?;
+      if (overrides == null) return const {};
+      return {
+        for (final key in overrides.keys)
+          key.toString(): overrides[key].toString(),
+      };
+    } catch (_) {
+      return const {};
+    }
   }
 
   /// The `build.yaml` content that registers the zorphy + json_serializable
