@@ -8,6 +8,12 @@ import '../utils/project_flavor.dart';
 
 import '../core/project/project_root.dart';
 
+/// Flutter import emitted into *generated* files.
+///
+/// Kept as a string constant (never a real import) so this pure-Dart core
+/// command file has no `package:flutter/` dependency. See issue #495.
+const String _flutterMaterialImport = "import 'package:flutter/material.dart';";
+
 class CreateCommand {
   Future<void> execute(List<String> args) async {
     final createParser = _buildArgParser();
@@ -171,7 +177,7 @@ class CreateCommand {
     var pascalCaseName = StringUtils.convertToPascalCase(name);
 
     return '''
-import 'package:flutter/material.dart';
+$_flutterMaterialImport
 import 'package:zuraffa/zuraffa.dart';
 
 import '${name}_controller.dart';

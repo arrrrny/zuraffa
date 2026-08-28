@@ -16,6 +16,12 @@ import '../utils/project_flavor.dart';
 /// - test/
 import '../core/project/project_root.dart';
 
+/// Flutter import emitted into *generated* feature-package files.
+///
+/// Kept as a string constant (never a real import) so this pure-Dart core
+/// command file has no `package:flutter/` dependency. See issue #495.
+const String _flutterMaterialImport = "import 'package:flutter/material.dart';";
+
 class ModuleCommand extends Command<void> {
   static const String defaultOutputDir = '.';
 
@@ -195,7 +201,7 @@ dev_dependencies:
     final className = '${_toPascal(featureName)}FeaturePlugin';
     File('$dir/lib/src/plugin/${snake}_feature_plugin.dart').writeAsStringSync(
       '''
-import 'package:flutter/material.dart';
+$_flutterMaterialImport
 import 'package:zuraffa_flutter/zuraffa_flutter.dart';
 
 /// Orchestrator plugin for the $snake feature.
