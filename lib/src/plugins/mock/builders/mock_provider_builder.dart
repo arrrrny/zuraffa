@@ -114,7 +114,9 @@ class MockProviderBuilder {
 
     final directives = [
       Directive.import('dart:async'),
-      Directive.import('package:zuraffa/zuraffa.dart'),
+      // Canonical zuraffa-native mock marker: detects native mocking for static
+      // tooling (e.g. speckit-tdd-setup) without a third-party double library.
+      Directive.import('package:zuraffa/mock.dart'),
       Directive.import(serviceImport),
     ];
 

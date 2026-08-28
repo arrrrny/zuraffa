@@ -267,6 +267,22 @@ class ZfaConfig {
   }
 
   Map<String, dynamic> toJson() => {
+    // Canonical zuraffa-native mocking signature. Propagated by `zfa init` so
+    // static tooling (e.g. speckit-tdd-setup) can detect that a zuraffa app uses
+    // built-in mocks (MockDataSource, MockData, mock providers, throwing doubles)
+    // with no third-party double library, by grepping `.zfa.json` for this block
+    // or generated code for `package:zuraffa/mock.dart` / `zuraffaMockLibrary`.
+    'mocking': const <String, dynamic>{
+      'library': 'zuraffa-native',
+      'import': 'package:zuraffa/mock.dart',
+      'marker': 'zuraffaMockLibrary',
+      'mockSources': <String>[
+        'mockDataSource',
+        'mockData',
+        'mockProvider',
+        'throwingDataSource',
+      ],
+    },
     'plugins': {
       'defaults': _sortedBoolMap(pluginDefaults),
       'disabled': disabledPlugins.toList()..sort(),
