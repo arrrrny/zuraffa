@@ -107,29 +107,31 @@ abstract class SampleRepository {
     },
   );
 
-  test('fails clearly instead of emitting an empty dependency fake', () async {
+  test('emits a placeholder dependency fake instead of failing when source is '
+      'missing', () async {
     await writeSource(
       'domain/usecases/example/search_usecase.dart',
       'class SearchUseCase {}',
     );
 
-    await expectLater(
-      builder.generateCustom(
-        GeneratorConfig(
-          name: 'Search',
-          domain: 'example',
-          repo: 'Missing',
-          noEntity: true,
-          outputDir: outputDir,
-        ),
+    // The builder degrades gracefully (see test_builder_helpers.dart
+    // `_requireFakeClassForDependency`): when a dependency's source file is not
+    // on disk, it emits a usable `Fake*` stub instead of aborting generation
+    // with a StateError. Verify that contract rather than the old fail-loud one.
+    final generated = await builder.generateCustom(
+      GeneratorConfig(
+        name: 'Search',
+        domain: 'example',
+        repo: 'Missing',
+        noEntity: true,
+        outputDir: outputDir,
       ),
-      throwsA(
-        isA<StateError>().having(
-          (error) => error.message,
-          'message',
-          contains('source for MissingRepository was not found'),
-        ),
-      ),
+    );
+
+    final content = generated.content!;
+    expect(
+      content,
+      contains('class FakeMissingRepository implements MissingRepository'),
     );
   });
 
