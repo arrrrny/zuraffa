@@ -230,7 +230,7 @@ void main() {
           await runner.run(['benchmark', 'teleport']);
         } on UsageException catch (e) {
           // The args package surfaces unknown subcommands as usage errors.
-          print('${e.message}');
+          print(e.message);
           command.exitCode = 64;
         }
       });

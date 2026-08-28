@@ -366,7 +366,7 @@ run options:
       print(jsonEncode(comparison.toJson()));
     } else {
       print('Comparison for $scenarioId against "${baseline.label}" '
-          '(tolerance ${tolerance}%):');
+          '(tolerance $tolerance%):');
       final sorted = comparison.changes.keys.toList()..sort();
       for (final metric in sorted) {
         final change = comparison.changes[metric]!;
@@ -461,7 +461,7 @@ run options:
     try {
       return parser.parse(rest);
     } on FormatException catch (error) {
-      print('${error.message}');
+      print(error.message);
       print(_usage);
       exitCode = 64;
       return null;
