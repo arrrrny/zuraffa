@@ -121,10 +121,15 @@ Future<ProcessResult> runZfaSource(
       ? [zfaExePath!, ...args] // AOT fast path (milliseconds per spawn)
       : ['dart', zfaSourceBin!, ...args]; // source fallback
 
-  // Generous 5-minute guard so a genuinely stuck spawn fails fast.
+  // Child guard MUST be shorter than the enclosing 2-minute test *group*
+  // timeout (see `xray_mock_cli_test.dart:38`). A hanging/over-slow spawn is
+  // killed here and fails fast with a clear diagnostic instead of silently
+  // consuming the whole group window — which is exactly the `TimeoutException
+  // after 0:02:00` the Linux runner hit (#531). 75s leaves ample headroom for a
+  // legitimate cold `dart` source fallback while never exceeding the group cap.
   return _runSupervised(
     command,
-    timeout: const Duration(minutes: 5),
+    timeout: const Duration(seconds: 75),
     workingDirectory: workingDirectory,
   );
 }
@@ -177,7 +182,13 @@ Future<ProcessResult> _runSupervised(
       timeout,
       onTimeout: () {
         process.kill(ProcessSignal.sigkill);
-        return -1;
+        // Surface the real cause instead of letting the group timeout swallow
+        // it: name the exact `zfa` command that wedged (#531).
+        throw TimeoutException(
+          'zfa subprocess exceeded its ${timeout.inSeconds}s child timeout: '
+          '${command.join(' ')}',
+          timeout,
+        );
       },
     );
     // Drain any trailing stderr and give the shell a moment to flush the
