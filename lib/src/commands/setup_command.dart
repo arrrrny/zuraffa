@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as path;
 
 import '../config/zfa_config.dart';
 import '../core/dependencies/dependency_wirer.dart';
@@ -71,6 +72,12 @@ class SetupCommand extends Command<void> {
       negatable: false,
       help: 'Enable verbose output.',
     );
+    argParser.addFlag(
+      'no-git',
+      negatable: false,
+      help: 'Skip git initialization of the created project '
+          '(useful for CI/automation that manages its own VCS).',
+    );
     // #358: pre-seed a URL scheme in the platform manifest files so
     // later `zfa route` commands only need to add paths.
     argParser.addOption(
@@ -116,6 +123,7 @@ class SetupCommand extends Command<void> {
     final dryRun = argResults!['dry-run'] as bool;
     final force = argResults!['force'] as bool;
     final verbose = argResults!['verbose'] as bool;
+    final noGit = argResults!['no-git'] as bool;
     final deepLinkScheme = argResults!['deep-link-scheme'] as String?;
     final deepLinkHost = argResults!['deep-link-host'] as String?;
     final autoVerify = argResults!['auto-verify'] as bool;
@@ -160,6 +168,15 @@ class SetupCommand extends Command<void> {
       verbose: verbose,
     );
     if (!created) return;
+
+    // 1.5 Initialize git so the documented `git add .` next-step works.
+    // Skipped with --no-git; idempotent when the project is already a repo.
+    await initializeGit(
+      projectRoot: appName,
+      noGit: noGit,
+      dryRun: dryRun,
+      verbose: verbose,
+    );
 
     // 2. Wire the standard zuraffa dependency set (dart pub add + overrides).
     print('\n[2/5] Wiring zuraffa dependencies...');
@@ -412,6 +429,66 @@ class SetupCommand extends Command<void> {
     }
     print('   Created Dart package: $appName');
     return true;
+  }
+
+  /// Initializes a git repository in the created project so the documented
+  /// `git add .` next-step works.
+  ///
+  /// - Skipped entirely with `--no-git` (CI/automation that manages its own VCS).
+  /// - Idempotent: if `.git` already exists (e.g. `flutter create` initialized
+  ///   one, or the target sits inside an existing repo) it does nothing.
+  /// - Under `--dry-run` it only prints what it would do.
+  /// - On a successful `git init` it also makes an initial commit so the
+  ///   project starts clean. A failed `git commit` (e.g. no `user.email`
+  ///   configured) is non-fatal — the repository still exists.
+  Future<void> initializeGit({
+    required String projectRoot,
+    required bool noGit,
+    required bool dryRun,
+    required bool verbose,
+  }) async {
+    if (noGit) {
+      print('   --no-git: skipping git initialization.');
+      return;
+    }
+    final gitDir = Directory(path.join(projectRoot, '.git'));
+    if (gitDir.existsSync()) {
+      print('   git already initialized (skipping).');
+      return;
+    }
+    if (dryRun) {
+      print('   Would run: git init');
+      return;
+    }
+    print('   Initializing git repository...');
+    final initResult = await Process.run(
+      'git',
+      ['init'],
+      workingDirectory: projectRoot,
+      runInShell: true,
+    );
+    if (initResult.exitCode != 0) {
+      final err = initResult.stderr.toString().trim();
+      print('   ⚠️  git init failed (exit ${initResult.exitCode}): $err');
+      print('   Initialize git manually: cd $projectRoot && git init');
+      return;
+    }
+    await Process.run('git', ['add', '-A'],
+        workingDirectory: projectRoot, runInShell: true);
+    final commitResult = await Process.run(
+      'git',
+      ['commit', '-m', 'Initial commit (zfa setup)'],
+      workingDirectory: projectRoot,
+      runInShell: true,
+    );
+    if (commitResult.exitCode != 0) {
+      final err = commitResult.stderr.toString().trim();
+      if (verbose) {
+        print('   (git commit skipped: ${err.split('\n').first})');
+      }
+    } else {
+      print('   Created initial commit.');
+    }
   }
 
   /// Counts all files and directories under [dir] (recursively).

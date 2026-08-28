@@ -671,6 +671,67 @@ dev_dependencies:
       });
     });
 
+    group('resolvePackageOverrides', () {
+      late Directory tempDir;
+
+      setUp(() async {
+        tempDir = await Directory.systemTemp.createTemp('zfa_resolve_');
+      });
+
+      tearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      test('reads dependency_overrides from the resolved package', () {
+        final pkgRoot =
+            Directory('${tempDir.path}/pkgs/zuraffa_flutter')
+              ..createSync(recursive: true);
+        File('${pkgRoot.path}/pubspec.yaml').writeAsStringSync('''
+name: zuraffa_flutter
+dependency_overrides:
+  analyzer: ^13.1.0
+  meta: ^1.19.0
+''');
+        Directory('${tempDir.path}/.dart_tool').createSync();
+        File('${tempDir.path}/.dart_tool/package_config.json')
+            .writeAsStringSync('''
+{
+  "configVersion": 2,
+  "packages": [
+    { "name": "zuraffa_flutter", "rootUri": "../pkgs/zuraffa_flutter/" }
+  ]
+}
+''');
+        final overrides = DependencyWirer.resolvePackageOverrides(
+          'zuraffa_flutter',
+          projectRoot: tempDir.path,
+        );
+        expect(overrides['analyzer'], '^13.1.0');
+        expect(overrides['meta'], '^1.19.0');
+      });
+
+      test('returns empty when package_config.json is missing', () {
+        final overrides = DependencyWirer.resolvePackageOverrides(
+          'zuraffa_flutter',
+          projectRoot: tempDir.path,
+        );
+        expect(overrides, isEmpty);
+      });
+
+      test('returns empty when the package is not in the config', () {
+        Directory('${tempDir.path}/.dart_tool').createSync();
+        File('${tempDir.path}/.dart_tool/package_config.json')
+            .writeAsStringSync('{"configVersion":2,"packages":[]}');
+        final overrides = DependencyWirer.resolvePackageOverrides(
+          'zuraffa_flutter',
+          projectRoot: tempDir.path,
+        );
+        expect(overrides, isEmpty);
+      });
+    });
+
     group('ensureProjectStructure', () {
       late Directory tempDir;
 
