@@ -37,10 +37,10 @@
 
 **Purpose**: The decoupled contract surface every other story builds on (FR-001, FR-002, FR-003, FR-015).
 
-- [ ] T005 [US1] RED→GREEN: `BenchmarkContract` interface + `ThresholdConfig` + scenario metadata validation — `lib/src/core/benchmark/benchmark_contract.dart`, test `test/plugins/benchmark/benchmark_contract_test.dart` (FR-001, AC-1, AC-2)
-- [ ] T006 [US1] RED→GREEN: `BenchmarkResult` / `BenchmarkSuiteResult` / `ThresholdViolation` value types with JSON round-trip — `lib/src/core/benchmark/benchmark_result.dart`, test `test/plugins/benchmark/benchmark_result_test.dart` (FR-004, FR-008)
-- [ ] T007 [US2] RED→GREEN: `BenchmarkRegistry` interface + `InMemoryBenchmarkRegistry` (register/unregister/getAll/getByTags/has/clear, duplicate-ID conflict, runtime registration) — `lib/src/core/benchmark/benchmark_registry.dart`, test `test/plugins/benchmark/benchmark_registry_test.dart` (FR-002, FR-003, AC-3, AC-4)
-- [ ] T008 [US1] Export the contract library from `lib/zuraffa.dart` so third parties depend only on the contract (FR-014, FR-015)
+- [x] T005 [US1] RED→GREEN: `BenchmarkContract` interface + `ThresholdConfig` + scenario metadata validation — `lib/src/core/benchmark/benchmark_contract.dart`, test `test/plugins/benchmark/benchmark_contract_test.dart` (FR-001, AC-1, AC-2)
+- [x] T006 [US1] RED→GREEN: `BenchmarkResult` / `BenchmarkSuiteResult` / `ThresholdViolation` value types with JSON round-trip — `lib/src/core/benchmark/benchmark_result.dart`, test `test/plugins/benchmark/benchmark_result_test.dart` (FR-004, FR-008)
+- [x] T007 [US2] RED→GREEN: `BenchmarkRegistry` interface + `InMemoryBenchmarkRegistry` (register/unregister/getAll/getByTags/has/clear, duplicate-ID conflict, runtime registration) — `lib/src/core/benchmark/benchmark_registry.dart`, test `test/plugins/benchmark/benchmark_registry_test.dart` (FR-002, FR-003, AC-3, AC-4)
+- [x] T008 [US1] Export the contract library from `lib/zuraffa.dart` so third parties depend only on the contract (FR-014, FR-015)
 
 ---
 
@@ -48,11 +48,11 @@
 
 **Purpose**: Execution orchestration with standardized metrics and pass/fail gates (FR-004, FR-005, FR-008, FR-013).
 
-- [ ] T009 [US3] RED→GREEN: `StandardMetrics` + percentile/throughput math — `lib/src/core/benchmark/standard_metrics.dart`, test `test/plugins/benchmark/standard_metrics_test.dart` (FR-004)
-- [ ] T010 [US3] RED→GREEN: `DefaultBenchmarkRunner.runSingle` — lifecycle setup→run→collectMetrics→teardown, error capture as `status=error`, teardown-always-called, timeout → failed result — `lib/src/core/benchmark/benchmark_runner.dart`, test `test/plugins/benchmark/benchmark_runner_test.dart` (FR-004, FR-013, AC-5)
-- [ ] T011 [US3] RED→GREEN: threshold evaluation — per-metric operators (lt/lte/gt/gte), severity error/warn, violations recorded in result, pass→fail transition — same runner test file (FR-005, AC-6)
-- [ ] T012 [US3] RED→GREEN: `BenchmarkRunner.run` suite aggregation — per-benchmark results, overall status, summary map, one failing benchmark does not stop the suite — same runner test file (FR-008, FR-013, AC-7)
-- [ ] T013 [US3] RED→GREEN: `dryRun` validation without execution — `BenchmarkRunner.dryRun`, runner test file (FR-012)
+- [x] T009 [US3] RED→GREEN: `StandardMetrics` + percentile/throughput math — `lib/src/core/benchmark/standard_metrics.dart`, test `test/plugins/benchmark/standard_metrics_test.dart` (FR-004)
+- [x] T010 [US3] RED→GREEN: `DefaultBenchmarkRunner.runSingle` — lifecycle setup→run→collectMetrics→teardown, error capture as `status=error`, teardown-always-called, timeout → failed result — `lib/src/core/benchmark/benchmark_runner.dart`, test `test/plugins/benchmark/benchmark_runner_test.dart` (FR-004, FR-013, AC-5)
+- [x] T011 [US3] RED→GREEN: threshold evaluation — per-metric operators (lt/lte/gt/gte), severity error/warn, violations recorded in result, pass→fail transition — same runner test file (FR-005, AC-6)
+- [x] T012 [US3] RED→GREEN: `BenchmarkRunner.run` suite aggregation — per-benchmark results, overall status, summary map, one failing benchmark does not stop the suite — same runner test file (FR-008, FR-013, AC-7)
+- [x] T013 [US3] RED→GREEN: `dryRun` validation without execution — `BenchmarkRunner.dryRun`, runner test file (FR-012)
 
 ---
 
@@ -60,10 +60,10 @@
 
 **Purpose**: Custom metrics and cross-contamination prevention (FR-006, FR-007).
 
-- [ ] T014 [US4] RED→GREEN: `MetricCollector` interface + `MetricContext` + 4-phase lifecycle (initialize/beforeBenchmark/afterBenchmark/finalize) — `lib/src/core/benchmark/metric_collector.dart`, test `test/plugins/benchmark/metric_collector_test.dart` (FR-006, AC-8)
-- [ ] T015 [US4] RED→GREEN: `StandardMetricCollector` built-in (latency p50/p95/p99, throughput, memory, CPU) — same collector test file (FR-004, AC-5)
-- [ ] T016 [US4] RED→GREEN: collector error isolation — a throwing collector is logged, benchmark continues — same collector test file (AC-9)
-- [ ] T017 [EDGE] RED→GREEN: isolate isolation — `IsolateBenchmarkRunner` runs a scenario in a spawned isolate, results marshalled back; runner-level flag to switch in-process/isolate — `lib/src/core/benchmark/isolate_benchmark_runner.dart`, test `test/plugins/benchmark/isolate_benchmark_runner_test.dart` (FR-007)
+- [x] T014 [US4] RED→GREEN: `MetricCollector` interface + `MetricContext` + 4-phase lifecycle (initialize/beforeBenchmark/afterBenchmark/finalize) — `lib/src/core/benchmark/metric_collector.dart`, test `test/plugins/benchmark/metric_collector_test.dart` (FR-006, AC-8)
+- [x] T015 [US4] RED→GREEN: `StandardMetricCollector` built-in (latency p50/p95/p99, throughput, memory, CPU) — same collector test file (FR-004, AC-5)
+- [x] T016 [US4] RED→GREEN: collector error isolation — a throwing collector is logged, benchmark continues — same collector test file (AC-9)
+- [x] T017 [EDGE] RED→GREEN: isolate isolation — `IsolateBenchmarkRunner` runs a scenario in a spawned isolate, results marshalled back; runner-level flag to switch in-process/isolate — `lib/src/core/benchmark/isolate_benchmark_runner.dart`, test `test/plugins/benchmark/isolate_benchmark_runner_test.dart` (FR-007)
 
 ---
 
@@ -71,9 +71,9 @@
 
 **Purpose**: Developer-facing surface (FR-011, FR-012).
 
-- [ ] T018 [US3] RED→GREEN: `BenchmarkPlugin` (ZuraffaPlugin + CliAwarePlugin) with capabilities (run/list/register) — `lib/src/plugins/benchmark/benchmark_plugin.dart` + `capabilities/`, test `test/plugins/benchmark/benchmark_plugin_test.dart` (FR-011, FR-014)
-- [ ] T019 [US3] RED→GREEN: `zfa benchmark run|list|baseline|report` command + `--dry-run`, `--scenario`, `--tags`, `--json`, `--timeout` options — `lib/src/plugins/benchmark/cli/benchmark_command.dart`, test `test/plugins/benchmark/benchmark_command_test.dart` (FR-011, FR-012)
-- [ ] T020 [US3] Register `BenchmarkPlugin` in `PluginLoader._plugins()` so `zfa benchmark` is available (non-behavioral wiring; covered by command test through the loader path)
+- [x] T018 [US3] RED→GREEN: `BenchmarkPlugin` (ZuraffaPlugin + CliAwarePlugin) with capabilities (run/list/register) — `lib/src/plugins/benchmark/benchmark_plugin.dart` + `capabilities/`, test `test/plugins/benchmark/benchmark_plugin_test.dart` (FR-011, FR-014)
+- [x] T019 [US3] RED→GREEN: `zfa benchmark run|list|baseline|report` command + `--dry-run`, `--scenario`, `--tags`, `--json`, `--timeout` options — `lib/src/plugins/benchmark/cli/benchmark_command.dart`, test `test/plugins/benchmark/benchmark_command_test.dart` (FR-011, FR-012)
+- [x] T020 [US3] Register `BenchmarkPlugin` in `PluginLoader._plugins()` so `zfa benchmark` is available (non-behavioral wiring; covered by command test through the loader path)
 
 ---
 
@@ -81,8 +81,8 @@
 
 **Purpose**: Historical comparison (FR-009, FR-010).
 
-- [ ] T021 [US5] RED→GREEN: `Baseline` + `BaselineStore` interface + `JsonBaselineStore` (save/load/loadByLabel/list/listAll/delete, JSON persistence) — `lib/src/core/benchmark/baseline_store.dart`, test `test/plugins/benchmark/baseline_store_test.dart` (FR-009)
-- [ ] T022 [US5] RED→GREEN: `BenchmarkComparison` + `MetricChange` + tolerance-based regression/improvement detection — same baseline store test file (FR-010, AC-10, AC-11)
+- [x] T021 [US5] RED→GREEN: `Baseline` + `BaselineStore` interface + `JsonBaselineStore` (save/load/loadByLabel/list/listAll/delete, JSON persistence) — `lib/src/core/benchmark/baseline_store.dart`, test `test/plugins/benchmark/baseline_store_test.dart` (FR-009)
+- [x] T022 [US5] RED→GREEN: `BenchmarkComparison` + `MetricChange` + tolerance-based regression/improvement detection — same baseline store test file (FR-010, AC-10, AC-11)
 
 ---
 
@@ -90,13 +90,13 @@
 
 **Purpose**: The outer loop — SC-001…SC-007 proven through the real entry points.
 
-- [ ] T023 [EDGE] RED→GREEN: SC-001 — a new plugin implements a scenario in < 50 lines (mechanically counted) — `test/plugins/benchmark/scenarios/sc_001_scenario_test.dart`
-- [ ] T024 [EDGE] RED→GREEN: SC-002 — 100+ concurrent scenarios without contention — `test/plugins/benchmark/scenarios/sc_002_concurrency_test.dart`
-- [ ] T025 [EDGE] RED→GREEN: SC-003 — framework overhead < 5% on a measured operation — `test/plugins/benchmark/scenarios/sc_003_overhead_test.dart`
-- [ ] T026 [EDGE] RED→GREEN: SC-004 — 20-scenario suite completes < 5 min (CI integration shape) — `test/plugins/benchmark/scenarios/sc_004_ci_suite_test.dart`
-- [ ] T027 [EDGE] RED→GREEN: SC-005 — regression detection accuracy on synthetic regressions (FP < 5%, FN < 1%) — `test/plugins/benchmark/scenarios/sc_005_regression_accuracy_test.dart`
-- [ ] T028 [EDGE] RED→GREEN: SC-006 — custom collector overhead < 1ms per collection point — `test/plugins/benchmark/scenarios/sc_006_collector_overhead_test.dart`
-- [ ] T029 [EDGE] RED→GREEN: SC-007 — 3+ plugins' benchmarks in the same suite without conflicts — `test/plugins/benchmark/scenarios/sc_007_cross_plugin_test.dart`
+- [x] T023 [EDGE] RED→GREEN: SC-001 — a new plugin implements a scenario in < 50 lines (mechanically counted) — `test/plugins/benchmark/scenarios/sc_001_scenario_test.dart`
+- [x] T024 [EDGE] RED→GREEN: SC-002 — 100+ concurrent scenarios without contention — `test/plugins/benchmark/scenarios/sc_002_concurrency_test.dart`
+- [x] T025 [EDGE] RED→GREEN: SC-003 — framework overhead < 5% on a measured operation — `test/plugins/benchmark/scenarios/sc_003_overhead_test.dart`
+- [x] T026 [EDGE] RED→GREEN: SC-004 — 20-scenario suite completes < 5 min (CI integration shape) — `test/plugins/benchmark/scenarios/sc_004_ci_suite_test.dart`
+- [x] T027 [EDGE] RED→GREEN: SC-005 — regression detection accuracy on synthetic regressions (FP < 5%, FN < 1%) — `test/plugins/benchmark/scenarios/sc_005_regression_accuracy_test.dart`
+- [x] T028 [EDGE] RED→GREEN: SC-006 — custom collector overhead < 1ms per collection point — `test/plugins/benchmark/scenarios/sc_006_collector_overhead_test.dart`
+- [x] T029 [EDGE] RED→GREEN: SC-007 — 3+ plugins' benchmarks in the same suite without conflicts — `test/plugins/benchmark/scenarios/sc_007_cross_plugin_test.dart`
 
 ---
 
@@ -104,8 +104,8 @@
 
 **Purpose**: Docs + hygiene that carries no behavior of its own.
 
-- [ ] T030 Docs: update `specs/015-benchmark-plugin/quickstart.md` examples to the shipped API surface
-- [ ] T031 Hygiene: `dart analyze` clean on all new paths; confirm NO `package:flutter` import anywhere under `lib/src/core/benchmark/` and `lib/src/plugins/benchmark/` (014-pure-dart-core-split)
+- [x] T030 Docs: update `specs/015-benchmark-plugin/quickstart.md` examples to the shipped API surface
+- [x] T031 Hygiene: `dart analyze` clean on all new paths; confirm NO `package:flutter` import anywhere under `lib/src/core/benchmark/` and `lib/src/plugins/benchmark/` (014-pure-dart-core-split)
 - [ ] T032 Verify full-suite green: `dart analyze` + `dart test`; report actual pass/fail counts and PROVED vs unproved success criteria
 
 ---
