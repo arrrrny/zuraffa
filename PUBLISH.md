@@ -72,6 +72,10 @@ the freshly published `zuraffa`, never a stale hosted copy.
 
 ## Notes
 
+- **Registry (6.1.0+):** both packages publish to **pub.dev only**. `pub.zuzu.dev` was a
+  temporary development mirror used while the `zuraffa_flutter` split was in progress and is
+  now retired. `scripts/publish.sh` defaults `PUB_HOSTED_URL` to `https://pub.dev`; pub.dev
+  credentials (`dart pub login`) must be present on the machine running the release.
 - `zuraffa_flutter` depends on hosted `zuraffa: ^<version>`; it no longer carries a local
   path override (it resolves `zuraffa` from pub per the repo's own "Resolve zuraffa from
   pub" commit). Its `dependency_overrides:` (analyzer/meta) are dev-only and are stripped
