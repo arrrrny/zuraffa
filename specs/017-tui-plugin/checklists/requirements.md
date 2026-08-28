@@ -6,9 +6,10 @@
 
 ## Content Quality
 
-- [x] No implementation details (languages, frameworks, APIs)
+- [ ] No implementation details (languages, frameworks, APIs) — the specification
+  intentionally names technical constraints and adaptation decisions
 - [x] Focused on user value and business needs
-- [x] Written for non-technical stakeholders
+- [x] Written for Zuraffa application developers, the feature's technical audience
 - [x] All mandatory sections completed
 
 ## Requirement Completeness
@@ -16,7 +17,8 @@
 - [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
-- [x] Success criteria are technology-agnostic (no implementation details)
+- [ ] Success criteria are technology-agnostic (no implementation details) — SC-006
+  intentionally verifies the pure-Dart/non-Flutter compatibility constraint
 - [x] All acceptance scenarios are defined
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded
@@ -27,10 +29,14 @@
 - [x] All functional requirements have clear acceptance criteria
 - [x] User scenarios cover primary flows
 - [x] Feature meets measurable outcomes defined in Success Criteria
-- [x] No implementation details leak into specification
+- [ ] No implementation details leak into specification — implementation constraints
+  are explicitly documented where they affect compatibility and acceptance
 
 ## Notes
 
-- Items marked incomplete require spec updates before `/skill:speckit-clarify` or `/skill:speckit-plan`
-- The adaptation target (`nocterm`) and the pure-Dart placement rule are recorded in Assumptions, not in the requirements body, to keep the spec implementation-agnostic.
-- A deliberate tension exists between the template's "no implementation details" rule and this being an internal dev-tooling feature; implementation specifics are confined to the Assumptions section (permitted by the template) and named only as the chosen adaptation decision.
+- The unchecked content-quality items document intentional template exceptions,
+  not missing feature requirements.
+- The specification is written for Zuraffa application developers and deliberately
+  includes the technical constraints needed to make its requirements testable.
+- Implementation references include `nocterm`, Dart/Flutter package boundaries,
+  `package:flutter`, `CancelToken`, and Zuraffa's DI types.
