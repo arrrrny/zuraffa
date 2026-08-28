@@ -2,44 +2,51 @@ import 'dart:convert';
 import 'package:test/test.dart';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:zuraffa/zuraffa.dart';
 
-class MockHttpClient extends Mock implements http.Client {}
+/// Native fake [http.Client] that records every request it is asked to send
+/// (instead of using mocktail's `verify(...).captured`). When [failWith] is set,
+/// [send] still records the attempt and then throws, mirroring a network failure
+/// that the exporter is expected to swallow without crashing or retrying.
+///
+/// Extends [http.BaseClient] so the convenience methods (`get`/`post`/etc.) are
+/// derived from [send]; only [send] and [close] need a concrete body.
+class RecordingClient extends http.BaseClient {
+  final List<http.Request> sent = [];
+  Object? failWith;
 
-class FakeUri extends Fake implements Uri {}
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    sent.add(request as http.Request);
+    if (failWith != null) {
+      throw failWith!;
+    }
+    return http.StreamedResponse(Stream.value(<int>[]), 200);
+  }
+
+  @override
+  void close() {}
+}
 
 void main() {
-  setUpAll(() {
-    registerFallbackValue(FakeUri());
+  late RecordingClient recordingClient;
+  late OtelLogExporter exporter;
+
+  setUp(() {
+    recordingClient = RecordingClient();
+  });
+
+  tearDown(() async {
+    await exporter.dispose();
+    Logger.root.clearListeners();
   });
 
   group('OtelLogExporter', () {
-    late MockHttpClient mockHttpClient;
-    late OtelLogExporter exporter;
-
-    setUp(() {
-      mockHttpClient = MockHttpClient();
-
-      when(
-        () => mockHttpClient.post(
-          any(),
-          headers: any(named: 'headers'),
-          body: any(named: 'body'),
-        ),
-      ).thenAnswer((_) async => http.Response('{}', 200));
-    });
-
-    tearDown(() async {
-      await exporter.dispose();
-      Logger.root.clearListeners();
-    });
-
     test('determines correct logs endpoint from traces endpoint', () {
       exporter = OtelLogExporter(
         collectorBaseEndpoint: Uri.parse('http://localhost:4318/v1/traces'),
         serviceName: 'test_service',
-        httpClient: mockHttpClient,
+        httpClient: recordingClient,
       );
 
       // We expose logsEndpoint logic by making it send a log and asserting the URI
@@ -48,16 +55,10 @@ void main() {
 
       // Force flush
       return exporter.flush().then((_) {
-        final captured = verify(
-          () => mockHttpClient.post(
-            captureAny(),
-            headers: any(named: 'headers'),
-            body: any(named: 'body'),
-          ),
-        ).captured;
-
-        final uri = captured.first as Uri;
-        expect(uri.toString(), 'http://localhost:4318/v1/logs');
+        expect(
+          recordingClient.sent.last.url.toString(),
+          'http://localhost:4318/v1/logs',
+        );
       });
     });
 
@@ -65,23 +66,17 @@ void main() {
       exporter = OtelLogExporter(
         collectorBaseEndpoint: Uri.parse('http://localhost:4318/'),
         serviceName: 'test_service',
-        httpClient: mockHttpClient,
+        httpClient: recordingClient,
       );
 
       exporter.start();
       Logger.root.warning('test');
 
       return exporter.flush().then((_) {
-        final captured = verify(
-          () => mockHttpClient.post(
-            captureAny(),
-            headers: any(named: 'headers'),
-            body: any(named: 'body'),
-          ),
-        ).captured;
-
-        final uri = captured.first as Uri;
-        expect(uri.toString(), 'http://localhost:4318/v1/logs');
+        expect(
+          recordingClient.sent.last.url.toString(),
+          'http://localhost:4318/v1/logs',
+        );
       });
     });
 
@@ -90,7 +85,7 @@ void main() {
         collectorBaseEndpoint: Uri.parse('http://localhost:4318/v1/traces'),
         serviceName: 'test_service',
         remoteLogLevel: ZuraffaLogLevel.warning,
-        httpClient: mockHttpClient,
+        httpClient: recordingClient,
       );
 
       exporter.start();
@@ -101,26 +96,14 @@ void main() {
 
       await exporter.flush();
 
-      verifyNever(
-        () => mockHttpClient.post(
-          any(),
-          headers: any(named: 'headers'),
-          body: any(named: 'body'),
-        ),
-      );
+      expect(recordingClient.sent, isEmpty);
 
       // This should be exported
       Logger.root.warning('warning log');
 
       await exporter.flush();
 
-      verify(
-        () => mockHttpClient.post(
-          any(),
-          headers: any(named: 'headers'),
-          body: any(named: 'body'),
-        ),
-      ).called(1);
+      expect(recordingClient.sent, hasLength(1));
     });
 
     test('batches logs and builds correct OTLP payload', () async {
@@ -128,7 +111,7 @@ void main() {
         collectorBaseEndpoint: Uri.parse('http://localhost:4318/v1/traces'),
         serviceName: 'test_service',
         remoteLogLevel: ZuraffaLogLevel.all,
-        httpClient: mockHttpClient,
+        httpClient: recordingClient,
         maxBatchSize: 2, // Flush after 2 logs
       );
 
@@ -145,15 +128,7 @@ void main() {
       // We yield to event loop to allow flush to complete.
       await Future.delayed(Duration.zero);
 
-      final captured = verify(
-        () => mockHttpClient.post(
-          any(),
-          headers: any(named: 'headers'),
-          body: captureAny(named: 'body'),
-        ),
-      ).captured;
-
-      final bodyStr = captured.first as String;
+      final bodyStr = recordingClient.sent.last.body;
       final payload = jsonDecode(bodyStr) as Map<String, dynamic>;
 
       final resourceLogs = payload['resourceLogs'] as List;
@@ -161,7 +136,10 @@ void main() {
 
       final resource = resourceLogs[0]['resource'];
       expect(resource['attributes'][0]['key'], 'service.name');
-      expect(resource['attributes'][0]['value']['stringValue'], 'test_service');
+      expect(
+        resource['attributes'][0]['value']['stringValue'],
+        'test_service',
+      );
 
       final scopeLogs = resourceLogs[0]['scopeLogs'] as List;
       expect(scopeLogs, hasLength(1));
@@ -199,19 +177,13 @@ void main() {
     });
 
     test('does not crash or retry on http failure', () async {
-      when(
-        () => mockHttpClient.post(
-          any(),
-          headers: any(named: 'headers'),
-          body: any(named: 'body'),
-        ),
-      ).thenThrow(Exception('Network error'));
+      recordingClient.failWith = Exception('Network error');
 
       exporter = OtelLogExporter(
         collectorBaseEndpoint: Uri.parse('http://localhost:4318/v1/traces'),
         serviceName: 'test_service',
         remoteLogLevel: ZuraffaLogLevel.all,
-        httpClient: mockHttpClient,
+        httpClient: recordingClient,
       );
 
       exporter.start();
@@ -220,13 +192,8 @@ void main() {
       // Flush should catch the error and complete normally
       await exporter.flush();
 
-      verify(
-        () => mockHttpClient.post(
-          any(),
-          headers: any(named: 'headers'),
-          body: any(named: 'body'),
-        ),
-      ).called(1);
+      // A single send attempt was made before the failure was swallowed.
+      expect(recordingClient.sent, hasLength(1));
     });
   });
 }

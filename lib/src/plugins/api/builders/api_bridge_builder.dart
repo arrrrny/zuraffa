@@ -1,8 +1,10 @@
 import 'dart:io';
 
+import 'package:analyzer/dart/ast/ast.dart' as ast;
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../core/ast/file_parser.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/context/file_system.dart';
 import '../../../core/generator_options.dart';
@@ -90,6 +92,8 @@ class ApiBridgeBuilder {
       return [];
     }
 
+    _validateReturnSerializers(useCases);
+
     final content = _generateBridgeFile(
       entityName: entityName,
       entitySnake: entitySnake,
@@ -116,6 +120,75 @@ class ApiBridgeBuilder {
     );
 
     return [generated];
+  }
+
+  /// Ensures every return type on which the bridge emits `toJson()` actually
+  /// exposes that serializer in the entity library (including extensions in
+  /// generated `.zorphy.dart` files).
+  void _validateReturnSerializers(List<_UseCaseDescriptor> useCases) {
+    for (final useCase in useCases) {
+      final returnType = useCase.returnType.trim();
+      if (returnType == 'void') continue;
+
+      final serializedType = returnType.startsWith('List<')
+          ? _extractInnerType(returnType)
+          : returnType;
+      final baseType = serializedType.replaceAll('?', '').trim();
+      if (_typeExposesToJson(baseType)) continue;
+
+      throw StateError(
+        'Cannot generate API bridge for ${useCase.className}: return type '
+        '$baseType does not expose a toJson() serializer.',
+      );
+    }
+  }
+
+  bool _typeExposesToJson(String typeName) {
+    final entitySnake = StringUtils.camelToSnake(typeName);
+    final entityDir = p.join(outputDir, 'domain', 'entities', entitySnake);
+    if (!fileSystem.isDirectorySync(entityDir)) return false;
+
+    final parser = const FileParser();
+    for (final filePath in fileSystem.listSync(entityDir)) {
+      if (!filePath.endsWith('.dart')) continue;
+      final result = parser.parseSource(
+        fileSystem.readSync(filePath),
+        path: filePath,
+      );
+      final unit = result.unit;
+      if (unit == null) continue;
+
+      for (final declaration in unit.declarations) {
+        if (declaration is ast.ClassDeclaration &&
+            declaration.namePart.typeName.lexeme == typeName &&
+            _membersExposeToJson(declaration.body.members)) {
+          return true;
+        }
+        if (declaration is ast.ExtensionDeclaration &&
+            declaration.onClause?.extendedType.toSource() == typeName &&
+            _membersExposeToJson(declaration.body.members)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool _membersExposeToJson(ast.NodeList<ast.ClassMember> members) {
+    return members.whereType<ast.MethodDeclaration>().any(
+      (method) =>
+          method.name.lexeme == 'toJson' &&
+          !method.isGetter &&
+          !method.isSetter &&
+          (method.parameters?.parameters.isEmpty ?? true),
+    );
+  }
+
+  String _extractInnerType(String type) {
+    final firstOpen = type.indexOf('<');
+    final lastClose = type.lastIndexOf('>');
+    if (firstOpen == -1 || lastClose <= firstOpen) return type;
+    return type.substring(firstOpen + 1, lastClose).trim();
   }
 
   // ---------------------------------------------------------------------------
@@ -321,7 +394,9 @@ class ApiBridgeBuilder {
     lines.add('/// then call this function before `runApp()`.');
     lines.add('void register${entityName}ApiBridge() {');
     lines.add('  if (const bool.fromEnvironment(\'dart.vm.product\')) return;');
-    lines.add('  if (const bool.fromEnvironment(\'dart.vm.profile\') && !Zuraffa.enableApiInProfile) return;');
+    lines.add(
+      '  if (const bool.fromEnvironment(\'dart.vm.profile\') && !Zuraffa.enableApiInProfile) return;',
+    );
     lines.add('');
 
     for (final uc in useCases) {

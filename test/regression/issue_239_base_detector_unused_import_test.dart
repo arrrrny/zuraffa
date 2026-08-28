@@ -38,7 +38,7 @@ void main() {
 
     // The unused import must NOT be present anywhere in the file.
     expect(
-      src.contains(RegExp(r'^[ \t]*import[ \t]+["\']package:path/path\.dart["\']',
+      src.contains(RegExp('^[ \\t]*import[ \\t]+["\']package:path/path\\.dart["\']',
           multiLine: true)),
       isFalse,
       reason: 'base_detector.dart must not import package:path/path.dart — '
@@ -62,7 +62,7 @@ void main() {
     final src = baseDetector.readAsStringSync();
 
     // Collect every `import '...';` line.
-    final imports = RegExp(r'^[ \t]*import[ \t]+["\'][^"\']+["\']\s*(?:as\s+\w+)?\s*;',
+    final imports = RegExp('^[ \\t]*import[ \\t]+["\'][^"\']+["\']\\s*(?:as\\s+\\w+)?\\s*;',
             multiLine: true)
         .allMatches(src)
         .map((m) => m.group(0)!.trim().replaceAll('"', "'"))

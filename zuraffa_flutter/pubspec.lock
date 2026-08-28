@@ -424,14 +424,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.5.8"
-  mocktail:
-    dependency: "direct dev"
-    description:
-      name: mocktail
-      sha256: "5e1bf53cc7baa8062a33b84424deb61513858ea05c601b8509e683815b5914aa"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.5"
   nested:
     dependency: transitive
     description:
@@ -715,7 +707,7 @@ packages:
       path: ".."
       relative: true
     source: path
-    version: "6.0.0"
+    version: "6.0.1"
 sdks:
   dart: ">=3.11.0 <4.0.0"
   flutter: ">=3.41.0"

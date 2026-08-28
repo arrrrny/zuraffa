@@ -1,5 +1,4 @@
 import 'package:test/test.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:zuraffa/src/core/sync_config.dart';
 import 'package:zuraffa/src/core/sync_metadata.dart';
 import 'package:zuraffa/src/core/sync_operation.dart';
@@ -14,11 +13,40 @@ class TestEntity {
   const TestEntity({required this.id, required this.name});
 }
 
-/// Mock SyncMetadataStore for unit tests.
-class MockSyncMetadataStore extends Mock implements SyncMetadataStore {}
+/// Native fake [SyncMetadataStore] backed by the test's in-memory [metaMap]
+/// (instead of a mocktail mock wired with `when(...).thenAnswer`).
+class FakeSyncMetadataStore implements SyncMetadataStore {
+  final Map<String, SyncMetadata> metaMap;
+  FakeSyncMetadataStore(this.metaMap);
+
+  @override
+  Future<SyncMetadata?> get(String key) async => metaMap[key];
+
+  @override
+  Future<void> put(String key, SyncMetadata metadata) async {
+    metaMap[key] = metadata;
+  }
+
+  @override
+  Future<void> remove(String key) async => metaMap.remove(key);
+
+  @override
+  Future<List<String>> getKeysByStatus(SyncStatus status) async =>
+      metaMap.entries
+          .where((e) => e.value.status == status)
+          .map((e) => e.key)
+          .toList();
+
+  @override
+  Future<int> countByStatus(SyncStatus status) async =>
+      metaMap.values.where((m) => m.status == status).length;
+
+  @override
+  Future<void> clear() async => metaMap.clear();
+}
 
 void main() {
-  late MockSyncMetadataStore metadataStore;
+  late FakeSyncMetadataStore metadataStore;
   late PushOnlySyncStrategy<TestEntity> strategy;
 
   // In-memory storage for the test
@@ -28,46 +56,13 @@ void main() {
   final deletedRemote = <String>[];
   final metaMap = <String, SyncMetadata>{};
 
-  setUpAll(() {
-    registerFallbackValue(SyncStatus.pending);
-    registerFallbackValue(
-      const SyncMetadata(
-        status: SyncStatus.pending,
-        operation: SyncOperation.create,
-      ),
-    );
-  });
-
   setUp(() {
-    metadataStore = MockSyncMetadataStore();
+    metadataStore = FakeSyncMetadataStore(metaMap);
     localStore.clear();
     createdRemote.clear();
     updatedRemote.clear();
     deletedRemote.clear();
     metaMap.clear();
-
-    // Wire mock to use in-memory map
-    when(() => metadataStore.get(any())).thenAnswer((inv) async {
-      return metaMap[inv.positionalArguments[0] as String];
-    });
-    when(() => metadataStore.put(any(), any())).thenAnswer((inv) async {
-      metaMap[inv.positionalArguments[0] as String] =
-          inv.positionalArguments[1] as SyncMetadata;
-    });
-    when(() => metadataStore.remove(any())).thenAnswer((inv) async {
-      metaMap.remove(inv.positionalArguments[0] as String);
-    });
-    when(() => metadataStore.getKeysByStatus(any())).thenAnswer((inv) async {
-      final status = inv.positionalArguments[0] as SyncStatus;
-      return metaMap.entries
-          .where((e) => e.value.status == status)
-          .map((e) => e.key)
-          .toList();
-    });
-    when(() => metadataStore.countByStatus(any())).thenAnswer((inv) async {
-      final status = inv.positionalArguments[0] as SyncStatus;
-      return metaMap.values.where((m) => m.status == status).length;
-    });
 
     strategy = PushOnlySyncStrategy<TestEntity>(
       fetchLocal: (keys) async {

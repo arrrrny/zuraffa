@@ -3,6 +3,12 @@ part of 'test_builder.dart';
 extension TestBuilderEntity on TestBuilder {
   /// Generates a test file for a single entity use case method.
   ///
+  /// Emits **native** zuraffa mocks (no `package:mocktail`):
+  /// a `Throwing{Entity}DataSource` (every datasource method throws) plus a
+  /// wired `Data{Entity}Repository` backed by the generated
+  /// `{Entity}MockDataSource`. This lets a zuraffa app run end-to-end on full
+  /// mock infrastructure without any third-party mocking library.
+  ///
   /// @param config Generator configuration describing the entity and options.
   /// @param method Use case method name to generate tests for.
   /// @returns Generated test file metadata.
@@ -32,27 +38,20 @@ extension TestBuilderEntity on TestBuilder {
     final targetSuffix = useService ? 'service' : 'repository';
 
     String className;
-    String returnTypeConstructor = '';
     bool isStream = false;
-    bool isCompletable = false;
-
     switch (method) {
       case 'get':
         className = 'Get${entityName}UseCase';
-        returnTypeConstructor = 't$entityName';
         break;
       case 'getList':
       case 'list':
         className = 'Get${entityName}ListUseCase';
-        returnTypeConstructor = 't${entityName}List';
         break;
       case 'create':
         className = 'Create${entityName}UseCase';
-        returnTypeConstructor = 't$entityName';
         break;
       case 'update':
         className = 'Update${entityName}UseCase';
-        returnTypeConstructor = 't$entityName';
         break;
       case 'toggle':
         // #289: PR #287 added 'toggle' to the entity-methods default used by
@@ -65,21 +64,16 @@ extension TestBuilderEntity on TestBuilder {
         // Mirrors the usecase generator: `Toggle${entityName}UseCase` returns
         // the toggled entity (Future<Entity>), not a stream and not void.
         className = 'Toggle${entityName}UseCase';
-        returnTypeConstructor = 't$entityName';
         break;
       case 'delete':
         className = 'Delete${entityName}UseCase';
-        returnTypeConstructor = 'null';
-        isCompletable = true;
         break;
       case 'watch':
         className = 'Watch${entityName}UseCase';
-        returnTypeConstructor = 't$entityName';
         isStream = true;
         break;
       case 'watchList':
         className = 'Watch${entityName}ListUseCase';
-        returnTypeConstructor = 't${entityName}List';
         isStream = true;
         break;
       default:
@@ -115,6 +109,16 @@ extension TestBuilderEntity on TestBuilder {
       '${targetSnake}_$targetSuffix.dart',
     );
     final useCaseFile = discovery.findFileSync(useCaseFileName);
+    final dataSourceFile = discovery.findFileSync(
+      '${entitySnake}_datasource.dart',
+    );
+    final mockDataSourceFile = discovery.findFileSync(
+      '${entitySnake}_mock_datasource.dart',
+    );
+    final mockDataFile = discovery.findFileSync('${entitySnake}_mock_data.dart');
+    final dataRepositoryFile = discovery.findFileSync(
+      'data_${entitySnake}_repository.dart',
+    );
 
     if (useCaseFile == null) {
       print(
@@ -123,15 +127,32 @@ extension TestBuilderEntity on TestBuilder {
       return GeneratedFile(path: filePath, type: 'test', action: 'skipped');
     }
 
+    final missingNativeMockFile = <String, Object?>{
+      '${entitySnake}_datasource.dart': dataSourceFile,
+      '${entitySnake}_mock_datasource.dart': mockDataSourceFile,
+      '${entitySnake}_mock_data.dart': mockDataFile,
+      'data_${entitySnake}_repository.dart': dataRepositoryFile,
+    }.entries.where((entry) => entry.value == null).map((entry) => entry.key).firstOrNull;
+    if (missingNativeMockFile != null) {
+      print(
+        '  ⚠️  Skipping test generation for $className: Native mock '
+        'file ($missingNativeMockFile) not found.',
+      );
+      return GeneratedFile(path: filePath, type: 'test', action: 'skipped');
+    }
+
     // #354: detect Flutter vs pure-Dart from pubspec.yaml so the test
     // framework + zuraffa core imports resolve. `zfa setup --dart` only
-    // wires `test` + `mocktail` + `zuraffa` (no `flutter_test`, no
-    // `zuraffa_flutter`).
+    // wires `test` + `zuraffa` (no `flutter_test`, no `zuraffa_flutter`).
     final isFlutter = await _isFlutterProject(projectRoot);
-    final directives = [
+    // Always import zuraffa core: every generated test defines a
+    // `Throwing{Entity}DataSource` (mixin `Loggable`/`FailureHandler`, params
+    // types `QueryParams`/`ToggleParams`/`Field`/…) regardless of the use case
+    // method under test, so the zuraffa export is required for all methods —
+    // including `create`, which previously omitted it and failed to load.
+    final directives = <Directive>[
       _testFrameworkImport(isFlutter),
-      Directive.import('package:mocktail/mocktail.dart'),
-      if (method != 'create') _zuraffaCoreImport(isFlutter),
+      _zuraffaCoreImport(isFlutter),
     ];
 
     String toPackageImport(String filePath) {
@@ -164,17 +185,25 @@ extension TestBuilderEntity on TestBuilder {
 
     directives.add(Directive.import(toPackageImport(useCaseFile.path)));
 
+    // Native mock infrastructure (generated by `zfa make <Entity> --mock`):
+    // datasource interface, mock datasource, mock data, and the Data*Repository.
+    directives.add(
+      Directive.import(toPackageImport(dataSourceFile!.path)),
+    );
+    directives.add(
+      Directive.import(toPackageImport(mockDataSourceFile!.path)),
+    );
+    directives.add(
+      Directive.import(toPackageImport(mockDataFile!.path)),
+    );
+    directives.add(
+      Directive.import(toPackageImport(dataRepositoryFile!.path)),
+    );
+
     // #321: the test file's `main()` body constructs params that reference
-    // the id field type directly (UpdateParams<IdType, Patch>,
-    // ToggleParams<IdType, Field>, DeleteParams<IdType>, ...). When the
-    // id field is an enum (e.g. messageTypeId: SomeEnum), the enum barrel
-    // import must be emitted here — the entity file's own
-    // `import '../enums/index.dart'` is private and not re-exported, so
-    // the test file references the enum symbol directly without it being
-    // in scope. Primitive types are filtered out by KnownTypes.isExcluded,
-    // so a plain `String` id adds nothing. Resolve the enum barrel path
-    // via CommonPatterns.entityImports (handles same-domain + standard +
-    // legacy flat + enums/ directory lookups).
+    // the id field type directly. When the id field is an enum, the enum
+    // barrel import must be emitted here. Resolve it via
+    // CommonPatterns.entityImports.
     final sigTypeImports = CommonPatterns.entityImports(
       [config.idFieldType, config.queryFieldType],
       config,
@@ -182,30 +211,21 @@ extension TestBuilderEntity on TestBuilder {
       fileSystem: fileSystem,
     );
     for (final importPath in sigTypeImports) {
-      // Convert the relative `../../../domain/...` path (depth=3 from
-      // `test/domain/usecases/<snake>/`) into a package: import that
-      // matches the other test directives above.
       final packagePath = importPath.startsWith('../')
-          ? importPath.substring('../'.length * 3) // strip `../../../`
+          ? importPath.substring('../'.length * 3)
           : importPath;
-      directives.add(Directive.import('package:$packageName/src/$packagePath'));
+      directives.add(
+        Directive.import('package:$packageName/src/$packagePath'),
+      );
     }
 
-    final mockRepoClass = 'Mock$targetName';
-    final mockEntityClass = 'Mock$entityName';
-
-    final mockRepo = Class(
+    final throwingClass = Class(
       (c) => c
-        ..name = mockRepoClass
-        ..extend = refer('Mock')
-        ..implements.add(refer(targetName)),
-    );
-
-    final mockEntity = Class(
-      (c) => c
-        ..name = mockEntityClass
-        ..extend = refer('Mock')
-        ..implements.add(refer(entityName)),
+        ..name = 'Throwing${entityName}DataSource'
+        ..mixins.add(refer('Loggable'))
+        ..mixins.add(refer('FailureHandler'))
+        ..implements.add(refer('${entityName}DataSource'))
+        ..methods.addAll(_throwingDataSourceMethods(config)),
     );
 
     final mainMethod = Method(
@@ -213,38 +233,81 @@ extension TestBuilderEntity on TestBuilder {
         ..name = 'main'
         ..returns = refer('void')
         ..body = Block((b) {
-          final mockVarName = 'mock${StringUtils.capitalize(targetSuffix)}';
           b.statements.add(
             declareVar('useCase', type: refer(className), late: true).statement,
           );
           b.statements.add(
             declareVar(
-              mockVarName,
-              type: refer(mockRepoClass),
+              'throwingUseCase',
+              type: refer(className),
+              late: true,
+            ).statement,
+          );
+          b.statements.add(
+            declareVar(
+              'repository',
+              type: refer('Data${entityName}Repository'),
+              late: true,
+            ).statement,
+          );
+          b.statements.add(
+            declareVar(
+              'throwingRepository',
+              type: refer('Data${entityName}Repository'),
+              late: true,
+            ).statement,
+          );
+          b.statements.add(
+            declareVar(
+              'mockDataSource',
+              type: refer('${entityName}MockDataSource'),
+              late: true,
+            ).statement,
+          );
+          b.statements.add(
+            declareVar(
+              'throwingDataSource',
+              type: refer('Throwing${entityName}DataSource'),
               late: true,
             ).statement,
           );
 
           final setUpBody = Block((s) {
-            final fallbackValues = _getFallbackValues(
-              config,
-              method,
-              mockEntityClass,
-            );
-            for (final val in fallbackValues) {
-              s.statements.add(
-                refer('registerFallbackValue').call([val]).statement,
-              );
-            }
             s.statements.add(
-              refer(
-                mockVarName,
-              ).assign(refer(mockRepoClass).call([])).statement,
+              refer('mockDataSource')
+                  .assign(refer('${entityName}MockDataSource').call([]))
+                  .statement,
             );
             s.statements.add(
-              refer(
-                'useCase',
-              ).assign(refer(className).call([refer(mockVarName)])).statement,
+              refer('throwingDataSource')
+                  .assign(refer('Throwing${entityName}DataSource').call([]))
+                  .statement,
+            );
+            s.statements.add(
+              refer('repository')
+                  .assign(
+                    refer('Data${entityName}Repository')
+                        .call([refer('mockDataSource')]),
+                  )
+                  .statement,
+            );
+            s.statements.add(
+              refer('throwingRepository')
+                  .assign(
+                    refer('Data${entityName}Repository')
+                        .call([refer('throwingDataSource')]),
+                  )
+                  .statement,
+            );
+            s.statements.add(
+              refer('useCase')
+                  .assign(refer(className).call([refer('repository')]))
+                  .statement,
+            );
+            s.statements.add(
+              refer('throwingUseCase')
+                  .assign(refer(className).call([refer('throwingRepository')]))
+                  .statement,
             );
           });
 
@@ -253,61 +316,31 @@ extension TestBuilderEntity on TestBuilder {
           );
 
           final groupBody = Block((g) {
-            if (method != 'delete') {
-              g.statements.add(
-                declareFinal(
-                  't$entityName',
-                ).assign(refer(mockEntityClass).call([])).statement,
-              );
-            }
-
-            if (![
-              'get',
-              'create',
-              'delete',
-              'watch',
-              'update',
-            ].contains(method)) {
-              if (['getList', 'watchList'].contains(method)) {
-                g.statements.add(
-                  declareFinal(
-                    't${entityName}List',
-                  ).assign(literalList([refer('t$entityName')])).statement,
-                );
-              }
-            }
-
-            final tests = isStream
-                ? _generateStreamTests(
-                    config,
-                    method,
-                    entityName,
-                    returnTypeConstructor,
-                    mockVarName,
+            g.statements.add(
+              declareFinal('t$entityName')
+                  .assign(
+                    refer('${entityName}MockData')
+                        .property('sample$entityName'),
                   )
-                : _generateFutureTests(
-                    config,
-                    method,
-                    entityName,
-                    returnTypeConstructor,
-                    isCompletable,
-                    mockVarName,
-                  );
-
-            g.statements.addAll(tests);
+                  .statement,
+            );
+            g.statements.addAll(
+              _nativeTestCode(config, method, entityName, isStream),
+            );
           });
 
           b.statements.add(
-            refer(
-              'group',
-            ).call([literalString(className), groupBody.toClosure()]).statement,
+            refer('group').call([
+              literalString(className),
+              groupBody.toClosure(),
+            ]).statement,
           );
         }),
     );
 
     final content = specLibrary.emitLibrary(
       specLibrary.library(
-        specs: [mockRepo, mockEntity, mainMethod],
+        specs: [throwingClass, mainMethod],
         directives: directives,
       ),
     );
@@ -322,5 +355,239 @@ extension TestBuilderEntity on TestBuilder {
       revert: config.revert,
       fileSystem: fileSystem,
     );
+  }
+
+  /// Builds the `Throwing{Entity}DataSource` method overrides. Every datasource
+  /// method throws, giving the failure-path test a repository that always fails.
+  /// All eight canonical signatures are overridden so the class satisfies
+  /// `implements {Entity}DataSource` for any entity regardless of which subset
+  /// of methods its use case actually exercises.
+  List<Method> _throwingDataSourceMethods(GeneratorConfig config) {
+    final e = config.name;
+    final id = config.idFieldType;
+    final patch = '${e}Patch';
+    final self = 'Throwing${e}DataSource';
+
+    Method make(
+      String name,
+      String ret,
+      List<(String, String)> params,
+    ) =>
+        Method(
+          (b) => b
+            ..name = name
+            ..returns = refer(ret)
+            ..annotations.add(refer('override'))
+            ..requiredParameters.addAll(
+              params.map(
+                (p) => Parameter(
+                  (pm) => pm..name = p.$1..type = refer(p.$2),
+                ),
+              ),
+            )
+            ..body = refer('throw')
+                .call([
+                  refer('Exception').call([literalString('$self.$name')]),
+                ])
+                .statement,
+        );
+
+    return [
+      make('get', 'Future<$e>', [('params', 'QueryParams<$e>')]),
+      make('getList', 'Future<List<$e>>', [('params', 'ListQueryParams<$e>')]),
+      make('create', 'Future<$e>', [('entity', e)]),
+      make('update', 'Future<$e>', [
+        ('params', 'UpdateParams<$id, $patch>'),
+      ]),
+      make('toggle', 'Future<$e>', [
+        ('params', 'ToggleParams<$id, Field<$e, dynamic>>'),
+      ]),
+      make('delete', 'Future<Map<String, dynamic>>', [
+        ('params', 'DeleteParams<$id>'),
+      ]),
+      make('watch', 'Stream<$e>', [('params', 'QueryParams<$e>')]),
+      make('watchList', 'Stream<List<$e>>', [
+        ('params', 'ListQueryParams<$e>'),
+      ]),
+    ];
+  }
+
+  /// Builds the two test cases (success + failure) for a single use case method
+  /// using only native mocks — no `when`/`verify`/`registerFallbackValue`.
+  List<Code> _nativeTestCode(
+    GeneratorConfig config,
+    String method,
+    String entityName,
+    bool isStream,
+  ) {
+    final e = entityName;
+    final id = config.idFieldType;
+    final qf = config.queryField;
+
+    // The legacy mocktail toggle tests hardcoded `value: true`, which only
+    // "passed" because the repository was mocked to return Success
+    // unconditionally. With native mocks the datasource actually runs
+    // `copyWithField(field, value)`; the value's runtime type must match the
+    // toggled (id/query) field's declared type or `copyWithField` throws
+    // ArgumentError and the use case returns Failure. Emit a type-correct
+    // sample value for the id field type so the success path stays green.
+    Expression toggleSampleValue(String type) {
+      final t = type.replaceAll('?', '').trim();
+      switch (t) {
+        case 'int':
+        case 'num':
+          return literalNum(1);
+        case 'double':
+          return literalNum(1.0);
+        case 'bool':
+          return literalBool(true);
+        case 'String':
+        default:
+          return literalString('toggled');
+      }
+    }
+
+    Expression paramsExpr;
+    switch (method) {
+      case 'get':
+      case 'watch':
+        paramsExpr = refer('QueryParams<$e>').call([], {
+          'filter': refer('Eq').call([
+            refer('${e}Fields').property(qf),
+            refer('t$e').property(qf),
+          ]),
+        });
+        break;
+      case 'getList':
+      case 'watchList':
+        paramsExpr = refer('ListQueryParams<$e>').call([]);
+        break;
+      case 'create':
+        paramsExpr = refer('t$e');
+        break;
+      case 'update':
+        paramsExpr = refer('UpdateParams<$id, ${e}Patch>').call([], {
+          'id': refer('t$e').property(config.idField),
+          'data': refer('${e}Patch').call([]),
+        });
+        break;
+      case 'toggle':
+        paramsExpr = refer('ToggleParams<$id, Field<$e, dynamic>>').call([], {
+          'id': refer('t$e').property(config.idField),
+          'field': refer('${e}Fields').property(qf),
+          'value': toggleSampleValue(config.queryFieldType),
+        });
+        break;
+      case 'delete':
+        paramsExpr = refer('DeleteParams<$id>').call([], {
+          'id': refer('t$e').property(config.idField),
+        });
+        break;
+      default:
+        paramsExpr = refer('t$e');
+    }
+
+    final getOrElseThunk = Method(
+      (mm) => mm
+        ..lambda = true
+        ..body =
+            refer('throw').call([refer('Exception').call([literalString('not success')])]).code,
+    ).closure;
+
+    final successBody = Block((t) {
+      if (isStream) {
+        t.statements.add(
+          declareFinal('result')
+              .assign(refer('useCase').property('call').call([paramsExpr]))
+              .statement,
+        );
+        t.statements.add(
+          refer('expectLater')
+              .call([
+                refer('result'),
+                refer('emits').call([
+                  refer('isA').call([], {}, [refer('Success<$e>')]),
+                ]),
+              ])
+              .awaited
+              .statement,
+        );
+      } else {
+        t.statements.add(
+          declareFinal('result')
+              .assign(
+                refer('useCase').property('call').call([paramsExpr]).awaited,
+              )
+              .statement,
+        );
+        t.statements.add(
+          refer('expect')
+              .call([refer('result').property('isSuccess'), literalBool(true)])
+              .statement,
+        );
+        if (method == 'get') {
+          t.statements.add(
+            refer('expect')
+                .call([
+                  refer('result').property('getOrElse').call([getOrElseThunk]),
+                  refer('equals').call([refer('t$e')]),
+                ])
+                .statement,
+          );
+        } else if (method == 'getList') {
+          t.statements.add(
+            refer('expect')
+                .call([
+                  refer('result').property('getOrElse').call([getOrElseThunk]),
+                  refer('isA').call([], {}, [refer('List<$e>')]),
+                ])
+                .statement,
+          );
+        }
+      }
+    });
+
+    final failureBody = Block((t) {
+      if (isStream) {
+        t.statements.add(
+          refer('expectLater')
+              .call([
+                refer('throwingUseCase').property('call').call([paramsExpr]),
+                refer('emitsError').call([
+                  refer('isA').call([], {}, [refer('Object')]),
+                ]),
+              ])
+              .awaited
+              .statement,
+        );
+      } else {
+        t.statements.add(
+          declareFinal('result')
+              .assign(
+                refer('throwingUseCase')
+                    .property('call')
+                    .call([paramsExpr])
+                    .awaited,
+              )
+              .statement,
+        );
+        t.statements.add(
+          refer('expect')
+              .call([refer('result').property('isFailure'), literalBool(true)])
+              .statement,
+        );
+      }
+    });
+
+    return [
+      refer('test').call([
+        literalString('should call repository.$method and return result'),
+        successBody.toClosure(asAsync: true),
+      ]).statement,
+      refer('test').call([
+        literalString('should return Failure when repository throws'),
+        failureBody.toClosure(asAsync: true),
+      ]).statement,
+    ];
   }
 }

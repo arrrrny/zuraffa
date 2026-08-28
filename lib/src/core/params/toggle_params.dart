@@ -23,5 +23,10 @@ abstract class $ToggleParams<I, F> implements $$Params {
   F get field;
 
   /// The target value for the field.
-  bool get value;
+  ///
+  /// Typed `dynamic` (not `bool`) because generated native-mock usecase
+  /// tests pass a type-correct sample of the toggled field's declared type
+  /// into `copyWithField(field, value)`; narrowing to `bool` would reject
+  /// `String`/`int`/`double` id-field samples at compile time.
+  dynamic get value;
 }
