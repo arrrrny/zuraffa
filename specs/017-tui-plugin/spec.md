@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "TUI plugin a native built in TUI plugin that allows to build TUI for zuraffa applications, a standardized implementation across all zuraffa apps"
+**Input**: User description: "TUI plugin a native built-in TUI plugin that allows developers to build TUI for Zuraffa applications, a standardized implementation across all Zuraffa apps"
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -123,15 +123,20 @@ how it is achieved without per-app duplication, but it builds on the widgets.
 
 **Independent Test**: A developer can apply the shared theme to two different
 screens and confirm they render with the same color/style vocabulary and the same
-quIT/confirm key bindings.
+quit/confirm key bindings.
 
 **Acceptance Scenarios**:
 
 1. **Given** the shared theme, **When** it is applied to a screen, **Then** colors
    and emphasis follow the defined vocabulary.
-2. **Given** standard keyboard conventions, **When** a developer builds a screen,
-   **Then** quit/confirm/navigation use the shared bindings unless explicitly
-   overridden.
+2. **Given** standard keyboard conventions and no overrides, **When** a developer
+   builds a screen, **Then** quit uses `q` or `Ctrl+C`, confirm uses `Enter`,
+   directional navigation uses the arrow keys, and focus navigation uses
+   `Tab`/`Shift+Tab`.
+3. **Given** plugin- or application-specific key overrides, **When** the overridden
+   action is invoked, **Then** the override replaces its shared default, an
+   application override wins any conflict with a plugin override, and defaults for
+   all other actions remain unchanged.
 
 ---
 
@@ -164,9 +169,17 @@ gets a runnable list/detail TUI screen wired to that entity's existing use cases
   back to a non-interactive mode, rather than hanging or corrupting output.
 - **Terminal too small / resize**: The plugin MUST handle a resized or very small
   terminal by relaying the new dimensions and reflowing the layout.
-- **Input during an in-flight async action**: The plugin MUST queue or scope input
-  so an action in progress is not corrupted by subsequent keypresses, and MUST
-  surface in-flight state to the user.
+- **Input during an in-flight async action**: The default policy MUST surface the
+  in-flight state and accept only `Escape` to cancel and the effective quit binding
+  (`q`/`Ctrl+C` unless overridden). All other input is dropped rather than queued;
+  the queue limit is therefore zero and no ordering applies. On failure, the plugin
+  displays the failure and restores normal input; on cancellation, it reports the
+  action as canceled (not failed) and restores normal input; on quit, it cancels the
+  action and proceeds with clean shutdown. At boot the TUI lifecycle creates a root
+  `CancelToken`; for each dispatched action it creates a child token, passes that
+  child to `UseCase.call(..., cancelToken: childToken)`, and cancels the child on
+  `Escape` or the root token on quit/disposal so cancellation propagates to every
+  in-flight action.
 - **Rendering engine unavailable (native deps missing)**: If the underlying TUI
   engine cannot initialize the terminal (missing native libraries, unsupported
   platform), the plugin MUST fail with an actionable message, not a raw crash.
@@ -190,13 +203,24 @@ gets a runnable list/detail TUI screen wired to that entity's existing use cases
   scrollable region, progress indicator, navigation, focus/selection).
 - **FR-005**: The plugin MUST provide a shared theming system (colors, emphasis,
   spacing, and status semantics) applied uniformly across screens.
-- **FR-006**: The plugin MUST define a shared set of keyboard conventions
-  (quit, confirm, navigation) usable as defaults across all Zuraffa TUIs.
-- **FR-007**: The plugin MUST allow a screen to bind to Zuraffa's domain layer
-  (entities, repositories, use cases) so it displays domain state and dispatches
-  actions through existing use cases.
-- **FR-008**: The plugin MUST integrate with Zuraffa's dependency injection so
-  domain dependencies are supplied to screens the same way as other layers.
+- **FR-006**: The plugin MUST define canonical default keys across all Zuraffa TUIs:
+  `q` and `Ctrl+C` for quit, `Enter` for confirm, arrow keys for directional
+  navigation, and `Tab`/`Shift+Tab` for focus navigation. Plugin-specific overrides
+  replace these defaults, application-specific overrides replace both defaults and
+  conflicting plugin overrides, and unoverridden actions retain their defaults.
+- **FR-007**: The plugin MUST provide a `Binding` that observes one existing domain
+  source: a repository/`StreamUseCase` stream, a notifier, or the result of a use
+  case refreshed after a dispatched action or explicit refresh. When mounted, the
+  `Binding` MUST subscribe or attach the appropriate listener, propagate each
+  successful domain value into the screen, and schedule a re-render without a
+  developer-written listener, controller, or duplicate data store. On failure it
+  MUST expose a renderable failure state while retaining the last successful value;
+  a non-terminal source remains subscribed. On screen disposal it MUST unsubscribe
+  or remove its listener and cancel any in-flight refresh.
+- **FR-008**: The TUI entry point and generated screens MUST resolve dependencies
+  through the caller's existing `ZuraffaDIContainer` and its underlying `GetIt`
+  instance; they MUST NOT create a separate container. Tests MAY register or
+  override bindings through that same caller-supplied container.
 - **FR-009**: The plugin MUST handle the edge cases above (non-interactive
   terminal, resize, in-flight input, engine init failure, minimal config).
 - **FR-010**: The plugin MUST be distributed as a native, built-in Zuraffa
@@ -229,12 +253,15 @@ gets a runnable list/detail TUI screen wired to that entity's existing use cases
 - **SC-001**: A developer can scaffold and run a first TUI screen in under 10
   minutes from an empty Zuraffa app, using only the standardized entry point and
   standard widgets.
-- **SC-002**: At least 80% of common TUI surfaces (list, detail, form, navigation)
-  are buildable from the standard widget library without writing raw terminal or
-  event-handling code.
-- **SC-003**: Two independently built Zuraffa TUIs share the same visual and
-  keyboard vocabulary as confirmed by a side-by-side review against the shared
-  theme and conventions.
+- **SC-002**: The fixed common-surface set is list, detail, data-entry form,
+  navigation, and status/progress. At least four of these five surfaces (80%) MUST
+  be buildable from the standard widget library without raw terminal or
+  event-handling code, as recorded by the conformance test or checklist.
+- **SC-003**: Two independently built Zuraffa TUIs MUST each pass the same documented
+  conformance test or checklist. It independently verifies each TUI uses the shared
+  theme vocabulary (colors, emphasis, spacing, and status semantics) and the
+  canonical keyboard defaults from FR-006, and verifies one configured override
+  takes precedence while unoverridden keys retain their defaults.
 - **SC-004**: Screens bound to a use case reflect domain changes without any
   TUI-local data duplication, measured by a test that mutates domain state and
   observes the UI update from the same source.
