@@ -62,7 +62,12 @@ void main() async {
 """);
 
       final cmd = PluginCommand();
-      await cmd.execute(['add', 'zuraffa_feature_example', '--root', tmpDir.path]);
+      await cmd.execute([
+        'add',
+        'zuraffa_feature_example',
+        '--root',
+        tmpDir.path,
+      ]);
 
       final content = mainFile.readAsStringSync();
       expect(

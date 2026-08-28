@@ -4,21 +4,28 @@ import 'package:zuraffa/src/plugins/tui/widgets/widgets.dart';
 
 void main() {
   group('Standard widgets (FR-004, SC-002)', () {
-    test('A4 / U9: Text renders its content with theme-driven emphasis', () async {
-      final tester = await nocterm.NoctermTester.create(size: const nocterm.Size(40, 3));
-      addTearDown(tester.dispose);
+    test(
+      'A4 / U9: Text renders its content with theme-driven emphasis',
+      () async {
+        final tester = await nocterm.NoctermTester.create(
+          size: const nocterm.Size(40, 3),
+        );
+        addTearDown(tester.dispose);
 
-      await tester.pumpComponent(
-        const nocterm.Center(child: nocterm.Text('hello-widget')),
-      );
-      await tester.pump();
+        await tester.pumpComponent(
+          const nocterm.Center(child: nocterm.Text('hello-widget')),
+        );
+        await tester.pump();
 
-      expect(tester.terminalState.getText(), contains('hello-widget'));
-    });
+        expect(tester.terminalState.getText(), contains('hello-widget'));
+      },
+    );
 
     test('A6 / U12: ListView renders items from a collection', () async {
       final items = List.generate(5, (i) => 'item-$i');
-      final tester = await nocterm.NoctermTester.create(size: const nocterm.Size(30, 6));
+      final tester = await nocterm.NoctermTester.create(
+        size: const nocterm.Size(30, 6),
+      );
       addTearDown(tester.dispose);
 
       await tester.pumpComponent(
@@ -36,33 +43,38 @@ void main() {
       expect(text, contains('item-4'));
     });
 
-    test('A6 / U12: ListView supports keyboard selection (arrow keys + Enter)', () async {
-      // Use nocterm's built-in ListView which has keyboard selection built in.
-      final items = List.generate(3, (i) => 'row-$i');
-      final tester = await nocterm.NoctermTester.create(size: const nocterm.Size(30, 6));
-      addTearDown(tester.dispose);
+    test(
+      'A6 / U12: ListView supports keyboard selection (arrow keys + Enter)',
+      () async {
+        // Use nocterm's built-in ListView which has keyboard selection built in.
+        final items = List.generate(3, (i) => 'row-$i');
+        final tester = await nocterm.NoctermTester.create(
+          size: const nocterm.Size(30, 6),
+        );
+        addTearDown(tester.dispose);
 
-      await tester.pumpComponent(
-        _SelectableListScreen(items: items),
-      );
-      await tester.pump();
+        await tester.pumpComponent(_SelectableListScreen(items: items));
+        await tester.pump();
 
-      // Initially the first item is highlighted.
-      var text = tester.terminalState.getText();
-      expect(text, contains('row-0'));
-      expect(text, contains('row-1'));
-      expect(text, contains('row-2'));
+        // Initially the first item is highlighted.
+        var text = tester.terminalState.getText();
+        expect(text, contains('row-0'));
+        expect(text, contains('row-1'));
+        expect(text, contains('row-2'));
 
-      // Arrow down should move the selection.
-      await tester.sendArrowDown();
-      text = tester.terminalState.getText();
-      expect(text, contains('row-0'));
-      expect(text, contains('row-1'));
-      expect(text, contains('row-2'));
-    });
+        // Arrow down should move the selection.
+        await tester.sendArrowDown();
+        text = tester.terminalState.getText();
+        expect(text, contains('row-0'));
+        expect(text, contains('row-1'));
+        expect(text, contains('row-2'));
+      },
+    );
 
     test('U13: GridView lays out items in a grid', () async {
-      final tester = await nocterm.NoctermTester.create(size: const nocterm.Size(40, 6));
+      final tester = await nocterm.NoctermTester.create(
+        size: const nocterm.Size(40, 6),
+      );
       addTearDown(tester.dispose);
 
       await tester.pumpComponent(
@@ -85,7 +97,9 @@ void main() {
     });
 
     test('U14: Table renders headers + rows with aligned columns', () async {
-      final tester = await nocterm.NoctermTester.create(size: const nocterm.Size(60, 5));
+      final tester = await nocterm.NoctermTester.create(
+        size: const nocterm.Size(60, 5),
+      );
       addTearDown(tester.dispose);
 
       await tester.pumpComponent(
@@ -112,7 +126,9 @@ void main() {
     });
 
     test('U17: Progress renders a bar with value 0..1', () async {
-      final tester = await nocterm.NoctermTester.create(size: const nocterm.Size(40, 3));
+      final tester = await nocterm.NoctermTester.create(
+        size: const nocterm.Size(40, 3),
+      );
       addTearDown(tester.dispose);
 
       await tester.pumpComponent(
@@ -131,7 +147,8 @@ class _SelectableListScreen extends nocterm.StatefulComponent {
   const _SelectableListScreen({required this.items});
   final List<String> items;
   @override
-  nocterm.State<_SelectableListScreen> createState() => _SelectableListScreenState();
+  nocterm.State<_SelectableListScreen> createState() =>
+      _SelectableListScreenState();
 }
 
 class _SelectableListScreenState extends nocterm.State<_SelectableListScreen> {

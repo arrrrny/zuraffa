@@ -136,10 +136,7 @@ void main() {
 
       final resource = resourceLogs[0]['resource'];
       expect(resource['attributes'][0]['key'], 'service.name');
-      expect(
-        resource['attributes'][0]['value']['stringValue'],
-        'test_service',
-      );
+      expect(resource['attributes'][0]['value']['stringValue'], 'test_service');
 
       final scopeLogs = resourceLogs[0]['scopeLogs'] as List;
       expect(scopeLogs, hasLength(1));

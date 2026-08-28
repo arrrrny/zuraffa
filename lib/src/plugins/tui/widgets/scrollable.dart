@@ -5,11 +5,7 @@ import 'package:nocterm/nocterm.dart' as nocterm;
 /// Wraps nocterm's [nocterm.SingleChildScrollView] so a child can scroll
 /// when its content exceeds the available height.
 class Scrollable extends nocterm.StatelessComponent {
-  const Scrollable({
-    super.key,
-    required this.child,
-    this.scrollController,
-  });
+  const Scrollable({super.key, required this.child, this.scrollController});
 
   /// The child to wrap in a scrollable region.
   final nocterm.Component child;

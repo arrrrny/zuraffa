@@ -408,8 +408,10 @@ abstract class \$Order {
   // enum-typed field (the pre-#307 first-field fallback bug), never a
   // synthetic id.
   group('resolveRepresentativeField (#508)', () {
-    test('skips an enum-typed first field and picks the first String', () async {
-      await writeEntity('ChatMessage', '''
+    test(
+      'skips an enum-typed first field and picks the first String',
+      () async {
+        await writeEntity('ChatMessage', '''
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 
 @Zorphy(generateJson: true)
@@ -419,32 +421,35 @@ abstract class \$ChatMessage {
   DateTime get timestamp;
 }
 ''');
-      final field = EntityFieldResolver.resolveRepresentativeField(
-        entityName: 'ChatMessage',
-        projectRoot: tempRoot.path,
-      );
-      expect(field, isNotNull);
-      expect(field!.name, 'content');
-      expect(field.type, 'String');
-    });
+        final field = EntityFieldResolver.resolveRepresentativeField(
+          entityName: 'ChatMessage',
+          projectRoot: tempRoot.path,
+        );
+        expect(field, isNotNull);
+        expect(field!.name, 'content');
+        expect(field.type, 'String');
+      },
+    );
 
-    test('falls back to the first non-nullable int when no String exists',
-        () async {
-      await writeEntity('Counter', '''
+    test(
+      'falls back to the first non-nullable int when no String exists',
+      () async {
+        await writeEntity('Counter', '''
 abstract class \$Counter {
   CounterKind get kind;
   int get count;
   bool get active;
 }
 ''');
-      final field = EntityFieldResolver.resolveRepresentativeField(
-        entityName: 'Counter',
-        projectRoot: tempRoot.path,
-      );
-      expect(field, isNotNull);
-      expect(field!.name, 'count');
-      expect(field.nonNullableType, 'int');
-    });
+        final field = EntityFieldResolver.resolveRepresentativeField(
+          entityName: 'Counter',
+          projectRoot: tempRoot.path,
+        );
+        expect(field, isNotNull);
+        expect(field!.name, 'count');
+        expect(field.nonNullableType, 'int');
+      },
+    );
 
     test('prefers non-nullable String over nullable String', () async {
       await writeEntity('Profile', '''
@@ -477,22 +482,24 @@ abstract class \$Lead {
       expect(field.nonNullableType, 'String');
     });
 
-    test('falls back to other scalars (double/bool/DateTime) after String/int',
-        () async {
-      await writeEntity('Reading', '''
+    test(
+      'falls back to other scalars (double/bool/DateTime) after String/int',
+      () async {
+        await writeEntity('Reading', '''
 abstract class \$Reading {
   ReadingKind get kind;
   Map<String, dynamic> get meta;
   double get value;
 }
 ''');
-      final field = EntityFieldResolver.resolveRepresentativeField(
-        entityName: 'Reading',
-        projectRoot: tempRoot.path,
-      );
-      expect(field, isNotNull);
-      expect(field!.name, 'value');
-    });
+        final field = EntityFieldResolver.resolveRepresentativeField(
+          entityName: 'Reading',
+          projectRoot: tempRoot.path,
+        );
+        expect(field, isNotNull);
+        expect(field!.name, 'value');
+      },
+    );
 
     test('never selects a List/Map field', () async {
       await writeEntity('Bucket', '''

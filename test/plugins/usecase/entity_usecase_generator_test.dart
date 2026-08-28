@@ -22,41 +22,42 @@ void main() {
 
   group('useZorphy flag for update method in entity usecase', () {
     test(
-        'entity usecase emits EntityPatch when useZorphy=true (default)',
-        () async {
-      // Scaffold the entity file
-      await _scaffoldEntity(outputDir, 'Product');
+      'entity usecase emits EntityPatch when useZorphy=true (default)',
+      () async {
+        // Scaffold the entity file
+        await _scaffoldEntity(outputDir, 'Product');
 
-      final plugin = UseCasePlugin(
-        outputDir: outputDir,
-        options: const GeneratorOptions(
-          dryRun: false,
-          force: true,
-          verbose: false,
-        ),
-      );
-      final config = GeneratorConfig(
-        name: 'Product',
-        methods: ['update'],
-        useZorphy: true,
-        outputDir: outputDir,
-      );
-      final files = await plugin.generate(config);
-      expect(files.isNotEmpty, isTrue);
-      final content = files.first.content ?? '';
+        final plugin = UseCasePlugin(
+          outputDir: outputDir,
+          options: const GeneratorOptions(
+            dryRun: false,
+            force: true,
+            verbose: false,
+          ),
+        );
+        final config = GeneratorConfig(
+          name: 'Product',
+          methods: ['update'],
+          useZorphy: true,
+          outputDir: outputDir,
+        );
+        final files = await plugin.generate(config);
+        expect(files.isNotEmpty, isTrue);
+        final content = files.first.content ?? '';
 
-      // With useZorphy=true (default), should emit ProductPatch
-      expect(
-        content.contains('UpdateParams<String, ProductPatch>'),
-        isTrue,
-        reason: 'useZorphy=true should emit EntityPatch for update params',
-      );
-      expect(
-        content.contains('Partial<Product>'),
-        isFalse,
-        reason: 'useZorphy=true should NOT emit Partial<Entity>',
-      );
-    });
+        // With useZorphy=true (default), should emit ProductPatch
+        expect(
+          content.contains('UpdateParams<String, ProductPatch>'),
+          isTrue,
+          reason: 'useZorphy=true should emit EntityPatch for update params',
+        );
+        expect(
+          content.contains('Partial<Product>'),
+          isFalse,
+          reason: 'useZorphy=true should NOT emit Partial<Entity>',
+        );
+      },
+    );
 
     test('entity usecase emits Partial<Entity> when useZorphy=false', () async {
       // Scaffold the entity file

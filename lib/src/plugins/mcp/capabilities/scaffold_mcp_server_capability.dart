@@ -177,7 +177,9 @@ class ScaffoldMcpServerCapability implements ZuraffaCapability {
     if (explicit != null && explicit.isNotEmpty) return explicit;
 
     final root = (args['root'] as String?) ?? '';
-    final pubspecPath = root.isEmpty ? 'pubspec.yaml' : p.join(root, 'pubspec.yaml');
+    final pubspecPath = root.isEmpty
+        ? 'pubspec.yaml'
+        : p.join(root, 'pubspec.yaml');
     if (await plugin.fileSystem.exists(pubspecPath)) {
       final content = await plugin.fileSystem.read(pubspecPath);
       final match = RegExp(

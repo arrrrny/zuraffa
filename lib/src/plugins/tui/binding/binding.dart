@@ -44,28 +44,23 @@ class BindingState<T> {
 
   /// Initial state — no value yet, no failure, no in-flight refresh.
   const BindingState.initial()
-      : this._(
-          value: null,
-          failure: null,
-          isInitial: true,
-          isInFlight: false,
-        );
+    : this._(value: null, failure: null, isInitial: true, isInFlight: false);
 
   /// Loaded state — last successful domain value (failure cleared).
   factory BindingState.value(T value) => BindingState<T>._(
-        value: value,
-        failure: null,
-        isInitial: false,
-        isInFlight: false,
-      );
+    value: value,
+    failure: null,
+    isInitial: false,
+    isInFlight: false,
+  );
 
   /// In-flight state — last successful value retained, refresh in progress.
   factory BindingState.inFlight(T? previousValue) => BindingState<T>._(
-        value: previousValue,
-        failure: null,
-        isInitial: false,
-        isInFlight: true,
-      );
+    value: previousValue,
+    failure: null,
+    isInitial: false,
+    isInFlight: true,
+  );
 
   /// Failure state — last successful value retained (FR-007).
   factory BindingState.failure(AppFailure failure, {T? previousValue}) =>
@@ -98,7 +93,8 @@ class BindingState<T> {
   String toString() {
     if (isInitial) return 'BindingState<T>.initial()';
     if (isInFlight) return 'BindingState<T>.inFlight($value)';
-    if (failure != null) return 'BindingState<T>.failure($failure, value: $value)';
+    if (failure != null)
+      return 'BindingState<T>.failure($failure, value: $value)';
     return 'BindingState<T>.value($value)';
   }
 
@@ -125,8 +121,7 @@ class BindingState<T> {
 /// The binding holds NO data store of its own — the screen reads
 /// [state].value, and that value is the domain source's value (SC-004).
 abstract class Binding<T> {
-  Binding({CancelToken? parentCancelToken})
-      : _cancelToken = CancelToken() {
+  Binding({CancelToken? parentCancelToken}) : _cancelToken = CancelToken() {
     if (parentCancelToken != null) {
       _cancelToken.linkTo(parentCancelToken);
     }
@@ -231,9 +226,9 @@ class StreamUseCaseBinding<T, P> extends Binding<T> {
     void Function(T value)? onValue,
     void Function(AppFailure failure)? onFailure,
     CancelToken? parentCancelToken,
-  })  : _onValue = onValue,
-        _onFailure = onFailure,
-        super(parentCancelToken: parentCancelToken);
+  }) : _onValue = onValue,
+       _onFailure = onFailure,
+       super(parentCancelToken: parentCancelToken);
 
   /// The stream use case being observed.
   final StreamUseCase<T, P> useCase;
@@ -268,21 +263,23 @@ class StreamUseCaseBinding<T, P> extends Binding<T> {
   /// (streams are usually long-lived; the binding stays subscribed until
   /// [dispose]).
   void start() {
-    _subscription = useCase.call(params, cancelToken: cancelToken).listen(
-      (result) {
-        if (cancelToken.isCancelled) return;
-        result.fold(
-          (value) => emitValue(value),
-          (failure) => emitFailure(failure),
+    _subscription = useCase
+        .call(params, cancelToken: cancelToken)
+        .listen(
+          (result) {
+            if (cancelToken.isCancelled) return;
+            result.fold(
+              (value) => emitValue(value),
+              (failure) => emitFailure(failure),
+            );
+          },
+          onError: (Object error, StackTrace _) {
+            // Stream errors are usually non-terminal; the source remains
+            // subscribed (FR-007). We rely on the source's own error model
+            // to emit a Result.failure for known errors.
+          },
+          cancelOnError: false,
         );
-      },
-      onError: (Object error, StackTrace _) {
-        // Stream errors are usually non-terminal; the source remains
-        // subscribed (FR-007). We rely on the source's own error model
-        // to emit a Result.failure for known errors.
-      },
-      cancelOnError: false,
-    );
   }
 
   @override
@@ -304,10 +301,10 @@ class RepositoryBinding<T> extends Binding<T> {
     void Function(T value)? onValue,
     void Function(AppFailure failure)? onFailure,
     CancelToken? parentCancelToken,
-  })  : _source = source,
-        _onValue = onValue,
-        _onFailure = onFailure,
-        super(parentCancelToken: parentCancelToken);
+  }) : _source = source,
+       _onValue = onValue,
+       _onFailure = onFailure,
+       super(parentCancelToken: parentCancelToken);
 
   final Stream<T> Function(CancelToken cancelToken) _source;
   final void Function(T value)? _onValue;
@@ -323,13 +320,10 @@ class RepositoryBinding<T> extends Binding<T> {
 
   @override
   Future<void> mount() async {
-    _subscription = _source(cancelToken).listen(
-      (value) {
-        if (cancelToken.isCancelled) return;
-        emitValue(value);
-      },
-      cancelOnError: false,
-    );
+    _subscription = _source(cancelToken).listen((value) {
+      if (cancelToken.isCancelled) return;
+      emitValue(value);
+    }, cancelOnError: false);
   }
 
   @override
@@ -353,9 +347,9 @@ class UseCaseResultBinding<T, P> extends Binding<T> {
     void Function(T value)? onValue,
     void Function(AppFailure failure)? onFailure,
     CancelToken? parentCancelToken,
-  })  : _onValue = onValue,
-        _onFailure = onFailure,
-        super(parentCancelToken: parentCancelToken);
+  }) : _onValue = onValue,
+       _onFailure = onFailure,
+       super(parentCancelToken: parentCancelToken);
 
   final UseCase<T, P> useCase;
   final P params;

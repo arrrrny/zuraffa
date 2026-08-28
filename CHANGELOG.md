@@ -1,3 +1,12 @@
+## [6.0.2] - 2026-08-28
+
+### Fixed
+- `PresenterPlugin` now honors `useZorphy: false` for update params: the generated
+  `update<Entity>` presenter method emits `UpdateParams<IdType, Partial<Entity>>`
+  (and a `Partial<Entity>` `data` parameter) instead of the `EntityPatch` variant.
+  `useZorphy: true` (the default) keeps the existing `EntityPatch` behavior. Fixes
+  the regression tracked as `zuraffa_flutter` issue #9 / core issue #431.
+
 ## [6.0.1] - 2026-08-24
 
 ### Fixed

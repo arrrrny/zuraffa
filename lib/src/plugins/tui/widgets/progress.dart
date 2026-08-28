@@ -6,11 +6,8 @@ import 'package:nocterm/nocterm.dart' as nocterm;
 /// semantic colors (success / warning / error / info) drive the bar color
 /// based on the progress level — apps do not need to pass raw colors.
 class Progress extends nocterm.StatelessComponent {
-  const Progress({
-    super.key,
-    required this.value,
-    this.width = 20,
-  }) : assert(value >= 0 && value <= 1, 'value must be in [0, 1]');
+  const Progress({super.key, required this.value, this.width = 20})
+    : assert(value >= 0 && value <= 1, 'value must be in [0, 1]');
 
   /// The progress value in `[0, 1]`.
   final double value;

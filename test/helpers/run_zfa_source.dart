@@ -156,20 +156,18 @@ Future<ProcessResult> _runSupervised(
   // Quote any arg that is not purely [word/./:/=+/-] so paths/flags survive the
   // shell wrapper; redirect the child's stdout/stderr to the temp files.
   String quote(String arg) {
-    if (arg.contains(RegExp(r'''[^\w./:=+\-]'''), )) {
+    if (arg.contains(RegExp(r'''[^\w./:=+\-]'''))) {
       return "'${arg.replaceAll("'", r"'\''")}'";
     }
     return arg;
   }
 
-  final shellCmd =
-      '${command.map(quote).join(' ')} > "$outPath" 2> "$errPath"';
+  final shellCmd = '${command.map(quote).join(' ')} > "$outPath" 2> "$errPath"';
 
-  final process = await Process.start(
-    'sh',
-    ['-c', shellCmd],
-    workingDirectory: workingDirectory,
-  );
+  final process = await Process.start('sh', [
+    '-c',
+    shellCmd,
+  ], workingDirectory: workingDirectory);
 
   int exitCode;
   String stdout;
@@ -187,12 +185,7 @@ Future<ProcessResult> _runSupervised(
     await process.stderr.drain().catchError((_) {});
     stdout = await File(outPath).readAsString();
     stderr = await File(errPath).readAsString();
-    return ProcessResult(
-      process.pid,
-      exitCode,
-      stdout,
-      stderr,
-    );
+    return ProcessResult(process.pid, exitCode, stdout, stderr);
   } finally {
     process.kill(ProcessSignal.sigkill);
   }

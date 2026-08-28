@@ -19,19 +19,15 @@ void main() {
       name: 'greet',
       description: 'test greet',
       flags: const [CommandFlag(name: '--name', takesValue: true)],
-      handler: (inv) async => SuccessResult(
-        data: {'msg': 'hi ${inv.flags['--name'] ?? 'world'}'},
-      ),
+      handler: (inv) async =>
+          SuccessResult(data: {'msg': 'hi ${inv.flags['--name'] ?? 'world'}'}),
     );
   }
 
   group('SharedCommand', () {
     group('share + retrieve (FR-006)', () {
       test('U32: share publishes to registry', () {
-        final shared = SharedCommand.of(
-          makeGreetCommand(),
-          version: '1.0.0',
-        );
+        final shared = SharedCommand.of(makeGreetCommand(), version: '1.0.0');
         shared.share(registry, ownerApp: 'A');
         expect(registry.contains('A', 'greet'), isTrue);
         final entry = registry.lookup('A', 'greet')!;
@@ -39,10 +35,7 @@ void main() {
       });
 
       test('U33: retrieve satisfies version when published >= min', () {
-        final shared = SharedCommand.of(
-          makeGreetCommand(),
-          version: '1.0.0',
-        );
+        final shared = SharedCommand.of(makeGreetCommand(), version: '1.0.0');
         shared.share(registry, ownerApp: 'A');
         final retrieved = SharedCommand.retrieve(
           registry,
@@ -55,10 +48,7 @@ void main() {
       });
 
       test('retrieve without minVersion always succeeds', () {
-        final shared = SharedCommand.of(
-          makeGreetCommand(),
-          version: '1.0.0',
-        );
+        final shared = SharedCommand.of(makeGreetCommand(), version: '1.0.0');
         shared.share(registry, ownerApp: 'A');
         final retrieved = SharedCommand.retrieve(
           registry,
@@ -69,10 +59,7 @@ void main() {
       });
 
       test('retrieve higher published version satisfies lower min', () {
-        final shared = SharedCommand.of(
-          makeGreetCommand(),
-          version: '2.0.0',
-        );
+        final shared = SharedCommand.of(makeGreetCommand(), version: '2.0.0');
         shared.share(registry, ownerApp: 'A');
         final retrieved = SharedCommand.retrieve(
           registry,
@@ -83,38 +70,34 @@ void main() {
         expect(retrieved.version, equals('2.0.0'));
       });
 
-      test('U34: retrieve rejects lower version with VersionMismatchException',
-          () {
-        final shared = SharedCommand.of(
-          makeGreetCommand(),
-          version: '1.0.0',
-        );
-        shared.share(registry, ownerApp: 'A');
-        late VersionMismatchException err;
-        try {
-          SharedCommand.retrieve(
-            registry,
-            ownerApp: 'A',
-            commandName: 'greet',
-            minVersion: '2.0.0',
-          );
-          fail('expected VersionMismatchException');
-        } on VersionMismatchException catch (e) {
-          err = e;
-        }
-        expect(err.commandName, equals('greet'));
-        expect(err.ownerApp, equals('A'));
-        expect(err.requestedMinVersion, equals('2.0.0'));
-        expect(err.publishedVersion, equals('1.0.0'));
-      });
+      test(
+        'U34: retrieve rejects lower version with VersionMismatchException',
+        () {
+          final shared = SharedCommand.of(makeGreetCommand(), version: '1.0.0');
+          shared.share(registry, ownerApp: 'A');
+          late VersionMismatchException err;
+          try {
+            SharedCommand.retrieve(
+              registry,
+              ownerApp: 'A',
+              commandName: 'greet',
+              minVersion: '2.0.0',
+            );
+            fail('expected VersionMismatchException');
+          } on VersionMismatchException catch (e) {
+            err = e;
+          }
+          expect(err.commandName, equals('greet'));
+          expect(err.ownerApp, equals('A'));
+          expect(err.requestedMinVersion, equals('2.0.0'));
+          expect(err.publishedVersion, equals('1.0.0'));
+        },
+      );
     });
 
     group('retrieved command runs identically (FR-006)', () {
       test('U35: retrieved runs identically', () async {
-        final shared = SharedCommand.of(
-          makeGreetCommand(),
-          version: '1.0.0',
-        );
+        final shared = SharedCommand.of(makeGreetCommand(), version: '1.0.0');
         shared.share(registry, ownerApp: 'A');
         final retrieved = SharedCommand.retrieve(
           registry,
@@ -144,45 +127,27 @@ void main() {
 
     group('version comparison (FR-009 edge case 5)', () {
       test('1.0.0 satisfies 1.0.0', () {
-        expect(
-          SharedCommand.versionSatisfies('1.0.0', '1.0.0'),
-          isTrue,
-        );
+        expect(SharedCommand.versionSatisfies('1.0.0', '1.0.0'), isTrue);
       });
 
       test('2.0.0 satisfies 1.0.0', () {
-        expect(
-          SharedCommand.versionSatisfies('2.0.0', '1.0.0'),
-          isTrue,
-        );
+        expect(SharedCommand.versionSatisfies('2.0.0', '1.0.0'), isTrue);
       });
 
       test('1.0.0 does not satisfy 2.0.0', () {
-        expect(
-          SharedCommand.versionSatisfies('1.0.0', '2.0.0'),
-          isFalse,
-        );
+        expect(SharedCommand.versionSatisfies('1.0.0', '2.0.0'), isFalse);
       });
 
       test('1.2.0 satisfies 1.0.0', () {
-        expect(
-          SharedCommand.versionSatisfies('1.2.0', '1.0.0'),
-          isTrue,
-        );
+        expect(SharedCommand.versionSatisfies('1.2.0', '1.0.0'), isTrue);
       });
 
       test('1.0.3 satisfies 1.0.0', () {
-        expect(
-          SharedCommand.versionSatisfies('1.0.3', '1.0.0'),
-          isTrue,
-        );
+        expect(SharedCommand.versionSatisfies('1.0.3', '1.0.0'), isTrue);
       });
 
       test('1.0.0 does not satisfy 1.0.1', () {
-        expect(
-          SharedCommand.versionSatisfies('1.0.0', '1.0.1'),
-          isFalse,
-        );
+        expect(SharedCommand.versionSatisfies('1.0.0', '1.0.1'), isFalse);
       });
     });
   });

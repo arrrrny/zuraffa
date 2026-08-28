@@ -54,7 +54,12 @@ void main() {
         final output = const SpecLibrary().emitLibrary(library);
 
         expect(output, contains("import 'package:my_app/domain/user.dart';"));
-        expect(output, contains("import 'package:my_app/repositories/user_repository.dart';"));
+        expect(
+          output,
+          contains(
+            "import 'package:my_app/repositories/user_repository.dart';",
+          ),
+        );
       });
 
       test('works with InterceptableUseCase as base class', () {
@@ -73,7 +78,10 @@ void main() {
         final output = const SpecLibrary().emitLibrary(library);
 
         expect(output, contains('abstract class GetTodosUseCase'));
-        expect(output, contains('extends InterceptableUseCase<NoParams, List<Todo>>'));
+        expect(
+          output,
+          contains('extends InterceptableUseCase<NoParams, List<Todo>>'),
+        );
       });
     });
 
@@ -94,7 +102,10 @@ void main() {
         final library = factory.buildImpl(config);
         final output = const SpecLibrary().emitLibrary(library);
 
-        expect(output, contains('class DefaultGetUserUseCase extends GetUserUseCase'));
+        expect(
+          output,
+          contains('class DefaultGetUserUseCase extends GetUserUseCase'),
+        );
         expect(output, contains('final UserRepository _repository;'));
         expect(output, contains('DefaultGetUserUseCase(this._repository);'));
         expect(output, contains('User execute(String params) async'));
@@ -135,8 +146,16 @@ void main() {
         final library = factory.buildImpl(config);
         final output = const SpecLibrary().emitLibrary(library);
 
-        expect(output, contains('class DefaultGetTodosUseCase extends GetTodosUseCase'));
-        expect(output, contains('List<Todo> executeCall(NoParams params, {ZuraffaContext? context}) async'));
+        expect(
+          output,
+          contains('class DefaultGetTodosUseCase extends GetTodosUseCase'),
+        );
+        expect(
+          output,
+          contains(
+            'List<Todo> executeCall(NoParams params, {ZuraffaContext? context}) async',
+          ),
+        );
         expect(output, contains('super.interceptorRegistry'));
       });
 
@@ -201,7 +220,12 @@ void main() {
         final output = const SpecLibrary().emitLibrary(library);
 
         expect(output, contains("import 'package:my_app/domain/user.dart';"));
-        expect(output, contains("import 'package:my_app/repositories/user_repository.dart';"));
+        expect(
+          output,
+          contains(
+            "import 'package:my_app/repositories/user_repository.dart';",
+          ),
+        );
       });
 
       test('handles hasParams = false correctly', () {

@@ -51,8 +51,11 @@ void main() {
       test('json output is a single line (no newlines)', () {
         final result = SuccessResult(data: const {'x': 1});
         final json = fmt.json(result, contract: contract);
-        expect(json.contains('\n'), isFalse,
-            reason: 'JSON output must be single-line for piped parsing');
+        expect(
+          json.contains('\n'),
+          isFalse,
+          reason: 'JSON output must be single-line for piped parsing',
+        );
       });
     });
 

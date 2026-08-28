@@ -70,15 +70,11 @@ void main() {
     });
   });
 
-  group(
-    'CLI registration',
-    timeout: const Timeout(Duration(minutes: 2)),
-    () {
+  group('CLI registration', timeout: const Timeout(Duration(minutes: 2)), () {
     test('CliRunner exposes the `app` command in the top-level help', () async {
-      final result = await runZfaSource(
-        ['--help'],
-        workingDirectory: zfaProjectRoot,
-      );
+      final result = await runZfaSource([
+        '--help',
+      ], workingDirectory: zfaProjectRoot);
       // The args CommandRunner auto-generates the command list from the
       // registered subcommands. We expect `app` to appear (the
       // subcommand `shell` is listed under `zfa app --help`).
@@ -86,10 +82,11 @@ void main() {
     });
 
     test('CliRunner dispatches `zfa app shell --help`', () async {
-      final result = await runZfaSource(
-        ['app', 'shell', '--help'],
-        workingDirectory: zfaProjectRoot,
-      );
+      final result = await runZfaSource([
+        'app',
+        'shell',
+        '--help',
+      ], workingDirectory: zfaProjectRoot);
       final help = combinedOutput(result);
       // The args package prints the command description in the help
       // header. Either the description or the usage line is sufficient
@@ -102,18 +99,15 @@ void main() {
     });
 
     test('CliRunner lists `shell` under `zfa app --help`', () async {
-      final result = await runZfaSource(
-        ['app', '--help'],
-        workingDirectory: zfaProjectRoot,
-      );
+      final result = await runZfaSource([
+        'app',
+        '--help',
+      ], workingDirectory: zfaProjectRoot);
       expect(combinedOutput(result), contains('shell'));
     });
   });
 
-  group(
-    'end-to-end generation',
-    timeout: const Timeout(Duration(minutes: 2)),
-    () {
+  group('end-to-end generation', timeout: const Timeout(Duration(minutes: 2)), () {
     late Directory workspace;
 
     setUp(() async {
@@ -154,10 +148,12 @@ List<GoRoute> getAllRoutes() => [];
     });
 
     test('writes all three glue files when run from a project root', () async {
-      await runZfaSource(
-        ['app', 'shell', '--root', workspace.path],
-        workingDirectory: zfaProjectRoot,
-      );
+      await runZfaSource([
+        'app',
+        'shell',
+        '--root',
+        workspace.path,
+      ], workingDirectory: zfaProjectRoot);
 
       final mainFile = File(p.join(workspace.path, 'lib', 'main.dart'));
       final myAppFile = File(

@@ -22,82 +22,87 @@ void main() {
 
   group('useZorphy flag for update method in service interface', () {
     test(
-        'service interface emits EntityPatch when useZorphy=true (default)',
-        () async {
-      // Scaffold the entity file
-      await _scaffoldEntity(outputDir, 'Product');
+      'service interface emits EntityPatch when useZorphy=true (default)',
+      () async {
+        // Scaffold the entity file
+        await _scaffoldEntity(outputDir, 'Product');
 
-      final plugin = ServicePlugin(
-        outputDir: outputDir,
-        options: const GeneratorOptions(
-          dryRun: false,
-          force: true,
-          verbose: false,
-        ),
-      );
-      final config = GeneratorConfig(
-        name: 'Product',
-        service: 'Product',
-        domain: 'product',
-        methods: ['update'],
-        generateService: true,
-        useZorphy: true,
-        outputDir: outputDir,
-      );
-      final files = await plugin.generate(config);
-      expect(files.isNotEmpty, isTrue);
-      final content = files.first.content ?? '';
+        final plugin = ServicePlugin(
+          outputDir: outputDir,
+          options: const GeneratorOptions(
+            dryRun: false,
+            force: true,
+            verbose: false,
+          ),
+        );
+        final config = GeneratorConfig(
+          name: 'Product',
+          service: 'Product',
+          domain: 'product',
+          methods: ['update'],
+          generateService: true,
+          useZorphy: true,
+          outputDir: outputDir,
+        );
+        final files = await plugin.generate(config);
+        expect(files.isNotEmpty, isTrue);
+        final content = files.first.content ?? '';
 
-      // With useZorphy=true (default), should emit ProductPatch
-      expect(
-        content.contains('UpdateParams<String, ProductPatch>'),
-        isTrue,
-        reason: 'useZorphy=true should emit EntityPatch for update params',
-      );
-      expect(
-        content.contains('Partial<Product>'),
-        isFalse,
-        reason: 'useZorphy=true should NOT emit Partial<Entity>',
-      );
-    });
+        // With useZorphy=true (default), should emit ProductPatch
+        expect(
+          content.contains('UpdateParams<String, ProductPatch>'),
+          isTrue,
+          reason: 'useZorphy=true should emit EntityPatch for update params',
+        );
+        expect(
+          content.contains('Partial<Product>'),
+          isFalse,
+          reason: 'useZorphy=true should NOT emit Partial<Entity>',
+        );
+      },
+    );
 
-    test('service interface emits Partial<Entity> when useZorphy=false', () async {
-      // Scaffold the entity file
-      await _scaffoldEntity(outputDir, 'Product');
+    test(
+      'service interface emits Partial<Entity> when useZorphy=false',
+      () async {
+        // Scaffold the entity file
+        await _scaffoldEntity(outputDir, 'Product');
 
-      final plugin = ServicePlugin(
-        outputDir: outputDir,
-        options: const GeneratorOptions(
-          dryRun: false,
-          force: true,
-          verbose: false,
-        ),
-      );
-      final config = GeneratorConfig(
-        name: 'Product',
-        service: 'Product',
-        domain: 'product',
-        methods: ['update'],
-        generateService: true,
-        useZorphy: false,
-        outputDir: outputDir,
-      );
-      final files = await plugin.generate(config);
-      expect(files.isNotEmpty, isTrue);
-      final content = files.first.content ?? '';
+        final plugin = ServicePlugin(
+          outputDir: outputDir,
+          options: const GeneratorOptions(
+            dryRun: false,
+            force: true,
+            verbose: false,
+          ),
+        );
+        final config = GeneratorConfig(
+          name: 'Product',
+          service: 'Product',
+          domain: 'product',
+          methods: ['update'],
+          generateService: true,
+          useZorphy: false,
+          outputDir: outputDir,
+        );
+        final files = await plugin.generate(config);
+        expect(files.isNotEmpty, isTrue);
+        final content = files.first.content ?? '';
 
-      // With useZorphy=false, should emit Partial<Product>
-      expect(
-        content.contains('UpdateParams<String, Partial<Product>>'),
-        isTrue,
-        reason: 'useZorphy=false should emit Partial<Entity> for update params',
-      );
-      expect(
-        content.contains('ProductPatch'),
-        isFalse,
-        reason: 'useZorphy=false should NOT emit EntityPatch',
-      );
-    });
+        // With useZorphy=false, should emit Partial<Product>
+        expect(
+          content.contains('UpdateParams<String, Partial<Product>>'),
+          isTrue,
+          reason:
+              'useZorphy=false should emit Partial<Entity> for update params',
+        );
+        expect(
+          content.contains('ProductPatch'),
+          isFalse,
+          reason: 'useZorphy=false should NOT emit EntityPatch',
+        );
+      },
+    );
   });
 }
 

@@ -66,7 +66,11 @@ List<RouteBase> getAllRoutes() => [];
       tempDir.path,
     ]);
 
-    final stubPath = p.join(tempDir.path, 'lib', 'xray_bridge_launcher_stub.dart');
+    final stubPath = p.join(
+      tempDir.path,
+      'lib',
+      'xray_bridge_launcher_stub.dart',
+    );
     final stubFile = File(stubPath);
     expect(stubFile.existsSync(), isTrue, reason: 'the stub must be written');
 
@@ -75,7 +79,8 @@ List<RouteBase> getAllRoutes() => [];
     expect(
       stub,
       contains('Future<int> start()'),
-      reason: 'the stub must mirror the real server\'s start() shape so '
+      reason:
+          'the stub must mirror the real server\'s start() shape so '
           'the conditional import type-checks on both branches',
     );
 
@@ -100,13 +105,15 @@ List<RouteBase> getAllRoutes() => [];
     expect(
       myAppContent,
       isNot(contains("import 'package:go_router/go_router.dart';")),
-      reason: 'my_app.dart must not import go_router directly — it is '
+      reason:
+          'my_app.dart must not import go_router directly — it is '
           'unused there and makes generated apps fail flutter analyze',
     );
     expect(
       myAppContent,
       contains("import 'package:zuraffa_flutter/zuraffa_flutter.dart';"),
-      reason: 'xray mode wraps MaterialApp.router in XRayScope, which '
+      reason:
+          'xray mode wraps MaterialApp.router in XRayScope, which '
           'comes from the zuraffa_flutter barrel',
     );
   });
@@ -127,7 +134,8 @@ List<RouteBase> getAllRoutes() => [];
       'lib',
       'xray_bridge_launcher_stub.dart',
     );
-    final customized = '// my customized stub\n'
+    final customized =
+        '// my customized stub\n'
         'class XRayBridgeServer {\n'
         '  Future<int> start() async => 0;\n'
         '}\n';
@@ -145,7 +153,8 @@ List<RouteBase> getAllRoutes() => [];
     expect(
       File(stubPath).readAsStringSync(),
       customized,
-      reason: 'the stub is an idempotent leaf file — --force regenerates '
+      reason:
+          'the stub is an idempotent leaf file — --force regenerates '
           'main.dart but must not clobber the stub',
     );
   });
@@ -153,16 +162,12 @@ List<RouteBase> getAllRoutes() => [];
   test('app shell without --xray writes no stub', () async {
     await seedProject();
     final runner = CliRunner(exitOnCompletion: false);
-    await runner.runCapturing([
-      'app',
-      'shell',
-      '--root',
-      tempDir.path,
-    ]);
+    await runner.runCapturing(['app', 'shell', '--root', tempDir.path]);
 
     expect(
-      File(p.join(tempDir.path, 'lib', 'xray_bridge_launcher_stub.dart'))
-          .existsSync(),
+      File(
+        p.join(tempDir.path, 'lib', 'xray_bridge_launcher_stub.dart'),
+      ).existsSync(),
       isFalse,
     );
   });

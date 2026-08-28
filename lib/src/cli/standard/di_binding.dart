@@ -31,10 +31,7 @@ import 'shared_command.dart';
 /// reaching into a global singleton, so the same [SharedCommand] can run in
 /// different apps with different DI configurations.
 class DependencyRequest {
-  const DependencyRequest({
-    required this.name,
-    required this.expectedType,
-  });
+  const DependencyRequest({required this.name, required this.expectedType});
 
   /// The name the handler uses to look up the dependency in the host's DI.
   /// For GetIt, this is the type name (e.g. `'UserRepository'`).
@@ -64,10 +61,7 @@ abstract class DiContainer {
 /// available via [BoundInvocation.dependencies]. If any dependency cannot be
 /// resolved, a [BindingException] is thrown before the handler runs.
 class DiBinding {
-  const DiBinding({
-    required this.dependencies,
-    required this.boundHandler,
-  });
+  const DiBinding({required this.dependencies, required this.boundHandler});
 
   /// Construct a DiBinding from a list of [DependencyRequest]s and a
   /// handler that receives the resolved dependencies.
@@ -75,10 +69,7 @@ class DiBinding {
     required List<DependencyRequest> dependencies,
     required Future<CommandResult> Function(BoundInvocation) boundHandler,
   }) {
-    return DiBinding(
-      dependencies: dependencies,
-      boundHandler: boundHandler,
-    );
+    return DiBinding(dependencies: dependencies, boundHandler: boundHandler);
   }
 
   /// The dependencies this binding requires from the host DI.
@@ -95,10 +86,7 @@ class DiBinding {
   /// are detected by attempting a cast through [_TypeChecker] (subtypes are
   /// accepted; only exact-name mismatches raise). This is intentionally
   /// lenient: the handler's own cast is the source of truth for type safety.
-  StandardCommand bind(
-    SharedCommand shared, {
-    required DiContainer container,
-  }) {
+  StandardCommand bind(SharedCommand shared, {required DiContainer container}) {
     final original = shared.command;
     return StandardCommand(
       name: original.name,
@@ -143,10 +131,9 @@ class DiBinding {
           }
           resolved[dep.name] = value;
         }
-        return boundHandler(BoundInvocation(
-          invocation: invocation,
-          dependencies: resolved,
-        ));
+        return boundHandler(
+          BoundInvocation(invocation: invocation, dependencies: resolved),
+        );
       },
     );
   }
@@ -172,10 +159,7 @@ bool _satisfies(String actualName, String expectedName) {
 /// Adds a [dependencies] map to the original [CliInvocation], carrying the
 /// resolved instances from the host's [DiContainer].
 class BoundInvocation {
-  const BoundInvocation({
-    required this.invocation,
-    required this.dependencies,
-  });
+  const BoundInvocation({required this.invocation, required this.dependencies});
 
   /// The original invocation, with its parsed args and flags.
   final CliInvocation invocation;

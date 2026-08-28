@@ -32,11 +32,11 @@ class FakeSyncMetadataStore implements SyncMetadataStore {
   Future<void> remove(String key) async => metaMap.remove(key);
 
   @override
-  Future<List<String>> getKeysByStatus(SyncStatus status) async =>
-      metaMap.entries
-          .where((e) => e.value.status == status)
-          .map((e) => e.key)
-          .toList();
+  Future<List<String>> getKeysByStatus(SyncStatus status) async => metaMap
+      .entries
+      .where((e) => e.value.status == status)
+      .map((e) => e.key)
+      .toList();
 
   @override
   Future<int> countByStatus(SyncStatus status) async =>
@@ -79,7 +79,8 @@ void main() {
       saveLocal: (entity) async {
         savedLocally[entity.id] = entity;
       },
-      conflictResolver: conflictResolver ??
+      conflictResolver:
+          conflictResolver ??
           ((local, remote) {
             conflictCalls.add((local?.id, remote.id));
             return remote;
@@ -148,26 +149,28 @@ void main() {
       expect(metadata!.status, equals(SyncStatus.synced));
     });
 
-    test('uses custom resolver returning local (local wins, keeps pending)',
-        () async {
-      localStore['c2'] = const TestEntity(id: 'c2', name: 'Local Pending');
-      metaMap['c2'] = const SyncMetadata(
-        status: SyncStatus.pending,
-        operation: SyncOperation.update,
-      );
+    test(
+      'uses custom resolver returning local (local wins, keeps pending)',
+      () async {
+        localStore['c2'] = const TestEntity(id: 'c2', name: 'Local Pending');
+        metaMap['c2'] = const SyncMetadata(
+          status: SyncStatus.pending,
+          operation: SyncOperation.update,
+        );
 
-      final strategy = buildStrategy(
-        remoteList: const [TestEntity(id: 'c2', name: 'Remote')],
-        conflictResolver: (local, remote) => local!,
-      );
-      await strategy.pullRemote();
+        final strategy = buildStrategy(
+          remoteList: const [TestEntity(id: 'c2', name: 'Remote')],
+          conflictResolver: (local, remote) => local!,
+        );
+        await strategy.pullRemote();
 
-      // Local version is kept and the record remains pending for next push.
-      expect(savedLocally['c2']!.name, equals('Local Pending'));
-      final metadata = await metadataStore.get('c2');
-      expect(metadata!.status, equals(SyncStatus.pending));
-      expect(metadata.operation, equals(SyncOperation.update));
-    });
+        // Local version is kept and the record remains pending for next push.
+        expect(savedLocally['c2']!.name, equals('Local Pending'));
+        final metadata = await metadataStore.get('c2');
+        expect(metadata!.status, equals(SyncStatus.pending));
+        expect(metadata.operation, equals(SyncOperation.update));
+      },
+    );
 
     test('invokes conflict resolver with local and remote versions', () async {
       localStore['c3'] = const TestEntity(id: 'c3', name: 'Local');
@@ -224,28 +227,39 @@ void main() {
       expect(savedLocally['s1']!.name, equals('Fresh Remote'));
       expect(savedLocally['c1']!.name, equals('Remote C1'));
 
-      expect((await metadataStore.get('r1'))!.status, equals(SyncStatus.synced));
-      expect((await metadataStore.get('s1'))!.status, equals(SyncStatus.synced));
-      expect((await metadataStore.get('c1'))!.status, equals(SyncStatus.synced));
+      expect(
+        (await metadataStore.get('r1'))!.status,
+        equals(SyncStatus.synced),
+      );
+      expect(
+        (await metadataStore.get('s1'))!.status,
+        equals(SyncStatus.synced),
+      );
+      expect(
+        (await metadataStore.get('c1'))!.status,
+        equals(SyncStatus.synced),
+      );
     });
 
-    test('does not pull remote when the cancel token is already cancelled',
-        () async {
-      final token = CancelToken()..cancel('test cancel');
-      final strategy = buildStrategy(
-        remoteList: const [TestEntity(id: 'r1', name: 'Remote 1')],
-      );
+    test(
+      'does not pull remote when the cancel token is already cancelled',
+      () async {
+        final token = CancelToken()..cancel('test cancel');
+        final strategy = buildStrategy(
+          remoteList: const [TestEntity(id: 'r1', name: 'Remote 1')],
+        );
 
-      await expectLater(
-        () => strategy.pullRemote(cancelToken: token),
-        throwsA(isA<CancelledException>()),
-      );
+        await expectLater(
+          () => strategy.pullRemote(cancelToken: token),
+          throwsA(isA<CancelledException>()),
+        );
 
-      // Nothing should have been saved or recorded when cancelled up front.
-      expect(savedLocally, isEmpty);
-      expect(metaMap, isEmpty);
-      expect(conflictCalls, isEmpty);
-    });
+        // Nothing should have been saved or recorded when cancelled up front.
+        expect(savedLocally, isEmpty);
+        expect(metaMap, isEmpty);
+        expect(conflictCalls, isEmpty);
+      },
+    );
 
     test('can be built with a non-default sync config', () async {
       // Sanity check that the bidirectional strategy honors the parent

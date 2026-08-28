@@ -33,11 +33,11 @@ class CliContract {
   static const CliContract standard = CliContract._standard();
 
   const CliContract._standard()
-      : exitCode = CliExitCodes.standard,
-        globalFlags = CliGlobalFlags.standard,
-        errorShapeFields = const ['code', 'message', 'details'],
-        outputSchemaName = 'zuraffa.cli.v1',
-        helpHeader = 'USAGE:\n  <app> <command> [options]';
+    : exitCode = CliExitCodes.standard,
+      globalFlags = CliGlobalFlags.standard,
+      errorShapeFields = const ['code', 'message', 'details'],
+      outputSchemaName = 'zuraffa.cli.v1',
+      helpHeader = 'USAGE:\n  <app> <command> [options]';
 
   /// Construct a custom contract. Most apps should use [CliContract.standard].
   const CliContract({
@@ -89,18 +89,18 @@ class CliContract {
   /// [errorShapeFields], [outputSchemaName], and [helpHeader] meet the SC-002
   /// 80% threshold trivially.
   List<String> get consistencySurface => const [
-        'exitCode.success',
-        'exitCode.usage',
-        'exitCode.runtime',
-        'exitCode.notFound',
-        'exitCode.conflict',
-        'exitCode.versionMismatch',
-        'exitCode.circularRef',
-        'globalFlags.names',
-        'errorShapeFields',
-        'outputSchemaName',
-        'helpHeader',
-      ];
+    'exitCode.success',
+    'exitCode.usage',
+    'exitCode.runtime',
+    'exitCode.notFound',
+    'exitCode.conflict',
+    'exitCode.versionMismatch',
+    'exitCode.circularRef',
+    'globalFlags.names',
+    'errorShapeFields',
+    'outputSchemaName',
+    'helpHeader',
+  ];
 
   @override
   bool operator ==(Object other) =>
@@ -114,12 +114,12 @@ class CliContract {
 
   @override
   int get hashCode => Object.hash(
-        exitCode,
-        Object.hashAll(globalFlags),
-        Object.hashAll(errorShapeFields),
-        outputSchemaName,
-        helpHeader,
-      );
+    exitCode,
+    Object.hashAll(globalFlags),
+    Object.hashAll(errorShapeFields),
+    outputSchemaName,
+    helpHeader,
+  );
 }
 
 bool _listEq<T>(List<T> a, List<T> b) {
@@ -189,14 +189,14 @@ class CliExitCodes {
 
   /// The full vocabulary, as a name → code map, for help / introspection.
   Map<String, int> get vocabulary => {
-        'success': success,
-        'usage': usage,
-        'runtime': runtime,
-        'notFound': notFound,
-        'conflict': conflict,
-        'versionMismatch': versionMismatch,
-        'circularRef': circularRef,
-      };
+    'success': success,
+    'usage': usage,
+    'runtime': runtime,
+    'notFound': notFound,
+    'conflict': conflict,
+    'versionMismatch': versionMismatch,
+    'circularRef': circularRef,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -212,14 +212,14 @@ class CliExitCodes {
 
   @override
   int get hashCode => Object.hash(
-        success,
-        usage,
-        runtime,
-        notFound,
-        conflict,
-        versionMismatch,
-        circularRef,
-      );
+    success,
+    usage,
+    runtime,
+    notFound,
+    conflict,
+    versionMismatch,
+    circularRef,
+  );
 }
 
 /// A global flag specification (FR-002).

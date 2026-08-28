@@ -12,6 +12,7 @@ import 'package:args/command_runner.dart';
 /// - lib/src/{datasource,repository,usecase,controller,state,view,plugin}/
 /// - test/
 import '../core/project/project_root.dart';
+
 class ModuleCommand extends Command<void> {
   static const String defaultOutputDir = '.';
 

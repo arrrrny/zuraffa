@@ -38,7 +38,7 @@ sealed class CommandResult {
 @immutable
 class SuccessResult extends CommandResult {
   const SuccessResult({this.data = const {}, int? exitCode})
-      : super(exitCode ?? 0);
+    : super(exitCode ?? 0);
 
   /// Arbitrary JSON-serializable data emitted on stdout. When
   /// `--output=json`, this object is emitted verbatim under the `data` key.

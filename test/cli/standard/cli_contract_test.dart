@@ -42,15 +42,18 @@ void main() {
       });
 
       test('vocabulary has all seven codes', () {
-        expect(codes.vocabulary.keys, containsAll(const [
-          'success',
-          'usage',
-          'runtime',
-          'notFound',
-          'conflict',
-          'versionMismatch',
-          'circularRef',
-        ]));
+        expect(
+          codes.vocabulary.keys,
+          containsAll(const [
+            'success',
+            'usage',
+            'runtime',
+            'notFound',
+            'conflict',
+            'versionMismatch',
+            'circularRef',
+          ]),
+        );
       });
     });
 
@@ -59,26 +62,29 @@ void main() {
 
       test('U8: global flag set is the standard five', () {
         final names = contract.globalFlags.map((f) => f.name).toList();
-        expect(names, containsAll(const [
-          '--help',
-          '--version',
-          '--verbose',
-          '--output',
-          '--no-color',
-        ]));
+        expect(
+          names,
+          containsAll(const [
+            '--help',
+            '--version',
+            '--verbose',
+            '--output',
+            '--no-color',
+          ]),
+        );
         expect(names.length, equals(5));
       });
 
       test('--help has abbreviation h', () {
-        final help =
-            contract.globalFlags.firstWhere((f) => f.name == '--help');
+        final help = contract.globalFlags.firstWhere((f) => f.name == '--help');
         expect(help.abbr, equals('h'));
         expect(help.negatable, isFalse);
       });
 
       test('--output takes a value', () {
-        final output =
-            contract.globalFlags.firstWhere((f) => f.name == '--output');
+        final output = contract.globalFlags.firstWhere(
+          (f) => f.name == '--output',
+        );
         expect(output.takesValue, isTrue);
       });
     });
@@ -87,11 +93,10 @@ void main() {
       final contract = CliContract.standard;
 
       test('U9: error shape has required fields', () {
-        expect(contract.errorShapeFields, containsAll(const [
-          'code',
-          'message',
-          'details',
-        ]));
+        expect(
+          contract.errorShapeFields,
+          containsAll(const ['code', 'message', 'details']),
+        );
         expect(contract.errorShapeFields.length, equals(3));
       });
     });
@@ -100,19 +105,22 @@ void main() {
       final contract = CliContract.standard;
 
       test('consistency surface lists every field SC-002 checks', () {
-        expect(contract.consistencySurface, containsAll(const [
-          'exitCode.success',
-          'exitCode.usage',
-          'exitCode.runtime',
-          'exitCode.notFound',
-          'exitCode.conflict',
-          'exitCode.versionMismatch',
-          'exitCode.circularRef',
-          'globalFlags.names',
-          'errorShapeFields',
-          'outputSchemaName',
-          'helpHeader',
-        ]));
+        expect(
+          contract.consistencySurface,
+          containsAll(const [
+            'exitCode.success',
+            'exitCode.usage',
+            'exitCode.runtime',
+            'exitCode.notFound',
+            'exitCode.conflict',
+            'exitCode.versionMismatch',
+            'exitCode.circularRef',
+            'globalFlags.names',
+            'errorShapeFields',
+            'outputSchemaName',
+            'helpHeader',
+          ]),
+        );
       });
 
       test('two standard contracts compare equal', () {

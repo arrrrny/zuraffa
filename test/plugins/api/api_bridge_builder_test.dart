@@ -90,35 +90,39 @@ void main() {
       );
     });
 
-    test('accepts a serializer exposed by generated entity extension', () async {
-      await createEntity(
-        outputDir: outputDir,
-        entitySnake: 'product',
-        entityName: 'Product',
-        includeToJson: false,
-      );
-      await File(
-        '$outputDir/domain/entities/product/product.zorphy.dart',
-      ).writeAsString('''
+    test(
+      'accepts a serializer exposed by generated entity extension',
+      () async {
+        await createEntity(
+          outputDir: outputDir,
+          entitySnake: 'product',
+          entityName: 'Product',
+          includeToJson: false,
+        );
+        await File(
+          '$outputDir/domain/entities/product/product.zorphy.dart',
+        ).writeAsString('''
 part of 'product.dart';
 extension ProductSerialization on Product {
   Map<String, dynamic> toJson() => {'id': id};
 }
 ''');
-      await createUseCase(
-        outputDir: outputDir,
-        entitySnake: 'product',
-        className: 'GetProductUseCase',
-        content: 'class GetProductUseCase extends UseCase<Product, String> {}',
-      );
+        await createUseCase(
+          outputDir: outputDir,
+          entitySnake: 'product',
+          className: 'GetProductUseCase',
+          content:
+              'class GetProductUseCase extends UseCase<Product, String> {}',
+        );
 
-      final files = await ApiBridgeBuilder(
-        outputDir: outputDir,
-        options: const GeneratorOptions(dryRun: false, force: true),
-      ).generate(GeneratorConfig(name: 'Product', outputDir: outputDir));
+        final files = await ApiBridgeBuilder(
+          outputDir: outputDir,
+          options: const GeneratorOptions(dryRun: false, force: true),
+        ).generate(GeneratorConfig(name: 'Product', outputDir: outputDir));
 
-      expect(files, hasLength(1));
-    });
+        expect(files, hasLength(1));
+      },
+    );
 
     test('generates file at correct path for Product entity', () async {
       await createEntity(
@@ -180,38 +184,49 @@ extension ProductSerialization on Product {
       },
     );
 
-    test('generated file has release/profile mode guards as first statements', () async {
-      await createEntity(
-        outputDir: outputDir,
-        entitySnake: 'product',
-        entityName: 'Product',
-      );
-      await createUseCase(
-        outputDir: outputDir,
-        entitySnake: 'product',
-        className: 'GetProductUseCase',
-        content: 'class GetProductUseCase extends UseCase<Product, String> {}',
-      );
+    test(
+      'generated file has release/profile mode guards as first statements',
+      () async {
+        await createEntity(
+          outputDir: outputDir,
+          entitySnake: 'product',
+          entityName: 'Product',
+        );
+        await createUseCase(
+          outputDir: outputDir,
+          entitySnake: 'product',
+          className: 'GetProductUseCase',
+          content:
+              'class GetProductUseCase extends UseCase<Product, String> {}',
+        );
 
-      final builder = ApiBridgeBuilder(
-        outputDir: outputDir,
-        options: const GeneratorOptions(dryRun: false, force: true),
-      );
-      final files = await builder.generate(
-        GeneratorConfig(name: 'Product', outputDir: outputDir),
-      );
+        final builder = ApiBridgeBuilder(
+          outputDir: outputDir,
+          options: const GeneratorOptions(dryRun: false, force: true),
+        );
+        final files = await builder.generate(
+          GeneratorConfig(name: 'Product', outputDir: outputDir),
+        );
 
-      final content = await File(files.first.path).readAsString();
-      // Release mode guard must appear inside registerProductApiBridge()
-      expect(content, contains("if (const bool.fromEnvironment('dart.vm.product')) return;"));
-      // Profile mode guard must appear inside registerProductApiBridge()
-      expect(
-        content,
-        contains("if (const bool.fromEnvironment('dart.vm.profile') &&\n"
+        final content = await File(files.first.path).readAsString();
+        // Release mode guard must appear inside registerProductApiBridge()
+        expect(
+          content,
+          contains(
+            "if (const bool.fromEnvironment('dart.vm.product')) return;",
+          ),
+        );
+        // Profile mode guard must appear inside registerProductApiBridge()
+        expect(
+          content,
+          contains(
+            "if (const bool.fromEnvironment('dart.vm.profile') &&\n"
             "      !Zuraffa.enableApiInProfile)\n"
-            "    return;"),
-      );
-    });
+            "    return;",
+          ),
+        );
+      },
+    );
 
     test('generates StreamUseCase handler with streaming response', () async {
       await createEntity(
@@ -377,7 +392,8 @@ extension ProductSerialization on Product {
           outputDir: outputDir,
           entitySnake: 'product',
           className: 'GetProductUseCase',
-          content: 'class GetProductUseCase extends UseCase<Product, String> {}',
+          content:
+              'class GetProductUseCase extends UseCase<Product, String> {}',
         );
         await createUseCase(
           outputDir: outputDir,
@@ -509,23 +525,20 @@ extension ProductSerialization on Product {
       },
     );
 
-    test(
-      'non-stream primitive usecase reads args value directly',
-      () async {
-        final content = await generateBridge([
-          {
-            'className': 'GetProductUseCase',
-            'content':
-                'class GetProductUseCase extends UseCase<Product, String> {}',
-          },
-        ]);
-        // Primitive String param is read by key name from the args map
-        // (the metadata advertises {'value': 'String'} — see _buildParamsMap).
-        expect(content, contains("args['value'] ?? ''"));
-        // No JSON deserialization for a primitive param.
-        expect(content, isNot(contains('jsonDecode')));
-      },
-    );
+    test('non-stream primitive usecase reads args value directly', () async {
+      final content = await generateBridge([
+        {
+          'className': 'GetProductUseCase',
+          'content':
+              'class GetProductUseCase extends UseCase<Product, String> {}',
+        },
+      ]);
+      // Primitive String param is read by key name from the args map
+      // (the metadata advertises {'value': 'String'} — see _buildParamsMap).
+      expect(content, contains("args['value'] ?? ''"));
+      // No JSON deserialization for a primitive param.
+      expect(content, isNot(contains('jsonDecode')));
+    });
 
     test(
       'NoParams usecase generates a const NoParams() call with empty params map',
@@ -547,27 +560,24 @@ extension ProductSerialization on Product {
       },
     );
 
-    test(
-      'complex params usecase emits a deserialization error path',
-      () async {
-        await createEntity(
-          outputDir: outputDir,
-          entitySnake: 'barcode_spark',
-          entityName: 'BarcodeSpark',
-        );
-        final content = await generateBridge([
-          {
-            'className': 'CreateBarcodeSparkUseCase',
-            'content':
-                'class CreateBarcodeSparkUseCase extends UseCase<Product, BarcodeSpark> {}',
-          },
-        ]);
-        // The handler must guard jsonDecode and surface a structured
-        // 'deserialization' error when the JSON blob is malformed.
-        expect(content, contains("jsonDecode(args['args']"));
-        expect(content, contains("errorResponse('deserialization'"));
-      },
-    );
+    test('complex params usecase emits a deserialization error path', () async {
+      await createEntity(
+        outputDir: outputDir,
+        entitySnake: 'barcode_spark',
+        entityName: 'BarcodeSpark',
+      );
+      final content = await generateBridge([
+        {
+          'className': 'CreateBarcodeSparkUseCase',
+          'content':
+              'class CreateBarcodeSparkUseCase extends UseCase<Product, BarcodeSpark> {}',
+        },
+      ]);
+      // The handler must guard jsonDecode and surface a structured
+      // 'deserialization' error when the JSON blob is malformed.
+      expect(content, contains("jsonDecode(args['args']"));
+      expect(content, contains("errorResponse('deserialization'"));
+    });
 
     test(
       'stream usecase with complex params keeps the JSON blob contract',
@@ -586,34 +596,42 @@ extension ProductSerialization on Product {
   });
 
   group('custom domain override (US1.3)', () {
-    test('uses --domain for the extension method and ApiEndpoint.domain', () async {
-      await createEntity(
-        outputDir: outputDir,
-        entitySnake: 'product',
-        entityName: 'Product',
-      );
-      await createUseCase(
-        outputDir: outputDir,
-        entitySnake: 'product',
-        className: 'GetProductUseCase',
-        content: 'class GetProductUseCase extends UseCase<Product, String> {}',
-      );
+    test(
+      'uses --domain for the extension method and ApiEndpoint.domain',
+      () async {
+        await createEntity(
+          outputDir: outputDir,
+          entitySnake: 'product',
+          entityName: 'Product',
+        );
+        await createUseCase(
+          outputDir: outputDir,
+          entitySnake: 'product',
+          className: 'GetProductUseCase',
+          content:
+              'class GetProductUseCase extends UseCase<Product, String> {}',
+        );
 
-      final builder = ApiBridgeBuilder(
-        outputDir: outputDir,
-        options: const GeneratorOptions(dryRun: false, force: true),
-      );
-      final files = await builder.generate(
-        GeneratorConfig(name: 'Product', outputDir: outputDir, domain: 'billing'),
-      );
+        final builder = ApiBridgeBuilder(
+          outputDir: outputDir,
+          options: const GeneratorOptions(dryRun: false, force: true),
+        );
+        final files = await builder.generate(
+          GeneratorConfig(
+            name: 'Product',
+            outputDir: outputDir,
+            domain: 'billing',
+          ),
+        );
 
-      final content = await File(files.first.path).readAsString();
-      // Extension method must use the overridden domain segment.
-      expect(content, contains('ext.zuraffa.billing.getProduct'));
-      // ApiEndpoint metadata must carry the overridden domain.
-      expect(content, contains("domain: 'billing'"));
-      // And must NOT fall back to the entity snake.
-      expect(content, isNot(contains('ext.zuraffa.product.getProduct')));
-    });
+        final content = await File(files.first.path).readAsString();
+        // Extension method must use the overridden domain segment.
+        expect(content, contains('ext.zuraffa.billing.getProduct'));
+        // ApiEndpoint metadata must carry the overridden domain.
+        expect(content, contains("domain: 'billing'"));
+        // And must NOT fall back to the entity snake.
+        expect(content, isNot(contains('ext.zuraffa.product.getProduct')));
+      },
+    );
   });
 }

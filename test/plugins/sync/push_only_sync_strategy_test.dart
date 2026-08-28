@@ -31,11 +31,11 @@ class FakeSyncMetadataStore implements SyncMetadataStore {
   Future<void> remove(String key) async => metaMap.remove(key);
 
   @override
-  Future<List<String>> getKeysByStatus(SyncStatus status) async =>
-      metaMap.entries
-          .where((e) => e.value.status == status)
-          .map((e) => e.key)
-          .toList();
+  Future<List<String>> getKeysByStatus(SyncStatus status) async => metaMap
+      .entries
+      .where((e) => e.value.status == status)
+      .map((e) => e.key)
+      .toList();
 
   @override
   Future<int> countByStatus(SyncStatus status) async =>

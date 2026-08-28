@@ -33,7 +33,11 @@ void main() {
       await expectLater(
         port.authenticate('nope'),
         throwsA(
-          isA<BiometricsException>().having((e) => e.code, 'code', 'unavailable'),
+          isA<BiometricsException>().having(
+            (e) => e.code,
+            'code',
+            'unavailable',
+          ),
         ),
       );
     });
@@ -53,35 +57,47 @@ void main() {
       await expectLater(
         port.authenticate('unlock'),
         throwsA(
-          isA<BiometricsException>().having((e) => e.code, 'code', 'locked_out'),
+          isA<BiometricsException>().having(
+            (e) => e.code,
+            'code',
+            'locked_out',
+          ),
         ),
       );
     });
   });
 
   group('BiometricsService', () {
-    test('authenticate returns false (no throw) on incapable devices',
-        () async {
-      final port = InMemoryBiometricsAdapter()..canCheckFlag = false;
-      final service = BiometricsService(port: port);
+    test(
+      'authenticate returns false (no throw) on incapable devices',
+      () async {
+        final port = InMemoryBiometricsAdapter()..canCheckFlag = false;
+        final service = BiometricsService(port: port);
 
-      expect(await service.authenticate('unlock'), isFalse,
-          reason: 'the common incapable-device flow is a plain false, '
-              'not an exception');
-    });
+        expect(
+          await service.authenticate('unlock'),
+          isFalse,
+          reason:
+              'the common incapable-device flow is a plain false, '
+              'not an exception',
+        );
+      },
+    );
 
-    test('isAvailable / availableBiometrics surface through the service',
-        () async {
-      final port = InMemoryBiometricsAdapter()
-        ..biometrics = [BiometricKind.face, BiometricKind.fingerprint];
-      final service = BiometricsService(port: port);
+    test(
+      'isAvailable / availableBiometrics surface through the service',
+      () async {
+        final port = InMemoryBiometricsAdapter()
+          ..biometrics = [BiometricKind.face, BiometricKind.fingerprint];
+        final service = BiometricsService(port: port);
 
-      expect(await service.isAvailable, isTrue);
-      expect(
-        await service.availableBiometrics,
-        [BiometricKind.face, BiometricKind.fingerprint],
-      );
-    });
+        expect(await service.isAvailable, isTrue);
+        expect(await service.availableBiometrics, [
+          BiometricKind.face,
+          BiometricKind.fingerprint,
+        ]);
+      },
+    );
 
     test('registerBiometricsDependencies wires port + service', () async {
       final getIt = GetIt.asNewInstance();
@@ -89,8 +105,11 @@ void main() {
       registerBiometricsDependencies(getIt, port: custom);
 
       final service = getIt<BiometricsService>();
-      expect(await service.authenticate('di'), isTrue,
-          reason: 'the injected adapter backs the service');
+      expect(
+        await service.authenticate('di'),
+        isTrue,
+        reason: 'the injected adapter backs the service',
+      );
       expect(custom.promptedReasons, ['di']);
     });
   });

@@ -53,18 +53,27 @@ void main() {
     });
 
     group('A10 / U22: merge precedence', () {
-      test('plugin override replaces the default for the overridden action', () {
-        final merged = KeyBindings.merge(
-          pluginOverrides: {
-            KeyAction.quit: {'x'},
-          },
-        );
-        expect(merged.matches('q', KeyAction.quit), isFalse,
-            reason: 'default q should be replaced by plugin override');
-        expect(merged.matches('Ctrl+C', KeyAction.quit), isFalse,
-            reason: 'default Ctrl+C should be replaced by plugin override');
-        expect(merged.matches('x', KeyAction.quit), isTrue);
-      });
+      test(
+        'plugin override replaces the default for the overridden action',
+        () {
+          final merged = KeyBindings.merge(
+            pluginOverrides: {
+              KeyAction.quit: {'x'},
+            },
+          );
+          expect(
+            merged.matches('q', KeyAction.quit),
+            isFalse,
+            reason: 'default q should be replaced by plugin override',
+          );
+          expect(
+            merged.matches('Ctrl+C', KeyAction.quit),
+            isFalse,
+            reason: 'default Ctrl+C should be replaced by plugin override',
+          );
+          expect(merged.matches('x', KeyAction.quit), isTrue);
+        },
+      );
 
       test('app override wins any conflict with a plugin override', () {
         final merged = KeyBindings.merge(
@@ -75,8 +84,11 @@ void main() {
             KeyAction.quit: {'y'},
           },
         );
-        expect(merged.matches('x', KeyAction.quit), isFalse,
-            reason: 'app override must win conflict with plugin override');
+        expect(
+          merged.matches('x', KeyAction.quit),
+          isFalse,
+          reason: 'app override must win conflict with plugin override',
+        );
         expect(merged.matches('y', KeyAction.quit), isTrue);
       });
 
@@ -117,10 +129,14 @@ void main() {
 
       test('equality holds for two merges with the same overrides', () {
         final a = KeyBindings.merge(
-          pluginOverrides: {KeyAction.quit: {'x'}},
+          pluginOverrides: {
+            KeyAction.quit: {'x'},
+          },
         );
         final b = KeyBindings.merge(
-          pluginOverrides: {KeyAction.quit: {'x'}},
+          pluginOverrides: {
+            KeyAction.quit: {'x'},
+          },
         );
         expect(a, equals(b));
         expect(a.hashCode, b.hashCode);

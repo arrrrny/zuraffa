@@ -38,14 +38,16 @@ void main() {
       expect(
         helpLines.any((l) => l.startsWith('gql ')),
         isTrue,
-        reason: 'gql command should be listed in `zfa help` output. If you '
+        reason:
+            'gql command should be listed in `zfa help` output. If you '
             'intentionally removed the gql command, please close #259 with '
             'a rationale and remove this test.',
       );
       expect(
         helpLines.any((l) => l.startsWith('graphql ')),
         isTrue,
-        reason: 'graphql command should be listed in `zfa help` output. If '
+        reason:
+            'graphql command should be listed in `zfa help` output. If '
             'you intentionally removed the graphql command, please close '
             '#259 with a rationale and remove this test.',
       );
@@ -81,34 +83,39 @@ void main() {
       expect(
         pluginIds,
         containsAll(<String>{'gql', 'graphql'}),
-        reason: '`zfa manifest` must list both `gql` and `graphql` '
+        reason:
+            '`zfa manifest` must list both `gql` and `graphql` '
             'capabilities. If you intentionally removed one of these '
             'plugins from the manifest, please close #259 with a rationale '
             'and remove this test.',
       );
     });
 
-    test('PluginLoader.buildRegistry registers GqlPlugin and GraphqlPlugin',
-        () {
-      final loader = PluginLoader(
-        outputDir: 'lib/src',
-        dryRun: false,
-        force: false,
-        verbose: false,
-        config: PluginConfig(),
-      );
-      final registry = loader.buildRegistry();
-      final ids = registry.plugins.map((p) => p.id).toSet();
-      expect(ids, containsAll(<String>{'gql', 'graphql'}));
-    });
+    test(
+      'PluginLoader.buildRegistry registers GqlPlugin and GraphqlPlugin',
+      () {
+        final loader = PluginLoader(
+          outputDir: 'lib/src',
+          dryRun: false,
+          force: false,
+          verbose: false,
+          config: PluginConfig(),
+        );
+        final registry = loader.buildRegistry();
+        final ids = registry.plugins.map((p) => p.id).toSet();
+        expect(ids, containsAll(<String>{'gql', 'graphql'}));
+      },
+    );
 
-    test('PluginRegistry.instance has gql + graphql after CliRunner init',
-        () async {
-      // CliRunner._ensureInitialized is called by runCapturing; verify the
-      // singleton registry now has both plugins registered.
-      await runner.runCapturing(['help']);
-      final ids = PluginRegistry.instance.plugins.map((p) => p.id).toSet();
-      expect(ids, containsAll(<String>{'gql', 'graphql'}));
-    });
+    test(
+      'PluginRegistry.instance has gql + graphql after CliRunner init',
+      () async {
+        // CliRunner._ensureInitialized is called by runCapturing; verify the
+        // singleton registry now has both plugins registered.
+        await runner.runCapturing(['help']);
+        final ids = PluginRegistry.instance.plugins.map((p) => p.id).toSet();
+        expect(ids, containsAll(<String>{'gql', 'graphql'}));
+      },
+    );
   });
 }

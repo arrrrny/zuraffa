@@ -7,8 +7,7 @@ import 'package:zuraffa/zuraffa.dart';
 /// no-op update guard, JSON round-trip of UpdateInfo.
 void main() {
   group('InMemoryAppUpdateAdapter', () {
-    test('reports against the caller version, not the scripted one',
-        () async {
+    test('reports against the caller version, not the scripted one', () async {
       final port = InMemoryAppUpdateAdapter()
         ..nextInfo = const UpdateInfo(
           currentVersion: '1.0.0',
@@ -31,8 +30,7 @@ void main() {
       expect(latest.isUpdateAvailable, isFalse);
     });
 
-    test('performUpdate records the info and reports launchability',
-        () async {
+    test('performUpdate records the info and reports launchability', () async {
       final port = InMemoryAppUpdateAdapter();
       const info = UpdateInfo(
         currentVersion: '1.0.0',
@@ -60,14 +58,15 @@ void main() {
 
       final restored = UpdateInfo.fromJson(info.toJson());
       expect(restored, info);
-      expect(UpdateInfo.fromJson(jsonDecode(info.encode())
-          as Map<String, dynamic>), info);
+      expect(
+        UpdateInfo.fromJson(jsonDecode(info.encode()) as Map<String, dynamic>),
+        info,
+      );
     });
   });
 
   group('AppUpdateService', () {
-    test('isUpdateAvailable + performUpdate launch the real flow',
-        () async {
+    test('isUpdateAvailable + performUpdate launch the real flow', () async {
       final port = InMemoryAppUpdateAdapter()
         ..nextInfo = const UpdateInfo(
           currentVersion: '1.0.0',
@@ -83,18 +82,23 @@ void main() {
       expect(port.updatesLaunched, hasLength(1));
     });
 
-    test('performUpdate on a no-update info is a no-op (false, no throw)',
-        () async {
-      final port = InMemoryAppUpdateAdapter();
-      final service = AppUpdateService(port: port, currentVersion: '1.0.0');
+    test(
+      'performUpdate on a no-update info is a no-op (false, no throw)',
+      () async {
+        final port = InMemoryAppUpdateAdapter();
+        final service = AppUpdateService(port: port, currentVersion: '1.0.0');
 
-      final info = await service.checkForUpdates();
-      expect(info.isUpdateAvailable, isFalse);
+        final info = await service.checkForUpdates();
+        expect(info.isUpdateAvailable, isFalse);
 
-      expect(await service.performUpdate(info), isFalse);
-      expect(port.updatesLaunched, isEmpty,
-          reason: 'same-version "updates" never reach the platform');
-    });
+        expect(await service.performUpdate(info), isFalse);
+        expect(
+          port.updatesLaunched,
+          isEmpty,
+          reason: 'same-version "updates" never reach the platform',
+        );
+      },
+    );
 
     test('registerAppUpdateDependencies wires port + service with the '
         'app version', () async {
@@ -105,8 +109,11 @@ void main() {
       final info = await service.checkForUpdates();
 
       expect(info.currentVersion, '3.1.4');
-      expect(info.isUpdateAvailable, isFalse,
-          reason: 'default scripted feed is up-to-date');
+      expect(
+        info.isUpdateAvailable,
+        isFalse,
+        reason: 'default scripted feed is up-to-date',
+      );
     });
   });
 }

@@ -296,7 +296,10 @@ void setupDependencies(GetIt getIt) {
         // material.dart and appRouter arrives via the app_router glue —
         // so a direct go_router import is an unused_import that made
         // `flutter analyze` exit 1 on every freshly generated shell.
-        expect(src, isNot(contains("import 'package:go_router/go_router.dart';")));
+        expect(
+          src,
+          isNot(contains("import 'package:go_router/go_router.dart';")),
+        );
         expect(src, contains("import '../routing/app_router.dart';"));
       });
 
@@ -305,8 +308,14 @@ void setupDependencies(GetIt getIt) {
         // go_router symbols remain reachable through the zuraffa_flutter
         // barrel (it re-exports go_router), so xray mode must stay
         // analyze-clean without the direct import too.
-        expect(src, isNot(contains("import 'package:go_router/go_router.dart';")));
-        expect(src, contains("import 'package:zuraffa_flutter/zuraffa_flutter.dart';"));
+        expect(
+          src,
+          isNot(contains("import 'package:go_router/go_router.dart';")),
+        );
+        expect(
+          src,
+          contains("import 'package:zuraffa_flutter/zuraffa_flutter.dart';"),
+        );
       });
 
       test('imports flutter material', () {
