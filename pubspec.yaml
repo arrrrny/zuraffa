@@ -41,6 +41,11 @@ dependencies:
   meta: ^1.17.0
   glob: ^2.1.2
   hive_ce: ^2.3.4
+  # TUI plugin (specs/017-tui-plugin): pure-Dart terminal UI engine.
+  # nocterm has NO package:flutter dependency (verified via pub.dev metadata).
+  # Any future Flutter-only rendering path MUST live in zuraffa_flutter, never
+  # in this pure-Dart TUI plugin path (FR-012).
+  nocterm: ^0.9.0
 
 # dependency_overrides intentionally removed per spec 018-cli-plugin task
 # instructions ("delete the entire dependency_overrides: section"). The
