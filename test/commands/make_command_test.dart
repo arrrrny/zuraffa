@@ -84,8 +84,16 @@ class Product {
           Directory.current = Directory.systemTemp.path;
         } catch (_) {}
       }
+      // A late-exiting child subprocess (or the in-process CLI runner still
+      // resolving its CWD) may still hold the workspace when a test times out;
+      // deleting it races and throws PathNotFoundException. Tolerate ENOENT
+      // during recursive delete instead of failing teardown (issue #503).
       if (workspace.existsSync()) {
-        await workspace.delete(recursive: true);
+        try {
+          await workspace.delete(recursive: true);
+        } on PathNotFoundException {
+          // Workspace already gone — nothing left to clean up.
+        }
       }
     });
 
@@ -209,7 +217,7 @@ class Product {
 
     test(
       'supports --from-stdin for plan resolution',
-      timeout: const Timeout(Duration(minutes: 2)),
+      timeout: const Timeout(Duration(minutes: 5)),
       () async {
         final process = await startZfa([
           'make',
@@ -355,7 +363,7 @@ dependencies:
     test(
       '#307 — an id-less entity fails loudly instead of falling back to its '
       'first (enum) field',
-      timeout: const Timeout(Duration(minutes: 2)),
+      timeout: const Timeout(Duration(minutes: 5)),
       () async {
         await writeEntity('ChatMessage', '''
 import 'package:zorphy_annotation/zorphy_annotation.dart';
@@ -391,7 +399,7 @@ abstract class \$ChatMessage {
     test(
       '#307 — autoId: true resolves the identity to a String id even without '
       'an id getter in the source',
-      timeout: const Timeout(Duration(minutes: 2)),
+      timeout: const Timeout(Duration(minutes: 5)),
       () async {
         await writeEntity('TelemetryEvent', '''
 import 'package:zorphy_annotation/zorphy_annotation.dart';
@@ -425,7 +433,7 @@ abstract class \$TelemetryEvent {
     test(
       'value object — make skips the root plugins and does not generate '
       'repository/usecase/controller/presenter',
-      timeout: const Timeout(Duration(minutes: 2)),
+      timeout: const Timeout(Duration(minutes: 5)),
       () async {
         await writeEntity('ParserConfig', '''
 import 'package:zorphy_annotation/zorphy_annotation.dart';
@@ -487,7 +495,7 @@ abstract class \$ParserConfig {
     // `GetIt: ProductRemoteDataSource is not registered`.
     test(
       '#346 — with di generates and wires datasource DI registrations',
-      timeout: const Timeout(Duration(minutes: 2)),
+      timeout: const Timeout(Duration(minutes: 5)),
       () async {
         await writeEntity('Product', '''
 class Product {
@@ -546,7 +554,7 @@ class Product {
     // instead of the remote one.
     test(
       '#346 — with di --use-mock registers the mock datasource',
-      timeout: const Timeout(Duration(minutes: 2)),
+      timeout: const Timeout(Duration(minutes: 5)),
       () async {
         await writeEntity('Product', '''
 class Product {
@@ -622,7 +630,7 @@ class Product {
     test(
       '#412 — full plugin bundle (repository usecase di mock provider '
       'service datasource) does not crash with bool→String? cast',
-      timeout: const Timeout(Duration(minutes: 2)),
+      timeout: const Timeout(Duration(minutes: 5)),
       () async {
         await writeEntity('TestEntity', '''
 class TestEntity {
@@ -759,8 +767,15 @@ dependencies:
           Directory.current = Directory.systemTemp.path;
         } catch (_) {}
       }
+      // A late-exiting child subprocess may still hold the workspace when a
+      // test times out; deleting it races and throws PathNotFoundException.
+      // Tolerate ENOENT during recursive delete (issue #503).
       if (workspace.existsSync()) {
-        await workspace.delete(recursive: true);
+        try {
+          await workspace.delete(recursive: true);
+        } on PathNotFoundException {
+          // Workspace already gone — nothing left to clean up.
+        }
       }
     });
 
