@@ -20,30 +20,29 @@ void main() {
   test('overhead under 5 percent', () async {
     const iterations = 30;
 
-    // Median of three raw measurements: the workload looped directly.
-    Future<Duration> medianRaw() async {
-      final samples = <Duration>[];
-      for (var run = 0; run < 3; run++) {
-        // Warm the JIT for the first run.
-        workload();
+    // Minimum of five raw measurements (least-noise estimate: filters
+    // scheduler contention spikes): the workload looped directly.
+    Future<Duration> minRaw() async {
+      var best = const Duration(days: 1);
+      for (var run = 0; run < 5; run++) {
+        workload(); // JIT warm-up
         final stopwatch = Stopwatch()..start();
         for (var i = 0; i < iterations; i++) {
           workload();
         }
         stopwatch.stop();
-        samples.add(stopwatch.elapsed);
+        if (stopwatch.elapsed < best) best = stopwatch.elapsed;
         await Future<void>.delayed(Duration.zero);
       }
-      samples.sort();
-      return samples[1];
+      return best;
     }
 
-    // Median of three framed measurements: the same workload driven
+    // Minimum of five framed measurements: the same workload driven
     // through the runner's full per-scenario pipeline (lifecycle, timing,
     // standard metrics, threshold evaluation, result construction).
-    Future<Duration> medianFramed(DefaultBenchmarkRunner runner) async {
-      final samples = <Duration>[];
-      for (var run = 0; run < 3; run++) {
+    Future<Duration> minFramed(DefaultBenchmarkRunner runner) async {
+      var best = const Duration(days: 1);
+      for (var run = 0; run < 5; run++) {
         final stopwatch = Stopwatch()..start();
         final result = await runner.runSingle(
           _OverheadScenario(workload),
@@ -51,10 +50,9 @@ void main() {
         );
         stopwatch.stop();
         expect(result.status, BenchmarkStatus.passed);
-        samples.add(stopwatch.elapsed);
+        if (stopwatch.elapsed < best) best = stopwatch.elapsed;
       }
-      samples.sort();
-      return samples[1];
+      return best;
     }
 
     // One runner, warmed up first so the git-commit lookup (cached per
@@ -65,8 +63,8 @@ void main() {
       config: const {'iterations': 1},
     );
 
-    final raw = await medianRaw();
-    final framed = await medianFramed(runner);
+    final raw = await minRaw();
+    final framed = await minFramed(runner);
 
     final overhead =
         (framed.inMicroseconds - raw.inMicroseconds) / raw.inMicroseconds;
