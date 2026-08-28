@@ -26,7 +26,7 @@ Generate VM Service extension bridge for a Zuraffa entity
 |------|------|----------|---------|-------------|
 | `--name` | string | Yes | - | Entity name (PascalCase), e.g. Product |
 | `--domain` | string | No | - | Override domain name segment in extension methods (defaults to snake_case of name) |
-| `--dryRun` | bool | No | False | Preview without writing files |
+| `--dry-run` | bool | No | False | Preview without writing files |
 | `--force` | bool | No | False | Overwrite existing files |
 | `--verbose` | bool | No | False | Enable detailed logging |
 

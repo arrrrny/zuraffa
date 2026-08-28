@@ -28,13 +28,13 @@ is still uncommitted; mutation sampled on one behavior).
 
 ## Output Excerpts
 
-```
+```text
 00:45 +2: All tests passed!
 ```
 
 Deliberate mutant (cache.adapter removed) failed as expected:
 
-```
+```text
 Actual: ['cache/adapter -> zfa.cache.adapter']
 ```
 

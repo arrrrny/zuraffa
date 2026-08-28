@@ -26,7 +26,7 @@ Register Hive adapters for an entity and its sub-entities
 |------|------|----------|---------|-------------|
 | `--name` | string | Yes | - | Name of the entity or enum (e.g. Product, ParserType) |
 | `--build` | bool | No | False | Run zfa build after updating registrar |
-| `--dryRun` | bool | No | False | Preview changes without writing files |
+| `--dry-run` | bool | No | False | Preview changes without writing files |
 | `--force` | bool | No | False | Force overwrite existing files |
 | `--verbose` | bool | No | False | Enable detailed logging |
 

@@ -26,7 +26,7 @@ Scaffold a runtime MCP server (lib/src/mcp/tools.dart + bin/mcp_server.dart) so 
 |------|------|----------|---------|-------------|
 | `--name` | string | No | - | Optional name for the MCP server (defaults to the package name from pubspec.yaml). |
 | `--force` | bool | No | False | Overwrite existing files |
-| `--dryRun` | bool | No | False | Preview without writing files |
+| `--dry-run` | bool | No | False | Preview without writing files |
 | `--verbose` | bool | No | False | Enable detailed logging |
 | `--revert` | bool | No | False | Delete the scaffolded files |
 

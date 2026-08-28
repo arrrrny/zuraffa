@@ -26,12 +26,12 @@ Enable offline-first sync for an entity
 |------|------|----------|---------|-------------|
 | `--name` | string | Yes | - | Name of the entity (e.g. Product) |
 | `--direction` | string | No | push | Sync direction (push or bidirectional) |
-| `--batchSize` | int | No | 50 | Number of records per sync batch |
-| `--maxRetries` | int | No | 5 | Maximum sync retry attempts before failing |
-| `--dryRun` | bool | No | False | Run without writing files |
+| `--batch-size` | int | No | 50 | Number of records per sync batch |
+| `--max-retries` | int | No | 5 | Maximum sync retry attempts before failing |
+| `--dry-run` | bool | No | False | Run without writing files |
 | `--force` | bool | No | False | Force overwrite existing files |
 | `--verbose` | bool | No | False | Enable verbose logging |
 
 ## Output
 
-Use `--format=json` for machine-readable output. Supports `--dry-run` to preview without writing files.
+Supports `--dry-run` to preview without writing files.

@@ -27,7 +27,7 @@ Generate internal GQL query/mutation strings
 | `--name` | string | Yes | - | Name of the entity (e.g. Product) |
 | `--type` | string | No | query | GraphQL operation type (query, mutation) |
 | `--returns` | string | No | - | GraphQL return fields |
-| `--dryRun` | bool | No | False | Run without writing files |
+| `--dry-run` | bool | No | False | Run without writing files |
 | `--force` | bool | No | False | Force overwrite existing files |
 | `--verbose` | bool | No | False | Enable verbose logging |
 

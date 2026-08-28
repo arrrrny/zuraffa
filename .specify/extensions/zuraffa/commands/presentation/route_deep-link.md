@@ -32,7 +32,7 @@ Generate a deep-link GoRoute module and register the URL scheme in AndroidManife
 | `--host` | string | No | - | Optional host (e.g. go.zuzu.dev) for App Links |
 | `--autoVerify` | bool | No | False | Emit android:autoVerify="true" (App Links) |
 | `--view` | string | No | - | Optional view class to render (default: SizedBox.shrink placeholder) |
-| `--dryRun` | bool | No | False |  |
+| `--dry-run` | bool | No | False |  |
 | `--force` | bool | No | False |  |
 | `--verbose` | bool | No | False |  |
 

@@ -99,6 +99,9 @@ void main() {
     final requiredSections = [
       '## Usage',
       '## When to Use',
+      '## Required Parameters',
+      '## Flags',
+      '## Output',
     ];
     final bad = <String>[];
     for (final alias in aliases) {
@@ -109,8 +112,11 @@ void main() {
         continue;
       }
       final content = File(path).readAsStringSync();
-      if (!content.startsWith('---') || !content.contains('name:')) {
-        bad.add('$alias -> $file (no frontmatter)');
+      if (!content.startsWith('---') ||
+          !content.contains('name:') ||
+          !content.contains('description:') ||
+          !content.contains('category:')) {
+        bad.add('$alias -> $file (no frontmatter with name/description/category)');
       }
       for (final section in requiredSections) {
         if (!content.contains(section)) {

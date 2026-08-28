@@ -30,6 +30,7 @@ Generate list/detail TUI screens for an entity, wired to its existing use cases 
 | `--fields` | list | Yes | - | Entity fields |
 | `--useCases` | list | Yes | - | Use cases available for binding (get, getList) |
 | `--repositoryName` | string | No | - | Repository class name (defaults to <Entity>Repository) |
+| `--dry-run` | bool | No | False | Preview without writing files |
 
 ## Output
 

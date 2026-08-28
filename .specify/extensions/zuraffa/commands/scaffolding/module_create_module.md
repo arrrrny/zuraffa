@@ -25,6 +25,7 @@ Generate a ZuraffaPlugin orchestrator for a feature package
 | Flag | Type | Required | Default | Description |
 |------|------|----------|---------|-------------|
 | `--name` | string | Yes | - | Name of the feature |
+| `--dry-run` | bool | No | False | Preview without writing files |
 
 ## Output
 

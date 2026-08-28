@@ -29,7 +29,7 @@ Generate a StatefulShellRoute.indexedStack shell with one branch per --branch <L
 | `--branch` | list | Yes | - | One entry per bottom-nav tab, formatted as "<Label>:<path>" (e.g. "Home:/home"). An optional third colon-separated segment specifies the Material icon (e.g. "Home:/home:Icons.home"). Repeat the flag once per branch: --branch Home:/home --branch Deals:/deal. |
 | `--bottomNav` | bool | No | True | Emit a Material 3 NavigationBar bound to navigationShell.currentIndex + goBranch (default: true). |
 | `--adaptive` | bool | No | False | Also emit a <Name>ShellDesktop variant with a NavigationRail for wide layouts; the shell builder picks between them via LayoutBuilder. |
-| `--dryRun` | bool | No | False |  |
+| `--dry-run` | bool | No | False |  |
 | `--force` | bool | No | False |  |
 | `--verbose` | bool | No | False |  |
 
