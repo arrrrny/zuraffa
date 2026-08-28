@@ -15,6 +15,7 @@ import '../commands/migrate_command.dart';
 import '../commands/update_command.dart';
 import '../commands/build_command.dart';
 import '../commands/manifest_command.dart';
+import '../commands/generate_commands_command.dart';
 import '../commands/apply_command.dart';
 import '../commands/module_command.dart';
 import '../commands/xray_command.dart';
@@ -106,6 +107,7 @@ class CliRunner {
     _runner.addCommand(MigrateCommand());
     _runner.addCommand(BuildCommand());
     _runner.addCommand(ManifestCommand(registry));
+    _runner.addCommand(GenerateCommandsCommand(registry));
     _runner.addCommand(ApplyCommand(registry));
     _runner.addCommand(ModuleCommand());
     _runner.addCommand(XrayCommand());
