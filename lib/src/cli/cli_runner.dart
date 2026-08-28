@@ -46,28 +46,51 @@ class CliRunner {
           );
   }
 
-  void _ensureInitialized() {
+  /// Top-level commands whose execution path never consumes the plugin
+  /// registry (no plugin-provided subcommands, no generator plugins needed).
+  ///
+  /// Every spawned `dart bin/zfa.dart` process used to pay the cost of
+  /// [PluginLoader.buildRegistry] (27 plugin constructions + registry walk)
+  /// even for these commands. Under parallel `dart test -j 4` CPU contention
+  /// that redundant per-launch work compounded and blew the 2-minute
+  /// per-test timeout on the `xray` integration tests (issue #531). We skip
+  /// the heavy plugin boot for them; the core commands below are always
+  /// registered regardless.
+  static const Set<String> _noPluginCommands = {
+    'xray',
+  };
+
+  void _ensureInitialized([List<String> args = const []]) {
     if (_initialized) return;
     _initialized = true;
 
+    // The registry is a process-global singleton. It is always available so
+    // registry-consuming core commands (make/manifest/apply) can bind to it;
+    // for commands that don't need plugins we simply skip populating it.
     final registry = PluginRegistry.instance;
-    final loader = PluginLoader(
-      outputDir: 'lib/src',
-      dryRun: false,
-      force: false,
-      verbose: false,
-      config: PluginConfig(),
-    );
-    final loadedRegistry = loader.buildRegistry();
-    for (final plugin in loadedRegistry.plugins) {
-      if (!registry.plugins.any((p) => p.id == plugin.id)) {
-        registry.register(plugin);
-      }
-    }
 
-    // Add all commands from the registry
-    for (final plugin in registry.plugins.whereType<CliAwarePlugin>()) {
-      _runner.addCommand(plugin.createCommand());
+    final skipPlugins =
+        args.isNotEmpty && _noPluginCommands.contains(args.first);
+
+    if (!skipPlugins) {
+      final loader = PluginLoader(
+        outputDir: 'lib/src',
+        dryRun: false,
+        force: false,
+        verbose: false,
+        config: PluginConfig(),
+      );
+      final loadedRegistry = loader.buildRegistry();
+      for (final plugin in loadedRegistry.plugins) {
+        if (!registry.plugins.any((p) => p.id == plugin.id)) {
+          registry.register(plugin);
+        }
+      }
+
+      // Add all commands from the registry
+      for (final plugin in registry.plugins.whereType<CliAwarePlugin>()) {
+        _runner.addCommand(plugin.createCommand());
+      }
     }
 
     // Add core commands that aren't plugins
@@ -93,7 +116,7 @@ class CliRunner {
 
   /// Run CLI with arguments.
   Future<void> run(List<String> args) async {
-    _ensureInitialized();
+    _ensureInitialized(args);
 
     if (args.isEmpty) {
       _printHelp();
@@ -133,7 +156,7 @@ class CliRunner {
 
   /// Run CLI and capture output as string.
   Future<String> runCapturing(List<String> args) async {
-    _ensureInitialized();
+    _ensureInitialized(args);
 
     final output = <String>[];
 
