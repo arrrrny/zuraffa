@@ -1,10 +1,24 @@
 # Feature Specification: Native CLI Plugin for Zuraffa
 
-**Feature Branch**: `018-cli-plugin`
+**Feature Branch**: `018-cli-plugin` (task uses `feat/018-cli-plugin`; see Branch
+Note below)
 
 **Created**: 2026-08-28
 
-**Status**: Draft
+**Refined**: 2026-08-28 (post `/speckit.specify` — success criteria now carry
+explicit mechanical verification methods; TDD profile added)
+
+**Status**: Refined
+
+## Branch Note
+
+The hosting task brief uses branch `feat/018-cli-plugin` (with the `feat/`
+Conventional-Commits prefix). `AGENTS.md` § "Spec Kit: Branch Naming" mandates
+the branch name match the feature directory exactly, i.e. `018-cli-plugin`.
+The two are in tension. The task brief is the operative contract for this run,
+so this branch is `feat/018-cli-plugin`; the maintainer may rename to
+`018-cli-plugin` if they want strict AGENTS.md compliance. Both names target the
+same feature directory `specs/018-cli-plugin/`.
 
 **Input**: User description: "CLI plugin that standardize all zuraffa apps to use same cli interface and cross refererenc, interact and share commands."
 
@@ -234,19 +248,72 @@ use cases.
 - **SC-001**: A developer can scaffold and run a first standardized CLI command in
   under 10 minutes from an empty Zuraffa app, using only the standard entry point
   and command model.
+  - **Mechanical verification**: An end-to-end test in `test/cli/standard/scenarios/sc_001_scaffold_test.dart`
+    constructs an empty `CliApp`, registers one `StandardCommand`, runs it with a
+    fixed arg vector, and asserts (a) the handler is invoked exactly once with the
+    parsed args, (b) the exit code is the contract success code, and (c) the
+    elapsed wall time of the test (a proxy for "from empty") is reported. The
+    10-minute target is a human-process metric, not a unit-test assertion; the
+    test asserts the *machinery* that makes the 10-minute target achievable
+    (single entry point, single command-model API, no boilerplate).
 - **SC-002**: At least 80% of common CLI surfaces (command, subcommand, flag
   parsing, help, error, output) are consistent across two independently built
   Zuraffa CLI apps, confirmed by side-by-side review against the CLI contract.
+  - **Mechanical verification**: `test/cli/standard/scenarios/sc_002_consistency_test.dart`
+    builds two distinct `CliApp` instances with different commands but the same
+    contract, runs the contract's "consistency surface" checklist against both,
+    and asserts the surface overlap is ≥ 0.80. The checklist enumerates: global
+    flag names, help layout header, error shape fields, output format schema,
+    exit-code vocabulary, unknown-command behavior, and ambiguous-name behavior.
 - **SC-003**: An app can discover and invoke another app's registered command
   without a hard dependency, measured by a test where App B invokes App A's command
   via the registry (not a direct import).
+  - **Mechanical verification**: `test/cli/standard/scenarios/sc_003_cross_app_test.dart`
+    builds `AppA` and `AppB` in separate test files. `AppA` registers a command
+    `greet` into a shared `CommandRegistry`. `AppB` imports only the registry
+    (not `AppA`'s internals), looks up `greet` by name, invokes it, and asserts
+    the result. A static check (`dart analyze`) on `AppB`'s import list confirms
+    no import of `AppA`'s command class.
 - **SC-004**: A command authored in one app is runnable by another via the
   standardized interface with no per-app reimplementation (verified across two
   apps).
+  - **Mechanical verification**: `test/cli/standard/scenarios/sc_004_share_test.dart`
+    authors a `StandardCommand` in `AppA`, registers it as a shareable definition,
+    and has `AppB` retrieve the definition, bind it to its own DI, and run it. The
+    test asserts `AppB` reuses `AppA`'s handler bytecode (no second
+    implementation) and that the command behaves identically.
 - **SC-005**: Generated CLI commands require zero manual wiring to the entity's
   existing use cases to run.
+  - **Mechanical verification**: `test/cli/standard/cli_plugin_generator_test.dart`
+    drives the `CliPlugin` generator against a fixture entity, asserts the
+    generated command file imports the entity's use-case class by name (no manual
+    DI wiring in the generated file), and `dart analyze` on the generated file
+    passes with no errors. (Full `zfa build` round-trip is exercised in a separate
+    regression test outside the unit suite.)
 - **SC-006**: Output is uniformly machine-readable (consistent format and exit
   codes) so commands compose reliably in scripts and pipelines.
+  - **Mechanical verification**: `test/cli/standard/output_format_test.dart`
+    runs three different commands through `CliApp` with `--output=json` and
+    asserts (a) every stdout line is valid JSON, (b) the JSON shape matches the
+    `CliContract.outputSchema` for success, error, and warning, and (c) the exit
+    code matches `CliContract.exitCode(success|usage|runtime|notFound|conflict)`.
+
+## TDD Profile
+
+The TDD extension reads `.specify/memory/tdd-profile.md` for the suite and
+mutation commands. This feature uses the same Dart toolchain as the rest of
+Zuraffa, so the profile is shared with the repo baseline rather than
+feature-local. Concretely:
+
+- **Single test**: `dart test test/cli/standard/<file>.dart -P "name"`
+- **Full suite (feature scope)**: `dart test test/cli/standard/`
+- **Full suite (repo)**: `dart test` (slow; do not run for feature work)
+- **Static analysis**: `dart analyze lib/src/cli/standard/ lib/src/plugins/cli/ test/cli/standard/`
+- **Mutation tool**: not configured at the repo level (no Stryker.NET / mutter
+  equivalent in the Dart ecosystem is wired in CI). Deliberate-mutant sampling
+  is the procedure for `/speckit.tdd.verify` Phase 4 (see `tdd/verification.md`).
+- **Coverage**: `dart test --coverage=test/.coverage` then `dart run coverage:format_coverage`
+  — opt-in; not a gate.
 
 ## Assumptions
 

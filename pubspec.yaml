@@ -42,12 +42,13 @@ dependencies:
   glob: ^2.1.2
   hive_ce: ^2.3.4
 
-dependency_overrides:
-  analyzer: 14.1.0
-  # No zorphy overrides: zorphy/zorphy_annotation ^2.3.0 on pub.dev carry the
-  # #310/#351/#349 fixes, so the versioned deps above are the contract. Local
-  # `../zorphy` path overrides must never be committed — CI has no sibling
-  # checkout and every branch goes red when they are.
+# dependency_overrides intentionally removed per spec 018-cli-plugin task
+# instructions ("delete the entire dependency_overrides: section"). The
+# previous section pinned analyzer: 14.1.0, which is already an exact version
+# pin in the dependencies: block above, so removal is a no-op for resolution
+# and eliminates any path-override risk for CI. Do NOT reintroduce path:
+# overrides — CI has no sibling checkouts and every branch goes red when
+# they are present.
 
 executables:
   zuraffa:
