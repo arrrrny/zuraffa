@@ -30,7 +30,13 @@ import 'plugin_loader.dart';
 class CliRunner {
   final bool exitOnCompletion;
   late final CommandRunner<void> _runner;
-  bool _initialized = false;
+  bool _coreInitialized = false;
+
+  /// Plugin commands are registered separately from the core commands so a
+  /// prior plugin-free command (e.g. `xray`) that skips the plugin boot does
+  /// not prevent a later plugin-backed command from being registered in a
+  /// reused [CliRunner] (issue #531 regression).
+  bool _pluginsInitialized = false;
 
   CliRunner({this.exitOnCompletion = true}) {
     _runner =
@@ -46,31 +52,42 @@ class CliRunner {
           );
   }
 
-  void _ensureInitialized() {
-    if (_initialized) return;
-    _initialized = true;
+  /// Top-level commands whose execution path never consumes the plugin
+  /// registry (no plugin-provided subcommands, no generator plugins needed).
+  ///
+  /// Every spawned `dart bin/zfa.dart` process used to pay the cost of
+  /// [PluginLoader.buildRegistry] (27 plugin constructions + registry walk)
+  /// even for these commands. Under parallel `dart test -j 4` CPU contention
+  /// that redundant per-launch work compounded and blew the 2-minute
+  /// per-test timeout on the `xray` integration tests (issue #531). We skip
+  /// the heavy plugin boot for them; the core commands below are always
+  /// registered regardless.
+  static const Set<String> _noPluginCommands = {
+    'xray',
+  };
 
+  void _ensureInitialized([List<String> args = const []]) {
+    final skipPlugins =
+        args.isNotEmpty && _noPluginCommands.contains(args.first);
+
+    if (!_coreInitialized) {
+      _coreInitialized = true;
+      _addCoreCommands();
+    }
+
+    // Plugin-backed commands are loaded lazily and tracked separately, so a
+    // prior `xray` invocation (which skips the plugin boot) cannot leave a
+    // later non-xray command without its plugin commands in a reused runner.
+    if (!_pluginsInitialized && !skipPlugins) {
+      _pluginsInitialized = true;
+      _loadAndRegisterPlugins();
+    }
+  }
+
+  void _addCoreCommands() {
+    // The registry is a process-global singleton, always available so
+    // registry-consuming core commands (make/manifest/apply) can bind to it.
     final registry = PluginRegistry.instance;
-    final loader = PluginLoader(
-      outputDir: 'lib/src',
-      dryRun: false,
-      force: false,
-      verbose: false,
-      config: PluginConfig(),
-    );
-    final loadedRegistry = loader.buildRegistry();
-    for (final plugin in loadedRegistry.plugins) {
-      if (!registry.plugins.any((p) => p.id == plugin.id)) {
-        registry.register(plugin);
-      }
-    }
-
-    // Add all commands from the registry
-    for (final plugin in registry.plugins.whereType<CliAwarePlugin>()) {
-      _runner.addCommand(plugin.createCommand());
-    }
-
-    // Add core commands that aren't plugins
     _runner.addCommand(SchemaCommand());
     _runner.addCommand(ValidateCommand());
     _runner.addCommand(_CreateCommand());
@@ -91,9 +108,31 @@ class CliRunner {
     _runner.addCommand(AppCommand());
   }
 
+  void _loadAndRegisterPlugins() {
+    final registry = PluginRegistry.instance;
+    final loader = PluginLoader(
+      outputDir: 'lib/src',
+      dryRun: false,
+      force: false,
+      verbose: false,
+      config: PluginConfig(),
+    );
+    final loadedRegistry = loader.buildRegistry();
+    for (final plugin in loadedRegistry.plugins) {
+      if (!registry.plugins.any((p) => p.id == plugin.id)) {
+        registry.register(plugin);
+      }
+    }
+
+    // Add all commands from the registry
+    for (final plugin in registry.plugins.whereType<CliAwarePlugin>()) {
+      _runner.addCommand(plugin.createCommand());
+    }
+  }
+
   /// Run CLI with arguments.
   Future<void> run(List<String> args) async {
-    _ensureInitialized();
+    _ensureInitialized(args);
 
     if (args.isEmpty) {
       _printHelp();
@@ -133,7 +172,7 @@ class CliRunner {
 
   /// Run CLI and capture output as string.
   Future<String> runCapturing(List<String> args) async {
-    _ensureInitialized();
+    _ensureInitialized(args);
 
     final output = <String>[];
 
