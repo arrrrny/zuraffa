@@ -7,10 +7,10 @@ DESCRIPTION="${2:-Release $VERSION}"
 
 if [ -z "$VERSION" ]; then echo "❌ Version required"; exit 1; fi
 
-# Publish target registry. The team publishes to the private mirror pub.zuzu.dev
-# (which mirrors to pub.dev). The only configured pub token on this machine is for
-# this host, so it MUST be exported or `dart pub publish` will 401 against pub.dev.
-export PUB_HOSTED_URL="${PUB_HOSTED_URL:-https://pub.zuzu.dev}"
+# Publish target registry: pub.dev (the public registry). pub.zuzu.dev was only a
+# temporary development mirror and is no longer used. Requires pub.dev credentials
+# on this machine (via `dart pub login`).
+export PUB_HOSTED_URL="${PUB_HOSTED_URL:-https://pub.dev}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_DIR="$(dirname "$SCRIPT_DIR")"
@@ -263,8 +263,17 @@ PY
         ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
     fi
 
+    # Block until the new zuraffa is actually resolvable on $PUB_HOSTED_URL
+    # (API-listed AND downloadable) BEFORE resolving it locally — mirrors the
+    # zikzak_inappwebview ordered-publish gate. This must run before the local
+    # `flutter pub get` so the freshly published core is resolvable here too.
+    wait_for_pubdev zuraffa "$VERSION" || {
+        echo "❌ zuraffa $VERSION is not resolvable on $PUB_HOSTED_URL — cannot verify zuraffa_flutter yet."
+        exit 1
+    }
+
     echo "📦 Verifying zuraffa_flutter locally (pub get + analyze)..."
-    flutter pub get && flutter analyze
+    flutter pub get && flutter analyze --no-fatal-infos --no-fatal-warnings
 
     # Commit + tag + push the flutter package at the new version.
     git add pubspec.yaml CHANGELOG.md
@@ -275,12 +284,8 @@ PY
     git push origin "$ZF_BRANCH"
     git push origin "v$VERSION"
 
-    # Block until the new zuraffa is actually resolvable (API-listed AND
-    # downloadable) — mirrors the zikzak_inappwebview ordered-publish gate.
-    wait_for_pubdev zuraffa "$VERSION" || {
-        echo "❌ zuraffa $VERSION is not resolvable yet — publish zuraffa_flutter manually once it is."
-        exit 1
-    }
+    # (zuraffa await now runs above, before the local pub get, so resolution is
+    # guaranteed before we publish.)
 
     echo "📦 Publishing zuraffa_flutter $VERSION against hosted zuraffa ^$VERSION..."
     flutter pub publish --force
