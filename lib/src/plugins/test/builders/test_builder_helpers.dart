@@ -454,17 +454,16 @@ extension TestBuilderHelpers on TestBuilder {
         : 'package:test/test.dart',
   );
 
-  /// Zuraffa core import: `zuraffa_flutter` (which re-exports `zuraffa`) for
-  /// Flutter apps, plain `zuraffa` for pure-Dart apps. The params classes
-  /// (UpdateParams, ListQueryParams, DeleteParams, QueryParams, ToggleParams,
-  /// NoParams, Eq, Success, Failure) are all exported from
-  /// `package:zuraffa/zuraffa.dart` (lib/zuraffa.dart → src/core/params/index.dart).
-  /// A pure-Dart app cannot import `package:zuraffa_flutter/zuraffa_flutter.dart`
-  /// (which transitively pulls in `flutter`).
+  /// Zuraffa core import for generated tests. Every generated test wires a
+  /// zuraffa-native mock (MockDataSource / ThrowingDataSource), so it imports
+  /// the canonical `package:zuraffa/mock.dart` marker. That library re-exports
+  /// the full zuraffa core surface (Loggable, FailureHandler, Result, the
+  /// params family, etc.) plus the `zuraffaMockLibrary` constant, so static
+  /// tooling (e.g. speckit-tdd-setup) can detect zuraffa-native mocking without
+  /// a third-party double library. Works for both Flutter and pure-Dart apps
+  /// because `zuraffa` is always resolvable in a zuraffa app.
   Directive _zuraffaCoreImport(bool isFlutter) => Directive.import(
-    isFlutter
-        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
-        : 'package:zuraffa/zuraffa.dart',
+    'package:zuraffa/mock.dart',
   );
 }
 
