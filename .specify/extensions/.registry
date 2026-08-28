@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "extensions": {
+    "tdd": {
+      "version": "1.1.2",
+      "source": "local",
+      "manifest_hash": "sha256:e07b49d00feb217a92cdbacd9471326b71bd31c636b184718cabb7904a13e6b2",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "zed": [
+          "speckit.tdd.setup",
+          "speckit.tdd.plan",
+          "speckit.tdd.run",
+          "speckit.tdd.verify"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-08-28T10:35:14.670028+00:00"
+    }
+  }
+}

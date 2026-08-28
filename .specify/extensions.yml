@@ -1,0 +1,37 @@
+installed:
+- tdd
+settings:
+  auto_execute_hooks: true
+hooks:
+  after_tasks:
+  - extension: tdd
+    command: speckit.tdd.plan
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Derive the TDD test list and make the test tasks in tasks.md mandatory?
+    description: Generate specs/<feature>/tdd/test-list.md from spec.md and plan.md,
+      then reorder tasks.md so every behavior has a failing test before its implementation
+    condition: null
+  before_implement:
+  - extension: tdd
+    command: speckit.tdd.run
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Drive the behavioral tasks through the red-green-refactor loop first?
+    description: Run the loop over every behavior on the feature's tdd/test-list.md,
+      one failing test at a time with the red recorded, ticking the tasks each behavior
+      completes so /speckit.implement then covers only the work that is not a behavior
+      change
+    condition: null
+  after_implement:
+  - extension: tdd
+    command: speckit.tdd.verify
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Audit TDD discipline and test strength for this feature?
+    description: 'Write specs/<feature>/tdd/verification.md: test-first evidence,
+      test-smell rubric, mutation results, and acceptance-criteria coverage'
+    condition: null

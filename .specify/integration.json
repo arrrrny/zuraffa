@@ -1,0 +1,15 @@
+{
+  "version": "1.0.2.dev0",
+  "integration_state_schema": 1,
+  "installed_integrations": [
+    "zed"
+  ],
+  "integration_settings": {
+    "zed": {
+      "script": "sh",
+      "invoke_separator": "-"
+    }
+  },
+  "integration": "zed",
+  "default_integration": "zed"
+}
