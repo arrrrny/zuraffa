@@ -472,15 +472,11 @@ class MockDataSourceBuilder {
             refer('logger').property('info').call([
               isNoParamsCreate
                   ? literalString('Creating $entityName')
-                  : literalString(
-                      'Creating $entityName: \${item.id}',
-                    ),
+                  : literalString('Creating $entityName: \${item.id}'),
             ]).statement,
-            refer('Future<void>')
-                .property('delayed')
-                .call([refer('_delay')])
-                .awaited
-                .statement,
+            refer(
+              'Future<void>',
+            ).property('delayed').call([refer('_delay')]).awaited.statement,
             refer('${entityName}MockData')
                 .property('${entityCamel}s')
                 .property('add')
@@ -549,15 +545,12 @@ class MockDataSourceBuilder {
                   .statement,
               declareFinal('updated')
                   .assign(
-                    refer('params')
-                        .property('data')
-                        .property('applyTo')
-                        .call([refer('existing')]),
+                    refer('params').property('data').property('applyTo').call([
+                      refer('existing'),
+                    ]),
                   )
                   .statement,
-              Code(
-                '${entityName}MockData.${entityCamel}s[0] = updated;',
-              ),
+              Code('${entityName}MockData.${entityCamel}s[0] = updated;'),
               refer('logger').property('info').call([
                 literalString('Successfully updated $entityName'),
               ]).statement,
@@ -600,10 +593,9 @@ class MockDataSourceBuilder {
                   .statement,
               declareFinal('updated')
                   .assign(
-                    refer('params')
-                        .property('data')
-                        .property('applyTo')
-                        .call([refer('existing')]),
+                    refer('params').property('data').property('applyTo').call([
+                      refer('existing'),
+                    ]),
                   )
                   .statement,
               declareFinal('index')
@@ -614,9 +606,7 @@ class MockDataSourceBuilder {
                         .call([refer('existing')]),
                   )
                   .statement,
-              Code(
-                '${entityName}MockData.${entityCamel}s[index] = updated;',
-              ),
+              Code('${entityName}MockData.${entityCamel}s[index] = updated;'),
               refer('logger').property('info').call([
                 literalString('Successfully updated $entityName'),
               ]).statement,
@@ -683,9 +673,7 @@ class MockDataSourceBuilder {
                     ]),
                   )
                   .statement,
-              Code(
-                '${entityName}MockData.${entityCamel}s[0] = updated;',
-              ),
+              Code('${entityName}MockData.${entityCamel}s[0] = updated;'),
               refer('logger').property('info').call([
                 literalString('Successfully toggled $entityName'),
               ]).statement,
@@ -742,9 +730,7 @@ class MockDataSourceBuilder {
                         .call([refer('existing')]),
                   )
                   .statement,
-              Code(
-                '${entityName}MockData.${entityCamel}s[index] = updated;',
-              ),
+              Code('${entityName}MockData.${entityCamel}s[index] = updated;'),
               refer('logger').property('info').call([
                 literalString('Successfully toggled $entityName'),
               ]).statement,

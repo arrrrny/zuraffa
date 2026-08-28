@@ -96,16 +96,16 @@ class KeyBindings {
   /// Returns the full set defined by FR-006: `q`/`Ctrl+C` quit, `Enter`
   /// confirm, arrow keys navigate, `Tab`/`Shift+Tab` focus, `Escape` cancel.
   factory KeyBindings.defaults() => const KeyBindings({
-        KeyAction.quit: {'q', 'Ctrl+C'},
-        KeyAction.confirm: {'Enter'},
-        KeyAction.cancel: {'Escape'},
-        KeyAction.navigateUp: {'ArrowUp'},
-        KeyAction.navigateDown: {'ArrowDown'},
-        KeyAction.navigateLeft: {'ArrowLeft'},
-        KeyAction.navigateRight: {'ArrowRight'},
-        KeyAction.focusNext: {'Tab'},
-        KeyAction.focusPrevious: {'Shift+Tab'},
-      });
+    KeyAction.quit: {'q', 'Ctrl+C'},
+    KeyAction.confirm: {'Enter'},
+    KeyAction.cancel: {'Escape'},
+    KeyAction.navigateUp: {'ArrowUp'},
+    KeyAction.navigateDown: {'ArrowDown'},
+    KeyAction.navigateLeft: {'ArrowLeft'},
+    KeyAction.navigateRight: {'ArrowRight'},
+    KeyAction.focusNext: {'Tab'},
+    KeyAction.focusPrevious: {'Shift+Tab'},
+  });
 
   /// Returns the set of keys that trigger [action], or the empty set if no
   /// binding is registered for [action].
@@ -162,8 +162,10 @@ class KeyBindings {
 
   @override
   int get hashCode => Object.hashAllUnordered(
-        _table.entries.map((e) => Object.hash(e.key, Object.hashAllUnordered(e.value))),
-      );
+    _table.entries.map(
+      (e) => Object.hash(e.key, Object.hashAllUnordered(e.value)),
+    ),
+  );
 
   @override
   String toString() => 'KeyBindings($_table)';

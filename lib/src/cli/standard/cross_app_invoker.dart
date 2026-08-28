@@ -73,9 +73,7 @@ class CrossAppInvoker {
 
     // Detect circular reference (FR-009 edge case 4).
     if (_invocationStack.contains(key)) {
-      throw CircularReferenceException(
-        chain: [..._invocationStack, key],
-      );
+      throw CircularReferenceException(chain: [..._invocationStack, key]);
     }
 
     _invocationStack.add(key);
@@ -102,7 +100,10 @@ class CrossAppInvoker {
     if (matches.isEmpty) {
       throw UnknownCommandException(
         commandName: commandName,
-        availableCommands: registry.enumerate().map((c) => c.key.toString()).toList(),
+        availableCommands: registry
+            .enumerate()
+            .map((c) => c.key.toString())
+            .toList(),
       );
     }
     if (matches.length > 1) {

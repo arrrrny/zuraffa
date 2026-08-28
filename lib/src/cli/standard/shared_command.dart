@@ -27,10 +27,7 @@ import 'edge_cases.dart';
 /// version constraint and throws [VersionMismatchException] on mismatch.
 @immutable
 class SharedCommand {
-  const SharedCommand({
-    required this.command,
-    required this.version,
-  });
+  const SharedCommand({required this.command, required this.version});
 
   /// Construct a SharedCommand from a [StandardCommand] and a version string.
   factory SharedCommand.of(

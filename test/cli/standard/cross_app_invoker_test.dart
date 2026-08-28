@@ -28,8 +28,7 @@ void main() {
     return StandardCommand(
       name: name,
       description: '',
-      handler: handler ??
-          (_) async => const SuccessResult(data: {'ok': true}),
+      handler: handler ?? (_) async => const SuccessResult(data: {'ok': true}),
     );
   }
 
@@ -81,33 +80,38 @@ void main() {
         );
       });
 
-      test('invokeByName throws UnknownCommandException when no match', () async {
-        final inv = CliInvocation(
-          arguments: const [],
-          flags: const {},
-          contract: CliContract.standard,
-        );
-        expect(
-          () => invoker.invokeByName('missing', inv),
-          throwsA(isA<UnknownCommandException>()),
-        );
-      });
+      test(
+        'invokeByName throws UnknownCommandException when no match',
+        () async {
+          final inv = CliInvocation(
+            arguments: const [],
+            flags: const {},
+            contract: CliContract.standard,
+          );
+          expect(
+            () => invoker.invokeByName('missing', inv),
+            throwsA(isA<UnknownCommandException>()),
+          );
+        },
+      );
     });
 
     group('missing owner app (FR-005, FR-009)', () {
-      test('U30: missing owner app throws ReferencedAppMissingException',
-          () async {
-        registry.register(makeCommand('greet'), ownerApp: 'A');
-        final inv = CliInvocation(
-          arguments: const [],
-          flags: const {},
-          contract: CliContract.standard,
-        );
-        expect(
-          () => invoker.invoke('B', 'greet', inv),
-          throwsA(isA<ReferencedAppMissingException>()),
-        );
-      });
+      test(
+        'U30: missing owner app throws ReferencedAppMissingException',
+        () async {
+          registry.register(makeCommand('greet'), ownerApp: 'A');
+          final inv = CliInvocation(
+            arguments: const [],
+            flags: const {},
+            contract: CliContract.standard,
+          );
+          expect(
+            () => invoker.invoke('B', 'greet', inv),
+            throwsA(isA<ReferencedAppMissingException>()),
+          );
+        },
+      );
 
       test('ReferencedAppMissingException lists registered apps', () async {
         registry.register(makeCommand('greet'), ownerApp: 'A');
@@ -130,25 +134,27 @@ void main() {
     });
 
     group('ambiguous name (FR-009 edge case 2)', () {
-      test('invokeByName throws AmbiguousCommandException on multiple owners',
-          () async {
-        registry.register(makeCommand('greet'), ownerApp: 'A');
-        registry.register(makeCommand('greet'), ownerApp: 'B');
-        final inv = CliInvocation(
-          arguments: const [],
-          flags: const {},
-          contract: CliContract.standard,
-        );
-        late AmbiguousCommandException err;
-        try {
-          await invoker.invokeByName('greet', inv);
-          fail('expected exception');
-        } on AmbiguousCommandException catch (e) {
-          err = e;
-        }
-        expect(err.commandName, equals('greet'));
-        expect(err.matches.toSet(), equals({'A/greet', 'B/greet'}));
-      });
+      test(
+        'invokeByName throws AmbiguousCommandException on multiple owners',
+        () async {
+          registry.register(makeCommand('greet'), ownerApp: 'A');
+          registry.register(makeCommand('greet'), ownerApp: 'B');
+          final inv = CliInvocation(
+            arguments: const [],
+            flags: const {},
+            contract: CliContract.standard,
+          );
+          late AmbiguousCommandException err;
+          try {
+            await invoker.invokeByName('greet', inv);
+            fail('expected exception');
+          } on AmbiguousCommandException catch (e) {
+            err = e;
+          }
+          expect(err.commandName, equals('greet'));
+          expect(err.matches.toSet(), equals({'A/greet', 'B/greet'}));
+        },
+      );
     });
 
     group('circular reference detection (FR-009 edge case 4)', () {
@@ -208,10 +214,7 @@ void main() {
           ownerApp: 'A',
         );
         registry.register(
-          makeCommand(
-            'bye',
-            handler: (_) async => const SuccessResult(),
-          ),
+          makeCommand('bye', handler: (_) async => const SuccessResult()),
           ownerApp: 'B',
         );
         final result = await invoker.invoke(

@@ -834,62 +834,60 @@ abstract class \$ChatMessage {
       await writeExistingMockInfra();
     }
 
-    test(
-      '#508 — --test only on an id-less entity succeeds and references a '
-      'real field',
-      () async {
-        await writeIdLessEntity();
-        await writeExistingUseCases();
+    test('#508 — --test only on an id-less entity succeeds and references a '
+        'real field', () async {
+      await writeIdLessEntity();
+      await writeExistingUseCases();
 
-        final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing([
-          'make',
-          'ChatMessage',
-          '--test',
-          '--force',
-          '--output',
-          outputDir,
-        ]);
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing([
+        'make',
+        'ChatMessage',
+        '--test',
+        '--force',
+        '--output',
+        outputDir,
+      ]);
 
-        expect(
-          output,
-          isNot(contains('has no id field')),
-          reason:
-              '--test is id-neutral; the #307 loud failure must not fire '
-              '(issue #508). Output:\n$output',
-        );
-        expect(output, isNot(contains('❌ Error')));
+      expect(
+        output,
+        isNot(contains('has no id field')),
+        reason:
+            '--test is id-neutral; the #307 loud failure must not fire '
+            '(issue #508). Output:\n$output',
+      );
+      expect(output, isNot(contains('❌ Error')));
 
-        final getTest = File(
-          path.join(
-            workspace.path,
-            'test',
-            'domain',
-            'usecases',
-            'chat_message',
-            'get_chat_message_usecase_test.dart',
-          ),
-        );
-        expect(
-          getTest.existsSync(),
-          isTrue,
-          reason: 'the get usecase test must be regenerated\noutput:\n$output',
-        );
-        final content = getTest.readAsStringSync();
-        expect(
-          content,
-          contains('ChatMessageFields.content'),
-          reason: 'the query/filter key must be the representative REAL '
-              'field (first String), not a synthetic id',
-        );
-        expect(content, isNot(contains('ChatMessageFields.id')));
-        expect(
-          content,
-          isNot(contains('ChatMessageFields.role')),
-          reason: 'an enum-typed field must never be the query field (#307)',
-        );
-      },
-    );
+      final getTest = File(
+        path.join(
+          workspace.path,
+          'test',
+          'domain',
+          'usecases',
+          'chat_message',
+          'get_chat_message_usecase_test.dart',
+        ),
+      );
+      expect(
+        getTest.existsSync(),
+        isTrue,
+        reason: 'the get usecase test must be regenerated\noutput:\n$output',
+      );
+      final content = getTest.readAsStringSync();
+      expect(
+        content,
+        contains('ChatMessageFields.content'),
+        reason:
+            'the query/filter key must be the representative REAL '
+            'field (first String), not a synthetic id',
+      );
+      expect(content, isNot(contains('ChatMessageFields.id')));
+      expect(
+        content,
+        isNot(contains('ChatMessageFields.role')),
+        reason: 'an enum-typed field must never be the query field (#307)',
+      );
+    });
 
     test(
       '#508 — explicit --query-field is preserved on the id-neutral path',
@@ -931,190 +929,179 @@ abstract class \$ChatMessage {
       },
     );
 
-    test(
-      '#508/#307 — an id-dependent plugin on an id-less entity still fails '
-      'loudly',
-      () async {
-        await writeIdLessEntity();
-        await writeExistingUseCases();
+    test('#508/#307 — an id-dependent plugin on an id-less entity still fails '
+        'loudly', () async {
+      await writeIdLessEntity();
+      await writeExistingUseCases();
 
-        final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing([
-          'make',
-          'ChatMessage',
-          'usecase',
-          '--force',
-          '--output',
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing([
+        'make',
+        'ChatMessage',
+        'usecase',
+        '--force',
+        '--output',
+        outputDir,
+      ]);
+
+      // Same #307 diagnostic: message + the three remediation hints.
+      expect(output, contains('has no id field'));
+      expect(output, contains('--auto-id'));
+      expect(output, contains('value_object'));
+      expect(output, contains('add-field'));
+      expect(output, contains('❌ Error: Cannot generate architecture'));
+
+      // The failure precedes plugin dispatch: no test files regenerated,
+      // and the pre-existing usecase stubs are untouched.
+      final testDir = Directory(
+        path.join(workspace.path, 'test', 'domain', 'usecases'),
+      );
+      expect(testDir.existsSync(), isFalse);
+      final stub = File(
+        path.join(
           outputDir,
-        ]);
+          'domain',
+          'usecases',
+          'chat_message',
+          'get_chat_message_usecase.dart',
+        ),
+      );
+      expect(stub.readAsStringSync(), contains('// FIXTURE-STUB get'));
+    });
 
-        // Same #307 diagnostic: message + the three remediation hints.
-        expect(output, contains('has no id field'));
-        expect(output, contains('--auto-id'));
-        expect(output, contains('value_object'));
-        expect(output, contains('add-field'));
-        expect(output, contains('❌ Error: Cannot generate architecture'));
+    test('#508/#307 — a mixed request (--test plus an id-dependent plugin via '
+        '--methods) still fails loudly', () async {
+      await writeIdLessEntity();
+      await writeExistingUseCases();
 
-        // The failure precedes plugin dispatch: no test files regenerated,
-        // and the pre-existing usecase stubs are untouched.
-        final testDir = Directory(
-          path.join(workspace.path, 'test', 'domain', 'usecases'),
-        );
-        expect(testDir.existsSync(), isFalse);
-        final stub = File(
-          path.join(
-            outputDir,
-            'domain',
-            'usecases',
-            'chat_message',
-            'get_chat_message_usecase.dart',
-          ),
-        );
-        expect(stub.readAsStringSync(), contains('// FIXTURE-STUB get'));
-      },
-    );
+      // --methods implies the usecase plugin (PlanResolver's
+      // _hasEntityMethods), so the active set is {usecase, test} — the
+      // id-dependent member must keep the loud failure armed.
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing([
+        'make',
+        'ChatMessage',
+        '--test',
+        '--methods=get',
+        '--force',
+        '--output',
+        outputDir,
+      ]);
 
-    test(
-      '#508/#307 — a mixed request (--test plus an id-dependent plugin via '
-      '--methods) still fails loudly',
-      () async {
-        await writeIdLessEntity();
-        await writeExistingUseCases();
-
-        // --methods implies the usecase plugin (PlanResolver's
-        // _hasEntityMethods), so the active set is {usecase, test} — the
-        // id-dependent member must keep the loud failure armed.
-        final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing([
-          'make',
-          'ChatMessage',
-          '--test',
-          '--methods=get',
-          '--force',
-          '--output',
-          outputDir,
-        ]);
-
-        expect(output, contains('has no id field'));
-        expect(output, contains('❌ Error: Cannot generate architecture'));
-      },
-    );
+      expect(output, contains('has no id field'));
+      expect(output, contains('❌ Error: Cannot generate architecture'));
+    });
 
     // #514: in apps/zikzak_demo `usecase` is enabled by default in .zfa.json.
     // `zfa make <NoId> --test` then resolves to {usecase, test} and the #307
     // gate fired even though the user only wanted id-neutral test
     // regeneration. The fix drops the implied (config-default) usecase so the
     // id-neutral path proceeds.
-    test(
-      '#514 — no-id entity with usecase default-enabled: --test regenerates '
-      'id-neutrally (drops the implied usecase)',
-      () async {
-        await File(path.join(workspace.path, '.zfa.json')).writeAsString(
-          jsonEncode({
-            'plugins': {
-              'defaults': {'usecase': true},
-            },
-          }),
-        );
-        await writeIdLessEntity();
-        await writeExistingUseCases();
+    test('#514 — no-id entity with usecase default-enabled: --test regenerates '
+        'id-neutrally (drops the implied usecase)', () async {
+      await File(path.join(workspace.path, '.zfa.json')).writeAsString(
+        jsonEncode({
+          'plugins': {
+            'defaults': {'usecase': true},
+          },
+        }),
+      );
+      await writeIdLessEntity();
+      await writeExistingUseCases();
 
-        final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing([
-          'make',
-          'ChatMessage',
-          '--test',
-          '--force',
-          '--output',
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing([
+        'make',
+        'ChatMessage',
+        '--test',
+        '--force',
+        '--output',
+        outputDir,
+      ]);
+
+      // The implied usecase is dropped (notice printed) and no loud failure
+      // fires — note the drop notice itself contains the words "has no id
+      // field", so we assert on the error path, not the phrase.
+      expect(
+        output,
+        contains('dropping id-dependent plugins implied by config defaults'),
+        reason: 'the config-default usecase must be dropped (issue #514)',
+      );
+      expect(output, isNot(contains('❌ Error')));
+      expect(
+        output,
+        isNot(contains('Cannot generate architecture')),
+        reason: 'id-neutral regeneration must proceed, not fail',
+      );
+
+      final getTest = File(
+        path.join(
+          workspace.path,
+          'test',
+          'domain',
+          'usecases',
+          'chat_message',
+          'get_chat_message_usecase_test.dart',
+        ),
+      );
+      expect(getTest.existsSync(), isTrue, reason: 'output:\n$output');
+      final content = getTest.readAsStringSync();
+      expect(
+        content,
+        contains('ChatMessageFields.content'),
+        reason: 'the query key must be the representative REAL field',
+      );
+      expect(content, isNot(contains('ChatMessageFields.id')));
+
+      // The implied usecase plugin must NOT have run — the pre-existing
+      // usecase stub is untouched.
+      final stub = File(
+        path.join(
           outputDir,
-        ]);
-
-        // The implied usecase is dropped (notice printed) and no loud failure
-        // fires — note the drop notice itself contains the words "has no id
-        // field", so we assert on the error path, not the phrase.
-        expect(
-          output,
-          contains('dropping id-dependent plugins implied by config defaults'),
-          reason: 'the config-default usecase must be dropped (issue #514)',
-        );
-        expect(output, isNot(contains('❌ Error')));
-        expect(
-          output,
-          isNot(contains('Cannot generate architecture')),
-          reason: 'id-neutral regeneration must proceed, not fail',
-        );
-
-        final getTest = File(
-          path.join(
-            workspace.path,
-            'test',
-            'domain',
-            'usecases',
-            'chat_message',
-            'get_chat_message_usecase_test.dart',
-          ),
-        );
-        expect(getTest.existsSync(), isTrue, reason: 'output:\n$output');
-        final content = getTest.readAsStringSync();
-        expect(
-          content,
-          contains('ChatMessageFields.content'),
-          reason: 'the query key must be the representative REAL field',
-        );
-        expect(content, isNot(contains('ChatMessageFields.id')));
-
-        // The implied usecase plugin must NOT have run — the pre-existing
-        // usecase stub is untouched.
-        final stub = File(
-          path.join(
-            outputDir,
-            'domain',
-            'usecases',
-            'chat_message',
-            'get_chat_message_usecase.dart',
-          ),
-        );
-        expect(
-          stub.readAsStringSync(),
-          contains('// FIXTURE-STUB get'),
-          reason: 'the dropped usecase plugin should not regenerate usecases',
-        );
-      },
-    );
+          'domain',
+          'usecases',
+          'chat_message',
+          'get_chat_message_usecase.dart',
+        ),
+      );
+      expect(
+        stub.readAsStringSync(),
+        contains('// FIXTURE-STUB get'),
+        reason: 'the dropped usecase plugin should not regenerate usecases',
+      );
+    });
 
     // Complement: without an id-neutral flag the implied (config-default)
     // usecase must keep the #307 loud failure armed.
-    test(
-      '#514 — bare make (no --test/--mock) on a no-id entity with usecase '
-      'default still fails loudly',
-      () async {
-        await File(path.join(workspace.path, '.zfa.json')).writeAsString(
-          jsonEncode({
-            'plugins': {
-              'defaults': {'usecase': true},
-            },
-          }),
-        );
-        await writeIdLessEntity();
-        await writeExistingUseCases();
+    test('#514 — bare make (no --test/--mock) on a no-id entity with usecase '
+        'default still fails loudly', () async {
+      await File(path.join(workspace.path, '.zfa.json')).writeAsString(
+        jsonEncode({
+          'plugins': {
+            'defaults': {'usecase': true},
+          },
+        }),
+      );
+      await writeIdLessEntity();
+      await writeExistingUseCases();
 
-        final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing([
-          'make',
-          'ChatMessage',
-          '--force',
-          '--output',
-          outputDir,
-        ]);
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing([
+        'make',
+        'ChatMessage',
+        '--force',
+        '--output',
+        outputDir,
+      ]);
 
-        expect(
-          output,
-          contains('has no id field'),
-          reason: 'without --test/--mock the implied usecase must keep the '
-              'loud failure armed',
-        );
-        expect(output, contains('❌ Error: Cannot generate architecture'));
-      },
-    );
+      expect(
+        output,
+        contains('has no id field'),
+        reason:
+            'without --test/--mock the implied usecase must keep the '
+            'loud failure armed',
+      );
+      expect(output, contains('❌ Error: Cannot generate architecture'));
+    });
   });
 }

@@ -60,8 +60,8 @@ class TuiPlugin extends ZuraffaPlugin {
 
   @override
   List<ZuraffaCapability> get capabilities => [
-        CreateTuiScreensCapability(generator: _generator, outputDir: outputDir),
-      ];
+    CreateTuiScreensCapability(generator: _generator, outputDir: outputDir),
+  ];
 }
 
 /// Qualified alias for [TuiPlugin] — kept for callers that prefer the

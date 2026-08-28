@@ -26,7 +26,13 @@ void main() {
 
   Future<GeneratorConfig> _config({
     String direction = 'push',
-    List<String> methods = const ['get', 'getList', 'create', 'update', 'delete'],
+    List<String> methods = const [
+      'get',
+      'getList',
+      'create',
+      'update',
+      'delete',
+    ],
   }) async {
     return GeneratorConfig(
       name: 'Product',
@@ -48,11 +54,17 @@ void main() {
     await builder.generate(await _config());
 
     final initFile = File('$outputDir/sync/product_sync.dart');
-    expect(initFile.existsSync(), isTrue,
-        reason: 'sync init file should be generated');
+    expect(
+      initFile.existsSync(),
+      isTrue,
+      reason: 'sync init file should be generated',
+    );
     final content = initFile.readAsStringSync();
     expect(content, contains('initProductSync'));
-    expect(content, contains("Hive.openBox<SyncMetadata>('sync_metadata_product')"));
+    expect(
+      content,
+      contains("Hive.openBox<SyncMetadata>('sync_metadata_product')"),
+    );
   });
 
   test('generates sync metadata store factory', () async {
@@ -62,14 +74,21 @@ void main() {
     );
     await builder.generate(await _config());
 
-    final storeFile =
-        File('$outputDir/data/datasources/product/product_sync_metadata_store.dart');
-    expect(storeFile.existsSync(), isTrue,
-        reason: 'sync metadata store file should be generated');
+    final storeFile = File(
+      '$outputDir/data/datasources/product/product_sync_metadata_store.dart',
+    );
+    expect(
+      storeFile.existsSync(),
+      isTrue,
+      reason: 'sync metadata store file should be generated',
+    );
     final content = storeFile.readAsStringSync();
     expect(content, contains('createProductSyncMetadataStore'));
     expect(content, contains('SyncMetadataStore'));
-    expect(content, contains("Hive.box<SyncMetadata>('sync_metadata_product')"));
+    expect(
+      content,
+      contains("Hive.box<SyncMetadata>('sync_metadata_product')"),
+    );
   });
 
   test('generates push-only sync strategy factory', () async {
@@ -79,10 +98,14 @@ void main() {
     );
     await builder.generate(await _config(direction: 'push'));
 
-    final strategyFile =
-        File('$outputDir/data/datasources/product/product_sync_strategy.dart');
-    expect(strategyFile.existsSync(), isTrue,
-        reason: 'sync strategy file should be generated');
+    final strategyFile = File(
+      '$outputDir/data/datasources/product/product_sync_strategy.dart',
+    );
+    expect(
+      strategyFile.existsSync(),
+      isTrue,
+      reason: 'sync strategy file should be generated',
+    );
     final content = strategyFile.readAsStringSync();
     expect(content, contains('createProductSyncStrategy'));
     expect(content, contains('PushOnlySyncStrategy<Product>'));
@@ -96,8 +119,9 @@ void main() {
     );
     await builder.generate(await _config(direction: 'bidirectional'));
 
-    final strategyFile =
-        File('$outputDir/data/datasources/product/product_sync_strategy.dart');
+    final strategyFile = File(
+      '$outputDir/data/datasources/product/product_sync_strategy.dart',
+    );
     final content = strategyFile.readAsStringSync();
     expect(content, contains('BidirectionalSyncStrategy<Product>'));
     expect(content, contains('SyncDirection.bidirectional'));
@@ -112,17 +136,32 @@ void main() {
     );
     await builder.generate(await _config());
 
-    final useCaseFile =
-        File('$outputDir/domain/usecases/product/product_sync_usecase.dart');
-    expect(useCaseFile.existsSync(), isTrue,
-        reason: 'SyncProductUseCase should be generated');
+    final useCaseFile = File(
+      '$outputDir/domain/usecases/product/product_sync_usecase.dart',
+    );
+    expect(
+      useCaseFile.existsSync(),
+      isTrue,
+      reason: 'SyncProductUseCase should be generated',
+    );
     final content = useCaseFile.readAsStringSync();
-    expect(content, contains('class SyncProductUseCase extends UseCase<void, NoParams>'));
+    expect(
+      content,
+      contains('class SyncProductUseCase extends UseCase<void, NoParams>'),
+    );
     expect(content, contains('final ProductRepository _repository;'));
     expect(content, contains('SyncProductUseCase(this._repository);'));
-    expect(content, contains('Future<void> execute(NoParams params, CancelToken? cancelToken) async'));
+    expect(
+      content,
+      contains(
+        'Future<void> execute(NoParams params, CancelToken? cancelToken) async',
+      ),
+    );
     expect(content, contains('cancelToken?.throwIfCancelled();'));
-    expect(content, contains('await _repository.syncPending(cancelToken: cancelToken);'));
+    expect(
+      content,
+      contains('await _repository.syncPending(cancelToken: cancelToken);'),
+    );
   });
 
   test('revert removes generated sync usecase file', () async {
@@ -133,8 +172,9 @@ void main() {
     final config = await _config();
     await builder.generate(config);
 
-    final useCaseFile =
-        File('$outputDir/domain/usecases/product/product_sync_usecase.dart');
+    final useCaseFile = File(
+      '$outputDir/domain/usecases/product/product_sync_usecase.dart',
+    );
     expect(useCaseFile.existsSync(), isTrue);
 
     // Sync revert is driven with sync enabled + revert flag set, mirroring how
@@ -149,7 +189,10 @@ void main() {
     );
     await builder.generate(revertConfig);
 
-    expect(useCaseFile.existsSync(), isFalse,
-        reason: 'sync usecase should be removed on revert');
+    expect(
+      useCaseFile.existsSync(),
+      isFalse,
+      reason: 'sync usecase should be removed on revert',
+    );
   });
 }

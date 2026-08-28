@@ -21,9 +21,7 @@ void main() {
   });
 
   group('useZorphy flag for update method in provider', () {
-    test(
-        'provider emits EntityPatch when useZorphy=true (default)',
-        () async {
+    test('provider emits EntityPatch when useZorphy=true (default)', () async {
       // Scaffold the entity file
       await _scaffoldEntity(outputDir, 'Product');
 

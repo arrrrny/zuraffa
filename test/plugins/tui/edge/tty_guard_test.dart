@@ -20,45 +20,40 @@ void main() {
       },
     );
 
-    test(
-      'A15 / U31: requireTty() throws TuiNonTtyException with an actionable '
-      'message when stdout is not a TTY',
-      () {
-        final guard = const TtyGuard();
-        if (!guard.isTty()) {
-          expect(
-            guard.requireTty,
-            throwsA(
-              allOf(
-                isA<TuiNonTtyException>(),
-                predicate<TuiNonTtyException>(
-                  (e) => e.message.toLowerCase().contains('interactive') ||
-                      e.message.toLowerCase().contains('tty'),
-                  'message must mention interactive/tty',
-                ),
-                predicate<TuiNonTtyException>(
-                  (e) => e.message.isNotEmpty,
-                  'message must not be empty',
-                ),
+    test('A15 / U31: requireTty() throws TuiNonTtyException with an actionable '
+        'message when stdout is not a TTY', () {
+      final guard = const TtyGuard();
+      if (!guard.isTty()) {
+        expect(
+          guard.requireTty,
+          throwsA(
+            allOf(
+              isA<TuiNonTtyException>(),
+              predicate<TuiNonTtyException>(
+                (e) =>
+                    e.message.toLowerCase().contains('interactive') ||
+                    e.message.toLowerCase().contains('tty'),
+                'message must mention interactive/tty',
+              ),
+              predicate<TuiNonTtyException>(
+                (e) => e.message.isNotEmpty,
+                'message must not be empty',
               ),
             ),
-          );
-        } else {
-          // If running under a real TTY, requireTty should be a no-op.
-          expect(() => guard.requireTty(), returnsNormally);
-        }
-      },
-    );
+          ),
+        );
+      } else {
+        // If running under a real TTY, requireTty should be a no-op.
+        expect(() => guard.requireTty(), returnsNormally);
+      }
+    });
 
-    test(
-      'U33: TuiException family — TuiNonTtyException is a TuiException',
-      () {
-        const exc = TuiNonTtyException('nope');
-        expect(exc, isA<TuiException>());
-        expect(exc.message, 'nope');
-        expect(exc.toString(), contains('nope'));
-      },
-    );
+    test('U33: TuiException family — TuiNonTtyException is a TuiException', () {
+      const exc = TuiNonTtyException('nope');
+      expect(exc, isA<TuiException>());
+      expect(exc.message, 'nope');
+      expect(exc.toString(), contains('nope'));
+    });
   });
 
   group('ResizeHandler (FR-009)', () {
@@ -101,7 +96,11 @@ void main() {
 
       handler.removeListener(listener);
       handler.relayResize(100, 30);
-      expect(callCount, 1, reason: 'listener should not be called after removal');
+      expect(
+        callCount,
+        1,
+        reason: 'listener should not be called after removal',
+      );
       expect(handler.hasListeners, isFalse);
     });
   });
@@ -127,33 +126,32 @@ void main() {
   });
 
   group('Minimal config (FR-009, FR-010)', () {
-    test(
-      'A20: a TUI built from hand-composed screens alone runs (no entity '
-      'scaffolding required)',
-      () {
-        // A "minimal config" TUI = a single hand-composed Screen. We assert
-        // the public API does not require entity metadata: ZuraffaTui.run
-        // accepts only a Screen + optional di/theme/keys, with no entity
-        // manifest anywhere in the call signature.
-        //
-        // The actual end-to-end run is exercised in A25 (pure_dart_init_test)
-        // and A1 (zuraffa_tui_test); here we assert the contract statically
-        // so future API additions cannot silently introduce an entity
-        // requirement.
-        final run = ZuraffaTui.run;
-        expect(
-          run,
-          isA<
-              Future<void> Function(
+    test('A20: a TUI built from hand-composed screens alone runs (no entity '
+        'scaffolding required)', () {
+      // A "minimal config" TUI = a single hand-composed Screen. We assert
+      // the public API does not require entity metadata: ZuraffaTui.run
+      // accepts only a Screen + optional di/theme/keys, with no entity
+      // manifest anywhere in the call signature.
+      //
+      // The actual end-to-end run is exercised in A25 (pure_dart_init_test)
+      // and A1 (zuraffa_tui_test); here we assert the contract statically
+      // so future API additions cannot silently introduce an entity
+      // requirement.
+      final run = ZuraffaTui.run;
+      expect(
+        run,
+        isA<
+          Future<void> Function(
             Screen, {
             ZuraffaDIContainer? di,
             ZuraffaTuiTheme? theme,
             KeyBindings? keys,
-          })>(),
-          reason: 'ZuraffaTui.run must accept a hand-composed Screen '
-              'with no entity metadata required',
-        );
-      },
-    );
+          })
+        >(),
+        reason:
+            'ZuraffaTui.run must accept a hand-composed Screen '
+            'with no entity metadata required',
+      );
+    });
   });
 }

@@ -78,10 +78,10 @@ class UnknownCommandException extends CliEdgeCaseException {
 
   @override
   Map<String, Object?> get details => {
-        'commandName': commandName,
-        if (ownerApp != null) 'ownerApp': ownerApp,
-        'availableCommands': availableCommands,
-      };
+    'commandName': commandName,
+    if (ownerApp != null) 'ownerApp': ownerApp,
+    'availableCommands': availableCommands,
+  };
 }
 
 /// Two or more owner apps have registered a command with the same name, and
@@ -113,9 +113,9 @@ class AmbiguousCommandException extends CliEdgeCaseException {
 
   @override
   Map<String, Object?> get details => {
-        'commandName': commandName,
-        'matches': matches,
-      };
+    'commandName': commandName,
+    'matches': matches,
+  };
 }
 
 /// The owner app referenced by a cross-app invocation is not registered (FR-009
@@ -142,9 +142,9 @@ class ReferencedAppMissingException extends CliEdgeCaseException {
 
   @override
   Map<String, Object?> get details => {
-        'ownerApp': ownerApp,
-        'registeredApps': registeredApps,
-      };
+    'ownerApp': ownerApp,
+    'registeredApps': registeredApps,
+  };
 }
 
 /// A cross-app invocation chain detected a cycle (FR-009 edge case 4:
@@ -164,13 +164,10 @@ class CircularReferenceException extends CliEdgeCaseException {
   String get code => 'circularRef';
 
   @override
-  String get message =>
-      'Circular reference detected: ${chain.join(' -> ')}.';
+  String get message => 'Circular reference detected: ${chain.join(' -> ')}.';
 
   @override
-  Map<String, Object?> get details => {
-        'chain': chain,
-      };
+  Map<String, Object?> get details => {'chain': chain};
 }
 
 /// A shared command was requested at a minimum version, but the published
@@ -206,11 +203,11 @@ class VersionMismatchException extends CliEdgeCaseException {
 
   @override
   Map<String, Object?> get details => {
-        'commandName': commandName,
-        'ownerApp': ownerApp,
-        'requestedMinVersion': requestedMinVersion,
-        'publishedVersion': publishedVersion,
-      };
+    'commandName': commandName,
+    'ownerApp': ownerApp,
+    'requestedMinVersion': requestedMinVersion,
+    'publishedVersion': publishedVersion,
+  };
 }
 
 /// A command requires interaction with the user, but stdout is piped or
@@ -236,9 +233,9 @@ class NonInteractiveContextException extends CliEdgeCaseException {
 
   @override
   Map<String, Object?> get details => {
-        'commandName': commandName,
-        'reason': reason,
-      };
+    'commandName': commandName,
+    'reason': reason,
+  };
 }
 
 /// Raised by [CommandRegistry.register] when an app tries to register a
@@ -267,9 +264,9 @@ class CommandAlreadyRegistered extends CliEdgeCaseException {
 
   @override
   Map<String, Object?> get details => {
-        'key': key.toString(),
-        if (existingVersion != null) 'existingVersion': existingVersion,
-      };
+    'key': key.toString(),
+    if (existingVersion != null) 'existingVersion': existingVersion,
+  };
 }
 
 /// Raised by [DiBinding.bind] when a handler's declared dependency is not
@@ -299,8 +296,8 @@ class BindingException extends CliEdgeCaseException {
 
   @override
   Map<String, Object?> get details => {
-        'commandName': commandName,
-        'dependencyName': dependencyName,
-        'reason': reason,
-      };
+    'commandName': commandName,
+    'dependencyName': dependencyName,
+    'reason': reason,
+  };
 }

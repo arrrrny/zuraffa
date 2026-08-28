@@ -30,30 +30,39 @@ void main() {
     final union = surfaceA.union(surfaceB);
 
     final overlap = intersection.length / union.length;
-    expect(overlap, greaterThanOrEqualTo(0.80),
-        reason: 'SC-002 requires >= 80% overlap; got ${(overlap * 100).round()}%');
+    expect(
+      overlap,
+      greaterThanOrEqualTo(0.80),
+      reason: 'SC-002 requires >= 80% overlap; got ${(overlap * 100).round()}%',
+    );
   });
 
   test('two apps with different commands but same contract meet SC-002', () {
     final appA = CliApp(name: 'appA', version: '0.1.0');
-    appA.register(StandardCommand(
-      name: 'greet',
-      description: '',
-      handler: (_) async => const SuccessResult(),
-    ));
+    appA.register(
+      StandardCommand(
+        name: 'greet',
+        description: '',
+        handler: (_) async => const SuccessResult(),
+      ),
+    );
 
     final appB = CliApp(name: 'appB', version: '0.2.0');
-    appB.register(StandardCommand(
-      name: 'list',
-      description: '',
-      handler: (_) async => const SuccessResult(),
-    ));
+    appB.register(
+      StandardCommand(
+        name: 'list',
+        description: '',
+        handler: (_) async => const SuccessResult(),
+      ),
+    );
 
     // The two apps have different command sets but the same contract —
     // their consistency surface is identical.
     expect(appA.contract, equals(appB.contract));
-    expect(appA.contract.consistencySurface,
-        equals(appB.contract.consistencySurface));
+    expect(
+      appA.contract.consistencySurface,
+      equals(appB.contract.consistencySurface),
+    );
 
     // Compute the overlap (should be 1.0).
     final surfaceA = appA.contract.consistencySurface.toSet();
@@ -76,20 +85,43 @@ void main() {
     // The spec's SC-002 enumerates: global flag names, help header, error
     // shape fields, output schema, exit-code vocabulary, unknown-command
     // behavior, ambiguous-name behavior. We map these to surface entries:
-    expect(surface, contains('globalFlags.names'),
-        reason: 'global flag names must be on the surface');
-    expect(surface, contains('helpHeader'),
-        reason: 'help header must be on the surface');
-    expect(surface, contains('errorShapeFields'),
-        reason: 'error shape fields must be on the surface');
-    expect(surface, contains('outputSchemaName'),
-        reason: 'output schema must be on the surface');
-    expect(surface, contains('exitCode.success'),
-        reason: 'exit-code vocabulary must be on the surface');
-    expect(surface, contains('exitCode.notFound'),
-        reason: 'unknown-command behavior (exitCode.notFound) must be on the surface');
-    expect(surface, contains('exitCode.conflict'),
-        reason: 'ambiguous-name behavior (exitCode.conflict) must be on the surface');
+    expect(
+      surface,
+      contains('globalFlags.names'),
+      reason: 'global flag names must be on the surface',
+    );
+    expect(
+      surface,
+      contains('helpHeader'),
+      reason: 'help header must be on the surface',
+    );
+    expect(
+      surface,
+      contains('errorShapeFields'),
+      reason: 'error shape fields must be on the surface',
+    );
+    expect(
+      surface,
+      contains('outputSchemaName'),
+      reason: 'output schema must be on the surface',
+    );
+    expect(
+      surface,
+      contains('exitCode.success'),
+      reason: 'exit-code vocabulary must be on the surface',
+    );
+    expect(
+      surface,
+      contains('exitCode.notFound'),
+      reason:
+          'unknown-command behavior (exitCode.notFound) must be on the surface',
+    );
+    expect(
+      surface,
+      contains('exitCode.conflict'),
+      reason:
+          'ambiguous-name behavior (exitCode.conflict) must be on the surface',
+    );
   });
 }
 

@@ -68,50 +68,63 @@ void main() {
     });
 
     group('unknown command (FR-001, FR-008, FR-009)', () {
-      test('U18: unknown command emits notFound error shape and exits 2',
-          () async {
-        final code = await app.run(['unknown-command']);
-        expect(code, equals(2));
-        expect(err.toString(), contains('notFound'));
-        expect(err.toString(), contains('unknown-command'));
-      });
+      test(
+        'U18: unknown command emits notFound error shape and exits 2',
+        () async {
+          final code = await app.run(['unknown-command']);
+          expect(code, equals(2));
+          expect(err.toString(), contains('notFound'));
+          expect(err.toString(), contains('unknown-command'));
+        },
+      );
     });
 
     group('known command dispatch (FR-001)', () {
-      test('U19: known command invokes handler and exits with its exit code',
-          () async {
-        app.register(sink.command(name: 'greet'));
-        final code = await app.run(['greet']);
-        expect(code, equals(0));
-        expect(sink.invocations, hasLength(1));
-        expect(sink.invocations.single.arguments, isEmpty);
-      });
+      test(
+        'U19: known command invokes handler and exits with its exit code',
+        () async {
+          app.register(sink.command(name: 'greet'));
+          final code = await app.run(['greet']);
+          expect(code, equals(0));
+          expect(sink.invocations, hasLength(1));
+          expect(sink.invocations.single.arguments, isEmpty);
+        },
+      );
 
       test('known command with positional arg passes it through', () async {
-        app.register(sink.command(
-          name: 'greet',
-          arguments: const [CommandArgument(name: 'who')],
-        ));
+        app.register(
+          sink.command(
+            name: 'greet',
+            arguments: const [CommandArgument(name: 'who')],
+          ),
+        );
         await app.run(['greet', 'World']);
         expect(sink.invocations.single.arguments, equals(['World']));
       });
 
-      test('known command with --flag=value passes the value through',
-          () async {
-        app.register(sink.command(
-          name: 'greet',
-          flags: const [CommandFlag(name: '--name', takesValue: true)],
-        ));
-        await app.run(['greet', '--name=World']);
-        expect(sink.invocations.single.flags['--name'], equals('World'));
-      });
+      test(
+        'known command with --flag=value passes the value through',
+        () async {
+          app.register(
+            sink.command(
+              name: 'greet',
+              flags: const [CommandFlag(name: '--name', takesValue: true)],
+            ),
+          );
+          await app.run(['greet', '--name=World']);
+          expect(sink.invocations.single.flags['--name'], equals('World'));
+        },
+      );
 
       test('handler returning ErrorResult exits with runtime code', () async {
-        app.register(StandardCommand(
-          name: 'boom',
-          description: '',
-          handler: (_) async => const ErrorResult(code: 'runtime', message: 'boom'),
-        ));
+        app.register(
+          StandardCommand(
+            name: 'boom',
+            description: '',
+            handler: (_) async =>
+                const ErrorResult(code: 'runtime', message: 'boom'),
+          ),
+        );
         final code = await app.run(['boom']);
         expect(code, equals(1));
         expect(err.toString(), contains('boom'));
@@ -119,27 +132,35 @@ void main() {
     });
 
     group('global flags after a command (regression)', () {
-      test('greet --help World does not swallow the following argument',
-          () async {
-        app.register(sink.command(
-          name: 'greet',
-          arguments: const [CommandArgument(name: 'who')],
-        ));
-        await app.run(['greet', '--help', 'World']);
-        expect(sink.invocations, hasLength(1));
-        expect(sink.invocations.single.arguments, equals(['World']));
-      });
+      test(
+        'greet --help World does not swallow the following argument',
+        () async {
+          app.register(
+            sink.command(
+              name: 'greet',
+              arguments: const [CommandArgument(name: 'who')],
+            ),
+          );
+          await app.run(['greet', '--help', 'World']);
+          expect(sink.invocations, hasLength(1));
+          expect(sink.invocations.single.arguments, equals(['World']));
+        },
+      );
 
-      test('greet --version World does not swallow the following argument',
-          () async {
-        app.register(sink.command(
-          name: 'greet',
-          arguments: const [CommandArgument(name: 'who')],
-        ));
-        await app.run(['greet', '--version', 'World']);
-        expect(sink.invocations, hasLength(1));
-        expect(sink.invocations.single.arguments, equals(['World']));
-      });
+      test(
+        'greet --version World does not swallow the following argument',
+        () async {
+          app.register(
+            sink.command(
+              name: 'greet',
+              arguments: const [CommandArgument(name: 'who')],
+            ),
+          );
+          await app.run(['greet', '--version', 'World']);
+          expect(sink.invocations, hasLength(1));
+          expect(sink.invocations.single.arguments, equals(['World']));
+        },
+      );
     });
 
     group('JSON output (FR-008)', () {
@@ -156,31 +177,35 @@ void main() {
         expect(decoded['outcome'], equals('success'));
       });
 
-      test('error result under --output=json is valid JSON on stderr',
-          () async {
-        final code = await app.run(['--output=json', 'unknown']);
-        expect(code, equals(2));
-        final errLines = err
-            .toString()
-            .split('\n')
-            .where((l) => l.trim().isNotEmpty)
-            .toList();
-        expect(errLines, isNotEmpty);
-        final decoded = jsonDecode(errLines.last) as Map<String, Object?>;
-        expect(decoded['outcome'], equals('error'));
-        expect(decoded['error'], isNotNull);
-      });
+      test(
+        'error result under --output=json is valid JSON on stderr',
+        () async {
+          final code = await app.run(['--output=json', 'unknown']);
+          expect(code, equals(2));
+          final errLines = err
+              .toString()
+              .split('\n')
+              .where((l) => l.trim().isNotEmpty)
+              .toList();
+          expect(errLines, isNotEmpty);
+          final decoded = jsonDecode(errLines.last) as Map<String, Object?>;
+          expect(decoded['outcome'], equals('error'));
+          expect(decoded['error'], isNotNull);
+        },
+      );
     });
 
     group('handler throws (FR-008, FR-009)', () {
       test('U21: handler throw exits runtime with code 1', () async {
-        app.register(StandardCommand(
-          name: 'boom',
-          description: '',
-          handler: (_) async {
-            throw StateError('boom');
-          },
-        ));
+        app.register(
+          StandardCommand(
+            name: 'boom',
+            description: '',
+            handler: (_) async {
+              throw StateError('boom');
+            },
+          ),
+        );
         final code = await app.run(['boom']);
         expect(code, equals(1));
         expect(err.toString(), contains('runtime'));
@@ -188,13 +213,15 @@ void main() {
       });
 
       test('handler throw with --verbose includes stack trace', () async {
-        app.register(StandardCommand(
-          name: 'boom',
-          description: '',
-          handler: (_) async {
-            throw StateError('boom');
-          },
-        ));
+        app.register(
+          StandardCommand(
+            name: 'boom',
+            description: '',
+            handler: (_) async {
+              throw StateError('boom');
+            },
+          ),
+        );
         await app.run(['--verbose', 'boom']);
         // With --verbose, the error details should include a stackTrace.
         expect(err.toString(), contains('stackTrace'));

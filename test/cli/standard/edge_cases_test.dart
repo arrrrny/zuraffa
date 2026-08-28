@@ -97,19 +97,21 @@ void main() {
     });
 
     group('NonInteractiveContextException', () {
-      test('U45: raised when command requires interaction but stdout is piped',
-          () {
-        final e = NonInteractiveContextException(
-          commandName: 'prompt',
-          reason: 'stdout is piped',
-        );
-        expect(e.code, equals('usage'));
-        expect(e.commandName, equals('prompt'));
-        expect(e.reason, equals('stdout is piped'));
-        expect(e.details['commandName'], equals('prompt'));
-        expect(e.details['reason'], equals('stdout is piped'));
-        expect(e.message, contains('interactive terminal'));
-      });
+      test(
+        'U45: raised when command requires interaction but stdout is piped',
+        () {
+          final e = NonInteractiveContextException(
+            commandName: 'prompt',
+            reason: 'stdout is piped',
+          );
+          expect(e.code, equals('usage'));
+          expect(e.commandName, equals('prompt'));
+          expect(e.reason, equals('stdout is piped'));
+          expect(e.details['commandName'], equals('prompt'));
+          expect(e.details['reason'], equals('stdout is piped'));
+          expect(e.message, contains('interactive terminal'));
+        },
+      );
     });
 
     group('CommandAlreadyRegistered', () {

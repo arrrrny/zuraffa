@@ -17,10 +17,7 @@ abstract class PluginCommand extends Command<void> {
   /// `zfa api <Entity>`) instead of requiring it to be a subcommand.
   final bool registerSubcommands;
 
-  PluginCommand(
-    this.plugin, {
-    this.registerSubcommands = true,
-  }) {
+  PluginCommand(this.plugin, {this.registerSubcommands = true}) {
     argParser.addOption(
       'output',
       abbr: 'o',

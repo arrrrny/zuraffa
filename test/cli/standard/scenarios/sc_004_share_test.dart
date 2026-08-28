@@ -43,8 +43,11 @@ void main() {
       minVersion: '1.0.0',
     );
 
-    expect(identical(retrieved.command, greetCommand), isTrue,
-        reason: 'App B reuses App A\'s handler bytecode (no second impl)');
+    expect(
+      identical(retrieved.command, greetCommand),
+      isTrue,
+      reason: 'App B reuses App A\'s handler bytecode (no second impl)',
+    );
 
     // App B invokes the retrieved command via the standard CliApp.run path.
     final out = StringBuffer();

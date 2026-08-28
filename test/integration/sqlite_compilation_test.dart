@@ -81,8 +81,11 @@ class OrderPatch {
 
     final sqlitePath =
         '$outputDir/data/datasources/order/order_sqlite_datasource.dart';
-    expect(File(sqlitePath).existsSync(), isTrue,
-        reason: 'sqlite datasource must be generated');
+    expect(
+      File(sqlitePath).existsSync(),
+      isTrue,
+      reason: 'sqlite datasource must be generated',
+    );
 
     final analyze = await runDartAnalyze(workspace);
     expect(
@@ -118,7 +121,8 @@ class OrderPatch {
     expect(
       format.exitCode,
       0,
-      reason: 'generated sqlite datasource must be dart-format clean:\n'
+      reason:
+          'generated sqlite datasource must be dart-format clean:\n'
           '${format.stdout}\n${format.stderr}',
     );
   });
@@ -128,7 +132,8 @@ class OrderPatch {
 /// imports `package:sqlite3/sqlite3.dart`.
 Future<void> _writePubspecWithSqlite3(RegressionWorkspace workspace) async {
   final repoRoot = await findProjectRoot();
-  final content = '''
+  final content =
+      '''
 name: zuraffa_test_app
 environment:
   sdk: ">=3.8.0 <4.0.0"

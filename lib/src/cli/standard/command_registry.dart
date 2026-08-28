@@ -88,7 +88,10 @@ class CommandRegistry {
   }) {
     final key = RegistryKey(ownerApp, command.name);
     if (_commands.containsKey(key)) {
-      throw CommandAlreadyRegistered(key, existingVersion: _commands[key]!.version);
+      throw CommandAlreadyRegistered(
+        key,
+        existingVersion: _commands[key]!.version,
+      );
     }
     _commands[key] = RegisteredCommand(
       command: command,

@@ -96,8 +96,6 @@ class _ZuraffaTuiRoot extends nocterm.StatelessComponent {
 
   @override
   nocterm.Component build(nocterm.BuildContext context) {
-    return nocterm.Builder(
-      builder: (context) => child,
-    );
+    return nocterm.Builder(builder: (context) => child);
   }
 }

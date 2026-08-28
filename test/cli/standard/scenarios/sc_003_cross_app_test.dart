@@ -36,7 +36,11 @@ void main() {
         },
       ),
     );
-    sharedRegistry.register(appAGreetCommand, ownerApp: 'appA', version: '1.0.0');
+    sharedRegistry.register(
+      appAGreetCommand,
+      ownerApp: 'appA',
+      version: '1.0.0',
+    );
 
     // App B constructs an invoker bound to the same registry and invokes
     // App A's `greet` by name. App B has no reference to appAGreetCommand.

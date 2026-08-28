@@ -26,7 +26,15 @@ void main() {
     }
   });
 
-  Future<String> _generateRepo({List<String> methods = const ['get', 'getList', 'create', 'update', 'delete']}) async {
+  Future<String> _generateRepo({
+    List<String> methods = const [
+      'get',
+      'getList',
+      'create',
+      'update',
+      'delete',
+    ],
+  }) async {
     final plugin = RepositoryPlugin(
       outputDir: outputDir,
       options: const GeneratorOptions(
@@ -46,8 +54,9 @@ void main() {
         force: true,
       ),
     );
-    return File('$outputDir/data/repositories/data_product_repository.dart')
-        .readAsStringSync();
+    return File(
+      '$outputDir/data/repositories/data_product_repository.dart',
+    ).readAsStringSync();
   }
 
   test('repository constructor has 4 sync dependencies', () async {

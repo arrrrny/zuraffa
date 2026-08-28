@@ -22,7 +22,7 @@ jobs:
       - name: Configuring Dart environment
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: "3.11.0"
+          sdk: "3.13.1"
       - name: "Get dependencies"
         run: dart pub get
       - name: "Dart Analyze (pure Dart, no Flutter)"
@@ -44,28 +44,6 @@ jobs:
         run: dart test
         working-directory: ./zikzak_session
 
-  flutter_package:
-    timeout-minutes: 15
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Configuring flutter environment
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.flutter_version }}
-          channel: "stable"
-      - name: "Get dependencies"
-        run: flutter pub get
-        working-directory: ./zuraffa_flutter
-      - name: "Flutter Analyze"
-        run: flutter analyze
-        working-directory: ./zuraffa_flutter
-      - name: "Flutter Test"
-        run: flutter test
-        working-directory: ./zuraffa_flutter
-
   analyze:
     timeout-minutes: 15
     runs-on: ubuntu-latest
@@ -85,9 +63,8 @@ jobs:
       - name: "Get dependencies"
         run: flutter packages get
       - name: "Dart Analyze"
-        # Root package only (lib/ + test/). zuraffa_flutter is analyzed by
-        # the flutter_package job; this job covers the pure-Dart root
-        # package under the Flutter SDK. --no-fatal-infos/--no-fatal-warnings
+        # Root package only (lib/ + test/). This job covers the pure-Dart
+        # root package under the Flutter SDK. --no-fatal-infos/--no-fatal-warnings
         # keep non-blocking lint infos from failing the build.
         run: flutter analyze lib test --no-fatal-infos --no-fatal-warnings
 
@@ -110,8 +87,7 @@ jobs:
       - name: "Get dependencies"
         run: flutter packages get
       - name: "Formatter"
-        # lib/ + test/ of the root package only. zuraffa_flutter is a
-        # separate package with its own (Flutter) toolchain.
+        # Root package only (lib/ + test/).
         run: dart format --set-exit-if-changed lib test
 
   test:

@@ -81,31 +81,33 @@ void main() {
     }
   });
 
-  test('ProjectRoot.safeCurrentPath() does not throw on an invalid CWD (#441)',
-      () {
-    final tempDir = Directory.systemTemp.createTempSync('projroot_safe_');
-    final removed = Directory(p.join(tempDir.path, 'gone'))..createSync();
+  test(
+    'ProjectRoot.safeCurrentPath() does not throw on an invalid CWD (#441)',
+    () {
+      final tempDir = Directory.systemTemp.createTempSync('projroot_safe_');
+      final removed = Directory(p.join(tempDir.path, 'gone'))..createSync();
 
-    final previous = Directory.current;
-    try {
-      Directory.current = removed.path;
-      removed.deleteSync();
+      final previous = Directory.current;
+      try {
+        Directory.current = removed.path;
+        removed.deleteSync();
 
-      // The public resolver the broader #441 fix exposes; every patched
-      // command routes through it. Must return a non-empty string (the PWD
-      // fallback or the script dir), never throw.
-      expect(
-        () => ProjectRoot.safeCurrentPath(),
-        returnsNormally,
-        reason:
-            'safeCurrentPath() must not throw on an invalid CWD (issue #441).',
-      );
-      expect(ProjectRoot.safeCurrentPath(), isNotEmpty);
-    } finally {
-      restoreCwd(previous.path);
-      tempDir.deleteSync(recursive: true);
-    }
-  });
+        // The public resolver the broader #441 fix exposes; every patched
+        // command routes through it. Must return a non-empty string (the PWD
+        // fallback or the script dir), never throw.
+        expect(
+          () => ProjectRoot.safeCurrentPath(),
+          returnsNormally,
+          reason:
+              'safeCurrentPath() must not throw on an invalid CWD (issue #441).',
+        );
+        expect(ProjectRoot.safeCurrentPath(), isNotEmpty);
+      } finally {
+        restoreCwd(previous.path);
+        tempDir.deleteSync(recursive: true);
+      }
+    },
+  );
 
   test('BuildYamlGuard.check() does not throw on an invalid CWD (#441)', () {
     final tempDir = Directory.systemTemp.createTempSync('projroot_byg_');
@@ -136,8 +138,9 @@ void main() {
       '(#441)', () async {
     final tempDir = Directory.systemTemp.createTempSync('projroot_bygs_');
     final removed = Directory(p.join(tempDir.path, 'gone'))..createSync();
-    final scratch =
-        Directory.systemTemp.createTempSync('projroot_bygs_scratch_');
+    final scratch = Directory.systemTemp.createTempSync(
+      'projroot_bygs_scratch_',
+    );
 
     final previous = Directory.current;
     try {
