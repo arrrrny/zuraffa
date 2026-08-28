@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-26
 
-**Status**: Draft
+**Status**: Refined (SDD cycle — spec refined by /speckit.specify; acceptance criteria IDs AC-1…AC-11 added for TDD traceability; no functional drift from the original draft)
 
 **Input**: User description: "create a new internal benchmark plugin that is ont couple directly to any plugin but more of an extensible interface that an new zuraffa app or plugin can use this contract, it will ensure to have a high quality metric driven zuraffa ecosystem"
 
@@ -20,8 +20,8 @@ A Zuraffa app or plugin developer wants to define custom benchmark scenarios tha
 
 **Acceptance Scenarios**:
 
-1. **Given** a plugin developer implements the benchmark contract interface, **When** they call the contract's `runBenchmark` method with a valid scenario, **Then** the contract executes the scenario and returns a structured result with metrics.
-2. **Given** an invalid benchmark scenario is provided, **When** the contract validates the input, **Then** it returns a clear validation error without executing.
+1. **AC-1** — **Given** a plugin developer implements the benchmark contract interface, **When** they call the contract's `run` method with a valid scenario configuration, **Then** the contract executes the scenario and returns a structured result with metrics.
+2. **AC-2** — **Given** an invalid benchmark scenario is provided, **When** the contract validates the input, **Then** it returns a clear validation error without executing.
 
 ---
 
@@ -35,8 +35,8 @@ A Zuraffa app developer wants to register multiple benchmark scenarios (from the
 
 **Acceptance Scenarios**:
 
-1. **Given** multiple plugins have registered benchmark scenarios, **When** the app queries the benchmark registry, **Then** it receives a list of all registered scenarios with their names, descriptions, and configuration schemas.
-2. **Given** a plugin registers a benchmark with duplicate name, **When** registration is attempted, **Then** the registry returns a conflict error.
+1. **AC-3** — **Given** multiple plugins have registered benchmark scenarios, **When** the app queries the benchmark registry, **Then** it receives a list of all registered scenarios with their names, descriptions, and configuration schemas.
+2. **AC-4** — **Given** a plugin registers a benchmark with duplicate name, **When** registration is attempted, **Then** the registry returns a conflict error.
 
 ---
 
@@ -50,9 +50,9 @@ A CI/CD pipeline wants to execute all registered benchmarks, collect standardize
 
 **Acceptance Scenarios**:
 
-1. **Given** a benchmark scenario with defined thresholds, **When** the runner executes it, **Then** it produces a result with latency (p50, p95, p99), throughput (ops/sec), memory (peak MB), and CPU (%) metrics.
-2. **Given** a benchmark exceeds its configured threshold, **When** the runner evaluates results, **Then** it marks the run as failed and includes the specific metric that exceeded the threshold.
-3. **Given** multiple benchmarks are run in sequence, **When** the runner completes, **Then** it produces an aggregate report with per-benchmark results and overall pass/fail status.
+1. **AC-5** — **Given** a benchmark scenario with defined thresholds, **When** the runner executes it, **Then** it produces a result with latency (p50, p95, p99), throughput (ops/sec), memory (peak MB), and CPU (%) metrics.
+2. **AC-6** — **Given** a benchmark exceeds its configured threshold, **When** the runner evaluates results, **Then** it marks the run as failed and includes the specific metric that exceeded the threshold.
+3. **AC-7** — **Given** multiple benchmarks are run in sequence, **When** the runner completes, **Then** it produces an aggregate report with per-benchmark results and overall pass/fail status.
 
 ---
 
@@ -66,8 +66,8 @@ A plugin developer wants to add custom metric collectors (e.g., database query c
 
 **Acceptance Scenarios**:
 
-1. **Given** a custom metric collector is registered, **When** a benchmark runs, **Then** the collector's `collect` method is invoked at the appropriate lifecycle points and its data appears in the final result.
-2. **Given** a metric collector throws an error, **When** the runner handles it, **Then** the benchmark continues and the error is logged without failing the entire run.
+1. **AC-8** — **Given** a custom metric collector is registered, **When** a benchmark runs, **Then** the collector's `collect` method is invoked at the appropriate lifecycle points and its data appears in the final result.
+2. **AC-9** — **Given** a metric collector throws an error, **When** the runner handles it, **Then** the benchmark continues and the error is logged without failing the entire run.
 
 ---
 
@@ -81,8 +81,8 @@ A team lead wants to compare current benchmark results against historical baseli
 
 **Acceptance Scenarios**:
 
-1. **Given** a baseline result set and a current result set, **When** the comparison is run, **Then** it produces a report showing percentage change for each metric with clear regression/improvement flags.
-2. **Given** a metric has regressed beyond a configured tolerance, **When** the comparison evaluates it, **Then** it flags the regression with severity level.
+1. **AC-10** — **Given** a baseline result set and a current result set, **When** the comparison is run, **Then** it produces a report showing percentage change for each metric with clear regression/improvement flags.
+2. **AC-11** — **Given** a metric has regressed beyond a configured tolerance, **When** the comparison evaluates it, **Then** it flags the regression with severity level.
 
 ---
 
@@ -135,6 +135,26 @@ A team lead wants to compare current benchmark results against historical baseli
 - **SC-005**: Regression detection accuracy: false positive rate < 5%, false negative rate < 1% for synthetic regression tests.
 - **SC-006**: Metric collection latency: custom metric collectors add < 1ms per collection point.
 - **SC-007**: Cross-plugin compatibility: benchmarks from 3+ different plugins can run in the same suite without conflicts.
+
+## Requirement Traceability Map
+
+| FR | Serves | Verified by (acceptance / SC) |
+|----|--------|-------------------------------|
+| FR-001 Contract interface (setup/execute/teardown/collect) | US1 | AC-1, AC-2, SC-001 |
+| FR-002 Registry with metadata | US2 | AC-3 |
+| FR-003 Runtime registration (no restart) | US2 | AC-3, SC-007 |
+| FR-004 Runner + standardized metrics | US3 | AC-5, SC-002, SC-003 |
+| FR-005 Configurable thresholds | US3 | AC-6 |
+| FR-006 Extensible MetricCollector | US4 | AC-8, AC-9, SC-006 |
+| FR-007 Isolation (processes/isolates) | Edge cases | SC-002, SC-007 |
+| FR-008 Aggregate report | US3 | AC-7 |
+| FR-009 BaselineStore | US5 | AC-10, SC-005 |
+| FR-010 Regression detection + tolerance | US5 | AC-10, AC-11, SC-005 |
+| FR-011 CLI `zfa benchmark` | US3 | SC-004 |
+| FR-012 Dry-run mode | US3 | SC-004 |
+| FR-013 Graceful failure handling | Edge cases | AC-7, SC-002 |
+| FR-014 Usable by core + third parties | US1, US2 | SC-001, SC-007 |
+| FR-015 Decoupled contract | US1 | SC-001, SC-007 |
 
 ## Assumptions
 

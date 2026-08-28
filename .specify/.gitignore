@@ -7,6 +7,3 @@ feature.json
 
 # Per-machine extension config overrides.
 extensions/*/local-config.yml
-
-# Per-machine extension catalog cache (rewritten on every catalog refresh).
-extensions/.cache/
