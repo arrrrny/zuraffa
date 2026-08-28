@@ -23,7 +23,7 @@ mutates the existing host file in place and emits `GeneratedFile`s carrying the
 The bug was in the success printer in `capability_command.dart`. It only
 printed the `✅ Success! Created/Modified:` summary for files whose action was
 `created` / `overwritten` / `deleted`. Because `service method` emits `updated`
-files, the `if (created.isNotEmpty || overwritten.isNotEmpty || updated.isNotEmpty || deleted.isNotEmpty)`
+files, the `if (created.isNotEmpty || overwritten.isNotEmpty || deleted.isNotEmpty)`
 branch was never satisfied for it, and since the file list was non-empty the
 fall-through `✅ Success! (No changes required)` message was also skipped — so the
 command produced **no stdout output on success**, unlike

@@ -82,7 +82,7 @@ abstract class MyService {
       // command prints nothing (issue #414).
       expect(
         serviceFile.action,
-        anyOf(['created', 'updated', 'overwritten']),
+        equals('updated'),
       );
     },
   );
