@@ -3,24 +3,26 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:path/path.dart' as p;
 
-/// Resolve package root at discovery time, before any test changes CWD.
-/// This is safe because dart test loads all files before running any test.
-final _zfaRoot = Directory.current.path;
+import '../helpers/run_zfa_source.dart';
 
 void main() {
+  setUpAll(() async {
+    // Resolves the zfa binary path via the CWD-independent package resolver
+    // (Isolate.resolvePackageUri). This avoids the fragile Directory.current
+    // capture that breaks under parallel `dart test` when another file mutates
+    // the process working directory (issue #506).
+    await initZfaSourceBin();
+  });
+
   group('CLI Edge Cases', () {
     late Directory workspace;
     late String outputDir;
-    late String repoRoot;
-    late String zfaBin;
 
     Future<ProcessResult> runZfa(List<String> args) {
-      return Process.run('dart', [zfaBin, ...args], workingDirectory: repoRoot);
+      return runZfaSource(args, workingDirectory: zfaProjectRoot);
     }
 
     setUp(() async {
-      repoRoot = _zfaRoot;
-      zfaBin = p.join(repoRoot, 'bin', 'zfa.dart');
       workspace = await Directory.systemTemp.createTemp('zfa_edge_');
       outputDir = p.join(workspace.path, 'lib', 'src');
       await Directory(outputDir).create(recursive: true);
@@ -50,7 +52,7 @@ environment:
         ]);
 
         expect(result.exitCode, isNot(equals(0)));
-        final output = result.stdout.toString() + result.stderr.toString();
+        final output = combinedOutput(result);
         expect(output.toLowerCase(), contains('json file not found'));
       },
     );
@@ -72,7 +74,7 @@ environment:
         ]);
 
         expect(result.exitCode, isNot(equals(0)));
-        final output = result.stdout.toString() + result.stderr.toString();
+        final output = combinedOutput(result);
         expect(output, contains('Error parsing JSON input'));
       },
     );
@@ -84,7 +86,7 @@ environment:
         final result = await runZfa(['make']);
 
         expect(result.exitCode, isNot(equals(0)));
-        final output = result.stdout.toString() + result.stderr.toString();
+        final output = combinedOutput(result);
         expect(output, contains('Usage: zfa make'));
       },
     );
@@ -96,7 +98,7 @@ environment:
         final result = await runZfa(['generate', 'Product']);
 
         expect(result.exitCode, isNot(equals(0)));
-        final output = result.stdout.toString() + result.stderr.toString();
+        final output = combinedOutput(result);
         expect(
           output,
           contains("The 'generate' command was removed in Zuraffa v5"),
