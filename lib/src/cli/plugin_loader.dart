@@ -31,6 +31,7 @@ import '../plugins/shadcn/shadcn_plugin.dart';
 import '../plugins/strategy/strategy_plugin.dart';
 import '../plugins/module/module_plugin.dart';
 import '../plugins/mcp/mcp_plugin.dart';
+import '../plugins/cli/cli_plugin.dart' as cli_gen;
 
 class PluginConfig {
   final Set<String> disabled;
@@ -137,6 +138,9 @@ class PluginLoader {
       MethodAppendPlugin(outputDir: outputDir, options: options),
       ModuleGeneratorPlugin(outputDir: outputDir, options: options),
       McpPlugin(outputDir: outputDir, options: options),
+      // 018-cli-plugin: standardized CLI command generator (FR-011).
+      // Pure-Dart; produces a StandardCommand subclass for an entity.
+      cli_gen.CliGeneratorPlugin(outputDir: outputDir, options: options),
     ];
   }
 }

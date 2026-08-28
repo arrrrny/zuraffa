@@ -635,6 +635,12 @@ export 'src/logging/structured_logging.dart';
 export 'src/i18n/i18n.dart';
 export 'src/i18n/i18n_service.dart';
 
+// ── 018-cli-plugin — native, built-in, pure-Dart CLI plugin ───────────
+// Standardizes the CLI surface across all Zuraffa apps and lets apps
+// cross-reference, interact, and share commands via a shared registry.
+// Pure-Dart (FR-012): no package:flutter import anywhere in this subtree.
+export 'src/cli/standard/standard.dart';
+
 // ============================================================
 // Framework Configuration
 // ============================================================
