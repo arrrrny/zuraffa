@@ -22,6 +22,8 @@ import 'package:zuraffa/src/plugins/service/service_plugin.dart';
 /// targetType) and asserts both that `execute` populates `generatedFiles` with
 /// a handled action and that the `CapabilityCommand` success printer emits the
 /// `✅ Success! Created/Modified:` message.
+const String _servicesRelPath = 'domain/services';
+
 void main() {
   late Directory tempDir;
   late String outputDir;
@@ -29,7 +31,7 @@ void main() {
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('zuraffa_414_test_');
     outputDir = Directory('${tempDir.path}/lib/src').path;
-    final servicesDir = Directory('$outputDir/domain/services');
+    final servicesDir = Directory('$outputDir/$_servicesRelPath');
     await servicesDir.create(recursive: true);
     await File('${servicesDir.path}/my_service.dart').writeAsString('''
 abstract class MyService {
@@ -112,7 +114,7 @@ abstract class MyService {
 
       // Sanity: the method was actually appended to the host file.
       final content = await File(
-        '$outputDir/domain/services/my_service.dart',
+        '$outputDir/$_servicesRelPath/my_service.dart',
       ).readAsString();
       expect(content, contains('doThing'));
     },
