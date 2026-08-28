@@ -135,41 +135,66 @@ Future<ProcessResult> runZfaSource(
 /// [ProcessResult] with exit code `-1` is returned.
 ///
 /// Used for both the `dart compile exe` step and the CLI-under-test spawn.
-/// Plain [Process.run].timeout only stops *awaiting* the future and never
-/// cancels the underlying child, so we always drive the child via
-/// [Process.start] and kill it explicitly on timeout to avoid leaking processes.
+///
+/// Child output is redirected to temp files (via a `sh -c` wrapper) instead of
+/// captured through a pipe. The AOT `zfa` executable deadlocks on a *piped*
+/// stdout when spawned from `dart test` in some sandboxed environments — it exits
+/// cleanly when its stdout is inherited or a plain file. Writing to files avoids
+/// the hang while still letting tests assert on the captured output. Plain
+/// [Process.run].timeout would only stop awaiting the future and never cancel the
+/// child, so we drive the wrapper via [Process.start] and kill it on timeout to
+/// avoid leaking processes.
 Future<ProcessResult> _runSupervised(
   List<String> command, {
   required Duration timeout,
   required String workingDirectory,
 }) async {
+  final tmp = await Directory.systemTemp.createTemp('zfa_run_');
+  final outPath = p.join(tmp.path, 'out');
+  final errPath = p.join(tmp.path, 'err');
+
+  // Quote any arg that is not purely [word/./:/=+/-] so paths/flags survive the
+  // shell wrapper; redirect the child's stdout/stderr to the temp files.
+  String quote(String arg) {
+    if (arg.contains(RegExp(r'''[^\w./:=+\-]'''), )) {
+      return "'${arg.replaceAll("'", r"'\''")}'";
+    }
+    return arg;
+  }
+
+  final shellCmd =
+      '${command.map(quote).join(' ')} > "$outPath" 2> "$errPath"';
+
   final process = await Process.start(
-    command.first,
-    command.sublist(1),
+    'sh',
+    ['-c', shellCmd],
     workingDirectory: workingDirectory,
   );
-  final stdoutBytes = <int>[];
-  final stderrBytes = <int>[];
-  final outSub = process.stdout.listen(stdoutBytes.addAll);
-  final errSub = process.stderr.listen(stderrBytes.addAll);
+
+  int exitCode;
+  String stdout;
+  String stderr;
   try {
-    final exitCode = await process.exitCode.timeout(
+    exitCode = await process.exitCode.timeout(
       timeout,
       onTimeout: () {
         process.kill(ProcessSignal.sigkill);
         return -1;
       },
     );
-    await Future.wait([outSub.asFuture(), errSub.asFuture()]);
+    // Drain any trailing stderr and give the shell a moment to flush the
+    // redirected files before reading them back.
+    await process.stderr.drain().catchError((_) {});
+    stdout = await File(outPath).readAsString();
+    stderr = await File(errPath).readAsString();
     return ProcessResult(
       process.pid,
       exitCode,
-      systemEncoding.decode(stdoutBytes),
-      systemEncoding.decode(stderrBytes),
+      stdout,
+      stderr,
     );
   } finally {
-    await outSub.cancel();
-    await errSub.cancel();
+    process.kill(ProcessSignal.sigkill);
   }
 }
 
