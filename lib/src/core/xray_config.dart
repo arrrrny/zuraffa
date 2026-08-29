@@ -10,7 +10,36 @@ import 'dart:convert';
 import 'dart:io';
 
 /// Path to the persistent X-Ray config file.
-const String xrayConfigPath = '.dart_tool/zuraffa/xray.json';
+const String kXrayConfigPath = '.dart_tool/zuraffa/xray.json';
+
+/// Backwards-compatible alias for [kXrayConfigPath] — the rest of the
+/// codebase still imports `xrayConfigPath`, so we keep both names
+/// pointing at the same path.
+const String xrayConfigPath = kXrayConfigPath;
+
+/// Compile-time release-mode flag — `true` ONLY when the VM is started
+/// with `--dart-define=dart.vm.product=true` (release / AOT builds).
+///
+/// This is the pure-Dart equivalent of Flutter's `kReleaseMode` /
+/// `kDebugMode` and exists so the CLI / codegen / MCP server can
+/// branch on release mode without pulling `package:flutter`.
+///
+/// Track 4.2 — Spec 036 (issue #181, FR-007, SC-004).
+const bool kXrayReleaseMode = bool.fromEnvironment('dart.vm.product');
+
+/// Whether X-Ray should be active in the current build.
+///
+/// Returns `false` in release mode, `true` otherwise.
+bool shouldXRayBeActiveInCurrentBuild() => !kXrayReleaseMode;
+
+/// Join [root] with [kXrayConfigPath] so subcommands can be invoked
+/// hermetically against a sandbox (mirrors `zfa xray deck --root`).
+String xrayConfigPathFor(String? root) {
+  if (root == null || root.isEmpty) return kXrayConfigPath;
+  // The path under .dart_tool is relative; resolve it against root.
+  final normalized = root.endsWith('/') ? root.substring(0, root.length - 1) : root;
+  return '$normalized/$kXrayConfigPath';
+}
 
 /// Read the X-Ray config file. Returns `null` if missing/malformed.
 Map<String, dynamic>? readXrayConfig() {
