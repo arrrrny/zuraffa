@@ -24,9 +24,9 @@ class BoneCommand extends Command<void> {
     BoneGenerator? generator,
     this.specsRoot = '.',
     String? featureJsonPath,
-  })  : generator = generator ?? BoneGenerator(),
-        featureJsonPath =
-            featureJsonPath ?? p.join(specsRoot, '.specify', 'feature.json');
+  }) : generator = generator ?? BoneGenerator(),
+       featureJsonPath =
+           featureJsonPath ?? p.join(specsRoot, '.specify', 'feature.json');
 
   /// The bone generator for the generate subcommand.
   final BoneGenerator generator;
@@ -95,10 +95,12 @@ generate options:
       final dir = json['feature_directory'] as String?;
       if (dir == null) return null;
       // Strip trailing slash and "specs/" prefix.
-      final cleaned =
-          dir.endsWith('/') ? dir.substring(0, dir.length - 1) : dir;
-      final slug =
-          cleaned.startsWith('specs/') ? cleaned.substring('specs/'.length) : cleaned;
+      final cleaned = dir.endsWith('/')
+          ? dir.substring(0, dir.length - 1)
+          : dir;
+      final slug = cleaned.startsWith('specs/')
+          ? cleaned.substring('specs/'.length)
+          : cleaned;
       return slug.isEmpty ? null : slug;
     } catch (_) {
       return null;
@@ -108,8 +110,11 @@ generate options:
   Future<void> _generate(List<String> rest) async {
     final parser = ArgParser()
       ..addOption('spec', help: 'Override the source spec path')
-      ..addOption('output',
-          help: 'Bone root directory', defaultsTo: '.zfa/bones');
+      ..addOption(
+        'output',
+        help: 'Bone root directory',
+        defaultsTo: '.zfa/bones',
+      );
 
     final ArgResults results;
     try {
@@ -129,12 +134,15 @@ generate options:
     }
 
     if (slug == null) {
-      print('Missing feature slug. Provide a slug or set .specify/feature.json.');
+      print(
+        'Missing feature slug. Provide a slug or set .specify/feature.json.',
+      );
       print(_usage);
       return;
     }
 
-    final specPath = results['spec'] as String? ??
+    final specPath =
+        results['spec'] as String? ??
         p.join(specsRoot, 'specs', slug, 'spec.md');
     final outputDir = results['output'] as String;
 
@@ -164,11 +172,12 @@ generate options:
 
   Future<void> _export(List<String> rest) async {
     final parser = ArgParser()
-      ..addOption('output',
-          help: 'Output path for the tar.gz', defaultsTo: '')
-      ..addOption('bones-dir',
-          help: 'Bone root directory (default: .zfa/bones)',
-          defaultsTo: '.zfa/bones');
+      ..addOption('output', help: 'Output path for the tar.gz', defaultsTo: '')
+      ..addOption(
+        'bones-dir',
+        help: 'Bone root directory (default: .zfa/bones)',
+        defaultsTo: '.zfa/bones',
+      );
 
     final ArgResults results;
     try {
@@ -191,7 +200,8 @@ generate options:
 
     if (!await Directory(boneDir).exists()) {
       print(
-          'Error: bone not generated for "$slug". Run "zfa bone generate $slug" first.');
+        'Error: bone not generated for "$slug". Run "zfa bone generate $slug" first.',
+      );
       exitCode = 1;
       return;
     }
@@ -212,9 +222,11 @@ generate options:
 
   Future<void> _validate(List<String> rest) async {
     final parser = ArgParser()
-      ..addOption('bones-dir',
-          help: 'Bone root directory (default: .zfa/bones)',
-          defaultsTo: '.zfa/bones');
+      ..addOption(
+        'bones-dir',
+        help: 'Bone root directory (default: .zfa/bones)',
+        defaultsTo: '.zfa/bones',
+      );
 
     final ArgResults results;
     try {
@@ -258,7 +270,9 @@ generate options:
       final specResult = reader.read(specFile);
       final expectedVersion = 'sha256:${specResult.specVersion}';
       if (!manifestContent.contains(expectedVersion)) {
-        print('Error: bone is stale. Source spec has changed since generation.');
+        print(
+          'Error: bone is stale. Source spec has changed since generation.',
+        );
         print('Expected spec_version: $expectedVersion');
         exitCode = 1;
         return;
@@ -278,8 +292,10 @@ generate options:
 
     for (final file in dartFiles) {
       final content = file.readAsStringSync();
-      final imports =
-          RegExp(r"^import\s+'([^']+)';", multiLine: true).allMatches(content);
+      final imports = RegExp(
+        r"^import\s+'([^']+)';",
+        multiLine: true,
+      ).allMatches(content);
 
       for (final match in imports) {
         final importPath = match.group(1)!;
@@ -288,7 +304,10 @@ generate options:
           // package: imports are legal only when the package segment
           // (first path component after the colon) matches a declared
           // dependency bone slug.
-          final pkgName = importPath.split('/').first.substring('package:'.length);
+          final pkgName = importPath
+              .split('/')
+              .first
+              .substring('package:'.length);
           if (!declaredDeps.contains(pkgName)) {
             print(
               'Error: undeclared package import "$pkgName" in '

@@ -34,10 +34,13 @@ void main() {
     }
   });
 
-  Future<File> writeSpec(String content, {String dirName = 'test-feature'}) async {
-    final dir = await Directory('${tmpDir.path}/specs/$dirName').create(
-      recursive: true,
-    );
+  Future<File> writeSpec(
+    String content, {
+    String dirName = 'test-feature',
+  }) async {
+    final dir = await Directory(
+      '${tmpDir.path}/specs/$dirName',
+    ).create(recursive: true);
     final file = File('${dir.path}/spec.md');
     await file.writeAsString(content);
     return file;
@@ -68,7 +71,10 @@ Something.
         expect(await File('$boneDir/bone.yaml').exists(), isTrue);
 
         // Entity stub exists.
-        expect(await File('$boneDir/lib/entities/product.dart').exists(), isTrue);
+        expect(
+          await File('$boneDir/lib/entities/product.dart').exists(),
+          isTrue,
+        );
 
         // Barrel exists.
         expect(await File('$boneDir/lib/test_feature.dart').exists(), isTrue);
@@ -126,7 +132,8 @@ No entities here.
         expect(
           await Directory(boneDir).exists(),
           isTrue,
-          reason: 'bone directory should be produced for the referencing feature',
+          reason:
+              'bone directory should be produced for the referencing feature',
         );
       },
     );
@@ -165,8 +172,10 @@ Something.
 
         for (final file in dartFiles) {
           final content = file.readAsStringSync();
-          final imports = RegExp(r"^import\s+'([^']+)';", multiLine: true)
-              .allMatches(content);
+          final imports = RegExp(
+            r"^import\s+'([^']+)';",
+            multiLine: true,
+          ).allMatches(content);
 
           for (final match in imports) {
             final importPath = match.group(1)!;
@@ -250,15 +259,20 @@ Something.
 
         // Read the actual bone.yaml file content (not the model).
         final manifestContent = await File('$boneDir/bone.yaml').readAsString();
-        final svMatch =
-            RegExp(r'spec_version:\s*(sha256:[0-9a-f]{64})')
-                .firstMatch(manifestContent);
-        expect(svMatch, isNotNull,
-            reason: 'bone.yaml must contain spec_version matching sha256: + 64 hex');
+        final svMatch = RegExp(
+          r'spec_version:\s*(sha256:[0-9a-f]{64})',
+        ).firstMatch(manifestContent);
+        expect(
+          svMatch,
+          isNotNull,
+          reason:
+              'bone.yaml must contain spec_version matching sha256: + 64 hex',
+        );
         expect(
           svMatch!.group(1),
           matches(RegExp(r'^sha256:[0-9a-f]{64}$')),
-          reason: 'spec_version must be sha256: prefix + 64 lowercase hex chars',
+          reason:
+              'spec_version must be sha256: prefix + 64 lowercase hex chars',
         );
       },
     );

@@ -39,25 +39,27 @@ void main() {
       'A7: bone generated from a spec reflects the spec declared entities',
       () async {
         // Set up .specify/feature.json pointing to the spec.
-        final featureJsonDir = await Directory('${tmpDir.path}/.specify').create();
+        final featureJsonDir = await Directory(
+          '${tmpDir.path}/.specify',
+        ).create();
         await File('${featureJsonDir.path}/feature.json').writeAsString(
           jsonEncode({'feature_directory': 'specs/workflow-feature'}),
         );
 
         // Write the spec.
-        await File('${tmpDir.path}/specs/workflow-feature/spec.md').create(
-          recursive: true,
-        );
-        await File('${tmpDir.path}/specs/workflow-feature/spec.md')
-            .writeAsString(_workflowSpec);
+        await File(
+          '${tmpDir.path}/specs/workflow-feature/spec.md',
+        ).create(recursive: true);
+        await File(
+          '${tmpDir.path}/specs/workflow-feature/spec.md',
+        ).writeAsString(_workflowSpec);
 
         final outputDir = '${tmpDir.path}/bones';
         final command = BoneCommand(
           specsRoot: tmpDir.path,
           featureJsonPath: '${tmpDir.path}/.specify/feature.json',
         );
-        final runner =
-            CommandRunner<void>('zfa', 'test')..addCommand(command);
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
 
         await captureOutput(
           () => runner.run(['bone', 'generate', '--output', outputDir]),
@@ -73,8 +75,7 @@ void main() {
         );
 
         // Manifest must contain the spec's declared entities.
-        final manifestContent =
-            await File('$boneDir/bone.yaml').readAsString();
+        final manifestContent = await File('$boneDir/bone.yaml').readAsString();
         expect(manifestContent, contains('Widget'));
         expect(manifestContent, contains('Signal'));
 
@@ -92,124 +93,128 @@ void main() {
       },
     );
 
-    test(
-      'A8: the bone test stubs parse as valid Dart test scaffolds',
-      () async {
-        // Set up .specify/feature.json.
-        final featureJsonDir = await Directory('${tmpDir.path}/.specify').create();
-        await File('${featureJsonDir.path}/feature.json').writeAsString(
-          jsonEncode({'feature_directory': 'specs/test-stub-feature'}),
-        );
+    test('A8: the bone test stubs parse as valid Dart test scaffolds', () async {
+      // Set up .specify/feature.json.
+      final featureJsonDir = await Directory(
+        '${tmpDir.path}/.specify',
+      ).create();
+      await File('${featureJsonDir.path}/feature.json').writeAsString(
+        jsonEncode({'feature_directory': 'specs/test-stub-feature'}),
+      );
 
-        // Write the spec.
-        await File('${tmpDir.path}/specs/test-stub-feature/spec.md')
-            .create(recursive: true);
-        await File('${tmpDir.path}/specs/test-stub-feature/spec.md')
-            .writeAsString(_workflowSpec);
+      // Write the spec.
+      await File(
+        '${tmpDir.path}/specs/test-stub-feature/spec.md',
+      ).create(recursive: true);
+      await File(
+        '${tmpDir.path}/specs/test-stub-feature/spec.md',
+      ).writeAsString(_workflowSpec);
 
-        final outputDir = '${tmpDir.path}/bones';
-        final command = BoneCommand(
-          specsRoot: tmpDir.path,
-          featureJsonPath: '${tmpDir.path}/.specify/feature.json',
-        );
-        final runner =
-            CommandRunner<void>('zfa', 'test')..addCommand(command);
+      final outputDir = '${tmpDir.path}/bones';
+      final command = BoneCommand(
+        specsRoot: tmpDir.path,
+        featureJsonPath: '${tmpDir.path}/.specify/feature.json',
+      );
+      final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
 
-        await captureOutput(
-          () => runner.run(['bone', 'generate', '--output', outputDir]),
-        );
+      await captureOutput(
+        () => runner.run(['bone', 'generate', '--output', outputDir]),
+      );
 
-        final boneDir = Directory('$outputDir/test-stub-feature');
+      final boneDir = Directory('$outputDir/test-stub-feature');
 
-        // Test stubs must exist.
-        final testDir = Directory('${boneDir.path}/test');
-        expect(await testDir.exists(), isTrue, reason: 'test/ directory must exist');
+      // Test stubs must exist.
+      final testDir = Directory('${boneDir.path}/test');
+      expect(
+        await testDir.exists(),
+        isTrue,
+        reason: 'test/ directory must exist',
+      );
 
-        final testFiles = testDir
-            .listSync()
-            .whereType<File>()
-            .where((f) => f.path.endsWith('_test.dart'))
-            .toList();
-        expect(testFiles, isNotEmpty, reason: 'must have at least one test stub');
+      final testFiles = testDir
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('_test.dart'))
+          .toList();
+      expect(testFiles, isNotEmpty, reason: 'must have at least one test stub');
 
-        // Each test stub must parse as valid Dart (analysis check).
-        for (final testFile in testFiles) {
-          final content = testFile.readAsStringSync();
+      // Each test stub must parse as valid Dart (analysis check).
+      for (final testFile in testFiles) {
+        final content = testFile.readAsStringSync();
 
-          // Must have a main() function.
-          expect(
-            content,
-            contains('void main()'),
-            reason: '${p.basename(testFile.path)} must define main()',
-          );
-
-          // Must import the barrel (relative import to lib/).
-          expect(
-            content,
-            contains("import '../lib/"),
-            reason:
-                '${p.basename(testFile.path)} must import the bone barrel',
-          );
-        }
-
-        // Verify barrel exists and exports entities.
-        final barrelPath =
-            '${boneDir.path}/lib/test_stub_feature.dart';
+        // Must have a main() function.
         expect(
-          await File(barrelPath).exists(),
-          isTrue,
-          reason: 'barrel entry point must exist',
-        );
-        final barrelContent = await File(barrelPath).readAsString();
-        expect(
-          barrelContent,
-          contains("export 'entities/widget.dart'"),
-          reason: 'barrel must export widget.dart',
-        );
-        expect(
-          barrelContent,
-          contains("export 'entities/signal.dart'"),
-          reason: 'barrel must export signal.dart',
+          content,
+          contains('void main()'),
+          reason: '${p.basename(testFile.path)} must define main()',
         );
 
-        // Parse-level validity: every .dart file in the bone must be
-        // syntactically valid Dart. `dart format --output=none` exits
-        // non-zero on unparseable input; no pubspec is required.
-        final allDartFiles = Directory(boneDir.path)
-            .listSync(recursive: true)
-            .whereType<File>()
-            .where((f) => f.path.endsWith('.dart'))
-            .toList();
-        expect(allDartFiles, isNotEmpty, reason: 'bone must contain .dart files');
-        for (final dartFile in allDartFiles) {
-          final result = await Process.run(
-            'dart',
-            ['format', '--output=none', dartFile.path],
-          );
-          expect(
-            result.exitCode,
-            0,
-            reason:
-                '${p.basename(dartFile.path)} must be syntactically valid Dart; '
-                'stderr: ${result.stderr}',
-          );
-        }
-      },
-    );
+        // Must import the barrel (relative import to lib/).
+        expect(
+          content,
+          contains("import '../lib/"),
+          reason: '${p.basename(testFile.path)} must import the bone barrel',
+        );
+      }
+
+      // Verify barrel exists and exports entities.
+      final barrelPath = '${boneDir.path}/lib/test_stub_feature.dart';
+      expect(
+        await File(barrelPath).exists(),
+        isTrue,
+        reason: 'barrel entry point must exist',
+      );
+      final barrelContent = await File(barrelPath).readAsString();
+      expect(
+        barrelContent,
+        contains("export 'entities/widget.dart'"),
+        reason: 'barrel must export widget.dart',
+      );
+      expect(
+        barrelContent,
+        contains("export 'entities/signal.dart'"),
+        reason: 'barrel must export signal.dart',
+      );
+
+      // Parse-level validity: every .dart file in the bone must be
+      // syntactically valid Dart. `dart format --output=none` exits
+      // non-zero on unparseable input; no pubspec is required.
+      final allDartFiles = Directory(boneDir.path)
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.dart'))
+          .toList();
+      expect(allDartFiles, isNotEmpty, reason: 'bone must contain .dart files');
+      for (final dartFile in allDartFiles) {
+        final result = await Process.run('dart', [
+          'format',
+          '--output=none',
+          dartFile.path,
+        ]);
+        expect(
+          result.exitCode,
+          0,
+          reason:
+              '${p.basename(dartFile.path)} must be syntactically valid Dart; '
+              'stderr: ${result.stderr}',
+        );
+      }
+    });
 
     test(
       'A9: xray overlay markers in the source spec are preserved in the bone manifest',
       () async {
         // Write spec with xray markers.
-        await File('${tmpDir.path}/specs/xray-feature/spec.md')
-            .create(recursive: true);
-        await File('${tmpDir.path}/specs/xray-feature/spec.md')
-            .writeAsString(_xraySpec);
+        await File(
+          '${tmpDir.path}/specs/xray-feature/spec.md',
+        ).create(recursive: true);
+        await File(
+          '${tmpDir.path}/specs/xray-feature/spec.md',
+        ).writeAsString(_xraySpec);
 
         final outputDir = '${tmpDir.path}/bones';
         final command = BoneCommand(specsRoot: tmpDir.path);
-        final runner =
-            CommandRunner<void>('zfa', 'test')..addCommand(command);
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
 
         await captureOutput(
           () => runner.run([
@@ -224,8 +229,7 @@ void main() {
         );
 
         final boneDir = '$outputDir/xray-feature';
-        final manifestContent =
-            await File('$boneDir/bone.yaml').readAsString();
+        final manifestContent = await File('$boneDir/bone.yaml').readAsString();
 
         // Xray key must be present in the manifest.
         expect(

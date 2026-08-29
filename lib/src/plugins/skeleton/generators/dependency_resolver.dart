@@ -77,10 +77,7 @@ class DependencyResolver {
       edges[entry.key] = deps.map((d) => d.bone).toList();
     }
 
-    final graph = DependencyGraph(
-      nodes: features.keys.toSet(),
-      edges: edges,
-    );
+    final graph = DependencyGraph(nodes: features.keys.toSet(), edges: edges);
     // Throws CycleException if cyclic.
     graph.topologicalSort();
 
@@ -148,8 +145,10 @@ class DependencyResolver {
 
     for (final line in lines) {
       final trimmed = line.trim();
-      if (RegExp(r'^#{1,6}\s+key entities\s*$', caseSensitive: false)
-          .hasMatch(trimmed)) {
+      if (RegExp(
+        r'^#{1,6}\s+key entities\s*$',
+        caseSensitive: false,
+      ).hasMatch(trimmed)) {
         continue;
       }
       if (inKeyEntities) {

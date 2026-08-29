@@ -28,9 +28,9 @@ void main() {
 
   setUp(() async {
     tmpDir = await Directory.systemTemp.createTemp('sc_004_export_test_');
-    specsDir = await Directory('${tmpDir.path}/specs/export-feature').create(
-      recursive: true,
-    );
+    specsDir = await Directory(
+      '${tmpDir.path}/specs/export-feature',
+    ).create(recursive: true);
     bonesDir = await Directory('${tmpDir.path}/bones').create();
 
     // Write a valid spec.
@@ -46,8 +46,7 @@ void main() {
   /// Generates a bone for export-feature via BoneCommand.
   Future<void> generateBone() async {
     final command = BoneCommand(specsRoot: tmpDir.path);
-    final runner =
-        CommandRunner<void>('zfa', 'test')..addCommand(command);
+    final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
     await captureOutput(
       () => runner.run([
         'bone',
@@ -68,8 +67,7 @@ void main() {
         await generateBone();
 
         final command = BoneCommand(specsRoot: tmpDir.path);
-        final runner =
-            CommandRunner<void>('zfa', 'test')..addCommand(command);
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
 
         final tarGzPath = '${tmpDir.path}/export-feature.tar.gz';
         await captureOutput(
@@ -138,8 +136,7 @@ void main() {
         await generateBone();
 
         final command = BoneCommand(specsRoot: tmpDir.path);
-        final runner =
-            CommandRunner<void>('zfa', 'test')..addCommand(command);
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
 
         final tarGzPath = '${tmpDir.path}/export-feature.tar.gz';
         await captureOutput(
@@ -205,9 +202,10 @@ void main() {
 
         for (final file in dartFiles) {
           final content = file.readAsStringSync();
-          final imports =
-              RegExp(r"^import\s+'([^']+)';", multiLine: true)
-                  .allMatches(content);
+          final imports = RegExp(
+            r"^import\s+'([^']+)';",
+            multiLine: true,
+          ).allMatches(content);
 
           for (final match in imports) {
             final importPath = match.group(1)!;

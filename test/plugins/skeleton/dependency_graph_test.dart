@@ -27,46 +27,46 @@ void main() {
           },
         );
         final order = graph.topologicalSort();
-        expect(order.indexOf('c'), lessThan(order.indexOf('b')),
-            reason: 'c must come before b');
-        expect(order.indexOf('b'), lessThan(order.indexOf('a')),
-            reason: 'b must come before a');
+        expect(
+          order.indexOf('c'),
+          lessThan(order.indexOf('b')),
+          reason: 'c must come before b',
+        );
+        expect(
+          order.indexOf('b'),
+          lessThan(order.indexOf('a')),
+          reason: 'b must come before a',
+        );
       },
     );
 
     test('U2: sorting a graph with no edges returns all nodes', () {
-      final graph = DependencyGraph(
-        nodes: {'x', 'y', 'z'},
-        edges: {},
-      );
+      final graph = DependencyGraph(nodes: {'x', 'y', 'z'}, edges: {});
       final order = graph.topologicalSort();
       expect(order, containsAll(['x', 'y', 'z']));
       expect(order, hasLength(3));
     });
 
-    test(
-      'U3: a cycle throws CycleException naming the bones in the cycle',
-      () {
-        // A -> B -> A  (cycle between a and b)
-        final graph = DependencyGraph(
-          nodes: {'a', 'b'},
-          edges: {
-            'a': ['b'],
-            'b': ['a'],
-          },
-        );
-        expect(
-          () => graph.topologicalSort(),
-          throwsA(
-            isA<CycleException>().having(
-              (e) => e.cycleMembers,
-              'cycleMembers',
-              containsAll(['a', 'b']),
-            ),
+    test('U3: a cycle throws CycleException naming the bones in the cycle', () {
+      // A -> B -> A  (cycle between a and b)
+      final graph = DependencyGraph(
+        nodes: {'a', 'b'},
+        edges: {
+          'a': ['b'],
+          'b': ['a'],
+        },
+      );
+      expect(
+        () => graph.topologicalSort(),
+        throwsA(
+          isA<CycleException>().having(
+            (e) => e.cycleMembers,
+            'cycleMembers',
+            containsAll(['a', 'b']),
           ),
-        );
-      },
-    );
+        ),
+      );
+    });
 
     test('U4: a self-dependency is reported as a cycle naming that bone', () {
       final graph = DependencyGraph(

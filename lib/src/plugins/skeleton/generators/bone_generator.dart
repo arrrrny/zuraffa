@@ -26,11 +26,9 @@ class BoneGenerationError implements Exception {
 /// Orchestrates bone generation for a single feature.
 class BoneGenerator {
   /// Creates a [BoneGenerator].
-  BoneGenerator({
-    SpecReader? specReader,
-    BoneScaffoldBuilder? scaffoldBuilder,
-  })  : specReader = specReader ?? SpecReader(),
-        scaffoldBuilder = scaffoldBuilder ?? BoneScaffoldBuilder();
+  BoneGenerator({SpecReader? specReader, BoneScaffoldBuilder? scaffoldBuilder})
+    : specReader = specReader ?? SpecReader(),
+      scaffoldBuilder = scaffoldBuilder ?? BoneScaffoldBuilder();
 
   final SpecReader specReader;
   final BoneScaffoldBuilder scaffoldBuilder;

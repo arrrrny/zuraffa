@@ -27,12 +27,10 @@ void main() {
   setUp(() async {
     tmpDir = await Directory.systemTemp.createTemp('sc_001_bone_test_');
     // Copy fixture spec to a temp location so the test is hermetic.
-    fixtureDir = await Directory('${tmpDir.path}/specs/sample-feature').create(
-      recursive: true,
-    );
-    await File(
-      '${fixtureDir.path}/spec.md',
-    ).writeAsString(_sampleSpec);
+    fixtureDir = await Directory(
+      '${tmpDir.path}/specs/sample-feature',
+    ).create(recursive: true);
+    await File('${fixtureDir.path}/spec.md').writeAsString(_sampleSpec);
   });
 
   tearDown(() async {
@@ -47,8 +45,7 @@ void main() {
       () async {
         final outputDir = '${tmpDir.path}/bones';
         final command = BoneCommand();
-        final runner =
-            CommandRunner<void>('zfa', 'test')..addCommand(command);
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
 
         await captureOutput(
           () => runner.run([
@@ -66,7 +63,11 @@ void main() {
 
         // Manifest file exists.
         final manifestFile = File('$boneDir/bone.yaml');
-        expect(await manifestFile.exists(), isTrue, reason: 'bone.yaml must exist');
+        expect(
+          await manifestFile.exists(),
+          isTrue,
+          reason: 'bone.yaml must exist',
+        );
 
         // Entity stubs exist.
         expect(
@@ -103,8 +104,7 @@ void main() {
       () async {
         final outputDir = '${tmpDir.path}/bones';
         final command = BoneCommand();
-        final runner =
-            CommandRunner<void>('zfa', 'test')..addCommand(command);
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
 
         await captureOutput(
           () => runner.run([
@@ -119,7 +119,11 @@ void main() {
         );
 
         final boneDir = Directory('$outputDir/sample-feature');
-        expect(await boneDir.exists(), isTrue, reason: 'bone directory must exist');
+        expect(
+          await boneDir.exists(),
+          isTrue,
+          reason: 'bone directory must exist',
+        );
 
         // Scan all Dart files in the bone for import statements.
         final dartFiles = boneDir
@@ -132,8 +136,10 @@ void main() {
 
         for (final file in dartFiles) {
           final content = file.readAsStringSync();
-          final imports = RegExp(r"^import\s+'([^']+)';", multiLine: true)
-              .allMatches(content);
+          final imports = RegExp(
+            r"^import\s+'([^']+)';",
+            multiLine: true,
+          ).allMatches(content);
 
           for (final match in imports) {
             final importPath = match.group(1)!;

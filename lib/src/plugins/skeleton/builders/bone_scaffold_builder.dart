@@ -13,8 +13,8 @@ class BoneScaffoldBuilder {
   BoneScaffoldBuilder({
     ManifestBuilder? manifestBuilder,
     EntityStubBuilder? entityStubBuilder,
-  })  : manifestBuilder = manifestBuilder ?? ManifestBuilder(),
-        entityStubBuilder = entityStubBuilder ?? EntityStubBuilder();
+  }) : manifestBuilder = manifestBuilder ?? ManifestBuilder(),
+       entityStubBuilder = entityStubBuilder ?? EntityStubBuilder();
 
   final ManifestBuilder manifestBuilder;
   final EntityStubBuilder entityStubBuilder;
@@ -62,7 +62,8 @@ class BoneScaffoldBuilder {
     for (final stub in bone.entityStubs) {
       final snakeName = _toSnake(stub.name);
       final testPath = '$boneDir/test/${snakeName}_test.dart';
-      final testContent = "import '../lib/$barrelName.dart';\n\n"
+      final testContent =
+          "import '../lib/$barrelName.dart';\n\n"
           'void main() {\n'
           '  // TODO: add entity tests\n'
           '}\n';

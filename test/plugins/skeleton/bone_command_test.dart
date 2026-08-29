@@ -37,11 +37,13 @@ void main() {
     }
   });
 
-  Future<File> writeSpec(String content,
-      {String dirName = 'sample-feature'}) async {
-    final dir = await Directory('${tmpDir.path}/specs/$dirName').create(
-      recursive: true,
-    );
+  Future<File> writeSpec(
+    String content, {
+    String dirName = 'sample-feature',
+  }) async {
+    final dir = await Directory(
+      '${tmpDir.path}/specs/$dirName',
+    ).create(recursive: true);
     final file = File('${dir.path}/spec.md');
     await file.writeAsString(content);
     return file;
@@ -52,8 +54,7 @@ void main() {
       'U32: zfa bone --help lists generate, export, and validate subcommands',
       () async {
         final command = BoneCommand();
-        final runner = CommandRunner<void>('zfa', 'test')
-          ..addCommand(command);
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
 
         final output = await captureOutput(
           () => runner.run(['bone', '--help']),
@@ -82,8 +83,7 @@ Something.
 ''');
         final outputDir = '${tmpDir.path}/bones';
         final command = BoneCommand();
-        final runner = CommandRunner<void>('zfa', 'test')
-          ..addCommand(command);
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
 
         final output = await captureOutput(
           () => runner.run([
@@ -99,12 +99,18 @@ Something.
 
         // Bone directory must exist.
         final boneDir = '$outputDir/sample-feature';
-        expect(await Directory(boneDir).exists(), isTrue,
-            reason: 'bone directory must be created');
+        expect(
+          await Directory(boneDir).exists(),
+          isTrue,
+          reason: 'bone directory must be created',
+        );
 
         // Manifest must exist.
-        expect(await File('$boneDir/bone.yaml').exists(), isTrue,
-            reason: 'bone.yaml must be created');
+        expect(
+          await File('$boneDir/bone.yaml').exists(),
+          isTrue,
+          reason: 'bone.yaml must be created',
+        );
 
         // Output must mention the bone path.
         expect(output, contains('sample-feature'));
@@ -124,8 +130,7 @@ No entities.
 ''');
         final outputDir = '${tmpDir.path}/bones';
         final command = BoneCommand();
-        final runner = CommandRunner<void>('zfa', 'test')
-          ..addCommand(command);
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
 
         // The command should print an error but not crash.
         await captureOutput(
@@ -142,8 +147,11 @@ No entities.
 
         // No partial bone directory should exist.
         final boneDir = '$outputDir/empty-feature';
-        expect(await Directory(boneDir).exists(), isFalse,
-            reason: 'no partial output on failure');
+        expect(
+          await Directory(boneDir).exists(),
+          isFalse,
+          reason: 'no partial output on failure',
+        );
       },
     );
 
@@ -155,22 +163,21 @@ No entities.
         final boneDir = '$bonesDir/export-feature';
         await Directory('$boneDir/lib/entities').create(recursive: true);
         await Directory('$boneDir/test').create(recursive: true);
-        await File('$boneDir/bone.yaml').writeAsString(
-          'version: 1\nfeature: export-feature\n',
-        );
-        await File('$boneDir/lib/entities/widget.dart').writeAsString(
-          'class Widget {}\n',
-        );
-        await File('$boneDir/lib/export_feature.dart').writeAsString(
-          "export 'entities/widget.dart';\n",
-        );
+        await File(
+          '$boneDir/bone.yaml',
+        ).writeAsString('version: 1\nfeature: export-feature\n');
+        await File(
+          '$boneDir/lib/entities/widget.dart',
+        ).writeAsString('class Widget {}\n');
+        await File(
+          '$boneDir/lib/export_feature.dart',
+        ).writeAsString("export 'entities/widget.dart';\n");
         await File('$boneDir/test/widget_test.dart').writeAsString(
           "import '../lib/export_feature.dart';\nvoid main() {}\n",
         );
 
         final command = BoneCommand();
-        final runner = CommandRunner<void>('zfa', 'test')
-          ..addCommand(command);
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
 
         // Export using --bones-dir to point at our temp bones directory.
         final tarGzPath = '${tmpDir.path}/export-feature.tar.gz';
@@ -187,8 +194,11 @@ No entities.
         );
 
         // The tar.gz file must exist.
-        expect(await File(tarGzPath).exists(), isTrue,
-            reason: 'tar.gz file must be created');
+        expect(
+          await File(tarGzPath).exists(),
+          isTrue,
+          reason: 'tar.gz file must be created',
+        );
 
         // Decode and verify contents.
         final gzBytes = await File(tarGzPath).readAsBytes();
@@ -197,14 +207,23 @@ No entities.
         final fileNames = archive.map((f) => f.name).toList();
 
         // Must contain bone.yaml.
-        expect(fileNames, anyElement(contains('bone.yaml')),
-            reason: 'archive must contain bone.yaml');
+        expect(
+          fileNames,
+          anyElement(contains('bone.yaml')),
+          reason: 'archive must contain bone.yaml',
+        );
         // Must contain entity stubs.
-        expect(fileNames, anyElement(contains('widget.dart')),
-            reason: 'archive must contain widget.dart');
+        expect(
+          fileNames,
+          anyElement(contains('widget.dart')),
+          reason: 'archive must contain widget.dart',
+        );
         // Must contain barrel.
-        expect(fileNames, anyElement(contains('export_feature.dart')),
-            reason: 'archive must contain barrel');
+        expect(
+          fileNames,
+          anyElement(contains('export_feature.dart')),
+          reason: 'archive must contain barrel',
+        );
       },
     );
 
@@ -212,8 +231,7 @@ No entities.
       'U29: zfa bone export fails non-zero when the bone has not been generated',
       () async {
         final command = BoneCommand();
-        final runner = CommandRunner<void>('zfa', 'test')
-          ..addCommand(command);
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
 
         // Export non-existent bone.
         final output = await captureOutput(
@@ -227,12 +245,21 @@ No entities.
         );
 
         // Should print error message naming the bone.
-        expect(output, contains('Error'),
-            reason: 'export must print error for missing bone');
-        expect(output, contains('not generated'),
-            reason: 'error must mention the bone was not generated');
-        expect(output, contains('nonexistent-bone'),
-            reason: 'error must name the missing bone slug');
+        expect(
+          output,
+          contains('Error'),
+          reason: 'export must print error for missing bone',
+        );
+        expect(
+          output,
+          contains('not generated'),
+          reason: 'error must mention the bone was not generated',
+        );
+        expect(
+          output,
+          contains('nonexistent-bone'),
+          reason: 'error must name the missing bone slug',
+        );
       },
     );
 
@@ -240,13 +267,13 @@ No entities.
       'U30: zfa bone validate passes a clean bone and fails after spec changes',
       () async {
         // Write a spec.
-        final specContent = '# Feature: Validate Feature\n\n'
+        final specContent =
+            '# Feature: Validate Feature\n\n'
             '## Key Entities\n\n- **Item** — a thing\n\n'
             '## Requirements\n\nSomething.\n';
-        final specDir =
-            await Directory('${tmpDir.path}/specs/validate-feature').create(
-          recursive: true,
-        );
+        final specDir = await Directory(
+          '${tmpDir.path}/specs/validate-feature',
+        ).create(recursive: true);
         final specFile = File('${specDir.path}/spec.md');
         await specFile.writeAsString(specContent);
 
@@ -281,11 +308,15 @@ No entities.
             bonesDir,
           ]),
         );
-        expect(output1, contains('OK'),
-            reason: 'validate must pass for a clean bone');
+        expect(
+          output1,
+          contains('OK'),
+          reason: 'validate must pass for a clean bone',
+        );
 
         // Now modify the spec (changes the hash).
-        final newContent = '# Feature: Validate Feature (changed)\n\n'
+        final newContent =
+            '# Feature: Validate Feature (changed)\n\n'
             '## Key Entities\n\n- **Item** — a thing\n\n'
             '## Requirements\n\nSomething different.\n';
         await specFile.writeAsString(newContent);
@@ -300,12 +331,21 @@ No entities.
             bonesDir,
           ]),
         );
-        expect(output2, contains('stale'),
-            reason: 'validate must report staleness when spec changes');
-        expect(output2, contains('Error'),
-            reason: 'validate staleness must prefix with Error');
-        expect(output2, contains('spec_version'),
-            reason: 'staleness error must mention spec_version');
+        expect(
+          output2,
+          contains('stale'),
+          reason: 'validate must report staleness when spec changes',
+        );
+        expect(
+          output2,
+          contains('Error'),
+          reason: 'validate staleness must prefix with Error',
+        );
+        expect(
+          output2,
+          contains('spec_version'),
+          reason: 'staleness error must mention spec_version',
+        );
       },
     );
 
@@ -313,8 +353,7 @@ No entities.
       'U37: validate rejects a bone containing a broken relative import',
       () async {
         // Write a spec and generate a bone.
-        await writeSpec(
-          '''
+        await writeSpec('''
 # Feature: Sample Feature
 
 ## Key Entities
@@ -324,13 +363,10 @@ No entities.
 ## Requirements
 
 Something.
-''',
-          dirName: 'sample-feature',
-        );
+''', dirName: 'sample-feature');
         final outputDir = '${tmpDir.path}/bones';
         final command = BoneCommand(specsRoot: tmpDir.path);
-        final runner = CommandRunner<void>('zfa', 'test')
-          ..addCommand(command);
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
 
         await captureOutput(
           () => runner.run([
@@ -381,8 +417,7 @@ Something.
       'validate rejects package: import not matching a declared dependency',
       () async {
         // Generate a bone with no declared dependencies.
-        await writeSpec(
-          '''
+        await writeSpec('''
 # Feature: Pkg Feature
 
 ## Key Entities
@@ -392,13 +427,10 @@ Something.
 ## Requirements
 
 Something.
-''',
-          dirName: 'pkg-feature',
-        );
+''', dirName: 'pkg-feature');
         final outputDir = '${tmpDir.path}/bones';
         final command = BoneCommand(specsRoot: tmpDir.path);
-        final runner = CommandRunner<void>('zfa', 'test')
-          ..addCommand(command);
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
 
         await captureOutput(
           () => runner.run([
@@ -434,7 +466,8 @@ Something.
         expect(
           valOutput,
           allOf(contains('Error'), contains('not_a_declared_dep')),
-          reason: 'validate must reject package import not backed by a dependency',
+          reason:
+              'validate must reject package import not backed by a dependency',
         );
       },
     );
@@ -443,8 +476,7 @@ Something.
       'validate accepts package: import matching a declared dependency',
       () async {
         // Write a spec with a dependency on export-feature.
-        await writeSpec(
-          '''
+        await writeSpec('''
 # Feature: Pkg Feature
 
 ## Key Entities
@@ -454,13 +486,10 @@ Something.
 ## Requirements
 
 Something.
-''',
-          dirName: 'pkg-feature-dep',
-        );
+''', dirName: 'pkg-feature-dep');
 
         // Also create a dependency feature (so the resolver can find it).
-        await writeSpec(
-          '''
+        await writeSpec('''
 # Feature: Dep Feature
 
 ## Key Entities
@@ -470,14 +499,11 @@ Something.
 ## Requirements
 
 Something.
-''',
-          dirName: 'dep-feature',
-        );
+''', dirName: 'dep-feature');
 
         final outputDir = '${tmpDir.path}/bones';
         final command = BoneCommand(specsRoot: tmpDir.path);
-        final runner = CommandRunner<void>('zfa', 'test')
-          ..addCommand(command);
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
 
         await captureOutput(
           () => runner.run([
@@ -543,14 +569,16 @@ Something.
     test(
       'U36: CLI process exits non-zero when a bone subcommand reports an error',
       () async {
-        final result = await runZfaSource(
-          ['bone', 'export', 'no-such-bone-u36'],
-          workingDirectory: zfaProjectRoot,
-        );
+        final result = await runZfaSource([
+          'bone',
+          'export',
+          'no-such-bone-u36',
+        ], workingDirectory: zfaProjectRoot);
         expect(
           result.exitCode,
           isNot(equals(0)),
-          reason: 'a failed bone subcommand must exit non-zero; '
+          reason:
+              'a failed bone subcommand must exit non-zero; '
               'stderr was: ${result.stderr}',
         );
       },

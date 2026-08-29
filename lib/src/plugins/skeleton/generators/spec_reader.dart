@@ -66,8 +66,10 @@ class SpecReader {
     for (final line in lines) {
       final trimmed = line.trim();
 
-      if (RegExp(r'^#{1,6}\s+key entities\s*$', caseSensitive: false)
-          .hasMatch(trimmed)) {
+      if (RegExp(
+        r'^#{1,6}\s+key entities\s*$',
+        caseSensitive: false,
+      ).hasMatch(trimmed)) {
         inKeyEntities = true;
         continue;
       }
@@ -79,8 +81,9 @@ class SpecReader {
 
       if (inKeyEntities) {
         // Match bold entries like `- **EntityName**` or `- **Entity Name** — desc`.
-        final match = RegExp(r'^-?\s*\*\*([A-Za-z][A-Za-z0-9 ]*?)\*\*')
-            .firstMatch(trimmed);
+        final match = RegExp(
+          r'^-?\s*\*\*([A-Za-z][A-Za-z0-9 ]*?)\*\*',
+        ).firstMatch(trimmed);
         if (match != null) {
           entities.add(match.group(1)!.replaceAll(' ', ''));
         }

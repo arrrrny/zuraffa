@@ -49,8 +49,7 @@ void main() {
           specsRoot: specsRoot.path,
         );
 
-        final manifestContent =
-            await File('$boneDir/bone.yaml').readAsString();
+        final manifestContent = await File('$boneDir/bone.yaml').readAsString();
 
         // Feature B depends on feature-a.
         expect(
@@ -86,8 +85,7 @@ void main() {
           specsRoot: specsRoot.path,
         );
 
-        final manifestC =
-            await File('$boneDirC/bone.yaml').readAsString();
+        final manifestC = await File('$boneDirC/bone.yaml').readAsString();
 
         // feature-c depends on feature-b (via Order reference).
         expect(
@@ -109,8 +107,7 @@ void main() {
           specsRoot: specsRoot.path,
         );
 
-        final manifestB =
-            await File('$boneDirB/bone.yaml').readAsString();
+        final manifestB = await File('$boneDirB/bone.yaml').readAsString();
 
         // feature-b depends on feature-a (via Product reference).
         expect(
@@ -121,8 +118,11 @@ void main() {
 
         // Verify the chain order: A is standalone, B depends on A,
         // C depends on B. No circular dependency.
-        expect(manifestC, isNot(contains('bone: feature-a')),
-            reason: 'C depends on B, not directly on A');
+        expect(
+          manifestC,
+          isNot(contains('bone: feature-a')),
+          reason: 'C depends on B, not directly on A',
+        );
       },
     );
 
@@ -161,26 +161,22 @@ void main() {
       },
     );
 
-    test(
-      'A6: no cross-references → dependencies: []',
-      () async {
-        await copyFixture('standalone', specsRoot.path);
+    test('A6: no cross-references → dependencies: []', () async {
+      await copyFixture('standalone', specsRoot.path);
 
-        final outputDir = '${tmpDir.path}/bones';
-        final boneDir = await generator.generate(
-          specPath: File('${specsRoot.path}/standalone/spec.md'),
-          outputDir: outputDir,
-          specsRoot: specsRoot.path,
-        );
+      final outputDir = '${tmpDir.path}/bones';
+      final boneDir = await generator.generate(
+        specPath: File('${specsRoot.path}/standalone/spec.md'),
+        outputDir: outputDir,
+        specsRoot: specsRoot.path,
+      );
 
-        final manifestContent =
-            await File('$boneDir/bone.yaml').readAsString();
-        expect(
-          manifestContent,
-          contains('dependencies: []'),
-          reason: 'standalone bone must have empty dependencies',
-        );
-      },
-    );
+      final manifestContent = await File('$boneDir/bone.yaml').readAsString();
+      expect(
+        manifestContent,
+        contains('dependencies: []'),
+        reason: 'standalone bone must have empty dependencies',
+      );
+    });
   });
 }

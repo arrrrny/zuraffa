@@ -41,30 +41,24 @@ void main() {
       },
     );
 
-    test(
-      'U14: the stub path is lib/entities/<snake_case>.dart',
-      () {
-        // Path derivation lives in BoneGenerator._toSnake (bone_generator.dart).
-        // Here we verify the sourcePath contract on the model itself: the caller
-        // supplies a path matching lib/entities/<snake_case>.dart.
-        const expectedPath = 'lib/entities/cart_item.dart';
-        final stub = EntityStub(
-          name: 'CartItem',
-          sourcePath: expectedPath,
-        );
+    test('U14: the stub path is lib/entities/<snake_case>.dart', () {
+      // Path derivation lives in BoneGenerator._toSnake (bone_generator.dart).
+      // Here we verify the sourcePath contract on the model itself: the caller
+      // supplies a path matching lib/entities/<snake_case>.dart.
+      const expectedPath = 'lib/entities/cart_item.dart';
+      final stub = EntityStub(name: 'CartItem', sourcePath: expectedPath);
 
-        // Assert the path matches the lib/entities/<snake>.dart convention.
-        expect(
-          stub.sourcePath,
-          equals(expectedPath),
-          reason: 'CartItem path must be lib/entities/cart_item.dart',
-        );
+      // Assert the path matches the lib/entities/<snake>.dart convention.
+      expect(
+        stub.sourcePath,
+        equals(expectedPath),
+        reason: 'CartItem path must be lib/entities/cart_item.dart',
+      );
 
-        final source = builder.build(stub);
+      final source = builder.build(stub);
 
-        // Must contain a class declaration for CartItem.
-        expect(source, contains('class CartItem'));
-      },
-    );
+      // Must contain a class declaration for CartItem.
+      expect(source, contains('class CartItem'));
+    });
   });
 }

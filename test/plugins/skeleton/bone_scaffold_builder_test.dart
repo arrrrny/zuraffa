@@ -73,27 +73,28 @@ void main() {
 
         for (final layer in ['domain', 'data', 'presentation']) {
           final dir = Directory('$boneDir/$layer');
-          expect(await dir.exists(), isTrue, reason: '$layer/ directory must exist');
+          expect(
+            await dir.exists(),
+            isTrue,
+            reason: '$layer/ directory must exist',
+          );
         }
       },
     );
 
-    test(
-      'U16: the barrel entry point exports every entity stub',
-      () async {
-        final bone = makeBone(entities: ['Product', 'CartItem']);
-        final boneDir = '${tmpDir.path}/test-feature';
+    test('U16: the barrel entry point exports every entity stub', () async {
+      final bone = makeBone(entities: ['Product', 'CartItem']);
+      final boneDir = '${tmpDir.path}/test-feature';
 
-        await builder.build(bone, boneDir);
+      await builder.build(bone, boneDir);
 
-        final barrel = File('$boneDir/lib/test_feature.dart');
-        expect(await barrel.exists(), isTrue, reason: 'barrel must exist');
+      final barrel = File('$boneDir/lib/test_feature.dart');
+      expect(await barrel.exists(), isTrue, reason: 'barrel must exist');
 
-        final content = barrel.readAsStringSync();
-        expect(content, contains("export 'entities/product.dart'"));
-        expect(content, contains("export 'entities/cart_item.dart'"));
-      },
-    );
+      final content = barrel.readAsStringSync();
+      expect(content, contains("export 'entities/product.dart'"));
+      expect(content, contains("export 'entities/cart_item.dart'"));
+    });
     test(
       'U14-verify: barrel exports entities using snake_case paths derived from PascalCase names',
       () async {
@@ -133,10 +134,16 @@ void main() {
         final productTest = File('$boneDir/test/product_test.dart');
         final cartItemTest = File('$boneDir/test/cart_item_test.dart');
 
-        expect(await productTest.exists(), isTrue,
-            reason: 'product_test.dart must exist');
-        expect(await cartItemTest.exists(), isTrue,
-            reason: 'cart_item_test.dart must exist');
+        expect(
+          await productTest.exists(),
+          isTrue,
+          reason: 'product_test.dart must exist',
+        );
+        expect(
+          await cartItemTest.exists(),
+          isTrue,
+          reason: 'cart_item_test.dart must exist',
+        );
 
         // Each test imports the barrel.
         final productContent = productTest.readAsStringSync();
@@ -152,6 +159,9 @@ void main() {
 String _toSnake(String name) {
   final result = name
       .replaceAll('-', '_')
-      .replaceAllMapped(RegExp(r'([A-Z])'), (m) => '_${m.group(1)!.toLowerCase()}');
+      .replaceAllMapped(
+        RegExp(r'([A-Z])'),
+        (m) => '_${m.group(1)!.toLowerCase()}',
+      );
   return result.startsWith('_') ? result.substring(1) : result;
 }

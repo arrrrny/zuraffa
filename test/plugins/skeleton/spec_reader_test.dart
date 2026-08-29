@@ -41,9 +41,7 @@ void main() {
     test(
       'U5: extracts entity names from the ## Key Entities bold entries',
       () async {
-        final file = await writeSpec(
-          'my-feature',
-          '''
+        final file = await writeSpec('my-feature', '''
 # Feature: My Feature
 
 ## Key Entities
@@ -54,8 +52,7 @@ void main() {
 ## Requirements
 
 Something here.
-''',
-        );
+''');
         final result = reader.read(file);
         expect(result.entities, equals(['Product', 'CartItem']));
       },
@@ -64,16 +61,13 @@ Something here.
     test(
       'U6: a spec with no entity declarations yields an empty entity list',
       () async {
-        final file = await writeSpec(
-          'empty-feature',
-          '''
+        final file = await writeSpec('empty-feature', '''
 # Feature: Empty
 
 ## Requirements
 
 No entities declared.
-''',
-        );
+''');
         final result = reader.read(file);
         expect(result.entities, isEmpty);
       },
@@ -90,36 +84,30 @@ No entities declared.
 
         // spec_version must be a 64-char hex string (SHA-256).
         expect(result1.specVersion, hasLength(64));
-        expect(
-          result1.specVersion,
-          matches(RegExp(r'^[0-9a-f]{64}$')),
-        );
+        expect(result1.specVersion, matches(RegExp(r'^[0-9a-f]{64}$')));
 
         // Modify content → hash must change.
-        await file.writeAsString('# Feature: V2\n\n## Key Entities\n\n- **Foo**\n');
+        await file.writeAsString(
+          '# Feature: V2\n\n## Key Entities\n\n- **Foo**\n',
+        );
         final result2 = reader.read(file);
         expect(result2.specVersion, isNot(equals(result1.specVersion)));
       },
     );
 
-    test(
-      'U8: feature slug is derived from the spec directory name',
-      () async {
-        final file = await writeSpec(
-          '020-skeleton-plugin-bones',
-          '# Feature: Skeleton\n\n## Key Entities\n\n- **Bone**\n',
-        );
-        final result = reader.read(file);
-        expect(result.featureSlug, equals('020-skeleton-plugin-bones'));
-      },
-    );
+    test('U8: feature slug is derived from the spec directory name', () async {
+      final file = await writeSpec(
+        '020-skeleton-plugin-bones',
+        '# Feature: Skeleton\n\n## Key Entities\n\n- **Bone**\n',
+      );
+      final result = reader.read(file);
+      expect(result.featureSlug, equals('020-skeleton-plugin-bones'));
+    });
 
     test(
       'U33: xray overlay markers are extracted from HTML comment annotations',
       () async {
-        final file = await writeSpec(
-          'xray-feature',
-          '''
+        final file = await writeSpec('xray-feature', '''
 # Feature: Xray Feature
 
 ## Key Entities
@@ -132,10 +120,12 @@ No entities declared.
 ## Requirements
 
 - Widget must render correctly
-''',
-        );
+''');
         final result = reader.read(file);
-        expect(result.xrayMarkers, containsPair('overlay', '{"enabled": true, "color": "neon-green"}'));
+        expect(
+          result.xrayMarkers,
+          containsPair('overlay', '{"enabled": true, "color": "neon-green"}'),
+        );
         expect(result.xrayMarkers, containsPair('mode', 'development'));
       },
     );
@@ -143,9 +133,7 @@ No entities declared.
     test(
       'U34: extracts entities from a ### Key Entities section nested under ## Requirements',
       () async {
-        final file = await writeSpec(
-          'nested-entities',
-          '''
+        final file = await writeSpec('nested-entities', '''
 # Feature: Nested
 
 ## Requirements
@@ -158,8 +146,7 @@ No entities declared.
 ### Functional Requirements
 
 - FR-001: something
-''',
-        );
+''');
         final result = reader.read(file);
         expect(result.entities, equals(['Bone', 'Manifest']));
       },
@@ -168,32 +155,26 @@ No entities declared.
     test(
       'U35: a multi-word bold entity name is captured and normalized to PascalCase',
       () async {
-        final file = await writeSpec(
-          'multi-word',
-          '''
+        final file = await writeSpec('multi-word', '''
 # Feature: Multi
 
 ## Key Entities
 
 - **Dependency Graph** — an acyclic directed graph
 - **Bone** — a scaffold
-''',
-        );
+''');
         final result = reader.read(file);
         expect(result.entities, equals(['DependencyGraph', 'Bone']));
       },
     );
 
-    test(
-      'U33: spec without xray markers yields empty xray map',
-      () async {
-        final file = await writeSpec(
-          'no-xray-feature',
-          '# Feature: No Xray\n\n## Key Entities\n\n- **Foo**\n',
-        );
-        final result = reader.read(file);
-        expect(result.xrayMarkers, isEmpty);
-      },
-    );
+    test('U33: spec without xray markers yields empty xray map', () async {
+      final file = await writeSpec(
+        'no-xray-feature',
+        '# Feature: No Xray\n\n## Key Entities\n\n- **Foo**\n',
+      );
+      final result = reader.read(file);
+      expect(result.xrayMarkers, isEmpty);
+    });
   });
 }

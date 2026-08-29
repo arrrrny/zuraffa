@@ -10,11 +10,9 @@ import '../models/bone.dart';
 class EntityStubBuilder {
   /// Creates an [EntityStubBuilder].
   EntityStubBuilder({DartEmitter? emitter})
-      : _emitter = emitter ??
-            DartEmitter(
-              orderDirectives: true,
-              useNullSafetySyntax: true,
-            );
+    : _emitter =
+          emitter ??
+          DartEmitter(orderDirectives: true, useNullSafetySyntax: true);
 
   final DartEmitter _emitter;
 
@@ -52,9 +50,7 @@ class EntityStubBuilder {
         ),
     );
 
-    final library = Library(
-      (lib) => lib..body.add(clazz),
-    );
+    final library = Library((lib) => lib..body.add(clazz));
 
     return DartFormatter(
       languageVersion: DartFormatter.latestLanguageVersion,

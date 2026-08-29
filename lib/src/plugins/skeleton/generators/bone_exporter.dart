@@ -22,7 +22,9 @@ class BoneExporter {
     final files = <_ArchiveFile>[];
     for (final entity in boneDir.listSync(recursive: true)) {
       if (entity is File) {
-        final relativePath = p.relative(entity.path, from: boneDir.path).replaceAll('\\', '/');
+        final relativePath = p
+            .relative(entity.path, from: boneDir.path)
+            .replaceAll('\\', '/');
         final bytes = await entity.readAsBytes();
         files.add(_ArchiveFile(relativePath, bytes));
       }
