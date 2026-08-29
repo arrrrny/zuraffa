@@ -12,9 +12,7 @@ GqlSchema _loadFixture() {
     p.join(_fixturesDir, 'graphql', 'vendure_shop_introspection_v1.json'),
   ).readAsStringSync();
   final json = jsonDecode(raw) as Map<String, dynamic>;
-  return GqlSchema.fromIntrospection(
-    json['data'] as Map<String, dynamic>,
-  );
+  return GqlSchema.fromIntrospection(json['data'] as Map<String, dynamic>);
 }
 
 late String _fixturesDir;
@@ -93,8 +91,10 @@ void main() {
       final sdl = SdlPrinter(_loadFixture()).printSchema();
       expect(
         sdl,
-        contains('  products(options: ProductListOptions, take: Int, '
-            'skip: Int): [Product!]!'),
+        contains(
+          '  products(options: ProductListOptions, take: Int, '
+          'skip: Int): [Product!]!',
+        ),
       );
     });
 

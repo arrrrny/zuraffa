@@ -14,10 +14,8 @@ Map<String, dynamic> _fixture(String name) {
 
 /// Transport that serves a committed fixture regardless of the endpoint.
 IntrospectionTransport _fixtureTransport(String fileName) =>
-    (endpoint, headers, query) async => IntrospectionHttpResponse(
-          200,
-          jsonEncode(_fixture(fileName)),
-        );
+    (endpoint, headers, query) async =>
+        IntrospectionHttpResponse(200, jsonEncode(_fixture(fileName)));
 
 /// Transport that simulates an unreachable endpoint.
 IntrospectionTransport _failingTransport() =>
@@ -54,10 +52,8 @@ void main() {
       );
 
       // Canonical per-name directory layout (FR-001).
-      final dirJson =
-          File('$cacheDir/vendure/vendure.schema.json');
-      final dirSdl =
-          File('$cacheDir/vendure/vendure.schema.graphql');
+      final dirJson = File('$cacheDir/vendure/vendure.schema.json');
+      final dirSdl = File('$cacheDir/vendure/vendure.schema.graphql');
       // Flat compatibility layout (US-1 scenario 1 path notation).
       final flatJson = File('$cacheDir/vendure.schema.json');
       final flatSdl = File('$cacheDir/vendure.schema.graphql');
@@ -89,8 +85,9 @@ void main() {
         endpoint: Uri.parse('https://api.test/graphql'),
         transport: _fixtureTransport('vendure_shop_introspection_v1.json'),
       );
-      final first = File('$cacheDir/vendure/vendure.schema.json')
-          .readAsStringSync();
+      final first = File(
+        '$cacheDir/vendure/vendure.schema.json',
+      ).readAsStringSync();
 
       await cache.pull(
         'vendure',
@@ -98,8 +95,9 @@ void main() {
         transport: _fixtureTransport('vendure_shop_introspection_v2.json'),
       );
 
-      final second = File('$cacheDir/vendure/vendure.schema.json')
-          .readAsStringSync();
+      final second = File(
+        '$cacheDir/vendure/vendure.schema.json',
+      ).readAsStringSync();
       expect(second, isNot(equals(first)), reason: 'files were not refreshed');
 
       final prev = File('$cacheDir/vendure/vendure.schema.prev.json');
@@ -193,8 +191,10 @@ void main() {
       await cache.write('vendure', v1);
       await cache.write('vendure', v2);
       expect(File('$cacheDir/vendure/vendure.schema.json').existsSync(), true);
-      expect(File('$cacheDir/vendure/vendure.schema.graphql').existsSync(),
-          true);
+      expect(
+        File('$cacheDir/vendure/vendure.schema.graphql').existsSync(),
+        true,
+      );
       expect(
         File('$cacheDir/vendure/vendure.schema.prev.json').existsSync(),
         true,
@@ -215,9 +215,9 @@ void main() {
 
     test('malformed cached json surfaces a clear error on load', () async {
       final dir = Directory('$cacheDir/vendure')..createSync(recursive: true);
-      File('$cacheDir/vendure/vendure.schema.json').writeAsStringSync(
-        'not json at all',
-      );
+      File(
+        '$cacheDir/vendure/vendure.schema.json',
+      ).writeAsStringSync('not json at all');
       expect(dir.existsSync(), true);
       await expectLater(
         cache.read('vendure'),

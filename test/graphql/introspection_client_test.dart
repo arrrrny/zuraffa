@@ -24,10 +24,9 @@ void main() {
       final data = await client.fetch(Uri.parse('https://api.test/graphql'));
       expect(data, isA<Map<String, dynamic>>());
       expect(data['__schema'], isA<Map<String, dynamic>>());
-      expect(
-        (data['__schema'] as Map<String, dynamic>)['queryType'],
-        {'name': 'Query'},
-      );
+      expect((data['__schema'] as Map<String, dynamic>)['queryType'], {
+        'name': 'Query',
+      });
     });
 
     test('fetch posts the introspection query to the endpoint', () async {
@@ -54,21 +53,23 @@ void main() {
       expect(seenQuery, contains('interfaces'));
     });
 
-    test('non-200 status throws IntrospectionException with status code',
-        () async {
-      final client = IntrospectionClient(
-        transport: (endpoint, headers, query) async =>
-            IntrospectionHttpResponse(500, 'Internal Server Error'),
-      );
-      await expectLater(
-        client.fetch(Uri.parse('https://api.test/graphql')),
-        throwsA(
-          isA<IntrospectionException>()
-              .having((e) => e.statusCode, 'statusCode', 500)
-              .having((e) => e.message, 'message', contains('500')),
-        ),
-      );
-    });
+    test(
+      'non-200 status throws IntrospectionException with status code',
+      () async {
+        final client = IntrospectionClient(
+          transport: (endpoint, headers, query) async =>
+              IntrospectionHttpResponse(500, 'Internal Server Error'),
+        );
+        await expectLater(
+          client.fetch(Uri.parse('https://api.test/graphql')),
+          throwsA(
+            isA<IntrospectionException>()
+                .having((e) => e.statusCode, 'statusCode', 500)
+                .having((e) => e.message, 'message', contains('500')),
+          ),
+        );
+      },
+    );
 
     test('transport error throws unreachable error', () async {
       final client = IntrospectionClient(
@@ -88,46 +89,44 @@ void main() {
       );
     });
 
-    test('graphql errors surface message and path of the failing part',
-        () async {
-      final body = {
-        'data': null,
-        'errors': [
-          {
-            'message': 'Cannot query field "ghost" on type "__Schema".',
-            'path': ['__schema', 'types', 'Product', 'fields', 'ghost'],
-            'locations': [
-              {'line': 3, 'column': 7},
-            ],
-          },
-        ],
-      };
-      final client = IntrospectionClient(
-        transport: (endpoint, headers, query) async =>
-            IntrospectionHttpResponse(200, jsonEncode(body)),
-      );
-      await expectLater(
-        client.fetch(Uri.parse('https://api.test/graphql')),
-        throwsA(
-          isA<IntrospectionException>()
-              .having(
-                (e) => e.message,
-                'message',
-                contains('Cannot query field "ghost"'),
-              )
-              .having(
-                (e) => e.message,
-                'message',
-                contains('Product.fields.ghost'),
-              )
-              .having(
-                (e) => e.graphqlErrors?.length,
-                'graphqlErrors',
-                1,
-              ),
-        ),
-      );
-    });
+    test(
+      'graphql errors surface message and path of the failing part',
+      () async {
+        final body = {
+          'data': null,
+          'errors': [
+            {
+              'message': 'Cannot query field "ghost" on type "__Schema".',
+              'path': ['__schema', 'types', 'Product', 'fields', 'ghost'],
+              'locations': [
+                {'line': 3, 'column': 7},
+              ],
+            },
+          ],
+        };
+        final client = IntrospectionClient(
+          transport: (endpoint, headers, query) async =>
+              IntrospectionHttpResponse(200, jsonEncode(body)),
+        );
+        await expectLater(
+          client.fetch(Uri.parse('https://api.test/graphql')),
+          throwsA(
+            isA<IntrospectionException>()
+                .having(
+                  (e) => e.message,
+                  'message',
+                  contains('Cannot query field "ghost"'),
+                )
+                .having(
+                  (e) => e.message,
+                  'message',
+                  contains('Product.fields.ghost'),
+                )
+                .having((e) => e.graphqlErrors?.length, 'graphqlErrors', 1),
+          ),
+        );
+      },
+    );
 
     test('missing __schema throws actionable error', () async {
       final client = IntrospectionClient(
@@ -183,8 +182,11 @@ void main() {
       await expectLater(
         client.fetch(Uri.parse('https://api.test/graphql')),
         throwsA(
-          isA<IntrospectionException>()
-              .having((e) => e.message, 'message', contains('JSON')),
+          isA<IntrospectionException>().having(
+            (e) => e.message,
+            'message',
+            contains('JSON'),
+          ),
         ),
       );
     });

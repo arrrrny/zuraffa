@@ -21,11 +21,17 @@ void main() {
   setUp(() async {
     runner = CliRunner(exitOnCompletion: false);
     tempDir = Directory.systemTemp.createTempSync('zfa_pull_cmd_');
-    fixture = jsonDecode(
-      File(
-        p.join(_fixturesDir, 'graphql', 'vendure_shop_introspection_v1.json'),
-      ).readAsStringSync(),
-    ) as Map<String, dynamic>;
+    fixture =
+        jsonDecode(
+              File(
+                p.join(
+                  _fixturesDir,
+                  'graphql',
+                  'vendure_shop_introspection_v1.json',
+                ),
+              ).readAsStringSync(),
+            )
+            as Map<String, dynamic>;
     exitCode = 0;
   });
 
@@ -84,7 +90,9 @@ void main() {
       expect(File('$dir/vendure.schema.json').existsSync(), true);
       expect(File('$dir/vendure.schema.graphql').existsSync(), true);
 
-      final sdl = File('$dir/vendure/vendure.schema.graphql').readAsStringSync();
+      final sdl = File(
+        '$dir/vendure/vendure.schema.graphql',
+      ).readAsStringSync();
       expect(sdl, contains('type Product implements Node'));
     });
 
@@ -111,15 +119,17 @@ void main() {
     test('graphql errors body -> error names the failing part', () async {
       final srv = await serve((request) async {
         request.response.statusCode = 200;
-        request.response.write(jsonEncode({
-          'data': null,
-          'errors': [
-            {
-              'message': 'Introspection disabled',
-              'path': ['__schema'],
-            },
-          ],
-        }));
+        request.response.write(
+          jsonEncode({
+            'data': null,
+            'errors': [
+              {
+                'message': 'Introspection disabled',
+                'path': ['__schema'],
+              },
+            ],
+          }),
+        );
       });
       final dir = '${tempDir.path}/.zfa/graphql';
       final output = await runner.runCapturing([
@@ -159,7 +169,10 @@ void main() {
         '--name=vendure',
         '--dir=${tempDir.path}/.zfa/graphql',
       ]);
-      expect(output.toLowerCase(), anyOf(contains('endpoint'), contains('usage')));
+      expect(
+        output.toLowerCase(),
+        anyOf(contains('endpoint'), contains('usage')),
+      );
     });
 
     test('pull is listed in zfa graphql help', () async {

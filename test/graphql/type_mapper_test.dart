@@ -91,6 +91,7 @@ void main() {
 
   spec037();
 }
+
 /// Spec 037 — schema cache, introspection & type mapping extensions.
 void spec037() {
   group('TypeMapper (spec 037)', () {
@@ -137,7 +138,9 @@ void spec037() {
     test('malformed scalarMap entries throw clear errors (edge case)', () {
       expect(
         () => TypeMapper.fromZfaConfig({
-          'graphql': {'scalarMap': ['not', 'a', 'map']},
+          'graphql': {
+            'scalarMap': ['not', 'a', 'map'],
+          },
         }),
         throwsA(isA<FormatException>()),
       );
@@ -180,34 +183,42 @@ void spec037() {
     test('mapTypeRef renders GqlTypeRef chains (diff-side rendering)', () {
       final mapper = TypeMapper();
       expect(
-        mapper.mapTypeRef(const GqlTypeRef(kind: GqlTypeKind.scalar, name: 'String')),
+        mapper.mapTypeRef(
+          const GqlTypeRef(kind: GqlTypeKind.scalar, name: 'String'),
+        ),
         'String?',
       );
       expect(
-        mapper.mapTypeRef(const GqlTypeRef(
-          kind: GqlTypeKind.nonNull,
-          ofType: GqlTypeRef(kind: GqlTypeKind.scalar, name: 'String'),
-        )),
+        mapper.mapTypeRef(
+          const GqlTypeRef(
+            kind: GqlTypeKind.nonNull,
+            ofType: GqlTypeRef(kind: GqlTypeKind.scalar, name: 'String'),
+          ),
+        ),
         'String',
       );
       expect(
-        mapper.mapTypeRef(const GqlTypeRef(
-          kind: GqlTypeKind.list,
-          ofType: GqlTypeRef(kind: GqlTypeKind.scalar, name: 'String'),
-        )),
+        mapper.mapTypeRef(
+          const GqlTypeRef(
+            kind: GqlTypeKind.list,
+            ofType: GqlTypeRef(kind: GqlTypeKind.scalar, name: 'String'),
+          ),
+        ),
         'List<String?>',
       );
       expect(
-        mapper.mapTypeRef(const GqlTypeRef(
-          kind: GqlTypeKind.nonNull,
-          ofType: GqlTypeRef(
-            kind: GqlTypeKind.list,
+        mapper.mapTypeRef(
+          const GqlTypeRef(
+            kind: GqlTypeKind.nonNull,
             ofType: GqlTypeRef(
-              kind: GqlTypeKind.nonNull,
-              ofType: GqlTypeRef(kind: GqlTypeKind.scalar, name: 'String'),
+              kind: GqlTypeKind.list,
+              ofType: GqlTypeRef(
+                kind: GqlTypeKind.nonNull,
+                ofType: GqlTypeRef(kind: GqlTypeKind.scalar, name: 'String'),
+              ),
             ),
           ),
-        )),
+        ),
         'List<String>',
       );
     });
@@ -215,10 +226,12 @@ void spec037() {
     test('mapTypeRef applies scalarMap overrides', () {
       final mapper = TypeMapper(customScalars: {'Money': 'int'});
       expect(
-        mapper.mapTypeRef(const GqlTypeRef(
-          kind: GqlTypeKind.nonNull,
-          ofType: GqlTypeRef(kind: GqlTypeKind.scalar, name: 'Money'),
-        )),
+        mapper.mapTypeRef(
+          const GqlTypeRef(
+            kind: GqlTypeKind.nonNull,
+            ofType: GqlTypeRef(kind: GqlTypeKind.scalar, name: 'Money'),
+          ),
+        ),
         'int',
       );
     });
@@ -248,9 +261,7 @@ void spec037() {
           fields: const [
             GraphQLField(
               name: 'id',
-              type: GraphQLNonNullType(
-                ofType: GraphQLScalarType(name: 'ID'),
-              ),
+              type: GraphQLNonNullType(ofType: GraphQLScalarType(name: 'ID')),
             ),
           ],
         ),

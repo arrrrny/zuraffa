@@ -39,8 +39,14 @@ void main() {
 
   group('zfa graphql diff (CLI)', () {
     test('breaking diff prints all changes and exits 1 (FR-004)', () async {
-      await cache.write('vendure', _fixture('vendure_shop_introspection_v1.json'));
-      await cache.write('vendure', _fixture('vendure_shop_introspection_v2.json'));
+      await cache.write(
+        'vendure',
+        _fixture('vendure_shop_introspection_v1.json'),
+      );
+      await cache.write(
+        'vendure',
+        _fixture('vendure_shop_introspection_v2.json'),
+      );
 
       final output = await runner.runCapturing([
         'graphql',
@@ -66,8 +72,14 @@ void main() {
     });
 
     test('clean diff reports no changes and exits 0', () async {
-      await cache.write('vendure', _fixture('vendure_shop_introspection_v1.json'));
-      await cache.write('vendure', _fixture('vendure_shop_introspection_v1.json'));
+      await cache.write(
+        'vendure',
+        _fixture('vendure_shop_introspection_v1.json'),
+      );
+      await cache.write(
+        'vendure',
+        _fixture('vendure_shop_introspection_v1.json'),
+      );
 
       final output = await runner.runCapturing([
         'graphql',
@@ -81,9 +93,13 @@ void main() {
 
     test('--old/--new explicit files override the cache', () async {
       final oldFile = File('${tempDir.path}/old.json')
-        ..writeAsStringSync(jsonEncode(_fixture('vendure_shop_introspection_v1.json')));
+        ..writeAsStringSync(
+          jsonEncode(_fixture('vendure_shop_introspection_v1.json')),
+        );
       final newFile = File('${tempDir.path}/new.json')
-        ..writeAsStringSync(jsonEncode(_fixture('vendure_shop_introspection_v2.json')));
+        ..writeAsStringSync(
+          jsonEncode(_fixture('vendure_shop_introspection_v2.json')),
+        );
 
       final output = await runner.runCapturing([
         'graphql',
@@ -97,7 +113,10 @@ void main() {
     });
 
     test('unknown name lists cached schemas and errors', () async {
-      await cache.write('vendure', _fixture('vendure_shop_introspection_v1.json'));
+      await cache.write(
+        'vendure',
+        _fixture('vendure_shop_introspection_v1.json'),
+      );
 
       final output = await runner.runCapturing([
         'graphql',
@@ -111,7 +130,10 @@ void main() {
     });
 
     test('no previous version suggests a first pull', () async {
-      await cache.write('vendure', _fixture('vendure_shop_introspection_v1.json'));
+      await cache.write(
+        'vendure',
+        _fixture('vendure_shop_introspection_v1.json'),
+      );
 
       final output = await runner.runCapturing([
         'graphql',

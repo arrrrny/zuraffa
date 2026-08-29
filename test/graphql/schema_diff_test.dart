@@ -10,9 +10,7 @@ import '../helpers/project_root.dart';
 GqlSchema _load(String file) {
   final raw = File(p.join(_fixturesDir, 'graphql', file)).readAsStringSync();
   final json = jsonDecode(raw) as Map<String, dynamic>;
-  return GqlSchema.fromIntrospection(
-    json['data'] as Map<String, dynamic>,
-  );
+  return GqlSchema.fromIntrospection(json['data'] as Map<String, dynamic>);
 }
 
 late String _fixturesDir;
@@ -32,7 +30,10 @@ void main() {
 
   group('SchemaDiffer', () {
     test('identical schemas produce no changes', () {
-      final diff = SchemaDiffer.diff(v1, _load('vendure_shop_introspection_v1.json'));
+      final diff = SchemaDiffer.diff(
+        v1,
+        _load('vendure_shop_introspection_v1.json'),
+      );
       expect(diff.changes, isEmpty);
       expect(diff.hasBreaking, false);
     });
@@ -58,8 +59,7 @@ void main() {
       expect(removed.first.severity, ChangeSeverity.breaking);
     });
 
-    test('nullability change reported as breaking with old and new types',
-        () {
+    test('nullability change reported as breaking with old and new types', () {
       final diff = SchemaDiffer.diff(v1, v2);
       final changed = diff.changes.where(
         (c) => c.kind == ChangeKind.nullabilityChanged,
@@ -90,10 +90,10 @@ void main() {
         (c) => c.kind == ChangeKind.optionalFieldAdded,
       );
       // Product.slug and Query.search are both optional additions.
-      expect(added.map((c) => '${c.typeName}.${c.fieldName}'), containsAll([
-        'Product.slug',
-        'Query.search',
-      ]));
+      expect(
+        added.map((c) => '${c.typeName}.${c.fieldName}'),
+        containsAll(['Product.slug', 'Query.search']),
+      );
       for (final change in added) {
         expect(change.severity, ChangeSeverity.nonBreaking);
       }
@@ -129,46 +129,50 @@ void main() {
       expect(added.first.severity, ChangeSeverity.nonBreaking);
     });
 
-    test('v1 -> v2 fixture diff is exactly the 9 expected changes (SC-002)',
-        () {
-      final diff = SchemaDiffer.diff(v1, v2);
-      expect(diff.changes, hasLength(9));
+    test(
+      'v1 -> v2 fixture diff is exactly the 9 expected changes (SC-002)',
+      () {
+        final diff = SchemaDiffer.diff(v1, v2);
+        expect(diff.changes, hasLength(9));
 
-      final breaking = diff.changes
-          .where((c) => c.severity == ChangeSeverity.breaking)
-          .toList();
-      final nonBreaking = diff.changes
-          .where((c) => c.severity == ChangeSeverity.nonBreaking)
-          .toList();
-      expect(breaking, hasLength(5));
-      expect(nonBreaking, hasLength(4));
-      expect(diff.hasBreaking, true);
+        final breaking = diff.changes
+            .where((c) => c.severity == ChangeSeverity.breaking)
+            .toList();
+        final nonBreaking = diff.changes
+            .where((c) => c.severity == ChangeSeverity.nonBreaking)
+            .toList();
+        expect(breaking, hasLength(5));
+        expect(nonBreaking, hasLength(4));
+        expect(diff.hasBreaking, true);
 
-      // Breaking set (exact).
-      expect(
-        breaking.map((c) => '${c.kind.name}:${c.typeName}.${c.fieldName ?? ''}').toSet(),
-        {
-          'typeRemoved:Collection.',
-          'fieldRemoved:Product.description',
-          'nullabilityChanged:ProductVariant.price',
-          'requiredFieldAdded:Order.code',
-          'enumValueRemoved:SortOrder.NATURAL',
-        },
-      );
+        // Breaking set (exact).
+        expect(
+          breaking
+              .map((c) => '${c.kind.name}:${c.typeName}.${c.fieldName ?? ''}')
+              .toSet(),
+          {
+            'typeRemoved:Collection.',
+            'fieldRemoved:Product.description',
+            'nullabilityChanged:ProductVariant.price',
+            'requiredFieldAdded:Order.code',
+            'enumValueRemoved:SortOrder.NATURAL',
+          },
+        );
 
-      // Non-breaking set (exact).
-      expect(
-        nonBreaking
-            .map((c) => '${c.kind.name}:${c.typeName}.${c.fieldName ?? ''}')
-            .toSet(),
-        {
-          'optionalFieldAdded:Product.slug',
-          'optionalFieldAdded:Query.search',
-          'enumValueAdded:CurrencyCode.XBT',
-          'typeAdded:SearchResponse.',
-        },
-      );
-    });
+        // Non-breaking set (exact).
+        expect(
+          nonBreaking
+              .map((c) => '${c.kind.name}:${c.typeName}.${c.fieldName ?? ''}')
+              .toSet(),
+          {
+            'optionalFieldAdded:Product.slug',
+            'optionalFieldAdded:Query.search',
+            'enumValueAdded:CurrencyCode.XBT',
+            'typeAdded:SearchResponse.',
+          },
+        );
+      },
+    );
 
     test('changes render human-readable descriptions', () {
       final diff = SchemaDiffer.diff(v1, v2);
