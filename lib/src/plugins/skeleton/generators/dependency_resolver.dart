@@ -122,36 +122,6 @@ class DependencyResolver {
       }
     }
 
-    // Detect references to entities not declared by any known feature.
-    // Scan for PascalCase words in non-heading lines that look like entity
-    // names but aren't in the global entity map.
-    final allKnownEntities = {
-      ...localEntities,
-      ...entityToFeature.keys,
-    };
-    // Matches: Product, Beta, CartItem, OrderItem, etc.
-    // Excludes: plurals (ending in 's') and words from heading lines.
-    final entityNamePattern = RegExp(
-      r'\b([A-Z][a-z]+(?:[A-Z][a-z]+)*)\b',
-    );
-    // Only scan non-heading lines (skip lines starting with '#').
-    final bodyLines = body.split('\n');
-    for (final line in bodyLines) {
-      if (line.trimLeft().startsWith('#')) continue;
-      for (final match in entityNamePattern.allMatches(line)) {
-        final word = match.group(1)!;
-        // Entity names don't end with lowercase 's' (plural forms are prose).
-        if (word.endsWith('s')) continue;
-        if (!allKnownEntities.contains(word)) {
-          throw DependencyResolutionError(
-            'Entity "$word" is referenced in "${feature.slug}" but is not '
-            'declared by any known feature. '
-            'missing: entity not defined in any feature spec.',
-          );
-        }
-      }
-    }
-
     if (refMap.isEmpty) return const [];
 
     // Group by source feature.
