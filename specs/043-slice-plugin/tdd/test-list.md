@@ -36,15 +36,15 @@ tasks.md where a scenario spans one command), driven by `dart test`.
 
 | id  | behavior                                                                                                                              | traces                    | kind    | state   | test |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------- | ------- | ---- |
-| A1  | `slice cut` on a profile-like page produces a sandbox with view/controller/presenter/state/usecases/entities/mock DI/entry point and no unrelated files | US1-S1, FR-001, FR-003, FR-004 | example | PENDING |      |
-| A2  | A cut including widgets used by other features includes them and classifies them `shared` in slice.yaml                                | US1-S2, FR-010            | example | PENDING |      |
-| A3  | A presenter resolving usecases via `getIt<T>()` gets those usecase types and their DI registration files included                      | US1-S3, FR-001            | example | PENDING |      |
-| A4  | A barrel (`index.dart`) import pulls in only the re-exported symbols the slice actually references                                     | US1-S4, FR-005            | example | PENDING |      |
-| A5  | Merge copies back only the agent-modified file to its original path and touches nothing else                                           | US2-S1, FR-008            | example | PENDING |      |
-| A6  | Merge of a modified `shared` file warns and requires confirmation before overwriting                                                   | US2-S2, FR-008, FR-010    | example | PENDING |      |
-| A7  | A file changed in both sandbox and main project since the cut is reported as a conflict, never silently overwritten                    | US2-S3, FR-008            | example | PENDING |      |
-| A8  | Merge with no modifications reports "no changes to merge" and deletes the slice directory                                              | US2-S4, FR-008            | example | PENDING |      |
-| A9  | `slice list` shows all active slices with name, entry points, creation date, and file count                                            | US3-S1, FR-012            | example | PENDING |      |
+| A1  | `slice cut` on a profile-like page produces a sandbox with view/controller/presenter/state/usecases/entities/mock DI/entry point and no unrelated files | US1-S1, FR-001, FR-003, FR-004 | example | DONE   | `test/plugins/slice/slice_cut_integration_test.dart` |
+| A2  | A cut including widgets used by other features includes them and classifies them `shared` in slice.yaml                                | US1-S2, FR-010            | example | DONE   | `test/plugins/slice/slice_cut_integration_test.dart` |
+| A3  | A presenter resolving usecases via `getIt<T>()` gets those usecase types and their DI registration files included                      | US1-S3, FR-001            | example | DONE   | `test/plugins/slice/slice_cut_integration_test.dart` |
+| A4  | A barrel (`index.dart`) import pulls in only the re-exported symbols the slice actually references                                     | US1-S4, FR-005            | example | DONE   | `test/plugins/slice/slice_cut_integration_test.dart` |
+| A5  | Merge copies back only the agent-modified file to its original path and touches nothing else                                           | US2-S1, FR-008            | example | DONE   | `test/plugins/slice/slice_merge_integration_test.dart` |
+| A6  | Merge of a modified `shared` file warns and requires confirmation before overwriting                                                   | US2-S2, FR-008, FR-010    | example | DONE   | `test/plugins/slice/slice_merge_integration_test.dart` |
+| A7  | A file changed in both sandbox and main project since the cut is reported as a conflict, never silently overwritten                    | US2-S3, FR-008            | example | DONE   | `test/plugins/slice/slice_merge_integration_test.dart` |
+| A8  | Merge with no modifications reports "no changes to merge" and deletes the slice directory                                              | US2-S4, FR-008            | example | DONE   | `test/plugins/slice/slice_merge_integration_test.dart` |
+| A9  | `slice list` shows all active slices with name, entry points, creation date, and file count                                            | US3-S1, FR-012            | example | DONE   | `test/plugins/slice/slice_list_inspect_test.dart` |
 | A10 | `slice inspect` shows every file with ownership classification and modified-since-cut status                                           | US3-S2, FR-012, FR-010    | example | DONE    | `test/plugins/slice/slice_list_inspect_test.dart::A10 (T096): inspect shows every file with ownership and modification status` |
 | A11 | A two-entry cut contains both pages' dependency trees with shared dependencies included exactly once                                   | US4-S1, FR-011            | example | DONE    | `test/plugins/slice/slice_multi_entry_test.dart::A11 (T097): both pages with shared dependencies exactly once` |
 | A12 | A usecase shared by both entries appears once in the manifest with one DI registration                                                 | US4-S2, FR-011            | example | DONE    | `test/plugins/slice/slice_multi_entry_test.dart::A12 (T098): the shared usecase and its DI registration appear once in the manifest` |
@@ -58,11 +58,11 @@ tasks.md where a scenario spans one command), driven by `dart test`.
 | A20 | `slice run` launches `flutter run -t .zuraffa/slices/<name>/main_slice.dart` from the project root                                     | US7-S1, FR-016            | example | DONE   | `test/plugins/slice/runner/slice_runner_test.dart` |
 | A21 | `slice run` on an unverified slice verifies first and aborts without launching when verification fails                                 | US7-S2, FR-016, FR-013    | example | DONE   | `test/plugins/slice/runner/slice_runner_test.dart` |
 | A22 | Extra flags (e.g. `--device chrome`) pass through to the underlying `flutter run`                                                      | US7-S3, FR-016            | example | DONE   | `test/plugins/slice/runner/slice_runner_test.dart` |
-| A23 | `slice export --format tar.gz` produces an archive with all sandbox files and a self-contained filtered pubspec.yaml                   | US8-S1, FR-017, FR-020    | example | PENDING |      |
-| A24 | `slice export --format github --repo <name>` creates/pushes a GitHub repo with SLICE.md as README and a working pubspec.yaml           | US8-S2, FR-018, FR-020    | example | PENDING |      |
-| A25 | `slice export --format github` without `--repo` auto-generates a repo name from project and slice name                                 | US8-S3, FR-018            | example | PENDING |      |
-| A26 | Export of an unverified slice runs verification first and aborts when it fails                                                         | US8-S4, FR-020            | example | PENDING |      |
-| A27 | `slice import --from github` pulls the exported repo's contents back into the local sandbox, ready for `slice merge`                   | US8-S5, FR-019            | example | PENDING |      |
+| A23 | `slice export --format tar.gz` produces an archive with all sandbox files and a self-contained filtered pubspec.yaml                   | US8-S1, FR-017, FR-020    | example | DONE   | `test/plugins/slice/slice_export_integration_test.dart` |
+| A24 | `slice export --format github --repo <name>` creates/pushes a GitHub repo with SLICE.md as README and a working pubspec.yaml           | US8-S2, FR-018, FR-020    | example | DONE   | `test/plugins/slice/slice_export_integration_test.dart` |
+| A25 | `slice export --format github` without `--repo` auto-generates a repo name from project and slice name                                 | US8-S3, FR-018            | example | DONE   | `test/plugins/slice/slice_export_integration_test.dart` |
+| A26 | Export of an unverified slice runs verification first and aborts when it fails                                                         | US8-S4, FR-020            | example | DONE   | `test/plugins/slice/slice_export_integration_test.dart` |
+| A27 | `slice import --from github` pulls the exported repo's contents back into the local sandbox, ready for `slice merge`                   | US8-S5, FR-019            | example | DONE   | `test/plugins/slice/slice_export_integration_test.dart` |
 
 ## Inner loop: unit behaviors
 
@@ -75,25 +75,25 @@ boundaries, not proven properties.
 
 | id  | behavior                                                                                       | traces | kind    | state   | test |
 | --- | ---------------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
-| U1  | A manifest with files, boundaries, hashes, and depth round-trips through write→read unchanged  | FR-004 | example | PENDING |      |
-| U2  | A manifest with empty files/boundaries and null `exportedTo` round-trips unchanged             | FR-004 | example | PENDING |      |
-| U3  | Reading a missing or corrupt `slice.yaml` fails with an error naming the slice directory       | FR-012 | example | PENDING |      |
+| U1  | A manifest with files, boundaries, hashes, and depth round-trips through write→read unchanged  | FR-004 | example | DONE   | `test/plugins/slice/models/slice_manifest_test.dart` |
+| U2  | A manifest with empty files/boundaries and null `exportedTo` round-trips unchanged             | FR-004 | example | DONE   | `test/plugins/slice/models/slice_manifest_test.dart` |
+| U3  | Reading a missing or corrupt `slice.yaml` fails with an error naming the slice directory       | FR-012 | example | DONE   | `test/plugins/slice/models/slice_manifest_test.dart` |
 
 ### `lib/src/plugins/slice/engine/package_resolver.dart`
 
 | id  | behavior                                                                                                    | traces         | kind    | state   | test |
 | --- | ----------------------------------------------------------------------------------------------------------- | -------------- | ------- | ------- | ---- |
-| U4  | Resolves `package:<self>/src/x.dart` to `<root>/lib/src/x.dart` via `.dart_tool/package_config.json`        | FR-009         | example | PENDING |      |
-| U5  | Resolves a relative import (`../foo/bar.dart`) against the importing file's directory                       | FR-009         | example | PENDING |      |
-| U6  | Classifies `dart:*` and third-party `package:*` imports as framework/external without filesystem resolution | FR-009, FR-010 | example | PENDING |      |
-| U7  | A missing `package_config.json` fails with an error telling the user to run `dart pub get`                  | FR-009         | example | PENDING |      |
-| U8  | A `package:` URI absent from the package config is treated as external and never traversed                  | FR-009         | example | PENDING |      |
+| U4  | Resolves `package:<self>/src/x.dart` to `<root>/lib/src/x.dart` via `.dart_tool/package_config.json`        | FR-009         | example | DONE   | `test/plugins/slice/engine/package_resolver_test.dart` |
+| U5  | Resolves a relative import (`../foo/bar.dart`) against the importing file's directory                       | FR-009         | example | DONE   | `test/plugins/slice/engine/package_resolver_test.dart` |
+| U6  | Classifies `dart:*` and third-party `package:*` imports as framework/external without filesystem resolution | FR-009, FR-010 | example | DONE   | `test/plugins/slice/engine/package_resolver_test.dart` |
+| U7  | A missing `package_config.json` fails with an error telling the user to run `dart pub get`                  | FR-009         | example | DONE   | `test/plugins/slice/engine/package_resolver_test.dart` |
+| U8  | A `package:` URI absent from the package config is treated as external and never traversed                  | FR-009         | example | DONE   | `test/plugins/slice/engine/package_resolver_test.dart` |
 
 ### `lib/src/plugins/slice/engine/service_locator_analyzer.dart`
 
 | id  | behavior                                                                                                    | traces | kind    | state   | test |
 | --- | ----------------------------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
-| U9  | Extracts every `getIt<T>()` type argument from a presenter constructor body                                 | FR-001 | example | PENDING |      |
+| U9  | Extracts every `getIt<T>()` type argument from a presenter constructor body                                 | FR-001 | example | DONE   | `test/plugins/slice/engine/service_locator_analyzer_test.dart` |
 | U10 | Extracts `T` nested inside `registerUseCase(getIt<T>())`                                                    | FR-001 | example | DONE    | `test/plugins/slice/engine/service_locator_analyzer_test.dart::U10: extracts T nested inside registerUseCase(getIt<T>())` |
 | U11 | Ignores generic method calls that are not `getIt` lookups                                                   | FR-001 | example | DONE    | `test/plugins/slice/engine/service_locator_analyzer_test.dart::U11: ignores generic method calls that are not getIt lookups` |
 | U12 | Maps each extracted type to its DI registration file under `lib/src/di/` via the snake_case naming convention | FR-001 | example | DONE    | `test/plugins/slice/engine/service_locator_analyzer_test.dart::U12: maps a type to lib/src/di/**/<snake>_di.dart` |
@@ -205,37 +205,37 @@ boundaries, not proven properties.
 
 | id  | behavior                                                                                                   | traces | kind    | state   | test |
 | --- | ---------------------------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
-| U54 | The filtered pubspec keeps only dependencies actually imported by the sliced files                         | FR-017 | example | PENDING |      |
-| U55 | `flutter` and `flutter_test` SDK entries are always kept                                                   | FR-017 | example | PENDING |      |
-| U56 | Git, path, and hosted sources of kept dependencies are preserved                                           | FR-017 | example | PENDING |      |
+| U54 | The filtered pubspec keeps only dependencies actually imported by the sliced files                         | FR-017 | example | DONE   | `test/plugins/slice/exporter/pubspec_filter_test.dart` |
+| U55 | `flutter` and `flutter_test` SDK entries are always kept                                                   | FR-017 | example | DONE   | `test/plugins/slice/exporter/pubspec_filter_test.dart` |
+| U56 | Git, path, and hosted sources of kept dependencies are preserved                                           | FR-017 | example | DONE   | `test/plugins/slice/exporter/pubspec_filter_test.dart` |
 
 ### `lib/src/plugins/slice/exporter/tarball_exporter.dart`
 
 | id  | behavior                                                                                                                    | traces | kind    | state   | test |
 | --- | --------------------------------------------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
-| U57 | The archive contains the mirrored sandbox tree, the filtered `pubspec.yaml`, `main_slice.dart`, and `SLICE.md`              | FR-017 | example | PENDING |      |
+| U57 | The archive contains the mirrored sandbox tree, the filtered `pubspec.yaml`, `main_slice.dart`, and `SLICE.md`              | FR-017 | example | DONE   | `test/plugins/slice/exporter/tarball_exporter_test.dart` |
 
 ### `lib/src/plugins/slice/capabilities/export_slice_capability.dart`
 
 | id  | behavior                                                                              | traces | kind    | state   | test |
 | --- | ------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
-| U58 | Export of a slice that fails verification aborts before any archive or repo is made   | FR-020 | example | PENDING |      |
+| U58 | Export of a slice that fails verification aborts before any archive or repo is made   | FR-020 | example | DONE   | `test/plugins/slice/capabilities/export_slice_capability_test.dart` |
 
 ### `lib/src/plugins/slice/exporter/github_exporter.dart`
 
 | id  | behavior                                                                                                  | traces | kind    | state   | test |
 | --- | --------------------------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
-| U59 | Creates a private repo, pushes the sandbox as the initial commit, and uses `SLICE.md` as the README       | FR-018 | example | PENDING |      |
-| U60 | A given `--repo` value is honored; without one a name is generated from the project and slice names       | FR-018 | example | PENDING |      |
-| U61 | The repo URL is recorded in the manifest's `exportedTo` field                                             | FR-018 | example | PENDING |      |
-| U62 | An unauthenticated `gh` CLI fails with a clear auth error naming the fix                                  | FR-018 | example | PENDING |      |
+| U59 | Creates a private repo, pushes the sandbox as the initial commit, and uses `SLICE.md` as the README       | FR-018 | example | DONE   | `test/plugins/slice/exporter/tarball_exporter_test.dart` |
+| U60 | A given `--repo` value is honored; without one a name is generated from the project and slice names       | FR-018 | example | DONE   | `test/plugins/slice/exporter/tarball_exporter_test.dart` |
+| U61 | The repo URL is recorded in the manifest's `exportedTo` field                                             | FR-018 | example | DONE   | `test/plugins/slice/exporter/tarball_exporter_test.dart` |
+| U62 | An unauthenticated `gh` CLI fails with a clear auth error naming the fix                                  | FR-018 | example | DONE   | `test/plugins/slice/exporter/tarball_exporter_test.dart` |
 
 ### `lib/src/plugins/slice/exporter/slice_importer.dart`
 
 | id  | behavior                                                                                     | traces | kind    | state   | test |
 | --- | -------------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
-| U63 | Import pulls the exported repo's contents over the local sandbox, overwriting sandbox files  | FR-019 | example | PENDING |      |
-| U64 | Import on a slice with no `exportedTo` fails with an error telling the user to export first  | FR-019 | example | PENDING |      |
+| U63 | Import pulls the exported repo's contents over the local sandbox, overwriting sandbox files  | FR-019 | example | DONE   | `test/plugins/slice/exporter/slice_importer_test.dart` |
+| U64 | Import on a slice with no `exportedTo` fails with an error telling the user to export first  | FR-019 | example | DONE   | `test/plugins/slice/exporter/slice_importer_test.dart` |
 
 ### `lib/src/plugins/slice/slice_command.dart`
 

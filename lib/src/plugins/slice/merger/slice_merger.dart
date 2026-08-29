@@ -161,13 +161,16 @@ class SliceMerger {
     }
 
     // Agent-created files: sandbox files outside the manifest and the
-    // generated harness (U67).
+    // generated harness (U67). Export artifacts (the filtered pubspec and
+    // the README staged from SLICE.md by `slice export`) are generated, not
+    // agent work — they must never be merged back over the project.
+    const exportArtifacts = {'pubspec.yaml', 'README.md'};
     final sandboxRoot = Directory(sandboxDir);
     if (await sandboxRoot.exists()) {
       for (final entity in sandboxRoot.listSync(recursive: true)) {
         if (entity is! File) continue;
         final rel = p.relative(entity.path, from: sandboxDir);
-        if (known.contains(rel)) continue;
+        if (known.contains(rel) || exportArtifacts.contains(rel)) continue;
         created.add(rel);
         await _copy(entity.path, p.join(projectRoot, rel));
       }

@@ -24,7 +24,10 @@ import 'package:path/path.dart' as p;
 
 import 'capabilities/cut_slice_capability.dart';
 import 'capabilities/merge_slice_capability.dart';
+import 'capabilities/export_slice_capability.dart';
 import 'capabilities/verify_slice_capability.dart';
+import 'exporter/github_exporter.dart';
+import 'exporter/slice_importer.dart';
 import 'generators/manifest_writer.dart';
 import 'models/slice_file.dart';
 import 'models/slice_manifest.dart';
@@ -39,7 +42,7 @@ class SliceCommand extends Command<void> {
   /// writes (used by tests); when null the command prompts on a terminal
   /// and denies when there is none (deterministic in CI).
   SliceCommand({this.projectRoot = '.', bool Function()? confirmShared,
-      this.analyzeLauncher, this.processLauncher})
+      this.analyzeLauncher, this.processLauncher, this.ghLauncher})
     : _confirmShared = confirmShared;
 
   /// Root of the project being sliced.
@@ -52,6 +55,10 @@ class SliceCommand extends Command<void> {
 
   /// Process seam for `slice run` (injected by tests).
   final RunLauncher? processLauncher;
+
+  /// Process seam for `slice export`/`slice import` (gh/git commands;
+  /// injected by tests).
+  final GhLauncher? ghLauncher;
 
   @override
   String get name => 'slice';
@@ -510,7 +517,29 @@ import options:
       return;
     }
 
-    print('slice export is not wired yet');
+    final sliceName = results.rest.first;
+    final repo = results['repo'] as String?;
+    final capability = ExportSliceCapability();
+    final result = await capability.execute({
+      'name': sliceName,
+      'projectRoot': projectRoot,
+      'format': format,
+      'repo': repo,
+      if (ghLauncher != null) 'ghLauncher': ghLauncher,
+    });
+
+    if (result.success) {
+      print(result.message);
+      return;
+    }
+    print('Error: ${result.message}');
+    for (final issue in (result.data?['issues'] as List? ?? const [])) {
+      final issueMap = issue as Map;
+      print(
+        'unresolved: ${issueMap['file']}:${issueMap['line']} '
+        '"${issueMap['importPath']}" — ${issueMap['reason']}',
+      );
+    }
     exitCode = 1;
   }
 
@@ -537,7 +566,18 @@ import options:
       return;
     }
 
-    print('slice import is not wired yet');
+    final sliceName = results.rest.first;
+    final importer = SliceImporter(ghLauncher: ghLauncher);
+    final result = await importer.importSlice(
+      sliceName: sliceName,
+      projectRoot: projectRoot,
+    );
+
+    if (result.success) {
+      print(result.message);
+      return;
+    }
+    print('Error: ${result.message}');
     exitCode = 1;
   }
 }

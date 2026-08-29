@@ -411,3 +411,49 @@ existed and failed before the implementation.
 - commit: (this commit)
 - notes: T085 (U65/U66 command validation tests) was implemented back in
   Cycle 1 but its tasks.md checkbox was never ticked; corrected here.
+
+## Cycle 19: U54-U64 - PubspecFilter, TarballExporter, GithubExporter, SliceImporter, ExportSliceCapability; A23-A27 (gates T109-T113) - export/import
+
+- tests: `test/plugins/slice/exporter/pubspec_filter_test.dart` (new, 4),
+  `test/plugins/slice/exporter/tarball_exporter_test.dart` (new, 5),
+  `test/plugins/slice/exporter/slice_importer_test.dart` (new, 3),
+  `test/plugins/slice/capabilities/export_slice_capability_test.dart`
+  (new, 1), `test/plugins/slice/slice_export_integration_test.dart`
+  (new, 5).
+- red: `dart test test/plugins/slice/exporter/ ...` -> +0 -2 both files
+  failed to load: `Error when reading
+  'lib/src/plugins/slice/exporter/pubspec_filter.dart': No such file or
+  directory`, `'PubspecFilter' isn't a type`, `Method not found:
+  'GithubExporter'`; the importer test failed the same way
+  (`Method not found: 'SliceImporter'`); U58 and A23-A27 failed red against
+  the `slice export is not wired yet` placeholder (behavioral red).
+- green: PubspecFilter (analyzer-based import scan; flutter/flutter_test
+  always kept; git/path/hosted sources preserved; hand-rolled YAML emission
+  with conservative quoting), TarballExporter (tar+gzip via the archive
+  package, filtered pubspec embedded at the archive root), GithubExporter
+  (gh auth gate -> SLICE.md promoted to README.md -> git init/add/commit
+  with pinned identity -> `gh repo create --private --source --push` ->
+  `gh repo view --json url`; auto repo name
+  `<package>-slice-<slice>`), SliceImporter (manifest exportedTo gate, git
+  clone through the seam, copy-over-sandbox), ExportSliceCapability
+  (verify gate FIRST, then filter + delegate; exportedTo recorded in
+  slice.yaml), and the `export`/`import` subcommands wired in SliceCommand
+  with a `ghLauncher` seam. `dart test test/plugins/slice/` -> 135 passed.
+- design gap found while writing A24 (same class as cycle 17's barrel gap):
+  the pushed repo needs a working pubspec.yaml (FR-018), but writing one
+  into the sandbox would make merge treat it as an agent-created file and
+  overwrite the project's real pubspec. Fix: GithubExporter embeds the
+  filtered pubspec in the sandbox, and the merger's agent-created scan now
+  skips export artifacts (pubspec.yaml, README.md) — generated files, not
+  agent work, never merged back. No existing behavior changed (U67/U68
+  still pass).
+- in-cycle corrections: two compile-only test bugs (wrong relative import
+  path for the helpers; a cascade/precedence error in captureOutput) and
+  one missing constructor argument (`boundaries`) in the importer test's
+  manifest fixture — all fixed before the first meaningful red run; the
+  red evidence above is from the loaded-suite runs.
+- refactor: none.
+- commit: (this commit)
+- notes: also marked A1-A9 and U1-U9 as DONE in test-list.md — those rows
+  were implemented in cycles 7-13 but the earlier cycles only ticked
+  tasks.md, never the test-list rows (bookkeeping debt, not new work).

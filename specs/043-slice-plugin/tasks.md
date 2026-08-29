@@ -280,29 +280,29 @@
 
 ### Tests for User Story 8 (write FIRST — observe each failing before its implementation task)
 
-- [ ] T069 [US8] [U54] [U55] [U56] Create unit test for `PubspecFilter` verifying only used dependencies are kept, `flutter` always included in test/plugins/slice/exporter/pubspec_filter_test.dart
-- [ ] T070 [US8] [U57] Create unit test for `TarballExporter` verifying archive contains expected files and filtered pubspec in test/plugins/slice/exporter/tarball_exporter_test.dart
-- [ ] T083 [P] [US8] [U59] [U60] [U61] [U62] Create unit test for `GithubExporter` — repo create/push/README, `--repo` honored vs auto-name, `exportedTo` recorded, unauthenticated `gh` error — via a fake gh-process seam in test/plugins/slice/exporter/github_exporter_test.dart
-- [ ] T084 [P] [US8] [U63] [U64] Create unit test for `SliceImporter` — pull-over-sandbox and missing-`exportedTo` error — in test/plugins/slice/exporter/slice_importer_test.dart
-- [ ] T086 [P] [US8] [U58] Create unit test for the export verify-gate — export aborts when verification fails and no artifact is produced — in test/plugins/slice/capabilities/export_slice_capability_test.dart
+- [x] T069 [US8] [U54] [U55] [U56] Create unit test for `PubspecFilter` verifying only used dependencies are kept, `flutter` always included in test/plugins/slice/exporter/pubspec_filter_test.dart
+- [x] T070 [US8] [U57] Create unit test for `TarballExporter` verifying archive contains expected files and filtered pubspec in test/plugins/slice/exporter/tarball_exporter_test.dart
+- [x] T083 [P] [US8] [U59] [U60] [U61] [U62] Create unit test for `GithubExporter` — repo create/push/README, `--repo` honored vs auto-name, `exportedTo` recorded, unauthenticated `gh` error — via a fake gh-process seam in test/plugins/slice/exporter/github_exporter_test.dart
+- [x] T084 [P] [US8] [U63] [U64] Create unit test for `SliceImporter` — pull-over-sandbox and missing-`exportedTo` error — in test/plugins/slice/exporter/slice_importer_test.dart
+- [x] T086 [P] [US8] [U58] Create unit test for the export verify-gate — export aborts when verification fails and no artifact is produced — in test/plugins/slice/capabilities/export_slice_capability_test.dart
 
 ### Implementation for User Story 8
 
-- [ ] T062 [US8] [U54] [U55] [U56] Create `PubspecFilter` that reads the project's `pubspec.yaml`, scans all sliced `.dart` files for `package:` import URIs, extracts package names, and writes a filtered `pubspec.yaml` containing only used dependencies (plus `flutter` and `flutter_test` always) in lib/src/plugins/slice/exporter/pubspec_filter.dart
-- [ ] T063 [US8] [U57] Create `TarballExporter` that copies the sandbox directory into a staging area, adds the filtered `pubspec.yaml`, and produces a `.tar.gz` archive using `dart:io` `gzip` + `tar` in lib/src/plugins/slice/exporter/tarball_exporter.dart
-- [ ] T064 [US8] [U59] [U60] [U61] [U62] Create `GithubExporter` that creates a new private GitHub repository (via `gh` CLI or GitHub MCP tools), pushes sandbox contents as initial commit, uses `SLICE.md` as `README.md`, and stores the repo URL in `slice.yaml` `exportedTo` field in lib/src/plugins/slice/exporter/github_exporter.dart
-- [ ] T065 [US8] [U63] [U64] Create `SliceImporter` that reads `exportedTo` URL from `slice.yaml`, clones/pulls the GitHub repo into a temp directory, copies contents over the local sandbox, ready for `zfa slice merge` in lib/src/plugins/slice/exporter/slice_importer.dart
-- [ ] T066 [US8] [U58] [A23] [A24] [A25] [A26] Create `ExportSliceCapability` implementing `ZuraffaCapability` — accepts `format` (tarGz/github), optional `repo` name, runs verify first, delegates to `TarballExporter` or `GithubExporter` in lib/src/plugins/slice/capabilities/export_slice_capability.dart
-- [ ] T067 [US8] [A23] [A24] [A25] [A26] Implement the `export` subcommand in `SliceCommand` — parse slice name, `--format` (tar.gz|github), `--repo` (optional), delegate to `ExportSliceCapability.execute()` in lib/src/plugins/slice/slice_command.dart
-- [ ] T068 [US8] [A27] Implement the `import` subcommand in `SliceCommand` — parse slice name, `--from github` flag, delegate to `SliceImporter` in lib/src/plugins/slice/slice_command.dart
+- [x] T062 [US8] [U54] [U55] [U56] Create `PubspecFilter` that reads the project's `pubspec.yaml`, scans all sliced `.dart` files for `package:` import URIs, extracts package names, and writes a filtered `pubspec.yaml` containing only used dependencies (plus `flutter` and `flutter_test` always) in lib/src/plugins/slice/exporter/pubspec_filter.dart
+- [x] T063 [US8] [U57] Create `TarballExporter` that copies the sandbox directory into a staging area, adds the filtered `pubspec.yaml`, and produces a `.tar.gz` archive using `dart:io` `gzip` + `tar` in lib/src/plugins/slice/exporter/tarball_exporter.dart
+- [x] T064 [US8] [U59] [U60] [U61] [U62] Create `GithubExporter` that creates a new private GitHub repository (via `gh` CLI or GitHub MCP tools), pushes sandbox contents as initial commit, uses `SLICE.md` as `README.md`, and stores the repo URL in `slice.yaml` `exportedTo` field in lib/src/plugins/slice/exporter/github_exporter.dart
+- [x] T065 [US8] [U63] [U64] Create `SliceImporter` that reads `exportedTo` URL from `slice.yaml`, clones/pulls the GitHub repo into a temp directory, copies contents over the local sandbox, ready for `zfa slice merge` in lib/src/plugins/slice/exporter/slice_importer.dart
+- [x] T066 [US8] [U58] [A23] [A24] [A25] [A26] Create `ExportSliceCapability` implementing `ZuraffaCapability` — accepts `format` (tarGz/github), optional `repo` name, runs verify first, delegates to `TarballExporter` or `GithubExporter` in lib/src/plugins/slice/capabilities/export_slice_capability.dart
+- [x] T067 [US8] [A23] [A24] [A25] [A26] Implement the `export` subcommand in `SliceCommand` — parse slice name, `--format` (tar.gz|github), `--repo` (optional), delegate to `ExportSliceCapability.execute()` in lib/src/plugins/slice/slice_command.dart
+- [x] T068 [US8] [A27] Implement the `import` subcommand in `SliceCommand` — parse slice name, `--from github` flag, delegate to `SliceImporter` in lib/src/plugins/slice/slice_command.dart
 
 ### Acceptance gates for User Story 8 (phase closes only when each is green)
 
-- [ ] T109 [US8] [A23] Acceptance gate US8-S1: `export --format tar.gz` produces an archive with all sandbox files and a self-contained filtered pubspec.yaml — test in test/plugins/slice/slice_export_integration_test.dart
-- [ ] T110 [US8] [A24] Acceptance gate US8-S2: `export --format github --repo <name>` creates/pushes a repo with SLICE.md as README and a working pubspec.yaml — test in test/plugins/slice/slice_export_integration_test.dart (fake `gh` seam)
-- [ ] T111 [US8] [A25] Acceptance gate US8-S3: `export --format github` without `--repo` auto-generates a repo name from project and slice name — test in test/plugins/slice/slice_export_integration_test.dart
-- [ ] T112 [US8] [A26] Acceptance gate US8-S4: export of an unverified slice runs verification first and aborts when it fails — test in test/plugins/slice/slice_export_integration_test.dart
-- [ ] T113 [US8] [A27] Acceptance gate US8-S5: `zfa slice import --from github` pulls the repo contents back into the local sandbox, ready for `slice merge` — test in test/plugins/slice/slice_export_integration_test.dart
+- [x] T109 [US8] [A23] Acceptance gate US8-S1: `export --format tar.gz` produces an archive with all sandbox files and a self-contained filtered pubspec.yaml — test in test/plugins/slice/slice_export_integration_test.dart
+- [x] T110 [US8] [A24] Acceptance gate US8-S2: `export --format github --repo <name>` creates/pushes a repo with SLICE.md as README and a working pubspec.yaml — test in test/plugins/slice/slice_export_integration_test.dart (fake `gh` seam)
+- [x] T111 [US8] [A25] Acceptance gate US8-S3: `export --format github` without `--repo` auto-generates a repo name from project and slice name — test in test/plugins/slice/slice_export_integration_test.dart
+- [x] T112 [US8] [A26] Acceptance gate US8-S4: export of an unverified slice runs verification first and aborts when it fails — test in test/plugins/slice/slice_export_integration_test.dart
+- [x] T113 [US8] [A27] Acceptance gate US8-S5: `zfa slice import --from github` pulls the repo contents back into the local sandbox, ready for `slice merge` — test in test/plugins/slice/slice_export_integration_test.dart
 
 **Checkpoint**: `zfa slice export profile_feature --format github` creates a repo a cloud agent can clone. `zfa slice import profile_feature --from github` pulls changes back for merge.
 
