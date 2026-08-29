@@ -11,23 +11,15 @@ import 'package:zuraffa/zuraffa.dart';
 ///   `package:zuraffa/zuraffa.dart`.
 /// - U24: the default (Flutter) emission stays byte-identical to the
 ///   pre-feature output (FR-006 — no breaking changes).
-/// - U25: the generated view compiles — `dart analyze` on a temp package
-///   directory inside this repo, with fixture presenter/domain/view-state
-///   files, reports no errors.
+/// - U25: the generated view compiles — `dart analyze` on the generated view
+///   + fixtures (a temp directory inside this repo) reports no errors.
+///   Analysis reuses THIS repo's resolved `.dart_tool/package_config.json`,
+///   so `package:zuraffa/...` resolves to the local `lib/` with no separate
+///   `dart pub get` (which would re-resolve the full tree incl. Flutter and
+///   hang on the offline CI network).
 /// - U26: the widget types are exported from the package barrel.
-/// Walk up from the current working directory (the package root when
-/// `dart test` runs) to the repo root (where `pubspec.yaml` lives) so the
-/// temp package can pin `zuraffa` via an absolute `path:` dependency and
-/// resolve it offline instead of reaching for the network.
-String _repoRoot() {
-  var dir = Directory.current;
-  while (!File('${dir.path}/pubspec.yaml').existsSync()) {
-    final parent = dir.parent;
-    if (parent.path == dir.path) break;
-    dir = parent;
-  }
-  return dir.path;
-}
+// _repoRoot() removed: U25 now reuses the repo's resolved package config
+// instead of creating a separate temp package that needs `dart pub get`.
 
 void main() {
   late Directory tempDir;
@@ -127,75 +119,51 @@ void main() {
       expect(content, _preFeatureFlutterGolden);
     });
 
-    test(
-      'generated pure-Dart view compiles under dart analyze [U25]',
-      () async {
-        // Self-contained temp PACKAGE (not a bare dir): a pubspec.yaml with a
-        // path dependency on the repo gives `dart analyze` a deterministic
-        // resolution root. Running `dart analyze` on a pubspec-less directory
-        // inside the repo made the check depend on ambient package resolution
-        // walking up to the repo root, which timed out in CI (the comment
-        // above already calls this a "temp package").
-        File('${tempDir.path}/pubspec.yaml').writeAsStringSync('''
-name: sc003_temp
-environment:
-  sdk: ">=3.0.0 <4.0.0"
-dependencies:
-  zuraffa:
-    path: ${_repoRoot()}
-''');
-        // Fixture presenter pipeline (mirrors generatePresenter output shape,
-        // importing the pure-Dart core barrel).
-        File(
-          '${tempDir.path}/product_detail_view_state.dart',
-        ).writeAsStringSync(_fixtureViewState);
-        File(
-          '${tempDir.path}/product_detail_domain_state.dart',
-        ).writeAsStringSync(_fixtureDomainState);
-        File(
-          '${tempDir.path}/product_detail_presenter.dart',
-        ).writeAsStringSync(_fixturePresenter);
+    test('generated pure-Dart view compiles under dart analyze [U25]', () async {
+      // Analyze using THIS repo's already-resolved `.dart_tool/package_config.json`
+      // (CWD is the package root when `dart test` runs). The temp dir lives
+      // inside the repo, so `dart analyze` resolves `package:zuraffa/...`
+      // to the local `lib/` with no separate `dart pub get` — which would
+      // re-resolve the full dependency tree (incl. Flutter) and hang on the
+      // offline network in CI.
+      // Fixture presenter pipeline (mirrors generatePresenter output shape,
+      // importing the pure-Dart core barrel).
+      File(
+        '${tempDir.path}/product_detail_view_state.dart',
+      ).writeAsStringSync(_fixtureViewState);
+      File(
+        '${tempDir.path}/product_detail_domain_state.dart',
+      ).writeAsStringSync(_fixtureDomainState);
+      File(
+        '${tempDir.path}/product_detail_presenter.dart',
+      ).writeAsStringSync(_fixturePresenter);
 
-        gen.generateView(
-          'ProductDetail',
-          useCases: ['product', 'reviews'],
-          pureDart: true,
-        );
+      gen.generateView(
+        'ProductDetail',
+        useCases: ['product', 'reviews'],
+        pureDart: true,
+      );
 
-        final pubGet = await Process.run(Platform.resolvedExecutable, [
-          'pub',
-          'get',
-        ], workingDirectory: tempDir.path);
-        final pubGetOut = pubGet.stdout.toString() + pubGet.stderr.toString();
-        expect(
-          pubGet.exitCode,
-          0,
-          reason:
-              'dart pub get in the temp package must succeed. '
-              'Output:\n$pubGetOut',
-        );
+      final result = await Process.run(Platform.resolvedExecutable, [
+        'analyze',
+        '--no-fatal-warnings',
+        tempDir.path,
+      ]);
+      final output = result.stdout.toString() + result.stderr.toString();
 
-        final result = await Process.run(Platform.resolvedExecutable, [
-          'analyze',
-          '--no-fatal-warnings',
-        ], workingDirectory: tempDir.path);
-        final output = result.stdout.toString() + result.stderr.toString();
-
-        expect(
-          result.exitCode,
-          0,
-          reason:
-              'generated view + fixtures must analyze clean. '
-              'Output:\n$output',
-        );
-        expect(
-          output,
-          isNot(contains(' error - ')),
-          reason: 'no analyzer errors allowed in generated code:\n$output',
-        );
-      },
-      timeout: const Timeout(Duration(minutes: 2)),
-    );
+      expect(
+        result.exitCode,
+        0,
+        reason:
+            'generated view + fixtures must analyze clean. '
+            'Output:\n$output',
+      );
+      expect(
+        output,
+        isNot(contains(' error - ')),
+        reason: 'no analyzer errors allowed in generated code:\n$output',
+      );
+    }, timeout: const Timeout(Duration(minutes: 2)));
 
     test('widget types are exported from the package barrel [U26]', () {
       // Compiling at all proves the barrel resolves; the base-typed
