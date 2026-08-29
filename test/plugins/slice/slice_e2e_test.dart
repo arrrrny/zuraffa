@@ -16,21 +16,16 @@ import 'package:yaml/yaml.dart';
 import 'package:zuraffa/src/plugins/slice/slice_command.dart';
 
 import 'helpers/capture_output.dart';
-import 'helpers/copy_fixture_project.dart';
+import 'helpers/slice_test_harness.dart';
 
 void main() {
   late String projectRoot;
 
   setUp(() async {
-    projectRoot = await copySliceFixtureProject();
+    projectRoot = await freshSliceProject();
   });
 
-  tearDown(() async {
-    final dir = Directory(projectRoot);
-    if (await dir.exists()) {
-      await dir.delete(recursive: true);
-    }
-  });
+  tearDown(() => disposeSliceProject(projectRoot));
 
   test('T075: cut → verify → modify → merge full lifecycle', () async {
     final sandbox = '$projectRoot/.zuraffa/slices/product_feature';
@@ -115,8 +110,10 @@ void main() {
     expect(projectView.readAsStringSync(), contains('// Agent was here'));
     // ...only that file was touched: the manifest hash of an untouched file
     // still matches its project copy (verified implicitly by merge reporting
-    // exactly one copied file).
-    expect(mergeOutput, contains('1 file'));
+    // exactly one copied file). T119: the count is anchored so '11 file(s)'
+    // cannot false-pass — the digit '1' must be preceded by start or
+    // whitespace.
+    expect(mergeOutput, contains(RegExp(r'(^|\s)1 file\(s\) copied back')));
 
     // The slice directory is cleaned up after a successful merge.
     expect(Directory(sandbox).existsSync(), isFalse);

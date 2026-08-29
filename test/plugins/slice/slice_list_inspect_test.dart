@@ -12,10 +12,11 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 import 'package:zuraffa/src/plugins/slice/slice_command.dart';
 
 import 'helpers/capture_output.dart';
-import 'helpers/copy_fixture_project.dart';
+import 'helpers/slice_test_harness.dart';
 
 void main() {
   late String projectRoot;
@@ -23,17 +24,12 @@ void main() {
   late SliceCommand command;
 
   setUp(() async {
-    projectRoot = await copySliceFixtureProject();
+    projectRoot = await freshSliceProject();
     command = SliceCommand(projectRoot: projectRoot);
     runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
   });
 
-  tearDown(() async {
-    final dir = Directory(projectRoot);
-    if (await dir.exists()) {
-      await dir.delete(recursive: true);
-    }
-  });
+  tearDown(() => disposeSliceProject(projectRoot));
 
   Future<void> cut(String name, String entry) => captureOutput(
         () => runner.run(['slice', 'cut', name, '--entry', entry]),
@@ -53,10 +49,20 @@ void main() {
       // Entry points are visible.
       expect(output, contains('product_view.dart'));
       expect(output, contains('profile_view.dart'));
-      // Creation date is shown.
-      expect(output, contains(DateTime.now().year.toString()));
-      // File counts are shown per slice.
-      expect(output, contains('files'));
+      // Creation date is shown (T118: pinned from the manifest the test
+      // itself created — no real clock in the expectation).
+      final manifest = loadYaml(
+        File(
+          '$projectRoot/.zuraffa/slices/product_feature/slice.yaml',
+        ).readAsStringSync(),
+      ) as Map;
+      final createdDay =
+          (manifest['createdAt'] as String).substring(0, 10);
+      expect(output, contains(createdDay));
+      // File counts are shown per slice (T116: the actual count from the
+      // manifest, not the word 'files').
+      final fileCount = (manifest['files'] as List).length;
+      expect(output, contains('$fileCount files'));
     }, timeout: const Timeout(Duration(minutes: 2)));
 
     test('A9: list with no slices says so', () async {
@@ -95,9 +101,16 @@ void main() {
         output,
         contains('lib/src/domain/entities/product/product.dart'),
       );
-      // The modified file is flagged; the untouched ones are not.
-      expect(output, contains('modified'));
-      expect(output, contains('unmodified'));
+      // The modified file is flagged; the untouched ones are not. The full
+      // line is pinned so the 'modified' substring of 'unmodified' can never
+      // satisfy the check (T115: remediation of the vacuous assertion).
+      expect(output, contains('$viewRel — modified'));
+      expect(
+        output,
+        contains(
+          'lib/src/domain/entities/product/product.dart — unmodified',
+        ),
+      );
     }, timeout: const Timeout(Duration(minutes: 2)));
 
     test('A10: inspecting a missing slice fails cleanly', () async {

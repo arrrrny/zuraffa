@@ -12,7 +12,6 @@ library;
 import 'dart:io';
 
 import 'package:test/test.dart';
-import 'package:zuraffa/src/plugins/slice/engine/import_graph_walker.dart';
 import 'package:zuraffa/src/plugins/slice/generators/mock_stub_generator.dart';
 import 'package:zuraffa/src/plugins/slice/models/slice_boundary.dart';
 import 'package:zuraffa/src/plugins/slice/models/slice_depth.dart';

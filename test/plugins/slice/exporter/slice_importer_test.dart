@@ -11,7 +11,6 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
-import 'package:zuraffa/src/plugins/slice/exporter/github_exporter.dart';
 import 'package:zuraffa/src/plugins/slice/exporter/slice_importer.dart';
 import 'package:zuraffa/src/plugins/slice/generators/manifest_writer.dart';
 import 'package:zuraffa/src/plugins/slice/models/slice_depth.dart';

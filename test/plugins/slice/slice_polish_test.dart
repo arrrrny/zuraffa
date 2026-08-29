@@ -16,21 +16,16 @@ import 'package:zuraffa/src/plugins/slice/slice_command.dart';
 import 'package:zuraffa/src/plugins/slice/slice_plugin.dart';
 
 import 'helpers/capture_output.dart';
-import 'helpers/copy_fixture_project.dart';
+import 'helpers/slice_test_harness.dart';
 
 void main() {
   late String projectRoot;
 
   setUp(() async {
-    projectRoot = await copySliceFixtureProject();
+    projectRoot = await freshSliceProject();
   });
 
-  tearDown(() async {
-    final dir = Directory(projectRoot);
-    if (await dir.exists()) {
-      await dir.delete(recursive: true);
-    }
-  });
+  tearDown(() => disposeSliceProject(projectRoot));
 
   CommandRunner<void> runnerWith(SliceCommand command) =>
       CommandRunner<void>('zfa', 'test')..addCommand(command);
@@ -176,6 +171,9 @@ void main() {
 
       expect(command.exitCode, equals(0), reason: output);
       expect(output, contains('[_] Cutting slice "product_feature"'));
+      // T120: the step marker (progress bar + n/m) is asserted, not just
+      // started/completed — the test name promises all three.
+      expect(output, contains(RegExp(r'\[=+> *\] \d+/\d+')));
       expect(output, contains('[✓] Completed'));
     }, timeout: const Timeout(Duration(minutes: 2)));
 

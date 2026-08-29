@@ -362,6 +362,11 @@ provides:
       description: Execute the registered benchmark scenarios and apply their metric thresholds (FR-004).
       aliases: [zfa.benchmark.benchmark.run]
       category: benchmark
+    - name: speckit.zuraffa.slice.cut_slice
+      file: commands/slice/cut_slice.md
+      description: Extract a runnable, self-contained slice of the project from one or more entry points.
+      aliases: [zfa.slice.cut_slice]
+      category: slice
 categories:
   setup:
     name: Setup

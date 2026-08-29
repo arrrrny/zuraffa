@@ -244,6 +244,18 @@ boundaries, not proven properties.
 | U65 | An unknown subcommand fails with a usage error listing the valid subcommands                 | INV-1  | example | DONE    | `test/plugins/slice/slice_command_test.dart::U65: an unknown subcommand fails with a usage error listing the valid subcommands` |
 | U66 | `cut` without `--entry` fails with a usage error                                             | INV-1  | example | DONE    | `test/plugins/slice/slice_command_test.dart::U66: cut without --entry fails with a usage error` |
 
+## Accepted deviations
+
+- A11-A15 were tested after their source (cycles 14-15): the multi-entry and
+  depth behaviors were driven red-green at unit level in cycle 8 (U23-U26,
+  U31 — recorded reds) and shared the walker implementation with the A1
+  acceptance loop, so the acceptance tests passed on first run. Compensating
+  evidence: deliberate mutants MUTANT-A11 (dropped entry) and MUTANT-A13
+  (flattened depth) were caught by those acceptance tests, recorded in the
+  cycle log. The acceptance tests cannot be re-ordered retroactively; this
+  entry exists so a future verify run does not rediscover it as a new
+  finding.
+
 ## Invariants and edge cases still to place
 
 - Two active slices with overlapping files: the second merge must surface the

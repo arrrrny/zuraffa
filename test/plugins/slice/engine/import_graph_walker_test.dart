@@ -96,17 +96,31 @@ void main() {
       expect(included, isNot(contains('lib/src/di/index.dart')));
     });
 
-    test('U20: every included file appears exactly once', () async {
-      final entries = walker.resolveEntrySpecs(['product'], projectRoot);
-      final result = await walker.walk(
-        entries: entries,
-        projectRoot: projectRoot,
-        resolver: resolver,
-        depth: SliceDepth.feature,
-      );
-
-      final paths = result.graph.nodes.keys.toList();
-      expect(paths.toSet().length, equals(paths.length));
+    test('U20: the closure contains each reachable file exactly once',
+        () async {
+      // T117: the exact closure of the product entry at feature depth,
+      // pinned as a set so a missing OR an extra file fails the test. (The
+      // old check — Map-key uniqueness — asserted a language invariant and
+      // could not fail; literal duplicates are unrepresentable in the
+      // nodes map, so exactness of the closure is the observable.)
+      final expected = {
+        'lib/src/presentation/pages/product/product_view.dart',
+        'lib/src/presentation/pages/product/product_controller.dart',
+        'lib/src/presentation/pages/product/product_presenter.dart',
+        'lib/src/presentation/pages/product/product_state.dart',
+        'lib/src/presentation/widgets/primary_button.dart',
+        'lib/src/domain/entities/product/product.dart',
+        'lib/src/domain/entities/product/product.g.dart',
+        'lib/src/domain/usecases/product/get_product_usecase.dart',
+        'lib/src/domain/usecases/product/update_product_usecase.dart',
+        'lib/src/domain/usecases/shared/fetch_settings_usecase.dart',
+        'lib/src/di/usecases/get_product_usecase_di.dart',
+        'lib/src/di/usecases/update_product_usecase_di.dart',
+        'lib/src/di/usecases/fetch_settings_usecase_di.dart',
+        'lib/src/domain/repositories/product_repository.dart',
+      };
+      final included = await includedRel(['product'], SliceDepth.feature);
+      expect(included, equals(expected));
     });
 
     test('U21: an import cycle terminates and includes every cycle file once',
@@ -140,10 +154,18 @@ class CycleController {}
       final rel = result.graph.nodes.keys
           .map((path) => path.substring(projectRoot.length + 1))
           .toSet();
-      expect(rel, contains('lib/src/presentation/pages/cycle/cycle_view.dart'));
-      expect(rel, contains('lib/src/presentation/pages/cycle/cycle_state.dart'));
-      expect(rel, contains('lib/src/presentation/pages/cycle/cycle_controller.dart'));
-      expect(result.graph.nodes.length, equals(rel.length));
+      // T117: the exact cycle closure (termination is pinned by the
+      // timeout; the old Map-length-vs-Set-length check was a language
+      // invariant).
+      expect(
+        rel,
+        equals({
+          'lib/src/presentation/pages/cycle/cycle_view.dart',
+          'lib/src/presentation/pages/cycle/cycle_state.dart',
+          'lib/src/presentation/pages/cycle/cycle_controller.dart',
+          'lib/src/presentation/widgets/primary_button.dart',
+        }),
+      );
     }, timeout: const Timeout(Duration(seconds: 30)));
 
     test('U22: a missing entry reports the attempted path and alternatives',
@@ -221,17 +243,41 @@ class CycleController {}
         SliceDepth.feature,
       );
 
-      // Both pages present.
-      expect(included, contains('lib/src/presentation/pages/product/product_view.dart'));
-      expect(included, contains('lib/src/presentation/pages/profile/profile_view.dart'));
-      // Profile-only shared widget now included too (bare barrel import).
-      expect(included, contains('lib/src/presentation/widgets/app_card.dart'));
-      // The shared usecase file appears exactly once across both closures.
-      final shared = included
-          .where((p) => p == 'lib/src/domain/usecases/shared/fetch_settings_usecase.dart')
-          .toList();
-      expect(shared, hasLength(1));
-      expect(included, contains('lib/src/di/usecases/fetch_settings_usecase_di.dart'));
+      // T117: the exact union — the shared files (primary_button,
+      // fetch_settings_usecase + its DI) are reached from BOTH closures
+      // and must each be present exactly once. Literal duplication is
+      // unrepresentable in the nodes map (the walker's outputs are
+      // map-keyed end to end), so the observable that can fail is the
+      // exactness of the union: a dropped second entry, an over-inclusive
+      // walk, or a missing shared file all fail this set comparison.
+      expect(
+        included,
+        equals({
+          // Product closure.
+          'lib/src/presentation/pages/product/product_view.dart',
+          'lib/src/presentation/pages/product/product_controller.dart',
+          'lib/src/presentation/pages/product/product_presenter.dart',
+          'lib/src/presentation/pages/product/product_state.dart',
+          'lib/src/domain/entities/product/product.dart',
+          'lib/src/domain/entities/product/product.g.dart',
+          'lib/src/domain/usecases/product/get_product_usecase.dart',
+          'lib/src/domain/usecases/product/update_product_usecase.dart',
+          'lib/src/domain/repositories/product_repository.dart',
+          'lib/src/di/usecases/get_product_usecase_di.dart',
+          'lib/src/di/usecases/update_product_usecase_di.dart',
+          // Profile closure.
+          'lib/src/presentation/pages/profile/profile_view.dart',
+          'lib/src/presentation/pages/profile/profile_controller.dart',
+          'lib/src/presentation/pages/profile/profile_presenter.dart',
+          'lib/src/presentation/pages/profile/profile_state.dart',
+          'lib/src/domain/entities/profile/profile.dart',
+          // Shared by both closures — included once.
+          'lib/src/presentation/widgets/primary_button.dart',
+          'lib/src/presentation/widgets/app_card.dart',
+          'lib/src/domain/usecases/shared/fetch_settings_usecase.dart',
+          'lib/src/di/usecases/fetch_settings_usecase_di.dart',
+        }),
+      );
     });
 
     test('boundaries at feature depth name the repository interface with its '

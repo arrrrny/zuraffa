@@ -19,7 +19,6 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
-import 'package:zuraffa/src/plugins/slice/generators/manifest_writer.dart';
 import 'package:zuraffa/src/plugins/slice/merger/slice_merger.dart';
 import 'package:zuraffa/src/plugins/slice/models/slice_depth.dart';
 import 'package:zuraffa/src/plugins/slice/models/slice_file.dart';
@@ -29,14 +28,12 @@ void main() {
   late Directory tmpDir;
   late String projectRoot;
   late String sandbox;
-  late ManifestWriter writer;
 
   setUp(() async {
     tmpDir = await Directory.systemTemp.createTemp('slice_merger_');
     final projectDir = await Directory('${tmpDir.path}/project').create();
     projectRoot = projectDir.path;
     sandbox = (await Directory('${tmpDir.path}/sandbox').create()).path;
-    writer = ManifestWriter();
   });
 
   tearDown(() async {

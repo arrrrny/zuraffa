@@ -50,8 +50,9 @@ class ProductPresenter {
 
       final types = analyzer.extractServiceLocatorTypes(source);
 
-      expect(types, contains('GetProductUseCase'));
-      expect(types, contains('FetchSettingsUseCase'));
+      // T121: the exact list — spurious extra extractions fail, matching
+      // the sibling test's assertion style.
+      expect(types, equals(['GetProductUseCase', 'FetchSettingsUseCase']));
     });
 
     test('U10: extracts T nested inside registerUseCase(getIt<T>())', () {

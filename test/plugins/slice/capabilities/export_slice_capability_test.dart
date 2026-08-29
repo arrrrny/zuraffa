@@ -3,6 +3,10 @@
 /// Behavior traced to specs/043-slice-plugin/tdd/test-list.md:
 ///   U58: Export of a slice that fails verification aborts before any archive
 ///        or repo is made
+///
+/// T124: intentionally paired with A26 in slice_export_integration_test.dart
+/// — one gate, two levels of negative: this unit test pins that no tarball
+/// lands on disk; A26 pins that no gh command fires pre-verify.
 library;
 
 import 'dart:io';
@@ -12,21 +16,16 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/slice/slice_command.dart';
 
 import '../helpers/capture_output.dart';
-import '../helpers/copy_fixture_project.dart';
+import '../helpers/slice_test_harness.dart';
 
 void main() {
   late String projectRoot;
 
   setUp(() async {
-    projectRoot = await copySliceFixtureProject();
+    projectRoot = await freshSliceProject();
   });
 
-  tearDown(() async {
-    final dir = Directory(projectRoot);
-    if (await dir.exists()) {
-      await dir.delete(recursive: true);
-    }
-  });
+  tearDown(() => disposeSliceProject(projectRoot));
 
   group('ExportSliceCapability verify gate (FR-020)', () {
     test('U58: export of a broken slice aborts with no artifact', () async {

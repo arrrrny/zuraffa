@@ -3,12 +3,16 @@
 /// Gates traced to specs/043-slice-plugin/tasks.md:
 ///   T109/A23: export --format tar.gz produces an archive with all sandbox
 ///             files and a self-contained filtered pubspec.yaml
-///   T110/A24: export --format github --repo <name> creates/pushes a repo
+///   T110/A24: export --format github --repo `<name>` creates/pushes a repo
 ///             with SLICE.md as README and a working pubspec.yaml
 ///   T111/A25: export --format github without --repo auto-generates a repo
 ///             name from project and slice name
 ///   T112/A26: export of an unverified slice runs verification first and
 ///             aborts when it fails
+///
+/// T124: intentionally paired with U58 in capabilities/export_slice_capability
+/// _test.dart — one gate, two levels of negative: A26 pins that no gh command
+/// fires pre-verify; the unit test pins that no tarball lands on disk.
 ///   T113/A27: import --from github pulls the repo contents back into the
 ///             local sandbox, ready for slice merge
 library;

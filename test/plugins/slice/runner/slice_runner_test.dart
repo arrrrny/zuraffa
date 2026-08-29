@@ -24,21 +24,16 @@ import 'package:zuraffa/src/plugins/slice/runner/slice_runner.dart';
 import 'package:zuraffa/src/plugins/slice/slice_command.dart';
 
 import '../helpers/capture_output.dart';
-import '../helpers/copy_fixture_project.dart';
+import '../helpers/slice_test_harness.dart';
 
 void main() {
   late String projectRoot;
 
   setUp(() async {
-    projectRoot = await copySliceFixtureProject();
+    projectRoot = await freshSliceProject();
   });
 
-  tearDown(() async {
-    final dir = Directory(projectRoot);
-    if (await dir.exists()) {
-      await dir.delete(recursive: true);
-    }
-  });
+  tearDown(() => disposeSliceProject(projectRoot));
 
   Future<void> cut(CommandRunner<void> runner) => captureOutput(
         () => runner.run(['slice', 'cut', 'product_feature', '--entry', 'product']),

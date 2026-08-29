@@ -499,3 +499,48 @@ existed and failed before the implementation.
   API with the fixture copy helper, as every other integration test in the
   repo does).
 - commit: (this commit)
+
+## Cycle 21: T114-T125 — TDD remediation (post-verify)
+
+- trigger: `/speckit.tdd.verify` (commit de99a6b5) returned FAIL with 12
+  findings; this cycle clears them. The audit report is committed unchanged
+  in git history (de99a6b5) — this cycle is separate, explicit remediation
+  work, not edits folded into the audit.
+- fixes:
+  - T114 (HIGH, repo-wide regression): the slice plugin's `cut_slice`
+    capability is now registered in the speckit zuraffa extension
+    (`.specify/extensions/zuraffa/extension.yml` +
+    `commands/slice/cut_slice.md`), clearing the command-parity gate in
+    `test/cli/standard/extension_command_parity_test.dart`. The failing
+    parity test WAS the red; the registration is the green.
+  - T115 (HIGH): A10 now pins the edited file's full status line
+    (`'$viewRel — modified'`) and an untouched file's `— unmodified`.
+    Proof: deliberate mutant M2 (never report modified) now fails the test
+    (was surviving).
+  - T116 (HIGH): A9 now pins the actual per-slice file count from the
+    manifest. Proof: mutant M5 (always '0 files') now fails (was surviving).
+  - T117 (HIGH): U20/U21/U26 now pin exact expected closure sets instead of
+    Map/Set-uniqueness tautologies (missing OR extra files fail the test).
+  - T118 (MED): A9's date expectation reads the manifest's createdAt — no
+    real clock in the expectation.
+  - T119 (MED): the e2e merge count is anchored
+    (`(^|\s)1 file\(s\) copied back`) so '11 file(s)' cannot false-pass.
+  - T120 (LOW): the progress test asserts the step marker
+    (`RegExp(r'\[=+> *\] \d+/\d+')`), not just started/completed.
+  - T121 (LOW): U9 asserts the exact extracted-type list.
+  - T122 (LOW): registration test asserts values ('Slice', '1.0.0') and
+    cleans its temp dirs.
+  - T123 (LOW): the fixture setUp/tearDown pair moved to
+    `helpers/slice_test_harness.dart` (freshSliceProject /
+    disposeSliceProject) across the 10 fixture-backed files.
+  - T124 (MED): A26/U58 documented as intentional distinct-negative
+    coverage (no gh call pre-verify vs. no tarball on disk).
+  - T125 (MED): A11-A15 test-after deviation recorded in the test list's
+    Accepted deviations section.
+  - also: 4 pre-existing analyzer warnings in the feature's test tree fixed
+    (two unused imports, one dead local, one dartdoc escape).
+- green: `dart analyze lib/src/plugins/slice/ test/plugins/slice/` clean;
+  `dart test test/plugins/slice/` -> 145 passed;
+  `dart test test/cli/standard/extension_command_parity_test.dart` -> 2
+  passed.
+- commit: (this commit)

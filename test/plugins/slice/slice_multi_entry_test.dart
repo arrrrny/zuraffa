@@ -15,7 +15,7 @@ import 'package:yaml/yaml.dart';
 import 'package:zuraffa/src/plugins/slice/slice_command.dart';
 
 import 'helpers/capture_output.dart';
-import 'helpers/copy_fixture_project.dart';
+import 'helpers/slice_test_harness.dart';
 
 void main() {
   late String projectRoot;
@@ -23,17 +23,12 @@ void main() {
   late SliceCommand command;
 
   setUp(() async {
-    projectRoot = await copySliceFixtureProject();
+    projectRoot = await freshSliceProject();
     command = SliceCommand(projectRoot: projectRoot);
     runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
   });
 
-  tearDown(() async {
-    final dir = Directory(projectRoot);
-    if (await dir.exists()) {
-      await dir.delete(recursive: true);
-    }
-  });
+  tearDown(() => disposeSliceProject(projectRoot));
 
   test('A11 (T097): both pages with shared dependencies exactly once',
       () async {
