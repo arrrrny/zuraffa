@@ -19,10 +19,14 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart';
+import 'package:path/path.dart' as p;
 
 import 'capabilities/cut_slice_capability.dart';
 import 'capabilities/merge_slice_capability.dart';
+import 'generators/manifest_writer.dart';
 import 'models/slice_file.dart';
+import 'models/slice_manifest.dart';
 
 /// The `zfa slice` command.
 class SliceCommand extends Command<void> {
@@ -268,8 +272,41 @@ import options:
   }
 
   Future<void> _list(List<String> rest) async {
-    print('slice list is not wired yet');
-    exitCode = 1;
+    final slicesRoot = p.join(projectRoot, '.zuraffa', 'slices');
+    final rootDir = Directory(slicesRoot);
+    final writer = ManifestWriter();
+
+    if (!rootDir.existsSync()) {
+      print('No active slices. Cut one with `zfa slice cut <name> --entry <point>`.');
+      return;
+    }
+
+    final manifests = <String, SliceManifest>{};
+    for (final entity in rootDir.listSync()) {
+      if (entity is! Directory) continue;
+      try {
+        manifests[p.basename(entity.path)] = await writer.read(entity.path);
+      } on SliceManifestError {
+        // Not a slice directory (or corrupt manifest) — skip in list.
+      }
+    }
+
+    if (manifests.isEmpty) {
+      print('No active slices. Cut one with `zfa slice cut <name> --entry <point>`.');
+      return;
+    }
+
+    for (final sliceName in manifests.keys.toList()..sort()) {
+      final manifest = manifests[sliceName]!;
+      print(
+        '$sliceName  depth=${manifest.depth.name}  '
+        '${manifest.files.length} files  '
+        'created=${manifest.createdAt.toIso8601String().substring(0, 10)}',
+      );
+      for (final entry in manifest.entries) {
+        print('  entry: $entry');
+      }
+    }
   }
 
   Future<void> _inspect(List<String> rest) async {
@@ -278,8 +315,58 @@ import options:
       return;
     }
 
-    print('slice inspect is not wired yet');
-    exitCode = 1;
+    final sliceName = rest.first;
+    final sandboxDir = CutSliceCapability.sandboxDirFor(
+      projectRoot,
+      sliceName,
+    );
+    if (!Directory(sandboxDir).existsSync()) {
+      print(
+        'Error: no slice named "$sliceName" at '
+        '${p.relative(sandboxDir, from: projectRoot)}.',
+      );
+      exitCode = 1;
+      return;
+    }
+
+    final SliceManifest manifest;
+    try {
+      manifest = await ManifestWriter().read(sandboxDir);
+    } on SliceManifestError catch (e) {
+      print('Error: ${e.message}');
+      exitCode = 1;
+      return;
+    }
+    print('slice: ${manifest.name}');
+    print('depth: ${manifest.depth.name}');
+    print('package: ${manifest.packageName}');
+    print('branch: ${manifest.branch}');
+    if (manifest.exportedTo != null) {
+      print('exportedTo: ${manifest.exportedTo}');
+    }
+    print('');
+    for (final file in manifest.files) {
+      final sandboxPath = p.join(sandboxDir, file.relativePath);
+      final current = File(sandboxPath).existsSync()
+          ? sha256.convert(File(sandboxPath).readAsBytesSync()).toString()
+          : null;
+      final status = current == null
+          ? 'deleted'
+          : current == file.hashAtCut
+          ? 'unmodified'
+          : 'modified';
+      print(
+        '[${file.ownership.name}] ${file.relativePath} — $status '
+        '(${file.layer})',
+      );
+    }
+    if (manifest.boundaries.isNotEmpty) {
+      print('');
+      print('boundaries:');
+      for (final boundary in manifest.boundaries) {
+        print('  ${boundary.typeName} (${boundary.interfaceFile})');
+      }
+    }
   }
 
   Future<void> _verify(List<String> rest) async {

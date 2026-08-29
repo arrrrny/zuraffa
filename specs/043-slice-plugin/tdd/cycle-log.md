@@ -266,6 +266,53 @@ existed and failed before the implementation.
 - refactor: none
 - commit: (recorded in git history)
 
+
+## Cycle 13: A9-A10 (gates T095-T096) — list and inspect
+
+- tests: `test/plugins/slice/slice_list_inspect_test.dart` (new, 4 tests)
+- red: `dart test test/plugins/slice/slice_list_inspect_test.dart` -> +0 -4;
+  decisive: `Expected: <0> / ... 'slice list is not wired yet'`
+- green: `list` scans `.zuraffa/slices/` for manifests (name, depth, file
+  count, created date, entries) and `inspect` prints every file with
+  ownership, layer, and modified-since-cut status (sha256 vs hashAtCut).
+  In-cycle fixes: (a) dynamic dispatch on the enum `.name` getter throws
+  NoSuchMethodError — the manifests map is now typed Map<String,
+  SliceManifest> instead of dynamic; (b) inspect wraps manifest read errors
+  (INV-1).
+- refactor: none
+- commit: (recorded in git history)
+
+## Cycle 14: A11-A12 (gates T097-T098) — multi-entry (test-after note)
+
+- tests: `test/plugins/slice/slice_multi_entry_test.dart` (new, 3 tests)
+- red: none — the tests PASSED ON FIRST RUN. The multi-entry behavior was
+  implemented and driven red-green at unit level during cycle 8 (U26:
+  `dart test ... -> +0 -17` stub red; union dedup green in the same cycle),
+  so the acceptance tests close an outer loop whose units were already
+  green. Per the playbook's first-run rule, the deliberate-mutant check was
+  applied instead of recording a red:
+  - MUTANT-A11: cut passed only `[entries.first]` to the walker ->
+    `dart test test/plugins/slice/slice_multi_entry_test.dart` -> +0 -3
+    (all three tests caught the dropped entry). Restored exactly.
+- green: mutant restored -> suite green.
+- refactor: none
+- commit: (recorded in git history)
+
+## Cycle 15: A13-A15 (gates T099-T101) — depth levels (test-after note)
+
+- tests: `test/plugins/slice/slice_depth_test.dart` (new, 4 tests)
+- red: none — passed on first run. Depth gating was implemented and driven
+  red-green at unit level in cycle 8 (U23/U24/U25 stub reds in the +0 -17
+  batch; green same cycle) and depth-aware mocks in cycle 9 (U31).
+  Deliberate-mutant check applied:
+  - MUTANT-A13: `layerAllowedAtDepth` returned true unconditionally ->
+    `dart test test/plugins/slice/slice_depth_test.dart` -> +2 -2 (A13 and
+    A15 caught the flattened depth; A14 passes trivially under the mutant,
+    as expected for the default depth). Restored exactly.
+- green: mutant restored -> `dart test test/plugins/slice/` -> 99 passed.
+- refactor: none
+- commit: (recorded in git history)
+
 ## Notes and deviations
 
 - Loop granularity: cycles are batched at component granularity (one commit

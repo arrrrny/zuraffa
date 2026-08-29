@@ -150,17 +150,17 @@
 
 ### Tests for User Story 3 (write FIRST — observe each failing before its implementation task)
 
-- [ ] T044 [US3] [A9] [A10] Create test: cut two slices from fixture project, verify `list` output includes both, verify `inspect` correctly identifies modified files in test/plugins/slice/slice_list_inspect_test.dart
+- [x] T044 [US3] [A9] [A10] Create test: cut two slices from fixture project, verify `list` output includes both, verify `inspect` correctly identifies modified files in test/plugins/slice/slice_list_inspect_test.dart
 
 ### Implementation for User Story 3
 
-- [ ] T042 [US3] [A9] Implement `list` subcommand in `SliceCommand` — scan `.zuraffa/slices/` for directories containing `slice.yaml`, read each manifest, display table of name, entries, created date, file count, depth in lib/src/plugins/slice/slice_command.dart
-- [ ] T043 [US3] [A10] Implement `inspect` subcommand in `SliceCommand` — read manifest for named slice, compute current hashes for all files, display detailed table with file path, ownership, layer, and modified-since-cut status in lib/src/plugins/slice/slice_command.dart
+- [x] T042 [US3] [A9] Implement `list` subcommand in `SliceCommand` — scan `.zuraffa/slices/` for directories containing `slice.yaml`, read each manifest, display table of name, entries, created date, file count, depth in lib/src/plugins/slice/slice_command.dart
+- [x] T043 [US3] [A10] Implement `inspect` subcommand in `SliceCommand` — read manifest for named slice, compute current hashes for all files, display detailed table with file path, ownership, layer, and modified-since-cut status in lib/src/plugins/slice/slice_command.dart
 
 ### Acceptance gates for User Story 3 (phase closes only when each is green)
 
-- [ ] T095 [US3] [A9] Acceptance gate US3-S1: `zfa slice list` shows both active slices with name, entry points, creation date, and file count — test in test/plugins/slice/slice_list_inspect_test.dart
-- [ ] T096 [US3] [A10] Acceptance gate US3-S2: `zfa slice inspect` shows every file with ownership classification and modified-since-cut status — test in test/plugins/slice/slice_list_inspect_test.dart
+- [x] T095 [US3] [A9] Acceptance gate US3-S1: `zfa slice list` shows both active slices with name, entry points, creation date, and file count — test in test/plugins/slice/slice_list_inspect_test.dart
+- [x] T096 [US3] [A10] Acceptance gate US3-S2: `zfa slice inspect` shows every file with ownership classification and modified-since-cut status — test in test/plugins/slice/slice_list_inspect_test.dart
 
 **Checkpoint**: Developer can manage multiple concurrent slices with full visibility.
 
@@ -174,18 +174,18 @@
 
 ### Tests for User Story 4 (write FIRST — observe each failing before its implementation task)
 
-- [ ] T048 [US4] [A11] [A12] [U26] Create test: cut slice with two entries sharing a common usecase, verify usecase appears once in manifest, both pages present in sandbox in test/plugins/slice/slice_multi_entry_test.dart
+- [x] T048 [US4] [A11] [A12] [U26] Create test: cut slice with two entries sharing a common usecase, verify usecase appears once in manifest, both pages present in sandbox in test/plugins/slice/slice_multi_entry_test.dart
 
 ### Implementation for User Story 4
 
-- [ ] T045 [US4] [U26] Extend `ImportGraphWalker.buildFromEntries()` to accept `List<String>` entries, union their traversal results into a single `FileGraph` with deduplicated nodes in lib/src/plugins/slice/engine/import_graph_walker.dart
-- [ ] T046 [US4] [A11] [A12] Update `CutSliceCapability` to handle multiple `--entry` flags and pass all entries to the graph walker in lib/src/plugins/slice/capabilities/cut_slice_capability.dart
-- [ ] T047 [US4] [U34] Update `SandboxBootstrapper` to generate `main_slice.dart` with multiple root views (e.g., a `TabBarView` or simple `Navigator` with routes for each entry) in lib/src/plugins/slice/generators/sandbox_bootstrapper.dart
+- [x] T045 [US4] [U26] Extend `ImportGraphWalker.buildFromEntries()` to accept `List<String>` entries, union their traversal results into a single `FileGraph` with deduplicated nodes in lib/src/plugins/slice/engine/import_graph_walker.dart
+- [x] T046 [US4] [A11] [A12] Update `CutSliceCapability` to handle multiple `--entry` flags and pass all entries to the graph walker in lib/src/plugins/slice/capabilities/cut_slice_capability.dart
+- [x] T047 [US4] [U34] Update `SandboxBootstrapper` to generate `main_slice.dart` with multiple root views (e.g., a `TabBarView` or simple `Navigator` with routes for each entry) in lib/src/plugins/slice/generators/sandbox_bootstrapper.dart
 
 ### Acceptance gates for User Story 4 (phase closes only when each is green)
 
-- [ ] T097 [US4] [A11] Acceptance gate US4-S1: a two-entry cut contains both pages' dependency trees with shared dependencies included exactly once — test in test/plugins/slice/slice_multi_entry_test.dart
-- [ ] T098 [US4] [A12] Acceptance gate US4-S2: a usecase shared by both entries appears once in the manifest with one DI registration — test in test/plugins/slice/slice_multi_entry_test.dart
+- [x] T097 [US4] [A11] Acceptance gate US4-S1: a two-entry cut contains both pages' dependency trees with shared dependencies included exactly once — test in test/plugins/slice/slice_multi_entry_test.dart
+- [x] T098 [US4] [A12] Acceptance gate US4-S2: a usecase shared by both entries appears once in the manifest with one DI registration — test in test/plugins/slice/slice_multi_entry_test.dart
 
 **Checkpoint**: Cross-screen features can be sliced as a single unit.
 
@@ -199,19 +199,19 @@
 
 ### Tests for User Story 5 (write FIRST — observe each failing before its implementation task)
 
-- [ ] T052 [US5] [U23] [U24] [U25] [U31] Create test: cut at each depth level, verify file counts and layer inclusion match expected sets in test/plugins/slice/slice_depth_test.dart
+- [x] T052 [US5] [U23] [U24] [U25] [U31] Create test: cut at each depth level, verify file counts and layer inclusion match expected sets in test/plugins/slice/slice_depth_test.dart
 
 ### Implementation for User Story 5
 
-- [ ] T049 [US5] [U23] [U24] [U25] Implement depth-based boundary rules in `ImportGraphWalker` — define which directory patterns (`presentation/`, `domain/`, `data/`) are included at each `SliceDepth` level, stop traversal at the boundary layer in lib/src/plugins/slice/engine/import_graph_walker.dart
-- [ ] T050 [US5] [U31] Update `MockStubGenerator` to generate mocks appropriate for each depth — at `view` depth, mock the presenter; at `feature` depth, mock the repository; at `full` depth, no mocks needed in lib/src/plugins/slice/generators/mock_stub_generator.dart
-- [ ] T051 [US5] [A13] [A14] [A15] Update `SandboxBootstrapper` to adjust DI setup based on depth — fewer mocks at deeper depths, real implementations at `full` in lib/src/plugins/slice/generators/sandbox_bootstrapper.dart
+- [x] T049 [US5] [U23] [U24] [U25] Implement depth-based boundary rules in `ImportGraphWalker` — define which directory patterns (`presentation/`, `domain/`, `data/`) are included at each `SliceDepth` level, stop traversal at the boundary layer in lib/src/plugins/slice/engine/import_graph_walker.dart
+- [x] T050 [US5] [U31] Update `MockStubGenerator` to generate mocks appropriate for each depth — at `view` depth, mock the presenter; at `feature` depth, mock the repository; at `full` depth, no mocks needed in lib/src/plugins/slice/generators/mock_stub_generator.dart
+- [x] T051 [US5] [A13] [A14] [A15] Update `SandboxBootstrapper` to adjust DI setup based on depth — fewer mocks at deeper depths, real implementations at `full` in lib/src/plugins/slice/generators/sandbox_bootstrapper.dart
 
 ### Acceptance gates for User Story 5 (phase closes only when each is green)
 
-- [ ] T099 [US5] [A13] Acceptance gate US5-S1: `--depth view` includes view/controller/state and no presenter, usecases, or entities — test in test/plugins/slice/slice_depth_test.dart
-- [ ] T100 [US5] [A14] Acceptance gate US5-S2: `--depth feature` (default) adds presenter/usecases/domain interfaces/entities but no data implementations — test in test/plugins/slice/slice_depth_test.dart
-- [ ] T101 [US5] [A15] Acceptance gate US5-S3: `--depth full` additionally includes repository implementations, datasources, and providers — test in test/plugins/slice/slice_depth_test.dart
+- [x] T099 [US5] [A13] Acceptance gate US5-S1: `--depth view` includes view/controller/state and no presenter, usecases, or entities — test in test/plugins/slice/slice_depth_test.dart
+- [x] T100 [US5] [A14] Acceptance gate US5-S2: `--depth feature` (default) adds presenter/usecases/domain interfaces/entities but no data implementations — test in test/plugins/slice/slice_depth_test.dart
+- [x] T101 [US5] [A15] Acceptance gate US5-S3: `--depth full` additionally includes repository implementations, datasources, and providers — test in test/plugins/slice/slice_depth_test.dart
 
 **Checkpoint**: Developers can control context size by choosing the appropriate depth for their task type.
 
