@@ -114,6 +114,26 @@ void main() {
       }
     });
 
+    test('B19 — empty string name is rejected', () {
+      expect(
+        () => XRayMockYaml.parse('''
+- name: ""
+  payload: p1
+'''),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('B19 — whitespace-only name is rejected', () {
+      expect(
+        () => XRayMockYaml.parse('''
+- name: "   "
+  payload: p1
+'''),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
     test('B20 — empty string returns empty list (NOT an error)', () {
       expect(XRayMockYaml.parse(''), isEmpty);
     });

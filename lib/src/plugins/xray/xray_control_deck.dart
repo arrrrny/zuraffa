@@ -60,8 +60,7 @@ class XRayControlDeck {
 
   /// Broadcast stream of entry snapshots. Emits after every
   /// [registerEntries] / [clear]. Emits nothing in release mode.
-  Stream<List<XRayMockEntry>> get changes =>
-      _isReleaseMode
+  Stream<List<XRayMockEntry>> get changes => _isReleaseMode
       ? const Stream<List<XRayMockEntry>>.empty()
       : _controller.stream;
 
@@ -70,11 +69,12 @@ class XRayControlDeck {
   /// first if you want a clean replace. No-op in release mode.
   void registerEntries(List<XRayMockEntry> newEntries) {
     if (_isReleaseMode) return;
+    final prevLength = _entries.length;
     for (final e in newEntries) {
       final key = _key(e.name, e.payload);
       _entries[key] ??= e;
     }
-    _emit();
+    if (_entries.length != prevLength) _emit();
   }
 
   /// Clear all registered entries. No-op in release mode.

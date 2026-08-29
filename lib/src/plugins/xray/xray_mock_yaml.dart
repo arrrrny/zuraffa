@@ -59,6 +59,12 @@ class XRayMockYaml {
           '`name` field',
         );
       }
+      final nameStr = name.toString();
+      if (nameStr.trim().isEmpty) {
+        throw FormatException(
+          'XRayMockYaml: entry at index $i has an empty `name`',
+        );
+      }
       if (payload == null) {
         throw FormatException(
           'XRayMockYaml: entry at index $i is missing the required '
@@ -66,11 +72,13 @@ class XRayMockYaml {
         );
       }
 
-      entries.add(XRayMockEntry(
-        name: name.toString(),
-        payload: payload.toString(),
-        type: XRayMockType.fromString(typeStr?.toString()),
-      ));
+      entries.add(
+        XRayMockEntry(
+          name: nameStr,
+          payload: payload.toString(),
+          type: XRayMockType.fromString(typeStr?.toString()),
+        ),
+      );
     }
     return entries;
   }
@@ -79,10 +87,7 @@ class XRayMockYaml {
   static List<XRayMockEntry> parseFile(String path) {
     final file = File(path);
     if (!file.existsSync()) {
-      throw FileSystemException(
-        'XRayMockYaml: file not found',
-        path,
-      );
+      throw FileSystemException('XRayMockYaml: file not found', path);
     }
     return parse(file.readAsStringSync());
   }

@@ -41,9 +41,7 @@ Map<String, dynamic>? readXrayConfig() {
 
 /// Write the X-Ray config file.
 void writeXrayConfig(Map<String, dynamic> config) {
-  final dir = Directory(
-    xrayConfigPath.substring(0, xrayConfigPath.lastIndexOf('/')),
-  );
+  final dir = File(xrayConfigPath).parent;
   if (!dir.existsSync()) {
     dir.createSync(recursive: true);
   }
