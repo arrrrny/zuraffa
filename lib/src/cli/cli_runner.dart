@@ -168,7 +168,9 @@ class CliRunner {
 
     try {
       await _runner.run(args);
-      _exit(0);
+      // Respect a failure exit code set by the command (dart:io `exitCode`);
+      // calling `exit(0)` unconditionally would clobber it.
+      _exit(exitCode);
     } on UsageException catch (e) {
       print('❌ ${e.message}');
       print(e.usage);

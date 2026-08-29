@@ -12,7 +12,14 @@ ZuraffaPlugin                        # Base: lifecycle hooks, capabilities
 ```
 
 **Core system**: `lib/src/core/plugin_system/`
-**Built-in plugins**: `lib/src/plugins/` (21 plugins)
+**Built-in plugins**: `lib/src/plugins/` (33 plugins)
+
+Notable non-generation plugins:
+
+- `skeleton` (`lib/src/plugins/skeleton/`) — generates self-contained feature
+  scaffolds ("bones") under `.zfa/bones/<slug>/` for delegated agent builds.
+  CLI: `zfa bone generate|export|validate`. See
+  `specs/020-skeleton-plugin-bones/contracts/`.
 
 ## Plugin Interface
 
