@@ -1,0 +1,12 @@
+# Zuraffa package-mode marker (spec 025 / FR-011).
+#
+# `package_mode: true` is the package-shape marker the zfa pipeline reads
+# to suppress app-specific codegen (routes, app service locator,
+# presentation) and to emit the package registrar instead of the app
+# locator (FR-004). The same `zfa make` / `zfa build` commands work here
+# and in an app — only the emission shape differs.
+#
+# This marker lives in zfa.yaml (zfa-owned) rather than build.yaml:
+# build_runner strictly validates build.yaml's schema and rejects
+# unknown top-level keys, which would break every subsequent build.
+package_mode: true

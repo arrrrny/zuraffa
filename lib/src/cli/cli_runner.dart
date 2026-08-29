@@ -23,6 +23,7 @@ import '../commands/xray_command.dart';
 import '../commands/setup_command.dart';
 import '../commands/tdd_command.dart';
 import '../commands/app_shell_command.dart';
+import '../commands/package_command.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../plugins/tdd/tdd_plugin.dart';
@@ -119,6 +120,7 @@ class CliRunner {
     _runner.addCommand(TddCommand(TddPlugin()));
     _runner.addCommand(AppCommand());
     _runner.addCommand(UiCommand());
+    _runner.addCommand(PackageCommand());
   }
 
   void _loadAndRegisterPlugins() {
@@ -277,6 +279,7 @@ USAGE:
 BOOTSTRAP:
   setup <name>        Create a new Flutter/Dart app with zuraffa deps wired in
   init                Alias of initialize — wire deps + scaffold a test entity
+  package create <name>  Create a Zuraffa-native reusable package (spec 025)
 
 CORE COMMANDS:
   make <Name>         Canonical architecture/code generation command

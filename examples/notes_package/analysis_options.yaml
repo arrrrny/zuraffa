@@ -1,0 +1,11 @@
+# Static analysis configuration for this Zuraffa-native package (spec 025).
+# The `zfa build` pipeline runs `dart analyze` as a post-build safety net,
+# so the scaffold ships with the default error semantics plus core lints
+# that generated code already satisfies.
+linter:
+  rules:
+    - avoid_empty_else
+    - avoid_redundant_argument_values
+    - empty_statements
+    - unnecessary_const
+    - unnecessary_new

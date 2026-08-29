@@ -3,6 +3,7 @@ import 'package:path/path.dart' as path;
 import '../../config/zfa_config.dart';
 import '../../utils/string_utils.dart';
 import '../../cli/plugin_loader.dart';
+import '../../package/package_mode.dart';
 import '../context/file_system.dart';
 import '../context/progress_reporter.dart';
 import '../transaction/transactional_file_system.dart';
@@ -41,15 +42,66 @@ class PluginManager {
     ArgResults? argResults,
     Map<String, dynamic> options = const {},
   }) {
-    return PlanResolver(
-      registry: registry,
-      config: config,
-      pluginConfig: pluginConfig,
-    ).resolve(
-      name: name,
-      explicitPluginIds: explicitPluginIds,
-      argResults: argResults,
-      options: options,
+    final plan =
+        PlanResolver(
+          registry: registry,
+          config: config,
+          pluginConfig: pluginConfig,
+        ).resolve(
+          name: name,
+          explicitPluginIds: explicitPluginIds,
+          argResults: argResults,
+          options: options,
+        );
+    return _applyPackageModeFilter(plan);
+  }
+
+  /// Plugins whose output is app-specific and therefore suppressed in
+  /// package-mode projects (spec 025, FR-003): routes, presentation, and
+  /// the app shell belong to the consuming app, never to a reusable
+  /// package.
+  static const Set<String> _appOnlyPluginIds = {
+    'route',
+    'view',
+    'presenter',
+    'controller',
+    'app_shell',
+  };
+
+  /// Drops app-only plugins from [plan] when the project root carries the
+  /// package-shape marker (FR-010/FR-011), printing one notice per dropped
+  /// plugin so the operator sees exactly what was suppressed and why.
+  GenerationPlan _applyPackageModeFilter(GenerationPlan plan) {
+    if (!PackageMode.isEnabled(projectRoot)) return plan;
+
+    final kept = plan.activePlugins
+        .where((p) => !_appOnlyPluginIds.contains(p.id))
+        .toList();
+    if (kept.length == plan.activePlugins.length) return plan;
+
+    final dropped = plan.activePlugins
+        .where((p) => _appOnlyPluginIds.contains(p.id))
+        .map((p) => p.id)
+        .toList();
+    // ignore: avoid_print
+    print(
+      '📦 package mode: skipping app-only plugin(s) ${dropped.join(', ')} '
+      '— packages contribute architecture, not app shell (spec 025 FR-003)',
+    );
+
+    return GenerationPlan(
+      name: plan.name,
+      preset: plan.preset,
+      requestedPluginIds: plan.requestedPluginIds,
+      pluginIds: kept.map((p) => p.id).toList(),
+      activePlugins: kept,
+      warnings: [
+        ...plan.warnings,
+        ...dropped.map(
+          (id) => 'package mode: app-only plugin "$id" suppressed',
+        ),
+      ],
+      normalizedOptions: plan.normalizedOptions,
     );
   }
 
