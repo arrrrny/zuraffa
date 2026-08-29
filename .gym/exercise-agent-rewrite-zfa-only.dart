@@ -565,14 +565,26 @@ Future<_ZfaRunResult> _runZfa(String workingDir, List<String> args) async {
 
 /// Convert a PascalCase entity name to its canonical snake_case form
 /// (`Note` -> `note`, the v5 directory/file segment).
+///
+/// Consecutive capitals are treated as one acronym run, matching the
+/// generator's own naming (`ApiKey` -> `api_key`, `APIKey` -> `api_key`),
+/// so the path assertions below stay aligned with what `zfa` emits.
 String _snakeCase(String name) {
   final buf = StringBuffer();
-  for (var i = 0; i < name.length; i += 1) {
+  bool isUpper(int i) {
     final ch = name[i];
-    if (ch.toUpperCase() == ch && ch.toLowerCase() != ch && i > 0) {
-      buf.write('_');
-    }
-    buf.write(ch.toLowerCase());
+    return ch.toUpperCase() == ch && ch.toLowerCase() != ch;
+  }
+
+  for (var i = 0; i < name.length; i += 1) {
+    // Insert a separator at a lower->upper transition, or at the end of an
+    // acronym run that is followed by a lowercase letter (APIKey -> api_key).
+    final boundary =
+        i > 0 &&
+        isUpper(i) &&
+        (!isUpper(i - 1) || (i + 1 < name.length && !isUpper(i + 1)));
+    if (boundary) buf.write('_');
+    buf.write(name[i].toLowerCase());
   }
   return buf.toString();
 }
