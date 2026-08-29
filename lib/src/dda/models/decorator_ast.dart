@@ -11,6 +11,7 @@ class DecoratorAST {
   const DecoratorAST({
     required this.name,
     required this.target,
+    this.constructorName,
     this.positionalArgs = const [],
     this.namedArgs = const {},
     this.yamlReference,
@@ -19,6 +20,11 @@ class DecoratorAST {
 
   /// The decorator name without the `@` prefix, e.g. `Cacheable`, `XRayMock`.
   final String name;
+
+  /// The named constructor being invoked, e.g. `redirect` for
+  /// `@Route.redirect(from: ..., to: ...)`. Null when the annotation uses
+  /// the default constructor (`@Route(...)`).
+  final String? constructorName;
 
   /// The AST node this decorator is attached to.
   final AstNode target;
@@ -68,8 +74,8 @@ class DecoratorAST {
 
   @override
   String toString() =>
-      'DecoratorAST(@$name, positional=$positionalArgs, named=$namedArgs, '
-      'yaml=$yamlReference)';
+      'DecoratorAST(@$name${constructorName != null ? '.$constructorName' : ''}, '
+      'positional=$positionalArgs, named=$namedArgs, yaml=$yamlReference)';
 }
 
 /// Location within a source file for precise error reporting.

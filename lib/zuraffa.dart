@@ -420,11 +420,16 @@ export 'src/core/di/zuraffa_container.dart';
 /// DIPlugin — DDA plugin for @Datasource/@Repository processing.
 export 'src/dda/plugins/di/di_plugin.dart';
 
+/// Route annotation — @ZfaRoute, ZuraffaRouteGuard, RouteParams base classes.
+export 'src/dda/plugins/route/route_annotation.dart';
+
 /// RouteDDAPlugin — DDA plugin for @Route annotation processing.
 export 'src/dda/plugins/route/route_plugin.dart';
 
 /// RouteGenerator — GoRouter configuration generation from @Route metadata.
 export 'src/dda/plugins/route/route_generator.dart';
+export 'src/dda/plugins/route/route_validator.dart';
+export 'src/dda/plugins/route/route_build_stage.dart';
 
 /// CacheStrategy enum, @Cacheable and @CacheInvalidate annotations.
 export 'src/dda/plugins/cache/cache_annotation.dart';
@@ -524,34 +529,6 @@ export 'src/graphql/diff/schema_diff.dart';
 
 // DartTypeNamer — camelCase/PascalCase + reserved-word escapes (FR-007).
 export 'src/graphql/mapping/dart_type_namer.dart';
-
-// ---------------------------------------------------------------------------
-// Routing (spec 033 — @Route decorator for auto-generated navigation config)
-// ---------------------------------------------------------------------------
-
-// ZfaRoute / Route — the @Route annotation users place on View classes.
-// Also reachable via the DDA plugin path below; re-exported here for
-// convenience so `package:zuraffa/zuraffa.dart` exposes the annotation
-// alongside the rest of the routing API.
-export 'src/dda/plugins/route/route_annotation.dart';
-
-// ZfaRouteParams — typed route parameter base + controller-init holder.
-export 'src/routing/route_params.dart';
-
-// Route model — declarations, redirect rules, scan results, errors.
-export 'src/routing/route_model.dart';
-
-// RouteAnnotationScanner — parse-only @Route scanner.
-export 'src/routing/route_annotation_scanner.dart';
-
-// RouteValidator — FR-006 build-time validation engine.
-export 'src/routing/route_validator.dart';
-
-// RouteConfigGenerator — zfa_router.g.dart + deep-link emitter.
-export 'src/routing/route_config_generator.dart';
-
-// RouteAnnotationCompiler — scan→validate→generate orchestration.
-export 'src/routing/route_annotation_compiler.dart';
 
 // TypeMapper — GraphQL type to Dart type mapping.
 export 'src/graphql/mapping/type_mapper.dart';

@@ -1,6 +1,8 @@
 import 'package:code_builder/code_builder.dart' as cb;
 import 'package:dart_style/dart_style.dart';
 
+import 'route_validator.dart';
+
 /// Generates `lib/src/routing/zfa_router.g.dart` from collected
 /// `@ZfaRoute` annotation metadata.
 ///
@@ -8,20 +10,15 @@ import 'package:dart_style/dart_style.dart';
 /// - A `GoRouter` factory function with all discovered routes
 /// - Typed `RouteParams` class per route that has path or query parameters
 /// - Redirect rules from `@ZfaRoute.redirect` annotations
-/// - `ShellRoute` wrappers for nested route groups (parentPath)
+/// - `ShellRoute` wrappers for nested route groups: `isShell` routes render
+///   their View around the children; legacy `parentPath` groups render a
+///   pass-through shell
 /// - Guard-based `redirect` callbacks for middleware-protected routes
 /// - Deep link path patterns documented in generated code
 ///
-/// Usage in `zfa build` pipeline:
-/// ```dart
-/// final plugin = RouteDDAPlugin();
-/// ZorphyPluginRegistry.register(plugin);
-/// // ... build runs, plugin collects routes ...
-/// if (plugin.hasRoutes) {
-///   final code = plugin.generateRouterFile();
-///   File('lib/src/routing/zfa_router.g.dart').writeAsStringSync(code);
-/// }
-/// ```
+/// With no routes collected, `generate()` emits a valid EMPTY configuration
+/// (`createZfaRouter()` over an empty route list) — used when a previously
+/// generated file must be regenerated after all routes were removed.
 class RouteGenerator {
   RouteGenerator({this.packageName = 'zuraffa'});
 
@@ -38,6 +35,42 @@ class RouteGenerator {
   /// Whether any routes or redirects were collected.
   bool get hasRoutes => _routes.isNotEmpty || _redirects.isNotEmpty;
 
+  /// Public snapshot of the collected routes (for validation + reporting).
+  List<RouteEntryInfo> get routeInfos => List.unmodifiable(
+    _routes.map(
+      (r) => RouteEntryInfo(
+        path: r.path,
+        name: r.name,
+        className: r.className,
+        importUri: r.importUri,
+        deepLinkAware: r.deepLinkAware,
+        isShell: r.isShell,
+        parent: r.parent,
+        queryParameters: r.queryParameters,
+        pathParameters: r.pathParameters,
+        middleware: r.middleware,
+        filePath: r.filePath,
+        line: r.line,
+      ),
+    ),
+  );
+
+  /// Cached public snapshot used for parent resolution (the validator's
+  /// resolveParentPath operates on [RouteEntryInfo]).
+  List<RouteEntryInfo> get _infoList => routeInfos;
+
+  /// Public snapshot of the collected redirect rules.
+  List<RedirectRuleInfo> get redirectInfos => List.unmodifiable(
+    _redirects.map(
+      (r) => RedirectRuleInfo(
+        from: r.from,
+        to: r.to,
+        filePath: r.filePath,
+        line: r.line,
+      ),
+    ),
+  );
+
   /// Register a route view discovered by the AST scanner.
   void addRoute({
     required String path,
@@ -45,12 +78,20 @@ class RouteGenerator {
     required String className,
     required String importUri,
     bool deepLinkAware = false,
+    bool isShell = false,
+    String? parent,
     String? parentPath,
     Map<String, String> queryParameters = const {},
+    Map<String, String> pathParameters = const {},
     List<String> middleware = const [],
     Map<String, String> middlewareImports = const {},
+    String? filePath,
+    int? line,
   }) {
-    final pathParams = _extractPathParams(path);
+    // Normalize: `parent` (name-or-path) wins; legacy `parentPath` is a path
+    // reference. Keep the raw reference for validation; resolution happens
+    // at generate() time when every route is known.
+    final parentRef = parent ?? parentPath;
     _routes.add(
       _RouteEntry(
         path: path,
@@ -58,26 +99,36 @@ class RouteGenerator {
         className: className,
         importUri: importUri,
         deepLinkAware: deepLinkAware,
-        parentPath: parentPath,
-        pathParams: pathParams,
+        isShell: isShell,
+        parent: parentRef,
         queryParameters: queryParameters,
+        pathParameters: pathParameters,
         middleware: middleware,
         middlewareImports: middlewareImports,
+        filePath: filePath,
+        line: line,
       ),
     );
   }
 
   /// Register a redirect rule discovered by the AST scanner.
-  void addRedirect({required String from, required String to}) {
-    _redirects.add(_RedirectEntry(from: from, to: to));
+  void addRedirect({
+    required String from,
+    required String to,
+    String? filePath,
+    int? line,
+  }) {
+    _redirects.add(
+      _RedirectEntry(from: from, to: to, filePath: filePath, line: line),
+    );
   }
 
   /// Generate the complete `zfa_router.g.dart` file content.
   String generate() {
     final library = cb.Library((b) {
-      b.generatedByComment = 'zfa DDA pipeline — Track 6.1';
+      b.generatedByComment = 'zfa DDA pipeline — Track 6.1. DO NOT EDIT.';
 
-      // ── Imports ──
+      // ── Imports (sorted for deterministic, idempotent output) ──
       final viewImports = <String>{};
       for (final route in _routes) {
         if (route.importUri.isNotEmpty) {
@@ -93,12 +144,12 @@ class RouteGenerator {
       b.directives.add(cb.Directive.import('package:go_router/go_router.dart'));
       b.directives.add(cb.Directive.import('package:flutter/material.dart'));
       b.directives.add(cb.Directive.import('package:zuraffa/zuraffa.dart'));
-      for (final uri in viewImports) {
+      for (final uri in viewImports.toList()..sort()) {
         b.directives.add(cb.Directive.import(uri));
       }
 
       // ── RouteParams classes ──
-      for (final route in _routes) {
+      for (final route in _effectiveRoutes()) {
         if (route.hasParams) {
           b.body.add(_routeParamsClass(route));
         }
@@ -143,6 +194,42 @@ class RouteGenerator {
   }
 
   // ────────────────────────────────────────────────────────────────
+  // Parent resolution + effective paths
+  // ────────────────────────────────────────────────────────────────
+
+  /// Routes annotated as shells that actually own children.
+  List<_RouteEntry> _shells() {
+    return _routes
+        .where((r) => r.isShell && _childrenOf(r).isNotEmpty)
+        .toList();
+  }
+
+  /// Routes whose `parent` resolves to [shell]'s path (excluding the shell
+  /// itself).
+  List<_RouteEntry> _childrenOf(_RouteEntry shell) {
+    return _routes.where((r) {
+      if (r == shell || r.parent == null) return false;
+      return RouteValidator.resolveParentPath(r.parent!, _infoList) ==
+          shell.path;
+    }).toList();
+  }
+
+  /// The routes that carry generated RouteParams classes: every route
+  /// (children carry their EFFECTIVE — absolute — paths so `:param`
+  /// extraction works on relative child paths too).
+  List<_RouteEntry> _effectiveRoutes() {
+    return _routes.map((r) => _effectiveRouteFor(r)).toList();
+  }
+
+  static bool _pathHasPrefix(String path, String prefix) =>
+      path == prefix || path.startsWith('$prefix/');
+
+  static String _joinPath(String parent, String child) {
+    final c = child.startsWith('/') ? child : '/$child';
+    return parent.endsWith('/') ? '$parent${c.substring(1)}' : '$parent$c';
+  }
+
+  // ────────────────────────────────────────────────────────────────
   // RouteParams class
   // ────────────────────────────────────────────────────────────────
 
@@ -152,7 +239,7 @@ class RouteGenerator {
     final constructorParams = <cb.Parameter>[];
     final factoryAssignments = <String>[];
 
-    // Path params
+    // Path params (typed via pathParameters; String by default)
     for (final p in route.pathParams) {
       fields.add(
         cb.Field(
@@ -296,25 +383,51 @@ class RouteGenerator {
   // ────────────────────────────────────────────────────────────────
 
   cb.Method _routerFunction() {
-    // Build route tree: group by parentPath
-    final standaloneRoutes = <_RouteEntry>[];
-    final shellGroups = <String, List<_RouteEntry>>{};
-    for (final route in _routes) {
-      if (route.parentPath != null) {
-        shellGroups.putIfAbsent(route.parentPath!, () => []);
-        shellGroups[route.parentPath!]!.add(route);
-      } else {
-        standaloneRoutes.add(route);
-      }
-    }
-
-    // Build the GoRoute expressions
     final routeLines = <String>[];
 
-    // Shell routes first
-    for (final entry in shellGroups.entries) {
+    // ── isShell shells: render the shell View around its children ──
+    final emittedAsShellChildren = <_RouteEntry>{};
+    for (final shell in _shells()) {
+      final childLines = <String>[];
+      for (final child in _childrenOf(shell)) {
+        final effective = _effectiveRouteFor(child);
+        emittedAsShellChildren.add(child);
+        childLines.add(_goRouteCode(effective, indent: 6));
+      }
+      routeLines.add('    ShellRoute(');
+      routeLines.add(
+        '      builder: (context, state, child) => ${shell.className}(child: child),',
+      );
+      routeLines.add('      routes: [');
+      routeLines.addAll(childLines);
+      routeLines.add('      ],');
+      routeLines.add('    ),');
+    }
+
+    // ── Legacy parentPath groups (no isShell owner): pass-through shell ──
+    final legacyGroups = <String, List<_RouteEntry>>{};
+    for (final route in _routes) {
+      if (route.parent == null || emittedAsShellChildren.contains(route)) {
+        continue;
+      }
+      final parentPath = RouteValidator.resolveParentPath(
+        route.parent!,
+        _infoList,
+      );
+      if (parentPath == null) continue;
+      // Only group under a NON-shell parent here — shell parents were
+      // handled above (or the parent owns no children).
+      final parentRoute = _routes.firstWhere(
+        (r) => r.path == parentPath,
+        orElse: () => route,
+      );
+      if (parentRoute.isShell) continue;
+      legacyGroups.putIfAbsent(parentPath, () => []).add(route);
+    }
+    for (final entry in legacyGroups.entries) {
       final childLines = <String>[];
       for (final child in entry.value) {
+        emittedAsShellChildren.add(child);
         childLines.add(_goRouteCode(child, indent: 6));
       }
       routeLines.add(
@@ -326,9 +439,14 @@ class RouteGenerator {
       routeLines.add('    ]),');
     }
 
-    // Standalone routes
-    for (final route in standaloneRoutes) {
-      routeLines.add(_goRouteCode(route, indent: 4));
+    // ── Standalone routes (no parent, or shells without children) ──
+    final shellsWithChildren = _shells().map((s) => s.path).toSet();
+    for (final route in _routes) {
+      // Shell that owns children: already emitted as a ShellRoute above.
+      if (route.isShell && shellsWithChildren.contains(route.path)) continue;
+      // Children emitted inside a shell above (isShell or legacy groups).
+      if (emittedAsShellChildren.contains(route)) continue;
+      routeLines.add(_goRouteCode(_effectiveRouteFor(route), indent: 4));
     }
 
     // Build complete GoRouter expression
@@ -364,6 +482,20 @@ class RouteGenerator {
         ..returns = cb.refer('GoRouter')
         ..body = cb.Code(goRouterParts.join('\n')),
     );
+  }
+
+  /// The effective-route view of [route] (absolute path when nested under a
+  /// shell).
+  _RouteEntry _effectiveRouteFor(_RouteEntry route) {
+    if (route.parent == null) return route;
+    final parentPath = RouteValidator.resolveParentPath(
+      route.parent!,
+      _infoList,
+    );
+    if (parentPath != null && !_pathHasPrefix(route.path, parentPath)) {
+      return route._withPath(_joinPath(parentPath, route.path));
+    }
+    return route;
   }
 
   String _goRouteCode(_RouteEntry route, {required int indent}) {
@@ -422,11 +554,17 @@ class RouteGenerator {
   // Path parameter extraction
   // ────────────────────────────────────────────────────────────────
 
-  static List<_PathParam> _extractPathParams(String path) {
+  static List<_PathParam> _extractPathParams(
+    String path,
+    Map<String, String> declaredTypes,
+  ) {
     final params = <_PathParam>[];
     final regex = RegExp(r':([a-zA-Z_][a-zA-Z0-9_]*)');
     for (final match in regex.allMatches(path)) {
-      params.add(_PathParam(name: match.group(1)!, dartType: 'String'));
+      final name = match.group(1)!;
+      params.add(
+        _PathParam(name: name, dartType: declaredTypes[name] ?? 'String'),
+      );
     }
     return params;
   }
@@ -441,11 +579,14 @@ class _RouteEntry {
     required this.className,
     required this.importUri,
     required this.deepLinkAware,
-    this.parentPath,
-    this.pathParams = const [],
+    required this.isShell,
+    this.parent,
     this.queryParameters = const {},
+    this.pathParameters = const {},
     this.middleware = const [],
     this.middlewareImports = const {},
+    this.filePath,
+    this.line,
   });
 
   final String path;
@@ -453,19 +594,48 @@ class _RouteEntry {
   final String className;
   final String importUri;
   final bool deepLinkAware;
-  final String? parentPath;
-  final List<_PathParam> pathParams;
+  final bool isShell;
+  final String? parent;
   final Map<String, String> queryParameters;
+  final Map<String, String> pathParameters;
   final List<String> middleware;
   final Map<String, String> middlewareImports;
+  final String? filePath;
+  final int? line;
 
   bool get hasParams => pathParams.isNotEmpty || queryParameters.isNotEmpty;
+
+  List<_PathParam> get pathParams =>
+      RouteGenerator._extractPathParams(path, pathParameters);
+
+  _RouteEntry _withPath(String effectivePath) => _RouteEntry(
+    path: effectivePath,
+    name: name,
+    className: className,
+    importUri: importUri,
+    deepLinkAware: deepLinkAware,
+    isShell: isShell,
+    parent: parent,
+    queryParameters: queryParameters,
+    pathParameters: pathParameters,
+    middleware: middleware,
+    middlewareImports: middlewareImports,
+    filePath: filePath,
+    line: line,
+  );
 }
 
 class _RedirectEntry {
-  _RedirectEntry({required this.from, required this.to});
+  _RedirectEntry({
+    required this.from,
+    required this.to,
+    this.filePath,
+    this.line,
+  });
   final String from;
   final String to;
+  final String? filePath;
+  final int? line;
 }
 
 class _PathParam {

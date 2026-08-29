@@ -14,8 +14,9 @@ library;
 /// class ProductDetailView extends StatelessWidget { ... }
 /// ```
 ///
-/// The DDA pipeline scans for `@ZfaRoute` annotations and compiles a
-/// master `zfa_router.g.dart` with GoRouter configuration.
+/// The DDA pipeline scans for `@ZfaRoute` (and its `@Route` alias)
+/// annotations and compiles a master `zfa_router.g.dart` with GoRouter
+/// configuration.
 class ZfaRoute {
   /// The URL path pattern, e.g. `'/products/:id'`.
   ///
@@ -23,22 +24,48 @@ class ZfaRoute {
   /// Query parameters are declared via [queryParameters].
   final String path;
 
-  /// Optional name for this route. Defaults to the class name.
+  /// Optional name for this route. Defaults to a camelCase derivation of
+  /// the class name.
   final String? name;
 
   /// When `true`, registers the route for deep links
   /// (iOS universal links / Android app links).
   final bool deepLinkAware;
 
-  /// Optional parent route path for nested routing.
+  /// When `true`, this route is a SHELL: its View renders around the child
+  /// routes that reference it via [parent] or [parentPath].
   ///
-  /// When set, this route is rendered inside a `ShellRoute`
-  /// keyed by [parentPath]. Multiple routes sharing the same
-  /// [parentPath] are grouped under one shell route.
+  /// ```dart
+  /// @ZfaRoute(path: '/dashboard', isShell: true)
+  /// class DashboardShell extends StatelessWidget {
+  ///   const DashboardShell({super.key, required this.child});
+  ///   final Widget child; // required — the shell renders its children here
+  ///   ...
+  /// }
+  ///
+  /// @ZfaRoute(path: '/analytics', parent: 'dashboard')
+  /// class AnalyticsView extends StatelessWidget { ... }
+  /// ```
+  final bool isShell;
+
+  /// Optional parent route reference — either the parent route's NAME
+  /// (`'dashboard'`) or its PATH (`'/dashboard'`). The parent must be
+  /// declared with [isShell] set.
+  ///
+  /// Aliased by [parentPath] (path-only, legacy spelling); both are
+  /// accepted.
+  final String? parent;
+
+  /// Optional parent route path for nested routing (legacy spelling of
+  /// [parent], path references only).
+  ///
+  /// When set, this route is rendered inside a `ShellRoute` keyed by the
+  /// parent path. Multiple routes sharing the same parent are grouped under
+  /// one shell route.
   final String? parentPath;
 
   /// Optional redirect source path. When set alongside [redirectTo],
-  /// generates a `GoRoute(redirect: ...)` rule.
+  /// generates a redirect rule.
   final String? redirectFrom;
 
   /// Optional redirect target path. Used with [redirectFrom].
@@ -57,6 +84,13 @@ class ZfaRoute {
   /// Keys are query param names, values are Dart type strings.
   final Map<String, String>? queryParameters;
 
+  /// Path parameter types, e.g. `{'id': 'int'}` for
+  /// `path: '/products/:id'`.
+  ///
+  /// Path parameters default to `String`; declare `int`, `double`, or
+  /// `bool` here to generate typed fields (SC-004 compile-time safety).
+  final Map<String, String>? pathParameters;
+
   /// Guard classes that must be checked before the route activates.
   ///
   /// Each guard must implement [ZuraffaRouteGuard]. Guards are
@@ -69,45 +103,18 @@ class ZfaRoute {
   /// ```
   final List<Type>? middleware;
 
-  /// Whether this route is a SHELL route hosting nested child routes
-  /// (spec 033 FR-007). The shell View renders the shared chrome and
-  /// receives the active child via its `child` constructor parameter
-  /// when it declares one.
-  final bool isShell;
-
-  /// Name of the parent SHELL route this route nests under (spec 033
-  /// FR-007). Unlike [parentPath] (path-keyed), this references the
-  /// parent route's [name].
-  final String? parent;
-
-  /// Redirect rule attached to this route (spec 033 FR-001):
-  /// `@Route(redirect: RouteRedirect(from: '/old', to: '/new'))`.
-  final RouteRedirect? redirect;
-
-  /// Typed PATH parameters (spec 033 US-7): `{'id': int}` — supported
-  /// types: `String`, `int`, `double`, `bool`. Unlisted `:params`
-  /// default to `String`.
-  final Map<String, Type>? params;
-
-  /// Where to send users when a guard denies activation without an
-  /// explicit [ZuraffaRouteGuard.onRejected] override (spec 033 US-5);
-  /// recorded as the generated default deny path.
-  final String? guardRedirect;
-
   const ZfaRoute({
     required this.path,
     this.name,
     this.deepLinkAware = false,
+    this.isShell = false,
+    this.parent,
     this.parentPath,
     this.redirectFrom,
     this.redirectTo,
     this.queryParameters,
+    this.pathParameters,
     this.middleware,
-    this.isShell = false,
-    this.parent,
-    this.redirect,
-    this.params,
-    this.guardRedirect,
   });
 
   /// Convenience constructor for redirect-only route entries.
@@ -115,37 +122,27 @@ class ZfaRoute {
   /// ```dart
   /// @ZfaRoute.redirect(from: '/old-products', to: '/products')
   /// ```
+  ///
+  /// The `@Route.redirect(...)` spelling works identically.
   const ZfaRoute.redirect({
     required this.redirectFrom,
     required this.redirectTo,
   }) : path = '',
        name = null,
        deepLinkAware = false,
-       parentPath = null,
-       queryParameters = null,
-       middleware = null,
        isShell = false,
        parent = null,
-       redirect = null,
-       params = null,
-       guardRedirect = null;
+       parentPath = null,
+       queryParameters = null,
+       pathParameters = null,
+       middleware = null;
 }
 
-/// Spec 033 name for [ZfaRoute] — the canonical annotation spelling per
-/// `specs/033-route-decorator-nav` FR-001 (`@Route(path: ...)` and
-/// `@Route.redirect(from: ..., to: ...)`).
+/// Backward-compatible alias for [ZfaRoute].
+///
+/// @deprecated Use [ZfaRoute] instead to avoid conflicts with Flutter's Route.
+@Deprecated('Use ZfaRoute instead')
 typedef Route = ZfaRoute;
-
-/// Redirect configuration for `@Route(redirect: ...)` (spec 033 FR-001).
-class RouteRedirect {
-  /// URL pattern that should be redirected away from.
-  final String from;
-
-  /// Target URL that exists in the route configuration.
-  final String to;
-
-  const RouteRedirect({required this.from, required this.to});
-}
 
 /// Pure-Dart route state passed to [ZuraffaRouteGuard] callbacks.
 ///
