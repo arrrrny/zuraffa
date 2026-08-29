@@ -143,7 +143,9 @@ class DataSourceBuilder {
     buffer.writeln('  /// Firebase API key authorized for [projectId].');
     buffer.writeln('  final String apiKey;');
     buffer.writeln();
-    buffer.writeln('  /// Optional Firebase ID token; when non-empty it is sent');
+    buffer.writeln(
+      '  /// Optional Firebase ID token; when non-empty it is sent',
+    );
     buffer.writeln('  /// as a `Bearer` `Authorization` header so Firestore');
     buffer.writeln('  /// Security Rules requiring auth are satisfied.');
     buffer.writeln('  final String? idToken;');
@@ -201,7 +203,9 @@ class DataSourceBuilder {
     );
     buffer.writeln('        }');
     buffer.writeln('      }');
-    buffer.writeln("      pageToken = (body['nextPageToken'] as String?) ?? '';");
+    buffer.writeln(
+      "      pageToken = (body['nextPageToken'] as String?) ?? '';",
+    );
     buffer.writeln('    } while (pageToken.isNotEmpty);');
     buffer.writeln('    return <$entity>[');
     buffer.writeln('      for (final document in documents)');
@@ -394,7 +398,10 @@ class DataSourceBuilder {
   /// References a generated-code variable named [varName]. Prefers the first
   /// non-nullable `String` field, falls back to the first non-nullable field,
   /// and uses a generated timestamp for field-less entities.
-  String primaryKeyExpr(List<EntityField> fields, [String varName = 'instance']) {
+  String primaryKeyExpr(
+    List<EntityField> fields, [
+    String varName = 'instance',
+  ]) {
     if (fields.isEmpty) {
       return r"'auto-${DateTime.now().microsecondsSinceEpoch}'";
     }

@@ -52,7 +52,10 @@ void main() {
       expect(source, contains('testWidgets('));
       expect(source, contains('pumpWidget('));
       expect(source, contains('ProfileFeaturePage'));
-      expect(source, contains('ProfileFeatureServices.create(backend: BoneBackend.mock)'));
+      expect(
+        source,
+        contains('ProfileFeatureServices.create(backend: BoneBackend.mock)'),
+      );
     });
   });
 }

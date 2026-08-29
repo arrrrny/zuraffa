@@ -58,7 +58,9 @@ class InjectionBuilder {
     buffer.writeln('  final String apiKey;');
     buffer.writeln();
     buffer.writeln('  /// Optional Firebase ID token forwarded to the data');
-    buffer.writeln('  /// source so Firestore Security Rules requiring auth pass.');
+    buffer.writeln(
+      '  /// source so Firestore Security Rules requiring auth pass.',
+    );
     buffer.writeln('  final String? idToken;');
     buffer.writeln('}');
     buffer.writeln();

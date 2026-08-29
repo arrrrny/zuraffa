@@ -32,10 +32,7 @@ void main() {
 
         final devDependencies = parsed['dev_dependencies'] as Map;
         expect(devDependencies.keys, equals(['flutter_test']));
-        expect(
-          devDependencies['flutter_test'],
-          equals({'sdk': 'flutter'}),
-        );
+        expect(devDependencies['flutter_test'], equals({'sdk': 'flutter'}));
       },
     );
 
