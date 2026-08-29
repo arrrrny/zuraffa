@@ -1,22 +1,25 @@
-/// `zfa tdd verify` — runs the `mutation_test` audit on the configured TDD
-/// code scope and writes the score to the feature's `tdd/verification.md`.
+/// `zfa tdd verify --feature <feature>` — runs the mutation audit on the
+/// feature's registered behavior artifacts and writes
+/// `specs/<feature>/tdd/verification.md` from the REAL run (spec
+/// 044-test-tdd-generation, FR-012..023).
 ///
-/// Phase 11 of `specs/041-tdd-setup-plugin/tasks.md` (tasks T077–T081)
-/// required this command. Before this implementation, the command was an
-/// honest misfire-stop stub (it threw `StateError` naming T077–T081). That
-/// was load-bearing: it prevented fake-pass PR merges while the underlying
-/// `mutation_test` wiring was still pending.
-///
-/// Now that the wiring exists (`mutation-test.xml` at the repo root, plus
-/// the `MutationVerifier` service), this command:
-///   1. Invokes `dart run mutation_test mutation-test.xml -f md -o
-///      mutation-test-report` via [MutationVerifier].
-///   2. Prints the score to stdout in a machine-readable line:
-///      `mutation: killed=X survived=Y timeout=Z score=0.9N`.
-///   3. Optionally appends the score to the feature's
-///      `tdd/verification.md` when `--feature <name>` is passed.
-///   4. Exits non-zero when survivors exist (per US9.AC3 of the spec,
-///      "the audit must fail when survivors exceed the rubric's tolerance").
+/// The command:
+///   1. Derives the mutation scope from `artifacts.json` (FR-012).
+///   2. Runs a green-suite preflight FIRST (FR-013).
+///   3. Runs the mutation audit via [MutationAuditor].
+///   4. Classifies killed/survived/timed-out as three separate buckets
+///      (FR-014).
+///   5. Marks unavailable/empty/incomplete/unparseable results as
+///      NOT_ASSESSED (FR-015, FR-016).
+///   6. Applies the strict policy: ANY survived or timed-out mutant
+///      fails the gate (FR-017).
+///   7. Traces every outcome to behavior id + source criterion (FR-018).
+///   8. States the gate decision (FR-019).
+///   9. Includes non-sensitive repro diagnostics (FR-020).
+///  10. Restores every temporarily mutated subject before returning
+///      (FR-021).
+///  11. NEVER edits a test to fake a pass (FR-022).
+///  12. Exits non-zero whenever the gate is not PASS (FR-023).
 library;
 
 import 'dart:io';
@@ -24,7 +27,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
-import '../services/mutation_verifier.dart';
+import '../services/mutation_auditor.dart';
 import '../tdd_plugin.dart';
 
 class VerifyCommand extends Command<void> {
@@ -32,8 +35,9 @@ class VerifyCommand extends Command<void> {
     argParser.addOption(
       'feature',
       help:
-          'Feature name (e.g. 041-tdd-setup-plugin). When set, the audit '
-          'score is appended to specs/<feature>/tdd/verification.md.',
+          'Feature name (e.g. 044-test-tdd-generation). The audit derives '
+          'its scope from specs/<feature>/tdd/artifacts.json and writes '
+          'specs/<feature>/tdd/verification.md.',
     );
   }
 
@@ -44,8 +48,8 @@ class VerifyCommand extends Command<void> {
 
   @override
   String get description =>
-      'Run the mutation_test audit on the TDD code scope and write the '
-      'score to tdd/verification.md. See specs/041-tdd-setup-plugin (US9).';
+      'Run the mutation_test audit on the feature\'s registered behavior '
+      'artifacts and write tdd/verification.md (spec 044, FR-012..023).';
 
   @override
   String get invocation => 'zfa tdd verify [--feature <name>]';
@@ -55,60 +59,60 @@ class VerifyCommand extends Command<void> {
     final argResults = this.argResults;
     final feature = argResults?['feature'] as String?;
     if (feature != null && feature.isNotEmpty) {
-      // Validated up front: the audit takes minutes, so an unusable
-      // --feature must not be discovered only at the write step.
       _validateFeatureSegment(feature);
     }
     final cwd = Directory.current.path;
 
-    final verifier = MutationVerifier(workingDirectory: cwd);
-    stdout.writeln('zfa tdd verify: running mutation_test...');
-    stdout.writeln('   config: ${verifier.configPath}');
-    stdout.writeln('   output: ${verifier.outputDir}/');
-
-    final MutationResult result;
-    try {
-      result = await verifier.run();
-    } on MutationToolUnavailable catch (e) {
-      stderr.writeln('zfa tdd verify: $e');
-      throw StateError('zfa tdd verify: mutation tool unavailable');
-    } on MutationConfigError catch (e) {
-      stderr.writeln('zfa tdd verify: $e');
-      throw StateError('zfa tdd verify: config error');
+    // Resolve the feature directory.
+    final featureName = feature ?? _resolveFeatureFromCwd(cwd);
+    if (featureName == null) {
+      stderr.writeln(
+        'zfa tdd verify: no --feature specified and no feature directory '
+        'could be resolved from $cwd.',
+      );
+      throw StateError('zfa tdd verify: feature not specified');
     }
+    final featureDir = p.join(cwd, 'specs', featureName);
 
-    stdout.writeln('   killed:  ${result.killedCount}');
-    stdout.writeln('   survived: ${result.survivedCount}');
-    stdout.writeln('   timeout: ${result.timeoutCount}');
-    stdout.writeln(
-      '   score:   ${(result.score * 100).toStringAsFixed(1)}% '
-      '(${result.killedCount}/${result.totalMutants})',
+    stdout.writeln('zfa tdd verify: running mutation audit...');
+    stdout.writeln('   feature: $featureName');
+    stdout.writeln('   feature_dir: $featureDir');
+
+    final auditor = MutationAuditor(
+      featureDir: featureDir,
+      workingDirectory: cwd,
     );
-    stdout.writeln('   elapsed: ${result.elapsed.inSeconds}s');
-    if (result.reportPath != null) {
-      stdout.writeln('   report:  ${result.reportPath}');
+    final report = await auditor.run();
+
+    // Print the gate decision.
+    stdout.writeln('   gate: ${report.gate.label}');
+    if (report.notAssessedReason != null) {
+      stdout.writeln('   reason: ${report.notAssessedReason}');
     }
+    stdout.writeln('   killed: ${report.killedCount}');
+    stdout.writeln('   survived: ${report.survivedCount}');
+    stdout.writeln('   timed_out: ${report.timedOutCount}');
+    stdout.writeln('   mutation_was_run: ${report.mutationWasRun}');
+    stdout.writeln('   restoration_verified: ${report.restorationVerified}');
 
     // Machine-readable summary line for CI / scripts.
     stdout.writeln(
-      'mutation: killed=${result.killedCount} '
-      'survived=${result.survivedCount} '
-      'timeout=${result.timeoutCount} '
-      'score=${result.score.toStringAsFixed(4)}',
+      'mutation: gate=${report.gate.label} '
+      'killed=${report.killedCount} '
+      'survived=${report.survivedCount} '
+      'timed_out=${report.timedOutCount} '
+      'mutation_was_run=${report.mutationWasRun}',
     );
 
-    if (feature != null && feature.isNotEmpty) {
-      await _appendVerification(feature, result, cwd);
-    }
+    // Write verification.md from the REAL run (never a stale copy).
+    await _writeVerificationMd(featureDir, report);
 
-    if (!result.passed) {
-      // Per US9.AC3: exit non-zero when survivors exist.
+    // Exit non-zero whenever the gate is not PASS (FR-023).
+    if (report.gate != MutationGateDecision.pass) {
       throw UsageException(
-        'mutation audit failed: ${result.survivedCount} mutant(s) '
-            'survived the test suite.',
-        'Run with --feature <name> to append the score to the spec '
-            'verification, then strengthen the tests in test/plugins/tdd/ '
-            'until score=1.0.',
+        'mutation audit gate: ${report.gate.label}'
+            '${report.notAssessedReason != null ? ' (${report.notAssessedReason})' : ''}',
+        'See specs/$featureName/tdd/verification.md for the full report.',
       );
     }
   }
@@ -124,48 +128,28 @@ void _validateFeatureSegment(String feature) {
       feature == '..') {
     throw UsageException(
       'invalid --feature "$feature": expected a single spec directory name '
-          'such as 041-tdd-setup-plugin, not a path.',
+          'such as 044-test-tdd-generation, not a path.',
       'zfa tdd verify [--feature <name>]',
     );
   }
 }
 
-/// Appends a one-line audit record to
-/// `specs/<feature>/tdd/verification.md`. This is the durable artifact
-/// reviewers look at when grading TDD discipline.
-Future<void> _appendVerification(
-  String feature,
-  MutationResult result,
-  String repoRoot,
+/// Try to resolve the feature directory from the cwd. Used when --feature
+/// is not specified. Looks at the current branch name pattern.
+String? _resolveFeatureFromCwd(String cwd) {
+  // For now, we don't auto-resolve. Caller must pass --feature.
+  return null;
+}
+
+/// Write the verification.md file from the REAL run. This overwrites any
+/// prior file (FR-019: the report must reflect the actual current run,
+/// never a stale copy).
+Future<void> _writeVerificationMd(
+  String featureDir,
+  MutationAuditReport report,
 ) async {
-  _validateFeatureSegment(feature);
-
-  final dir = Directory(p.join(repoRoot, 'specs', feature, 'tdd'));
-  final file = File(p.join(dir.path, 'verification.md'));
+  final dir = Directory(p.join(featureDir, 'tdd'));
   await dir.create(recursive: true);
-
-  final ts = DateTime.now().toUtc().toIso8601String();
-  final line =
-      '\n## Mutation audit — $ts\n'
-      '- killed: ${result.killedCount}\n'
-      '- survived: ${result.survivedCount}\n'
-      '- timeout: ${result.timeoutCount}\n'
-      '- total: ${result.totalMutants}\n'
-      '- score: ${(result.score * 100).toStringAsFixed(1)}% '
-      '(${result.killedCount}/${result.totalMutants})\n'
-      '- elapsed: ${result.elapsed.inSeconds}s\n'
-      '- report: ${result.reportPath ?? "(no report file)"}\n'
-      '- exit_code: ${result.exitCode}\n'
-      "- tool: `dart run mutation_test mutation-test.xml`\n";
-
-  final exists = await file.exists();
-  if (!exists) {
-    await file.writeAsString(
-      '# TDD Verification — feature $feature\n\n'
-      'Append-only audit log. Newest entry last.\n',
-    );
-  }
-  final sink = file.openWrite(mode: FileMode.append);
-  sink.write(line);
-  await sink.close();
+  final file = File(p.join(dir.path, 'verification.md'));
+  await file.writeAsString(report.toMarkdown());
 }

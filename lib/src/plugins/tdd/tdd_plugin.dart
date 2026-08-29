@@ -7,8 +7,11 @@ import '../../commands/tdd_command.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 
+export 'models/artifact_record.dart';
 export 'models/behavior.dart';
 export 'models/cycle_entry.dart';
+export 'models/mutation_outcome.dart';
+export 'models/ownership.dart';
 export 'models/run_state.dart';
 export 'models/tdd_profile.dart';
 
