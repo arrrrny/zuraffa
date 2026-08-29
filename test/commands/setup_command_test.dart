@@ -416,6 +416,31 @@ dependency_overrides:
       expect(cmd, isNot(contains('--swift-package-manager')));
     });
 
+    test('default --dart scaffolds a pure dart package, no passthrough',
+        () async {
+      final runner = CommandRunner('zfa', 'test')..addCommand(SetupCommand());
+      final prints = <String>[];
+      await runZoned(
+        () => runner.run(['setup', 'demo_lib', '--dry-run', '--dart']),
+        zoneSpecification: ZoneSpecification(
+          print: (self, parent, zone, message) => prints.add(message),
+        ),
+      );
+      final cmd = prints.firstWhere((l) => l.contains('Would run: dart'));
+      expect(cmd, contains('create -t package demo_lib'));
+      expect(cmd, isNot(contains('--platforms')));
+      expect(cmd, isNot(contains('--swift-package-manager')));
+    });
+
+    test('stray extra positional is rejected (use -- for pass-through)',
+        () async {
+      final runner = CommandRunner('zfa', 'test')..addCommand(SetupCommand());
+      await expectLater(
+        runner.run(['setup', 'demo_app', 'stray', '--dry-run', '--flutter']),
+        throwsA(isA<UsageException>()),
+      );
+    });
+
     test('--platforms=macos overrides and forwards verbatim', () async {
       final runner = CommandRunner('zfa', 'test')..addCommand(SetupCommand());
       final prints = <String>[];

@@ -17,7 +17,7 @@ import '../utils/manifest_writer.dart';
 /// and scaffolds the domain directory structure.
 ///
 /// Usage:
-///   `zfa setup <name> [--flutter] [--dart] [--platforms=ios,android] [--org=com.example] [--dry-run] [--force]`
+///   `zfa setup <name> [--flutter|--dart] [--platforms=<csv>] [--org=com.example] [-- <flutter/dart create flags>] [--dry-run] [--force]`
 class SetupCommand extends Command<void> {
   @override
   final String name = 'setup';
@@ -120,6 +120,17 @@ class SetupCommand extends Command<void> {
     // to `flutter create` / `dart create`. zfa owns only its own flags; every
     // other flag ports straight through to the underlying scaffolder.
     final passthrough = rest.length > 1 ? rest.sublist(1) : const <String>[];
+    // zfa setup takes exactly one positional (the app name). Any further tokens
+    // are pass-through flags for `flutter create` / `dart create` (introduced via
+    // `--`). If they contain no flag-like token, the user likely passed a second
+    // app name by mistake — fail fast instead of forwarding a stray word to the
+    // scaffolder (which would surface an opaque `flutter create` error).
+    if (passthrough.isNotEmpty && !passthrough.any((t) => t.startsWith('-'))) {
+      usageException(
+        'Unexpected extra argument(s): ${passthrough.join(' ')}. '
+        'Pass `flutter create` / `dart create` flags after a `--` separator.',
+      );
+    }
 
     final wantDart = argResults!['dart'] as bool;
     final wantFlutter = argResults!['flutter'] as bool;
