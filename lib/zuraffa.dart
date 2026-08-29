@@ -671,7 +671,8 @@ export 'src/agent/ui_render/ui_render.dart'
 // an idempotency cache serves repeated submissions within TTL. Single-isolate
 // assumption documented; MissionExecutor is the multi-isolate extension point.
 // Pure-Dart (no package:flutter import anywhere in this subtree).
-export 'src/agent/kernel/agent_kernel.dart' hide CancelToken;
+export 'src/agent/kernel/agent_kernel.dart'
+    hide CancelToken, Mission, MissionEvent, MissionEventCompleted, MissionEventFailed;
 
 // ── 027-agent-policy-shell — ToolGatingHook, MissionBudgetHook, MissionTraceRecorder ──
 // Framework-default safety/governance layer. Tool permission registry
@@ -680,7 +681,7 @@ export 'src/agent/kernel/agent_kernel.dart' hide CancelToken;
 // typed budget-exceeded events and cancellation; hashed-argument Mission
 // Trace JSON with concurrent-streaming integrity and an oversized-result
 // guard. All hooks composable and individually disableable. Pure-Dart.
-export 'src/agent/policy/policy_shell.dart';
+export 'src/agent/policy/policy_shell.dart' hide ToolCallContext;
 
 // ── 028-agent-runtime-plugin — AgentRuntimePlugin + McpToolProvider SPI ──
 // In-proc kernel host over dart_agent_core. McpToolProvider SPI for device
