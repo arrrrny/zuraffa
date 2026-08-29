@@ -156,6 +156,37 @@ existed and failed before the implementation.
 - refactor: none
 - commit: (recorded in git history)
 
+
+## Cycle 8: U20-U26 — ImportGraphWalker + FileGraph; U27-U28 — OwnershipClassifier
+
+- tests: `test/plugins/slice/engine/import_graph_walker_test.dart` (new),
+  `test/plugins/slice/engine/ownership_classifier_test.dart` (new)
+- red: `dart test test/plugins/slice/engine/import_graph_walker_test.dart
+  test/plugins/slice/engine/ownership_classifier_test.dart` -> +0 -17
+  (stub threw UnimplementedError — deliberate not-implemented signal)
+- green: dual-path traversal (imports + `getIt<T>()`), barrel expansion via
+  the resolver, companion inclusion, depth-gated layer rules (view adds
+  presenter at presentation, domain+di at feature, data at full), the DI
+  cascade rule (a DI file whose imports cross an excluded layer is cut off
+  with them — that is what makes feature-depth slices import-closed), cycle
+  tolerance via a visited set, entry resolution with alternatives (U22), and
+  boundary computation over the traversal edge (Rules A/B/C: declared types
+  referenced by included files, super-interfaces of excluded files, and types
+  registered by excluded DI wiring).
+  Two in-cycle fixes:
+  (a) the fixture-copy helper used `entity.uri.pathSegments.last`, which is
+  EMPTY for directories (trailing slash) — `.dart_tool` never copied;
+  replaced with `p.basename(entity.path)`;
+  (b) the U26 test's own filter matched the shared usecase AND its DI file
+  (`fetch_settings_usecase` is a prefix of both) — the assertion was
+  imprecise; fixed the test filter to the exact file path (behavior was
+  already correct).
+  Suite `dart test test/plugins/slice/` -> 49 passed.
+- refactor: made `BarrelResolver.declaredTopLevelNames` public and reused it
+  for the walker's project-wide type index (single naming source of truth);
+  cached the type index per walk instead of per lookup.
+- commit: (recorded in git history)
+
 ## Notes and deviations
 
 - Loop granularity: cycles are batched at component granularity (one commit

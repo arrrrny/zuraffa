@@ -119,20 +119,20 @@ boundaries, not proven properties.
 
 | id  | behavior                                                                                                          | traces         | kind    | state   | test |
 | --- | ----------------------------------------------------------------------------------------------------------------- | -------------- | ------- | ------- | ---- |
-| U20 | The transitive closure from one entry includes exactly the reachable local files, each exactly once               | FR-001         | example | PENDING |      |
-| U21 | An import cycle terminates with all files in the cycle included once                                              | FR-001         | example | PENDING |      |
-| U22 | A missing entry file fails with the attempted path and the available alternatives                                 | FR-001         | example | PENDING |      |
-| U23 | At `view` depth the slice includes view/controller/state and excludes presenter, usecases, and domain             | FR-002         | example | PENDING |      |
-| U24 | At `feature` depth the slice includes domain interfaces/entities and excludes data-layer implementations          | FR-002         | example | PENDING |      |
-| U25 | At `full` depth the slice additionally includes repository implementations, datasources, and providers            | FR-002         | example | PENDING |      |
-| U26 | Multiple entries produce the union of their closures with shared files deduplicated                               | FR-011         | example | PENDING |      |
+| U20 | The transitive closure from one entry includes exactly the reachable local files, each exactly once               | FR-001         | example | DONE    | `test/plugins/slice/engine/import_graph_walker_test.dart::U20: closure from one entry is exactly the reachable local files` |
+| U21 | An import cycle terminates with all files in the cycle included once                                              | FR-001         | example | DONE    | `test/plugins/slice/engine/import_graph_walker_test.dart::U21: an import cycle terminates and includes every cycle file once` |
+| U22 | A missing entry file fails with the attempted path and the available alternatives                                 | FR-001         | example | DONE    | `test/plugins/slice/engine/import_graph_walker_test.dart::U22: a missing entry reports the attempted path and alternatives` |
+| U23 | At `view` depth the slice includes view/controller/state and excludes presenter, usecases, and domain             | FR-002         | example | DONE    | `test/plugins/slice/engine/import_graph_walker_test.dart::U23: view depth excludes presenter, usecases, and domain` |
+| U24 | At `feature` depth the slice includes domain interfaces/entities and excludes data-layer implementations          | FR-002         | example | DONE    | `test/plugins/slice/engine/import_graph_walker_test.dart::U24: feature depth includes domain and excludes data` |
+| U25 | At `full` depth the slice additionally includes repository implementations, datasources, and providers            | FR-002         | example | DONE    | `test/plugins/slice/engine/import_graph_walker_test.dart::U25: full depth includes data implementations` |
+| U26 | Multiple entries produce the union of their closures with shared files deduplicated                               | FR-011         | example | DONE    | `test/plugins/slice/engine/import_graph_walker_test.dart::U26: two entries union their closures with dedup` |
 
 ### `lib/src/plugins/slice/engine/ownership_classifier.dart`
 
 | id  | behavior                                                                                            | traces | kind    | state   | test |
 | --- | --------------------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
-| U27 | A file under the entry's `presentation/pages/<feature>/` directory classifies as `owned`            | FR-010 | example | PENDING |      |
-| U28 | Entities, domain interfaces, shared widgets, and `core/`/`config/` files classify as `shared`       | FR-010 | example | PENDING |      |
+| U27 | A file under the entry's `presentation/pages/<feature>/` directory classifies as `owned`            | FR-010 | example | DONE    | `test/plugins/slice/engine/ownership_classifier_test.dart::U27: files under an entry page directory are owned` |
+| U28 | Entities, domain interfaces, shared widgets, and `core/`/`config/` files classify as `shared`       | FR-010 | example | DONE    | `test/plugins/slice/engine/ownership_classifier_test.dart::U28: entities, domain interfaces, shared widgets, core, config are shared` |
 
 ### `lib/src/plugins/slice/generators/mock_stub_generator.dart`
 

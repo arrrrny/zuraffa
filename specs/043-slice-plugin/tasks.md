@@ -48,8 +48,8 @@
 - [x] T008 [P] Create `SliceFile` model class with fields: relativePath, ownership, hashAtCut, layer in lib/src/plugins/slice/models/slice_file.dart
 - [x] T009 [P] Create `SliceBoundary` model class with fields: typeName, interfaceFile, diRegistrationFile, mockStrategy in lib/src/plugins/slice/models/slice_boundary.dart
 - [x] T010 [P] Create `SliceExportFormat` enum (tarGz, github) in lib/src/plugins/slice/models/slice_manifest.dart
-- [ ] T012 [P] Create `FileGraphNode` model class with fields: filePath, imports, diTypes, companions in lib/src/plugins/slice/models/file_graph.dart
-- [ ] T013 [U20] Create `FileGraph` model class with nodes map, packageName, projectRoot, and methods: `buildFromEntries()`, `getTransitiveClosure()`, `getBoundaries()` — stub implementations in lib/src/plugins/slice/models/file_graph.dart
+- [x] T012 [P] Create `FileGraphNode` model class with fields: filePath, imports, diTypes, companions in lib/src/plugins/slice/models/file_graph.dart
+- [x] T013 [U20] Create `FileGraph` model class with nodes map, packageName, projectRoot, and methods: `buildFromEntries()`, `getTransitiveClosure()`, `getBoundaries()` — stub implementations in lib/src/plugins/slice/models/file_graph.dart
 
 ### Tests (write FIRST — observe each failing before its implementation task)
 
@@ -58,7 +58,7 @@
 - [x] T021 [P] [U9] [U10] [U11] [U12] Create unit test for `ServiceLocatorAnalyzer` with fixture presenter source containing `getIt<T>()` calls in test/plugins/slice/engine/service_locator_analyzer_test.dart
 - [x] T022 [P] [U13] [U14] [U15] [U16] Create unit test for `BarrelResolver` with fixture barrel file re-exporting multiple files in test/plugins/slice/engine/barrel_resolver_test.dart
 - [x] T023 [P] [U17] [U18] [U19] Create unit test for `CompanionDetector` verifying `.g.dart` and `.freezed.dart` discovery in test/plugins/slice/engine/companion_detector_test.dart
-- [ ] T024 [U20] [U21] [U22] Create unit test for `ImportGraphWalker` with a multi-file fixture project testing depth boundaries and cycle detection in test/plugins/slice/engine/import_graph_walker_test.dart
+- [x] T024 [U20] [U21] [U22] Create unit test for `ImportGraphWalker` with a multi-file fixture project testing depth boundaries and cycle detection in test/plugins/slice/engine/import_graph_walker_test.dart
 
 ### Implementation
 
@@ -68,7 +68,7 @@
 - [x] T016 [U9] [U10] [U11] [U12] Create `ServiceLocatorAnalyzer` using `RecursiveAstVisitor` to extract `getIt<T>()` type arguments from a parsed `CompilationUnit` in lib/src/plugins/slice/engine/service_locator_analyzer.dart
 - [x] T017 [U13] [U14] [U15] [U16] Create `BarrelResolver` that parses barrel files (`index.dart`), extracts export directives, and returns only the re-exported files matching a set of needed types in lib/src/plugins/slice/engine/barrel_resolver.dart
 - [x] T015 [U17] [U18] [U19] Create `CompanionDetector` that finds `.g.dart` and `.freezed.dart` companion files for a given source file path in lib/src/plugins/slice/engine/companion_detector.dart
-- [ ] T018 [U20] [U21] [U22] Create `ImportGraphWalker` that performs transitive import resolution with boundary detection — uses `FileParser`, `AstHelper.extractImports()`, `PackageResolver`, `BarrelResolver`, `ServiceLocatorAnalyzer`, and `CompanionDetector` to build a `FileGraph` from entry points at a given `SliceDepth` in lib/src/plugins/slice/engine/import_graph_walker.dart
+- [x] T018 [U20] [U21] [U22] Create `ImportGraphWalker` that performs transitive import resolution with boundary detection — uses `FileParser`, `AstHelper.extractImports()`, `PackageResolver`, `BarrelResolver`, `ServiceLocatorAnalyzer`, and `CompanionDetector` to build a `FileGraph` from entry points at a given `SliceDepth` in lib/src/plugins/slice/engine/import_graph_walker.dart
 
 **Checkpoint**: Foundation ready — the graph traversal engine can trace dependencies from any entry point, resolve `package:` URIs, handle barrel files, detect `getIt<T>()` service-locator calls, and find companion files. All models serialize cleanly. User story implementation can now begin.
 
@@ -83,7 +83,7 @@
 ### Tests for User Story 1 (write FIRST — observe each failing before its implementation task)
 
 - [x] T033 [US1] [A1] [A2] [A3] [A4] Create test fixture project with minimal Zuraffa structure (entity, usecase, repository, presenter with getIt<T>(), view, controller, state, DI files) in test/fixtures/slice_test_project/
-- [ ] T077 [P] [US1] [U27] [U28] Create unit test for the ownership classifier — page-directory files classify owned, entities/domain/shared-widget/core files classify shared — in test/plugins/slice/engine/ownership_classifier_test.dart
+- [x] T077 [P] [US1] [U27] [U28] Create unit test for the ownership classifier — page-directory files classify owned, entities/domain/shared-widget/core files classify shared — in test/plugins/slice/engine/ownership_classifier_test.dart
 - [ ] T078 [P] [US1] [U29] [U30] Create unit test for `MockStubGenerator` — boundary mock generation and existing-mock reuse — in test/plugins/slice/generators/mock_stub_generator_test.dart
 - [ ] T079 [P] [US1] [U32] [U33] Create unit test for `SandboxBootstrapper` — `main_slice.dart` content and minimal `slice_di.dart` registrations — in test/plugins/slice/generators/sandbox_bootstrapper_test.dart
 - [ ] T080 [P] [US1] [U35] [U36] Create unit test for `AgentReadmeGenerator` — `SLICE.md` ownership markings, run command, boundary list — in test/plugins/slice/generators/agent_readme_generator_test.dart
@@ -92,7 +92,7 @@
 
 ### Implementation for User Story 1
 
-- [ ] T026 [US1] [U27] [U28] Create file ownership classifier that marks files as owned (in page directory) or shared (entities, domain interfaces, shared widgets) based on path conventions in lib/src/plugins/slice/engine/ownership_classifier.dart
+- [x] T026 [US1] [U27] [U28] Create file ownership classifier that marks files as owned (in page directory) or shared (entities, domain interfaces, shared widgets) based on path conventions in lib/src/plugins/slice/engine/ownership_classifier.dart
 - [ ] T027 [US1] [U29] [U30] Create `MockStubGenerator` that generates lightweight mock implementations for boundary interfaces (abstract classes at the traversal edge) in lib/src/plugins/slice/generators/mock_stub_generator.dart
 - [ ] T028 [US1] [U32] [U33] Create `SandboxBootstrapper` that generates `main_slice.dart` entry point — imports the root view, sets up mock DI via `setupSliceDependencies()`, wraps in `MaterialApp` — and generates `slice_di.dart` with only needed registrations in lib/src/plugins/slice/generators/sandbox_bootstrapper.dart
 - [ ] T029 [US1] [U35] [U36] Create `AgentReadmeGenerator` that generates `SLICE.md` listing: slice contents, modifiable files (owned), read-only files (shared), run command, boundary interfaces with their mock implementations in lib/src/plugins/slice/generators/agent_readme_generator.dart

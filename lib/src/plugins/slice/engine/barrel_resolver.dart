@@ -82,7 +82,7 @@ class BarrelResolver {
   }) async {
     final file = File(target);
     if (!await file.exists()) return false;
-    final declared = _declaredTopLevelNames(await file.readAsString());
+    final declared = declaredTopLevelNames(await file.readAsString());
     if (shownSymbols.isNotEmpty) {
       return declared.any(shownSymbols.contains);
     }
@@ -98,7 +98,10 @@ class BarrelResolver {
   }
 
   /// Top-level type and function names declared in [content].
-  List<String> _declaredTopLevelNames(String content) {
+  ///
+  /// Public because the graph walker reuses it for its project-wide type
+  /// index (single naming source of truth).
+  List<String> declaredTopLevelNames(String content) {
     final result = _parser.parseSource(content);
     final unit = result.unit;
     if (unit == null) return const [];
