@@ -15,6 +15,20 @@ import 'package:zuraffa/zuraffa.dart';
 ///   directory inside this repo, with fixture presenter/domain/view-state
 ///   files, reports no errors.
 /// - U26: the widget types are exported from the package barrel.
+/// Walk up from the current working directory (the package root when
+/// `dart test` runs) to the repo root (where `pubspec.yaml` lives) so the
+/// temp package can pin `zuraffa` via an absolute `path:` dependency and
+/// resolve it offline instead of reaching for the network.
+String _repoRoot() {
+  var dir = Directory.current;
+  while (!File('${dir.path}/pubspec.yaml').existsSync()) {
+    final parent = dir.parent;
+    if (parent.path == dir.path) break;
+    dir = parent;
+  }
+  return dir.path;
+}
+
 void main() {
   late Directory tempDir;
   late ViewTemplateGenerator gen;
@@ -128,7 +142,7 @@ environment:
   sdk: ">=3.0.0 <4.0.0"
 dependencies:
   zuraffa:
-    path: ..
+    path: ${_repoRoot()}
 ''');
         // Fixture presenter pipeline (mirrors generatePresenter output shape,
         // importing the pure-Dart core barrel).
