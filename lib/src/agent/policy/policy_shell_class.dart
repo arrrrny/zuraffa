@@ -20,15 +20,20 @@ class PolicyShell {
   void register(PolicyHook hook) => _hooks.add(hook);
 
   /// Disables a hook by id (FR-011 — individually disableable).
-  void disable(String id) {
-    final hook = _hooks.firstWhere((h) => h.id == id);
-    hook.enabled = false;
-  }
+  ///
+  /// Throws an [ArgumentError] when no hook with [id] is registered.
+  void disable(String id) => _byId(id).enabled = false;
 
   /// Enables a hook by id.
-  void enable(String id) {
-    final hook = _hooks.firstWhere((h) => h.id == id);
-    hook.enabled = true;
+  ///
+  /// Throws an [ArgumentError] when no hook with [id] is registered.
+  void enable(String id) => _byId(id).enabled = true;
+
+  PolicyHook _byId(String id) {
+    for (final hook in _hooks) {
+      if (hook.id == id) return hook;
+    }
+    throw ArgumentError.value(id, 'id', 'no policy hook registered with this id');
   }
 
   /// Notifies all hooks of mission start.

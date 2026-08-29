@@ -35,9 +35,10 @@ class ToolGatingHook extends PolicyHook {
       );
     }
 
-    // FR-012: registry overrides tool's self-declared metadata; falls back
-    // to safe when neither is present.
-    final level = registry.lookup(ctx.toolName);
+    // FR-012: registry takes precedence, but a tool's self-declared risk
+    // (ctx.declaredRisk) is passed as the fallback so unregistered tools
+    // degrade to their declared tier instead of silently resolving to safe.
+    final level = registry.lookup(ctx.toolName, fallback: ctx.declaredRisk);
 
     switch (level) {
       case RiskLevel.safe:

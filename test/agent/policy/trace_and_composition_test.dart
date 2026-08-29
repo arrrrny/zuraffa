@@ -145,6 +145,87 @@ void main() {
       final names = trace.toolCallRecords.map((r) => r.name).toSet();
       expect(names, hasLength(100));
     });
+
+    test('concurrent SAME-NAME calls do not double-complete (FR-009 regression)',
+        () async {
+      // Regression for the write-only `_pending` completer map, which threw
+      // `Bad state: Future already completed` when the same tool ran twice
+      // concurrently and leaked an entry per call.
+      final recorder = MissionTraceRecorder(
+        missionId: 'm1',
+        inputHash: 'hash-in',
+      );
+      await recorder.onMissionStart('m1');
+
+      // Two interleaved before/after cycles for the SAME toolName. If the
+      // old completer map were still present this would throw and fail.
+      await Future.wait([
+        (() async {
+          final ctx = _ctx('m1', 'same_tool');
+          await recorder.beforeToolCall(ctx);
+          await recorder.afterToolCall(
+            ctx,
+            ToolResult(payload: 'a', tokenUsage: 1),
+          );
+        })(),
+        (() async {
+          final ctx = _ctx('m1', 'same_tool');
+          await recorder.beforeToolCall(ctx);
+          await recorder.afterToolCall(
+            ctx,
+            ToolResult(payload: 'b', tokenUsage: 1),
+          );
+        })(),
+      ]);
+
+      expect(recorder.recordCount, equals(2));
+      expect(recorder.materialize().toolCallRecords, hasLength(2));
+    });
+
+    test('records real duration and status, not hardcoded values (FR-007)',
+        () async {
+      final recorder = MissionTraceRecorder(
+        missionId: 'm1',
+        inputHash: 'hash-in',
+      );
+      await recorder.onMissionStart('m1');
+
+      final ctx = _ctx('m1', 'tool_x');
+      await recorder.beforeToolCall(ctx);
+      await recorder.afterToolCall(
+        ctx,
+        ToolResult(
+          payload: 'ok',
+          duration: const Duration(milliseconds: 42),
+          status: ToolCallStatus.failed,
+          tokenUsage: 3,
+        ),
+      );
+
+      final record = recorder.materialize().toolCallRecords.single;
+      expect(record.duration, equals(const Duration(milliseconds: 42)));
+      expect(record.status, equals(ToolCallStatus.failed));
+      expect(record.tokenUsage, equals(3));
+    });
+
+    test('single-mission: onMissionStart resets records (FR-009 lifecycle)',
+        () async {
+      // A recorder is bound to one missionId; restarting it must clear the
+      // previous mission's records so traces don't bleed together.
+      final recorder = MissionTraceRecorder(
+        missionId: 'm1',
+        inputHash: 'hash-in',
+      );
+      await recorder.onMissionStart('m1');
+
+      final ctx = _ctx('m1', 'tool_x');
+      await recorder.beforeToolCall(ctx);
+      await recorder.afterToolCall(ctx, ToolResult(payload: 'ok'));
+      expect(recorder.materialize().toolCallRecords, hasLength(1));
+
+      await recorder.onMissionStart('m1');
+      expect(recorder.recordCount, equals(0));
+    });
   });
 
   group('OversizedResultGuard (FR-010)', () {
@@ -241,6 +322,23 @@ void main() {
         expect(out.effectiveSize, lessThan(1000));
       }
     });
+
+    test('oversized non-JSON-encodable payload → ArtifactReference (FR-010)',
+        () async {
+      // Regression for `hashOf` throwing JsonUnsupportedObjectError on
+      // arbitrary (non-encodable) tool payloads, which crashed the call.
+      final guard = OversizedResultGuard(
+        threshold: 10,
+        artifactStorage: (_) async => 'artifact://stored/abc',
+      );
+      final out = await guard.afterToolCall(
+        _ctx('m1', 't'),
+        ToolResult(payload: _NonEncodable()),
+      );
+      expect(out.payload, isA<ArtifactReference>());
+      final ref = out.payload as ArtifactReference;
+      expect(ref.sha256, hasLength(64));
+    });
   });
 
   group('PolicyShell composition (FR-011)', () {
@@ -285,6 +383,12 @@ void main() {
       expect(deny.enabled, isFalse);
       shell.enable('test_deny');
       expect(deny.enabled, isTrue);
+    });
+
+    test('disable/enable unknown id throws ArgumentError', () {
+      final shell = PolicyShell(hooks: [_AlwaysDeny('x')]);
+      expect(() => shell.disable('nope'), throwsA(isA<ArgumentError>()));
+      expect(() => shell.enable('nope'), throwsA(isA<ArgumentError>()));
     });
 
     test('afterToolCall runs hooks in reverse order (middleware pattern)',
@@ -344,4 +448,19 @@ class _OrderRecording extends PolicyHook {
     order.add(name);
     return result;
   }
+}
+
+ToolCallContext _ctx(String missionId, String toolName) => ToolCallContext(
+      missionId: missionId,
+      toolName: toolName,
+      args: {},
+      isInternalMission: false,
+      toolAllowlist: null,
+      toolClass: 'io',
+    );
+
+/// A plain object with no `toJson`, so `jsonEncode` refuses it. Used to
+/// exercise the `hashOf` non-encodable-payload guard (FR-010).
+class _NonEncodable {
+  final List<int> items = List<int>.filled(500, 0);
 }

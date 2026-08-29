@@ -22,6 +22,19 @@ class MissionBudgetHook extends PolicyHook {
   /// Per-mission trackers (one per missionId).
   final Map<String, BudgetTracker> _trackers = <String, BudgetTracker>{};
 
+  /// Per-mission set of already-reported breach dimensions, so the same
+  /// breached limit fires its event exactly once (FR-005/FR-006: "one
+  /// budget-exceeded event per breached limit").
+  final Map<String, Set<BudgetDimension>> _reported =
+      <String, Set<BudgetDimension>>{};
+
+  void _report(String missionId, BudgetBreach breach) {
+    final seen = _reported.putIfAbsent(missionId, () => <BudgetDimension>{});
+    if (!seen.add(breach.dimension)) return;
+    onBreach(breach);
+    degradeCallback?.call(breach);
+  }
+
   BudgetTracker trackerFor(String missionId) {
     return _trackers.putIfAbsent(missionId, () => BudgetTracker(budget));
   }
@@ -29,11 +42,13 @@ class MissionBudgetHook extends PolicyHook {
   @override
   Future<void> onMissionStart(String missionId) async {
     _trackers[missionId] = BudgetTracker(budget);
+    _reported.remove(missionId);
   }
 
   @override
   Future<void> onMissionEnd(String missionId) async {
     _trackers.remove(missionId);
+    _reported.remove(missionId);
   }
 
   @override
@@ -49,8 +64,7 @@ class MissionBudgetHook extends PolicyHook {
         max: budget.maxCalls!,
         toolClass: null,
       );
-      onBreach(breach);
-      degradeCallback?.call(breach);
+      _report(ctx.missionId, breach);
       return HookDecisionCancelMission(breach.reason);
     }
 
@@ -64,8 +78,7 @@ class MissionBudgetHook extends PolicyHook {
           max: budget.maxWallClock!.inMilliseconds,
           toolClass: null,
         );
-        onBreach(breach);
-        degradeCallback?.call(breach);
+        _report(ctx.missionId, breach);
         return HookDecisionCancelMission(breach.reason);
       }
     }
@@ -78,8 +91,7 @@ class MissionBudgetHook extends PolicyHook {
         max: budget.maxTokens!,
         toolClass: null,
       );
-      onBreach(breach);
-      degradeCallback?.call(breach);
+      _report(ctx.missionId, breach);
       return HookDecisionCancelMission(breach.reason);
     }
 
@@ -94,8 +106,7 @@ class MissionBudgetHook extends PolicyHook {
           max: max.inMilliseconds,
           toolClass: ctx.toolClass,
         );
-        onBreach(breach);
-        degradeCallback?.call(breach);
+        _report(ctx.missionId, breach);
         return HookDecisionCancelMission(breach.reason);
       }
     }
@@ -112,10 +123,10 @@ class MissionBudgetHook extends PolicyHook {
     final breach = tracker.record(
       toolClass: ctx.toolClass,
       tokens: result.tokenUsage,
+      duration: result.duration,
     );
     if (breach != null) {
-      onBreach(breach);
-      degradeCallback?.call(breach);
+      _report(ctx.missionId, breach);
     }
     return result;
   }

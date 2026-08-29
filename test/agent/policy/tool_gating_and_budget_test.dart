@@ -187,6 +187,29 @@ void main() {
         contains('not in per-mission allowlist'),
       );
     });
+
+    test('unregistered tool falls back to declared risk (FR-012)', () async {
+      // Registry is empty, so an unregistered tool must resolve through its
+      // self-declared risk instead of silently becoming `safe` (fail-open).
+      final hook = ToolGatingHook(
+        registry: PermissionRegistry(),
+        approvalCallback: (_) async => true,
+      );
+      final decision = await hook.beforeToolCall(ToolCallContext(
+        missionId: 'm1',
+        toolName: 'unknown_admin_tool',
+        args: {},
+        isInternalMission: false,
+        toolAllowlist: null,
+        toolClass: 'io',
+        declaredRisk: RiskLevel.admin,
+      ));
+      expect(decision, isA<HookDecisionDeny>());
+      expect(
+        (decision as HookDecisionDeny).reason,
+        contains('admin-tier'),
+      );
+    });
   });
 
   group('MissionBudgetHook (FR-005, FR-006)', () {
@@ -367,6 +390,59 @@ void main() {
       ));
       expect(breaches, isNotEmpty);
       expect(breaches.first.dimension, equals(BudgetDimension.calls));
+    });
+
+    test('per-tool-class seconds exceeded → cancel with one breach (T026)',
+        () async {
+      // webview class capped at 100ms. The per-tool-class budget dimension
+      // was inert because duration was never recorded (FR-005 fix).
+      final breaches = <BudgetBreach>[];
+      final hook = MissionBudgetHook(
+        budget: MissionBudget(
+          perToolClassMax: {'webview': const Duration(milliseconds: 100)},
+        ),
+        onBreach: breaches.add,
+      );
+      await hook.onMissionStart('m1');
+
+      final ctx = (String name) => ToolCallContext(
+            missionId: 'm1',
+            toolName: name,
+            args: {},
+            isInternalMission: false,
+            toolAllowlist: null,
+            toolClass: 'webview',
+          );
+
+      // Call 0: 80ms — under the limit, allowed, no breach.
+      var d = await hook.beforeToolCall(ctx('v0'));
+      expect(d, isA<HookDecisionAllow>());
+      await hook.afterToolCall(
+        ctx('v0'),
+        ToolResult(payload: null, duration: const Duration(milliseconds: 80)),
+      );
+
+      // Call 1: another 80ms → 160ms cumulative > 100ms. afterToolCall
+      // records the breach. The NEXT beforeToolCall re-detects the same
+      // dimension but must NOT replay the event (FR-005/FR-006 dedup).
+      d = await hook.beforeToolCall(ctx('v1'));
+      expect(d, isA<HookDecisionAllow>());
+      await hook.afterToolCall(
+        ctx('v1'),
+        ToolResult(payload: null, duration: const Duration(milliseconds: 80)),
+      );
+
+      d = await hook.beforeToolCall(ctx('v2'));
+      expect(d, isA<HookDecisionCancelMission>());
+      expect(
+        (d as HookDecisionCancelMission).reason,
+        contains('per-tool-class'),
+      );
+
+      // Exactly one breach event for the per-tool-class dimension, despite
+      // it being reported from both afterToolCall and the next beforeToolCall.
+      expect(breaches, hasLength(1));
+      expect(breaches.first.dimension, equals(BudgetDimension.perToolClass));
     });
   });
 }

@@ -5,10 +5,16 @@ import 'policy_hook.dart';
 
 /// Records the mission trace (FR-007, FR-008, FR-009).
 ///
-/// Append-only — concurrent streaming events are safe under Dart's
-/// single-isolate model (FR-009). Each [ToolCallRecord] is captured in
-/// `afterToolCall`. The final [MissionTrace] is materialized via
-/// [materialize] when the mission ends.
+/// **Single-mission by design.** One recorder instance records exactly one
+/// mission: it is constructed for a fixed [missionId] and asserts that every
+/// `onMissionStart`/`afterToolCall` it sees belongs to that mission. A
+/// [PolicyShell] running multiple missions should hold one recorder per
+/// mission (mirroring [MissionBudgetHook]'s per-mission trackers).
+///
+/// Append-only — records are captured in `afterToolCall` under Dart's
+/// single-isolate model (FR-009), so no pending-map or lock is needed. The
+/// final [MissionTrace] is materialized via [materialize] when the mission
+/// ends.
 class MissionTraceRecorder extends PolicyHook {
   MissionTraceRecorder({
     required this.inputHash,
@@ -29,22 +35,25 @@ class MissionTraceRecorder extends PolicyHook {
 
   final ArgumentHasher _hasher;
   final List<ToolCallRecord> _records = <ToolCallRecord>[];
-  final Map<String, Completer<ToolCallRecord>> _pending = <String, Completer<ToolCallRecord>>{};
 
   DateTime? _startedAt;
   DateTime? _endedAt;
 
   @override
   Future<void> onMissionStart(String missionId) async {
+    assert(
+      missionId == this.missionId,
+      'MissionTraceRecorder is single-mission: constructed for '
+      '"${this.missionId}" but started for "$missionId"',
+    );
+    _records.clear();
     _startedAt = DateTime.now();
+    _endedAt = null;
   }
 
   @override
   Future<HookDecision> beforeToolCall(ToolCallContext ctx) async {
-    // Begin a pending record — `afterToolCall` will complete it.
-    // FR-009: trace integrity under concurrent streaming. We rely on
-    // single-isolate scheduling; there's no real lock needed.
-    _pending[ctx.toolName] = Completer<ToolCallRecord>();
+    // FR-009: records are appended in `afterToolCall` — no pending map needed.
     return const HookDecisionAllow();
   }
 
@@ -58,13 +67,12 @@ class MissionTraceRecorder extends PolicyHook {
       name: ctx.toolName,
       argumentsHash: hashResult.hash,
       cleartextArgs: hashResult.cleartext,
-      duration: Duration.zero, // (caller can fill in real duration)
-      status: 'completed',
+      duration: result.duration,
+      status: result.status,
       tokenUsage: result.tokenUsage,
       provider: provider,
     );
     _records.add(record);
-    _pending[ctx.toolName]?.complete(record);
     return result;
   }
 
@@ -74,7 +82,14 @@ class MissionTraceRecorder extends PolicyHook {
   }
 
   /// Materializes the final [MissionTrace] (FR-007).
-  MissionTrace materialize({Object? outcome}) {
+  ///
+  /// [status] is the mission-level outcome — defaults to `completed`, but a
+  /// mission cancelled by a budget breach should be materialized with
+  /// [ToolCallStatus.cancelled] (or `failed`) so the trace stays truthful.
+  MissionTrace materialize({
+    Object? outcome,
+    ToolCallStatus status = ToolCallStatus.completed,
+  }) {
     final start = _startedAt ?? DateTime.now();
     final end = _endedAt ?? DateTime.now();
     return MissionTrace(
@@ -83,7 +98,7 @@ class MissionTraceRecorder extends PolicyHook {
       planSteps: planSteps,
       toolCallRecords: List<ToolCallRecord>.from(_records),
       duration: end.difference(start),
-      status: 'completed',
+      status: status.name,
       tokens: _records.fold(0, (sum, r) => sum + r.tokenUsage),
       provider: provider,
       outcome: outcome,

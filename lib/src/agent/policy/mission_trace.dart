@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart' as crypto;
 
+import 'policy_hook.dart';
+
 /// A single tool-call record in the mission trace (FR-007).
 class ToolCallRecord {
   ToolCallRecord({
@@ -24,7 +26,9 @@ class ToolCallRecord {
   final Map<String, Object?> cleartextArgs;
 
   final Duration duration;
-  final String status;
+
+  /// Outcome of the tool call, typed as [ToolCallStatus] (FR-007).
+  final ToolCallStatus status;
   final int tokenUsage;
   final String? provider;
 
@@ -33,7 +37,7 @@ class ToolCallRecord {
         'argumentsHash': argumentsHash,
         'cleartextArgs': cleartextArgs,
         'durationMs': duration.inMilliseconds,
-        'status': status,
+        'status': status.name,
         'tokenUsage': tokenUsage,
         'provider': provider,
       };

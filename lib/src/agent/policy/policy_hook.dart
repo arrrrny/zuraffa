@@ -64,6 +64,7 @@ class ToolCallContext {
     required this.isInternalMission,
     required this.toolAllowlist,
     required this.toolClass,
+    this.declaredRisk,
     this.tokenUsage = 0,
   });
 
@@ -73,16 +74,36 @@ class ToolCallContext {
   final bool isInternalMission;
   final Set<String>? toolAllowlist;
   final String toolClass;
+
+  /// The tool's self-declared risk metadata (FR-012). Used as the fallback
+  /// when the [PermissionRegistry] has no entry for [toolName], so an
+  /// unregistered tool degrades to its declared risk instead of `safe`.
+  final RiskLevel? declaredRisk;
+
   final int tokenUsage;
 }
 
 /// Result returned by a tool.
 class ToolResult {
-  ToolResult({required this.payload, this.size, this.tokenUsage = 0});
+  ToolResult({
+    required this.payload,
+    this.size,
+    this.tokenUsage = 0,
+    this.duration = Duration.zero,
+    this.status = ToolCallStatus.completed,
+  });
 
   final Object? payload;
   final int? size;
   final int tokenUsage;
+
+  /// Wall-clock time the tool spent executing. Feeds the per-tool-class
+  /// budget dimension and the trace record's timing (FR-005, FR-007).
+  final Duration duration;
+
+  /// Outcome of the tool call, typed as [ToolCallStatus] so a failed call is
+  /// recorded as failed rather than always `completed` (FR-007).
+  final ToolCallStatus status;
 
   int get effectiveSize =>
       size ??

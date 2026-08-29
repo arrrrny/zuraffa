@@ -28,9 +28,27 @@ class ArtifactReference {
   String toString() => 'ArtifactReference($uri, size=$size)';
 
   /// Computes the SHA-256 hash of [payload].
+  ///
+  /// Falls back to `toString()` when [payload] is not JSON-encodable, so the
+  /// oversized-result guard can never throw on an arbitrary tool payload
+  /// (FR-010 stability: an oversized result must not crash the tool call).
   static String hashOf(Object? payload) {
-    final payloadStr =
-        payload is String ? payload : jsonEncode(payload);
+    final String payloadStr;
+    if (payload is String) {
+      payloadStr = payload;
+    } else {
+      payloadStr = _jsonEncodeOrFallback(payload);
+    }
     return crypto.sha256.convert(utf8.encode(payloadStr)).toString();
+  }
+
+  /// Encodes [payload] as JSON, or falls back to [Object.toString] when it is
+  /// not JSON-encodable (avoids [JsonUnsupportedObjectError]).
+  static String _jsonEncodeOrFallback(Object? payload) {
+    try {
+      return jsonEncode(payload);
+    } on JsonUnsupportedObjectError {
+      return payload.toString();
+    }
   }
 }
