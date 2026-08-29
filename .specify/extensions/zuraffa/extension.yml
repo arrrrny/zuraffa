@@ -342,6 +342,21 @@ provides:
       description: Generate list/detail TUI screens for an entity, wired to its existing use cases (FR-011, SC-005). Pure-Dart — no Flutter.
       aliases: [zfa.tui.create-tui-screens]
       category: presentation
+    - name: speckit.zuraffa.benchmark.list
+      file: commands/benchmark/benchmark_list.md
+      description: List the benchmark scenarios currently registered in the plugin registry.
+      aliases: [zfa.benchmark.benchmark.list]
+      category: benchmark
+    - name: speckit.zuraffa.benchmark.register
+      file: commands/benchmark/benchmark_register.md
+      description: Register benchmark scenarios from the project's scenario providers into the plugin registry.
+      aliases: [zfa.benchmark.benchmark.register]
+      category: benchmark
+    - name: speckit.zuraffa.benchmark.run
+      file: commands/benchmark/benchmark_run.md
+      description: Execute the registered benchmark scenarios and apply their metric thresholds (FR-004).
+      aliases: [zfa.benchmark.benchmark.run]
+      category: benchmark
 categories:
   setup:
     name: Setup
