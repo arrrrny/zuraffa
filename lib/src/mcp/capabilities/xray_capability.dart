@@ -19,12 +19,6 @@ class XrayCapability {
   /// contract without standing up a fake HTTP server.
   static const String controlDeckPath = '/xray/control-deck';
 
-  /// Test-only alias for [controlDeckPath] so test files can assert on
-  /// the URL path without referencing the private `_baseUrl` getter.
-  /// Kept for backward compatibility with the URL contract test in
-  /// `test/mcp/xray_bridge/xray_capability_url_test.dart`.
-  static const String controlDeckPathForTests = controlDeckPath;
-
   final String? host;
   final int port;
 

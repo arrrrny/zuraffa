@@ -97,7 +97,10 @@ class XRayBridgeHandlers {
     Map<String, dynamic>? target;
     final availableIds = <String>[];
     for (final n in nodesList) {
-      final node = n as Map<String, dynamic>;
+      // A malformed node (null / scalar / nested list) must not crash the
+      // handler — skip it like we skip nodes without an id.
+      if (n is! Map<String, dynamic>) continue;
+      final node = n;
       final id = node['id']?.toString();
       if (id == null) continue;
       availableIds.add(id);
@@ -146,12 +149,15 @@ class XRayBridgeHandlers {
       return XRayControlDeckResponse.badRequest(e.message);
     }
 
-    final List<String> availableNames = List<String>.from(
-      controlDeck.mockNames as Iterable,
-    );
-
     final dynamic injected = controlDeck.inject(req.mockName);
     if (injected == null) {
+      // Build the name list only for the error path. `controlDeck` is
+      // duck-typed (spec 034), so guard against a null / non-iterable
+      // `mockNames` instead of casting unchecked.
+      final dynamic mockNames = controlDeck.mockNames;
+      final availableNames = mockNames is Iterable
+          ? List<String>.from(mockNames)
+          : <String>[];
       return XRayControlDeckResponse.unknownMock(
         req.mockName,
         availableMockNames: availableNames,

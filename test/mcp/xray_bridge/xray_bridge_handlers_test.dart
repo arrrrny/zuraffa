@@ -26,19 +26,21 @@ void main() {
   });
 
   group('handleTreeGet', () {
-    test('B05 — returns 200 with activeView + nodes when overlay non-empty',
-        () {
-      overlay.nodes = [
-        {'id': 'n1', 'viewType': 'ProfileView'},
-        {'id': 'n2', 'viewType': 'HomeView'},
-      ];
-      overlay.activeView = 'ProfileView';
+    test(
+      'B05 — returns 200 with activeView + nodes when overlay non-empty',
+      () {
+        overlay.nodes = [
+          {'id': 'n1', 'viewType': 'ProfileView'},
+          {'id': 'n2', 'viewType': 'HomeView'},
+        ];
+        overlay.activeView = 'ProfileView';
 
-      final r = handlers.handleTreeGet();
-      expect(r.statusCode, 200);
-      expect(r.body['activeView'], 'ProfileView');
-      expect((r.body['nodes'] as List).length, 2);
-    });
+        final r = handlers.handleTreeGet();
+        expect(r.statusCode, 200);
+        expect(r.body['activeView'], 'ProfileView');
+        expect((r.body['nodes'] as List).length, 2);
+      },
+    );
 
     test('B06 — returns 200 with activeView=null + nodes=[] when empty', () {
       overlay.nodes = const [];
@@ -108,6 +110,31 @@ void main() {
       expect(r.statusCode, 400);
     });
 
+    test('B10c — tolerates non-Map nodes in the tree (no crash)', () {
+      // A malformed tree can contain non-Map entries (null / scalar /
+      // nested list). The handler must skip them, not throw an uncaught
+      // CastError, and still locate the one valid node.
+      overlay.nodes = <dynamic>[
+        'not-a-map',
+        null,
+        <dynamic>['also', 'not', 'a', 'map'],
+        {'id': 'n1', 'boundAction': 'onTap'},
+      ];
+      overlay.boundActionResult = {'navigated': true};
+
+      final r = handlers.handleActionPost({'targetNode': 'n1'});
+      expect(r.statusCode, 200);
+      expect(r.body['nodeId'], 'n1');
+    });
+
+    test('B10d — a tree with only malformed nodes yields unknownNode', () {
+      overlay.nodes = <dynamic>['junk', null, 42];
+
+      final r = handlers.handleActionPost({'targetNode': 'n1'});
+      expect(r.statusCode, 404);
+      expect(r.body['error'], contains('not found'));
+    });
+
     test('B15 — returns 404 in release mode', () {
       final release = XRayBridgeHandlers(
         overlayState: overlay,
@@ -121,9 +148,7 @@ void main() {
 
   group('handleControlDeckPost', () {
     test('B11 — returns 200 + injected payload when mock registered', () {
-      deck.mocks = {
-        'A': 'payload-A',
-      };
+      deck.mocks = {'A': 'payload-A'};
 
       final r = handlers.handleControlDeckPost({'mockName': 'A'});
       expect(r.statusCode, 200);
@@ -133,10 +158,7 @@ void main() {
     });
 
     test('B12 — returns 404 + availableMockNames for unknown mock', () {
-      deck.mocks = {
-        'A': 'p1',
-        'B': 'p2',
-      };
+      deck.mocks = {'A': 'p1', 'B': 'p2'};
 
       final r = handlers.handleControlDeckPost({'mockName': 'unknown'});
       expect(r.statusCode, 404);
@@ -167,22 +189,20 @@ void main() {
 }
 
 /// Minimal fake of the spec 036 XRayOverlayState for handler tests.
+///
+/// `nodes` is `List<dynamic>` (not `List<Map>`) so tests can inject
+/// malformed entries (null / scalar / nested list) to exercise the
+/// handler's defensive skip behaviour.
 class _FakeOverlay {
-  List<Map<String, dynamic>> nodes = const [];
+  List<dynamic> nodes = const <dynamic>[];
   String? activeView;
   Map<String, dynamic>? boundActionResult;
 
-  Map<String, dynamic> toJson() => {
-    'activeView': activeView,
-    'nodes': nodes,
-  };
+  Map<String, dynamic> toJson() => {'activeView': activeView, 'nodes': nodes};
 
   Map<String, dynamic>? inspect(String id) {
     if (boundActionResult == null) return null;
-    return {
-      'nodeId': id,
-      'actionResult': boundActionResult,
-    };
+    return {'nodeId': id, 'actionResult': boundActionResult};
   }
 }
 
