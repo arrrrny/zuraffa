@@ -1,7 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
+
 import 'package:args/command_runner.dart';
+import 'package:meta/meta.dart';
+
+import '../plugins/shadcn/vocabulary/composite_scaffolder.dart';
+import '../plugins/shadcn/vocabulary/ui_node_registry.dart';
 import '../config/zfa_config.dart';
 import '../cli/plugin_loader.dart';
 import '../core/project/project_root.dart';
@@ -93,6 +98,13 @@ class MakeCommand extends Command<void> {
   late final PluginManager manager;
 
   MakeCommand(this.registry) {
+    argParser.addFlag(
+      'ui',
+      negatable: false,
+      help:
+          'Scaffold a composite UI component (spec 024): node entity + '
+          'renderer extension + schema registration',
+    );
     final projectRoot = _findProjectRoot();
     manager = PluginManager(
       registry: registry,
@@ -360,10 +372,63 @@ class MakeCommand extends Command<void> {
   /// Returns the resolved output directory.
   String get outputDir => fixedOutputDir;
 
+  /// Test seam: constructs a MakeCommand bound to a temp project root for
+  /// the `--ui` composite flow (spec 024).
+  @visibleForTesting
+  factory MakeCommand.forTesting({required String projectRoot}) {
+    final command = MakeCommand(PluginRegistry.instance);
+    command._uiProjectRootOverride = projectRoot;
+    return command;
+  }
+
+  String? _uiProjectRootOverride;
+
+  /// Runs the `zfa make <Name> --ui` composite scaffolding flow (spec 024
+  /// FR-002). Exposed for in-process tests; the CLI path reaches it via
+  /// the `--ui` flag.
+  @visibleForTesting
+  Future<void> runForUi(String name) async {
+    await _scaffoldComposite(name);
+  }
+
+  Future<void> _scaffoldComposite(String name) async {
+    final projectRoot = _uiProjectRootOverride ?? Directory.current.path;
+    try {
+      final registry = NodeRegistry.load(projectRoot: projectRoot);
+      final result = await CompositeScaffolder().scaffold(
+        name,
+        projectRoot: projectRoot,
+        registry: registry,
+        force: argResults?['force'] == true,
+      );
+      for (final file in result.writtenFiles) {
+        print('  ✨ Created: $file');
+      }
+      print('✅ Composite "$name" is now a first-class UI vocabulary entry.');
+      print('   Re-run `zfa ui schema` to include it in the export.');
+    } on CompositeScaffoldException catch (e) {
+      print('❌ $e');
+      exitCode = 1;
+    }
+  }
+
   @override
   Future<void> run() async {
     final jsonConfig = await _loadJsonConfig();
     final rest = argResults!.rest;
+
+    // Spec 024 FR-002: `zfa make <Name> --ui` scaffolds a composite UI
+    // component — intercepted before the entity pipeline (composites are
+    // vocabulary entries, not entities).
+    if (argResults?['ui'] == true) {
+      if (rest.isEmpty) {
+        print('❌ Usage: zfa make <Name> --ui');
+        exitCode = 64;
+        return;
+      }
+      await _scaffoldComposite(rest.first);
+      return;
+    }
 
     if (rest.isEmpty && jsonConfig == null) {
       print('❌ Usage: zfa make <Name> <plugin1> <plugin2> ... [options]');

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:args/args.dart';
 import '../commands/schema_command.dart';
+import '../commands/ui_command.dart';
 import '../commands/validate_command.dart';
 import '../commands/create_command.dart' as create;
 import '../commands/config_command.dart' as config;
@@ -117,6 +118,7 @@ class CliRunner {
     _runner.addCommand(SetupCommand());
     _runner.addCommand(TddCommand(TddPlugin()));
     _runner.addCommand(AppCommand());
+    _runner.addCommand(UiCommand());
   }
 
   void _loadAndRegisterPlugins() {

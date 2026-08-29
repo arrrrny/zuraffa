@@ -722,6 +722,25 @@ export 'src/cli/standard/standard.dart';
 // The policy shell's `MissionTraceRecorder` is kept in the public barrel;
 // ui_render's remains available via its own relative import and is hidden here
 // to avoid an ambiguous-export error. See zuraffa.dart policy-shell export.
+// ---------------------------------------------------------------------------
+// UI Vocabulary Authority (spec 024 — shadcn plugin)
+// ---------------------------------------------------------------------------
+
+// NodeRegistry — the authoritative built-in + composite node vocabulary.
+export 'src/plugins/shadcn/vocabulary/ui_node_registry.dart';
+
+// VocabularySchemaExporter + UiRenderInputSchema (SC-004).
+export 'src/plugins/shadcn/vocabulary/vocabulary_schema_exporter.dart';
+
+// UiPayloadValidator — per-category payload diagnostics.
+export 'src/plugins/shadcn/vocabulary/payload_validator.dart';
+
+// CompositeScaffolder — zfa make <Name> --ui.
+export 'src/plugins/shadcn/vocabulary/composite_scaffolder.dart';
+
+// UiVocabularyExportCapability — MCP-discoverable export (FR-006).
+export 'src/plugins/shadcn/capabilities/ui_vocabulary_export_capability.dart';
+
 export 'src/agent/ui_render/ui_render.dart'
     hide ValidationResult, ValidationError, MissionTraceRecorder;
 
