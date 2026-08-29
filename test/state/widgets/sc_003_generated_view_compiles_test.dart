@@ -21,6 +21,18 @@ import 'package:zuraffa/zuraffa.dart';
 // _repoRoot() removed: U25 now reuses the repo's resolved package config
 // instead of creating a separate temp package that needs `dart pub get`.
 
+/// Resolve the `dart` executable to run `dart analyze`. In the Flutter CI job
+/// `Platform.resolvedExecutable` is the `flutter` binary, and `flutter analyze`
+/// runs `flutter pub get` first — which hangs on the offline network and times
+/// the test out. `dart` always sits next to `flutter` in the same bin dir, so
+/// prefer it explicitly.
+String _dartExecutable() {
+  final dir = File(Platform.resolvedExecutable).parent;
+  final name = Platform.isWindows ? 'dart.exe' : 'dart';
+  final candidate = File('${dir.path}/$name');
+  return candidate.existsSync() ? candidate.path : Platform.resolvedExecutable;
+}
+
 void main() {
   late Directory tempDir;
   late ViewTemplateGenerator gen;
@@ -144,7 +156,7 @@ void main() {
         pureDart: true,
       );
 
-      final result = await Process.run(Platform.resolvedExecutable, [
+      final result = await Process.run(_dartExecutable(), [
         'analyze',
         '--no-fatal-warnings',
         tempDir.path,
