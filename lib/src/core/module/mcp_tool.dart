@@ -27,6 +27,11 @@
 /// single text content block (the most common case); richer tools
 /// can override [McpToolResult.toJson] to emit additional content
 /// types (image, resource, embedded).
+///
+/// Large results use the ref-only [artifactRef] pattern: set
+/// [artifactRef] (e.g. via [McpToolResult.artifact]) so the wire
+/// response carries only a pointer to the body, never the body itself
+/// (zuraffa#384, requirement #5).
 class McpToolResult {
   /// Whether the call ended in a tool-level error (vs. a transport
   /// error). When `true`, the MCP client surfaces the [text] as an
@@ -42,33 +47,75 @@ class McpToolResult {
   /// debugging output.
   final Map<String, dynamic>? data;
 
-  const McpToolResult({this.isError = false, required this.text, this.data});
+  /// Ref-only pointer to a large result body stored out-of-band (a
+  /// file path, content-addressed URI, or object-store key).
+  ///
+  /// Implements the "artifactRef" ref-only pattern from the MCP runtime
+  /// productionization (zuraffa#384, requirement #5). When set, [text]
+  /// should be a short summary and the large body MUST NOT be marshaled
+  /// through the transport — the client resolves [artifactRef] out-of-band.
+  /// The wire response carries only the ref, never the body, so multi-MB
+  /// results never cross the JSON-RPC boundary.
+  final String? artifactRef;
+
+  const McpToolResult({
+    this.isError = false,
+    required this.text,
+    this.data,
+    this.artifactRef,
+  });
 
   /// Convenience constructor for an error result.
-  factory McpToolResult.error(String message, {Map<String, dynamic>? data}) =>
-      McpToolResult(isError: true, text: message, data: data);
+  factory McpToolResult.error(
+    String message, {
+    Map<String, dynamic>? data,
+    String? artifactRef,
+  }) =>
+      McpToolResult(
+        isError: true,
+        text: message,
+        data: data,
+        artifactRef: artifactRef,
+      );
 
   /// Convenience constructor for a success result with structured data.
-  factory McpToolResult.ok(String text, {Map<String, dynamic>? data}) =>
-      McpToolResult(text: text, data: data);
+  factory McpToolResult.ok(
+    String text, {
+    Map<String, dynamic>? data,
+    String? artifactRef,
+  }) =>
+      McpToolResult(text: text, data: data, artifactRef: artifactRef);
+
+  /// Ref-only result: the large body lives at [artifactRef]; [text] is a
+  /// short human-readable summary. The wire response carries only the ref.
+  factory McpToolResult.artifact(
+    String artifactRef, {
+    String text = '',
+    Map<String, dynamic>? data,
+  }) =>
+      McpToolResult(text: text, data: data, artifactRef: artifactRef);
 
   /// Serialises to the MCP `tools/call` result shape:
   ///
   /// ```json
   /// {
   ///   "isError": false,
-  ///   "content": [{"type": "text", "text": "..."}]
+  ///   "content": [{"type": "text", "text": "..."}],
+  ///   "artifactRef": "sha256:ab12.../screenshot.png"
   /// }
   /// ```
   ///
   /// Note: [data] is deliberately NOT serialised — it exists for
-  /// in-process runtime and test use only. The wire response emits
-  /// exactly the MCP 2024-11-05 result fields.
+  /// in-process runtime and test use only. When [artifactRef] is set, it
+  /// IS serialised (the ref, not the body) so the client can fetch the
+  /// large result out-of-band. The wire response emits exactly the MCP
+  /// 2024-11-05 result fields plus the optional `artifactRef`.
   Map<String, dynamic> toJson() => {
     if (isError) 'isError': true,
     'content': [
       {'type': 'text', 'text': text},
     ],
+    if (artifactRef != null) 'artifactRef': artifactRef,
   };
 
   @override

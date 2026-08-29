@@ -69,6 +69,15 @@ class McpServerPlugin extends ZuraffaPlugin {
   /// [autoStartSsePort] is set.
   final String? sseAuthToken;
 
+  /// Maximum number of concurrent SSE sessions (forwarded to
+  /// [McpSseServer]). `null` (default) means unbounded. Requirement #3.
+  final int? maxSseConnections;
+
+  /// Per-token tool allowlists forwarded to [McpSseServer] (requirement #3).
+  /// A token maps to the set of tool names it may invoke; anonymous
+  /// requests are denied tool calls when any allowlist is configured.
+  final Map<String, Set<String>>? sseToolAllowlist;
+
   /// Captured during [onInit] for later use by [serveStdio] /
   /// [serveSse] / [listTools]. `null` before bootstrap completes.
   ZuraffaDIContainer? _di;
@@ -84,6 +93,8 @@ class McpServerPlugin extends ZuraffaPlugin {
     this.autoStartStdio = false,
     this.autoStartSsePort,
     this.sseAuthToken,
+    this.maxSseConnections,
+    this.sseToolAllowlist,
   }) : tools = List<McpTool>.unmodifiable(tools ?? const []);
 
   @override
@@ -196,6 +207,8 @@ class McpServerPlugin extends ZuraffaPlugin {
       serverName: serverName,
       serverVersion: serverVersion,
       authToken: authToken,
+      maxConnections: maxSseConnections,
+      toolAllowlist: sseToolAllowlist,
     );
     _sseServer = sse;
     await sse.start(port: port);
