@@ -417,6 +417,22 @@ void main() {
       }
       expect(status, isNot(200));
     });
+
+    test('stop() terminates open SSE streams so clients see a clean end', () async {
+      final srv = McpSseServer(registry: McpToolRegistry());
+      await srv.start(port: 0);
+      final p = srv.boundPort!;
+      final sseReq = await client.getUrl(
+        Uri.parse('http://127.0.0.1:$p/sse'),
+      );
+      final sseRes = await sseReq.close();
+      // Keep the stream open and await its termination.
+      final done = sseRes.drain();
+      await srv.stop();
+      // The client must observe stream termination, not hang until it
+      // disconnects (regression: the SSE HTTP response was never closed).
+      await done.timeout(const Duration(seconds: 5));
+    });
   });
 }
 

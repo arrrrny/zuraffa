@@ -153,9 +153,16 @@ class McpSseServer {
     final server = _server;
     _server = null;
     // Close active SSE streams first so clients see a clean stream end
-    // instead of an abrupt socket reset.
-    for (final session in _sessions.values) {
+    // instead of an abrupt socket reset. Closing the controller ends the
+    // SSE event stream, but the underlying HTTP response is only finalized
+    // when we close it — otherwise connected clients never observe stream
+    // termination (they keep waiting for the next event) and the response
+    // socket leaks until the client disconnects.
+    for (final session in _sessions.values.toList()) {
       await session.controller.close();
+      await session.request.response.close().catchError((_) {
+        // The client may already have disconnected; ignore close errors.
+      });
     }
     _sessions.clear();
     if (server != null) {
