@@ -481,6 +481,14 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "3.5.8"
+  mutation_test:
+    dependency: "direct dev"
+    description:
+      name: mutation_test
+      sha256: c5bfa680c7d2bf9e4f4f0a1189ef1382c5d9af30e0dde1dc7ffd983307b1867d
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "1.8.0"
   nocterm:
     dependency: "direct main"
     description:

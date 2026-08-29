@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  mutation-test.xml — scopes mutation_test (https://pub.dev/packages/mutation_test)
+  to the TDD code introduced by feature 041-tdd-setup-plugin. Per `.specify/
+  memory/tdd-profile.md` the mutation phase is now wired (no longer a "spot
+  check" fallback).
+
+  Why a config file (not `dart run mutation_test` with no args):
+    - The default invocation mutates ALL of `lib/`, which is ~120 source
+      files. Per-mutant we run `dart test test/cli/writers/tdd/ test/plugins/tdd/`
+      (~0.9s). At ~5 mutants per file this would take hours and would not
+      fit the rubric's "<10s per mutant" budget for this PR scope.
+    - Scoping to the 21 TDD files (writers + plugin + tdd_command aggregator)
+      gives a focused audit of the code the spec 041 introduces, which is
+      the honest answer to "are the new tests strong enough to catch
+      regressions in the new code?".
+
+  The full-suite mutation audit is intentionally deferred: the spec 041
+  acceptance criteria (US9.AC1–3) only require `zfa tdd verify` to emit a
+  coverage + mutation audit for the feature under test, not the whole repo.
+
+  Run:    dart run mutation_test mutation-test.xml -f md -o mutation-test-report
+  Output: mutation-test-report/mutation-test.md (+ html)
+-->
+<mutations version="1.0">
+  <files>
+    <file>lib/src/cli/writers/tdd/dart_test_yaml_writer.dart</file>
+    <file>lib/src/cli/writers/tdd/pubspec_dev_dependencies_patcher.dart</file>
+    <file>lib/src/cli/writers/tdd/smoke_test_writer.dart</file>
+    <file>lib/src/cli/writers/tdd/tdd_example_writer.dart</file>
+    <file>lib/src/cli/writers/tdd/tdd_profile_writer.dart</file>
+    <file>lib/src/plugins/tdd/commands/gen_command.dart</file>
+    <file>lib/src/plugins/tdd/commands/init_command.dart</file>
+    <file>lib/src/plugins/tdd/commands/make_command.dart</file>
+    <file>lib/src/plugins/tdd/commands/plan_command.dart</file>
+    <file>lib/src/plugins/tdd/commands/refactor_command.dart</file>
+    <file>lib/src/plugins/tdd/commands/run_command.dart</file>
+    <file>lib/src/plugins/tdd/commands/verify_command.dart</file>
+    <file>lib/src/plugins/tdd/commands/verify_red_command.dart</file>
+    <file>lib/src/plugins/tdd/models/behavior.dart</file>
+    <file>lib/src/plugins/tdd/models/cycle_entry.dart</file>
+    <file>lib/src/plugins/tdd/models/run_state.dart</file>
+    <file>lib/src/plugins/tdd/models/tdd_profile.dart</file>
+    <file>lib/src/plugins/tdd/services/cycle_log.dart</file>
+    <file>lib/src/plugins/tdd/services/mutation_verifier.dart</file>
+    <file>lib/src/plugins/tdd/services/spec_parser.dart</file>
+    <file>lib/src/plugins/tdd/tdd_plugin.dart</file>
+    <file>lib/src/commands/tdd_command.dart</file>
+  </files>
+  <commands>
+    <!--
+      Scoped test command: runs only the tests covering the TDD code. This
+      keeps per-mutant runtime under 11s and ensures the mutation score is
+      attributable to the new code (not noisy co-test failures from the
+      rest of the repo).
+
+      Why a wrapper script and not `bash -c "rm -rf ...; dart test ..."`
+      inline: the `mutation_test` package (v1.8.0) parses <command> text by
+      splitting on whitespace (see configuration.dart `_addCommand`); it
+      does NOT honor shell quotes. Inline bash -c with quoted redirect
+      strings tokenizes as ["bash", "-c", "\"rm", "-rf", ...] and bash
+      errors with "unexpected EOF while looking for matching quote".
+      Putting the logic in `tools/run-tdd-tests.sh` and invoking
+      `bash tools/run-tdd-tests.sh` keeps args tokenizable on whitespace
+      while preserving shell quoting inside the script.
+
+      The wrapper script:
+        - cleans leftover $TMPDIR/dart_test.kernel.* dirs from prior
+          mutants (the dart test runner leaks them; rootfs fills after
+          ~6 mutants and corrupts the audit by miscategorizing mutants
+          as "NotCovered")
+        - deliberately does NOT delete `.dart_tool/test/incremental_kernel*`
+          (the persistent incremental-compile cache; removing it forces
+          every mutant to recompile ~133 transitive dills from scratch)
+        - runs `dart test -j 1` to avoid the parallel-test CWD-cascade
+          flake (issue #506)
+
+      See `tools/run-tdd-tests.sh` for the full implementation.
+    -->
+    <command group="test" expected-return="0" working-directory=".">bash tools/run-tdd-tests.sh</command>
+  </commands>
+</mutations>

@@ -89,10 +89,10 @@
 
 ## Phase 11: User Story 9 — `zfa tdd verify` (P3)
 
-- [ ] T077–T078 Tests
-- [ ] T079 `verifier.dart`
-- [ ] T080 Implement `verify_command.dart`
-- [ ] T081 Scenario `sc_009_verify_emits_audit_test.dart`
+- [x] T077–T078 Tests
+- [x] T079 `verifier.dart`
+- [x] T080 Implement `verify_command.dart`
+- [x] T081 Scenario `sc_009_verify_emits_audit_test.dart`
 
 ## Phase 12: Polish & Cross-Cutting
 
