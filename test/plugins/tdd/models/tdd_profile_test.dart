@@ -41,7 +41,7 @@ void main() {
     test('dart profile resolves single with -P filter', () {
       const p = TddProfile.dart;
       final resolved = p.resolveSingle(file: 'test/foo_test.dart', name: 'foo');
-      expect(resolved, contains('-P "foo"'));
+      expect(resolved, contains('--name "foo"'));
       expect(resolved, contains('test/foo_test.dart'));
     });
   });

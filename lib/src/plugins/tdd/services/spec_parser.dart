@@ -21,29 +21,50 @@ class SpecParser {
 
   List<Behavior> _extractAcceptance(String feature, String specMd) {
     final behaviors = <Behavior>[];
+    final lines = specMd.split('\n');
+    var scenarioBuffer = <String>[];
     var aIdx = 0;
 
-    for (final line in specMd.split('\n')) {
-      final scenarioHeader = RegExp(r'^\s*(\d+)\.\s*\*\*Given\*\*').firstMatch(line);
-      if (scenarioHeader != null) {
-        aIdx += 1;
-        behaviors.add(
-          Behavior(
-            id: 'A$aIdx',
-            feature: feature,
-            kind: BehaviorKind.acceptance,
-            description: _extractScenarioText(line),
-            sourceCriterion: 'AC-${scenarioHeader.group(1)}',
-            target: '',
-          ),
-        );
+    Behavior? flush() {
+      if (scenarioBuffer.isEmpty) return null;
+      final header = RegExp(
+        r'^\s*(\d+)\.\s*\*\*Given\*\*',
+      ).firstMatch(scenarioBuffer.first);
+      if (header == null) {
+        scenarioBuffer = <String>[];
+        return null;
       }
+      aIdx += 1;
+      final behavior = Behavior(
+        id: 'A$aIdx',
+        feature: feature,
+        kind: BehaviorKind.acceptance,
+        description: _extractScenarioText(scenarioBuffer.join('\n')),
+        sourceCriterion: 'AC-${header.group(1)}',
+        target: '',
+      );
+      scenarioBuffer = <String>[];
+      return behavior;
     }
+
+    for (final line in lines) {
+      if (RegExp(r'^\s*\d+\.\s*\*\*Given\*\*').hasMatch(line) &&
+          scenarioBuffer.isNotEmpty) {
+        final flushed = flush();
+        if (flushed != null) behaviors.add(flushed);
+      }
+      scenarioBuffer.add(line);
+    }
+    final last = flush();
+    if (last != null) behaviors.add(last);
     return behaviors;
   }
 
   String _extractScenarioText(String line) {
-    final match = RegExp(r'\*\*Then\*\*\s*(.+)$').firstMatch(line);
+    final match = RegExp(
+      r'\*\*Then\*\*\s*(.+)$',
+      multiLine: true,
+    ).firstMatch(line);
     if (match != null) {
       return match.group(1)!.replaceAll('**', '').trim();
     }

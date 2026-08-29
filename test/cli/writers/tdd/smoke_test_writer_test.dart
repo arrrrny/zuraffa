@@ -18,18 +18,20 @@ void main() {
     if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
   });
 
-  test('writes test/bootstrap_smoke_test.dart referencing the package',
-      () async {
-    final writer = const SmokeTestWriter();
-    final path = await writer.write(tmpDir.path, 'myapp');
-    expect(path, isNotNull);
-    final file = File(p.join(tmpDir.path, 'test/bootstrap_smoke_test.dart'));
-    expect(file.existsSync(), isTrue);
-    final content = file.readAsStringSync();
-    expect(content, contains('package:myapp/app.dart'));
-    expect(content, contains('AppContainer'));
-    expect(content, contains('isNotNull'));
-  });
+  test(
+    'writes test/bootstrap_smoke_test.dart referencing the package',
+    () async {
+      final writer = const SmokeTestWriter();
+      final path = await writer.write(tmpDir.path, 'myapp');
+      expect(path, isNotNull);
+      final file = File(p.join(tmpDir.path, 'test/bootstrap_smoke_test.dart'));
+      expect(file.existsSync(), isTrue);
+      final content = file.readAsStringSync();
+      expect(content, contains('package:myapp/app.dart'));
+      expect(content, contains('AppContainer'));
+      expect(content, contains('isNotNull'));
+    },
+  );
 
   test('is idempotent — does not overwrite an existing smoke test', () async {
     final writer = const SmokeTestWriter();
@@ -37,7 +39,11 @@ void main() {
     final file = File(p.join(tmpDir.path, 'test/bootstrap_smoke_test.dart'));
     await file.writeAsString('// Custom user test\n');
     final result = await writer.write(tmpDir.path, 'myapp');
-    expect(result, isNull, reason: 'should not overwrite existing user content');
+    expect(
+      result,
+      isNull,
+      reason: 'should not overwrite existing user content',
+    );
     expect(file.readAsStringSync(), '// Custom user test\n');
   });
 }

@@ -40,10 +40,7 @@ class PubspecDevDependenciesPatcher {
     return entry.split('\n').map((line) => '  $line').join('\n');
   }
 
-  Future<List<String>> ensure(
-    String projectRoot, {
-    bool dryRun = false,
-  }) async {
+  Future<List<String>> ensure(String projectRoot, {bool dryRun = false}) async {
     final file = File('$projectRoot/pubspec.yaml');
 
     // In dry-run mode, report what would be added without touching disk.
@@ -51,11 +48,13 @@ class PubspecDevDependenciesPatcher {
     // the dry-run is previewing what the TDD baseline writers would emit).
     if (dryRun) {
       if (!await file.exists()) {
-        return flutterDevDependencies.keys.toList();
+        return (isFlutter ? flutterDevDependencies : dartDevDependencies).keys
+            .toList();
       }
       final raw = await file.readAsString();
       final doc = loadYaml(raw);
-      final existing = (doc is Map ? (doc['dev_dependencies'] as Map?) : null) ?? const {};
+      final existing =
+          (doc is Map ? (doc['dev_dependencies'] as Map?) : null) ?? const {};
       final wanted = isFlutter ? flutterDevDependencies : dartDevDependencies;
       return wanted.keys.where((pkg) => !existing.containsKey(pkg)).toList();
     }
@@ -92,6 +91,14 @@ class PubspecDevDependenciesPatcher {
       return missing;
     }
 
+    if (RegExp(r'dev_dependencies:\s*\{[^\}]').hasMatch(raw)) {
+      throw UnsupportedError(
+        'Inline `dev_dependencies: {...}` mappings are not supported by '
+        'PubspecDevDependenciesPatcher; use a block-style `dev_dependencies:` '
+        'section instead.',
+      );
+    }
+
     final newContent = _patchTextually(raw, missing);
     await file.writeAsString(newContent);
     return missing;
@@ -105,7 +112,9 @@ class PubspecDevDependenciesPatcher {
 
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i];
-      final devDepMatch = RegExp(r'^dev_dependencies:\s*(.*)$').firstMatch(line);
+      final devDepMatch = RegExp(
+        r'^dev_dependencies:\s*(.*)$',
+      ).firstMatch(line);
       if (devDepMatch != null) {
         final rest = devDepMatch.group(1)!.trim();
         if (rest.isEmpty || rest == '{}') {

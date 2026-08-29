@@ -284,7 +284,9 @@ class SetupCommand extends Command<void> {
         dryRun: dryRun,
       );
     } else {
-      print('\n[6/7] Skipping TDD baseline (pure-Dart project; use `zfa tdd init` separately).');
+      print(
+        '\n[6/7] Skipping TDD baseline (pure-Dart project; use `zfa tdd init` separately).',
+      );
     }
 
     // 7. Summary.
@@ -310,8 +312,10 @@ class SetupCommand extends Command<void> {
     print('');
     if (isFlutter) {
       print('   Run the app:  flutter run');
-      print('   Run tests:    flutter test   (TDD baseline emitted: '
-          'test/bootstrap_smoke_test.dart)');
+      print(
+        '   Run tests:    flutter test   (TDD baseline emitted: '
+        'test/bootstrap_smoke_test.dart)',
+      );
     } else {
       print('   Run tests:    dart test');
     }
@@ -365,7 +369,9 @@ class SetupCommand extends Command<void> {
     if (added.isEmpty) {
       print('   ✓ pubspec.yaml dev_dependencies (already complete)');
     } else if (dryRun) {
-      print('   Would add to pubspec.yaml dev_dependencies: ${added.join(', ')}');
+      print(
+        '   Would add to pubspec.yaml dev_dependencies: ${added.join(', ')}',
+      );
     } else {
       print('   ✓ pubspec.yaml dev_dependencies (added: ${added.join(', ')})');
     }

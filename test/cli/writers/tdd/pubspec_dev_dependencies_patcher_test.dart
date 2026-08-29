@@ -47,14 +47,17 @@ dev_dependencies: {}
     final raw = await File(p.join(tmpDir.path, 'pubspec.yaml')).readAsString();
     final doc = loadYaml(raw) as YamlMap;
     final devDeps = doc['dev_dependencies'] as YamlMap;
-    expect(devDeps.keys, containsAll([
-      'flutter_test',
-      'mocktail',
-      'build_runner',
-      'json_serializable',
-      'coverage',
-      'mutation_test',
-    ]));
+    expect(
+      devDeps.keys,
+      containsAll([
+        'flutter_test',
+        'mocktail',
+        'build_runner',
+        'json_serializable',
+        'coverage',
+        'mutation_test',
+      ]),
+    );
   });
 
   test('does not duplicate existing entries', () async {
@@ -76,19 +79,22 @@ dev_dependencies:
     expect(added.any((e) => e.startsWith('flutter_test')), isFalse);
     expect(added.any((e) => e.startsWith('mocktail')), isFalse);
     final raw = await File(p.join(tmpDir.path, 'pubspec.yaml')).readAsString();
-    final flutterTestCount =
-        RegExp(r'^\s*flutter_test:', multiLine: true).allMatches(raw).length;
-    expect(flutterTestCount, 1, reason: 'flutter_test should appear exactly once');
+    final flutterTestCount = RegExp(
+      r'^\s*flutter_test:',
+      multiLine: true,
+    ).allMatches(raw).length;
+    expect(
+      flutterTestCount,
+      1,
+      reason: 'flutter_test should appear exactly once',
+    );
   });
 
   test('misfire-stop on parse failure (no partial write)', () async {
     final file = File(p.join(tmpDir.path, 'pubspec.yaml'));
     await file.writeAsString('name: myapp\n  bad: : :\n   bad indentation');
     final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
-    expect(
-      () => patcher.ensure(tmpDir.path),
-      throwsA(isA<FormatException>()),
-    );
+    expect(() => patcher.ensure(tmpDir.path), throwsA(isA<FormatException>()));
     final after = await file.readAsString();
     expect(after, contains('bad: : :'));
   });
@@ -107,5 +113,17 @@ dependencies: {}
     final raw = await File(p.join(tmpDir.path, 'pubspec.yaml')).readAsString();
     expect(raw, contains('dev_dependencies:'));
     expect(raw, contains('flutter_test:'));
+  });
+
+  test('rejects inline non-empty dev_dependencies mappings', () async {
+    await writePubspec('''
+name: myapp
+environment:
+  sdk: ^3.11.0
+dependencies: {}
+dev_dependencies: {lints: ^5.0.0}
+''');
+    final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
+    expect(() => patcher.ensure(tmpDir.path), throwsA(isA<UnsupportedError>()));
   });
 }

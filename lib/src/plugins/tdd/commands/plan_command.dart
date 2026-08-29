@@ -54,8 +54,9 @@ class PlanCommand extends Command<void> {
     if (await outFile.exists()) {
       final raw = await outFile.readAsString();
       for (final line in raw.split('\n')) {
-        final m = RegExp(r'^\|\s*([A|U]\d+)\s*\|.*?\|\s*([A-Z0-9\-, ]+)\s*\|')
-            .firstMatch(line);
+        final m = RegExp(
+          r'^\|\s*([A|U]\d+)\s*\|.*?\|\s*([A-Z0-9\-, ]+)\s*\|',
+        ).firstMatch(line);
         if (m != null) {
           final id = m.group(1)!;
           final traces = m.group(2)!.trim();
@@ -98,9 +99,7 @@ class PlanCommand extends Command<void> {
     final aCount = reconciled
         .where((b) => b.kind == BehaviorKind.acceptance)
         .length;
-    final uCount = reconciled
-        .where((b) => b.kind == BehaviorKind.unit)
-        .length;
+    final uCount = reconciled.where((b) => b.kind == BehaviorKind.unit).length;
     stdout.writeln(
       'zfa tdd plan: wrote $outFile with $aCount acceptance + $uCount unit '
       'behaviors (${reconciled.length} total).',
@@ -111,9 +110,7 @@ class PlanCommand extends Command<void> {
     final acceptance = behaviors
         .where((b) => b.kind == BehaviorKind.acceptance)
         .toList();
-    final unit = behaviors
-        .where((b) => b.kind == BehaviorKind.unit)
-        .toList();
+    final unit = behaviors.where((b) => b.kind == BehaviorKind.unit).toList();
 
     final buf = StringBuffer()
       ..writeln('# Test List: $feature')

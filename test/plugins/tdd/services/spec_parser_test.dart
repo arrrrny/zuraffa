@@ -32,9 +32,7 @@ void main() {
       final acceptance = behaviors
           .where((b) => b.kind == BehaviorKind.acceptance)
           .toList();
-      final unit = behaviors
-          .where((b) => b.kind == BehaviorKind.unit)
-          .toList();
+      final unit = behaviors.where((b) => b.kind == BehaviorKind.unit).toList();
       expect(acceptance.length, 2);
       expect(unit.length, 3);
       expect(acceptance[0].id, 'A1');
@@ -80,6 +78,31 @@ void main() {
       final behaviors = const SpecParser().parse('041-tdd-setup-plugin', spec);
       expect(behaviors.length, 1);
       expect(behaviors.first.kind, BehaviorKind.acceptance);
+    });
+
+    test('parses multiline Given/When/Then scenarios', () {
+      const spec = '''
+## User Scenarios
+
+**Acceptance Scenarios**:
+
+1. **Given** a logged-out user
+   **When** they tap sign in
+   **Then** they see the home screen.
+
+2. **Given** an empty cart
+   **When** they checkout
+   **Then** they are prompted to add items.
+''';
+      final behaviors = const SpecParser().parse('041-tdd-setup-plugin', spec);
+      final acceptance = behaviors
+          .where((b) => b.kind == BehaviorKind.acceptance)
+          .toList();
+      expect(acceptance.length, 2);
+      expect(acceptance[0].sourceCriterion, 'AC-1');
+      expect(acceptance[1].sourceCriterion, 'AC-2');
+      expect(acceptance[0].description, 'they see the home screen.');
+      expect(acceptance[1].description, 'they are prompted to add items.');
     });
 
     test('acceptance behaviors are listed before unit behaviors', () {

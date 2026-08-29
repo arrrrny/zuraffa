@@ -3,12 +3,7 @@ library;
 
 enum CycleEntryKind { red, green }
 
-enum FailureClass {
-  assertionFailure,
-  compileError,
-  loadError,
-  unexpectedGreen,
-}
+enum FailureClass { assertionFailure, compileError, loadError, unexpectedGreen }
 
 class CycleLogEntry {
   final String behaviorId;

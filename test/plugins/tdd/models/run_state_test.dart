@@ -13,8 +13,11 @@ void main() {
         behaviorStates: {'A1': BehaviorState.pending},
       );
       final s2 = s.advance('A1', BehaviorState.red);
-      expect(s.behaviorStates['A1'], BehaviorState.pending,
-          reason: 'original is not mutated');
+      expect(
+        s.behaviorStates['A1'],
+        BehaviorState.pending,
+        reason: 'original is not mutated',
+      );
       expect(s2.behaviorStates['A1'], BehaviorState.red);
       expect(s2.inFlightBehaviorId, isNull);
       expect(s2.inFlightStep, isNull);

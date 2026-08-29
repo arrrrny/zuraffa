@@ -33,13 +33,17 @@ class InitCommand extends Command<void> {
     final cwd = Directory.current.path;
     final isFlutter = await _isFlutterProject(cwd);
 
-    stdout.writeln('zfa tdd init: ensuring TDD baseline in $cwd '
-        '(${isFlutter ? "Flutter" : "Dart"})');
+    stdout.writeln(
+      'zfa tdd init: ensuring TDD baseline in $cwd '
+      '(${isFlutter ? "Flutter" : "Dart"})',
+    );
 
     final failures = <String>[];
 
     try {
-      final written = await const TddProfileWriter().write(cwd);
+      final written = await TddProfileWriter(
+        profile: isFlutter ? TddProfile.flutter : TddProfile.dart,
+      ).write(cwd);
       stdout.writeln(
         written == null
             ? '   ✓ .specify/memory/tdd-profile.md (already present)'
@@ -105,13 +109,15 @@ class InitCommand extends Command<void> {
       throw StateError('zfa tdd init: misfire');
     }
 
-    stdout.writeln('\nTDD baseline ensured. Run `flutter test` (or '
-        '`dart test`) to confirm a green baseline.');
+    stdout.writeln(
+      '\nTDD baseline ensured. Run `flutter test` (or '
+      '`dart test`) to confirm a green baseline.',
+    );
   }
 
   Future<bool> _isFlutterProject(String cwd) async {
     final pubspec = File('$cwd/pubspec.yaml');
-    if (!await pubspec.exists()) return true;
+    if (!await pubspec.exists()) return false;
     final raw = await pubspec.readAsString();
     return raw.contains('environment:') &&
         (raw.contains('flutter') || raw.contains('sdk: flutter'));

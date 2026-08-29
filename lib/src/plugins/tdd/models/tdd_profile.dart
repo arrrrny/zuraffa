@@ -27,7 +27,7 @@ class TddProfile {
 
   static const TddProfile dart = TddProfile(
     runner: 'dart',
-    single: 'dart test {file} -P "{name}"',
+    single: 'dart test {file} --name "{name}"',
     file: 'dart test {file}',
     suite: 'dart test',
     coverage: 'dart test --coverage',

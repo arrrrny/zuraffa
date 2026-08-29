@@ -52,12 +52,15 @@ void main() {
     });
 
     test('FailureClass distinguishes the four classes', () {
-      expect(FailureClass.assertionFailure,
-          isNot(equals(FailureClass.compileError)));
       expect(
-          FailureClass.compileError, isNot(equals(FailureClass.loadError)));
-      expect(FailureClass.loadError,
-          isNot(equals(FailureClass.unexpectedGreen)));
+        FailureClass.assertionFailure,
+        isNot(equals(FailureClass.compileError)),
+      );
+      expect(FailureClass.compileError, isNot(equals(FailureClass.loadError)));
+      expect(
+        FailureClass.loadError,
+        isNot(equals(FailureClass.unexpectedGreen)),
+      );
     });
   });
 }

@@ -31,14 +31,12 @@ void main() {
 
   test('zfa tdd plan on a missing spec exits non-zero', () async {
     final runner = CliRunner(exitOnCompletion: false);
-    final out =
-        await runner.runCapturing(['tdd', 'plan', 'does-not-exist']);
+    final out = await runner.runCapturing(['tdd', 'plan', 'does-not-exist']);
     expect(out.toLowerCase(), contains('spec not found'));
   });
 
   test('zfa tdd init on an empty directory is idempotent', () async {
-    final tmpDir =
-        Directory.systemTemp.createTempSync('zfa_tdd_init_smoke_');
+    final tmpDir = Directory.systemTemp.createTempSync('zfa_tdd_init_smoke_');
     final prev = Directory.current;
     try {
       Directory.current = tmpDir;
@@ -55,8 +53,7 @@ dev_dependencies: {}
       await runner2.runCapturing(['tdd', 'init']);
       final smoke = File('${tmpDir.path}/test/bootstrap_smoke_test.dart');
       expect(smoke.existsSync(), isTrue);
-      final profile =
-          File('${tmpDir.path}/.specify/memory/tdd-profile.md');
+      final profile = File('${tmpDir.path}/.specify/memory/tdd-profile.md');
       expect(profile.existsSync(), isTrue);
     } finally {
       Directory.current = prev;
