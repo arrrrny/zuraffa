@@ -401,7 +401,8 @@ dependency_overrides:
       expect(out, contains('flutter create'));
     });
 
-    test('default --flutter scaffolds ios,android (SPM is default)', () async {
+    test('default --flutter emits no --platforms (flutter default applies)',
+        () async {
       final runner = CommandRunner('zfa', 'test')..addCommand(SetupCommand());
       final prints = <String>[];
       await runZoned(
@@ -411,15 +412,11 @@ dependency_overrides:
         ),
       );
       final cmd = prints.firstWhere((l) => l.contains('Would run: flutter'));
-      expect(cmd, contains('--platforms ios'));
-      expect(cmd, contains('--platforms android'));
-      // Current Flutter uses SPM by default (no CocoaPods), so no flag is
-      // emitted and macos is not in the default set.
+      expect(cmd, isNot(contains('--platforms')));
       expect(cmd, isNot(contains('--swift-package-manager')));
-      expect(cmd, isNot(contains('--platforms macos')));
     });
 
-    test('--platforms=macos overrides the ios,android default', () async {
+    test('--platforms=macos overrides and forwards verbatim', () async {
       final runner = CommandRunner('zfa', 'test')..addCommand(SetupCommand());
       final prints = <String>[];
       await runZoned(
@@ -440,7 +437,7 @@ dependency_overrides:
       expect(cmd, isNot(contains('--platforms android')));
     });
 
-    test('--platforms=ios keeps ios only (no android, no SPM flag)', () async {
+    test('--platforms=linux,ios forwards exactly that set', () async {
       final runner = CommandRunner('zfa', 'test')..addCommand(SetupCommand());
       final prints = <String>[];
       await runZoned(
@@ -449,16 +446,65 @@ dependency_overrides:
           'demo_app',
           '--dry-run',
           '--flutter',
-          '--platforms=ios',
+          '--platforms=linux,ios',
         ]),
         zoneSpecification: ZoneSpecification(
           print: (self, parent, zone, message) => prints.add(message),
         ),
       );
       final cmd = prints.firstWhere((l) => l.contains('Would run: flutter'));
+      expect(cmd, contains('--platforms linux'));
       expect(cmd, contains('--platforms ios'));
       expect(cmd, isNot(contains('--platforms android')));
       expect(cmd, isNot(contains('--swift-package-manager')));
+    });
+
+    test('`--` passthrough forwards arbitrary flutter create flags', () async {
+      final runner = CommandRunner('zfa', 'test')..addCommand(SetupCommand());
+      final prints = <String>[];
+      await runZoned(
+        () => runner.run([
+          'setup',
+          'demo_app',
+          '--dry-run',
+          '--flutter',
+          '--',
+          '--template',
+          'plugin',
+          '--org',
+          'com.example',
+        ]),
+        zoneSpecification: ZoneSpecification(
+          print: (self, parent, zone, message) => prints.add(message),
+        ),
+      );
+      final cmd = prints.firstWhere((l) => l.contains('Would run: flutter'));
+      expect(cmd, contains('--template plugin'));
+      expect(cmd, contains('--org com.example'));
+    });
+
+    test('`--` passthrough forwards arbitrary dart create flags', () async {
+      final runner = CommandRunner('zfa', 'test')..addCommand(SetupCommand());
+      final prints = <String>[];
+      await runZoned(
+        () => runner.run([
+          'setup',
+          'demo_lib',
+          '--dry-run',
+          '--dart',
+          '--',
+          '--template',
+          'package',
+          '--force',
+        ]),
+        zoneSpecification: ZoneSpecification(
+          print: (self, parent, zone, message) => prints.add(message),
+        ),
+      );
+      final cmd = prints.firstWhere((l) => l.contains('Would run: dart'));
+      expect(cmd, contains('create -t package demo_lib'));
+      expect(cmd, contains('--template package'));
+      expect(cmd, contains('--force'));
     });
   });
 }
