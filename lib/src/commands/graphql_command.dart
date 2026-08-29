@@ -1,6 +1,8 @@
 import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
+import 'graphql_diff_command.dart';
 import 'graphql_introspect_command.dart';
+import 'graphql_pull_command.dart';
 import '../plugins/graphql/graphql_plugin.dart';
 import '../plugins/graphql/capabilities/create_graphql_capability.dart';
 
@@ -20,8 +22,10 @@ class GraphqlCommand extends PluginCommand {
     argParser.addOption('input-name', help: 'Input variable name');
     argParser.addOption('op-name', help: 'Operation name');
 
-    // Register introspect subcommand
+    // Register subcommands: introspect (v5), pull + diff (spec 037).
     addSubcommand(IntrospectCommand());
+    addSubcommand(PullCommand());
+    addSubcommand(DiffCommand());
   }
 
   @override

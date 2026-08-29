@@ -157,6 +157,15 @@ class GqlTypeDef {
   final List<GqlField>? inputFields;
   final List<GqlEnumValue>? enumValues;
 
+  /// Interface names an OBJECT type implements (introspection `interfaces`).
+  /// Null when the server response did not include the key.
+  final List<String>? interfaces;
+
+  /// Member type names for UNION / INTERFACE types (introspection
+  /// `possibleTypes`). Null when the server response did not include the
+  /// key. Spec 037: parsed additively — older consumers ignore it.
+  final List<String>? possibleTypes;
+
   const GqlTypeDef({
     required this.name,
     required this.kind,
@@ -164,6 +173,8 @@ class GqlTypeDef {
     this.fields,
     this.inputFields,
     this.enumValues,
+    this.interfaces,
+    this.possibleTypes,
   });
 
   factory GqlTypeDef.fromJson(Map<String, dynamic> json) {
@@ -180,7 +191,21 @@ class GqlTypeDef {
       enumValues: (json['enumValues'] as List<dynamic>?)
           ?.map((e) => GqlEnumValue.fromJson(e as Map<String, dynamic>))
           .toList(),
+      interfaces: _parseNameList(json['interfaces']),
+      possibleTypes: _parseNameList(json['possibleTypes']),
     );
+  }
+
+  static List<String>? _parseNameList(dynamic value) {
+    if (value is! List) return null;
+    return value
+        .map(
+          (item) => item is Map<String, dynamic>
+              ? item['name'] as String?
+              : item?.toString(),
+        )
+        .whereType<String>()
+        .toList();
   }
 
   /// Whether this is an OBJECT type.
@@ -188,6 +213,12 @@ class GqlTypeDef {
 
   /// Whether this is an ENUM type.
   bool get isEnum => kind == GqlTypeKind.enum_;
+
+  /// Whether this is an INTERFACE type.
+  bool get isInterface => kind == GqlTypeKind.interface_;
+
+  /// Whether this is a UNION type.
+  bool get isUnion => kind == GqlTypeKind.union;
 
   /// Whether this is an INPUT_OBJECT type.
   bool get isInputObject => kind == GqlTypeKind.inputObject;
