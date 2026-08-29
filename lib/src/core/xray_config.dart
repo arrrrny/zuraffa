@@ -12,6 +12,21 @@ import 'dart:io';
 /// Path to the persistent X-Ray config file.
 const String xrayConfigPath = '.dart_tool/zuraffa/xray.json';
 
+/// Compile-time release-mode flag — `true` ONLY when the VM is started
+/// with `--dart-define=dart.vm.product=true` (release / AOT builds).
+///
+/// This is the pure-Dart equivalent of Flutter's `kReleaseMode` /
+/// `kDebugMode` and exists so the CLI / codegen / MCP server can
+/// branch on release mode without pulling `package:flutter`.
+///
+/// Track 4.3 — Spec 034 (issue #185, FR-007, SC-003).
+const bool kXrayReleaseMode = bool.fromEnvironment('dart.vm.product');
+
+/// Whether X-Ray should be active in the current build.
+///
+/// Returns `false` in release mode, `true` otherwise.
+bool shouldXRayBeActiveInCurrentBuild() => !kXrayReleaseMode;
+
 /// Read the X-Ray config file. Returns `null` if missing/malformed.
 Map<String, dynamic>? readXrayConfig() {
   final file = File(xrayConfigPath);
