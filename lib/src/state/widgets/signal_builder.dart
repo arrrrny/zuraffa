@@ -76,7 +76,7 @@ class SignalBuilder<T> extends ViewFragment {
   /// renders the fallback — or `null` when none was provided.
   @override
   Object? get output =>
-      signal.isDisposed ? fallback?.call(context) : super.output;
+      signal.isDisposed ? fallback?.call(isAttached ? context : null) : super.output;
 
   void _onSignalChange(T value) {
     if (!isAttached) return;

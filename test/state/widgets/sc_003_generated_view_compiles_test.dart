@@ -116,6 +116,20 @@ void main() {
     test(
       'generated pure-Dart view compiles under dart analyze [U25]',
       () async {
+        // Self-contained temp PACKAGE (not a bare dir): a pubspec.yaml with a
+        // path dependency on the repo gives `dart analyze` a deterministic
+        // resolution root. Running `dart analyze` on a pubspec-less directory
+        // inside the repo made the check depend on ambient package resolution
+        // walking up to the repo root, which timed out in CI (the comment
+        // above already calls this a "temp package").
+        File('${tempDir.path}/pubspec.yaml').writeAsStringSync('''
+name: sc003_temp
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+dependencies:
+  zuraffa:
+    path: ..
+''');
         // Fixture presenter pipeline (mirrors generatePresenter output shape,
         // importing the pure-Dart core barrel).
         File(
@@ -134,11 +148,25 @@ void main() {
           pureDart: true,
         );
 
-        final result = await Process.run(Platform.resolvedExecutable, [
-          'analyze',
-          tempDir.path,
-          '--no-fatal-warnings',
-        ], workingDirectory: Directory.current.path);
+        final pubGet = await Process.run(
+          Platform.resolvedExecutable,
+          ['pub', 'get'],
+          workingDirectory: tempDir.path,
+        );
+        final pubGetOut =
+            pubGet.stdout.toString() + pubGet.stderr.toString();
+        expect(
+          pubGet.exitCode,
+          0,
+          reason: 'dart pub get in the temp package must succeed. '
+              'Output:\n$pubGetOut',
+        );
+
+        final result = await Process.run(
+          Platform.resolvedExecutable,
+          ['analyze', '--no-fatal-warnings'],
+          workingDirectory: tempDir.path,
+        );
         final output = result.stdout.toString() + result.stderr.toString();
 
         expect(
