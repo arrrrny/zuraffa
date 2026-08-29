@@ -33,7 +33,8 @@ class GeneratedMock {
 /// Generates lightweight mocks for boundary interfaces.
 class MockStubGenerator {
   /// Creates the generator with an optional [parser].
-  MockStubGenerator({FileParser? parser}) : _parser = parser ?? const FileParser();
+  MockStubGenerator({FileParser? parser})
+    : _parser = parser ?? const FileParser();
 
   final FileParser _parser;
 
@@ -66,17 +67,14 @@ class MockStubGenerator {
     buffer.writeln(
       '// ${boundary.typeName} (${boundary.interfaceFile}). Modify freely;',
     );
-    buffer.writeln('// return realistic values to exercise the slice.',
-    );
+    buffer.writeln('// return realistic values to exercise the slice.');
     buffer.writeln('library;');
     buffer.writeln();
     final interfaceImport = p.relative(
       interfacePath,
       from: p.join(projectRoot, 'lib', 'src', 'mocks'),
     );
-    buffer.writeln(
-      "import '${interfaceImport.replaceAll('\\', '/')}';",
-    );
+    buffer.writeln("import '${interfaceImport.replaceAll('\\', '/')}';");
     buffer.writeln();
     buffer.writeln('/// Mock of [${boundary.typeName}].');
     buffer.writeln('class $mockClassName implements ${boundary.typeName} {');

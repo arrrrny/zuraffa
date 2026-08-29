@@ -7,5 +7,7 @@ import '../../domain/usecases/shared/fetch_settings_usecase.dart';
 
 /// Registers [FetchSettingsUseCase].
 void registerFetchSettingsUseCase(GetIt getIt) {
-  getIt.registerLazySingleton<FetchSettingsUseCase>(() => const FetchSettingsUseCase());
+  getIt.registerLazySingleton<FetchSettingsUseCase>(
+    () => const FetchSettingsUseCase(),
+  );
 }

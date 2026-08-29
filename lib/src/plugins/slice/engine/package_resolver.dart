@@ -71,11 +71,7 @@ class PackageResolver {
   /// Throws [PackageResolverError] when `.dart_tool/package_config.json` is
   /// missing (U7) or unreadable.
   static Future<PackageResolver> load(String projectRoot) async {
-    final configPath = p.join(
-      projectRoot,
-      '.dart_tool',
-      'package_config.json',
-    );
+    final configPath = p.join(projectRoot, '.dart_tool', 'package_config.json');
     final file = File(configPath);
     if (!await file.exists()) {
       throw PackageResolverError(
@@ -144,9 +140,7 @@ class PackageResolver {
       // SDK-style entries (e.g. flutter-sdk://...) never map to local paths.
       return rootUri;
     }
-    return p.canonicalize(
-      p.normalize(p.join(p.dirname(configPath), rootUri)),
-    );
+    return p.canonicalize(p.normalize(p.join(p.dirname(configPath), rootUri)));
   }
 
   /// Classifies [uri] without touching the filesystem (U6, U8).
@@ -154,7 +148,9 @@ class PackageResolver {
     if (uri.startsWith('dart:')) return ImportKind.sdk;
     if (uri.startsWith('package:')) {
       final name = uri.substring('package:'.length).split('/').first;
-      return name == _config.selfPackage ? ImportKind.self : ImportKind.external;
+      return name == _config.selfPackage
+          ? ImportKind.self
+          : ImportKind.external;
     }
     return ImportKind.relative;
   }
@@ -181,8 +177,6 @@ class PackageResolver {
 
   /// Resolves a relative [uri] against the importing file's directory (U5).
   String resolveRelative(String uri, String importingFile) {
-    return p.canonicalize(
-      p.normalize(p.join(p.dirname(importingFile), uri)),
-    );
+    return p.canonicalize(p.normalize(p.join(p.dirname(importingFile), uri)));
   }
 }

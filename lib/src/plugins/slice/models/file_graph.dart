@@ -119,22 +119,22 @@ String classifyLayer(String relativePath) {
 bool layerAllowedAtDepth(String layer, SliceDepth depth) {
   return switch (depth) {
     SliceDepth.view => switch (layer) {
-        'view' || 'presentation_shared' || 'other' => true,
-        _ => false,
-      },
+      'view' || 'presentation_shared' || 'other' => true,
+      _ => false,
+    },
     SliceDepth.presentation => switch (layer) {
-        'view' || 'presentation_shared' || 'other' || 'presenter' => true,
-        _ => false,
-      },
+      'view' || 'presentation_shared' || 'other' || 'presenter' => true,
+      _ => false,
+    },
     SliceDepth.feature => switch (layer) {
-        'view' ||
-        'presentation_shared' ||
-        'other' ||
-        'presenter' ||
-        'domain' ||
-        'di' => true,
-        _ => false,
-      },
+      'view' ||
+      'presentation_shared' ||
+      'other' ||
+      'presenter' ||
+      'domain' ||
+      'di' => true,
+      _ => false,
+    },
     SliceDepth.full => true,
   };
 }

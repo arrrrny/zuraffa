@@ -68,7 +68,10 @@ class CutSliceCapability implements ZuraffaCapability {
     'required': ['name', 'entries'],
     'properties': {
       'name': {'type': 'string'},
-      'entries': {'type': 'array', 'items': {'type': 'string'}},
+      'entries': {
+        'type': 'array',
+        'items': {'type': 'string'},
+      },
       'depth': {
         'type': 'string',
         'enum': ['view', 'presentation', 'feature', 'full'],
@@ -84,7 +87,10 @@ class CutSliceCapability implements ZuraffaCapability {
     'properties': {
       'success': {'type': 'boolean'},
       'sandbox': {'type': 'string'},
-      'files': {'type': 'array', 'items': {'type': 'string'}},
+      'files': {
+        'type': 'array',
+        'items': {'type': 'string'},
+      },
     },
   };
 
@@ -94,7 +100,8 @@ class CutSliceCapability implements ZuraffaCapability {
 
   @override
   Future<EffectReport> plan(Map<String, dynamic> args) async {
-    final projectRoot = args['projectRoot'] as String? ?? Directory.current.path;
+    final projectRoot =
+        args['projectRoot'] as String? ?? Directory.current.path;
     final sliceName = args['name'] as String;
     final entries = (args['entries'] as List).cast<String>();
     final depth = SliceDepth.parse(args['depth'] as String? ?? 'feature');
@@ -143,8 +150,7 @@ class CutSliceCapability implements ZuraffaCapability {
     final entries = (args['entries'] as List).cast<String>();
     final depth = SliceDepth.parse(args['depth'] as String? ?? 'feature');
     final progress =
-        args['progressReporter'] as ProgressReporter? ??
-        NullProgressReporter();
+        args['progressReporter'] as ProgressReporter? ?? NullProgressReporter();
 
     final sandboxDir = sandboxDirFor(projectRoot, sliceName);
     if (Directory(sandboxDir).existsSync()) {
@@ -360,9 +366,7 @@ class CutSliceCapability implements ZuraffaCapability {
       data: {
         'sandbox': p.relative(sandboxDir, from: projectRoot),
         'fileCount': manifestFiles.length,
-        'boundaries': [
-          for (final b in walkResult.boundaries) b.typeName,
-        ],
+        'boundaries': [for (final b in walkResult.boundaries) b.typeName],
         'warnings': walkResult.warnings,
       },
     );
@@ -373,7 +377,9 @@ class CutSliceCapability implements ZuraffaCapability {
     final dirs = <String>[];
     for (final spec in entries) {
       final isPath =
-          spec.endsWith('.dart') || spec.contains('/') || spec.contains(p.separator);
+          spec.endsWith('.dart') ||
+          spec.contains('/') ||
+          spec.contains(p.separator);
       if (!isPath) {
         dirs.add('lib/src/presentation/pages/$spec');
         continue;
@@ -406,10 +412,7 @@ class CutSliceCapability implements ZuraffaCapability {
     return sha256.convert(bytes).toString();
   }
 
-  String _relativeImport({
-    required String fromDir,
-    required String target,
-  }) {
+  String _relativeImport({required String fromDir, required String target}) {
     var rel = p.relative(target, from: fromDir);
     rel = rel.replaceAll('\\', '/');
     if (!rel.startsWith('.')) rel = './$rel';
@@ -429,9 +432,7 @@ class CutSliceCapability implements ZuraffaCapability {
   String _classNameOf(String entryPath) {
     final base = p.basenameWithoutExtension(entryPath);
     final words = base.split(RegExp(r'[_\-]+')).where((w) => w.isNotEmpty);
-    return words
-        .map((w) => w[0].toUpperCase() + w.substring(1))
-        .join();
+    return words.map((w) => w[0].toUpperCase() + w.substring(1)).join();
   }
 
   String _titleOf(String entrySpec, String entryPath) {

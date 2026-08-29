@@ -8,9 +8,8 @@
 part of 'product.dart';
 
 /// Generated JSON serializer for [Product].
-Map<String, dynamic> _$ProductToJson(Product instance) =>
-    <String, dynamic>{
-      'id': instance.id,
-      'name': instance.name,
-      'price': instance.price,
-    };
+Map<String, dynamic> _$ProductToJson(Product instance) => <String, dynamic>{
+  'id': instance.id,
+  'name': instance.name,
+  'price': instance.price,
+};

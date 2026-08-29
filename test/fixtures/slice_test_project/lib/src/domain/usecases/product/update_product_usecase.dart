@@ -12,6 +12,5 @@ class UpdateProductUseCase {
   final ProductRepository _repository;
 
   /// Executes the update for [product].
-  Future<void> execute(Product product) =>
-      _repository.updateProduct(product);
+  Future<void> execute(Product product) => _repository.updateProduct(product);
 }

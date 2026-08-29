@@ -52,16 +52,19 @@ void main() {
     expect(File('$sandbox/main_slice.dart').existsSync(), isTrue);
     expect(File('$sandbox/SLICE.md').existsSync(), isTrue);
     expect(
-      File('$sandbox/lib/src/presentation/pages/product/product_view.dart')
-          .existsSync(),
+      File(
+        '$sandbox/lib/src/presentation/pages/product/product_view.dart',
+      ).existsSync(),
       isTrue,
     );
 
     // Ownership classification: presentation owned, domain shared.
     final files = (manifest['files'] as List).whereType<Map>().toList();
     final viewEntry = files.singleWhere(
-      (f) => f['path'] == 'lib/src/presentation/pages/product/'
-          'product_view.dart',
+      (f) =>
+          f['path'] ==
+          'lib/src/presentation/pages/product/'
+              'product_view.dart',
     );
     expect(viewEntry['ownership'], equals('owned'));
     final entityEntries = files

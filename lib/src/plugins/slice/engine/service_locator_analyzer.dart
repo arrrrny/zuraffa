@@ -19,7 +19,8 @@ import '../../../utils/string_utils.dart';
 /// Extracts service-locator type lookups and maps them to DI files.
 class ServiceLocatorAnalyzer {
   /// Creates the analyzer with an optional [parser] (injectable for tests).
-  ServiceLocatorAnalyzer({FileParser? parser}) : _parser = parser ?? const FileParser();
+  ServiceLocatorAnalyzer({FileParser? parser})
+    : _parser = parser ?? const FileParser();
 
   final FileParser _parser;
 
@@ -76,7 +77,8 @@ class _ServiceLocatorVisitor extends RecursiveAstVisitor<void> {
   @override
   void visitMethodInvocation(MethodInvocation node) {
     if (_isGetItLookup(node)) {
-      final typeArgs = node.typeArguments?.arguments ?? const <TypeAnnotation>[];
+      final typeArgs =
+          node.typeArguments?.arguments ?? const <TypeAnnotation>[];
       if (typeArgs.length == 1) {
         final name = typeArgs.first.toString();
         if (!types.contains(name)) {
@@ -95,7 +97,8 @@ class _ServiceLocatorVisitor extends RecursiveAstVisitor<void> {
     if (node.typeArguments == null) return false;
     final method = node.methodName.token.lexeme;
     final target = node.target;
-    if (method == 'getIt' && (target == null || _targetIsGetItBinding(target))) {
+    if (method == 'getIt' &&
+        (target == null || _targetIsGetItBinding(target))) {
       return true;
     }
     if (target != null && _targetIsGetItBinding(target)) {
@@ -122,8 +125,7 @@ class _ServiceLocatorVisitor extends RecursiveAstVisitor<void> {
     }
     if (target is PropertyAccess) {
       final propertyTarget = target.target;
-      return propertyTarget != null &&
-          _targetIsGetItBinding(propertyTarget);
+      return propertyTarget != null && _targetIsGetItBinding(propertyTarget);
     }
     return false;
   }
@@ -135,8 +137,7 @@ class _ServiceLocatorVisitor extends RecursiveAstVisitor<void> {
     }
     if (target is PropertyAccess) {
       final propertyTarget = target.target;
-      return propertyTarget != null &&
-          _targetIsGetItVariable(propertyTarget);
+      return propertyTarget != null && _targetIsGetItVariable(propertyTarget);
     }
     return false;
   }

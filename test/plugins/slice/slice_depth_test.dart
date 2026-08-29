@@ -47,54 +47,89 @@ void main() {
     return Directory(sandbox)
         .listSync(recursive: true)
         .whereType<File>()
-        .map(
-          (f) => f.path.substring(sandbox.length + 1).replaceAll('\\', '/'),
-        )
+        .map((f) => f.path.substring(sandbox.length + 1).replaceAll('\\', '/'))
         .toSet();
   }
 
-  test('A13 (T099): depth view — view/controller/state, no deeper layers',
-      () async {
-    final files = await cutAtDepth('view');
+  test(
+    'A13 (T099): depth view — view/controller/state, no deeper layers',
+    () async {
+      final files = await cutAtDepth('view');
 
-    expect(files, contains('lib/src/presentation/pages/product/product_view.dart'));
-    expect(files, contains('lib/src/presentation/pages/product/product_controller.dart'));
-    expect(files, contains('lib/src/presentation/pages/product/product_state.dart'));
-    expect(files, contains('lib/src/presentation/widgets/primary_button.dart'));
-    // No presenter, usecases, entities, data.
-    expect(files, isNot(contains('lib/src/presentation/pages/product/product_presenter.dart')));
-    expect(
-      files,
-      isNot(contains('lib/src/domain/usecases/product/get_product_usecase.dart')),
-    );
-    expect(files, isNot(contains('lib/src/domain/entities/product/product.dart')));
-    expect(
-      files,
-      isNot(contains('lib/src/data/repositories/data_product_repository.dart')),
-    );
-    // At view depth the presenter is the mocked boundary (U31).
-    expect(files, contains('lib/src/mocks/mock_product_presenter.dart'));
-    final sliceDi = File(
-      '$projectRoot/.zuraffa/slices/product_feature/lib/src/di/slice_di.dart',
-    ).readAsStringSync();
-    expect(sliceDi, contains('MockProductPresenter'));
-  }, timeout: const Timeout(Duration(minutes: 2)));
+      expect(
+        files,
+        contains('lib/src/presentation/pages/product/product_view.dart'),
+      );
+      expect(
+        files,
+        contains('lib/src/presentation/pages/product/product_controller.dart'),
+      );
+      expect(
+        files,
+        contains('lib/src/presentation/pages/product/product_state.dart'),
+      );
+      expect(
+        files,
+        contains('lib/src/presentation/widgets/primary_button.dart'),
+      );
+      // No presenter, usecases, entities, data.
+      expect(
+        files,
+        isNot(
+          contains('lib/src/presentation/pages/product/product_presenter.dart'),
+        ),
+      );
+      expect(
+        files,
+        isNot(
+          contains('lib/src/domain/usecases/product/get_product_usecase.dart'),
+        ),
+      );
+      expect(
+        files,
+        isNot(contains('lib/src/domain/entities/product/product.dart')),
+      );
+      expect(
+        files,
+        isNot(
+          contains('lib/src/data/repositories/data_product_repository.dart'),
+        ),
+      );
+      // At view depth the presenter is the mocked boundary (U31).
+      expect(files, contains('lib/src/mocks/mock_product_presenter.dart'));
+      final sliceDi = File(
+        '$projectRoot/.zuraffa/slices/product_feature/lib/src/di/slice_di.dart',
+      ).readAsStringSync();
+      expect(sliceDi, contains('MockProductPresenter'));
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 
-  test('A14 (T100): depth feature (default) — domain in, data out',
-      () async {
+  test('A14 (T100): depth feature (default) — domain in, data out', () async {
     final files = await cutAtDepth('');
 
-    expect(files, contains('lib/src/presentation/pages/product/product_presenter.dart'));
-    expect(files, contains('lib/src/domain/usecases/product/get_product_usecase.dart'));
+    expect(
+      files,
+      contains('lib/src/presentation/pages/product/product_presenter.dart'),
+    );
+    expect(
+      files,
+      contains('lib/src/domain/usecases/product/get_product_usecase.dart'),
+    );
     expect(files, contains('lib/src/domain/entities/product/product.dart'));
-    expect(files, contains('lib/src/domain/repositories/product_repository.dart'));
+    expect(
+      files,
+      contains('lib/src/domain/repositories/product_repository.dart'),
+    );
     expect(
       files,
       isNot(contains('lib/src/data/repositories/data_product_repository.dart')),
     );
     expect(
       files,
-      isNot(contains('lib/src/data/datasources/product_remote_datasource.dart')),
+      isNot(
+        contains('lib/src/data/datasources/product_remote_datasource.dart'),
+      ),
     );
     expect(
       files,
@@ -104,27 +139,38 @@ void main() {
     expect(files, contains('lib/src/mocks/mock_product_repository.dart'));
   }, timeout: const Timeout(Duration(minutes: 2)));
 
-  test('A15 (T101): depth full — data implementations included, no mocks',
-      () async {
-    final files = await cutAtDepth('full');
+  test(
+    'A15 (T101): depth full — data implementations included, no mocks',
+    () async {
+      final files = await cutAtDepth('full');
 
-    expect(files, contains('lib/src/data/repositories/data_product_repository.dart'));
-    expect(files, contains('lib/src/data/datasources/product_remote_datasource.dart'));
-    expect(files, contains('lib/src/di/repositories/product_repository_di.dart'));
-    // No mocks at full depth (U31).
-    expect(
-      files,
-      isNot(contains('lib/src/mocks/mock_product_repository.dart')),
-    );
-    final sliceDi = File(
-      '$projectRoot/.zuraffa/slices/product_feature/lib/src/di/slice_di.dart',
-    ).readAsStringSync();
-    expect(sliceDi, contains('registerProductRepository(getIt);'));
-    expect(sliceDi, isNot(contains('MockProductRepository')));
-  }, timeout: const Timeout(Duration(minutes: 2)));
+      expect(
+        files,
+        contains('lib/src/data/repositories/data_product_repository.dart'),
+      );
+      expect(
+        files,
+        contains('lib/src/data/datasources/product_remote_datasource.dart'),
+      );
+      expect(
+        files,
+        contains('lib/src/di/repositories/product_repository_di.dart'),
+      );
+      // No mocks at full depth (U31).
+      expect(
+        files,
+        isNot(contains('lib/src/mocks/mock_product_repository.dart')),
+      );
+      final sliceDi = File(
+        '$projectRoot/.zuraffa/slices/product_feature/lib/src/di/slice_di.dart',
+      ).readAsStringSync();
+      expect(sliceDi, contains('registerProductRepository(getIt);'));
+      expect(sliceDi, isNot(contains('MockProductRepository')));
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 
-  test('an invalid depth is a usage error listing the valid values',
-      () async {
+  test('an invalid depth is a usage error listing the valid values', () async {
     final output = await captureOutput(
       () => runner.run([
         'slice',

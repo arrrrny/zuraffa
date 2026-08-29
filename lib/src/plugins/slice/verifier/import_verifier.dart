@@ -32,8 +32,7 @@ class ImportIssue {
   final String reason;
 
   @override
-  String toString() =>
-      '$file:$line: "$importPath" — $reason';
+  String toString() => '$file:$line: "$importPath" — $reason';
 }
 
 /// The verification outcome.
@@ -86,24 +85,18 @@ class ImportVerifier {
     if (!sandboxRoot.existsSync()) {
       return const VerifyReport(
         passed: false,
-        issues: [
-          ImportIssue(
-            '',
-            0,
-            '',
-            'sandbox directory does not exist',
-          ),
-        ],
+        issues: [ImportIssue('', 0, '', 'sandbox directory does not exist')],
         filesChecked: 0,
       );
     }
 
-    final dartFiles = sandboxRoot
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.dart'))
-        .toList()
-      ..sort((a, b) => a.path.compareTo(b.path));
+    final dartFiles =
+        sandboxRoot
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.dart'))
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
 
     for (final file in dartFiles) {
       filesChecked++;
@@ -124,8 +117,9 @@ class ImportVerifier {
           final package = uri.substring('package:'.length).split('/').first;
           if (package == selfPackage) {
             // Self-package imports must resolve inside the sandbox tree.
-            final packagePath =
-                uri.substring('package:'.length + package.length + 1);
+            final packagePath = uri.substring(
+              'package:'.length + package.length + 1,
+            );
             final target = p.join(sandboxDir, 'lib', packagePath);
             if (!File(target).existsSync()) {
               issues.add(

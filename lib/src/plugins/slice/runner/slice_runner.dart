@@ -14,11 +14,12 @@ import '../capabilities/cut_slice_capability.dart';
 import '../verifier/import_verifier.dart';
 
 /// Process execution seam (injected in tests; defaults to [Process.run]).
-typedef RunLauncher = Future<ProcessResult> Function(
-  String executable,
-  List<String> args, {
-  String? workingDirectory,
-});
+typedef RunLauncher =
+    Future<ProcessResult> Function(
+      String executable,
+      List<String> args, {
+      String? workingDirectory,
+    });
 
 /// The outcome of a launch attempt.
 class RunResult {
@@ -41,7 +42,7 @@ class SliceRunner {
   /// Creates the runner with injectable collaborators.
   SliceRunner({RunLauncher? launcher, ImportVerifier? importVerifier})
     : _launcher = launcher ?? _defaultLauncher,
-       _importVerifier = importVerifier ?? ImportVerifier();
+      _importVerifier = importVerifier ?? ImportVerifier();
 
   final RunLauncher _launcher;
   final ImportVerifier _importVerifier;

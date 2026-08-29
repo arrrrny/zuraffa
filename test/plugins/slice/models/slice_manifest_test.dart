@@ -37,9 +37,7 @@ void main() {
     name: 'profile_feature',
     createdAt: DateTime.utc(2026, 8, 30, 10, 30, 0),
     depth: SliceDepth.feature,
-    entries: const [
-      'lib/src/presentation/pages/profile/profile_view.dart',
-    ],
+    entries: const ['lib/src/presentation/pages/profile/profile_view.dart'],
     projectRoot: '/home/dev/zikzak',
     packageName: 'zik_zak',
     branch: '043-slice-plugin',
@@ -62,7 +60,8 @@ void main() {
       SliceBoundary(
         typeName: 'ProductRepository',
         interfaceFile: 'lib/src/domain/repositories/product_repository.dart',
-        diRegistrationFile: 'lib/src/di/repositories/product_repository_di.dart',
+        diRegistrationFile:
+            'lib/src/di/repositories/product_repository_di.dart',
         mockStrategy: 'auto',
       ),
     ],
@@ -126,55 +125,62 @@ void main() {
       expect(read.exportedTo, isNull);
     });
 
-    test('exportedTo round-trips when set (github export records it)',
-        () async {
-      final manifest = fullManifest().copyWith(
-        exportedTo: 'https://github.com/arrrrny/zik-zak-slice-profile-feature',
-      );
-      await writer.write(manifest, tmpDir.path);
+    test(
+      'exportedTo round-trips when set (github export records it)',
+      () async {
+        final manifest = fullManifest().copyWith(
+          exportedTo:
+              'https://github.com/arrrrny/zik-zak-slice-profile-feature',
+        );
+        await writer.write(manifest, tmpDir.path);
 
-      final read = await writer.read(tmpDir.path);
+        final read = await writer.read(tmpDir.path);
 
-      expect(
-        read.exportedTo,
-        equals('https://github.com/arrrrny/zik-zak-slice-profile-feature'),
-      );
-    });
+        expect(
+          read.exportedTo,
+          equals('https://github.com/arrrrny/zik-zak-slice-profile-feature'),
+        );
+      },
+    );
   });
 
   group('SliceManifest failure modes (FR-012)', () {
-    test('U3: reading a missing slice.yaml names the slice directory',
-        () async {
-      final missing = '${tmpDir.path}/no_such_slice';
+    test(
+      'U3: reading a missing slice.yaml names the slice directory',
+      () async {
+        final missing = '${tmpDir.path}/no_such_slice';
 
-      await expectLater(
-        () => writer.read(missing),
-        throwsA(
-          isA<SliceManifestError>().having(
-            (e) => e.message,
-            'message',
-            contains('no_such_slice'),
+        await expectLater(
+          () => writer.read(missing),
+          throwsA(
+            isA<SliceManifestError>().having(
+              (e) => e.message,
+              'message',
+              contains('no_such_slice'),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
-    test('U3: reading a corrupt slice.yaml names the slice directory',
-        () async {
-      await File('${tmpDir.path}/slice.yaml').writeAsString(
-        'files: [unclosed',
-      );
+    test(
+      'U3: reading a corrupt slice.yaml names the slice directory',
+      () async {
+        await File(
+          '${tmpDir.path}/slice.yaml',
+        ).writeAsString('files: [unclosed');
 
-      await expectLater(
-        () => writer.read(tmpDir.path),
-        throwsA(
-          isA<SliceManifestError>().having(
-            (e) => e.message,
-            'message',
-            allOf(contains('slice.yaml'), contains('corrupt')),
+        await expectLater(
+          () => writer.read(tmpDir.path),
+          throwsA(
+            isA<SliceManifestError>().having(
+              (e) => e.message,
+              'message',
+              allOf(contains('slice.yaml'), contains('corrupt')),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
   });
 }

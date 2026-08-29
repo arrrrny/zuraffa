@@ -87,12 +87,7 @@ class SliceImporter {
     // Clone the exported repo into a scratch directory.
     final scratch = await Directory.systemTemp.createTemp('slice_import_');
     try {
-      final clone = await _launcher([
-        'git',
-        'clone',
-        exportedTo,
-        scratch.path,
-      ]);
+      final clone = await _launcher(['git', 'clone', exportedTo, scratch.path]);
       if (clone.exitCode != 0) {
         final output = '${clone.stdout}${clone.stderr}'.trim();
         return SliceImportResult(

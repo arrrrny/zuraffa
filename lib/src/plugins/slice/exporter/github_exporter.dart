@@ -17,19 +17,16 @@ import 'package:path/path.dart' as p;
 ///
 /// [args] are the command arguments: either `gh` arguments (e.g.
 /// `['auth', 'status']`) or `['git', ...]` for git plumbing.
-typedef GhLauncher = Future<ProcessResult> Function(
-  List<String> args, {
-  String? workingDirectory,
-});
+typedef GhLauncher =
+    Future<ProcessResult> Function(
+      List<String> args, {
+      String? workingDirectory,
+    });
 
 /// The outcome of a GitHub export.
 class GithubExportResult {
   /// Creates the result.
-  const GithubExportResult({
-    required this.success,
-    this.repoUrl,
-    this.message,
-  });
+  const GithubExportResult({required this.success, this.repoUrl, this.message});
 
   /// Whether the repo was created and pushed.
   final bool success;
@@ -99,13 +96,12 @@ class GithubExporter {
       }
     }
     if (pubspecContent != null) {
-      await File(p.join(sandboxDir, 'pubspec.yaml')).writeAsString(
-        pubspecContent,
-      );
+      await File(
+        p.join(sandboxDir, 'pubspec.yaml'),
+      ).writeAsString(pubspecContent);
     }
 
-    final repoName =
-        repo ?? '${_slug(packageName)}-slice-${_slug(sliceName)}';
+    final repoName = repo ?? '${_slug(packageName)}-slice-${_slug(sliceName)}';
 
     // 3. Stage the sandbox as a git commit (identity pinned so export works
     //    on machines without global git config).
@@ -158,8 +154,7 @@ class GithubExporter {
     //    production; plain `url: ...` text is accepted for the seam.
     final view = await _launcher(['repo', 'view', repoName, '--json', 'url']);
     final repoUrl =
-        _parseRepoUrl('${view.stdout}') ??
-        'https://github.com/$repoName';
+        _parseRepoUrl('${view.stdout}') ?? 'https://github.com/$repoName';
     return GithubExportResult(
       success: true,
       repoUrl: repoUrl,

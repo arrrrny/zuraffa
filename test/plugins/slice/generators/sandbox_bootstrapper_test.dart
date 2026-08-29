@@ -20,8 +20,7 @@ void main() {
   });
 
   group('SandboxBootstrapper main_slice.dart (FR-003)', () {
-    test('U32: single entry imports the root view, sets up DI, runs the app',
-        () {
+    test('U32: single entry imports the root view, sets up DI, runs the app', () {
       final content = bootstrapper.generateMainSlice(
         sliceName: 'product_feature',
         entryViews: const [
@@ -67,11 +66,15 @@ void main() {
 
       expect(
         content,
-        contains("import 'package:zik_zak/src/presentation/pages/profile/profile_view.dart';"),
+        contains(
+          "import 'package:zik_zak/src/presentation/pages/profile/profile_view.dart';",
+        ),
       );
       expect(
         content,
-        contains("import 'package:zik_zak/src/presentation/pages/product/product_view.dart';"),
+        contains(
+          "import 'package:zik_zak/src/presentation/pages/product/product_view.dart';",
+        ),
       );
       expect(content, contains('ProfileView'));
       expect(content, contains('ProductView'));
@@ -79,8 +82,7 @@ void main() {
   });
 
   group('SandboxBootstrapper slice_di.dart (FR-003)', () {
-    test('U33: registers real bindings and boundary mocks, nothing else',
-        () {
+    test('U33: registers real bindings and boundary mocks, nothing else', () {
       final content = bootstrapper.generateSliceDi(
         sliceName: 'product_feature',
         realRegistrations: const [
@@ -98,25 +100,30 @@ void main() {
             typeName: 'ProductRepository',
             mockClassName: 'MockProductRepository',
             mockImportPath: '../mocks/mock_product_repository.dart',
-            interfaceImportPath: '../domain/repositories/product_repository.dart',
+            interfaceImportPath:
+                '../domain/repositories/product_repository.dart',
           ),
         ],
       );
 
       expect(content, contains('void setupSliceDependencies()'));
       // Real wiring is delegated to the project's own (included) DI files.
-      expect(content, contains("import 'usecases/get_product_usecase_di.dart';"));
+      expect(
+        content,
+        contains("import 'usecases/get_product_usecase_di.dart';"),
+      );
       expect(content, contains('registerGetProductUseCase(getIt);'));
       expect(content, contains('registerUpdateProductUseCase(getIt);'));
       // The cut-off boundary gets its mock registered.
       expect(
         content,
-        contains(
-          'getIt.registerLazySingleton<ProductRepository>(',
-        ),
+        contains('getIt.registerLazySingleton<ProductRepository>('),
       );
       expect(content, contains('MockProductRepository()'));
-      expect(content, contains("import '../mocks/mock_product_repository.dart';"));
+      expect(
+        content,
+        contains("import '../mocks/mock_product_repository.dart';"),
+      );
       // Nothing else: no data-layer registration leaks in.
       expect(content, isNot(contains('DataProductRepository')));
       expect(content, isNot(contains('ProductRemoteDataSource')));

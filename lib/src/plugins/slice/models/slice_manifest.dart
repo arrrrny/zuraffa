@@ -179,9 +179,7 @@ class SliceManifest {
     final name = doc['name'];
     final createdAt = doc['createdAt'];
     final depth = doc['depth'];
-    if (name is! String ||
-        createdAt is! String ||
-        depth is! String) {
+    if (name is! String || createdAt is! String || depth is! String) {
       throw const SliceManifestYamlError(
         'corrupt slice.yaml: missing name/createdAt/depth',
       );
@@ -210,40 +208,34 @@ class SliceManifest {
 
   static List<SliceFile> _files(dynamic node) {
     if (node is! List) return const [];
-    return node
-        .whereType<Map>()
-        .map((file) {
-          return SliceFile(
-            relativePath: file['path'] as String? ?? '',
-            ownership: switch (file['ownership']) {
-              'shared' => FileOwnership.shared,
-              'framework' => FileOwnership.framework,
-              _ => FileOwnership.owned,
-            },
-            hashAtCut: file['hashAtCut'] as String? ?? '',
-            layer: file['layer'] as String? ?? 'other',
-          );
-        })
-        .toList();
+    return node.whereType<Map>().map((file) {
+      return SliceFile(
+        relativePath: file['path'] as String? ?? '',
+        ownership: switch (file['ownership']) {
+          'shared' => FileOwnership.shared,
+          'framework' => FileOwnership.framework,
+          _ => FileOwnership.owned,
+        },
+        hashAtCut: file['hashAtCut'] as String? ?? '',
+        layer: file['layer'] as String? ?? 'other',
+      );
+    }).toList();
   }
 
   static List<SliceBoundary> _boundaries(dynamic node) {
     if (node is! List) return const [];
-    return node
-        .whereType<Map>()
-        .map((boundary) {
-          return SliceBoundary(
-            typeName: boundary['typeName'] as String? ?? '',
-            interfaceFile: boundary['interfaceFile'] as String? ?? '',
-            diRegistrationFile:
-                boundary['diRegistrationFile'] == 'null' ||
-                    boundary['diRegistrationFile'] == null
-                ? null
-                : boundary['diRegistrationFile'] as String,
-            mockStrategy: boundary['mockStrategy'] as String? ?? 'auto',
-          );
-        })
-        .toList();
+    return node.whereType<Map>().map((boundary) {
+      return SliceBoundary(
+        typeName: boundary['typeName'] as String? ?? '',
+        interfaceFile: boundary['interfaceFile'] as String? ?? '',
+        diRegistrationFile:
+            boundary['diRegistrationFile'] == 'null' ||
+                boundary['diRegistrationFile'] == null
+            ? null
+            : boundary['diRegistrationFile'] as String,
+        mockStrategy: boundary['mockStrategy'] as String? ?? 'auto',
+      );
+    }).toList();
   }
 }
 

@@ -101,7 +101,10 @@ class ImportGraphWalker {
   }
 
   String _resolveOneEntry(String spec, String projectRoot) {
-    final isPath = spec.endsWith('.dart') || spec.contains('/') || spec.contains(p.separator);
+    final isPath =
+        spec.endsWith('.dart') ||
+        spec.contains('/') ||
+        spec.contains(p.separator);
     if (isPath) {
       final candidate = p.canonicalize(
         p.isAbsolute(spec) ? spec : p.join(projectRoot, spec),
@@ -140,11 +143,12 @@ class ImportGraphWalker {
     if (!pagesDir.existsSync()) {
       return ' No page directories exist under lib/src/presentation/pages/.';
     }
-    final pages = pagesDir
-        .listSync()
-        .whereType<Directory>()
-        .map((d) => p.basename(d.path))
-        .toList()
+    final pages =
+        pagesDir
+            .listSync()
+            .whereType<Directory>()
+            .map((d) => p.basename(d.path))
+            .toList()
           ..sort();
     if (pages.isEmpty) {
       return ' No page directories exist under lib/src/presentation/pages/.';
@@ -204,7 +208,9 @@ class ImportGraphWalker {
             sources: sources,
           );
           if (target == null) continue;
-          importLayers.add(classifyLayer(p.relative(target, from: projectRoot)));
+          importLayers.add(
+            classifyLayer(p.relative(target, from: projectRoot)),
+          );
         }
         final crossesBoundary = importLayers.any(
           (l) => !layerAllowedAtDepth(l, depth),
@@ -249,10 +255,7 @@ class ImportGraphWalker {
         if (!included.contains(declaringFile) &&
             !edges.contains(declaringFile)) {
           final declaringRel = p.relative(declaringFile, from: projectRoot);
-          if (!layerAllowedAtDepth(
-            classifyLayer(declaringRel),
-            depth,
-          )) {
+          if (!layerAllowedAtDepth(classifyLayer(declaringRel), depth)) {
             edges.add(declaringFile);
           } else {
             queue.add(declaringFile);
@@ -335,9 +338,7 @@ class ImportGraphWalker {
           final shown = <String>[];
           for (final combinator in directive.combinators) {
             if (combinator is ShowCombinator) {
-              shown.addAll(
-                combinator.shownNames.map((n) => n.token.lexeme),
-              );
+              shown.addAll(combinator.shownNames.map((n) => n.token.lexeme));
             }
           }
           return _ImportInfo(uri, shown);
@@ -433,7 +434,9 @@ class ImportGraphWalker {
         interfaceFile: existing.interfaceFile,
         diRegistrationFile:
             existing.diRegistrationFile ?? boundary.diRegistrationFile,
-        mockStrategy: existing.mockStrategy == 'auto' && existing.diRegistrationFile == null
+        mockStrategy:
+            existing.mockStrategy == 'auto' &&
+                existing.diRegistrationFile == null
             ? boundary.mockStrategy
             : existing.mockStrategy,
       );
@@ -454,7 +457,9 @@ class ImportGraphWalker {
       // Rule A: types declared by the edge file that included files use.
       final declared = _barrelResolver.declaredTopLevelNames(source);
       for (final typeName in declared) {
-        if (RegExp('\\b${RegExp.escape(typeName)}\\b').hasMatch(includedSource)) {
+        if (RegExp(
+          '\\b${RegExp.escape(typeName)}\\b',
+        ).hasMatch(includedSource)) {
           final diFile = _serviceLocatorAnalyzer.diRegistrationFileFor(
             typeName,
             projectRoot,
@@ -543,9 +548,7 @@ class ImportGraphWalker {
 
   Future<String> _mockStrategyFor(String typeName, String projectRoot) async {
     // U30: reuse the project's own mock when one exists.
-    final pattern = RegExp(
-      'class\\s+Mock${RegExp.escape(typeName)}\\b',
-    );
+    final pattern = RegExp('class\\s+Mock${RegExp.escape(typeName)}\\b');
     final candidateDirs = [
       Directory(p.join(projectRoot, 'lib')),
       Directory(p.join(projectRoot, 'test', 'mocks')),

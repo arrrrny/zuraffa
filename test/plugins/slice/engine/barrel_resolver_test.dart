@@ -38,33 +38,37 @@ void main() {
   }
 
   group('BarrelResolver selective expansion (FR-005)', () {
-    test('U13: a show clause includes only the files exporting shown symbols',
-        () async {
-      final barrel = await writeDart('widgets/index.dart', '''
+    test(
+      'U13: a show clause includes only the files exporting shown symbols',
+      () async {
+        final barrel = await writeDart('widgets/index.dart', '''
 library;
 export 'primary_button.dart';
 export 'secondary_button.dart';
 export 'app_card.dart';
 ''');
-      await writeDart('widgets/primary_button.dart', 'class PrimaryButton {}\n');
-      await writeDart(
-        'widgets/secondary_button.dart',
-        'class SecondaryButton {}\n',
-      );
-      await writeDart('widgets/app_card.dart', 'class AppCard {}\n');
+        await writeDart(
+          'widgets/primary_button.dart',
+          'class PrimaryButton {}\n',
+        );
+        await writeDart(
+          'widgets/secondary_button.dart',
+          'class SecondaryButton {}\n',
+        );
+        await writeDart('widgets/app_card.dart', 'class AppCard {}\n');
 
-      final expanded = await resolver.expandImport(
-        importedPath: barrel.path,
-        importerSource: 'class View { Widget build() => PrimaryButton(); }',
-        shownSymbols: const ['PrimaryButton'],
-      );
+        final expanded = await resolver.expandImport(
+          importedPath: barrel.path,
+          importerSource: 'class View { Widget build() => PrimaryButton(); }',
+          shownSymbols: const ['PrimaryButton'],
+        );
 
-      expect(expanded, hasLength(1));
-      expect(expanded.single, contains('primary_button.dart'));
-    });
+        expect(expanded, hasLength(1));
+        expect(expanded.single, contains('primary_button.dart'));
+      },
+    );
 
-    test('U14: without show, only referenced exported types come in',
-        () async {
+    test('U14: without show, only referenced exported types come in', () async {
       final barrel = await writeDart('widgets/index.dart', '''
 library;
 export 'primary_button.dart';
@@ -72,7 +76,10 @@ export 'secondary_button.dart';
 export 'app_card.dart';
 export 'loading_indicator.dart';
 ''');
-      await writeDart('widgets/primary_button.dart', 'class PrimaryButton {}\n');
+      await writeDart(
+        'widgets/primary_button.dart',
+        'class PrimaryButton {}\n',
+      );
       await writeDart(
         'widgets/secondary_button.dart',
         'class SecondaryButton {}\n',
@@ -102,44 +109,52 @@ class ProfileView {
       expect(names, isNot(contains('loading_indicator.dart')));
     });
 
-    test('U15: a DI barrel with 100+ registrations yields only needed files',
-        () async {
-      final buffer = StringBuffer('library;\n');
-      for (var i = 0; i < 120; i++) {
-        buffer.writeln(
-          "export 'usecases/use_case_$i\\_di.dart';".replaceAll('\\\\', ''),
-        );
+    test(
+      'U15: a DI barrel with 100+ registrations yields only needed files',
+      () async {
+        final buffer = StringBuffer('library;\n');
+        for (var i = 0; i < 120; i++) {
+          buffer.writeln(
+            "export 'usecases/use_case_$i\\_di.dart';".replaceAll('\\\\', ''),
+          );
+          await writeDart(
+            'di/usecases/use_case_${i}_di.dart',
+            'void registerUseCase$i() {}\n',
+          );
+        }
+        // The two the slice needs, hidden in the middle of the pack.
+        buffer.writeln("export 'usecases/get_product_usecase_di.dart';");
         await writeDart(
-          'di/usecases/use_case_${i}_di.dart',
-          'void registerUseCase$i() {}\n',
+          'di/usecases/get_product_usecase_di.dart',
+          'void registerGetProductUseCase() {}\n',
         );
-      }
-      // The two the slice needs, hidden in the middle of the pack.
-      buffer.writeln("export 'usecases/get_product_usecase_di.dart';");
-      await writeDart(
-        'di/usecases/get_product_usecase_di.dart',
-        'void registerGetProductUseCase() {}\n',
-      );
-      buffer.writeln("export 'usecases/fetch_settings_usecase_di.dart';");
-      await writeDart(
-        'di/usecases/fetch_settings_usecase_di.dart',
-        'void registerFetchSettingsUseCase() {}\n',
-      );
-      final barrel = await writeDart('di/index.dart', buffer.toString());
+        buffer.writeln("export 'usecases/fetch_settings_usecase_di.dart';");
+        await writeDart(
+          'di/usecases/fetch_settings_usecase_di.dart',
+          'void registerFetchSettingsUseCase() {}\n',
+        );
+        final barrel = await writeDart('di/index.dart', buffer.toString());
 
-      final expanded = await resolver.expandImport(
-        importedPath: barrel.path,
-        importerSource: 'void setup() {}',
-        shownSymbols: const [
-          'registerGetProductUseCase',
-          'registerFetchSettingsUseCase',
-        ],
-      );
+        final expanded = await resolver.expandImport(
+          importedPath: barrel.path,
+          importerSource: 'void setup() {}',
+          shownSymbols: const [
+            'registerGetProductUseCase',
+            'registerFetchSettingsUseCase',
+          ],
+        );
 
-      expect(expanded, hasLength(2));
-      final names = expanded.map((p) => p.split('/').last).toSet();
-      expect(names, equals({'get_product_usecase_di.dart', 'fetch_settings_usecase_di.dart'}));
-    });
+        expect(expanded, hasLength(2));
+        final names = expanded.map((p) => p.split('/').last).toSet();
+        expect(
+          names,
+          equals({
+            'get_product_usecase_di.dart',
+            'fetch_settings_usecase_di.dart',
+          }),
+        );
+      },
+    );
 
     test('U16: a non-barrel file passes through unmodified', () async {
       final plain = await writeDart(

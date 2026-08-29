@@ -51,10 +51,7 @@ class PubspecFilter {
     for (final rel in sliceDartFiles) {
       final file = File(p.join(sandboxDir, rel));
       if (!file.existsSync()) continue;
-      final unit = _parser.parseSource(
-        file.readAsStringSync(),
-        path: rel,
-      ).unit;
+      final unit = _parser.parseSource(file.readAsStringSync(), path: rel).unit;
       if (unit == null) continue;
       for (final directive in unit.directives) {
         if (directive is! ImportDirective && directive is! ExportDirective) {
@@ -186,7 +183,15 @@ class PubspecFilter {
     }
     if (text.contains(': ') || text.contains(' #')) return true;
     const reserved = {
-      '.', '~', 'true', 'false', 'null', 'yes', 'no', 'on', 'off',
+      '.',
+      '~',
+      'true',
+      'false',
+      'null',
+      'yes',
+      'no',
+      'on',
+      'off',
     };
     return reserved.contains(text);
   }

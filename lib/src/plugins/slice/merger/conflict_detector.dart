@@ -57,9 +57,7 @@ class ConflictDetector {
     required String currentBranch,
   }) {
     if (manifestBranch == currentBranch) return null;
-    return (
-      'This slice was cut from branch "$manifestBranch" but the project is '
-      'now on "$currentBranch" — merged changes may not apply cleanly.'
-    );
+    return ('This slice was cut from branch "$manifestBranch" but the project is '
+        'now on "$currentBranch" — merged changes may not apply cleanly.');
   }
 }

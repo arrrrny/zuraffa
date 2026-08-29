@@ -33,16 +33,15 @@ void main() {
 
   tearDown(() => disposeSliceProject(projectRoot));
 
-  String sandbox() =>
-      '$projectRoot/.zuraffa/slices/product_feature';
+  String sandbox() => '$projectRoot/.zuraffa/slices/product_feature';
 
   File sandboxFile(String rel) => File('${sandbox()}/$rel');
 
   File projectFile(String rel) => File('$projectRoot/$rel');
 
   Future<void> cut() => captureOutput(
-        () => runner.run(['slice', 'cut', 'product_feature', '--entry', 'product']),
-      );
+    () => runner.run(['slice', 'cut', 'product_feature', '--entry', 'product']),
+  );
 
   group('slice merge acceptance (US2)', () {
     test(
@@ -53,7 +52,9 @@ void main() {
         // Simulate the agent: modify the view, leave everything else alone.
         final viewRel = 'lib/src/presentation/pages/product/product_view.dart';
         final original = await projectFile(viewRel).readAsString();
-        await sandboxFile(viewRel).writeAsString('$original\n// Agent was here');
+        await sandboxFile(
+          viewRel,
+        ).writeAsString('$original\n// Agent was here');
 
         final otherRel = 'lib/src/domain/entities/product/product.dart';
         final otherBefore = await projectFile(otherRel).readAsString();
@@ -63,7 +64,10 @@ void main() {
         );
 
         expect(command.exitCode, equals(0), reason: output);
-        expect(await projectFile(viewRel).readAsString(), endsWith('// Agent was here'));
+        expect(
+          await projectFile(viewRel).readAsString(),
+          endsWith('// Agent was here'),
+        );
         // Nothing else was touched.
         expect(await projectFile(otherRel).readAsString(), equals(otherBefore));
         // The slice directory is cleaned up after a successful merge.
@@ -73,37 +77,47 @@ void main() {
       timeout: const Timeout(Duration(minutes: 2)),
     );
 
-    test('A6 (T092): a modified shared file warns and needs confirmation',
-        () async {
-      await cut();
+    test(
+      'A6 (T092): a modified shared file warns and needs confirmation',
+      () async {
+        await cut();
 
-      final rel = 'lib/src/presentation/widgets/primary_button.dart';
-      final original = await projectFile(rel).readAsString();
-      await sandboxFile(rel).writeAsString('$original\n// Agent touched shared');
+        final rel = 'lib/src/presentation/widgets/primary_button.dart';
+        final original = await projectFile(rel).readAsString();
+        await sandboxFile(
+          rel,
+        ).writeAsString('$original\n// Agent touched shared');
 
-      // Without --yes and without a terminal, the confirmation is denied.
-      final output = await captureOutput(
-        () => runner.run(['slice', 'merge', 'product_feature']),
-      );
+        // Without --yes and without a terminal, the confirmation is denied.
+        final output = await captureOutput(
+          () => runner.run(['slice', 'merge', 'product_feature']),
+        );
 
-      expect(command.exitCode, equals(1));
-      expect(output, anyOf(contains('shared'), contains('confirm')));
-      expect(await projectFile(rel).readAsString(), equals(original));
-      expect(await Directory(sandbox()).exists(), isTrue,
-          reason: 'unconfirmed shared writes preserve the sandbox');
+        expect(command.exitCode, equals(1));
+        expect(output, anyOf(contains('shared'), contains('confirm')));
+        expect(await projectFile(rel).readAsString(), equals(original));
+        expect(
+          await Directory(sandbox()).exists(),
+          isTrue,
+          reason: 'unconfirmed shared writes preserve the sandbox',
+        );
 
-      // With --yes the shared write is confirmed and applied.
-      final confirmed = await captureOutput(
-        () => runner.run(['slice', 'merge', 'product_feature', '--yes']),
-      );
+        // With --yes the shared write is confirmed and applied.
+        final confirmed = await captureOutput(
+          () => runner.run(['slice', 'merge', 'product_feature', '--yes']),
+        );
 
-      expect(command.exitCode, equals(0), reason: confirmed);
-      expect(await projectFile(rel).readAsString(), endsWith('// Agent touched shared'));
-      expect(await Directory(sandbox()).exists(), isFalse);
-    }, timeout: const Timeout(Duration(minutes: 2)));
+        expect(command.exitCode, equals(0), reason: confirmed);
+        expect(
+          await projectFile(rel).readAsString(),
+          endsWith('// Agent touched shared'),
+        );
+        expect(await Directory(sandbox()).exists(), isFalse);
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
 
-    test('A7 (T093): concurrent main-project changes are a conflict',
-        () async {
+    test('A7 (T093): concurrent main-project changes are a conflict', () async {
       await cut();
 
       final rel = 'lib/src/presentation/pages/product/product_view.dart';

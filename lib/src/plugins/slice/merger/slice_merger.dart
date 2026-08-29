@@ -120,21 +120,17 @@ class SliceMerger {
       final sandboxHash = _hashIfExists(sandboxPath);
       final mainHash = _hashIfExists(mainPath);
 
-      switch (
-        _detector.decide(
-          cutHash: file.hashAtCut,
-          sandboxHash: sandboxHash,
-          mainHash: mainHash,
-        )
-      ) {
+      switch (_detector.decide(
+        cutHash: file.hashAtCut,
+        sandboxHash: sandboxHash,
+        mainHash: mainHash,
+      )) {
         case MergeDecision.skip:
           skipped.add(file.relativePath);
         case MergeDecision.safeCopy:
           if (file.ownership == FileOwnership.shared &&
               !confirmSharedOverwrite(file)) {
-            unconfirmed.add(
-              'shared file not confirmed: ${file.relativePath}',
-            );
+            unconfirmed.add('shared file not confirmed: ${file.relativePath}');
             break;
           }
           await _copy(sandboxPath, mainPath);

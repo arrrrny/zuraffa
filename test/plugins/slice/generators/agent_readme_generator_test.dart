@@ -25,9 +25,7 @@ void main() {
     name: 'product_feature',
     createdAt: DateTime.utc(2026, 8, 30),
     depth: SliceDepth.feature,
-    entries: const [
-      'lib/src/presentation/pages/product/product_view.dart',
-    ],
+    entries: const ['lib/src/presentation/pages/product/product_view.dart'],
     projectRoot: '/home/dev/zikzak',
     packageName: 'zik_zak',
     branch: 'main',
@@ -62,15 +60,15 @@ void main() {
       SliceBoundary(
         typeName: 'ProductRepository',
         interfaceFile: 'lib/src/domain/repositories/product_repository.dart',
-        diRegistrationFile: 'lib/src/di/repositories/product_repository_di.dart',
+        diRegistrationFile:
+            'lib/src/di/repositories/product_repository_di.dart',
         mockStrategy: 'auto',
       ),
     ],
   );
 
   group('AgentReadmeGenerator SLICE.md (FR-007)', () {
-    test('U35: owned files are modifiable, shared files are caution',
-        () {
+    test('U35: owned files are modifiable, shared files are caution', () {
       final content = generator.generate(manifest: sampleManifest());
 
       expect(content, contains('## Files you may modify'));

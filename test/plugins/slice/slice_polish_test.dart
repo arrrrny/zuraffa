@@ -40,11 +40,7 @@ void main() {
         plugin.configSchema['properties'] as Map,
         containsPair(
           'sliceByDefault',
-          isA<Map>().having(
-            (p) => p['type'],
-            'type',
-            equals('boolean'),
-          ),
+          isA<Map>().having((p) => p['type'], 'type', equals('boolean')),
         ),
       );
     });
@@ -63,8 +59,7 @@ void main() {
       expect(output, contains('zfa slice cut product_feature --entry product'));
     });
 
-    test('zfa slice merge --help prints merge usage with an example',
-        () async {
+    test('zfa slice merge --help prints merge usage with an example', () async {
       final command = SliceCommand(projectRoot: projectRoot);
       final output = await captureOutput(
         () => runnerWith(command).run(['slice', 'merge', '--help']),
@@ -119,13 +114,9 @@ void main() {
     test('merge --verbose prints per-file decisions', () async {
       final cutCommand = SliceCommand(projectRoot: projectRoot);
       await captureOutput(
-        () => runnerWith(cutCommand).run([
-          'slice',
-          'cut',
-          'product_feature',
-          '--entry',
-          'product',
-        ]),
+        () => runnerWith(
+          cutCommand,
+        ).run(['slice', 'cut', 'product_feature', '--entry', 'product']),
       );
 
       // Agent modifies one file.
@@ -136,12 +127,9 @@ void main() {
 
       final mergeCommand = SliceCommand(projectRoot: projectRoot);
       final output = await captureOutput(
-        () => runnerWith(mergeCommand).run([
-          'slice',
-          'merge',
-          'product_feature',
-          '--verbose',
-        ]),
+        () => runnerWith(
+          mergeCommand,
+        ).run(['slice', 'merge', 'product_feature', '--verbose']),
       );
 
       expect(mergeCommand.exitCode, equals(0), reason: output);
@@ -160,13 +148,9 @@ void main() {
     test('cut reports started/step/completed progress', () async {
       final command = SliceCommand(projectRoot: projectRoot);
       final output = await captureOutput(
-        () => runnerWith(command).run([
-          'slice',
-          'cut',
-          'product_feature',
-          '--entry',
-          'product',
-        ]),
+        () => runnerWith(
+          command,
+        ).run(['slice', 'cut', 'product_feature', '--entry', 'product']),
       );
 
       expect(command.exitCode, equals(0), reason: output);
@@ -180,18 +164,15 @@ void main() {
     test('merge reports progress', () async {
       final cutCommand = SliceCommand(projectRoot: projectRoot);
       await captureOutput(
-        () => runnerWith(cutCommand).run([
-          'slice',
-          'cut',
-          'product_feature',
-          '--entry',
-          'product',
-        ]),
+        () => runnerWith(
+          cutCommand,
+        ).run(['slice', 'cut', 'product_feature', '--entry', 'product']),
       );
 
       final mergeCommand = SliceCommand(projectRoot: projectRoot);
       final output = await captureOutput(
-        () => runnerWith(mergeCommand).run(['slice', 'merge', 'product_feature']),
+        () =>
+            runnerWith(mergeCommand).run(['slice', 'merge', 'product_feature']),
       );
 
       expect(mergeCommand.exitCode, equals(0), reason: output);
@@ -202,24 +183,16 @@ void main() {
     test('export reports progress', () async {
       final cutCommand = SliceCommand(projectRoot: projectRoot);
       await captureOutput(
-        () => runnerWith(cutCommand).run([
-          'slice',
-          'cut',
-          'product_feature',
-          '--entry',
-          'product',
-        ]),
+        () => runnerWith(
+          cutCommand,
+        ).run(['slice', 'cut', 'product_feature', '--entry', 'product']),
       );
 
       final exportCommand = SliceCommand(projectRoot: projectRoot);
       final output = await captureOutput(
-        () => runnerWith(exportCommand).run([
-          'slice',
-          'export',
-          'product_feature',
-          '--format',
-          'tar.gz',
-        ]),
+        () => runnerWith(
+          exportCommand,
+        ).run(['slice', 'export', 'product_feature', '--format', 'tar.gz']),
       );
 
       expect(exportCommand.exitCode, equals(0), reason: output);

@@ -36,8 +36,8 @@ void main() {
   String sandbox() => '$projectRoot/.zuraffa/slices/product_feature';
 
   Future<void> cut() => captureOutput(
-        () => runner.run(['slice', 'cut', 'product_feature', '--entry', 'product']),
-      );
+    () => runner.run(['slice', 'cut', 'product_feature', '--entry', 'product']),
+  );
 
   group('slice verify (US6, FR-013..FR-015)', () {
     test('A16 (T102): a complete slice verifies clean', () async {
@@ -72,74 +72,80 @@ void main() {
       expect(output, contains('unresolved'));
     }, timeout: const Timeout(Duration(minutes: 2)));
 
-    test('A18 (T104): --analyze runs dart analyze and reports errors',
-        () async {
-      await cut();
+    test(
+      'A18 (T104): --analyze runs dart analyze and reports errors',
+      () async {
+        await cut();
 
-      // Inject the process seam: the fake analyzer reports two errors.
-      final analyzeCommand = SliceCommand(
-        projectRoot: projectRoot,
-        analyzeLauncher: (executable, args, {workingDirectory}) async {
-          expect(executable, equals('dart'));
-          expect(args, contains('analyze'));
-          expect(args.last, contains('product_feature'));
-          return ProcessResult(
-            1,
-            2,
-            'Analyzing sandbox...\n'
-                '  error - lib/src/mocks/mock_product_repository.dart:7:10 - '
-                'Undefined name \'Bar\'. - undefined_identifier\n'
-                '1 issue found.',
-            '',
-          );
-        },
-      );
-      final analyzeRunner = CommandRunner<void>('zfa', 'test')
-        ..addCommand(analyzeCommand);
+        // Inject the process seam: the fake analyzer reports two errors.
+        final analyzeCommand = SliceCommand(
+          projectRoot: projectRoot,
+          analyzeLauncher: (executable, args, {workingDirectory}) async {
+            expect(executable, equals('dart'));
+            expect(args, contains('analyze'));
+            expect(args.last, contains('product_feature'));
+            return ProcessResult(
+              1,
+              2,
+              'Analyzing sandbox...\n'
+                  '  error - lib/src/mocks/mock_product_repository.dart:7:10 - '
+                  'Undefined name \'Bar\'. - undefined_identifier\n'
+                  '1 issue found.',
+              '',
+            );
+          },
+        );
+        final analyzeRunner = CommandRunner<void>('zfa', 'test')
+          ..addCommand(analyzeCommand);
 
-      final output = await captureOutput(
-        () => analyzeRunner.run([
-          'slice',
-          'verify',
-          'product_feature',
-          '--analyze',
-        ]),
-      );
+        final output = await captureOutput(
+          () => analyzeRunner.run([
+            'slice',
+            'verify',
+            'product_feature',
+            '--analyze',
+          ]),
+        );
 
-      expect(analyzeCommand.exitCode, equals(1));
-      expect(output, contains('mock_product_repository.dart'));
-      expect(output, contains('Undefined name'));
-    }, timeout: const Timeout(Duration(minutes: 2)));
+        expect(analyzeCommand.exitCode, equals(1));
+        expect(output, contains('mock_product_repository.dart'));
+        expect(output, contains('Undefined name'));
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
 
-    test('A19 (T105): cut --verify fails the cut when the slice is broken',
-        () async {
-      // Break the fixture first: the controller imports a file that does
-      // not exist, so the extracted slice cannot be import-closed.
-      final controller = File(
-        '$projectRoot/lib/src/presentation/pages/product/product_controller.dart',
-      );
-      await controller.writeAsString(
-        "${await controller.readAsString()}\nimport 'missing_widget.dart';\n",
-      );
+    test(
+      'A19 (T105): cut --verify fails the cut when the slice is broken',
+      () async {
+        // Break the fixture first: the controller imports a file that does
+        // not exist, so the extracted slice cannot be import-closed.
+        final controller = File(
+          '$projectRoot/lib/src/presentation/pages/product/product_controller.dart',
+        );
+        await controller.writeAsString(
+          "${await controller.readAsString()}\nimport 'missing_widget.dart';\n",
+        );
 
-      final output = await captureOutput(
-        () => runner.run([
-          'slice',
-          'cut',
-          'broken_slice',
-          '--entry',
-          'product',
-          '--verify',
-        ]),
-      );
+        final output = await captureOutput(
+          () => runner.run([
+            'slice',
+            'cut',
+            'broken_slice',
+            '--entry',
+            'product',
+            '--verify',
+          ]),
+        );
 
-      expect(command.exitCode, equals(1));
-      expect(output, contains('verification failed'));
-      // The incomplete sandbox is rolled back.
-      expect(
-        Directory('$projectRoot/.zuraffa/slices/broken_slice').existsSync(),
-        isFalse,
-      );
-    }, timeout: const Timeout(Duration(minutes: 2)));
+        expect(command.exitCode, equals(1));
+        expect(output, contains('verification failed'));
+        // The incomplete sandbox is rolled back.
+        expect(
+          Directory('$projectRoot/.zuraffa/slices/broken_slice').existsSync(),
+          isFalse,
+        );
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
   });
 }

@@ -42,135 +42,144 @@ void main() {
   });
 
   group('TarballExporter (FR-017)', () {
-    test('U57: the archive contains the tree, pubspec, entry, and SLICE.md',
-        () async {
-      final exporter = TarballExporter();
+    test(
+      'U57: the archive contains the tree, pubspec, entry, and SLICE.md',
+      () async {
+        final exporter = TarballExporter();
 
-      final archivePath = await exporter.export(
-        sandboxDir: sandbox,
-        outputPath: '${tmpDir.path}/test_slice.tar.gz',
-        pubspecContent: 'name: zik_zak\n',
-      );
+        final archivePath = await exporter.export(
+          sandboxDir: sandbox,
+          outputPath: '${tmpDir.path}/test_slice.tar.gz',
+          pubspecContent: 'name: zik_zak\n',
+        );
 
-      final bytes = File(archivePath).readAsBytesSync();
-      final archive = TarDecoder().decodeBytes(GZipDecoder().decodeBytes(bytes));
-      final names = archive.files.map((f) => f.name).toSet();
+        final bytes = File(archivePath).readAsBytesSync();
+        final archive = TarDecoder().decodeBytes(
+          GZipDecoder().decodeBytes(bytes),
+        );
+        final names = archive.files.map((f) => f.name).toSet();
 
-      expect(names, contains('lib/src/view.dart'));
-      expect(names, contains('pubspec.yaml'));
-      expect(names, contains('main_slice.dart'));
-      expect(names, contains('SLICE.md'));
-      expect(names, contains('slice.yaml'));
+        expect(names, contains('lib/src/view.dart'));
+        expect(names, contains('pubspec.yaml'));
+        expect(names, contains('main_slice.dart'));
+        expect(names, contains('SLICE.md'));
+        expect(names, contains('slice.yaml'));
 
-      // The pubspec in the archive is the FILTERED one.
-      final pubspecEntry = archive.files
-          .singleWhere((f) => f.name == 'pubspec.yaml');
-      expect(String.fromCharCodes(pubspecEntry.content as List<int>),
-          contains('zik_zak'));
-    });
+        // The pubspec in the archive is the FILTERED one.
+        final pubspecEntry = archive.files.singleWhere(
+          (f) => f.name == 'pubspec.yaml',
+        );
+        expect(
+          String.fromCharCodes(pubspecEntry.content as List<int>),
+          contains('zik_zak'),
+        );
+      },
+    );
   });
 
   group('GithubExporter (FR-018)', () {
-    test('U59: creates a private repo, pushes, and uses SLICE.md as README',
-        () async {
-      final commands = <List<String>>[];
-      final exporter = GithubExporter(
-        ghLauncher: (args, {workingDirectory}) async {
-          commands.add(args);
-          if (args.first == 'auth' ) {
-            return _result(0, 'Logged in to github.com');
-          }
-          if (args.first == 'repo' && args[1] == 'view') {
-            return _result(
-              0,
-              'name:  owner/my-repo\nurl:   https://github.com/owner/my-repo',
-            );
-          }
-          return _result(0, '');
-        },
-      );
+    test(
+      'U59: creates a private repo, pushes, and uses SLICE.md as README',
+      () async {
+        final commands = <List<String>>[];
+        final exporter = GithubExporter(
+          ghLauncher: (args, {workingDirectory}) async {
+            commands.add(args);
+            if (args.first == 'auth') {
+              return _result(0, 'Logged in to github.com');
+            }
+            if (args.first == 'repo' && args[1] == 'view') {
+              return _result(
+                0,
+                'name:  owner/my-repo\nurl:   https://github.com/owner/my-repo',
+              );
+            }
+            return _result(0, '');
+          },
+        );
 
-      final result = await exporter.export(
-        sandboxDir: sandbox,
-        repo: 'owner/my-repo',
-        packageName: 'zik_zak',
-        sliceName: 'test_slice',
-      );
+        final result = await exporter.export(
+          sandboxDir: sandbox,
+          repo: 'owner/my-repo',
+          packageName: 'zik_zak',
+          sliceName: 'test_slice',
+        );
 
-      expect(result.repoUrl, equals('https://github.com/owner/my-repo'));
-      // Auth checked first.
-      expect(commands.first, contains('auth'));
-      // The push includes a README.md staged from SLICE.md.
-      final sandboxFiles = Directory(sandbox)
-          .listSync(recursive: true)
-          .whereType<File>()
-          .map((f) => f.path)
-          .toSet();
-      expect(
-        sandboxFiles.any((f) => f.endsWith('README.md')),
-        isTrue,
-        reason: 'SLICE.md is copied to README.md for the repo',
-      );
-    });
+        expect(result.repoUrl, equals('https://github.com/owner/my-repo'));
+        // Auth checked first.
+        expect(commands.first, contains('auth'));
+        // The push includes a README.md staged from SLICE.md.
+        final sandboxFiles = Directory(sandbox)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .map((f) => f.path)
+            .toSet();
+        expect(
+          sandboxFiles.any((f) => f.endsWith('README.md')),
+          isTrue,
+          reason: 'SLICE.md is copied to README.md for the repo',
+        );
+      },
+    );
 
-    test('U60: a given repo is honored; a missing one is auto-generated',
-        () async {
-      var seenRepoName = '';
-      final exporter = GithubExporter(
-        ghLauncher: (args, {workingDirectory}) async {
-          if (args.first == 'repo' && args[1] == 'create') {
-            seenRepoName = args[2];
-          }
-          if (args.first == 'repo' && args[1] == 'view') {
-            return _result(
-              0,
-              'url: https://github.com/owner/$seenRepoName',
-            );
-          }
-          return _result(0, '');
-        },
-      );
+    test(
+      'U60: a given repo is honored; a missing one is auto-generated',
+      () async {
+        var seenRepoName = '';
+        final exporter = GithubExporter(
+          ghLauncher: (args, {workingDirectory}) async {
+            if (args.first == 'repo' && args[1] == 'create') {
+              seenRepoName = args[2];
+            }
+            if (args.first == 'repo' && args[1] == 'view') {
+              return _result(0, 'url: https://github.com/owner/$seenRepoName');
+            }
+            return _result(0, '');
+          },
+        );
 
-      await exporter.export(
-        sandboxDir: sandbox,
-        repo: 'owner/explicit-repo',
-        packageName: 'zik_zak',
-        sliceName: 'test_slice',
-      );
-      expect(seenRepoName, equals('owner/explicit-repo'));
+        await exporter.export(
+          sandboxDir: sandbox,
+          repo: 'owner/explicit-repo',
+          packageName: 'zik_zak',
+          sliceName: 'test_slice',
+        );
+        expect(seenRepoName, equals('owner/explicit-repo'));
 
-      await exporter.export(
-        sandboxDir: sandbox,
-        repo: null,
-        packageName: 'zik_zak',
-        sliceName: 'profile_feature',
-      );
-      expect(seenRepoName, equals('zik-zak-slice-profile-feature'));
-    });
+        await exporter.export(
+          sandboxDir: sandbox,
+          repo: null,
+          packageName: 'zik_zak',
+          sliceName: 'profile_feature',
+        );
+        expect(seenRepoName, equals('zik-zak-slice-profile-feature'));
+      },
+    );
 
-    test('U61: the repo URL is returned for the manifest exportedTo field',
-        () async {
-      final exporter = GithubExporter(
-        ghLauncher: (args, {workingDirectory}) async {
-          if (args.first == 'repo' && args[1] == 'view') {
-            return _result(0, 'url: https://github.com/owner/the-slice');
-          }
-          return _result(0, '');
-        },
-      );
+    test(
+      'U61: the repo URL is returned for the manifest exportedTo field',
+      () async {
+        final exporter = GithubExporter(
+          ghLauncher: (args, {workingDirectory}) async {
+            if (args.first == 'repo' && args[1] == 'view') {
+              return _result(0, 'url: https://github.com/owner/the-slice');
+            }
+            return _result(0, '');
+          },
+        );
 
-      final result = await exporter.export(
-        sandboxDir: sandbox,
-        repo: 'owner/the-slice',
-        packageName: 'zik_zak',
-        sliceName: 'test_slice',
-      );
+        final result = await exporter.export(
+          sandboxDir: sandbox,
+          repo: 'owner/the-slice',
+          packageName: 'zik_zak',
+          sliceName: 'test_slice',
+        );
 
-      expect(result.repoUrl, equals('https://github.com/owner/the-slice'));
-    });
+        expect(result.repoUrl, equals('https://github.com/owner/the-slice'));
+      },
+    );
 
-    test('U62: an unauthenticated gh fails with a clear auth error',
-        () async {
+    test('U62: an unauthenticated gh fails with a clear auth error', () async {
       final exporter = GithubExporter(
         ghLauncher: (args, {workingDirectory}) async {
           if (args.first == 'auth') {

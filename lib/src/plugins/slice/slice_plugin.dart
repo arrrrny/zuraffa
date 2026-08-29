@@ -63,9 +63,7 @@ class SlicePlugin extends ZuraffaPlugin implements CliAwarePlugin {
 
   /// Capabilities exposed by this plugin.
   @override
-  List<ZuraffaCapability> get capabilities => [
-    CutSliceCapability(),
-  ];
+  List<ZuraffaCapability> get capabilities => [CutSliceCapability()];
 
   /// The `zfa slice` command (FR-011 / INV-1).
   @override

@@ -23,7 +23,7 @@ class MergeSliceCapability implements ZuraffaCapability {
   /// Creates the capability with injectable collaborators.
   MergeSliceCapability({ManifestWriter? manifestWriter, SliceMerger? merger})
     : _manifestWriter = manifestWriter ?? ManifestWriter(),
-       _merger = merger ?? SliceMerger();
+      _merger = merger ?? SliceMerger();
 
   final ManifestWriter _manifestWriter;
   final SliceMerger _merger;
@@ -51,8 +51,14 @@ class MergeSliceCapability implements ZuraffaCapability {
     'type': 'object',
     'properties': {
       'success': {'type': 'boolean'},
-      'copied': {'type': 'array', 'items': {'type': 'string'}},
-      'conflicts': {'type': 'array', 'items': {'type': 'string'}},
+      'copied': {
+        'type': 'array',
+        'items': {'type': 'string'},
+      },
+      'conflicts': {
+        'type': 'array',
+        'items': {'type': 'string'},
+      },
     },
   };
 
@@ -71,9 +77,7 @@ class MergeSliceCapability implements ZuraffaCapability {
         final sandboxHash = _hashIfExists(
           p.join(sandboxDir, file.relativePath),
         );
-        final mainHash = _hashIfExists(
-          p.join(projectRoot, file.relativePath),
-        );
+        final mainHash = _hashIfExists(p.join(projectRoot, file.relativePath));
         final decision = detector.decide(
           cutHash: file.hashAtCut,
           sandboxHash: sandboxHash,
@@ -84,9 +88,10 @@ class MergeSliceCapability implements ZuraffaCapability {
             file: file.relativePath,
             action: switch (decision) {
               MergeDecision.skip => 'skip',
-              MergeDecision.safeCopy => file.ownership == FileOwnership.shared
-                  ? 'copy (shared — needs confirmation)'
-                  : 'copy',
+              MergeDecision.safeCopy =>
+                file.ownership == FileOwnership.shared
+                    ? 'copy (shared — needs confirmation)'
+                    : 'copy',
               MergeDecision.conflict => 'conflict',
               MergeDecision.sandboxDeleted => 'delete',
               MergeDecision.agentCreated => 'create',
@@ -127,8 +132,7 @@ class MergeSliceCapability implements ZuraffaCapability {
         args['confirmSharedDelete'] as bool Function(String)? ??
         (_) => confirmAll;
     final progress =
-        args['progressReporter'] as ProgressReporter? ??
-        NullProgressReporter();
+        args['progressReporter'] as ProgressReporter? ?? NullProgressReporter();
 
     final sandboxDir = CutSliceCapability.sandboxDirFor(projectRoot, sliceName);
     if (!Directory(sandboxDir).existsSync()) {

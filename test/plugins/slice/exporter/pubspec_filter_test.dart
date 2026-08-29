@@ -114,8 +114,7 @@ class A {}
       expect((doc['dev_dependencies'] as Map).keys, contains('flutter_test'));
     });
 
-    test('U56: git, path, and hosted sources are preserved verbatim',
-        () async {
+    test('U56: git, path, and hosted sources are preserved verbatim', () async {
       final projectRoot = await writeProjectPubspec();
       await writeSliceFile('lib/a.dart', '''
 import 'package:git_dep/git_dep.dart';
@@ -140,22 +139,24 @@ class A {}
       expect(deps['equatable'], equals('^2.0.7'));
     });
 
-    test('the filtered pubspec keeps name, environment, and flutter section',
-        () async {
-      final projectRoot = await writeProjectPubspec();
-      await writeSliceFile('lib/a.dart', 'class A {}\n');
+    test(
+      'the filtered pubspec keeps name, environment, and flutter section',
+      () async {
+        final projectRoot = await writeProjectPubspec();
+        await writeSliceFile('lib/a.dart', 'class A {}\n');
 
-      final filtered = await filter.filter(
-        projectRoot: projectRoot,
-        sandboxDir: tmpDir.path,
-        sliceDartFiles: const ['lib/a.dart'],
-      );
+        final filtered = await filter.filter(
+          projectRoot: projectRoot,
+          sandboxDir: tmpDir.path,
+          sliceDartFiles: const ['lib/a.dart'],
+        );
 
-      final doc = loadYaml(filtered) as Map;
-      expect(doc['name'], equals('zik_zak'));
-      expect(doc['description'], equals('A fixture app.'));
-      expect((doc['environment'] as Map)['sdk'], equals('^3.11.0'));
-      expect((doc['flutter'] as Map)['uses-material-design'], isTrue);
-    });
+        final doc = loadYaml(filtered) as Map;
+        expect(doc['name'], equals('zik_zak'));
+        expect(doc['description'], equals('A fixture app.'));
+        expect((doc['environment'] as Map)['sdk'], equals('^3.11.0'));
+        expect((doc['flutter'] as Map)['uses-material-design'], isTrue);
+      },
+    );
   });
 }

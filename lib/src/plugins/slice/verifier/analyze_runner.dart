@@ -10,11 +10,12 @@ library;
 import 'dart:io';
 
 /// Process execution seam (injected in tests; defaults to [Process.run]).
-typedef ProcessLauncher = Future<ProcessResult> Function(
-  String executable,
-  List<String> args, {
-  String? workingDirectory,
-});
+typedef ProcessLauncher =
+    Future<ProcessResult> Function(
+      String executable,
+      List<String> args, {
+      String? workingDirectory,
+    });
 
 /// The analyze outcome.
 class AnalyzeResult {
@@ -60,11 +61,10 @@ class AnalyzeRunner {
     final executable = flutter ? 'flutter' : 'dart';
     final ProcessResult result;
     try {
-      result = await _launcher(
-        executable,
-        ['analyze', dir],
-        workingDirectory: dir,
-      );
+      result = await _launcher(executable, [
+        'analyze',
+        dir,
+      ], workingDirectory: dir);
     } on ProcessException catch (e) {
       return AnalyzeResult(
         passed: false,

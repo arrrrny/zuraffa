@@ -35,38 +35,43 @@ void main() {
   });
 
   group('MockStubGenerator (FR-003)', () {
-    test('U29: an abstract interface gets a mock implementing every member',
-        () async {
-      const boundary = SliceBoundary(
-        typeName: 'ProductRepository',
-        interfaceFile: 'lib/src/domain/repositories/product_repository.dart',
-        diRegistrationFile: 'lib/src/di/repositories/product_repository_di.dart',
-        mockStrategy: 'auto',
-      );
+    test(
+      'U29: an abstract interface gets a mock implementing every member',
+      () async {
+        const boundary = SliceBoundary(
+          typeName: 'ProductRepository',
+          interfaceFile: 'lib/src/domain/repositories/product_repository.dart',
+          diRegistrationFile:
+              'lib/src/di/repositories/product_repository_di.dart',
+          mockStrategy: 'auto',
+        );
 
-      final mock = await generator.generate(
-        boundary: boundary,
-        projectRoot: projectRoot,
-        depth: SliceDepth.feature,
-      );
+        final mock = await generator.generate(
+          boundary: boundary,
+          projectRoot: projectRoot,
+          depth: SliceDepth.feature,
+        );
 
-      expect(mock, isNotNull);
-      expect(mock!.relativePath, equals('lib/src/mocks/mock_product_repository.dart'));
-      expect(
-        mock.content,
-        contains('class MockProductRepository implements ProductRepository'),
-      );
-      // Every public member is stubbed.
-      expect(mock.content, contains('getProduct'));
-      expect(mock.content, contains('updateProduct'));
-      expect(mock.content, contains('watchProductPrice'));
-      // ...with stub returns that throw, mocktail-style.
-      expect(mock.content, contains('throw UnimplementedError'));
-      expect(mock.content, contains('@override'));
-    });
+        expect(mock, isNotNull);
+        expect(
+          mock!.relativePath,
+          equals('lib/src/mocks/mock_product_repository.dart'),
+        );
+        expect(
+          mock.content,
+          contains('class MockProductRepository implements ProductRepository'),
+        );
+        // Every public member is stubbed.
+        expect(mock.content, contains('getProduct'));
+        expect(mock.content, contains('updateProduct'));
+        expect(mock.content, contains('watchProductPrice'));
+        // ...with stub returns that throw, mocktail-style.
+        expect(mock.content, contains('throw UnimplementedError'));
+        expect(mock.content, contains('@override'));
+      },
+    );
 
-    test('U29: the mock carries the interface import so it compiles',
-        () async {
+    test('U29: the mock carries the interface import so it compiles', () async {
       const boundary = SliceBoundary(
         typeName: 'ProductRepository',
         interfaceFile: 'lib/src/domain/repositories/product_repository.dart',
@@ -118,28 +123,31 @@ void main() {
       expect(mock, isNull);
     });
 
-    test('U31: at view depth a concrete presenter boundary gets a mock too',
-        () async {
-      const boundary = SliceBoundary(
-        typeName: 'ProductPresenter',
-        interfaceFile: 'lib/src/presentation/pages/product/product_presenter.dart',
-        mockStrategy: 'auto',
-      );
+    test(
+      'U31: at view depth a concrete presenter boundary gets a mock too',
+      () async {
+        const boundary = SliceBoundary(
+          typeName: 'ProductPresenter',
+          interfaceFile:
+              'lib/src/presentation/pages/product/product_presenter.dart',
+          mockStrategy: 'auto',
+        );
 
-      final mock = await generator.generate(
-        boundary: boundary,
-        projectRoot: projectRoot,
-        depth: SliceDepth.view,
-      );
+        final mock = await generator.generate(
+          boundary: boundary,
+          projectRoot: projectRoot,
+          depth: SliceDepth.view,
+        );
 
-      expect(mock, isNotNull);
-      expect(
-        mock!.content,
-        contains('class MockProductPresenter implements ProductPresenter'),
-      );
-      // Presenter members are stubbed.
-      expect(mock.content, contains('loadProduct'));
-      expect(mock.content, contains('saveProduct'));
-    });
+        expect(mock, isNotNull);
+        expect(
+          mock!.content,
+          contains('class MockProductPresenter implements ProductPresenter'),
+        );
+        // Presenter members are stubbed.
+        expect(mock.content, contains('loadProduct'));
+        expect(mock.content, contains('saveProduct'));
+      },
+    );
   });
 }

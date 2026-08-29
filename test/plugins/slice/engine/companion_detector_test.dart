@@ -34,8 +34,9 @@ part 'product.g.dart';
 
 class Product {}
 ''');
-      await File('${tmpDir.path}/product.g.dart')
-          .writeAsString('part of product.dart;\n');
+      await File(
+        '${tmpDir.path}/product.g.dart',
+      ).writeAsString('part of product.dart;\n');
 
       final result = detector.detectCompanions(
         source.path,
@@ -74,8 +75,9 @@ part 'cart.freezed.dart';
 
 class Cart {}
 ''');
-      await File('${tmpDir.path}/cart.freezed.dart')
-          .writeAsString('part of cart.dart;\n');
+      await File(
+        '${tmpDir.path}/cart.freezed.dart',
+      ).writeAsString('part of cart.dart;\n');
 
       final result = detector.detectCompanions(
         source.path,
@@ -87,37 +89,44 @@ class Cart {}
       expect(result.warnings, isEmpty);
     });
 
-    test('a source without generated parts yields no companions or warnings',
-        () async {
-      final source = await File('${tmpDir.path}/plain.dart')
-          .writeAsString('class Plain {}\n');
+    test(
+      'a source without generated parts yields no companions or warnings',
+      () async {
+        final source = await File(
+          '${tmpDir.path}/plain.dart',
+        ).writeAsString('class Plain {}\n');
 
-      final result = detector.detectCompanions(
-        source.path,
-        await source.readAsString(),
-      );
+        final result = detector.detectCompanions(
+          source.path,
+          await source.readAsString(),
+        );
 
-      expect(result.companions, isEmpty);
-      expect(result.warnings, isEmpty);
-    });
+        expect(result.companions, isEmpty);
+        expect(result.warnings, isEmpty);
+      },
+    );
 
-    test('a companion on disk without a part directive is still included',
-        () async {
-      // Conventional companion discovery: even when the source lost its
-      // `part` line, a sibling `name.g.dart` that exists is pulled in so the
-      // mirrored tree stays consistent.
-      final source = await File('${tmpDir.path}/entity.dart')
-          .writeAsString('class Entity {}\n');
-      await File('${tmpDir.path}/entity.g.dart')
-          .writeAsString('// generated\n');
+    test(
+      'a companion on disk without a part directive is still included',
+      () async {
+        // Conventional companion discovery: even when the source lost its
+        // `part` line, a sibling `name.g.dart` that exists is pulled in so the
+        // mirrored tree stays consistent.
+        final source = await File(
+          '${tmpDir.path}/entity.dart',
+        ).writeAsString('class Entity {}\n');
+        await File(
+          '${tmpDir.path}/entity.g.dart',
+        ).writeAsString('// generated\n');
 
-      final result = detector.detectCompanions(
-        source.path,
-        await source.readAsString(),
-      );
+        final result = detector.detectCompanions(
+          source.path,
+          await source.readAsString(),
+        );
 
-      expect(result.companions, hasLength(1));
-      expect(result.companions.single, endsWith('entity.g.dart'));
-    });
+        expect(result.companions, hasLength(1));
+        expect(result.companions.single, endsWith('entity.g.dart'));
+      },
+    );
   });
 }

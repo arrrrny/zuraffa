@@ -49,8 +49,7 @@ void main() {
     return file;
   }
 
-  String hashOf(File file) =>
-      sha256.convert(file.readAsBytesSync()).toString();
+  String hashOf(File file) => sha256.convert(file.readAsBytesSync()).toString();
 
   SliceManifest buildManifest(List<SliceFile> files) => SliceManifest(
     name: 'test_slice',
@@ -119,14 +118,8 @@ void main() {
       expect(report.copied, [
         'lib/src/presentation/pages/product/product_view.dart',
       ]);
-      expect(
-        File(view.path).readAsStringSync(),
-        equals('agent edit'),
-      );
-      expect(
-        File(state.path).readAsStringSync(),
-        equals('original'),
-      );
+      expect(File(view.path).readAsStringSync(), equals('agent edit'));
+      expect(File(state.path).readAsStringSync(), equals('original'));
       // Successful merge cleans up the sandbox.
       expect(Directory(sandbox).existsSync(), isFalse);
     });
@@ -164,10 +157,7 @@ void main() {
 
       expect(denied.copied, isEmpty);
       expect(denied.unconfirmedShared, hasLength(1));
-      expect(
-        File(widget.path).readAsStringSync(),
-        equals('original'),
-      );
+      expect(File(widget.path).readAsStringSync(), equals('original'));
       expect(Directory(sandbox).existsSync(), isTrue);
 
       // Confirmed: the file is copied back.
@@ -180,92 +170,95 @@ void main() {
       );
 
       expect(granted.copied, hasLength(1));
-      expect(
-        File(widget.path).readAsStringSync(),
-        equals('agent edit'),
-      );
+      expect(File(widget.path).readAsStringSync(), equals('agent edit'));
     });
 
-    test('U43: a conflicted file is not copied and the sandbox survives',
-        () async {
-      final view = await putFile(
-        projectRoot,
-        'lib/src/presentation/pages/product/product_view.dart',
-        'changed in main',
-      );
+    test(
+      'U43: a conflicted file is not copied and the sandbox survives',
+      () async {
+        final view = await putFile(
+          projectRoot,
+          'lib/src/presentation/pages/product/product_view.dart',
+          'changed in main',
+        );
 
-      await putFile(
-        sandbox,
-        'lib/src/presentation/pages/product/product_view.dart',
-        'changed by agent',
-      );
+        await putFile(
+          sandbox,
+          'lib/src/presentation/pages/product/product_view.dart',
+          'changed by agent',
+        );
 
-      final manifest = buildManifest([
-        SliceFile(
-          relativePath: 'lib/src/presentation/pages/product/product_view.dart',
-          ownership: FileOwnership.owned,
-          hashAtCut: 'old-hash',
-          layer: 'presentation',
-        ),
-      ]);
-      // main hash differs from cut hash -> conflict (hashOf(view) != 'old-hash')
-      expect(hashOf(view), isNot(equals('old-hash')));
+        final manifest = buildManifest([
+          SliceFile(
+            relativePath:
+                'lib/src/presentation/pages/product/product_view.dart',
+            ownership: FileOwnership.owned,
+            hashAtCut: 'old-hash',
+            layer: 'presentation',
+          ),
+        ]);
+        // main hash differs from cut hash -> conflict (hashOf(view) != 'old-hash')
+        expect(hashOf(view), isNot(equals('old-hash')));
 
-      final report = await SliceMerger().merge(
-        manifest: manifest,
-        sandboxDir: sandbox,
-        projectRoot: projectRoot,
-        confirmSharedOverwrite: (_) => true,
-        confirmSharedDelete: (_) => true,
-      );
+        final report = await SliceMerger().merge(
+          manifest: manifest,
+          sandboxDir: sandbox,
+          projectRoot: projectRoot,
+          confirmSharedOverwrite: (_) => true,
+          confirmSharedDelete: (_) => true,
+        );
 
-      expect(report.conflicts, hasLength(1));
-      expect(report.copied, isEmpty);
-      expect(
-        File(view.path).readAsStringSync(),
-        equals('changed in main'),
-        reason: 'the main project must never be silently overwritten',
-      );
-      expect(Directory(sandbox).existsSync(), isTrue);
-    });
+        expect(report.conflicts, hasLength(1));
+        expect(report.copied, isEmpty);
+        expect(
+          File(view.path).readAsStringSync(),
+          equals('changed in main'),
+          reason: 'the main project must never be silently overwritten',
+        );
+        expect(Directory(sandbox).existsSync(), isTrue);
+      },
+    );
 
-    test('U44: zero modifications reports no changes and deletes the slice',
-        () async {
-      final view = await putFile(
-        projectRoot,
-        'lib/src/presentation/pages/product/product_view.dart',
-        'original',
-      );
-      await putFile(
-        sandbox,
-        'lib/src/presentation/pages/product/product_view.dart',
-        'original',
-      );
-      // Harness files present; they must not count as changes.
-      await putFile(sandbox, 'main_slice.dart', 'generated');
-      await putFile(sandbox, 'slice.yaml', 'generated');
+    test(
+      'U44: zero modifications reports no changes and deletes the slice',
+      () async {
+        final view = await putFile(
+          projectRoot,
+          'lib/src/presentation/pages/product/product_view.dart',
+          'original',
+        );
+        await putFile(
+          sandbox,
+          'lib/src/presentation/pages/product/product_view.dart',
+          'original',
+        );
+        // Harness files present; they must not count as changes.
+        await putFile(sandbox, 'main_slice.dart', 'generated');
+        await putFile(sandbox, 'slice.yaml', 'generated');
 
-      final manifest = buildManifest([
-        SliceFile(
-          relativePath: 'lib/src/presentation/pages/product/product_view.dart',
-          ownership: FileOwnership.owned,
-          hashAtCut: hashOf(view),
-          layer: 'presentation',
-        ),
-      ]);
+        final manifest = buildManifest([
+          SliceFile(
+            relativePath:
+                'lib/src/presentation/pages/product/product_view.dart',
+            ownership: FileOwnership.owned,
+            hashAtCut: hashOf(view),
+            layer: 'presentation',
+          ),
+        ]);
 
-      final report = await SliceMerger().merge(
-        manifest: manifest,
-        sandboxDir: sandbox,
-        projectRoot: projectRoot,
-        confirmSharedOverwrite: (_) => true,
-        confirmSharedDelete: (_) => true,
-      );
+        final report = await SliceMerger().merge(
+          manifest: manifest,
+          sandboxDir: sandbox,
+          projectRoot: projectRoot,
+          confirmSharedOverwrite: (_) => true,
+          confirmSharedDelete: (_) => true,
+        );
 
-      expect(report.noChanges, isTrue);
-      expect(report.message, contains('No changes to merge'));
-      expect(Directory(sandbox).existsSync(), isFalse);
-    });
+        expect(report.noChanges, isTrue);
+        expect(report.message, contains('No changes to merge'));
+        expect(Directory(sandbox).existsSync(), isFalse);
+      },
+    );
 
     test('U67: an agent-created file is copied back and reported', () async {
       final view = await putFile(
@@ -311,7 +304,10 @@ void main() {
       ]);
       expect(
         File(
-          p.join(projectRoot, 'lib/src/presentation/pages/product/product_card.dart'),
+          p.join(
+            projectRoot,
+            'lib/src/presentation/pages/product/product_card.dart',
+          ),
         ).readAsStringSync(),
         equals('brand new'),
       );
@@ -322,54 +318,54 @@ void main() {
       );
     });
 
-    test('U68: an agent-deleted file is removed; shared needs confirmation',
-        () async {
-      final state = await putFile(
-        projectRoot,
-        'lib/src/presentation/pages/product/product_state.dart',
-        'original',
-      );
-      final widget = await putFile(
-        projectRoot,
-        'lib/src/presentation/widgets/primary_button.dart',
-        'original',
-      );
-      // Agent deleted BOTH files from the sandbox (no sandbox copies).
+    test(
+      'U68: an agent-deleted file is removed; shared needs confirmation',
+      () async {
+        final state = await putFile(
+          projectRoot,
+          'lib/src/presentation/pages/product/product_state.dart',
+          'original',
+        );
+        final widget = await putFile(
+          projectRoot,
+          'lib/src/presentation/widgets/primary_button.dart',
+          'original',
+        );
+        // Agent deleted BOTH files from the sandbox (no sandbox copies).
 
-      final manifest = buildManifest([
-        SliceFile(
-          relativePath: 'lib/src/presentation/pages/product/product_state.dart',
-          ownership: FileOwnership.owned,
-          hashAtCut: hashOf(state),
-          layer: 'presentation',
-        ),
-        SliceFile(
-          relativePath: 'lib/src/presentation/widgets/primary_button.dart',
-          ownership: FileOwnership.shared,
-          hashAtCut: hashOf(widget),
-          layer: 'presentation',
-        ),
-      ]);
+        final manifest = buildManifest([
+          SliceFile(
+            relativePath:
+                'lib/src/presentation/pages/product/product_state.dart',
+            ownership: FileOwnership.owned,
+            hashAtCut: hashOf(state),
+            layer: 'presentation',
+          ),
+          SliceFile(
+            relativePath: 'lib/src/presentation/widgets/primary_button.dart',
+            ownership: FileOwnership.shared,
+            hashAtCut: hashOf(widget),
+            layer: 'presentation',
+          ),
+        ]);
 
-      final report = await SliceMerger().merge(
-        manifest: manifest,
-        sandboxDir: sandbox,
-        projectRoot: projectRoot,
-        confirmSharedOverwrite: (_) => true,
-        confirmSharedDelete: (path) => !path.contains('primary_button'),
-      );
+        final report = await SliceMerger().merge(
+          manifest: manifest,
+          sandboxDir: sandbox,
+          projectRoot: projectRoot,
+          confirmSharedOverwrite: (_) => true,
+          confirmSharedDelete: (path) => !path.contains('primary_button'),
+        );
 
-      // Owned deletion applied.
-      expect(report.deleted, [
-        'lib/src/presentation/pages/product/product_state.dart',
-      ]);
-      expect(
-        File(state.path).existsSync(),
-        isFalse,
-      );
-      // Shared deletion NOT confirmed -> kept, reported.
-      expect(File(widget.path).existsSync(), isTrue);
-      expect(report.unconfirmedShared, contains(contains('primary_button')));
-    });
+        // Owned deletion applied.
+        expect(report.deleted, [
+          'lib/src/presentation/pages/product/product_state.dart',
+        ]);
+        expect(File(state.path).existsSync(), isFalse);
+        // Shared deletion NOT confirmed -> kept, reported.
+        expect(File(widget.path).existsSync(), isTrue);
+        expect(report.unconfirmedShared, contains(contains('primary_button')));
+      },
+    );
   });
 }

@@ -42,8 +42,7 @@ void main() {
       expect(calls.single, contains('/tmp/some_sandbox'));
     });
 
-    test('U49: analyzer errors are captured as a structured failure',
-        () async {
+    test('U49: analyzer errors are captured as a structured failure', () async {
       final runner = AnalyzeRunner(
         launcher: (executable, args, {workingDirectory}) async {
           return ProcessResult(
@@ -70,12 +69,15 @@ void main() {
       expect(result.errors[1], contains('lib/bar.dart'));
     });
 
-    test('U50: a missing toolchain yields a clear environment error',
-        () async {
+    test('U50: a missing toolchain yields a clear environment error', () async {
       final runner = AnalyzeRunner(
         launcher: (executable, args, {workingDirectory}) async {
-          throw ProcessException(executable, args, 'No such file or '
-              'directory');
+          throw ProcessException(
+            executable,
+            args,
+            'No such file or '
+            'directory',
+          );
         },
       );
 

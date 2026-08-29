@@ -29,15 +29,18 @@ void main() {
     sandbox = p.join(projectRoot, '.zuraffa', 'slices', 'test_slice');
     await Directory(p.join(sandbox, 'lib', 'src')).create(recursive: true);
     // An old sandbox file that the "remote" will overwrite.
-    await File(p.join(sandbox, 'lib', 'src', 'view.dart'))
-        .writeAsString('// OLD sandbox content\n');
+    await File(
+      p.join(sandbox, 'lib', 'src', 'view.dart'),
+    ).writeAsString('// OLD sandbox content\n');
     // The exported repo's on-disk state, used by the fake clone seam.
     remoteRepo = p.join(tmpDir.path, 'remote_repo');
     await Directory(p.join(remoteRepo, 'lib', 'src')).create(recursive: true);
-    await File(p.join(remoteRepo, 'lib', 'src', 'view.dart'))
-        .writeAsString('// NEW remote content\n');
-    await File(p.join(remoteRepo, 'lib', 'src', 'new_widget.dart'))
-        .writeAsString('class NewWidget {}\n');
+    await File(
+      p.join(remoteRepo, 'lib', 'src', 'view.dart'),
+    ).writeAsString('// NEW remote content\n');
+    await File(
+      p.join(remoteRepo, 'lib', 'src', 'new_widget.dart'),
+    ).writeAsString('class NewWidget {}\n');
   });
 
   tearDown(() async {
@@ -83,33 +86,34 @@ void main() {
   }
 
   group('SliceImporter (FR-019)', () {
-    test('U63: pulls the exported repo over the sandbox, overwriting files',
-        () async {
-      await writeManifest(
-        exportedTo: 'https://github.com/owner/test-slice.git',
-      );
-      final importer = SliceImporter(ghLauncher: fakeClone);
+    test(
+      'U63: pulls the exported repo over the sandbox, overwriting files',
+      () async {
+        await writeManifest(
+          exportedTo: 'https://github.com/owner/test-slice.git',
+        );
+        final importer = SliceImporter(ghLauncher: fakeClone);
 
-      final result = await importer.importSlice(
-        sliceName: 'test_slice',
-        projectRoot: projectRoot,
-      );
+        final result = await importer.importSlice(
+          sliceName: 'test_slice',
+          projectRoot: projectRoot,
+        );
 
-      expect(result.success, isTrue);
-      expect(
-        File(p.join(sandbox, 'lib', 'src', 'view.dart')).readAsStringSync(),
-        contains('NEW remote content'),
-        reason: 'remote files must overwrite sandbox files',
-      );
-      expect(
-        File(p.join(sandbox, 'lib', 'src', 'new_widget.dart')).existsSync(),
-        isTrue,
-        reason: 'remote-only files must be added to the sandbox',
-      );
-    });
+        expect(result.success, isTrue);
+        expect(
+          File(p.join(sandbox, 'lib', 'src', 'view.dart')).readAsStringSync(),
+          contains('NEW remote content'),
+          reason: 'remote files must overwrite sandbox files',
+        );
+        expect(
+          File(p.join(sandbox, 'lib', 'src', 'new_widget.dart')).existsSync(),
+          isTrue,
+          reason: 'remote-only files must be added to the sandbox',
+        );
+      },
+    );
 
-    test('U64: no exportedTo fails telling the user to export first',
-        () async {
+    test('U64: no exportedTo fails telling the user to export first', () async {
       await writeManifest(exportedTo: null);
       final importer = SliceImporter(ghLauncher: fakeClone);
 

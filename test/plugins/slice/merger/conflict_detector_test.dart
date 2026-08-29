@@ -23,11 +23,7 @@ void main() {
   group('ConflictDetector 3-way decisions (FR-008)', () {
     test('U37: unchanged sandbox file yields skip', () {
       expect(
-        detector.decide(
-          cutHash: 'abc',
-          sandboxHash: 'abc',
-          mainHash: 'abc',
-        ),
+        detector.decide(cutHash: 'abc', sandboxHash: 'abc', mainHash: 'abc'),
         equals(MergeDecision.skip),
       );
     });
@@ -85,7 +81,10 @@ void main() {
 
     test('U40: matching branches yield no warning', () {
       expect(
-        detector.branchWarning(manifestBranch: 'master', currentBranch: 'master'),
+        detector.branchWarning(
+          manifestBranch: 'master',
+          currentBranch: 'master',
+        ),
         isNull,
       );
     });

@@ -88,31 +88,33 @@ import '../presentation/pages/product/product_view.dart';
       expect(report.filesChecked, equals(4));
     });
 
-    test('U46: a dangling relative import names file, line, and path',
-        () async {
-      // The state file is missing from the sandbox. (Dart strips the
-      // leading newline of multiline literals, so a comment line pins the
-      // import to line 2.)
-      await put(sandbox, 'lib/product_view.dart', '''
+    test(
+      'U46: a dangling relative import names file, line, and path',
+      () async {
+        // The state file is missing from the sandbox. (Dart strips the
+        // leading newline of multiline literals, so a comment line pins the
+        // import to line 2.)
+        await put(sandbox, 'lib/product_view.dart', '''
 // slice file
 import 'product_state.dart';
 
 class ProductView {}
 ''');
 
-      final report = await verifier.verify(
-        sandboxDir: sandbox,
-        projectRoot: projectRoot,
-      );
+        final report = await verifier.verify(
+          sandboxDir: sandbox,
+          projectRoot: projectRoot,
+        );
 
-      expect(report.passed, isFalse);
-      expect(report.issues, hasLength(1));
-      final issue = report.issues.single;
-      expect(issue.file, equals('lib/product_view.dart'));
-      expect(issue.line, equals(2));
-      expect(issue.importPath, equals('product_state.dart'));
-      expect(issue.reason, contains('missing'));
-    });
+        expect(report.passed, isFalse);
+        expect(report.issues, hasLength(1));
+        final issue = report.issues.single;
+        expect(issue.file, equals('lib/product_view.dart'));
+        expect(issue.line, equals(2));
+        expect(issue.importPath, equals('product_state.dart'));
+        expect(issue.reason, contains('missing'));
+      },
+    );
 
     test('U47: dart: imports resolve; unknown packages fail', () async {
       await put(sandbox, 'lib/odd.dart', '''
@@ -147,8 +149,7 @@ import 'package:flutter_test/flutter_test.dart';
       expect(report.passed, isTrue, reason: report.issues.join('\n'));
     });
 
-    test('a self-package import resolves against the sandbox tree',
-        () async {
+    test('a self-package import resolves against the sandbox tree', () async {
       await put(sandbox, 'lib/app.dart', '''
 import 'package:zik_zak/src/thing.dart';
 ''');

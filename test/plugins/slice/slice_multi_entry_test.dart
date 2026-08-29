@@ -30,50 +30,72 @@ void main() {
 
   tearDown(() => disposeSliceProject(projectRoot));
 
-  test('A11 (T097): both pages with shared dependencies exactly once',
-      () async {
-    final output = await captureOutput(
-      () => runner.run([
-        'slice',
-        'cut',
-        'profile_flow',
-        '--entry',
-        'product',
-        '--entry',
-        'profile',
-      ]),
-    );
+  test(
+    'A11 (T097): both pages with shared dependencies exactly once',
+    () async {
+      final output = await captureOutput(
+        () => runner.run([
+          'slice',
+          'cut',
+          'profile_flow',
+          '--entry',
+          'product',
+          '--entry',
+          'profile',
+        ]),
+      );
 
-    expect(command.exitCode, equals(0), reason: output);
+      expect(command.exitCode, equals(0), reason: output);
 
-    final sandbox = '$projectRoot/.zuraffa/slices/profile_flow';
-    final files = Directory(sandbox)
-        .listSync(recursive: true)
-        .whereType<File>()
-        .map(
-          (f) => f.path.substring(sandbox.length + 1).replaceAll('\\', '/'),
-        )
-        .toList();
+      final sandbox = '$projectRoot/.zuraffa/slices/profile_flow';
+      final files = Directory(sandbox)
+          .listSync(recursive: true)
+          .whereType<File>()
+          .map(
+            (f) => f.path.substring(sandbox.length + 1).replaceAll('\\', '/'),
+          )
+          .toList();
 
-    // Both pages' trees.
-    expect(files, contains('lib/src/presentation/pages/product/product_view.dart'));
-    expect(files, contains('lib/src/presentation/pages/product/product_presenter.dart'));
-    expect(files, contains('lib/src/presentation/pages/profile/profile_view.dart'));
-    expect(files, contains('lib/src/presentation/pages/profile/profile_presenter.dart'));
-    // The profile view's bare barrel import pulls its two referenced widgets.
-    expect(files, contains('lib/src/presentation/widgets/app_card.dart'));
-    expect(files, contains('lib/src/presentation/widgets/primary_button.dart'));
+      // Both pages' trees.
+      expect(
+        files,
+        contains('lib/src/presentation/pages/product/product_view.dart'),
+      );
+      expect(
+        files,
+        contains('lib/src/presentation/pages/product/product_presenter.dart'),
+      );
+      expect(
+        files,
+        contains('lib/src/presentation/pages/profile/profile_view.dart'),
+      );
+      expect(
+        files,
+        contains('lib/src/presentation/pages/profile/profile_presenter.dart'),
+      );
+      // The profile view's bare barrel import pulls its two referenced widgets.
+      expect(files, contains('lib/src/presentation/widgets/app_card.dart'));
+      expect(
+        files,
+        contains('lib/src/presentation/widgets/primary_button.dart'),
+      );
 
-    // Shared dependencies appear EXACTLY once across both trees.
-    final sharedUsecase = files
-        .where((f) => f == 'lib/src/domain/usecases/shared/fetch_settings_usecase.dart')
-        .toList();
-    expect(sharedUsecase, hasLength(1));
-    final sharedWidget = files
-        .where((f) => f == 'lib/src/presentation/widgets/primary_button.dart')
-        .toList();
-    expect(sharedWidget, hasLength(1));
-  }, timeout: const Timeout(Duration(minutes: 2)));
+      // Shared dependencies appear EXACTLY once across both trees.
+      final sharedUsecase = files
+          .where(
+            (f) =>
+                f ==
+                'lib/src/domain/usecases/shared/fetch_settings_usecase.dart',
+          )
+          .toList();
+      expect(sharedUsecase, hasLength(1));
+      final sharedWidget = files
+          .where((f) => f == 'lib/src/presentation/widgets/primary_button.dart')
+          .toList();
+      expect(sharedWidget, hasLength(1));
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 
   test('A12 (T098): the shared usecase and its DI registration appear once '
       'in the manifest', () async {
@@ -109,8 +131,7 @@ void main() {
         .whereType<Map>()
         .where(
           (f) =>
-              f['path'] ==
-              'lib/src/di/usecases/fetch_settings_usecase_di.dart',
+              f['path'] == 'lib/src/di/usecases/fetch_settings_usecase_di.dart',
         )
         .toList();
     expect(sharedDiEntries, hasLength(1));

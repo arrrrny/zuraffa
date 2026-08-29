@@ -15,11 +15,12 @@ import '../verifier/analyze_runner.dart';
 import '../verifier/import_verifier.dart';
 
 /// Process execution seam for the analyzer (see [AnalyzeRunner]).
-typedef AnalyzeLauncher = Future<ProcessResult> Function(
-  String executable,
-  List<String> args, {
-  String? workingDirectory,
-});
+typedef AnalyzeLauncher =
+    Future<ProcessResult> Function(
+      String executable,
+      List<String> args, {
+      String? workingDirectory,
+    });
 
 /// Verifies slice integrity.
 class VerifySliceCapability implements ZuraffaCapability {

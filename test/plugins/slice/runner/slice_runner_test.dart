@@ -36,43 +36,46 @@ void main() {
   tearDown(() => disposeSliceProject(projectRoot));
 
   Future<void> cut(CommandRunner<void> runner) => captureOutput(
-        () => runner.run(['slice', 'cut', 'product_feature', '--entry', 'product']),
-      );
+    () => runner.run(['slice', 'cut', 'product_feature', '--entry', 'product']),
+  );
 
   group('SliceRunner (FR-016)', () {
-    test('U51: builds flutter run -t <main_slice> from the project root',
-        () async {
-      final command = SliceCommand(projectRoot: projectRoot);
-      final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
-      await cut(runner);
+    test(
+      'U51: builds flutter run -t <main_slice> from the project root',
+      () async {
+        final command = SliceCommand(projectRoot: projectRoot);
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
+        await cut(runner);
 
-      final launched = <List<String>>[];
-      final runCommand = SliceCommand(
-        projectRoot: projectRoot,
-        processLauncher: (executable, args, {workingDirectory}) async {
-          launched.add([executable, ...args]);
-          expect(workingDirectory, equals(projectRoot));
-          return ProcessResult(1, 0, '', '');
-        },
-      );
-      final runRunner = CommandRunner<void>('zfa', 'test')
-        ..addCommand(runCommand);
+        final launched = <List<String>>[];
+        final runCommand = SliceCommand(
+          projectRoot: projectRoot,
+          processLauncher: (executable, args, {workingDirectory}) async {
+            launched.add([executable, ...args]);
+            expect(workingDirectory, equals(projectRoot));
+            return ProcessResult(1, 0, '', '');
+          },
+        );
+        final runRunner = CommandRunner<void>('zfa', 'test')
+          ..addCommand(runCommand);
 
-      await captureOutput(
-        () => runRunner.run(['slice', 'run', 'product_feature']),
-      );
+        await captureOutput(
+          () => runRunner.run(['slice', 'run', 'product_feature']),
+        );
 
-      expect(runCommand.exitCode, equals(0));
-      expect(launched, hasLength(1));
-      final invocation = launched.single;
-      expect(invocation.first, equals('flutter'));
-      expect(invocation[1], equals('run'));
-      expect(invocation[2], equals('-t'));
-      expect(
-        invocation[3],
-        endsWith('.zuraffa/slices/product_feature/main_slice.dart'),
-      );
-    }, timeout: const Timeout(Duration(minutes: 2)));
+        expect(runCommand.exitCode, equals(0));
+        expect(launched, hasLength(1));
+        final invocation = launched.single;
+        expect(invocation.first, equals('flutter'));
+        expect(invocation[1], equals('run'));
+        expect(invocation[2], equals('-t'));
+        expect(
+          invocation[3],
+          endsWith('.zuraffa/slices/product_feature/main_slice.dart'),
+        );
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
 
     test('U52/A22 (T108): extra flags pass through verbatim', () async {
       final command = SliceCommand(projectRoot: projectRoot);
@@ -91,15 +94,20 @@ void main() {
         ..addCommand(runCommand);
 
       await captureOutput(
-        () => runRunner.run(['slice', 'run', 'product_feature', '--device', 'chrome']),
+        () => runRunner.run([
+          'slice',
+          'run',
+          'product_feature',
+          '--device',
+          'chrome',
+        ]),
       );
 
       expect(launched.single, contains('--device'));
       expect(launched.single, contains('chrome'));
     }, timeout: const Timeout(Duration(minutes: 2)));
 
-    test('U53/A21 (T107): failed verification aborts before launch',
-        () async {
+    test('U53/A21 (T107): failed verification aborts before launch', () async {
       final command = SliceCommand(projectRoot: projectRoot);
       final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
       await cut(runner);

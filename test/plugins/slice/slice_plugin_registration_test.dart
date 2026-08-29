@@ -50,10 +50,7 @@ void main() {
       );
       tempDirs.add(outputDir);
       final generator = CodeGenerator(
-        config: GeneratorConfig(
-          name: 'SliceProbe',
-          outputDir: outputDir.path,
-        ),
+        config: GeneratorConfig(name: 'SliceProbe', outputDir: outputDir.path),
         outputDir: outputDir.path,
       );
 

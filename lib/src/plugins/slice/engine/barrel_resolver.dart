@@ -56,9 +56,7 @@ class BarrelResolver {
     final result = _parser.parseSource(content);
     final unit = result.unit;
     if (unit == null) return false;
-    final hasExports = unit.directives.any(
-      (d) => d is ExportDirective,
-    );
+    final hasExports = unit.directives.any((d) => d is ExportDirective);
     if (!hasExports) return false;
     return unit.declarations.isEmpty;
   }
@@ -71,7 +69,10 @@ class BarrelResolver {
         .whereType<ExportDirective>()
         .map((directive) => directive.uri.stringValue)
         .whereType<String>()
-        .map((uri) => p.canonicalize(p.normalize(p.join(p.dirname(barrelPath), uri))))
+        .map(
+          (uri) =>
+              p.canonicalize(p.normalize(p.join(p.dirname(barrelPath), uri))),
+        )
         .toList();
   }
 
@@ -105,18 +106,21 @@ class BarrelResolver {
     final result = _parser.parseSource(content);
     final unit = result.unit;
     if (unit == null) return const [];
-    return unit.declarations.map((decl) {
-      return switch (decl) {
-        ClassDeclaration() => decl.namePart.typeName.lexeme,
-        MixinDeclaration() => decl.name.lexeme,
-        EnumDeclaration() => decl.namePart.typeName.lexeme,
-        ExtensionDeclaration() => decl.name?.lexeme,
-        TypeAlias() => decl.name.lexeme,
-        FunctionDeclaration() => decl.name.lexeme,
-        TopLevelVariableDeclaration() =>
-          decl.variables.variables.first.name.lexeme,
-        _ => null,
-      };
-    }).whereType<String>().toList();
+    return unit.declarations
+        .map((decl) {
+          return switch (decl) {
+            ClassDeclaration() => decl.namePart.typeName.lexeme,
+            MixinDeclaration() => decl.name.lexeme,
+            EnumDeclaration() => decl.namePart.typeName.lexeme,
+            ExtensionDeclaration() => decl.name?.lexeme,
+            TypeAlias() => decl.name.lexeme,
+            FunctionDeclaration() => decl.name.lexeme,
+            TopLevelVariableDeclaration() =>
+              decl.variables.variables.first.name.lexeme,
+            _ => null,
+          };
+        })
+        .whereType<String>()
+        .toList();
   }
 }

@@ -33,7 +33,8 @@ class CompanionResult {
 /// Finds generated companion files for source files.
 class CompanionDetector {
   /// Creates the detector with an optional [parser].
-  CompanionDetector({FileParser? parser}) : _parser = parser ?? const FileParser();
+  CompanionDetector({FileParser? parser})
+    : _parser = parser ?? const FileParser();
 
   final FileParser _parser;
 

@@ -48,8 +48,13 @@ void main() {
     final cutRunner = CommandRunner<void>('zfa', 'test')
       ..addCommand(SliceCommand(projectRoot: projectRoot));
     await captureOutput(
-      () => cutRunner.run(['slice', 'cut', 'product_feature', '--entry',
-          'product']),
+      () => cutRunner.run([
+        'slice',
+        'cut',
+        'product_feature',
+        '--entry',
+        'product',
+      ]),
     );
   }
 
@@ -89,11 +94,12 @@ void main() {
       );
 
       // The embedded pubspec is filtered and self-contained (FR-017).
-      final pubspecEntry = archive.files
-          .singleWhere((f) => f.name == 'pubspec.yaml');
-      final pubspec = loadYaml(
-        String.fromCharCodes(pubspecEntry.content as List<int>),
-      ) as Map;
+      final pubspecEntry = archive.files.singleWhere(
+        (f) => f.name == 'pubspec.yaml',
+      );
+      final pubspec =
+          loadYaml(String.fromCharCodes(pubspecEntry.content as List<int>))
+              as Map;
       expect(pubspec['name'], equals('zik_zak'));
       expect((pubspec['dependencies'] as Map).keys, contains('flutter'));
       expect((pubspec['dependencies'] as Map).keys, contains('get_it'));
@@ -104,8 +110,7 @@ void main() {
       );
     }, timeout: const Timeout(Duration(minutes: 2)));
 
-    test('A24 (T110): github export pushes with SLICE.md as README',
-        () async {
+    test('A24 (T110): github export pushes with SLICE.md as README', () async {
       await cutSlice();
 
       final commands = <List<String>>[];
@@ -161,17 +166,15 @@ void main() {
         reason: 'the exported tree needs a pubspec.yaml to be runnable',
       );
       // exportedTo recorded in slice.yaml (FR-004).
-      final manifest = loadYaml(
-        File('$sandbox/slice.yaml').readAsStringSync(),
-      ) as Map;
+      final manifest =
+          loadYaml(File('$sandbox/slice.yaml').readAsStringSync()) as Map;
       expect(
         manifest['exportedTo'],
         equals('https://github.com/agent/product-feature'),
       );
     }, timeout: const Timeout(Duration(minutes: 2)));
 
-    test('A25 (T111): repo name auto-generated when --repo omitted',
-        () async {
+    test('A25 (T111): repo name auto-generated when --repo omitted', () async {
       await cutSlice();
 
       var seenRepoName = '';
@@ -194,8 +197,13 @@ void main() {
       );
       final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
       final output = await captureOutput(
-        () => runner.run(['slice', 'export', 'product_feature', '--format',
-            'github']),
+        () => runner.run([
+          'slice',
+          'export',
+          'product_feature',
+          '--format',
+          'github',
+        ]),
       );
 
       expect(command.exitCode, equals(0), reason: output);
@@ -206,59 +214,64 @@ void main() {
       );
     }, timeout: const Timeout(Duration(minutes: 2)));
 
-    test('A26 (T112): export of an unverified slice aborts with no artifact',
-        () async {
-      await cutSlice();
-      File(
-        '$sandbox/lib/src/presentation/pages/product/'
-        'product_controller.dart',
-      ).deleteSync();
+    test(
+      'A26 (T112): export of an unverified slice aborts with no artifact',
+      () async {
+        await cutSlice();
+        File(
+          '$sandbox/lib/src/presentation/pages/product/'
+          'product_controller.dart',
+        ).deleteSync();
 
-      final commands = <List<String>>[];
-      final command = SliceCommand(
-        projectRoot: projectRoot,
-        ghLauncher: (args, {workingDirectory}) async {
-          commands.add(args);
-          return ProcessResult(1, 0, '', '');
-        },
-      );
-      final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
-      final output = await captureOutput(
-        () => runner.run([
-          'slice',
-          'export',
-          'product_feature',
-          '--format',
-          'github',
-        ]),
-      );
+        final commands = <List<String>>[];
+        final command = SliceCommand(
+          projectRoot: projectRoot,
+          ghLauncher: (args, {workingDirectory}) async {
+            commands.add(args);
+            return ProcessResult(1, 0, '', '');
+          },
+        );
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
+        final output = await captureOutput(
+          () => runner.run([
+            'slice',
+            'export',
+            'product_feature',
+            '--format',
+            'github',
+          ]),
+        );
 
-      expect(command.exitCode, equals(1));
-      expect(output, contains('unresolved'));
-      expect(commands, isEmpty, reason: 'no gh call may happen pre-verify');
-      expect(
-        File('$projectRoot/.zuraffa/exports/product_feature.tar.gz')
-            .existsSync(),
-        isFalse,
-      );
-    }, timeout: const Timeout(Duration(minutes: 2)));
+        expect(command.exitCode, equals(1));
+        expect(output, contains('unresolved'));
+        expect(commands, isEmpty, reason: 'no gh call may happen pre-verify');
+        expect(
+          File(
+            '$projectRoot/.zuraffa/exports/product_feature.tar.gz',
+          ).existsSync(),
+          isFalse,
+        );
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
   });
 
   group('slice import (US8)', () {
-    test('A27 (T113): import pulls the repo back over the sandbox',
-        () async {
+    test('A27 (T113): import pulls the repo back over the sandbox', () async {
       await cutSlice();
       // Simulate an exported repo: mutate the sandbox "remotely" and record
       // the URL, then dirty the local sandbox.
       final view = File(
         '$sandbox/lib/src/presentation/pages/product/product_view.dart',
       );
-      final remoteContent = '// agent-edited remotely\n'
+      final remoteContent =
+          '// agent-edited remotely\n'
           '${view.readAsStringSync()}';
       final remoteRepo = '$projectRoot/.zuraffa/remote_repo';
       await Directory(remoteRepo).create(recursive: true);
-      await File('$remoteRepo/agent_note.txt')
-          .writeAsString('edited by the agent\n');
+      await File(
+        '$remoteRepo/agent_note.txt',
+      ).writeAsString('edited by the agent\n');
 
       // Record exportedTo by exporting with a fake gh seam.
       final exportCommand = SliceCommand(
@@ -278,8 +291,13 @@ void main() {
       final exportRunner = CommandRunner<void>('zfa', 'test')
         ..addCommand(exportCommand);
       await captureOutput(
-        () => exportRunner.run(['slice', 'export', 'product_feature',
-            '--format', 'github']),
+        () => exportRunner.run([
+          'slice',
+          'export',
+          'product_feature',
+          '--format',
+          'github',
+        ]),
       );
       expect(exportCommand.exitCode, equals(0));
 
@@ -293,8 +311,9 @@ void main() {
             // Fake clone: materialize the "remote" repo into the target.
             final target = args.last;
             await Directory(target).create(recursive: true);
-            for (final entity in Directory(remoteRepo)
-                .listSync(recursive: true)) {
+            for (final entity in Directory(
+              remoteRepo,
+            ).listSync(recursive: true)) {
               if (entity is! File) continue;
               final rel = entity.path.substring(remoteRepo.length + 1);
               final dest = '$target/$rel';
@@ -304,8 +323,9 @@ void main() {
             // The remote also carries the agent-edited view file.
             final remoteViewDir = '$target/lib/src/presentation/pages/product';
             await Directory(remoteViewDir).create(recursive: true);
-            await File('$remoteViewDir/product_view.dart')
-                .writeAsString(remoteContent);
+            await File(
+              '$remoteViewDir/product_view.dart',
+            ).writeAsString(remoteContent);
             return ProcessResult(1, 0, '', '');
           }
           return ProcessResult(1, 0, '', '');

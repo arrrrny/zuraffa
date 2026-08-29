@@ -14,6 +14,8 @@ class AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(child: Padding(padding: const EdgeInsets.all(12), child: child));
+    return Card(
+      child: Padding(padding: const EdgeInsets.all(12), child: child),
+    );
   }
 }

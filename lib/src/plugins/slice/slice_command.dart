@@ -34,9 +34,13 @@ class SliceCommand extends Command<void> {
   /// [confirmShared] answers the interactive confirmation for shared-file
   /// writes (used by tests); when null the command prompts on a terminal
   /// and denies when there is none (deterministic in CI).
-  SliceCommand({this.projectRoot = '.', bool Function()? confirmShared,
-      this.analyzeLauncher, this.processLauncher, this.ghLauncher})
-    : _confirmShared = confirmShared;
+  SliceCommand({
+    this.projectRoot = '.',
+    bool Function()? confirmShared,
+    this.analyzeLauncher,
+    this.processLauncher,
+    this.ghLauncher,
+  }) : _confirmShared = confirmShared;
 
   /// Root of the project being sliced.
   final String projectRoot;
@@ -229,10 +233,7 @@ example:
         'verify',
         help: 'Verify the slice after cutting; fail if incomplete',
       )
-      ..addFlag(
-        'verbose',
-        help: 'Print per-file and boundary diagnostics',
-      );
+      ..addFlag('verbose', help: 'Print per-file and boundary diagnostics');
 
     final ArgResults results;
     try {
@@ -354,12 +355,16 @@ example:
     final confirmAll = results['yes'] as bool;
     bool confirmOverwrite(SliceFile file) {
       if (confirmAll) return true;
-      return _promptShared('Overwrite shared file "${file.relativePath}"? [y/N] ');
+      return _promptShared(
+        'Overwrite shared file "${file.relativePath}"? [y/N] ',
+      );
     }
 
     bool confirmDelete(String path) {
       if (confirmAll) return true;
-      return _promptShared('Delete shared file "$path" from the project? [y/N] ');
+      return _promptShared(
+        'Delete shared file "$path" from the project? [y/N] ',
+      );
     }
 
     final sliceName = results.rest.first;
@@ -450,7 +455,9 @@ example:
     final writer = ManifestWriter();
 
     if (!rootDir.existsSync()) {
-      print('No active slices. Cut one with `zfa slice cut <name> --entry <point>`.');
+      print(
+        'No active slices. Cut one with `zfa slice cut <name> --entry <point>`.',
+      );
       return;
     }
 
@@ -465,7 +472,9 @@ example:
     }
 
     if (manifests.isEmpty) {
-      print('No active slices. Cut one with `zfa slice cut <name> --entry <point>`.');
+      print(
+        'No active slices. Cut one with `zfa slice cut <name> --entry <point>`.',
+      );
       return;
     }
 
@@ -489,10 +498,7 @@ example:
     }
 
     final sliceName = rest.first;
-    final sandboxDir = CutSliceCapability.sandboxDirFor(
-      projectRoot,
-      sliceName,
-    );
+    final sandboxDir = CutSliceCapability.sandboxDirFor(projectRoot, sliceName);
     if (!Directory(sandboxDir).existsSync()) {
       print(
         'Error: no slice named "$sliceName" at '

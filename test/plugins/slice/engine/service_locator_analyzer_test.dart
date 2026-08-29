@@ -30,8 +30,7 @@ void main() {
   });
 
   group('ServiceLocatorAnalyzer type extraction (FR-001)', () {
-    test('U9: extracts every getIt<T>() from a presenter constructor body',
-        () {
+    test('U9: extracts every getIt<T>() from a presenter constructor body', () {
       const source = '''
 import 'package:get_it/get_it.dart';
 
@@ -109,8 +108,9 @@ class ProfilePresenter {
       final diDir = await Directory(
         '${tmpDir.path}/lib/src/di/usecases',
       ).create(recursive: true);
-      await File('${diDir.path}/get_product_usecase_di.dart')
-          .writeAsString('void register(GetIt getIt) {}');
+      await File(
+        '${diDir.path}/get_product_usecase_di.dart',
+      ).writeAsString('void register(GetIt getIt) {}');
 
       final file = analyzer.diRegistrationFileFor(
         'GetProductUseCase',

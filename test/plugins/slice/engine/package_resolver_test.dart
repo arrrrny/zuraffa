@@ -45,26 +45,27 @@ void main() {
   }
 
   group('PackageResolver (FR-009)', () {
-    test('U4: resolves package:<self>/src/x.dart to <root>/lib/src/x.dart',
-        () async {
-      await writePackageConfig(tmpDir.path);
-      final resolver = await PackageResolver.load(tmpDir.path);
+    test(
+      'U4: resolves package:<self>/src/x.dart to <root>/lib/src/x.dart',
+      () async {
+        await writePackageConfig(tmpDir.path);
+        final resolver = await PackageResolver.load(tmpDir.path);
 
-      final resolved = resolver.resolve(
-        'package:zik_zak/src/domain/entities/product/product.dart',
-      );
+        final resolved = resolver.resolve(
+          'package:zik_zak/src/domain/entities/product/product.dart',
+        );
 
-      expect(
-        resolved?.replaceAll('\\\\', '/'),
-        equals(
-          '${tmpDir.path}/lib/src/domain/entities/product/product.dart'
-              .replaceAll('\\\\', '/'),
-        ),
-      );
-    });
+        expect(
+          resolved?.replaceAll('\\\\', '/'),
+          equals(
+            '${tmpDir.path}/lib/src/domain/entities/product/product.dart'
+                .replaceAll('\\\\', '/'),
+          ),
+        );
+      },
+    );
 
-    test('U5: resolves a relative import against the importing file',
-        () async {
+    test('U5: resolves a relative import against the importing file', () async {
       await writePackageConfig(tmpDir.path);
       final resolver = await PackageResolver.load(tmpDir.path);
 
@@ -82,45 +83,46 @@ void main() {
       );
     });
 
-    test('U6: classifies dart: and third-party package: imports as external',
-        () async {
-      await writePackageConfig(tmpDir.path);
-      final resolver = await PackageResolver.load(tmpDir.path);
+    test(
+      'U6: classifies dart: and third-party package: imports as external',
+      () async {
+        await writePackageConfig(tmpDir.path);
+        final resolver = await PackageResolver.load(tmpDir.path);
 
-      expect(resolver.classify('dart:async'), equals(ImportKind.sdk));
-      expect(resolver.classify('dart:io'), equals(ImportKind.sdk));
-      expect(
-        resolver.classify('package:flutter/material.dart'),
-        equals(ImportKind.external),
-      );
-      // get_it IS in the package config but is not the self package: it is
-      // a third-party dependency, framework from the slice's perspective.
-      expect(
-        resolver.classify('package:get_it/get_it.dart'),
-        equals(ImportKind.external),
-      );
-      // And neither classification touches the filesystem: the referenced
-      // paths do not exist under tmpDir.
-      expect(resolver.resolve('dart:async'), isNull);
-      expect(
-        resolver.resolve('package:flutter/material.dart'),
-        isNull,
-      );
-    });
+        expect(resolver.classify('dart:async'), equals(ImportKind.sdk));
+        expect(resolver.classify('dart:io'), equals(ImportKind.sdk));
+        expect(
+          resolver.classify('package:flutter/material.dart'),
+          equals(ImportKind.external),
+        );
+        // get_it IS in the package config but is not the self package: it is
+        // a third-party dependency, framework from the slice's perspective.
+        expect(
+          resolver.classify('package:get_it/get_it.dart'),
+          equals(ImportKind.external),
+        );
+        // And neither classification touches the filesystem: the referenced
+        // paths do not exist under tmpDir.
+        expect(resolver.resolve('dart:async'), isNull);
+        expect(resolver.resolve('package:flutter/material.dart'), isNull);
+      },
+    );
 
-    test('U7: a missing package_config.json tells the user to run pub get',
-        () async {
-      await expectLater(
-        () => PackageResolver.load(tmpDir.path),
-        throwsA(
-          isA<PackageResolverError>().having(
-            (e) => e.message,
-            'message',
-            allOf(contains('package_config.json'), contains('dart pub get')),
+    test(
+      'U7: a missing package_config.json tells the user to run pub get',
+      () async {
+        await expectLater(
+          () => PackageResolver.load(tmpDir.path),
+          throwsA(
+            isA<PackageResolverError>().having(
+              (e) => e.message,
+              'message',
+              allOf(contains('package_config.json'), contains('dart pub get')),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
     test('U8: a package: URI absent from the config is external, never '
         'traversed', () async {

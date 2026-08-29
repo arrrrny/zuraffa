@@ -59,7 +59,10 @@ class ExportSliceCapability implements ZuraffaCapability {
     'required': ['name', 'format'],
     'properties': {
       'name': {'type': 'string'},
-      'format': {'type': 'string', 'enum': ['tar.gz', 'github']},
+      'format': {
+        'type': 'string',
+        'enum': ['tar.gz', 'github'],
+      },
       'projectRoot': {'type': 'string'},
       'repo': {'type': 'string'},
     },
@@ -107,8 +110,7 @@ class ExportSliceCapability implements ZuraffaCapability {
     final repo = args['repo'] as String?;
     final ghLauncher = args['ghLauncher'] as GhLauncher?;
     final progress =
-        args['progressReporter'] as ProgressReporter? ??
-        NullProgressReporter();
+        args['progressReporter'] as ProgressReporter? ?? NullProgressReporter();
 
     final sandboxDir = CutSliceCapability.sandboxDirFor(projectRoot, sliceName);
     if (!Directory(sandboxDir).existsSync()) {
