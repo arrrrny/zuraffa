@@ -119,24 +119,24 @@
 
 ### Tests for User Story 2 (write FIRST — observe each failing before its implementation task)
 
-- [ ] T040 [US2] [U37] [U38] [U39] [U40] Create unit test for `ConflictDetector` covering: not-modified (skip), agent-modified-only (safe_copy), both-modified (conflict), shared-file warning in test/plugins/slice/merger/conflict_detector_test.dart
-- [ ] T081 [P] [US2] [U41] [U42] [U43] [U44] [U67] [U68] Create unit test for `SliceMerger` — safe-copy only, shared-file confirmation, conflict preservation, no-change cleanup, agent-created file copy-back, agent-deleted file removal — in test/plugins/slice/merger/slice_merger_test.dart
-- [ ] T041 [US2] [A5] [A6] [A7] [A8] Create integration test: cut → modify file → merge → verify main project updated and sandbox deleted in test/plugins/slice/slice_merge_integration_test.dart
+- [x] T040 [US2] [U37] [U38] [U39] [U40] Create unit test for `ConflictDetector` covering: not-modified (skip), agent-modified-only (safe_copy), both-modified (conflict), shared-file warning in test/plugins/slice/merger/conflict_detector_test.dart
+- [x] T081 [P] [US2] [U41] [U42] [U43] [U44] [U67] [U68] Create unit test for `SliceMerger` — safe-copy only, shared-file confirmation, conflict preservation, no-change cleanup, agent-created file copy-back, agent-deleted file removal — in test/plugins/slice/merger/slice_merger_test.dart
+- [x] T041 [US2] [A5] [A6] [A7] [A8] Create integration test: cut → modify file → merge → verify main project updated and sandbox deleted in test/plugins/slice/slice_merge_integration_test.dart
 
 ### Implementation for User Story 2
 
-- [ ] T035 [US2] [U37] [U38] [U39] [U40] Create `ConflictDetector` implementing 3-way hash comparison (sandbox_hash vs cut_hash vs main_hash) returning: skip, safe_copy, or conflict per file in lib/src/plugins/slice/merger/conflict_detector.dart
-- [ ] T036 [US2] [U41] [U42] [U43] [U44] [U67] [U68] Create `SliceMerger` that iterates manifest files, runs `ConflictDetector` on each, copies safe files back to project, warns on shared-file modifications, reports conflicts, merges agent-created files to their mirrored paths and removes agent-deleted files, and cleans up sandbox on success in lib/src/plugins/slice/merger/slice_merger.dart
-- [ ] T037 [US2] [A5] [A6] [A7] [A8] Create `MergeSliceCapability` implementing `ZuraffaCapability` with `plan()` (preview which files would be copied/conflicted) and `execute()` (perform merge) in lib/src/plugins/slice/capabilities/merge_slice_capability.dart
-- [ ] T038 [US2] [A5] [A6] [A7] [A8] Implement the `merge` subcommand in `SliceCommand` — parse slice name, delegate to `MergeSliceCapability.execute()` in lib/src/plugins/slice/slice_command.dart
-- [ ] T039 [US2] [A5] [A6] [A7] [A8] Wire `MergeSliceCapability` into `SlicePlugin.capabilities` list in lib/src/plugins/slice/slice_plugin.dart
+- [x] T035 [US2] [U37] [U38] [U39] [U40] Create `ConflictDetector` implementing 3-way hash comparison (sandbox_hash vs cut_hash vs main_hash) returning: skip, safe_copy, or conflict per file in lib/src/plugins/slice/merger/conflict_detector.dart
+- [x] T036 [US2] [U41] [U42] [U43] [U44] [U67] [U68] Create `SliceMerger` that iterates manifest files, runs `ConflictDetector` on each, copies safe files back to project, warns on shared-file modifications, reports conflicts, merges agent-created files to their mirrored paths and removes agent-deleted files, and cleans up sandbox on success in lib/src/plugins/slice/merger/slice_merger.dart
+- [x] T037 [US2] [A5] [A6] [A7] [A8] Create `MergeSliceCapability` implementing `ZuraffaCapability` with `plan()` (preview which files would be copied/conflicted) and `execute()` (perform merge) in lib/src/plugins/slice/capabilities/merge_slice_capability.dart
+- [x] T038 [US2] [A5] [A6] [A7] [A8] Implement the `merge` subcommand in `SliceCommand` — parse slice name, delegate to `MergeSliceCapability.execute()` in lib/src/plugins/slice/slice_command.dart
+- [x] T039 [US2] [A5] [A6] [A7] [A8] Wire `MergeSliceCapability` into `SlicePlugin.capabilities` list in lib/src/plugins/slice/slice_plugin.dart
 
 ### Acceptance gates for User Story 2 (phase closes only when each is green)
 
-- [ ] T091 [US2] [A5] Acceptance gate US2-S1: merge copies back only the agent-modified file to its original path, touching nothing else — test in test/plugins/slice/slice_merge_integration_test.dart
-- [ ] T092 [US2] [A6] Acceptance gate US2-S2: merge of a modified `shared` file warns and requires confirmation before overwriting — test in test/plugins/slice/slice_merge_integration_test.dart
-- [ ] T093 [US2] [A7] Acceptance gate US2-S3: a file changed in both sandbox and main project since the cut is reported as a conflict, never silently overwritten — test in test/plugins/slice/slice_merge_integration_test.dart
-- [ ] T094 [US2] [A8] Acceptance gate US2-S4: merge with no modifications reports "no changes to merge" and deletes the slice directory — test in test/plugins/slice/slice_merge_integration_test.dart
+- [x] T091 [US2] [A5] Acceptance gate US2-S1: merge copies back only the agent-modified file to its original path, touching nothing else — test in test/plugins/slice/slice_merge_integration_test.dart
+- [x] T092 [US2] [A6] Acceptance gate US2-S2: merge of a modified `shared` file warns and requires confirmation before overwriting — test in test/plugins/slice/slice_merge_integration_test.dart
+- [x] T093 [US2] [A7] Acceptance gate US2-S3: a file changed in both sandbox and main project since the cut is reported as a conflict, never silently overwritten — test in test/plugins/slice/slice_merge_integration_test.dart
+- [x] T094 [US2] [A8] Acceptance gate US2-S4: merge with no modifications reports "no changes to merge" and deletes the slice directory — test in test/plugins/slice/slice_merge_integration_test.dart
 
 **Checkpoint**: The full cut → work → merge round-trip works. Combined with US1, this completes the core value proposition.
 

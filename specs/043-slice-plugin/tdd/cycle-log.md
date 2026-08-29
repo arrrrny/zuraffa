@@ -228,6 +228,44 @@ existed and failed before the implementation.
   merge which sandbox files are harness, not agent work).
 - commit: (recorded in git history)
 
+
+## Cycle 11: U37-U40 — ConflictDetector; U41-U44 + U67/U68 — SliceMerger
+
+- tests: `test/plugins/slice/merger/conflict_detector_test.dart`,
+  `test/plugins/slice/merger/slice_merger_test.dart` (new)
+- red: `dart test test/plugins/slice/merger/` -> +0 -8 (stubs threw
+  UnimplementedError)
+- green: 3-way hash decisions (skip/safeCopy/conflict/sandboxDeleted/
+  agentCreated) + branch-mismatch warning; SliceMerger applies the
+  decisions with shared-file confirmation gates (U42, U68), conflict
+  preservation (U43), no-change cleanup (U44), agent-created copy-back
+  (U67), and sandbox deletion on clean merges.
+  In-cycle fix: the first test draft hashed contents with
+  `hashCode.toRadixString` while the implementation hashes with sha256 —
+  the test helper now uses crypto sha256 (same function as the cut).
+  Also fixed two test-file type errors (Directory vs String).
+- refactor: none
+- commit: (recorded in git history)
+
+## Cycle 12: A5-A8 (gates T091-T094) — merge end-to-end (outer loop closed for US2)
+
+- tests: `test/plugins/slice/slice_merge_integration_test.dart` (new, 5 tests)
+- red: `dart test test/plugins/slice/slice_merge_integration_test.dart`
+  -> +0 -5; decisive: `Expected: <0> / Actual: ... 'slice merge is not
+  wired yet'`
+- green: MergeSliceCapability + the merge subcommand with --yes, terminal
+  prompting (denies without a TTY — deterministic in tests/CI), and file
+  listing in the merge output. In-cycle fixes:
+  (a) cut now records `slice.yaml` in generatedFiles (otherwise merge
+  treated the manifest as an agent-created file and copied it into the
+  project);
+  (b) merge output did not name the merged files (quickstart requires it);
+  (c) `exitCode` persisted across invocations of one command instance —
+  now reset at the start of every run().
+  Suite `dart test test/plugins/slice/` -> 88 passed.
+- refactor: none
+- commit: (recorded in git history)
+
 ## Notes and deviations
 
 - Loop granularity: cycles are batched at component granularity (one commit

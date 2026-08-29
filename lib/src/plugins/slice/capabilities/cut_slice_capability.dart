@@ -306,6 +306,7 @@ class CutSliceCapability implements ZuraffaCapability {
     final readme = _readmeGenerator.generate(manifest: manifest);
     await _writeFile(p.join(sandboxDir, 'SLICE.md'), readme);
     generatedFiles.add('SLICE.md');
+    generatedFiles.add('slice.yaml');
     manifest = manifest.copyWith(generatedFiles: generatedFiles);
 
     await _manifestWriter.write(manifest, sandboxDir);

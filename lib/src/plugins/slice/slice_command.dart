@@ -15,19 +15,30 @@
 /// never a stack trace.
 library;
 
+import 'dart:io';
+
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 
 import 'capabilities/cut_slice_capability.dart';
+import 'capabilities/merge_slice_capability.dart';
+import 'models/slice_file.dart';
 
 /// The `zfa slice` command.
 class SliceCommand extends Command<void> {
   /// Creates the command bound to [projectRoot] (the project the command
   /// operates on; tests inject a fixture directory, the CLI uses '.').
-  SliceCommand({this.projectRoot = '.'});
+  ///
+  /// [confirmShared] answers the interactive confirmation for shared-file
+  /// writes (used by tests); when null the command prompts on a terminal
+  /// and denies when there is none (deterministic in CI).
+  SliceCommand({this.projectRoot = '.', bool Function()? confirmShared})
+    : _confirmShared = confirmShared;
 
   /// Root of the project being sliced.
   final String projectRoot;
+
+  final bool Function()? _confirmShared;
 
   @override
   String get name => 'slice';
@@ -77,6 +88,7 @@ import options:
 
   @override
   Future<void> run() async {
+    exitCode = 0;
     final args = argResults!.arguments;
     if (args.isEmpty || args.first == '--help' || args.first == '-h') {
       print(_usage);
@@ -193,8 +205,66 @@ import options:
       return;
     }
 
-    print('slice merge is not wired yet');
+    final confirmAll = results['yes'] as bool;
+    bool confirmOverwrite(SliceFile file) {
+      if (confirmAll) return true;
+      return _promptShared('Overwrite shared file "${file.relativePath}"? [y/N] ');
+    }
+
+    bool confirmDelete(String path) {
+      if (confirmAll) return true;
+      return _promptShared('Delete shared file "$path" from the project? [y/N] ');
+    }
+
+    final capability = MergeSliceCapability();
+    final result = await capability.execute({
+      'name': results.rest.first,
+      'projectRoot': projectRoot,
+      'confirmAll': confirmAll,
+      'confirmSharedOverwrite': confirmOverwrite,
+      'confirmSharedDelete': confirmDelete,
+    });
+
+    await _printMergeResult(result);
+  }
+
+  /// Prompts on a real terminal; denies when there is none (CI, tests).
+  bool _promptShared(String question) {
+    if (_confirmShared != null) return _confirmShared!();
+    if (!stdin.hasTerminal) return false;
+    stdout.write(question);
+    final answer = stdin.readLineSync()?.trim().toLowerCase();
+    return answer == 'y' || answer == 'yes';
+  }
+
+  Future<void> _printMergeResult(dynamic result) async {
+    final data = result.data as Map<String, dynamic>? ?? const {};
+    if (result.success) {
+      print(result.message);
+      _printList('merged', data['copied'] as List? ?? const []);
+      _printList('created', data['created'] as List? ?? const []);
+      _printList('deleted', data['deleted'] as List? ?? const []);
+      for (final warning in (data['warnings'] as List? ?? const [])) {
+        print('warning: $warning');
+      }
+      return;
+    }
+    print('Error: merge incomplete — ${result.message}');
+    _printList('conflict', data['conflicts'] as List? ?? const []);
+    _printList(
+      'shared change not confirmed',
+      data['unconfirmedShared'] as List? ?? const [],
+    );
+    for (final warning in (data['warnings'] as List? ?? const [])) {
+      print('warning: $warning');
+    }
     exitCode = 1;
+  }
+
+  void _printList(String label, List items) {
+    for (final item in items) {
+      print('$label: $item');
+    }
   }
 
   Future<void> _list(List<String> rest) async {

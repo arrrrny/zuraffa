@@ -161,21 +161,21 @@ boundaries, not proven properties.
 
 | id  | behavior                                                                                          | traces | kind    | state   | test |
 | --- | ------------------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
-| U37 | `sandbox_hash == cut_hash` yields skip (file not copied)                                          | FR-008 | example | PENDING |      |
-| U38 | `sandbox_hash != cut_hash` and `main_hash == cut_hash` yields safe_copy                           | FR-008 | example | PENDING |      |
-| U39 | `sandbox_hash != cut_hash` and `main_hash != cut_hash` yields conflict                            | FR-008 | example | PENDING |      |
-| U40 | A manifest branch differing from the current branch yields a recorded warning                     | FR-008 | example | PENDING |      |
+| U37 | `sandbox_hash == cut_hash` yields skip (file not copied)                                          | FR-008 | example | DONE    | `test/plugins/slice/merger/conflict_detector_test.dart::U37: unchanged sandbox file yields skip` |
+| U38 | `sandbox_hash != cut_hash` and `main_hash == cut_hash` yields safe_copy                           | FR-008 | example | DONE    | `test/plugins/slice/merger/conflict_detector_test.dart::U38: agent-modified only yields safeCopy` |
+| U39 | `sandbox_hash != cut_hash` and `main_hash != cut_hash` yields conflict                            | FR-008 | example | DONE    | `test/plugins/slice/merger/conflict_detector_test.dart::U39: both sides modified yields conflict` |
+| U40 | A manifest branch differing from the current branch yields a recorded warning                     | FR-008 | example | DONE    | `test/plugins/slice/merger/conflict_detector_test.dart::U40: a branch mismatch yields a recorded warning` |
 
 ### `lib/src/plugins/slice/merger/slice_merger.dart`
 
 | id  | behavior                                                                                                                          | traces | kind    | state   | test |
 | --- | --------------------------------------------------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
-| U41 | Merge copies back only files classified safe_copy                                                                                 | FR-008 | example | PENDING |      |
-| U42 | A modified `shared` file requires confirmation before it is overwritten                                                           | FR-008, FR-010 | example | PENDING |      |
-| U43 | A conflicted file is not copied, is reported, and the sandbox is preserved                                                        | FR-008 | example | PENDING |      |
-| U44 | A merge with zero modifications reports "no changes" and deletes the slice directory                                              | FR-008 | example | PENDING |      |
-| U67 | A file the agent created inside the sandbox is copied to its mirrored project path and listed in the merge report                 | FR-008 (extended per 2026-08-29 decision) | example | PENDING |      |
-| U68 | A file the agent deleted from the sandbox is deleted in the project; a deleted `shared` file requires confirmation                | FR-008 (extended per 2026-08-29 decision) | example | PENDING |      |
+| U41 | Merge copies back only files classified safe_copy                                                                                 | FR-008 | example | DONE    | `test/plugins/slice/merger/slice_merger_test.dart::U41: merge copies back only safe-copy files` |
+| U42 | A modified `shared` file requires confirmation before it is overwritten                                                           | FR-008, FR-010 | example | DONE    | `test/plugins/slice/merger/slice_merger_test.dart::U42: a modified shared file requires confirmation` |
+| U43 | A conflicted file is not copied, is reported, and the sandbox is preserved                                                        | FR-008 | example | DONE    | `test/plugins/slice/merger/slice_merger_test.dart::U43: a conflicted file is not copied and the sandbox survives` |
+| U44 | A merge with zero modifications reports "no changes" and deletes the slice directory                                              | FR-008 | example | DONE    | `test/plugins/slice/merger/slice_merger_test.dart::U44: zero modifications reports no changes and deletes the slice` |
+| U67 | A file the agent created inside the sandbox is copied to its mirrored project path and listed in the merge report                 | FR-008 (extended per 2026-08-29 decision) | example | DONE    | `test/plugins/slice/merger/slice_merger_test.dart::U67: an agent-created file is copied back and reported` |
+| U68 | A file the agent deleted from the sandbox is deleted in the project; a deleted `shared` file requires confirmation                | FR-008 (extended per 2026-08-29 decision) | example | DONE    | `test/plugins/slice/merger/slice_merger_test.dart::U68: an agent-deleted file is removed; shared needs confirmation` |
 
 ### `lib/src/plugins/slice/verifier/import_verifier.dart`
 
