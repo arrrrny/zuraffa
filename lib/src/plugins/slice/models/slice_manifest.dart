@@ -39,6 +39,7 @@ class SliceManifest {
     required this.files,
     required this.boundaries,
     this.exportedTo,
+    this.generatedFiles = const [],
   });
 
   /// Slice name (e.g. `profile_feature`).
@@ -71,6 +72,11 @@ class SliceManifest {
   /// Interfaces at the traversal edge.
   final List<SliceBoundary> boundaries;
 
+  /// Sandbox-only files the cut GENERATED (mocks, slice_di, main_slice,
+  /// SLICE.md). Merge never copies these back; they tell it which extra
+  /// sandbox files are harness rather than agent work.
+  final List<String> generatedFiles;
+
   /// Returns a copy with the given fields replaced.
   SliceManifest copyWith({
     String? name,
@@ -83,6 +89,7 @@ class SliceManifest {
     String? exportedTo,
     List<SliceFile>? files,
     List<SliceBoundary>? boundaries,
+    List<String>? generatedFiles,
   }) {
     return SliceManifest(
       name: name ?? this.name,
@@ -95,6 +102,7 @@ class SliceManifest {
       exportedTo: exportedTo ?? this.exportedTo,
       files: files ?? this.files,
       boundaries: boundaries ?? this.boundaries,
+      generatedFiles: generatedFiles ?? this.generatedFiles,
     );
   }
 
@@ -146,6 +154,14 @@ class SliceManifest {
         buffer.writeln('    mockStrategy: ${boundary.mockStrategy}');
       }
     }
+    buffer.writeln('generatedFiles:');
+    if (generatedFiles.isEmpty) {
+      buffer.writeln('  []');
+    } else {
+      for (final generated in generatedFiles) {
+        buffer.writeln('  - $generated');
+      }
+    }
     return buffer.toString();
   }
 
@@ -181,6 +197,7 @@ class SliceManifest {
       exportedTo: doc['exportedTo'] as String?,
       files: _files(doc['files']),
       boundaries: _boundaries(doc['boundaries']),
+      generatedFiles: _stringList(doc['generatedFiles']),
     );
   }
 

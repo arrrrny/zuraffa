@@ -187,6 +187,47 @@ existed and failed before the implementation.
   cached the type index per walk instead of per lookup.
 - commit: (recorded in git history)
 
+
+## Cycle 9: U29-U31 — MockStubGenerator; U32-U34 — SandboxBootstrapper; U35-U36 — AgentReadmeGenerator
+
+- tests: `test/plugins/slice/generators/mock_stub_generator_test.dart`,
+  `test/plugins/slice/generators/sandbox_bootstrapper_test.dart`,
+  `test/plugins/slice/generators/agent_readme_generator_test.dart` (new)
+- red: `dart test test/plugins/slice/generators/` -> +0 -13 (stubs threw
+  UnimplementedError)
+- green: mock generation (`class Mock<T> implements T` with every public
+  member stubbed by `throw UnimplementedError`, depth-aware, existing-strategy
+  reuse), main_slice.dart/slice_di.dart emission (launcher home for
+  multi-entry, real DI delegation + mock registrations), SLICE.md with
+  owned/shared sections, boundary list, and the exact `-t` run path.
+  In-cycle fix: the first bootstrapper draft leaked a Flutter type
+  (`WidgetBuilder`) into pure-Dart code via a real launcher class — replaced
+  with generated launcher TEXT emitted into main_slice.dart.
+- refactor: none beyond that
+- commit: (recorded in git history)
+
+## Cycle 10: A1-A4 (gates T087-T090) — cut end-to-end (outer loop closed for US1)
+
+- tests: `test/plugins/slice/slice_cut_integration_test.dart` (new, 8 tests)
+- red: `dart test test/plugins/slice/slice_cut_integration_test.dart`
+  -> +0 -8; decisive lines:
+  - A1 -> `Expected: <0> ... Actual: 'slice cut is not wired yet'`
+  - missing-entry -> `Expected: contains 'ghost' / Actual: 'slice cut is
+    not wired yet'`
+  (the placeholder cut path — the behavior did not exist)
+- green: `CutSliceCapability` (walk -> ownership -> mirror copy -> mocks ->
+  slice_di -> main_slice -> SLICE.md -> manifest) and the `cut` subcommand
+  wiring. In-cycle fixes:
+  (a) package import built as `package:zik_zak/lib/src/...` — package URIs
+  address the package ROOT, so the `lib/` prefix is now stripped
+  (`Expected: contains 'package:zik_zak/src/...'`);
+  (b) two test-file interpolation bugs (`$sandbox` vs `${sandbox()}`) —
+  fixed in the tests.
+  Suite `dart test test/plugins/slice/` -> 70 passed.
+- refactor: added `generatedFiles` to SliceManifest (round-trips; tells
+  merge which sandbox files are harness, not agent work).
+- commit: (recorded in git history)
+
 ## Notes and deviations
 
 - Loop granularity: cycles are batched at component granularity (one commit

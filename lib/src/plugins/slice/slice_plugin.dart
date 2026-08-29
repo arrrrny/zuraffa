@@ -13,6 +13,7 @@ import 'package:args/command_runner.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import 'capabilities/cut_slice_capability.dart';
 import 'slice_command.dart';
 
 /// The built-in slice plugin.
@@ -37,11 +38,10 @@ class SlicePlugin extends ZuraffaPlugin implements CliAwarePlugin {
   List<String> get runAfter => const [];
 
   /// Capabilities exposed by this plugin.
-  ///
-  /// Populated as the TDD cycles land the cut, merge, verify, and export
-  /// capabilities.
   @override
-  List<ZuraffaCapability> get capabilities => [];
+  List<ZuraffaCapability> get capabilities => [
+    CutSliceCapability(),
+  ];
 
   /// The `zfa slice` command (FR-011 / INV-1).
   @override

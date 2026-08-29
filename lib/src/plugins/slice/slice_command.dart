@@ -18,6 +18,8 @@ library;
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 
+import 'capabilities/cut_slice_capability.dart';
+
 /// The `zfa slice` command.
 class SliceCommand extends Command<void> {
   /// Creates the command bound to [projectRoot] (the project the command
@@ -154,8 +156,25 @@ import options:
       return;
     }
 
-    print('slice cut is not wired yet');
-    exitCode = 1;
+    final capability = CutSliceCapability();
+    final result = await capability.execute({
+      'name': results.rest.first,
+      'entries': entries,
+      'depth': results['depth'] as String,
+      'projectRoot': projectRoot,
+      'verify': results['verify'] as bool,
+    });
+
+    if (result.success) {
+      print(result.message);
+      final warnings = result.data?['warnings'] as List;
+      for (final warning in warnings) {
+        print('warning: $warning');
+      }
+    } else {
+      print('Error: ${result.message}');
+      exitCode = 1;
+    }
   }
 
   Future<void> _merge(List<String> rest) async {

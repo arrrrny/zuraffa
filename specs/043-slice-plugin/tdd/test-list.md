@@ -138,24 +138,24 @@ boundaries, not proven properties.
 
 | id  | behavior                                                                                                   | traces | kind    | state   | test |
 | --- | ---------------------------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
-| U29 | An abstract boundary interface gets a generated mock implementing all its members with stub returns        | FR-003 | example | PENDING |      |
-| U30 | A boundary with `mockStrategy: existing` reuses the project's own mock instead of generating one           | FR-003 | example | PENDING |      |
-| U31 | Mock generation is depth-aware: at `view` depth the presenter is mocked; at `full` depth no mocks are made | FR-002 | example | PENDING |      |
+| U29 | An abstract boundary interface gets a generated mock implementing all its members with stub returns        | FR-003 | example | DONE    | `test/plugins/slice/generators/mock_stub_generator_test.dart::U29: an abstract interface gets a mock implementing every member` |
+| U30 | A boundary with `mockStrategy: existing` reuses the project's own mock instead of generating one           | FR-003 | example | DONE    | `test/plugins/slice/generators/mock_stub_generator_test.dart::U30: mockStrategy existing reuses the project mock (generates nothing)` |
+| U31 | Mock generation is depth-aware: at `view` depth the presenter is mocked; at `full` depth no mocks are made | FR-002 | example | DONE    | `test/plugins/slice/generators/mock_stub_generator_test.dart::U31: at full depth no mocks are made` |
 
 ### `lib/src/plugins/slice/generators/sandbox_bootstrapper.dart`
 
 | id  | behavior                                                                                                              | traces | kind    | state   | test |
 | --- | --------------------------------------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
-| U32 | Generated `main_slice.dart` imports the root view, calls `setupSliceDependencies()`, and runs the app                 | FR-003 | example | PENDING |      |
-| U33 | Generated `slice_di.dart` registers exactly the slice's needed bindings and boundary mocks — nothing else             | FR-003 | example | PENDING |      |
-| U34 | A multi-entry slice generates an entry point exposing every entry root                                                | FR-011 | example | PENDING |      |
+| U32 | Generated `main_slice.dart` imports the root view, calls `setupSliceDependencies()`, and runs the app                 | FR-003 | example | DONE    | `test/plugins/slice/generators/sandbox_bootstrapper_test.dart::U32: single entry imports the root view, sets up DI, runs the app` |
+| U33 | Generated `slice_di.dart` registers exactly the slice's needed bindings and boundary mocks — nothing else             | FR-003 | example | DONE    | `test/plugins/slice/generators/sandbox_bootstrapper_test.dart::U33: registers real bindings and boundary mocks, nothing else` |
+| U34 | A multi-entry slice generates an entry point exposing every entry root                                                | FR-011 | example | DONE    | `test/plugins/slice/generators/sandbox_bootstrapper_test.dart::U34: a multi-entry slice exposes every entry root` |
 
 ### `lib/src/plugins/slice/generators/agent_readme_generator.dart`
 
 | id  | behavior                                                                                                    | traces         | kind    | state   | test |
 | --- | ----------------------------------------------------------------------------------------------------------- | -------------- | ------- | ------- | ---- |
-| U35 | `SLICE.md` marks owned files as modifiable and shared files as modify-with-caution                          | FR-007, FR-010 | example | PENDING |      |
-| U36 | `SLICE.md` contains the run command with the correct `-t` path and the boundary interface list              | FR-007         | example | PENDING |      |
+| U35 | `SLICE.md` marks owned files as modifiable and shared files as modify-with-caution                          | FR-007, FR-010 | example | DONE    | `test/plugins/slice/generators/agent_readme_generator_test.dart::U35: owned files are modifiable, shared files are caution` |
+| U36 | `SLICE.md` contains the run command with the correct `-t` path and the boundary interface list              | FR-007         | example | DONE    | `test/plugins/slice/generators/agent_readme_generator_test.dart::U36: contains the run command with the correct -t path` |
 
 ### `lib/src/plugins/slice/merger/conflict_detector.dart`
 

@@ -84,28 +84,28 @@
 
 - [x] T033 [US1] [A1] [A2] [A3] [A4] Create test fixture project with minimal Zuraffa structure (entity, usecase, repository, presenter with getIt<T>(), view, controller, state, DI files) in test/fixtures/slice_test_project/
 - [x] T077 [P] [US1] [U27] [U28] Create unit test for the ownership classifier — page-directory files classify owned, entities/domain/shared-widget/core files classify shared — in test/plugins/slice/engine/ownership_classifier_test.dart
-- [ ] T078 [P] [US1] [U29] [U30] Create unit test for `MockStubGenerator` — boundary mock generation and existing-mock reuse — in test/plugins/slice/generators/mock_stub_generator_test.dart
-- [ ] T079 [P] [US1] [U32] [U33] Create unit test for `SandboxBootstrapper` — `main_slice.dart` content and minimal `slice_di.dart` registrations — in test/plugins/slice/generators/sandbox_bootstrapper_test.dart
-- [ ] T080 [P] [US1] [U35] [U36] Create unit test for `AgentReadmeGenerator` — `SLICE.md` ownership markings, run command, boundary list — in test/plugins/slice/generators/agent_readme_generator_test.dart
+- [x] T078 [P] [US1] [U29] [U30] Create unit test for `MockStubGenerator` — boundary mock generation and existing-mock reuse — in test/plugins/slice/generators/mock_stub_generator_test.dart
+- [x] T079 [P] [US1] [U32] [U33] Create unit test for `SandboxBootstrapper` — `main_slice.dart` content and minimal `slice_di.dart` registrations — in test/plugins/slice/generators/sandbox_bootstrapper_test.dart
+- [x] T080 [P] [US1] [U35] [U36] Create unit test for `AgentReadmeGenerator` — `SLICE.md` ownership markings, run command, boundary list — in test/plugins/slice/generators/agent_readme_generator_test.dart
 - [ ] T085 [P] [US1] [U65] [U66] Create unit test for `SliceCommand` argument validation — unknown subcommand usage error, `cut` without `--entry` usage error — in test/plugins/slice/slice_command_test.dart
-- [ ] T034 [US1] [A1] [A2] [A3] [A4] Create integration test: cut a slice from fixture project, verify sandbox structure, file count, ownership classification, manifest contents, and `main_slice.dart` content in test/plugins/slice/slice_cut_integration_test.dart
+- [x] T034 [US1] [A1] [A2] [A3] [A4] Create integration test: cut a slice from fixture project, verify sandbox structure, file count, ownership classification, manifest contents, and `main_slice.dart` content in test/plugins/slice/slice_cut_integration_test.dart
 
 ### Implementation for User Story 1
 
 - [x] T026 [US1] [U27] [U28] Create file ownership classifier that marks files as owned (in page directory) or shared (entities, domain interfaces, shared widgets) based on path conventions in lib/src/plugins/slice/engine/ownership_classifier.dart
-- [ ] T027 [US1] [U29] [U30] Create `MockStubGenerator` that generates lightweight mock implementations for boundary interfaces (abstract classes at the traversal edge) in lib/src/plugins/slice/generators/mock_stub_generator.dart
-- [ ] T028 [US1] [U32] [U33] Create `SandboxBootstrapper` that generates `main_slice.dart` entry point — imports the root view, sets up mock DI via `setupSliceDependencies()`, wraps in `MaterialApp` — and generates `slice_di.dart` with only needed registrations in lib/src/plugins/slice/generators/sandbox_bootstrapper.dart
-- [ ] T029 [US1] [U35] [U36] Create `AgentReadmeGenerator` that generates `SLICE.md` listing: slice contents, modifiable files (owned), read-only files (shared), run command, boundary interfaces with their mock implementations in lib/src/plugins/slice/generators/agent_readme_generator.dart
-- [ ] T030 [US1] [A1] [A2] [A3] [A4] Create `CutSliceCapability` implementing `ZuraffaCapability` with `plan()` (dry-run file list) and `execute()` (actually copy files, generate sandbox artifacts, write manifest) in lib/src/plugins/slice/capabilities/cut_slice_capability.dart
-- [ ] T031 [US1] [A1] [A2] [A3] [A4] [U66] Implement the `cut` subcommand in `SliceCommand` — parse `--entry` (repeatable), `--depth` (default: feature), `--verify` flag, slice name from positional arg — delegate to `CutSliceCapability.execute()` in lib/src/plugins/slice/slice_command.dart
-- [ ] T032 [US1] [A1] [A2] [A3] [A4] Wire `CutSliceCapability` into `SlicePlugin.capabilities` list in lib/src/plugins/slice/slice_plugin.dart
+- [x] T027 [US1] [U29] [U30] Create `MockStubGenerator` that generates lightweight mock implementations for boundary interfaces (abstract classes at the traversal edge) in lib/src/plugins/slice/generators/mock_stub_generator.dart
+- [x] T028 [US1] [U32] [U33] Create `SandboxBootstrapper` that generates `main_slice.dart` entry point — imports the root view, sets up mock DI via `setupSliceDependencies()`, wraps in `MaterialApp` — and generates `slice_di.dart` with only needed registrations in lib/src/plugins/slice/generators/sandbox_bootstrapper.dart
+- [x] T029 [US1] [U35] [U36] Create `AgentReadmeGenerator` that generates `SLICE.md` listing: slice contents, modifiable files (owned), read-only files (shared), run command, boundary interfaces with their mock implementations in lib/src/plugins/slice/generators/agent_readme_generator.dart
+- [x] T030 [US1] [A1] [A2] [A3] [A4] Create `CutSliceCapability` implementing `ZuraffaCapability` with `plan()` (dry-run file list) and `execute()` (actually copy files, generate sandbox artifacts, write manifest) in lib/src/plugins/slice/capabilities/cut_slice_capability.dart
+- [x] T031 [US1] [A1] [A2] [A3] [A4] [U66] Implement the `cut` subcommand in `SliceCommand` — parse `--entry` (repeatable), `--depth` (default: feature), `--verify` flag, slice name from positional arg — delegate to `CutSliceCapability.execute()` in lib/src/plugins/slice/slice_command.dart
+- [x] T032 [US1] [A1] [A2] [A3] [A4] Wire `CutSliceCapability` into `SlicePlugin.capabilities` list in lib/src/plugins/slice/slice_plugin.dart
 
 ### Acceptance gates for User Story 1 (phase closes only when each is green)
 
-- [ ] T087 [US1] [A1] Acceptance gate US1-S1: `zfa slice cut product_feature --entry product` on the fixture produces exactly the expected files (view/controller/presenter/state/usecases/entities/mock DI/`main_slice.dart`) and nothing unrelated — test in test/plugins/slice/slice_cut_integration_test.dart
-- [ ] T088 [US1] [A2] Acceptance gate US1-S2: shared widgets are included in the sandbox and classified `shared` in slice.yaml — test in test/plugins/slice/slice_cut_integration_test.dart
-- [ ] T089 [US1] [A3] Acceptance gate US1-S3: `getIt<T>()`-resolved usecases and their DI registration files are included — test in test/plugins/slice/slice_cut_integration_test.dart
-- [ ] T090 [US1] [A4] Acceptance gate US1-S4: a barrel (`index.dart`) import pulls in only the re-exported symbols the slice references — test in test/plugins/slice/slice_cut_integration_test.dart
+- [x] T087 [US1] [A1] Acceptance gate US1-S1: `zfa slice cut product_feature --entry product` on the fixture produces exactly the expected files (view/controller/presenter/state/usecases/entities/mock DI/`main_slice.dart`) and nothing unrelated — test in test/plugins/slice/slice_cut_integration_test.dart
+- [x] T088 [US1] [A2] Acceptance gate US1-S2: shared widgets are included in the sandbox and classified `shared` in slice.yaml — test in test/plugins/slice/slice_cut_integration_test.dart
+- [x] T089 [US1] [A3] Acceptance gate US1-S3: `getIt<T>()`-resolved usecases and their DI registration files are included — test in test/plugins/slice/slice_cut_integration_test.dart
+- [x] T090 [US1] [A4] Acceptance gate US1-S4: a barrel (`index.dart`) import pulls in only the re-exported symbols the slice references — test in test/plugins/slice/slice_cut_integration_test.dart
 
 **Checkpoint**: `zfa slice cut` produces a runnable sandbox. This is the MVP — a developer can extract a feature slice and hand the sandbox to an agent.
 
