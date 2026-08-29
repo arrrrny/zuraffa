@@ -45,16 +45,30 @@ class McpSseServer {
   final String serverVersion;
   final String? authToken;
 
+  /// Maximum number of concurrent SSE sessions. When non-null and the
+  /// limit is reached, new `GET /sse` connections are rejected with HTTP
+  /// 503. `null` (default) means unbounded. See zuraffa#384, req #3.
+  final int? maxConnections;
+
+  /// Per-token tool allowlists passed through to [McpAuth]. When non-null,
+  /// a caller may only invoke the tools listed for its bearer token.
+  /// See zuraffa#384, req #3.
+  final Map<String, Set<String>>? toolAllowlist;
+
   HttpServer? _server;
   final Map<String, _SseSession> _sessions = {};
   late final McpDispatcher _dispatcher;
+  late final McpAuth _auth;
 
   McpSseServer({
     required this.registry,
     this.serverName = 'zuraffa-app-mcp',
     this.serverVersion = '1.0.0',
     this.authToken,
+    this.maxConnections,
+    this.toolAllowlist,
   }) {
+    _auth = McpAuth(token: authToken, tokenToolAllowlist: toolAllowlist);
     _dispatcher = McpDispatcher(
       registry: registry,
       serverName: serverName,
@@ -80,7 +94,7 @@ class McpSseServer {
     if (_server != null) {
       throw StateError('McpSseServer is already running.');
     }
-    final auth = McpAuth(token: authToken);
+    final auth = _auth;
     final bindAddress = auth.isEnabled ? '0.0.0.0' : '127.0.0.1';
     _server = await HttpServer.bind(bindAddress, port);
     stderr.writeln(
@@ -131,18 +145,23 @@ class McpSseServer {
     });
   }
 
-  /// Stops the server. Safe to call after [start] or after a failed
-  /// start attempt. Cancels all open SSE streams.
+  /// Stops the server gracefully. Safe to call after [start] or after a
+  /// failed start attempt. Closes all open SSE streams (so connected
+  /// clients observe a clean stream termination), then stops listening
+  /// without force-closing sockets so in-flight requests can drain.
   Future<void> stop() async {
     final server = _server;
     _server = null;
-    if (server != null) {
-      await server.close(force: true);
-    }
+    // Close active SSE streams first so clients see a clean stream end
+    // instead of an abrupt socket reset.
     for (final session in _sessions.values) {
       await session.controller.close();
     }
     _sessions.clear();
+    if (server != null) {
+      // Graceful: do not force-close sockets; let in-flight requests finish.
+      await server.close(force: false);
+    }
   }
 
   // ----------------------------------------------------------------
@@ -150,11 +169,22 @@ class McpSseServer {
   // ----------------------------------------------------------------
 
   Future<void> _handleSseStream(HttpRequest request) async {
+    // Enforce the connection limit before allocating a session. New SSE
+    // streams are rejected with 503 once the cap is reached.
+    if (maxConnections != null && _sessions.length >= maxConnections!) {
+      request.response
+        ..statusCode = HttpStatus.serviceUnavailable
+        ..headers.contentType = ContentType.text
+        ..write('Too many connections')
+        ..close();
+      return;
+    }
+
     // Validate Origin and Host to prevent DNS rebinding attacks.
     // In unauthenticated mode, enforce loopback-only. In authenticated
     // mode, the auth gate at the top-level listener already validated
     // the bearer token for non-loopback clients.
-    final auth = McpAuth(token: authToken);
+    final auth = _auth;
     if (!_isValidRequest(request, authEnabled: auth.isEnabled)) {
       request.response
         ..statusCode = HttpStatus.forbidden
@@ -215,7 +245,7 @@ class McpSseServer {
     // In unauthenticated mode, enforce loopback-only. In authenticated
     // mode, the auth gate at the top-level listener already validated
     // the bearer token for non-loopback clients.
-    final auth = McpAuth(token: authToken);
+    final auth = _auth;
     if (!_isValidRequest(request, authEnabled: auth.isEnabled)) {
       request.response
         ..statusCode = HttpStatus.forbidden
@@ -270,6 +300,38 @@ class McpSseServer {
         ..write('Session no longer exists')
         ..close();
       return;
+    }
+
+    // Per-token tool allowlist (requirement #3). Reject tools/call for
+    // tools the caller's token is not permitted to invoke. The error is
+    // streamed back over SSE as a JSON-RPC error, mirroring dispatch errors.
+    if (rpc['method'] == 'tools/call') {
+      final params = rpc['params'];
+      final toolName = params is Map<String, dynamic> ? params['name'] : null;
+      if (toolName is String) {
+        final callerToken = _auth.tokenFromHeader(
+          request.headers.value('Authorization'),
+        );
+        if (!_auth.isToolAllowed(callerToken, toolName)) {
+          request.response
+            ..statusCode = HttpStatus.accepted
+            ..write('accepted')
+            ..close();
+          final errorResponse = {
+            'jsonrpc': '2.0',
+            'error': {
+              'code': -32000,
+              'message': 'Tool "$toolName" is not permitted for the '
+                  'supplied token',
+            },
+            'id': rpc['id'],
+          };
+          session.controller.add(
+            _formatSseEvent('message', jsonEncode(errorResponse)),
+          );
+          return;
+        }
+      }
     }
 
     // Acknowledge receipt immediately (the response goes over SSE).

@@ -43,6 +43,29 @@ class McpToolRegistry {
   /// Looks up the tool registered under [name], or `null`.
   McpTool? find(String name) => _tools[name];
 
+  /// Transport-free tool invocation — the server-side half of the
+  /// in-process bridge (the client half is dart_agent_core's
+  /// `LocalMcpTransport`, which talks to the `LocalMcpHost` interface
+  /// this registry backs; see zuraffa#384, requirement #2).
+  ///
+  /// Looks up [name], validates [args], invokes the tool, and converts
+  /// handler throws into tool-level error results (never transport
+  /// errors). Returns an error [McpToolResult] (never throws) for
+  /// unknown tools or invalid args, so in-process callers and the
+  /// SSE/stdio dispatchers share one failure contract.
+  Future<McpToolResult> call(String name, Map<String, dynamic> args) async {
+    final tool = find(name);
+    if (tool == null) {
+      return McpToolResult.error('Unknown tool: $name');
+    }
+    try {
+      return await tool.call(args);
+    } catch (e, st) {
+      // Tool-level failure: surface as isError, never as a transport error.
+      return McpToolResult.error(e.toString(), data: {'stack': st.toString()});
+    }
+  }
+
   /// All registered tools, in insertion order.
   List<McpTool> get allTools =>
       UnmodifiableListView<McpTool>(_tools.values.toList());
