@@ -1,5 +1,5 @@
 ---
-feature: 042-slice-plugin
+feature: 043-slice-plugin
 loop: outside-in
 profile: .specify/memory/tdd-profile.md
 spec_criteria: 27

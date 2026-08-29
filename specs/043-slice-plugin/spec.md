@@ -1,6 +1,6 @@
 # Feature Specification: Slice Plugin — Context-Isolated Codebase Extraction
 
-**Feature Branch**: `042-slice-plugin`
+**Feature Branch**: `043-slice-plugin`
 
 **Created**: 2026-08-29
 

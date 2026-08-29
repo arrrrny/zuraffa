@@ -1,8 +1,8 @@
 # Implementation Plan: Slice Plugin
 
-**Branch**: `042-slice-plugin` | **Date**: 2026-08-29 | **Spec**: [spec.md](spec.md)
+**Branch**: `043-slice-plugin` | **Date**: 2026-08-29 | **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `/specs/042-slice-plugin/spec.md`
+**Input**: Feature specification from `/specs/043-slice-plugin/spec.md`
 
 ## Summary
 
@@ -45,7 +45,7 @@ Constitution is not populated (template only). No governance gates to evaluate. 
 ### Documentation (this feature)
 
 ```text
-specs/042-slice-plugin/
+specs/043-slice-plugin/
 ├── plan.md              # This file
 ├── research.md          # Phase 0 output
 ├── data-model.md        # Phase 1 output

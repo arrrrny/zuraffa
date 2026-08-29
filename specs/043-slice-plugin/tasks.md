@@ -1,6 +1,6 @@
 # Tasks: Slice Plugin — Context-Isolated Codebase Extraction
 
-**Input**: Design documents from `/specs/042-slice-plugin/`
+**Input**: Design documents from `/specs/043-slice-plugin/`
 
 **Prerequisites**: plan.md (required), spec.md (required), research.md, data-model.md, quickstart.md
 
@@ -10,7 +10,7 @@
 
 - **[P]**: Can run in parallel (different files, no dependencies)
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
-- **[U#]/[A#]**: Behavior id from `specs/042-slice-plugin/tdd/test-list.md`. **Tests are MANDATORY and test-first**: a behavior's test task must be written and observed failing (red) before its implementation task starts; the failure is recorded in `specs/042-slice-plugin/tdd/cycle-log.md`. Each phase ends with one acceptance-gate task per acceptance criterion — the phase closes only when that outer-loop test is green.
+- **[U#]/[A#]**: Behavior id from `specs/043-slice-plugin/tdd/test-list.md`. **Tests are MANDATORY and test-first**: a behavior's test task must be written and observed failing (red) before its implementation task starts; the failure is recorded in `specs/043-slice-plugin/tdd/cycle-log.md`. Each phase ends with one acceptance-gate task per acceptance criterion — the phase closes only when that outer-loop test is green.
 - Include exact file paths in descriptions
 
 ## Path Conventions

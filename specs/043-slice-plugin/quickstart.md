@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Zuraffa repository checked out on `042-slice-plugin` branch
+- Zuraffa repository checked out on `043-slice-plugin` branch
 - Dart SDK ^3.12.0 installed
 - A test fixture project with Zuraffa clean architecture structure (provided in `test/fixtures/slice_test_project/`)
 
