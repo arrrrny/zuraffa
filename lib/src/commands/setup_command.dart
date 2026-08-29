@@ -3,6 +3,11 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
 
+import '../cli/writers/tdd/dart_test_yaml_writer.dart';
+import '../cli/writers/tdd/pubspec_dev_dependencies_patcher.dart';
+import '../cli/writers/tdd/smoke_test_writer.dart';
+import '../cli/writers/tdd/tdd_example_writer.dart';
+import '../cli/writers/tdd/tdd_profile_writer.dart';
 import '../config/zfa_config.dart';
 import '../core/dependencies/dependency_wirer.dart';
 import '../utils/manifest_writer.dart';
@@ -106,6 +111,15 @@ class SetupCommand extends Command<void> {
           'Set android:autoVerify="true" on the intent-filter '
           '(App Links). Paired with --deep-link-scheme.',
     );
+    argParser.addFlag(
+      'tdd-example',
+      negatable: false,
+      help:
+          'Emit an additional failing example test (test/tdd_example_test.dart) '
+          'whose failure is an assertion failure (not a compile error), to '
+          'demonstrate the red half of the red-green-refactor loop. See '
+          'specs/041-tdd-setup-plugin/spec.md.',
+    );
   }
 
   @override
@@ -148,6 +162,7 @@ class SetupCommand extends Command<void> {
     final deepLinkScheme = argResults!['deep-link-scheme'] as String?;
     final deepLinkHost = argResults!['deep-link-host'] as String?;
     final autoVerify = argResults!['auto-verify'] as bool;
+    final tddExample = argResults!['tdd-example'] as bool;
 
     if (_isInvalidAppName(appName)) {
       usageException(
@@ -246,7 +261,7 @@ class SetupCommand extends Command<void> {
     // 5. Pre-seed the deep-link URL scheme in the platform files
     //    (Flutter only — pure Dart packages have no manifest to write).
     if (isFlutter && deepLinkScheme != null && deepLinkScheme.isNotEmpty) {
-      print('\n[5/6] Pre-seeding deep-link scheme: $deepLinkScheme');
+      print('\n[5/7] Pre-seeding deep-link scheme: $deepLinkScheme');
       await _seedDeepLinkScheme(
         projectRoot: appName,
         scheme: deepLinkScheme,
@@ -256,11 +271,26 @@ class SetupCommand extends Command<void> {
         verbose: verbose,
       );
     } else {
-      print('\n[5/6] Skipping deep-link pre-seed (no --deep-link-scheme).');
+      print('\n[5/7] Skipping deep-link pre-seed (no --deep-link-scheme).');
     }
 
-    // 6. Summary.
-    print('\n[6/6] Setup complete!');
+    // 6. TDD baseline (Part 1 of spec 041-tdd-setup-plugin).
+    if (isFlutter) {
+      print('\n[6/7] Emitting TDD day-zero baseline...');
+      await _emitTddBaseline(
+        projectRoot: appName,
+        appName: appName,
+        tddExample: tddExample,
+        dryRun: dryRun,
+      );
+    } else {
+      print(
+        '\n[6/7] Skipping TDD baseline (pure-Dart project; use `zfa tdd init` separately).',
+      );
+    }
+
+    // 7. Summary.
+    print('\n[7/7] Setup complete!');
     if (wireResult != null && !wireResult.isSuccess) {
       print(
         '\n⚠️  Some dependencies could not be wired automatically: '
@@ -282,8 +312,81 @@ class SetupCommand extends Command<void> {
     print('');
     if (isFlutter) {
       print('   Run the app:  flutter run');
+      print(
+        '   Run tests:    flutter test   (TDD baseline emitted: '
+        'test/bootstrap_smoke_test.dart)',
+      );
     } else {
       print('   Run tests:    dart test');
+    }
+  }
+
+  /// Emits the Part-1 TDD day-zero baseline (spec 041-tdd-setup-plugin):
+  /// `test/bootstrap_smoke_test.dart`, `dart_test.yaml`,
+  /// `.specify/memory/tdd-profile.md`, and the testing
+  /// `dev_dependencies` merged into `pubspec.yaml`. Optionally also emits
+  /// `test/tdd_example_test.dart` when [tddExample] is true.
+  Future<void> _emitTddBaseline({
+    required String projectRoot,
+    required String appName,
+    required bool tddExample,
+    required bool dryRun,
+  }) async {
+    final profilePath = await const TddProfileWriter().write(
+      projectRoot,
+      dryRun: dryRun,
+    );
+    if (profilePath == null) {
+      print('   ✓ .specify/memory/tdd-profile.md (already present)');
+    } else {
+      print('   ✓ $profilePath (created)');
+    }
+
+    final yamlPath = await const DartTestYamlWriter().write(
+      projectRoot,
+      dryRun: dryRun,
+    );
+    if (yamlPath == null) {
+      print('   ✓ dart_test.yaml (already present)');
+    } else {
+      print('   ✓ $yamlPath (created)');
+    }
+
+    final smokePath = await const SmokeTestWriter().write(
+      projectRoot,
+      appName,
+      dryRun: dryRun,
+    );
+    if (smokePath == null) {
+      print('   ✓ test/bootstrap_smoke_test.dart (already present)');
+    } else {
+      print('   ✓ $smokePath (created)');
+    }
+
+    final added = await PubspecDevDependenciesPatcher(
+      isFlutter: true,
+    ).ensure(projectRoot, dryRun: dryRun);
+    if (added.isEmpty) {
+      print('   ✓ pubspec.yaml dev_dependencies (already complete)');
+    } else if (dryRun) {
+      print(
+        '   Would add to pubspec.yaml dev_dependencies: ${added.join(', ')}',
+      );
+    } else {
+      print('   ✓ pubspec.yaml dev_dependencies (added: ${added.join(', ')})');
+    }
+
+    if (tddExample) {
+      final examplePath = await const TddExampleWriter().write(
+        projectRoot,
+        appName,
+        dryRun: dryRun,
+      );
+      if (examplePath == null) {
+        print('   ✓ test/tdd_example_test.dart (already present)');
+      } else {
+        print('   ✓ $examplePath (created, --tdd-example)');
+      }
     }
   }
 

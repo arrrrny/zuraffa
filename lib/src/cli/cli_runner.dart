@@ -20,9 +20,11 @@ import '../commands/apply_command.dart';
 import '../commands/module_command.dart';
 import '../commands/xray_command.dart';
 import '../commands/setup_command.dart';
+import '../commands/tdd_command.dart';
 import '../commands/app_shell_command.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
+import '../plugins/tdd/tdd_plugin.dart';
 import '../core/error/suggestion_engine.dart';
 import '../version.dart';
 import 'plugin_loader.dart';
@@ -113,6 +115,7 @@ class CliRunner {
     _runner.addCommand(XrayCommand());
     _runner.addCommand(UpdateCommand());
     _runner.addCommand(SetupCommand());
+    _runner.addCommand(TddCommand(TddPlugin()));
     _runner.addCommand(AppCommand());
   }
 
