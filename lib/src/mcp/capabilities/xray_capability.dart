@@ -13,6 +13,18 @@ class XrayCapability {
   /// Default X-Ray bridge HTTP port.
   static const int defaultPort = 8372;
 
+  /// The Control Deck injection endpoint path (spec 035 / FR-003).
+  ///
+  /// Exposed as a public static constant so tests can verify the URL
+  /// contract without standing up a fake HTTP server.
+  static const String controlDeckPath = '/xray/control-deck';
+
+  /// Test-only alias for [controlDeckPath] so test files can assert on
+  /// the URL path without referencing the private `_baseUrl` getter.
+  /// Kept for backward compatibility with the URL contract test in
+  /// `test/mcp/xray_bridge/xray_capability_url_test.dart`.
+  static const String controlDeckPathForTests = controlDeckPath;
+
   final String? host;
   final int port;
 
@@ -120,7 +132,13 @@ class XrayCapability {
 
     try {
       final body = jsonEncode({'mockName': mockName, 'payload': payload});
-      final request = await client.postUrl(Uri.parse('$_baseUrl/xray/mock'));
+      // Track 4.4 — Spec 035 (issue #184, FR-003): the Control Deck
+      // injection endpoint is `/xray/control-deck`. The prior path
+      // `/xray/mock` was a pre-spec placeholder; this client was
+      // updated to match the canonical bridge contract.
+      final request = await client.postUrl(
+        Uri.parse('$_baseUrl/xray/control-deck'),
+      );
       request.headers.set('Content-Type', 'application/json');
       request.write(body);
       final response = await request.close().timeout(
