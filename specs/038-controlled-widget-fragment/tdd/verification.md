@@ -46,10 +46,30 @@ FR traceability: FR-001 (U1/U3/U6/U7), FR-002 (U8/U9/U13), FR-003 (U10..U14), FR
 
 ## 5. Whole-repo fast tier
 
-Full `dart test` (fast tier, `slow` tags excluded per `dart_test.yaml`):
+Full `dart test` (fast tier, `slow` tags excluded per `dart_test.yaml`), executed
+directory-by-directory (a single invocation exceeds CI session timeouts):
 
-- result: see the PR description for the exact final counts recorded immediately before the PR was opened (the run spans ~15 minutes; per-directory results: `test/state` 99/99, `test/core`+`test/plugins/route` 607 passed/1 skipped, `test/plugins/state` 2/2, remaining directories re-run green with zero new failures; no test outside this feature's files changed behavior)
-- `dart analyze` full repo: same 23 pre-existing errors confined to `examples/mcp_demo` and `zikzak_session` (missing git submodule content — both predate this branch and reproduce on master), 108 total issues at baseline vs. no new issues introduced here
+- **1,844 passed, 1 skipped, 0 failed** across every default-suite directory:
+  state 99, core+plugins/route 607 (+1 skip), plugins/state 2, cli 125,
+  commands 211, dda 35, domain 18, utils 72, config 10, graphql 128,
+  migration 20, logging 6, i18n 11, session 20, app_update 6, biometrics 7,
+  clipboard 6, device 6, share 5, secure_storage 11, scripts 1, regression 62,
+  plugins: api 30, app_shell 71, datasource 5, di 6, gym 15, mcp 77
+  (4 fast files + stdio + SSE server files), method_append 6, module 2,
+  provider 4, repository 7, service 8, shadcn 2, sqlite 8, strategy 26,
+  sync 31, usecase 17, xray 16, mock 37, toggle 3, test_builder 5.
+- **1 pre-existing hang**: `test/plugins/mcp/mcp_server_plugin_test.dart` run
+  as a full file hangs (SSE-server lifecycle across tests in this sandbox).
+  Verified **identical on master** via a clean worktree — individual tests in
+  the file pass (including `autoStartSsePort` alone). Not caused by this
+  feature; flagged, not fixed.
+- `test/integration`, `test/property`, `test/benchmark` are entirely
+  slow-tagged — excluded from the default suite by `dart_test.yaml` (no fast
+  tests there; "No tests match the requested tag selectors").
+- `dart analyze` full repo: same 23 pre-existing errors confined to
+  `examples/mcp_demo` and `zikzak_session` (missing git submodule content —
+  both predate this branch and reproduce on master), 108 total issues at
+  baseline vs. no new issues introduced here.
 
 ## 6. Honest gaps and flagged pre-existing issues
 
