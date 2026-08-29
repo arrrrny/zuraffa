@@ -148,6 +148,7 @@ generate options:
       final boneDir = await generator.generate(
         specPath: specFile,
         outputDir: outputDir,
+        specsRoot: specsRoot,
       );
       print(boneDir);
     } on BoneGenerationError catch (e) {
