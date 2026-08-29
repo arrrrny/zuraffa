@@ -420,9 +420,6 @@ export 'src/core/di/zuraffa_container.dart';
 /// DIPlugin — DDA plugin for @Datasource/@Repository processing.
 export 'src/dda/plugins/di/di_plugin.dart';
 
-/// Route annotation — @ZfaRoute, ZuraffaRouteGuard, RouteParams base classes.
-export 'src/dda/plugins/route/route_annotation.dart';
-
 /// RouteDDAPlugin — DDA plugin for @Route annotation processing.
 export 'src/dda/plugins/route/route_plugin.dart';
 
@@ -531,6 +528,12 @@ export 'src/graphql/mapping/dart_type_namer.dart';
 // ---------------------------------------------------------------------------
 // Routing (spec 033 — @Route decorator for auto-generated navigation config)
 // ---------------------------------------------------------------------------
+
+// ZfaRoute / Route — the @Route annotation users place on View classes.
+// Also reachable via the DDA plugin path below; re-exported here for
+// convenience so `package:zuraffa/zuraffa.dart` exposes the annotation
+// alongside the rest of the routing API.
+export 'src/dda/plugins/route/route_annotation.dart';
 
 // ZfaRouteParams — typed route parameter base + controller-init holder.
 export 'src/routing/route_params.dart';

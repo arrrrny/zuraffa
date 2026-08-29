@@ -42,22 +42,27 @@ class RouteValidator {
     // Non-View issues (already classified by the scanner).
     if (strictNonView) {
       for (final issue in scan.issues.where((i) => i.isError)) {
-        errors.add(RouteCompilationError(
-          message: issue.message,
-          filePath: issue.filePath,
-          line: issue.line,
-        ));
+        errors.add(
+          RouteCompilationError(
+            message: issue.message,
+            filePath: issue.filePath,
+            line: issue.line,
+          ),
+        );
       }
     }
     // Scanner-level errors other than non-View (e.g. missing path) are
     // always fatal.
-    for (final issue
-        in scan.issues.where((i) => i.isError && !_isNonViewIssue(i))) {
-      errors.add(RouteCompilationError(
-        message: issue.message,
-        filePath: issue.filePath,
-        line: issue.line,
-      ));
+    for (final issue in scan.issues.where(
+      (i) => i.isError && !_isNonViewIssue(i),
+    )) {
+      errors.add(
+        RouteCompilationError(
+          message: issue.message,
+          filePath: issue.filePath,
+          line: issue.line,
+        ),
+      );
     }
 
     final routes = scan.routes;
@@ -72,12 +77,15 @@ class RouteValidator {
     for (final entry in byPath.entries) {
       if (entry.value.length > 1) {
         final classes = entry.value.map((r) => r.viewClassName).join(', ');
-        errors.add(RouteCompilationError(
-          message: 'Duplicate route path ${entry.key} declared by '
-              '$classes — every @Route path must be unique.',
-          filePath: entry.value.first.filePath,
-          line: entry.value.first.line,
-        ));
+        errors.add(
+          RouteCompilationError(
+            message:
+                'Duplicate route path ${entry.key} declared by '
+                '$classes — every @Route path must be unique.',
+            filePath: entry.value.first.filePath,
+            line: entry.value.first.line,
+          ),
+        );
       }
     }
 
@@ -89,13 +97,16 @@ class RouteValidator {
       final parent = route.parent;
       if (parent == null) continue;
       if (!byName.containsKey(parent)) {
-        errors.add(RouteCompilationError(
-          message: 'Route ${route.viewClassName} (${route.path}) references '
-              'parent route "$parent" which does not exist. Available '
-              'parents: ${names.join(', ')}.',
-          filePath: route.filePath,
-          line: route.line,
-        ));
+        errors.add(
+          RouteCompilationError(
+            message:
+                'Route ${route.viewClassName} (${route.path}) references '
+                'parent route "$parent" which does not exist. Available '
+                'parents: ${names.join(', ')}.',
+            filePath: route.filePath,
+            line: route.line,
+          ),
+        );
       }
     }
     _detectCycles(routes, byName, errors);
@@ -105,22 +116,28 @@ class RouteValidator {
       final pathParams = route.pathParameterNames.toSet();
       for (final entry in route.params.entries) {
         if (!_supportedParamTypes.contains(entry.value)) {
-          errors.add(RouteCompilationError(
-            message: 'Unsupported parameter type "${entry.value}" for '
-                ':${entry.key} on ${route.viewClassName} (${route.path}). '
-                'Supported types: ${_supportedParamTypes.join(', ')}.',
-            filePath: route.filePath,
-            line: route.line,
-          ));
+          errors.add(
+            RouteCompilationError(
+              message:
+                  'Unsupported parameter type "${entry.value}" for '
+                  ':${entry.key} on ${route.viewClassName} (${route.path}). '
+                  'Supported types: ${_supportedParamTypes.join(', ')}.',
+              filePath: route.filePath,
+              line: route.line,
+            ),
+          );
         }
         if (!pathParams.contains(entry.key)) {
-          errors.add(RouteCompilationError(
-            message: 'Parameter "${entry.key}" on ${route.viewClassName} is '
-                'not present in the path ${route.path} — add a :${entry.key} '
-                'segment or remove the params entry.',
-            filePath: route.filePath,
-            line: route.line,
-          ));
+          errors.add(
+            RouteCompilationError(
+              message:
+                  'Parameter "${entry.key}" on ${route.viewClassName} is '
+                  'not present in the path ${route.path} — add a :${entry.key} '
+                  'segment or remove the params entry.',
+              filePath: route.filePath,
+              line: route.line,
+            ),
+          );
         }
       }
     }
@@ -128,12 +145,15 @@ class RouteValidator {
     // Redirect targets must exist.
     for (final redirect in scan.redirects) {
       if (!routePaths.contains(redirect.to)) {
-        errors.add(RouteCompilationError(
-          message: 'Redirect from ${redirect.from} targets ${redirect.to} '
-              'which is not a declared route path.',
-          filePath: redirect.filePath,
-          line: redirect.line,
-        ));
+        errors.add(
+          RouteCompilationError(
+            message:
+                'Redirect from ${redirect.from} targets ${redirect.to} '
+                'which is not a declared route path.',
+            filePath: redirect.filePath,
+            line: redirect.line,
+          ),
+        );
       }
     }
 
@@ -141,13 +161,16 @@ class RouteValidator {
     for (final route in routes) {
       for (final guard in route.middleware) {
         if (!scan.classIndex.containsKey(guard)) {
-          errors.add(RouteCompilationError(
-            message: 'Guard class $guard on ${route.viewClassName} '
-                '(${route.path}) was not found in lib/ — declare the guard '
-                'class or fix the name.',
-            filePath: route.filePath,
-            line: route.line,
-          ));
+          errors.add(
+            RouteCompilationError(
+              message:
+                  'Guard class $guard on ${route.viewClassName} '
+                  '(${route.path}) was not found in lib/ — declare the guard '
+                  'class or fix the name.',
+              filePath: route.filePath,
+              line: route.line,
+            ),
+          );
         }
       }
     }
@@ -158,11 +181,7 @@ class RouteValidator {
         if (route.params.isEmpty) continue;
         final controllerSource = controllerSourceOf(route);
         if (controllerSource == null) continue;
-        _checkControllerTypes(
-          route,
-          controllerSource,
-          errors,
-        );
+        _checkControllerTypes(route, controllerSource, errors);
       }
     }
 
@@ -183,13 +202,16 @@ class RouteValidator {
     void visit(String name) {
       if (visited.contains(name)) return;
       if (!visiting.add(name)) {
-        errors.add(RouteCompilationError(
-          message: 'Parent route cycle detected involving "$name". Route '
-              'parents must form a tree (a route cannot be its own '
-              'ancestor).',
-          filePath: byName[name]?.filePath ?? 'unknown.dart',
-          line: byName[name]?.line ?? 1,
-        ));
+        errors.add(
+          RouteCompilationError(
+            message:
+                'Parent route cycle detected involving "$name". Route '
+                'parents must form a tree (a route cannot be its own '
+                'ancestor).',
+            filePath: byName[name]?.filePath ?? 'unknown.dart',
+            line: byName[name]?.line ?? 1,
+          ),
+        );
         return;
       }
       final route = byName[name];
@@ -226,15 +248,18 @@ class RouteValidator {
       );
       if (declaredType == null) continue;
       if (declaredType != entry.value) {
-        errors.add(RouteCompilationError(
-          message: 'Route parameter type mismatch: @Route on '
-              '${route.viewClassName} declares :${entry.key} as '
-              '"${entry.value}" but $controllerName declares it as '
-              '"$declaredType". Align the types to keep RouteParams '
-              'compile-time safe.',
-          filePath: route.filePath,
-          line: route.line,
-        ));
+        errors.add(
+          RouteCompilationError(
+            message:
+                'Route parameter type mismatch: @Route on '
+                '${route.viewClassName} declares :${entry.key} as '
+                '"${entry.value}" but $controllerName declares it as '
+                '"$declaredType". Align the types to keep RouteParams '
+                'compile-time safe.',
+            filePath: route.filePath,
+            line: route.line,
+          ),
+        );
       }
     }
   }

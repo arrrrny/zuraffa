@@ -16,8 +16,7 @@ void main() {
   });
 
   Directory makeProject(Map<String, String> files) {
-    File('${tempDir.path}/pubspec.yaml')
-        .writeAsStringSync('name: test_app\n');
+    File('${tempDir.path}/pubspec.yaml').writeAsStringSync('name: test_app\n');
     for (final entry in files.entries) {
       final file = File('${tempDir.path}/${entry.key}');
       file.parent.createSync(recursive: true);
@@ -41,37 +40,47 @@ class ProductsView {}
 
       expect(outcome.skipped, false);
       expect(outcome.routeCount, 1);
-      final routerFile =
-          File('${tempDir.path}/lib/src/routing/zfa_router.g.dart');
-      expect(routerFile.existsSync(), true,
-          reason: 'router config must be generated at the well-known path');
+      final routerFile = File(
+        '${tempDir.path}/lib/src/routing/zfa_router.g.dart',
+      );
+      expect(
+        routerFile.existsSync(),
+        true,
+        reason: 'router config must be generated at the well-known path',
+      );
       final source = routerFile.readAsStringSync();
       expect(source, contains("path: '/products/:id'"));
       expect(source, contains('class ProductsViewRouteParams'));
-      expect(source,
-          contains("import 'package:test_app/src/features/products/products_view.dart';"));
+      expect(
+        source,
+        contains(
+          "import 'package:test_app/src/features/products/products_view.dart';",
+        ),
+      );
     });
 
     test('idempotent: two runs produce byte-identical output', () async {
       makeProject({
         'lib/home_view.dart': '@Route(path: \'/home\')\nclass HomeView {}\n',
-        'lib/about_view.dart':
-            '@Route(path: \'/about\')\nclass AboutView {}\n',
+        'lib/about_view.dart': '@Route(path: \'/about\')\nclass AboutView {}\n',
       });
 
       await RouteAnnotationCompiler().compile(tempDir.path);
-      final first = File('${tempDir.path}/lib/src/routing/zfa_router.g.dart')
-          .readAsStringSync();
+      final first = File(
+        '${tempDir.path}/lib/src/routing/zfa_router.g.dart',
+      ).readAsStringSync();
       await RouteAnnotationCompiler().compile(tempDir.path);
-      final second = File('${tempDir.path}/lib/src/routing/zfa_router.g.dart')
-          .readAsStringSync();
+      final second = File(
+        '${tempDir.path}/lib/src/routing/zfa_router.g.dart',
+      ).readAsStringSync();
       expect(second, equals(first));
     });
 
     test('SC-002: 100 annotated Views compile under 2 seconds', () async {
       final files = <String, String>{};
       for (var i = 0; i < 100; i++) {
-        files['lib/src/views/view_$i.dart'] = '''
+        files['lib/src/views/view_$i.dart'] =
+            '''
 @Route(path: '/screen-$i/:id', params: {'id': int})
 class Screen${i}View {}
 ''';
@@ -83,8 +92,11 @@ class Screen${i}View {}
       sw.stop();
 
       expect(outcome.routeCount, 100);
-      expect(sw.elapsed, lessThan(const Duration(seconds: 2)),
-          reason: 'SC-002: 100 views must compile in under 2 seconds');
+      expect(
+        sw.elapsed,
+        lessThan(const Duration(seconds: 2)),
+        reason: 'SC-002: 100 views must compile in under 2 seconds',
+      );
     });
 
     test('no annotations + stale router file -> valid empty config', () async {
@@ -93,24 +105,26 @@ class Screen${i}View {}
       });
       final outcome = await RouteAnnotationCompiler().compile(tempDir.path);
       expect(outcome.skipped, false);
-      final source =
-          File('${tempDir.path}/lib/src/routing/zfa_router.g.dart')
-              .readAsStringSync();
+      final source = File(
+        '${tempDir.path}/lib/src/routing/zfa_router.g.dart',
+      ).readAsStringSync();
       expect(source, contains('final List<RouteBase> zfaRoutes = [];'));
     });
 
-    test('no annotations + no router file -> skipped, nothing written',
-        () async {
-      makeProject({
-        'lib/home.dart': 'void main() {}\n',
-      });
-      final outcome = await RouteAnnotationCompiler().compile(tempDir.path);
-      expect(outcome.skipped, true);
-      expect(
-          File('${tempDir.path}/lib/src/routing/zfa_router.g.dart')
-              .existsSync(),
-          false);
-    });
+    test(
+      'no annotations + no router file -> skipped, nothing written',
+      () async {
+        makeProject({'lib/home.dart': 'void main() {}\n'});
+        final outcome = await RouteAnnotationCompiler().compile(tempDir.path);
+        expect(outcome.skipped, true);
+        expect(
+          File(
+            '${tempDir.path}/lib/src/routing/zfa_router.g.dart',
+          ).existsSync(),
+          false,
+        );
+      },
+    );
 
     test('validation errors aggregate with file:line locations', () async {
       makeProject({
@@ -122,22 +136,26 @@ class Screen${i}View {}
 
       expect(
         () => RouteAnnotationCompiler().compile(tempDir.path),
-        throwsA(isA<RouteCompilationException>()
-            .having(
-              (e) => e.errors.length,
-              'errors.length',
-              greaterThanOrEqualTo(2),
-            )
-            .having(
-              (e) => e.errors.map((err) => '${err.filePath}:${err.line}').join('|'),
-              'locations',
-              allOf(contains('a_view.dart'), contains('c_view.dart')),
-            )
-            .having(
-              (e) => e.errors.first.message,
-              'duplicate message lists both classes',
-              allOf(contains('AView'), contains('BView')),
-            )),
+        throwsA(
+          isA<RouteCompilationException>()
+              .having(
+                (e) => e.errors.length,
+                'errors.length',
+                greaterThanOrEqualTo(2),
+              )
+              .having(
+                (e) => e.errors
+                    .map((err) => '${err.filePath}:${err.line}')
+                    .join('|'),
+                'locations',
+                allOf(contains('a_view.dart'), contains('c_view.dart')),
+              )
+              .having(
+                (e) => e.errors.first.message,
+                'duplicate message lists both classes',
+                allOf(contains('AView'), contains('BView')),
+              ),
+        ),
       );
     });
 
@@ -148,8 +166,9 @@ class Screen${i}View {}
       });
       await RouteAnnotationCompiler().compile(tempDir.path);
       expect(
-        File('${tempDir.path}/.well-known/apple-app-site-association')
-            .existsSync(),
+        File(
+          '${tempDir.path}/.well-known/apple-app-site-association',
+        ).existsSync(),
         true,
       );
       expect(
@@ -157,8 +176,9 @@ class Screen${i}View {}
         true,
       );
       expect(
-        File('${tempDir.path}/.well-known/apple-app-site-association')
-            .readAsStringSync(),
+        File(
+          '${tempDir.path}/.well-known/apple-app-site-association',
+        ).readAsStringSync(),
         contains('/share'),
       );
     });
@@ -170,11 +190,10 @@ class Screen${i}View {}
             '@Route.redirect(from: \'/legacy\', to: \'/home\')\nclass LegacyView {}\n',
       });
       await RouteAnnotationCompiler().compile(tempDir.path);
-      final source =
-          File('${tempDir.path}/lib/src/routing/zfa_router.g.dart')
-              .readAsStringSync();
-      expect(source,
-          contains("path: '/legacy', redirect: (_, __) => '/home'"));
+      final source = File(
+        '${tempDir.path}/lib/src/routing/zfa_router.g.dart',
+      ).readAsStringSync();
+      expect(source, contains("path: '/legacy', redirect: (_, __) => '/home'"));
     });
 
     test('shell + child compile into nested ShellRoute (US-4)', () async {
@@ -190,9 +209,9 @@ class DashboardView {
             '@Route(path: \'/analytics\', parent: \'dashboard\')\nclass AnalyticsView {}\n',
       });
       await RouteAnnotationCompiler().compile(tempDir.path);
-      final source =
-          File('${tempDir.path}/lib/src/routing/zfa_router.g.dart')
-              .readAsStringSync();
+      final source = File(
+        '${tempDir.path}/lib/src/routing/zfa_router.g.dart',
+      ).readAsStringSync();
       expect(source, contains('ShellRoute('));
       expect(source, contains("path: 'analytics'"));
       expect(source, contains('DashboardView(child: child)'));
@@ -211,11 +230,13 @@ class ProductController {
       });
       expect(
         () => RouteAnnotationCompiler().compile(tempDir.path),
-        throwsA(isA<RouteCompilationException>().having(
-          (e) => e.errors.first.message,
-          'first error message',
-          allOf(contains('int'), contains('String')),
-        )),
+        throwsA(
+          isA<RouteCompilationException>().having(
+            (e) => e.errors.first.message,
+            'first error message',
+            allOf(contains('int'), contains('String')),
+          ),
+        ),
       );
     });
   });

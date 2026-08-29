@@ -151,8 +151,10 @@ class RouteCompilationException implements Exception {
 
   @override
   String toString() {
-    final buffer = StringBuffer('Route annotation compilation failed with '
-        '${errors.length} error(s):');
+    final buffer = StringBuffer(
+      'Route annotation compilation failed with '
+      '${errors.length} error(s):',
+    );
     for (final error in errors) {
       buffer.write('\n  - $error');
     }

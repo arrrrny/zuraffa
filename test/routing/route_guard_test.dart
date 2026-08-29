@@ -32,31 +32,33 @@ void main() {
       expect(await _DenyGuard().canActivate(state), false);
     });
 
-    test('US-5 scenario: guard deny -> redirect path, allow -> proceed',
-        () async {
-      // Mirrors the generated zfaGuardRedirect helper: first denied guard
-      // wins; null proceeds.
-      const state = ZuraffaRouteState(
-        location: '/secure',
-        path: '/secure',
-        matchedLocation: '/secure',
-        pathParameters: {},
-        queryParameters: {},
-      );
+    test(
+      'US-5 scenario: guard deny -> redirect path, allow -> proceed',
+      () async {
+        // Mirrors the generated zfaGuardRedirect helper: first denied guard
+        // wins; null proceeds.
+        const state = ZuraffaRouteState(
+          location: '/secure',
+          path: '/secure',
+          matchedLocation: '/secure',
+          pathParameters: {},
+          queryParameters: {},
+        );
 
-      Future<String?> resolve(List<ZuraffaRouteGuard> guards) async {
-        for (final guard in guards) {
-          if (!await guard.canActivate(state)) {
-            return guard.onRejected(state);
+        Future<String?> resolve(List<ZuraffaRouteGuard> guards) async {
+          for (final guard in guards) {
+            if (!await guard.canActivate(state)) {
+              return guard.onRejected(state);
+            }
           }
+          return null;
         }
-        return null;
-      }
 
-      expect(await resolve([_DenyGuard()]), '/sign-in');
-      expect(await resolve([_AllowGuard()]), null);
-      expect(await resolve([_AllowGuard(), _DenyGuard()]), '/sign-in');
-    });
+        expect(await resolve([_DenyGuard()]), '/sign-in');
+        expect(await resolve([_AllowGuard()]), null);
+        expect(await resolve([_AllowGuard(), _DenyGuard()]), '/sign-in');
+      },
+    );
 
     test('guards may carry per-state rejection logic', () async {
       final guard = _RoleGuard();

@@ -99,7 +99,8 @@ import 'package:zuraffa/zuraffa.dart';
     // Redirects.
     buffer.writeln();
     buffer.writeln(
-        '/// Redirect rules compiled from @Route.redirect annotations.');
+      '/// Redirect rules compiled from @Route.redirect annotations.',
+    );
     if (sortedRedirects.isEmpty) {
       buffer.writeln('final List<RouteBase> zfaRouteRedirects = [];');
     } else {
@@ -135,10 +136,14 @@ import 'package:zuraffa/zuraffa.dart';
     buffer.writeln('  );');
     buffer.writeln('}');
     buffer.writeln();
-    buffer.writeln('/// Runs [guards] before route activation; returns the '
-        'first denied');
-    buffer.writeln("/// guard's [ZuraffaRouteGuard.onRejected] path, or null "
-        'to proceed.');
+    buffer.writeln(
+      '/// Runs [guards] before route activation; returns the '
+      'first denied',
+    );
+    buffer.writeln(
+      "/// guard's [ZuraffaRouteGuard.onRejected] path, or null "
+      'to proceed.',
+    );
     buffer.writeln('Future<String?> zfaGuardRedirect(');
     buffer.writeln('  List<ZuraffaRouteGuard> guards,');
     buffer.writeln('  ZuraffaRouteState state,');
@@ -151,12 +156,17 @@ import 'package:zuraffa/zuraffa.dart';
     buffer.writeln('  return null;');
     buffer.writeln('}');
     buffer.writeln();
-    buffer.writeln('/// Default deny path (from @Route(guardRedirect: ...)) '
-        'recommended');
-    buffer.writeln('/// for guard [ZuraffaRouteGuard.onRejected] '
-        'implementations.');
     buffer.writeln(
-        "const String zfaDefaultGuardDenyPath = '$defaultDenyPath';");
+      '/// Default deny path (from @Route(guardRedirect: ...)) '
+      'recommended',
+    );
+    buffer.writeln(
+      '/// for guard [ZuraffaRouteGuard.onRejected] '
+      'implementations.',
+    );
+    buffer.writeln(
+      "const String zfaDefaultGuardDenyPath = '$defaultDenyPath';",
+    );
 
     // RouteParams classes.
     if (paramsClasses.isNotEmpty) {
@@ -199,8 +209,14 @@ import 'package:zuraffa/zuraffa.dart';
     for (final route in topLevel) {
       final children = childrenOf[route.name] ?? const <RouteDeclaration>[];
       if (route.isShell) {
-        _emitShellRoute(buffer, route, children, childrenOf, indent,
-            parentPath: null);
+        _emitShellRoute(
+          buffer,
+          route,
+          children,
+          childrenOf,
+          indent,
+          parentPath: null,
+        );
       } else if (children.isNotEmpty) {
         // A non-shell route with children nests them as sub-routes.
         _emitGoRoute(buffer, route, childrenOf, indent, parentPath: null);
@@ -223,7 +239,8 @@ import 'package:zuraffa/zuraffa.dart';
     _emitBind(buffer, route, '$indent     ');
     if (route.viewAcceptsChild) {
       buffer.writeln(
-          '$indent     return ${route.viewClassName}(child: child);');
+        '$indent     return ${route.viewClassName}(child: child);',
+      );
     } else {
       buffer.writeln('$indent     return const ${route.viewClassName}();');
     }
@@ -278,9 +295,12 @@ import 'package:zuraffa/zuraffa.dart';
     buffer.writeln("$indent   path: '$routePath',");
     buffer.writeln("$indent   name: '${route.name}',");
     if (route.middleware.isNotEmpty) {
-      final guards = route.middleware.map((guard) => 'const $guard()').join(', ');
+      final guards = route.middleware
+          .map((guard) => 'const $guard()')
+          .join(', ');
       buffer.writeln(
-          '$indent   redirect: (context, state) => zfaGuardRedirect(');
+        '$indent   redirect: (context, state) => zfaGuardRedirect(',
+      );
       buffer.writeln('$indent     [$guards],');
       buffer.writeln('$indent     _zfaRouteState(state),');
       buffer.writeln('$indent   ),');
@@ -356,10 +376,8 @@ import 'package:zuraffa/zuraffa.dart';
     for (final query in route.query) {
       buffer.writeln('    this.$query,');
     }
-    buffer.writeln(
-        '    super.pathParameters = const <String, String>{},');
-    buffer.writeln(
-        '    super.queryParameters = const <String, String>{},');
+    buffer.writeln('    super.pathParameters = const <String, String>{},');
+    buffer.writeln('    super.queryParameters = const <String, String>{},');
     buffer.writeln('  });');
 
     buffer.writeln();
@@ -377,12 +395,14 @@ import 'package:zuraffa/zuraffa.dart';
         _ => 'stringParam',
       };
       buffer.writeln(
-          "      $param: ZfaRouteParams.$helper(pathParameters, '$param'),");
+        "      $param: ZfaRouteParams.$helper(pathParameters, '$param'),",
+      );
     }
     for (final query in route.query) {
       buffer.writeln(
-          "      $query: ZfaRouteParams.stringParam(queryParameters, "
-          "'$query'),");
+        "      $query: ZfaRouteParams.stringParam(queryParameters, "
+        "'$query'),",
+      );
     }
     buffer.writeln('      pathParameters: pathParameters,');
     buffer.writeln('      queryParameters: queryParameters,');
@@ -402,30 +422,28 @@ import 'package:zuraffa/zuraffa.dart';
     return buffer.toString();
   }
 
-
   // ------------------------------------------------------------------
   // Deep-link artifacts (US-6)
   // ------------------------------------------------------------------
 
   static Map<String, String> _deepLinkFiles(List<RouteDeclaration> routes) {
-    final deepLinkPaths = routes
-        .where((r) => r.deepLinkAware)
-        .map((r) => r.path)
-        .toList()
-      ..sort();
+    final deepLinkPaths =
+        routes.where((r) => r.deepLinkAware).map((r) => r.path).toList()
+          ..sort();
 
     if (deepLinkPaths.isEmpty) return const {};
 
     // Convert :params to wildcards for pattern matching.
     final patterns = deepLinkPaths
-        .map((path) => path
-            .split('/')
-            .map((s) => s.startsWith(':') ? '*' : s)
-            .join('/'))
+        .map(
+          (path) =>
+              path.split('/').map((s) => s.startsWith(':') ? '*' : s).join('/'),
+        )
         .map((pattern) => "'$pattern'")
         .toList();
 
-    final apple = '''
+    final apple =
+        '''
 {
   "applinks": {
     "apps": [],
@@ -440,7 +458,8 @@ import 'package:zuraffa/zuraffa.dart';
 }
 ''';
 
-    final android = '''
+    final android =
+        '''
 [
   {
     "relation": [

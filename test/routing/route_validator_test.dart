@@ -36,8 +36,7 @@ void main() {
           _route('ProductView', '/products/:id', params: {'id': 'int'}),
         ],
         redirects: [
-          RouteRedirectRule(
-              from: '/old', to: '/home', filePath: 'f', line: 1),
+          RouteRedirectRule(from: '/old', to: '/home', filePath: 'f', line: 1),
         ],
         issues: const [],
         classIndex: const {},
@@ -48,10 +47,7 @@ void main() {
 
     test('duplicate paths error lists BOTH classes', () {
       final scan = RouteScanResult(
-        routes: [
-          _route('HomeView', '/home'),
-          _route('LandingView', '/home'),
-        ],
+        routes: [_route('HomeView', '/home'), _route('LandingView', '/home')],
         redirects: const [],
         issues: const [],
         classIndex: const {},
@@ -65,9 +61,7 @@ void main() {
 
     test('missing parent error names the missing parent', () {
       final scan = RouteScanResult(
-        routes: [
-          _route('AnalyticsView', '/analytics', parent: 'ghost'),
-        ],
+        routes: [_route('AnalyticsView', '/analytics', parent: 'ghost')],
         redirects: const [],
         issues: const [],
         classIndex: const {},
@@ -128,7 +122,11 @@ void main() {
         routes: [_route('HomeView', '/home')],
         redirects: [
           RouteRedirectRule(
-              from: '/old', to: '/missing', filePath: 'f', line: 1),
+            from: '/old',
+            to: '/missing',
+            filePath: 'f',
+            line: 1,
+          ),
         ],
         issues: const [],
         classIndex: const {},
@@ -248,7 +246,11 @@ class ProductController {
         ],
         redirects: [
           RouteRedirectRule(
-              from: '/x', to: '/missing', filePath: 'f', line: 1), // redirect
+            from: '/x',
+            to: '/missing',
+            filePath: 'f',
+            line: 1,
+          ), // redirect
         ],
         issues: const [],
         classIndex: const {},

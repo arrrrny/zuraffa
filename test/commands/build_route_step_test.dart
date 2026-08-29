@@ -23,8 +23,11 @@ void main() {
   group('BuildCommand.compileRouteAnnotations (zfa build pre-step)', () {
     test('success: writes artifacts and returns 0', () async {
       writeFile(tempDir.path, 'pubspec.yaml', 'name: test_app\n');
-      writeFile(tempDir.path, 'lib/home_view.dart',
-          '@Route(path: \'/home\')\nclass HomeView {}\n');
+      writeFile(
+        tempDir.path,
+        'lib/home_view.dart',
+        '@Route(path: \'/home\')\nclass HomeView {}\n',
+      );
 
       final lines = <String>[];
       final code = await BuildCommand.compileRouteAnnotations(
@@ -34,8 +37,7 @@ void main() {
 
       expect(code, 0);
       expect(
-        File('${tempDir.path}/lib/src/routing/zfa_router.g.dart')
-            .existsSync(),
+        File('${tempDir.path}/lib/src/routing/zfa_router.g.dart').existsSync(),
         true,
       );
       expect(lines.join('\n'), contains('route'));
@@ -43,10 +45,16 @@ void main() {
 
     test('validation failure: returns 1 and prints every error', () async {
       writeFile(tempDir.path, 'pubspec.yaml', 'name: test_app\n');
-      writeFile(tempDir.path, 'lib/a_view.dart',
-          '@Route(path: \'/dupe\')\nclass AView {}\n');
-      writeFile(tempDir.path, 'lib/b_view.dart',
-          '@Route(path: \'/dupe\')\nclass BView {}\n');
+      writeFile(
+        tempDir.path,
+        'lib/a_view.dart',
+        '@Route(path: \'/dupe\')\nclass AView {}\n',
+      );
+      writeFile(
+        tempDir.path,
+        'lib/b_view.dart',
+        '@Route(path: \'/dupe\')\nclass BView {}\n',
+      );
 
       final lines = <String>[];
       final code = await BuildCommand.compileRouteAnnotations(
@@ -73,8 +81,7 @@ void main() {
 
       expect(code, 0);
       expect(
-        File('${tempDir.path}/lib/src/routing/zfa_router.g.dart')
-            .existsSync(),
+        File('${tempDir.path}/lib/src/routing/zfa_router.g.dart').existsSync(),
         false,
       );
     });

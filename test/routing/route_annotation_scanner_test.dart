@@ -106,8 +106,7 @@ class LegacyView {}
       expect(scan.issues, isEmpty);
     });
 
-    test('scans standalone @Route.middleware and merges with @Route',
-        () async {
+    test('scans standalone @Route.middleware and merges with @Route', () async {
       writeFile('admin_view.dart', '''
 @Route(path: '/admin')
 @Route.middleware([AuthGuard])
@@ -135,8 +134,9 @@ class SomeService {}
 @Route(path: '/oops')
 class SomeService {}
 ''');
-      final scan =
-          await RouteAnnotationScanner(strictNonView: false).scanDirectory(libDir);
+      final scan = await RouteAnnotationScanner(
+        strictNonView: false,
+      ).scanDirectory(libDir);
       expect(scan.issues, hasLength(1));
       expect(scan.issues.first.isError, false);
       // Route still included in lenient mode.
@@ -168,10 +168,12 @@ class PlainShellView {
 }
 ''');
       final scan = await RouteAnnotationScanner().scanDirectory(libDir);
-      final shell = scan.routes
-          .firstWhere((r) => r.viewClassName == 'ShellView');
-      final plain = scan.routes
-          .firstWhere((r) => r.viewClassName == 'PlainShellView');
+      final shell = scan.routes.firstWhere(
+        (r) => r.viewClassName == 'ShellView',
+      );
+      final plain = scan.routes.firstWhere(
+        (r) => r.viewClassName == 'PlainShellView',
+      );
       expect(shell.viewAcceptsChild, true);
       expect(plain.viewAcceptsChild, false);
     });
@@ -186,13 +188,19 @@ class GeneratedView {}
     });
 
     test('multiple views across directories all scanned', () async {
-      writeFile('a/home_view.dart',
-          '@Route(path: \'/home\')\nclass HomeView {}\n');
-      writeFile('b/nested/products_view.dart',
-          '@Route(path: \'/products\')\nclass ProductsView {}\n');
+      writeFile(
+        'a/home_view.dart',
+        '@Route(path: \'/home\')\nclass HomeView {}\n',
+      );
+      writeFile(
+        'b/nested/products_view.dart',
+        '@Route(path: \'/products\')\nclass ProductsView {}\n',
+      );
       final scan = await RouteAnnotationScanner().scanDirectory(libDir);
-      expect(scan.routes.map((r) => r.path),
-          containsAll(['/home', '/products']));
+      expect(
+        scan.routes.map((r) => r.path),
+        containsAll(['/home', '/products']),
+      );
     });
 
     test('indexes guard classes for import resolution', () async {
@@ -204,8 +212,10 @@ class AuthGuard extends ZuraffaRouteGuard {
   Future<bool> canActivate(ZfaRouteNavigationContext context) async => true;
 }
 ''');
-      writeFile('v/secure_view.dart',
-          '@Route(path: \'/secure\', middleware: [AuthGuard])\nclass SecureView {}\n');
+      writeFile(
+        'v/secure_view.dart',
+        '@Route(path: \'/secure\', middleware: [AuthGuard])\nclass SecureView {}\n',
+      );
       final scan = await RouteAnnotationScanner().scanDirectory(libDir);
       expect(scan.classIndex.containsKey('AuthGuard'), true);
       expect(scan.classIndex['AuthGuard'], 'guards/auth_guard.dart');

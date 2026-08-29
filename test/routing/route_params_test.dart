@@ -5,12 +5,13 @@ void main() {
   group('ZfaRouteParams typed parse helpers', () {
     test('stringParam parses values and falls back', () {
       expect(ZfaRouteParams.stringParam({'q': 'dart'}, 'q'), 'dart');
-      expect(ZfaRouteParams.stringParam({'q': 'dart'}, 'q', fallback: 'x'),
-          'dart');
+      expect(
+        ZfaRouteParams.stringParam({'q': 'dart'}, 'q', fallback: 'x'),
+        'dart',
+      );
       expect(ZfaRouteParams.stringParam({}, 'q'), '');
       expect(ZfaRouteParams.stringParam({}, 'q', fallback: 'none'), 'none');
-      expect(ZfaRouteParams.stringParam({'q': ''}, 'q', fallback: 'none'),
-          '');
+      expect(ZfaRouteParams.stringParam({'q': ''}, 'q', fallback: 'none'), '');
     });
 
     test('intParam parses ints and falls back', () {
@@ -19,8 +20,9 @@ void main() {
       expect(ZfaRouteParams.intParam({}, 'id'), 0);
       expect(ZfaRouteParams.intParam({'id': 'not-a-number'}, 'id'), 0);
       expect(
-          ZfaRouteParams.intParam({'id': 'not-a-number'}, 'id', fallback: -1),
-          -1);
+        ZfaRouteParams.intParam({'id': 'not-a-number'}, 'id', fallback: -1),
+        -1,
+      );
     });
 
     test('doubleParam parses doubles and falls back', () {
@@ -49,22 +51,30 @@ void main() {
       );
       ZfaRouteParams.bind(params);
       expect(ZfaRouteParams.currentAs<_FakeParams>(), same(params));
-      expect(ZfaRouteParams.currentAs<_FakeParams>().pathParameters['id'],
-          '42');
-      expect(ZfaRouteParams.currentAs<_FakeParams>().queryParameters['tab'],
-          'profile');
+      expect(
+        ZfaRouteParams.currentAs<_FakeParams>().pathParameters['id'],
+        '42',
+      );
+      expect(
+        ZfaRouteParams.currentAs<_FakeParams>().queryParameters['tab'],
+        'profile',
+      );
     });
 
     test('currentAs throws StateError when nothing is bound', () {
       ZfaRouteParams.reset();
-      expect(() => ZfaRouteParams.currentAs<_FakeParams>(),
-          throwsA(isA<StateError>()));
+      expect(
+        () => ZfaRouteParams.currentAs<_FakeParams>(),
+        throwsA(isA<StateError>()),
+      );
     });
 
     test('currentAs throws when bound to a different type', () {
       ZfaRouteParams.bind(const ZfaRouteParams());
-      expect(() => ZfaRouteParams.currentAs<_FakeParams>(),
-          throwsA(isA<StateError>()));
+      expect(
+        () => ZfaRouteParams.currentAs<_FakeParams>(),
+        throwsA(isA<StateError>()),
+      );
     });
 
     test('US-2 scenario: /items/42 -> controller receives id=42 (int)', () {

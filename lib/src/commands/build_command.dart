@@ -60,9 +60,11 @@ class BuildCommand extends Command {
       if (outcome.skipped) {
         return 0;
       }
-      printFn('🧭 Route configuration: ${outcome.routeCount} routes, '
-          '${outcome.redirectCount} redirects → '
-          '${RouteAnnotationCompiler.routerFilePath}');
+      printFn(
+        '🧭 Route configuration: ${outcome.routeCount} routes, '
+        '${outcome.redirectCount} redirects → '
+        '${RouteAnnotationCompiler.routerFilePath}',
+      );
       for (final file in outcome.writtenFiles.keys) {
         if (file.endsWith(RouteAnnotationCompiler.routerFilePath)) continue;
         printFn('   deep links: ${p.relative(file, from: projectRoot)}');
@@ -71,8 +73,10 @@ class BuildCommand extends Command {
     } on RouteCompilationException catch (e) {
       printFn('❌ Route annotation errors (build failed):');
       for (final error in e.errors) {
-        printFn('   ${p.relative(error.filePath, from: projectRoot)}:'
-            '${error.line}: ${error.message}');
+        printFn(
+          '   ${p.relative(error.filePath, from: projectRoot)}:'
+          '${error.line}: ${error.message}',
+        );
       }
       return 1;
     }
@@ -124,9 +128,7 @@ class BuildCommand extends Command {
     // generated router participates in the build (and misconfiguration
     // fails the build here, not at runtime).
     if (!dryRun) {
-      final routeExit = await compileRouteAnnotations(
-        Directory.current.path,
-      );
+      final routeExit = await compileRouteAnnotations(Directory.current.path);
       if (routeExit != 0) {
         exit(1);
       }

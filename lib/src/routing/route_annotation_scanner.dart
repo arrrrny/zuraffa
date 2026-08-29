@@ -44,14 +44,15 @@ class RouteAnnotationScanner {
       );
     }
 
-    final files = root
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.dart'))
-        .where((f) => !f.path.endsWith('.g.dart'))
-        .where((f) => !f.path.endsWith('.freezed.dart'))
-        .toList()
-      ..sort((a, b) => a.path.compareTo(b.path));
+    final files =
+        root
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.dart'))
+            .where((f) => !f.path.endsWith('.g.dart'))
+            .where((f) => !f.path.endsWith('.freezed.dart'))
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
 
     for (final file in files) {
       final content = file.readAsStringSync();
@@ -126,8 +127,10 @@ class RouteAnnotationScanner {
 
     for (final annotation in node.metadata) {
       final name = annotation.name.name;
-      if (name != 'Route' && name != 'Route.redirect' &&
-          name != 'Route.middleware' && name != 'zfa.Route') {
+      if (name != 'Route' &&
+          name != 'Route.redirect' &&
+          name != 'Route.middleware' &&
+          name != 'zfa.Route') {
         continue;
       }
       // Named-constructor annotations (@Route.redirect / @Route.middleware)
@@ -172,26 +175,30 @@ class RouteAnnotationScanner {
 
     if (routeAnnotations.isEmpty && standaloneMiddleware.isNotEmpty) {
       // @Route.middleware without a @Route(...) — nothing to attach to.
-      issues.add(RouteScanIssue(
-        message: '@Route.middleware on $className has no matching @Route '
-            'annotation; the guards are ignored.',
-        filePath: filePath,
-        line: _lineOf(node.metadata.first),
-        isError: true,
-      ));
+      issues.add(
+        RouteScanIssue(
+          message:
+              '@Route.middleware on $className has no matching @Route '
+              'annotation; the guards are ignored.',
+          filePath: filePath,
+          line: _lineOf(node.metadata.first),
+          isError: true,
+        ),
+      );
       return;
     }
 
     if (!isView) {
-      issues.add(RouteScanIssue(
-        message: '@Route on non-View class $className — annotate a View '
-            'class (name ends with "View" or extends a View).',
-        filePath: filePath,
-        line: routeAnnotations.isEmpty
-            ? 1
-            : _lineOf(routeAnnotations.first),
-        isError: strictNonView,
-      ));
+      issues.add(
+        RouteScanIssue(
+          message:
+              '@Route on non-View class $className — annotate a View '
+              'class (name ends with "View" or extends a View).',
+          filePath: filePath,
+          line: routeAnnotations.isEmpty ? 1 : _lineOf(routeAnnotations.first),
+          isError: strictNonView,
+        ),
+      );
     }
 
     // A @Route.redirect annotation combined with @Route(...) on the same
@@ -208,13 +215,16 @@ class RouteAnnotationScanner {
       final namedArgs = _namedArgSources(annotation);
       final path = _unquote(namedArgs['path']);
       if (path == null || path.isEmpty) {
-        issues.add(RouteScanIssue(
-          message: '@Route on $className is missing the required `path` '
-              'argument.',
-          filePath: filePath,
-          line: _lineOf(annotation),
-          isError: true,
-        ));
+        issues.add(
+          RouteScanIssue(
+            message:
+                '@Route on $className is missing the required `path` '
+                'argument.',
+            filePath: filePath,
+            line: _lineOf(annotation),
+            isError: true,
+          ),
+        );
         continue;
       }
 
@@ -234,22 +244,24 @@ class RouteAnnotationScanner {
         if (rule != null) redirects.add(rule);
       }
 
-      routes.add(RouteDeclaration(
-        viewClassName: className,
-        path: path,
-        name: _unquote(namedArgs['name']) ?? _defaultRouteName(className),
-        deepLinkAware: _parseBool(namedArgs['deepLinkAware']) ?? false,
-        isShell: _parseBool(namedArgs['isShell']) ?? false,
-        parent: _unquote(namedArgs['parent']),
-        middleware: middleware,
-        params: _parseTypeMap(namedArgs['params'] ?? ''),
-        query: _parseStringListValues(namedArgs['query'] ?? ''),
-        guardRedirect: _unquote(namedArgs['guardRedirect']),
-        viewAcceptsChild: viewAcceptsChild,
-        importUri: importUri,
-        filePath: filePath,
-        line: _lineOf(annotation),
-      ));
+      routes.add(
+        RouteDeclaration(
+          viewClassName: className,
+          path: path,
+          name: _unquote(namedArgs['name']) ?? _defaultRouteName(className),
+          deepLinkAware: _parseBool(namedArgs['deepLinkAware']) ?? false,
+          isShell: _parseBool(namedArgs['isShell']) ?? false,
+          parent: _unquote(namedArgs['parent']),
+          middleware: middleware,
+          params: _parseTypeMap(namedArgs['params'] ?? ''),
+          query: _parseStringListValues(namedArgs['query'] ?? ''),
+          guardRedirect: _unquote(namedArgs['guardRedirect']),
+          viewAcceptsChild: viewAcceptsChild,
+          importUri: importUri,
+          filePath: filePath,
+          line: _lineOf(annotation),
+        ),
+      );
     }
   }
 
@@ -385,7 +397,8 @@ class RouteAnnotationScanner {
       if (trimmed.isEmpty) continue;
       final colon = trimmed.indexOf(':');
       if (colon < 0) continue;
-      final key = _unquote(trimmed.substring(0, colon).trim()) ??
+      final key =
+          _unquote(trimmed.substring(0, colon).trim()) ??
           trimmed.substring(0, colon).trim();
       final value = trimmed.substring(colon + 1).trim();
       if (value.isEmpty) continue;
