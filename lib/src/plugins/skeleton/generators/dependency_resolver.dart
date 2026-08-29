@@ -178,8 +178,8 @@ class DependencyResolver {
 
     for (final line in lines) {
       final trimmed = line.trim();
-      if (trimmed.toLowerCase() == '## key entities') {
-        inKeyEntities = true;
+      if (RegExp(r'^#{1,6}\s+key entities\s*$', caseSensitive: false)
+          .hasMatch(trimmed)) {
         continue;
       }
       if (inKeyEntities) {
