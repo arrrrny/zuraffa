@@ -34,6 +34,7 @@ import '../plugins/module/module_plugin.dart';
 import '../plugins/mcp/mcp_plugin.dart';
 import '../plugins/cli/cli_plugin.dart' as cli_gen;
 import '../plugins/benchmark/benchmark_plugin.dart';
+import '../plugins/skeleton/skeleton_plugin.dart';
 
 class PluginConfig {
   final Set<String> disabled;
@@ -151,6 +152,7 @@ class PluginLoader {
       // no Flutter. Provides the extensible benchmark contract framework
       // and the `zfa benchmark` CLI command (FR-011, FR-014, FR-015).
       BenchmarkPlugin(),
+      SkeletonPlugin(),
     ];
   }
 }
