@@ -41,6 +41,17 @@ String xrayConfigPathFor(String? root) {
   return '$normalized/$kXrayConfigPath';
 }
 
+/// Compile-time release-mode flag — `true` ONLY when the VM is started
+/// with `--dart-define=dart.vm.product=true` (release / AOT builds).
+///
+/// Pure-Dart equivalent of Flutter's `kReleaseMode` / `kDebugMode`.
+///
+/// Track 4.4 — Spec 035 (issue #184, FR-005, FR-006, SC-004).
+const bool kXrayReleaseMode = bool.fromEnvironment('dart.vm.product');
+
+/// Whether X-Ray should be active in the current build.
+bool shouldXRayBeActiveInCurrentBuild() => !kXrayReleaseMode;
+
 /// Read the X-Ray config file. Returns `null` if missing/malformed.
 Map<String, dynamic>? readXrayConfig() {
   final file = File(xrayConfigPath);
