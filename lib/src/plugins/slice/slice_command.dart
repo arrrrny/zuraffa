@@ -24,6 +24,7 @@ import 'package:path/path.dart' as p;
 
 import 'capabilities/cut_slice_capability.dart';
 import 'capabilities/merge_slice_capability.dart';
+import 'capabilities/verify_slice_capability.dart';
 import 'generators/manifest_writer.dart';
 import 'models/slice_file.dart';
 import 'models/slice_manifest.dart';
@@ -36,13 +37,17 @@ class SliceCommand extends Command<void> {
   /// [confirmShared] answers the interactive confirmation for shared-file
   /// writes (used by tests); when null the command prompts on a terminal
   /// and denies when there is none (deterministic in CI).
-  SliceCommand({this.projectRoot = '.', bool Function()? confirmShared})
+  SliceCommand({this.projectRoot = '.', bool Function()? confirmShared,
+      this.analyzeLauncher})
     : _confirmShared = confirmShared;
 
   /// Root of the project being sliced.
   final String projectRoot;
 
   final bool Function()? _confirmShared;
+
+  /// Process seam for `verify --analyze` (injected by tests).
+  final AnalyzeLauncher? analyzeLauncher;
 
   @override
   String get name => 'slice';
@@ -181,15 +186,46 @@ import options:
       'verify': results['verify'] as bool,
     });
 
-    if (result.success) {
-      print(result.message);
-      final warnings = result.data?['warnings'] as List;
-      for (final warning in warnings) {
-        print('warning: $warning');
-      }
-    } else {
+    if (!result.success) {
       print('Error: ${result.message}');
       exitCode = 1;
+      return;
+    }
+
+    print(result.message);
+    final warnings = result.data?['warnings'] as List;
+    for (final warning in warnings) {
+      print('warning: $warning');
+    }
+
+    // T057/A19: fail-fast verification rolls the sandbox back on failure.
+    if (results['verify'] as bool) {
+      final verify = await VerifySliceCapability().execute({
+        'name': results.rest.first,
+        'projectRoot': projectRoot,
+        'analyzeLauncher': analyzeLauncher,
+      });
+      if (verify.success) {
+        print(verify.message);
+      } else {
+        print('Error: slice verification failed — rolling back.');
+        for (final issue in (verify.data?['issues'] as List? ?? const [])) {
+          final issueMap = issue as Map;
+          print(
+            'unresolved: ${issueMap['file']}:${issueMap['line']} '
+            '"${issueMap['importPath']}" — ${issueMap['reason']}',
+          );
+        }
+        final sandbox = CutSliceCapability.sandboxDirFor(
+          projectRoot,
+          results.rest.first,
+        );
+        final dir = Directory(sandbox);
+        if (dir.existsSync()) {
+          dir.deleteSync(recursive: true);
+        }
+        exitCode = 1;
+      }
     }
   }
 
@@ -385,7 +421,30 @@ import options:
       return;
     }
 
-    print('slice verify is not wired yet');
+    final capability = VerifySliceCapability();
+    final result = await capability.execute({
+      'name': results.rest.first,
+      'projectRoot': projectRoot,
+      'analyze': results['analyze'] as bool,
+      'analyzeLauncher': analyzeLauncher,
+    });
+
+    if (result.success) {
+      print(result.message);
+      return;
+    }
+
+    print('Error: ${result.message}');
+    for (final issue in (result.data?['issues'] as List? ?? const [])) {
+      final issueMap = issue as Map;
+      print(
+        'unresolved: ${issueMap['file']}:${issueMap['line']} '
+        '"${issueMap['importPath']}" — ${issueMap['reason']}',
+      );
+    }
+    for (final error in (result.data?['analyzeErrors'] as List? ?? const [])) {
+      print('analyze: $error');
+    }
     exitCode = 1;
   }
 

@@ -302,6 +302,31 @@ class CutSliceCapability implements ZuraffaCapability {
       await _copyFile(source, target);
     }
 
+    // Filtered barrels (FR-005): mirror each encountered barrel at its
+    // original path, exporting only the targets the slice kept, so barrel
+    // imports resolve without pulling in the barrel's full contents.
+    for (final entry in walkResult.barrels.entries) {
+      final barrelRel = p.relative(entry.key, from: projectRoot);
+      final barrelSandboxPath = p.join(sandboxDir, barrelRel);
+      final buffer = StringBuffer()
+        ..writeln(
+          '// Filtered by `zfa slice cut` — exports only the symbols this '
+          'slice uses (FR-005).',
+        )
+        ..writeln('library;');
+      for (final keptTarget in entry.value) {
+        final keptRel = p.relative(keptTarget, from: projectRoot);
+        var exportUri = p.relative(
+          p.join(sandboxDir, keptRel),
+          from: p.dirname(barrelSandboxPath),
+        );
+        exportUri = exportUri.replaceAll('\\', '/');
+        buffer.writeln("export '$exportUri';");
+      }
+      await _writeFile(barrelSandboxPath, buffer.toString());
+      generatedFiles.add(barrelRel);
+    }
+
     // SLICE.md agent instructions (FR-007).
     final readme = _readmeGenerator.generate(manifest: manifest);
     await _writeFile(p.join(sandboxDir, 'SLICE.md'), readme);

@@ -170,8 +170,15 @@ void main() {
       expect(files, isNot(contains('lib/src/presentation/widgets/secondary_button.dart')));
       expect(files, isNot(contains('lib/src/presentation/widgets/loading_indicator.dart')));
       expect(files, isNot(contains('lib/src/presentation/widgets/app_card.dart')));
-      // The barrel itself is never mirrored into the sandbox.
-      expect(files, isNot(contains('lib/src/presentation/widgets/index.dart')));
+      // The barrel itself is mirrored FILTERED: it exports only the symbol
+      // the slice references, so the import resolves without dragging in
+      // the barrel's other contents (FR-005).
+      final barrel = File('${sandbox()}/lib/src/presentation/widgets/index.dart')
+          .readAsStringSync();
+      expect(barrel, contains("export 'primary_button.dart';"));
+      expect(barrel, isNot(contains('secondary_button')));
+      expect(barrel, isNot(contains('loading_indicator')));
+      expect(barrel, isNot(contains('app_card')));
     }, timeout: const Timeout(Duration(minutes: 2)));
 
     test('A1: main_slice.dart wires the entry view with mock DI', () async {

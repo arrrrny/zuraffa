@@ -44,6 +44,7 @@ class WalkResult {
     required this.graph,
     required this.boundaries,
     required this.warnings,
+    this.barrels = const {},
   });
 
   /// The included-file graph.
@@ -54,6 +55,12 @@ class WalkResult {
 
   /// Non-fatal warnings (missing companions, unresolved imports, etc.).
   final List<String> warnings;
+
+  /// Barrel files encountered during the walk, mapped to the targets the
+  /// slice actually kept (FR-005). The cut writes a FILTERED barrel at the
+  /// original path so the importer's barrel import still resolves without
+  /// pulling in the whole barrel's contents.
+  final Map<String, List<String>> barrels;
 }
 
 /// One import directive: its URI and any `show` symbols.
@@ -159,6 +166,7 @@ class ImportGraphWalker {
     final warnings = <String>[];
     final queue = Queue<String>.from(entries);
     final typeIndex = await _buildTypeIndex(projectRoot);
+    final barrels = <String, List<String>>{};
 
     while (queue.isNotEmpty) {
       final path = queue.removeFirst();
@@ -216,6 +224,7 @@ class ImportGraphWalker {
           importerSource: source,
           projectRoot: projectRoot,
           resolver: resolver,
+          barrels: barrels,
         );
         resolvedImports.addAll(targets);
         for (final target in targets) {
@@ -310,6 +319,7 @@ class ImportGraphWalker {
       ),
       boundaries: boundaries,
       warnings: warnings,
+      barrels: barrels,
     );
   }
 
@@ -349,13 +359,15 @@ class ImportGraphWalker {
   }
 
   /// Resolves one import to the concrete local file paths it contributes:
-  /// barrels expand (FR-005), everything else is the file itself.
+  /// barrels expand (FR-005) — recording the kept targets so the cut can
+  /// emit a filtered barrel — everything else is the file itself.
   Future<List<String>> _expandImport({
     required _ImportInfo info,
     required String importingFile,
     required String importerSource,
     required String projectRoot,
     required PackageResolver resolver,
+    Map<String, List<String>>? barrels,
   }) async {
     final target = await _resolveImport(
       info: info,
@@ -365,11 +377,21 @@ class ImportGraphWalker {
     );
     if (target == null) return const [];
     if (!File(target).existsSync()) return const [];
-    return _barrelResolver.expandImport(
+    final content = await File(target).readAsString();
+    if (!_barrelResolver.isBarrel(content)) {
+      return [target];
+    }
+    final kept = await _barrelResolver.expandImport(
       importedPath: target,
       importerSource: importerSource,
       shownSymbols: info.shownSymbols,
     );
+    final existing = barrels?[target] ?? const <String>[];
+    barrels?[target] = [
+      ...existing,
+      ...kept.where((k) => !existing.contains(k)),
+    ];
+    return kept;
   }
 
   /// Index of top-level declared type names -> absolute file path.
