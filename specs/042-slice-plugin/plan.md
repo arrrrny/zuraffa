@@ -58,10 +58,12 @@ specs/042-slice-plugin/
 ```text
 lib/src/plugins/slice/
 ├── slice_plugin.dart                 # Plugin class (extends ZuraffaPlugin, implements CliAwarePlugin)
-├── slice_command.dart                # CLI command with subcommands (cut, merge, list, inspect)
+├── slice_command.dart                # CLI command with subcommands (cut, merge, list, inspect, verify, run)
 ├── capabilities/
 │   ├── cut_slice_capability.dart     # Plan/execute for slice extraction
-│   └── merge_slice_capability.dart   # Plan/execute for merge-back
+│   ├── merge_slice_capability.dart   # Plan/execute for merge-back
+│   ├── verify_slice_capability.dart  # Plan/execute for integrity verification
+│   └── export_slice_capability.dart  # Plan/execute for tar.gz and GitHub export
 ├── engine/
 │   ├── import_graph_walker.dart      # Transitive import resolution with boundary detection
 │   ├── service_locator_analyzer.dart # Extract getIt<T>() calls from presenter constructors
@@ -82,6 +84,16 @@ lib/src/plugins/slice/
 └── merger/
     ├── slice_merger.dart             # Hash-compare + copy-back logic
     └── conflict_detector.dart        # Detect concurrent modifications
+├── verifier/
+│   ├── import_verifier.dart          # Check all imports in sliced files resolve
+│   └── analyze_runner.dart           # Wrap dart analyze / flutter analyze on sandbox
+├── runner/
+│   └── slice_runner.dart             # Wrap flutter run -t main_slice.dart
+└── exporter/
+    ├── tarball_exporter.dart          # Pack sandbox into .tar.gz with filtered pubspec
+    ├── github_exporter.dart           # Create/push to GitHub repo via gh CLI or API
+    ├── pubspec_filter.dart            # Filter pubspec.yaml to only slice-used dependencies
+    └── slice_importer.dart            # Pull changes from exported GitHub repo back to sandbox
 
 test/plugins/slice/
 ├── engine/
@@ -99,10 +111,16 @@ test/plugins/slice/
 ├── merger/
 │   ├── slice_merger_test.dart
 │   └── conflict_detector_test.dart
-└── slice_integration_test.dart       # End-to-end: cut → modify → merge
+├── verifier/
+│   └── import_verifier_test.dart
+├── exporter/
+│   ├── tarball_exporter_test.dart
+│   ├── github_exporter_test.dart
+│   └── pubspec_filter_test.dart
+└── slice_integration_test.dart       # End-to-end: cut → verify → modify → merge
 ```
 
-**Structure Decision**: The slice plugin follows the standard Zuraffa plugin layout but with a richer internal structure due to the graph engine. The `engine/` subdirectory contains the core traversal logic (reusable by other plugins). The `models/` directory holds value objects. The `generators/` directory produces sandbox artifacts. The `merger/` directory handles the merge-back lifecycle.
+**Structure Decision**: The slice plugin follows the standard Zuraffa plugin layout but with a richer internal structure due to the graph engine. The `engine/` subdirectory contains the core traversal logic (reusable by other plugins). The `models/` directory holds value objects. The `generators/` directory produces sandbox artifacts. The `merger/` directory handles the merge-back lifecycle. The `verifier/` directory validates slice integrity. The `exporter/` directory handles tar.gz and GitHub export/import.
 
 ## Complexity Tracking
 

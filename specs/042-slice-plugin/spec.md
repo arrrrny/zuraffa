@@ -8,7 +8,7 @@
 
 **Input**: User description: "Build a Zuraffa plugin that extracts runnable, self-contained subsets ('slices') of a large app codebase so that AI agents (or human developers) can work on isolated features without needing the full project context. The plugin traces the dependency graph from an entry point (page, route, entity, or arbitrary file), respects architecture boundaries, generates a runnable sandbox with mock DI wiring, and merges changes back into the main project. This solves the AI agent context-window problem: instead of giving a cloud agent a 130-entity monolith, you give it a 12-file mini-app that compiles and runs."
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Cut a Feature Slice for AI Agent Delegation (Priority: P1)
 
@@ -90,6 +90,57 @@ A developer wants to control how deep the slice goes. For pure UI styling work, 
 
 ---
 
+### User Story 6 - Verify Slice Integrity After Extraction (Priority: P1)
+
+After cutting a slice, the developer (or an automated CI step) wants to verify that the slice is complete and will compile before handing it to an agent. The system runs a static analysis pass that checks every import in every sliced file resolves to either another file in the slice, an external package, or the SDK. It also optionally attempts a compilation check (`dart analyze` or `flutter analyze`) on the sandbox to catch missing symbols, unresolved types, or incomplete mock stubs.
+
+**Why this priority**: A broken slice is worse than no slice — the agent wastes its entire context window debugging import errors instead of doing the actual work. Verification is the quality gate that makes the whole system trustworthy.
+
+**Independent Test**: Can be tested by cutting a slice, then running verify and confirming it reports success. Can also be tested by deliberately removing a file from the slice and confirming verify catches the dangling import.
+
+**Acceptance Scenarios**:
+
+1. **Given** a correctly extracted slice where all imports resolve, **When** the developer runs `zfa slice verify profile_feature`, **Then** the system reports all imports resolved and the slice is ready for use.
+2. **Given** a slice where a shared widget file was accidentally excluded (e.g., manually deleted from the sandbox), **When** verify is run, **Then** the system reports exactly which files have unresolved imports and which import paths are broken.
+3. **Given** a slice with the `--analyze` flag, **When** verify is run, **Then** the system runs `dart analyze` on the sandbox directory and reports any compilation errors.
+4. **Given** a slice that passes verification, **When** the developer runs `zfa slice cut` with `--verify` flag, **Then** verification runs automatically at the end of extraction and the command fails if the slice is incomplete.
+
+---
+
+### User Story 7 - Run the Slice as a Standalone App (Priority: P2)
+
+A developer wants to quickly launch the sliced mini-app to visually verify it works before handing it to an agent, or after an agent finishes to review the changes. Instead of remembering the non-obvious entry point path, the developer runs a single command that launches the slice.
+
+**Why this priority**: The entry point path (`.zuraffa/slices/<name>/main_slice.dart`) is deeply nested and easy to mistype. A run command removes friction and makes the slice feel like a first-class artifact. However, advanced users can always run it manually, so this is convenience rather than capability.
+
+**Independent Test**: Can be tested by cutting a slice, running it, and verifying the app launches on the target device/emulator.
+
+**Acceptance Scenarios**:
+
+1. **Given** a verified slice, **When** the developer runs `zfa slice run profile_feature`, **Then** the system launches `flutter run -t .zuraffa/slices/profile_feature/main_slice.dart` in the current project directory.
+2. **Given** a slice that has not been verified, **When** run is invoked, **Then** the system runs verify first and aborts with an error message if verification fails.
+3. **Given** a slice, **When** the developer runs `zfa slice run profile_feature --device chrome`, **Then** additional flags are passed through to the underlying `flutter run` command.
+
+---
+
+### User Story 8 - Export a Slice for Cloud Agent Handoff (Priority: P2)
+
+A developer wants to hand a slice to a cloud AI agent that cannot access the local filesystem. The developer exports the slice as either a `.tar.gz` archive they can upload, or as a new GitHub repository the cloud agent can clone. The export includes the sandbox files, the generated entry point, the agent instruction file, and a standalone `pubspec.yaml` so the exported artifact is fully self-contained.
+
+**Why this priority**: Cloud agents (Copilot, Codex, Devin, Kimi, etc.) are the primary consumers of slices. Without export, the developer must manually zip and upload the sandbox — error-prone and tedious. However, local agents (Zed, Cursor) can work directly on the sandbox directory, so export is not required for all workflows.
+
+**Independent Test**: Can be tested by cutting a slice, exporting it as a tarball, extracting to a clean directory, and verifying `flutter analyze` passes. For GitHub export, verify a new repo is created with the expected file structure.
+
+**Acceptance Scenarios**:
+
+1. **Given** a verified slice, **When** the developer runs `zfa slice export profile_feature --format tar.gz`, **Then** the system produces a `.tar.gz` archive at `.zuraffa/slices/profile_feature/profile_feature.tar.gz` containing all sandbox files with a self-contained `pubspec.yaml`.
+2. **Given** a verified slice, **When** the developer runs `zfa slice export profile_feature --format github --repo my-org/profile-slice`, **Then** the system creates a new GitHub repository (or pushes to an existing one) with the sandbox contents, including `SLICE.md` as the repo README and a working `pubspec.yaml`.
+3. **Given** a verified slice, **When** the developer runs `zfa slice export profile_feature --format github` without specifying a repo name, **Then** the system auto-generates a repo name based on the project and slice name (e.g., `zik-zak-slice-profile-feature`) and creates it under the authenticated user's account.
+4. **Given** a slice that has not been verified, **When** export is run, **Then** the system runs verify first and aborts if the slice is incomplete.
+5. **Given** an exported GitHub repo where the agent has pushed commits, **When** the developer runs `zfa slice import profile_feature --from github --repo my-org/profile-slice`, **Then** the system pulls the repo contents back into the local sandbox directory, ready for `zfa slice merge`.
+
+---
+
 ### Edge Cases
 
 - What happens when an entry point file does not exist? The system reports a clear error with the attempted path and available alternatives.
@@ -98,7 +149,7 @@ A developer wants to control how deep the slice goes. For pure UI styling work, 
 - What happens when the developer tries to merge a slice that was cut from a different branch? The system detects the branch mismatch and warns the developer.
 - What happens when two active slices have overlapping files? Each slice operates independently; merge processes one at a time. The second merge may detect hash mismatches from the first merge.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -114,6 +165,14 @@ A developer wants to control how deep the slice goes. For pure UI styling work, 
 - **FR-010**: The system MUST classify every file in the slice as "owned" (unique to this feature, safe to modify), "shared" (used by other features, modify with caution), or "framework" (external dependency, read-only).
 - **FR-011**: The system MUST support multiple entry points per slice, unioning their dependency graphs and deduplicating shared files.
 - **FR-012**: The system MUST provide list and inspect commands for operational visibility into active slices.
+- **FR-013**: The system MUST verify slice integrity by checking that every import in every sliced file resolves to either another file in the slice, an external package declared in pubspec.yaml, or the Dart/Flutter SDK.
+- **FR-014**: The system MUST support an optional compilation check (`dart analyze` / `flutter analyze`) on the sandbox as part of verification.
+- **FR-015**: The system MUST support automatic verification at the end of `slice cut` via a `--verify` flag, failing the extraction if the slice is incomplete.
+- **FR-016**: The system MUST provide a run command that launches the slice as a standalone app via `flutter run` with the generated entry point, passing through additional device/platform flags.
+- **FR-017**: The system MUST export a slice as a `.tar.gz` archive containing all sandbox files with a self-contained `pubspec.yaml` that declares only the dependencies used by the slice.
+- **FR-018**: The system MUST export a slice to a new or existing GitHub repository, using `SLICE.md` as the repo README, including all sandbox files, and providing a working `pubspec.yaml`.
+- **FR-019**: The system MUST support importing agent changes back from an exported GitHub repository into the local sandbox for merge-back via `zfa slice import`.
+- **FR-020**: The system MUST run verification before any export and abort if the slice is incomplete.
 
 ### Key Entities
 
@@ -123,7 +182,7 @@ A developer wants to control how deep the slice goes. For pure UI styling work, 
 - **SliceManifest**: The persistent record of a slice's configuration and contents. Stored as `slice.yaml` in the slice directory.
 - **FileGraph**: The project-wide dependency graph with nodes (files) and edges (imports, DI bindings, navigation routes). Built on demand from the project's source files.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 
@@ -133,6 +192,10 @@ A developer wants to control how deep the slice goes. For pure UI styling work, 
 - **SC-004**: Merge-back correctly applies agent modifications to the main project without data loss in 100% of non-conflicting cases.
 - **SC-005**: An AI agent working on a slice produces changes that apply cleanly to the main project at least 90% of the time (i.e., fewer than 10% of merges require manual conflict resolution).
 - **SC-006**: The slice size (file count) is at most 15% of the total project file count for a typical single-feature extraction, ensuring meaningful context reduction for AI agents.
+- **SC-007**: Slice verification completes in under 10 seconds for slices with up to 50 files, and catches 100% of missing-file import errors.
+- **SC-008**: A verified slice launches successfully via `zfa slice run` on the first attempt in 95% of cases where the developer's Flutter environment is correctly configured.
+- **SC-009**: A `.tar.gz` export can be extracted to a clean machine with only Flutter SDK installed and passes `flutter analyze` without errors.
+- **SC-010**: A GitHub-exported slice can be cloned by a cloud agent and the agent can run `flutter analyze` successfully without any additional setup beyond `flutter pub get`.
 
 ## Assumptions
 
@@ -144,5 +207,8 @@ A developer wants to control how deep the slice goes. For pure UI styling work, 
 - The slice plugin can leverage Zuraffa's existing AST infrastructure (`FileParser`, `AstHelper`, `DependencyGraph`, `DiscoveryEngine`) without modification.
 - Navigation edge analysis (detecting `context.go()` / `context.push()` calls) is a v2 enhancement — v1 requires explicit multi-entry specification by the developer.
 - The `slice sync` command (syncing main project changes into an active slice) is a v2 enhancement — v1 supports only cut and merge.
-- The `slice run` command (executing the slice as a standalone app) is a v2 convenience — v1 produces the entry point but the developer runs it manually.
-- The `slice export` command (packaging a slice as a tarball for cloud agent handoff) is a v2 enhancement.
+- GitHub export requires an authenticated GitHub CLI (`gh`) or a configured GitHub token. The plugin does not manage GitHub authentication itself.
+- The exported `pubspec.yaml` is generated from the main project's `pubspec.yaml` by filtering to only the dependencies actually imported by the sliced files. This may require manual adjustment for transitive dependencies in edge cases.
+- `slice import` pulls the full repo contents, overwriting the local sandbox. It does not perform a merge — that happens in the subsequent `slice merge` step.
+- Verification's `--analyze` mode requires a valid Flutter/Dart environment and may take 30-60 seconds for large slices. The fast mode (import resolution check only) is the default.
+- The `run` command delegates to `flutter run` and inherits its device/platform requirements. It is a thin wrapper, not a Flutter runtime.
