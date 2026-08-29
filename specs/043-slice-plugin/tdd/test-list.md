@@ -51,10 +51,10 @@ tasks.md where a scenario spans one command), driven by `dart test`.
 | A13 | `--depth view` includes view/controller/state and no presenter, usecases, or entities                                                  | US5-S1, FR-002            | example | DONE    | `test/plugins/slice/slice_depth_test.dart::A13 (T099): depth view — view/controller/state, no deeper layers` |
 | A14 | `--depth feature` (default) adds presenter/usecases/domain interfaces/entities but no data implementations                             | US5-S2, FR-002            | example | DONE    | `test/plugins/slice/slice_depth_test.dart::A14 (T100): depth feature (default) — domain in, data out` |
 | A15 | `--depth full` additionally includes repository implementations, datasources, and providers                                            | US5-S3, FR-002            | example | DONE    | `test/plugins/slice/slice_depth_test.dart::A15 (T101): depth full — data implementations included, no mocks` |
-| A16 | `slice verify` on a complete slice reports all imports resolved and the slice ready                                                    | US6-S1, FR-013            | example | PENDING |      |
-| A17 | `slice verify` on a slice missing a file reports exactly which files have unresolved imports and which import paths are broken         | US6-S2, FR-013            | example | PENDING |      |
-| A18 | `slice verify --analyze` runs `dart analyze` on the sandbox and reports compilation errors                                             | US6-S3, FR-014            | example | PENDING |      |
-| A19 | `slice cut --verify` auto-verifies after extraction and fails the extraction when the slice is incomplete                              | US6-S4, FR-015            | example | PENDING |      |
+| A16 | `slice verify` on a complete slice reports all imports resolved and the slice ready                                                    | US6-S1, FR-013            | example | DONE    | `test/plugins/slice/slice_verify_integration_test.dart::A16 (T102): a complete slice verifies clean` |
+| A17 | `slice verify` on a slice missing a file reports exactly which files have unresolved imports and which import paths are broken         | US6-S2, FR-013            | example | DONE    | `test/plugins/slice/slice_verify_integration_test.dart::A17 (T103): a deleted sandbox file is reported with its broken imports` |
+| A18 | `slice verify --analyze` runs `dart analyze` on the sandbox and reports compilation errors                                             | US6-S3, FR-014            | example | DONE    | `test/plugins/slice/slice_verify_integration_test.dart::A18 (T104): --analyze runs dart analyze and reports errors` |
+| A19 | `slice cut --verify` auto-verifies after extraction and fails the extraction when the slice is incomplete                              | US6-S4, FR-015            | example | DONE    | `test/plugins/slice/slice_verify_integration_test.dart::A19 (T105): cut --verify fails the cut when the slice is broken` |
 | A20 | `slice run` launches `flutter run -t .zuraffa/slices/<name>/main_slice.dart` from the project root                                     | US7-S1, FR-016            | example | PENDING |      |
 | A21 | `slice run` on an unverified slice verifies first and aborts without launching when verification fails                                 | US7-S2, FR-016, FR-013    | example | PENDING |      |
 | A22 | Extra flags (e.g. `--device chrome`) pass through to the underlying `flutter run`                                                      | US7-S3, FR-016            | example | PENDING |      |
@@ -181,17 +181,17 @@ boundaries, not proven properties.
 
 | id  | behavior                                                                                                             | traces | kind    | state   | test |
 | --- | -------------------------------------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
-| U45 | A slice whose imports all resolve yields a pass report                                                               | FR-013 | example | PENDING |      |
-| U46 | A dangling import yields a failure naming the file, the line, and the broken import path                             | FR-013 | example | PENDING |      |
-| U47 | `dart:` SDK imports always resolve; a `package:` import absent from pubspec.yaml fails verification                  | FR-013 | example | PENDING |      |
+| U45 | A slice whose imports all resolve yields a pass report                                                               | FR-013 | example | DONE    | `test/plugins/slice/verifier/import_verifier_test.dart::U45: a slice whose imports all resolve passes` |
+| U46 | A dangling import yields a failure naming the file, the line, and the broken import path                             | FR-013 | example | DONE    | `test/plugins/slice/verifier/import_verifier_test.dart::U46: a dangling relative import names file, line, and path` |
+| U47 | `dart:` SDK imports always resolve; a `package:` import absent from pubspec.yaml fails verification                  | FR-013 | example | DONE    | `test/plugins/slice/verifier/import_verifier_test.dart::U47: dart: imports resolve; unknown packages fail` |
 
 ### `lib/src/plugins/slice/verifier/analyze_runner.dart`
 
 | id  | behavior                                                                                          | traces | kind    | state   | test |
 | --- | ------------------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
-| U48 | An analyzer-clean sandbox yields a pass result                                                    | FR-014 | example | PENDING |      |
-| U49 | Analyzer errors are captured and returned as a structured failure listing the errors              | FR-014 | example | PENDING |      |
-| U50 | A missing dart/flutter toolchain yields a clear environment error, not a crash                    | FR-014 | example | PENDING |      |
+| U48 | An analyzer-clean sandbox yields a pass result                                                    | FR-014 | example | DONE    | `test/plugins/slice/verifier/analyze_runner_test.dart::U48: an analyzer-clean sandbox passes` |
+| U49 | Analyzer errors are captured and returned as a structured failure listing the errors              | FR-014 | example | DONE    | `test/plugins/slice/verifier/analyze_runner_test.dart::U49: analyzer errors are captured as a structured failure` |
+| U50 | A missing dart/flutter toolchain yields a clear environment error, not a crash                    | FR-014 | example | DONE    | `test/plugins/slice/verifier/analyze_runner_test.dart::U50: a missing toolchain yields a clear environment error` |
 
 ### `lib/src/plugins/slice/runner/slice_runner.dart`
 

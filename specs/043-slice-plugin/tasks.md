@@ -225,23 +225,23 @@
 
 ### Tests for User Story 6 (write FIRST — observe each failing before its implementation task)
 
-- [ ] T058 [US6] [U45] [U46] [U47] Create unit test for `ImportVerifier` with fixture files: one with all imports resolved, one with a dangling import in test/plugins/slice/verifier/import_verifier_test.dart
-- [ ] T082 [P] [US6] [U48] [U49] [U50] Create unit test for `AnalyzeRunner` — clean pass, structured error capture, missing-toolchain environment error — in test/plugins/slice/verifier/analyze_runner_test.dart
+- [x] T058 [US6] [U45] [U46] [U47] Create unit test for `ImportVerifier` with fixture files: one with all imports resolved, one with a dangling import in test/plugins/slice/verifier/import_verifier_test.dart
+- [x] T082 [P] [US6] [U48] [U49] [U50] Create unit test for `AnalyzeRunner` — clean pass, structured error capture, missing-toolchain environment error — in test/plugins/slice/verifier/analyze_runner_test.dart
 
 ### Implementation for User Story 6
 
-- [ ] T053 [US6] [U45] [U46] [U47] Create `ImportVerifier` that parses every `.dart` file in the sandbox, extracts imports, and checks each resolves to: another file in sandbox, a package in pubspec.yaml, or a dart:/flutter: SDK library — reports unresolved imports with file and line number in lib/src/plugins/slice/verifier/import_verifier.dart
-- [ ] T054 [US6] [U48] [U49] [U50] Create `AnalyzeRunner` that executes `dart analyze` (or `flutter analyze` if Flutter project) on the sandbox directory, captures stdout/stderr, and returns structured pass/fail result in lib/src/plugins/slice/verifier/analyze_runner.dart
-- [ ] T055 [US6] [A16] [A17] [A18] Create `VerifySliceCapability` implementing `ZuraffaCapability` — `plan()` lists files to check, `execute()` runs import verification (and optionally analyze), returns pass/fail with details in lib/src/plugins/slice/capabilities/verify_slice_capability.dart
-- [ ] T056 [US6] [A16] [A17] [A18] Implement the `verify` subcommand in `SliceCommand` — parse slice name, `--analyze` flag, delegate to `VerifySliceCapability.execute()` in lib/src/plugins/slice/slice_command.dart
-- [ ] T057 [US6] [A19] Integrate `--verify` flag into `cut` subcommand — after sandbox creation, run `ImportVerifier`; if it fails, delete sandbox and report error in lib/src/plugins/slice/slice_command.dart
+- [x] T053 [US6] [U45] [U46] [U47] Create `ImportVerifier` that parses every `.dart` file in the sandbox, extracts imports, and checks each resolves to: another file in sandbox, a package in pubspec.yaml, or a dart:/flutter: SDK library — reports unresolved imports with file and line number in lib/src/plugins/slice/verifier/import_verifier.dart
+- [x] T054 [US6] [U48] [U49] [U50] Create `AnalyzeRunner` that executes `dart analyze` (or `flutter analyze` if Flutter project) on the sandbox directory, captures stdout/stderr, and returns structured pass/fail result in lib/src/plugins/slice/verifier/analyze_runner.dart
+- [x] T055 [US6] [A16] [A17] [A18] Create `VerifySliceCapability` implementing `ZuraffaCapability` — `plan()` lists files to check, `execute()` runs import verification (and optionally analyze), returns pass/fail with details in lib/src/plugins/slice/capabilities/verify_slice_capability.dart
+- [x] T056 [US6] [A16] [A17] [A18] Implement the `verify` subcommand in `SliceCommand` — parse slice name, `--analyze` flag, delegate to `VerifySliceCapability.execute()` in lib/src/plugins/slice/slice_command.dart
+- [x] T057 [US6] [A19] Integrate `--verify` flag into `cut` subcommand — after sandbox creation, run `ImportVerifier`; if it fails, delete sandbox and report error in lib/src/plugins/slice/slice_command.dart
 
 ### Acceptance gates for User Story 6 (phase closes only when each is green)
 
-- [ ] T102 [US6] [A16] Acceptance gate US6-S1: `zfa slice verify` on a complete slice reports all imports resolved — test in test/plugins/slice/slice_verify_integration_test.dart
-- [ ] T103 [US6] [A17] Acceptance gate US6-S2: verify on a slice missing a file reports exactly which files have unresolved imports and which import paths are broken — test in test/plugins/slice/slice_verify_integration_test.dart
-- [ ] T104 [US6] [A18] Acceptance gate US6-S3: `verify --analyze` runs `dart analyze` on the sandbox and reports compilation errors — test in test/plugins/slice/slice_verify_integration_test.dart
-- [ ] T105 [US6] [A19] Acceptance gate US6-S4: `zfa slice cut --verify` auto-verifies after extraction and fails the extraction when the slice is incomplete — test in test/plugins/slice/slice_verify_integration_test.dart
+- [x] T102 [US6] [A16] Acceptance gate US6-S1: `zfa slice verify` on a complete slice reports all imports resolved — test in test/plugins/slice/slice_verify_integration_test.dart
+- [x] T103 [US6] [A17] Acceptance gate US6-S2: verify on a slice missing a file reports exactly which files have unresolved imports and which import paths are broken — test in test/plugins/slice/slice_verify_integration_test.dart
+- [x] T104 [US6] [A18] Acceptance gate US6-S3: `verify --analyze` runs `dart analyze` on the sandbox and reports compilation errors — test in test/plugins/slice/slice_verify_integration_test.dart
+- [x] T105 [US6] [A19] Acceptance gate US6-S4: `zfa slice cut --verify` auto-verifies after extraction and fails the extraction when the slice is incomplete — test in test/plugins/slice/slice_verify_integration_test.dart
 
 **Checkpoint**: Developers can verify a slice is complete before handing it to an agent. The `--verify` flag on `cut` provides fail-fast quality gating.
 

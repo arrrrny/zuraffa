@@ -313,6 +313,53 @@ existed and failed before the implementation.
 - refactor: none
 - commit: (recorded in git history)
 
+
+## Cycle 16: U45-U47 - ImportVerifier; U48-U50 - AnalyzeRunner
+
+- tests: `test/plugins/slice/verifier/import_verifier_test.dart`,
+  `test/plugins/slice/verifier/analyze_runner_test.dart` (new)
+- red: `dart test test/plugins/slice/verifier/` -> +0 -6 (stubs threw
+  UnimplementedError)
+- green: import resolution (dart: ok; self-package must exist in the
+  sandbox tree; other packages must be declared in pubspec.yaml;
+  relative imports must resolve to sandbox siblings; failures carry
+  file:line:importPath) and the analyze wrapper through an injected
+  ProcessLauncher seam (clean pass / structured error capture / missing
+  toolchain -> environment message naming PATH).
+  In-cycle test fixes: (a) Dart strips the leading newline of multiline
+  string literals, so the U46 fixture's import sat on line 1 - a comment
+  line now pins it to line 2 (the implementation was correct; verified
+  with a scratch repro before touching the test); (b) the U47-dev fixture
+  needed dev_dependencies in its pubspec.
+- refactor: none
+- commit: 01416b1e
+
+## Cycle 17: A16-A19 (gates T102-T105) - verify end-to-end + cut --verify
+
+- tests: `test/plugins/slice/slice_verify_integration_test.dart` (new, 4 tests)
+- red: behavioral red via the `slice verify is not wired yet` placeholder
+  (+0 -4; A18 additionally needed the analyzeLauncher seam parameter
+  added for compilation - the language-requires-symbol case).
+- green: VerifySliceCapability + the verify subcommand + `cut --verify`
+  rollback. The first green run exposed a REAL design gap found by A16:
+  the mirrored files' barrel imports dangled because the barrel itself
+  was not in the sandbox:
+  `unresolved: product_view.dart:7 "../../widgets/index.dart" - missing
+  file (dangling import)`.
+  Fix: the walker now records barrel expansions (WalkResult.barrels) and
+  the cut mirrors each barrel FILTERED at its original path, exporting
+  only the kept targets (FR-005 selective inclusion preserved; import
+  closure restored). The A4 test was updated to assert the filtered
+  barrel content instead of asserting the barrel's absence (the original
+  assertion was an invention beyond the test-list - recorded here as a
+  test correction with reason).
+  One implementation bug in the fix: `addAll` on an unmodifiable const
+  list (Cannot add to an unmodifiable list) - replaced with a spread.
+  Suite `dart test test/plugins/slice/` -> 112 passed.
+- refactor: barrel expansion recording moved into the walker's
+  _expandImport (single source of truth for FR-005).
+- commit: 01416b1e
+
 ## Notes and deviations
 
 - Loop granularity: cycles are batched at component granularity (one commit
