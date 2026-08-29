@@ -241,8 +241,8 @@ boundaries, not proven properties.
 
 | id  | behavior                                                                                     | traces | kind    | state   | test |
 | --- | -------------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
-| U65 | An unknown subcommand fails with a usage error listing the valid subcommands                 | INV-1  | example | PENDING |      |
-| U66 | `cut` without `--entry` fails with a usage error                                             | INV-1  | example | PENDING |      |
+| U65 | An unknown subcommand fails with a usage error listing the valid subcommands                 | INV-1  | example | DONE    | `test/plugins/slice/slice_command_test.dart::U65: an unknown subcommand fails with a usage error listing the valid subcommands` |
+| U66 | `cut` without `--entry` fails with a usage error                                             | INV-1  | example | DONE    | `test/plugins/slice/slice_command_test.dart::U66: cut without --entry fails with a usage error` |
 
 ## Invariants and edge cases still to place
 

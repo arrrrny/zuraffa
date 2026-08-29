@@ -25,11 +25,11 @@
 
 **Purpose**: Plugin scaffold, registration, and CLI command shell
 
-- [ ] T001 Create plugin directory structure with all subdirectories per plan.md in lib/src/plugins/slice/ (engine/, models/, generators/, merger/, verifier/, exporter/, runner/, capabilities/)
-- [ ] T002 Create `SlicePlugin` class extending `ZuraffaPlugin` and implementing `CliAwarePlugin` in lib/src/plugins/slice/slice_plugin.dart — declare id `'slice'`, name, version, empty capabilities list, and `createCommand()` returning `SliceCommand`
-- [ ] T003 [U65] Create `SliceCommand` shell with subcommand dispatch (cut, merge, list, inspect, verify, run, export, import) using `ArgParser.allowAnything()` pattern from `BoneCommand` in lib/src/plugins/slice/slice_command.dart
-- [ ] T004 Register `SlicePlugin()` in `PluginLoader._plugins()` in lib/src/cli/plugin_loader.dart
-- [ ] T005 Register `SlicePlugin()` in `CodeGenerator` constructor in lib/src/generator/code_generator.dart
+- [x] T001 Create plugin directory structure with all subdirectories per plan.md in lib/src/plugins/slice/ (engine/, models/, generators/, merger/, verifier/, exporter/, runner/, capabilities/)
+- [x] T002 Create `SlicePlugin` class extending `ZuraffaPlugin` and implementing `CliAwarePlugin` in lib/src/plugins/slice/slice_plugin.dart — declare id `'slice'`, name, version, empty capabilities list, and `createCommand()` returning `SliceCommand`
+- [x] T003 [U65] Create `SliceCommand` shell with subcommand dispatch (cut, merge, list, inspect, verify, run, export, import) using `ArgParser.allowAnything()` pattern from `BoneCommand` in lib/src/plugins/slice/slice_command.dart
+- [x] T004 Register `SlicePlugin()` in `PluginLoader._plugins()` in lib/src/cli/plugin_loader.dart
+- [x] T005 Register `SlicePlugin()` in `CodeGenerator` constructor in lib/src/generator/code_generator.dart
 
 **Checkpoint**: `zfa slice` command is recognized and prints help/usage. No subcommands work yet.
 

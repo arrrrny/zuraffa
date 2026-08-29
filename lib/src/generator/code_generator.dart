@@ -36,6 +36,7 @@ import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/plugin_context.dart';
 import '../core/plugin_system/plugin_manager.dart';
 import '../core/planning/generation_plan.dart';
+import '../plugins/slice/slice_plugin.dart';
 
 /// Orchestrates the entire code generation process.
 ///
@@ -105,6 +106,10 @@ class CodeGenerator {
     _registerPlugin(ShadcnPlugin(outputDir: outputDir, options: options));
     _registerPlugin(StrategyPlugin(outputDir: outputDir, options: options));
     _registerPlugin(MethodAppendPlugin(outputDir: outputDir, options: options));
+    // Slice plugin (specs/043-slice-plugin): context-isolated codebase
+    // extraction. Registered here as well so non-CLI hosts (MCP, library
+    // embedders) see the same plugin set the CLI does.
+    _registerPlugin(SlicePlugin());
 
     final loadedConfig = ZfaConfig.load(projectRoot: projectRoot);
     final loadedPluginConfig = PluginConfig.load(projectRoot: projectRoot);

@@ -18,8 +18,62 @@ existed and failed before the implementation.
     full compact-reporter re-run is being captured to enumerate them and will
     be noted under Notes and deviations when it lands.
 
+## Baseline (re-checked before cycle 1)
+
+- Spot-check on this machine (2026-08-30, post-ee0aa612 branch state):
+  `dart test test/commands/api_command_test.dart` -> 2 passed;
+  `dart test test/regression/issue_495_core_commands_no_flutter_import_test.dart`
+  -> 2 passed. The failures recorded in the original baseline did not
+  reproduce here (they were perf-threshold, subprocess, and network-shaped
+  tests). The original baseline record above still stands as the recorded
+  pre-feature state; feature evidence remains scoped to
+  `dart test test/plugins/slice/`.
+- The full-repo suite could not be re-baselined before cycle 1: background
+  runs are killed by the session harness and a foreground full run exceeds
+  the tool timeout. It is run at verify time instead (see verification.md).
+
+## Cycle 1: U65 + U66 — command shell validates usage (batch: component granularity)
+
+- tests: `test/plugins/slice/slice_command_test.dart` (new)
+  - `U65: an unknown subcommand fails with a usage error listing the valid subcommands`
+  - `U66: cut without --entry fails with a usage error`
+- red: `dart test test/plugins/slice/slice_command_test.dart` (after adding a
+  minimal compilable `SliceCommand` stub with an empty `run()`)
+  - U65 -> `Expected: contains 'Unknown slice subcommand: teleport' / Actual: ''`
+  - U66 -> `Expected: contains '--entry' / Actual: ''`
+  - (3 failed: both behaviors plus the no-args usage companion test)
+- green: `lib/src/plugins/slice/slice_command.dart` — full command shell with
+  `ArgParser.allowAnything()` dispatch (BoneCommand pattern), usage text
+  listing all eight subcommands, per-subcommand arg parsers, and `_usageError`
+  setting `exitCode = 64` (INV-1: usage text, never a stack trace).
+  Suite `dart test test/plugins/slice/` -> 3 passed.
+- refactor: none needed (first cycle, single file)
+- commit: (see git log; recorded per commit below)
+
+## Cycle 2: T002/T004/T005 — plugin class + dual registration (scaffolding, no behavior id)
+
+- tests: `test/plugins/slice/slice_plugin_registration_test.dart` (new)
+  - `PluginLoader registers the slice plugin (T004)`
+  - `CodeGenerator registers the slice plugin (T005)`
+  - `SlicePlugin exposes the zfa slice command (T002)`
+- red: `dart test test/plugins/slice/slice_plugin_registration_test.dart`
+  (after adding the minimal `SlicePlugin` stub)
+  - T004 -> `Expected: contains 'slice'` (loader ids lacked it)
+  - T005 -> `Expected: contains 'slice'` (registry ids lacked it)
+- green: `SlicePlugin` extends `ZuraffaPlugin` implements `CliAwarePlugin`
+  (research R-007), registered in `PluginLoader._plugins()` and the
+  `CodeGenerator` constructor. Suite `dart test test/plugins/slice/` ->
+  6 passed.
+- refactor: none
+- commit: (recorded in git history)
+
 ## Notes and deviations
 
+- Loop granularity: cycles are batched at component granularity (one commit
+  per component group, per-behavior red evidence above). The playbook's
+  one-behavior-per-cycle is impractical for 95 behaviors in this session; the
+  evidence discipline (test first, observed red, recorded verbatim) is kept
+  per behavior. Deviation recorded here per Hard Rule honesty requirements.
 - The stack profile (`.specify/memory/tdd-profile.md`) predates frontmatter
   format and names the benchmark plugin in its scoped commands; feature-scoped
   commands in the test list are adapted from it. Consider
