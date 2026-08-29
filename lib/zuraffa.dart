@@ -654,7 +654,14 @@ export 'src/cli/standard/standard.dart';
 // exports a same-named type from the plugin-lifecycle subsystem. Consumers
 // that need the ui_render ValidationResult should import
 // `package:zuraffa/src/agent/ui_render/ui_vocabulary_schema.dart` directly.
-export 'src/agent/ui_render/ui_render.dart' hide ValidationResult, ValidationError;
+// NOTE: `MissionTraceRecorder` is defined by BOTH the ui_render plugin
+// (#023) and the policy shell (#027, this PR). They are unrelated features
+// (render-tree trace vs tool-call trace) that coincidentally share the name.
+// The policy shell's `MissionTraceRecorder` is kept in the public barrel;
+// ui_render's remains available via its own relative import and is hidden here
+// to avoid an ambiguous-export error. See zuraffa.dart policy-shell export.
+export 'src/agent/ui_render/ui_render.dart'
+    hide ValidationResult, ValidationError, MissionTraceRecorder;
 
 // ── 026-agent-kernel-mission — mission coalescing, cancellation, partial-salvage ──
 // The agent kernel's efficiency + safety core. Identical missions coalesce
