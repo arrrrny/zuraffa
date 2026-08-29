@@ -88,4 +88,188 @@ void main() {
       expect(TypeMapper.enumValue('IN_STOCK'), 'inStock');
     });
   });
+
+  spec037();
+}
+
+/// Spec 037 — schema cache, introspection & type mapping extensions.
+void spec037() {
+  group('TypeMapper (spec 037)', () {
+    test('DateTime maps to DateTime built-in (FR-005)', () {
+      final mapper = TypeMapper();
+      expect(mapper.mapType(GraphQLScalarType(name: 'DateTime')), 'DateTime?');
+      expect(
+        mapper.mapType(
+          GraphQLNonNullType(ofType: GraphQLScalarType(name: 'DateTime')),
+        ),
+        'DateTime',
+      );
+    });
+
+    test('scalarMap overrides built-in defaults (FR-006)', () {
+      final mapper = TypeMapper(customScalars: {'Money': 'int'});
+      expect(mapper.mapType(GraphQLScalarType(name: 'Money')), 'int?');
+      // Overrides win over the built-in scalar table too.
+      final mapper2 = TypeMapper(customScalars: {'DateTime': 'String'});
+      expect(mapper2.mapType(GraphQLScalarType(name: 'DateTime')), 'String?');
+    });
+
+    test('unmapped custom scalars fall back to String (edge case)', () {
+      final mapper = TypeMapper();
+      expect(mapper.mapType(GraphQLScalarType(name: 'Money')), 'String?');
+    });
+
+    test('fromZfaConfig reads graphql.scalarMap from .zfa.json (FR-006)', () {
+      final mapper = TypeMapper.fromZfaConfig({
+        'graphql': {
+          'scalarMap': {'Money': 'int', 'DateTime': 'String'},
+        },
+      });
+      expect(mapper.mapType(GraphQLScalarType(name: 'Money')), 'int?');
+      expect(mapper.mapType(GraphQLScalarType(name: 'DateTime')), 'String?');
+    });
+
+    test('fromZfaConfig with no graphql section yields defaults', () {
+      final mapper = TypeMapper.fromZfaConfig({});
+      expect(mapper.mapType(GraphQLScalarType(name: 'Money')), 'String?');
+      expect(mapper.mapType(GraphQLScalarType(name: 'DateTime')), 'DateTime?');
+    });
+
+    test('malformed scalarMap entries throw clear errors (edge case)', () {
+      expect(
+        () => TypeMapper.fromZfaConfig({
+          'graphql': {
+            'scalarMap': ['not', 'a', 'map'],
+          },
+        }),
+        throwsA(isA<FormatException>()),
+      );
+      expect(
+        () => TypeMapper.fromZfaConfig({
+          'graphql': {
+            'scalarMap': {'Money': 42},
+          },
+        }),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('list nullability follows the v5 wrapper convention', () {
+      final mapper = TypeMapper();
+      // [String]! — non-null list of nullable elements.
+      expect(
+        mapper.mapType(
+          GraphQLNonNullType(
+            ofType: GraphQLListType(ofType: GraphQLScalarType(name: 'String')),
+          ),
+        ),
+        'List<String?>',
+      );
+      // [String!]! — non-null list of non-null elements.
+      expect(
+        mapper.mapType(
+          GraphQLNonNullType(
+            ofType: GraphQLListType(
+              ofType: GraphQLNonNullType(
+                ofType: GraphQLScalarType(name: 'String'),
+              ),
+            ),
+          ),
+        ),
+        'List<String>',
+      );
+    });
+
+    test('mapTypeRef renders GqlTypeRef chains (diff-side rendering)', () {
+      final mapper = TypeMapper();
+      expect(
+        mapper.mapTypeRef(
+          const GqlTypeRef(kind: GqlTypeKind.scalar, name: 'String'),
+        ),
+        'String?',
+      );
+      expect(
+        mapper.mapTypeRef(
+          const GqlTypeRef(
+            kind: GqlTypeKind.nonNull,
+            ofType: GqlTypeRef(kind: GqlTypeKind.scalar, name: 'String'),
+          ),
+        ),
+        'String',
+      );
+      expect(
+        mapper.mapTypeRef(
+          const GqlTypeRef(
+            kind: GqlTypeKind.list,
+            ofType: GqlTypeRef(kind: GqlTypeKind.scalar, name: 'String'),
+          ),
+        ),
+        'List<String?>',
+      );
+      expect(
+        mapper.mapTypeRef(
+          const GqlTypeRef(
+            kind: GqlTypeKind.nonNull,
+            ofType: GqlTypeRef(
+              kind: GqlTypeKind.list,
+              ofType: GqlTypeRef(
+                kind: GqlTypeKind.nonNull,
+                ofType: GqlTypeRef(kind: GqlTypeKind.scalar, name: 'String'),
+              ),
+            ),
+          ),
+        ),
+        'List<String>',
+      );
+    });
+
+    test('mapTypeRef applies scalarMap overrides', () {
+      final mapper = TypeMapper(customScalars: {'Money': 'int'});
+      expect(
+        mapper.mapTypeRef(
+          const GqlTypeRef(
+            kind: GqlTypeKind.nonNull,
+            ofType: GqlTypeRef(kind: GqlTypeKind.scalar, name: 'Money'),
+          ),
+        ),
+        'int',
+      );
+    });
+
+    test('unionRepresentation produces a sealed Dart hierarchy (FR-008)', () {
+      final mapper = TypeMapper();
+      final source = mapper.unionRepresentation(
+        GraphQLUnionType(
+          name: 'SearchResult',
+          possibleTypes: const ['Product', 'ProductVariant'],
+        ),
+      );
+      expect(source, contains('sealed class SearchResult'));
+      expect(source, contains('extends SearchResult'));
+      expect(source, contains('Product'));
+      expect(source, contains('ProductVariant'));
+      // All member types are accessible as typed values.
+      expect(source, contains('final Product product;'));
+      expect(source, contains('final ProductVariant productVariant;'));
+    });
+
+    test('interfaceRepresentation produces an abstract class (FR-008)', () {
+      final mapper = TypeMapper();
+      final source = mapper.interfaceRepresentation(
+        GraphQLInterfaceType(
+          name: 'Node',
+          fields: const [
+            GraphQLField(
+              name: 'id',
+              type: GraphQLNonNullType(ofType: GraphQLScalarType(name: 'ID')),
+            ),
+          ],
+        ),
+      );
+      expect(source, contains('abstract class Node'));
+      expect(source, contains('id'));
+      // Non-null ID maps to a non-nullable String field.
+      expect(source, contains('final String id;'));
+    });
+  });
 }

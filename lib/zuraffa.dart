@@ -515,6 +515,19 @@ export 'src/graphql/schema/schema_parser.dart';
 // SchemaCache — load/save schema.json with HTTP fetch stub.
 export 'src/graphql/cache/schema_cache.dart';
 
+// IntrospectionClient — throwing introspection fetch with detailed errors
+// (spec 037, FR-002). Injectable transport for offline tests.
+export 'src/graphql/introspection/introspection_client.dart';
+
+// SdlPrinter — GqlSchema → SDL document rendering (spec 037, FR-001).
+export 'src/graphql/sdl/sdl_printer.dart';
+
+// SchemaDiffer — breaking/non-breaking schema diff (spec 037, FR-003/004).
+export 'src/graphql/diff/schema_diff.dart';
+
+// DartTypeNamer — camelCase/PascalCase + reserved-word escapes (FR-007).
+export 'src/graphql/mapping/dart_type_namer.dart';
+
 // TypeMapper — GraphQL type to Dart type mapping.
 export 'src/graphql/mapping/type_mapper.dart';
 
