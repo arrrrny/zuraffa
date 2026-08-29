@@ -641,6 +641,21 @@ export 'src/i18n/i18n_service.dart';
 // Pure-Dart (FR-012): no package:flutter import anywhere in this subtree.
 export 'src/cli/standard/standard.dart';
 
+// ── 023-agent-plugin-ui-render — agent-authored live, interactive UI ──
+// `ui.render` tool + streaming UI event channel + action-loop closure.
+// Agents author a component tree validated against the UI Vocabulary Schema;
+// user interactions route back as semantic actions. confirm-tier actions are
+// gated by a policy shell. Per-mission-type vocabulary narrowing restricts
+// the agent's allowed components. Pure-Dart (no package:flutter import
+// anywhere in this subtree).
+//
+// `ValidationResult` is hidden here to avoid an ambiguous-export conflict with
+// `package:zuraffa/src/core/plugin_system/plugin_lifecycle.dart`, which already
+// exports a same-named type from the plugin-lifecycle subsystem. Consumers
+// that need the ui_render ValidationResult should import
+// `package:zuraffa/src/agent/ui_render/ui_vocabulary_schema.dart` directly.
+export 'src/agent/ui_render/ui_render.dart' hide ValidationResult, ValidationError;
+
 // ============================================================
 // Framework Configuration
 // ============================================================
