@@ -2,155 +2,140 @@
 feature: 043-slice-plugin
 verdict: FAIL
 standard: .specify/extensions/tdd/templates/tdd-test-quality-rubric.md
-verified_at: 1f403b30
+verified_at: f35f0ee6
 behaviors: 95
 proven: 90
 likely: 0
 test_after: 5
 no_test: 0
-high_smells: 3
+high_smells: 0
 criteria_total: 27
 criteria_covered: 27
-mutation_score: 6/8 caught # scope: deliberate mutants, 8 high-risk behaviors sampled, no mutation tool wired
-mutants_survived: 2 # both mapped to HIGH findings (A10, A9)
-suite: feature scope 145 passed, 0 failed, 19s; repo-wide (chunked) 48 dirs green, test/cli 138 passed 1 failed (the parity regression, finding 1)
+mutation_score: 8/8 caught # scope: deliberate mutants over 8 high-risk behaviors; both round-1 survivors now caught
+mutants_survived: 0
+suite: feature scope 145 passed, 0 failed, 18s; extension parity 2 passed; analyze clean; repo-wide chunked run in round 1 (48 dirs green, test/cli 1 failure now fixed)
 ---
 
-# TDD Verification: Slice Plugin (043)
+# TDD Verification: Slice Plugin (043) — round 2 (post-remediation)
 
-**Verdict: FAIL.** Three HIGH vacuous assertions (two of them mechanically
-confirmed by surviving deliberate mutants) and one repo-wide test broken by
-the feature — the extension command-parity test — that the feature-scoped
-loop never ran.
+**Verdict: FAIL.** One condition, and only one, still triggers the rubric's
+FAIL row: A11-A15's acceptance tests postdate their implementation
+(`TEST_AFTER` at the acceptance level). It is a documented, playbook-sanctioned
+ordering gap — the playbook's first-run rule (mutant check) was applied at
+the time, the underlying behaviors are `PROVEN` at unit level, and the
+deviation is recorded in the test list's *Accepted deviations* section. It
+cannot be cleared retroactively, so under this rubric the verdict stays
+`FAIL` permanently; every other FAIL condition is cleared and every finding
+from round 1 (commit `de99a6b5`) is remediated with proof.
 
-The loop's discipline is otherwise strong: 90 of 95 behaviors have recorded
-red evidence corroborated by per-cycle commits; all 27 acceptance criteria
-have command-level end-to-end tests; the process boundaries are cleanly
-seamed and deterministic. The failures below are specific and fixable, and
-the remediation tasks are appended to `tasks.md`.
+Round 1 verdict was `FAIL` with 3 HIGH smells, 2 surviving mutants, and 1
+repo-wide regression. This round re-read every remediated site from disk,
+re-ran the suites fresh, and re-ran both surviving mutants.
 
 ## Test-first evidence
 
-Per-cycle commits pair each batch of tests with the source that turns them
-green (the profile's sanctioned shape); the history is not squashed, so
-every recorded red is corroboratable. The five exceptions are honest
-test-after entries the cycle log itself flags.
+Unchanged from round 1 (the ordering of history cannot be remediated):
+90 of 95 behaviors `PROVEN` — each cycle's red is recorded in the cycle log
+with command and decisive output, and the per-cycle commits pair the tests
+with the source that turned them green (the history is not squashed).
 
 | Behavior(s) | Class      | Evidence                                                                        |
 | ----------- | ---------- | ------------------------------------------------------------------------------- |
-| U1-U8       | PROVEN     | cycles 3-4: stub reds + compile reds recorded; commits 6f58f586 pair test+source |
-| U9-U19      | PROVEN     | cycles 5-7: +0 -15 stub batch red recorded; commit 6c433d2e                     |
-| U20-U28     | PROVEN     | cycle 8: +0 -17 stub red recorded; commit d94d7a40                               |
-| U29-U36     | PROVEN     | cycle 9: +0 -13 stub red recorded; commit 44acbb2e                               |
-| U37-U44, U67-U68 | PROVEN | cycle 11: +0 -8 stub red recorded; commit f8a04aee                               |
-| U45-U50     | PROVEN     | cycle 16: +0 -6 stub red recorded; commit 01416b1e                               |
-| U51-U53     | PROVEN     | cycle 18: placeholder red + compile red recorded; commit de1486fc               |
-| U54-U64     | PROVEN     | cycle 19: load-failure reds recorded; commit 95078767                           |
-| A1-A4       | PROVEN     | cycle 10: +0 -8 placeholder red recorded; commit 44acbb2e                        |
-| A5-A8       | PROVEN     | cycle 12: placeholder red recorded; commit f8a04aee                              |
-| A9-A10      | PROVEN     | cycle 13: +0 -4 placeholder red recorded; commit ca4d5255                        |
-| A16-A19     | PROVEN     | cycle 17: +0 -4 placeholder red recorded; commit 01416b1e                        |
-| A20-A22     | PROVEN     | cycle 18: placeholder red recorded; commit de1486fc                              |
-| A23-A27     | PROVEN     | cycle 19: placeholder red recorded; commit 95078767                              |
-| A11-A12     | TEST_AFTER | cycle 14: "red: none — passed on first run"; source landed in d94d7a40 (cycle 8), tests in ca4d5255. Mitigated: unit reds U23-U26 recorded in cycle 8, and MUTANT-A11 (dropped second entry) was caught by all three tests |
-| A13-A15     | TEST_AFTER | cycle 15: "red: none — passed on first run"; depth source landed in cycle 8-9, tests in ca4d5255. Mitigated: unit reds U23-U25/U31 recorded; MUTANT-A13 caught by A13/A15 |
+| U1-U8       | PROVEN     | cycles 3-4 stub/compile reds; commit 6f58f586                                   |
+| U9-U19      | PROVEN     | cycles 5-7 +0 -15 stub batch red; commit 6c433d2e                               |
+| U20-U28     | PROVEN     | cycle 8 +0 -17 stub red; commit d94d7a40                                        |
+| U29-U36     | PROVEN     | cycle 9 +0 -13 stub red; commit 44acbb2e                                        |
+| U37-U44, U67-U68 | PROVEN | cycle 11 +0 -8 stub red; commit f8a04aee                                        |
+| U45-U50     | PROVEN     | cycle 16 +0 -6 stub red; commit 01416b1e                                        |
+| U51-U53     | PROVEN     | cycle 18 placeholder + compile reds; commit de1486fc                            |
+| U54-U64     | PROVEN     | cycle 19 load-failure reds; commit 95078767                                     |
+| A1-A4       | PROVEN     | cycle 10 +0 -8 placeholder red; commit 44acbb2e                                 |
+| A5-A8       | PROVEN     | cycle 12 placeholder red; commit f8a04aee                                       |
+| A9-A10      | PROVEN     | cycle 13 +0 -4 placeholder red; commit ca4d5255                                 |
+| A16-A19     | PROVEN     | cycle 17 +0 -4 placeholder red; commit 01416b1e                                 |
+| A20-A22     | PROVEN     | cycle 18 placeholder red; commit de1486fc                                       |
+| A23-A27     | PROVEN     | cycle 19 placeholder red; commit 95078767                                       |
+| A11-A12     | TEST_AFTER | cycle 14 "red: none — passed on first run"; source d94d7a40 predates tests ca4d5255. Playbook first-run rule applied (MUTANT-A11 caught by all three tests); unit-level reds U23-U26 recorded in cycle 8; deviation recorded in the test list |
+| A13-A15     | TEST_AFTER | cycle 15 "red: none — passed on first run"; same shape. MUTANT-A13 caught by A13/A15; unit reds U23-U25/U31 recorded; deviation recorded in the test list |
 
-No pre-existing test in the repository was modified or weakened by the
-feature's diff (verified: the range touches only new slice test files, new
-fixture data, and an `analysis_options.yaml` exclude for the test fixture
-directory — test DATA, following the examples/ precedent from spec 025; no
-test is excluded from running or analysis). `tasks.md` and the test list
-agree: 113/113 tasks ticked, 95/95 behaviors DONE, no unticked task with a
-DONE behavior and no ticked task without one.
+No pre-existing repository test was modified or weakened across the feature
+range (re-checked after remediation: the only non-slice test-tree change is
+the new `.specify` extension registration that FIXES the parity gate).
 
-## Findings
+## Findings (round 1 → round 2)
 
-Ordered by severity. Each smell finding was produced by a fresh-context
-smell pass and re-verified line-by-line by the auditor against the source
-before inclusion.
+All twelve round-1 findings remediated in cycle 21 (commit `f35f0ee6`); each
+remediation site was re-read from disk this round. No new findings.
 
-| #  | Severity | Finding | Evidence |
-| -- | -------- | ------- | -------- |
-| 1  | HIGH | **Repo-wide regression**: the slice plugin's `cut_slice` capability appears in `zfa manifest` but is not registered in the speckit zuraffa extension, breaking the command-parity gate. The feature-scoped loop never ran `test/cli/`, so this shipped red through 20 cycles. | `test/cli/standard/extension_command_parity_test.dart` fails: "every zfa manifest command is registered in the speckit extension"; `zfa manifest` lists `slice/cut_slice`; `.specify/extensions/zuraffa/extension.yml` has no slice entry |
-| 2  | HIGH | Vacuous assertion — the A10 "modified file is flagged" check cannot fail: `'modified'` is a substring of `'unmodified'`, so the assertion passes even when NO file is ever flagged modified. Confirmed mechanically: deliberate mutant M2 (inspect always prints `unmodified`) survived the whole `slice_list_inspect_test.dart` file. | `test/plugins/slice/slice_list_inspect_test.dart:99`; output format at `lib/src/plugins/slice/slice_command.dart:527-530` |
-| 3  | HIGH | Vacuous assertion — the A9 "file count is shown" check asserts only `contains('files')`, a literal of the format string; a wrong count passes. Confirmed mechanically: deliberate mutant M5 (`list` always prints `0 files`) survived. | `test/plugins/slice/slice_list_inspect_test.dart:59`; format at `slice_command.dart:476` |
-| 4  | HIGH | Vacuous assertions — the U20/U21/U26 "exactly once" dedup pins assert Dart Map/Set invariants: `nodes` is a `Map<String, FileGraphNode>` (keys unique by language semantics) and `includedRel()` returns a `Set`. No implementation change can fail them; the real dedup property is only pinned downstream (A11/A12, where the DI registration count has teeth). | `test/plugins/slice/engine/import_graph_walker_test.dart:99-110` (U20), `:146` (U21), `:229-233` (U26); `lib/src/plugins/slice/models/file_graph.dart:45` |
-| 5  | MED | TEST_AFTER acceptance behaviors A11-A15 (see the evidence table): the acceptance tests were written after the multi-entry and depth source, compensated by recorded unit reds and caught mutants but not test-first at the acceptance level. | cycles 14-15 in `tdd/cycle-log.md`; source commit d94d7a40 precedes test commit ca4d5255 |
-| 6  | MED | Non-deterministic expectation — the A9 date check computes the expected year from the real clock; a run straddling midnight Dec 31 fails spuriously, and month/day are unpinned. | `test/plugins/slice/slice_list_inspect_test.dart:57` |
-| 7  | MED | Leaky value pin — `contains('1 file')` also matches `'11 file(s) copied back'`, `'21 file(s)'`, …; a merge bug copying 11/21/31 files false-passes the "exactly one file merged" claim. | `test/plugins/slice/slice_e2e_test.dart:119`; message format at `lib/src/plugins/slice/merger/slice_merger.dart:219` |
-| 8  | MED | Redundant same-level pair — A26 and U58 both drive `zfa slice export` on a broken slice through a `CommandRunner`; the single bug "verify gate removed" fails both. (Each does pin a distinct negative: no gh call vs. no tarball on disk.) | `test/plugins/slice/slice_export_integration_test.dart:205-240`, `test/plugins/slice/capabilities/export_slice_capability_test.dart:32-77` |
-| 9  | LOW | Duplicated setup — the fixture-copy/runner/teardown boilerplate is copy-pasted across 10 test files; the profile's `helpers/` convention is the natural home for one factory. | e.g. `slice_cut_integration_test.dart:30-41`, `slice_polish_test.dart:24-33`, and 8 more listed in the smell pass |
-| 10 | LOW | Overclaiming name — "cut reports started/step/completed progress" never asserts the step observable (`[====> ] n/m`); a regression dropping all step reporting passes. | `test/plugins/slice/slice_polish_test.dart:165` |
-| 11 | LOW | Weak set pin — U9 uses `contains` twice where the sibling test uses `equals([...])`; spurious extra extractions pass. | `test/plugins/slice/engine/service_locator_analyzer_test.dart:53-54` |
-| 12 | LOW | Truthiness where values exist (`isNotEmpty` for name/version) and three leaked temp dirs per run (`createTempSync` never cleaned). | `test/plugins/slice/slice_plugin_registration_test.dart:20-26,33-48,55-56` |
+| # | Round 1 finding | Severity | Remediation and proof |
+| - | --------------- | -------- | --------------------- |
+| 1 | Extension command-parity regression (slice capability unregistered) | HIGH | `extension.yml` provides entry + `commands/slice/cut_slice.md`; `dart test test/cli/standard/extension_command_parity_test.dart` -> 2 passed (the failing test was the red) |
+| 2 | Vacuous A10 modified-flag assertion | HIGH | Full status-line pin (`'$viewRel — modified'` + an untouched file `— unmodified`); re-run mutant M2 → A10 now fails (was surviving) |
+| 3 | Vacuous A9 file-count assertion | HIGH | Count pinned from the manifest (`'$fileCount files'`); re-run mutant M5 → A9 now fails (was surviving) |
+| 4 | Vacuous U20/U21/U26 Map/Set-uniqueness pins | HIGH | Exact expected closure sets; a missing OR extra file now fails the test |
+| 5 | A11-A15 TEST_AFTER | MED | Accepted and recorded (test-list *Accepted deviations*, task T125); not retroactively clearable — the standing FAIL condition |
+| 6 | Real clock in A9 date expectation | MED | Expectation now reads the manifest's `createdAt`; no `DateTime.now()` in the file |
+| 7 | `'1 file'` substring leak in e2e | MED | Anchored `RegExp(r'(^|\s)1 file\(s\) copied back')` — `'11 file(s)'` can no longer match |
+| 8 | Redundant same-level pair A26/U58 | MED | Documented as intentional distinct-negative coverage in both files (no gh call pre-verify vs. no tarball on disk) |
+| 9 | Duplicated setUp/tearDown across 10 files | LOW | `helpers/slice_test_harness.dart` (`freshSliceProject` / `disposeSliceProject`); all 10 files converted; 145 tests pass unchanged |
+| 10 | Progress test name overclaimed the step marker | LOW | `RegExp(r'\[=+> *\] \d+/\d+')` now asserted |
+| 11 | U9 `contains` allowed spurious extractions | LOW | Exact list `equals(['GetProductUseCase', 'FetchSettingsUseCase'])` |
+| 12 | Truthiness assertions + leaked temp dirs | LOW | Value assertions (`'Slice'`, `'1.0.0'`); temp dirs tracked and deleted in tearDown |
 
-Properties beyond the catalogue: isolation is strong (every fixture test
-copies the committed fixture into a fresh temp dir via the sanctioned
-helper and cleans up — finding 12's leak is the one exception);
-determinism is strong (all process boundaries seam-injected; the real
-clock appears exactly once, finding 6); specificity is generally high but
-weak exactly where findings 2, 3, 7, and 11 point; the suite is fast
-(feature scope 19s) and largely insensitive to refactoring (assertions
-target on-disk artifacts, exit codes, and manifest contents).
+Also fixed during remediation: four pre-existing analyzer warnings in the
+feature's test tree (two unused imports, one dead local, one dartdoc
+escape). `dart analyze lib/src/plugins/slice/ test/plugins/slice/` is clean.
 
 ## Mutation results
 
-No mutation tool is wired (per the profile), so deliberate mutants were
-applied to the highest-risk behaviors — data-loss paths, gates, and the
-behaviors the smell pass flagged. Each mutant was restored exactly and the
-suite re-run green before moving on.
+Deliberate mutants over the 8 highest-risk behaviors (no mutation tool is
+wired; per the profile and rubric). The two round-1 survivors were re-run
+against the strengthened tests.
 
-| Mutant | Behavior under test | Caught | Judgment |
-| ------ | ------------------- | ------ | -------- |
-| M1: conflict decision inverted to safeCopy (silent overwrite of concurrently-changed files) | U39, U43, A7 | Yes — 4 tests | 3-way conflict detection has teeth |
-| M2: inspect never reports `modified` | A10 | **No — survived** | HIGH: survivor inside a DONE behavior; confirms finding 2 |
-| M3: PubspecFilter keeps every dependency | U54 | Yes | filter pinned |
-| M4: export verify gate removed | U58, A26 | Yes — both | FR-020 gate pinned |
-| M5: `slice list` always prints `0 files` | A9 | **No — survived** | HIGH: survivor inside a DONE behavior; confirms finding 3 |
-| M6: shared-file confirmation gate dropped | U42 | Yes | shared-write protection pinned |
-| MUTANT-A11 (cycle log): only first entry walked | A11-A12 | Yes — 3 tests | multi-entry pinned at acceptance level |
-| MUTANT-A13 (cycle log): depth gate returns true | A13, A15 | Yes — 2 tests | depth levels pinned |
+| Mutant | Behavior | Round 1 | Round 2 |
+| ------ | -------- | ------- | ------- |
+| M1: conflict decision inverted to safeCopy | U39/U43/A7 | caught (4 tests) | unchanged |
+| M2: inspect never reports `modified` | A10 | **survived** | **caught** (T115) |
+| M3: PubspecFilter keeps every dependency | U54 | caught | unchanged |
+| M4: export verify gate removed | U58/A26 | caught (both) | unchanged |
+| M5: `slice list` prints `0 files` | A9 | **survived** | **caught** (T116) |
+| M6: shared-file confirmation gate dropped | U42 | caught | unchanged |
+| MUTANT-A11: only first entry walked | A11/A12 | caught (3 tests) | unchanged |
+| MUTANT-A13: depth gate returns true | A13/A15 | caught (2 tests) | unchanged |
 
-Sampled: 8 behaviors of 95. Not exhaustive; recorded so the section cannot
-be read as more than it is.
+Every mutant was restored exactly and the suite re-run green before moving
+on. Sample: 8 behaviors of 95; recorded so the section cannot be read as
+exhaustive.
 
 ## Traceability
 
-All 27 acceptance scenarios in `spec.md` (US1-S1 … US8-S5) map to exactly
-one acceptance behavior each (A1-A27), every claimed test exists in the
-suite and runs (145 feature tests), and every criterion is exercised
-through the real CLI entry point (`CommandRunner` → `SliceCommand` →
-capability → real files on disk), not just units with doubles.
-
-| Criterion group | Behaviors | End to end |
-| --------------- | --------- | ---------- |
-| US1 (cut) S1-S4 | A1-A4 | Yes — real cut on the fixture |
-| US2 (merge) S1-S4 | A5-A8 | Yes — real merge, real file system |
-| US3 (list/inspect) S1-S2 | A9-A10 | Yes, but the pinning assertions are findings 2-3 |
-| US4 (multi-entry) S1-S2 | A11-A12 | Yes — TEST_AFTER noted (finding 5) |
-| US5 (depth) S1-S3 | A13-A15 | Yes — TEST_AFTER noted (finding 5) |
-| US6 (verify) S1-S4 | A16-A19 | Yes — real verification; `dart analyze` through an injectable launcher |
-| US7 (run) S1-S3 | A20-A22 | To the process boundary (no Flutter SDK in the env; command construction asserted through the seam, per the documented test-list assumption) |
-| US8 (export/import) S1-S5 | A23-A27 | To the process boundary (no network; gh/git through the seam, per the documented test-list assumption) |
-
-Untested criteria: none. Tests tracing to nothing: none — every feature
-test file maps to test-list behaviors or to the documented polish tasks
-(T071-T076), which are task-tracked rather than behavior-tracked.
+Unchanged from round 1: all 27 acceptance scenarios map to A1-A27, every
+claimed test exists and runs, every criterion is exercised through the real
+CLI entry point. US7 (run) and US8 (export/import) are verified to the
+process seam only (no Flutter SDK, no network in this environment) — the
+test list documents this as a planning assumption. Untested criteria: none.
+Tests tracing to nothing: none.
 
 ## What was not audited
 
-- The audit was run by the same session that wrote the tests — it is not
-  independent. Mitigations applied per Hard Rule 2: every test and source
-  file cited below was re-read from disk, the smell pass was delegated to
-  a fresh-context subagent, and every subagent finding was re-verified
-  line-by-line before inclusion.
+- The audit was run by the same session that wrote the tests and the
+  remediation — not independent. Round 1's smell pass was delegated to a
+  fresh-context subagent with every finding re-verified line-by-line; round
+  2's pass covered the remediation diff by direct cold re-reading of every
+  changed site (the diff is remediation-only, no new production behavior).
 - Mutation strength is a sample (8 behaviors), not a score; no mutation
   tool is wired in this repository.
 - Coverage was not measured (opt-in per the profile, not a gate).
 - The slow-tagged suites (`test/integration`, `test/property`,
   `test/benchmark`) run no tests under the default tag selector and were
   not forced.
-- Real `flutter run` launches and real GitHub pushes were never executed
-  (no Flutter SDK, no network in the environment); US7/US8 are verified to
-  the process seam only, as the test list documents.
+- Real `flutter run` launches and real GitHub pushes were never executed;
+  US7/US8 are verified to the process seam only.
 - Performance and load behavior: no criterion, no test, not assessed.
+
+## Remediation status
+
+No new remediation tasks: the single standing FAIL condition (finding 5) is
+the accepted deviation recorded via T125 and is not actionable — the tests
+cannot be un-written and re-run before code that already exists. Everything
+actionable from round 1 is cleared (T114-T125 all done, commit `f35f0ee6`).
