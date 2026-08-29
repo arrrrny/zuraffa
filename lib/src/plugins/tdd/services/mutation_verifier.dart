@@ -19,6 +19,8 @@ library;
 
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+
 /// The outcome of a single `zfa tdd verify` run.
 class MutationResult {
   MutationResult({
@@ -136,9 +138,7 @@ class MutationVerifier {
     }
 
     final cwd = workingDirectory ?? Directory.current.path;
-    final configFile = File(_isAbsolute(configPath)
-        ? configPath
-        : '$cwd/$configPath');
+    final configFile = File(p.join(cwd, configPath));
     if (!await configFile.exists()) {
       throw MutationConfigError(
         'mutation-test config not found at ${configFile.path}. '
@@ -147,7 +147,7 @@ class MutationVerifier {
       );
     }
 
-    final outArg = '$cwd/$outputDir';
+    final outArg = p.join(cwd, outputDir);
     final args = <String>[
       'run',
       'mutation_test',
@@ -163,7 +163,10 @@ class MutationVerifier {
       dartBin,
       args,
       workingDirectory: cwd,
-      runInShell: true,
+      // Deliberately NOT runInShell: on POSIX that wraps the invocation in
+      // `sh -c` with the arguments joined, so a config path containing a
+      // space or shell metacharacter would be re-split or interpreted.
+      // `dart` is resolved from PATH by the OS without a shell.
     );
     stopwatch.stop();
 
@@ -171,7 +174,7 @@ class MutationVerifier {
     final stderrText = result.stderr.toString();
     final exitCode = result.exitCode;
 
-    final reportPath = '$outArg/mutation-test.$reportFormat';
+    final reportPath = p.join(outArg, 'mutation-test.$reportFormat');
     final reportFile = File(reportPath);
     final reportExists = await reportFile.exists();
     if (!reportExists && exitCode != 0) {
@@ -181,8 +184,7 @@ class MutationVerifier {
       );
     }
 
-    final reportText =
-        reportExists ? await reportFile.readAsString() : '';
+    final reportText = reportExists ? await reportFile.readAsString() : '';
     final counts = _parseCounts(reportText, stdoutText);
 
     return MutationResult(
@@ -241,17 +243,6 @@ class MutationVerifier {
       if (killed != 0 || survived != 0 || timeout != 0) break;
     }
     return _Counts(killed, survived, timeout);
-  }
-
-  bool _isAbsolute(String p) {
-    if (p.isEmpty) return false;
-    // Unix absolute path
-    if (p.startsWith('/')) return true;
-    // Windows drive path
-    if (p.length >= 3 && p[1] == ':' && (p[2] == '/' || p[2] == '\\')) {
-      return true;
-    }
-    return false;
   }
 }
 

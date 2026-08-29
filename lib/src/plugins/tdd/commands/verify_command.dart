@@ -22,6 +22,7 @@ library;
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 
 import '../services/mutation_verifier.dart';
 import '../tdd_plugin.dart';
@@ -30,7 +31,8 @@ class VerifyCommand extends Command<void> {
   VerifyCommand(this.plugin) {
     argParser.addOption(
       'feature',
-      help: 'Feature name (e.g. 041-tdd-setup-plugin). When set, the audit '
+      help:
+          'Feature name (e.g. 041-tdd-setup-plugin). When set, the audit '
           'score is appended to specs/<feature>/tdd/verification.md.',
     );
   }
@@ -52,6 +54,11 @@ class VerifyCommand extends Command<void> {
   Future<void> run() async {
     final argResults = this.argResults;
     final feature = argResults?['feature'] as String?;
+    if (feature != null && feature.isNotEmpty) {
+      // Validated up front: the audit takes minutes, so an unusable
+      // --feature must not be discovered only at the write step.
+      _validateFeatureSegment(feature);
+    }
     final cwd = Directory.current.path;
 
     final verifier = MutationVerifier(workingDirectory: cwd);
@@ -70,22 +77,14 @@ class VerifyCommand extends Command<void> {
       throw StateError('zfa tdd verify: config error');
     }
 
-    stdout.writeln(
-      '   killed:  ${result.killedCount}',
-    );
-    stdout.writeln(
-      '   survived: ${result.survivedCount}',
-    );
-    stdout.writeln(
-      '   timeout: ${result.timeoutCount}',
-    );
+    stdout.writeln('   killed:  ${result.killedCount}');
+    stdout.writeln('   survived: ${result.survivedCount}');
+    stdout.writeln('   timeout: ${result.timeoutCount}');
     stdout.writeln(
       '   score:   ${(result.score * 100).toStringAsFixed(1)}% '
       '(${result.killedCount}/${result.totalMutants})',
     );
-    stdout.writeln(
-      '   elapsed: ${result.elapsed.inSeconds}s',
-    );
+    stdout.writeln('   elapsed: ${result.elapsed.inSeconds}s');
     if (result.reportPath != null) {
       stdout.writeln('   report:  ${result.reportPath}');
     }
@@ -106,12 +105,28 @@ class VerifyCommand extends Command<void> {
       // Per US9.AC3: exit non-zero when survivors exist.
       throw UsageException(
         'mutation audit failed: ${result.survivedCount} mutant(s) '
-        'survived the test suite.',
+            'survived the test suite.',
         'Run with --feature <name> to append the score to the spec '
-        'verification, then strengthen the tests in test/plugins/tdd/ '
-        'until score=1.0.',
+            'verification, then strengthen the tests in test/plugins/tdd/ '
+            'until score=1.0.',
       );
     }
+  }
+}
+
+/// `--feature` lands in a filesystem path, so it must stay a single plain
+/// directory segment: a value like `../../etc` would otherwise create and
+/// append to a file outside `specs/`.
+void _validateFeatureSegment(String feature) {
+  if (feature.contains('/') ||
+      feature.contains(r'\') ||
+      feature == '.' ||
+      feature == '..') {
+    throw UsageException(
+      'invalid --feature "$feature": expected a single spec directory name '
+          'such as 041-tdd-setup-plugin, not a path.',
+      'zfa tdd verify [--feature <name>]',
+    );
   }
 }
 
@@ -123,18 +138,21 @@ Future<void> _appendVerification(
   MutationResult result,
   String repoRoot,
 ) async {
-  final dir = Directory('$repoRoot/specs/$feature/tdd');
-  final file = File('${dir.path}/verification.md');
+  _validateFeatureSegment(feature);
+
+  final dir = Directory(p.join(repoRoot, 'specs', feature, 'tdd'));
+  final file = File(p.join(dir.path, 'verification.md'));
   await dir.create(recursive: true);
 
   final ts = DateTime.now().toUtc().toIso8601String();
-  final line = '\n## Mutation audit — $ts\n'
+  final line =
+      '\n## Mutation audit — $ts\n'
       '- killed: ${result.killedCount}\n'
       '- survived: ${result.survivedCount}\n'
       '- timeout: ${result.timeoutCount}\n'
       '- total: ${result.totalMutants}\n'
       '- score: ${(result.score * 100).toStringAsFixed(1)}% '
-      '(${result.killedCount}*${result.totalMutants})\n'
+      '(${result.killedCount}/${result.totalMutants})\n'
       '- elapsed: ${result.elapsed.inSeconds}s\n'
       '- report: ${result.reportPath ?? "(no report file)"}\n'
       '- exit_code: ${result.exitCode}\n'

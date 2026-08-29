@@ -93,14 +93,16 @@ void main() {
   });
 
   group('MutationVerifier — config errors', () {
-    test('throws MutationConfigError when config file does not exist',
-        () async {
-      final v = MutationVerifier(
-        configPath: 'no-such-file.xml',
-        workingDirectory: tmpDir.path,
-      );
-      await expectLater(v.run(), throwsA(isA<MutationConfigError>()));
-    });
+    test(
+      'throws MutationConfigError when config file does not exist',
+      () async {
+        final v = MutationVerifier(
+          configPath: 'no-such-file.xml',
+          workingDirectory: tmpDir.path,
+        );
+        await expectLater(v.run(), throwsA(isA<MutationConfigError>()));
+      },
+    );
   });
 
   group('MutationVerifier — report parser regex (unit-level)', () {
@@ -139,7 +141,8 @@ void main() {
     });
 
     test('parses stdout "Killed X, survived Y, timeout Z" form', () {
-      const stdout = '... analysis complete ... Killed 42, survived 3, '
+      const stdout =
+          '... analysis complete ... Killed 42, survived 3, '
           'timeout 1, score 0.913';
       expect(killedRe.firstMatch(stdout)?.group(1), '42');
       expect(survivedRe.firstMatch(stdout)?.group(1), '3');
@@ -147,7 +150,8 @@ void main() {
     });
 
     test('parses "Mutants timed out" variant', () {
-      const text = 'Mutants killed: 7\nMutants survived: 0\n'
+      const text =
+          'Mutants killed: 7\nMutants survived: 0\n'
           'Mutants timed out: 2';
       expect(killedRe.firstMatch(text)?.group(1), '7');
       expect(survivedRe.firstMatch(text)?.group(1), '0');

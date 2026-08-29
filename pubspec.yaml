@@ -71,7 +71,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   # mutation_test: wired in by spec 041 follow-up (Phase 11, tasks T077-T081)
   # to drive the `zfa tdd verify` mutation phase honestly — no spot-check
-  # fallback. The config at `mutation-test.yaml` scopes mutations to the TDD
+  # fallback. The config at `mutation-test.xml` scopes mutations to the TDD
   # plugin + writers introduced by feature 041 so the full suite isn't run
   # per mutant (which would be 2400+ test executions per mutant and would
   # not fit the rubric's "<10s per mutant" budget).
