@@ -177,6 +177,65 @@ void main() {
     });
   });
 
+  group('Composed prompt reaches the agent loop (FR-006, FR-007)', () {
+    test('kernel forwards system prompt + llm client to runStream', () async {
+      final stub = StubStatefulAgent(outcome: 'ok');
+      final llm = _StubLlmClient('unused');
+      final plugin = AgentRuntimePlugin(
+        spiProviders: [_DeviceProvider()],
+        statefulAgent: stub,
+        llmClient: llm,
+        playbook: 'You are a helpful agent.',
+      );
+
+      await plugin.kernel
+          .runMission(Mission(missionId: 'm1', spark: 's', country: 'US'))
+          .toList();
+
+      expect(stub.receivedSystemPrompt, isNotNull);
+      expect(stub.receivedSystemPrompt, contains('You are a helpful agent.'));
+      expect(stub.receivedSystemPrompt, contains('device.scan'));
+      expect(stub.receivedLlmClient, same(llm));
+    });
+  });
+
+  group('Hook-gated tool invocation (FR-010)', () {
+    test('beforeToolCall/afterToolCall wrap invokeTool', () async {
+      final hook = _ToolHook();
+      final plugin = AgentRuntimePlugin(
+        spiProviders: [_DeviceProvider()],
+        statefulAgent: StubStatefulAgent(toolCalls: ['device.scan']),
+        hooks: [hook],
+      );
+
+      final events = await plugin.kernel
+          .runMission(Mission(missionId: 'm1', spark: 's', country: 'US'))
+          .toList();
+
+      expect(hook.before, equals(['device.scan']));
+      expect(hook.after, equals(['device.scan']));
+      final result = events.whereType<MissionEventToolCallResult>().single;
+      // afterToolCall rewrote the tool result.
+      expect(result.result, equals('wrapped:invoked:scan'));
+    });
+
+    test('ToolDecisionDeny short-circuits the call', () async {
+      final plugin = AgentRuntimePlugin(
+        spiProviders: [_DeviceProvider()],
+        statefulAgent: StubStatefulAgent(toolCalls: ['device.scan']),
+        hooks: [_DenyHook()],
+      );
+
+      final events = await plugin.kernel
+          .runMission(Mission(missionId: 'm1', spark: 's', country: 'US'))
+          .toList();
+
+      final failed = events.whereType<MissionEventFailed>().single;
+      expect(failed.error, isA<ToolDeniedException>());
+      expect((failed.error as ToolDeniedException).reason, equals('nope'));
+    });
+  });
+
   group('System prompt composition (FR-006)', () {
     test('composes playbook + tool manifests', () {
       final r = McpToolRegistry();
@@ -228,6 +287,25 @@ void main() {
     test('load returns null when no state', () async {
       final storage = InMemoryFileStateStorage();
       expect(await storage.load('unknown'), isNull);
+    });
+
+    test('mission records tool steps into persisted state', () async {
+      final storage = InMemoryFileStateStorage();
+      final plugin = AgentRuntimePlugin(
+        spiProviders: [_DeviceProvider()],
+        statefulAgent: StubStatefulAgent(
+          toolCalls: ['device.scan', 'device.extract'],
+        ),
+        stateStorage: storage,
+      );
+
+      await plugin.kernel
+          .runMission(Mission(missionId: 'm1', spark: 's', country: 'US'))
+          .toList();
+
+      final saved = await storage.load('m1');
+      expect(saved, isNotNull);
+      expect(saved!.steps, equals(['device.scan', 'device.extract']));
     });
   });
 
@@ -333,6 +411,35 @@ class _ThrowingLlmClient implements LlmClient {
   Future<String> complete(String prompt) async {
     throw StateError('primary failed');
   }
+}
+
+class _ToolHook extends AgentHook {
+  final before = <String>[];
+  final after = <String>[];
+
+  @override
+  String get id => 'tool_hook';
+
+  @override
+  Future<ToolDecision?> beforeToolCall(ToolCallContext ctx) async {
+    before.add(ctx.toolName);
+    return null;
+  }
+
+  @override
+  Future<Object?> afterToolCall(ToolCallContext ctx, Object? result) async {
+    after.add(ctx.toolName);
+    return 'wrapped:$result';
+  }
+}
+
+class _DenyHook extends AgentHook {
+  @override
+  String get id => 'deny_hook';
+
+  @override
+  Future<ToolDecision?> beforeToolCall(ToolCallContext ctx) async =>
+      const ToolDecisionDeny('nope');
 }
 
 class _OrderHook extends AgentHook {

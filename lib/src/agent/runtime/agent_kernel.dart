@@ -41,7 +41,7 @@ class AgentKernel {
   Stream<MissionEvent> runMission(Mission mission) async* {
     // FR-009: load state.
     final existing = await _stateStorage.load(mission.missionId);
-    final state = existing ?? AgentState(missionId: mission.missionId);
+    var state = existing ?? AgentState(missionId: mission.missionId);
 
     // FR-010: onMissionStart hooks.
     for (final hook in _hooks) {
@@ -52,14 +52,31 @@ class AgentKernel {
     // Persist initial state.
     await _stateStorage.save(state);
 
+    Object? outcome;
     try {
-      // FR-006: compose system prompt (called before each mission).
-      // _promptComposer.compose(registry) — used by the LLM client.
-      // (The actual LLM call is delegated to StatefulAgent.)
-      await _llmClient.complete(_promptComposer.compose(registry));
+      // FR-006: compose the system prompt before each mission and hand it to
+      // the loop — the kernel itself makes no LLM call, the agent owns them
+      // (FR-007, FR-013).
+      final systemPrompt = _promptComposer.compose(registry);
 
       // FR-005, FR-013: delegate the agent loop entirely to StatefulAgent.
-      await for (final event in statefulAgent.runStream(mission)) {
+      final events = statefulAgent.runStream(
+        mission,
+        systemPrompt: systemPrompt,
+        llmClient: _llmClient,
+        invokeTool: (canonical, args) =>
+            invokeTool(mission.missionId, canonical, args),
+      );
+
+      await for (final event in events) {
+        // FR-009: record real progress so the persisted state is not empty.
+        if (event is MissionEventToolCallStart) {
+          state = state.copyWith(
+            steps: <String>[...state.steps, event.toolName],
+          );
+        } else if (event is MissionEventCompleted) {
+          outcome = event.outcome;
+        }
         yield event;
       }
     } catch (e, st) {
@@ -68,10 +85,53 @@ class AgentKernel {
       // FR-010: onMissionEnd hooks.
       for (final hook in _hooks) {
         if (!hook.enabled) continue;
-        await hook.onMissionEnd(mission, null);
+        await hook.onMissionEnd(mission, outcome);
       }
       await _stateStorage.save(state);
     }
+  }
+
+  /// Invokes the registry tool [canonicalName] through the hook policy
+  /// chain (FR-010).
+  ///
+  /// This is the callback the kernel passes to [StatefulAgent.runStream] as
+  /// `invokeTool`, so tool gating applies to the delegated loop. Hooks run in
+  /// registration order; the first [ToolDecisionDeny] aborts the call with a
+  /// [ToolDeniedException]. [AgentHook.afterToolCall] may rewrite the result.
+  Future<Object?> invokeTool(
+    String missionId,
+    String canonicalName,
+    Map<String, Object?> args,
+  ) async {
+    final ctx = ToolCallContext(
+      missionId: missionId,
+      toolName: canonicalName,
+      args: args,
+    );
+
+    for (final hook in _hooks) {
+      if (!hook.enabled) continue;
+      final decision = await hook.beforeToolCall(ctx);
+      if (decision is ToolDecisionDeny) {
+        throw ToolDeniedException(canonicalName, decision.reason, hook.id);
+      }
+    }
+
+    final tool = registry.lookup(canonicalName);
+    if (tool == null) {
+      throw ArgumentError.value(
+        canonicalName,
+        'canonicalName',
+        'not registered in the tool registry',
+      );
+    }
+
+    var result = await tool.invoke(args);
+    for (final hook in _hooks) {
+      if (!hook.enabled) continue;
+      result = await hook.afterToolCall(ctx, result);
+    }
+    return result;
   }
 
   /// Returns the kernel status (FR-011).
