@@ -27,12 +27,14 @@ class DiffCommand extends Command<void> {
     );
     argParser.addOption(
       'old',
-      help: 'Explicit old schema JSON file (overrides the cached previous '
+      help:
+          'Explicit old schema JSON file (overrides the cached previous '
           'version)',
     );
     argParser.addOption(
       'new',
-      help: 'Explicit new schema JSON file (overrides the cached current '
+      help:
+          'Explicit new schema JSON file (overrides the cached current '
           'version)',
     );
   }
@@ -49,8 +51,10 @@ class DiffCommand extends Command<void> {
   Future<void> run() async {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
-      print('❌ Error: a schema name is required. '
-          'Usage: zfa graphql diff <name> [--dir=<cache-dir>]');
+      print(
+        '❌ Error: a schema name is required. '
+        'Usage: zfa graphql diff <name> [--dir=<cache-dir>]',
+      );
       print(usage);
       exitCode = 64;
       return;
@@ -93,8 +97,10 @@ class DiffCommand extends Command<void> {
         final available = cache.listSchemas();
         print('❌ Error: $e');
         if (available.isEmpty) {
-          print('   No cached schemas found under $cacheDir. '
-              'Run `zfa graphql pull` first.');
+          print(
+            '   No cached schemas found under $cacheDir. '
+            'Run `zfa graphql pull` first.',
+          );
         } else {
           print('   Cached schemas: ${available.join(', ')}');
         }

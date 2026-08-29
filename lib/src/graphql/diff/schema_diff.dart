@@ -98,12 +98,10 @@ class SchemaDiff {
   bool get hasBreaking =>
       changes.any((c) => c.severity == ChangeSeverity.breaking);
 
-  List<SchemaChange> get breakingChanges => changes
-      .where((c) => c.severity == ChangeSeverity.breaking)
-      .toList();
-  List<SchemaChange> get nonBreakingChanges => changes
-      .where((c) => c.severity == ChangeSeverity.nonBreaking)
-      .toList();
+  List<SchemaChange> get breakingChanges =>
+      changes.where((c) => c.severity == ChangeSeverity.breaking).toList();
+  List<SchemaChange> get nonBreakingChanges =>
+      changes.where((c) => c.severity == ChangeSeverity.nonBreaking).toList();
 }
 
 class SchemaDiffer {
@@ -119,22 +117,26 @@ class SchemaDiffer {
     // Removed types — breaking.
     for (final name in oldTypes.keys) {
       if (!newTypes.containsKey(name)) {
-        changes.add(SchemaChange(
-          severity: ChangeSeverity.breaking,
-          kind: ChangeKind.typeRemoved,
-          typeName: name,
-        ));
+        changes.add(
+          SchemaChange(
+            severity: ChangeSeverity.breaking,
+            kind: ChangeKind.typeRemoved,
+            typeName: name,
+          ),
+        );
       }
     }
 
     // Added types — non-breaking.
     for (final name in newTypes.keys) {
       if (!oldTypes.containsKey(name)) {
-        changes.add(SchemaChange(
-          severity: ChangeSeverity.nonBreaking,
-          kind: ChangeKind.typeAdded,
-          typeName: name,
-        ));
+        changes.add(
+          SchemaChange(
+            severity: ChangeSeverity.nonBreaking,
+            kind: ChangeKind.typeAdded,
+            typeName: name,
+          ),
+        );
       }
     }
 
@@ -161,12 +163,7 @@ class SchemaDiffer {
 
     // Fields (objects, interfaces; input objects use inputFields).
     if (oldType.kind == newType.kind) {
-      _diffFields(
-        oldType,
-        _fieldsOf(oldType),
-        _fieldsOf(newType),
-        changes,
-      );
+      _diffFields(oldType, _fieldsOf(oldType), _fieldsOf(newType), changes);
     }
   }
 
@@ -188,22 +185,26 @@ class SchemaDiffer {
 
     for (final value in oldValues) {
       if (!newValues.contains(value)) {
-        changes.add(SchemaChange(
-          severity: ChangeSeverity.breaking,
-          kind: ChangeKind.enumValueRemoved,
-          typeName: oldType.name,
-          fieldName: value,
-        ));
+        changes.add(
+          SchemaChange(
+            severity: ChangeSeverity.breaking,
+            kind: ChangeKind.enumValueRemoved,
+            typeName: oldType.name,
+            fieldName: value,
+          ),
+        );
       }
     }
     for (final value in newValues) {
       if (!oldValues.contains(value)) {
-        changes.add(SchemaChange(
-          severity: ChangeSeverity.nonBreaking,
-          kind: ChangeKind.enumValueAdded,
-          typeName: newType.name,
-          fieldName: value,
-        ));
+        changes.add(
+          SchemaChange(
+            severity: ChangeSeverity.nonBreaking,
+            kind: ChangeKind.enumValueAdded,
+            typeName: newType.name,
+            fieldName: value,
+          ),
+        );
       }
     }
   }
@@ -220,12 +221,14 @@ class SchemaDiffer {
     // Removed fields — breaking.
     for (final name in oldByName.keys) {
       if (!newByName.containsKey(name)) {
-        changes.add(SchemaChange(
-          severity: ChangeSeverity.breaking,
-          kind: ChangeKind.fieldRemoved,
-          typeName: type.name,
-          fieldName: name,
-        ));
+        changes.add(
+          SchemaChange(
+            severity: ChangeSeverity.breaking,
+            kind: ChangeKind.fieldRemoved,
+            typeName: type.name,
+            fieldName: name,
+          ),
+        );
       }
     }
 
@@ -237,17 +240,19 @@ class SchemaDiffer {
         // Added field: required (non-null) breaks consumers, optional does not.
         final isRequired = field.type.isNonNull;
         final rendered = SdlPrinter.renderType(field.type);
-        changes.add(SchemaChange(
-          severity: isRequired
-              ? ChangeSeverity.breaking
-              : ChangeSeverity.nonBreaking,
-          kind: isRequired
-              ? ChangeKind.requiredFieldAdded
-              : ChangeKind.optionalFieldAdded,
-          typeName: type.name,
-          fieldName: field.name,
-          detail: rendered,
-        ));
+        changes.add(
+          SchemaChange(
+            severity: isRequired
+                ? ChangeSeverity.breaking
+                : ChangeSeverity.nonBreaking,
+            kind: isRequired
+                ? ChangeKind.requiredFieldAdded
+                : ChangeKind.optionalFieldAdded,
+            typeName: type.name,
+            fieldName: field.name,
+            detail: rendered,
+          ),
+        );
         continue;
       }
 
@@ -259,22 +264,26 @@ class SchemaDiffer {
       final detail = "was '$oldRendered', now '$newRendered'";
       if (_stripNonNull(oldField.type) == _stripNonNull(field.type)) {
         // Same underlying type shape — only nullability moved.
-        changes.add(SchemaChange(
-          severity: ChangeSeverity.breaking,
-          kind: ChangeKind.nullabilityChanged,
-          typeName: type.name,
-          fieldName: field.name,
-          detail: detail,
-        ));
+        changes.add(
+          SchemaChange(
+            severity: ChangeSeverity.breaking,
+            kind: ChangeKind.nullabilityChanged,
+            typeName: type.name,
+            fieldName: field.name,
+            detail: detail,
+          ),
+        );
       } else {
         // Base type (or nested wrapper) changed — always breaking.
-        changes.add(SchemaChange(
-          severity: ChangeSeverity.breaking,
-          kind: ChangeKind.fieldTypeChanged,
-          typeName: type.name,
-          fieldName: field.name,
-          detail: detail,
-        ));
+        changes.add(
+          SchemaChange(
+            severity: ChangeSeverity.breaking,
+            kind: ChangeKind.fieldTypeChanged,
+            typeName: type.name,
+            fieldName: field.name,
+            detail: detail,
+          ),
+        );
       }
     }
   }

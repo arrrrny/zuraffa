@@ -127,9 +127,11 @@ class SdlPrinter {
 
   String _renderArgs(List<GqlArgument> args) {
     if (args.isEmpty) return '';
-    final rendered = args.map((arg) {
-      return '${arg.name}: ${renderType(arg.type)}';
-    }).join(', ');
+    final rendered = args
+        .map((arg) {
+          return '${arg.name}: ${renderType(arg.type)}';
+        })
+        .join(', ');
     return '($rendered)';
   }
 

@@ -69,8 +69,10 @@ class PullCommand extends Command<void> {
         final decoded = jsonDecode(headersArg) as Map<String, dynamic>;
         headers = decoded.map((k, v) => MapEntry(k, v.toString()));
       } catch (_) {
-        print('❌ Error: --headers must be a valid JSON object. '
-            'Got: $headersArg');
+        print(
+          '❌ Error: --headers must be a valid JSON object. '
+          'Got: $headersArg',
+        );
         exitCode = 64;
         return;
       }

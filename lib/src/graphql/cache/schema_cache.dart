@@ -207,7 +207,10 @@ class SchemaCache {
     // Rotate previous version (if any) BEFORE overwriting.
     final dirJson = File(_dirJsonFor(name));
     if (await dirJson.exists()) {
-      await _atomicWrite(File(_dirPrevJsonFor(name)), await dirJson.readAsString());
+      await _atomicWrite(
+        File(_dirPrevJsonFor(name)),
+        await dirJson.readAsString(),
+      );
     }
 
     final sdl = SdlPrinter(schema).printSchema();

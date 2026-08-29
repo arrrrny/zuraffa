@@ -38,8 +38,19 @@ class DartTypeNamer {
   /// PascalCase renderings of built-in Dart types — shadowing these with a
   /// generated class would break or confuse generated imports.
   static const Set<String> _reservedClassWords = {
-    'String', 'Int', 'Double', 'Num', 'Bool', 'Dynamic', 'List', 'Map',
-    'Set', 'Object', 'Null', 'Function', 'Void',
+    'String',
+    'Int',
+    'Double',
+    'Num',
+    'Bool',
+    'Dynamic',
+    'List',
+    'Map',
+    'Set',
+    'Object',
+    'Null',
+    'Function',
+    'Void',
   };
 
   /// Converts a GraphQL field name to a Dart field name (camelCase,

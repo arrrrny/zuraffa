@@ -25,21 +25,18 @@ class IntrospectionHttpResponse {
 ///
 /// [headers] always contains at least `Content-Type: application/json`;
 /// [query] is the introspection document text.
-typedef IntrospectionTransport = Future<IntrospectionHttpResponse> Function(
-  Uri endpoint,
-  Map<String, String> headers,
-  String query,
-);
+typedef IntrospectionTransport =
+    Future<IntrospectionHttpResponse> Function(
+      Uri endpoint,
+      Map<String, String> headers,
+      String query,
+    );
 
 /// Raised for every introspection failure mode with a human-actionable
 /// message. Carries the HTTP status (when transport-level) and the raw
 /// GraphQL error objects (when the server reported errors).
 class IntrospectionException implements Exception {
-  IntrospectionException(
-    this.message, {
-    this.statusCode,
-    this.graphqlErrors,
-  });
+  IntrospectionException(this.message, {this.statusCode, this.graphqlErrors});
 
   /// Human-readable, actionable description of the failure.
   final String message;
@@ -288,7 +285,8 @@ fragment FullType on __Type {
           '"${name ?? '<unnamed>'}" with unknown kind "$kind".',
         );
       }
-      if (kind != 'LIST' && kind != 'NON_NULL' &&
+      if (kind != 'LIST' &&
+          kind != 'NON_NULL' &&
           (name == null || name.isEmpty)) {
         throw IntrospectionException(
           'Introspection result contains a $kind type with a null or empty '
