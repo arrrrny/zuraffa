@@ -107,6 +107,13 @@ class AppShellBuilder {
       if (xray) ...[
         Directive.import('package:flutter/foundation.dart'),
         Directive.import(xrayDecksImport),
+        // Track 4.2 — Spec 036 (issue #181): pure-Dart XRayOverlayState
+        // registry that the Flutter painter subscribes to for live
+        // bounding-box snapshots. Tree-shaken in release builds because
+        // the activate() call below sits inside `if (kDebugMode)`.
+        Directive.import(
+          'package:zuraffa/src/plugins/xray/xray_overlay.dart',
+        ),
       ],
     ];
     if (diTakesGetIt) {
@@ -144,12 +151,19 @@ class AppShellBuilder {
       //   if (kDebugMode) {
       //     await _startXRayBridge();
       //     registerAllXRayDecks();
+      //     XRayOverlayState.instance.activate();
       //   }
+      //
+      // Track 4.2 — Spec 036 (issue #181): the activate() call boots
+      // the pure-Dart overlay registry so the Flutter painter can
+      // subscribe to box snapshots on the first paint. Tree-shaken in
+      // release builds because it sits inside `if (kDebugMode)`.
       bodyStatements.add(
         Code(
           'if (kDebugMode) {\n'
           '  await _startXRayBridge();\n'
           '  registerAllXRayDecks();\n'
+          '  XRayOverlayState.instance.activate();\n'
           '}',
         ),
       );
@@ -182,7 +196,12 @@ class AppShellBuilder {
         '// X-Ray wiring (issue #360): bridge server starts in debug mode,\n'
         '// Control Deck entries are registered via registerAllXRayDecks()\n'
         '// (see <outputDir>/xray/xray_decks.dart, maintained by '
-        '`zfa xray deck`).',
+        '`zfa xray deck`).\n'
+        '// X-Ray Visual Overlay (issue #181 — Track 4.2, spec 036):\n'
+        '// The pure-Dart overlay registry is activated inside the\n'
+        '// kDebugMode guard below so the Flutter painter can subscribe\n'
+        '// to live bounding-box snapshots. Tree-shaken in release\n'
+        '// builds (SC-004).',
       );
     }
     final leading = leadingParts.join('\n');
