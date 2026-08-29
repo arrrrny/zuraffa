@@ -40,6 +40,12 @@ class ZfaConfig {
     'shadcn': false,
     'method_append': false,
     'xray': false,
+    // 029-agent-plugin-mcp-wrappers: the AgentPlugin is dormant by
+    // default. Activation happens via `zfa make Foo --agent` (flag
+    // surfaces through plan_resolver._selectionFromOptions) or via
+    // .zfa.json `plugins.defaults.agent: true`. The explicit flag
+    // always wins over the config default (FR-003).
+    'agent': false,
   };
 
   final Map<String, bool> pluginDefaults;
