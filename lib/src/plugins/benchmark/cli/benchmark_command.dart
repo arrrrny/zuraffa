@@ -24,6 +24,7 @@ import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 
 import '../../../core/benchmark/baseline_store.dart';
+import '../../../core/benchmark/isolate_benchmark_runner.dart';
 import '../benchmark_plugin.dart';
 
 /// The `zfa benchmark` command (FR-011).
@@ -68,6 +69,7 @@ run options:
   --config <json>               Global config JSON merged into every scenario
   --json                        Machine-readable JSON output
   --timeout <ms>                Per-scenario timeout in milliseconds
+  --isolate                     Run each scenario in its own isolate (FR-007)
   --concurrency <n>             Worker-pool size for the suite run
   --store <dir>                 Baseline store directory (default:
                                 benchmarks/baselines)''';
@@ -156,10 +158,11 @@ run options:
       return;
     }
 
-    final suite = await plugin.runner.run(
+    final suite = await _effectiveRunner(results).run(
       selected.cast(),
       globalConfig: config,
       concurrency: int.tryParse(results['concurrency'] as String? ?? '') ?? 1,
+      timeout: _parseTimeout(results),
     );
 
     if (asJson) {
@@ -171,12 +174,10 @@ run options:
     exitCode = suite.overallStatus == BenchmarkStatus.passed ? 0 : 1;
 
     // Persist the report for `zfa benchmark report`.
-    final store = JsonBaselineStore(directory: _storeDir(results));
     final reportFile = File('${_storeDir(results)}/last-report.json');
     try {
       await reportFile.parent.create(recursive: true);
       await reportFile.writeAsString('${jsonEncode(suite.toJson())}\n');
-      await store.listAll(); // Ensures the store directory exists.
     } catch (_) {
       // Report persistence is best-effort.
     }
@@ -270,7 +271,10 @@ run options:
       return;
     }
 
-    final result = await plugin.runner.runSingle(scenario);
+    final result = await _effectiveRunner(results).runSingle(
+      scenario,
+      timeout: _parseTimeout(results),
+    );
     final label = results['label'] as String? ??
         'run-${DateTime.now().millisecondsSinceEpoch}';
     final store = JsonBaselineStore(directory: _storeDir(results));
@@ -353,7 +357,23 @@ run options:
       return;
     }
 
-    final current = await plugin.runner.runSingle(scenario);
+    final current = await _effectiveRunner(results).runSingle(
+      scenario,
+      timeout: _parseTimeout(results),
+    );
+
+    // A current run that errored or failed must not be silently compared as
+    // empty metrics and reported as "no change" (review finding: baseline
+    // compare exited 0 when the current run errored).
+    if (current.status != BenchmarkStatus.passed) {
+      final error = current.metadata['error'];
+      print('Current run for $scenarioId did not pass '
+          '(${current.status.name})'
+          '${error != null ? ': $error' : ''}');
+      exitCode = 1;
+      return;
+    }
+
     final tolerance =
         num.tryParse(results['tolerance'] as String? ?? '') ?? 10;
     final comparison = compareBaselines(
@@ -442,6 +462,8 @@ run options:
       ..addOption('config', help: 'Global config JSON')
       ..addFlag('json', negatable: false, help: 'Machine-readable output')
       ..addOption('timeout', help: 'Per-scenario timeout (ms)')
+      ..addFlag('isolate',
+          negatable: false, help: 'Run each scenario in its own isolate (FR-007)')
       ..addOption('concurrency', help: 'Worker-pool size')
       ..addOption('store', help: 'Baseline store directory');
   }
@@ -450,6 +472,9 @@ run options:
     return ArgParser()
       ..addOption('label', abbr: 'l', help: 'Baseline label')
       ..addOption('baseline', abbr: 'b', help: 'Baseline label to compare')
+      ..addOption('timeout', help: 'Per-scenario timeout (ms)')
+      ..addFlag('isolate',
+          negatable: false, help: 'Run in its own isolate (FR-007)')
       ..addOption('store', help: 'Baseline store directory');
   }
 
@@ -480,6 +505,26 @@ run options:
 
   String _storeDir(ArgResults results) =>
       results['store'] as String? ?? 'benchmarks/baselines';
+
+  /// Parses the `--timeout` flag (milliseconds) into a [Duration], or `null`
+  /// when unset.
+  Duration? _parseTimeout(ArgResults results) {
+    final ms = int.tryParse(results['timeout'] as String? ?? '');
+    return ms != null ? Duration(milliseconds: ms) : null;
+  }
+
+  /// Returns the runner to use for a command, honouring the `--isolate` flag
+  /// (FR-007): an [IsolateBenchmarkRunner] when requested, otherwise the
+  /// plugin's default runner.
+  BenchmarkRunner _effectiveRunner(ArgResults results) {
+    final useIsolate = results['isolate'] as bool? ?? false;
+    if (!useIsolate) return plugin.runner;
+    return IsolateBenchmarkRunner(
+      config: BenchmarkRunnerConfig(
+        timeout: _parseTimeout(results) ?? const Duration(minutes: 5),
+      ),
+    );
+  }
 
   List<dynamic> _filterSelection(
     List<dynamic> scenarios,

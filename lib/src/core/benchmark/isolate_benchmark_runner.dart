@@ -38,25 +38,27 @@ class IsolateBenchmarkRunner implements BenchmarkRunner {
   Future<BenchmarkResult> runSingle(
     BenchmarkContract scenario, {
     Map<String, dynamic>? config,
+    Duration? timeout,
   }) async {
+    final effectiveTimeout = timeout ?? this.config.timeout;
     final merged = {...this.config.globalConfig, ...?config};
     final port = ReceivePort();
     final errorPort = ReceivePort();
 
-    errorPort.listen((message) {
-      // Uncaught isolate errors are diagnostics only: the job's own reply
-      // (or the outer timeout) decides the result.
-      errorPort.close();
-    });
-
-    late final Isolate isolate;
+    Isolate? isolate;
     try {
       isolate = await Isolate.spawn(
         _isolateEntryPoint,
         _IsolateJob(
           scenario: scenario,
           config: merged,
-          runnerConfig: this.config,
+          // Honor the (possibly overridden) per-scenario timeout inside the
+          // isolate too, so the applied timeout is consistent end-to-end.
+          runnerConfig: BenchmarkRunnerConfig(
+            timeout: effectiveTimeout,
+            globalConfig: this.config.globalConfig,
+            defaultConcurrency: this.config.defaultConcurrency,
+          ),
           replyTo: port.sendPort,
         ),
         onError: errorPort.sendPort,
@@ -68,9 +70,15 @@ class IsolateBenchmarkRunner implements BenchmarkRunner {
       return _errorResult(scenario, 'failed to spawn isolate: $error');
     }
 
+    errorPort.listen((message) {
+      // Uncaught isolate errors are diagnostics only: the job's own reply
+      // (or the outer timeout) decides the result.
+      errorPort.close();
+    });
+
     final result = await port.first
         .timeout(
-          this.config.timeout + const Duration(seconds: 5),
+          effectiveTimeout + const Duration(seconds: 5),
           onTimeout: () => <String, dynamic>{
             'kind': 'error',
             'error':
@@ -80,13 +88,19 @@ class IsolateBenchmarkRunner implements BenchmarkRunner {
         .then((reply) => _decodeReply(scenario, reply))
         .catchError((Object error) => _errorResult(scenario, '$error'));
 
-    // Best-effort cleanup: reap the isolate once the reply arrived. The
-    // entry point returns right after sending, so this only shortens the
+    // Best-effort cleanup: reap the isolate, then close both ReceivePorts so
+    // neither leaks (review finding: the receive port was never closed). The
+    // entry point returns right after sending, so killing only shortens the
     // isolate's natural teardown.
     try {
       isolate.kill(priority: Isolate.immediate);
     } catch (_) {
       // Already dead — nothing to reap.
+    }
+    try {
+      port.close();
+    } catch (_) {
+      // Already closed.
     }
     errorPort.close();
 
@@ -98,6 +112,7 @@ class IsolateBenchmarkRunner implements BenchmarkRunner {
     List<BenchmarkContract> scenarios, {
     Map<String, dynamic>? globalConfig,
     int? concurrency,
+    Duration? timeout,
   }) async {
     final startedAt = DateTime.now();
     final stopwatch = Stopwatch()..start();
@@ -105,7 +120,9 @@ class IsolateBenchmarkRunner implements BenchmarkRunner {
 
     // Sequential by default: each scenario gets a pristine isolate (FR-007).
     for (final scenario in scenarios) {
-      results.add(await runSingle(scenario, config: globalConfig));
+      results.add(
+        await runSingle(scenario, config: globalConfig, timeout: timeout),
+      );
     }
 
     stopwatch.stop();

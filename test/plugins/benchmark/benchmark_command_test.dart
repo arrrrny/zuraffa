@@ -238,6 +238,92 @@ void main() {
       expect(output.toLowerCase(), contains('usage'));
       expect(command.exitCode, isNonZero);
     });
+
+    test('run honours --timeout (CLI flag wired to runner)', () async {
+      final plugin = pluginWith([
+        SlowScenario('slow-benchmark', const Duration(seconds: 2)),
+      ]);
+      final command = BenchmarkCommand(plugin);
+      final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
+      await plugin.discoverAndRegisterScenarios();
+
+      final output = await captureOutput(
+        () => runner.run([
+          'benchmark',
+          'run',
+          '--timeout',
+          '50',
+          '--store',
+          tempDir.path,
+        ]),
+      );
+
+      // The per-scenario timeout (review finding: --timeout was parsed but
+      // never applied) now fails the scenario instead of hanging.
+      expect(output.toLowerCase(), contains('timed out'));
+      expect(command.exitCode, isNonZero);
+    });
+
+    test('run --isolate executes via IsolateBenchmarkRunner (FR-007)',
+        () async {
+      final plugin = pluginWith([RecordingScenario('isolated-benchmark')]);
+      final command = BenchmarkCommand(plugin);
+      final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
+      await plugin.discoverAndRegisterScenarios();
+
+      final output = await captureOutput(
+        () => runner.run([
+          'benchmark',
+          'run',
+          '--isolate',
+          '--store',
+          tempDir.path,
+        ]),
+      );
+
+      // FR-007 isolation is now reachable from the CLI (review finding:
+      // the isolate runner was previously dead code at the CLI surface).
+      expect(output, contains('isolated-benchmark'));
+      expect(command.exitCode, 0);
+    });
+
+    test('baseline compare exits non-zero when current run errors',
+        () async {
+      final plugin = pluginWith([
+        ThrowingScenario('broken-benchmark', throwIn: LifecycleStage.run),
+      ]);
+      final command = BenchmarkCommand(plugin);
+      final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
+      await plugin.discoverAndRegisterScenarios();
+
+      // Seed an (empty) baseline so compare reaches the run step.
+      await captureOutput(
+        () => runner.run([
+          'benchmark',
+          'baseline',
+          'save',
+          'broken-benchmark',
+          '--store',
+          tempDir.path,
+        ]),
+      );
+
+      final output = await captureOutput(
+        () => runner.run([
+          'benchmark',
+          'baseline',
+          'compare',
+          'broken-benchmark',
+          '--store',
+          tempDir.path,
+        ]),
+      );
+
+      // Review finding: a current run that errored must not be reported as
+      // "no change" with exit 0.
+      expect(output.toLowerCase(), contains('did not pass'));
+      expect(command.exitCode, isNonZero);
+    });
   });
 }
 

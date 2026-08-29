@@ -16,6 +16,7 @@ import 'package:args/command_runner.dart';
 import '../../core/benchmark/benchmark_contract.dart';
 import '../../core/benchmark/benchmark_registry.dart';
 import '../../core/benchmark/benchmark_runner.dart';
+import '../../core/benchmark/isolate_benchmark_runner.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
@@ -126,10 +127,15 @@ class BenchmarkPlugin extends ZuraffaPlugin implements CliAwarePlugin {
   /// Convenience wrapper used by the run capability and the CLI: runs the
   /// registered scenarios (all, or [scenarioIds]) through the runner and
   /// returns the suite result.
+  ///
+  /// When [useIsolate] is `true` the scenarios run in per-scenario isolates
+  /// (FR-007). [timeout] overrides the runner's per-scenario timeout.
   Future<ExecutionResult> runBenchmarks({
     List<String>? scenarioIds,
     Map<String, dynamic>? config,
     bool dryRun = false,
+    bool useIsolate = false,
+    Duration? timeout,
   }) async {
     final all = await registry.getAll();
     var selected = all;
@@ -147,7 +153,19 @@ class BenchmarkPlugin extends ZuraffaPlugin implements CliAwarePlugin {
       return ExecutionResult(success: true, data: {'dryRuns': dryRuns});
     }
 
-    final suite = await runner.run(selected, globalConfig: config);
+    // FR-007: opt into per-scenario isolates when requested (CLI `--isolate`).
+    final effectiveRunner = useIsolate
+        ? IsolateBenchmarkRunner(
+            config: BenchmarkRunnerConfig(
+              timeout: timeout ?? const Duration(minutes: 5),
+            ),
+          )
+        : runner;
+    final suite = await effectiveRunner.run(
+      selected,
+      globalConfig: config,
+      timeout: timeout,
+    );
     // The capability invocation itself succeeded — the benchmark verdict
     // lives in the suite payload (overallStatus), which the CLI maps to an
     // exit code.

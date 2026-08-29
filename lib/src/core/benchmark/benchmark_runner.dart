@@ -79,18 +79,24 @@ class BenchmarkDryRunResult {
 /// thresholds (FR-004).
 abstract class BenchmarkRunner {
   /// Runs a single scenario and returns its structured result.
+  ///
+  /// [timeout] overrides the runner's configured per-scenario timeout (used by
+  /// the CLI `--timeout` flag); when `null` the [config] timeout applies.
   Future<BenchmarkResult> runSingle(
     BenchmarkContract scenario, {
     Map<String, dynamic>? config,
+    Duration? timeout,
   });
 
   /// Runs [scenarios] and aggregates their results into a suite report
   /// (FR-008). When [concurrency] is greater than 1 the scenarios are
-  /// executed by a worker pool of that size.
+  /// executed by a worker pool of that size. [timeout] overrides the
+  /// per-scenario timeout for every scenario in the suite.
   Future<BenchmarkSuiteResult> run(
     List<BenchmarkContract> scenarios, {
     Map<String, dynamic>? globalConfig,
     int? concurrency,
+    Duration? timeout,
   });
 
   /// Validates the scenario metadata and configuration without executing
@@ -124,17 +130,38 @@ class DefaultBenchmarkRunner implements BenchmarkRunner {
   Future<BenchmarkResult> runSingle(
     BenchmarkContract scenario, {
     Map<String, dynamic>? config,
+    Duration? timeout,
   }) async {
     final merged = {...this.config.globalConfig, ...?config};
     final startedAt = DateTime.now();
     final totalStopwatch = Stopwatch()..start();
 
-    return _withTimeout(
-      () => _executeScenario(scenario, merged, startedAt, totalStopwatch),
-      timeout: this.config.timeout,
-      scenario: scenario,
-      startedAt: startedAt,
-    );
+    // Collector lifecycle for a single run (FR-006): initialize before,
+    // finalize after. The suite path does this once for the whole suite, but
+    // runSingle can be invoked standalone (e.g. baseline save/compare).
+    for (final collector in _collectors) {
+      await _guardCollector(
+        collector,
+        () => collector.initialize(),
+        description: 'initialize ${collector.id}',
+      );
+    }
+    try {
+      return await _withTimeout(
+        () => _executeScenario(scenario, merged, startedAt, totalStopwatch),
+        timeout: timeout ?? this.config.timeout,
+        scenario: scenario,
+        startedAt: startedAt,
+      );
+    } finally {
+      for (final collector in _collectors) {
+        await _guardCollector(
+          collector,
+          () => collector.finalize(),
+          description: 'finalize ${collector.id}',
+        );
+      }
+    }
   }
 
   @override
@@ -142,6 +169,7 @@ class DefaultBenchmarkRunner implements BenchmarkRunner {
     List<BenchmarkContract> scenarios, {
     Map<String, dynamic>? globalConfig,
     int? concurrency,
+    Duration? timeout,
   }) async {
     final effectiveConcurrency =
         (concurrency ?? config.defaultConcurrency).clamp(1, scenarios.length);
@@ -179,7 +207,7 @@ class DefaultBenchmarkRunner implements BenchmarkRunner {
             stopwatch,
             iteration: index,
           ),
-          timeout: config.timeout,
+          timeout: timeout ?? config.timeout,
           scenario: scenario,
           startedAt: scenarioStartedAt,
         );
@@ -239,6 +267,9 @@ class DefaultBenchmarkRunner implements BenchmarkRunner {
     final warnings = <String>[];
     final samples = <Duration>[];
     var iterations = _asInt(merged['iterations']) ?? 1;
+    // A non-positive iteration count would yield empty samples and zeroed
+    // metrics; clamp to at least one measured iteration.
+    if (iterations < 1) iterations = 1;
     BenchmarkResult? scenarioResult;
     Object? failure;
     StackTrace? failureStack;
@@ -278,6 +309,13 @@ class DefaultBenchmarkRunner implements BenchmarkRunner {
 
     if (setupCompleted) {
       try {
+        // Warm-up iterations prime the JIT/caches; their timing samples are
+        // discarded so they don't skew the latency percentiles (review
+        // finding: no warm-up biased the percentiles toward cold-start cost).
+        final warmup = _asInt(merged['warmup']) ?? 0;
+        for (var i = 0; i < warmup; i++) {
+          await scenario.run(merged);
+        }
         for (var i = 0; i < iterations; i++) {
           final iterationStopwatch = Stopwatch()..start();
           scenarioResult = await scenario.run(merged);
