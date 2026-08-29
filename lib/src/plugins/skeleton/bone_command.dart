@@ -11,7 +11,9 @@ import 'package:yaml/yaml.dart';
 
 import 'generators/bone_exporter.dart';
 import 'generators/bone_generator.dart';
+import 'generators/di_choice_resolver.dart';
 import 'generators/spec_reader.dart';
+import 'models/bone.dart';
 
 /// The `zfa bone` command.
 class BoneCommand extends Command<void> {
@@ -56,8 +58,12 @@ subcommands:
   validate <slug>    Re-check a bone for self-containment and staleness
 
 generate options:
-  --spec <path>      Override the source spec path (default: specs/<slug>/spec.md)
-  --output <dir>     Bone root directory (default: .zfa/bones)''';
+  --spec <path>            Override the source spec path (default: specs/<slug>/spec.md)
+  --output <dir>           Bone root directory (default: .zfa/bones)
+  --di <mock|firebase|auto>  Data backend wiring (default: auto)
+  --flutter                Include pubspec.yaml + runnable lib/main.dart + page
+  --include-deps           Inline the minimal transitive shared-entity set
+  --export                 Also package the bone as <feature>-<di>.tar.gz''';
 
   @override
   Future<void> run() async {
@@ -114,6 +120,27 @@ generate options:
         'output',
         help: 'Bone root directory',
         defaultsTo: '.zfa/bones',
+      )
+      ..addOption(
+        'di',
+        help: 'Data backend wiring',
+        allowed: ['mock', 'firebase', 'auto'],
+        defaultsTo: 'auto',
+      )
+      ..addFlag(
+        'flutter',
+        help: 'Include pubspec.yaml + runnable lib/main.dart + page',
+        negatable: false,
+      )
+      ..addFlag(
+        'include-deps',
+        help: 'Inline the minimal transitive shared-entity set',
+        negatable: false,
+      )
+      ..addFlag(
+        'export',
+        help: 'Also package the bone as <feature>-<di>.tar.gz',
+        negatable: false,
       );
 
     final ArgResults results;
@@ -122,6 +149,7 @@ generate options:
     } on FormatException catch (e) {
       print(e.message);
       print(_usage);
+      exitCode = 1;
       return;
     }
 
@@ -145,10 +173,30 @@ generate options:
         results['spec'] as String? ??
         p.join(specsRoot, 'specs', slug, 'spec.md');
     final outputDir = results['output'] as String;
+    final diRequested = results['di'] as String;
+    final flutter = results['flutter'] as bool;
+    final includeDeps = results['include-deps'] as bool;
+    final export = results['export'] as bool;
 
     final specFile = File(specPath);
     if (!await specFile.exists()) {
       print('Error: spec not found: $specPath');
+      exitCode = 1;
+      return;
+    }
+
+    // Resolve the DI choice (042): flag value or auto-detection from the
+    // working project's DI config.
+    final DiChoice diChoice;
+    try {
+      diChoice = DiChoiceResolver().resolve(
+        requested: diRequested,
+        projectRoot: specsRoot,
+      );
+    } on ArgumentError catch (e) {
+      print(e);
+      print(_usage);
+      exitCode = 1;
       return;
     }
 
@@ -157,8 +205,21 @@ generate options:
         specPath: specFile,
         outputDir: outputDir,
         specsRoot: specsRoot,
+        diChoice: diChoice,
+        flutter: flutter,
+        includeDeps: includeDeps,
       );
       print(boneDir);
+
+      if (export) {
+        final artifactPath = p.join(
+          outputDir,
+          '$slug-${diChoice.backendName}.tar.gz',
+        );
+        final exporter = BoneExporter();
+        await exporter.export(Directory(boneDir), artifactPath);
+        print(artifactPath);
+      }
     } on BoneGenerationError catch (e) {
       print('Error: $e');
       // Ensure no partial output.
@@ -167,6 +228,7 @@ generate options:
       if (await dir.exists()) {
         await dir.delete(recursive: true);
       }
+      exitCode = 1;
     }
   }
 
@@ -290,6 +352,10 @@ generate options:
     // Extract declared dependency bone slugs (snake_case) from bone.yaml.
     final declaredDeps = _extractDependencySlugs(manifestContent);
 
+    // 042: packages declared in the bone's own pubspec.yaml are resolvable
+    // for this bone (flutter, flutter_test) — accept them as imports.
+    final pubspecPackages = _extractPubspecPackages(boneDir);
+
     for (final file in dartFiles) {
       final content = file.readAsStringSync();
       final imports = RegExp(
@@ -303,12 +369,14 @@ generate options:
         if (importPath.startsWith('package:')) {
           // package: imports are legal only when the package segment
           // (first path component after the colon) matches a declared
-          // dependency bone slug.
+          // dependency bone slug or a dependency of the bone's own
+          // pubspec.yaml.
           final pkgName = importPath
               .split('/')
               .first
               .substring('package:'.length);
-          if (!declaredDeps.contains(pkgName)) {
+          if (!declaredDeps.contains(pkgName) &&
+              !pubspecPackages.contains(pkgName)) {
             print(
               'Error: undeclared package import "$pkgName" in '
               '${p.relative(file.path, from: boneDir)}',
@@ -351,5 +419,26 @@ generate options:
       // Malformed YAML — no deps to check against, all package: imports fail.
     }
     return deps;
+  }
+
+  /// Extracts the package names declared in the bone's own pubspec.yaml
+  /// (042): both `dependencies:` and `dev_dependencies:` top-level keys.
+  Set<String> _extractPubspecPackages(String boneDir) {
+    final packages = <String>{};
+    final pubspec = File(p.join(boneDir, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return packages;
+    try {
+      final yaml = loadYaml(pubspec.readAsStringSync());
+      if (yaml is! Map) return packages;
+      for (final section in ['dependencies', 'dev_dependencies']) {
+        final deps = yaml[section];
+        if (deps is Map) {
+          packages.addAll(deps.keys.cast<String>());
+        }
+      }
+    } catch (_) {
+      // Malformed pubspec — contribute no packages.
+    }
+    return packages;
   }
 }

@@ -177,4 +177,145 @@ No entities declared.
       expect(result.xrayMarkers, isEmpty);
     });
   });
+
+  group('SpecReader field parsing (042 working slice)', () {
+    test(
+      '042-U1: parses indented "- name: Type" lines into entity fields',
+      () async {
+        final file = await writeSpec('profile-feature', '''
+# Feature: Profile
+
+## Key Entities
+
+- **User** — the profile owner
+  - id: String
+  - displayName: String
+  - age: int
+
+## Requirements
+
+- Users own their profile
+''');
+        final result = reader.read(file);
+        expect(result.entities, equals(['User']));
+        final user = result.entityFields['User']!;
+        expect(user, hasLength(3));
+        expect(user[0].name, equals('id'));
+        expect(user[0].type, equals('String'));
+        expect(user[1].name, equals('displayName'));
+        expect(user[2].type, equals('int'));
+      },
+    );
+
+    test('042-U2: "?" suffix marks a field nullable', () async {
+      final file = await writeSpec('nullable-feature', '''
+# Feature: Nullable
+
+## Key Entities
+
+- **User** — owner
+  - id: String
+  - email?: String
+''');
+      final result = reader.read(file);
+      final fields = result.entityFields['User']!;
+      expect(fields[1].name, equals('email'));
+      expect(fields[1].nullable, isTrue);
+      expect(fields[0].nullable, isFalse);
+    });
+
+    test('042-U3: unknown field type produces a spec read error naming entity, '
+        'field, and allowed types', () async {
+      final file = await writeSpec('bad-type', '''
+# Feature: Bad Type
+
+## Key Entities
+
+- **User** — owner
+  - id: String
+  - avatar: UIImage
+''');
+      expect(
+        () => reader.read(file),
+        throwsA(
+          isA<SpecReadError>()
+              .having(
+                (e) => e.message,
+                'message',
+                allOf(
+                  contains('User'),
+                  contains('avatar'),
+                  contains('UIImage'),
+                ),
+              )
+              .having((e) => e.message, 'message', contains('String')),
+        ),
+      );
+    });
+
+    test('042-U4: specs without field lines keep entity-name-only extraction '
+        '(backward compatible)', () async {
+      final file = await writeSpec('old-feature', '''
+# Feature: Old
+
+## Key Entities
+
+- **Product** — a catalog item
+- **CartItem** — user selection
+
+## Requirements
+
+- Products have a name and price
+''');
+      final result = reader.read(file);
+      expect(result.entities, equals(['Product', 'CartItem']));
+      expect(result.entityFields['Product'], isEmpty);
+      expect(result.entityFields['CartItem'], isEmpty);
+    });
+
+    test('042-U5: fields bind to the entity above them and stop at the next '
+        'heading or bold entry', () async {
+      final file = await writeSpec('binding', '''
+# Feature: Binding
+
+## Key Entities
+
+- **User** — owner
+  - id: String
+- **Post** — content
+  - title: String
+
+## Requirements
+
+- The word id in requirement text must not become a field
+''');
+      final result = reader.read(file);
+      expect(result.entityFields['User']!.map((f) => f.name), equals(['id']));
+      expect(
+        result.entityFields['Post']!.map((f) => f.name),
+        equals(['title']),
+      );
+      expect(result.entityFields.containsKey('Requirements'), isFalse);
+    });
+
+    test('all documented types parse without error', () async {
+      final file = await writeSpec('all-types', '''
+# Feature: Types
+
+## Key Entities
+
+- **Everything** — every supported field type
+  - s: String
+  - i: int
+  - d: double
+  - n: num
+  - b: bool
+  - l: List<String>
+  - m: Map<String, dynamic>
+  - dt: DateTime
+''');
+      final result = reader.read(file);
+      expect(result.entityFields['Everything'], hasLength(8));
+    });
+  });
 }

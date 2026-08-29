@@ -28,6 +28,8 @@ void main() {
     List<BoneDependency> dependencies = const [],
     String? specVersion,
     Map<String, String> xray = const {},
+    DiChoice? diChoice,
+    bool flutter = false,
   }) {
     return BoneManifest(
       version: 1,
@@ -38,6 +40,8 @@ void main() {
       dependencies: dependencies,
       layers: const ['domain', 'data', 'presentation'],
       xray: xray,
+      diChoice: diChoice,
+      flutter: flutter,
     );
   }
 
@@ -133,6 +137,67 @@ void main() {
         isFalse,
         reason: 'xray key must not be present when there are no markers',
       );
+    });
+  });
+
+  group('ManifestBuilder.render (042 working slice)', () {
+    test('042-U32: renders di + di_source keys from the DI choice', () {
+      final yaml = builder.render(
+        makeManifest(diChoice: DiChoice.auto().resolve(detectedBackend: null)),
+      );
+      final parsed = loadYaml(yaml) as Map;
+
+      expect(parsed['di'], equals('mock'));
+      expect(parsed['di_source'], equals('auto-fallback'));
+    });
+
+    test('042-U32: flag choice renders flag source', () {
+      final yaml = builder.render(
+        makeManifest(diChoice: DiChoice.fromFlag('firebase').resolve()),
+      );
+      final parsed = loadYaml(yaml) as Map;
+
+      expect(parsed['di'], equals('firebase'));
+      expect(parsed['di_source'], equals('flag'));
+    });
+
+    test('042-U33: flutter mode renders flutter + entrypoint keys; '
+        'library mode omits them', () {
+      final flutterYaml = builder.render(
+        makeManifest(
+          diChoice: DiChoice.fromFlag('mock').resolve(),
+          flutter: true,
+        ),
+      );
+      final flutterParsed = loadYaml(flutterYaml) as Map;
+      expect(flutterParsed['flutter'], isTrue);
+      expect(flutterParsed['entrypoint'], equals('lib/main.dart'));
+
+      final libraryYaml = builder.render(
+        makeManifest(diChoice: DiChoice.fromFlag('mock').resolve()),
+      );
+      final libraryParsed = loadYaml(libraryYaml) as Map;
+      expect(libraryParsed.containsKey('flutter'), isFalse);
+      expect(libraryParsed.containsKey('entrypoint'), isFalse);
+    });
+
+    test('042: existing keys keep their meaning when di is present', () {
+      final yaml = builder.render(
+        makeManifest(
+          entities: ['User'],
+          dependencies: const [
+            BoneDependency(bone: 'feature-a', entities: ['Product']),
+          ],
+          diChoice: DiChoice.fromFlag('mock').resolve(),
+        ),
+      );
+      final parsed = loadYaml(yaml) as Map;
+
+      expect(parsed['version'], equals(1));
+      expect(parsed['feature'], equals('test-feature'));
+      expect(parsed['entities'], equals(['User']));
+      final deps = parsed['dependencies'] as List;
+      expect(deps.first['bone'], equals('feature-a'));
     });
   });
 }
