@@ -37,8 +37,8 @@ class ShadcnPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   /// (MCP-accessible) on the shadcn plugin.
   @override
   List<ZuraffaCapability> get capabilities => [
-        UiVocabularyExportCapability(this),
-      ];
+    UiVocabularyExportCapability(this),
+  ];
 
   @override
   String get id => 'shadcn';

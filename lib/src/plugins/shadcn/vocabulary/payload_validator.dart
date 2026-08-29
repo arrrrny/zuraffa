@@ -83,7 +83,10 @@ class UiPayloadValidator {
     String? payloadVersion;
     Map<String, dynamic> tree;
     if (payload.containsKey('tree') && payload['tree'] is Map) {
-      payloadVersion = payload['schemaVersion'] as String?;
+      // The payload is user-supplied JSON: a non-string schemaVersion must
+      // not blow up the validator with an uncaught CastError.
+      final declared = payload['schemaVersion'];
+      payloadVersion = declared is String ? declared : null;
       tree = (payload['tree'] as Map).cast<String, dynamic>();
     } else {
       tree = payload;
@@ -99,12 +102,14 @@ class UiPayloadValidator {
 
     final count = _countNodes(tree);
     if (count > registry.maxNodes) {
-      errors.add(UiPayloadError(
-        ValidationErrorCategory.countCap,
-        'Tree has $count nodes; the maximum allowed is '
-        '${registry.maxNodes}.',
-        _pathOf(tree),
-      ));
+      errors.add(
+        UiPayloadError(
+          ValidationErrorCategory.countCap,
+          'Tree has $count nodes; the maximum allowed is '
+          '${registry.maxNodes}.',
+          _pathOf(tree),
+        ),
+      );
     }
 
     _validateNode(tree, [], errors);
@@ -150,12 +155,14 @@ class UiPayloadValidator {
 
     // Unknown node (US-3 scenario 2).
     if (type is! String || !registry.contains(type)) {
-      errors.add(UiPayloadError(
-        ValidationErrorCategory.unknownNode,
-        'Node type "$type" is not in the UI vocabulary. Known types: '
-        '${registry.allNames.take(8).join(", ")}...',
-        typePath.join(' > '),
-      ));
+      errors.add(
+        UiPayloadError(
+          ValidationErrorCategory.unknownNode,
+          'Node type "$type" is not in the UI vocabulary. Known types: '
+          '${registry.allNames.take(8).join(", ")}...',
+          typePath.join(' > '),
+        ),
+      );
       // Still walk children so every violation surfaces in one pass.
       _walkChildren(node, typePath, errors);
       return;
@@ -169,19 +176,23 @@ class UiPayloadValidator {
       if (registry.styleTokens.contains(styleToken)) {
         // good token
       } else if (_rawColorPattern.hasMatch(styleToken)) {
-        errors.add(UiPayloadError(
-          ValidationErrorCategory.rawColor,
-          'Raw color value "$styleToken" is not allowed — reference a style '
-          'token instead (e.g. "${registry.styleTokens.first}").',
-          typePath.join(' > '),
-        ));
+        errors.add(
+          UiPayloadError(
+            ValidationErrorCategory.rawColor,
+            'Raw color value "$styleToken" is not allowed — reference a style '
+            'token instead (e.g. "${registry.styleTokens.first}").',
+            typePath.join(' > '),
+          ),
+        );
       } else {
-        errors.add(UiPayloadError(
-          ValidationErrorCategory.badToken,
-          'Style token "$styleToken" is not in the allowed token set '
-          '(${registry.styleTokens.join(", ")}).',
-          typePath.join(' > '),
-        ));
+        errors.add(
+          UiPayloadError(
+            ValidationErrorCategory.badToken,
+            'Style token "$styleToken" is not in the allowed token set '
+            '(${registry.styleTokens.join(", ")}).',
+            typePath.join(' > '),
+          ),
+        );
       }
     }
 
@@ -189,15 +200,18 @@ class UiPayloadValidator {
     final actionId = node['actionId'];
     if (actionId != null &&
         (actionId is! String ||
-            !RegExp(VocabularySchemaExporter.actionIdPattern)
-                .hasMatch(actionId))) {
-      errors.add(UiPayloadError(
-        ValidationErrorCategory.invalidAction,
-        'Action id "$actionId" does not match the action-ID grammar '
-        '(${VocabularySchemaExporter.actionIdPattern} — dotted lowercase '
-        'identifiers, e.g. "product.select_offer").',
-        typePath.join(' > '),
-      ));
+            !RegExp(
+              VocabularySchemaExporter.actionIdPattern,
+            ).hasMatch(actionId))) {
+      errors.add(
+        UiPayloadError(
+          ValidationErrorCategory.invalidAction,
+          'Action id "$actionId" does not match the action-ID grammar '
+          '(${VocabularySchemaExporter.actionIdPattern} — dotted lowercase '
+          'identifiers, e.g. "product.select_offer").',
+          typePath.join(' > '),
+        ),
+      );
     }
 
     // Prop values — raw color detection (US-3 scenario 4).
@@ -206,13 +220,15 @@ class UiPayloadValidator {
       for (final entry in props.entries) {
         final value = entry.value;
         if (value is String && _rawColorPattern.hasMatch(value)) {
-          errors.add(UiPayloadError(
-            ValidationErrorCategory.rawColor,
-            'Raw color value "$value" in prop "${entry.key}" is not '
-            'allowed — reference a style token instead (e.g. '
-            '"${registry.styleTokens.first}").',
-            typePath.join(' > '),
-          ));
+          errors.add(
+            UiPayloadError(
+              ValidationErrorCategory.rawColor,
+              'Raw color value "$value" in prop "${entry.key}" is not '
+              'allowed — reference a style token instead (e.g. '
+              '"${registry.styleTokens.first}").',
+              typePath.join(' > '),
+            ),
+          );
         }
       }
       // Enum prop validation against the definition.
@@ -222,14 +238,30 @@ class UiPayloadValidator {
         if (value != null &&
             value is String &&
             !prop.enumValues!.contains(value)) {
-          errors.add(UiPayloadError(
-            ValidationErrorCategory.badToken,
-            'Prop "${prop.name}" value "$value" is not one of '
-            '${prop.enumValues!.join(", ")}.',
-            typePath.join(' > '),
-          ));
+          errors.add(
+            UiPayloadError(
+              ValidationErrorCategory.badToken,
+              'Prop "${prop.name}" value "$value" is not one of '
+              '${prop.enumValues!.join(", ")}.',
+              typePath.join(' > '),
+            ),
+          );
         }
       }
+    }
+
+    // Depth cap — checked per node, outside the children block: a leaf that
+    // sits too deep must still be reported, and a node exactly at maxDepth
+    // that merely carries an empty `children` list must not be.
+    if (typePath.length > registry.maxDepth) {
+      errors.add(
+        UiPayloadError(
+          ValidationErrorCategory.depthCap,
+          'Tree depth exceeds the maximum of ${registry.maxDepth} at this '
+          'node.',
+          typePath.join(' > '),
+        ),
+      );
     }
 
     // Children constraints (invalidNesting, US-3 scenario 3).
@@ -238,20 +270,24 @@ class UiPayloadValidator {
       final childCount = children.length;
       final constraint = definition.children;
       if (constraint.max != null && childCount > constraint.max!) {
-        errors.add(UiPayloadError(
-          ValidationErrorCategory.invalidNesting,
-          'Node "$type" has $childCount children; at most ${constraint.max} '
-          'are allowed.',
-          typePath.join(' > '),
-        ));
+        errors.add(
+          UiPayloadError(
+            ValidationErrorCategory.invalidNesting,
+            'Node "$type" has $childCount children; at most ${constraint.max} '
+            'are allowed.',
+            typePath.join(' > '),
+          ),
+        );
       }
       if (constraint.min != null && childCount < constraint.min!) {
-        errors.add(UiPayloadError(
-          ValidationErrorCategory.invalidNesting,
-          'Node "$type" has $childCount children; at least ${constraint.min} '
-          'are required.',
-          typePath.join(' > '),
-        ));
+        errors.add(
+          UiPayloadError(
+            ValidationErrorCategory.invalidNesting,
+            'Node "$type" has $childCount children; at least ${constraint.min} '
+            'are required.',
+            typePath.join(' > '),
+          ),
+        );
       }
       if (constraint.allowedChildTypes != null) {
         for (final child in children) {
@@ -259,26 +295,18 @@ class UiPayloadValidator {
             final childType = child['type'];
             if (childType is String &&
                 !constraint.allowedChildTypes!.contains(childType)) {
-              errors.add(UiPayloadError(
-                ValidationErrorCategory.invalidNesting,
-                'Node "$type" only allows children of type '
-                '${constraint.allowedChildTypes!.join(", ")}, but found '
-                '"$childType".',
-                '${typePath.join(" > ")} > $childType',
-              ));
+              errors.add(
+                UiPayloadError(
+                  ValidationErrorCategory.invalidNesting,
+                  'Node "$type" only allows children of type '
+                      '${constraint.allowedChildTypes!.join(", ")}, but found '
+                      '"$childType".',
+                  '${typePath.join(" > ")} > $childType',
+                ),
+              );
             }
           }
         }
-      }
-
-      // Depth cap.
-      if (typePath.length >= registry.maxDepth) {
-        errors.add(UiPayloadError(
-          ValidationErrorCategory.depthCap,
-          'Tree depth exceeds the maximum of ${registry.maxDepth} at this '
-          'node.',
-          typePath.join(' > '),
-        ));
       }
 
       for (final child in children) {

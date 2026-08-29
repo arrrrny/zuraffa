@@ -28,31 +28,33 @@ class UiVocabularyExportCapability implements ZuraffaCapability {
 
   @override
   JsonSchema get inputSchema => {
-        'type': 'object',
-        'properties': {
-          'projectRoot': {
-            'type': 'string',
-            'description': 'Project root to load composites from '
-                '(defaults to the current directory).',
-          },
-          'schemaVersion': {
-            'type': 'string',
-            'description': 'Version stamp for the export (defaults to the '
-                'registry version).',
-          },
-        },
-      };
+    'type': 'object',
+    'properties': {
+      'projectRoot': {
+        'type': 'string',
+        'description':
+            'Project root to load composites from '
+            '(defaults to the current directory).',
+      },
+      'schemaVersion': {
+        'type': 'string',
+        'description':
+            'Version stamp for the export (defaults to the '
+            'registry version).',
+      },
+    },
+  };
 
   @override
   JsonSchema get outputSchema => {
+    'type': 'object',
+    'properties': {
+      'schema': {
         'type': 'object',
-        'properties': {
-          'schema': {
-            'type': 'object',
-            'description': 'The exported UI vocabulary schema.',
-          },
-        },
-      };
+        'description': 'The exported UI vocabulary schema.',
+      },
+    },
+  };
 
   @override
   Future<EffectReport> plan(Map<String, dynamic> args) async {
@@ -74,9 +76,6 @@ class UiVocabularyExportCapability implements ZuraffaCapability {
       registry,
       schemaVersion: args['schemaVersion']?.toString() ?? '1.0.0',
     );
-    return ExecutionResult(
-      success: true,
-      data: {'schema': exporter.export()},
-    );
+    return ExecutionResult(success: true, data: {'schema': exporter.export()});
   }
 }

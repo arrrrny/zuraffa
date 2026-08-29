@@ -60,7 +60,8 @@ class VocabularySchemaExporter {
       'styleTokens': registry.styleTokens,
       'actionIdGrammar': _sortedMap({
         'pattern': actionIdPattern,
-        'description': 'Dotted lowercase identifiers, e.g. '
+        'description':
+            'Dotted lowercase identifiers, e.g. '
             "'product.select_offer'.",
       }),
       if (nestingRules.isNotEmpty) 'nestingRules': _sortedMap(nestingRules),
@@ -115,27 +116,31 @@ abstract final class UiRenderInputSchema {
     final nodeSchema = <String, dynamic>{
       'type': 'object',
       'properties': {
-        'type': {
-          'type': 'string',
-          'enum': components.keys.toList(),
-        },
+        'type': {'type': 'string', 'enum': components.keys.toList()},
         'props': {'type': 'object'},
+        // The node schema is published at `#/tree`, so the recursive child
+        // reference must point there — `#/tree/node` resolves to nothing.
+        // No `maxItems`: `maxNodes` is a whole-tree budget, not a per-node
+        // child cap, and it is carried in `structuralRules` below instead.
         'children': {
           'type': 'array',
-          'items': {'\$ref': '#/tree/node'},
-          'maxItems': rules['maxNodes'],
+          'items': {'\$ref': '#/tree'},
         },
         'styleToken': {'type': 'string', 'enum': tokens},
-        'actionId': {
-          'type': 'string',
-          'pattern': grammar['pattern'],
-        },
+        'actionId': {'type': 'string', 'pattern': grammar['pattern']},
       },
       'required': ['type'],
     };
 
+    // Carry the structural rules through: without them [validateTree] has no
+    // maxDepth to enforce and would silently allow trees the authoritative
+    // UiPayloadValidator rejects (SC-004 — consumed as-is).
     return {
       'tree': nodeSchema,
+      'structuralRules': {
+        'maxDepth': rules['maxDepth'],
+        'maxNodes': rules['maxNodes'],
+      },
     };
   }
 
@@ -147,8 +152,9 @@ abstract final class UiRenderInputSchema {
     Map<String, dynamic> tree,
   ) {
     final nodeSchema = schema['tree'] as Map<String, dynamic>;
-    final typeSchema = (nodeSchema['properties']
-        as Map<String, dynamic>)['type'] as Map<String, dynamic>;
+    final typeSchema =
+        (nodeSchema['properties'] as Map<String, dynamic>)['type']
+            as Map<String, dynamic>;
     final allowedTypes = (typeSchema['enum'] as List).cast<String>();
 
     String? checkNode(Map<String, dynamic> node, int depth) {
@@ -157,21 +163,22 @@ abstract final class UiRenderInputSchema {
         return 'Unknown node type "$type" — allowed: '
             '${allowedTypes.take(8).join(", ")}...';
       }
-      final tokenSchema = (nodeSchema['properties']
-          as Map<String, dynamic>)['styleToken'] as Map<String, dynamic>?;
+      final tokenSchema =
+          (nodeSchema['properties'] as Map<String, dynamic>)['styleToken']
+              as Map<String, dynamic>?;
       final styleToken = node['styleToken'];
       if (tokenSchema != null &&
           styleToken is String &&
           !(tokenSchema['enum'] as List).contains(styleToken)) {
         return 'Invalid styleToken "$styleToken".';
       }
+      final rules = schema['structuralRules'] as Map<String, dynamic>?;
+      final maxDepth = (rules?['maxDepth'] as int?) ?? 64;
+      if (depth > maxDepth) {
+        return 'Tree exceeds maxDepth $maxDepth.';
+      }
       final children = node['children'];
       if (children is List) {
-        final maxDepth =
-            ((schema['tree'] as Map)['maxDepth'] as int?) ?? 64;
-        if (depth >= maxDepth) {
-          return 'Tree exceeds maxDepth $maxDepth.';
-        }
         for (final child in children) {
           if (child is Map<String, dynamic>) {
             final violation = checkNode(child, depth + 1);

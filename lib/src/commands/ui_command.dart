@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -9,8 +10,8 @@ import '../plugins/shadcn/vocabulary/vocabulary_schema_exporter.dart';
 /// `zfa ui` — the shadcn plugin's UI vocabulary authority commands
 /// (spec 024): `schema`, `validate`, `preview`.
 class UiCommand extends Command<void> {
-  UiCommand({bool Function()? pluginAvailable}) : _pluginAvailable =
-        pluginAvailable ?? _defaultPluginAvailable {
+  UiCommand({bool Function()? pluginAvailable})
+    : _pluginAvailable = pluginAvailable ?? _defaultPluginAvailable {
     addSubcommand(UiSchemaCommand(pluginAvailable: _pluginAvailable));
     addSubcommand(UiValidateCommand(pluginAvailable: _pluginAvailable));
     addSubcommand(UiPreviewCommand(pluginAvailable: _pluginAvailable));
@@ -32,7 +33,7 @@ class UiCommand extends Command<void> {
 /// `zfa ui schema [--out <file>] [--expect-version <v>]`.
 class UiSchemaCommand extends Command<void> {
   UiSchemaCommand({bool Function()? pluginAvailable})
-      : pluginAvailable = pluginAvailable ?? (() => true) {
+    : pluginAvailable = pluginAvailable ?? (() => true) {
     argParser.addOption(
       'project-root',
       help: 'Project root for composite loading (default: current directory)',
@@ -44,7 +45,8 @@ class UiSchemaCommand extends Command<void> {
     );
     argParser.addOption(
       'expect-version',
-      help: 'Fail when the exported schemaVersion does not match this pin '
+      help:
+          'Fail when the exported schemaVersion does not match this pin '
           '(CI check)',
     );
     argParser.addFlag(
@@ -66,8 +68,10 @@ class UiSchemaCommand extends Command<void> {
   @override
   Future<void> run() async {
     if (argResults?['no-plugin'] == true || !pluginAvailable()) {
-      print('❌ shadcn plugin not found — install it first '
-          '(add the shadcn plugin to your project).');
+      print(
+        '❌ shadcn plugin not found — install it first '
+        '(add the shadcn plugin to your project).',
+      );
       exitCode = 1;
       return;
     }
@@ -84,16 +88,20 @@ class UiSchemaCommand extends Command<void> {
       final file = File(out);
       await file.parent.create(recursive: true);
       await file.writeAsString(json);
-      print('✅ UI vocabulary schema written to $out '
-          '($version, ${registry.allNames.length} components)');
+      print(
+        '✅ UI vocabulary schema written to $out '
+        '($version, ${registry.allNames.length} components)',
+      );
     } else {
       print(json);
     }
 
     final expected = argResults?['expect-version'] as String?;
     if (expected != null && expected != version) {
-      print('❌ Version pin mismatch: expected $expected but the vocabulary '
-          'exports $version. Re-pin or migrate consumers.');
+      print(
+        '❌ Version pin mismatch: expected $expected but the vocabulary '
+        'exports $version. Re-pin or migrate consumers.',
+      );
       exitCode = 1;
     }
   }
@@ -102,7 +110,7 @@ class UiSchemaCommand extends Command<void> {
 /// `zfa ui validate <file>`.
 class UiValidateCommand extends Command<void> {
   UiValidateCommand({bool Function()? pluginAvailable})
-      : pluginAvailable = pluginAvailable ?? (() => true) {
+    : pluginAvailable = pluginAvailable ?? (() => true) {
     argParser.addOption('project-root');
   }
 
@@ -149,13 +157,17 @@ class UiValidateCommand extends Command<void> {
         print('⚠️  $warning');
       }
       if (result.valid) {
-        print('✅ Payload is valid against the UI vocabulary '
-            '(${registry.allNames.length} components).');
+        print(
+          '✅ Payload is valid against the UI vocabulary '
+          '(${registry.allNames.length} components).',
+        );
         exitCode = 0;
         return;
       }
-      print('❌ Payload failed validation (${result.errors.length} '
-          'violation(s)):');
+      print(
+        '❌ Payload failed validation (${result.errors.length} '
+        'violation(s)):',
+      );
       for (final error in result.errors) {
         print('   ${error.kind.name}: ${error.path}');
         print('      ${error.message}');
@@ -171,11 +183,12 @@ class UiValidateCommand extends Command<void> {
 /// `zfa ui preview <file>` (macOS harness; FR-004).
 class UiPreviewCommand extends Command<void> {
   UiPreviewCommand({bool Function()? pluginAvailable})
-      : pluginAvailable = pluginAvailable ?? (() => true) {
+    : pluginAvailable = pluginAvailable ?? (() => true) {
     argParser.addOption('project-root');
     argParser.addOption(
       'platform',
-      help: 'Override the platform check (macos|linux|windows) — '
+      help:
+          'Override the platform check (macos|linux|windows) — '
           'testing/diagnostics',
     );
     argParser.addFlag(
@@ -225,8 +238,10 @@ class UiPreviewCommand extends Command<void> {
       return;
     }
     if (!result.valid) {
-      print('❌ Payload failed validation — preview aborted '
-          '(${result.errors.length} violation(s)):');
+      print(
+        '❌ Payload failed validation — preview aborted '
+        '(${result.errors.length} violation(s)):',
+      );
       for (final error in result.errors) {
         print('   ${error.kind.name}: ${error.path}');
         print('      ${error.message}');
@@ -241,9 +256,11 @@ class UiPreviewCommand extends Command<void> {
         ? platformOverride == 'macos'
         : Platform.isMacOS;
     if (!isMacos) {
-      print('❌ Preview is not supported on this platform — the preview '
-          'harness targets macOS first (spec 024 US-4). Validated the '
-          'payload successfully; rendering requires macOS.');
+      print(
+        '❌ Preview is not supported on this platform — the preview '
+        'harness targets macOS first (spec 024 US-4). Validated the '
+        'payload successfully; rendering requires macOS.',
+      );
       exitCode = 1;
       return;
     }
@@ -268,7 +285,15 @@ class UiPreviewCommand extends Command<void> {
       '-t',
       harness.path,
     ]);
+    // `flutter run` is verbose and long-lived. Process.start pipes its
+    // stdout/stderr to us, so they must be drained: once the OS pipe buffer
+    // fills, the child blocks on write and `exitCode` never completes.
+    final drained = Future.wait<void>([
+      stdout.addStream(process.stdout),
+      stderr.addStream(process.stderr),
+    ]);
     exitCode = await process.exitCode;
+    await drained;
   }
 
   /// The Flutter import for the generated harness — emitted via a string
@@ -277,7 +302,14 @@ class UiPreviewCommand extends Command<void> {
   static const String _harnessFlutterImport =
       "import 'package:flutter/material.dart';";
 
-  String _harnessSource(String payloadPath) => '''
+  /// [payloadPath] is embedded in the generated harness as a JSON-encoded
+  /// literal, so a path containing a quote or backslash cannot break out of
+  /// the string and produce uncompilable Dart.
+  String _harnessSource(String payloadPath) =>
+      _harnessTemplate(payloadPath, jsonEncode(payloadPath));
+
+  String _harnessTemplate(String payloadPath, String encodedPath) =>
+      '''
 // GENERATED by `zfa ui preview` — do not edit by hand.
 // Loads the payload at $payloadPath and walks the tree through the
 // registered renderers inside a macOS harness window.
@@ -289,7 +321,7 @@ $_harnessFlutterImport
 
 Future<void> main() async {
   final payload =
-      jsonDecode(await File(r'$payloadPath').readAsString()) as Map<String, dynamic>;
+      jsonDecode(await File($encodedPath).readAsString()) as Map<String, dynamic>;
   runApp(_PreviewApp(payload));
 }
 

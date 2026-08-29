@@ -101,7 +101,8 @@ class MakeCommand extends Command<void> {
     argParser.addFlag(
       'ui',
       negatable: false,
-      help: 'Scaffold a composite UI component (spec 024): node entity + '
+      help:
+          'Scaffold a composite UI component (spec 024): node entity + '
           'renderer extension + schema registration',
     );
     final projectRoot = _findProjectRoot();

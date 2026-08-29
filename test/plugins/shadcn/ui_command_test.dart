@@ -33,16 +33,17 @@ void main() {
     return file.path;
   }
 
-  Map<String, dynamic> node(String type,
-          {Map<String, Object?>? props,
-          List<Map<String, dynamic>>? children,
-          String? styleToken}) =>
-      {
-        'type': type,
-        'props': ?props,
-        'children': ?children,
-        'styleToken': ?styleToken,
-      };
+  Map<String, dynamic> node(
+    String type, {
+    Map<String, Object?>? props,
+    List<Map<String, dynamic>>? children,
+    String? styleToken,
+  }) => {
+    'type': type,
+    'props': ?props,
+    'children': ?children,
+    'styleToken': ?styleToken,
+  };
 
   group('zfa ui schema', () {
     test('writes/prints the schema with --out (FR-001)', () async {
@@ -64,10 +65,18 @@ void main() {
     test('diff-stable across two CLI runs (SC-001)', () async {
       final out1 = File('${tempDir.path}/s1.json').path;
       final out2 = File('${tempDir.path}/s2.json').path;
-      await runner.runCapturing(
-          ['ui', 'schema', '--project-root=${tempDir.path}', '--out=$out1']);
-      await runner.runCapturing(
-          ['ui', 'schema', '--project-root=${tempDir.path}', '--out=$out2']);
+      await runner.runCapturing([
+        'ui',
+        'schema',
+        '--project-root=${tempDir.path}',
+        '--out=$out1',
+      ]);
+      await runner.runCapturing([
+        'ui',
+        'schema',
+        '--project-root=${tempDir.path}',
+        '--out=$out2',
+      ]);
       expect(
         File(out2).readAsStringSync(),
         equals(File(out1).readAsStringSync()),
@@ -85,27 +94,31 @@ void main() {
       expect(exitCode, 1);
     });
 
-    test('plugin missing produces an actionable error (FR-008 / Edge Cases)',
-        () async {
-      final output = await runner.runCapturing([
-        'ui',
-        'schema',
-        '--project-root=${tempDir.path}',
-        '--no-plugin',
-      ]);
-      expect(output.toLowerCase(), contains('shadcn plugin not found'));
-      expect(output.toLowerCase(), contains('install'));
-      expect(exitCode, 1);
-    });
+    test(
+      'plugin missing produces an actionable error (FR-008 / Edge Cases)',
+      () async {
+        final output = await runner.runCapturing([
+          'ui',
+          'schema',
+          '--project-root=${tempDir.path}',
+          '--no-plugin',
+        ]);
+        expect(output.toLowerCase(), contains('shadcn plugin not found'));
+        expect(output.toLowerCase(), contains('install'));
+        expect(exitCode, 1);
+      },
+    );
   });
 
   group('zfa ui validate', () {
-    test('valid payload exits 0 with clean report (US-3 scenario 1)',
-        () async {
+    test('valid payload exits 0 with clean report (US-3 scenario 1)', () async {
       final file = writePayload('good.json', {
-        'tree': node('card', children: [
-          node('text', props: {'value': 'Hello'}),
-        ]),
+        'tree': node(
+          'card',
+          children: [
+            node('text', props: {'value': 'Hello'}),
+          ],
+        ),
       });
       final output = await runner.runCapturing([
         'ui',
@@ -117,24 +130,29 @@ void main() {
       expect(exitCode, 0);
     });
 
-    test('invalid payload exits 1 with diagnostics (US-3 scenarios 2-5)',
-        () async {
-      final file = writePayload('bad.json', {
-        'tree': node('card', children: [
-          node('ghost_node'),
-          node('text', styleToken: 'neon'),
-        ]),
-      });
-      final output = await runner.runCapturing([
-        'ui',
-        'validate',
-        file,
-        '--project-root=${tempDir.path}',
-      ]);
-      expect(output, contains('ghost_node'));
-      expect(output, contains('neon'));
-      expect(exitCode, 1);
-    });
+    test(
+      'invalid payload exits 1 with diagnostics (US-3 scenarios 2-5)',
+      () async {
+        final file = writePayload('bad.json', {
+          'tree': node(
+            'card',
+            children: [
+              node('ghost_node'),
+              node('text', styleToken: 'neon'),
+            ],
+          ),
+        });
+        final output = await runner.runCapturing([
+          'ui',
+          'validate',
+          file,
+          '--project-root=${tempDir.path}',
+        ]);
+        expect(output, contains('ghost_node'));
+        expect(output, contains('neon'));
+        expect(exitCode, 1);
+      },
+    );
 
     test('file not found is actionable (FR-008)', () async {
       final output = await runner.runCapturing([
@@ -163,27 +181,30 @@ void main() {
   });
 
   group('zfa ui preview', () {
-    test('invalid payload reports errors and does not render (US-4 scenario 3)',
-        () async {
-      final file = writePayload('bad.json', {
-        'tree': node('ghost_node'),
-      });
-      final output = await runner.runCapturing([
-        'ui',
-        'preview',
-        file,
-        '--project-root=${tempDir.path}',
-      ]);
-      expect(output, contains('ghost_node'));
-      expect(output.toLowerCase(), isNot(contains('rendering')));
-      expect(exitCode, 1);
-    });
+    test(
+      'invalid payload reports errors and does not render (US-4 scenario 3)',
+      () async {
+        final file = writePayload('bad.json', {'tree': node('ghost_node')});
+        final output = await runner.runCapturing([
+          'ui',
+          'preview',
+          file,
+          '--project-root=${tempDir.path}',
+        ]);
+        expect(output, contains('ghost_node'));
+        expect(output.toLowerCase(), isNot(contains('rendering')));
+        expect(exitCode, 1);
+      },
+    );
 
     test('non-macOS fails with platform-not-supported (Edge Cases)', () async {
       final file = writePayload('good.json', {
-        'tree': node('card', children: [
-          node('text', props: {'value': 'Preview me'}),
-        ]),
+        'tree': node(
+          'card',
+          children: [
+            node('text', props: {'value': 'Preview me'}),
+          ],
+        ),
       });
       final output = await runner.runCapturing([
         'ui',
@@ -197,29 +218,38 @@ void main() {
       expect(exitCode, 1);
     });
 
-    test('macOS path generates the harness entrypoint (US-4 scenario 1)',
-        () async {
-      final file = writePayload('good.json', {
-        'tree': node('card', children: [
-          node('text', props: {'value': 'Preview me'}),
-        ]),
-      });
-      final output = await runner.runCapturing([
-        'ui',
-        'preview',
-        file,
-        '--project-root=${tempDir.path}',
-        '--platform=macos',
-        '--dry-run',
-      ]);
-      expect(output.toLowerCase(), contains('harness'));
-      final harness =
-          File('${tempDir.path}/.zfa/ui/preview/main_preview.dart');
-      expect(harness.existsSync(), true,
-          reason: 'preview harness entrypoint must be generated');
-      expect(harness.readAsStringSync(), contains('main'));
-      expect(harness.readAsStringSync(), contains('payload'));
-    });
+    test(
+      'macOS path generates the harness entrypoint (US-4 scenario 1)',
+      () async {
+        final file = writePayload('good.json', {
+          'tree': node(
+            'card',
+            children: [
+              node('text', props: {'value': 'Preview me'}),
+            ],
+          ),
+        });
+        final output = await runner.runCapturing([
+          'ui',
+          'preview',
+          file,
+          '--project-root=${tempDir.path}',
+          '--platform=macos',
+          '--dry-run',
+        ]);
+        expect(output.toLowerCase(), contains('harness'));
+        final harness = File(
+          '${tempDir.path}/.zfa/ui/preview/main_preview.dart',
+        );
+        expect(
+          harness.existsSync(),
+          true,
+          reason: 'preview harness entrypoint must be generated',
+        );
+        expect(harness.readAsStringSync(), contains('main'));
+        expect(harness.readAsStringSync(), contains('payload'));
+      },
+    );
   });
 
   group('zfa make <Name> --ui (FR-002)', () {
@@ -228,13 +258,15 @@ void main() {
       await make.runForUi('OfferCard');
 
       expect(
-        File('${tempDir.path}/lib/src/ui/nodes/offer_card_node.dart')
-            .existsSync(),
+        File(
+          '${tempDir.path}/lib/src/ui/nodes/offer_card_node.dart',
+        ).existsSync(),
         true,
       );
       expect(
-        File('${tempDir.path}/lib/src/ui/renderers/offer_card_renderer.dart')
-            .existsSync(),
+        File(
+          '${tempDir.path}/lib/src/ui/renderers/offer_card_renderer.dart',
+        ).existsSync(),
         true,
       );
       expect(
@@ -260,12 +292,9 @@ void main() {
       final capability = plugin.capabilities
           .whereType<UiVocabularyExportCapability>()
           .single;
-      final result = await capability.execute({
-        'projectRoot': tempDir.path,
-      });
+      final result = await capability.execute({'projectRoot': tempDir.path});
       expect(result.success, true);
-      final schema =
-          result.data?['schema'] as Map<String, dynamic>;
+      final schema = result.data?['schema'] as Map<String, dynamic>;
       expect(schema['schemaVersion'], isA<String>());
       expect((schema['components'] as Map).keys, contains('card'));
     });
