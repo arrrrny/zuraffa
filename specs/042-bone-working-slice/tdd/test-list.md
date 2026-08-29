@@ -17,34 +17,34 @@ the real entry point — `zfa bone generate` via `CommandRunner`, artifacts on d
 
 | id  | behavior | traces | kind | state | test |
 |-----|----------|--------|------|-------|------|
-| A1  | Entities have real fields, fromJson, toJson, copyWith, validate; no empty `class X {}` | US1.AC1, FR-001 | example | PENDING | `test/plugins/skeleton/scenarios/sc_005_working_slice_test.dart::entity real shape` |
-| A2  | Abstract repository + data implementation + datasource interface exist per entity | US1.AC2, FR-002 | example | PENDING | `sc_005::repo layers exist` |
-| A3  | Get/Create/Update/Delete use cases injected with repository via DI | US1.AC3, FR-003 | example | PENDING | `sc_005::crud usecases` |
-| A4  | Field-less spec entities still emit fromJson/toJson/validate (no empty stubs) | US1.AC4, FR-001 | example | PENDING | `sc_005::fieldless entity` |
-| A5  | `--di mock` wires mock default; `bone.yaml` records `di: mock` | US2.AC1, FR-006/007/009 | example | PENDING | `sc_005::di mock wiring` |
-| A6  | `--di firebase` wires firebase default with credential plumbing | US2.AC2, FR-004/009 | example | PENDING | `sc_005::di firebase wiring` |
-| A7  | `--di auto` detects firebase from project pubspec/zfa.yaml | US2.AC3, FR-009 | example | PENDING | `test/plugins/skeleton/di_choice_resolver_test.dart::detects firebase` |
-| A8  | `--di auto` without config falls back to mock and records source | US2.AC4, FR-009 | example | PENDING | `di_choice_resolver_test.dart::fallback mock` |
-| A9  | Invalid `--di redis` prints usage error, exit non-zero, nothing generated | US2.AC5, FR-009 | example | PENDING | `sc_005::invalid di rejected` |
-| A10 | `--flutter` emits minimal pubspec.yaml + runnable lib/main.dart | US3.AC1, FR-008 | example | PENDING | `sc_005::flutter entry` |
-| A11 | `--flutter` emits presentation page invoking a use case via DI | US3.AC2, FR-005 | example | PENDING | `sc_005::presentation page` |
-| A12 | No `--flutter` → no pubspec, no main.dart, no widget page | US3.AC3, FR-008 | example | PENDING | `sc_005::library mode omits flutter files` |
-| A13 | `--flutter` emits widget test for the page | US3.AC4, FR-012 | example | PENDING | `sc_005::widget test` |
-| A14 | `--include-deps` inlines shared entity with the dependency's declared fields | US4.AC1, FR-010 | example | PENDING | `sc_005::include deps inlines` |
-| A15 | Transitive chain A→B→C inlines closure | US4.AC2, FR-010 | example | PENDING | `sc_005::transitive closure` |
-| A16 | Unrelated feature D's entities absent | US4.AC3, FR-010 | example | PENDING | `sc_005::unrelated absent` |
-| A17 | Default generation declares deps in bone.yaml only (no inlined files) | US4.AC4, FR-010 | example | PENDING | `sc_005::declare only` |
-| A18 | Dependency cycle refused; no partial output | US4.AC5, FR-010 | example | PENDING | `sc_005::cycle refused` |
-| A19 | `--export` produces `<feature>-<di>.tar.gz` unpacking to the bone tree | US5.AC1, FR-011 | example | PENDING | `sc_005::export artifact` |
-| A20 | Two features exported into same dir without conflicts | US5.AC2, SC-006 | example | PENDING | `sc_005::parallel no conflict` |
-| A21 | Failed generation leaves no artifact and no partial bone | US5.AC3, FR-011 | example | PENDING | `sc_005::failure clean` |
-| A22 | Generated tests pass with `dart run` — no pub get, no network | US6.AC1, SC-003, FR-012 | example | PENDING | `sc_005::generated tests run` |
-| A23 | Exported artifact < 50KB | US6.AC2, SC-005 | example | PENDING | `sc_005::artifact size` |
-| A24 | Firebase datasource without credentials fails with clear StateError | US6.AC3, FR-004 | example | PENDING | `sc_005::missing credentials error` |
-| A25 | Pure-Dart core analyzes with zero errors in a scratch package | SC-002, FR-001..006 | example | PENDING | `sc_005::analyze zero errors` |
-| A26 | `bone validate` passes on flutter bone incl. `package:flutter_test` import | FR-013 | example | PENDING | `sc_005::validate flutter bone` |
-| A27 | No README placeholders, no empty classes, no TODO-only test stubs | FR-015 | example | PENDING | `sc_005::no placeholders` |
-| A28 | Regenerating a feature replaces its bone atomically | FR-014 | example | PENDING | `sc_005::atomic regen` |
+| A1  | Entities have real fields, fromJson, toJson, copyWith, validate; no empty `class X {}` | US1.AC1, FR-001 | example | PASS | `test/plugins/skeleton/scenarios/sc_005_working_slice_test.dart::entity real shape` |
+| A2  | Abstract repository + data implementation + datasource interface exist per entity | US1.AC2, FR-002 | example | PASS | `sc_005::repo layers exist` |
+| A3  | Get/Create/Update/Delete use cases injected with repository via DI | US1.AC3, FR-003 | example | PASS | `sc_005::crud usecases` |
+| A4  | Field-less spec entities still emit fromJson/toJson/validate (no empty stubs) | US1.AC4, FR-001 | example | PASS | `sc_005::fieldless entity` |
+| A5  | `--di mock` wires mock default; `bone.yaml` records `di: mock` | US2.AC1, FR-006/007/009 | example | PASS | `sc_005::di mock wiring` |
+| A6  | `--di firebase` wires firebase default with credential plumbing | US2.AC2, FR-004/009 | example | PASS | `sc_005::di firebase wiring` |
+| A7  | `--di auto` detects firebase from project pubspec/zfa.yaml | US2.AC3, FR-009 | example | PASS | `test/plugins/skeleton/di_choice_resolver_test.dart::detects firebase` |
+| A8  | `--di auto` without config falls back to mock and records source | US2.AC4, FR-009 | example | PASS | `di_choice_resolver_test.dart::fallback mock` |
+| A9  | Invalid `--di redis` prints usage error, exit non-zero, nothing generated | US2.AC5, FR-009 | example | PASS | `sc_005::invalid di rejected` |
+| A10 | `--flutter` emits minimal pubspec.yaml + runnable lib/main.dart | US3.AC1, FR-008 | example | PASS | `sc_005::flutter entry` |
+| A11 | `--flutter` emits presentation page invoking a use case via DI | US3.AC2, FR-005 | example | PASS | `sc_005::presentation page` |
+| A12 | No `--flutter` → no pubspec, no main.dart, no widget page | US3.AC3, FR-008 | example | PASS | `sc_005::library mode omits flutter files` |
+| A13 | `--flutter` emits widget test for the page | US3.AC4, FR-012 | example | PASS | `sc_005::widget test` |
+| A14 | `--include-deps` inlines shared entity with the dependency's declared fields | US4.AC1, FR-010 | example | PASS | `sc_005::include deps inlines` |
+| A15 | Transitive chain A→B→C inlines closure | US4.AC2, FR-010 | example | PASS | `sc_005::transitive closure` |
+| A16 | Unrelated feature D's entities absent | US4.AC3, FR-010 | example | PASS | `sc_005::unrelated absent` |
+| A17 | Default generation declares deps in bone.yaml only (no inlined files) | US4.AC4, FR-010 | example | PASS | `sc_005::declare only` |
+| A18 | Dependency cycle refused; no partial output | US4.AC5, FR-010 | example | PASS | `sc_005::cycle refused` |
+| A19 | `--export` produces `<feature>-<di>.tar.gz` unpacking to the bone tree | US5.AC1, FR-011 | example | PASS | `sc_005::export artifact` |
+| A20 | Two features exported into same dir without conflicts | US5.AC2, SC-006 | example | PASS | `sc_005::parallel no conflict` |
+| A21 | Failed generation leaves no artifact and no partial bone | US5.AC3, FR-011 | example | PASS | `sc_005::failure clean` |
+| A22 | Generated tests pass with `dart run` — no pub get, no network | US6.AC1, SC-003, FR-012 | example | PASS | `sc_005::generated tests run` |
+| A23 | Exported artifact < 50KB | US6.AC2, SC-005 | example | PASS | `sc_005::artifact size` |
+| A24 | Firebase datasource without credentials fails with clear StateError | US6.AC3, FR-004 | example | PASS | `sc_005::missing credentials error` |
+| A25 | Pure-Dart core analyzes with zero errors in a scratch package | SC-002, FR-001..006 | example | PASS | `sc_005::analyze zero errors` |
+| A26 | `bone validate` passes on flutter bone incl. `package:flutter_test` import | FR-013 | example | PASS | `sc_005::validate flutter bone` |
+| A27 | No README placeholders, no empty classes, no TODO-only test stubs | FR-015 | example | PASS | `sc_005::no placeholders` |
+| A28 | Regenerating a feature replaces its bone atomically | FR-014 | example | PASS | `sc_005::atomic regen` |
 
 ## Inner loop: unit behaviors
 

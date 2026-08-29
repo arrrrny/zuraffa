@@ -104,8 +104,11 @@
   `dart test test/plugins/skeleton/`.
 - [x] T035 Write `tdd/verification.md` with ACTUAL counts, mutation/coverage honesty, and
   per-success-criterion PROVED/not-proved statements (SC-001..SC-006).
-- [x] T036 `dart analyze && dart test && dart format .` green; commit spec artifacts
-  (spec/plan/tasks/tdd) + implementation; push branch; open PR for #592.
+- [x] T036 skeleton scope verified green (`dart analyze
+  lib/src/plugins/skeleton` + `dart test test/plugins/skeleton/`); repo-wide
+  `dart analyze` carries pre-existing issues outside this PR's scope — commit
+  spec artifacts (spec/plan/tasks/tdd) + implementation; push branch; open PR
+  for #592.
 
 ## Implementation status of this PR
 

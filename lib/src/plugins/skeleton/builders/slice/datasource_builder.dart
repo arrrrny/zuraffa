@@ -15,7 +15,7 @@ class DataSourceBuilder {
         .map((f) => '${f.name}: ${_sample(f)}')
         .join(', ');
     final hasFields = fields.isNotEmpty;
-    final primaryKey = _primaryKeyExpr(fields);
+    final primaryKey = primaryKeyExpr(fields);
 
     final buffer = StringBuffer();
     buffer.writeln("import '../../entities/$snake.dart';");
@@ -43,7 +43,6 @@ class DataSourceBuilder {
     buffer.writeln('  }');
     buffer.writeln();
     buffer.writeln('  final Map<String, $entity> _store;');
-    if (!hasFields) buffer.writeln('  int _autoKeys = 0;');
     buffer.writeln();
     buffer.writeln(
       '  /// Seeds one sample instance when the store starts empty.',
@@ -85,7 +84,7 @@ class DataSourceBuilder {
   /// The Firestore REST firebase data source — real credentials, no SDK.
   String buildFirebase(String entity, List<EntityField> fields) {
     final snake = pascalToSnake(entity);
-    final primaryKey = _primaryKeyExpr(fields);
+    final primaryKey = primaryKeyExpr(fields);
 
     final buffer = StringBuffer();
     buffer.writeln("import 'dart:convert';");
@@ -112,13 +111,15 @@ class DataSourceBuilder {
       'class ${entity}FirebaseDataSource implements ${entity}DataSource {',
     );
     buffer.writeln(
-      '  ${entity}FirebaseDataSource._(this.projectId, this.apiKey, this._client);',
+      '  ${entity}FirebaseDataSource._('
+      'this.projectId, this.apiKey, this.idToken, this._client);',
     );
     buffer.writeln();
     buffer.writeln('  /// Creates the data source, guarding credentials.');
     buffer.writeln('  factory ${entity}FirebaseDataSource({');
     buffer.writeln('    required String projectId,');
     buffer.writeln('    required String apiKey,');
+    buffer.writeln('    String? idToken,');
     buffer.writeln('  }) {');
     buffer.writeln(
       "    if (projectId.trim().isEmpty || apiKey.trim().isEmpty) {",
@@ -131,7 +132,8 @@ class DataSourceBuilder {
     buffer.writeln('      );');
     buffer.writeln('    }');
     buffer.writeln(
-      '    return ${entity}FirebaseDataSource._(projectId, apiKey, HttpClient());',
+      '    return ${entity}FirebaseDataSource._('
+      'projectId, apiKey, idToken, HttpClient());',
     );
     buffer.writeln('  }');
     buffer.writeln();
@@ -140,6 +142,11 @@ class DataSourceBuilder {
     buffer.writeln();
     buffer.writeln('  /// Firebase API key authorized for [projectId].');
     buffer.writeln('  final String apiKey;');
+    buffer.writeln();
+    buffer.writeln('  /// Optional Firebase ID token; when non-empty it is sent');
+    buffer.writeln('  /// as a `Bearer` `Authorization` header so Firestore');
+    buffer.writeln('  /// Security Rules requiring auth are satisfied.');
+    buffer.writeln('  final String? idToken;');
     buffer.writeln();
     buffer.writeln('  final HttpClient _client;');
     buffer.writeln();
@@ -153,12 +160,6 @@ class DataSourceBuilder {
       "      '\$_firestoreRoot/projects/\$projectId/databases/(default)/'",
     );
     buffer.writeln("      'documents\$_collectionPath/\$id?key=\$apiKey');");
-    buffer.writeln();
-    buffer.writeln('  Uri get _collectionUri => Uri.parse(');
-    buffer.writeln(
-      "      '\$_firestoreRoot/projects/\$projectId/databases/(default)/'",
-    );
-    buffer.writeln("      'documents\$_collectionPath?key=\$apiKey');");
     buffer.writeln();
     buffer.writeln('  @override');
     buffer.writeln('  Future<$entity?> get${entity}ById(String id) async {');
@@ -175,22 +176,36 @@ class DataSourceBuilder {
     buffer.writeln();
     buffer.writeln('  @override');
     buffer.writeln('  Future<List<$entity>> getAll${entity}s() async {');
+    buffer.writeln('    final documents = <Map<String, dynamic>>[];');
+    buffer.writeln("    var pageToken = '';");
+    buffer.writeln('    do {');
+    buffer.writeln('      final uri = Uri.parse(');
     buffer.writeln(
-      "    final response = await _request('GET', _collectionUri);",
+      "        '\$_firestoreRoot/projects/\$projectId/databases/(default)/'",
     );
-    buffer.writeln("    _ensureOk(response, 'getAll${entity}s');");
+    buffer.writeln("        'documents\$_collectionPath'");
     buffer.writeln(
-      '    final body = jsonDecode(response.body) as Map<String, dynamic>;',
+      "        '\${pageToken.isEmpty ? \"?key=\$apiKey\" : \"?pageToken=\$pageToken&key=\$apiKey\"}'",
     );
+    buffer.writeln('      );');
+    buffer.writeln("      final response = await _request('GET', uri);");
+    buffer.writeln("      _ensureOk(response, 'getAll${entity}s');");
     buffer.writeln(
-      "    final documents = body['documents'] as List<dynamic>?;",
+      '      final body = jsonDecode(response.body) as Map<String, dynamic>;',
     );
-    buffer.writeln('    if (documents == null) return const <$entity>[];');
+    buffer.writeln("      final batch = body['documents'] as List<dynamic>?;");
+    buffer.writeln('      if (batch != null) {');
+    buffer.writeln('        for (final document in batch) {');
+    buffer.writeln(
+      '          documents.add(_entityJson(document as Map<String, dynamic>));',
+    );
+    buffer.writeln('        }');
+    buffer.writeln('      }');
+    buffer.writeln("      pageToken = (body['nextPageToken'] as String?) ?? '';");
+    buffer.writeln('    } while (pageToken.isNotEmpty);');
     buffer.writeln('    return <$entity>[');
     buffer.writeln('      for (final document in documents)');
-    buffer.writeln('        $entity.fromJson(');
-    buffer.writeln('          _entityJson(document as Map<String, dynamic>),');
-    buffer.writeln('        ),');
+    buffer.writeln('        $entity.fromJson(document),');
     buffer.writeln('    ];');
     buffer.writeln('  }');
     buffer.writeln();
@@ -227,6 +242,12 @@ class DataSourceBuilder {
       "      request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');",
     );
     buffer.writeln('      request.add(utf8.encode(body));');
+    buffer.writeln('    }');
+    buffer.writeln('    final token = idToken;');
+    buffer.writeln('    if (token != null && token.isNotEmpty) {');
+    buffer.writeln(
+      "      request.headers.set(HttpHeaders.authorizationHeader, 'Bearer \$token');",
+    );
     buffer.writeln('    }');
     buffer.writeln('    final response = await request.close();');
     buffer.writeln(
@@ -370,17 +391,24 @@ class DataSourceBuilder {
 
   /// The primary-key expression for store keys / Firestore document ids.
   ///
-  /// References a generated-code variable named `instance`. Uses the first
-  /// declared field when present; otherwise an auto key.
-  String _primaryKeyExpr(List<EntityField> fields) {
+  /// References a generated-code variable named [varName]. Prefers the first
+  /// non-nullable `String` field, falls back to the first non-nullable field,
+  /// and uses a generated timestamp for field-less entities.
+  String primaryKeyExpr(List<EntityField> fields, [String varName = 'instance']) {
     if (fields.isEmpty) {
       return r"'auto-${DateTime.now().microsecondsSinceEpoch}'";
     }
-    final first = fields.first;
-    if (first.type == 'String' && !first.nullable) {
-      return 'instance.${first.name}';
+    final nonNullableStrings = fields.where(
+      (f) => !f.nullable && f.type == 'String',
+    );
+    if (nonNullableStrings.isNotEmpty) {
+      return '$varName.${nonNullableStrings.first.name}';
     }
-    return "'\${instance.${first.name}}'";
+    final nonNullable = fields.where((f) => !f.nullable);
+    if (nonNullable.isNotEmpty) {
+      return "'\${$varName.${nonNullable.first.name}}'";
+    }
+    return "'\${$varName.${fields.first.name}}'";
   }
 
   String _sample(EntityField field) {

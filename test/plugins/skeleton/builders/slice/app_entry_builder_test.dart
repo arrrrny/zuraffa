@@ -34,7 +34,7 @@ void main() {
         expect(devDependencies.keys, equals(['flutter_test']));
         expect(
           devDependencies['flutter_test'],
-          equals({'sdk': 'flutter_test'}),
+          equals({'sdk': 'flutter'}),
         );
       },
     );

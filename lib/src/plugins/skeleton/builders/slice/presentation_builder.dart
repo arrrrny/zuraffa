@@ -138,7 +138,7 @@ import '../presentation/${snake}_page.dart';
 
 void main() {
   testWidgets('${pascal}Page renders seeded instances', (tester) async {
-    final services = ${pascal}Services.create();
+    final services = ${pascal}Services.create(backend: BoneBackend.mock);
     await tester.pumpWidget(
       MaterialApp(home: ${pascal}Page(services: services)),
     );

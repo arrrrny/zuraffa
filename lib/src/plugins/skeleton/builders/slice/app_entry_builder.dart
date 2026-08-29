@@ -26,7 +26,7 @@ dependencies:
     sdk: flutter
 dev_dependencies:
   flutter_test:
-    sdk: flutter_test
+    sdk: flutter
 ''';
   }
 

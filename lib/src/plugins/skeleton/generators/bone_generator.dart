@@ -162,14 +162,15 @@ class BoneGenerator {
   /// The result of scanning a specs root: features map + per-slug parsed
   /// results (for field lookup of inlined entities).
   _ScanResult _scanFeatures(String specsRoot) {
-    final specsDir = Directory(specsRoot);
+    final specsSub = Directory(p.join(specsRoot, 'specs'));
+    final root = specsSub.existsSync() ? specsSub : Directory(specsRoot);
     final scanned = _ScanResult(
       features: <String, FeatureSpec>{},
       results: <String, SpecReadResult>{},
     );
-    if (!specsDir.existsSync()) return scanned;
+    if (!root.existsSync()) return scanned;
 
-    for (final entity in specsDir.listSync().whereType<Directory>()) {
+    for (final entity in root.listSync().whereType<Directory>()) {
       final specFile = File('${entity.path}/spec.md');
       if (!specFile.existsSync()) continue;
       try {

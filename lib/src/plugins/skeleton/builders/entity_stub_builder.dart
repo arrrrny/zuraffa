@@ -149,6 +149,13 @@ class EntityStubBuilder {
       buffer.writeln('  Map<String, dynamic> toJson() => <String, dynamic>{');
       for (final field in fields) {
         if (field.nullable) {
+          if (field.type == 'DateTime') {
+            buffer.writeln(
+              "    if (${field.name} != null) "
+              "'${field.name}': ${field.name}!.toIso8601String(),",
+            );
+            continue;
+          }
           buffer.writeln(
             "    if (${field.name} != null) '${field.name}': ${field.name},",
           );

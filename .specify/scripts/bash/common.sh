@@ -768,14 +768,19 @@ except Exception as exc:
                 fi
 
                 local candidate=""
+                local declared_file="$manifest_file"
                 if [ -n "$manifest_file" ]; then
                     case "$manifest_file" in
-                        /*|*../*|../*) manifest_file="" ;;
+                        /*|*../*) manifest_file="" ;;
                     esac
                 fi
                 if [ -n "$manifest_file" ]; then
                     local mf="$presets_dir/$preset_id/$manifest_file"
                     [ -f "$mf" ] && candidate="$mf"
+                fi
+                if [ -z "$candidate" ] && [ "$manifest_declared" = true ]; then
+                    echo "Error: preset '$preset_id' declares template '$template_name' but its file '$declared_file' is unusable" >&2
+                    return 2
                 fi
                 if [ -z "$candidate" ] && [ "$manifest_declared" = false ]; then
                     local cf="$presets_dir/$preset_id/templates/${template_name}.md"

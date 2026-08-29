@@ -102,7 +102,8 @@ class SpecReader {
     // Indented list item carrying a `name: Type` pair. Nullability may be
     // written either way: `name?: Type` or `name: Type?`.
     final fieldPattern = RegExp(
-      r'^(\s+)-\s+([A-Za-z_][A-Za-z0-9_]*)(\?)?\s*:\s*(\S.*?)\s*$',
+      r'^(\s+)-\s+([A-Za-z_][A-Za-z0-9_]*)(\?)?\s*:\s*'
+      r'([A-Za-z_][A-Za-z0-9_]*(?:<[^>]*>)?\??)\s*(?:[—-]\s.*)?$',
     );
 
     for (final line in lines) {

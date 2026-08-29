@@ -233,20 +233,23 @@ class BoneScaffoldBuilder {
       buffer.writeln('    validate$name(original).isEmpty,');
       buffer.writeln("    'validate passes a filled instance',");
       buffer.writeln('  );');
-      buffer.writeln(
-        '  final missing = Map<String, dynamic>.of(original.toJson())',
-      );
-      buffer.writeln("    ..remove('${fields.first.name}');");
-      buffer.writeln('  Object? thrown;');
-      buffer.writeln('  try {');
-      buffer.writeln('    $name.fromJson(missing);');
-      buffer.writeln('  } catch (e) {');
-      buffer.writeln('    thrown = e;');
-      buffer.writeln('  }');
-      buffer.writeln('  _check(');
-      buffer.writeln('    thrown is FormatException,');
-      buffer.writeln("    'fromJson rejects missing required fields',");
-      buffer.writeln('  );');
+      final requiredFields = fields.where((f) => !f.nullable).toList();
+      if (requiredFields.isNotEmpty) {
+        buffer.writeln(
+          '  final missing = Map<String, dynamic>.of(original.toJson())',
+        );
+        buffer.writeln("    ..remove('${requiredFields.first.name}');");
+        buffer.writeln('  Object? thrown;');
+        buffer.writeln('  try {');
+        buffer.writeln('    $name.fromJson(missing);');
+        buffer.writeln('  } catch (e) {');
+        buffer.writeln('    thrown = e;');
+        buffer.writeln('  }');
+        buffer.writeln('  _check(');
+        buffer.writeln('    thrown is FormatException,');
+        buffer.writeln("    'fromJson rejects missing required fields',");
+        buffer.writeln('  );');
+      }
     }
     buffer.writeln("  print('$snake test: PASS');");
     buffer.writeln('}');
@@ -284,7 +287,9 @@ class BoneScaffoldBuilder {
         .where((f) => !f.nullable)
         .map((f) => '${f.name}: ${EntityStubBuilder.sampleValue(f)}')
         .join(', ');
-    final pk = hasPk ? 'sample.${primary.fields.first.name}' : "'di-check'";
+    final pk = hasPk
+        ? DataSourceBuilder().primaryKeyExpr(primary.fields, 'sample')
+        : "'di-check'";
     final defaultBackend = bone.manifest.diChoice!.backendName;
     final usesMockDefault = defaultBackend == 'mock';
 

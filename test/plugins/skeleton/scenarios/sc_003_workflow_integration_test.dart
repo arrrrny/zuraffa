@@ -146,8 +146,9 @@ void main() {
 
         // Must have a main() function.
         expect(
-          content,
-          contains(' main()'),
+          RegExp(r'^\s*(?:(?:Future<void>|void)\s+)?main\s*\(', multiLine: true)
+              .hasMatch(content),
+          isTrue,
           reason: '${p.basename(testFile.path)} must define main()',
         );
         expect(

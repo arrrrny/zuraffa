@@ -44,7 +44,11 @@ class InjectionBuilder {
     buffer.writeln('/// Firebase credentials for [BoneBackend.firebase].');
     buffer.writeln('class FirebaseConfig {');
     buffer.writeln(
-      '  const FirebaseConfig({required this.projectId, required this.apiKey});',
+      '  const FirebaseConfig({'
+      'required this.projectId, '
+      'required this.apiKey, '
+      'this.idToken,'
+      '});',
     );
     buffer.writeln();
     buffer.writeln('  /// Firestore project id.');
@@ -52,6 +56,10 @@ class InjectionBuilder {
     buffer.writeln();
     buffer.writeln('  /// Firebase API key authorized for [projectId].');
     buffer.writeln('  final String apiKey;');
+    buffer.writeln();
+    buffer.writeln('  /// Optional Firebase ID token forwarded to the data');
+    buffer.writeln('  /// source so Firestore Security Rules requiring auth pass.');
+    buffer.writeln('  final String? idToken;');
     buffer.writeln('}');
     buffer.writeln();
     buffer.writeln(
@@ -123,6 +131,7 @@ class InjectionBuilder {
       );
       buffer.writeln('              projectId: firebaseConfig!.projectId,');
       buffer.writeln('              apiKey: firebaseConfig.apiKey,');
+      buffer.writeln('              idToken: firebaseConfig.idToken,');
       buffer.writeln('            ))');
       buffer.writeln(
         '          : Data${name}Repository(${name}MockDataSource());',
