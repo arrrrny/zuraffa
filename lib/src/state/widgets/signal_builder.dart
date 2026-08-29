@@ -75,8 +75,9 @@ class SignalBuilder<T> extends ViewFragment {
   /// Reading this after disposal never throws (US4-S3): a disposed signal
   /// renders the fallback — or `null` when none was provided.
   @override
-  Object? get output =>
-      signal.isDisposed ? fallback?.call(isAttached ? context : null) : super.output;
+  Object? get output => signal.isDisposed
+      ? fallback?.call(isAttached ? context : null)
+      : super.output;
 
   void _onSignalChange(T value) {
     if (!isAttached) return;

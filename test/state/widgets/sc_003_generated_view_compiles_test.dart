@@ -148,25 +148,23 @@ dependencies:
           pureDart: true,
         );
 
-        final pubGet = await Process.run(
-          Platform.resolvedExecutable,
-          ['pub', 'get'],
-          workingDirectory: tempDir.path,
-        );
-        final pubGetOut =
-            pubGet.stdout.toString() + pubGet.stderr.toString();
+        final pubGet = await Process.run(Platform.resolvedExecutable, [
+          'pub',
+          'get',
+        ], workingDirectory: tempDir.path);
+        final pubGetOut = pubGet.stdout.toString() + pubGet.stderr.toString();
         expect(
           pubGet.exitCode,
           0,
-          reason: 'dart pub get in the temp package must succeed. '
+          reason:
+              'dart pub get in the temp package must succeed. '
               'Output:\n$pubGetOut',
         );
 
-        final result = await Process.run(
-          Platform.resolvedExecutable,
-          ['analyze', '--no-fatal-warnings'],
-          workingDirectory: tempDir.path,
-        );
+        final result = await Process.run(Platform.resolvedExecutable, [
+          'analyze',
+          '--no-fatal-warnings',
+        ], workingDirectory: tempDir.path);
         final output = result.stdout.toString() + result.stderr.toString();
 
         expect(
