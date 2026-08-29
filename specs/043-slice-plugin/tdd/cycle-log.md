@@ -67,6 +67,48 @@ existed and failed before the implementation.
 - refactor: none
 - commit: (recorded in git history)
 
+
+## Cycle 3: U1 + U2 + U3 — SliceManifest / ManifestWriter serialization
+
+- tests: `test/plugins/slice/models/slice_manifest_test.dart` (new)
+- red: `dart test test/plugins/slice/models/slice_manifest_test.dart` (after
+  adding compilable model stubs whose toYaml/fromYaml/write/read threw
+  UnimplementedError)
+  - U1 -> `UnimplementedError` (write threw)
+  - U2 -> `UnimplementedError` (write threw)
+  - U3 -> `Expected: throws <Instance of 'SliceManifestError'> ... Actual:
+    <Closure: () => Future<SliceManifest>>` (read threw UnimplementedError)
+  - (5 failed: U1, U2, exportedTo companion, U3 x2)
+- green: models (SliceDepth.parse, FileOwnership, SliceFile, SliceBoundary,
+  SliceExportFormat, SliceManifest.toYaml/fromYaml with hand-rolled emission
+  + package:yaml parsing) and ManifestWriter.write/read with
+  SliceManifestError naming the slice directory. First implementation had a
+  bug (self-package resolution dropped the `lib/` packageUri segment — see
+  cycle 4); fixed within the cycle.
+  Suite `dart test test/plugins/slice/models/` -> 5 passed.
+- refactor: none
+- commit: (recorded in git history)
+
+## Cycle 4: U4-U8 — PackageResolver
+
+- tests: `test/plugins/slice/engine/package_resolver_test.dart` (new)
+- red: `dart test test/plugins/slice/engine/package_resolver_test.dart`
+  (stub threw UnimplementedError)
+  - U4-U6, U8 -> `UnimplementedError`
+  - U7 -> `Expected: throws <Instance of 'PackageResolverError'> ... Actual:
+    <Closure: () => Future<PackageResolver>>`
+  - (6 failed)
+- green: PackageResolver.load reads `.dart_tool/package_config.json`,
+  classifies sdk/self/external/relative without filesystem access, resolves
+  self-package URIs through rootUri+packageUri, resolves relative URIs
+  against the importing file. First run had one real failure —
+  U4: `Expected: '/tmp/.../lib/src/...' Actual: '/tmp/.../src/...'` — the
+  packageUri (`lib/`) segment was ignored; fixed by joining
+  root+packageUri+path. Suite -> 6 passed.
+- refactor: extracted `_resolveRootUri` for file:///relative/SDK root URIs
+  while green.
+- commit: (recorded in git history)
+
 ## Notes and deviations
 
 - Loop granularity: cycles are batched at component granularity (one commit

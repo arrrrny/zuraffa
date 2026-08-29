@@ -23,6 +23,11 @@ analyzer:
     # context has no package_config for their package: URIs.
     - examples/notes_package/**
     - examples/reference_package_app/**
+    # Slice plugin fixture (spec 043): a standalone Flutter-convention app
+    # (imports package:flutter / package:get_it the root context cannot
+    # resolve). It is test DATA read by the slice engine, never compiled or
+    # analyzed as part of this package.
+    - test/fixtures/slice_test_project/**
     - build/**
     - android/**
     - ios/**

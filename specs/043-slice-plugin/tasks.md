@@ -43,18 +43,18 @@
 
 ### Models (no dedicated unit tests — exercised via T025 round-trip and T024 walker tests)
 
-- [ ] T006 [P] Create `SliceDepth` enum (view, presentation, feature, full) in lib/src/plugins/slice/models/slice_depth.dart
-- [ ] T007 [P] Create `FileOwnership` enum (owned, shared) in lib/src/plugins/slice/models/slice_file.dart
-- [ ] T008 [P] Create `SliceFile` model class with fields: relativePath, ownership, hashAtCut, layer in lib/src/plugins/slice/models/slice_file.dart
-- [ ] T009 [P] Create `SliceBoundary` model class with fields: typeName, interfaceFile, diRegistrationFile, mockStrategy in lib/src/plugins/slice/models/slice_boundary.dart
-- [ ] T010 [P] Create `SliceExportFormat` enum (tarGz, github) in lib/src/plugins/slice/models/slice_manifest.dart
+- [x] T006 [P] Create `SliceDepth` enum (view, presentation, feature, full) in lib/src/plugins/slice/models/slice_depth.dart
+- [x] T007 [P] Create `FileOwnership` enum (owned, shared) in lib/src/plugins/slice/models/slice_file.dart
+- [x] T008 [P] Create `SliceFile` model class with fields: relativePath, ownership, hashAtCut, layer in lib/src/plugins/slice/models/slice_file.dart
+- [x] T009 [P] Create `SliceBoundary` model class with fields: typeName, interfaceFile, diRegistrationFile, mockStrategy in lib/src/plugins/slice/models/slice_boundary.dart
+- [x] T010 [P] Create `SliceExportFormat` enum (tarGz, github) in lib/src/plugins/slice/models/slice_manifest.dart
 - [ ] T012 [P] Create `FileGraphNode` model class with fields: filePath, imports, diTypes, companions in lib/src/plugins/slice/models/file_graph.dart
 - [ ] T013 [U20] Create `FileGraph` model class with nodes map, packageName, projectRoot, and methods: `buildFromEntries()`, `getTransitiveClosure()`, `getBoundaries()` — stub implementations in lib/src/plugins/slice/models/file_graph.dart
 
 ### Tests (write FIRST — observe each failing before its implementation task)
 
-- [ ] T025 [P] [U1] [U2] [U3] Create unit test for `SliceManifest` YAML round-trip serialization in test/plugins/slice/models/slice_manifest_test.dart
-- [ ] T020 [P] [U4] [U5] [U6] [U7] [U8] Create unit test for `PackageResolver` with fixture `package_config.json` in test/plugins/slice/engine/package_resolver_test.dart
+- [x] T025 [P] [U1] [U2] [U3] Create unit test for `SliceManifest` YAML round-trip serialization in test/plugins/slice/models/slice_manifest_test.dart
+- [x] T020 [P] [U4] [U5] [U6] [U7] [U8] Create unit test for `PackageResolver` with fixture `package_config.json` in test/plugins/slice/engine/package_resolver_test.dart
 - [ ] T021 [P] [U9] [U10] [U11] [U12] Create unit test for `ServiceLocatorAnalyzer` with fixture presenter source containing `getIt<T>()` calls in test/plugins/slice/engine/service_locator_analyzer_test.dart
 - [ ] T022 [P] [U13] [U14] [U15] [U16] Create unit test for `BarrelResolver` with fixture barrel file re-exporting multiple files in test/plugins/slice/engine/barrel_resolver_test.dart
 - [ ] T023 [P] [U17] [U18] [U19] Create unit test for `CompanionDetector` verifying `.g.dart` and `.freezed.dart` discovery in test/plugins/slice/engine/companion_detector_test.dart
@@ -62,9 +62,9 @@
 
 ### Implementation
 
-- [ ] T011 [U1] [U2] Create `SliceManifest` model class with fields: name, createdAt, depth, entries, projectRoot, packageName, branch, exportedTo, files, boundaries — include `toYaml()` and `fromYaml()` serialization in lib/src/plugins/slice/models/slice_manifest.dart
-- [ ] T019 [U1] [U2] [U3] Create `ManifestWriter` with `write(SliceManifest, String directory)` and `read(String directory)` methods for YAML serialization/deserialization in lib/src/plugins/slice/generators/manifest_writer.dart
-- [ ] T014 [U4] [U5] [U6] [U7] [U8] Create `PackageResolver` that reads `.dart_tool/package_config.json` and resolves `package:<name>/...` URIs to filesystem paths in lib/src/plugins/slice/engine/package_resolver.dart
+- [x] T011 [U1] [U2] Create `SliceManifest` model class with fields: name, createdAt, depth, entries, projectRoot, packageName, branch, exportedTo, files, boundaries — include `toYaml()` and `fromYaml()` serialization in lib/src/plugins/slice/models/slice_manifest.dart
+- [x] T019 [U1] [U2] [U3] Create `ManifestWriter` with `write(SliceManifest, String directory)` and `read(String directory)` methods for YAML serialization/deserialization in lib/src/plugins/slice/generators/manifest_writer.dart
+- [x] T014 [U4] [U5] [U6] [U7] [U8] Create `PackageResolver` that reads `.dart_tool/package_config.json` and resolves `package:<name>/...` URIs to filesystem paths in lib/src/plugins/slice/engine/package_resolver.dart
 - [ ] T016 [U9] [U10] [U11] [U12] Create `ServiceLocatorAnalyzer` using `RecursiveAstVisitor` to extract `getIt<T>()` type arguments from a parsed `CompilationUnit` in lib/src/plugins/slice/engine/service_locator_analyzer.dart
 - [ ] T017 [U13] [U14] [U15] [U16] Create `BarrelResolver` that parses barrel files (`index.dart`), extracts export directives, and returns only the re-exported files matching a set of needed types in lib/src/plugins/slice/engine/barrel_resolver.dart
 - [ ] T015 [U17] [U18] [U19] Create `CompanionDetector` that finds `.g.dart` and `.freezed.dart` companion files for a given source file path in lib/src/plugins/slice/engine/companion_detector.dart
