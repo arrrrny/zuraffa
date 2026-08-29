@@ -6,6 +6,7 @@ import '../config/zfa_config.dart';
 
 import '../core/context/file_system.dart';
 import '../models/generated_file.dart';
+import '../package/package_mode.dart';
 import '../plugins/app_shell/builders/app_shell_builder.dart';
 import '../utils/file_utils.dart';
 import '../utils/project_flavor.dart';
@@ -124,6 +125,19 @@ class AppShellCommand extends Command<void> {
 
     final projectRoot =
         (argResults!['root'] as String?) ?? ProjectRoot.safeCurrentPath();
+
+    // Spec 025 (FR-003): package-mode projects never get an app shell —
+    // main.dart/my_app.dart/app_router.dart are app artifacts. A package
+    // contributes architecture through its registrar + module instead.
+    if (PackageMode.isEnabled(projectRoot)) {
+      throw AppShellException(
+        'Cannot generate an app shell in a Zuraffa package '
+        '($projectRoot carries the `zfa.package_mode` marker).\n'
+        '   Packages contribute architecture via their package registrar '
+        'and runtime module — the consuming app owns the shell.',
+      );
+    }
+
     final config = ZfaConfig.load(projectRoot: projectRoot);
     final xray = xrayFlag || (config?.xrayByDefault ?? false);
     final pubspecPath = p.join(projectRoot, 'pubspec.yaml');

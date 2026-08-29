@@ -616,6 +616,21 @@ export 'src/core/module/route_builder.dart';
 export 'src/core/module/di_container.dart';
 export 'src/core/module/engine.dart';
 export 'src/core/module/zuraffa_plugin.dart';
+export 'src/core/module/package_module.dart';
+
+// ============================================================
+// v6 Package SDK (spec 025 — issue #389)
+// ============================================================
+
+/// Package-SDK contracts for building reusable Zuraffa packages:
+/// [PackageMode] (the `zfa.package_mode` build.yaml marker),
+/// [PackageCompatibility] (consuming-app version gating), and
+/// [PackageAgentTools]/[PackageUseCaseTool] (namespaced agent tools).
+/// `zfa package create` scaffolds against this surface.
+export 'src/package/package_mode.dart';
+export 'src/package/package_compatibility.dart';
+export 'src/package/package_agent_tools.dart';
+export 'src/version.dart';
 
 // ============================================================
 // MCP Plugin (issue #369) — runtime tool exposure

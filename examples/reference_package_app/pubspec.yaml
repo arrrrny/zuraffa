@@ -1,0 +1,16 @@
+name: reference_package_app
+description: Spec 025 demo app — consumes examples/notes_package via its package module (auto-DI, lifecycle, namespaced agent tools).
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  notes_package:
+    path: ../notes_package
+  zuraffa:
+    path: ../..
+
+dev_dependencies:
+  test: ^1.25.0

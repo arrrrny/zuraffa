@@ -88,4 +88,21 @@ abstract class ZuraffaPlugin {
   /// The default implementation is a no-op. Override when
   /// async work is needed (cache warming, API prefetching, etc.).
   Future<void> onInit(ZuraffaDIContainer di) async {}
+
+  /// Readiness hook called by [ZuraffaEngine.ready] after bootstrap has
+  /// completed for every plugin (spec 025 — package runtime modules).
+  ///
+  /// Runs in registration order. The default implementation is a no-op,
+  /// so existing plugins remain source-compatible. Override when the
+  /// module must react once **every other** module finished initialising
+  /// (e.g. consuming another package's services, starting background
+  /// work that assumes the whole app graph is wired).
+  Future<void> onReady(ZuraffaDIContainer di) async {}
+
+  /// Disposal hook called by [ZuraffaEngine.shutdown] in reverse
+  /// registration order (spec 025 — package runtime modules).
+  ///
+  /// The default implementation is a no-op. Override to release
+  /// resources (close streams, flush caches, cancel timers).
+  Future<void> onDispose(ZuraffaDIContainer di) async {}
 }

@@ -10,7 +10,7 @@ packages:
     source: hosted
     version: "105.0.0"
   analyzer:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: analyzer
       sha256: "62993bed6eadbe9596c5c20d5c167e7bc563c5fe266657a04ddeb93bdb84f4c9"
@@ -34,7 +34,7 @@ packages:
     source: hosted
     version: "4.2.0"
   args:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: args
       sha256: d0481093c50b1da8910eb0bb301626d4d8eb7284aa739614d2b394ee09e3ea04
@@ -146,7 +146,7 @@ packages:
     source: hosted
     version: "1.1.3"
   code_builder:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: code_builder
       sha256: aa5932e94c6c39c2f9ec4e5e06dfdd11a9430a61f6c41b6ba75b28ce0c481baf
@@ -178,7 +178,7 @@ packages:
     source: hosted
     version: "1.15.1"
   crypto:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: crypto
       sha256: c8ea0233063ba03258fbcf2ca4d6dadfefe14f02fab57702265467a19f27fadf
@@ -186,7 +186,7 @@ packages:
     source: hosted
     version: "3.0.7"
   dart_style:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: dart_style
       sha256: "82ade9fc4273f29ed673e33166944465225b4f7fc5d4aaef48605cc751c18fc1"
@@ -233,14 +233,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.1"
-  flutter_lints:
-    dependency: "direct dev"
-    description:
-      name: flutter_lints
-      sha256: "3105dc8492f6183fb076ccf1f351ac3d60564bff92e20bfc4af9cc1651f4e7e1"
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.0.0"
   frontend_server_client:
     dependency: transitive
     description:
@@ -250,7 +242,7 @@ packages:
     source: hosted
     version: "4.0.0"
   get_it:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: get_it
       sha256: "568d62f0e68666fb5d95519743b3c24a34c7f19d834b0658c46e26d778461f66"
@@ -258,7 +250,7 @@ packages:
     source: hosted
     version: "9.2.1"
   glob:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: glob
       sha256: "218aeb56050c714f62a3182775320dfa04602b55074873e24e31bbd39bda96fb"
@@ -266,7 +258,7 @@ packages:
     source: hosted
     version: "2.2.0"
   gql:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: gql
       sha256: "67c32325eb55c15f526f0f5e7d8b38a463dbff2ec3c2e046be4a1a95f0dc93d1"
@@ -322,7 +314,7 @@ packages:
     source: hosted
     version: "1.0.1"
   graphql:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: graphql
       sha256: a7cb0b5e8719546bf8d4edf5f57c3690ddf0fcce379c0d9d2287fdab73481090
@@ -338,7 +330,7 @@ packages:
     source: hosted
     version: "2.3.2"
   hive_ce:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: hive_ce
       sha256: "8e9980e68643afb1e765d3af32b47996552a64e190d03faf622cea07c1294418"
@@ -354,7 +346,7 @@ packages:
     source: hosted
     version: "4.4.0"
   http:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: http
       sha256: "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412"
@@ -410,7 +402,7 @@ packages:
     source: hosted
     version: "0.6.1"
   json_annotation:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: json_annotation
       sha256: "2a743920d81b7910627f68ee2c9ac1fc0bfee32b9fc3403587d7c6791ca12f80"
@@ -418,23 +410,15 @@ packages:
     source: hosted
     version: "4.12.0"
   json_serializable:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: json_serializable
       sha256: e45aefa0324f08c683caafbb94b72837aa6193c61822799c916e45f4a263113d
       url: "https://pub.dev"
     source: hosted
     version: "6.14.1"
-  lints:
-    dependency: transitive
-    description:
-      name: lints
-      sha256: "12f842a479589fea194fe5c5a3095abc7be0c1f2ddfa9a0e76aed1dbd26a87df"
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.1.0"
   logging:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: logging
       sha256: c8245ada5f1717ed44271ed1c26b8ce85ca3228fd2ffdb75468ab01979309d61
@@ -458,7 +442,7 @@ packages:
     source: hosted
     version: "0.12.20"
   meta:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: meta
       sha256: "307249ce4ff29d58a18e97f6345f539382eb9c9c29ecda628900f31de0443dd9"
@@ -474,23 +458,15 @@ packages:
     source: hosted
     version: "2.1.0"
   minio:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: minio
       sha256: ee2ce47766e46c7d164f960f2f5ed6a9a82844d877f6b82574f6876ec50c56d1
       url: "https://pub.dev"
     source: hosted
     version: "3.5.8"
-  mutation_test:
-    dependency: "direct dev"
-    description:
-      name: mutation_test
-      sha256: c5bfa680c7d2bf9e4f4f0a1189ef1382c5d9af30e0dde1dc7ffd983307b1867d
-      url: "https://pub.flutter-io.cn"
-    source: hosted
-    version: "1.8.0"
   nocterm:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: nocterm
       sha256: b2e3160cadb4bab94d246e20e393820f09a2e1e8e6ed7a2d6a46f7358d65d083
@@ -514,7 +490,7 @@ packages:
     source: hosted
     version: "0.10.0"
   opentelemetry:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: opentelemetry
       sha256: "92d63a2e0731d34a7548add82420b8f3819ccda569f9bdfdcc4b25e00fe88da4"
@@ -530,7 +506,7 @@ packages:
     source: hosted
     version: "3.0.0"
   path:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: path
       sha256: "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5"
@@ -754,7 +730,7 @@ packages:
     source: hosted
     version: "1.4.0"
   uuid:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: uuid
       sha256: "9b129329f58692f6e6578329498a8fe9fbe98f090beb764ffbb8ee2eadd01dcd"
@@ -818,7 +794,7 @@ packages:
     source: hosted
     version: "6.6.1"
   yaml:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: yaml
       sha256: f67cdd8e07d3c6329146aaef1ba043542b3134c12489f553ca9a7435d1068aea
@@ -849,5 +825,12 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.3.1"
+  zuraffa:
+    dependency: "direct main"
+    description:
+      path: "../.."
+      relative: true
+    source: path
+    version: "6.1.0"
 sdks:
   dart: ">=3.11.0 <4.0.0"
