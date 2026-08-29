@@ -528,6 +528,28 @@ export 'src/graphql/diff/schema_diff.dart';
 // DartTypeNamer — camelCase/PascalCase + reserved-word escapes (FR-007).
 export 'src/graphql/mapping/dart_type_namer.dart';
 
+// ---------------------------------------------------------------------------
+// Routing (spec 033 — @Route decorator for auto-generated navigation config)
+// ---------------------------------------------------------------------------
+
+// ZfaRouteParams — typed route parameter base + controller-init holder.
+export 'src/routing/route_params.dart';
+
+// Route model — declarations, redirect rules, scan results, errors.
+export 'src/routing/route_model.dart';
+
+// RouteAnnotationScanner — parse-only @Route scanner.
+export 'src/routing/route_annotation_scanner.dart';
+
+// RouteValidator — FR-006 build-time validation engine.
+export 'src/routing/route_validator.dart';
+
+// RouteConfigGenerator — zfa_router.g.dart + deep-link emitter.
+export 'src/routing/route_config_generator.dart';
+
+// RouteAnnotationCompiler — scan→validate→generate orchestration.
+export 'src/routing/route_annotation_compiler.dart';
+
 // TypeMapper — GraphQL type to Dart type mapping.
 export 'src/graphql/mapping/type_mapper.dart';
 

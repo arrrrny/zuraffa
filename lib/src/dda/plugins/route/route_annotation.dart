@@ -69,6 +69,31 @@ class ZfaRoute {
   /// ```
   final List<Type>? middleware;
 
+  /// Whether this route is a SHELL route hosting nested child routes
+  /// (spec 033 FR-007). The shell View renders the shared chrome and
+  /// receives the active child via its `child` constructor parameter
+  /// when it declares one.
+  final bool isShell;
+
+  /// Name of the parent SHELL route this route nests under (spec 033
+  /// FR-007). Unlike [parentPath] (path-keyed), this references the
+  /// parent route's [name].
+  final String? parent;
+
+  /// Redirect rule attached to this route (spec 033 FR-001):
+  /// `@Route(redirect: RouteRedirect(from: '/old', to: '/new'))`.
+  final RouteRedirect? redirect;
+
+  /// Typed PATH parameters (spec 033 US-7): `{'id': int}` — supported
+  /// types: `String`, `int`, `double`, `bool`. Unlisted `:params`
+  /// default to `String`.
+  final Map<String, Type>? params;
+
+  /// Where to send users when a guard denies activation without an
+  /// explicit [ZuraffaRouteGuard.onRejected] override (spec 033 US-5);
+  /// recorded as the generated default deny path.
+  final String? guardRedirect;
+
   const ZfaRoute({
     required this.path,
     this.name,
@@ -78,6 +103,11 @@ class ZfaRoute {
     this.redirectTo,
     this.queryParameters,
     this.middleware,
+    this.isShell = false,
+    this.parent,
+    this.redirect,
+    this.params,
+    this.guardRedirect,
   });
 
   /// Convenience constructor for redirect-only route entries.
@@ -93,14 +123,29 @@ class ZfaRoute {
        deepLinkAware = false,
        parentPath = null,
        queryParameters = null,
-       middleware = null;
+       middleware = null,
+       isShell = false,
+       parent = null,
+       redirect = null,
+       params = null,
+       guardRedirect = null;
 }
 
-/// Backward-compatible alias for [ZfaRoute].
-///
-/// @deprecated Use [ZfaRoute] instead to avoid conflicts with Flutter's Route.
-@Deprecated('Use ZfaRoute instead')
+/// Spec 033 name for [ZfaRoute] — the canonical annotation spelling per
+/// `specs/033-route-decorator-nav` FR-001 (`@Route(path: ...)` and
+/// `@Route.redirect(from: ..., to: ...)`).
 typedef Route = ZfaRoute;
+
+/// Redirect configuration for `@Route(redirect: ...)` (spec 033 FR-001).
+class RouteRedirect {
+  /// URL pattern that should be redirected away from.
+  final String from;
+
+  /// Target URL that exists in the route configuration.
+  final String to;
+
+  const RouteRedirect({required this.from, required this.to});
+}
 
 /// Pure-Dart route state passed to [ZuraffaRouteGuard] callbacks.
 ///
