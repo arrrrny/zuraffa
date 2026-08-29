@@ -47,10 +47,7 @@ class XRayControlDeckResponse extends XRayBridgeResponse {
 
   /// 400 Bad Request — request body is malformed.
   factory XRayControlDeckResponse.badRequest(String message) {
-    return XRayControlDeckResponse(400, {
-      'success': false,
-      'error': message,
-    });
+    return XRayControlDeckResponse(400, {'success': false, 'error': message});
   }
 
   /// 404 Not Found — the mockName is unknown; lists available names

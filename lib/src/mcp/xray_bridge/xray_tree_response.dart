@@ -20,14 +20,9 @@ class XRayTreeResponse {
   const XRayTreeResponse({this.activeView, this.nodes = const []});
 
   /// Canonical empty response (no view mounted, no nodes registered).
-  const XRayTreeResponse.empty()
-    : activeView = null,
-      nodes = const [];
+  const XRayTreeResponse.empty() : activeView = null, nodes = const [];
 
-  Map<String, dynamic> toJson() => {
-    'activeView': activeView,
-    'nodes': nodes,
-  };
+  Map<String, dynamic> toJson() => {'activeView': activeView, 'nodes': nodes};
 
   factory XRayTreeResponse.fromJson(Map<String, dynamic> json) {
     return XRayTreeResponse(

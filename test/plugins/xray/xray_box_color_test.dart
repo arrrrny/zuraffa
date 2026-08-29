@@ -68,8 +68,11 @@ void main() {
         final g = (c >> 8) & 0xFF;
         final b = c & 0xFF;
         final maxChannel = [r, g, b].reduce((a, b) => a > b ? a : b);
-        expect(maxChannel, greaterThanOrEqualTo(0xA0),
-            reason: 'view "$v" must have a neon-bright channel');
+        expect(
+          maxChannel,
+          greaterThanOrEqualTo(0xA0),
+          reason: 'view "$v" must have a neon-bright channel',
+        );
       }
     });
 

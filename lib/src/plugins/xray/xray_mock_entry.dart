@@ -50,15 +50,14 @@ class XRayMockEntry {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is XRayMockEntry &&
-          other.name == name &&
-          other.payload == payload;
+      other is XRayMockEntry && other.name == name && other.payload == payload;
 
   /// Hash by name + payload (matches [operator ==]).
   @override
   int get hashCode => Object.hash(name, payload);
 
   @override
-  String toString() => 'XRayMockEntry(name=$name, payload=$payload, '
+  String toString() =>
+      'XRayMockEntry(name=$name, payload=$payload, '
       'type=${type.label})';
 }

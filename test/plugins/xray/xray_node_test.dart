@@ -59,8 +59,11 @@ void main() {
         stateSummary: XRayStateSummary.empty(),
       );
       final json = node.toJson();
-      expect(json.containsKey('boundAction'), isFalse,
-          reason: 'null boundAction MUST be omitted from JSON');
+      expect(
+        json.containsKey('boundAction'),
+        isFalse,
+        reason: 'null boundAction MUST be omitted from JSON',
+      );
     });
 
     test('toJson preserves children list (even empty)', () {
@@ -92,8 +95,7 @@ void main() {
       expect(reconstructed.viewType, original.viewType);
       expect(reconstructed.enabled, original.enabled);
       expect(reconstructed.boundAction, original.boundAction);
-      expect(reconstructed.stateSummary.hasData,
-          original.stateSummary.hasData);
+      expect(reconstructed.stateSummary.hasData, original.stateSummary.hasData);
       expect(reconstructed.children.length, original.children.length);
     });
 

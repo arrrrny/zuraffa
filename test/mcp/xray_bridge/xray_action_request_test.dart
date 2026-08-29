@@ -15,20 +15,14 @@ void main() {
     });
 
     test('constructor accepts explicit payload', () {
-      const r = XRayActionRequest(
-        targetNode: 'n1',
-        payload: {'k': 'v'},
-      );
+      const r = XRayActionRequest(targetNode: 'n1', payload: {'k': 'v'});
       expect(r.targetNode, 'n1');
       expect(r.payload, isA<Map>());
       expect((r.payload as Map)['k'], 'v');
     });
 
     test('toJson produces canonical shape with payload when present', () {
-      const r = XRayActionRequest(
-        targetNode: 'n1',
-        payload: {'k': 'v'},
-      );
+      const r = XRayActionRequest(targetNode: 'n1', payload: {'k': 'v'});
       final j = r.toJson();
       expect(j['targetNode'], 'n1');
       expect(j['payload'], isNotNull);
@@ -42,10 +36,7 @@ void main() {
     });
 
     test('fromJson round-trips', () {
-      const original = XRayActionRequest(
-        targetNode: 'n1',
-        payload: {'k': 'v'},
-      );
+      const original = XRayActionRequest(targetNode: 'n1', payload: {'k': 'v'});
       final j = original.toJson();
       final reconstructed = XRayActionRequest.fromJson(j);
       expect(reconstructed.targetNode, original.targetNode);

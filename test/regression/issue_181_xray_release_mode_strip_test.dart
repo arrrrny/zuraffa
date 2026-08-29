@@ -17,11 +17,13 @@ import 'package:zuraffa/src/plugins/app_shell/builders/app_shell_builder.dart';
 
 void main() {
   group('SC-004 — Release-mode strip', () {
-    test('kXrayReleaseMode is a compile-time constant (bool.fromEnvironment)',
-        () {
-      // In a normal `dart test` run (debug mode), kXrayReleaseMode MUST be false.
-      expect(kXrayReleaseMode, isFalse);
-    });
+    test(
+      'kXrayReleaseMode is a compile-time constant (bool.fromEnvironment)',
+      () {
+        // In a normal `dart test` run (debug mode), kXrayReleaseMode MUST be false.
+        expect(kXrayReleaseMode, isFalse);
+      },
+    );
 
     test('shouldXRayBeActiveInCurrentBuild() returns !kXrayReleaseMode', () {
       // In a normal test run, kXrayReleaseMode is false → shouldXRayBeActive true.
@@ -30,23 +32,26 @@ void main() {
       expect(shouldXRayBeActiveInCurrentBuild(), equals(!kXrayReleaseMode));
     });
 
-    test('B03 — XRayOverlayState constructed with isReleaseMode=true is inert',
-        () {
-      final release = XRayOverlayState(isReleaseMode: true);
-      release.activate();
-      release.register(const XRayNode(
-        id: 'n1',
-        viewType: 'ProfileView',
-        enabled: true,
-        boundAction: 'onTap',
-        stateSummary: XRayStateSummary.empty(),
-      ));
-      expect(release.isActive, isFalse);
-      expect(release.nodes, isEmpty);
-    });
-
     test(
-        'B16 — app_shell_builder.buildMain(xray: true) wraps activate inside '
+      'B03 — XRayOverlayState constructed with isReleaseMode=true is inert',
+      () {
+        final release = XRayOverlayState(isReleaseMode: true);
+        release.activate();
+        release.register(
+          const XRayNode(
+            id: 'n1',
+            viewType: 'ProfileView',
+            enabled: true,
+            boundAction: 'onTap',
+            stateSummary: XRayStateSummary.empty(),
+          ),
+        );
+        expect(release.isActive, isFalse);
+        expect(release.nodes, isEmpty);
+      },
+    );
+
+    test('B16 — app_shell_builder.buildMain(xray: true) wraps activate inside '
         'kDebugMode', () {
       const builder = AppShellBuilder();
       final src = builder.buildMain(appName: 'demo_app', xray: true);
@@ -63,8 +68,11 @@ void main() {
       // accidentally match `activate()` in leading comments.
       final activateIdx = src.indexOf('XRayOverlayState.instance.activate()');
       expect(debugIdx, greaterThanOrEqualTo(0));
-      expect(activateIdx, greaterThan(debugIdx),
-          reason: 'activate() MUST come after the kDebugMode guard');
+      expect(
+        activateIdx,
+        greaterThan(debugIdx),
+        reason: 'activate() MUST come after the kDebugMode guard',
+      );
     });
 
     test('B16b — app_shell_builder.buildMain(xray: false) emits no X-Ray', () {

@@ -11,7 +11,10 @@ class _AddTool implements McpTool {
   @override
   Map<String, dynamic> get inputSchema => const {
     'type': 'object',
-    'properties': {'a': {'type': 'number'}, 'b': {'type': 'number'}},
+    'properties': {
+      'a': {'type': 'number'},
+      'b': {'type': 'number'},
+    },
     'required': ['a', 'b'],
   };
   @override
@@ -44,11 +47,14 @@ void main() {
       expect(r.text, '5');
     });
 
-    test('returns an error result for an unknown tool (never throws)', () async {
-      final r = await registry.call('missing', {});
-      expect(r.isError, isTrue);
-      expect(r.text, contains('Unknown tool'));
-    });
+    test(
+      'returns an error result for an unknown tool (never throws)',
+      () async {
+        final r = await registry.call('missing', {});
+        expect(r.isError, isTrue);
+        expect(r.text, contains('Unknown tool'));
+      },
+    );
 
     test('converts handler throws into tool-level error results', () async {
       registry.register(_ThrowingTool());

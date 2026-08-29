@@ -70,21 +70,19 @@ class McpToolResult {
     String message, {
     Map<String, dynamic>? data,
     String? artifactRef,
-  }) =>
-      McpToolResult(
-        isError: true,
-        text: message,
-        data: data,
-        artifactRef: artifactRef,
-      );
+  }) => McpToolResult(
+    isError: true,
+    text: message,
+    data: data,
+    artifactRef: artifactRef,
+  );
 
   /// Convenience constructor for a success result with structured data.
   factory McpToolResult.ok(
     String text, {
     Map<String, dynamic>? data,
     String? artifactRef,
-  }) =>
-      McpToolResult(text: text, data: data, artifactRef: artifactRef);
+  }) => McpToolResult(text: text, data: data, artifactRef: artifactRef);
 
   /// Ref-only result: the large body lives at [artifactRef]; [text] is a
   /// short human-readable summary. The wire response carries only the ref.
@@ -92,8 +90,7 @@ class McpToolResult {
     String artifactRef, {
     String text = '',
     Map<String, dynamic>? data,
-  }) =>
-      McpToolResult(text: text, data: data, artifactRef: artifactRef);
+  }) => McpToolResult(text: text, data: data, artifactRef: artifactRef);
 
   /// Serialises to the MCP `tools/call` result shape:
   ///

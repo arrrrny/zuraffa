@@ -111,9 +111,7 @@ class AppShellBuilder {
         // registry that the Flutter painter subscribes to for live
         // bounding-box snapshots. Tree-shaken in release builds because
         // the activate() call below sits inside `if (kDebugMode)`.
-        Directive.import(
-          'package:zuraffa/src/plugins/xray/xray_overlay.dart',
-        ),
+        Directive.import('package:zuraffa/src/plugins/xray/xray_overlay.dart'),
       ],
     ];
     if (diTakesGetIt) {

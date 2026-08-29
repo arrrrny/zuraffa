@@ -79,24 +79,26 @@ void main() {
       expect(jsonEncode(box.toJson()), isA<String>());
     });
 
-    test('fromJson tolerates a partial box (missing rect fields default to 0)',
-        () {
-      // The MCP bridge (Track 4.4) may emit a box whose `rect` is absent or
-      // partially populated. Deserialization must not throw — it should fall
-      // back to the same zero-size placeholder used by
-      // XRayOverlayState._emit().
-      final partial = {
-        'nodeId': 'n1',
-        'viewType': 'HomeView',
-        'color': 0xFFFF00FF,
-        'label': 'x',
-      };
-      final box = XRayBoundingBox.fromJson(partial);
-      expect(box.nodeId, 'n1');
-      expect(box.rect.left, 0);
-      expect(box.rect.width, 0);
-      expect(box.rect.height, 0);
-    });
+    test(
+      'fromJson tolerates a partial box (missing rect fields default to 0)',
+      () {
+        // The MCP bridge (Track 4.4) may emit a box whose `rect` is absent or
+        // partially populated. Deserialization must not throw — it should fall
+        // back to the same zero-size placeholder used by
+        // XRayOverlayState._emit().
+        final partial = {
+          'nodeId': 'n1',
+          'viewType': 'HomeView',
+          'color': 0xFFFF00FF,
+          'label': 'x',
+        };
+        final box = XRayBoundingBox.fromJson(partial);
+        expect(box.nodeId, 'n1');
+        expect(box.rect.left, 0);
+        expect(box.rect.width, 0);
+        expect(box.rect.height, 0);
+      },
+    );
 
     test('fromNode factory derives label + color from node', () {
       const node = XRayNode(

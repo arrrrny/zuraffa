@@ -54,31 +54,38 @@ void main() {
         'isLoading': false,
         'dataPreview': 'x' * 200,
       });
-      expect(reconstructed.dataPreview!.length, lessThanOrEqualTo(80),
-          reason: 'fromJson MUST honor the same 80-char bound as fromPreviews');
+      expect(
+        reconstructed.dataPreview!.length,
+        lessThanOrEqualTo(80),
+        reason: 'fromJson MUST honor the same 80-char bound as fromPreviews',
+      );
       expect(reconstructed.dataPreview!.startsWith('xxx'), isTrue);
     });
 
-    test('dataPreview is truncated to 80 chars when constructed via factory',
-        () {
-      final long = 'x' * 200;
-      final s = XRayStateSummary.fromPreviews(
-        hasData: true,
-        dataPreview: long,
-      );
-      expect(s.dataPreview!.length, lessThanOrEqualTo(80));
-      expect(s.dataPreview!.startsWith('xxx'), isTrue);
-    });
+    test(
+      'dataPreview is truncated to 80 chars when constructed via factory',
+      () {
+        final long = 'x' * 200;
+        final s = XRayStateSummary.fromPreviews(
+          hasData: true,
+          dataPreview: long,
+        );
+        expect(s.dataPreview!.length, lessThanOrEqualTo(80));
+        expect(s.dataPreview!.startsWith('xxx'), isTrue);
+      },
+    );
 
-    test('errorPreview is truncated to 80 chars when constructed via factory',
-        () {
-      final long = 'E' * 200;
-      final s = XRayStateSummary.fromPreviews(
-        hasError: true,
-        errorPreview: long,
-      );
-      expect(s.errorPreview!.length, lessThanOrEqualTo(80));
-    });
+    test(
+      'errorPreview is truncated to 80 chars when constructed via factory',
+      () {
+        final long = 'E' * 200;
+        final s = XRayStateSummary.fromPreviews(
+          hasError: true,
+          errorPreview: long,
+        );
+        expect(s.errorPreview!.length, lessThanOrEqualTo(80));
+      },
+    );
 
     test('fromSignalSlice-like factory fromData has hasData true', () {
       // We use the fromPreviews-style API (since SignalSlice is reactive

@@ -42,8 +42,7 @@ void main() {
   }
 
   group('zfa xray status --json', () {
-    test('--json flag emits valid JSON on stdout with `enabled` key',
-        () async {
+    test('--json flag emits valid JSON on stdout with `enabled` key', () async {
       await run(['disable']);
       final output = await run(['status', '--json']);
       final parsed = tryParseJson(output.trim());
@@ -52,13 +51,15 @@ void main() {
       expect(parsed['enabled'], isA<bool>());
     });
 
-    test('default (no flag) emits human-readable text, NOT raw JSON',
-        () async {
+    test('default (no flag) emits human-readable text, NOT raw JSON', () async {
       await run(['disable']);
       final output = await run(['status']);
       // Should NOT be parseable as JSON (it's "X-Ray overlay: enabled").
-      expect(tryParseJson(output.trim()), isNull,
-          reason: 'default output MUST be human-readable, not JSON');
+      expect(
+        tryParseJson(output.trim()),
+        isNull,
+        reason: 'default output MUST be human-readable, not JSON',
+      );
       expect(output, contains('X-Ray'));
     });
 
@@ -76,30 +77,35 @@ void main() {
       expect(parsed['enabled'], isTrue);
     });
 
-    test('--json includes release_mode indicator (false in tests)',
-        () async {
+    test('--json includes release_mode indicator (false in tests)', () async {
       await run(['disable']);
       final output = await run(['status', '--json']);
       final parsed = tryParseJson(output.trim()) as Map<String, dynamic>;
       expect(parsed, contains('release_mode'));
-      expect(parsed['release_mode'], isFalse,
-          reason: 'dart test runs in non-release VM, '
-              'so kXrayReleaseMode must be false here');
+      expect(
+        parsed['release_mode'],
+        isFalse,
+        reason:
+            'dart test runs in non-release VM, '
+            'so kXrayReleaseMode must be false here',
+      );
     });
 
-    test('config file is created under --root/.dart_tool/zuraffa/xray.json',
-        () async {
-      await run(['enable']);
-      final cfgPath = p.join(
-        tempDir.path,
-        '.dart_tool',
-        'zuraffa',
-        'xray.json',
-      );
-      expect(File(cfgPath).existsSync(), isTrue);
-      final parsed = jsonDecode(File(cfgPath).readAsStringSync());
-      expect(parsed, isA<Map>());
-      expect(parsed['enabled'], isTrue);
-    });
+    test(
+      'config file is created under --root/.dart_tool/zuraffa/xray.json',
+      () async {
+        await run(['enable']);
+        final cfgPath = p.join(
+          tempDir.path,
+          '.dart_tool',
+          'zuraffa',
+          'xray.json',
+        );
+        expect(File(cfgPath).existsSync(), isTrue);
+        final parsed = jsonDecode(File(cfgPath).readAsStringSync());
+        expect(parsed, isA<Map>());
+        expect(parsed['enabled'], isTrue);
+      },
+    );
   });
 }

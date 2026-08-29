@@ -152,19 +152,25 @@ void main() {
   // `if (kDebugMode) { ... }` block so the overlay boots at app start in
   // debug/profile mode, and is tree-shaken in release builds (SC-004).
   group('AppShellBuilder.buildMain — X-Ray Visual Overlay (036)', () {
-    test('emits XRayOverlayState.activate() inside kDebugMode when xray true',
-        () {
-      final src = builder.buildMain(appName: 'demo_app', xray: true);
-      expect(src, contains('XRayOverlayState'));
-      // Find the LAST `if (kDebugMode)` — earlier matches are in spec
-      // comments that mention kDebugMode.
-      final debugIdx = src.lastIndexOf('if (kDebugMode)');
-      final activateIdx = src.indexOf('XRayOverlayState.instance.activate()');
-      expect(debugIdx, greaterThanOrEqualTo(0));
-      expect(activateIdx, greaterThan(debugIdx),
-          reason: 'activate() MUST appear after the kDebugMode guard so '
-              'tree-shaking strips it in release builds (SC-004 / FR-007)');
-    });
+    test(
+      'emits XRayOverlayState.activate() inside kDebugMode when xray true',
+      () {
+        final src = builder.buildMain(appName: 'demo_app', xray: true);
+        expect(src, contains('XRayOverlayState'));
+        // Find the LAST `if (kDebugMode)` — earlier matches are in spec
+        // comments that mention kDebugMode.
+        final debugIdx = src.lastIndexOf('if (kDebugMode)');
+        final activateIdx = src.indexOf('XRayOverlayState.instance.activate()');
+        expect(debugIdx, greaterThanOrEqualTo(0));
+        expect(
+          activateIdx,
+          greaterThan(debugIdx),
+          reason:
+              'activate() MUST appear after the kDebugMode guard so '
+              'tree-shaking strips it in release builds (SC-004 / FR-007)',
+        );
+      },
+    );
 
     test('emits XRayOverlayState import when xray true', () {
       final src = builder.buildMain(appName: 'demo_app', xray: true);
@@ -184,9 +190,13 @@ void main() {
       final decksIdx = src.indexOf('registerAllXRayDecks();');
       final activateIdx = src.indexOf('XRayOverlayState.instance.activate()');
       expect(decksIdx, greaterThanOrEqualTo(0));
-      expect(activateIdx, greaterThan(decksIdx),
-          reason: 'activate() must run AFTER decks are registered so the '
-              'overlay has a fully-populated mock registry on first paint');
+      expect(
+        activateIdx,
+        greaterThan(decksIdx),
+        reason:
+            'activate() must run AFTER decks are registered so the '
+            'overlay has a fully-populated mock registry on first paint',
+      );
     });
   });
 }

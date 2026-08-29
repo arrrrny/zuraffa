@@ -70,32 +70,32 @@ void main() {
       expect(XRayBridgeAuth.validateBearerToken('abc', 'abcd'), isFalse);
     });
 
-    test('B18 — constant-time comparison: same length but different content',
-        () {
-      // The result must be false; we cannot test timing directly in unit
-      // tests, but the implementation must NOT short-circuit on first
-      // byte mismatch (verified by code review).
-      expect(
-        XRayBridgeAuth.validateBearerToken('xyz', 'abc'),
-        isFalse,
-      );
-    });
+    test(
+      'B18 — constant-time comparison: same length but different content',
+      () {
+        // The result must be false; we cannot test timing directly in unit
+        // tests, but the implementation must NOT short-circuit on first
+        // byte mismatch (verified by code review).
+        expect(XRayBridgeAuth.validateBearerToken('xyz', 'abc'), isFalse);
+      },
+    );
 
     test(
-        'validateBearerTokenWithHeader strips "Bearer " prefix from received',
-        () {
-      expect(
-        XRayBridgeAuth.validateBearerTokenWithHeader('Bearer abc', 'abc'),
-        isTrue,
-      );
-      expect(
-        XRayBridgeAuth.validateBearerTokenWithHeader('abc', 'abc'),
-        isTrue,
-      );
-      expect(
-        XRayBridgeAuth.validateBearerTokenWithHeader('Bearer xyz', 'abc'),
-        isFalse,
-      );
-    });
+      'validateBearerTokenWithHeader strips "Bearer " prefix from received',
+      () {
+        expect(
+          XRayBridgeAuth.validateBearerTokenWithHeader('Bearer abc', 'abc'),
+          isTrue,
+        );
+        expect(
+          XRayBridgeAuth.validateBearerTokenWithHeader('abc', 'abc'),
+          isTrue,
+        );
+        expect(
+          XRayBridgeAuth.validateBearerTokenWithHeader('Bearer xyz', 'abc'),
+          isFalse,
+        );
+      },
+    );
   });
 }

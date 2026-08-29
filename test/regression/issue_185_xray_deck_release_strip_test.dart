@@ -19,8 +19,11 @@ void main() {
         XRayMockEntry(name: 'A', payload: 'p1'),
         XRayMockEntry(name: 'B', payload: 'p2'),
       ]);
-      expect(deck.entries, isEmpty,
-          reason: 'release builds MUST NOT register mock entries');
+      expect(
+        deck.entries,
+        isEmpty,
+        reason: 'release builds MUST NOT register mock entries',
+      );
     });
 
     test('B14 — release-mode inject returns null', () {

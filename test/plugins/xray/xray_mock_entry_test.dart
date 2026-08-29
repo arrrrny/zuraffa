@@ -34,19 +34,23 @@ void main() {
       expect(a.hashCode, b.hashCode);
     });
 
-    test('B03 — two entries with same name but different payloads are NOT equal',
-        () {
-      const a = XRayMockEntry(name: 'A', payload: 'p1');
-      const b = XRayMockEntry(name: 'A', payload: 'p2');
-      expect(a, isNot(equals(b)));
-    });
+    test(
+      'B03 — two entries with same name but different payloads are NOT equal',
+      () {
+        const a = XRayMockEntry(name: 'A', payload: 'p1');
+        const b = XRayMockEntry(name: 'A', payload: 'p2');
+        expect(a, isNot(equals(b)));
+      },
+    );
 
-    test('B03 — two entries with different names but same payload are NOT equal',
-        () {
-      const a = XRayMockEntry(name: 'A', payload: 'p1');
-      const b = XRayMockEntry(name: 'B', payload: 'p1');
-      expect(a, isNot(equals(b)));
-    });
+    test(
+      'B03 — two entries with different names but same payload are NOT equal',
+      () {
+        const a = XRayMockEntry(name: 'A', payload: 'p1');
+        const b = XRayMockEntry(name: 'B', payload: 'p1');
+        expect(a, isNot(equals(b)));
+      },
+    );
 
     test('B03 — type field does NOT affect equality (only name+payload)', () {
       const a = XRayMockEntry(
@@ -59,8 +63,11 @@ void main() {
         payload: 'p1',
         type: XRayMockType.error,
       );
-      expect(a, equals(b),
-          reason: 'Equality is by name+payload only, per the spec edge case');
+      expect(
+        a,
+        equals(b),
+        reason: 'Equality is by name+payload only, per the spec edge case',
+      );
     });
 
     test('B04 — toJson produces canonical shape', () {
@@ -94,10 +101,7 @@ void main() {
     });
 
     test('B04 — fromJson accepts missing type (defaults to unknown)', () {
-      final e = XRayMockEntry.fromJson({
-        'name': 'A',
-        'payload': 'p1',
-      });
+      final e = XRayMockEntry.fromJson({'name': 'A', 'payload': 'p1'});
       expect(e.type, XRayMockType.unknown);
     });
 

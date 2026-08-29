@@ -65,10 +65,7 @@ class XRayActionResponse extends XRayBridgeResponse {
 
   /// 400 Bad Request — the request body is malformed.
   factory XRayActionResponse.badRequest(String message) {
-    return XRayActionResponse(400, {
-      'success': false,
-      'error': message,
-    });
+    return XRayActionResponse(400, {'success': false, 'error': message});
   }
 
   /// 404 Not Found — the targetNode is unknown; lists available ids

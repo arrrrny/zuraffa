@@ -30,9 +30,6 @@ class LocalMcpHost {
   /// Calls [toolName] with [args] without any transport. Returns an
   /// [McpToolResult]; never throws across the boundary. Unknown tools and
   /// handler exceptions surface as tool-level error results.
-  Future<McpToolResult> callTool(
-    String toolName,
-    Map<String, dynamic> args,
-  ) =>
+  Future<McpToolResult> callTool(String toolName, Map<String, dynamic> args) =>
       _registry.call(toolName, args);
 }

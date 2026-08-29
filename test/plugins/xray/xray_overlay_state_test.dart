@@ -45,8 +45,11 @@ void main() {
       final release = XRayOverlayState(isReleaseMode: true);
       expect(release.isActive, isFalse);
       release.activate();
-      expect(release.isActive, isFalse,
-          reason: 'release builds MUST NOT activate the overlay');
+      expect(
+        release.isActive,
+        isFalse,
+        reason: 'release builds MUST NOT activate the overlay',
+      );
     });
 
     test('B03b — register is no-op when isReleaseMode true', () {
@@ -106,13 +109,11 @@ void main() {
       final sub = release.changes.listen((_) => emitted = true);
       release.register(_sampleNode('n1'));
       await Future<void>.delayed(const Duration(milliseconds: 50));
-      expect(emitted, isFalse,
-          reason: 'release builds MUST NOT emit changes');
+      expect(emitted, isFalse, reason: 'release builds MUST NOT emit changes');
       await sub.cancel();
     });
 
-    test(
-        'B14 — inspect returns XRayDetailPanel for registered node, '
+    test('B14 — inspect returns XRayDetailPanel for registered node, '
         'null for unknown', () {
       state.register(_sampleNode('n1'));
       final panel = state.inspect('n1');

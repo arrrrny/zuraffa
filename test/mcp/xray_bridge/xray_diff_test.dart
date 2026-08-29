@@ -99,19 +99,22 @@ void main() {
       await sub.cancel();
     });
 
-    test('B20 — multiple subscribers all receive the diff (broadcast)', () async {
-      final s = XRayBridgeDiffStream(isReleaseMode: false);
-      var received1 = false;
-      var received2 = false;
-      final sub1 = s.stream.listen((_) => received1 = true);
-      final sub2 = s.stream.listen((_) => received2 = true);
-      s.emitAdd(nodeId: 'n1', node: {});
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      expect(received1, isTrue);
-      expect(received2, isTrue);
-      await sub1.cancel();
-      await sub2.cancel();
-    });
+    test(
+      'B20 — multiple subscribers all receive the diff (broadcast)',
+      () async {
+        final s = XRayBridgeDiffStream(isReleaseMode: false);
+        var received1 = false;
+        var received2 = false;
+        final sub1 = s.stream.listen((_) => received1 = true);
+        final sub2 = s.stream.listen((_) => received2 = true);
+        s.emitAdd(nodeId: 'n1', node: {});
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(received1, isTrue);
+        expect(received2, isTrue);
+        await sub1.cancel();
+        await sub2.cancel();
+      },
+    );
 
     test('B21 — release-mode stream is empty', () async {
       final s = XRayBridgeDiffStream(isReleaseMode: true);
@@ -121,8 +124,7 @@ void main() {
       s.emitRemove(nodeId: 'n1');
       s.emitUpdate(nodeId: 'n1', before: {}, after: {});
       await Future<void>.delayed(const Duration(milliseconds: 50));
-      expect(received, isFalse,
-          reason: 'release builds MUST NOT emit diffs');
+      expect(received, isFalse, reason: 'release builds MUST NOT emit diffs');
       await sub.cancel();
     });
   });

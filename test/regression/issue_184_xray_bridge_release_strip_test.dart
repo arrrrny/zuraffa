@@ -61,6 +61,7 @@ void main() {
 class _FakeOverlay {
   Map<String, dynamic> toJson() => {'activeView': null, 'nodes': <Map>[]};
 }
+
 class _FakeDeck {
   List<String> get mockNames => const [];
   String? inject(String name) => null;

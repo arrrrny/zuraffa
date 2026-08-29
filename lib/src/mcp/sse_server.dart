@@ -328,7 +328,8 @@ class McpSseServer {
             'jsonrpc': '2.0',
             'error': {
               'code': -32000,
-              'message': 'Tool "$toolName" is not permitted for the '
+              'message':
+                  'Tool "$toolName" is not permitted for the '
                   'supplied token',
             },
             'id': rpc['id'],

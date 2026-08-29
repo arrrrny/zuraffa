@@ -13,19 +13,13 @@ import 'package:zuraffa/src/plugins/xray/xray_state_summary.dart';
 void main() {
   group('XRayDetailPanel', () {
     test('constructor stores nodeId + fullStateJson', () {
-      const panel = XRayDetailPanel(
-        nodeId: 'n1',
-        fullStateJson: '{"a":1}',
-      );
+      const panel = XRayDetailPanel(nodeId: 'n1', fullStateJson: '{"a":1}');
       expect(panel.nodeId, 'n1');
       expect(panel.fullStateJson, '{"a":1}');
     });
 
     test('toJson round-trips', () {
-      const panel = XRayDetailPanel(
-        nodeId: 'n1',
-        fullStateJson: '{"a":1}',
-      );
+      const panel = XRayDetailPanel(nodeId: 'n1', fullStateJson: '{"a":1}');
       final j = panel.toJson();
       expect(j['nodeId'], 'n1');
       expect(j['fullStateJson'], '{"a":1}');
@@ -58,8 +52,7 @@ void main() {
       expect(parsed['state']['data'], isNotNull);
     });
 
-    test('fromNode with empty state summary emits canonical "idle" state',
-        () {
+    test('fromNode with empty state summary emits canonical "idle" state', () {
       const node = XRayNode(
         id: 'n1',
         viewType: 'HomeView',
@@ -94,10 +87,7 @@ void main() {
       expect((parsed['children'] as List).length, 1);
       // The recursive child is serialized as a nested object with its own
       // `nodeId` key (mirroring the parent's shape).
-      expect(
-        (parsed['children'] as List).first['nodeId'],
-        'child1',
-      );
+      expect((parsed['children'] as List).first['nodeId'], 'child1');
     });
 
     test('fromNode omits boundAction from JSON when null', () {

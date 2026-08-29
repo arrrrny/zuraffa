@@ -18,19 +18,24 @@ void main() {
   });
 
   group('XRayShakeDetector', () {
-    test('default instance is a no-op detector with empty shakes stream',
-        () async {
-      // Reset to the default no-op
-      XRayShakeDetector.instance = const _NoOpShakeDetectorForTest();
-      var emitted = 0;
-      final sub = XRayShakeDetector.instance.shakes.listen((_) {
-        emitted++;
-      });
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      await sub.cancel();
-      expect(emitted, 0,
-          reason: 'no-op detector MUST NOT emit any shake events');
-    });
+    test(
+      'default instance is a no-op detector with empty shakes stream',
+      () async {
+        // Reset to the default no-op
+        XRayShakeDetector.instance = const _NoOpShakeDetectorForTest();
+        var emitted = 0;
+        final sub = XRayShakeDetector.instance.shakes.listen((_) {
+          emitted++;
+        });
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await sub.cancel();
+        expect(
+          emitted,
+          0,
+          reason: 'no-op detector MUST NOT emit any shake events',
+        );
+      },
+    );
 
     test('instance is pluggable — custom detector is observable', () async {
       final custom = _FakeShakeDetector();
@@ -45,10 +50,7 @@ void main() {
     test('default instance shakes stream is empty Stream (const)', () {
       XRayShakeDetector.instance = const _NoOpShakeDetectorForTest();
       // Drain the stream — should complete immediately.
-      expect(
-        XRayShakeDetector.instance.shakes,
-        emitsDone,
-      );
+      expect(XRayShakeDetector.instance.shakes, emitsDone);
     });
   });
 }

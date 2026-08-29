@@ -22,9 +22,7 @@ void main() {
     });
 
     test('B07 — registerEntries populates the registry', () {
-      deck.registerEntries(const [
-        XRayMockEntry(name: 'A', payload: 'p1'),
-      ]);
+      deck.registerEntries(const [XRayMockEntry(name: 'A', payload: 'p1')]);
       expect(deck.entries.length, 1);
       expect(deck.entries.first.name, 'A');
     });
@@ -45,29 +43,23 @@ void main() {
       expect(deck.entries.length, 2);
     });
 
-    test('B08c — registerEntries is incremental (existing entries retained)',
-        () {
-      deck.registerEntries(const [
-        XRayMockEntry(name: 'A', payload: 'p1'),
-      ]);
-      deck.registerEntries(const [
-        XRayMockEntry(name: 'B', payload: 'p2'),
-      ]);
-      expect(deck.entries.length, 2);
-    });
+    test(
+      'B08c — registerEntries is incremental (existing entries retained)',
+      () {
+        deck.registerEntries(const [XRayMockEntry(name: 'A', payload: 'p1')]);
+        deck.registerEntries(const [XRayMockEntry(name: 'B', payload: 'p2')]);
+        expect(deck.entries.length, 2);
+      },
+    );
 
     test('B09 — clear empties the registry', () {
-      deck.registerEntries(const [
-        XRayMockEntry(name: 'A', payload: 'p1'),
-      ]);
+      deck.registerEntries(const [XRayMockEntry(name: 'A', payload: 'p1')]);
       deck.clear();
       expect(deck.entries, isEmpty);
     });
 
     test('B10 — find returns the entry or null', () {
-      deck.registerEntries(const [
-        XRayMockEntry(name: 'A', payload: 'p1'),
-      ]);
+      deck.registerEntries(const [XRayMockEntry(name: 'A', payload: 'p1')]);
       final found = deck.find('A', 'p1');
       expect(found, isNotNull);
       expect(found!.name, 'A');
@@ -75,16 +67,18 @@ void main() {
       expect(missing, isNull);
     });
 
-    test('B11 — inject returns payload for registered entry, null for unknown',
-        () {
-      deck.registerEntries(const [
-        XRayMockEntry(name: 'A', payload: 'p1'),
-        XRayMockEntry(name: 'B', payload: 'p2'),
-      ]);
-      expect(deck.inject('A'), 'p1');
-      expect(deck.inject('B'), 'p2');
-      expect(deck.inject('does-not-exist'), isNull);
-    });
+    test(
+      'B11 — inject returns payload for registered entry, null for unknown',
+      () {
+        deck.registerEntries(const [
+          XRayMockEntry(name: 'A', payload: 'p1'),
+          XRayMockEntry(name: 'B', payload: 'p2'),
+        ]);
+        expect(deck.inject('A'), 'p1');
+        expect(deck.inject('B'), 'p2');
+        expect(deck.inject('does-not-exist'), isNull);
+      },
+    );
 
     test('B11b — inject returns the FIRST matching payload when multiple '
         'entries share the name', () {
@@ -99,25 +93,23 @@ void main() {
       expect(['p1', 'p2'], contains(r));
     });
 
-    test('B12 — changes stream emits new snapshot after registerEntries',
-        () async {
-      final completer = Completer<List<XRayMockEntry>>();
-      final sub = deck.changes.listen(completer.complete);
-      deck.registerEntries(const [
-        XRayMockEntry(name: 'A', payload: 'p1'),
-      ]);
-      final snapshot = await completer.future.timeout(
-        const Duration(seconds: 1),
-      );
-      expect(snapshot.length, 1);
-      expect(snapshot.first.name, 'A');
-      await sub.cancel();
-    });
+    test(
+      'B12 — changes stream emits new snapshot after registerEntries',
+      () async {
+        final completer = Completer<List<XRayMockEntry>>();
+        final sub = deck.changes.listen(completer.complete);
+        deck.registerEntries(const [XRayMockEntry(name: 'A', payload: 'p1')]);
+        final snapshot = await completer.future.timeout(
+          const Duration(seconds: 1),
+        );
+        expect(snapshot.length, 1);
+        expect(snapshot.first.name, 'A');
+        await sub.cancel();
+      },
+    );
 
     test('B12b — changes stream emits empty after clear', () async {
-      deck.registerEntries(const [
-        XRayMockEntry(name: 'A', payload: 'p1'),
-      ]);
+      deck.registerEntries(const [XRayMockEntry(name: 'A', payload: 'p1')]);
       final completer = Completer<List<XRayMockEntry>>();
       final sub = deck.changes.listen(completer.complete);
       deck.clear();
@@ -130,9 +122,7 @@ void main() {
 
     test('B13 — release-mode registerEntries is a no-op', () {
       final release = XRayControlDeck(isReleaseMode: true);
-      release.registerEntries(const [
-        XRayMockEntry(name: 'A', payload: 'p1'),
-      ]);
+      release.registerEntries(const [XRayMockEntry(name: 'A', payload: 'p1')]);
       expect(release.entries, isEmpty);
     });
 
@@ -140,9 +130,7 @@ void main() {
       final release = XRayControlDeck(isReleaseMode: true);
       var emitted = false;
       final sub = release.changes.listen((_) => emitted = true);
-      release.registerEntries(const [
-        XRayMockEntry(name: 'A', payload: 'p1'),
-      ]);
+      release.registerEntries(const [XRayMockEntry(name: 'A', payload: 'p1')]);
       await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(emitted, isFalse);
       await sub.cancel();
@@ -167,9 +155,7 @@ void main() {
     });
 
     test('toJson in non-release mode reports entries', () {
-      deck.registerEntries(const [
-        XRayMockEntry(name: 'A', payload: 'p1'),
-      ]);
+      deck.registerEntries(const [XRayMockEntry(name: 'A', payload: 'p1')]);
       final j = deck.toJson();
       expect(j['release_mode'], isFalse);
       expect(j['active'], isTrue);

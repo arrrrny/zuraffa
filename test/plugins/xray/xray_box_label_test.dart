@@ -37,8 +37,11 @@ void main() {
       final formatted = label.format();
       expect(formatted, contains('HomeNode.fab'));
       expect(formatted, contains('disabled'));
-      expect(formatted, contains('idle'),
-          reason: 'all-false state summary should be rendered as "idle"');
+      expect(
+        formatted,
+        contains('idle'),
+        reason: 'all-false state summary should be rendered as "idle"',
+      );
     });
 
     test('format shows error state when hasError true', () {

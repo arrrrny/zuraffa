@@ -86,10 +86,7 @@ class XRayDiff {
   }
 
   Map<String, dynamic> toJson() {
-    final j = <String, dynamic>{
-      'type': type.label,
-      'nodeId': nodeId,
-    };
+    final j = <String, dynamic>{'type': type.label, 'nodeId': nodeId};
     if (node != null) j['node'] = node;
     if (before != null) j['before'] = before;
     if (after != null) j['after'] = after;
@@ -128,14 +125,10 @@ class XRayBridgeDiffStream {
 
   /// Broadcast stream of diffs. Subscribers receive every diff emitted
   /// AFTER they subscribe (no replay). Empty in release mode.
-  Stream<XRayDiff> get stream => _isReleaseMode
-      ? const Stream<XRayDiff>.empty()
-      : _controller.stream;
+  Stream<XRayDiff> get stream =>
+      _isReleaseMode ? const Stream<XRayDiff>.empty() : _controller.stream;
 
-  void emitAdd({
-    required String nodeId,
-    required Map<String, dynamic> node,
-  }) {
+  void emitAdd({required String nodeId, required Map<String, dynamic> node}) {
     if (_isReleaseMode) return;
     _controller.add(XRayDiff.add(nodeId: nodeId, node: node));
   }
@@ -151,11 +144,9 @@ class XRayBridgeDiffStream {
     required Map<String, dynamic> after,
   }) {
     if (_isReleaseMode) return;
-    _controller.add(XRayDiff.update(
-      nodeId: nodeId,
-      before: before,
-      after: after,
-    ));
+    _controller.add(
+      XRayDiff.update(nodeId: nodeId, before: before, after: after),
+    );
   }
 
   /// Close the underlying controller. Safe to call multiple times.

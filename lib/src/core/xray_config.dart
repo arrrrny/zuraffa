@@ -37,7 +37,9 @@ bool shouldXRayBeActiveInCurrentBuild() => !kXrayReleaseMode;
 String xrayConfigPathFor(String? root) {
   if (root == null || root.isEmpty) return kXrayConfigPath;
   // The path under .dart_tool is relative; resolve it against root.
-  final normalized = root.endsWith('/') ? root.substring(0, root.length - 1) : root;
+  final normalized = root.endsWith('/')
+      ? root.substring(0, root.length - 1)
+      : root;
   return '$normalized/$kXrayConfigPath';
 }
 

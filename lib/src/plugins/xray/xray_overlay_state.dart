@@ -68,9 +68,8 @@ class XRayOverlayState {
   bool get isActive => _isActive && !_isReleaseMode;
 
   /// Snapshot of the current registered nodes (immutable list view).
-  List<XRayNode> get nodes => _isReleaseMode
-      ? const []
-      : List.unmodifiable(_nodes.values);
+  List<XRayNode> get nodes =>
+      _isReleaseMode ? const [] : List.unmodifiable(_nodes.values);
 
   /// Broadcast stream of bounding-box snapshots. Emits after every
   /// [register] / [unregister] / state mutation. Emits nothing in
@@ -81,8 +80,9 @@ class XRayOverlayState {
   /// because the Flutter overlay is responsible for computing screen
   /// rects from widget RenderBoxes. The pure-Dart layer does not know
   /// screen coordinates.
-  Stream<List<XRayBoundingBox>> get changes =>
-      _isReleaseMode ? const Stream<List<XRayBoundingBox>>.empty() : _controller.stream;
+  Stream<List<XRayBoundingBox>> get changes => _isReleaseMode
+      ? const Stream<List<XRayBoundingBox>>.empty()
+      : _controller.stream;
 
   /// Activate the overlay.
   ///
@@ -137,10 +137,12 @@ class XRayOverlayState {
   void _emit() {
     if (_isReleaseMode) return;
     final snapshot = _nodes.values
-        .map((n) => XRayBoundingBox.fromNode(
-              n,
-              rect: const XRayRect(left: 0, top: 0, width: 0, height: 0),
-            ))
+        .map(
+          (n) => XRayBoundingBox.fromNode(
+            n,
+            rect: const XRayRect(left: 0, top: 0, width: 0, height: 0),
+          ),
+        )
         .toList();
     _controller.add(snapshot);
   }

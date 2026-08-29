@@ -334,56 +334,67 @@ void main() {
         }
       },
     );
-    test('tools/call for a tool outside the token allowlist is rejected', () async {
-      final allowedRegistry = McpToolRegistry();
-      allowedRegistry.register(_EchoTool());
-      final allowedServer = McpSseServer(
-        registry: allowedRegistry,
-        toolAllowlist: {
-          'viewer-token': {'listOnly'}, // 'echo' is NOT permitted
-        },
-      );
-      await allowedServer.start(port: 0);
-      final allowedPort = allowedServer.boundPort!;
-      try {
-        final sseReq = await client.getUrl(
-          Uri.parse('http://127.0.0.1:$allowedPort/sse'),
+    test(
+      'tools/call for a tool outside the token allowlist is rejected',
+      () async {
+        final allowedRegistry = McpToolRegistry();
+        allowedRegistry.register(_EchoTool());
+        final allowedServer = McpSseServer(
+          registry: allowedRegistry,
+          toolAllowlist: {
+            'viewer-token': {'listOnly'}, // 'echo' is NOT permitted
+          },
         );
-        final sseRes = await sseReq.close();
-        final iter = StreamIterator(_sseFrames(sseRes));
-        await iter.moveNext().timeout(const Duration(seconds: 2));
-        final sessionId =
-            RegExp(r'sessionId=([^\s\n]+)').firstMatch(iter.current)!.group(1)!;
+        await allowedServer.start(port: 0);
+        final allowedPort = allowedServer.boundPort!;
+        try {
+          final sseReq = await client.getUrl(
+            Uri.parse('http://127.0.0.1:$allowedPort/sse'),
+          );
+          final sseRes = await sseReq.close();
+          final iter = StreamIterator(_sseFrames(sseRes));
+          await iter.moveNext().timeout(const Duration(seconds: 2));
+          final sessionId = RegExp(
+            r'sessionId=([^\s\n]+)',
+          ).firstMatch(iter.current)!.group(1)!;
 
-        final postReq = await client.postUrl(
-          Uri.parse(
-            'http://127.0.0.1:$allowedPort/message?sessionId=$sessionId',
-          ),
-        );
-        postReq.headers.set('Authorization', 'Bearer viewer-token');
-        postReq.headers.contentType = ContentType.json;
-        postReq.write(jsonEncode({
-          'jsonrpc': '2.0',
-          'id': 7,
-          'method': 'tools/call',
-          'params': {'name': 'echo', 'arguments': {'message': 'x'}},
-        }));
-        await postReq.close();
+          final postReq = await client.postUrl(
+            Uri.parse(
+              'http://127.0.0.1:$allowedPort/message?sessionId=$sessionId',
+            ),
+          );
+          postReq.headers.set('Authorization', 'Bearer viewer-token');
+          postReq.headers.contentType = ContentType.json;
+          postReq.write(
+            jsonEncode({
+              'jsonrpc': '2.0',
+              'id': 7,
+              'method': 'tools/call',
+              'params': {
+                'name': 'echo',
+                'arguments': {'message': 'x'},
+              },
+            }),
+          );
+          await postReq.close();
 
-        final got = await iter.moveNext().timeout(const Duration(seconds: 3));
-        expect(got, isTrue);
-        final msgData = iter.current;
-        final dataMatch =
-            RegExp(r'^data: (.+)$', multiLine: true).firstMatch(msgData)!;
-        final resp = jsonDecode(dataMatch.group(1)!) as Map<String, dynamic>;
-        expect(resp['error'], isNotNull);
-        expect(resp['error']['code'], -32000);
-        expect(resp['error']['message'], contains('not permitted'));
-        await iter.cancel();
-      } finally {
-        await allowedServer.stop();
-      }
-    });
+          final got = await iter.moveNext().timeout(const Duration(seconds: 3));
+          expect(got, isTrue);
+          final msgData = iter.current;
+          final dataMatch = RegExp(
+            r'^data: (.+)$',
+            multiLine: true,
+          ).firstMatch(msgData)!;
+          final resp = jsonDecode(dataMatch.group(1)!) as Map<String, dynamic>;
+          expect(resp['error'], isNotNull);
+          expect(resp['error']['code'], -32000);
+          expect(resp['error']['message'], contains('not permitted'));
+          await iter.cancel();
+        } finally {
+          await allowedServer.stop();
+        }
+      },
+    );
 
     test('connection limit rejects new SSE streams with 503', () async {
       final limited = McpToolRegistry();
@@ -411,44 +422,50 @@ void main() {
       }
     });
 
-    test('stop() shuts down gracefully (isRunning false, port released)', () async {
-      final g = McpToolRegistry();
-      g.register(_EchoTool());
-      final srv = McpSseServer(registry: g);
-      await srv.start(port: 0);
-      final p = srv.boundPort!;
-      expect(srv.isRunning, isTrue);
-      await srv.stop();
-      expect(srv.isRunning, isFalse);
-      // After a graceful close the listener is gone; new requests fail.
-      int? status;
-      try {
-        final probe = await client.getUrl(
-          Uri.parse('http://127.0.0.1:$p/health'),
-        );
-        final res = await probe.close();
-        status = res.statusCode;
-      } on SocketException {
-        status = null;
-      }
-      expect(status, isNot(200));
-    });
+    test(
+      'stop() shuts down gracefully (isRunning false, port released)',
+      () async {
+        final g = McpToolRegistry();
+        g.register(_EchoTool());
+        final srv = McpSseServer(registry: g);
+        await srv.start(port: 0);
+        final p = srv.boundPort!;
+        expect(srv.isRunning, isTrue);
+        await srv.stop();
+        expect(srv.isRunning, isFalse);
+        // After a graceful close the listener is gone; new requests fail.
+        int? status;
+        try {
+          final probe = await client.getUrl(
+            Uri.parse('http://127.0.0.1:$p/health'),
+          );
+          final res = await probe.close();
+          status = res.statusCode;
+        } on SocketException {
+          status = null;
+        }
+        expect(status, isNot(200));
+      },
+    );
 
-    test('stop() terminates open SSE streams so clients see a clean end', () async {
-      final srv = McpSseServer(registry: McpToolRegistry());
-      await srv.start(port: 0);
-      final p = srv.boundPort!;
-      final sseReq = await client.getUrl(
-        Uri.parse('http://127.0.0.1:$p/sse'),
-      );
-      final sseRes = await sseReq.close();
-      // Keep the stream open and await its termination.
-      final done = sseRes.drain();
-      await srv.stop();
-      // The client must observe stream termination, not hang until it
-      // disconnects (regression: the SSE HTTP response was never closed).
-      await done.timeout(const Duration(seconds: 5));
-    });
+    test(
+      'stop() terminates open SSE streams so clients see a clean end',
+      () async {
+        final srv = McpSseServer(registry: McpToolRegistry());
+        await srv.start(port: 0);
+        final p = srv.boundPort!;
+        final sseReq = await client.getUrl(
+          Uri.parse('http://127.0.0.1:$p/sse'),
+        );
+        final sseRes = await sseReq.close();
+        // Keep the stream open and await its termination.
+        final done = sseRes.drain();
+        await srv.stop();
+        // The client must observe stream termination, not hang until it
+        // disconnects (regression: the SSE HTTP response was never closed).
+        await done.timeout(const Duration(seconds: 5));
+      },
+    );
   });
 }
 
