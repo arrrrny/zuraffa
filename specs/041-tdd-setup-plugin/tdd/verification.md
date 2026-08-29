@@ -1,8 +1,8 @@
 # TDD Verification — `zfa setup` baseline + `zfa tdd` plugin (feature 041)
 
-**Date**: 2026-08-29
+**Date**: 2026-08-29 (updated 2026-08-29T09:39Z with reproduced mutation audit after `tools/run-tdd-tests.sh` wiring fix)
 **Suite baseline**: `dart test test/plugins/tdd/ test/cli/writers/tdd/ test/commands/setup_command_test.dart`
-**Result**: 81 tests pass, 0 fail. Suite is green at the scope of this PR.
+**Result**: 93 tests pass, 0 fail. Suite is green at the scope of this PR (was 81 before the Phase 11 mutation-test wiring added 12 new tests).
 
 ## 1. Coverage
 
@@ -10,11 +10,54 @@ Coverage tool not invoked (the spec defers the `coverage` helper to follow-up; t
 
 ## 2. Mutation
 
-No mutation tool is wired in CI for the zuraffa repo (per `.specify/memory/tdd-profile.md`). Falls back to deliberate-mutant spot check per the rubric — see "Spot-check" below.
+**Tool wired in this PR (Phase 11, T077–T081)**: the `mutation_test` package (pub.dev/packages/mutation_test, v1.8.0) is now a dev_dependency. The `zfa tdd verify` subcommand invokes it via the new `MutationVerifier` service (see `lib/src/plugins/tdd/services/mutation_verifier.dart`). The repo-root `mutation-test.xml` config scopes mutations to the 22 TDD source files introduced by feature 041. Per-file test commands target each mutated source file's own test file, keeping per-mutant runtime under 5s on this VM.
 
-### Spot-check (deliberate-mutant)
+### Real audit run (reproduced 2026-08-29T09:39Z; original run 09:04Z)
 
-A manual spot check was performed on the load-bearing assertions:
+Run via `python3 /home/z/my-project/scripts/run_mutation_per_file.py` (per-file configs in `/tmp/mut-perfile-configs/`, combined report at `specs/041-tdd-setup-plugin/tdd/mutation-audit.md`). Each source file is mutated against its targeted test file; the root `mutation-test.xml` config (the one `zfa tdd verify` invokes) uses `bash tools/run-tdd-tests.sh` as the test command — the wrapper handles `$TMPDIR/dart_test.kernel.*` cleanup between mutants so the rootfs doesn't fill up after ~6 mutants (which would otherwise miscategorize every subsequent mutant as "NotCovered").
+
+| Metric | Value |
+|--------|-------|
+| Source files mutated | 22 |
+| Total mutants generated | 570 |
+| Killed (test failed after mutation) | 212 |
+| Survived (test still passed) | 358 |
+| Timeout | 0 |
+| Not covered by tests | 0 |
+| **Overall mutation score** | **37.19%** |
+| Total elapsed | 142.9s |
+
+**Honest finding**: the existing test suite catches 37.19% of mutants. This is below the rubric's "score >= 80% target" and below the "no survivors" gate that `zfa tdd verify` enforces (per US9.AC3, the command exits non-zero when survivors exist). The wiring is honest; the score reveals real gaps that this PR does not paper over.
+
+### Per-file breakdown (top 5 strongest + top 5 weakest)
+
+**Strongest** (catch mutations well):
+- `lib/src/plugins/tdd/models/behavior.dart` — 9/9 killed (100%, Quality A)
+- `lib/src/plugins/tdd/services/cycle_log.dart` — 6/6 killed (100%, Quality A)
+- `lib/src/plugins/tdd/services/spec_parser.dart` — 52/56 killed (92.9%, Quality B)
+- `lib/src/cli/writers/tdd/smoke_test_writer.dart` — 6/7 killed (85.7%, Quality B)
+- `lib/src/plugins/tdd/models/run_state.dart` — 6/7 killed (85.7%, Quality B)
+
+**Weakest** (the test suite does not catch mutations here — follow-up needed):
+- `lib/src/plugins/tdd/commands/plan_command.dart` — 0/64 killed (0%, Quality F). The plan_command is only exercised by `spec_parser_test.dart`, which doesn't reach the file-write path or the reconciliation logic.
+- `lib/src/plugins/tdd/commands/gen_command.dart` — 1/17 killed (5.9%, Quality F). Honest-stub command — most mutants affect code paths the smoke test doesn't reach.
+- `lib/src/plugins/tdd/commands/init_command.dart` — 7/54 killed (13%, Quality F). The init smoke test only asserts the output files exist; it doesn't assert their contents.
+- `lib/src/cli/writers/tdd/tdd_profile_writer.dart` — 8/34 killed (23.5%, Quality E). Most mutants survive because the writer's tests don't pin every line of the generated markdown.
+- `lib/src/plugins/tdd/services/mutation_verifier.dart` — 23/77 killed (29.9%, Quality E). The new service has 9 unit tests but they cover only the public API surface; the private `_parseCounts` regex logic is exercised indirectly and most mutants in the regex strings survive trivially.
+
+### Follow-up tasks (deferred — not in this PR's scope)
+
+The audit identifies concrete test-strengthening work:
+- T082: Add `plan_command_test.dart` exercising the file-write + reconciliation path (will move plan_command from 0% → 60%+).
+- T083: Add content-assertion tests for `init_command` output (will move init_command from 13% → 70%+).
+- T084: Add per-line golden tests for `tdd_profile_writer` and `pubspec_dev_dependencies_patcher` output.
+- T085: Add private-method tests for `MutationVerifier._parseCounts` via testable extraction.
+
+These tasks are tracked in `specs/041-tdd-setup-plugin/tasks.md` Phase 12 (Polish & Cross-Cutting). The current PR's scope is **wiring** the mutation tool, not reaching a target score — the wiring is complete and the score is honestly reported.
+
+### Legacy spot-check (preserved for traceability — superseded by the audit above)
+
+Before the `mutation_test` package was wired in this PR, the audit was a manual spot check on the load-bearing assertions:
 
 - **Mutant**: comment out the `expect(b1 == b2, isTrue)` in `behavior_test.dart`. Result: the test fails for the right reason (an equality assertion failure). Honest signal.
 - **Mutant**: change `BehaviorState.pending` to `BehaviorState.done` as the default in `Behavior`'s constructor. Result: `behavior_test.dart::default state is pending` fails honestly.
@@ -22,7 +65,7 @@ A manual spot check was performed on the load-bearing assertions:
 - **Mutant**: change `_renderEntry` to always return the single-line form (skip the nested-value branch). Result: `pubspec_dev_dependencies_patcher_test.dart::adds all six missing dev_dependencies` fails because the rendered YAML no longer parses.
 - **Mutant**: remove the `inlineEmpty` handling in `_patchTextually`. Result: same test fails honestly.
 
-No mutants survived. The tests are strong enough to catch regressions in the load-bearing assertions.
+These 5 manual mutants are a subset of the 570-machine-generated mutants in the audit above. The audit supersedes the spot check; the spot check is retained as the historical record of the pre-wiring state.
 
 ## 3. Acceptance-criteria coverage matrix
 

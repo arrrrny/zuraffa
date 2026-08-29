@@ -29,6 +29,52 @@ void main() {
     }
   });
 
+  test('zfa tdd --help describes verify as the mutation audit', () async {
+    final runner = CliRunner(exitOnCompletion: false);
+    final out = await runner.runCapturing(['tdd', '--help']);
+    // Phase 11 (T080) — `zfa tdd verify` is now a real audit, not a stub.
+    // The verify line must mention mutation_test and must NOT carry the
+    // "NOT YET IMPLEMENTED" misfire-stop suffix that the other subcommands
+    // still carry (gen/make/refactor/run/verify-red are still honest
+    // stubs pending future PRs).
+    expect(out, contains('mutation_test'));
+    // Extract the `verify` line specifically.
+    final verifyLine = out
+        .split('\n')
+        .firstWhere(
+          (line) => line.trimLeft().startsWith('verify '),
+          orElse: () => '',
+        );
+    expect(verifyLine, isNotEmpty, reason: 'verify subcommand must be listed');
+    expect(verifyLine.toLowerCase(), contains('mutation_test'));
+    expect(verifyLine.toLowerCase(), isNot(contains('not yet implemented')));
+  });
+
+  test(
+    'zfa tdd verify rejects a path-shaped --feature before auditing',
+    () async {
+      final tmpDir = Directory.systemTemp.createTempSync('zfa_tdd_verify_');
+      final prev = Directory.current;
+      try {
+        Directory.current = tmpDir;
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'verify',
+          '--feature',
+          '../../etc',
+        ]);
+        expect(out, contains('invalid --feature'));
+        // Rejected up front: the runner never announced a start, so no
+        // multi-minute audit is spent before an unusable flag is caught.
+        expect(out, isNot(contains('running mutation_test')));
+      } finally {
+        Directory.current = prev;
+        if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
+      }
+    },
+  );
+
   test('zfa tdd plan on a missing spec exits non-zero', () async {
     final runner = CliRunner(exitOnCompletion: false);
     final out = await runner.runCapturing(['tdd', 'plan', 'does-not-exist']);
