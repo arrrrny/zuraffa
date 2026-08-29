@@ -48,10 +48,7 @@ void main() {
 
     test('plugin registers the three flagship demo tools', () {
       final names = mcp.listTools().map((t) => t.name).toSet();
-      expect(
-        names,
-        containsAll(['fetch', 'print_pdf', 'take_screenshot']),
-      );
+      expect(names, containsAll(['fetch', 'print_pdf', 'take_screenshot']));
     });
 
     test('tools/list exposes all three flagship tools', () async {
@@ -152,10 +149,7 @@ void main() {
         'jsonrpc': '2.0',
         'id': 6,
         'method': 'tools/call',
-        'params': {
-          'name': 'fetch',
-          'arguments': {},
-        },
+        'params': {'name': 'fetch', 'arguments': {}},
       });
       final result = resp['result'] as Map<String, dynamic>;
       expect(result['isError'], isTrue);
@@ -172,51 +166,56 @@ void main() {
       expect(err['code'], -32602);
     });
 
-    test('full initialize -> tools/list -> tools/call -> shutdown handshake',
-        () async {
-      // Drive a full agent handshake: init, list, call, shutdown.
-      final lines = [
-        jsonEncode({'jsonrpc': '2.0', 'id': 10, 'method': 'initialize'}),
-        jsonEncode({'jsonrpc': '2.0', 'id': 11, 'method': 'tools/list'}),
-        jsonEncode({
-          'jsonrpc': '2.0',
-          'id': 12,
-          'method': 'tools/call',
-          'params': {
-            'name': 'take_screenshot',
-            'arguments': {'url': 'https://example.com'},
-          },
-        }),
-        jsonEncode({'jsonrpc': '2.0', 'id': 13, 'method': 'shutdown'}),
-      ];
-      final input = Stream<List<int>>.fromIterable(
-        lines.map((l) => utf8.encode('$l\n')),
-      );
-      final localOut = StringBuffer();
-      final localServer = McpStdioServer(
-        registry: registry,
-        inputStream: input,
-        outputSink: localOut,
-      );
-      await localServer.run();
-      final responses = localOut
-          .toString()
-          .trim()
-          .split('\n')
-          .map((l) => jsonDecode(l) as Map<String, dynamic>)
-          .toList();
+    test(
+      'full initialize -> tools/list -> tools/call -> shutdown handshake',
+      () async {
+        // Drive a full agent handshake: init, list, call, shutdown.
+        final lines = [
+          jsonEncode({'jsonrpc': '2.0', 'id': 10, 'method': 'initialize'}),
+          jsonEncode({'jsonrpc': '2.0', 'id': 11, 'method': 'tools/list'}),
+          jsonEncode({
+            'jsonrpc': '2.0',
+            'id': 12,
+            'method': 'tools/call',
+            'params': {
+              'name': 'take_screenshot',
+              'arguments': {'url': 'https://example.com'},
+            },
+          }),
+          jsonEncode({'jsonrpc': '2.0', 'id': 13, 'method': 'shutdown'}),
+        ];
+        final input = Stream<List<int>>.fromIterable(
+          lines.map((l) => utf8.encode('$l\n')),
+        );
+        final localOut = StringBuffer();
+        final localServer = McpStdioServer(
+          registry: registry,
+          inputStream: input,
+          outputSink: localOut,
+        );
+        await localServer.run();
+        final responses = localOut
+            .toString()
+            .trim()
+            .split('\n')
+            .map((l) => jsonDecode(l) as Map<String, dynamic>)
+            .toList();
 
-      expect(responses.length, 4);
-      // initialize
-      expect((responses[0]['result'] as Map)['protocolVersion'], '2024-11-05');
-      // tools/list — 3 tools
-      final tools = (responses[1]['result'] as Map)['tools'] as List;
-      expect(tools.length, 3);
-      // tools/call — takeScreenshot result
-      final callResult = responses[2]['result'] as Map<String, dynamic>;
-      expect(callResult.containsKey('isError'), isFalse);
-      // shutdown
-      expect(responses[3]['result'], {});
-    });
+        expect(responses.length, 4);
+        // initialize
+        expect(
+          (responses[0]['result'] as Map)['protocolVersion'],
+          '2024-11-05',
+        );
+        // tools/list — 3 tools
+        final tools = (responses[1]['result'] as Map)['tools'] as List;
+        expect(tools.length, 3);
+        // tools/call — takeScreenshot result
+        final callResult = responses[2]['result'] as Map<String, dynamic>;
+        expect(callResult.containsKey('isError'), isFalse);
+        // shutdown
+        expect(responses[3]['result'], {});
+      },
+    );
   });
 }

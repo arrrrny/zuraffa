@@ -39,10 +39,7 @@ class FetchUrlTool implements McpTool {
   Map<String, dynamic> get inputSchema => const {
     'type': 'object',
     'properties': {
-      'url': {
-        'type': 'string',
-        'description': 'HTTP(S) URL to fetch.',
-      },
+      'url': {'type': 'string', 'description': 'HTTP(S) URL to fetch.'},
     },
     'required': ['url'],
   };
@@ -79,10 +76,7 @@ class PrintPdfTool implements McpTool {
   Map<String, dynamic> get inputSchema => const {
     'type': 'object',
     'properties': {
-      'url': {
-        'type': 'string',
-        'description': 'HTTP(S) URL to render to PDF.',
-      },
+      'url': {'type': 'string', 'description': 'HTTP(S) URL to render to PDF.'},
       'format': {
         'type': 'string',
         'enum': ['a4', 'letter'],
@@ -135,10 +129,7 @@ class TakeScreenshotTool implements McpTool {
   Map<String, dynamic> get inputSchema => const {
     'type': 'object',
     'properties': {
-      'url': {
-        'type': 'string',
-        'description': 'HTTP(S) URL to screenshot.',
-      },
+      'url': {'type': 'string', 'description': 'HTTP(S) URL to screenshot.'},
       'width': {
         'type': 'integer',
         'default': 1280,
