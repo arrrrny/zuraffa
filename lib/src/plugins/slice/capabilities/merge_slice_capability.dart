@@ -9,6 +9,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../core/context/progress_reporter.dart';
 import '../../../core/plugin_system/capability.dart';
 import '../capabilities/cut_slice_capability.dart';
 import '../generators/manifest_writer.dart';
@@ -125,6 +126,9 @@ class MergeSliceCapability implements ZuraffaCapability {
     final confirmDelete =
         args['confirmSharedDelete'] as bool Function(String)? ??
         (_) => confirmAll;
+    final progress =
+        args['progressReporter'] as ProgressReporter? ??
+        NullProgressReporter();
 
     final sandboxDir = CutSliceCapability.sandboxDirFor(projectRoot, sliceName);
     if (!Directory(sandboxDir).existsSync()) {
@@ -144,6 +148,7 @@ class MergeSliceCapability implements ZuraffaCapability {
       return ExecutionResult(success: false, message: e.message);
     }
 
+    progress.update('comparing ${manifest.files.length} manifest file(s)');
     final report = await _merger.merge(
       manifest: manifest,
       sandboxDir: sandboxDir,
@@ -151,6 +156,7 @@ class MergeSliceCapability implements ZuraffaCapability {
       confirmSharedOverwrite: confirmOverwrite,
       confirmSharedDelete: confirmDelete,
     );
+    progress.update('resolving merge decisions');
 
     final success = report.noChanges || report.clean;
     return ExecutionResult(

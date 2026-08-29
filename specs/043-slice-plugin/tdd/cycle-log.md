@@ -457,3 +457,45 @@ existed and failed before the implementation.
 - notes: also marked A1-A9 and U1-U9 as DONE in test-list.md — those rows
   were implemented in cycles 7-13 but the earlier cycles only ticked
   tasks.md, never the test-list rows (bookkeeping debt, not new work).
+
+## Cycle 20: T071-T076 - config integration, subcommand help, verbose, progress, e2e
+
+- tests: `test/plugins/slice/slice_polish_test.dart` (new, 9),
+  `test/plugins/slice/slice_e2e_test.dart` (new, 1), plus the configKey/
+  configSchema assertions in `slice_plugin_registration_test.dart` style
+  (inside slice_polish_test.dart).
+- red: `dart test test/plugins/slice/slice_polish_test.dart
+  test/plugins/slice/slice_e2e_test.dart` -> +0 -10 (configKey null, no
+  per-subcommand help, no --verbose, no progress markers; the e2e test
+  additionally tripped a test bug of its own — `singleWhere` over entity
+  files that are legitimately multiple — fixed by asserting every entity
+  file is shared instead of exactly one).
+- green: SlicePlugin configKey 'sliceByDefault' + config schema
+  (sliceByDefault, default-depth); focused `--help` per subcommand with
+  examples (central dispatch before the switch, _subcommandHelp map);
+  `--verbose` on cut (manifest files with ownership, boundaries, generated
+  harness) and merge (per-file decisions); ProgressReporter (started /
+  phase updates / completed / failed) wired through cut, merge, and export
+  via an injectable `progressReporter` argument on the capabilities;
+  e2e lifecycle test mirroring quickstart scenarios 1 and 2 (cut → verify →
+  agent edit → merge, asserting the edit lands, exactly one file merged,
+  and the sandbox is cleaned up). `dart test test/plugins/slice/` ->
+  145 passed.
+- refactor: fixed 8 analyzer warnings/infos in the slice tree accumulated
+  over cycles 16-19 (unused import/field, unnecessary non-null assertion
+  and interpolation braces, dartdoc angle brackets) — the slice tree now
+  analyzes clean.
+- deviation: T073 names ImportGraphWalker/CutSliceCapability/SliceMerger
+  internals; verbose logging is implemented at the command layer from
+  capability result data + manifests (the walk's phase-level progress IS
+  reported through the capability). Per-node traversal logging was judged
+  too noisy to be useful; recorded here per the honesty rule.
+- T076 mapping: quickstart scenario 1+2 -> slice_e2e_test.dart; scenario 3
+  -> slice_list_inspect_test.dart; scenario 4 -> service_locator_analyzer
+  _test.dart + slice_cut_integration_test.dart; scenario 5 ->
+  slice_export_integration_test.dart. All five scenarios have automated
+  coverage; no manual run performed (no Flutter SDK in this environment —
+  scenario steps that shell out to `zfa` are exercised through the command
+  API with the fixture copy helper, as every other integration test in the
+  repo does).
+- commit: (this commit)

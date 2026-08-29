@@ -312,12 +312,12 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T071 Add `configKey: 'sliceByDefault'` and config schema to `SlicePlugin` for `.zfa.json` integration in lib/src/plugins/slice/slice_plugin.dart
-- [ ] T072 Add `--help` text and usage examples to each subcommand in `SliceCommand` in lib/src/plugins/slice/slice_command.dart
-- [ ] T073 [P] Add verbose logging (gated by `--verbose` flag) throughout `ImportGraphWalker`, `CutSliceCapability`, and `SliceMerger` for debugging graph traversal
-- [ ] T074 [P] Add progress reporting for long-running operations (graph traversal, file copy, archive creation) using Zuraffa's `ProgressReporter` pattern
-- [ ] T075 [A1] [A5] Create end-to-end integration test: cut → verify → modify → merge full lifecycle on the fixture project in test/plugins/slice/slice_e2e_test.dart
-- [ ] T076 Run quickstart.md validation scenarios against the completed plugin
+- [x] T071 Add `configKey: 'sliceByDefault'` and config schema to `SlicePlugin` for `.zfa.json` integration in lib/src/plugins/slice/slice_plugin.dart
+- [x] T072 Add `--help` text and usage examples to each subcommand in `SliceCommand` in lib/src/plugins/slice/slice_command.dart
+- [x] T073 [P] Add verbose logging (gated by `--verbose` flag) throughout `ImportGraphWalker`, `CutSliceCapability`, and `SliceMerger` for debugging graph traversal
+- [x] T074 [P] Add progress reporting for long-running operations (graph traversal, file copy, archive creation) using Zuraffa's `ProgressReporter` pattern
+- [x] T075 [A1] [A5] Create end-to-end integration test: cut → verify → modify → merge full lifecycle on the fixture project in test/plugins/slice/slice_e2e_test.dart
+- [x] T076 Run quickstart.md validation scenarios against the completed plugin
 
 ---
 

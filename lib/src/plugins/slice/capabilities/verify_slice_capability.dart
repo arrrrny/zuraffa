@@ -11,7 +11,6 @@ import 'dart:io';
 
 import '../../../core/plugin_system/capability.dart';
 import '../capabilities/cut_slice_capability.dart';
-import '../generators/manifest_writer.dart';
 import '../verifier/analyze_runner.dart';
 import '../verifier/import_verifier.dart';
 
@@ -28,14 +27,11 @@ class VerifySliceCapability implements ZuraffaCapability {
   VerifySliceCapability({
     ImportVerifier? importVerifier,
     AnalyzeRunner? analyzeRunner,
-    ManifestWriter? manifestWriter,
   }) : _importVerifier = importVerifier ?? ImportVerifier(),
-       _analyzeRunner = analyzeRunner ?? AnalyzeRunner(),
-       _manifestWriter = manifestWriter ?? ManifestWriter();
+       _analyzeRunner = analyzeRunner ?? AnalyzeRunner();
 
   final ImportVerifier _importVerifier;
   final AnalyzeRunner _analyzeRunner;
-  final ManifestWriter _manifestWriter;
 
   @override
   String get name => 'verify_slice';
@@ -103,7 +99,7 @@ class VerifySliceCapability implements ZuraffaCapability {
         success: false,
         message:
             'No slice named "$sliceName" found at '
-            '${sandboxDir}. Run `zfa slice cut $sliceName --entry <point>` '
+            '$sandboxDir. Run `zfa slice cut $sliceName --entry <point>` '
             'first.',
       );
     }

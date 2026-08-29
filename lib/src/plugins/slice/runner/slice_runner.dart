@@ -11,7 +11,6 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../capabilities/cut_slice_capability.dart';
-import '../generators/manifest_writer.dart';
 import '../verifier/import_verifier.dart';
 
 /// Process execution seam (injected in tests; defaults to [Process.run]).

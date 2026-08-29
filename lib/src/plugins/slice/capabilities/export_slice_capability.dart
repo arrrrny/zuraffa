@@ -11,6 +11,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../../../core/context/progress_reporter.dart';
 import '../../../core/plugin_system/capability.dart';
 import '../capabilities/cut_slice_capability.dart';
 import '../exporter/github_exporter.dart';
@@ -105,6 +106,9 @@ class ExportSliceCapability implements ZuraffaCapability {
     final format = SliceExportFormat.parse(args['format'] as String);
     final repo = args['repo'] as String?;
     final ghLauncher = args['ghLauncher'] as GhLauncher?;
+    final progress =
+        args['progressReporter'] as ProgressReporter? ??
+        NullProgressReporter();
 
     final sandboxDir = CutSliceCapability.sandboxDirFor(projectRoot, sliceName);
     if (!Directory(sandboxDir).existsSync()) {
@@ -118,6 +122,7 @@ class ExportSliceCapability implements ZuraffaCapability {
     }
 
     // Verification gate (FR-020): never export a broken slice.
+    progress.update('verifying the slice');
     final report = await _importVerifier.verify(
       sandboxDir: sandboxDir,
       projectRoot: projectRoot,
@@ -150,6 +155,7 @@ class ExportSliceCapability implements ZuraffaCapability {
       for (final generated in manifest.generatedFiles)
         if (generated.endsWith('.dart')) generated,
     ];
+    progress.update('filtering pubspec.yaml down to the slice');
     final pubspecContent = await _pubspecFilter.filter(
       projectRoot: projectRoot,
       sandboxDir: sandboxDir,
@@ -157,6 +163,7 @@ class ExportSliceCapability implements ZuraffaCapability {
     );
 
     if (format == SliceExportFormat.tarGz) {
+      progress.update('building the tar.gz archive');
       final outputPath = _exportsPath(projectRoot, sliceName);
       final archivePath = await _tarballExporter.export(
         sandboxDir: sandboxDir,
@@ -173,6 +180,7 @@ class ExportSliceCapability implements ZuraffaCapability {
       );
     }
 
+    progress.update('creating and pushing the GitHub repository');
     final exporter = ghLauncher != null
         ? GithubExporter(ghLauncher: ghLauncher)
         : _githubExporter;

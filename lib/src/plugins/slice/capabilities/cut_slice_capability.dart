@@ -13,6 +13,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/ast/file_parser.dart';
+import '../../../core/context/progress_reporter.dart';
 import '../../../core/plugin_system/capability.dart';
 import '../engine/import_graph_walker.dart';
 import '../engine/ownership_classifier.dart';
@@ -141,6 +142,9 @@ class CutSliceCapability implements ZuraffaCapability {
     final sliceName = args['name'] as String;
     final entries = (args['entries'] as List).cast<String>();
     final depth = SliceDepth.parse(args['depth'] as String? ?? 'feature');
+    final progress =
+        args['progressReporter'] as ProgressReporter? ??
+        NullProgressReporter();
 
     final sandboxDir = sandboxDirFor(projectRoot, sliceName);
     if (Directory(sandboxDir).existsSync()) {
@@ -167,6 +171,9 @@ class CutSliceCapability implements ZuraffaCapability {
       return ExecutionResult(success: false, message: e.message);
     }
 
+    progress.update(
+      'walking the import graph from ${entryPaths.length} entry point(s)',
+    );
     final walkResult = await _walker.walk(
       entries: entryPaths,
       projectRoot: projectRoot,
@@ -192,6 +199,7 @@ class CutSliceCapability implements ZuraffaCapability {
       );
     }
     manifestFiles.sort((a, b) => a.relativePath.compareTo(b.relativePath));
+    progress.update('generating boundary mocks');
 
     // Boundary mocks (FR-003) — depth-aware via the generator (U31).
     final generatedFiles = <String>[];
@@ -296,6 +304,8 @@ class CutSliceCapability implements ZuraffaCapability {
     );
 
     // Copy the mirrored tree.
+    progress.update('mirroring files into the sandbox');
+
     for (final file in manifestFiles) {
       final source = File(p.join(projectRoot, file.relativePath));
       final target = p.join(sandboxDir, file.relativePath);
@@ -334,6 +344,7 @@ class CutSliceCapability implements ZuraffaCapability {
     generatedFiles.add('slice.yaml');
     manifest = manifest.copyWith(generatedFiles: generatedFiles);
 
+    progress.update('writing slice.yaml, SLICE.md, and the entry point');
     await _manifestWriter.write(manifest, sandboxDir);
 
     return ExecutionResult(

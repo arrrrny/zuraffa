@@ -130,7 +130,7 @@ class PubspecFilter {
       buffer.writeln('$pad$key:');
       for (final item in value) {
         if (item is Map) {
-          buffer.write('${pad}  -');
+          buffer.write('$pad  -');
           var first = true;
           item.forEach((k, v) {
             if (first) {
@@ -143,7 +143,7 @@ class PubspecFilter {
             }
           });
         } else {
-          buffer.writeln('${pad}  - ${_scalar(item)}');
+          buffer.writeln('$pad  - ${_scalar(item)}');
         }
       }
     } else {

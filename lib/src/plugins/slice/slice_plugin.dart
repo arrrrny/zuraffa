@@ -37,6 +37,30 @@ class SlicePlugin extends ZuraffaPlugin implements CliAwarePlugin {
   @override
   List<String> get runAfter => const [];
 
+  /// `.zfa.json` integration: `"sliceByDefault": true` enables the slice
+  /// plugin in the default plugin set (T071).
+  @override
+  String? get configKey => 'sliceByDefault';
+
+  /// Schema of the slice plugin's `.zfa.json` section (T071).
+  @override
+  JsonSchema get configSchema => {
+    'type': 'object',
+    'properties': {
+      'sliceByDefault': {
+        'type': 'boolean',
+        'default': false,
+        'description': 'Enable the slice plugin in the default toolchain',
+      },
+      'default-depth': {
+        'type': 'string',
+        'enum': ['view', 'presentation', 'feature', 'full'],
+        'default': 'feature',
+        'description': 'Extraction depth used when --depth is omitted',
+      },
+    },
+  };
+
   /// Capabilities exposed by this plugin.
   @override
   List<ZuraffaCapability> get capabilities => [
