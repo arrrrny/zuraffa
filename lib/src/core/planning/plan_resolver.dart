@@ -211,6 +211,14 @@ class PlanResolver {
     if (_isTrue(options['shadcn'])) {
       selection.add('shadcn');
     }
+    // 029-agent-plugin-mcp-wrappers: the --agent flag surfaces the
+    // AgentPlugin in the active plan. The config-default path
+    // (`isPluginEnabledByDefault('agent')`) and the existing --no-agent
+    // exclusion loop below provide the four precedence combinations
+    // for free (FR-003, SC-004).
+    if (_isTrue(options['agent'])) {
+      selection.add('agent');
+    }
 
     return selection;
   }

@@ -34,6 +34,7 @@ import '../plugins/module/module_plugin.dart';
 import '../plugins/mcp/mcp_plugin.dart';
 import '../plugins/cli/cli_plugin.dart' as cli_gen;
 import '../plugins/benchmark/benchmark_plugin.dart';
+import '../agent/plugin/agent_plugin.dart';
 
 class PluginConfig {
   final Set<String> disabled;
@@ -151,6 +152,14 @@ class PluginLoader {
       // no Flutter. Provides the extensible benchmark contract framework
       // and the `zfa benchmark` CLI command (FR-011, FR-014, FR-015).
       BenchmarkPlugin(),
+      // 029-agent-plugin-mcp-wrappers: emits one McpTool wrapper per
+      // generated UseCase when invoked via `zfa make Foo --agent` (or
+      // when `agentByDefault: true` is set in .zfa.json). The --agent
+      // flag is auto-registered by make_command._addPluginOptions because
+      // the plugin exists in this list; the explicit-flag-wins
+      // precedence is enforced by the existing plan_resolver exclusion
+      // path (FR-003).
+      AgentPlugin(outputDir: outputDir, options: options),
     ];
   }
 }
