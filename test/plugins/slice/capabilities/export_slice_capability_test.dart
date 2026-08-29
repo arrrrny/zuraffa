@@ -32,7 +32,7 @@ void main() {
       final cutCommand = SliceCommand(projectRoot: projectRoot);
       final cutRunner = CommandRunner<void>('zfa', 'test')
         ..addCommand(cutCommand);
-      await captureOutput(
+      final cutOutput = await captureOutput(
         () => cutRunner.run([
           'slice',
           'cut',
@@ -41,15 +41,21 @@ void main() {
           'product',
         ]),
       );
+      // Fail fast with the cut's own output when the fixture is broken
+      // (CI caught this: a missing package config made cut fail silently
+      // and the delete below crashed with PathNotFoundException).
+      expect(cutCommand.exitCode, equals(0), reason: cutOutput);
       final archivePath =
           '$projectRoot/.zuraffa/exports/product_feature.tar.gz';
       expect(File(archivePath).existsSync(), isFalse);
 
       // Break the slice: delete a mirrored file so verification fails.
-      File(
+      final mirrored = File(
         '$projectRoot/.zuraffa/slices/product_feature/'
         'lib/src/presentation/pages/product/product_controller.dart',
-      ).deleteSync();
+      );
+      expect(mirrored.existsSync(), isTrue, reason: cutOutput);
+      mirrored.deleteSync();
 
       final exportCommand = SliceCommand(projectRoot: projectRoot);
       final exportRunner = CommandRunner<void>('zfa', 'test')

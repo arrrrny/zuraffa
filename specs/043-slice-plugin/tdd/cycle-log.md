@@ -544,3 +544,27 @@ existed and failed before the implementation.
   `dart test test/cli/standard/extension_command_parity_test.dart` -> 2
   passed.
 - commit: (this commit)
+
+## Cycle 22: CI fix — commit the fixture's package_config.json
+
+- trigger: the PR's `dart_core` CI job failed 30+ slice tests with
+  `Error: No package configuration found at
+  /tmp/slice_fixture_*/.dart_tool/package_config.json` while every local
+  run was green.
+- root cause: the fixture's `.dart_tool/package_config.json` was created
+  during cycle 9 but never committed — `.gitignore` line 2 (`.dart_tool/`)
+  excludes it, so the local working copy (untracked file present) passed
+  while CI's fresh checkout (no such file) failed. The walker's
+  PackageResolver reads that file to resolve `package:zik_zak/...`
+  imports; without it, every cut/walk-dependent test failed.
+- fix: `.gitignore` exception re-including the fixture's package config
+  (all its rootUris are relative, so it works in any copy), the file
+  committed, and the U58 test hardened to assert cut success (exit 0) and
+  the mirrored file's existence BEFORE deleting it — so a broken fixture
+  fails with the cut's own output instead of a PathNotFoundException.
+- proof: with the file moved away, `dart test
+  test/plugins/slice/engine/import_graph_walker_test.dart` fails exactly
+  as CI did; restored, it passes (13/13).
+- green: `dart test test/plugins/slice/` -> 145 passed; format 0 changed;
+  analyze clean.
+- commit: (this commit)

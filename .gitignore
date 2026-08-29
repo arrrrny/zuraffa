@@ -1,5 +1,10 @@
 .DS_Store
 .dart_tool/
+# The slice fixture (spec 043) needs its resolved package config committed:
+# the walker's PackageResolver reads it, and CI has no local .dart_tool for
+# the fixture. All its rootUris are relative, so it works in any copy.
+!test/fixtures/slice_test_project/.dart_tool/
+!test/fixtures/slice_test_project/.dart_tool/package_config.json
 .idea/
 .packages
 .pub/
