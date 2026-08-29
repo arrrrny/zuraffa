@@ -14,6 +14,14 @@ abstract class ResourceHandle {
   /// Disposes the resource. MUST be safe to call multiple times (idempotent).
   /// Returns a [Future] that completes once the resource is released.
   Future<void> dispose();
+
+  /// Whether the resource has been disposed. Read by the post-cancellation
+  /// leak assertion ([CancelToken.leaked], FR-006) to detect handles that
+  /// failed to release within the grace period. Real implementations MUST
+  /// override this to reflect their actual disposal state; the default
+  /// (`false`) assumes not disposed so a non-overriding implementation is
+  /// reported as leaked rather than silently passed as cleanly released.
+  bool get isDisposed => false;
 }
 
 /// A test-friendly [ResourceHandle] that records dispose calls.
@@ -27,6 +35,9 @@ class FakeResourceHandle implements ResourceHandle {
 
   int disposeCallCount = 0;
   bool get wasDisposed => disposeCallCount > 0;
+
+  @override
+  bool get isDisposed => wasDisposed;
 
   @override
   Future<void> dispose() async {
@@ -47,6 +58,9 @@ class LeakingResourceHandle implements ResourceHandle {
 
   bool disposed = false;
   Completer<void>? _stall;
+
+  @override
+  bool get isDisposed => disposed;
 
   void completeDispose() {
     disposed = true;

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/agent/kernel/agent_kernel.dart';
+import 'package:zuraffa/src/agent/kernel/resource_handle.dart';
 
 void main() {
   group('AgentKernel coalescing (FR-001, FR-002)', () {

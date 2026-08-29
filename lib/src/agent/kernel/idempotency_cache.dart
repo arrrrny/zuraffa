@@ -51,6 +51,9 @@ class IdempotencyCache {
   /// Stores [outcome] for [key] with TTL starting at [now].
   void store(MissionKey key, MissionOutcome outcome) {
     if (!enabled || ttl == Duration.zero) return;
+    // Only cache terminal successes; never freeze transient failures or
+    // cancellations behind the idempotency TTL.
+    if (outcome is OutcomeFailed || outcome is OutcomeCancelledPartial) return;
     final now = DateTime.now();
     final expiresAt = now.add(ttl);
     if (_entries.length >= maxEntries && !_entries.containsKey(key)) {

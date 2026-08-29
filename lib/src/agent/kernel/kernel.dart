@@ -85,6 +85,7 @@ class AgentKernel {
     final existing = _groups[canonical];
     if (existing != null) {
       existing.addSubscriber(mission.callerId);
+      _missionIdToKey[mission.id] = canonical;
       final sub = existing.events.listen(onEvent ?? (_) {});
       try {
         return await existing.done;
@@ -130,15 +131,16 @@ class AgentKernel {
     }
   }
 
-  /// Cancels a mission by id. Returns the salvage result (FR-003, FR-004,
+  /// Cancels a mission by id and returns the salvaged result (FR-003, FR-004,
   /// FR-005, FR-006).
   ///
-  /// Cancellation of the original caller does NOT cancel subscribers:
-  /// the [policy] decides whether to continue, escalate, or serve partials.
+  /// Cancelling the leading mission completes the whole coalescing group with
+  /// a `cancelled_partial` outcome; all subscribers (original + coalesced)
+  /// receive that salvaged outcome. Per-subscriber policies (continue /
+  /// escalate / serve-partials) are not yet wired up — see issue #388.
   Future<MissionOutcome> cancel(
-    String missionId, {
-    CancelPolicy policy = CancelPolicy.continue_,
-  }) async {
+    String missionId,
+  ) async {
     final canonical = _missionIdToKey[missionId];
     if (canonical == null) {
       throw StateError('Mission not found: $missionId');

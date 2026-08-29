@@ -1,5 +1,6 @@
 import 'package:test/test.dart';
 import 'package:zuraffa/src/agent/kernel/agent_kernel.dart';
+import 'package:zuraffa/src/agent/kernel/resource_handle.dart';
 
 void main() {
   group('IdempotencyCache (FR-007)', () {

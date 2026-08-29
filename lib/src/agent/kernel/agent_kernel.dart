@@ -26,7 +26,7 @@ library;
 export 'kernel_config.dart';
 export 'mission.dart';
 export 'mission_event.dart';
-export 'resource_handle.dart';
+export 'resource_handle.dart' hide FakeResourceHandle, LeakingResourceHandle;
 export 'mission_coalescer.dart';
 export 'cancellation.dart';
 export 'partial_salvage.dart';

@@ -42,16 +42,11 @@ class CancelToken {
 
   /// Returns true if [handle] failed to dispose within the grace period
   /// (FR-006 post-cancellation leak assertion).
-  bool leaked(ResourceHandle handle) {
-    if (handle is FakeResourceHandle) {
-      return !handle.wasDisposed;
-    }
-    if (handle is LeakingResourceHandle) {
-      return !handle.disposed;
-    }
-    // For unknown implementations, assume not leaked.
-    return false;
-  }
+  ///
+  /// Disposal state is read polymorphically from [ResourceHandle.isDisposed],
+  /// so the assertion applies to any implementation rather than only the test
+  /// fakes ([FakeResourceHandle]/[LeakingResourceHandle]).
+  bool leaked(ResourceHandle handle) => !handle.isDisposed;
 }
 
 /// Result of a cancellation sweep.

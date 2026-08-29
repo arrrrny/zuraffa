@@ -83,8 +83,9 @@ class CoalescingGroup {
         mission.status = MissionStatus.failed;
         emit(MissionEventFailed(mission.id, outcome.error, outcome.stackTrace));
       case OutcomeCachedServed():
-        mission.status = MissionStatus.completed;
-        emit(MissionEventCompleted(mission.id, outcome.cached));
+        // Unreachable: the cache is only read in submit(); a group is never
+        // completed with a cached outcome. Emit nothing misleading here.
+        break;
     }
     _done.complete(outcome);
     _controller.close();
