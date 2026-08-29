@@ -401,7 +401,7 @@ dependency_overrides:
       expect(out, contains('flutter create'));
     });
 
-    test('default --flutter pins SPM + platforms ios,android', () async {
+    test('default --flutter scaffolds ios,android (SPM is default)', () async {
       final runner = CommandRunner('zfa', 'test')..addCommand(SetupCommand());
       final prints = <String>[];
       await runZoned(
@@ -413,12 +413,13 @@ dependency_overrides:
       final cmd = prints.firstWhere((l) => l.contains('Would run: flutter'));
       expect(cmd, contains('--platforms ios'));
       expect(cmd, contains('--platforms android'));
-      expect(cmd, contains('--swift-package-manager'));
+      // Current Flutter uses SPM by default (no CocoaPods), so no flag is
+      // emitted and macos is not in the default set.
+      expect(cmd, isNot(contains('--swift-package-manager')));
       expect(cmd, isNot(contains('--platforms macos')));
     });
 
-    test('--platforms without ios does NOT add --swift-package-manager',
-        () async {
+    test('--platforms=macos overrides the ios,android default', () async {
       final runner = CommandRunner('zfa', 'test')..addCommand(SetupCommand());
       final prints = <String>[];
       await runZoned(
@@ -435,10 +436,11 @@ dependency_overrides:
       );
       final cmd = prints.firstWhere((l) => l.contains('Would run: flutter'));
       expect(cmd, contains('--platforms macos'));
-      expect(cmd, isNot(contains('--swift-package-manager')));
+      expect(cmd, isNot(contains('--platforms ios')));
+      expect(cmd, isNot(contains('--platforms android')));
     });
 
-    test('--platforms=ios still enables --swift-package-manager', () async {
+    test('--platforms=ios keeps ios only (no android, no SPM flag)', () async {
       final runner = CommandRunner('zfa', 'test')..addCommand(SetupCommand());
       final prints = <String>[];
       await runZoned(
@@ -454,7 +456,9 @@ dependency_overrides:
         ),
       );
       final cmd = prints.firstWhere((l) => l.contains('Would run: flutter'));
-      expect(cmd, contains('--swift-package-manager'));
+      expect(cmd, contains('--platforms ios'));
+      expect(cmd, isNot(contains('--platforms android')));
+      expect(cmd, isNot(contains('--swift-package-manager')));
     });
   });
 }

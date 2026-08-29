@@ -35,8 +35,9 @@ class SetupCommand extends Command<void> {
       negatable: false,
       help:
           'Create a Flutter app (default). Default platforms are ios,android; '
-          'pass --platforms to override. iOS always uses Swift Package Manager '
-          '(no CocoaPods), per the constitution.',
+          'pass --platforms to override. iOS uses Swift Package Manager by '
+          'default (CocoaPods was removed in current Flutter), per the '
+          'constitution.',
     );
     argParser.addFlag(
       'dart',
@@ -48,7 +49,7 @@ class SetupCommand extends Command<void> {
       valueHelp: 'ios,android',
       help:
           'Comma-separated platforms for `flutter create` (default: ios,android; '
-          'ignored with --dart). iOS implies --swift-package-manager.',
+          'ignored with --dart).',
     );
     argParser.addOption(
       'org',
@@ -371,18 +372,12 @@ class SetupCommand extends Command<void> {
     if (isFlutter) {
       // Default to mobile-first platforms (ios,android); override via
       // --platforms. The constitution (Principle V) requires iOS to be
-      // SPM-only (no CocoaPods), so pin --swift-package-manager whenever iOS
-      // is in the platform list — enforced at scaffold time, not by cleanup.
+      // SPM-only (no CocoaPods). Current Flutter (3.24+) scaffolds iOS with
+      // Swift Package Manager by default — CocoaPods was removed — so the
+      // rule holds out of the box and no extra flag is required.
       final effectivePlatforms =
           (platforms != null && platforms.isNotEmpty) ? platforms : 'ios,android';
-      final usesIos = effectivePlatforms
-          .split(',')
-          .map((p) => p.trim())
-          .contains('ios');
       final args = <String>['create', '--empty', appName];
-      if (usesIos) {
-        args.add('--swift-package-manager');
-      }
       for (final plat in effectivePlatforms.split(',')) {
         final trimmed = plat.trim();
         if (trimmed.isNotEmpty) {
@@ -396,12 +391,9 @@ class SetupCommand extends Command<void> {
         print('\n[1/5] Would run: flutter ${args.join(" ")}');
         return true;
       }
-      final platformLabel = usesIos
-          ? ' (platforms: $effectivePlatforms, SPM)'
-          : ' (platforms: $effectivePlatforms)';
       print(
         '\n[1/5] Creating Flutter app: $appName'
-        '$platformLabel'
+        ' (platforms: $effectivePlatforms)'
         '${org != null ? ' (org: $org)' : ''}',
       );
       if (verbose) print('   Running: flutter ${args.join(" ")}');
