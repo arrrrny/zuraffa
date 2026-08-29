@@ -7,66 +7,61 @@
 
 ## Summary
 
-Updated `zfa setup` so Flutter scaffolds default to `ios,android` and pin
-`--swift-package-manager` whenever iOS is in the platform list (enforcing the
-constitution's SPM-only rule at scaffold time). The "clean test environment per
-target" part (point 3 of the issue) was deliberately **out of scope** for this
-change — it overlaps companion issue #575, which owns the TDD baseline
-(`test/` + `tdd-profile.md`). Scope was confirmed with the user before coding.
+Reworked `zfa setup` into a thin pass-through wrapper around `flutter create` /
+`dart create`. The issue's proposed `--swift-package-manager` flag does not exist
+in current Flutter (3.24+ scaffolds iOS with Swift Package Manager by default —
+CocoaPods was removed), so it was dropped; the constitution's SPM-only rule holds
+out of the box. The hardcoded `ios,android` default was also removed so user input
+is never overridden. `--platforms`/`--org` forward as-is, and a `--` separator
+forwards any other `flutter create`/`dart create` flag verbatim.
+
+The "clean test environment per target" part (point 3) is **deferred to #575**.
 
 ## Changes
 
 | File | Change | Notes |
 |------|--------|-------|
-| `lib/src/commands/setup_command.dart` | modified | Default Flutter platforms `ios,android`; add `--swift-package-manager` when iOS present; updated usage line + `--flutter`/`--platforms` help text. |
-| `test/commands/setup_command_test.dart` | modified | 3 new dry-run assertions pinning default SPM+platforms, no-SPM for non-iOS, and SPM for `--platforms=ios`. |
+| `lib/src/commands/setup_command.dart` | modified | Removed hardcoded `ios,android` default + obsolete `--swift-package-manager`. `--platforms`/`--org` forward as-is. Added `--` passthrough forwarding arbitrary `flutter create`/`dart create` flags verbatim. Updated help text. |
+| `test/commands/setup_command_test.dart` | modified | Replaced SPM assertions with pass-through tests: default emits no `--platforms`; `--platforms=linux,ios` forwards verbatim; `--` forwards arbitrary flutter/dart flags. |
 
 ## Diff Highlights (optional)
 
-`_createApp` (Flutter branch) now computes a default platform set and pins SPM:
+`_createApp` now appends a verbatim pass-through list to the scaffold command and
+no longer injects defaults:
 
 ```dart
-final effectivePlatforms =
-    (platforms != null && platforms.isNotEmpty) ? platforms : 'ios,android';
-final usesIos = effectivePlatforms
-    .split(',')
-    .map((p) => p.trim())
-    .contains('ios');
 final args = <String>['create', '--empty', appName];
-if (usesIos) {
-  args.add('--swift-package-manager');
-}
-for (final plat in effectivePlatforms.split(',')) {
-  final trimmed = plat.trim();
-  if (trimmed.isNotEmpty) {
-    args.addAll(['--platforms', trimmed]);
+if (platforms != null && platforms.isNotEmpty) {
+  for (final plat in platforms.split(',')) {
+    final trimmed = plat.trim();
+    if (trimmed.isNotEmpty) args.addAll(['--platforms', trimmed]);
   }
 }
+if (org != null && org.isNotEmpty) args.addAll(['--org', org]);
+args.addAll(passthrough); // verbatim flutter/dart create flags from `--`
 ```
 
-The explicit `--dart`/`--flutter` mutual-exclusion guard (already present at
-`run()`) was left unchanged.
+`run()` derives `passthrough` from everything after the app name:
+`final passthrough = rest.length > 1 ? rest.sublist(1) : const <String>[];`
 
 ## Verification
 
-- Commands run:
-  - `dart analyze lib/src/commands/setup_command.dart` → No issues found.
-  - `dart test test/commands/setup_command_test.dart` → 39/39 passed (incl. 3 new).
-- Manual checks: none (Flutter is not installed in this environment, so a live
-  `flutter create` scaffold was not executed; the flag assembly is covered by the
-  dry-run tests which assert on the exact `flutter create` argument string).
+- `dart analyze lib/src/commands/setup_command.dart` → No issues found.
+- `dart test test/commands/setup_command_test.dart` → 41/41 passed.
+- Real `zfa` runs (dry-run) confirmed:
+  - `zfa setup x --flutter --platforms=linux,ios` → `flutter create --empty x --platforms linux --platforms ios`
+  - `zfa setup x --flutter -- --template plugin --org com.example` → forwarded verbatim
+  - `zfa setup l --dart -- --template package` → `dart create -t package l --template package`
+- Full real scaffold `zfa setup probe --flutter` created `ios` + `android` with **no Podfile/Pods** (SPM default). Env: Flutter 3.47.1.
 
 ## Deviations from Assessment
 
-- **Scope reduced to flags + SPM only.** The assessment was a scaffold
-  (`[NEEDS CLARIFICATION]`). Per user decision, the runnable test environment
-  (smoke tests + `flutter_test`/`test` dev deps + `dart_test.yaml`) is deferred to
-  #575 to avoid duplicating its TDD baseline. This leaves the issue's acceptance
-  criteria "flutter/dart test runs ≥1 test" satisfied only once #575 lands.
-- Status is therefore `partial`: the platform/SPM contract is fully implemented,
-  but the test-env acceptance is delegated.
+- **Obsolete flag.** The issue prescribed `--swift-package-manager` to `flutter create`. That flag was removed from Flutter (verified on 3.47.1: `flutter create --help` has no such option, and passing it errors with "Could not find an option named --swift-package-manager"). On current Flutter, iOS already uses SPM by default (no CocoaPods), so no flag is needed and the constitution's SPM-only rule holds automatically. The flag was dropped rather than pinning a non-existent option that would break `zfa setup`.
+- **No hardcoded platform default.** The issue wanted a default of `ios,android`. Per feedback, the default was removed entirely so user-supplied `--platforms` is honored verbatim and `flutter create` applies its own default when none is given.
+- **Pass-through design.** Instead of enumerating specific flags, `zfa setup` forwards any flag after `--` straight to the underlying scaffolder, satisfying "any param flutter/dart accepts is ported directly". `--platforms`/`--org` remain first-class for convenience.
+- **Test env deferred** to #575 (see above). Status is therefore `partial`: the scaffolding/pass-through contract is fully implemented; the test-runner acceptance is delegated.
 
 ## Follow-ups
 
 - Pair with #575 to deliver the runnable `test/` baseline for both targets.
-- After #575, re-verify the full acceptance criteria from issue #576 in a Flutter-equipped environment.
+- After #575, re-verify the full acceptance criteria from issue #576.
