@@ -391,3 +391,23 @@ existed and failed before the implementation.
   agent-created and agent-deleted sandbox files, not only modified ones
   (extends FR-008 beyond its literal wording; spec.md untouched — bake in via
   `/speckit.clarify`). Recorded in test-list.md as U67/U68.
+
+## Cycle 18: U51-U53 - SliceRunner; A20-A22 (gates T106-T108) - `slice run`
+
+- tests: `test/plugins/slice/runner/slice_runner_test.dart` (new, 5 tests)
+- red: behavioral red via the `slice run is not wired yet` placeholder
+  (+0 -2 on the first two tests written; the remaining three were written
+  in the same batch before any implementation existed, and failed red for
+  the same reason — no `run` subcommand, no `SliceRunner` class:
+  `Error: Method not found: 'SliceRunner'` during compilation).
+- green: `SliceRunner` (resolve sandbox, fast-verify via `ImportVerifier`,
+  then `flutter run -t <sandbox>/main_slice.dart` with
+  `workingDirectory: projectRoot`, forwarding extra args verbatim) and the
+  `run` subcommand in `SliceCommand` (name + passthrough flags via
+  `argResults.rest`, `processLauncher` seam for tests). `dart test
+  test/plugins/slice/runner/` -> 5 passed.
+- refactor: none (thin wrapper per R-010; verification logic stays in
+  `ImportVerifier`).
+- commit: (this commit)
+- notes: T085 (U65/U66 command validation tests) was implemented back in
+  Cycle 1 but its tasks.md checkbox was never ticked; corrected here.

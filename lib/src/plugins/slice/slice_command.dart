@@ -28,6 +28,7 @@ import 'capabilities/verify_slice_capability.dart';
 import 'generators/manifest_writer.dart';
 import 'models/slice_file.dart';
 import 'models/slice_manifest.dart';
+import 'runner/slice_runner.dart';
 
 /// The `zfa slice` command.
 class SliceCommand extends Command<void> {
@@ -38,7 +39,7 @@ class SliceCommand extends Command<void> {
   /// writes (used by tests); when null the command prompts on a terminal
   /// and denies when there is none (deterministic in CI).
   SliceCommand({this.projectRoot = '.', bool Function()? confirmShared,
-      this.analyzeLauncher})
+      this.analyzeLauncher, this.processLauncher})
     : _confirmShared = confirmShared;
 
   /// Root of the project being sliced.
@@ -48,6 +49,9 @@ class SliceCommand extends Command<void> {
 
   /// Process seam for `verify --analyze` (injected by tests).
   final AnalyzeLauncher? analyzeLauncher;
+
+  /// Process seam for `slice run` (injected by tests).
+  final RunLauncher? processLauncher;
 
   @override
   String get name => 'slice';
@@ -454,7 +458,25 @@ import options:
       return;
     }
 
-    print('slice run is not wired yet');
+    final sliceName = rest.first;
+    final passthrough = rest.sublist(1);
+    final runner = processLauncher != null
+        ? SliceRunner(launcher: processLauncher)
+        : SliceRunner();
+    final result = await runner.runSlice(
+      sliceName: sliceName,
+      projectRoot: projectRoot,
+      extraArgs: passthrough,
+    );
+
+    if (result.launched) {
+      print(result.message);
+      if (result.exitCode != 0) {
+        exitCode = 1;
+      }
+      return;
+    }
+    print('Error: ${result.message}');
     exitCode = 1;
   }
 

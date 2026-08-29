@@ -87,7 +87,7 @@
 - [x] T078 [P] [US1] [U29] [U30] Create unit test for `MockStubGenerator` — boundary mock generation and existing-mock reuse — in test/plugins/slice/generators/mock_stub_generator_test.dart
 - [x] T079 [P] [US1] [U32] [U33] Create unit test for `SandboxBootstrapper` — `main_slice.dart` content and minimal `slice_di.dart` registrations — in test/plugins/slice/generators/sandbox_bootstrapper_test.dart
 - [x] T080 [P] [US1] [U35] [U36] Create unit test for `AgentReadmeGenerator` — `SLICE.md` ownership markings, run command, boundary list — in test/plugins/slice/generators/agent_readme_generator_test.dart
-- [ ] T085 [P] [US1] [U65] [U66] Create unit test for `SliceCommand` argument validation — unknown subcommand usage error, `cut` without `--entry` usage error — in test/plugins/slice/slice_command_test.dart
+- [x] T085 [P] [US1] [U65] [U66] Create unit test for `SliceCommand` argument validation — unknown subcommand usage error, `cut` without `--entry` usage error — in test/plugins/slice/slice_command_test.dart
 - [x] T034 [US1] [A1] [A2] [A3] [A4] Create integration test: cut a slice from fixture project, verify sandbox structure, file count, ownership classification, manifest contents, and `main_slice.dart` content in test/plugins/slice/slice_cut_integration_test.dart
 
 ### Implementation for User Story 1
@@ -255,18 +255,18 @@
 
 ### Tests for User Story 7 (write FIRST — observe each failing before its implementation task)
 
-- [ ] T061 [US7] [U51] [U52] [U53] Create test: verify `SliceRunner` constructs the correct `flutter run` command with the right `-t` path and passthrough args (mock `Process.run`) in test/plugins/slice/runner/slice_runner_test.dart
+- [x] T061 [US7] [U51] [U52] [U53] Create test: verify `SliceRunner` constructs the correct `flutter run` command with the right `-t` path and passthrough args (mock `Process.run`) in test/plugins/slice/runner/slice_runner_test.dart
 
 ### Implementation for User Story 7
 
-- [ ] T059 [US7] [U51] [U52] Create `SliceRunner` that resolves the slice manifest, extracts the `main_slice.dart` path, and executes `flutter run -t <path>` in the project root, forwarding additional CLI args in lib/src/plugins/slice/runner/slice_runner.dart
-- [ ] T060 [US7] [U53] [A20] [A21] [A22] Implement the `run` subcommand in `SliceCommand` — parse slice name and passthrough flags (e.g., `--device`, `-d`), run `ImportVerifier` first, then delegate to `SliceRunner` in lib/src/plugins/slice/slice_command.dart
+- [x] T059 [US7] [U51] [U52] Create `SliceRunner` that resolves the slice manifest, extracts the `main_slice.dart` path, and executes `flutter run -t <path>` in the project root, forwarding additional CLI args in lib/src/plugins/slice/runner/slice_runner.dart
+- [x] T060 [US7] [U53] [A20] [A21] [A22] Implement the `run` subcommand in `SliceCommand` — parse slice name and passthrough flags (e.g., `--device`, `-d`), run `ImportVerifier` first, then delegate to `SliceRunner` in lib/src/plugins/slice/slice_command.dart
 
 ### Acceptance gates for User Story 7 (phase closes only when each is green)
 
-- [ ] T106 [US7] [A20] Acceptance gate US7-S1: `zfa slice run <name>` launches `flutter run -t .zuraffa/slices/<name>/main_slice.dart` from the project root — test in test/plugins/slice/runner/slice_runner_test.dart (asserts constructed command via fake process seam; the repo test env has no Flutter SDK)
-- [ ] T107 [US7] [A21] Acceptance gate US7-S2: `run` on an unverified slice verifies first and aborts without launching when verification fails — test in test/plugins/slice/runner/slice_runner_test.dart
-- [ ] T108 [US7] [A22] Acceptance gate US7-S3: extra flags (e.g. `--device chrome`) pass through to the underlying `flutter run` — test in test/plugins/slice/runner/slice_runner_test.dart
+- [x] T106 [US7] [A20] Acceptance gate US7-S1: `zfa slice run <name>` launches `flutter run -t .zuraffa/slices/<name>/main_slice.dart` from the project root — test in test/plugins/slice/runner/slice_runner_test.dart (asserts constructed command via fake process seam; the repo test env has no Flutter SDK)
+- [x] T107 [US7] [A21] Acceptance gate US7-S2: `run` on an unverified slice verifies first and aborts without launching when verification fails — test in test/plugins/slice/runner/slice_runner_test.dart
+- [x] T108 [US7] [A22] Acceptance gate US7-S3: extra flags (e.g. `--device chrome`) pass through to the underlying `flutter run` — test in test/plugins/slice/runner/slice_runner_test.dart
 
 **Checkpoint**: `zfa slice run profile_feature -d chrome` launches the slice — no need to remember the nested entry point path.
 

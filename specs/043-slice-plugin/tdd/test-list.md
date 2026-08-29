@@ -55,9 +55,9 @@ tasks.md where a scenario spans one command), driven by `dart test`.
 | A17 | `slice verify` on a slice missing a file reports exactly which files have unresolved imports and which import paths are broken         | US6-S2, FR-013            | example | DONE    | `test/plugins/slice/slice_verify_integration_test.dart::A17 (T103): a deleted sandbox file is reported with its broken imports` |
 | A18 | `slice verify --analyze` runs `dart analyze` on the sandbox and reports compilation errors                                             | US6-S3, FR-014            | example | DONE    | `test/plugins/slice/slice_verify_integration_test.dart::A18 (T104): --analyze runs dart analyze and reports errors` |
 | A19 | `slice cut --verify` auto-verifies after extraction and fails the extraction when the slice is incomplete                              | US6-S4, FR-015            | example | DONE    | `test/plugins/slice/slice_verify_integration_test.dart::A19 (T105): cut --verify fails the cut when the slice is broken` |
-| A20 | `slice run` launches `flutter run -t .zuraffa/slices/<name>/main_slice.dart` from the project root                                     | US7-S1, FR-016            | example | PENDING |      |
-| A21 | `slice run` on an unverified slice verifies first and aborts without launching when verification fails                                 | US7-S2, FR-016, FR-013    | example | PENDING |      |
-| A22 | Extra flags (e.g. `--device chrome`) pass through to the underlying `flutter run`                                                      | US7-S3, FR-016            | example | PENDING |      |
+| A20 | `slice run` launches `flutter run -t .zuraffa/slices/<name>/main_slice.dart` from the project root                                     | US7-S1, FR-016            | example | DONE   | `test/plugins/slice/runner/slice_runner_test.dart` |
+| A21 | `slice run` on an unverified slice verifies first and aborts without launching when verification fails                                 | US7-S2, FR-016, FR-013    | example | DONE   | `test/plugins/slice/runner/slice_runner_test.dart` |
+| A22 | Extra flags (e.g. `--device chrome`) pass through to the underlying `flutter run`                                                      | US7-S3, FR-016            | example | DONE   | `test/plugins/slice/runner/slice_runner_test.dart` |
 | A23 | `slice export --format tar.gz` produces an archive with all sandbox files and a self-contained filtered pubspec.yaml                   | US8-S1, FR-017, FR-020    | example | PENDING |      |
 | A24 | `slice export --format github --repo <name>` creates/pushes a GitHub repo with SLICE.md as README and a working pubspec.yaml           | US8-S2, FR-018, FR-020    | example | PENDING |      |
 | A25 | `slice export --format github` without `--repo` auto-generates a repo name from project and slice name                                 | US8-S3, FR-018            | example | PENDING |      |
@@ -197,9 +197,9 @@ boundaries, not proven properties.
 
 | id  | behavior                                                                                                                        | traces          | kind    | state   | test |
 | --- | ------------------------------------------------------------------------------------------------------------------------------- | --------------- | ------- | ------- | ---- |
-| U51 | Builds `flutter run -t <project>/.zuraffa/slices/<name>/main_slice.dart` with the working directory at the project root         | FR-016          | example | PENDING |      |
-| U52 | Extra CLI flags are forwarded to `flutter run` verbatim                                                                          | FR-016          | example | PENDING |      |
-| U53 | A failed fast verification aborts the launch before `flutter run` executes                                                       | FR-016, FR-013  | example | PENDING |      |
+| U51 | Builds `flutter run -t <project>/.zuraffa/slices/<name>/main_slice.dart` with the working directory at the project root         | FR-016          | example | DONE   | `test/plugins/slice/runner/slice_runner_test.dart` |
+| U52 | Extra CLI flags are forwarded to `flutter run` verbatim                                                                          | FR-016          | example | DONE   | `test/plugins/slice/runner/slice_runner_test.dart` |
+| U53 | A failed fast verification aborts the launch before `flutter run` executes                                                       | FR-016, FR-013  | example | DONE   | `test/plugins/slice/runner/slice_runner_test.dart` |
 
 ### `lib/src/plugins/slice/exporter/pubspec_filter.dart`
 
