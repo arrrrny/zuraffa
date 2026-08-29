@@ -21,16 +21,27 @@ import 'package:zuraffa/zuraffa.dart';
 // _repoRoot() removed: U25 now reuses the repo's resolved package config
 // instead of creating a separate temp package that needs `dart pub get`.
 
-/// Resolve the `dart` executable to run `dart analyze`. In the Flutter CI job
-/// `Platform.resolvedExecutable` is the `flutter` binary, and `flutter analyze`
-/// runs `flutter pub get` first — which hangs on the offline network and times
-/// the test out. `dart` always sits next to `flutter` in the same bin dir, so
-/// prefer it explicitly.
-String _dartExecutable() {
-  final dir = File(Platform.resolvedExecutable).parent;
-  final name = Platform.isWindows ? 'dart.exe' : 'dart';
-  final candidate = File('${dir.path}/$name');
-  return candidate.existsSync() ? candidate.path : Platform.resolvedExecutable;
+/// Resolve the real Dart SDK `dart` executable to run `dart analyze`.
+///
+/// Under `flutter test`, `Platform.resolvedExecutable` is the Flutter engine's
+/// `flutter_tester` binary. Its sibling `dart` is the *engine-embedded* Dart
+/// runtime (not the SDK), which cannot prepare an isolate and hangs forever on
+/// `analyze`. So we never derive `dart` from the running executable — instead
+/// we take it from `FLUTTER_ROOT/bin/dart` (set by `flutter test`) or fall back
+/// to `dart` resolved from `PATH`, both of which are the real Dart SDK.
+Future<String> _dartExecutable() async {
+  final flutterRoot = Platform.environment['FLUTTER_ROOT'];
+  if (flutterRoot != null) {
+    final candidate = File('$flutterRoot/bin/dart');
+    if (candidate.existsSync()) return candidate.path;
+  }
+  final which = Platform.isWindows ? 'where' : 'which';
+  final result = await Process.run(which, ['dart']);
+  if (result.exitCode == 0) {
+    final first = result.stdout.toString().split(RegExp(r'\r?\n')).first.trim();
+    if (first.isNotEmpty) return first;
+  }
+  return 'dart';
 }
 
 void main() {
@@ -156,7 +167,8 @@ void main() {
         pureDart: true,
       );
 
-      final result = await Process.run(_dartExecutable(), [
+      final dartExe = await _dartExecutable();
+      final result = await Process.run(dartExe, [
         'analyze',
         '--no-fatal-warnings',
         tempDir.path,
