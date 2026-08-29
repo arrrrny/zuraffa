@@ -17,7 +17,7 @@ import '../utils/manifest_writer.dart';
 /// and scaffolds the domain directory structure.
 ///
 /// Usage:
-///   `zfa setup <name> [--flutter] [--dart] [--platforms=ios,macos] [--org=com.example] [--dry-run] [--force]`
+///   `zfa setup <name> [--flutter|--dart] [--platforms=<csv>] [--org=com.example] [-- <flutter/dart create flags>] [--dry-run] [--force]`
 class SetupCommand extends Command<void> {
   @override
   final String name = 'setup';
@@ -34,7 +34,9 @@ class SetupCommand extends Command<void> {
       'flutter',
       negatable: false,
       help:
-          'Create a Flutter app (default). Passes --platforms through to flutter create.',
+          'Create a Flutter app (default). Pass `--platforms`/`--org`, or any '
+          'other `flutter create` flag via a `--` separator — everything after '
+          '`--` is forwarded verbatim to `flutter create`.',
     );
     argParser.addFlag(
       'dart',
@@ -43,9 +45,11 @@ class SetupCommand extends Command<void> {
     );
     argParser.addOption(
       'platforms',
-      valueHelp: 'ios,macos',
+      valueHelp: 'ios,android',
       help:
-          'Comma-separated platforms for `flutter create` (ignored with --dart).',
+          'Comma-separated platforms for `flutter create` (forwarded as-is; '
+          'ignored with --dart). For any other `flutter create` flag, use the '
+          '`--` passthrough.',
     );
     argParser.addOption(
       'org',
@@ -111,6 +115,22 @@ class SetupCommand extends Command<void> {
       usageException('App name is required: zfa setup <name>');
     }
     final appName = rest.first;
+    // Any tokens after the app name (typically passed via a `--` separator,
+    // e.g. `zfa setup x --flutter -- --template plugin`) are forwarded verbatim
+    // to `flutter create` / `dart create`. zfa owns only its own flags; every
+    // other flag ports straight through to the underlying scaffolder.
+    final passthrough = rest.length > 1 ? rest.sublist(1) : const <String>[];
+    // zfa setup takes exactly one positional (the app name). Any further tokens
+    // are pass-through flags for `flutter create` / `dart create` (introduced via
+    // `--`). If they contain no flag-like token, the user likely passed a second
+    // app name by mistake — fail fast instead of forwarding a stray word to the
+    // scaffolder (which would surface an opaque `flutter create` error).
+    if (passthrough.isNotEmpty && !passthrough.any((t) => t.startsWith('-'))) {
+      usageException(
+        'Unexpected extra argument(s): ${passthrough.join(' ')}. '
+        'Pass `flutter create` / `dart create` flags after a `--` separator.',
+      );
+    }
 
     final wantDart = argResults!['dart'] as bool;
     final wantFlutter = argResults!['flutter'] as bool;
@@ -164,6 +184,7 @@ class SetupCommand extends Command<void> {
       isFlutter: isFlutter,
       platforms: platforms,
       org: org,
+      passthrough: passthrough,
       dryRun: dryRun,
       force: force,
       verbose: verbose,
@@ -333,6 +354,7 @@ class SetupCommand extends Command<void> {
     required bool isFlutter,
     required String? platforms,
     required String? org,
+    required List<String> passthrough,
     required bool dryRun,
     required bool force,
     required bool verbose,
@@ -366,6 +388,10 @@ class SetupCommand extends Command<void> {
     }
 
     if (isFlutter) {
+      // `--platforms` is forwarded as-is when the user supplies it; otherwise
+      // no --platforms flag is emitted and flutter create uses its own default.
+      // The constitution's SPM-only rule holds out of the box on current Flutter
+      // (iOS scaffolds with Swift Package Manager by default — CocoaPods removed).
       final args = <String>['create', '--empty', appName];
       if (platforms != null && platforms.isNotEmpty) {
         for (final plat in platforms.split(',')) {
@@ -378,6 +404,7 @@ class SetupCommand extends Command<void> {
       if (org != null && org.isNotEmpty) {
         args.addAll(['--org', org]);
       }
+      args.addAll(passthrough);
       if (dryRun) {
         print('\n[1/5] Would run: flutter ${args.join(" ")}');
         return true;
@@ -413,6 +440,7 @@ class SetupCommand extends Command<void> {
       );
     }
     final args = <String>['create', '-t', 'package', appName];
+    args.addAll(passthrough);
     if (dryRun) {
       print('\n[1/5] Would run: dart ${args.join(" ")}');
       return true;
