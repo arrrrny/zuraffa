@@ -17,7 +17,7 @@ import '../utils/manifest_writer.dart';
 /// and scaffolds the domain directory structure.
 ///
 /// Usage:
-///   `zfa setup <name> [--flutter] [--dart] [--platforms=ios,macos] [--org=com.example] [--dry-run] [--force]`
+///   `zfa setup <name> [--flutter] [--dart] [--platforms=ios,android] [--org=com.example] [--dry-run] [--force]`
 class SetupCommand extends Command<void> {
   @override
   final String name = 'setup';
@@ -34,7 +34,9 @@ class SetupCommand extends Command<void> {
       'flutter',
       negatable: false,
       help:
-          'Create a Flutter app (default). Passes --platforms through to flutter create.',
+          'Create a Flutter app (default). Default platforms are ios,android; '
+          'pass --platforms to override. iOS always uses Swift Package Manager '
+          '(no CocoaPods), per the constitution.',
     );
     argParser.addFlag(
       'dart',
@@ -43,9 +45,10 @@ class SetupCommand extends Command<void> {
     );
     argParser.addOption(
       'platforms',
-      valueHelp: 'ios,macos',
+      valueHelp: 'ios,android',
       help:
-          'Comma-separated platforms for `flutter create` (ignored with --dart).',
+          'Comma-separated platforms for `flutter create` (default: ios,android; '
+          'ignored with --dart). iOS implies --swift-package-manager.',
     );
     argParser.addOption(
       'org',
@@ -366,13 +369,24 @@ class SetupCommand extends Command<void> {
     }
 
     if (isFlutter) {
+      // Default to mobile-first platforms (ios,android); override via
+      // --platforms. The constitution (Principle V) requires iOS to be
+      // SPM-only (no CocoaPods), so pin --swift-package-manager whenever iOS
+      // is in the platform list — enforced at scaffold time, not by cleanup.
+      final effectivePlatforms =
+          (platforms != null && platforms.isNotEmpty) ? platforms : 'ios,android';
+      final usesIos = effectivePlatforms
+          .split(',')
+          .map((p) => p.trim())
+          .contains('ios');
       final args = <String>['create', '--empty', appName];
-      if (platforms != null && platforms.isNotEmpty) {
-        for (final plat in platforms.split(',')) {
-          final trimmed = plat.trim();
-          if (trimmed.isNotEmpty) {
-            args.addAll(['--platforms', trimmed]);
-          }
+      if (usesIos) {
+        args.add('--swift-package-manager');
+      }
+      for (final plat in effectivePlatforms.split(',')) {
+        final trimmed = plat.trim();
+        if (trimmed.isNotEmpty) {
+          args.addAll(['--platforms', trimmed]);
         }
       }
       if (org != null && org.isNotEmpty) {
@@ -382,9 +396,12 @@ class SetupCommand extends Command<void> {
         print('\n[1/5] Would run: flutter ${args.join(" ")}');
         return true;
       }
+      final platformLabel = usesIos
+          ? ' (platforms: $effectivePlatforms, SPM)'
+          : ' (platforms: $effectivePlatforms)';
       print(
         '\n[1/5] Creating Flutter app: $appName'
-        '${platforms != null ? ' (platforms: $platforms)' : ''}'
+        '$platformLabel'
         '${org != null ? ' (org: $org)' : ''}',
       );
       if (verbose) print('   Running: flutter ${args.join(" ")}');

@@ -400,5 +400,61 @@ dependency_overrides:
       expect(out, contains('Would run: git init'));
       expect(out, contains('flutter create'));
     });
+
+    test('default --flutter pins SPM + platforms ios,android', () async {
+      final runner = CommandRunner('zfa', 'test')..addCommand(SetupCommand());
+      final prints = <String>[];
+      await runZoned(
+        () => runner.run(['setup', 'demo_app', '--dry-run', '--flutter']),
+        zoneSpecification: ZoneSpecification(
+          print: (self, parent, zone, message) => prints.add(message),
+        ),
+      );
+      final cmd = prints.firstWhere((l) => l.contains('Would run: flutter'));
+      expect(cmd, contains('--platforms ios'));
+      expect(cmd, contains('--platforms android'));
+      expect(cmd, contains('--swift-package-manager'));
+      expect(cmd, isNot(contains('--platforms macos')));
+    });
+
+    test('--platforms without ios does NOT add --swift-package-manager',
+        () async {
+      final runner = CommandRunner('zfa', 'test')..addCommand(SetupCommand());
+      final prints = <String>[];
+      await runZoned(
+        () => runner.run([
+          'setup',
+          'demo_app',
+          '--dry-run',
+          '--flutter',
+          '--platforms=macos',
+        ]),
+        zoneSpecification: ZoneSpecification(
+          print: (self, parent, zone, message) => prints.add(message),
+        ),
+      );
+      final cmd = prints.firstWhere((l) => l.contains('Would run: flutter'));
+      expect(cmd, contains('--platforms macos'));
+      expect(cmd, isNot(contains('--swift-package-manager')));
+    });
+
+    test('--platforms=ios still enables --swift-package-manager', () async {
+      final runner = CommandRunner('zfa', 'test')..addCommand(SetupCommand());
+      final prints = <String>[];
+      await runZoned(
+        () => runner.run([
+          'setup',
+          'demo_app',
+          '--dry-run',
+          '--flutter',
+          '--platforms=ios',
+        ]),
+        zoneSpecification: ZoneSpecification(
+          print: (self, parent, zone, message) => prints.add(message),
+        ),
+      );
+      final cmd = prints.firstWhere((l) => l.contains('Would run: flutter'));
+      expect(cmd, contains('--swift-package-manager'));
+    });
   });
 }
