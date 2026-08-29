@@ -39,6 +39,13 @@ class PolicyDecision {
     if (!_completer.isCompleted) _completer.complete(null);
   }
 
+  /// Drop this decision without delivering the action (e.g. the host UI was
+  /// dismissed or the agent loop was torn down). Completes the future with
+  /// `null`; the `whenComplete` callback then removes it from `pending`.
+  void cancel() {
+    if (!_completer.isCompleted) _completer.complete(null);
+  }
+
   /// Whether the user has already decided.
   bool get isDecided => _completer.isCompleted;
 }
@@ -91,5 +98,12 @@ class PolicyGate {
         return;
       }
     }
+  }
+
+  /// Drop every pending decision (mission / agent-loop teardown). Each pending
+  /// decision is cancelled, completing its future with `null`; the
+  /// `whenComplete` callback then removes it from `pending`.
+  void dispose() {
+    for (final d in List.of(_pending)) d.cancel();
   }
 }

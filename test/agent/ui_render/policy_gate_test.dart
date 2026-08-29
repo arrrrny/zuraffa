@@ -81,5 +81,44 @@ void main() {
       gate.approveLatest();
       expect(gate.pending, isEmpty);
     });
+
+    test('cancel completes the future with null and removes from pending',
+        () async {
+      final gate = PolicyGate();
+      const action = SemanticAction(
+        actionId: 'buy',
+        tier: ActionTier.confirm,
+      );
+      final future = gate.intercept(action);
+      await Future<void>.delayed(Duration.zero);
+      expect(gate.pending, hasLength(1), reason: 'decision is pending');
+
+      // Host UI dismissed — cancel instead of approve/deny.
+      gate.pending.first.cancel();
+      final delivered = await future;
+
+      expect(delivered, isNull, reason: 'cancelled decisions resolve null');
+      expect(gate.pending, isEmpty, reason: 'cancelled decision removed');
+    });
+
+    test('dispose cancels every pending decision (teardown)', () async {
+      final gate = PolicyGate();
+      final f1 = gate.intercept(const SemanticAction(
+        actionId: 'a',
+        tier: ActionTier.confirm,
+      ));
+      final f2 = gate.intercept(const SemanticAction(
+        actionId: 'b',
+        tier: ActionTier.confirm,
+      ));
+      await Future<void>.delayed(Duration.zero);
+      expect(gate.pending, hasLength(2), reason: 'two decisions pending');
+
+      gate.dispose();
+
+      expect(await f1, isNull);
+      expect(await f2, isNull);
+      expect(gate.pending, isEmpty, reason: 'all decisions dropped');
+    });
   });
 }

@@ -178,12 +178,16 @@ class UiRenderTool {
     );
 
     final viewId = _idGenerator();
-    var isFirst = true;
+    RenderedView? lastPartial;
     await for (final partial in partials) {
       final result = schema.validate(partial);
       if (!result.valid) {
         channel.emitError(UiRenderValidationException(result));
-        throw UiRenderValidationException(result);
+        // Drop any partial we stored and close the view so the host does not
+        // wait forever for a Done event.
+        _views.remove(viewId);
+        channel.emitDone(viewId);
+        return;
       }
       final contentHash = computeContentHash(partial);
       final view = RenderedView(
@@ -193,23 +197,20 @@ class UiRenderTool {
         contentHash: contentHash,
         hint: hint,
       );
-      if (isFirst) {
-        _views[viewId] = view;
-        isFirst = false;
-      } else {
-        _views[viewId] = view;
-      }
+      lastPartial = view;
+      _views[viewId] = view;
       channel.emitRender(view, isPartial: true);
       yield view;
     }
 
-    // Mark the final view as no-longer-partial and record in the mission trace.
-    final finalView = _views[viewId];
+    // Always close the view (even for an empty partials stream) so the host
+    // never blocks awaiting a Done event.
+    final finalView = lastPartial;
     if (finalView != null) {
       channel.emitRender(finalView, isPartial: false);
-      channel.emitDone(viewId);
       recorder.record(finalView, missionType: missionType);
     }
+    channel.emitDone(viewId);
   }
 
   /// Route a user interaction captured on a rendered tree back to the agent
@@ -219,9 +220,12 @@ class UiRenderTool {
   /// Returns the action that was actually delivered (or `null` if denied).
   Future<SemanticAction?> routeInteraction(SemanticAction action) async {
     // Stamp the action with the view id so the agent knows which view to
-    // update.
+    // update. Fall back to the active (most-recently-rendered active) view
+    // rather than the chronologically-last-rendered one, which would
+    // mis-attribute an interaction to a different, still-live view in a
+    // multi-view mission.
     final stamped = action.viewId == null
-        ? action.copyWith(viewId: _views.keys.lastOrNull)
+        ? action.copyWith(viewId: activeView?.viewId)
         : action;
 
     // Gate confirm-tier actions (FR-006).
@@ -235,6 +239,12 @@ class UiRenderTool {
     channel.emitInteraction(approved);
     actionRouter.deliver(approved);
     return approved;
+  }
+
+  /// Tear down the tool, dropping any undecided `confirm`-tier decisions so a
+  /// finished or abandoned mission does not leak pending decisions (FR-006).
+  void dispose() {
+    policyGate.dispose();
   }
 
   /// Look up a rendered view by id (returns `null` if unknown or no longer

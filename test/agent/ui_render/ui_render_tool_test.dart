@@ -278,6 +278,65 @@ void main() {
         reason: 'image is out of the listing subset (FR-005)',
       );
     });
+
+    test('renderProgressive empty stream still emits Done (no host hang)',
+        () async {
+      final channel = UiEventChannel();
+      tool = UiRenderTool(
+        channel: channel,
+        idGenerator: _sequentialIds,
+      );
+      tool.activateMission('default');
+
+      final received = <UiRenderEvent>[];
+      channel.events.listen(received.add);
+
+      final views = await tool.renderProgressive(const Stream<UiNode>.empty()).toList();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(views, isEmpty, reason: 'no partials yielded');
+      // The view id was minted, so the host must still receive a Done event
+      // or it would await forever.
+      expect(
+        received.whereType<UiRenderEventDone>(),
+        hasLength(1),
+        reason: 'empty partials stream still closes the view with Done',
+      );
+    });
+
+    test('renderProgressive drops stale view on mid-stream validation failure',
+        () async {
+      final channel = UiEventChannel();
+      tool = UiRenderTool(
+        channel: channel,
+        idGenerator: _sequentialIds,
+      );
+      tool.activateMission('default');
+
+      final received = <UiRenderEvent>[];
+      channel.events.listen(received.add);
+
+      final partials = Stream<UiNode>.fromIterable([
+        const UiNode(type: 'root', children: [UiNode(type: 'text')]),
+        const UiNode(type: 'root', children: [UiNode(type: 'mystery_widget')]),
+      ]);
+
+      final views = await tool.renderProgressive(partials).toList();
+      await Future<void>.delayed(Duration.zero);
+
+      // The valid first partial is still yielded, but the failing second one
+      // must not leave a partial tree behind.
+      expect(views, hasLength(1));
+      final viewId = views.first.viewId;
+      expect(tool.view(viewId), isNull,
+          reason: 'partial view removed after mid-stream failure');
+      // The view is closed so the host does not block forever.
+      expect(
+        received.whereType<UiRenderEventDone>(),
+        hasLength(1),
+        reason: 'view closed with Done after failure',
+      );
+    });
   });
 
   group('UiRenderTool routeInteraction (FR-004 / FR-006)', () {
@@ -382,6 +441,35 @@ void main() {
         received.whereType<UiRenderEventPolicy>().where((e) => !e.approved),
         hasLength(1),
       );
+    });
+
+    test('routeInteraction attributes a view-less action to the active view',
+        () async {
+      final router = CapturingActionRouter();
+      final tool = UiRenderTool(actionRouter: router, idGenerator: _sequentialIds);
+      tool.activateMission('default');
+
+      final first = tool.render(const UiNode(type: 'root', children: [
+        UiNode(type: 'button', actionId: 'first'),
+      ]));
+      final second = tool.render(const UiNode(type: 'root', children: [
+        UiNode(type: 'button', actionId: 'second'),
+      ]));
+
+      // Deactivate the chronologically-last-rendered view (e.g. it was
+      // replaced/superseded but is still retained in `_views`). An interaction
+      // must NOT be attributed to it.
+      tool.view(second.viewId)!.isActive = false;
+
+      // Host emits a view-less SemanticAction. It must be stamped with the
+      // *active* view (first), not the last-rendered one (second).
+      final action = SemanticAction(actionId: 'tap', args: {'x': 1});
+      final delivered = await tool.routeInteraction(action);
+
+      expect(delivered, isNotNull);
+      expect(delivered!.viewId, first.viewId,
+          reason: 'action attributed to the active view, not the '
+              'chronologically-last-rendered one');
     });
   });
 }
