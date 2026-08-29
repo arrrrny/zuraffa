@@ -1,0 +1,28 @@
+# Embedded GYM fixture — the concrete rewrite target for the
+# `agent-rewrite-zfa-only` exercise (spec 021 / issue #478).
+#
+# This is a FIXED sample package (FR-003): a small CRUD-style package that is
+# already Zuraffa-compatible (declares the zuraffa + zorphy_annotation deps
+# `zfa doctor` detects) but whose domain code is still hand-written pre-v5
+# models (see lib/legacy_note.dart, lib/legacy_tag.dart). The exercise lifts
+# the models into canonical v5 architecture using ONLY zfa commands.
+#
+# `__ZURAFFA_ROOT__` is a placeholder the exercise setup replaces with the
+# resolving checkout's absolute path, so the sandbox pins to THIS zuraffa
+# (deterministic, offline-friendly — no pub.dev version drift).
+name: sample_crud_package
+description: Fixed Zuraffa-compatible sample package — rewrite target for the agent-rewrite-zfa-only GYM exercise.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  zuraffa:
+    path: __ZURAFFA_ROOT__
+  zorphy: ^2.3.0
+  zorphy_annotation: ^2.3.0
+
+dev_dependencies:
+  build_runner: ^2.4.0

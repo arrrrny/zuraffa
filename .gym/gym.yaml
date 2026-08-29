@@ -40,3 +40,27 @@ exercises:
       mutates the package source tree.
     verifyCommand: dart run .gym/exercise-generate-feature.dart
     evaluate: exit 0 => pass; exit !=0 => fail
+  - id: agent-rewrite-zfa-only
+    brief: |
+      Rewrite an existing Dart package using ONLY the `zfa` CLI — and
+      STOP-AND-REPORT when the target is not Zuraffa-compatible instead of
+      misfiring (issue #478; the #477 misfire is the counter-example this
+      trains against). The exercise stages two fixed fixture targets in a
+      sandbox: a Zuraffa-compatible CRUD package that must be rewritten
+      through the canonical zfa protocol (doctor detection first, then
+      `zfa entity create` per manifest entity, `zfa make` for the
+      architecture, `zfa build` to prove compilation into the canonical v5
+      layout `lib/src/domain/entities/<snake>/<snake>.dart`), and a plain
+      Dart package that must be detected as NOT compatible and answered
+      with a structured NOT-ZURAFFA-COMPATIBLE.md report — no rewrite
+      attempt, no generated artifacts. Correct stop-and-report grades PASS
+      (exit 0); only real misfires fail.
+    setup: |
+      Ensure `dart` is on PATH.
+      Run the warmup reps first (.gym/warmup/*).
+      The exercise stages its fixed fixtures under .gym/fixtures/ and
+      writes its sandbox under .gym/.sandbox/ — it never mutates the
+      package source tree. Fixture staging and `dart pub get` are setup
+      tooling; the rewrite itself is zfa-only.
+    verifyCommand: dart run .gym/exercise-agent-rewrite-zfa-only.dart
+    evaluate: exit 0 => pass; exit !=0 => fail

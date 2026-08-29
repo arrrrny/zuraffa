@@ -1,0 +1,15 @@
+# Embedded GYM fixture — the NON-Zuraffa target for the
+# `agent-rewrite-zfa-only` exercise's stop-and-report leg (spec 021 /
+# issue #478).
+#
+# This is a plain Dart package with NO zuraffa / zorphy_annotation deps —
+# the exact shape that triggered the #477 misfire. The exercise must detect
+# it via `zfa doctor`, STOP before any rewrite command, and write a
+# structured NOT-ZURAFFA-COMPATIBLE.md report instead.
+name: plain_dart_package
+description: Fixed plain Dart package (no Zuraffa deps) — stop-and-report target for the agent-rewrite-zfa-only GYM exercise.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.0.0

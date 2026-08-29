@@ -1,0 +1,25 @@
+{
+  "package": "sample_crud_package",
+  "description": "Deterministic rewrite plan for the agent-rewrite-zfa-only GYM exercise: the entities and fields the legacy models (lib/legacy_note.dart, lib/legacy_tag.dart) imply, plus the zfa plugins the rewrite must run. The exercise is graded against this manifest — same input, same expected v5 output structure, run after run.",
+  "entities": [
+    {
+      "name": "Note",
+      "source": "lib/legacy_note.dart",
+      "fields": [
+        { "name": "id", "type": "String" },
+        { "name": "title", "type": "String" },
+        { "name": "body", "type": "String" },
+        { "name": "createdAt", "type": "DateTime" }
+      ]
+    },
+    {
+      "name": "Tag",
+      "source": "lib/legacy_tag.dart",
+      "fields": [
+        { "name": "id", "type": "String" },
+        { "name": "label", "type": "String" }
+      ]
+    }
+  ],
+  "makePlugins": ["datasource", "repository", "usecase"]
+}
