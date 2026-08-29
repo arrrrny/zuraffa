@@ -5,8 +5,7 @@ import 'package:path/path.dart' as p;
 
 import 'build_yaml_guard.dart';
 import '../core/project/project_root.dart';
-import '../routing/route_annotation_compiler.dart';
-import '../routing/route_model.dart';
+import '../dda/plugins/route/route_build_stage.dart';
 
 class BuildCommand extends Command {
   @override
@@ -42,44 +41,21 @@ class BuildCommand extends Command {
           'generated code immediately (issue #395).',
       defaultsTo: true,
     );
-  }
-
-  /// Pre-build step (spec 033): compiles @Route annotations into
-  /// `lib/src/routing/zfa_router.g.dart` (+ deep-link side files).
-  ///
-  /// Returns 0 on success (including nothing-to-do), 1 when route
-  /// validation fails — the caller must fail the build so
-  /// misconfiguration surfaces at build time, never at runtime (SC-003).
-  @visibleForTesting
-  static Future<int> compileRouteAnnotations(
-    String projectRoot, {
-    void Function(String line) printFn = print,
-  }) async {
-    try {
-      final outcome = await RouteAnnotationCompiler().compile(projectRoot);
-      if (outcome.skipped) {
-        return 0;
-      }
-      printFn(
-        '🧭 Route configuration: ${outcome.routeCount} routes, '
-        '${outcome.redirectCount} redirects → '
-        '${RouteAnnotationCompiler.routerFilePath}',
-      );
-      for (final file in outcome.writtenFiles.keys) {
-        if (file.endsWith(RouteAnnotationCompiler.routerFilePath)) continue;
-        printFn('   deep links: ${p.relative(file, from: projectRoot)}');
-      }
-      return 0;
-    } on RouteCompilationException catch (e) {
-      printFn('❌ Route annotation errors (build failed):');
-      for (final error in e.errors) {
-        printFn(
-          '   ${p.relative(error.filePath, from: projectRoot)}:'
-          '${error.line}: ${error.message}',
-        );
-      }
-      return 1;
-    }
+    argParser.addFlag(
+      'dda-routes',
+      help:
+          'Run the DDA @Route stage: scan @Route/@ZfaRoute annotations and '
+          'compile lib/src/routing/zfa_router.g.dart (spec 033, issue #187). '
+          'Validation errors fail the build.',
+      defaultsTo: true,
+    );
+    argParser.addFlag(
+      'dda-routes-only',
+      negatable: false,
+      help:
+          'Run ONLY the DDA @Route stage — skip build_runner and the '
+          'post-build verifiers entirely.',
+    );
   }
 
   @override
@@ -90,6 +66,30 @@ class BuildCommand extends Command {
     final dryRun = argResults!['dry-run'] as bool;
     final force = argResults!['force'] as bool;
     final analyze = argResults!['analyze'] as bool;
+    final ddaRoutes = argResults!['dda-routes'] as bool;
+    final ddaRoutesOnly = argResults!['dda-routes-only'] as bool;
+
+    // ── DDA @Route stage (spec 033 / issue #187) ──
+    // Runs FIRST so route misconfigurations fail fast, before any
+    // expensive build_runner work.
+    if (ddaRoutesOnly) {
+      if (ddaRoutes) {
+        final result = await runDdaRouteStage(dryRun: dryRun);
+        if (!result.success) {
+          exit(1);
+        }
+        print('✅ DDA route stage completed');
+      } else {
+        print('⏭  DDA route stage disabled (--no-dda-routes) — nothing to do.');
+      }
+      return;
+    }
+    if (ddaRoutes) {
+      final result = await runDdaRouteStage(dryRun: dryRun);
+      if (!result.success) {
+        exit(1);
+      }
+    }
 
     if (clean) {
       await _cleanBuildCache();
@@ -122,16 +122,6 @@ class BuildCommand extends Command {
         exit(1);
       }
       print('🔨 Running build_runner build...');
-    }
-
-    // Spec 033: compile @Route annotations before build_runner so the
-    // generated router participates in the build (and misconfiguration
-    // fails the build here, not at runtime).
-    if (!dryRun) {
-      final routeExit = await compileRouteAnnotations(Directory.current.path);
-      if (routeExit != 0) {
-        exit(1);
-      }
     }
 
     final exitCode = await _runBuild();
@@ -173,6 +163,42 @@ class BuildCommand extends Command {
     } else {
       print('\n❌ Build failed with exit code $exitCode');
     }
+  }
+
+  /// Runs the DDA @Route stage (spec 033) against the current project root
+  /// and prints a summary. Returns the stage result so tests can assert on
+  /// it without process exits; [run] turns failures into exit code 1.
+  @visibleForTesting
+  Future<RouteBuildResult> runDdaRouteStage({
+    String? projectRoot,
+    bool dryRun = false,
+  }) async {
+    final root = projectRoot ?? ProjectRoot.safeCurrentPath();
+    final stage = RouteBuildStage(projectRoot: root, dryRun: dryRun);
+    final result = await stage.run();
+    for (final file in result.generatedFiles) {
+      print('   ✅ $file');
+    }
+    for (final file in result.deletedFiles) {
+      print('   🧹 $file (removed — no @Route annotations remain)');
+    }
+    for (final warning in result.warnings) {
+      print('   ⚠️  $warning');
+    }
+    if (!result.success) {
+      print(
+        '\n❌ @Route build-time validation failed '
+        '(${result.errors.length} error(s)):',
+      );
+      for (final error in result.errors) {
+        print('   - $error');
+      }
+      print(
+        '\n   Fix the annotations listed above and re-run zfa build. See:\n'
+        '   https://zuraffa.com/docs/routing (@Route decorator).',
+      );
+    }
+    return result;
   }
 
   /// Ensures `build.yaml` is in a state that lets build_runner produce zorphy

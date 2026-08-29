@@ -6,6 +6,7 @@ import 'decorator_dispatcher.dart';
 import 'plugin_discovery.dart';
 import 'zorphy_decorator_plugin.dart';
 import '../plugins/route/route_plugin.dart';
+import '../plugins/route/route_build_stage.dart';
 import '../plugins/cache/cache_plugin.dart';
 import '../plugins/middleware/auth_plugin.dart';
 import '../plugins/middleware/retry_plugin.dart';
@@ -185,7 +186,31 @@ class BuildPipeline {
 
   List<ZorphyDecoratorPlugin> _discoverPlugins() {
     final discovery = PluginDiscovery(projectRoot: projectRoot);
-    return discovery.discover();
+    List<ZorphyDecoratorPlugin> plugins;
+    try {
+      plugins = discovery.discover();
+    } on PluginDiscoveryError {
+      plugins = [];
+    }
+    if (plugins.isEmpty) {
+      // No dynamically discovered decorator packages: fall back to the
+      // builtin DDA plugins (fresh instances per run — the registry is
+      // process-global, so reusing instances would accumulate state across
+      // builds and break idempotency).
+      final builtins = <ZorphyDecoratorPlugin>[
+        RouteDDAPlugin(),
+        CacheDDAPlugin(),
+        AuthDDAPlugin(),
+        RetryDDAPlugin(),
+        TrackEventDDAPlugin(),
+      ];
+      ZorphyPluginRegistry.clear();
+      ZorphyPluginRegistry.registerAll(builtins);
+      return builtins;
+    }
+    ZorphyPluginRegistry.clear();
+    ZorphyPluginRegistry.registerAll(plugins);
+    return plugins;
   }
 
   Map<String, dynamic> _loadConfig() => {'projectRoot': projectRoot};
@@ -200,25 +225,19 @@ class BuildPipeline {
   }
 
   Future<void> _generateRouteConfig() async {
-    final routePlugin = ZorphyPluginRegistry.get('Route');
-    if (routePlugin is! RouteDDAPlugin) return;
-    if (!routePlugin.hasRoutes) return;
-
+    // Spec 033 (issue #187): the route stage owns the full flow — scan
+    // (fast syntactic path) → collect → validate (FR-006) → write/
+    // regenerate-empty/skip. Converges the pipeline's stage 5.5 with what
+    // `zfa build` runs.
     try {
-      final code = routePlugin.generateRouterFile();
-      final outputPath = p.join(
-        projectRoot,
-        'lib',
-        'src',
-        'routing',
-        'zfa_router.g.dart',
+      final stage = RouteBuildStage(
+        projectRoot: projectRoot,
+        dryRun: dryRun,
+        verbose: verbose,
       );
-
-      await File(outputPath).create(recursive: true);
-      await File(outputPath).writeAsString(code);
-
-      _generatedFiles.add(outputPath);
-      _log('   ✅ $outputPath');
+      final result = await stage.run();
+      _generatedFiles.addAll(result.generatedFiles);
+      _errors.addAll(result.errors);
     } catch (e) {
       _errors.add('Route generation failed: $e');
     }

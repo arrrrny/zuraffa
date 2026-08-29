@@ -1,174 +1,81 @@
-# TDD Verification — @Route Decorator for Auto-Generated Navigation Configuration
+# TDD Verification — 033 @Route Decorator for Auto-Generated Navigation Configuration
 
 **Spec**: `specs/033-route-decorator-nav/spec.md`
-**Branch**: `033-route-decorator-nav`
-**Date**: 2026-08-29
+**Verified**: 2026-08-29, branch `033-route-decorator-nav`
 
 ## Summary
 
-All 21 behaviors from `tdd/test-list.md` are GREEN. `@Route` (the spec's
-canonical spelling of the existing `ZfaRoute` annotation, now first-class
-via a non-deprecated typedef and extended with `isShell`, `parent`,
-`redirect`, `params`, `guardRedirect`) is scanned at build time by a
-parse-only analyzer pass, validated against every FR-006 misconfiguration
-class, and compiled into `lib/src/routing/zfa_router.g.dart` — a
-go_router-targeting route tree with typed `RouteParams` classes per route,
-redirect rules, nested `ShellRoute` hierarchies (relative child paths),
-guard-wrapped routes, and deep-link side files. The pipeline is wired into
-`zfa build` as a pre-build_runner step that fails the build (exit 1) on any
-validation error.
+All 4 success criteria are PROVED by mechanical tests (red evidence in
+`tdd/red/01-all-behaviors.md`, cycles in `tdd/cycle-log.md`):
 
-**Integration note**: the repo already contained a partial Track 6.1
-foundation (`lib/src/dda/plugins/route/` — `ZfaRoute` annotation classes,
-`RouteGenerator`, `RouteDDAPlugin`, 12 golden tests). This feature REUSES
-that foundation — the existing annotation class is extended in place and
-the existing `ZuraffaRouteGuard`/`ZuraffaRouteState` guard API is the one
-generated code targets — and adds the missing spec-033 pipeline under
-`lib/src/routing/` (scanner, validator, config generator, compiler,
-controller-facing `ZfaRouteParams`). All 12 pre-existing golden tests pass
-unmodified.
+| SC | Claim | Proof | Verdict |
+|----|-------|-------|---------|
+| SC-001 | A single `@Route` on a View defines the complete route — no manual config | `route_build_stage_test.dart::writes router file with route, name, view class and import` (A1): one annotation → complete `zfa_router.g.dart` with route, derived name, view class, correct package import. Multi-View single-file + idempotency covered by sibling tests. | **PROVED** |
+| SC-002 | `zfa build` route compilation < 2s for ≤100 Views | `route_perf_test.dart::100 annotated Views compile into one config in under 2 seconds` (A2): wall-clock assertion over a 100-View temp project; observed ~0.4s. | **PROVED** |
+| SC-003 | All misconfigs caught at build time with clear, actionable errors | `route_validator_test.dart` (13 tests, A3) — one per FR-006 category (duplicate path naming BOTH classes, duplicate name, missing parent naming parent+child, parent-not-shell, non-View target with file:line, unsupported param type naming the allowed set, dangling redirect target, go_router missing with install hint) + `route_build_stage_test.dart::validation fails the stage` (no file written) + subprocess test asserting `zfa build --dda-routes-only` exits 1 and prints the error. | **PROVED** |
+| SC-004 | Generated RouteParams are compile-time safe (typed, not stringly-typed) | `route_build_stage_test.dart::typed path param / typed query params / mixed params` (A4): `final int id` with `int.parse(state.pathParameters['id']!)`, typed query fields with absence-safe defaults; unsupported types are build errors (validator test). | **PROVED** |
 
-## `dart analyze` (whole project)
+## FR coverage
 
-```
-$ dart analyze
-88 issues found. (0 errors, 4 warnings, 84 infos)
-```
+| FR | Status | Behavior / test |
+|----|--------|-----------------|
+| FR-001 @Route annotation (path, deepLinkAware, isShell, parent, middleware, redirect) | DONE | `route_annotation.dart` extended (`isShell`, `parent`, `pathParameters`); scanner literal tests U1–U7; both `@Route`/`@ZfaRoute` spellings (U12) |
+| FR-002 zfa build scans + compiles single config file | DONE | `RouteBuildStage` wired into `zfa build` (runs first); subprocess wiring tests U34–U36; empty-project skip/stale-regenerate edge cases U21–U23 |
+| FR-003 path params to controller | DONE | `RouteParams` classes with typed path params passed to the View at construction (U17, U19); controller receives them through the View per v6 convention (plan §decisions 8) |
+| FR-004 query params to controller | DONE | typed query fields with safe defaults (U18, U19) |
+| FR-005 redirect rules | DONE | `@ZfaRoute.redirect` / `@Route.redirect` constructor form (U13), legacy `redirectFrom`/`redirectTo` form, router-level redirect callback |
+| FR-006 build-time errors (5 categories) | DONE | `RouteValidator` — 8 codes; all categories tested (U25–U33) |
+| FR-007 nested routes via parent | DONE | `isShell` + `parent` by name (U14) or path (U15); children nest under shell with absolute paths; shell View renders around children |
+| FR-008 guards invoked before activation | DONE | async guard redirect block with `canActivate`/`onRejected` (U16) |
 
-Identical to the `master` baseline — all four warnings are pre-existing
-(`route_builder.dart` unused element, three pre-existing test lints). Zero
-errors, zero warnings, zero new infos from any file added or modified by
-this feature (`dart analyze lib/src/routing lib/src/dda/plugins/route
-lib/src/commands/build_command.dart` → "No issues found!").
+## User story acceptance scenarios
 
-## `dart test` (full fast tier, ACTUAL counts)
+- **US1** (P1): scenarios 1–4 — A1 + idempotency + multi-route tests. DONE.
+- **US2** (P1): typed path + query extraction, mixed params — U17–U19. DONE.
+- **US3** (P2): redirect rules incl. constructor form — U13. DONE.
+- **US4** (P2): shell nesting with shell View rendering around child — U14/U15. DONE.
+- **US5** (P2): guard intercept before activation — U16. DONE.
+- **US6** (P3): deep-link marker for `deepLinkAware` routes (marker emission;
+  platform manifest files remain owned by the imperative deep-link plugin —
+  documented Out of scope). DONE (marker scope).
+- **US7** (P3): typed `RouteParams` (`final int id`) — U17. DONE.
 
-Executed per-directory (sandbox disk limits single-process full runs; see
-spec 037 verification for the batching rationale):
+## Edge cases (spec)
 
-| Scope | Result |
-|---|---|
-| `test/core test/config test/utils test/cli test/dda test/domain test/session test/share test/secure_storage test/scripts test/property test/migration test/i18n test/logging test/device test/app_update test/biometrics test/clipboard test/helpers` | 931 passed, 1 skipped (pre-existing) |
-| `test/graphql test/routing test/agent test/state test/mcp test/integration` | 474 passed |
-| `test/plugins/benchmark test/plugins/xray test/plugins/tui` | 300 passed |
-| `test/plugins` (route, usecase, sync, mock, repository, provider, method_append, strategy, service, datasource, app_shell, api, di, gym, module, shadcn, sqlite, state + top-level) | 324 passed |
-| `test/plugins/mcp` | 117 passed (runner lingers after "All tests passed!" — sandbox stdin leak, not a failure) |
-| `test/regression` | 78 passed |
-| `test/commands` | 227 passed |
-| **Total** | **2451 passed, 1 pre-existing skip, 0 failed** |
+- Duplicate paths → error naming both classes — U25. DONE.
+- Missing parent → error naming parent + child — U27. DONE.
+- Non-View class annotation → error with class + location — U29. DONE.
+- No annotations → no failure; stale file → valid empty config — U21/U22. DONE.
+- Unsupported param type → error naming type + allowed set — U30. DONE.
+- Redirect target undefined → error — U31. DONE.
 
-**66 new tests authored for this spec**: route_params (9), route_guard (4,
-rewritten against the existing `ZuraffaRouteState`/`ZuraffaRouteGuard`
-API), scanner (14), validator (13), config generator (13), compiler (10),
-build step (3). The pre-existing `test/dda/route_golden_test.dart` (12) and
-all other suites pass unmodified — no regressions.
+## Suite state
 
-## Spec SC mapping (all SC-001..004 proven)
+- `dart analyze` root package (lib/ + test/): **0 errors** (112 infos/warnings,
+  all pre-existing).
+- `dart test` full fast tier (directory-chunked to fit the sandbox disk):
+  **2576 passed, 0 failed**, including the 45 new spec-033 tests
+  (test/dda/: 80 total, 35 pre-existing goldens still green).
+- Pre-existing, unrelated failures: NONE in the fast tier.
+  - `dart analyze` reports 23 errors in `examples/mcp_demo/` and
+    `zikzak_session/` sub-packages — verified identical on unmodified
+    master (git stash check); these sub-packages need their own generation
+    run before their tests apply.
+  - `test/benchmark`, `test/integration`, `test/property` are tagged `slow`
+    and excluded from the default run by `dart_test.yaml`.
+- The first full-suite attempt in this environment failed with
+  `No space left on device` while compiling the combined test kernel
+  (~8 GB in the shared sandbox `/tmp`) — an environment constraint, not a
+  code failure; re-running directory-by-directory resolved it and is how
+  the 2576-pass figure was obtained.
 
-### SC-001 — complete route from a single @Route, zero manual config
+## Deviations from the spec text (documented in plan.md)
 
-**PROVEN** by `test/routing/route_annotation_compiler_test.dart` — "e2e:
-writes lib/src/routing/zfa_router.g.dart (SC-001)": one annotation
-(`@Route(path: '/products/:id', params: {'id': int})`) on a View in a temp
-project → compiler writes the router file at the well-known path with the
-GoRoute entry, the typed `ProductsViewRouteParams` class, and the correct
-`package:test_app/...` import. Also proven end-to-end at CLI level by
-`test/commands/build_route_step_test.dart` — "success: writes artifacts and
-returns 0".
-
-### SC-002 — full route config < 2s for ≤100 annotated Views
-
-**PROVEN** by `test/routing/route_annotation_compiler_test.dart` — "SC-002:
-100 annotated Views compile under 2 seconds": a temp project with 100
-annotated Views (each with a typed `:id` param) compiles completely
-(scan → validate → generate → write) inside the wall-clock budget (parse-only
-`parseString` scanning; actual run ≈ 0.5–1s on 2 vCPUs).
-
-### SC-003 — all misconfiguration caught at build time, actionable errors
-
-**PROVEN** by `test/routing/route_validator_test.dart` (12 tests): duplicate
-paths (error lists BOTH classes), missing parent (names the missing parent
-and the available ones), parent cycles, unsupported param types (names the
-type), param-not-in-path, undefined redirect targets, unknown guard
-classes, non-View annotations (strict error / lenient warning), controller
-type mismatches; plus aggregation (never fail-fast —
-`RouteCompilationException` carries every error with file:line). CLI
-escalation proven by `test/commands/build_route_step_test.dart` —
-"validation failure: returns 1 and prints every error" (build fails).
-
-### SC-004 — compile-time-safe RouteParams; type mismatch = build error
-
-**PROVEN** by: (a) generated typed params classes (typed fields +
-`fromMaps` factories using `ZfaRouteParams.intParam/stringParam/...`) —
-`test/routing/route_config_generator_test.dart` "typed RouteParams class
-renders with typed fields + fromMaps" + "default (untyped) path params map
-to String"; (b) the controller-side mismatch check —
-`test/routing/route_annotation_compiler_test.dart` "controller type
-mismatch fails the compile (SC-004)" (`params: {'id': int}` vs a sibling
-`ProductController` declaring `final String id` → build error naming both
-types); (c) `test/routing/route_params_test.dart` — typed parsing +
-holder semantics.
-
-## Spec FR mapping
-
-| FR | Status | Evidence |
-|---|---|---|
-| FR-001 @Route annotation (path, deepLinkAware, isShell, parent, middleware, redirect from/to) | DONE | `ZfaRoute` extended (`lib/src/dda/plugins/route/route_annotation.dart`); `Route` typedef now canonical; `@Route.redirect`/`@Route.middleware` constructor forms |
-| FR-002 scan at `zfa build` → single config file | DONE | `RouteAnnotationScanner` + `RouteAnnotationCompiler` + `BuildCommand` pre-build step → `lib/src/routing/zfa_router.g.dart` |
-| FR-003 path param extraction to controller init | DONE | generated `fromMaps` + `ZfaRouteParams.bind`/`currentAs<T>()` holder (params tests) |
-| FR-004 query parameter extraction | DONE | `query:` annotation arg → nullable String fields + raw maps on the holder |
-| FR-005 redirect rules | DONE | `@Route.redirect(from:, to:)` + `redirect: RouteRedirect(...)` → `GoRoute(path: from, redirect: (_, __) => to)` entries |
-| FR-006 build-time error detection (5 classes) | DONE | `RouteValidator` — duplicates, missing parents (+cycles), non-View, unsupported param types, undefined redirect targets (+unknown guards) |
-| FR-007 nested hierarchies via `parent` | DONE | `parent` (name-keyed) → `ShellRoute` nesting with relative child paths; shell View receives `child:` when its constructor declares it |
-| FR-008 guards invoked before activation | DONE | generated `zfaGuardRedirect([...guards], _zfaRouteState(state))` → `canActivate` + `onRejected` (existing guard API) |
-
-## User-story scenarios
-
-- **US-1** (registration, idempotency, multi-view single file): compiler
-  e2e + idempotency tests (byte-identical output across runs).
-- **US-2** (path + query extraction): `route_params_test.dart` parses
-  `/items/42` → `id = 42`, `/search?q=dart` → `q = 'dart'`,
-  `/users/7/settings?tab=profile` → both params.
-- **US-3** (redirects): scanner + generator + compiler redirect tests.
-- **US-4** (nested shells): generator "shell route nests children with
-  relative paths" (`/analytics` under `/dashboard` shell → child path
-  `analytics`); compiler "shell + child compile into nested ShellRoute".
-- **US-5** (guards): guard contract tests (deny → `onRejected` path, allow
-  → proceed, first-denied-wins) + generated wrapping assertions.
-- **US-6** (deep links): generator + compiler deep-link side-file tests
-  (`.well-known/apple-app-site-association` + `assetlinks.json` contain
-  only deepLinkAware paths; absent when none).
-- **US-7** (typed RouteParams): typed fields via `params: {'id': int}` —
-  `final int id;` with typed parsing.
-
-## Edge cases from the spec
-
-- Duplicate paths → error listing both annotated classes ✓
-- Non-existent parent → descriptive error naming the parent ✓
-- `@Route` on a non-View → strict error (default) / lenient warning ✓
-- No `@Route` annotations at build → valid empty config when a stale
-  router file exists; otherwise the step is a no-op (never fails) ✓
-- Unsupported param type → build error naming the type ✓
-- Redirect target missing → build error naming from/to ✓
-- Parent cycles → detected and reported (defensive extra) ✓
-
-## TDD process notes
-
-- Red evidence for every behavior cluster: `tdd/red/01..05-*.md`.
-- The initial design duplicated annotation/guard classes; discovery of the
-  existing DDA route plugin (`lib/src/dda/plugins/route/`) during GREEN
-  refactoring triggered a rework to REUSE the existing `ZfaRoute`,
-  `ZuraffaRouteGuard` and `ZuraffaRouteState` (duplicates deleted, guard
-  tests rewritten against the existing API). The plan.md integration note
-  documents this decision.
-- Test corrections during the loop: multiline bind emission assertions,
-  RouteParams class naming (view-class-derived, matching the existing DDA
-  generator convention), params-class emission gate (path params, not
-  typed-map presence), duplicate-error location reporting (first
-  declaration site; message lists both classes).
-
-## Pre-existing unrelated failures
-
-None. 2451 passed / 1 pre-existing skip / 0 failed; `dart analyze` matches
-the master baseline exactly (88 issues, 0 errors, 4 pre-existing
-warnings).
+1. Guards are constructed directly (`AuthGuard()`), not DI-resolved —
+   matches the existing golden shapes; guards may pull DI inside
+   `canActivate` (plan §decisions 7).
+2. "Empty config" = regenerate-stale-file-as-empty; a project that never
+   used `@Route` gets no file (avoids breaking pure-Dart projects with a
+   Flutter-importing file) (plan §decisions 1).
+3. Deep links emit marker comments; platform manifest emission stays with
+   the imperative deep-link routes plugin (Non-goals).

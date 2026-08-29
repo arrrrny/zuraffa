@@ -1,160 +1,107 @@
-# TDD Test List — @Route Decorator for Auto-Generated Navigation Configuration
+---
+feature: 033-route-decorator-nav
+loop: outside-in
+profile: .specify/memory/tdd-profile.md
+spec_criteria: 4
+planned_at: b3926c93
+updated_at: b3926c93
+suite_baseline: green
+---
 
-**Spec**: `specs/033-route-decorator-nav/spec.md`
-**Plan**: `specs/033-route-decorator-nav/plan.md`
-**Tasks**: `specs/033-route-decorator-nav/tasks.md`
+# Test List: @Route Decorator for Auto-Generated Navigation Configuration
 
-Every behavior maps to: spec FR/SC it proves, the driving test, and the
-implementation that makes it green. Red evidence per behavior cluster lives
-in `tdd/red/`.
+## Outer loop: acceptance behaviors
 
-## Behaviors
+One per success criterion in `spec.md`. Each stays red until the feature works
+end to end through its real entry point (annotate a View in a temp project →
+run the route build stage / `zfa build` → inspect the generated
+`lib/src/routing/zfa_router.g.dart`).
 
-### B01 — Typed route param parsing (String/int/double/bool + fallbacks)
+| id  | behavior                                                                                              | traces  | kind    | state   | test                                                                |
+| --- | ----------------------------------------------------------------------------------------------------- | ------- | ------- | ------- | ------------------------------------------------------------------- |
+| A1  | A single `@Route(path: '/products')` on a View, run through the build stage, yields a complete GoRouter config file with zero manual route code (US1 scenarios 1+4: one annotation → one route; many Views → one file) | SC-001, FR-002 | example | DONE | `test/dda/route_build_stage_test.dart::stage e2e`                   |
+| A2  | The route stage compiles a project with 100 annotated Views into one config in under 2 seconds       | SC-002  | example | DONE | `test/dda/route_perf_test.dart::100 views under 2s`                 |
+| A3  | Duplicate paths, missing parents, non-View targets, unsupported param types, and dangling redirect targets all fail the build with actionable errors before any file is written | SC-003, FR-006 | example | DONE | `test/dda/route_validator_test.dart` + `route_build_stage_test.dart::validation fails stage` |
+| A4  | Generated `RouteParams` classes are typed (`final int id`) and parse `GoRouterState` values at construction — a wrong param type is a build error, not a runtime crash | SC-004, FR-003 | example | DONE | `test/dda/route_build_stage_test.dart::typed path and query params` |
 
-- **Spec**: FR-003, FR-004, US-2 scenarios 1–3, US-7 scenario 2
-- **Test**: `test/routing/route_params_test.dart` — `parse helpers`
-- **Implementation**: `lib/src/routing/route_params.dart` —
-  `ZfaRouteParams.stringParam/intParam/doubleParam/boolParam`
+## Inner loop: unit behaviors
 
-### B02 — Current-params holder for controller init
+Grouped by the component from `plan.md` that owns them.
 
-- **Spec**: FR-003 ("available to the associated controller at
-  initialization time")
-- **Test**: `test/routing/route_params_test.dart` — `bind + currentAs`
-- **Implementation**: `ZfaRouteParams.bind` / `ZfaRouteParams.currentAs<T>`
+### `lib/src/dda/compiler/ast_scanner.dart` (+ `models/decorator_ast.dart`)
 
-### B03 — Guard contract + navigation context
+| id  | behavior                                                                                          | traces        | kind    | state   | test                                                        |
+| --- | ------------------------------------------------------------------------------------------------- | ------------- | ------- | ------- | ----------------------------------------------------------- |
+| U1  | A string literal named arg (`path: '/products'`) scans to the typed String `/products` (quotes stripped) | FR-001, FR-002 | example | DONE | `test/dda/ast_scanner_literal_test.dart::string literal`    |
+| U2  | A bool literal named arg (`deepLinkAware: true`) scans to the typed bool `true`                   | FR-001        | example | DONE | `test/dda/ast_scanner_literal_test.dart::bool literal`      |
+| U3  | Int and double literal named args scan to `int` / `double` values                                  | FR-001        | example | DONE | `test/dda/ast_scanner_literal_test.dart::numeric literals`  |
+| U4  | A list literal named arg (`middleware: [AuthGuard]`) scans to `['AuthGuard']` (raw element sources) | FR-008        | example | DONE | `test/dda/ast_scanner_literal_test.dart::list literal`      |
+| U5  | A map literal named arg (`queryParameters: {'q': 'String'}`) scans to a parseable raw source string | FR-004        | example | DONE | `test/dda/ast_scanner_literal_test.dart::map literal`       |
+| U6  | `@Route.redirect(from: '/old', to: '/new')` reports name `Route` + constructorName `redirect`      | FR-005        | example | DONE | `test/dda/ast_scanner_literal_test.dart::named constructor` |
+| U7  | `@ZfaRoute(...)` reports decorator name `ZfaRoute` (both spellings accepted downstream)            | FR-001        | example | DONE | `test/dda/ast_scanner_literal_test.dart::zfa route spelling`|
+| U8  | The syntactic fast path (`resolve: false`) scans a temp project with no pubspec.yaml                | SC-002        | example | DONE | `test/dda/ast_scanner_fast_path_test.dart::no pubspec`      |
+| U9  | `.g.dart` / `.freezed.dart` files stay excluded on both scan paths                                 | FR-002        | example | DONE | `test/dda/ast_scanner_fast_path_test.dart::excludes generated` |
 
-- **Spec**: FR-008, US-5 scenarios 1–2
-- **Test**: `test/routing/route_guard_test.dart` — `canActivate contract`,
-  `default redirectPath`, `ZfaRouteNavigationContext fields`
-- **Implementation**: `lib/src/routing/route_guard.dart` —
-  `ZuraffaRouteGuard`, `ZfaRouteNavigationContext`
+### `lib/src/dda/plugins/route/route_build_stage.dart` (stage e2e — temp projects)
 
-### B04 — Scanner decodes @Route named args
+| id  | behavior                                                                                          | traces        | kind    | state   | test                                                            |
+| --- | ------------------------------------------------------------------------------------------------- | ------------- | ------- | ------- | --------------------------------------------------------------- |
+| U10 | Stage run over one annotated View writes `lib/src/routing/zfa_router.g.dart` with route, name, view class, and view import | SC-001, FR-002 | example | DONE | `test/dda/route_build_stage_test.dart::writes router file`     |
+| U11 | Two runs over unchanged sources produce byte-identical output (idempotency)                        | US1 scenario 3 | example | DONE | `test/dda/route_build_stage_test.dart::idempotent`             |
+| U12 | `@Route` and `@ZfaRoute` spellings produce identical routes                                        | FR-001        | example | DONE | `test/dda/route_build_stage_test.dart::both spellings`         |
+| U13 | `@ZfaRoute.redirect(from:, to:)` emits the redirect callback and no GoRoute for the annotation class | FR-005        | example | DONE | `test/dda/route_build_stage_test.dart::redirect e2e`           |
+| U14 | `isShell: true` + `parent: 'dashboard'` nests child routes in a ShellRoute whose builder renders the shell View around `child` | FR-007 | example | DONE | `test/dda/route_build_stage_test.dart::shell nesting`          |
+| U15 | `parent: '/dashboard'` (path form) nests identically to the name form                              | FR-007        | example | DONE | `test/dda/route_build_stage_test.dart::parent by path`         |
+| U16 | `middleware: [AuthGuard]` emits the async guard redirect block invoking `canActivate` / `onRejected` before activation | FR-008 | example | DONE | `test/dda/route_build_stage_test.dart::guard e2e`              |
+| U17 | `pathParameters: {'id': 'int'}` yields `final int id` + `int.parse(...)` in the RouteParams factory | FR-003, SC-004 | example | DONE | `test/dda/route_build_stage_test.dart::typed path param`       |
+| U18 | Query params declared via `queryParameters` yield typed fields with safe defaults when absent       | FR-004        | example | DONE | `test/dda/route_build_stage_test.dart::typed query params`     |
+| U19 | Mixed path + query params on one route land in one params class with both typed fields             | FR-003, FR-004 | example | DONE | `test/dda/route_build_stage_test.dart::mixed params`           |
+| U20 | `deepLinkAware: true` routes carry the deep-link marker comment; others carry none                 | FR-001 (deepLinkAware) | example | DONE | `test/dda/route_build_stage_test.dart::deep link marker`       |
+| U21 | No annotations + no previous file → success, nothing written                                       | Edge case     | example | DONE | `test/dda/route_build_stage_test.dart::empty project skip`      |
+| U22 | No annotations + stale router file → regenerated as a valid empty config with no stale routes      | Edge case     | example | DONE | `test/dda/route_build_stage_test.dart::stale file emptied`     |
+| U23 | Routes removed between runs disappear from the regenerated file                                    | Edge case     | example | DONE | `test/dda/route_build_stage_test.dart::removed routes pruned`   |
+| U24 | Validation errors abort the stage before any file is written                                       | SC-003        | example | DONE | `test/dda/route_build_stage_test.dart::validation fails stage`  |
 
-- **Spec**: FR-001, US-1 scenario 1
-- **Test**: `test/routing/route_annotation_scanner_test.dart` —
-  `scans @Route with all named args`
-- **Implementation**: `lib/src/routing/route_annotation_scanner.dart` +
-  `route_annotation.dart`
+### `lib/src/dda/plugins/route/route_validator.dart`
 
-### B05 — Scanner handles @Route.redirect / @Route.middleware forms
+| id  | behavior                                                                                          | traces        | kind    | state   | test                                                            |
+| --- | ------------------------------------------------------------------------------------------------- | ------------- | ------- | ------- | --------------------------------------------------------------- |
+| U25 | Two routes with the same path produce an error naming BOTH classes and the path                    | FR-006, SC-003 | example | DONE | `test/dda/route_validator_test.dart::duplicate path`            |
+| U26 | Two routes with the same explicit name produce an error                                           | FR-006        | example | DONE | `test/dda/route_validator_test.dart::duplicate name`            |
+| U27 | A `parent` referencing an unknown route name/path errors naming parent and child class            | FR-006, SC-003 | example | DONE | `test/dda/route_validator_test.dart::missing parent`           |
+| U28 | A `parent` referencing a non-shell route errors                                                   | FR-006        | example | DONE | `test/dda/route_validator_test.dart::parent not shell`         |
+| U29 | `@Route` on a class not named `*View`/`*Shell`/`*Page`/`*Screen` errors with the class + location  | FR-006, SC-003 | example | DONE | `test/dda/route_validator_test.dart::non view target`          |
+| U30 | A param type outside `{String, int, double, bool}` errors naming the type and the allowed set     | FR-006, SC-003 | example | DONE | `test/dda/route_validator_test.dart::unsupported param type`   |
+| U31 | A redirect whose `to` target matches no route path errors as an undefined redirect target         | FR-006, SC-003 | example | DONE | `test/dda/route_validator_test.dart::dangling redirect target` |
+| U32 | Routes present without `go_router` in pubspec deps error with an install hint                     | FR-006 (precondition) | example | DONE | `test/dda/route_validator_test.dart::go_router missing` |
+| U33 | A clean project validates with zero errors                                                        | FR-006        | example | DONE | `test/dda/route_validator_test.dart::clean project`            |
 
-- **Spec**: FR-001 (redirect config), FR-005, FR-008, US-3, US-5
-- **Test**: `test/routing/route_annotation_scanner_test.dart` —
-  `standalone redirect form`, `standalone middleware form`
-- **Implementation**: scanner named-constructor handling
+### `lib/src/commands/build_command.dart` (CLI wiring)
 
-### B06 — Non-View detection (strict error / lenient warning)
+| id  | behavior                                                                                          | traces        | kind    | state   | test                                                            |
+| --- | ------------------------------------------------------------------------------------------------- | ------------- | ------- | ------- | --------------------------------------------------------------- |
+| U34 | `zfa build --dda-routes-only` on an annotated temp project produces the same router file as the direct stage run | FR-002 | example | DONE | `test/dda/route_build_stage_test.dart::build command wiring`    |
+| U35 | `zfa build` with `--no-dda-routes` skips the route stage entirely                                   | FR-002 (opt-out) | example | DONE | `test/dda/route_build_stage_test.dart::no dda routes flag`  |
+| U36 | DDA validation errors surface through the build command and fail it                                 | SC-003        | example | DONE | `test/dda/route_build_stage_test.dart::build command fails on dda errors` |
 
-- **Spec**: FR-006, Edge Cases
-- **Test**: `test/routing/route_annotation_scanner_test.dart` —
-  `non-View strict error` / `non-View lenient warning`
-- **Implementation**: scanner + `RouteScanIssue` severity
+## Invariants and edge cases still to place
 
-### B07 — View detection via name/extends + shell child-param detection
+All placed (see U21–U24, U25–U33). No unplaced behaviors remain.
 
-- **Spec**: US-4 (shell views render children)
-- **Test**: `test/routing/route_annotation_scanner_test.dart` —
-  `extends View counts as View`, `shell constructor child param`
-- **Implementation**: scanner class-shape inspection
+## Out of scope
 
-### B08 — Duplicate path validation
+- Runtime GoRouter navigation behavior — the target package's concern, not the generator's.
+- Platform deep-link manifest files (`apple-app-site-association`, `assetlinks.json`) — owned by the imperative deep-link routes plugin (`lib/src/plugins/route/builders/deep_link_routes_builder.dart`); the DDA path emits marker comments only.
+- Merging DDA routes into the `getAllRoutes()` aggregator / `app_router.dart` from the app_shell plugin — separate system, can coexist.
+- DI-resolved guard construction — v1 instantiates guards directly (plan §Spec-reading decisions 7).
+- Activating the dormant Auth/Cache/Retry/TrackEvent DDA generators — separate specs.
 
-- **Spec**: FR-006, Edge Cases, SC-003
-- **Test**: `test/routing/route_validator_test.dart` — `duplicate paths`
-- **Implementation**: `lib/src/routing/route_validator.dart`
+## Verification commands
 
-### B09 — Missing parent / parent cycle validation
+Copied verbatim from `.specify/memory/tdd-profile.md` at planning time, so this
+file is readable on its own:
 
-- **Spec**: FR-006, FR-007, Edge Cases, SC-003
-- **Test**: `test/routing/route_validator_test.dart` — `missing parent`,
-  `parent cycle`
-- **Implementation**: route_validator
-
-### B10 — Unsupported param type + unknown path param validation
-
-- **Spec**: FR-006, Edge Cases, SC-003/SC-004
-- **Test**: `test/routing/route_validator_test.dart` —
-  `unsupported param type`, `param not in path`
-- **Implementation**: route_validator
-
-### B11 — Redirect target validation
-
-- **Spec**: FR-005, FR-006, Edge Cases, SC-003
-- **Test**: `test/routing/route_validator_test.dart` — `undefined redirect target`
-- **Implementation**: route_validator
-
-### B12 — Controller type-mismatch validation (SC-004)
-
-- **Spec**: SC-004, FR-006
-- **Test**: `test/routing/route_validator_test.dart` — `controller type mismatch`
-- **Implementation**: route_validator sibling-controller scan
-
-### B13 — Generated GoRoute/RouteParams source shape
-
-- **Spec**: FR-002, FR-003, US-1 scenarios 1/2/4, US-7
-- **Test**: `test/routing/route_config_generator_test.dart` —
-  `flat route rendering`, `typed params class rendering`, `parses back`
-- **Implementation**: `lib/src/routing/route_config_generator.dart`
-
-### B14 — ShellRoute nesting + relative child paths
-
-- **Spec**: FR-007, US-4 scenarios 1–2
-- **Test**: `test/routing/route_config_generator_test.dart` —
-  `shell nesting`, `relative child path`, `child param only when declared`
-- **Implementation**: route_config_generator
-
-### B15 — Redirect + guard rendering
-
-- **Spec**: FR-005, FR-008, US-3, US-5
-- **Test**: `test/routing/route_config_generator_test.dart` —
-  `redirect rule rendering`, `guard wrapping`
-- **Implementation**: route_config_generator
-
-### B16 — Deep-link side files
-
-- **Spec**: US-6 scenarios 1–2
-- **Test**: `test/routing/route_config_generator_test.dart` —
-  `deep link files written`, `no deep links → no files`
-- **Implementation**: route_config_generator
-
-### B17 — End-to-end compile + idempotency
-
-- **Spec**: FR-002, US-1 scenario 3
-- **Test**: `test/routing/route_annotation_compiler_test.dart` —
-  `e2e writes router file`, `idempotent output`
-- **Implementation**: `lib/src/routing/route_annotation_compiler.dart`
-
-### B18 — 100 Views < 2s (SC-002)
-
-- **Spec**: SC-002
-- **Test**: `test/routing/route_annotation_compiler_test.dart` —
-  `100 views compile under 2 seconds`
-- **Implementation**: parse-only scanner + deterministic emitter
-
-### B19 — Empty/no-annotation behavior
-
-- **Spec**: Edge Cases ("valid (empty) route configuration rather than
-  failing")
-- **Test**: `test/routing/route_annotation_compiler_test.dart` —
-  `no annotations + stale router → empty config`, `no annotations + no
-  router → no file`
-- **Implementation**: route_annotation_compiler
-
-### B20 — Compilation errors aggregate with locations
-
-- **Spec**: FR-006, SC-003
-- **Test**: `test/routing/route_annotation_compiler_test.dart` —
-  `all errors reported with file:line`
-- **Implementation**: `RouteCompilationException` aggregating every error
-
-### B21 — `zfa build` pre-step wiring
-
-- **Spec**: FR-002 ("during zfa build"), SC-001
-- **Test**: `test/commands/build_route_step_test.dart` —
-  `success writes artifacts`, `validation failure returns 1`,
-  `zero annotations no-op`
-- **Implementation**: `BuildCommand.compileRouteAnnotations` + `run()` hook
+- Single test: `dart test test/<path>.dart -P "<name>"`
+- Full suite (feature scope): `dart test test/dda/`
+- Static analysis (feature scope): `dart analyze lib/src/dda/ lib/src/commands/build_command.dart test/dda/`
+- Static analysis (full repo): `dart analyze`
