@@ -342,6 +342,11 @@ provides:
       description: Generate list/detail TUI screens for an entity, wired to its existing use cases (FR-011, SC-005). Pure-Dart — no Flutter.
       aliases: [zfa.tui.create-tui-screens]
       category: presentation
+    - name: speckit.zuraffa.shadcn.ui.schema.export
+      file: commands/presentation/shadcn_ui-schema-export.md
+      description: Export the shadcn plugin UI component vocabulary as a versioned, diff-stable JSON Schema (components, props, enums, children constraints, structural rules, style tokens, action-ID grammar).
+      aliases: [zfa.shadcn.ui.schema.export]
+      category: presentation
     - name: speckit.zuraffa.benchmark.list
       file: commands/benchmark/benchmark_list.md
       description: List the benchmark scenarios currently registered in the plugin registry.

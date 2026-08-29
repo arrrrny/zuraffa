@@ -8,6 +8,7 @@ import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/shadcn_builder.dart';
+import 'capabilities/ui_vocabulary_export_capability.dart';
 import 'commands/shadcn_command.dart';
 
 /// Manages Shadcn UI widget generation.
@@ -31,6 +32,13 @@ class ShadcnPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   @override
   Command createCommand() => ShadcnCommand(this);
+
+  /// Spec 024 FR-006: the vocabulary export is a discoverable capability
+  /// (MCP-accessible) on the shadcn plugin.
+  @override
+  List<ZuraffaCapability> get capabilities => [
+        UiVocabularyExportCapability(this),
+      ];
 
   @override
   String get id => 'shadcn';
