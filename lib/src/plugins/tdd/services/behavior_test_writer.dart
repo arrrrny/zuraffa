@@ -90,21 +90,15 @@ void main() {
     final target = b.target.isEmpty ? 'subjectUnderTest' : b.target;
     final description = b.description;
     // Look for "returns N" or "= N".
-    // When the subject exists, this assertion will pass. On first run
-    // (honest red), the subject throws UnimplementedError, so we assert
-    // with throwsA to get an assertion failure class, not an uncaught
-    // exception.
+    // On first run (honest red), the subject throws UnimplementedError,
+    // producing a comparison error (the value is not the expected number).
     final returnsMatch = RegExp(
       r'returns?\s+(\d+)',
       caseSensitive: false,
     ).firstMatch(description);
     if (returnsMatch != null) {
       final expected = returnsMatch.group(1);
-      return '// When implemented, replace with:\n'
-          '      // final result = subject.$target();\n'
-          '      // expect(result, equals($expected));\n'
-          '      expect(() => subject.$target(),\n'
-          '        throwsA(isA<UnimplementedError>()));';
+      return 'final result = subject.$target();\n      expect(result, equals($expected));';
     }
     // Look for "throws <ExceptionName>" — only known Dart built-in types
     // to avoid generating unimported exception types from prose.
