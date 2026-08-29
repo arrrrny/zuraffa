@@ -94,26 +94,26 @@ boundaries, not proven properties.
 | id  | behavior                                                                                                    | traces | kind    | state   | test |
 | --- | ----------------------------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
 | U9  | Extracts every `getIt<T>()` type argument from a presenter constructor body                                 | FR-001 | example | PENDING |      |
-| U10 | Extracts `T` nested inside `registerUseCase(getIt<T>())`                                                    | FR-001 | example | PENDING |      |
-| U11 | Ignores generic method calls that are not `getIt` lookups                                                   | FR-001 | example | PENDING |      |
-| U12 | Maps each extracted type to its DI registration file under `lib/src/di/` via the snake_case naming convention | FR-001 | example | PENDING |      |
+| U10 | Extracts `T` nested inside `registerUseCase(getIt<T>())`                                                    | FR-001 | example | DONE    | `test/plugins/slice/engine/service_locator_analyzer_test.dart::U10: extracts T nested inside registerUseCase(getIt<T>())` |
+| U11 | Ignores generic method calls that are not `getIt` lookups                                                   | FR-001 | example | DONE    | `test/plugins/slice/engine/service_locator_analyzer_test.dart::U11: ignores generic method calls that are not getIt lookups` |
+| U12 | Maps each extracted type to its DI registration file under `lib/src/di/` via the snake_case naming convention | FR-001 | example | DONE    | `test/plugins/slice/engine/service_locator_analyzer_test.dart::U12: maps a type to lib/src/di/**/<snake>_di.dart` |
 
 ### `lib/src/plugins/slice/engine/barrel_resolver.dart`
 
 | id  | behavior                                                                                                       | traces | kind    | state   | test |
 | --- | -------------------------------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
-| U13 | A barrel import with a `show` clause includes only the files exporting the shown symbols                       | FR-005 | example | PENDING |      |
-| U14 | A barrel import without `show` includes only the files exporting types the importer actually references        | FR-005 | example | PENDING |      |
-| U15 | A DI barrel re-exporting 100+ registrations yields only the registration files the slice's `getIt` types need  | FR-005 | example | PENDING |      |
-| U16 | A non-barrel file passes through unmodified                                                                    | FR-005 | example | PENDING |      |
+| U13 | A barrel import with a `show` clause includes only the files exporting the shown symbols                       | FR-005 | example | DONE    | `test/plugins/slice/engine/barrel_resolver_test.dart::U13: a show clause includes only the files exporting shown symbols` |
+| U14 | A barrel import without `show` includes only the files exporting types the importer actually references        | FR-005 | example | DONE    | `test/plugins/slice/engine/barrel_resolver_test.dart::U14: without show, only referenced exported types come in` |
+| U15 | A DI barrel re-exporting 100+ registrations yields only the registration files the slice's `getIt` types need  | FR-005 | example | DONE    | `test/plugins/slice/engine/barrel_resolver_test.dart::U15: a DI barrel with 100+ registrations yields only needed files` |
+| U16 | A non-barrel file passes through unmodified                                                                    | FR-005 | example | DONE    | `test/plugins/slice/engine/barrel_resolver_test.dart::U16: a non-barrel file passes through unmodified` |
 
 ### `lib/src/plugins/slice/engine/companion_detector.dart`
 
 | id  | behavior                                                                                  | traces | kind    | state   | test |
 | --- | ----------------------------------------------------------------------------------------- | ------ | ------- | ------- | ---- |
-| U17 | An existing `.g.dart` companion is included alongside its source file                     | FR-006 | example | PENDING |      |
-| U18 | A missing `.g.dart` companion records a warning and still includes the source file        | FR-006 | example | PENDING |      |
-| U19 | An existing `.freezed.dart` companion is included                                         | FR-006 | example | PENDING |      |
+| U17 | An existing `.g.dart` companion is included alongside its source file                     | FR-006 | example | DONE    | `test/plugins/slice/engine/companion_detector_test.dart::U17: an existing .g.dart companion is detected` |
+| U18 | A missing `.g.dart` companion records a warning and still includes the source file        | FR-006 | example | DONE    | `test/plugins/slice/engine/companion_detector_test.dart::U18: a missing .g.dart companion records a warning` |
+| U19 | An existing `.freezed.dart` companion is included                                         | FR-006 | example | DONE    | `test/plugins/slice/engine/companion_detector_test.dart::U19: an existing .freezed.dart companion is detected` |
 
 ### `lib/src/plugins/slice/engine/import_graph_walker.dart`
 

@@ -1,15 +1,15 @@
 /// The `zfa slice` command: context-isolated codebase extraction (spec 043).
 ///
 /// Subcommands:
-///   cut <name> --entry <page|path> [--entry ...] [--depth view|presentation|
-///        feature|full] [--verify]
-///   merge <name> [--yes]
+///   cut `<name> --entry <page|path> [--entry ...] [--depth view|presentation|
+///        feature|full] [--verify]`
+///   merge `<name> [--yes]`
 ///   list
-///   inspect <name>
-///   verify <name> [--analyze]
-///   run <name> [flutter run passthrough flags...]
-///   export <name> --format tar.gz|github [--repo <owner/name|name>]
-///   import <name> --from github
+///   inspect `<name>`
+///   verify `<name> [--analyze]`
+///   run `<name> [flutter run passthrough flags...]`
+///   export `<name> --format tar.gz|github [--repo <owner/name|name>]`
+///   import `<name> --from github`
 ///
 /// INV-1: every subcommand validates its arguments and fails with usage text,
 /// never a stack trace.

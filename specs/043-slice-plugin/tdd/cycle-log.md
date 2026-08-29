@@ -109,6 +109,53 @@ existed and failed before the implementation.
   while green.
 - commit: (recorded in git history)
 
+
+## Cycle 5: U9-U12 — ServiceLocatorAnalyzer
+
+- tests: `test/plugins/slice/engine/service_locator_analyzer_test.dart` (new)
+- red: `dart test test/plugins/slice/engine/service_locator_analyzer_test.dart`
+  (stub threw UnimplementedError; 6 failed across this and the two batches
+  below — `dart test test/plugins/slice/engine/...` -> +0 -15)
+  - U9/U10/U11 -> `UnimplementedError`
+  - U12 -> `UnimplementedError`
+- green: RecursiveAstVisitor over MethodInvocation type arguments.
+  Two real bugs found by the red->green run and fixed in-cycle:
+  (a) `getIt<T>()` parses with a NULL target (identifier invocation), so the
+  first implementation requiring a getIt target found nothing —
+  `Expected: contains 'GetProductUseCase' / Actual: []`;
+  (b) snake_case mapping: the repo convention keeps `UseCase` as one word
+  (`get_product_usecase_di.dart`), so the mapping now reuses
+  StringUtils.camelToSnake after stripping the `UseCase` suffix (verified
+  against the DI plugin's own emission in di_plugin.dart:963-973).
+  Also adapted to analyzer 14.1.0 AST (SimpleIdentifier.token.lexeme,
+  TypeArgumentList.arguments). Suite -> all slice tests passing.
+- refactor: extracted `_targetIsGetItBinding` / `_targetIsGetItVariable`
+- commit: (recorded in git history)
+
+## Cycle 6: U13-U16 — BarrelResolver
+
+- tests: `test/plugins/slice/engine/barrel_resolver_test.dart` (new)
+- red: stub threw UnimplementedError (part of the +0 -15 batch above)
+- green: barrel detection (exports only, no declarations), export-target
+  expansion, show-clause filtering (U13), word-boundary reference matching
+  for bare imports (U14), 120-registration DI barrel yielding exactly the
+  two needed files (U15), non-barrel passthrough (U16). Adapted declaration
+  name access to analyzer 14.1.0 (`namePart.typeName.lexeme` for
+  class/enum, `name` for mixin/typedef/function/extension).
+- refactor: none beyond the analyzer-shape fix
+- commit: (recorded in git history)
+
+## Cycle 7: U17-U19 — CompanionDetector
+
+- tests: `test/plugins/slice/engine/companion_detector_test.dart` (new)
+- red: stub threw UnimplementedError (part of the +0 -15 batch above)
+- green: conventional sibling discovery (<name>.g.dart / <name>.freezed.dart
+  on disk) unioned with declared part directives; missing declared
+  companions record warnings naming the file (U18) without blocking the
+  source. Suite `dart test test/plugins/slice/` -> 32 passed.
+- refactor: none
+- commit: (recorded in git history)
+
 ## Notes and deviations
 
 - Loop granularity: cycles are batched at component granularity (one commit

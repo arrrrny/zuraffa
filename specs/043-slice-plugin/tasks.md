@@ -55,9 +55,9 @@
 
 - [x] T025 [P] [U1] [U2] [U3] Create unit test for `SliceManifest` YAML round-trip serialization in test/plugins/slice/models/slice_manifest_test.dart
 - [x] T020 [P] [U4] [U5] [U6] [U7] [U8] Create unit test for `PackageResolver` with fixture `package_config.json` in test/plugins/slice/engine/package_resolver_test.dart
-- [ ] T021 [P] [U9] [U10] [U11] [U12] Create unit test for `ServiceLocatorAnalyzer` with fixture presenter source containing `getIt<T>()` calls in test/plugins/slice/engine/service_locator_analyzer_test.dart
-- [ ] T022 [P] [U13] [U14] [U15] [U16] Create unit test for `BarrelResolver` with fixture barrel file re-exporting multiple files in test/plugins/slice/engine/barrel_resolver_test.dart
-- [ ] T023 [P] [U17] [U18] [U19] Create unit test for `CompanionDetector` verifying `.g.dart` and `.freezed.dart` discovery in test/plugins/slice/engine/companion_detector_test.dart
+- [x] T021 [P] [U9] [U10] [U11] [U12] Create unit test for `ServiceLocatorAnalyzer` with fixture presenter source containing `getIt<T>()` calls in test/plugins/slice/engine/service_locator_analyzer_test.dart
+- [x] T022 [P] [U13] [U14] [U15] [U16] Create unit test for `BarrelResolver` with fixture barrel file re-exporting multiple files in test/plugins/slice/engine/barrel_resolver_test.dart
+- [x] T023 [P] [U17] [U18] [U19] Create unit test for `CompanionDetector` verifying `.g.dart` and `.freezed.dart` discovery in test/plugins/slice/engine/companion_detector_test.dart
 - [ ] T024 [U20] [U21] [U22] Create unit test for `ImportGraphWalker` with a multi-file fixture project testing depth boundaries and cycle detection in test/plugins/slice/engine/import_graph_walker_test.dart
 
 ### Implementation
@@ -65,9 +65,9 @@
 - [x] T011 [U1] [U2] Create `SliceManifest` model class with fields: name, createdAt, depth, entries, projectRoot, packageName, branch, exportedTo, files, boundaries — include `toYaml()` and `fromYaml()` serialization in lib/src/plugins/slice/models/slice_manifest.dart
 - [x] T019 [U1] [U2] [U3] Create `ManifestWriter` with `write(SliceManifest, String directory)` and `read(String directory)` methods for YAML serialization/deserialization in lib/src/plugins/slice/generators/manifest_writer.dart
 - [x] T014 [U4] [U5] [U6] [U7] [U8] Create `PackageResolver` that reads `.dart_tool/package_config.json` and resolves `package:<name>/...` URIs to filesystem paths in lib/src/plugins/slice/engine/package_resolver.dart
-- [ ] T016 [U9] [U10] [U11] [U12] Create `ServiceLocatorAnalyzer` using `RecursiveAstVisitor` to extract `getIt<T>()` type arguments from a parsed `CompilationUnit` in lib/src/plugins/slice/engine/service_locator_analyzer.dart
-- [ ] T017 [U13] [U14] [U15] [U16] Create `BarrelResolver` that parses barrel files (`index.dart`), extracts export directives, and returns only the re-exported files matching a set of needed types in lib/src/plugins/slice/engine/barrel_resolver.dart
-- [ ] T015 [U17] [U18] [U19] Create `CompanionDetector` that finds `.g.dart` and `.freezed.dart` companion files for a given source file path in lib/src/plugins/slice/engine/companion_detector.dart
+- [x] T016 [U9] [U10] [U11] [U12] Create `ServiceLocatorAnalyzer` using `RecursiveAstVisitor` to extract `getIt<T>()` type arguments from a parsed `CompilationUnit` in lib/src/plugins/slice/engine/service_locator_analyzer.dart
+- [x] T017 [U13] [U14] [U15] [U16] Create `BarrelResolver` that parses barrel files (`index.dart`), extracts export directives, and returns only the re-exported files matching a set of needed types in lib/src/plugins/slice/engine/barrel_resolver.dart
+- [x] T015 [U17] [U18] [U19] Create `CompanionDetector` that finds `.g.dart` and `.freezed.dart` companion files for a given source file path in lib/src/plugins/slice/engine/companion_detector.dart
 - [ ] T018 [U20] [U21] [U22] Create `ImportGraphWalker` that performs transitive import resolution with boundary detection — uses `FileParser`, `AstHelper.extractImports()`, `PackageResolver`, `BarrelResolver`, `ServiceLocatorAnalyzer`, and `CompanionDetector` to build a `FileGraph` from entry points at a given `SliceDepth` in lib/src/plugins/slice/engine/import_graph_walker.dart
 
 **Checkpoint**: Foundation ready — the graph traversal engine can trace dependencies from any entry point, resolve `package:` URIs, handle barrel files, detect `getIt<T>()` service-locator calls, and find companion files. All models serialize cleanly. User story implementation can now begin.
@@ -82,7 +82,7 @@
 
 ### Tests for User Story 1 (write FIRST — observe each failing before its implementation task)
 
-- [ ] T033 [US1] [A1] [A2] [A3] [A4] Create test fixture project with minimal Zuraffa structure (entity, usecase, repository, presenter with getIt<T>(), view, controller, state, DI files) in test/fixtures/slice_test_project/
+- [x] T033 [US1] [A1] [A2] [A3] [A4] Create test fixture project with minimal Zuraffa structure (entity, usecase, repository, presenter with getIt<T>(), view, controller, state, DI files) in test/fixtures/slice_test_project/
 - [ ] T077 [P] [US1] [U27] [U28] Create unit test for the ownership classifier — page-directory files classify owned, entities/domain/shared-widget/core files classify shared — in test/plugins/slice/engine/ownership_classifier_test.dart
 - [ ] T078 [P] [US1] [U29] [U30] Create unit test for `MockStubGenerator` — boundary mock generation and existing-mock reuse — in test/plugins/slice/generators/mock_stub_generator_test.dart
 - [ ] T079 [P] [US1] [U32] [U33] Create unit test for `SandboxBootstrapper` — `main_slice.dart` content and minimal `slice_di.dart` registrations — in test/plugins/slice/generators/sandbox_bootstrapper_test.dart
