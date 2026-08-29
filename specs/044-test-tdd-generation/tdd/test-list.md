@@ -98,6 +98,12 @@ works end to end through the real entry point (`zfa tdd gen` / `zfa tdd verify`)
 | U24 | Restores every subject post-audit and verifies sha256 match | FR-021 | unit | PENDING | `test/plugins/tdd/services/source_restorer_test.dart::restores and verifies` |
 | U25 | Restoration runs even on simulated interrupt (try/finally) | FR-021 | unit | PENDING | `test/plugins/tdd/services/source_restorer_test.dart::restores on interrupt` |
 
+### `zfa tdd gen` command (test fixtures)
+
+| id  | behavior | traces | kind | state | test |
+|-----|----------|--------|------|-------|------|
+| B-003 | Generates a compilable test + subject pair for a known behavior id | FR-001, FR-005 | unit | PROVEN | `test/plugins/tdd/commands/gen_command_test.dart::happy path writes one test one subject structured result` |
+
 ### `lib/src/plugins/tdd/services/mutation_auditor.dart`
 
 | id  | behavior | traces | kind | state | test |

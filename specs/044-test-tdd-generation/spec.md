@@ -91,7 +91,7 @@ non-zero, prints a message naming the affected file and the missing
 ownership record, and leaves all files unchanged.
 
 **Why this priority**: This story is the integrity guarantee for the
-artifact registry. Without idempotency, repeated `gen` callsign would
+artifact registry. Without idempotency, repeated `gen` calls would
 duplicate or shred tests; without the ownership-conflict stop, `gen`
 would silently rewrite user-authored files it did not own.
 

@@ -266,6 +266,17 @@ class MutationAuditor {
     // or to the override).
     MutationResult? mutationResult;
     String? notAssessedReason;
+
+    // Register signal handlers to restore source before process exit (FR-021).
+    // Without this, SIGINT/SIGTERM would terminate before the finally block
+    // completes, leaving mutated subjects on disk.
+    final sigintSub = ProcessSignal.sigint.watch().listen((_) async {
+      await restorer.restoreAndVerify();
+    });
+    final sigtermSub = ProcessSignal.sigterm.watch().listen((_) async {
+      await restorer.restoreAndVerify();
+    });
+
     try {
       mutationResult = await (_runMutationOverride ?? _defaultMutation)();
     } on MutationToolUnavailable catch (e) {
@@ -276,6 +287,8 @@ class MutationAuditor {
       notAssessedReason = 'mutation audit failed: $e';
     } finally {
       // Always restore, even on interrupt (FR-021).
+      await sigintSub.cancel();
+      await sigtermSub.cancel();
       await restorer.restoreAndVerify();
     }
 
@@ -297,8 +310,7 @@ class MutationAuditor {
     }
 
     // Determine if the report is empty/incomplete/unparseable (FR-016).
-    final isEmpty =
-        mutationResult!.totalMutants == 0 && mutationResult.reportPath == null;
+    final isEmpty = mutationResult!.totalMutants == 0;
     if (isEmpty) {
       return MutationAuditReport(
         feature: p.basename(featureDir),

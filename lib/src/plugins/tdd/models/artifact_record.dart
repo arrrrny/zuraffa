@@ -101,20 +101,52 @@ class ArtifactRecord {
     'created_at': createdAt,
   };
 
-  /// Deserializes from a JSON map.
-  factory ArtifactRecord.fromJson(Map<String, dynamic> json) => ArtifactRecord(
-    behaviorId: json['behavior_id'] as String,
-    feature: json['feature'] as String,
-    sourceCriterion: json['source_criterion'] as String,
-    testPath: json['test_path'] as String,
-    subjectPath: json['subject_path'] as String,
-    runnableTestName: json['runnable_test_name'] as String,
-    testOwnership: Ownership.values.byName(json['test_ownership'] as String),
-    subjectOwnership: Ownership.values.byName(
-      json['subject_ownership'] as String,
-    ),
-    createdAt: json['created_at'] as String,
-  );
+  /// Deserializes from a JSON map. Throws [FormatException] if the JSON
+  /// is malformed (missing fields, non-string values, unknown ownership).
+  factory ArtifactRecord.fromJson(Map<String, dynamic> json) {
+    String _requireString(dynamic value, String field) {
+      if (value is! String || value.isEmpty) {
+        throw FormatException(
+          'ArtifactRecord: expected non-empty string for "$field", '
+          'got ${value.runtimeType}',
+        );
+      }
+      return value;
+    }
+
+    Ownership _requireOwnership(dynamic value, String field) {
+      final str = _requireString(value, field);
+      try {
+        return Ownership.values.byName(str);
+      } on ArgumentError {
+        throw FormatException(
+          'ArtifactRecord: unknown ownership "$str" for "$field". '
+          'Expected one of: ${Ownership.values.map((e) => e.name).join(', ')}',
+        );
+      }
+    }
+
+    return ArtifactRecord(
+      behaviorId: _requireString(json['behavior_id'], 'behavior_id'),
+      feature: _requireString(json['feature'], 'feature'),
+      sourceCriterion: _requireString(
+        json['source_criterion'],
+        'source_criterion',
+      ),
+      testPath: _requireString(json['test_path'], 'test_path'),
+      subjectPath: _requireString(json['subject_path'], 'subject_path'),
+      runnableTestName: _requireString(
+        json['runnable_test_name'],
+        'runnable_test_name',
+      ),
+      testOwnership: _requireOwnership(json['test_ownership'], 'test_ownership'),
+      subjectOwnership: _requireOwnership(
+        json['subject_ownership'],
+        'subject_ownership',
+      ),
+      createdAt: _requireString(json['created_at'], 'created_at'),
+    );
+  }
 
   /// Serializes to a JSON string (for `artifacts.json`).
   String toJsonString() => jsonEncode(toJson());

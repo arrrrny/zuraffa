@@ -112,7 +112,57 @@ class GenCommand extends Command<void> {
     final runnableTestName =
         '$testPath::${behavior.id}::${behavior.description}';
 
-    // Build the record.
+    // Check if both files already exist on disk before registering.
+    final testExists = await File(testPath).exists();
+    final subjectExists = await File(subjectPath).exists();
+
+    final registry = ArtifactRegistry(featureDir: featureDir);
+    final existingRecord = await registry.findRecord(behavior.id);
+
+    if (testExists && subjectExists && existingRecord != null) {
+      // Both files exist and are registered — idempotent reuse.
+      final record = existingRecord.copyWithOwnership(
+        testOwnership: Ownership.reused,
+        subjectOwnership: Ownership.reused,
+      );
+      print(
+        'behavior_id: ${record.behaviorId}\n'
+        'source_criterion: ${record.sourceCriterion}\n'
+        'test_path: ${record.testPath}\n'
+        'subject_path: ${record.subjectPath}\n'
+        'runnable_test_name: ${record.runnableTestName}\n'
+        'ownership: ${record.testOwnership.name}/${record.subjectOwnership.name}',
+      );
+      return;
+    }
+
+    if (testExists != subjectExists && existingRecord == null) {
+      // One file exists with no registry entry — ownership conflict (FR-008).
+      final existing = testExists ? testPath : subjectPath;
+      stderr.writeln(
+        'zfa tdd gen: ownership conflict — $existing exists on disk '
+        'but has no registry entry. Refusing to overwrite user content.',
+      );
+      throw StateError(
+        'zfa tdd gen: ownership conflict — no registry entry for $existing',
+      );
+    }
+
+    // Determine ownership for new records.
+    Ownership testOwnership;
+    Ownership subjectOwnership;
+    if (dryRun) {
+      testOwnership = Ownership.planned;
+      subjectOwnership = Ownership.planned;
+    } else if (testExists && subjectExists) {
+      testOwnership = Ownership.reused;
+      subjectOwnership = Ownership.reused;
+    } else {
+      testOwnership = Ownership.created;
+      subjectOwnership = Ownership.created;
+    }
+
+    // Build and register the record BEFORE writing files (FR-008 check).
     var record = ArtifactRecord(
       behaviorId: behavior.id,
       feature: featureName,
@@ -120,12 +170,11 @@ class GenCommand extends Command<void> {
       testPath: testPath,
       subjectPath: subjectPath,
       runnableTestName: runnableTestName,
-      testOwnership: dryRun ? Ownership.planned : Ownership.created,
-      subjectOwnership: dryRun ? Ownership.planned : Ownership.created,
+      testOwnership: testOwnership,
+      subjectOwnership: subjectOwnership,
       createdAt: DateTime.now().toUtc().toIso8601String(),
     );
 
-    final registry = ArtifactRegistry(featureDir: featureDir);
     try {
       record = await registry.register(record, dryRun: dryRun);
     } on OwnershipConflict catch (e) {
@@ -133,8 +182,7 @@ class GenCommand extends Command<void> {
       throw StateError('zfa tdd gen: ownership conflict — $e');
     }
 
-    // If the ownership is `reused`, the files already exist and we don't
-    // write anything.
+    // Write files only if they don't already exist and not in dry-run mode.
     if (record.testOwnership != Ownership.reused && !dryRun) {
       final testWriter = const BehaviorTestWriter();
       await testWriter.write(
@@ -183,22 +231,8 @@ class GenCommand extends Command<void> {
       return null;
     }
 
-    // No --feature given: prefer 044-test-tdd-generation, then scan all.
-    final preferredFeatureDir = '$cwd/specs/044-test-tdd-generation';
-    final preferredTestList = File('$preferredFeatureDir/tdd/test-list.md');
-    if (await preferredTestList.exists()) {
-      final raw = await preferredTestList.readAsString();
-      final behavior = _parseBehaviorRow(
-        raw,
-        behaviorId,
-        '044-test-tdd-generation',
-      );
-      if (behavior != null) {
-        return (behavior, preferredFeatureDir, '044-test-tdd-generation');
-      }
-    }
-
-    // Fall back to scanning all feature dirs alphabetically.
+    // No --feature given: scan all feature dirs and reject ambiguous IDs.
+    final matches = <(Behavior, String featureDir, String featureName)>[];
     final dirs = <Directory>[];
     await for (final entity in specsDir.list()) {
       if (entity is Directory) dirs.add(entity);
@@ -211,10 +245,21 @@ class GenCommand extends Command<void> {
       final raw = await testListFile.readAsString();
       final behavior = _parseBehaviorRow(raw, behaviorId, featureName);
       if (behavior != null) {
-        return (behavior, entity.path, featureName);
+        matches.add((behavior, entity.path, featureName));
       }
     }
-    return null;
+    if (matches.isEmpty) return null;
+    if (matches.length > 1) {
+      final features = matches.map((m) => m.$3).join(', ');
+      stderr.writeln(
+        'zfa tdd gen: ambiguous behavior id "$behaviorId" found in '
+        'multiple features: $features. Use --feature to disambiguate.',
+      );
+      throw StateError(
+        'zfa tdd gen: ambiguous behavior id "$behaviorId" in $features',
+      );
+    }
+    return matches.first;
   }
 
   /// Parse a behavior row from a test-list.md file.
@@ -254,7 +299,12 @@ class GenCommand extends Command<void> {
           : cell5;
       final kind = kindStr.contains('acceptance')
           ? BehaviorKind.acceptance
-          : BehaviorKind.unit;
+          : kindStr.contains('unit')
+              ? BehaviorKind.unit
+              : throw StateError(
+                  'zfa tdd gen: invalid classification "$kindStr" '
+                  'for behavior $behaviorId. Expected "unit" or "acceptance".',
+                );
       return Behavior(
         id: id,
         feature: feature,

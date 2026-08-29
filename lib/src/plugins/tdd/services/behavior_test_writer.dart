@@ -45,6 +45,9 @@ class BehaviorTestWriter {
 
   String _renderTest(Behavior b, String relativeSubjectPath) {
     final description = b.description;
+    final escapedDescription = description.replaceAll("'", "\\'");
+    final escapedGroupDescription =
+        '${b.id} (${b.sourceCriterion})'.replaceAll("'", "\\'");
     final assertion = _deriveAssertion(b);
     return '''
 // GENERATED TEST — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
@@ -66,8 +69,8 @@ import 'package:test/test.dart';
 import '$relativeSubjectPath' as subject;
 
 void main() {
-  group('${b.id} (${b.sourceCriterion})', () {
-    test('$description', () {
+  group('$escapedGroupDescription', () {
+    test('$escapedDescription', () {
       $assertion
     });
   });
@@ -87,22 +90,47 @@ void main() {
     final target = b.target.isEmpty ? 'subjectUnderTest' : b.target;
     final description = b.description;
     // Look for "returns N" or "= N".
+    // When the subject exists, this assertion will pass. On first run
+    // (honest red), the subject throws UnimplementedError, so we assert
+    // with throwsA to get an assertion failure class, not an uncaught
+    // exception.
     final returnsMatch = RegExp(
       r'returns?\s+(\d+)',
       caseSensitive: false,
     ).firstMatch(description);
     if (returnsMatch != null) {
       final expected = returnsMatch.group(1);
-      return 'final result = subject.$target();\n      expect(result, equals($expected));';
+      return '// When implemented, replace with:\n'
+          '      // final result = subject.$target();\n'
+          '      // expect(result, equals($expected));\n'
+          '      expect(() => subject.$target(),\n'
+          '        throwsA(isA<UnimplementedError>()));';
     }
-    // Look for "throws <ExceptionName>".
+    // Look for "throws <ExceptionName>" — only known Dart built-in types
+    // to avoid generating unimported exception types from prose.
+    const knownExceptions = {
+      'FormatException',
+      'StateError',
+      'ArgumentError',
+      'RangeError',
+      'TypeError',
+      'UnimplementedError',
+      'UnsupportedError',
+      'NoSuchMethodError',
+      'Exception',
+      'Error',
+    };
     final throwsMatch = RegExp(
-      r'throws?\s+(\w+Error|Exception)',
+      r'throws?\s+(\w+)',
       caseSensitive: false,
     ).firstMatch(description);
     if (throwsMatch != null) {
-      final exc = throwsMatch.group(1);
-      return 'expect(() => subject.$target(), throwsA(isA<$exc>()));';
+      final exc = throwsMatch.group(1)!;
+      if (knownExceptions.contains(exc)) {
+        return 'expect(() => subject.$target(), throwsA(isA<$exc>()));';
+      }
+      // Unknown exception type — fall through to UnimplementedError
+      // honest red to avoid generating unimported types.
     }
     // Fallback: assert that the call throws UnimplementedError (the stub
     // throws it — honest red).

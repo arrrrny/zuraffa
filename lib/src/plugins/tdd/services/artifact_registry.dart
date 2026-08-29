@@ -129,6 +129,15 @@ class ArtifactRegistry {
     return _loadRecords();
   }
 
+  /// Find a single record by behavior id. Returns `null` if not found.
+  Future<ArtifactRecord?> findRecord(String behaviorId) async {
+    final records = await _loadRecords();
+    for (final r in records) {
+      if (r.behaviorId == behaviorId) return r;
+    }
+    return null;
+  }
+
   Future<List<ArtifactRecord>> _loadRecords() async {
     final file = File(registryPath);
     if (!await file.exists()) return [];

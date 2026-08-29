@@ -63,8 +63,10 @@ class VerifyCommand extends Command<void> {
     }
     final cwd = Directory.current.path;
 
-    // Resolve the feature directory.
-    final featureName = feature ?? _resolveFeatureFromCwd(cwd);
+    // Resolve the feature directory. Treat empty string as absent.
+    final featureName = (feature != null && feature.isNotEmpty)
+        ? feature
+        : _resolveFeatureFromCwd(cwd);
     if (featureName == null) {
       stderr.writeln(
         'zfa tdd verify: no --feature specified and no feature directory '
