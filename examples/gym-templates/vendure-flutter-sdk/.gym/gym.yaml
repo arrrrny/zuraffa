@@ -1,0 +1,38 @@
+# GYM artifact — package-level exercises for vendure-flutter-sdk.
+#
+# See github.com/arrrrny/gym for the paradigm,
+#     github.com/arrrrny/miki (gym.mjs) for the runner that consumes this file.
+#
+# This template is shipped under
+# zuraffa/examples/gym-templates/vendure-flutter-sdk/ as a
+# copy-paste-ready .gym/ directory. To consume: copy this .gym/
+# folder into the vendure-flutter-sdk repo root.
+name: vendure-flutter-sdk
+version: 1.0.0
+warmup:
+  - id: 01-deps
+    name: Resolve package dependencies
+    command: dart run .gym/warmup/01-deps.dart
+  - id: 02-build
+    name: Build + analyze the package
+    command: dart run .gym/warmup/02-build.dart
+  - id: 03-smoke
+    name: Authenticated smoke call — reach the Vendure demo API
+    command: dart run .gym/warmup/03-smoke.dart
+exercises:
+  - id: fetch-product
+    brief: |
+      Genuine dev task: initialize the VendureClient, fetch a product
+      by id, and assert the returned fields exist and are typed
+      correctly. This trains the same muscle as wiring a real product
+      detail page in a Flutter app that consumes Vendure — NOT a
+      re-skinned unit test. The exercise hits the public Vendure
+      demo instance at https://demo.vendure.io.
+    setup: |
+      Ensure `dart` is on PATH and network access to
+      https://demo.vendure.io is available.
+      Run the warmup reps first (.gym/warmup/*).
+      The exercise writes its sandbox under .gym/.sandbox/fetch-product/
+      and never mutates the package source tree.
+    verifyCommand: dart run .gym/exercise-fetch-product.dart
+    evaluate: exit 0 => pass; exit !=0 => fail

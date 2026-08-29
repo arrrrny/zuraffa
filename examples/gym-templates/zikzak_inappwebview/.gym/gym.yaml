@@ -1,0 +1,37 @@
+# GYM artifact — package-level exercises for zikzak_inappwebview.
+#
+# See github.com/arrrrny/gym for the paradigm,
+#     github.com/arrrrny/miki (gym.mjs) for the runner that consumes this file.
+#
+# This template is shipped under zuraffa/examples/gym-templates/zikzak_inappwebview/
+# as a copy-paste-ready .gym/ directory. To consume: copy this .gym/
+# folder into the zikzak_inappwebview repo root and adjust paths if needed.
+name: zikzak_inappwebview
+version: 1.0.0
+warmup:
+  - id: 01-deps
+    name: Resolve package dependencies (Flutter)
+    command: dart run .gym/warmup/01-deps.dart
+  - id: 02-build
+    name: Build the example app
+    command: dart run .gym/warmup/02-build.dart
+  - id: 03-smoke
+    name: Bridge smoke call — boot the example and assert it launched
+    command: dart run .gym/warmup/03-smoke.dart
+exercises:
+  - id: js-bridge-roundtrip
+    brief: |
+      Genuine dev task: boot the example Flutter app, evaluate a JS
+      expression in the InAppWebView bridge, and assert the message
+      round-trips back to Dart. This trains the same muscle as wiring
+      a real bridge handler in a Flutter app that hosts web content —
+      NOT a re-skinned unit test. The exercise spawns
+      `flutter run --no-pub` against the package's example/ directory
+      and pipes a JS expression to the bridge via stdin.
+    setup: |
+      Ensure `flutter` is on PATH (the example app is a Flutter app).
+      Run the warmup reps first (.gym/warmup/*).
+      The exercise writes its sandbox under .gym/.sandbox/js-bridge-roundtrip/
+      and never mutates the package source tree.
+    verifyCommand: dart run .gym/exercise-js-bridge-roundtrip.dart
+    evaluate: exit 0 => pass; exit !=0 => fail

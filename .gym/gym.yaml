@@ -64,3 +64,20 @@ exercises:
       tooling; the rewrite itself is zfa-only.
     verifyCommand: dart run .gym/exercise-agent-rewrite-zfa-only.dart
     evaluate: exit 0 => pass; exit !=0 => fail
+  - id: extend-zfa-cli
+    brief: |
+      A genuine dev task: scaffold a new `zfa <name>` subcommand that
+      prints "hello from <name>" when invoked, wire it into a
+      synthetic CommandRunner, and assert it dispatches correctly.
+      This trains the same muscle as adding a new CLI command to
+      zuraffa itself — NOT a re-skinned unit test. The exercise
+      stages a known-good submission under .gym/.sandbox/ and grades
+      it by spawning `dart run` against the submission, asserting
+      stdout contains "hello from hello", and asserting exit 0.
+    setup: |
+      Ensure `dart` is on PATH.
+      Run the warmup reps first (.gym/warmup/*).
+      The exercise writes its sandbox under .gym/.sandbox/extend-zfa-cli/
+      and never mutates the package source tree.
+    verifyCommand: dart run .gym/exercise-extend-zfa-cli.dart
+    evaluate: exit 0 => pass; exit !=0 => fail
