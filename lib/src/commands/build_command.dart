@@ -124,11 +124,20 @@ class BuildCommand extends Command {
       print('🔨 Running build_runner build...');
     }
 
+    // Dry-run stops after the pre-flight preview — it must never invoke
+    // build_runner (the preview above is the entire contract; a dry-run
+    // that mutates the build cache or fails on a pubspec-less workspace
+    // is not dry). Found by the spec-025 package-SDK e2e.
+    if (dryRun) {
+      print('✅ Dry-run completed');
+      return;
+    }
+
     final exitCode = await _runBuild();
 
     if (exitCode == 0) {
-      if (!dryRun) print('');
-      print(dryRun ? '✅ Dry-run completed' : '✅ Build completed successfully');
+      print('');
+      print('✅ Build completed successfully');
       // Safety net (zuraffa#276): if build_runner wrote 0 outputs while
       // @Zorphy sources exist, FAIL LOUDLY with an actionable error instead
       // of silently reporting success. The pre-flight check catches a missing
@@ -159,9 +168,14 @@ class BuildCommand extends Command {
         }
       } else {
         print('\n❌ Build failed with exit code $retryCode');
+        // Fail loudly: a failed build must never exit 0 — the spec-025
+        // package pipeline (and every CI format/test gate) trusts this
+        // exit code as the build verdict.
+        exit(1);
       }
     } else {
       print('\n❌ Build failed with exit code $exitCode');
+      exit(1);
     }
   }
 

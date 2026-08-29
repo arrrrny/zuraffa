@@ -1,0 +1,37 @@
+# GYM artifact — package-level exercises for zorphy.
+#
+# See github.com/arrrrny/gym for the paradigm,
+#     github.com/arrrrny/miki (gym.mjs) for the runner that consumes this file.
+#
+# This template is shipped under zuraffa/examples/gym-templates/zorphy/
+# as a copy-paste-ready .gym/ directory. To consume: copy this .gym/
+# folder into the zorphy repo root and adjust paths if needed.
+name: zorphy
+version: 1.0.0
+warmup:
+  - id: 01-deps
+    name: Resolve package dependencies
+    command: dart run .gym/warmup/01-deps.dart
+  - id: 02-build
+    name: Build + analyze the package
+    command: dart run .gym/warmup/02-build.dart
+  - id: 03-smoke
+    name: Authenticated smoke call — open a Store and dispatch a mutation
+    command: dart run .gym/warmup/03-smoke.dart
+exercises:
+  - id: store-mutation
+    brief: |
+      Genuine dev task: open a zorphy Store<int>, register a subscriber,
+      dispatch a `setValue(42)` mutation, and assert the subscriber
+      received the new value in the correct order. This is the same
+      muscle as wiring a real feature's state propagation — NOT a
+      re-skinned unit test. The exercise spawns a fresh Dart isolate
+      (via `dart run`) so the store lifecycle is exercised end-to-end,
+      not in-process.
+    setup: |
+      Ensure `dart` is on PATH.
+      Run the warmup reps first (.gym/warmup/*).
+      The exercise writes its sandbox under .gym/.sandbox/store-mutation/
+      and never mutates the package source tree.
+    verifyCommand: dart run .gym/exercise-store-mutation.dart
+    evaluate: exit 0 => pass; exit !=0 => fail

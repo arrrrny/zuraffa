@@ -16,6 +16,13 @@ analyzer:
     # part of the package's compiled surface, so they live outside the
     # package's strict lint regime.
     - .gym/**
+    # Spec 025 reference examples: independently-resolved sub-packages
+    # (their own pubspecs + path deps). Analyzed and tested from inside
+    # their own directories (`dart analyze` / `dart test` there — see
+    # specs/025 tdd/verification.md); excluded here because the root
+    # context has no package_config for their package: URIs.
+    - examples/notes_package/**
+    - examples/reference_package_app/**
     - build/**
     - android/**
     - ios/**

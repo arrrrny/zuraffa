@@ -46,6 +46,9 @@ dependencies:
   meta: ^1.17.0
   glob: ^2.1.2
   hive_ce: ^2.3.4
+  # 020-skeleton-plugin: tar.gz export for bone artifacts (FR-006).
+  archive: ^4.0.0
+
   # TUI plugin (specs/017-tui-plugin): pure-Dart terminal UI engine.
   # nocterm has NO package:flutter dependency (verified via pub.dev metadata).
   # Any future Flutter-only rendering path MUST live in zuraffa_flutter, never

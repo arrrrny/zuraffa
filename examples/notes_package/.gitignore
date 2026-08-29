@@ -1,0 +1,10 @@
+# The reference package ships its BUILD OUTPUT (note.zorphy.dart /
+# note.g.dart) committed so the demo app consumes a complete package on a
+# fresh clone. Real packages normally ignore generated code — flip these
+# two lines back on in your own package:
+# *.zorphy.dart
+# *.g.dart
+.dart_tool/
+.packages
+build/
+coverage/

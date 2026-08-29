@@ -35,6 +35,7 @@ import '../plugins/mcp/mcp_plugin.dart';
 import '../plugins/cli/cli_plugin.dart' as cli_gen;
 import '../plugins/benchmark/benchmark_plugin.dart';
 import '../agent/plugin/agent_plugin.dart';
+import '../plugins/skeleton/skeleton_plugin.dart';
 
 class PluginConfig {
   final Set<String> disabled;
@@ -160,6 +161,7 @@ class PluginLoader {
       // precedence is enforced by the existing plan_resolver exclusion
       // path (FR-003).
       AgentPlugin(outputDir: outputDir, options: options),
+      SkeletonPlugin(),
     ];
   }
 }

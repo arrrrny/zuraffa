@@ -13,8 +13,10 @@ import '../../core/plugin_system/plugin_context.dart';
 import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../../package/package_mode.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
+import 'builders/package_registrar_builder.dart';
 import 'builders/registration_builder.dart';
 import 'builders/service_locator_builder.dart';
 import 'capabilities/create_di_capability.dart';
@@ -29,6 +31,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final RegistrationDetector registrationDetector;
   final AppendExecutor appendExecutor;
   final ServiceLocatorBuilder serviceLocatorBuilder;
+  final PackageRegistrarBuilder packageRegistrarBuilder;
   final FileSystem fileSystem;
 
   /// Creates a [DiPlugin].
@@ -39,6 +42,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     this.registrationDetector = const RegistrationDetector(),
     this.appendExecutor = const AppendExecutor(),
     this.serviceLocatorBuilder = const ServiceLocatorBuilder(),
+    this.packageRegistrarBuilder = const PackageRegistrarBuilder(),
     FileSystem? fileSystem,
   }) : fileSystem = fileSystem ?? FileSystem.create();
 
@@ -198,6 +202,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         registrationDetector: registrationDetector,
         appendExecutor: appendExecutor,
         serviceLocatorBuilder: serviceLocatorBuilder,
+        packageRegistrarBuilder: packageRegistrarBuilder,
         fileSystem: context?.fileSystem,
       );
       return delegator.generate(config, context: context);
@@ -205,6 +210,15 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final fs = context?.fileSystem ?? fileSystem;
     final files = <GeneratedFile>[];
+
+    // Spec 025 (FR-010/FR-011): the package-shape marker in the project's
+    // build.yaml switches the emission tail from the app locator pair
+    // (di/index.dart setupDependencies + service_locator.dart) to the
+    // package registrar — same command, package-appropriate output.
+    final packageMode = PackageMode.isEnabledForOutput(
+      config.outputDir,
+      fileSystem: fs,
+    );
 
     if (config.generateUseCase) {
       files.addAll(await _generateUseCaseDIFiles(config, fs));
@@ -265,15 +279,28 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       files,
       revert: config.revert,
       fileSystem: fs,
+      packageMode: packageMode,
     );
     files.addAll(indexFiles);
 
-    final serviceLocatorFile = await _generateServiceLocator(
-      revert: config.revert,
-      fileSystem: fs,
-    );
-    if (serviceLocatorFile != null) {
-      files.add(serviceLocatorFile);
+    if (packageMode) {
+      // FR-004: package-level registrar instead of the app locator pair.
+      final registrarFile = await _generatePackageRegistrar(
+        files,
+        revert: config.revert,
+        fileSystem: fs,
+      );
+      if (registrarFile != null) {
+        files.add(registrarFile);
+      }
+    } else {
+      final serviceLocatorFile = await _generateServiceLocator(
+        revert: config.revert,
+        fileSystem: fs,
+      );
+      if (serviceLocatorFile != null) {
+        files.add(serviceLocatorFile);
+      }
     }
 
     return files;
@@ -1240,6 +1267,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     List<GeneratedFile> files, {
     bool revert = false,
     required FileSystem fileSystem,
+    bool packageMode = false,
   }) async {
     final indexFiles = <GeneratedFile>[];
 
@@ -1294,13 +1322,18 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
 
     final allFiles = [...files, ...indexFiles];
-    addIfNotNull(
-      await _regenerateMainIndex(
-        allFiles,
-        revert: revert,
-        fileSystem: fileSystem,
-      ),
-    );
+    if (!packageMode) {
+      // Spec 025: in package mode the app-level main index
+      // (`setupDependencies`) is replaced by the package registrar —
+      // only app projects get the app entry point.
+      addIfNotNull(
+        await _regenerateMainIndex(
+          allFiles,
+          revert: revert,
+          fileSystem: fileSystem,
+        ),
+      );
+    }
 
     return indexFiles;
   }
@@ -1546,6 +1579,114 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     return content;
+  }
+
+  /// Resolves the package name for package-mode emission by walking up
+  /// from [outputDir] to the project's `pubspec.yaml` (spec 025).
+  String? _resolvePackageName(FileSystem fileSystem) {
+    var current = outputDir;
+    while (true) {
+      final pubspec = path.join(current, 'pubspec.yaml');
+      if (fileSystem.existsSync(pubspec)) {
+        final content = fileSystem.readSync(pubspec);
+        final match = RegExp(
+          r'^name:\s*(\S+)',
+          multiLine: true,
+        ).firstMatch(content);
+        return match?.group(1);
+      }
+      final parent = path.dirname(current);
+      if (parent == current) return null;
+      current = parent;
+    }
+  }
+
+  /// Whether the DI category index at [dirPath] exists on disk or was just
+  /// generated in [files] (mirrors `_regenerateMainIndex`'s `hasIndex`).
+  Future<bool> _hasCategoryIndex(
+    String dirPath,
+    List<GeneratedFile> files,
+    FileSystem fileSystem,
+  ) async {
+    final indexPath = path.join(dirPath, 'index.dart');
+    final deletedPaths = files
+        .where((f) => f.action == 'deleted')
+        .map((f) => f.path)
+        .toSet();
+    if (deletedPaths.contains(indexPath)) return false;
+    final isJustGenerated = files.any(
+      (f) =>
+          f.path == indexPath &&
+          (f.action == 'created' || f.action == 'updated'),
+    );
+    if (isJustGenerated) return true;
+    return fileSystem.exists(indexPath);
+  }
+
+  /// Emits/refreshes the package registrar in package mode (spec 025,
+  /// FR-004/FR-012): one standalone registration unit per package,
+  /// aggregating every category index present on disk in a single pass.
+  Future<GeneratedFile?> _generatePackageRegistrar(
+    List<GeneratedFile> files, {
+    bool revert = false,
+    required FileSystem fileSystem,
+  }) async {
+    if (revert) {
+      if (options.verbose) {
+        print('  ⏭ Skipping package registrar on revert');
+      }
+      return null;
+    }
+
+    final packageName = _resolvePackageName(fileSystem);
+    if (packageName == null) {
+      if (options.verbose) {
+        print('  ⏭ Package mode without pubspec.yaml — registrar skipped');
+      }
+      return null;
+    }
+
+    final entries = <({String folder, String label})>[
+      (folder: 'usecases', label: 'UseCases'),
+      (folder: 'datasources', label: 'DataSources'),
+      (folder: 'repositories', label: 'Repositories'),
+      (folder: 'services', label: 'Services'),
+      (folder: 'providers', label: 'Providers'),
+    ];
+
+    final categories = <({String folder, String label})>[];
+    for (final entry in entries) {
+      final dirPath = path.join(outputDir, 'di', entry.folder);
+      if (await _hasCategoryIndex(dirPath, files, fileSystem)) {
+        categories.add(entry);
+      }
+    }
+
+    if (categories.isEmpty) {
+      // No contributions yet — the scaffold's stub registrar stays as-is.
+      return null;
+    }
+
+    final registrarPath = path.join(
+      outputDir,
+      'di',
+      '${packageName}_package_registrar.dart',
+    );
+
+    final content = packageRegistrarBuilder.build(
+      packageName: packageName,
+      categories: categories,
+    );
+
+    return FileUtils.writeFile(
+      registrarPath,
+      content,
+      'di_package_registrar',
+      force: true,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+      fileSystem: fileSystem,
+    );
   }
 
   Future<GeneratedFile?> _generateServiceLocator({
