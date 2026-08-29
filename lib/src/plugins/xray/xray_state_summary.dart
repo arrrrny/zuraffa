@@ -83,13 +83,18 @@ class XRayStateSummary {
   };
 
   /// Deserialize from JSON.
+  ///
+  /// Previews are re-truncated so a value that arrived over the wire (Track
+  /// 4.4 MCP bridge) without truncation cannot break the ≤80-char label
+  /// bound that [XRayBoxLabel] assumes. This keeps [fromJson] symmetric with
+  /// [fromPreviews].
   factory XRayStateSummary.fromJson(Map<String, dynamic> json) {
     return XRayStateSummary(
       hasData: json['hasData'] as bool? ?? false,
       hasError: json['hasError'] as bool? ?? false,
       isLoading: json['isLoading'] as bool? ?? false,
-      dataPreview: json['dataPreview'] as String?,
-      errorPreview: json['errorPreview'] as String?,
+      dataPreview: _truncate(json['dataPreview'] as String?),
+      errorPreview: _truncate(json['errorPreview'] as String?),
     );
   }
 

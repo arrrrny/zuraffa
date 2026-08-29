@@ -33,11 +33,12 @@ class XRayRect {
   };
 
   factory XRayRect.fromJson(Map<String, dynamic> json) {
+    double numOrZero(dynamic v) => (v as num?)?.toDouble() ?? 0.0;
     return XRayRect(
-      left: (json['left'] as num).toDouble(),
-      top: (json['top'] as num).toDouble(),
-      width: (json['width'] as num).toDouble(),
-      height: (json['height'] as num).toDouble(),
+      left: numOrZero(json['left']),
+      top: numOrZero(json['top']),
+      width: numOrZero(json['width']),
+      height: numOrZero(json['height']),
     );
   }
 

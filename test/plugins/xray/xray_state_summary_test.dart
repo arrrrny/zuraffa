@@ -46,6 +46,19 @@ void main() {
       expect(reconstructed.dataPreview, s.dataPreview);
     });
 
+    test('fromJson re-truncates over-long previews from the wire', () {
+      // Simulate an MCP payload (Track 4.4) that skipped truncation.
+      final reconstructed = XRayStateSummary.fromJson({
+        'hasData': true,
+        'hasError': false,
+        'isLoading': false,
+        'dataPreview': 'x' * 200,
+      });
+      expect(reconstructed.dataPreview!.length, lessThanOrEqualTo(80),
+          reason: 'fromJson MUST honor the same 80-char bound as fromPreviews');
+      expect(reconstructed.dataPreview!.startsWith('xxx'), isTrue);
+    });
+
     test('dataPreview is truncated to 80 chars when constructed via factory',
         () {
       final long = 'x' * 200;

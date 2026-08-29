@@ -28,6 +28,20 @@ class XRayDetailPanel {
 
   /// Build a panel from a node. Produces a canonical JSON tree.
   factory XRayDetailPanel.fromNode(XRayNode node) {
+    // JsonEncoder produces pretty (indented) output for human inspection.
+    const encoder = JsonEncoder();
+    return XRayDetailPanel(
+      nodeId: node.id,
+      fullStateJson: encoder.convert(_toNodeMap(node)),
+    );
+  }
+
+  /// Recursive map builder shared by [fromNode].
+  ///
+  /// Builds the node map directly instead of re-encoding/decoding each child
+  /// to a JSON string and back — the string round-trip was O(n) extra work
+  /// per node and produced untyped `dynamic` lists.
+  static Map<String, dynamic> _toNodeMap(XRayNode node) {
     final state = <String, dynamic>{
       'data': node.stateSummary.hasData
           ? (node.stateSummary.dataPreview ?? '<data>')
@@ -38,23 +52,14 @@ class XRayDetailPanel {
       'loading': node.stateSummary.isLoading,
     };
 
-    final map = <String, dynamic>{
+    return <String, dynamic>{
       'nodeId': node.id,
       'viewType': node.viewType,
       'enabled': node.enabled,
       if (node.boundAction != null) 'boundAction': node.boundAction,
       'state': state,
-      'children': node.children
-          .map((c) => jsonDecode(XRayDetailPanel.fromNode(c).fullStateJson))
-          .toList(),
+      'children': node.children.map(_toNodeMap).toList(),
     };
-
-    // JsonEncoder produces pretty (indented) output for human inspection.
-    const encoder = JsonEncoder();
-    return XRayDetailPanel(
-      nodeId: node.id,
-      fullStateJson: encoder.convert(map),
-    );
   }
 
   Map<String, dynamic> toJson() => {
