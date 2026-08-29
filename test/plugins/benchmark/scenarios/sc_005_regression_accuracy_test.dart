@@ -43,13 +43,10 @@ void main() {
         timestamp: DateTime.utc(2026, 8, 1),
       );
 
-      final comparison = compareBaselines(
-        baseline,
-        {'latency_p99': currentValue},
-        tolerancePercent: tolerance,
-      );
-      final flagged =
-          comparison.changes['latency_p99']!.isRegression;
+      final comparison = compareBaselines(baseline, {
+        'latency_p99': currentValue,
+      }, tolerancePercent: tolerance);
+      final flagged = comparison.changes['latency_p99']!.isRegression;
 
       considered++;
       if (flagged && !isTrueRegression) falsePositives++;
@@ -60,9 +57,15 @@ void main() {
     final fpRate = falsePositives / (totalCases - trueRegressions);
     final fnRate = falseNegatives / trueRegressions;
 
-    expect(fpRate, lessThan(0.05),
-        reason: 'false positive rate was ${(fpRate * 100).toStringAsFixed(1)}%');
-    expect(fnRate, lessThan(0.01),
-        reason: 'false negative rate was ${(fnRate * 100).toStringAsFixed(1)}%');
+    expect(
+      fpRate,
+      lessThan(0.05),
+      reason: 'false positive rate was ${(fpRate * 100).toStringAsFixed(1)}%',
+    );
+    expect(
+      fnRate,
+      lessThan(0.01),
+      reason: 'false negative rate was ${(fnRate * 100).toStringAsFixed(1)}%',
+    );
   });
 }

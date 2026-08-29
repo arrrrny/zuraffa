@@ -15,8 +15,10 @@ void main() {
       expect(plugin.version, isNotEmpty);
 
       final capabilityNames = plugin.capabilities.map((c) => c.name).toList();
-      expect(capabilityNames, containsAll(['benchmark.run', 'benchmark.list',
-          'benchmark.register']));
+      expect(
+        capabilityNames,
+        containsAll(['benchmark.run', 'benchmark.list', 'benchmark.register']),
+      );
       // Every capability exposes schemas (plugin system contract).
       for (final capability in plugin.capabilities) {
         expect(capability.description, isNotEmpty);
@@ -52,8 +54,7 @@ void main() {
 
       final result = await plugin.listBenchmarks();
       expect(result.success, isTrue);
-      final scenarios =
-          result.data!['scenarios'] as List<Map<String, dynamic>>;
+      final scenarios = result.data!['scenarios'] as List<Map<String, dynamic>>;
       expect(scenarios, hasLength(1));
       expect(scenarios.first['id'], 'list-scenario');
       expect(scenarios.first['version'], '1.0.0');
@@ -83,11 +84,13 @@ void main() {
       );
       // The broken scenario errored; the healthy one passed; the suite
       // continued (FR-013).
-      final broken = suite.results
-          .firstWhere((r) => r.scenarioId == 'run-broken');
+      final broken = suite.results.firstWhere(
+        (r) => r.scenarioId == 'run-broken',
+      );
       expect(broken.status, BenchmarkStatus.error);
-      final healthy = suite.results
-          .firstWhere((r) => r.scenarioId == 'run-scenario');
+      final healthy = suite.results.firstWhere(
+        (r) => r.scenarioId == 'run-scenario',
+      );
       expect(healthy.status, BenchmarkStatus.passed);
     });
 

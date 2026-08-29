@@ -104,8 +104,9 @@ class StandardMetricCollector implements MetricCollector {
 
   @override
   Future<Map<String, num>> collect(MetricContext context) async {
-    final samplesMs =
-        context.samples.map((s) => s.inMicroseconds / 1000).toList();
+    final samplesMs = context.samples
+        .map((s) => s.inMicroseconds / 1000)
+        .toList();
 
     final totalSampleMicros = context.samples.fold<int>(
       0,
@@ -123,8 +124,7 @@ class StandardMetricCollector implements MetricCollector {
         context.samples.length,
         Duration(microseconds: totalSampleMicros),
       ),
-      StandardMetrics.memoryMb:
-          ProcessInfo.currentRss / (1024 * 1024),
+      StandardMetrics.memoryMb: ProcessInfo.currentRss / (1024 * 1024),
       StandardMetrics.cpuPercent: (busyRatio * 100).clamp(0, 100),
     };
   }

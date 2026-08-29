@@ -5,20 +5,18 @@ class AgentState {
   final String missionId;
   final List<String> steps;
 
-  AgentState copyWith({List<String>? steps}) => AgentState(
-        missionId: missionId,
-        steps: steps ?? this.steps,
-      );
+  AgentState copyWith({List<String>? steps}) =>
+      AgentState(missionId: missionId, steps: steps ?? this.steps);
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'missionId': missionId,
-        'steps': steps,
-      };
+    'missionId': missionId,
+    'steps': steps,
+  };
 
   static AgentState fromJson(Map<String, Object?> json) => AgentState(
-        missionId: json['missionId'] as String,
-        steps: (json['steps'] as List).cast<String>(),
-      );
+    missionId: json['missionId'] as String,
+    steps: (json['steps'] as List).cast<String>(),
+  );
 }
 
 /// Persistence interface for [AgentState] (FR-009).

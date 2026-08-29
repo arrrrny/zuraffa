@@ -26,8 +26,7 @@ final class UiRenderEventRender extends UiRenderEvent {
   const UiRenderEventRender(this.view, {this.isPartial = false});
 
   @override
-  String toString() =>
-      'UiRenderEventRender(view=$view, isPartial=$isPartial)';
+  String toString() => 'UiRenderEventRender(view=$view, isPartial=$isPartial)';
 }
 
 /// A previous view has been replaced by a new tree (FR-001 acceptance 2).

@@ -25,23 +25,23 @@ class RegisterBenchmarkCapability extends ZuraffaCapability {
 
   @override
   JsonSchema get inputSchema => const {
-        'type': 'object',
-        'properties': {
-          'discover': {
-            'type': 'boolean',
-            'default': true,
-            'description': 'Pull scenarios from registered providers.',
-          },
-        },
-      };
+    'type': 'object',
+    'properties': {
+      'discover': {
+        'type': 'boolean',
+        'default': true,
+        'description': 'Pull scenarios from registered providers.',
+      },
+    },
+  };
 
   @override
   JsonSchema get outputSchema => const {
-        'type': 'object',
-        'properties': {
-          'registered': {'type': 'number'},
-        },
-      };
+    'type': 'object',
+    'properties': {
+      'registered': {'type': 'number'},
+    },
+  };
 
   @override
   Future<EffectReport> plan(Map<String, dynamic> args) async {

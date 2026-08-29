@@ -24,10 +24,7 @@ void main() {
         duration: const Duration(milliseconds: 5),
         timestamp: DateTime.now(),
       ),
-      samples: List.generate(
-        30,
-        (i) => Duration(microseconds: 1000 + i * 10),
-      ),
+      samples: List.generate(30, (i) => Duration(microseconds: 1000 + i * 10)),
     );
 
     // A representative custom collector: derives metrics from the context.
@@ -59,12 +56,20 @@ void main() {
     final standardPerCall =
         standardStopwatch.elapsedMicroseconds / collectionPoints / 1000;
 
-    expect(customPerCall, lessThan(1.0),
-        reason: 'custom collector took ${customPerCall}ms per collection '
-            'point');
-    expect(standardPerCall, lessThan(1.0),
-        reason: 'standard collector took ${standardPerCall}ms per collection '
-            'point');
+    expect(
+      customPerCall,
+      lessThan(1.0),
+      reason:
+          'custom collector took ${customPerCall}ms per collection '
+          'point',
+    );
+    expect(
+      standardPerCall,
+      lessThan(1.0),
+      reason:
+          'standard collector took ${standardPerCall}ms per collection '
+          'point',
+    );
 
     // The standard collector still produces the full metric set.
     final metrics = await const StandardMetricCollector().collect(context);

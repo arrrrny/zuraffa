@@ -6,8 +6,11 @@ void main() {
   group('vocabularyNarrowing', () {
     test('returns base schema when mission type is null', () {
       final narrowed = vocabularyNarrowing(null, UiVocabularySchema.base);
-      expect(identical(narrowed, UiVocabularySchema.base), isTrue,
-          reason: 'no narrowing for null mission type');
+      expect(
+        identical(narrowed, UiVocabularySchema.base),
+        isTrue,
+        reason: 'no narrowing for null mission type',
+      );
     });
 
     test('returns base schema when mission type has no config', () {
@@ -62,7 +65,10 @@ void main() {
 
       expect(identical(config.resolve('listing'), listing), isTrue);
       // Unknown mission type falls back to base.
-      expect(identical(config.resolve('chat'), UiVocabularySchema.base), isTrue);
+      expect(
+        identical(config.resolve('chat'), UiVocabularySchema.base),
+        isTrue,
+      );
       // Null mission type also falls back to base.
       expect(identical(config.resolve(null), UiVocabularySchema.base), isTrue);
     });
@@ -112,17 +118,23 @@ void main() {
       );
 
       // A tree containing an `image` node (out of subset) is rejected.
-      const tree = UiNode(type: 'root', children: [
-        UiNode(type: 'card', children: [
-          UiNode(type: 'image'),
-        ]),
-      ]);
+      const tree = UiNode(
+        type: 'root',
+        children: [
+          UiNode(
+            type: 'card',
+            children: [UiNode(type: 'image')],
+          ),
+        ],
+      );
       final result = active.validate(tree);
       expect(result.valid, isFalse);
       expect(
-        result.errors.any((e) =>
-            e.kind == ValidationErrorKind.unknownNodeType &&
-            e.nodeName == 'image'),
+        result.errors.any(
+          (e) =>
+              e.kind == ValidationErrorKind.unknownNodeType &&
+              e.nodeName == 'image',
+        ),
         isTrue,
         reason: 'image is out of the listing subset',
       );
@@ -144,12 +156,19 @@ void main() {
         config: config,
       );
 
-      const tree = UiNode(type: 'root', children: [
-        UiNode(type: 'card', styleToken: 'primary', children: [
-          UiNode(type: 'text', props: {'label': 'Offer'}),
-          UiNode(type: 'button', actionId: 'select_offer'),
-        ]),
-      ]);
+      const tree = UiNode(
+        type: 'root',
+        children: [
+          UiNode(
+            type: 'card',
+            styleToken: 'primary',
+            children: [
+              UiNode(type: 'text', props: {'label': 'Offer'}),
+              UiNode(type: 'button', actionId: 'select_offer'),
+            ],
+          ),
+        ],
+      );
       final result = active.validate(tree);
       expect(result.valid, isTrue, reason: '$result');
     });

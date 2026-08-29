@@ -54,11 +54,11 @@ class StringConcatBenchmark implements BenchmarkContract {
 
   @override
   Map<String, dynamic> get configSchema => const {
-        'type': 'object',
-        'properties': {
-          'pieces': {'type': 'integer', 'minimum': 1, 'default': 100},
-        },
-      };
+    'type': 'object',
+    'properties': {
+      'pieces': {'type': 'integer', 'minimum': 1, 'default': 100},
+    },
+  };
 
   @override
   Map<String, ThresholdConfig> get thresholds => const {};

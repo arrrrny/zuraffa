@@ -83,11 +83,7 @@ class AgentRuntimePlugin {
 
     // 2. Generated usecase tools (under the `usecase` namespace).
     for (final tool in usecaseTools) {
-      _registry.register(
-        namespace: 'usecase',
-        tool: tool,
-        source: 'usecase',
-      );
+      _registry.register(namespace: 'usecase', tool: tool, source: 'usecase');
     }
 
     // 3. Remote MCP servers (under `remote:<serverId>` namespaces).
@@ -104,9 +100,9 @@ class AgentRuntimePlugin {
 
   /// Returns the kernel status (FR-011).
   KernelStatus status() => _kernel.status(
-        providers: _providers,
-        remoteServerHealth: _remoteServerHealth,
-      );
+    providers: _providers,
+    remoteServerHealth: _remoteServerHealth,
+  );
 }
 
 /// A remote MCP server registered with the runtime plugin.

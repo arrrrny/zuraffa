@@ -47,8 +47,16 @@ void main() {
 
     test('toolCountPerNamespace groups correctly (FR-011)', () {
       final r = McpToolRegistry();
-      r.register(namespace: 'device', tool: _FakeTool('a'), source: 'spi:device');
-      r.register(namespace: 'device', tool: _FakeTool('b'), source: 'spi:device');
+      r.register(
+        namespace: 'device',
+        tool: _FakeTool('a'),
+        source: 'spi:device',
+      );
+      r.register(
+        namespace: 'device',
+        tool: _FakeTool('b'),
+        source: 'spi:device',
+      );
       r.register(namespace: 'usecase', tool: _FakeTool('c'), source: 'usecase');
 
       final counts = r.toolCountPerNamespace;
@@ -70,9 +78,7 @@ void main() {
 
     test('DI context passes dependencies to providers (FR-002)', () {
       final dep = _MyDependency();
-      final ctx = McpToolContext(
-        resolve: (key) => key == 'dep' ? dep : null,
-      );
+      final ctx = McpToolContext(resolve: (key) => key == 'dep' ? dep : null);
 
       expect(ctx.dependency('dep'), same(dep));
       expect(ctx.dependency('missing'), isNull);
@@ -96,12 +102,15 @@ void main() {
 
       final r = plugin.registry;
       expect(r.size, equals(4));
-      expect(r.canonicalNames, containsAll([
-        'device.scan',
-        'device.extract',
-        'usecase.generated_usecase',
-        'remote:sse1.remote_tool',
-      ]));
+      expect(
+        r.canonicalNames,
+        containsAll([
+          'device.scan',
+          'device.extract',
+          'usecase.generated_usecase',
+          'remote:sse1.remote_tool',
+        ]),
+      );
     });
 
     test('namespace collision prevents silent overwrite (FR-012, SC-002)', () {
@@ -131,7 +140,10 @@ void main() {
       );
 
       expect(plugin.registry.size, equals(3));
-      expect(plugin.registry.canonicalNames, contains('remote:sse_remote.weather'));
+      expect(
+        plugin.registry.canonicalNames,
+        contains('remote:sse_remote.weather'),
+      );
       // Remote tool was merged alongside in-proc SPI tools.
       expect(plugin.registry.canonicalNames, contains('device.scan'));
     });
@@ -145,11 +157,7 @@ void main() {
         statefulAgent: StubStatefulAgent(outcome: 'done'),
       );
 
-      final mission = Mission(
-        missionId: 'm1',
-        spark: 'scan',
-        country: 'US',
-      );
+      final mission = Mission(missionId: 'm1', spark: 'scan', country: 'US');
 
       final events = await plugin.kernel.runMission(mission).toList();
       expect(events, hasLength(2));
@@ -165,11 +173,9 @@ void main() {
         statefulAgent: stub,
       );
 
-      await kernel.runMission(Mission(
-        missionId: 'm1',
-        spark: 'scan',
-        country: 'US',
-      )).toList();
+      await kernel
+          .runMission(Mission(missionId: 'm1', spark: 'scan', country: 'US'))
+          .toList();
 
       // The kernel delegated the loop to the StatefulAgent — verified
       // by the stub's callCount being exactly 1 (no internal loop).
@@ -239,10 +245,20 @@ void main() {
   group('System prompt composition (FR-006)', () {
     test('composes playbook + tool manifests', () {
       final r = McpToolRegistry();
-      r.register(namespace: 'device', tool: _FakeTool('scan', desc: 'Scans a product.'), source: 'spi');
-      r.register(namespace: 'usecase', tool: _FakeTool('lookup', desc: 'Looks up details.'), source: 'usecase');
+      r.register(
+        namespace: 'device',
+        tool: _FakeTool('scan', desc: 'Scans a product.'),
+        source: 'spi',
+      );
+      r.register(
+        namespace: 'usecase',
+        tool: _FakeTool('lookup', desc: 'Looks up details.'),
+        source: 'usecase',
+      );
 
-      final composer = SystemPromptComposer(playbook: 'You are a helpful agent.');
+      final composer = SystemPromptComposer(
+        playbook: 'You are a helpful agent.',
+      );
       final prompt = composer.compose(r);
 
       expect(prompt, contains('You are a helpful agent.'));
@@ -262,14 +278,20 @@ void main() {
     test('falls back to secondary on primary failure', () async {
       final primary = _ThrowingLlmClient();
       final secondary = _StubLlmClient('secondary-response');
-      final fallback = FallbackLLMClient(primary: primary, secondary: secondary);
+      final fallback = FallbackLLMClient(
+        primary: primary,
+        secondary: secondary,
+      );
       expect(await fallback.complete('hi'), equals('secondary-response'));
     });
 
-    test('returns empty string when no clients configured (degraded)', () async {
-      final fallback = FallbackLLMClient();
-      expect(await fallback.complete('hi'), equals(''));
-    });
+    test(
+      'returns empty string when no clients configured (degraded)',
+      () async {
+        final fallback = FallbackLLMClient();
+        expect(await fallback.complete('hi'), equals(''));
+      },
+    );
   });
 
   group('Session state persistence (FR-009)', () {
@@ -344,11 +366,9 @@ void main() {
         ],
       );
 
-      await kernel.runMission(Mission(
-        missionId: 'm1',
-        spark: 's',
-        country: 'US',
-      )).toList();
+      await kernel
+          .runMission(Mission(missionId: 'm1', spark: 's', country: 'US'))
+          .toList();
 
       expect(order, equals(['a-start', 'b-start', 'c-start']));
     });
@@ -363,11 +383,9 @@ void main() {
         hooks: [disabled, _OrderHook('enabled', order)],
       );
 
-      await kernel.runMission(Mission(
-        missionId: 'm1',
-        spark: 's',
-        country: 'US',
-      )).toList();
+      await kernel
+          .runMission(Mission(missionId: 'm1', spark: 's', country: 'US'))
+          .toList();
 
       expect(order, equals(['enabled-start']));
     });

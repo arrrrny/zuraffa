@@ -99,12 +99,8 @@ void main() {
       await plugin.discoverAndRegisterScenarios();
 
       final output = await captureOutput(
-        () => runner.run([
-          'benchmark',
-          'run',
-          '--scenario',
-          'chosen-benchmark',
-        ]),
+        () =>
+            runner.run(['benchmark', 'run', '--scenario', 'chosen-benchmark']),
       );
 
       expect(output, contains('chosen-benchmark'));
@@ -137,9 +133,10 @@ void main() {
 
     test('baseline subcommands', () async {
       final plugin = pluginWith([
-        RecordingScenario('baseline-scenario', metrics: const {
-          'latency_p99': 100,
-        }),
+        RecordingScenario(
+          'baseline-scenario',
+          metrics: const {'latency_p99': 100},
+        ),
       ]);
       final command = BenchmarkCommand(plugin);
       final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
@@ -264,31 +261,32 @@ void main() {
       expect(command.exitCode, isNonZero);
     });
 
-    test('run --isolate executes via IsolateBenchmarkRunner (FR-007)',
-        () async {
-      final plugin = pluginWith([RecordingScenario('isolated-benchmark')]);
-      final command = BenchmarkCommand(plugin);
-      final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
-      await plugin.discoverAndRegisterScenarios();
+    test(
+      'run --isolate executes via IsolateBenchmarkRunner (FR-007)',
+      () async {
+        final plugin = pluginWith([RecordingScenario('isolated-benchmark')]);
+        final command = BenchmarkCommand(plugin);
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
+        await plugin.discoverAndRegisterScenarios();
 
-      final output = await captureOutput(
-        () => runner.run([
-          'benchmark',
-          'run',
-          '--isolate',
-          '--store',
-          tempDir.path,
-        ]),
-      );
+        final output = await captureOutput(
+          () => runner.run([
+            'benchmark',
+            'run',
+            '--isolate',
+            '--store',
+            tempDir.path,
+          ]),
+        );
 
-      // FR-007 isolation is now reachable from the CLI (review finding:
-      // the isolate runner was previously dead code at the CLI surface).
-      expect(output, contains('isolated-benchmark'));
-      expect(command.exitCode, 0);
-    });
+        // FR-007 isolation is now reachable from the CLI (review finding:
+        // the isolate runner was previously dead code at the CLI surface).
+        expect(output, contains('isolated-benchmark'));
+        expect(command.exitCode, 0);
+      },
+    );
 
-    test('baseline compare exits non-zero when current run errors',
-        () async {
+    test('baseline compare exits non-zero when current run errors', () async {
       final plugin = pluginWith([
         ThrowingScenario('broken-benchmark', throwIn: LifecycleStage.run),
       ]);

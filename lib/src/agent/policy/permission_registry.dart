@@ -16,8 +16,9 @@ class PermissionRegistry {
   /// registered, the most-restrictive level wins.
   void register(String toolName, RiskLevel level) {
     final existing = _entries[toolName];
-    _entries[toolName] =
-        existing == null ? level : existing.mostRestrictive(level);
+    _entries[toolName] = existing == null
+        ? level
+        : existing.mostRestrictive(level);
   }
 
   /// Looks up the risk level for [toolName]. Falls back to [fallback] (the

@@ -27,13 +27,7 @@ void main() {
         );
 
         final futures = List.generate(50, (i) {
-          return kernel.submit(
-            Mission(
-              id: 'm$i',
-              key: key,
-              callerId: 'c$i',
-            ),
-          );
+          return kernel.submit(Mission(id: 'm$i', key: key, callerId: 'c$i'));
         });
 
         final outcomes = await Future.wait(futures);
@@ -133,11 +127,16 @@ void main() {
           group.emit(MissionEventPartial(mission.id, 'partial-1'));
 
           // Wait until cancelled (or 5s safety timeout).
-          await cancelToken.onSettled
-              .timeout(const Duration(seconds: 5), onTimeout: () {});
+          await cancelToken.onSettled.timeout(
+            const Duration(seconds: 5),
+            onTimeout: () {},
+          );
 
-          expect(handle.wasDisposed, isTrue,
-              reason: 'FR-004: grace period disposed the handle');
+          expect(
+            handle.wasDisposed,
+            isTrue,
+            reason: 'FR-004: grace period disposed the handle',
+          );
           return const OutcomeCompleted(null);
         },
       );
@@ -153,8 +152,10 @@ void main() {
 
       final outcome = await kernel.cancel('m1');
       expect(outcome, isA<OutcomeCancelledPartial>());
-      expect((outcome as OutcomeCancelledPartial).partials,
-          contains('partial-1'));
+      expect(
+        (outcome as OutcomeCancelledPartial).partials,
+        contains('partial-1'),
+      );
       expect(outcome.label, equals('cancelled_partial'));
 
       // Wait for the mission future to complete (it'll get the salvaged outcome).
@@ -193,15 +194,16 @@ void main() {
       expect(kernel.activeGroups, isEmpty);
     });
 
-    test('original cancel does NOT cancel subscribers (FR-003)',
-        () async {
+    test('original cancel does NOT cancel subscribers (FR-003)', () async {
       // Subscriber scenario: original cancels, but a second subscriber
       // that joined receives the salvaged outcome.
       final kernel = AgentKernel(
         executor: (mission, group, cancelToken) async {
           group.emit(MissionEventPartial(mission.id, 'p-shared'));
-          await cancelToken.onSettled
-              .timeout(const Duration(seconds: 5), onTimeout: () {});
+          await cancelToken.onSettled.timeout(
+            const Duration(seconds: 5),
+            onTimeout: () {},
+          );
           return const OutcomeCompleted(null);
         },
       );
@@ -213,13 +215,15 @@ void main() {
         strategyVariant: 'default',
       );
 
-      final originalFuture =
-          kernel.submit(Mission(id: 'orig', key: key, callerId: 'orig'));
+      final originalFuture = kernel.submit(
+        Mission(id: 'orig', key: key, callerId: 'orig'),
+      );
       await Future<void>.delayed(const Duration(milliseconds: 5));
 
       // Subscriber joins — should receive the partial event.
-      final subscriberFuture =
-          kernel.submit(Mission(id: 'sub1', key: key, callerId: 'sub1'));
+      final subscriberFuture = kernel.submit(
+        Mission(id: 'sub1', key: key, callerId: 'sub1'),
+      );
       await Future<void>.delayed(const Duration(milliseconds: 5));
 
       // Original cancels.
@@ -260,13 +264,20 @@ void main() {
         strategyVariant: 'default',
       );
 
-      final r1 = await kernel.submit(Mission(id: 'm1', key: key, callerId: 'c1'));
+      final r1 = await kernel.submit(
+        Mission(id: 'm1', key: key, callerId: 'c1'),
+      );
       expect(r1, isA<OutcomeCompleted>());
       expect((r1 as OutcomeCompleted).result, equals('fresh-c1'));
 
-      final r2 = await kernel.submit(Mission(id: 'm2', key: key, callerId: 'c2'));
-      expect(r2, isA<OutcomeCachedServed>(),
-          reason: 'second submission served cached');
+      final r2 = await kernel.submit(
+        Mission(id: 'm2', key: key, callerId: 'c2'),
+      );
+      expect(
+        r2,
+        isA<OutcomeCachedServed>(),
+        reason: 'second submission served cached',
+      );
       expect(execCount, equals(1));
     });
 
@@ -321,58 +332,62 @@ void main() {
   });
 
   group('AgentKernel mixed-load stability (SC-003)', () {
-    test('200 mixed missions (80% dup) — no deadlock, bounded by unique keys',
-        () async {
-      var execCount = 0;
-      final kernel = AgentKernel(
-        executor: (mission, group, cancelToken) async {
-          execCount++;
-          await Future<void>.delayed(const Duration(milliseconds: 1));
-          return OutcomeCompleted('done-${mission.id}');
-        },
-      );
+    test(
+      '200 mixed missions (80% dup) — no deadlock, bounded by unique keys',
+      () async {
+        var execCount = 0;
+        final kernel = AgentKernel(
+          executor: (mission, group, cancelToken) async {
+            execCount++;
+            await Future<void>.delayed(const Duration(milliseconds: 1));
+            return OutcomeCompleted('done-${mission.id}');
+          },
+        );
 
-      // 200 missions: 80% share one of 40 duplicate keys; 20% have unique keys.
-      final dupKeys = List.generate(40, (i) => MissionKey(
-        sparkType: 's',
-        normalizedValue: 'dup-$i',
-        country: 'US',
-        strategyVariant: 'default',
-      ));
-      final uniqKeys = List.generate(40, (i) => MissionKey(
-        sparkType: 's',
-        normalizedValue: 'uniq-$i',
-        country: 'US',
-        strategyVariant: 'default',
-      ));
+        // 200 missions: 80% share one of 40 duplicate keys; 20% have unique keys.
+        final dupKeys = List.generate(
+          40,
+          (i) => MissionKey(
+            sparkType: 's',
+            normalizedValue: 'dup-$i',
+            country: 'US',
+            strategyVariant: 'default',
+          ),
+        );
+        final uniqKeys = List.generate(
+          40,
+          (i) => MissionKey(
+            sparkType: 's',
+            normalizedValue: 'uniq-$i',
+            country: 'US',
+            strategyVariant: 'default',
+          ),
+        );
 
-      final missions = <Mission>[];
-      for (var i = 0; i < 160; i++) {
-        missions.add(Mission(
-          id: 'dup-$i',
-          key: dupKeys[i % 40],
-          callerId: 'caller-$i',
-        ));
-      }
-      for (var i = 0; i < 40; i++) {
-        missions.add(Mission(
-          id: 'uniq-$i',
-          key: uniqKeys[i],
-          callerId: 'caller-u$i',
-        ));
-      }
+        final missions = <Mission>[];
+        for (var i = 0; i < 160; i++) {
+          missions.add(
+            Mission(id: 'dup-$i', key: dupKeys[i % 40], callerId: 'caller-$i'),
+          );
+        }
+        for (var i = 0; i < 40; i++) {
+          missions.add(
+            Mission(id: 'uniq-$i', key: uniqKeys[i], callerId: 'caller-u$i'),
+          );
+        }
 
-      // Shuffle so duplicates interleave with uniques.
-      missions.shuffle();
+        // Shuffle so duplicates interleave with uniques.
+        missions.shuffle();
 
-      final outcomes = await Future.wait(
-        missions.map((m) => kernel.submit(m)),
-      );
+        final outcomes = await Future.wait(
+          missions.map((m) => kernel.submit(m)),
+        );
 
-      expect(outcomes.length, equals(200));
-      // Exactly 40 dup executions + 40 uniq executions = 80.
-      expect(execCount, equals(80));
-      expect(kernel.activeGroups, isEmpty);
-    });
+        expect(outcomes.length, equals(200));
+        // Exactly 40 dup executions + 40 uniq executions = 80.
+        expect(execCount, equals(80));
+        expect(kernel.activeGroups, isEmpty);
+      },
+    );
   });
 }

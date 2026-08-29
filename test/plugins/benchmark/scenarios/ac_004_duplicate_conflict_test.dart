@@ -10,15 +10,11 @@ void main() {
   test('duplicate id conflicts', () async {
     final registry = InMemoryBenchmarkRegistry();
     await registry.register(FakeScenario('shared-benchmark'));
-    final result =
-        await registry.register(FakeScenario('shared-benchmark'));
+    final result = await registry.register(FakeScenario('shared-benchmark'));
 
     expect(result.isFailure, isTrue);
     final error = result.getFailureOrNull()!;
-    expect(
-      error.code,
-      BenchmarkRegistryErrorCode.duplicateScenarioId,
-    );
+    expect(error.code, BenchmarkRegistryErrorCode.duplicateScenarioId);
     expect(error.message, contains('shared-benchmark'));
 
     // The original registration is intact.

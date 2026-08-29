@@ -37,10 +37,7 @@ class ActiveMissionInfo {
 
 /// Provides introspection endpoints for the kernel.
 class Introspection {
-  Introspection({
-    required this.coalescingWindow,
-    required this.activeGroups,
-  });
+  Introspection({required this.coalescingWindow, required this.activeGroups});
 
   /// Current coalescing window duration.
   final Duration coalescingWindow;

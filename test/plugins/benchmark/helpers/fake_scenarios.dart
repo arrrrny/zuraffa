@@ -14,10 +14,10 @@ class RecordingScenario extends BenchmarkScenario {
     Map<String, ThresholdConfig> thresholds = const {},
     Map<String, num> metrics = const {'ops': 1},
     this.onRun,
-  })  : _name = name ?? 'Scenario for $_id',
-        _tags = tags,
-        _thresholds = thresholds,
-        _metrics = metrics;
+  }) : _name = name ?? 'Scenario for $_id',
+       _tags = tags,
+       _thresholds = thresholds,
+       _metrics = metrics;
 
   final String _id;
   final String _name;
@@ -235,16 +235,13 @@ class SchemaScenario extends BenchmarkScenario {
 
   @override
   Map<String, dynamic> get configSchema => const {
-        'type': 'object',
-        'required': ['entityCount'],
-        'properties': {
-          'entityCount': {
-            'type': 'integer',
-            'minimum': 1,
-          },
-          'label': {'type': 'string'},
-        },
-      };
+    'type': 'object',
+    'required': ['entityCount'],
+    'properties': {
+      'entityCount': {'type': 'integer', 'minimum': 1},
+      'label': {'type': 'string'},
+    },
+  };
 
   final List<String> calls = [];
 
@@ -267,8 +264,8 @@ class SchemaScenario extends BenchmarkScenario {
 /// A minimal, metadata-complete fake for registry-level tests.
 class FakeScenario extends BenchmarkScenario {
   FakeScenario(this._id, {String? name, List<String> tags = const []})
-      : _name = name ?? 'Scenario for $_id',
-        _tags = tags;
+    : _name = name ?? 'Scenario for $_id',
+      _tags = tags;
 
   final String _id;
   final String _name;
@@ -288,11 +285,11 @@ class FakeScenario extends BenchmarkScenario {
 
   @override
   Map<String, dynamic> get configSchema => const {
-        'type': 'object',
-        'properties': {
-          'iterations': {'type': 'integer', 'minimum': 1, 'default': 10},
-        },
-      };
+    'type': 'object',
+    'properties': {
+      'iterations': {'type': 'integer', 'minimum': 1, 'default': 10},
+    },
+  };
 
   @override
   Future<BenchmarkResult> run(Map<String, dynamic> config) async =>

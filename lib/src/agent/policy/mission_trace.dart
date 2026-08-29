@@ -33,14 +33,14 @@ class ToolCallRecord {
   final String? provider;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'name': name,
-        'argumentsHash': argumentsHash,
-        'cleartextArgs': cleartextArgs,
-        'durationMs': duration.inMilliseconds,
-        'status': status.name,
-        'tokenUsage': tokenUsage,
-        'provider': provider,
-      };
+    'name': name,
+    'argumentsHash': argumentsHash,
+    'cleartextArgs': cleartextArgs,
+    'durationMs': duration.inMilliseconds,
+    'status': status.name,
+    'tokenUsage': tokenUsage,
+    'provider': provider,
+  };
 }
 
 /// The mission trace (FR-007).
@@ -70,17 +70,17 @@ class MissionTrace {
   final Object? outcome;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'schemaVersion': schemaVersion,
-        'missionId': missionId,
-        'inputHash': inputHash,
-        'planSteps': planSteps,
-        'toolCalls': toolCallRecords.map((r) => r.toJson()).toList(),
-        'durationMs': duration.inMilliseconds,
-        'status': status,
-        'tokens': tokens,
-        'provider': provider,
-        'outcome': outcome?.toString(),
-      };
+    'schemaVersion': schemaVersion,
+    'missionId': missionId,
+    'inputHash': inputHash,
+    'planSteps': planSteps,
+    'toolCalls': toolCallRecords.map((r) => r.toJson()).toList(),
+    'durationMs': duration.inMilliseconds,
+    'status': status,
+    'tokens': tokens,
+    'provider': provider,
+    'outcome': outcome?.toString(),
+  };
 }
 
 /// Hashes tool-call arguments (FR-008).
@@ -107,12 +107,15 @@ class ArgumentHasher {
       if (allowlist.contains(key)) {
         cleartext[key] = value;
       } else {
-        final valueHash = crypto.sha256.convert(utf8.encode(valueJson)).toString();
+        final valueHash = crypto.sha256
+            .convert(utf8.encode(valueJson))
+            .toString();
         cleartext[key] = '__hashed__:${valueHash.substring(0, 16)}';
       }
     }
-    final overallHash =
-        crypto.sha256.convert(utf8.encode(builder.toString())).toString();
+    final overallHash = crypto.sha256
+        .convert(utf8.encode(builder.toString()))
+        .toString();
     return (hash: overallHash, cleartext: cleartext);
   }
 }

@@ -126,9 +126,7 @@ class InMemoryBenchmarkRegistry implements BenchmarkRegistry {
   @override
   Future<List<BenchmarkContract>> getByTags(List<String> tags) async {
     final wanted = tags.toSet();
-    return _scenarios.values
-        .where((s) => s.tags.any(wanted.contains))
-        .toList();
+    return _scenarios.values.where((s) => s.tags.any(wanted.contains)).toList();
   }
 
   @override

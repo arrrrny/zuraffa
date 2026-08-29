@@ -48,7 +48,8 @@ void main() {
         expect(
           result.metrics.containsKey('${other.scenarioId}_ops'),
           isFalse,
-          reason: '${result.scenarioId} leaked metrics from '
+          reason:
+              '${result.scenarioId} leaked metrics from '
               '${other.scenarioId}',
         );
       }
@@ -69,8 +70,8 @@ class _AnalyticsPlugin implements BenchmarkScenarioProvider {
 
   @override
   List<BenchmarkContract> provideScenarios() => [
-        _PluginScenario(this, 'analytics-aggregate-benchmark'),
-      ];
+    _PluginScenario(this, 'analytics-aggregate-benchmark'),
+  ];
 }
 
 class _SyncPlugin implements BenchmarkScenarioProvider {
@@ -78,9 +79,9 @@ class _SyncPlugin implements BenchmarkScenarioProvider {
 
   @override
   List<BenchmarkContract> provideScenarios() => [
-        _PluginScenario(this, 'sync-push-benchmark'),
-        _PluginScenario(this, 'sync-pull-benchmark'),
-      ];
+    _PluginScenario(this, 'sync-push-benchmark'),
+    _PluginScenario(this, 'sync-pull-benchmark'),
+  ];
 }
 
 class _CachePlugin implements BenchmarkScenarioProvider {
@@ -88,8 +89,8 @@ class _CachePlugin implements BenchmarkScenarioProvider {
 
   @override
   List<BenchmarkContract> provideScenarios() => [
-        _PluginScenario(this, 'cache-eviction-benchmark'),
-      ];
+    _PluginScenario(this, 'cache-eviction-benchmark'),
+  ];
 }
 
 /// A scenario bound to its owning plugin: records executions on the plugin

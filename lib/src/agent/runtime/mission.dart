@@ -23,8 +23,4 @@ class Mission {
 
 /// Risk tier declared on the mission (intercepts with the policy shell,
 /// see spec 027).
-enum RiskTier {
-  standard,
-  elevated,
-  admin,
-}
+enum RiskTier { standard, elevated, admin }

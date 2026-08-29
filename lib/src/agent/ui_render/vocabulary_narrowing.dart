@@ -17,8 +17,9 @@ class VocabularyNarrowingConfig {
   const VocabularyNarrowingConfig(this.byMissionType);
 
   /// Empty config — every mission uses the base schema.
-  static const VocabularyNarrowingConfig empty =
-      VocabularyNarrowingConfig(<String, UiVocabularySchema>{});
+  static const VocabularyNarrowingConfig empty = VocabularyNarrowingConfig(
+    <String, UiVocabularySchema>{},
+  );
 
   /// Resolve the schema for a given mission type, falling back to the base
   /// schema when no narrowing is declared.

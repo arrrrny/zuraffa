@@ -41,11 +41,9 @@ export 'scenario_provider.dart';
 /// (FR-015).
 class BenchmarkPlugin extends ZuraffaPlugin implements CliAwarePlugin {
   /// Creates the benchmark plugin.
-  BenchmarkPlugin({
-    BenchmarkRegistry? registry,
-    BenchmarkRunner? runner,
-  })  : registry = registry ?? InMemoryBenchmarkRegistry(),
-        runner = runner ?? DefaultBenchmarkRunner();
+  BenchmarkPlugin({BenchmarkRegistry? registry, BenchmarkRunner? runner})
+    : registry = registry ?? InMemoryBenchmarkRegistry(),
+      runner = runner ?? DefaultBenchmarkRunner();
 
   /// The plugin's registry — scenarios land here.
   final BenchmarkRegistry registry;
@@ -71,10 +69,10 @@ class BenchmarkPlugin extends ZuraffaPlugin implements CliAwarePlugin {
   /// The three capabilities this plugin exposes (U57).
   @override
   List<ZuraffaCapability> get capabilities => [
-        RunBenchmarkCapability(this),
-        ListBenchmarksCapability(this),
-        RegisterBenchmarkCapability(this),
-      ];
+    RunBenchmarkCapability(this),
+    ListBenchmarksCapability(this),
+    RegisterBenchmarkCapability(this),
+  ];
 
   /// The `zfa benchmark` command (FR-011).
   @override
@@ -169,9 +167,6 @@ class BenchmarkPlugin extends ZuraffaPlugin implements CliAwarePlugin {
     // The capability invocation itself succeeded — the benchmark verdict
     // lives in the suite payload (overallStatus), which the CLI maps to an
     // exit code.
-    return ExecutionResult(
-      success: true,
-      data: {'suite': suite.toJson()},
-    );
+    return ExecutionResult(success: true, data: {'suite': suite.toJson()});
   }
 }

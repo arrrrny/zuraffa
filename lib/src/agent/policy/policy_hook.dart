@@ -9,8 +9,7 @@ enum RiskLevel {
   confirm,
 
   /// Denied for non-internal missions; allowed for internal missions.
-  admin,
-  ;
+  admin;
 
   /// Returns the most-restrictive of `this` and `other` (FR-001 edge case:
   /// conflicting entries → most-restrictive wins).
@@ -23,13 +22,7 @@ enum RiskLevel {
 }
 
 /// Status of a tool call as recorded in the trace (FR-007).
-enum ToolCallStatus {
-  pending,
-  executing,
-  completed,
-  failed,
-  cancelled,
-}
+enum ToolCallStatus { pending, executing, completed, failed, cancelled }
 
 /// Outcome of a tool call evaluation.
 sealed class HookDecision {

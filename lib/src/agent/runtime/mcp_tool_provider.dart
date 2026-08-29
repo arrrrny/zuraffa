@@ -35,10 +35,10 @@ abstract class McpTool {
 
   /// Manifest used by [SystemPromptComposer] (FR-006).
   Map<String, Object?> get manifest => <String, Object?>{
-        'name': name,
-        'description': description,
-        'inputSchema': inputSchema,
-      };
+    'name': name,
+    'description': description,
+    'inputSchema': inputSchema,
+  };
 }
 
 /// Context passed to [McpToolProvider.buildTools] (FR-001). Acts as a

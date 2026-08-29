@@ -6,46 +6,47 @@ import 'package:zuraffa/src/agent/policy/policy_shell.dart';
 
 void main() {
   group('MissionTraceRecorder (FR-007, FR-008, FR-009)', () {
-    test('records each tool call with hashed args by default (FR-008)',
-        () async {
-      final recorder = MissionTraceRecorder(
-        missionId: 'm1',
-        inputHash: 'hash-in',
-        allowlist: <String>{},
-      );
-      await recorder.onMissionStart('m1');
-
-      // 20+ tool calls (SC-003)
-      for (var i = 0; i < 25; i++) {
-        final ctx = ToolCallContext(
+    test(
+      'records each tool call with hashed args by default (FR-008)',
+      () async {
+        final recorder = MissionTraceRecorder(
           missionId: 'm1',
-          toolName: 'tool_$i',
-          args: {'secret': 'value-$i', 'public': 'visible'},
-          isInternalMission: false,
-          toolAllowlist: null,
-          toolClass: 'io',
+          inputHash: 'hash-in',
+          allowlist: <String>{},
         );
-        await recorder.beforeToolCall(ctx);
-        await recorder.afterToolCall(ctx, ToolResult(payload: 'ok', tokenUsage: 10));
-      }
+        await recorder.onMissionStart('m1');
 
-      final trace = recorder.materialize();
-      expect(trace.toolCallRecords, hasLength(25));
-      expect(trace.toolCallRecords.first.name, equals('tool_0'));
+        // 20+ tool calls (SC-003)
+        for (var i = 0; i < 25; i++) {
+          final ctx = ToolCallContext(
+            missionId: 'm1',
+            toolName: 'tool_$i',
+            args: {'secret': 'value-$i', 'public': 'visible'},
+            isInternalMission: false,
+            toolAllowlist: null,
+            toolClass: 'io',
+          );
+          await recorder.beforeToolCall(ctx);
+          await recorder.afterToolCall(
+            ctx,
+            ToolResult(payload: 'ok', tokenUsage: 10),
+          );
+        }
 
-      // Args hashed by default — secret NOT in cleartext.
-      final firstRecord = trace.toolCallRecords.first;
-      expect(firstRecord.cleartextArgs['secret'], isA<String>());
-      expect(
-        firstRecord.cleartextArgs['secret'] as String,
-        startsWith('__hashed__:'),
-      );
-      expect(
-        firstRecord.argumentsHash,
-        hasLength(64),
-        reason: 'SHA-256 hex',
-      );
-    });
+        final trace = recorder.materialize();
+        expect(trace.toolCallRecords, hasLength(25));
+        expect(trace.toolCallRecords.first.name, equals('tool_0'));
+
+        // Args hashed by default — secret NOT in cleartext.
+        final firstRecord = trace.toolCallRecords.first;
+        expect(firstRecord.cleartextArgs['secret'], isA<String>());
+        expect(
+          firstRecord.cleartextArgs['secret'] as String,
+          startsWith('__hashed__:'),
+        );
+        expect(firstRecord.argumentsHash, hasLength(64), reason: 'SHA-256 hex');
+      },
+    );
 
     test('allowlist fields recorded in cleartext (FR-008)', () async {
       final recorder = MissionTraceRecorder(
@@ -94,7 +95,10 @@ void main() {
           toolClass: 'io',
         );
         await recorder.beforeToolCall(ctx);
-        await recorder.afterToolCall(ctx, ToolResult(payload: 'ok', tokenUsage: 5));
+        await recorder.afterToolCall(
+          ctx,
+          ToolResult(payload: 'ok', tokenUsage: 5),
+        );
       }
 
       final trace = recorder.materialize(outcome: 'completed');
@@ -132,10 +136,15 @@ void main() {
           toolAllowlist: null,
           toolClass: 'io',
         );
-        futures.add((() async {
-          await recorder.beforeToolCall(ctx);
-          await recorder.afterToolCall(ctx, ToolResult(payload: null, tokenUsage: 1));
-        })());
+        futures.add(
+          (() async {
+            await recorder.beforeToolCall(ctx);
+            await recorder.afterToolCall(
+              ctx,
+              ToolResult(payload: null, tokenUsage: 1),
+            );
+          })(),
+        );
       }
       await Future.wait(futures);
 
@@ -146,86 +155,92 @@ void main() {
       expect(names, hasLength(100));
     });
 
-    test('concurrent SAME-NAME calls do not double-complete (FR-009 regression)',
-        () async {
-      // Regression for the write-only `_pending` completer map, which threw
-      // `Bad state: Future already completed` when the same tool ran twice
-      // concurrently and leaked an entry per call.
-      final recorder = MissionTraceRecorder(
-        missionId: 'm1',
-        inputHash: 'hash-in',
-      );
-      await recorder.onMissionStart('m1');
+    test(
+      'concurrent SAME-NAME calls do not double-complete (FR-009 regression)',
+      () async {
+        // Regression for the write-only `_pending` completer map, which threw
+        // `Bad state: Future already completed` when the same tool ran twice
+        // concurrently and leaked an entry per call.
+        final recorder = MissionTraceRecorder(
+          missionId: 'm1',
+          inputHash: 'hash-in',
+        );
+        await recorder.onMissionStart('m1');
 
-      // Two interleaved before/after cycles for the SAME toolName. If the
-      // old completer map were still present this would throw and fail.
-      await Future.wait([
-        (() async {
-          final ctx = _ctx('m1', 'same_tool');
-          await recorder.beforeToolCall(ctx);
-          await recorder.afterToolCall(
-            ctx,
-            ToolResult(payload: 'a', tokenUsage: 1),
-          );
-        })(),
-        (() async {
-          final ctx = _ctx('m1', 'same_tool');
-          await recorder.beforeToolCall(ctx);
-          await recorder.afterToolCall(
-            ctx,
-            ToolResult(payload: 'b', tokenUsage: 1),
-          );
-        })(),
-      ]);
+        // Two interleaved before/after cycles for the SAME toolName. If the
+        // old completer map were still present this would throw and fail.
+        await Future.wait([
+          (() async {
+            final ctx = _ctx('m1', 'same_tool');
+            await recorder.beforeToolCall(ctx);
+            await recorder.afterToolCall(
+              ctx,
+              ToolResult(payload: 'a', tokenUsage: 1),
+            );
+          })(),
+          (() async {
+            final ctx = _ctx('m1', 'same_tool');
+            await recorder.beforeToolCall(ctx);
+            await recorder.afterToolCall(
+              ctx,
+              ToolResult(payload: 'b', tokenUsage: 1),
+            );
+          })(),
+        ]);
 
-      expect(recorder.recordCount, equals(2));
-      expect(recorder.materialize().toolCallRecords, hasLength(2));
-    });
+        expect(recorder.recordCount, equals(2));
+        expect(recorder.materialize().toolCallRecords, hasLength(2));
+      },
+    );
 
-    test('records real duration and status, not hardcoded values (FR-007)',
-        () async {
-      final recorder = MissionTraceRecorder(
-        missionId: 'm1',
-        inputHash: 'hash-in',
-      );
-      await recorder.onMissionStart('m1');
+    test(
+      'records real duration and status, not hardcoded values (FR-007)',
+      () async {
+        final recorder = MissionTraceRecorder(
+          missionId: 'm1',
+          inputHash: 'hash-in',
+        );
+        await recorder.onMissionStart('m1');
 
-      final ctx = _ctx('m1', 'tool_x');
-      await recorder.beforeToolCall(ctx);
-      await recorder.afterToolCall(
-        ctx,
-        ToolResult(
-          payload: 'ok',
-          duration: const Duration(milliseconds: 42),
-          status: ToolCallStatus.failed,
-          tokenUsage: 3,
-        ),
-      );
+        final ctx = _ctx('m1', 'tool_x');
+        await recorder.beforeToolCall(ctx);
+        await recorder.afterToolCall(
+          ctx,
+          ToolResult(
+            payload: 'ok',
+            duration: const Duration(milliseconds: 42),
+            status: ToolCallStatus.failed,
+            tokenUsage: 3,
+          ),
+        );
 
-      final record = recorder.materialize().toolCallRecords.single;
-      expect(record.duration, equals(const Duration(milliseconds: 42)));
-      expect(record.status, equals(ToolCallStatus.failed));
-      expect(record.tokenUsage, equals(3));
-    });
+        final record = recorder.materialize().toolCallRecords.single;
+        expect(record.duration, equals(const Duration(milliseconds: 42)));
+        expect(record.status, equals(ToolCallStatus.failed));
+        expect(record.tokenUsage, equals(3));
+      },
+    );
 
-    test('single-mission: onMissionStart resets records (FR-009 lifecycle)',
-        () async {
-      // A recorder is bound to one missionId; restarting it must clear the
-      // previous mission's records so traces don't bleed together.
-      final recorder = MissionTraceRecorder(
-        missionId: 'm1',
-        inputHash: 'hash-in',
-      );
-      await recorder.onMissionStart('m1');
+    test(
+      'single-mission: onMissionStart resets records (FR-009 lifecycle)',
+      () async {
+        // A recorder is bound to one missionId; restarting it must clear the
+        // previous mission's records so traces don't bleed together.
+        final recorder = MissionTraceRecorder(
+          missionId: 'm1',
+          inputHash: 'hash-in',
+        );
+        await recorder.onMissionStart('m1');
 
-      final ctx = _ctx('m1', 'tool_x');
-      await recorder.beforeToolCall(ctx);
-      await recorder.afterToolCall(ctx, ToolResult(payload: 'ok'));
-      expect(recorder.materialize().toolCallRecords, hasLength(1));
+        final ctx = _ctx('m1', 'tool_x');
+        await recorder.beforeToolCall(ctx);
+        await recorder.afterToolCall(ctx, ToolResult(payload: 'ok'));
+        expect(recorder.materialize().toolCallRecords, hasLength(1));
 
-      await recorder.onMissionStart('m1');
-      expect(recorder.recordCount, equals(0));
-    });
+        await recorder.onMissionStart('m1');
+        expect(recorder.recordCount, equals(0));
+      },
+    );
   });
 
   group('OversizedResultGuard (FR-010)', () {
@@ -276,69 +291,78 @@ void main() {
       expect(out.payload.toString(), isNot(contains(bigPayload)));
     });
 
-    test('artifact storage unavailable → truncated with marker (edge case)',
-        () async {
-      final bigPayload = 'x' * 500;
-      final guard = OversizedResultGuard(
-        threshold: 100,
-        artifactStorage: (_) async => null, // unavailable
-        truncationMarker: '<truncated>',
-      );
-      final result = ToolResult(payload: bigPayload);
-      final out = await guard.afterToolCall(
-        ToolCallContext(
+    test(
+      'artifact storage unavailable → truncated with marker (edge case)',
+      () async {
+        final bigPayload = 'x' * 500;
+        final guard = OversizedResultGuard(
+          threshold: 100,
+          artifactStorage: (_) async => null, // unavailable
+          truncationMarker: '<truncated>',
+        );
+        final result = ToolResult(payload: bigPayload);
+        final out = await guard.afterToolCall(
+          ToolCallContext(
+            missionId: 'm1',
+            toolName: 't',
+            args: {},
+            isInternalMission: false,
+            toolAllowlist: null,
+            toolClass: 'io',
+          ),
+          result,
+        );
+        expect(out.payload, equals('<truncated>'));
+        expect(out.size, equals('<truncated>'.length));
+      },
+    );
+
+    test(
+      'oversized result never enters model context across 100 missions (SC-004)',
+      () async {
+        final guard = OversizedResultGuard(
+          threshold: 100,
+          artifactStorage: (_) async => 'artifact://x',
+        );
+        final bigPayload = 'x' * 1000;
+        final ctx = ToolCallContext(
           missionId: 'm1',
           toolName: 't',
           args: {},
           isInternalMission: false,
           toolAllowlist: null,
           toolClass: 'io',
-        ),
-        result,
-      );
-      expect(out.payload, equals('<truncated>'));
-      expect(out.size, equals('<truncated>'.length));
-    });
+        );
+        for (var i = 0; i < 100; i++) {
+          final out = await guard.afterToolCall(
+            ctx,
+            ToolResult(payload: bigPayload),
+          );
+          // The original large payload is never returned.
+          expect(out.payload, isNot(equals(bigPayload)));
+          expect(out.effectiveSize, lessThan(1000));
+        }
+      },
+    );
 
-    test('oversized result never enters model context across 100 missions (SC-004)',
-        () async {
-      final guard = OversizedResultGuard(
-        threshold: 100,
-        artifactStorage: (_) async => 'artifact://x',
-      );
-      final bigPayload = 'x' * 1000;
-      final ctx = ToolCallContext(
-        missionId: 'm1',
-        toolName: 't',
-        args: {},
-        isInternalMission: false,
-        toolAllowlist: null,
-        toolClass: 'io',
-      );
-      for (var i = 0; i < 100; i++) {
-        final out = await guard.afterToolCall(ctx, ToolResult(payload: bigPayload));
-        // The original large payload is never returned.
-        expect(out.payload, isNot(equals(bigPayload)));
-        expect(out.effectiveSize, lessThan(1000));
-      }
-    });
-
-    test('oversized non-JSON-encodable payload → ArtifactReference (FR-010)',
-        () async {
-      // Regression for `hashOf` throwing JsonUnsupportedObjectError on
-      // arbitrary (non-encodable) tool payloads, which crashed the call.
-      final guard = OversizedResultGuard(
-        threshold: 10,
-        artifactStorage: (_) async => 'artifact://stored/abc',
-      );
-      final out = await guard.afterToolCall(
-        _ctx('m1', 't'),
-        ToolResult(payload: _NonEncodable()),
-      );
-      expect(out.payload, isA<ArtifactReference>());
-      final ref = out.payload as ArtifactReference;
-      expect(ref.sha256, hasLength(64));
-    });
+    test(
+      'oversized non-JSON-encodable payload → ArtifactReference (FR-010)',
+      () async {
+        // Regression for `hashOf` throwing JsonUnsupportedObjectError on
+        // arbitrary (non-encodable) tool payloads, which crashed the call.
+        final guard = OversizedResultGuard(
+          threshold: 10,
+          artifactStorage: (_) async => 'artifact://stored/abc',
+        );
+        final out = await guard.afterToolCall(
+          _ctx('m1', 't'),
+          ToolResult(payload: _NonEncodable()),
+        );
+        expect(out.payload, isA<ArtifactReference>());
+        final ref = out.payload as ArtifactReference;
+        expect(ref.sha256, hasLength(64));
+      },
+    );
   });
 
   group('PolicyShell composition (FR-011)', () {
@@ -347,14 +371,16 @@ void main() {
       final deny = _AlwaysDeny('because');
       final shell = PolicyShell(hooks: [allow, deny]);
 
-      final d = await shell.beforeToolCall(ToolCallContext(
-        missionId: 'm1',
-        toolName: 't',
-        args: {},
-        isInternalMission: false,
-        toolAllowlist: null,
-        toolClass: 'io',
-      ));
+      final d = await shell.beforeToolCall(
+        ToolCallContext(
+          missionId: 'm1',
+          toolName: 't',
+          args: {},
+          isInternalMission: false,
+          toolAllowlist: null,
+          toolClass: 'io',
+        ),
+      );
       expect(d, isA<HookDecisionDeny>());
       expect((d as HookDecisionDeny).reason, equals('because'));
     });
@@ -364,14 +390,16 @@ void main() {
       deny.enabled = false;
       final shell = PolicyShell(hooks: [deny]);
 
-      final d = await shell.beforeToolCall(ToolCallContext(
-        missionId: 'm1',
-        toolName: 't',
-        args: {},
-        isInternalMission: false,
-        toolAllowlist: null,
-        toolClass: 'io',
-      ));
+      final d = await shell.beforeToolCall(
+        ToolCallContext(
+          missionId: 'm1',
+          toolName: 't',
+          args: {},
+          isInternalMission: false,
+          toolAllowlist: null,
+          toolClass: 'io',
+        ),
+      );
       expect(d, isA<HookDecisionAllow>());
     });
 
@@ -391,27 +419,29 @@ void main() {
       expect(() => shell.enable('nope'), throwsA(isA<ArgumentError>()));
     });
 
-    test('afterToolCall runs hooks in reverse order (middleware pattern)',
-        () async {
-      final order = <String>[];
-      final a = _OrderRecording('a', order);
-      final b = _OrderRecording('b', order);
-      final shell = PolicyShell(hooks: [a, b]);
+    test(
+      'afterToolCall runs hooks in reverse order (middleware pattern)',
+      () async {
+        final order = <String>[];
+        final a = _OrderRecording('a', order);
+        final b = _OrderRecording('b', order);
+        final shell = PolicyShell(hooks: [a, b]);
 
-      await shell.afterToolCall(
-        ToolCallContext(
-          missionId: 'm1',
-          toolName: 't',
-          args: {},
-          isInternalMission: false,
-          toolAllowlist: null,
-          toolClass: 'io',
-        ),
-        ToolResult(payload: null),
-      );
-      // Reverse order: b, then a.
-      expect(order, equals(['b', 'a']));
-    });
+        await shell.afterToolCall(
+          ToolCallContext(
+            missionId: 'm1',
+            toolName: 't',
+            args: {},
+            isInternalMission: false,
+            toolAllowlist: null,
+            toolClass: 'io',
+          ),
+          ToolResult(payload: null),
+        );
+        // Reverse order: b, then a.
+        expect(order, equals(['b', 'a']));
+      },
+    );
   });
 }
 
@@ -451,13 +481,13 @@ class _OrderRecording extends PolicyHook {
 }
 
 ToolCallContext _ctx(String missionId, String toolName) => ToolCallContext(
-      missionId: missionId,
-      toolName: toolName,
-      args: {},
-      isInternalMission: false,
-      toolAllowlist: null,
-      toolClass: 'io',
-    );
+  missionId: missionId,
+  toolName: toolName,
+  args: {},
+  isInternalMission: false,
+  toolAllowlist: null,
+  toolClass: 'io',
+);
 
 /// A plain object with no `toJson`, so `jsonEncode` refuses it. Used to
 /// exercise the `hashOf` non-encodable-payload guard (FR-010).

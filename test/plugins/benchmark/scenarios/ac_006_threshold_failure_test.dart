@@ -45,13 +45,13 @@ class _ThresholdedScenario extends BenchmarkScenario {
 
   @override
   Map<String, ThresholdConfig> get thresholds => const {
-        'latency_p99': ThresholdConfig(
-          metric: 'latency_p99',
-          operator: ThresholdOperator.lte,
-          value: 100,
-          severity: ThresholdSeverity.error,
-        ),
-      };
+    'latency_p99': ThresholdConfig(
+      metric: 'latency_p99',
+      operator: ThresholdOperator.lte,
+      value: 100,
+      severity: ThresholdSeverity.error,
+    ),
+  };
 
   @override
   Future<BenchmarkResult> run(Map<String, dynamic> config) async =>

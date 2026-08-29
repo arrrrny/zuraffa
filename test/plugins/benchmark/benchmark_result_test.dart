@@ -66,8 +66,12 @@ void main() {
       // Must also be valid JSON-encodable through dart:convert.
       final encoded = jsonEncode(result.toJson());
       expect(encoded, isNotEmpty);
-      expect(BenchmarkResult.fromJson(jsonDecode(encoded) as Map<String, dynamic>).status,
-          BenchmarkStatus.failed);
+      expect(
+        BenchmarkResult.fromJson(
+          jsonDecode(encoded) as Map<String, dynamic>,
+        ).status,
+        BenchmarkStatus.failed,
+      );
     });
 
     test('rejects invalid status', () {
@@ -116,21 +120,24 @@ void main() {
 
   group('BenchmarkSuiteResult', () {
     BenchmarkResult resultOf(BenchmarkStatus status) => BenchmarkResult(
-          scenarioId: 's-${status.name}',
-          scenarioName: 'S ${status.name}',
-          scenarioVersion: '1.0.0',
-          status: status,
-          metrics: const {},
-          thresholdViolations: const [],
-          duration: const Duration(milliseconds: 10),
-          timestamp: DateTime.utc(2026, 8, 28),
-          gitCommit: 'unknown',
-          metadata: const {},
-        );
+      scenarioId: 's-${status.name}',
+      scenarioName: 'S ${status.name}',
+      scenarioVersion: '1.0.0',
+      status: status,
+      metrics: const {},
+      thresholdViolations: const [],
+      duration: const Duration(milliseconds: 10),
+      timestamp: DateTime.utc(2026, 8, 28),
+      gitCommit: 'unknown',
+      metadata: const {},
+    );
 
     test('overall failed when any failed', () {
       final suite = BenchmarkSuiteResult(
-        results: [resultOf(BenchmarkStatus.passed), resultOf(BenchmarkStatus.failed)],
+        results: [
+          resultOf(BenchmarkStatus.passed),
+          resultOf(BenchmarkStatus.failed),
+        ],
         totalDuration: const Duration(milliseconds: 20),
         startedAt: DateTime.utc(2026, 8, 28, 12),
         completedAt: DateTime.utc(2026, 8, 28, 12, 0, 1),

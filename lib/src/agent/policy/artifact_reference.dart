@@ -17,12 +17,12 @@ class ArtifactReference {
   final bool truncated;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        '__artifact__': true,
-        'uri': uri,
-        'size': size,
-        'sha256': sha256,
-        'truncated': truncated,
-      };
+    '__artifact__': true,
+    'uri': uri,
+    'size': size,
+    'sha256': sha256,
+    'truncated': truncated,
+  };
 
   @override
   String toString() => 'ArtifactReference($uri, size=$size)';

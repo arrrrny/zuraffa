@@ -12,9 +12,12 @@ void main() {
       // the named slot.
       final view = RenderedView(
         viewId: 'v1',
-        tree: const UiNode(type: 'root', children: [
-          UiNode(type: 'text', props: {'label': 'hi'}),
-        ]),
+        tree: const UiNode(
+          type: 'root',
+          children: [
+            UiNode(type: 'text', props: {'label': 'hi'}),
+          ],
+        ),
         schemaVersion: '1.0.0',
         contentHash: 'deadbeefdeadbeef',
       );
@@ -37,22 +40,26 @@ void main() {
     });
 
     test('contentHash is deterministic for equivalent trees', () {
-      const a = UiNode(type: 'root', children: [
-        UiNode(type: 'card', styleToken: 'primary'),
-      ]);
-      const b = UiNode(type: 'root', children: [
-        UiNode(type: 'card', styleToken: 'primary'),
-      ]);
+      const a = UiNode(
+        type: 'root',
+        children: [UiNode(type: 'card', styleToken: 'primary')],
+      );
+      const b = UiNode(
+        type: 'root',
+        children: [UiNode(type: 'card', styleToken: 'primary')],
+      );
       expect(computeContentHash(a), computeContentHash(b));
     });
 
     test('contentHash differs for different trees', () {
-      const a = UiNode(type: 'root', children: [
-        UiNode(type: 'card', styleToken: 'primary'),
-      ]);
-      const b = UiNode(type: 'root', children: [
-        UiNode(type: 'card', styleToken: 'secondary'),
-      ]);
+      const a = UiNode(
+        type: 'root',
+        children: [UiNode(type: 'card', styleToken: 'primary')],
+      );
+      const b = UiNode(
+        type: 'root',
+        children: [UiNode(type: 'card', styleToken: 'secondary')],
+      );
       expect(computeContentHash(a), isNot(computeContentHash(b)));
     });
 

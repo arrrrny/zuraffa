@@ -22,7 +22,8 @@ class KernelStatus {
   final int totalToolCount;
 
   @override
-  String toString() => 'KernelStatus(providers=$providers, '
+  String toString() =>
+      'KernelStatus(providers=$providers, '
       'toolCountPerNamespace=$toolCountPerNamespace, '
       'remoteServerHealth=$remoteServerHealth, totalToolCount=$totalToolCount)';
 }

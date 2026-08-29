@@ -94,10 +94,12 @@ void main() {
       // Store k3 — should evict k2 (least recently used).
       cache.store(k3, const OutcomeCompleted(null));
 
-      expect(cache.lookup(k1), isNotNull,
-          reason: 'k1 was accessed recently, should survive');
-      expect(cache.lookup(k2), isNull,
-          reason: 'k2 was LRU, should be evicted');
+      expect(
+        cache.lookup(k1),
+        isNotNull,
+        reason: 'k1 was accessed recently, should survive',
+      );
+      expect(cache.lookup(k2), isNull, reason: 'k2 was LRU, should be evicted');
       expect(cache.lookup(k3), isNotNull);
     });
   });

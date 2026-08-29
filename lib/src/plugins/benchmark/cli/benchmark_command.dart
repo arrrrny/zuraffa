@@ -113,8 +113,7 @@ run options:
     Map<String, dynamic>? config;
     if (configJson != null) {
       try {
-        config =
-            jsonDecode(configJson) as Map<String, dynamic>;
+        config = jsonDecode(configJson) as Map<String, dynamic>;
       } catch (error) {
         print('Invalid --config JSON: $error');
         exitCode = 64;
@@ -124,8 +123,7 @@ run options:
 
     await plugin.discoverAndRegisterScenarios();
 
-    var selected =
-        (await plugin.registry.getAll()).cast<dynamic>().toList();
+    var selected = (await plugin.registry.getAll()).cast<dynamic>().toList();
     selected = _filterSelection(selected, scenarioIds, results);
 
     final dryRun = results['dry-run'] as bool;
@@ -195,22 +193,24 @@ run options:
     final scenarios = await plugin.registry.getAll();
 
     if (results['json'] as bool) {
-      print(jsonEncode({
-        'scenarios': [
-          for (final scenario in scenarios)
-            {
-              'id': scenario.id,
-              'name': scenario.name,
-              'version': scenario.version,
-              'description': scenario.description,
-              'tags': scenario.tags,
-              'thresholds': {
-                for (final entry in scenario.thresholds.entries)
-                  entry.key: entry.value.toJson(),
+      print(
+        jsonEncode({
+          'scenarios': [
+            for (final scenario in scenarios)
+              {
+                'id': scenario.id,
+                'name': scenario.name,
+                'version': scenario.version,
+                'description': scenario.description,
+                'tags': scenario.tags,
+                'thresholds': {
+                  for (final entry in scenario.thresholds.entries)
+                    entry.key: entry.value.toJson(),
+                },
               },
-            },
-        ],
-      }));
+          ],
+        }),
+      );
       return;
     }
 
@@ -219,10 +219,13 @@ run options:
       return;
     }
     for (final scenario in scenarios) {
-      final tags =
-          scenario.tags.isEmpty ? '' : ' [${scenario.tags.join(', ')}]';
-      print('${scenario.id} — ${scenario.name} '
-          '(v${scenario.version})$tags');
+      final tags = scenario.tags.isEmpty
+          ? ''
+          : ' [${scenario.tags.join(', ')}]';
+      print(
+        '${scenario.id} — ${scenario.name} '
+        '(v${scenario.version})$tags',
+      );
       if (scenario.description.isNotEmpty) {
         print('    ${scenario.description}');
       }
@@ -271,11 +274,11 @@ run options:
       return;
     }
 
-    final result = await _effectiveRunner(results).runSingle(
-      scenario,
-      timeout: _parseTimeout(results),
-    );
-    final label = results['label'] as String? ??
+    final result = await _effectiveRunner(
+      results,
+    ).runSingle(scenario, timeout: _parseTimeout(results));
+    final label =
+        results['label'] as String? ??
         'run-${DateTime.now().millisecondsSinceEpoch}';
     final store = JsonBaselineStore(directory: _storeDir(results));
 
@@ -293,8 +296,10 @@ run options:
         },
       ),
     );
-    print('Saved baseline "$label" for $scenarioId '
-        '(${result.metrics.length} metrics)');
+    print(
+      'Saved baseline "$label" for $scenarioId '
+      '(${result.metrics.length} metrics)',
+    );
   }
 
   Future<void> _baselineLoad(List<String> rest) async {
@@ -311,13 +316,17 @@ run options:
         : await store.loadByLabel(scenarioId, label);
 
     if (baseline == null) {
-      print('No baseline found for $scenarioId${label == null ? '' : ' (label: $label)'}');
+      print(
+        'No baseline found for $scenarioId${label == null ? '' : ' (label: $label)'}',
+      );
       exitCode = 64;
       return;
     }
 
-    print('Baseline "${baseline.label}" for ${baseline.scenarioId} '
-        '(v${baseline.scenarioVersion}, ${baseline.timestamp.toIso8601String()}):');
+    print(
+      'Baseline "${baseline.label}" for ${baseline.scenarioId} '
+      '(v${baseline.scenarioVersion}, ${baseline.timestamp.toIso8601String()}):',
+    );
     final sorted = baseline.metrics.keys.toList()..sort();
     for (final metric in sorted) {
       print('  $metric = ${baseline.metrics[metric]}');
@@ -344,7 +353,9 @@ run options:
         : await store.loadByLabel(scenarioId, label);
 
     if (baseline == null) {
-      print('No baseline found for $scenarioId${label == null ? '' : ' (label: $label)'}');
+      print(
+        'No baseline found for $scenarioId${label == null ? '' : ' (label: $label)'}',
+      );
       exitCode = 64;
       return;
     }
@@ -357,25 +368,25 @@ run options:
       return;
     }
 
-    final current = await _effectiveRunner(results).runSingle(
-      scenario,
-      timeout: _parseTimeout(results),
-    );
+    final current = await _effectiveRunner(
+      results,
+    ).runSingle(scenario, timeout: _parseTimeout(results));
 
     // A current run that errored or failed must not be silently compared as
     // empty metrics and reported as "no change" (review finding: baseline
     // compare exited 0 when the current run errored).
     if (current.status != BenchmarkStatus.passed) {
       final error = current.metadata['error'];
-      print('Current run for $scenarioId did not pass '
-          '(${current.status.name})'
-          '${error != null ? ': $error' : ''}');
+      print(
+        'Current run for $scenarioId did not pass '
+        '(${current.status.name})'
+        '${error != null ? ': $error' : ''}',
+      );
       exitCode = 1;
       return;
     }
 
-    final tolerance =
-        num.tryParse(results['tolerance'] as String? ?? '') ?? 10;
+    final tolerance = num.tryParse(results['tolerance'] as String? ?? '') ?? 10;
     final comparison = compareBaselines(
       baseline,
       current.metrics,
@@ -385,18 +396,20 @@ run options:
     if (results['json'] as bool) {
       print(jsonEncode(comparison.toJson()));
     } else {
-      print('Comparison for $scenarioId against "${baseline.label}" '
-          '(tolerance $tolerance%):');
+      print(
+        'Comparison for $scenarioId against "${baseline.label}" '
+        '(tolerance $tolerance%):',
+      );
       final sorted = comparison.changes.keys.toList()..sort();
       for (final metric in sorted) {
         final change = comparison.changes[metric]!;
-        final severity = change.severity == null
-            ? ''
-            : ' [${change.severity}]';
-      print('  $metric: ${change.baselineValue} -> '
+        final severity = change.severity == null ? '' : ' [${change.severity}]';
+        print(
+          '  $metric: ${change.baselineValue} -> '
           '${change.currentValue} '
           '(${change.percentChange.toStringAsFixed(1)}%, '
-          '${change.direction.name})$severity');
+          '${change.direction.name})$severity',
+        );
       }
       if (sorted.isEmpty) {
         print('  no comparable metrics');
@@ -404,8 +417,7 @@ run options:
       print('Overall: ${comparison.overallStatus.name}');
     }
 
-    exitCode =
-        comparison.overallStatus == ComparisonStatus.regressed ? 1 : 0;
+    exitCode = comparison.overallStatus == ComparisonStatus.regressed ? 1 : 0;
   }
 
   Future<void> _baselineList(List<String> rest) async {
@@ -420,9 +432,11 @@ run options:
       return;
     }
     for (final baseline in baselines) {
-      print('${baseline.scenarioId} — "${baseline.label}" '
-          '(${baseline.timestamp.toIso8601String()}, '
-          '${baseline.metrics.length} metrics)');
+      print(
+        '${baseline.scenarioId} — "${baseline.label}" '
+        '(${baseline.timestamp.toIso8601String()}, '
+        '${baseline.metrics.length} metrics)',
+      );
     }
   }
 
@@ -441,8 +455,7 @@ run options:
       return;
     }
     final suite = BenchmarkSuiteResult.fromJson(
-      jsonDecode(await reportFile.readAsString())
-          as Map<String, dynamic>,
+      jsonDecode(await reportFile.readAsString()) as Map<String, dynamic>,
     );
     _printSuiteReport(suite);
     exitCode = suite.overallStatus == BenchmarkStatus.passed ? 0 : 1;
@@ -462,8 +475,11 @@ run options:
       ..addOption('config', help: 'Global config JSON')
       ..addFlag('json', negatable: false, help: 'Machine-readable output')
       ..addOption('timeout', help: 'Per-scenario timeout (ms)')
-      ..addFlag('isolate',
-          negatable: false, help: 'Run each scenario in its own isolate (FR-007)')
+      ..addFlag(
+        'isolate',
+        negatable: false,
+        help: 'Run each scenario in its own isolate (FR-007)',
+      )
       ..addOption('concurrency', help: 'Worker-pool size')
       ..addOption('store', help: 'Baseline store directory');
   }
@@ -473,8 +489,11 @@ run options:
       ..addOption('label', abbr: 'l', help: 'Baseline label')
       ..addOption('baseline', abbr: 'b', help: 'Baseline label to compare')
       ..addOption('timeout', help: 'Per-scenario timeout (ms)')
-      ..addFlag('isolate',
-          negatable: false, help: 'Run in its own isolate (FR-007)')
+      ..addFlag(
+        'isolate',
+        negatable: false,
+        help: 'Run in its own isolate (FR-007)',
+      )
       ..addOption('store', help: 'Baseline store directory');
   }
 
@@ -549,14 +568,18 @@ run options:
   }
 
   void _printSuiteReport(BenchmarkSuiteResult suite) {
-    print('Benchmark suite: ${suite.results.length} scenario(s), '
-        'overall ${suite.overallStatus.name}');
+    print(
+      'Benchmark suite: ${suite.results.length} scenario(s), '
+      'overall ${suite.overallStatus.name}',
+    );
     for (final result in suite.results) {
       final violations = result.thresholdViolations.isEmpty
           ? ''
           : ' — ${result.thresholdViolations.map((v) => v.message).join('; ')}';
-      print('  ${result.scenarioId}: ${result.status.name}'
-          '${result.metadata['error'] != null ? ' (${result.metadata['error']})' : ''}$violations');
+      print(
+        '  ${result.scenarioId}: ${result.status.name}'
+        '${result.metadata['error'] != null ? ' (${result.metadata['error']})' : ''}$violations',
+      );
       final sorted = result.metrics.keys.toList()..sort();
       final shown = sorted.take(6).map((m) => '$m=${result.metrics[m]}');
       if (shown.isNotEmpty) {

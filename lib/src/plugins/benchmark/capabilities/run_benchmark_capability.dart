@@ -24,32 +24,32 @@ class RunBenchmarkCapability extends ZuraffaCapability {
 
   @override
   JsonSchema get inputSchema => const {
+    'type': 'object',
+    'properties': {
+      'scenarioIds': {
+        'type': 'array',
+        'items': {'type': 'string'},
+        'description': 'Scenario ids to run; omit to run all.',
+      },
+      'config': {
         'type': 'object',
-        'properties': {
-          'scenarioIds': {
-            'type': 'array',
-            'items': {'type': 'string'},
-            'description': 'Scenario ids to run; omit to run all.',
-          },
-          'config': {
-            'type': 'object',
-            'description': 'Global config merged under every scenario.',
-          },
-          'dryRun': {
-            'type': 'boolean',
-            'default': false,
-            'description': 'Validate configurations without executing.',
-          },
-        },
-      };
+        'description': 'Global config merged under every scenario.',
+      },
+      'dryRun': {
+        'type': 'boolean',
+        'default': false,
+        'description': 'Validate configurations without executing.',
+      },
+    },
+  };
 
   @override
   JsonSchema get outputSchema => const {
-        'type': 'object',
-        'properties': {
-          'suite': {'type': 'object'},
-        },
-      };
+    'type': 'object',
+    'properties': {
+      'suite': {'type': 'object'},
+    },
+  };
 
   @override
   Future<EffectReport> plan(Map<String, dynamic> args) async {
@@ -77,10 +77,9 @@ class RunBenchmarkCapability extends ZuraffaCapability {
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
     await plugin.discoverAndRegisterScenarios();
     return plugin.runBenchmarks(
-      scenarioIds:
-          (args['scenarioIds'] as List<dynamic>? ?? const [])
-              .whereType<String>()
-              .toList(),
+      scenarioIds: (args['scenarioIds'] as List<dynamic>? ?? const [])
+          .whereType<String>()
+          .toList(),
       config: args['config'] as Map<String, dynamic>?,
       dryRun: args['dryRun'] == true,
     );

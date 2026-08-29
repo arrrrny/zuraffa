@@ -38,13 +38,12 @@ class SemanticAction {
     Map<String, Object?>? args,
     ActionTier? tier,
     String? viewId,
-  }) =>
-      SemanticAction(
-        actionId: actionId ?? this.actionId,
-        args: args ?? this.args,
-        tier: tier ?? this.tier,
-        viewId: viewId ?? this.viewId,
-      );
+  }) => SemanticAction(
+    actionId: actionId ?? this.actionId,
+    args: args ?? this.args,
+    tier: tier ?? this.tier,
+    viewId: viewId ?? this.viewId,
+  );
 
   @override
   String toString() =>

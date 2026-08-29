@@ -18,11 +18,16 @@ void main() {
     ).readAsStringSync();
 
     final totalLines = source.split('\n').length;
-    final nonBlankLines =
-        source.split('\n').where((line) => line.trim().isNotEmpty).length;
+    final nonBlankLines = source
+        .split('\n')
+        .where((line) => line.trim().isNotEmpty)
+        .length;
 
-    expect(totalLines, lessThan(50),
-        reason: 'fixture scenario must be under 50 lines, was $totalLines');
+    expect(
+      totalLines,
+      lessThan(50),
+      reason: 'fixture scenario must be under 50 lines, was $totalLines',
+    );
     expect(nonBlankLines, lessThan(50));
 
     // The scenario is fully functional through the real runner.

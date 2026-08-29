@@ -73,8 +73,8 @@ class ValidationResult {
   final bool valid;
   final List<ValidationError> errors;
   const ValidationResult.valid()
-      : valid = true,
-        errors = const <ValidationError>[];
+    : valid = true,
+      errors = const <ValidationError>[];
   const ValidationResult.invalid(this.errors) : valid = false;
 
   @override
@@ -121,7 +121,8 @@ class UiRenderValidationException implements Exception {
 /// Thrown when `ui.render` is called with no active mission (spec Edge Cases).
 class NoActiveMissionException implements Exception {
   @override
-  String toString() => 'NoActiveMissionException: ui.render requires an active '
+  String toString() =>
+      'NoActiveMissionException: ui.render requires an active '
       'mission; activate a mission before rendering.';
 }
 
@@ -203,13 +204,13 @@ class UiVocabularySchema {
 
     // Empty tree edge case (spec Edge Cases): a `root` node with no children
     // and no props is the empty-tree case the spec calls out.
-    if (tree.children.isEmpty &&
-        tree.props.isEmpty &&
-        tree.type == 'root') {
-      errors.add(const ValidationError(
-        ValidationErrorKind.emptyTree,
-        'Tree contains no renderable content; emit at least one child node.',
-      ));
+    if (tree.children.isEmpty && tree.props.isEmpty && tree.type == 'root') {
+      errors.add(
+        const ValidationError(
+          ValidationErrorKind.emptyTree,
+          'Tree contains no renderable content; emit at least one child node.',
+        ),
+      );
     }
 
     _validateNode(tree, errors);
@@ -227,22 +228,26 @@ class UiVocabularySchema {
   void _validateNode(UiNode node, List<ValidationError> errors) {
     // Unknown node type (FR-002 acceptance 1).
     if (!allowedNodeTypes.contains(node.type)) {
-      errors.add(ValidationError(
-        ValidationErrorKind.unknownNodeType,
-        'Node type "${node.type}" is not in the allowed vocabulary.',
-        nodeName: node.type,
-      ));
+      errors.add(
+        ValidationError(
+          ValidationErrorKind.unknownNodeType,
+          'Node type "${node.type}" is not in the allowed vocabulary.',
+          nodeName: node.type,
+        ),
+      );
     }
 
     // Invalid style token (FR-002 — "bad token" edge case).
     if (node.styleToken != null &&
         !allowedStyleTokens.contains(node.styleToken)) {
-      errors.add(ValidationError(
-        ValidationErrorKind.invalidToken,
-        'Style token "${node.styleToken}" is not in the allowed token set.',
-        nodeName: node.type,
-        badToken: node.styleToken,
-      ));
+      errors.add(
+        ValidationError(
+          ValidationErrorKind.invalidToken,
+          'Style token "${node.styleToken}" is not in the allowed token set.',
+          nodeName: node.type,
+          badToken: node.styleToken,
+        ),
+      );
     }
 
     // Recurse so we surface every node's error in one pass.

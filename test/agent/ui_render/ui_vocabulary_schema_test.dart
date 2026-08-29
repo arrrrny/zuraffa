@@ -5,12 +5,19 @@ void main() {
   group('UiVocabularySchema', () {
     group('validate', () {
       test('valid tree passes', () {
-        const tree = UiNode(type: 'root', children: [
-          UiNode(type: 'card', styleToken: 'primary', children: [
-            UiNode(type: 'text', props: {'label': 'Hello'}),
-            UiNode(type: 'button', actionId: 'tap_1'),
-          ]),
-        ]);
+        const tree = UiNode(
+          type: 'root',
+          children: [
+            UiNode(
+              type: 'card',
+              styleToken: 'primary',
+              children: [
+                UiNode(type: 'text', props: {'label': 'Hello'}),
+                UiNode(type: 'button', actionId: 'tap_1'),
+              ],
+            ),
+          ],
+        );
         final result = UiVocabularySchema.base.validate(tree);
         expect(result.valid, isTrue, reason: '$result');
       });
@@ -27,29 +34,35 @@ void main() {
       });
 
       test('unknown node type is flagged', () {
-        const tree = UiNode(type: 'root', children: [
-          UiNode(type: 'mystery_widget'),
-        ]);
+        const tree = UiNode(
+          type: 'root',
+          children: [UiNode(type: 'mystery_widget')],
+        );
         final result = UiVocabularySchema.base.validate(tree);
         expect(result.valid, isFalse);
         expect(
-          result.errors.any((e) =>
-              e.kind == ValidationErrorKind.unknownNodeType &&
-              e.nodeName == 'mystery_widget'),
+          result.errors.any(
+            (e) =>
+                e.kind == ValidationErrorKind.unknownNodeType &&
+                e.nodeName == 'mystery_widget',
+          ),
           isTrue,
         );
       });
 
       test('invalid style token is flagged', () {
-        const tree = UiNode(type: 'root', children: [
-          UiNode(type: 'card', styleToken: 'rainbow'),
-        ]);
+        const tree = UiNode(
+          type: 'root',
+          children: [UiNode(type: 'card', styleToken: 'rainbow')],
+        );
         final result = UiVocabularySchema.base.validate(tree);
         expect(result.valid, isFalse);
         expect(
-          result.errors.any((e) =>
-              e.kind == ValidationErrorKind.invalidToken &&
-              e.badToken == 'rainbow'),
+          result.errors.any(
+            (e) =>
+                e.kind == ValidationErrorKind.invalidToken &&
+                e.badToken == 'rainbow',
+          ),
           isTrue,
         );
       });
@@ -75,10 +88,13 @@ void main() {
       });
 
       test('multiple errors surface in a single pass', () {
-        const tree = UiNode(type: 'root', children: [
-          UiNode(type: 'mystery_widget'),
-          UiNode(type: 'card', styleToken: 'rainbow'),
-        ]);
+        const tree = UiNode(
+          type: 'root',
+          children: [
+            UiNode(type: 'mystery_widget'),
+            UiNode(type: 'card', styleToken: 'rainbow'),
+          ],
+        );
         final result = UiVocabularySchema.base.validate(tree);
         expect(result.valid, isFalse);
         expect(result.errors.length, greaterThanOrEqualTo(2));

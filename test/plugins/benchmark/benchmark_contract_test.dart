@@ -101,22 +101,10 @@ void main() {
 
   group('BenchmarkScenario', () {
     test('validates scenario id', () {
-      expect(
-        ScenarioValidation.validateId('entity-crud-benchmark'),
-        isEmpty,
-      );
-      expect(
-        ScenarioValidation.validateId(''),
-        isNotEmpty,
-      );
-      expect(
-        ScenarioValidation.validateId('Entity Crud'),
-        isNotEmpty,
-      );
-      expect(
-        ScenarioValidation.validateId('snake_case'),
-        isNotEmpty,
-      );
+      expect(ScenarioValidation.validateId('entity-crud-benchmark'), isEmpty);
+      expect(ScenarioValidation.validateId(''), isNotEmpty);
+      expect(ScenarioValidation.validateId('Entity Crud'), isNotEmpty);
+      expect(ScenarioValidation.validateId('snake_case'), isNotEmpty);
     });
 
     test('rejects invalid version', () {

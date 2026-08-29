@@ -49,9 +49,9 @@ class ToolGatingHook extends PolicyHook {
         try {
           // Use the throwing form of `.timeout` so the timeout branch
           // fires (instead of falling into the `if (!approved)` branch).
-          final approved = await approvalCallback(prompt).timeout(
-            confirmTimeout,
-          );
+          final approved = await approvalCallback(
+            prompt,
+          ).timeout(confirmTimeout);
           if (!approved) {
             return HookDecisionDeny(
               'user denied confirm-tier tool "${ctx.toolName}"',

@@ -62,28 +62,31 @@ class Baseline {
       scenarioId: json['scenarioId'] as String,
       scenarioVersion: json['scenarioVersion'] as String,
       label: json['label'] as String,
-      metrics: (json['metrics'] as Map<String, dynamic>)
-          .map((k, v) => MapEntry(k, v as num)),
+      metrics: (json['metrics'] as Map<String, dynamic>).map(
+        (k, v) => MapEntry(k, v as num),
+      ),
       timestamp: DateTime.parse(json['timestamp'] as String),
       gitCommit: (json['gitCommit'] as String?) ?? 'unknown',
       gitBranch: (json['gitBranch'] as String?) ?? 'unknown',
-      environment: (json['environment'] as Map<String, dynamic>?)
-              ?.map((k, v) => MapEntry(k, v as String)) ??
+      environment:
+          (json['environment'] as Map<String, dynamic>?)?.map(
+            (k, v) => MapEntry(k, v as String),
+          ) ??
           const {},
     );
   }
 
   /// Serializes the baseline to a JSON-compatible map.
   Map<String, dynamic> toJson() => {
-        'scenarioId': scenarioId,
-        'scenarioVersion': scenarioVersion,
-        'label': label,
-        'metrics': metrics,
-        'timestamp': timestamp.toIso8601String(),
-        'gitCommit': gitCommit,
-        'gitBranch': gitBranch,
-        'environment': environment,
-      };
+    'scenarioId': scenarioId,
+    'scenarioVersion': scenarioVersion,
+    'label': label,
+    'metrics': metrics,
+    'timestamp': timestamp.toIso8601String(),
+    'gitCommit': gitCommit,
+    'gitBranch': gitBranch,
+    'environment': environment,
+  };
 }
 
 /// Persistent storage for historical benchmark results (FR-009).
@@ -165,12 +168,13 @@ class JsonBaselineStore implements BaselineStore {
   Future<void> save(Baseline baseline) async {
     final index = _readIndex();
     final existing = index[baseline.scenarioId] ?? [];
-    final baselines = existing
-        .map(Baseline.fromJson)
-        .where((b) => b.label != baseline.label)
-        .toList()
-      ..add(baseline)
-      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    final baselines =
+        existing
+            .map(Baseline.fromJson)
+            .where((b) => b.label != baseline.label)
+            .toList()
+          ..add(baseline)
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
     await _write(baseline.scenarioId, baselines);
   }
 
@@ -193,9 +197,7 @@ class JsonBaselineStore implements BaselineStore {
   Future<List<Baseline>> list(String scenarioId) async {
     final index = _readIndex();
     final raw = index[scenarioId] ?? const [];
-    return raw
-        .map(Baseline.fromJson)
-        .toList()
+    return raw.map(Baseline.fromJson).toList()
       ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
   }
 
@@ -214,8 +216,10 @@ class JsonBaselineStore implements BaselineStore {
   Future<void> delete(String scenarioId, String label) async {
     final index = _readIndex();
     final raw = index[scenarioId] ?? const [];
-    final remaining =
-        raw.map(Baseline.fromJson).where((b) => b.label != label).toList();
+    final remaining = raw
+        .map(Baseline.fromJson)
+        .where((b) => b.label != label)
+        .toList();
     await _write(scenarioId, remaining);
   }
 }
@@ -298,25 +302,25 @@ class BenchmarkComparison {
 
   /// Serializes to a JSON-compatible map.
   Map<String, dynamic> toJson() => {
-        'scenarioId': scenarioId,
-        'baseline': baseline.toJson(),
-        'current': current,
-        'overallStatus': overallStatus.name,
-        'changes': {
-          for (final entry in changes.entries)
-            entry.key: {
-              'metric': entry.value.metric,
-              'baselineValue': entry.value.baselineValue,
-              'currentValue': entry.value.currentValue,
-              'absoluteChange': entry.value.absoluteChange,
-              'percentChange': entry.value.percentChange,
-              'direction': entry.value.direction.name,
-              'isRegression': entry.value.isRegression,
-              'severity': entry.value.severity,
-              'tolerance': entry.value.tolerance,
-            },
+    'scenarioId': scenarioId,
+    'baseline': baseline.toJson(),
+    'current': current,
+    'overallStatus': overallStatus.name,
+    'changes': {
+      for (final entry in changes.entries)
+        entry.key: {
+          'metric': entry.value.metric,
+          'baselineValue': entry.value.baselineValue,
+          'currentValue': entry.value.currentValue,
+          'absoluteChange': entry.value.absoluteChange,
+          'percentChange': entry.value.percentChange,
+          'direction': entry.value.direction.name,
+          'isRegression': entry.value.isRegression,
+          'severity': entry.value.severity,
+          'tolerance': entry.value.tolerance,
         },
-      };
+    },
+  };
 }
 
 /// Compares [current] metrics against [baseline] (FR-010, AC-10, AC-11).
@@ -349,11 +353,12 @@ BenchmarkComparison compareBaselines(
         : absoluteChange / baselineValue * 100;
     final magnitude = percentChange.abs();
 
-    final lowerIsBetter = lowerIsBetterOverride?[metric] ??
-        StandardMetrics.isLowerBetter(metric);
+    final lowerIsBetter =
+        lowerIsBetterOverride?[metric] ?? StandardMetrics.isLowerBetter(metric);
     // worsening direction: value moved the wrong way.
-    final worsened =
-        lowerIsBetter ? currentValue > baselineValue : currentValue < baselineValue;
+    final worsened = lowerIsBetter
+        ? currentValue > baselineValue
+        : currentValue < baselineValue;
 
     final isRegression = worsened && magnitude > tolerancePercent;
     final improved = !worsened && magnitude > tolerancePercent;
@@ -369,8 +374,7 @@ BenchmarkComparison compareBaselines(
 
     String? severity;
     if (isRegression) {
-      severity =
-          magnitude > tolerancePercent * 2 ? 'error' : 'warn';
+      severity = magnitude > tolerancePercent * 2 ? 'error' : 'warn';
     }
 
     changes[metric] = MetricChange(
@@ -392,8 +396,8 @@ BenchmarkComparison compareBaselines(
   final overallStatus = sawRegression
       ? ComparisonStatus.regressed
       : sawImprovement
-          ? ComparisonStatus.improved
-          : ComparisonStatus.stable;
+      ? ComparisonStatus.improved
+      : ComparisonStatus.stable;
 
   return BenchmarkComparison(
     scenarioId: baseline.scenarioId,

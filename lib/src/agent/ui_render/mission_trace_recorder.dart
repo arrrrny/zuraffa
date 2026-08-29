@@ -60,14 +60,16 @@ class MissionTraceRecorder {
   /// successful render — including replacements (a replacement creates a new
   /// entry with the same viewId and an updated contentHash).
   void record(RenderedView view, {String? missionType}) {
-    _entries.add(MissionTraceEntry(
-      viewId: view.viewId,
-      tree: view.tree,
-      schemaVersion: view.schemaVersion,
-      contentHash: view.contentHash,
-      missionType: missionType,
-      recordedAt: DateTime.now(),
-    ));
+    _entries.add(
+      MissionTraceEntry(
+        viewId: view.viewId,
+        tree: view.tree,
+        schemaVersion: view.schemaVersion,
+        contentHash: view.contentHash,
+        missionType: missionType,
+        recordedAt: DateTime.now(),
+      ),
+    );
   }
 
   /// Replay the recorded tree for a given view id (US6 acceptance 1 —

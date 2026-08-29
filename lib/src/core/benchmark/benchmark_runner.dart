@@ -68,11 +68,11 @@ class BenchmarkDryRunResult {
 
   /// Serializes to a JSON-compatible map.
   Map<String, dynamic> toJson() => {
-        'scenarioId': scenarioId,
-        'valid': valid,
-        'errors': errors,
-        'config': config,
-      };
+    'scenarioId': scenarioId,
+    'valid': valid,
+    'errors': errors,
+    'config': config,
+  };
 }
 
 /// Orchestrates execution of benchmarks, collects metrics, evaluates
@@ -171,8 +171,8 @@ class DefaultBenchmarkRunner implements BenchmarkRunner {
     int? concurrency,
     Duration? timeout,
   }) async {
-    final effectiveConcurrency =
-        (concurrency ?? config.defaultConcurrency).clamp(1, scenarios.length);
+    final effectiveConcurrency = (concurrency ?? config.defaultConcurrency)
+        .clamp(1, scenarios.length);
     final startedAt = DateTime.now();
     final suiteStopwatch = Stopwatch()..start();
 
@@ -193,10 +193,7 @@ class DefaultBenchmarkRunner implements BenchmarkRunner {
         final index = nextIndex++;
         if (index >= scenarios.length) return;
         final scenario = scenarios[index];
-        final merged = {
-          ...config.globalConfig,
-          ...?globalConfig,
-        };
+        final merged = {...config.globalConfig, ...?globalConfig};
         final scenarioStartedAt = DateTime.now();
         final stopwatch = Stopwatch()..start();
         results[index] = await _withTimeout(
@@ -214,10 +211,7 @@ class DefaultBenchmarkRunner implements BenchmarkRunner {
       }
     }
 
-    final workers = List.generate(
-      effectiveConcurrency,
-      (_) => worker(),
-    );
+    final workers = List.generate(effectiveConcurrency, (_) => worker());
     await Future.wait(workers);
 
     // Collector suite lifecycle: finalize once.
@@ -245,7 +239,10 @@ class DefaultBenchmarkRunner implements BenchmarkRunner {
   }) async {
     final errors = [
       ...ScenarioValidation.validate(scenario),
-      ..._validateConfigAgainstSchema(scenario.configSchema, config ?? const {}),
+      ..._validateConfigAgainstSchema(
+        scenario.configSchema,
+        config ?? const {},
+      ),
     ];
     return BenchmarkDryRunResult(
       scenarioId: scenario.id,
@@ -332,12 +329,8 @@ class DefaultBenchmarkRunner implements BenchmarkRunner {
       if (failure == null) {
         try {
           final custom = await scenario.collectMetrics();
-          scenarioResult =
-              (scenarioResult ?? _emptyResult(scenario, startedAt))
-                  .copyWith(metrics: {
-            ...?scenarioResult?.metrics,
-            ...custom,
-          });
+          scenarioResult = (scenarioResult ?? _emptyResult(scenario, startedAt))
+              .copyWith(metrics: {...?scenarioResult?.metrics, ...custom});
         } catch (error) {
           warnings.add('collectMetrics failed for ${scenario.id}: $error');
         }
@@ -366,10 +359,7 @@ class DefaultBenchmarkRunner implements BenchmarkRunner {
       ),
     );
 
-    final metrics = <String, num>{
-      ...standard,
-      ...?scenarioResult?.metrics,
-    };
+    final metrics = <String, num>{...standard, ...?scenarioResult?.metrics};
 
     // Collector-contributed metrics — each guarded (AC-9).
     for (final collector in _collectors) {
@@ -388,8 +378,10 @@ class DefaultBenchmarkRunner implements BenchmarkRunner {
         metrics.addAll(contributed);
       } catch (error) {
         // AC-9: a failing collector never fails the benchmark.
-        warnings.add('collector ${collector.id} failed for ${scenario.id}: '
-            '$error');
+        warnings.add(
+          'collector ${collector.id} failed for ${scenario.id}: '
+          '$error',
+        );
       }
     }
 
@@ -423,8 +415,8 @@ class DefaultBenchmarkRunner implements BenchmarkRunner {
     final status = failure != null
         ? BenchmarkStatus.error
         : violations.any((v) => v.severity == ThresholdSeverity.error)
-            ? BenchmarkStatus.failed
-            : BenchmarkStatus.passed;
+        ? BenchmarkStatus.failed
+        : BenchmarkStatus.passed;
 
     return BenchmarkResult(
       scenarioId: scenario.id,
@@ -499,25 +491,21 @@ class DefaultBenchmarkRunner implements BenchmarkRunner {
   BenchmarkResult _emptyResult(
     BenchmarkContract scenario,
     DateTime startedAt,
-  ) =>
-      BenchmarkResult(
-        scenarioId: scenario.id,
-        scenarioName: scenario.name,
-        scenarioVersion: scenario.version,
-        status: BenchmarkStatus.passed,
-        metrics: const {},
-        thresholdViolations: const [],
-        duration: Duration.zero,
-        timestamp: startedAt,
-      );
+  ) => BenchmarkResult(
+    scenarioId: scenario.id,
+    scenarioName: scenario.name,
+    scenarioVersion: scenario.version,
+    status: BenchmarkStatus.passed,
+    metrics: const {},
+    thresholdViolations: const [],
+    duration: Duration.zero,
+    timestamp: startedAt,
+  );
 
   String _gitCommit() {
     if (_cachedGitCommit != null) return _cachedGitCommit!;
     try {
-      final result = Process.runSync(
-        'git',
-        ['rev-parse', '--short', 'HEAD'],
-      );
+      final result = Process.runSync('git', ['rev-parse', '--short', 'HEAD']);
       if (result.exitCode == 0) {
         _cachedGitCommit = (result.stdout as String).trim();
       } else {
@@ -542,7 +530,8 @@ List<String> _validateConfigAgainstSchema(
   final properties =
       (schema['properties'] as Map<String, dynamic>?) ?? const {};
 
-  for (final requiredName in (schema['required'] as List<dynamic>? ?? const [])) {
+  for (final requiredName
+      in (schema['required'] as List<dynamic>? ?? const [])) {
     if (!config.containsKey(requiredName)) {
       errors.add("missing required config property '$requiredName'");
     }

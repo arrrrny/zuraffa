@@ -86,7 +86,10 @@ void main() {
   group('MissionOutcome', () {
     test('labels match spec', () {
       expect(const OutcomeCompleted(null).label, equals('completed'));
-      expect(const OutcomeCancelledPartial([]).label, equals('cancelled_partial'));
+      expect(
+        const OutcomeCancelledPartial([]).label,
+        equals('cancelled_partial'),
+      );
       expect(OutcomeFailed('boom').label, equals('failed'));
       expect(
         OutcomeCachedServed(const OutcomeCompleted(null)).label,

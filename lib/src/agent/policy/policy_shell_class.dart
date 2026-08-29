@@ -33,7 +33,11 @@ class PolicyShell {
     for (final hook in _hooks) {
       if (hook.id == id) return hook;
     }
-    throw ArgumentError.value(id, 'id', 'no policy hook registered with this id');
+    throw ArgumentError.value(
+      id,
+      'id',
+      'no policy hook registered with this id',
+    );
   }
 
   /// Notifies all hooks of mission start.

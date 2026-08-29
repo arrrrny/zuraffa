@@ -14,11 +14,12 @@ import 'partial_salvage.dart';
 ///
 /// Multi-isolate extension point (FR-009): override this with a
 /// `SendPort`-proxied implementation to run missions in worker isolates.
-typedef MissionExecutor = Future<MissionOutcome> Function(
-  Mission mission,
-  CoalescingGroup group,
-  CancelToken cancelToken,
-);
+typedef MissionExecutor =
+    Future<MissionOutcome> Function(
+      Mission mission,
+      CoalescingGroup group,
+      CancelToken cancelToken,
+    );
 
 /// The agent kernel — coordinates mission coalescing, cancellation, and
 /// partial-salvage (issue #388).
@@ -37,9 +38,9 @@ class AgentKernel {
     KernelConfig config = const KernelConfig(),
     MissionExecutor? executor,
     PartialSalvager? salvager,
-  })  : _config = config,
-        _salvager = salvager ?? PartialSalvager(),
-        _executor = executor ?? _defaultExecutor {
+  }) : _config = config,
+       _salvager = salvager ?? PartialSalvager(),
+       _executor = executor ?? _defaultExecutor {
     _introspection = Introspection(
       coalescingWindow: config.coalescingWindow,
       activeGroups: _groups,
@@ -101,7 +102,9 @@ class AgentKernel {
     _missionIdToKey[mission.id] = canonical;
 
     final sub = group.events.listen(onEvent ?? (_) {});
-    final cancelToken = CancelToken(gracePeriod: _config.cancellationGracePeriod);
+    final cancelToken = CancelToken(
+      gracePeriod: _config.cancellationGracePeriod,
+    );
     group.cancelToken = cancelToken;
 
     try {
@@ -138,9 +141,7 @@ class AgentKernel {
   /// a `cancelled_partial` outcome; all subscribers (original + coalesced)
   /// receive that salvaged outcome. Per-subscriber policies (continue /
   /// escalate / serve-partials) are not yet wired up — see issue #388.
-  Future<MissionOutcome> cancel(
-    String missionId,
-  ) async {
+  Future<MissionOutcome> cancel(String missionId) async {
     final canonical = _missionIdToKey[missionId];
     if (canonical == null) {
       throw StateError('Mission not found: $missionId');
@@ -150,7 +151,8 @@ class AgentKernel {
       throw StateError('Mission not active: $missionId');
     }
 
-    final token = group.cancelToken ??
+    final token =
+        group.cancelToken ??
         CancelToken(gracePeriod: _config.cancellationGracePeriod);
 
     // Salvage + complete the group synchronously BEFORE triggering

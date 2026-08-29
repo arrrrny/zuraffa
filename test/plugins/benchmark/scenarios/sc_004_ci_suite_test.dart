@@ -17,9 +17,7 @@ void main() {
     );
 
     final runner = DefaultBenchmarkRunner(
-      config: const BenchmarkRunnerConfig(
-        globalConfig: {'iterations': 10},
-      ),
+      config: const BenchmarkRunnerConfig(globalConfig: {'iterations': 10}),
     );
 
     final wallClock = Stopwatch()..start();

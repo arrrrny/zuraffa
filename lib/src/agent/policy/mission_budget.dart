@@ -35,12 +35,7 @@ class MissionBudget {
 }
 
 /// Which budget dimension was breached (FR-006).
-enum BudgetDimension {
-  calls,
-  wallClock,
-  tokens,
-  perToolClass,
-}
+enum BudgetDimension { calls, wallClock, tokens, perToolClass }
 
 /// Typed budget-exceeded event (FR-006).
 class BudgetBreach {
@@ -76,7 +71,7 @@ class BudgetBreach {
 /// Tracks current usage against a [MissionBudget] and detects breaches.
 class BudgetTracker {
   BudgetTracker(this.budget, {DateTime? startedAt})
-      : _startedAt = startedAt ?? DateTime.now();
+    : _startedAt = startedAt ?? DateTime.now();
 
   final MissionBudget budget;
   final DateTime _startedAt;

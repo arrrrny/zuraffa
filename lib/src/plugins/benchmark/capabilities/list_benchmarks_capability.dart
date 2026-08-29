@@ -22,18 +22,15 @@ class ListBenchmarksCapability extends ZuraffaCapability {
       'description, tags and thresholds.';
 
   @override
-  JsonSchema get inputSchema => const {
-        'type': 'object',
-        'properties': {},
-      };
+  JsonSchema get inputSchema => const {'type': 'object', 'properties': {}};
 
   @override
   JsonSchema get outputSchema => const {
-        'type': 'object',
-        'properties': {
-          'scenarios': {'type': 'array'},
-        },
-      };
+    'type': 'object',
+    'properties': {
+      'scenarios': {'type': 'array'},
+    },
+  };
 
   @override
   Future<EffectReport> plan(Map<String, dynamic> args) async {
@@ -42,12 +39,7 @@ class ListBenchmarksCapability extends ZuraffaCapability {
       pluginId: plugin.id,
       capabilityName: name,
       args: args,
-      changes: [
-        Effect(
-          file: '(registry query)',
-          action: 'read',
-        ),
-      ],
+      changes: [Effect(file: '(registry query)', action: 'read')],
     );
   }
 

@@ -8,10 +8,8 @@ import 'mission_event.dart';
 /// call made by the delegated loop passes through the kernel's
 /// [AgentHook.beforeToolCall]/[AgentHook.afterToolCall] policy chain
 /// (FR-010).
-typedef ToolInvoker = Future<Object?> Function(
-  String canonicalName,
-  Map<String, Object?> args,
-);
+typedef ToolInvoker =
+    Future<Object?> Function(String canonicalName, Map<String, Object?> args);
 
 /// SPI for `dart_agent_core`'s `StatefulAgent` (FR-005, FR-013).
 ///

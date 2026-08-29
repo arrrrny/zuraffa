@@ -60,11 +60,11 @@ class UiRenderTool {
     PolicyGate? policyGate,
     ActionRouter? actionRouter,
     String Function()? idGenerator,
-  })  : channel = channel ?? UiEventChannel(),
-        recorder = recorder ?? MissionTraceRecorder(),
-        policyGate = policyGate ?? PolicyGate(),
-        actionRouter = actionRouter ?? CapturingActionRouter(),
-        _idGenerator = idGenerator ?? _defaultIdGenerator;
+  }) : channel = channel ?? UiEventChannel(),
+       recorder = recorder ?? MissionTraceRecorder(),
+       policyGate = policyGate ?? PolicyGate(),
+       actionRouter = actionRouter ?? CapturingActionRouter(),
+       _idGenerator = idGenerator ?? _defaultIdGenerator;
 
   static int _idCounter = 0;
   static String _defaultIdGenerator() =>
@@ -90,11 +90,7 @@ class UiRenderTool {
   /// Throws [NoActiveMissionException] when no mission is active.
   /// Throws [UiRenderValidationException] when validation fails (FR-002).
   /// Throws [ViewNotFoundException] when `replaceViewId` is unknown.
-  RenderedView render(
-    UiNode tree, {
-    String? replaceViewId,
-    String? hint,
-  }) {
+  RenderedView render(UiNode tree, {String? replaceViewId, String? hint}) {
     final missionType = _activeMissionType;
     if (missionType == null) {
       throw NoActiveMissionException();

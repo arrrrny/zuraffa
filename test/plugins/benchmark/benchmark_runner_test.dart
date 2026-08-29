@@ -30,10 +30,7 @@ void main() {
       );
       final scenario = RecordingScenario('config-scenario');
 
-      await runner.runSingle(
-        scenario,
-        config: const {'iterations': 5},
-      );
+      await runner.runSingle(scenario, config: const {'iterations': 5});
 
       expect(scenario.lastConfig, containsPair('iterations', 5));
       expect(scenario.lastConfig, containsPair('shared', 'from-global'));
@@ -55,7 +52,10 @@ void main() {
 
     test('run error captured, teardown called', () async {
       final runner = DefaultBenchmarkRunner();
-      final scenario = ThrowingScenario('run-fail', throwIn: LifecycleStage.run);
+      final scenario = ThrowingScenario(
+        'run-fail',
+        throwIn: LifecycleStage.run,
+      );
 
       final result = await runner.runSingle(scenario);
 
@@ -104,10 +104,7 @@ void main() {
       expect(result.thresholdViolations, hasLength(1));
       expect(result.thresholdViolations.first.metric, 'latency_p99');
       expect(result.thresholdViolations.first.actual, 250);
-      expect(
-        result.thresholdViolations.first.message,
-        contains('latency_p99'),
-      );
+      expect(result.thresholdViolations.first.message, contains('latency_p99'));
     });
 
     test('warn violation stays passed', () async {
@@ -129,8 +126,7 @@ void main() {
 
       expect(result.status, BenchmarkStatus.passed);
       expect(result.thresholdViolations, hasLength(1));
-      expect(result.thresholdViolations.first.severity,
-          ThresholdSeverity.warn);
+      expect(result.thresholdViolations.first.severity, ThresholdSeverity.warn);
     });
 
     test('metadata records config', () async {
@@ -203,9 +199,7 @@ void main() {
       final suite = await runner.run(scenarios);
 
       expect(suite.results, hasLength(3));
-      final broken = suite.results.firstWhere(
-        (r) => r.scenarioId == 'broken',
-      );
+      final broken = suite.results.firstWhere((r) => r.scenarioId == 'broken');
       expect(broken.status, BenchmarkStatus.error);
       // The scenario after the failure still ran.
       final after = suite.results.firstWhere(

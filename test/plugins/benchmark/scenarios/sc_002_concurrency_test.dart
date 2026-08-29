@@ -24,8 +24,11 @@ void main() {
     expect(suite.results, hasLength(count));
     expect(suite.overallStatus, BenchmarkStatus.passed);
     for (final result in suite.results) {
-      expect(result.status, BenchmarkStatus.passed,
-          reason: 'scenario ${result.scenarioId} did not pass');
+      expect(
+        result.status,
+        BenchmarkStatus.passed,
+        reason: 'scenario ${result.scenarioId} did not pass',
+      );
     }
 
     // Every scenario ran its full lifecycle exactly once.

@@ -55,10 +55,7 @@ class _QueryCountCollector implements MetricCollector {
     // Derive metrics from the observed execution: one query per iteration
     // plus two index scans per query.
     final iterations = context.samples.length;
-    return {
-      'db_query_count': iterations,
-      'db_index_scans': iterations * 2,
-    };
+    return {'db_query_count': iterations, 'db_index_scans': iterations * 2};
   }
 
   @override

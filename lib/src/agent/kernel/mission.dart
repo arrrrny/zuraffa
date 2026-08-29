@@ -31,7 +31,8 @@ class MissionKey {
   final String strategyVariant;
 
   /// Stable string form, used as a Map key.
-  late final String canonical = '$sparkType|$normalizedValue|$country|$strategyVariant';
+  late final String canonical =
+      '$sparkType|$normalizedValue|$country|$strategyVariant';
 
   @override
   bool operator ==(Object other) =>

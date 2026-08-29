@@ -16,10 +16,7 @@ void main() {
 
     test('policy_gate_blocks_confirm_tier_until_approved', () async {
       final gate = PolicyGate();
-      const action = SemanticAction(
-        actionId: 'buy',
-        tier: ActionTier.confirm,
-      );
+      const action = SemanticAction(actionId: 'buy', tier: ActionTier.confirm);
 
       // intercept returns a future that does NOT complete until the user
       // approves or denies.
@@ -41,10 +38,7 @@ void main() {
 
     test('policy_gate_allows_confirm_tier_after_approval', () async {
       final gate = PolicyGate();
-      const action = SemanticAction(
-        actionId: 'buy',
-        tier: ActionTier.confirm,
-      );
+      const action = SemanticAction(actionId: 'buy', tier: ActionTier.confirm);
 
       final future = gate.intercept(action);
       await Future<void>.delayed(Duration.zero);
@@ -60,13 +54,9 @@ void main() {
       expect(gate.pending, isEmpty, reason: 'decision consumed');
     });
 
-    test('deny drops the action — delivered future resolves to null',
-        () async {
+    test('deny drops the action — delivered future resolves to null', () async {
       final gate = PolicyGate();
-      const action = SemanticAction(
-        actionId: 'buy',
-        tier: ActionTier.confirm,
-      );
+      const action = SemanticAction(actionId: 'buy', tier: ActionTier.confirm);
 
       final future = gate.intercept(action);
       gate.denyLatest();
@@ -82,35 +72,35 @@ void main() {
       expect(gate.pending, isEmpty);
     });
 
-    test('cancel completes the future with null and removes from pending',
-        () async {
-      final gate = PolicyGate();
-      const action = SemanticAction(
-        actionId: 'buy',
-        tier: ActionTier.confirm,
-      );
-      final future = gate.intercept(action);
-      await Future<void>.delayed(Duration.zero);
-      expect(gate.pending, hasLength(1), reason: 'decision is pending');
+    test(
+      'cancel completes the future with null and removes from pending',
+      () async {
+        final gate = PolicyGate();
+        const action = SemanticAction(
+          actionId: 'buy',
+          tier: ActionTier.confirm,
+        );
+        final future = gate.intercept(action);
+        await Future<void>.delayed(Duration.zero);
+        expect(gate.pending, hasLength(1), reason: 'decision is pending');
 
-      // Host UI dismissed — cancel instead of approve/deny.
-      gate.pending.first.cancel();
-      final delivered = await future;
+        // Host UI dismissed — cancel instead of approve/deny.
+        gate.pending.first.cancel();
+        final delivered = await future;
 
-      expect(delivered, isNull, reason: 'cancelled decisions resolve null');
-      expect(gate.pending, isEmpty, reason: 'cancelled decision removed');
-    });
+        expect(delivered, isNull, reason: 'cancelled decisions resolve null');
+        expect(gate.pending, isEmpty, reason: 'cancelled decision removed');
+      },
+    );
 
     test('dispose cancels every pending decision (teardown)', () async {
       final gate = PolicyGate();
-      final f1 = gate.intercept(const SemanticAction(
-        actionId: 'a',
-        tier: ActionTier.confirm,
-      ));
-      final f2 = gate.intercept(const SemanticAction(
-        actionId: 'b',
-        tier: ActionTier.confirm,
-      ));
+      final f1 = gate.intercept(
+        const SemanticAction(actionId: 'a', tier: ActionTier.confirm),
+      );
+      final f2 = gate.intercept(
+        const SemanticAction(actionId: 'b', tier: ActionTier.confirm),
+      );
       await Future<void>.delayed(Duration.zero);
       expect(gate.pending, hasLength(2), reason: 'two decisions pending');
 

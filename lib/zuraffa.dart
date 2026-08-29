@@ -690,7 +690,12 @@ export 'src/agent/ui_render/ui_render.dart'
 // assumption documented; MissionExecutor is the multi-isolate extension point.
 // Pure-Dart (no package:flutter import anywhere in this subtree).
 export 'src/agent/kernel/agent_kernel.dart'
-    hide CancelToken, Mission, MissionEvent, MissionEventCompleted, MissionEventFailed;
+    hide
+        CancelToken,
+        Mission,
+        MissionEvent,
+        MissionEventCompleted,
+        MissionEventFailed;
 
 // ── 027-agent-policy-shell — ToolGatingHook, MissionBudgetHook, MissionTraceRecorder ──
 // Framework-default safety/governance layer. Tool permission registry

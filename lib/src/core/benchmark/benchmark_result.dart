@@ -87,12 +87,12 @@ class ThresholdViolation {
 
   /// Serializes the violation to a JSON-compatible map.
   Map<String, dynamic> toJson() => {
-        'metric': metric,
-        'expected': expected,
-        'actual': actual,
-        'severity': severity.name,
-        'message': message,
-      };
+    'metric': metric,
+    'expected': expected,
+    'actual': actual,
+    'severity': severity.name,
+    'message': message,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -163,8 +163,9 @@ class BenchmarkResult {
       scenarioName: json['scenarioName'] as String,
       scenarioVersion: json['scenarioVersion'] as String,
       status: BenchmarkStatus.fromName(json['status'] as String),
-      metrics: (json['metrics'] as Map<String, dynamic>)
-          .map((k, v) => MapEntry(k, v as num)),
+      metrics: (json['metrics'] as Map<String, dynamic>).map(
+        (k, v) => MapEntry(k, v as num),
+      ),
       thresholdViolations: (json['thresholdViolations'] as List<dynamic>)
           .map((v) => ThresholdViolation.fromJson(v as Map<String, dynamic>))
           .toList(),
@@ -177,18 +178,17 @@ class BenchmarkResult {
 
   /// Serializes the result to a JSON-compatible map.
   Map<String, dynamic> toJson() => {
-        'scenarioId': scenarioId,
-        'scenarioName': scenarioName,
-        'scenarioVersion': scenarioVersion,
-        'status': status.name,
-        'metrics': metrics,
-        'thresholdViolations':
-            thresholdViolations.map((v) => v.toJson()).toList(),
-        'durationMs': duration.inMilliseconds,
-        'timestamp': timestamp.toIso8601String(),
-        'gitCommit': gitCommit,
-        'metadata': metadata,
-      };
+    'scenarioId': scenarioId,
+    'scenarioName': scenarioName,
+    'scenarioVersion': scenarioVersion,
+    'status': status.name,
+    'metrics': metrics,
+    'thresholdViolations': thresholdViolations.map((v) => v.toJson()).toList(),
+    'durationMs': duration.inMilliseconds,
+    'timestamp': timestamp.toIso8601String(),
+    'gitCommit': gitCommit,
+    'metadata': metadata,
+  };
 
   /// Returns a copy with the provided fields replaced.
   BenchmarkResult copyWith({
@@ -281,11 +281,11 @@ class BenchmarkSuiteResult {
 
   /// Serializes the suite result to a JSON-compatible map.
   Map<String, dynamic> toJson() => {
-        'results': results.map((r) => r.toJson()).toList(),
-        'overallStatus': overallStatus.name,
-        'totalDurationMs': totalDuration.inMilliseconds,
-        'startedAt': startedAt.toIso8601String(),
-        'completedAt': completedAt.toIso8601String(),
-        'summary': summary,
-      };
+    'results': results.map((r) => r.toJson()).toList(),
+    'overallStatus': overallStatus.name,
+    'totalDurationMs': totalDuration.inMilliseconds,
+    'startedAt': startedAt.toIso8601String(),
+    'completedAt': completedAt.toIso8601String(),
+    'summary': summary,
+  };
 }

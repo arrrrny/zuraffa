@@ -27,9 +27,7 @@ class IsolateBenchmarkRunner implements BenchmarkRunner {
   ///
   /// [config] mirrors [DefaultBenchmarkRunner]'s configuration and is
   /// honoured inside the spawned isolate.
-  IsolateBenchmarkRunner({
-    this.config = const BenchmarkRunnerConfig(),
-  });
+  IsolateBenchmarkRunner({this.config = const BenchmarkRunnerConfig()});
 
   /// Runner configuration applied inside each spawned isolate.
   final BenchmarkRunnerConfig config;
@@ -140,22 +138,17 @@ class IsolateBenchmarkRunner implements BenchmarkRunner {
     Map<String, dynamic>? config,
   }) {
     // Validation requires no execution, so no isolate is needed.
-    return DefaultBenchmarkRunner(config: this.config).dryRun(
-      scenario,
-      config: config,
-    );
+    return DefaultBenchmarkRunner(
+      config: this.config,
+    ).dryRun(scenario, config: config);
   }
 
-  BenchmarkResult _decodeReply(
-    BenchmarkContract scenario,
-    Object reply,
-  ) {
+  BenchmarkResult _decodeReply(BenchmarkContract scenario, Object reply) {
     if (reply is Map<String, dynamic> && reply['kind'] == 'result') {
-      final json = (reply['result'] as Map<String, dynamic>).cast<String, dynamic>();
+      final json = (reply['result'] as Map<String, dynamic>)
+          .cast<String, dynamic>();
       final result = BenchmarkResult.fromJson(json);
-      return result.copyWith(
-        metadata: {...result.metadata, 'isolated': true},
-      );
+      return result.copyWith(metadata: {...result.metadata, 'isolated': true});
     }
     final message = reply is Map<String, dynamic> && reply['error'] != null
         ? reply['error'].toString()
@@ -200,15 +193,9 @@ class _IsolateJob {
 Future<void> _isolateEntryPoint(_IsolateJob job) async {
   final runner = DefaultBenchmarkRunner(config: job.runnerConfig);
   try {
-    final result = await runner.runSingle(
-      job.scenario,
-      config: job.config,
-    );
+    final result = await runner.runSingle(job.scenario, config: job.config);
     job.replyTo.send({'kind': 'result', 'result': result.toJson()});
   } catch (error, stack) {
-    job.replyTo.send({
-      'kind': 'error',
-      'error': '$error\n$stack',
-    });
+    job.replyTo.send({'kind': 'error', 'error': '$error\n$stack'});
   }
 }

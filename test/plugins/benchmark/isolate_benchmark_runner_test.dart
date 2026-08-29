@@ -29,8 +29,10 @@ void main() {
 
     test('isolate crash contained', () async {
       final runner = IsolateBenchmarkRunner();
-      final scenario =
-          ThrowingScenario('isolate-crash', throwIn: LifecycleStage.run);
+      final scenario = ThrowingScenario(
+        'isolate-crash',
+        throwIn: LifecycleStage.run,
+      );
 
       final result = await runner.runSingle(scenario);
 

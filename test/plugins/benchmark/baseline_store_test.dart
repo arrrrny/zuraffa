@@ -29,17 +29,16 @@ void main() {
       'memory_mb': 50,
     },
     DateTime? timestamp,
-  }) =>
-      Baseline(
-        scenarioId: scenarioId,
-        scenarioVersion: '1.0.0',
-        label: label,
-        metrics: metrics,
-        timestamp: timestamp ?? DateTime.utc(2026, 8, 28),
-        gitCommit: 'ab12cd34',
-        gitBranch: 'main',
-        environment: const {'os': 'linux', 'dart': '3.13.2'},
-      );
+  }) => Baseline(
+    scenarioId: scenarioId,
+    scenarioVersion: '1.0.0',
+    label: label,
+    metrics: metrics,
+    timestamp: timestamp ?? DateTime.utc(2026, 8, 28),
+    gitCommit: 'ab12cd34',
+    gitBranch: 'main',
+    environment: const {'os': 'linux', 'dart': '3.13.2'},
+  );
 
   group('JsonBaselineStore', () {
     test('save then load', () async {
@@ -84,7 +83,11 @@ void main() {
         baselineOf('scenario', label: 'a', timestamp: DateTime.utc(2026, 1)),
       );
       await store.save(
-        baselineOf('other-scenario', label: 'x', timestamp: DateTime.utc(2026, 3)),
+        baselineOf(
+          'other-scenario',
+          label: 'x',
+          timestamp: DateTime.utc(2026, 3),
+        ),
       );
 
       final list = await store.list('scenario');
@@ -110,9 +113,7 @@ void main() {
       final baseline = baselineOf('round-trip-scenario');
       await store.save(baseline);
 
-      final file = File(
-        '${tempDir.path}/round-trip-scenario.json',
-      );
+      final file = File('${tempDir.path}/round-trip-scenario.json');
       expect(await file.exists(), isTrue);
       final loaded = await store.load('round-trip-scenario');
       expect(loaded!.timestamp, baseline.timestamp);
@@ -176,11 +177,9 @@ void main() {
         'regression-scenario',
         metrics: const {'latency_p99': 100},
       );
-      final comparison = compareBaselines(
-        baseline,
-        const {'latency_p99': 150},
-        tolerancePercent: 10,
-      );
+      final comparison = compareBaselines(baseline, const {
+        'latency_p99': 150,
+      }, tolerancePercent: 10);
 
       final change = comparison.changes['latency_p99']!;
       expect(change.percentChange, closeTo(50, 1e-9));
@@ -197,14 +196,14 @@ void main() {
         'stable-scenario',
         metrics: const {'latency_p99': 100},
       );
-      final comparison = compareBaselines(
-        baseline,
-        const {'latency_p99': 105},
-        tolerancePercent: 10,
-      );
+      final comparison = compareBaselines(baseline, const {
+        'latency_p99': 105,
+      }, tolerancePercent: 10);
 
-      expect(comparison.changes['latency_p99']!.direction,
-          MetricDirection.stable);
+      expect(
+        comparison.changes['latency_p99']!.direction,
+        MetricDirection.stable,
+      );
       expect(comparison.changes['latency_p99']!.isRegression, isFalse);
       expect(comparison.overallStatus, ComparisonStatus.stable);
     });
@@ -212,16 +211,12 @@ void main() {
     test('improvement direction', () {
       final baseline = baselineOf(
         'improve-scenario',
-        metrics: const {
-          'latency_p99': 100,
-          'throughput_ops_sec': 1000,
-        },
+        metrics: const {'latency_p99': 100, 'throughput_ops_sec': 1000},
       );
-      final comparison = compareBaselines(
-        baseline,
-        const {'latency_p99': 50, 'throughput_ops_sec': 900},
-        tolerancePercent: 5,
-      );
+      final comparison = compareBaselines(baseline, const {
+        'latency_p99': 50,
+        'throughput_ops_sec': 900,
+      }, tolerancePercent: 5);
 
       // Latency halved: improvement for a lower-is-better metric.
       expect(
@@ -234,10 +229,7 @@ void main() {
         comparison.changes['throughput_ops_sec']!.direction,
         MetricDirection.regressed,
       );
-      expect(
-        comparison.changes['throughput_ops_sec']!.isRegression,
-        isTrue,
-      );
+      expect(comparison.changes['throughput_ops_sec']!.isRegression, isTrue);
       expect(comparison.overallStatus, ComparisonStatus.regressed);
     });
 
@@ -246,11 +238,9 @@ void main() {
         'missing-metric-scenario',
         metrics: const {'latency_p99': 100, 'memory_mb': 50},
       );
-      final comparison = compareBaselines(
-        baseline,
-        const {'latency_p99': 100},
-        tolerancePercent: 10,
-      );
+      final comparison = compareBaselines(baseline, const {
+        'latency_p99': 100,
+      }, tolerancePercent: 10);
 
       expect(comparison.changes.containsKey('memory_mb'), isFalse);
       expect(comparison.overallStatus, ComparisonStatus.stable);

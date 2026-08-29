@@ -42,37 +42,37 @@ void main() {
 class _AnalyticsPluginProvider implements BenchmarkScenarioProvider {
   @override
   List<BenchmarkContract> provideScenarios() => [
-        RecordingScenario(
-          'analytics-aggregation-benchmark',
-          name: 'Analytics Aggregation',
-          tags: ['analytics'],
-        ),
-      ];
+    RecordingScenario(
+      'analytics-aggregation-benchmark',
+      name: 'Analytics Aggregation',
+      tags: ['analytics'],
+    ),
+  ];
 }
 
 class _SyncPluginProvider implements BenchmarkScenarioProvider {
   @override
   List<BenchmarkContract> provideScenarios() => [
-        RecordingScenario(
-          'sync-conflict-resolution-benchmark',
-          name: 'Sync Conflict Resolution',
-          tags: ['sync'],
-        ),
-      ];
+    RecordingScenario(
+      'sync-conflict-resolution-benchmark',
+      name: 'Sync Conflict Resolution',
+      tags: ['sync'],
+    ),
+  ];
 }
 
 class _CachePluginProvider implements BenchmarkScenarioProvider {
   @override
   List<BenchmarkContract> provideScenarios() => [
-        RecordingScenario(
-          'cache-hit-rate-benchmark',
-          name: 'Cache Hit Rate',
-          tags: ['cache'],
-        ),
-        RecordingScenario(
-          'cache-eviction-benchmark',
-          name: 'Cache Eviction',
-          tags: ['cache'],
-        ),
-      ];
+    RecordingScenario(
+      'cache-hit-rate-benchmark',
+      name: 'Cache Hit Rate',
+      tags: ['cache'],
+    ),
+    RecordingScenario(
+      'cache-eviction-benchmark',
+      name: 'Cache Eviction',
+      tags: ['cache'],
+    ),
+  ];
 }

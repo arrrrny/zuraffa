@@ -69,10 +69,14 @@ void main() {
     final overhead =
         (framed.inMicroseconds - raw.inMicroseconds) / raw.inMicroseconds;
 
-    expect(overhead, lessThan(0.05),
-        reason: 'framework overhead was '
-            '${(overhead * 100).toStringAsFixed(1)}% '
-            '(raw=${raw.inMilliseconds}ms, framed=${framed.inMilliseconds}ms)');
+    expect(
+      overhead,
+      lessThan(0.05),
+      reason:
+          'framework overhead was '
+          '${(overhead * 100).toStringAsFixed(1)}% '
+          '(raw=${raw.inMilliseconds}ms, framed=${framed.inMilliseconds}ms)',
+    );
   }, timeout: const Timeout(Duration(minutes: 2)));
 }
 

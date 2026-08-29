@@ -34,7 +34,9 @@ void main() {
 
   test('duplicate conflicts', () async {
     await registry.register(FakeScenario('entity-crud-benchmark'));
-    final second = await registry.register(FakeScenario('entity-crud-benchmark'));
+    final second = await registry.register(
+      FakeScenario('entity-crud-benchmark'),
+    );
 
     expect(second.isFailure, isTrue);
     final error = second.getFailureOrNull();
@@ -82,16 +84,26 @@ void main() {
     }
     final all = await registry.getAll();
     expect(all, hasLength(3));
-    expect(all.map((s) => s.id), containsAll(['scenario-0', 'scenario-1', 'scenario-2']));
+    expect(
+      all.map((s) => s.id),
+      containsAll(['scenario-0', 'scenario-1', 'scenario-2']),
+    );
   });
 
   test('get by tags', () async {
-    await registry.register(FakeScenario('db-benchmark', tags: ['db', 'entity']));
+    await registry.register(
+      FakeScenario('db-benchmark', tags: ['db', 'entity']),
+    );
     await registry.register(FakeScenario('net-benchmark', tags: ['network']));
-    await registry.register(FakeScenario('mixed-benchmark', tags: ['db', 'network']));
+    await registry.register(
+      FakeScenario('mixed-benchmark', tags: ['db', 'network']),
+    );
 
     final dbScenarios = await registry.getByTags(['db']);
-    expect(dbScenarios.map((s) => s.id), containsAll(['db-benchmark', 'mixed-benchmark']));
+    expect(
+      dbScenarios.map((s) => s.id),
+      containsAll(['db-benchmark', 'mixed-benchmark']),
+    );
 
     final dbOrNet = await registry.getByTags(['db', 'network']);
     expect(dbOrNet, hasLength(3));
@@ -125,24 +137,26 @@ void main() {
     expect(await registry.get('late-scenario'), isA<BenchmarkContract>());
   });
 
-  test('registering same instance under two registries is independent',
-      () async {
-    final other = InMemoryBenchmarkRegistry();
-    final scenario = FakeScenario('shared-scenario');
-    await registry.register(scenario);
+  test(
+    'registering same instance under two registries is independent',
+    () async {
+      final other = InMemoryBenchmarkRegistry();
+      final scenario = FakeScenario('shared-scenario');
+      await registry.register(scenario);
 
-    expect(await other.has('shared-scenario'), isFalse);
-    await other.register(scenario);
-    expect(await other.has('shared-scenario'), isTrue);
-    expect(await registry.has('shared-scenario'), isTrue);
-  });
+      expect(await other.has('shared-scenario'), isFalse);
+      await other.register(scenario);
+      expect(await other.has('shared-scenario'), isTrue);
+      expect(await registry.has('shared-scenario'), isTrue);
+    },
+  );
 }
 
 /// A deterministic fake scenario for registry tests.
 class FakeScenario extends BenchmarkScenario {
   FakeScenario(this._id, {String? name, List<String> tags = const []})
-      : _name = name ?? 'Scenario for $_id',
-        _tags = tags;
+    : _name = name ?? 'Scenario for $_id',
+      _tags = tags;
 
   final String _id;
   final String _name;
@@ -159,11 +173,11 @@ class FakeScenario extends BenchmarkScenario {
 
   @override
   Map<String, dynamic> get configSchema => const {
-        'type': 'object',
-        'properties': {
-          'iterations': {'type': 'integer', 'minimum': 1, 'default': 10},
-        },
-      };
+    'type': 'object',
+    'properties': {
+      'iterations': {'type': 'integer', 'minimum': 1, 'default': 10},
+    },
+  };
 
   @override
   List<String> get tags => _tags;

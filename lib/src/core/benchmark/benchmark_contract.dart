@@ -43,11 +43,11 @@ enum ThresholdOperator {
 
   /// The symbolic form used in human-readable expectations.
   String get symbol => switch (this) {
-        ThresholdOperator.lt => '<',
-        ThresholdOperator.lte => '<=',
-        ThresholdOperator.gt => '>',
-        ThresholdOperator.gte => '>=',
-      };
+    ThresholdOperator.lt => '<',
+    ThresholdOperator.lte => '<=',
+    ThresholdOperator.gt => '>',
+    ThresholdOperator.gte => '>=',
+  };
 }
 
 /// Whether a threshold violation fails the benchmark or only warns (FR-005).
@@ -93,22 +93,22 @@ class ThresholdConfig {
 
   /// Serializes the threshold to a JSON-compatible map.
   Map<String, dynamic> toJson() => {
-        'metric': metric,
-        'operator': operator.name,
-        'value': value,
-        'severity': severity.name,
-      };
+    'metric': metric,
+    'operator': operator.name,
+    'value': value,
+    'severity': severity.name,
+  };
 
   /// Human-readable expectation, e.g. `latency_p99 <= 40`.
   String get expectation => '$metric ${operator.symbol} $value';
 
   /// Returns `true` when [actual] violates this threshold.
   bool isViolatedBy(num actual) => switch (operator) {
-        ThresholdOperator.lt => actual >= value,
-        ThresholdOperator.lte => actual > value,
-        ThresholdOperator.gt => actual <= value,
-        ThresholdOperator.gte => actual < value,
-      };
+    ThresholdOperator.lt => actual >= value,
+    ThresholdOperator.lte => actual > value,
+    ThresholdOperator.gt => actual <= value,
+    ThresholdOperator.gte => actual < value,
+  };
 }
 
 /// The contract between benchmark scenarios and the benchmark framework
@@ -185,9 +185,7 @@ abstract final class ScenarioValidation {
   /// Validates a scenario id (non-empty kebab-case).
   static List<String> validateId(String id) {
     if (id.isEmpty || !_kebabCase.hasMatch(id)) {
-      return [
-        "scenario id must be non-empty kebab-case (got '$id')",
-      ];
+      return ["scenario id must be non-empty kebab-case (got '$id')"];
     }
     return const [];
   }

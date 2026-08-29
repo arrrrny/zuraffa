@@ -16,8 +16,11 @@ void main() {
     );
 
     for (final name in StandardMetrics.allNames) {
-      expect(result.metrics.containsKey(name), isTrue,
-          reason: 'metric $name missing from ${result.metrics.keys}');
+      expect(
+        result.metrics.containsKey(name),
+        isTrue,
+        reason: 'metric $name missing from ${result.metrics.keys}',
+      );
       expect(result.metrics[name], greaterThanOrEqualTo(0));
     }
   });

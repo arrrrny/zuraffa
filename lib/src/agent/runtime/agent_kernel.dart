@@ -21,10 +21,10 @@ class AgentKernel {
     SystemPromptComposer? promptComposer,
     FileStateStorage? stateStorage,
     List<AgentHook> hooks = const <AgentHook>[],
-  })  : _llmClient = llmClient ?? FallbackLLMClient(),
-        _promptComposer = promptComposer ?? SystemPromptComposer(),
-        _stateStorage = stateStorage ?? InMemoryFileStateStorage(),
-        _hooks = <AgentHook>[...hooks];
+  }) : _llmClient = llmClient ?? FallbackLLMClient(),
+       _promptComposer = promptComposer ?? SystemPromptComposer(),
+       _stateStorage = stateStorage ?? InMemoryFileStateStorage(),
+       _hooks = <AgentHook>[...hooks];
 
   final McpToolRegistry registry;
   final StatefulAgent statefulAgent;
