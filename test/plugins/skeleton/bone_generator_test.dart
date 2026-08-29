@@ -3,7 +3,7 @@
 /// Behaviors traced to test-list.md:
 ///   U18: emits the full bone file set for a spec declaring ≥1 entity
 ///   U19: refuses with a missing-field error when the spec declares no entities
-///   U20: refuses with a missing-dependency error for an unknown entity
+///   U20: does not abort on an undeclared entity mention in prose
 ///   U21: rejects a stub import that is neither bone-local, dart:*, nor a declared dependency
 ///   U22: a failed generation leaves no partial bone directory behind
 ///   U33: xray markers from the spec are passed through to the manifest
@@ -100,31 +100,33 @@ No entities here.
     );
 
     test(
-      'U20: refuses with a missing-dependency error for an unknown entity',
+      'U20: does not abort on an undeclared entity mention in prose',
       () async {
-        // Create a specs root containing only the referencing feature.
         // The referenced entity (Product) is not declared by any known feature.
+        // The resolver only validates cross-feature references to *declared*
+        // entities, so an arbitrary PascalCase mention in prose must not abort
+        // generation (see CodeRabbit finding #589-2: the fragile PascalCase
+        // scan that false-flagged technical terms like "Dart"/"Flutter" was
+        // removed).
         final specsRoot = '${tmpDir.path}/specs_root';
         await copyFixture('ref-feature', specsRoot);
 
         final spec = File('$specsRoot/ref-feature/spec.md');
         final outputDir = '${tmpDir.path}/bones';
 
-        expect(
-          () => generator.generate(
-            specPath: spec,
-            outputDir: outputDir,
-            specsRoot: specsRoot,
-          ),
-          throwsA(isA<BoneGenerationError>()),
+        // Generation must succeed rather than throw a spurious missing-entity
+        // error for the undeclared "Product" reference.
+        final boneDir = await generator.generate(
+          specPath: spec,
+          outputDir: outputDir,
+          specsRoot: specsRoot,
         );
 
-        // Verify no partial bone directory was left behind.
-        final boneDir = '$outputDir/ref-feature';
+        expect(boneDir, isA<String>());
         expect(
           await Directory(boneDir).exists(),
-          isFalse,
-          reason: 'no partial bone directory should remain after failure',
+          isTrue,
+          reason: 'bone directory should be produced for the referencing feature',
         );
       },
     );
