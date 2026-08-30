@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 /// Acceptance integration tests for slice export/import (US8, FR-017..FR-020).
 ///
 /// Gates traced to specs/043-slice-plugin/tasks.md:

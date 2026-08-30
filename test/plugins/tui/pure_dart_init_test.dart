@@ -3,6 +3,8 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tui/runtime/zuraffa_tui.dart';
 import 'package:zuraffa/src/plugins/tui/edge/tty_guard.dart';
 
+import '../../helpers/project_root.dart';
+
 /// **SC-006**: The plugin initializes correctly on a pure-Dart (non-Flutter)
 /// Zuraffa app and degrades gracefully when the terminal/engine is
 /// unavailable.
@@ -15,7 +17,8 @@ import 'package:zuraffa/src/plugins/tui/edge/tty_guard.dart';
 /// 4. When stdout is not a TTY, `TtyGuard.requireTty()` throws a clear
 ///    `TuiNonTtyException` rather than hanging or corrupting output
 ///    (FR-009, SC-006).
-void main() {
+void main() async {
+  final repoRoot = await findProjectRoot();
   group('SC-006: pure-Dart init + graceful degradation', () {
     test('A25: the plugin compiles under dart (not flutter) — types are '
         'resolvable from package:zuraffa without flutter_test', () {
@@ -28,7 +31,7 @@ void main() {
 
     test('A25 (continued): pubspec.yaml does not declare a flutter SDK '
         'dependency for zuraffa itself', () {
-      final pubspec = File('pubspec.yaml').readAsStringSync();
+      final pubspec = File('$repoRoot/pubspec.yaml').readAsStringSync();
       // zuraffa's own environment.sdk must NOT be `flutter`.
       expect(pubspec, contains('sdk: ^3.11.0'));
       // nocterm must be a regular dependency, not flutter-only.

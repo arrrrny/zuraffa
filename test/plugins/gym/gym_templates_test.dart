@@ -4,8 +4,10 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
-void main() {
-  final repoRoot = _findRepoRoot();
+import '../../helpers/project_root.dart';
+
+void main() async {
+  final repoRoot = await findProjectRoot();
   final zuraffaGym = File(p.join(repoRoot, '.gym', 'gym.yaml'));
   final templatesRoot = Directory(
     p.join(repoRoot, 'examples', 'gym-templates'),
@@ -155,22 +157,4 @@ void main() {
       });
     }
   });
-}
-
-String _findRepoRoot() {
-  var dir = Directory.current;
-  while (true) {
-    final pubspec = File(p.join(dir.path, 'pubspec.yaml'));
-    if (pubspec.existsSync()) {
-      final content = pubspec.readAsStringSync();
-      if (content.contains('name: zuraffa\n')) {
-        return dir.path;
-      }
-    }
-    final parent = dir.parent;
-    if (parent.path == dir.path) {
-      throw StateError('Could not find zuraffa repo root');
-    }
-    dir = parent;
-  }
 }

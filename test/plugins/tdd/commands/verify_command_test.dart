@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 // Tests for the VerifyCommand (spec 044-test-tdd-generation, Phase 8 /
 // T044–T050).
 //

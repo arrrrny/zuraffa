@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 /// Tests for the `zfa slice` command shell (U65, U66; INV-1).
 ///
 /// Behaviors traced to specs/043-slice-plugin/tdd/test-list.md:

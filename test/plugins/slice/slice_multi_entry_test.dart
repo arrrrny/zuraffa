@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 /// Acceptance tests for multi-entry cuts (A11, A12; gates T097-T098).
 ///
 /// Behaviors traced to specs/043-slice-plugin/tdd/test-list.md:

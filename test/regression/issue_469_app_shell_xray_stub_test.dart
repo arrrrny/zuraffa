@@ -1,3 +1,5 @@
+@Tags(['regression', 'slow'])
+
 // Regression test for issue #469: `zfa app shell --xray` must emit the
 // web-safe bridge launcher stub so the generated lib/main.dart compiles.
 //

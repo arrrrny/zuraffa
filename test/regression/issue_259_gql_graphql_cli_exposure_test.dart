@@ -1,3 +1,5 @@
+@Tags(['regression', 'slow'])
+
 // Regression test for issue #259.
 //
 // "[v6][audit] gql + graphql plugins exist in source but are NOT exposed in

@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 /// SC-004 acceptance test: export and validate for external agent consumption.
 ///
 /// Behaviors traced to test-list.md:

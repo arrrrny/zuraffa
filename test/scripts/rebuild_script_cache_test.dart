@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../helpers/project_root.dart';
+
 /// Regression guard for .specify/bugs/rebuild-stale-binary.
 ///
 /// `scripts/rebuild.sh` must fully invalidate build caches so the installed
@@ -11,9 +13,11 @@ import 'package:test/test.dart';
 /// source change — which produced a false roadblock during the zikzak_demo
 /// smoke test.
 void main() {
-  test('rebuild.sh fully invalidates build + .dart_tool caches', () {
-    // `dart test` runs with the working directory at the package root.
-    final script = File('scripts/rebuild.sh');
+  test('rebuild.sh fully invalidates build + .dart_tool caches', () async {
+    // Resolve via package URI so this test is immune to CWD pollution when
+    // other test files concurrently change Directory.current.
+    final root = await findProjectRoot();
+    final script = File('$root/scripts/rebuild.sh');
     expect(
       script.existsSync(),
       isTrue,
