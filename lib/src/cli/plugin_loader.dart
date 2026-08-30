@@ -36,6 +36,7 @@ import '../plugins/cli/cli_plugin.dart' as cli_gen;
 import '../plugins/benchmark/benchmark_plugin.dart';
 import '../agent/plugin/agent_plugin.dart';
 import '../plugins/skeleton/skeleton_plugin.dart';
+import '../plugins/slice/slice_plugin.dart';
 
 class PluginConfig {
   final Set<String> disabled;
@@ -162,6 +163,10 @@ class PluginLoader {
       // path (FR-003).
       AgentPlugin(outputDir: outputDir, options: options),
       SkeletonPlugin(),
+      // Slice plugin (specs/043-slice-plugin): context-isolated codebase
+      // extraction. Pure-Dart; provides the `zfa slice` command tree
+      // (cut/merge/list/inspect/verify/run/export/import).
+      SlicePlugin(),
     ];
   }
 }

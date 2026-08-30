@@ -1,0 +1,30 @@
+{
+  "configVersion": 2,
+  "generator": "spec-043-fixture",
+  "packages": [
+    {
+      "name": "zik_zak",
+      "rootUri": "../",
+      "packageUri": "lib/",
+      "languageVersion": "3.11"
+    },
+    {
+      "name": "flutter",
+      "rootUri": "flutter-sdk:///flutter",
+      "packageUri": "lib/",
+      "languageVersion": "3.11"
+    },
+    {
+      "name": "get_it",
+      "rootUri": "../../../../../.pub-cache/get_it-8.0.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.8"
+    },
+    {
+      "name": "equatable",
+      "rootUri": "../../../../../.pub-cache/equatable-2.0.7",
+      "packageUri": "lib/",
+      "languageVersion": "3.8"
+    }
+  ]
+}
