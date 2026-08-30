@@ -11,7 +11,7 @@ metadata:
 
 File a new GitHub issue that describes a feature request, label it with the
 configured feature label (e.g. `enhancement`), and — when configured or asked —
-turn it into a spec by running `/skill:speckit-specify` automatically.
+turn it into a spec by running `/speckit-specify` automatically.
 
 By default this command **only creates the issue**. The spec workflow runs
 automatically when the config key `auto_specify` is `true`, or when you pass the
@@ -28,7 +28,7 @@ Accept any of:
 - `--title "<title>"` — the feature title. If omitted, the first line of the input becomes the title.
 - `--body "<body>"` — the feature description. If omitted, the remaining input (after the title line) becomes the body; if there is no remaining input, the title is reused.
 - `--repo <owner>/<repo>` — where to file the issue (else `repo:` from config, else the current git remote).
-- `--specify` — **after** the issue is created, automatically run `/skill:speckit-specify` to create a spec from it. This forces the spec step on for this run even if `auto_specify` is `false` in config.
+- `--specify` — **after** the issue is created, automatically run `/speckit-specify` to create a spec from it. This forces the spec step on for this run even if `auto_specify` is `false` in config.
 - A bare description (no flags) is treated as the feature request text.
 
 Whether the spec is created automatically is decided by **`--specify` OR config**:
@@ -90,14 +90,14 @@ Run the spec step automatically when **`--specify` was passed OR `auto_specify` 
 default `false`). If neither is true, skip this phase and stop after reporting.
 
 ```bash
-/skill:speckit-specify $TITLE: <one-paragraph summary of the request, quoting the issue URL>
+/speckit-specify $TITLE: <one-paragraph summary of the request, quoting the issue URL>
 ```
 
 This writes `specs/<n>-<slug>/spec.md`. Follow it with clarification/planning as
 the spec workflow directs.
 
 If neither `--specify` nor `auto_specify` applies, do nothing further — just report
-the issue URL and stop. The user can run `/skill:speckit-specify` themselves
+the issue URL and stop. The user can run `/speckit-specify` themselves
 later (or set `auto_specify: true` in config to make it happen automatically).
 
 ## Phase 4 — Report back
