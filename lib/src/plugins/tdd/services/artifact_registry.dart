@@ -23,7 +23,7 @@ import '../models/ownership.dart';
 /// Thrown when a file exists on disk but the registry has no record for it
 /// (FR-008). The caller must leave the file untouched.
 class OwnershipConflict implements Exception {
-  OwnershipConflict(this.path, this.role);
+  OwnershipConflict(this.path, this.role, {this.reason});
 
   /// The absolute or repo-relative path of the conflicting file.
   final String path;
@@ -31,13 +31,19 @@ class OwnershipConflict implements Exception {
   /// Whether the conflict was on the test or the subject.
   final String role; // 'test' or 'subject'
 
+  /// More specific registry/file mismatch detail, when available.
+  final String? reason;
+
   @override
-  String toString() =>
-      'OwnershipConflict: $role file "$path" exists on disk but the '
-      'registry has no recorded ownership. Refusing to overwrite '
-      'non-owned content. Run `zfa tdd gen <behavior-id>` after '
-      'resolving the conflict (e.g. by deleting the file or by '
-      'registering it explicitly).';
+  String toString() {
+    final detail =
+        reason ??
+        '$role file "$path" exists on disk but the registry has no '
+            'recorded ownership';
+    return 'OwnershipConflict: $detail. Refusing to overwrite non-owned '
+        'content. Run `zfa tdd gen <behavior-id>` after resolving the '
+        'conflict.';
+  }
 }
 
 /// Append-only registry of [ArtifactRecord]s for a feature.
@@ -77,6 +83,22 @@ class ArtifactRegistry {
     ArtifactRecord record, {
     bool dryRun = false,
   }) async {
+    final checked = await preflight(record, dryRun: dryRun);
+    if (checked.testOwnership == Ownership.created) {
+      await _appendRecord(checked);
+    }
+    return checked;
+  }
+
+  /// Check whether [record] can be generated without modifying the registry.
+  ///
+  /// A prior record is reusable only when its paths match [record] and both
+  /// artifacts still exist. Any incomplete or mismatched pair is recoverable
+  /// as an [OwnershipConflict], rather than being reported as reused.
+  Future<ArtifactRecord> preflight(
+    ArtifactRecord record, {
+    bool dryRun = false,
+  }) async {
     if (dryRun) {
       return record.copyWithOwnership(
         testOwnership: Ownership.planned,
@@ -84,38 +106,99 @@ class ArtifactRegistry {
       );
     }
 
-    // Load the existing registry (if any).
     final existing = await _loadRecords();
-    final hasPrior = existing.any((r) => r.behaviorId == record.behaviorId);
+    ArtifactRecord? prior;
+    for (final candidate in existing) {
+      if (candidate.behaviorId == record.behaviorId) {
+        prior = candidate;
+        break;
+      }
+    }
 
-    if (hasPrior) {
-      // Idempotent repeat (FR-006): the registry already has an entry for
-      // this behavior id. Return reused for both artifacts, without
-      // modifying the registry or any files. The registry is the source
-      // of truth; we do not check file existence here. (If the user
-      // deleted the files but kept the registry entry, they should
-      // delete the registry entry too before re-running `gen`.)
-      return record.copyWithOwnership(
+    if (prior != null) {
+      if (!_samePath(prior.testPath, record.testPath)) {
+        throw OwnershipConflict(
+          record.testPath,
+          'test',
+          reason:
+              'the registry test path "${prior.testPath}" does not match '
+              '"${record.testPath}"',
+        );
+      }
+      if (!_samePath(prior.subjectPath, record.subjectPath)) {
+        throw OwnershipConflict(
+          record.subjectPath,
+          'subject',
+          reason:
+              'the registry subject path "${prior.subjectPath}" does not '
+              'match "${record.subjectPath}"',
+        );
+      }
+      if (!await File(record.testPath).exists()) {
+        throw OwnershipConflict(
+          record.testPath,
+          'test',
+          reason:
+              'the registry records test file "${record.testPath}", but it '
+              'is missing from disk',
+        );
+      }
+      if (!await File(record.subjectPath).exists()) {
+        throw OwnershipConflict(
+          record.subjectPath,
+          'subject',
+          reason:
+              'the registry records subject file "${record.subjectPath}", '
+              'but it is missing from disk',
+        );
+      }
+      return prior.copyWithOwnership(
         testOwnership: Ownership.reused,
         subjectOwnership: Ownership.reused,
       );
     }
 
-    // Ownership conflict check (FR-008): file exists on disk, but the
-    // registry has no record for this behavior+file pair. Refuse to
-    // overwrite non-owned content.
-    final testExists = await File(record.testPath).exists();
-    final subjectExists = await File(record.subjectPath).exists();
-    if (testExists) {
+    if (await File(record.testPath).exists()) {
       throw OwnershipConflict(record.testPath, 'test');
     }
-    if (subjectExists) {
+    if (await File(record.subjectPath).exists()) {
       throw OwnershipConflict(record.subjectPath, 'subject');
     }
+    return record.copyWithOwnership(
+      testOwnership: Ownership.created,
+      subjectOwnership: Ownership.created,
+    );
+  }
 
-    // Append the record to the registry.
-    final newRecords = [...existing, record];
-    await _writeRecords(newRecords);
+  /// Append a successfully materialized artifact pair.
+  ///
+  /// Callers must run [preflight] before writing either artifact. This method
+  /// refuses to record a pair unless both files are present.
+  Future<ArtifactRecord> append(ArtifactRecord record) async {
+    final existing = await _loadRecords();
+    ArtifactRecord? prior;
+    for (final candidate in existing) {
+      if (candidate.behaviorId == record.behaviorId) {
+        prior = candidate;
+        break;
+      }
+    }
+    if (prior != null) {
+      return preflight(record);
+    }
+    if (!await File(record.testPath).exists()) {
+      throw StateError(
+        'Cannot append artifact record: test file is missing at '
+        '${record.testPath}',
+      );
+    }
+    if (!await File(record.subjectPath).exists()) {
+      throw StateError(
+        'Cannot append artifact record: subject file is missing at '
+        '${record.subjectPath}',
+      );
+    }
+    await _writeRecords([...existing, record]);
     return record.copyWithOwnership(
       testOwnership: Ownership.created,
       subjectOwnership: Ownership.created,
@@ -161,7 +244,20 @@ class ArtifactRegistry {
     });
     // Use a write-and-rename to avoid partial writes.
     final tmpFile = File('${file.path}.tmp');
-    await tmpFile.writeAsString(raw);
-    await tmpFile.rename(file.path);
+    try {
+      await tmpFile.writeAsString(raw);
+      await tmpFile.rename(file.path);
+    } catch (_) {
+      if (await tmpFile.exists()) await tmpFile.delete();
+      rethrow;
+    }
   }
+
+  Future<void> _appendRecord(ArtifactRecord record) async {
+    final existing = await _loadRecords();
+    await _writeRecords([...existing, record]);
+  }
+
+  bool _samePath(String left, String right) =>
+      p.equals(p.normalize(left), p.normalize(right));
 }

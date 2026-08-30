@@ -112,57 +112,10 @@ class GenCommand extends Command<void> {
     final runnableTestName =
         '$testPath::${behavior.id}::${behavior.description}';
 
-    // Check if both files already exist on disk before registering.
-    final testExists = await File(testPath).exists();
-    final subjectExists = await File(subjectPath).exists();
-
     final registry = ArtifactRegistry(featureDir: featureDir);
-    final existingRecord = await registry.findRecord(behavior.id);
 
-    if (testExists && subjectExists && existingRecord != null) {
-      // Both files exist and are registered — idempotent reuse.
-      final record = existingRecord.copyWithOwnership(
-        testOwnership: Ownership.reused,
-        subjectOwnership: Ownership.reused,
-      );
-      print(
-        'behavior_id: ${record.behaviorId}\n'
-        'source_criterion: ${record.sourceCriterion}\n'
-        'test_path: ${record.testPath}\n'
-        'subject_path: ${record.subjectPath}\n'
-        'runnable_test_name: ${record.runnableTestName}\n'
-        'ownership: ${record.testOwnership.name}/${record.subjectOwnership.name}',
-      );
-      return;
-    }
-
-    if (testExists != subjectExists && existingRecord == null) {
-      // One file exists with no registry entry — ownership conflict (FR-008).
-      final existing = testExists ? testPath : subjectPath;
-      stderr.writeln(
-        'zfa tdd gen: ownership conflict — $existing exists on disk '
-        'but has no registry entry. Refusing to overwrite user content.',
-      );
-      throw StateError(
-        'zfa tdd gen: ownership conflict — no registry entry for $existing',
-      );
-    }
-
-    // Determine ownership for new records.
-    Ownership testOwnership;
-    Ownership subjectOwnership;
-    if (dryRun) {
-      testOwnership = Ownership.planned;
-      subjectOwnership = Ownership.planned;
-    } else if (testExists && subjectExists) {
-      testOwnership = Ownership.reused;
-      subjectOwnership = Ownership.reused;
-    } else {
-      testOwnership = Ownership.created;
-      subjectOwnership = Ownership.created;
-    }
-
-    // Build and register the record BEFORE writing files (FR-008 check).
+    // Build the proposed record, then preflight ownership without changing
+    // the registry. The record is appended only after both writes succeed.
     var record = ArtifactRecord(
       behaviorId: behavior.id,
       feature: featureName,
@@ -170,28 +123,36 @@ class GenCommand extends Command<void> {
       testPath: testPath,
       subjectPath: subjectPath,
       runnableTestName: runnableTestName,
-      testOwnership: testOwnership,
-      subjectOwnership: subjectOwnership,
+      testOwnership: dryRun ? Ownership.planned : Ownership.created,
+      subjectOwnership: dryRun ? Ownership.planned : Ownership.created,
       createdAt: DateTime.now().toUtc().toIso8601String(),
     );
 
     try {
-      record = await registry.register(record, dryRun: dryRun);
+      record = await registry.preflight(record, dryRun: dryRun);
     } on OwnershipConflict catch (e) {
       stderr.writeln('zfa tdd gen: ownership conflict — $e');
       throw StateError('zfa tdd gen: ownership conflict — $e');
     }
 
-    // Write files only if they don't already exist and not in dry-run mode.
+    // Write a new pair transactionally from the command's perspective. Any
+    // writer or registry failure removes artifacts created by this attempt.
     if (record.testOwnership != Ownership.reused && !dryRun) {
-      final testWriter = const BehaviorTestWriter();
-      await testWriter.write(
-        behavior: behavior,
-        testPath: testPath,
-        subjectPath: subjectPath,
-      );
-      final subjectWriter = const SubjectWriter();
-      await subjectWriter.write(behavior: behavior, subjectPath: subjectPath);
+      try {
+        final testWriter = const BehaviorTestWriter();
+        await testWriter.write(
+          behavior: behavior,
+          testPath: testPath,
+          subjectPath: subjectPath,
+        );
+        final subjectWriter = const SubjectWriter();
+        await subjectWriter.write(behavior: behavior, subjectPath: subjectPath);
+        record = await registry.append(record);
+      } catch (error, stackTrace) {
+        await _deleteIfCreated(testPath);
+        await _deleteIfCreated(subjectPath);
+        Error.throwWithStackTrace(error, stackTrace);
+      }
     }
 
     // Print the structured result. Use `print` (not `stdout.writeln`) so
@@ -204,6 +165,13 @@ class GenCommand extends Command<void> {
       'runnable_test_name: ${record.runnableTestName}\n'
       'ownership: ${record.testOwnership.name}/${record.subjectOwnership.name}',
     );
+  }
+
+  Future<void> _deleteIfCreated(String path) async {
+    final file = File(path);
+    if (await file.exists()) {
+      await file.delete();
+    }
   }
 
   /// Resolve a behavior id (e.g. `B-003` or `U1`) by scanning feature
@@ -300,11 +268,11 @@ class GenCommand extends Command<void> {
       final kind = kindStr.contains('acceptance')
           ? BehaviorKind.acceptance
           : kindStr.contains('unit')
-              ? BehaviorKind.unit
-              : throw StateError(
-                  'zfa tdd gen: invalid classification "$kindStr" '
-                  'for behavior $behaviorId. Expected "unit" or "acceptance".',
-                );
+          ? BehaviorKind.unit
+          : throw StateError(
+              'zfa tdd gen: invalid classification "$kindStr" '
+              'for behavior $behaviorId. Expected "unit" or "acceptance".',
+            );
       return Behavior(
         id: id,
         feature: feature,

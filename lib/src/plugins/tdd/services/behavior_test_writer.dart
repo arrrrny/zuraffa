@@ -15,8 +15,8 @@
 /// The test asserts the OBSERVABLE behavior described in `behavior.description`.
 /// For a description like "returns 42 when invoked with no args", the test
 /// calls `subject()` and asserts the result is `42`. The paired subject
-/// (emitted by [SubjectWriter]) throws `UnimplementedError`, so the
-/// assertion failure class on first run is honest red.
+/// (emitted by [SubjectWriter]) throws `UnimplementedError`, which the
+/// generated assertion captures as a mismatched result so first run is red.
 library;
 
 import 'dart:io';
@@ -46,8 +46,10 @@ class BehaviorTestWriter {
   String _renderTest(Behavior b, String relativeSubjectPath) {
     final description = b.description;
     final escapedDescription = description.replaceAll("'", "\\'");
-    final escapedGroupDescription =
-        '${b.id} (${b.sourceCriterion})'.replaceAll("'", "\\'");
+    final escapedGroupDescription = '${b.id} (${b.sourceCriterion})'.replaceAll(
+      "'",
+      "\\'",
+    );
     final assertion = _deriveAssertion(b);
     return '''
 // GENERATED TEST — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
@@ -59,9 +61,9 @@ class BehaviorTestWriter {
 //
 // This test asserts the observable behavior described above. It is
 // "honest red" on first execution: the paired subject at
-// `$relativeSubjectPath` throws UnimplementedError, so the test fails
-// with an assertion-level failure (not a compile error, not a load
-// error, not skipped, not a placeholder). Replace the subject's
+// `$relativeSubjectPath` is unimplemented, so the test fails through an
+// assertion (not an uncaught error, compile/load error, skip, or
+// placeholder). Replace the subject's
 // stub body with real implementation to make this test pass.
 library;
 
@@ -83,22 +85,24 @@ void main() {
   /// assert the observable behavior (FR-010).
   ///
   /// Heuristic: if the description contains a number (`returns 42`),
-  /// assert `subject.<target>() == <number>`. Otherwise, assert that
-  /// the call throws `UnimplementedError` (honest red — the stub
-  /// throws it).
+  /// assert `subject.<target>() == <number>`. Otherwise, assert that the
+  /// paired stub is no longer unimplemented. In both cases an
+  /// `UnimplementedError` is captured as the assertion's actual value, so
+  /// the generated test is deliberately red without leaking the error.
   String _deriveAssertion(Behavior b) {
     final target = b.target.isEmpty ? 'subjectUnderTest' : b.target;
     final description = b.description;
     // Look for "returns N" or "= N".
-    // On first run (honest red), the subject throws UnimplementedError,
-    // producing a comparison error (the value is not the expected number).
+    // On first run, capture the stub's UnimplementedError as the actual
+    // result so the value comparison produces an assertion failure.
     final returnsMatch = RegExp(
       r'returns?\s+(\d+)',
       caseSensitive: false,
     ).firstMatch(description);
     if (returnsMatch != null) {
       final expected = returnsMatch.group(1);
-      return 'final result = subject.$target();\n      expect(result, equals($expected));';
+      return '${_captureInvocation(b, target)}\n'
+          '      expect(result, equals($expected));';
     }
     // Look for "throws <ExceptionName>" — only known Dart built-in types
     // to avoid generating unimported exception types from prose.
@@ -108,7 +112,6 @@ void main() {
       'ArgumentError',
       'RangeError',
       'TypeError',
-      'UnimplementedError',
       'UnsupportedError',
       'NoSuchMethodError',
       'Exception',
@@ -121,14 +124,31 @@ void main() {
     if (throwsMatch != null) {
       final exc = throwsMatch.group(1)!;
       if (knownExceptions.contains(exc)) {
+        if (exc == 'Error') {
+          return 'expect(() => subject.$target(), '
+              'throwsA(allOf(isA<Error>(), '
+              'isNot(isA<UnimplementedError>()))));';
+        }
         return 'expect(() => subject.$target(), throwsA(isA<$exc>()));';
       }
-      // Unknown exception type — fall through to UnimplementedError
-      // honest red to avoid generating unimported types.
+      // Unknown exception types and UnimplementedError fall through to the
+      // generic assertion to avoid either an unimported type or a green stub.
     }
-    // Fallback: assert that the call throws UnimplementedError (the stub
-    // throws it — honest red).
-    return 'expect(() => subject.$target(), throwsA(isA<UnimplementedError>()));';
+    return '${_captureInvocation(b, target)}\n'
+        '      expect(result, isNot(isA<UnimplementedError>()));';
+  }
+
+  String _captureInvocation(Behavior behavior, String target) {
+    final invocation = behavior.kind == BehaviorKind.acceptance
+        ? 'subject.$target();\n          return null;'
+        : 'return subject.$target();';
+    return '''final Object? result = (() {
+        try {
+          $invocation
+        } on UnimplementedError catch (error) {
+          return error;
+        }
+      })();''';
   }
 
   /// Compute the relative path from the test file's directory to the

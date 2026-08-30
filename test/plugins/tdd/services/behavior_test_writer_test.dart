@@ -16,6 +16,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/tdd_plugin.dart';
 import 'package:zuraffa/src/plugins/tdd/services/behavior_test_writer.dart';
+import 'package:zuraffa/src/plugins/tdd/services/subject_writer.dart';
 
 void main() {
   late Directory tmpDir;
@@ -90,6 +91,7 @@ void main() {
         // assertion `expect(result, 42)` will fail with an assertion
         // failure on first execution (honest red).
         expect(content, contains('42'));
+        expect(content, contains('on UnimplementedError catch'));
       },
     );
 
@@ -142,8 +144,8 @@ void main() {
           subjectPath: subjectPath,
         );
 
-        // Write the stub subject that returns null (so the assertion
-        // `expect(result, 42)` will fail with an assertion failure).
+        // Write the stub subject whose error is captured as the assertion's
+        // actual value.
         await File(subjectPath).writeAsString('''
 // GENERATED STUB — `zfa tdd gen B-006` (spec 044-test-tdd-generation).
 // Returns null so the paired test fails with an assertion failure on
@@ -184,17 +186,64 @@ dependencies:
         expect(combined.toLowerCase(), isNot(contains("isn't defined")));
         // The failure must be an assertion failure.
         // Dart test reports assertion failures as "Expected: X  Actual: Y".
-        expect(
-          combined,
-          anyOf(
-            contains('Expected:'),
-            contains('Actual:'),
-            contains('Expected'),
-            contains('UnimplementedError'),
-          ),
-        );
+        expect(combined, allOf(contains('Expected:'), contains('Actual:')));
       },
       timeout: const Timeout(Duration(minutes: 3)),
     );
+
+    for (final testCase in <({String name, String description})>[
+      (
+        name: 'generic acceptance behavior',
+        description: 'reports the observable scenario outcome',
+      ),
+      (
+        name: 'numeric acceptance behavior',
+        description: 'returns 42 for the observable scenario',
+      ),
+    ]) {
+      test(
+        '${testCase.name} fails through an assertion',
+        () async {
+          final behavior = Behavior(
+            id: 'A-001',
+            feature: '044-test-tdd-generation',
+            kind: BehaviorKind.acceptance,
+            description: testCase.description,
+            sourceCriterion: 'FR-010',
+            target: 'scenarioRunner',
+          );
+          final testPath = p.join(tmpDir.path, 'a001_test.dart');
+          final subjectPath = p.join(tmpDir.path, 'a001_subject.dart');
+          await const BehaviorTestWriter().write(
+            behavior: behavior,
+            testPath: testPath,
+            subjectPath: subjectPath,
+          );
+          await const SubjectWriter().write(
+            behavior: behavior,
+            subjectPath: subjectPath,
+          );
+          await File(p.join(tmpDir.path, 'pubspec.yaml')).writeAsString('''
+name: behavior_test_writer_acceptance_test
+environment:
+  sdk: ^3.11.0
+dependencies:
+  test: ^1.25.0
+''');
+
+          final result = await Process.run('dart', [
+            'test',
+            testPath,
+          ], workingDirectory: tmpDir.path);
+          final combined = '${result.stdout}\n${result.stderr}';
+
+          expect(result.exitCode, isNot(0));
+          expect(combined.toLowerCase(), isNot(contains('compile-time error')));
+          expect(combined.toLowerCase(), isNot(contains('undefined name')));
+          expect(combined, allOf(contains('Expected:'), contains('Actual:')));
+        },
+        timeout: const Timeout(Duration(minutes: 3)),
+      );
+    }
   });
 }

@@ -73,6 +73,8 @@ void main() {
         final record = sampleRecord();
         // First write.
         await registry.register(record);
+        await File(record.testPath).create(recursive: true);
+        await File(record.subjectPath).create(recursive: true);
         // Repeat: same behavior, same paths — no new file write expected.
         final result = await registry.register(record);
         expect(result.testOwnership, Ownership.reused);
@@ -119,6 +121,38 @@ void main() {
       expect(await subjectFile.readAsString(), '// prior subject content');
       // Registry still has exactly one record.
       expect((await registry.loadAll()), hasLength(1));
+    });
+
+    test('does not reuse an incomplete registered artifact pair', () async {
+      final record = sampleRecord();
+      await registry.register(record);
+      await File(record.testPath).create(recursive: true);
+
+      await expectLater(
+        registry.preflight(record),
+        throwsA(isA<OwnershipConflict>()),
+      );
+    });
+  });
+
+  group('ArtifactRegistry — generation transaction', () {
+    test('preflight does not append the proposed record', () async {
+      final record = sampleRecord();
+
+      final result = await registry.preflight(record);
+
+      expect(result.testOwnership, Ownership.created);
+      expect(await registry.loadAll(), isEmpty);
+      expect(File(registry.registryPath).existsSync(), isFalse);
+    });
+
+    test('append requires both artifacts to exist', () async {
+      final record = sampleRecord();
+      await registry.preflight(record);
+      await File(record.testPath).create(recursive: true);
+
+      await expectLater(registry.append(record), throwsA(isA<StateError>()));
+      expect(await registry.loadAll(), isEmpty);
     });
   });
 

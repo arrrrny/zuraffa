@@ -319,6 +319,35 @@ dependencies:
         expect(regFile.existsSync(), isFalse);
       },
     );
+
+    test(
+      'writer failure removes partial artifacts and records nothing',
+      () async {
+        await _seedSpecAndTestList();
+        final subjectPath = p.join(
+          tmpDir.path,
+          'lib',
+          'tdd',
+          'b_003_subject.dart',
+        );
+        await Directory(subjectPath).create(recursive: true);
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final output = await runner.runCapturing(['tdd', 'gen', 'B-003']);
+
+        expect(output, contains('Error:'));
+        expect(
+          File(
+            p.join(tmpDir.path, 'test', 'tdd', 'b_003_test.dart'),
+          ).existsSync(),
+          isFalse,
+        );
+        expect(
+          File(p.join(featureDir, 'tdd', 'artifacts.json')).existsSync(),
+          isFalse,
+        );
+      },
+    );
   });
 
   group('GenCommand — dry-run (US2.AC3 / FR-009)', () {
