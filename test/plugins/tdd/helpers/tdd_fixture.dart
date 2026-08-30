@@ -243,6 +243,24 @@ void main() {
     return sums;
   }
 
+  /// Content fingerprint of the complete `test/` tree, including
+  /// non-Dart files and directory entries. Added, removed, or modified
+  /// content changes the returned map.
+  Map<String, String> checksumTestTree() {
+    final testRoot = Directory(p.join(root.path, 'test'));
+    if (!testRoot.existsSync()) return const {};
+    final sums = <String, String>{};
+    for (final entity in testRoot.listSync(recursive: true)) {
+      final relative = p.relative(entity.path, from: testRoot.path);
+      if (entity is Directory) {
+        sums['$relative/'] = 'directory';
+      } else if (entity is File) {
+        sums[relative] = _fingerprint(entity);
+      }
+    }
+    return sums;
+  }
+
   static String _fingerprint(File file) {
     final bytes = file.readAsBytesSync();
     var h = bytes.length;
@@ -266,6 +284,42 @@ void main() {
   /// subject_path layout).
   String subjectPathOf(String id) =>
       p.join(root.path, 'lib', '${_snake(id)}_subject.dart');
+
+  /// Test content whose result depends on the generated production subject.
+  static String subjectDrivenTest(
+    String id,
+    String description, {
+    int expected = 42,
+  }) {
+    final symbol = id.toLowerCase().replaceAll('-', '_');
+    return '''
+import '../lib/${symbol}_subject.dart';
+import 'package:test/test.dart';
+
+void main() {
+  test('$description', () {
+    expect(${symbol}_value(), equals($expected));
+  });
+}
+''';
+  }
+
+  /// Generated subject content used by fake-pipeline source mutations.
+  static String subjectReturning(String id, int value) {
+    final symbol = id.toLowerCase().replaceAll('-', '_');
+    return '''
+library;
+
+int ${symbol}_value() => $value;
+''';
+  }
+
+  /// Shell commands for a fake-zfa step to replace a production subject.
+  List<String> overwriteSubjectCommands(String id, String content) => [
+    'cat > "${subjectPathOf(id)}" <<\'ZFA_EOF\'',
+    content,
+    'ZFA_EOF',
+  ];
 
   /// Seed a complete certified-red behavior:
   ///   - a registry record,
@@ -318,15 +372,12 @@ void main() {
   }) async {
     final path = testPathOf(id);
     await File(path).parent.create(recursive: true);
-    await File(path).writeAsString('''
-import 'package:test/test.dart';
-
-void main() {
-  test('$description', () {
-    expect(1, equals(1));
-  });
-}
-''');
+    await File(
+      path,
+    ).writeAsString(subjectDrivenTest(id, description, expected: 1));
+    final subject = File(subjectPathOf(id));
+    await subject.parent.create(recursive: true);
+    await subject.writeAsString(subjectReturning(id, 1));
     return path;
   }
 

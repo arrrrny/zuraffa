@@ -28,12 +28,13 @@ Expected: all pass. These drive the real CLI against `TddFixture` projects.
 
 ## 3. Manual smoke: certified red → green
 
-Inside a fixture project with a `gen`'d, `verify-red`-certified behavior:
+From the zuraffa repository root, targeting a fixture project with a `gen`'d,
+`verify-red`-certified behavior:
 
 ```bash
-dart run bin/zfa.dart tdd make B-001
+dart run bin/zfa.dart tdd make --project /path/to/fixture B-001
 echo "exit=$?"   # expect exit=0
-tail -20 specs/<f>/tdd/cycle-log.md   # expect one green entry with generation: block
+tail -20 /path/to/fixture/specs/<f>/tdd/cycle-log.md
 ```
 
 Expected: exit 0; summary line `make: behavior=B-001 outcome=green ...`; the
@@ -45,7 +46,8 @@ byte-identical to its pre-`make` content.
 
 ```bash
 # no red evidence -> refused before generating
-dart run bin/zfa.dart tdd make B-999; echo "exit=$?"   # non-zero, outcome=...
+dart run bin/zfa.dart tdd make --project /path/to/fixture B-999
+echo "exit=$?"   # non-zero, outcome=...
 
 # regression guard: fixture with a sibling that the generation breaks
 # -> non-zero, names the regressed test, no green entry appended
@@ -58,7 +60,8 @@ log gains entries ONLY for certified greens.
 
 ```bash
 # behavior whose implementation the pipeline cannot express
-dart run bin/zfa.dart tdd make B-042; echo "exit=$?"
+dart run bin/zfa.dart tdd make --project /path/to/fixture B-042
+echo "exit=$?"
 ```
 
 Expected: non-zero, `outcome=unexpressible`, the unmet capability named in

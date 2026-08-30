@@ -62,7 +62,7 @@ produces the evidence for the `GREEN` transition):
 RED --make: green--> GREEN
 RED --make: any failure--> RED (unchanged; non-zero exit)
 GENERATED/PENDING --make--> refused (not-certified-red)
-GREEN --make--> idempotent report: already green, no duplicate entry
+GREEN --make--> drift refusal: non-zero, no generation, no duplicate entry
 ```
 
 ## File Contracts

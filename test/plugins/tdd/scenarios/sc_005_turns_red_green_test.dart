@@ -31,24 +31,22 @@ void main() {
   test('A1/A2/A3 — certified-red behavior: implementation generated via '
       'pipeline, target test green, exit 0; green entry carries all '
       'contract fields including the recorded generation commands; the '
-      'behavior\'s test file is byte-identical to its pre-`make` content '
-      'as recorded by the command\'s own mutation log', () async {
+      'behavior\'s test file remains byte-identical', () async {
     // Seed the precondition: a certified-red behavior.
     const description = 'create entity User with email';
-    await fx.seedCertifiedRed(id: 'B-001', description: description);
+    await fx.seedCertifiedRed(
+      id: 'B-001',
+      description: description,
+      testContent: TddFixture.subjectDrivenTest('B-001', description),
+    );
+    final testBytesBefore = await File(fx.testPathOf('B-001')).readAsBytes();
     final zfaBin = await fx.writeFakeZfaBin(
       logPath: fx.fakeZfaLogPath,
       sideEffectByArgv: {
-        'entity create': [
-          'cat > "${fx.testPathOf('B-001')}" <<\'ZFA_EOF\'',
-          "import 'package:test/test.dart';",
-          'void main() {',
-          '  test(\'$description\', () {',
-          '    expect(1, equals(1));',
-          '  });',
-          '}',
-          'ZFA_EOF',
-        ],
+        'entity create': fx.overwriteSubjectCommands(
+          'B-001',
+          TddFixture.subjectReturning('B-001', 42),
+        ),
       },
     );
 
@@ -91,7 +89,9 @@ void main() {
     // pre-run state, reproduce the implementation (SC-001) —
     // verifiable from the cycle log alone.
     final calls = await fx.readFakeZfaLog();
-    expect(calls, isNotEmpty);
+    expect(calls, hasLength(2));
     expect(calls.first, contains('entity create'));
+    expect(calls.last, contains('build'));
+    expect(await File(fx.testPathOf('B-001')).readAsBytes(), testBytesBefore);
   });
 }

@@ -110,8 +110,11 @@ point against a `TddFixture` project with a scripted fake pipeline, in
 
 None — spec edge cases all mapped: partial `zfa build` failure → U10/A11;
 re-run on green-certified behavior → covered by U25's drift check (already
-green ⇒ `drift`); missing test file with valid registry → U24's resolution
-error path.
+green ⇒ `drift`). A valid registry record whose test file is missing has the
+dedicated `make_command_test.dart` test “a valid registry record with a missing
+test file is a hard runner-error before any pipeline invocation”; it asserts
+the `runner-error` summary, `zfa tdd gen` remediation, and zero pipeline calls.
+U24 remains exclusively the unknown behavior-id case.
 
 ## Out of scope
 

@@ -12,7 +12,6 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/src/plugins/tdd/models/generation_plan.dart';
 import 'package:zuraffa/src/plugins/tdd/services/generation_planner.dart';
 
 void main() {

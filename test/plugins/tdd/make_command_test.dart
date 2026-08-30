@@ -30,15 +30,10 @@ List<String> makeArgs(
   return args;
 }
 
-/// A target test that turns green when the fake `zfa` script runs.
-/// The fake writes the green-passing test content over the target's
-/// subject on `entity create` so the planner / runner can drive the
-/// red→green transition honestly.
+/// A target test that turns green when the fake `zfa` script generates its
+/// production subject on `entity create`.
 const _targetDescription = 'create entity User with email';
 
-/// Green-passing test content the fake `zfa` writes to the target test
-/// file on `entity create` (mimicking the generation pipeline turning
-/// a red behavior green via source code generation).
 const _greenTest =
     '''
 import 'package:test/test.dart';
@@ -63,21 +58,25 @@ void main() {
   });
 
   group('US1 — happy path (certified red → green via pipeline)', () {
-    test('U26/A1: certified-red behavior generates via pipeline, target '
-        'test passes, exit 0, summary line, complete green entry', () async {
+    test('U26/A1/A3: certified-red behavior generates via pipeline, target '
+        'test passes without changing the test tree, exit 0, summary line, '
+        'complete green entry', () async {
       // Seed the certified-red precondition.
-      await fx.seedCertifiedRed(id: 'B-001', description: _targetDescription);
+      await fx.seedCertifiedRed(
+        id: 'B-001',
+        description: _targetDescription,
+        testContent: TddFixture.subjectDrivenTest('B-001', _targetDescription),
+      );
+      final testTreeBefore = fx.checksumTestTree();
 
-      // Write the fake zfa bin that turns the test green on
-      // `entity create` (and exits 0 on `build`).
+      // The fake pipeline turns the test green by writing production source.
       final zfaBin = await fx.writeFakeZfaBin(
         logPath: fx.fakeZfaLogPath,
         sideEffectByArgv: {
-          'entity create': [
-            'cat > "${fx.testPathOf('B-001')}" <<\'ZFA_EOF\'',
-            _greenTest,
-            'ZFA_EOF',
-          ],
+          'entity create': fx.overwriteSubjectCommands(
+            'B-001',
+            TddFixture.subjectReturning('B-001', 42),
+          ),
         },
       );
 
@@ -94,6 +93,7 @@ void main() {
         ),
       );
       expect(exitCode, 0, reason: 'green certified must exit 0');
+      expect(fx.checksumTestTree(), equals(testTreeBefore));
 
       // Green entry contains all contract fields including the
       // recorded generation commands.
@@ -109,24 +109,19 @@ void main() {
       expect(log, contains('guard='));
     });
 
-    test('A3/U27: the behavior\'s test file is byte-identical after a '
-        'certified run only inside the canonical readonly zone — the '
-        'fake pipeline DOES mutate the test file', () async {
-      // Note: in production the pipeline never writes to test/.
-      // The fake script writes the test content as the
-      // "generated implementation" — that's a fixture-only
-      // shortcut. The CONTRACT here is that the command itself
-      // does not modify the test file; only the pipeline (a
-      // subprocess) does, and only as recorded in generation steps.
-      await fx.seedCertifiedRed(id: 'B-001', description: _targetDescription);
+    test('A2: a certified run records the generation commands', () async {
+      await fx.seedCertifiedRed(
+        id: 'B-001',
+        description: _targetDescription,
+        testContent: TddFixture.subjectDrivenTest('B-001', _targetDescription),
+      );
       final zfaBin = await fx.writeFakeZfaBin(
         logPath: fx.fakeZfaLogPath,
         sideEffectByArgv: {
-          'entity create': [
-            'cat > "${fx.testPathOf('B-001')}" <<\'ZFA_EOF\'',
-            _greenTest,
-            'ZFA_EOF',
-          ],
+          'entity create': fx.overwriteSubjectCommands(
+            'B-001',
+            TddFixture.subjectReturning('B-001', 42),
+          ),
         },
       );
 
@@ -134,10 +129,6 @@ void main() {
       await runner.runCapturing(makeArgs(fx, id: 'B-001', zfaBin: zfaBin));
       expect(exitCode, 0);
 
-      // The test file is now GREEN content (written by the fake
-      // pipeline's side effect, not by the command). The cycle
-      // log captured the generation commands so the auditor can
-      // replay them.
       final log = await File(fx.cycleLogPath).readAsString();
       expect(log, contains('- generation:'));
     });
@@ -196,7 +187,7 @@ void main() {
         expect(
           out,
           contains(
-            'make: behavior=B-999 outcome=not-certified-red '
+            'make: behavior=B-999 outcome=runner-error '
             'feature=unknown',
           ),
         );
@@ -205,6 +196,28 @@ void main() {
         expect(log, isEmpty);
       },
     );
+
+    test('a valid registry record with a missing test file is a hard '
+        'runner-error before any pipeline invocation', () async {
+      await fx.registerBehavior(
+        id: 'B-002',
+        description: _targetDescription,
+        writeTestFile: false,
+      );
+      await fx.seedRedEvidence('B-002');
+      final zfaBin = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'B-002', zfaBin: zfaBin),
+      );
+
+      expect(out, contains('missing test file'));
+      expect(out, contains('zfa tdd gen B-002'));
+      expect(out, contains('outcome=runner-error'));
+      expect(exitCode, isNot(0));
+      expect(await fx.readFakeZfaLog(), isEmpty);
+    });
 
     test(
       'U25/A6: already-green target test → drift reported, exit non-zero',
@@ -240,15 +253,18 @@ void main() {
   group('US3 — regression guard via the full suite', () {
     test('U15/U17/A7: clean guard → green entry records both target-test '
         'pass and full-suite pass', () async {
-      await fx.seedCertifiedRed(id: 'B-001', description: _targetDescription);
+      await fx.seedCertifiedRed(
+        id: 'B-001',
+        description: _targetDescription,
+        testContent: TddFixture.subjectDrivenTest('B-001', _targetDescription),
+      );
       final zfaBin = await fx.writeFakeZfaBin(
         logPath: fx.fakeZfaLogPath,
         sideEffectByArgv: {
-          'entity create': [
-            'cat > "${fx.testPathOf('B-001')}" <<\'ZFA_EOF\'',
-            _greenTest,
-            'ZFA_EOF',
-          ],
+          'entity create': fx.overwriteSubjectCommands(
+            'B-001',
+            TddFixture.subjectReturning('B-001', 42),
+          ),
         },
       );
       final runner = CliRunner(exitOnCompletion: false);
@@ -265,7 +281,11 @@ void main() {
 
     test('A8: sibling regression → exit non-zero naming the regressed test, '
         'no green entry, source left in place', () async {
-      await fx.seedCertifiedRed(id: 'B-001', description: _targetDescription);
+      await fx.seedCertifiedRed(
+        id: 'B-001',
+        description: _targetDescription,
+        testContent: TddFixture.subjectDrivenTest('B-001', _targetDescription),
+      );
       // Pre-existing sibling GREEN test that the fake pipeline
       // will BREAK on entity create (regression scenario).
       await fx.seedSiblingGreenTest(
@@ -273,24 +293,20 @@ void main() {
         description: 'sibling green test passes',
       );
 
-      // The fake pipeline turns the target test green BUT also
-      // corrupts the sibling test (so the post-run guard sees a
-      // NEW failure).
+      // The fake pipeline turns the target green but changes production
+      // source so the sibling test becomes a NEW failure.
       final zfaBin = await fx.writeFakeZfaBin(
         logPath: fx.fakeZfaLogPath,
         sideEffectByArgv: {
           'entity create': [
-            'cat > "${fx.testPathOf('B-001')}" <<\'ZFA_EOF\'',
-            _greenTest,
-            'ZFA_EOF',
-            'cat > "${fx.testPathOf('B-SIB')}" <<\'ZFA_EOF\'',
-            'import \'package:test/test.dart\';',
-            'void main() {',
-            '  test(\'sibling green test passes\', () {',
-            '    expect(1, equals(2)); // BROKEN by regression',
-            '  });',
-            '}',
-            'ZFA_EOF',
+            ...fx.overwriteSubjectCommands(
+              'B-001',
+              TddFixture.subjectReturning('B-001', 42),
+            ),
+            ...fx.overwriteSubjectCommands(
+              'B-SIB',
+              TddFixture.subjectReturning('B-SIB', 2),
+            ),
           ],
         },
       );
@@ -312,6 +328,10 @@ void main() {
       // No green entry.
       final log = await File(fx.cycleLogPath).readAsString();
       expect(log, isNot(contains('## Cycle: B-001 (green)')));
+      expect(
+        await File(fx.subjectPathOf('B-SIB')).readAsString(),
+        contains('=> 2'),
+      );
     });
 
     test('A9: pre-existing suite failures tolerated; only NEW failures fail '
@@ -472,7 +492,17 @@ void main() {
       final rejectedLine = rejected.trim().split('\n').last;
       final m2 = shape.firstMatch(rejectedLine);
       expect(m2, isNotNull, reason: 'line: "$rejectedLine"');
-      expect(m2!.group(2), 'not-certified-red');
+      expect(m2!.group(2), 'runner-error');
+
+      final invalidFeature = await runner.runCapturing(
+        makeArgs(fx, id: 'B-001', zfaBin: zfaBin, feature: '../invalid'),
+      );
+      final invalidFeatureLine = invalidFeature.trim().split('\n').last;
+      final m3 = shape.firstMatch(invalidFeatureLine);
+      expect(m3, isNotNull, reason: 'line: "$invalidFeatureLine"');
+      expect(m3!.group(1), 'B-001');
+      expect(m3.group(2), 'runner-error');
+      expect(m3.group(3), 'unknown');
     });
 
     test('A14: exit code 0 occurs EXACTLY on green; every rejection/misfire '

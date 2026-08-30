@@ -90,9 +90,7 @@ void main() {
     // context (mirrors verify-red_command.dart's behavior).
     expect(
       out,
-      contains(
-        'make: behavior=B-404 outcome=not-certified-red feature=unknown',
-      ),
+      contains('make: behavior=B-404 outcome=runner-error feature=unknown'),
     );
     final log = await fx.readFakeZfaLog();
     expect(log, isEmpty);

@@ -90,12 +90,14 @@ class PipelineRunner {
     var firstFailure = -1;
     for (var i = 0; i < plan.steps.length; i++) {
       final spec = plan.steps[i];
-      final fullCmd = '$entrypoint ${spec.args.join(' ')}';
+      final args = [...entrypoint.arguments, ...spec.args];
+      final fullCmd = '${entrypoint.displayCommand} ${spec.args.join(' ')}';
       try {
         final result = await Process.run(
-          entrypoint,
-          spec.args,
+          entrypoint.executable,
+          args,
           workingDirectory: workingDirectory,
+          runInShell: false,
         );
         final output = '${result.stdout}${result.stderr}';
         captured.add(
@@ -115,7 +117,7 @@ class PipelineRunner {
           GenerationStep(
             command: fullCmd,
             exitCode: -1,
-            output: 'Failed to start "$entrypoint": $e',
+            output: 'Failed to start "${entrypoint.displayCommand}": $e',
             purpose: spec.purpose,
           ),
         );
@@ -127,7 +129,7 @@ class PipelineRunner {
       steps: captured,
       completed: firstFailure == -1,
       firstFailureIndex: firstFailure,
-      entrypoint: entrypoint,
+      entrypoint: entrypoint.displayCommand,
     );
   }
 
@@ -140,11 +142,11 @@ class PipelineRunner {
   ///      `file://` URL whose path ends in `/bin/zfa.dart` or
   ///      `/bin/zuraffa.dart`. The entrypoint is `dart <that path>`.
   ///   3. `zfa` on PATH — verified to be on PATH via
-  ///      [ProcessRunSync] which `which` semantics via `command -v`.
+  ///      a direct lookup of the executable in `PATH`.
   ///
   /// Misfire-stop (U12): throws [PipelineResolutionError] when nothing
   /// resolves.
-  Future<String> _resolveEntrypoint({
+  Future<_ResolvedEntrypoint> _resolveEntrypoint({
     required String? zfaBinOverride,
     required String workingDirectory,
     String? feature,
@@ -159,7 +161,10 @@ class PipelineRunner {
           feature: feature,
         );
       }
-      return zfaBinOverride;
+      return _ResolvedEntrypoint(
+        executable: zfaBinOverride,
+        displayCommand: zfaBinOverride,
+      );
     }
 
     // 2. Running CLI from source (Platform.script).
@@ -169,20 +174,23 @@ class PipelineRunner {
       final base = p.basename(scriptPath);
       // bin/zfa.dart or bin/zuraffa.dart — invoke via the dart binary.
       if (base == 'zfa.dart' || base == 'zuraffa.dart') {
-        return '${Platform.resolvedExecutable} $scriptPath';
+        return _ResolvedEntrypoint(
+          executable: Platform.resolvedExecutable,
+          arguments: [scriptPath],
+          displayCommand: '${Platform.resolvedExecutable} $scriptPath',
+        );
       }
       // In tests, Platform.script points at the test runner — fall
       // through to option 3.
     }
 
-    // 3. `zfa` on PATH. Verify by running `command -v zfa` (POSIX).
-    try {
-      final check = await Process.run('command', ['-v', 'zfa']);
-      if (check.exitCode == 0 && (check.stdout as String).trim().isNotEmpty) {
-        return 'zfa';
-      }
-    } on ProcessException {
-      // Not on PATH — fall through to misfire.
+    // 3. Resolve the concrete `zfa` executable from PATH without a shell.
+    final pathEntrypoint = _findExecutableOnPath('zfa');
+    if (pathEntrypoint != null) {
+      return _ResolvedEntrypoint(
+        executable: pathEntrypoint,
+        displayCommand: pathEntrypoint,
+      );
     }
 
     throw PipelineResolutionError(
@@ -194,4 +202,37 @@ class PipelineRunner {
       feature: feature,
     );
   }
+
+  String? _findExecutableOnPath(String name) {
+    final path = Platform.environment['PATH'];
+    if (path == null || path.isEmpty) return null;
+    final extensions = Platform.isWindows
+        ? (Platform.environment['PATHEXT'] ?? '.EXE;.BAT;.CMD')
+              .split(';')
+              .where((extension) => extension.isNotEmpty)
+        : const [''];
+    for (final directory in path.split(Platform.isWindows ? ';' : ':')) {
+      if (directory.isEmpty) continue;
+      for (final extension in extensions) {
+        final candidate = File(p.join(directory, '$name$extension'));
+        if (!candidate.existsSync()) continue;
+        if (Platform.isWindows || (candidate.statSync().mode & 0x49) != 0) {
+          return candidate.path;
+        }
+      }
+    }
+    return null;
+  }
+}
+
+class _ResolvedEntrypoint {
+  const _ResolvedEntrypoint({
+    required this.executable,
+    required this.displayCommand,
+    this.arguments = const [],
+  });
+
+  final String executable;
+  final List<String> arguments;
+  final String displayCommand;
 }

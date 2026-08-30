@@ -121,6 +121,18 @@ Some tests failed:
       },
     );
 
+    test('U18: incidental passed text is not a transcript marker', () {
+      final s = snap('dart test', 0, 'bootstrap passed configuration\n');
+      expect(s.parseable, isFalse);
+    });
+
+    test('U18: non-zero exit without a named failure is unusable', () {
+      const output = '00:00 +0: loading test/example_test.dart\n';
+      final s = snap('dart test', 1, output);
+      expect(s.parseable, isFalse);
+      expect(s.failedTests, isEmpty);
+    });
+
     test('U19: `runSuite` captures exit code and combined output '
         '(integration via fake)', () async {
       // Sanity: SuiteRunRecord is well-formed.

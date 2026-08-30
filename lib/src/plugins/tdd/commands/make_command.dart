@@ -56,11 +56,12 @@ import '../services/runner.dart';
 import '../services/suite_guard.dart';
 import '../tdd_plugin.dart';
 
-/// Resolution-stage failure: message + the feature context if known.
+/// Resolution-stage failure: message, outcome, and feature context if known.
 class MakeResolutionError implements Exception {
-  MakeResolutionError(this.message, {this.feature});
+  MakeResolutionError(this.message, {required this.outcome, this.feature});
 
   final String message;
+  final MakeOutcome outcome;
   final String? feature;
 
   @override
@@ -117,7 +118,18 @@ class MakeCommand extends Command<void> {
     final behaviorId = rest.isNotEmpty ? rest.first : null;
     final featureFlag = argResults?['feature'] as String?;
     if (featureFlag != null && featureFlag.isNotEmpty) {
-      _validateFeatureSegment(featureFlag);
+      try {
+        _validateFeatureSegment(featureFlag);
+      } on UsageException catch (e) {
+        print('zfa tdd make: ${e.message}');
+        _printSummary(
+          behavior: behaviorId ?? '-',
+          outcome: MakeOutcome.runnerError,
+          feature: 'unknown',
+        );
+        exitCode = 1;
+        return;
+      }
     }
     final projectFlag = argResults?['project'] as String?;
     final cwd = projectFlag != null && projectFlag.isNotEmpty
@@ -140,7 +152,7 @@ class MakeCommand extends Command<void> {
       print('zfa tdd make: ${e.message}');
       _printSummary(
         behavior: behaviorId ?? '-',
-        outcome: MakeOutcome.notCertifiedRed,
+        outcome: e.outcome,
         feature: e.feature ?? featureFlag ?? 'unknown',
       );
       exitCode = 1;
@@ -237,6 +249,21 @@ class MakeCommand extends Command<void> {
     print(
       '   baseline exit: ${baseline.exitCode}, failed: ${baseline.failedTests.length}',
     );
+    if (!baselineRun.startedProcess ||
+        !baseline.parseable ||
+        baseline.exitCode != 0 && baseline.failedTests.isEmpty) {
+      print(
+        'zfa tdd make: the suite baseline did not produce a usable snapshot. '
+        'Refusing to generate without a trustworthy pre-run failure set.',
+      );
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: MakeOutcome.runnerError,
+        feature: target.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
 
     // ---------------------------------------------------------------
     // 6. Plan the minimal generation (FR-005).
@@ -348,7 +375,9 @@ class MakeCommand extends Command<void> {
       capturedAt: DateTime.now().toUtc().toIso8601String(),
     );
     final diff = guard.diff(baseline: baseline, guard: guardSnap);
-    if (!guardSnap.parseable) {
+    if (!guardRun.startedProcess ||
+        !guardSnap.parseable ||
+        guardSnap.exitCode != 0 && guardSnap.failedTests.isEmpty) {
       print(
         'zfa tdd make: cannot parse the suite output to identify failing '
         'tests. Refusing to certify — the suite guard is a safe-failure '
@@ -473,6 +502,7 @@ class MakeCommand extends Command<void> {
             'behavior "$behaviorId" is planned in the $plannedFeature test '
             'list but has no gen artifacts. Run `zfa tdd gen $behaviorId` '
             'first.',
+            outcome: MakeOutcome.runnerError,
             feature: plannedFeature,
           );
         }
@@ -481,6 +511,7 @@ class MakeCommand extends Command<void> {
           'specs/<feature>/tdd/artifacts.json'
           '${featureFlag != null && featureFlag.isNotEmpty ? ' for feature $featureFlag' : ''}. '
           'Run `zfa tdd gen $behaviorId` to materialize it.',
+          outcome: MakeOutcome.runnerError,
           feature: featureFlag,
         );
       }
@@ -491,9 +522,12 @@ class MakeCommand extends Command<void> {
         throw MakeResolutionError(
           'ambiguous behavior id "$behaviorId" registered in multiple '
           'features: $list. Use --feature to disambiguate.',
+          outcome: MakeOutcome.runnerError,
         );
       }
-      return matches.single;
+      final target = matches.single;
+      await _requireTestArtifact(cwd, target);
+      return target;
     }
 
     // No id: infer ONLY when exactly one behavior has gen artifacts
@@ -503,9 +537,13 @@ class MakeCommand extends Command<void> {
       final certified = await _certifiedRedBehaviors(entry.featureDir);
       for (final record in await entry.registry.loadAll()) {
         if (certified.contains(record.behaviorId)) {
-          candidates.add(
-            _ResolvedTarget(record, entry.featureDir, entry.featureName),
+          final target = _ResolvedTarget(
+            record,
+            entry.featureDir,
+            entry.featureName,
           );
+          await _requireTestArtifact(cwd, target);
+          candidates.add(target);
         }
       }
     }
@@ -513,6 +551,7 @@ class MakeCommand extends Command<void> {
       throw MakeResolutionError(
         'no behavior with both gen artifacts and certified-red evidence — '
         'nothing to make. Run `zfa tdd verify-red <behavior-id>` first.',
+        outcome: MakeOutcome.notCertifiedRed,
       );
     }
     if (candidates.length > 1) {
@@ -522,9 +561,26 @@ class MakeCommand extends Command<void> {
       throw MakeResolutionError(
         'ambiguous invocation: multiple behaviors have certified-red '
         'evidence: $list. Pass an explicit behavior id.',
+        outcome: MakeOutcome.runnerError,
       );
     }
     return candidates.single;
+  }
+
+  Future<void> _requireTestArtifact(String cwd, _ResolvedTarget target) async {
+    final recordedPath = target.record.testPath;
+    final testPath = p.isAbsolute(recordedPath)
+        ? recordedPath
+        : p.join(cwd, recordedPath);
+    if (!await File(testPath).exists()) {
+      throw MakeResolutionError(
+        'the registry record for behavior "${target.record.behaviorId}" '
+        'points to a missing test file at "$recordedPath". Run '
+        '`zfa tdd gen ${target.record.behaviorId}` to restore its artifacts.',
+        outcome: MakeOutcome.runnerError,
+        feature: target.featureName,
+      );
+    }
   }
 
   Future<List<_RegistryEntry>> _scanRegistries(

@@ -91,7 +91,7 @@ void main() {
     final unknownLine = unknown.trim().split('\n').last;
     final m2 = shape.firstMatch(unknownLine);
     expect(m2, isNotNull, reason: 'line: "$unknownLine"');
-    expect(m2!.group(2), 'not-certified-red');
+    expect(m2!.group(2), 'runner-error');
     expect(exitCode, isNot(0));
     exitCode = 0;
 

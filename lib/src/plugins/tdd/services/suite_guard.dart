@@ -124,13 +124,16 @@ class SuiteGuard {
     }
 
     // Parseability: any progress line (pass or fail), summary block,
-    // or "All tests passed!" proves the transcript is real.
+    // or the exact success summary proves the transcript is real. A
+    // non-zero run with no named failures is unusable: it may be a runner
+    // or compiler failure rather than a trustworthy suite snapshot.
     final anyProgress = RegExp(r'^\d\d:\d\d [+\-~\d ]+:', multiLine: true);
-    final parseable =
+    final hasTranscriptMarker =
         anyProgress.hasMatch(output) ||
         block.hasMatch(output) ||
-        output.contains('All tests passed!') ||
-        output.contains('passed');
+        output.contains('All tests passed!');
+    final parseable =
+        hasTranscriptMarker && (exitCode == 0 || failed.isNotEmpty);
 
     return SuiteSnapshot(
       command: command,

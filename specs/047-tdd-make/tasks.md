@@ -21,7 +21,7 @@ tasks by these markers.
 
 **Purpose**: Test fixture extensions shared by all stories
 
-- [ ] T001 Extend `TddFixture` in `test/plugins/tdd/helpers/tdd_fixture.dart` with: a certified-red seed (registry record + cycle-log red entry + failing test + compiling stub subject), a fake `zfa` executable script the pipeline runner can invoke (logs its argv to a file, exits per a fixture-controlled plan), and a sibling green test for regression scenarios
+- [ ] T001 Extend `TddFixture` in `test/plugins/tdd/helpers/tdd_fixture.dart` with: a certified-red seed (registry record + cycle-log red entry + failing test + compiling stub subject), a fake `zfa` executable script the pipeline runner can invoke (logs argv, exits per a fixture-controlled plan, and exposes a deterministic production-source mutation hook), plus a source-backed sibling test that the hook can break while leaving the generated source in place for inspection
 
 ---
 
@@ -36,7 +36,7 @@ tasks by these markers.
 - [ ] T004 [P] [U19] [U20] Extend `SingleTestRunner` with suite-template loading (`suite` key, same parsing path as `loadSingleTemplate`) and a `runSuite()` capture method returning exit code + output, in `lib/src/plugins/tdd/services/runner.dart`
 - [ ] T005 [U3] [U4] [U5] [U6] [U7] Implement `generation_planner.dart`: map a behavior row (target, classification, description) to a minimal ordered `GenerationPlan` (entity → `entity create`; crud/use-case → `make` with preset/methods; always ending in `build`), returning `unexpressibleReason` when unmappable, in `lib/src/plugins/tdd/services/generation_planner.dart`
 - [ ] T006 [U8] [U9] [U10] [U11] [U12] [U13] Implement `pipeline_runner.dart`: resolve the zfa entrypoint (`--zfa-bin` override → running CLI's `Platform.script` when from source → `zfa` on PATH; unresolvable = misfire), execute each `GenerationStepSpec` via `Process.run` in the target working directory, capture `GenerationStep(command, exitCode, output)`, stop the plan on first failing step, in `lib/src/plugins/tdd/services/pipeline_runner.dart`
-- [ ] T007 [U14] [U15] [U16] [U17] [U18] Implement `suite_guard.dart`: run the profile `suite` command, parse failing test identifiers from output into a `SuiteSnapshot`, and diff guard-minus-baseline to surface only NEW failures by name, in `lib/src/plugins/tdd/services/suite_guard.dart`
+- [ ] T007 [U14] [U15] [U16] [U17] [U18] Implement `suite_guard.dart`: run the profile `suite` command, validate that both baseline and guard processes started and produced usable snapshots (a non-zero exit requires named failures), parse failing test identifiers, and diff guard-minus-baseline to surface only NEW failures by name, in `lib/src/plugins/tdd/services/suite_guard.dart`
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 
@@ -57,7 +57,7 @@ pipeline → exit 0, summary `outcome=green`, 8-field green entry with
 
 - [ ] T008 [P] [US1] [U3] [U4] [U5] [U6] Planner test: entity-bearing and CRUD behaviors map to minimal ordered plans ending in `build`, in `test/plugins/tdd/services/generation_planner_test.dart`
 - [ ] T009 [P] [US1] [U8] [U9] [U10] [U13] Pipeline runner test: steps execute in order against the fake zfa script, each captured with command/exitCode/output, first failure stops the plan, in `test/plugins/tdd/services/pipeline_runner_test.dart`
-- [ ] T010 [P] [US1] [U26] [U28] Command happy-path test (slow): certified-red fixture + fake pipeline → exit 0, target test passes, green entry complete per contracts/make.md, test file checksum unchanged, in `test/plugins/tdd/make_command_test.dart`
+- [ ] T010 [P] [US1] [U26] [U28] Command happy-path test (slow): certified-red fixture + fake pipeline → exit 0, target test passes, green entry complete per contracts/make.md, and the complete target `test/` directory tree (all paths and bytes) is identical before and after, in `test/plugins/tdd/make_command_test.dart`
 - [ ] T011 [P] [US1] [A1] [A2] [A3] Acceptance scenario driving the real CLI for the red→green path end-to-end (stays red until US1 completes) in `test/plugins/tdd/scenarios/sc_005_turns_red_green_test.dart`
 
 ### Implementation for User Story 1
@@ -148,12 +148,12 @@ outcome class (spec SC-006).
 
 ### Tests for User Story 5 ⚠️ (write first, watch fail)
 
-- [ ] T025 [P] [US5] [U29] Summary contract test: every outcome produces the final-line format `make: behavior=<id> outcome=<outcome> feature=<feature>` and exit 0 exactly on `green`, in `test/plugins/tdd/make_command_test.dart`
-- [ ] T030 [P] [US5] [A13] [A14] Acceptance scenario asserting the summary/exit-code contract through the real CLI across outcome classes, in `test/plugins/tdd/scenarios/sc_009_summary_contract_test.dart`
+- [ ] T025 [P] [US5] [U29] Summary contract test: every outcome produces the final-line format `make: behavior=<id-or--> outcome=<outcome> feature=<feature-or-unknown>` (including invalid `--feature` and registry-resolution failures), and exit 0 exactly on `green`, in `test/plugins/tdd/make_command_test.dart`
+- [ ] T030 [P] [US5] [A13] [A14] Acceptance scenario asserting that same placeholder-aware summary/exit-code contract through the real CLI across resolved and pre-resolution outcome classes, in `test/plugins/tdd/scenarios/sc_009_summary_contract_test.dart`
 
 ### Implementation for User Story 5
 
-- [ ] T026 [US5] [U29] Emit the summary line as the final stdout line on every code path including resolution and misfire errors, in `lib/src/plugins/tdd/commands/make_command.dart`
+- [ ] T026 [US5] [U29] Emit the summary line as the final stdout line on every code path, including invalid `--feature`, registry-resolution, and misfire errors; use `behavior=-` when no id is available and `feature=unknown` when no valid feature is available, in `lib/src/plugins/tdd/commands/make_command.dart`
 
 **Checkpoint**: All user stories independently functional; A13–A14 green
 

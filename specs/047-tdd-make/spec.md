@@ -169,9 +169,9 @@ any failure (non-zero).
 - The behavior's test passes for the wrong reason after generation (e.g., a
   sibling change made it vacuously green): out of detection scope for `make`;
   caught by `zfa tdd verify`'s mutation gate at feature completion.
-- Re-running `make` on an already-green-certified behavior: idempotent report
-  (already green, no duplicate evidence) rather than a second generation
-  pass.
+- Re-running `make` after the target test is already green is drift: stop
+  non-zero without generating or appending duplicate evidence, and direct the
+  developer to re-certify red or revert the hand-written implementation.
 - Multiple behaviors share a subject file: the regression guard (US3) is the
   protection; `make` never reverts other behaviors' implementations.
 - The registry record exists but the subject file was deleted:
@@ -274,5 +274,5 @@ any failure (non-zero).
 - "Minimal generation" means the smallest set of pipeline invocations that
   turns the target test green; when multiple are equivalent, the simplest
   (fewest generated files) wins.
-- Re-running `make` on a green-certified behavior is a safe no-op that
-  reports the existing certification.
+- Re-running `make` when the target test is already green reports `drift`,
+  exits non-zero, and appends no duplicate evidence.

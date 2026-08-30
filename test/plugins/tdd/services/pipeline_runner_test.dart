@@ -38,7 +38,8 @@ void main() {
         sourceCriterion: 'FR-006',
         steps: [
           GenerationStepSpec(args: ['entity', 'create', 'User'], purpose: 'p1'),
-          GenerationStepSpec(args: ['build'], purpose: 'p2'),
+          GenerationStepSpec(args: ['make', 'User'], purpose: 'p2'),
+          GenerationStepSpec(args: ['build'], purpose: 'p3'),
         ],
       );
       final result = await runner.runPlan(
@@ -47,12 +48,13 @@ void main() {
         zfaBinOverride: zfaBin,
       );
       expect(result.completed, isTrue);
-      expect(result.steps, hasLength(2));
+      expect(result.steps, hasLength(3));
       // Order: argv lines in the log should be in plan order.
       final log = await fx.readFakeZfaLog();
-      expect(log, hasLength(2));
+      expect(log, hasLength(3));
       expect(log[0], contains('entity create User'));
-      expect(log[1], contains('build'));
+      expect(log[1], contains('make User'));
+      expect(log[2], contains('build'));
     });
 
     test(
@@ -178,13 +180,13 @@ void main() {
     test(
       'U13: steps execute in the target project\'s working directory',
       () async {
-        // The fake zfa script writes a marker file in its CWD.
+        // The fake zfa script writes a relative marker in its CWD.
         final markerPath = p.join(fx.root.path, 'pipeline_ran_here.marker');
         final logPath = fx.fakeZfaLogPath;
         final zfaBin = await fx.writeFakeZfaBin(
           logPath: logPath,
           sideEffectByArgv: {
-            'build': ['touch "$markerPath"'],
+            'build': ['pwd > pipeline_ran_here.marker'],
           },
         );
 
@@ -202,7 +204,7 @@ void main() {
           workingDirectory: fx.root.path,
           zfaBinOverride: zfaBin,
         );
-        expect(await File(markerPath).exists(), isTrue);
+        expect(await File(markerPath).readAsString(), '${fx.root.path}\n');
       },
     );
   });

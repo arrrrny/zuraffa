@@ -44,15 +44,18 @@ void main() {
 
   test('A7 — clean guard → green entry records both target-test pass and '
       'full-suite pass', () async {
-    await fx.seedCertifiedRed(id: 'B-001', description: _description);
+    await fx.seedCertifiedRed(
+      id: 'B-001',
+      description: _description,
+      testContent: TddFixture.subjectDrivenTest('B-001', _description),
+    );
     final zfaBin = await fx.writeFakeZfaBin(
       logPath: fx.fakeZfaLogPath,
       sideEffectByArgv: {
-        'entity create': [
-          'cat > "${fx.testPathOf('B-001')}" <<\'ZFA_EOF\'',
-          _greenTest,
-          'ZFA_EOF',
-        ],
+        'entity create': fx.overwriteSubjectCommands(
+          'B-001',
+          TddFixture.subjectReturning('B-001', 42),
+        ),
       },
     );
 
@@ -79,7 +82,11 @@ void main() {
 
   test('A8 — sibling regression → exit non-zero naming the regressed test, '
       'no green entry, source left in place', () async {
-    await fx.seedCertifiedRed(id: 'B-001', description: _description);
+    await fx.seedCertifiedRed(
+      id: 'B-001',
+      description: _description,
+      testContent: TddFixture.subjectDrivenTest('B-001', _description),
+    );
     // Pre-existing GREEN sibling the fake pipeline will break.
     await fx.seedSiblingGreenTest(
       id: 'B-SIB',
@@ -90,17 +97,14 @@ void main() {
       logPath: fx.fakeZfaLogPath,
       sideEffectByArgv: {
         'entity create': [
-          'cat > "${fx.testPathOf('B-001')}" <<\'ZFA_EOF\'',
-          _greenTest,
-          'ZFA_EOF',
-          'cat > "${fx.testPathOf('B-SIB')}" <<\'ZFA_EOF\'',
-          'import \'package:test/test.dart\';',
-          'void main() {',
-          '  test(\'sibling green test passes\', () {',
-          '    expect(1, equals(2)); // BROKEN by regression',
-          '  });',
-          '}',
-          'ZFA_EOF',
+          ...fx.overwriteSubjectCommands(
+            'B-001',
+            TddFixture.subjectReturning('B-001', 42),
+          ),
+          ...fx.overwriteSubjectCommands(
+            'B-SIB',
+            TddFixture.subjectReturning('B-SIB', 2),
+          ),
         ],
       },
     );
@@ -128,10 +132,9 @@ void main() {
     // No green entry appended (SC-003).
     final log = await File(fx.cycleLogPath).readAsString();
     expect(log, isNot(contains('## Cycle: B-001 (green)')));
-    // Generated source left in place — the broken sibling test file
-    // still has the broken content (NOT reverted).
-    final sibling = await File(fx.testPathOf('B-SIB')).readAsString();
-    expect(sibling, contains('BROKEN by regression'));
+    // Generated source left in place for inspection (NOT reverted).
+    final siblingSource = await File(fx.subjectPathOf('B-SIB')).readAsString();
+    expect(siblingSource, contains('=> 2'));
   });
 
   test('A9 — pre-existing suite failures tolerated; only NEW failures fail '

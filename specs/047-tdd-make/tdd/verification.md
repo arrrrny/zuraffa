@@ -3,21 +3,21 @@ verdict: PASS
 standard: .specify/extensions/tdd/templates/tdd-test-quality-rubric.md
 verified_at: c52d7281
 behaviors: 44
-proven: 36
+proven: 35
 likely: 0
-test_after: 8
+test_after: 9
 no_test: 0
 high_smells: 0
 criteria_total: 11
 criteria_covered: 11
 mutation_score: null # no mutation tool wired; 6 deliberate mutants, 6 caught, 0 survived
 mutants_survived: 0
-suite: 138 passed, 0 failed, 4s (dart test test/plugins/tdd/, fast tier) + 26 passed, 0 failed, 3m07s (dart test --preset=all on this feature's command + scenarios)
+suite: 140 passed, 0 failed, 5s (dart test test/plugins/tdd/, fast tier) + 27 passed, 0 failed, 3m18s (dart test --preset=all on this feature's command + scenarios)
 ---
 
 # TDD Verification: `zfa tdd make`
 
-**Verdict: PASS — 36 of 44 behaviors are PROVEN test-first; 8 are
+**Verdict: PASS — 35 of 44 behaviors are PROVEN test-first; 9 are
 TEST_AFTER (admitted in the cycle log, cycles 7-10: the
 precondition gate, regression guard, misfire-stop policy, and the
 summary-line contract were implemented in cycle 6's MakeCommand
@@ -45,7 +45,7 @@ auditor's optimism — drive the classification.
 | U24, A5 | PROVEN | cycle 7: unknown-id resolution error path implemented fresh in cycle 6 (no prior handling); test landed in cycle 7 and would have failed if the path didn't exist |
 | U25, A6 | TEST_AFTER | cycle 7 admission: drift check (`re-run target test before generating`) implemented in cycle 6's MakeCommand skeleton; US2 test landed in cycle 7 |
 | U26, A1-A3 | PROVEN | cycle 6: MakeCommand stub threw `Bad state: zfa tdd make: not yet implemented`; sc_005 + US1 tests observed the assertion red before any command code existed |
-| U27, A12 | TEST_AFTER | cycle 9 admission: misfire-stop try/catch + outcome assignment implemented in cycle 6's skeleton; US4 tests landed in cycle 9 |
+| U27 | TEST_AFTER | cycle 9 admission: misfire-stop try/catch + outcome assignment implemented in cycle 6's skeleton; US4 tests landed in cycle 9 |
 | U28 | PROVEN | cycle 6: green-evidence assembly absent in the stub; cycle 6's US1 test observed the missing green entry before the command code was written |
 | U29, A13-A14 | TEST_AFTER | cycle 10 admission: summary-line contract (`make: behavior=<id> outcome=<outcome> feature=<f>`) implemented in cycle 6's skeleton; US5 tests landed in cycle 10 |
 | U30 | TEST_AFTER | cycle 10 admission: profile-missing misfire-stop implemented in cycle 6's skeleton; U30 test landed in cycle 10 |
@@ -77,7 +77,7 @@ each restored and verified green afterwards:
 
 Sample: 6 mutants across U3, U5, U10, U14, U15, U25 — the
 highest-risk subset, not the full behavior set. Restore verified by a
-final scoped-suite run: 138 fast + 26 slow = 164 passed, 0 failed,
+final scoped-suite run: 140 fast + 27 slow = 167 passed, 0 failed,
 clean tree.
 
 ## Traceability
@@ -87,7 +87,7 @@ clean tree.
 | FR-001 (certified-red precondition) | U23, A4 (`sc_006`) | Yes — real CLI, fake zfa script's argv log asserted empty |
 | FR-002 (target resolution) | U24, A5 (`sc_006`) | Yes — unknown id, ambiguity error, single-candidate inference |
 | FR-003 (drift check) | U25, A6 (`sc_006`) | Yes — drift re-runs target test before generating |
-| FR-004 (generation-only) | U13, A12 (`sc_008`) | Yes — pipeline runs in target working directory; misfire leaves test file byte-identical |
+| FR-004 (generation-only) | U13, A3 (`make_command_test`, `sc_005`) | Yes — pipeline runs in the target working directory; the successful green fixture changes the production subject while before/after test bytes remain identical |
 | FR-005 (minimal generation) | U3-U7, A10 (`sc_008`) | Yes — planner misfire names unmet capability in behavior terms |
 | FR-006 (capture every pipeline invocation) | U9, A2 (`sc_005`) | Yes — green entry records each step's command, exit code, purpose |
 | FR-007 (target test + suite guard) | U14-U18, A7-A9 (`sc_007`) | Yes — suite guard parses failures, diffs baseline-vs-guard, names NEW failures |
@@ -104,15 +104,15 @@ doubles.
 
 ## Suite health
 
-- `dart test test/plugins/tdd/` (fast tier) → 138 passed, 0 failed
-  (was 116 at baseline `d7155cf6`; +22 new tests added by this branch:
-  6 planner, 6 pipeline runner, 8 suite guard, 3 cycle entry
+- `dart test test/plugins/tdd/` (fast tier) → 140 passed, 0 failed
+  (was 116 at baseline `d7155cf6`; +24 new tests added by this branch:
+  6 planner, 6 pipeline runner, 10 suite guard, 3 cycle entry
   extensions; -1 make_command_test.dart is in the slow tier so not
   counted here).
 - `dart test --preset=all test/plugins/tdd/make_command_test.dart
   test/plugins/tdd/scenarios/sc_005_* sc_006_* sc_007_* sc_008_*
-  sc_009_*` (this feature's slow tier) → 26 passed, 0 failed.
-- Total TDD scope: 164 passed, 0 failed (combining fast + this
+  sc_009_*` (this feature's slow tier) → 27 passed, 0 failed.
+- Total TDD scope: 167 passed, 0 failed (combining fast + this
   feature's slow).
 - No regression in pre-existing 046 tests: `dart test --preset=all
   test/plugins/tdd/verify_red_command_test.dart test/plugins/tdd/scenarios/sc_001_*
@@ -141,9 +141,9 @@ doubles.
 
 | Criterion | Status | Evidence |
 | --------- | ------ | -------- |
-| SC-001 (green evidence reproduces from log alone) | PASS | sc_005 asserts the recorded pipeline invocations (`fx.readFakeZfaLog()`) replay to reproduce the implementation; the green entry contains the `generation:` block with each command + exit code |
+| SC-001 (green evidence reproduces from log alone) | PASS | sc_005 asserts the source-producing `entity create` and terminating `build` invocations are recorded and reproduce the implementation; U8 exercises the recorded `make` invocation, and the final cycle evidence records command, exit code, and output for all three pipeline command forms |
 | SC-002 (no certified-red → no generation) | PASS | sc_006 A4 asserts `fx.readFakeZfaLog()` is empty when the precondition is missing |
 | SC-003 (regression → non-zero, no green entry) | PASS | sc_007 A8 asserts `outcome=regression`, exit non-zero, and the cycle log does NOT contain `## Cycle: B-001 (green)` |
-| SC-004 (0 test-file modifications) | PASS | sc_008 A12 asserts `fx.checksumTestAndLib()` byte-identical before/after a misfire |
+| SC-004 (0 test-file modifications) | PASS | the successful A3 green scenario compares the target test bytes before and after the fake entity-create source step, and T010 compares the complete `test/` tree; sc_008 A12 separately covers misfires |
 | SC-005 (misfires name failing step + unmet capability) | PASS | sc_008 A10 asserts the report names the unmet capability in behavior terms (`B-042`, `pipeline`, `cannot express`); sc_008 A11 asserts the failing step (`entity create`) is named |
 | SC-006 (summary line + exit-code contract stable) | PASS | sc_009 A13 pins the regex `^make: behavior=(\S+) outcome=(\S+) feature=(\S+)$` across `green`, `not-certified-red`, `unexpressible`, `generation-error` outcomes; A14 asserts exit 0 only on `green` |

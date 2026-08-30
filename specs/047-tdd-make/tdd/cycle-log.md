@@ -212,11 +212,11 @@ test existed and failed before the implementation.
 - test: full TDD scope (`dart test test/plugins/tdd/` fast +
   `--preset=all` slow scenarios for 047).
 - red: none.
-- green: 138 fast + 26 slow = 164 TDD tests pass; suite scoped to
+- green: 140 fast + 27 slow = 167 TDD tests pass; suite scoped to
   047 (`dart test --preset=all test/plugins/tdd/make_command_test.dart
   test/plugins/tdd/scenarios/sc_005_* test/plugins/tdd/scenarios/sc_006_*
   test/plugins/tdd/scenarios/sc_007_* test/plugins/tdd/scenarios/sc_008_*
-  test/plugins/tdd/scenarios/sc_009_*`) → 26 passed, 0 failed.
+  test/plugins/tdd/scenarios/sc_009_*`) → 27 passed, 0 failed.
 - refactor: `dart format .` (29 files reformatted).
 - commit: (this commit)
 
@@ -224,12 +224,17 @@ test existed and failed before the implementation.
 
 - behaviors: A1-A14 (all 14 acceptance criteria), U1-U30 (all 30
   unit behaviors)
-- runner: `dart test test/plugins/tdd/` → 138 passed, 0 failed (fast)
+- runner: `dart test test/plugins/tdd/` → 140 passed, 0 failed (fast)
 - runner: `dart test --preset=all test/plugins/tdd/make_command_test.dart
   test/plugins/tdd/scenarios/sc_005_* sc_006_* sc_007_* sc_008_* sc_009_*`
-  → 26 passed, 0 failed (slow tier, this feature)
+  → 27 passed, 0 failed (slow tier, this feature)
 - summary: `make: behavior=047-tdd-make outcome=green feature=047-tdd-make`
-- generation commands invoked:
+- generation commands invoked by the fake pipeline and captured by the
+  runner tests:
+  - command: `zfa entity create User`; exit: 0; output: `(empty)`
+  - command: `zfa make User`; exit: 0; output: `(empty)`
+  - command: `zfa build`; exit: 0; output: `(empty)`
+- validation notes:
   - `dart format .` (29 files reformatted; no semantic changes)
   - `dart analyze lib/src/plugins/tdd/ test/plugins/tdd/` (0 errors, 0 warnings; 2 pre-existing `no_leading_underscores` infos in 044's `artifact_record.dart` untouched)
 - timestamp: 2026-08-30T15:30:00.000Z
