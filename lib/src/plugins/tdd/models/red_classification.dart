@@ -15,28 +15,28 @@ enum RedClassification {
   compileError(
     'compile-error',
     'fix the compile error in the test or its subject, then re-run '
-    '`zfa tdd verify-red <behavior-id>`',
+        '`zfa tdd verify-red <behavior-id>`',
   ),
 
   /// The test file (or an import) could not be loaded.
   loadError(
     'load-error',
     'restore the missing test file or import, then re-run '
-    '`zfa tdd verify-red <behavior-id>`',
+        '`zfa tdd verify-red <behavior-id>`',
   ),
 
   /// The target test was skipped or pending.
   skipped(
     'skipped',
     'remove the skip/pending marker from the target test, then re-run '
-    '`zfa tdd verify-red <behavior-id>`',
+        '`zfa tdd verify-red <behavior-id>`',
   ),
 
   /// The target test passed without an implementation.
   unexpectedGreen(
     'unexpected-green',
     'the test already passes; tighten its assertion or check the right '
-    'test is registered, then re-run `zfa tdd verify-red <behavior-id>`',
+        'test is registered, then re-run `zfa tdd verify-red <behavior-id>`',
   ),
 
   /// The runner did not execute exactly the target test (infrastructure
@@ -44,8 +44,8 @@ enum RedClassification {
   runnerError(
     'runner-error',
     'the runner did not execute exactly the target test; check the '
-    'tdd-profile `single` command and the toolchain, then re-run '
-    '`zfa tdd verify-red <behavior-id>`',
+        'tdd-profile `single` command and the toolchain, then re-run '
+        '`zfa tdd verify-red <behavior-id>`',
   );
 
   const RedClassification(this.label, this.remediationHint);

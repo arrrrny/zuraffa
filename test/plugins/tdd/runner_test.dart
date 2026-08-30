@@ -93,7 +93,8 @@ void main() {
   });
 
   group('U13 — failed process launch', () {
-    test('records startedProcess=false when the executable cannot launch',
+    test(
+      'records startedProcess=false when the executable cannot launch',
       () async {
         final runner = const SingleTestRunner();
         final record = await runner.runSingle(
@@ -136,13 +137,12 @@ void main() {
       expect(template, TddFixture.defaultSingleTemplate);
     });
 
-    test('falls back to the Single test bullet and normalizes <path>/<name>',
+    test(
+      'falls back to the Single test bullet and normalizes <path>/<name>',
       () async {
         final fx2 = await TddFixture.create();
         try {
-          final dir = Directory(
-            '${fx2.root.path}/.specify/memory',
-          );
+          final dir = Directory('${fx2.root.path}/.specify/memory');
           await dir.create(recursive: true);
           await File('${dir.path}/tdd-profile.md').writeAsString('''
 # Profile

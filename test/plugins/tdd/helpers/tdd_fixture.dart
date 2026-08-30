@@ -26,8 +26,7 @@ class TddFixture {
   final List<Map<String, dynamic>> _records;
 
   /// Canonical single-test template used unless overridden.
-  static const defaultSingleTemplate =
-      'dart test {file} --plain-name "{name}"';
+  static const defaultSingleTemplate = 'dart test {file} --plain-name "{name}"';
 
   static Future<TddFixture> create({
     String featureName = '090-tdd-fixture',
@@ -96,9 +95,7 @@ coverage: 'dart test --coverage'
     if (writeTestFile) {
       final file = File(path);
       await file.parent.create(recursive: true);
-      await file.writeAsString(
-        testContent ?? _redTest(description),
-      );
+      await file.writeAsString(testContent ?? _redTest(description));
     }
     _records.add({
       'behavior_id': id,
@@ -142,16 +139,17 @@ Expected: <2>
 
   Future<void> _flushRegistry() async {
     await File(artifactsPath).parent.create(recursive: true);
-    await File(artifactsPath).writeAsString(
-      jsonEncode({'feature': featureName, 'records': _records}),
-    );
+    await File(
+      artifactsPath,
+    ).writeAsString(jsonEncode({'feature': featureName, 'records': _records}));
   }
 
   // -------------------------------------------------------------------
   // Test-content variants (the dishonest-red matrix).
   // -------------------------------------------------------------------
 
-  static String _redTest(String description) => '''
+  static String _redTest(String description) =>
+      '''
 import 'package:test/test.dart';
 
 void main() {
@@ -163,7 +161,8 @@ void main() {
 
   static String redTest(String description) => _redTest(description);
 
-  static String greenTest(String description) => '''
+  static String greenTest(String description) =>
+      '''
 import 'package:test/test.dart';
 
 void main() {
@@ -173,7 +172,8 @@ void main() {
 }
 ''';
 
-  static String skippedTest(String description) => '''
+  static String skippedTest(String description) =>
+      '''
 import 'package:test/test.dart';
 
 void main() {
@@ -181,7 +181,8 @@ void main() {
 }
 ''';
 
-  static String compileErrorTest(String description) => '''
+  static String compileErrorTest(String description) =>
+      '''
 import 'package:test/test.dart';
 
 void main() {
@@ -191,7 +192,8 @@ void main() {
 }
 ''';
 
-  static String blendedTest(String description, String secondName) => '''
+  static String blendedTest(String description, String secondName) =>
+      '''
 import 'package:test/test.dart';
 
 void main() {

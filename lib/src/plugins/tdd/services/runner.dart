@@ -137,9 +137,8 @@ class SingleTestRunner {
   }
 
   /// Substitute placeholders for display/evidence (keeps quoting).
-  String _substitute(String template, String file, String name) => template
-      .replaceAll('{file}', file)
-      .replaceAll('{name}', name);
+  String _substitute(String template, String file, String name) =>
+      template.replaceAll('{file}', file).replaceAll('{name}', name);
 
   /// Tokenize the template into an executable + argument list.
   ///
@@ -149,14 +148,10 @@ class SingleTestRunner {
   List<String> _tokenize(String template, String file, String name) {
     final rawTokens = template.trim().split(RegExp(r'\s+'));
     return rawTokens.map((token) {
-      var out = token
-          .replaceAll('{file}', file)
-          .replaceAll('{name}', name);
+      var out = token.replaceAll('{file}', file).replaceAll('{name}', name);
       if (out.length >= 2 && out.startsWith('"') && out.endsWith('"')) {
         out = out.substring(1, out.length - 1);
-      } else if (out.length >= 2 &&
-          out.startsWith("'") &&
-          out.endsWith("'")) {
+      } else if (out.length >= 2 && out.startsWith("'") && out.endsWith("'")) {
         out = out.substring(1, out.length - 1);
       }
       return out;

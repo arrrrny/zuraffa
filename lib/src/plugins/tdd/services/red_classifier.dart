@@ -96,8 +96,7 @@ bool _hasLoadSignature(String output) {
   return !_cfeDiagnostic.hasMatch(output);
 }
 
-bool _hasCompileSignature(String output) =>
-    _cfeDiagnostic.hasMatch(output);
+bool _hasCompileSignature(String output) => _cfeDiagnostic.hasMatch(output);
 
 bool _hasSkipMarkers(String output) =>
     output.contains('All tests skipped') ||

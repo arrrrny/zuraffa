@@ -206,3 +206,26 @@ because the log is append-only.
   `dart test test/plugins/tdd/` -> 178 passed, 0 failed.
 - refactor: none.
 - commit: (this commit)
+
+## Cycle 7: U26, A13-A14 — summary line + exit-code contract
+
+- behaviors: U26 (summary line is the final stdout line in the contract
+  format on every code path), A13 (format stability for zfa tdd run to
+  consume), A14 (exit code 0 exactly on certification)
+- test: `test/plugins/tdd/scenarios/sc_004_summary_contract_test.dart`
+  (new, 4 tests: final-line shape on certified / rejected /
+  resolution-error paths + exit-code semantics across paths) and the
+  U26 contract group in `verify_red_command_test.dart` (1 test, per
+  T016's stated location)
+- red: none observed — the contract was implemented in cycle 4's
+  command skeleton (test-after for the wiring, recorded as in cycles
+  5-6; the contract SHAPE is now pinned by these tests so any future
+  drift fails them)
+- green: the pinned regex
+  `^verify-red: behavior=(\S+) classification=(\S+) certified=(true|false) feature=(\S+)$`
+  matches the final line on all three outcome paths; exit 0 observed
+  exactly on certification, non-zero on every rejection. Suite
+  `dart test test/plugins/tdd/` -> 183 passed, 0 failed.
+- refactor: `dart format` pass over the feature's files (11 files
+  reformatted; suite re-run green afterwards).
+- commit: (this commit)

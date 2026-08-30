@@ -152,16 +152,21 @@ Failing tests:
 
   group('U1 — assertion signature classifies assertion', () {
     test('dart shape: non-zero exit, Expected/Actual pair, one test', () {
-      final result = classify(record(assertionOutput, exitCode: 1, testCount: 1));
-      expect(result, RedClassification.assertion);
-    });
-
-    test('flutter shape: Expected: not <...> with UnimplementedError actual', () {
       final result = classify(
-        record(flutterAssertionOutput, exitCode: 1, testCount: 1),
+        record(assertionOutput, exitCode: 1, testCount: 1),
       );
       expect(result, RedClassification.assertion);
     });
+
+    test(
+      'flutter shape: Expected: not <...> with UnimplementedError actual',
+      () {
+        final result = classify(
+          record(flutterAssertionOutput, exitCode: 1, testCount: 1),
+        );
+        expect(result, RedClassification.assertion);
+      },
+    );
   });
 
   group('U2 — exit 0 with no skip markers classifies unexpected-green', () {
@@ -227,8 +232,12 @@ Failing tests:
 
     test('zero tests executed (filter matched nothing)', () {
       final result = classify(
-        record('00:00 +0: loading b_001_test.dart\nNo tests ran.\n'
-            'No tests match "nope".\n', exitCode: 79, testCount: 0),
+        record(
+          '00:00 +0: loading b_001_test.dart\nNo tests ran.\n'
+          'No tests match "nope".\n',
+          exitCode: 79,
+          testCount: 0,
+        ),
       );
       expect(result, RedClassification.runnerError);
     });
@@ -280,7 +289,8 @@ Failing tests:
     test('load beats compile when both markers appear', () {
       // A read failure plus a CFE diagnostic: the file could not even be
       // read, so the failure is a load failure.
-      const mixed = 'Failed to load "x": x.dart:2:8: Error: Error when '
+      const mixed =
+          'Failed to load "x": x.dart:2:8: Error: Error when '
           "reading 'missing.dart': No such file or directory\n"
           'x.dart:3:1: Error: Method not found.\n';
       final result = classify(record(mixed, exitCode: 1, testCount: 2));
@@ -301,7 +311,10 @@ Failing tests:
 
     test('classification is deterministic for identical inputs', () {
       final r = record(assertionOutput, exitCode: 1, testCount: 1);
-      expect(classify(r), classify(record(assertionOutput, exitCode: 1, testCount: 1)));
+      expect(
+        classify(r),
+        classify(record(assertionOutput, exitCode: 1, testCount: 1)),
+      );
     });
   });
 

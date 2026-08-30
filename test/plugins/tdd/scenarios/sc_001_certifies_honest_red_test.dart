@@ -53,33 +53,30 @@ void main() {
     },
   );
 
-  test(
-    'A2: the appended red entry carries all 8 contract fields',
-    () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
-      final log = await File(fx.cycleLogPath).readAsString();
+  test('A2: the appended red entry carries all 8 contract fields', () async {
+    final runner = CliRunner(exitOnCompletion: false);
+    await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+    final log = await File(fx.cycleLogPath).readAsString();
 
-      final orderedFields = [
-        '- behavior: B-001',
-        '- kind: red',
-        '- classification: assertionFailure',
-        '- criterion: FR-004',
-        '- test: ${fx.testPathOf('B-001')}',
-        '- exit: 1',
-      ];
-      var last = -1;
-      for (final line in orderedFields) {
-        final idx = log.indexOf(line);
-        expect(idx, greaterThan(last), reason: 'missing or out of order: $line');
-        last = idx;
-      }
-      // command, at, and output blocks present too.
-      expect(log, contains('- command: `dart test'));
-      expect(RegExp(r'^- at: \S+$', multiLine: true).hasMatch(log), isTrue);
-      expect(log, contains('- output:'));
-    },
-  );
+    final orderedFields = [
+      '- behavior: B-001',
+      '- kind: red',
+      '- classification: assertionFailure',
+      '- criterion: FR-004',
+      '- test: ${fx.testPathOf('B-001')}',
+      '- exit: 1',
+    ];
+    var last = -1;
+    for (final line in orderedFields) {
+      final idx = log.indexOf(line);
+      expect(idx, greaterThan(last), reason: 'missing or out of order: $line');
+      last = idx;
+    }
+    // command, at, and output blocks present too.
+    expect(log, contains('- command: `dart test'));
+    expect(RegExp(r'^- at: \S+$', multiLine: true).hasMatch(log), isTrue);
+    expect(log, contains('- output:'));
+  });
 
   test('A3: a certified run modifies no file under test/ or lib/', () async {
     final before = fx.checksumTestAndLib();

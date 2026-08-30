@@ -68,9 +68,7 @@ void main() {
   test(
     'A12: test-list id without registry artifacts instructs gen first',
     () async {
-      await File(
-        '${fx.featureDir}/tdd/test-list.md',
-      ).writeAsString('''
+      await File('${fx.featureDir}/tdd/test-list.md').writeAsString('''
 # Test List
 
 | id | behavior | traces | kind | state | target |

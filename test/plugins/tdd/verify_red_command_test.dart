@@ -61,8 +61,10 @@ void main() {
         expect(log, contains('- criterion: FR-007'));
         expect(log, contains('- test: ${fx.testPathOf('B-001')}'));
         expect(log, contains('- exit: 1'));
-        expect(RegExp(r'^- at: \d{4}-\d{2}-\d{2}T', multiLine: true)
-            .hasMatch(log), isTrue);
+        expect(
+          RegExp(r'^- at: \d{4}-\d{2}-\d{2}T', multiLine: true).hasMatch(log),
+          isTrue,
+        );
         expect(log, contains('Expected:'));
         expect(log, contains('Actual:'));
         // The runner command recorded is the profile-resolved one.
@@ -82,29 +84,25 @@ void main() {
       },
     );
 
-    test(
-      're-run on a certified behavior appends a second dated entry '
-      '(append-only history, spec edge case)',
-      () async {
-        final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
-        final first = await File(fx.cycleLogPath).readAsString();
-        await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
-        final second = await File(fx.cycleLogPath).readAsString();
+    test('re-run on a certified behavior appends a second dated entry '
+        '(append-only history, spec edge case)', () async {
+      final runner = CliRunner(exitOnCompletion: false);
+      await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+      final first = await File(fx.cycleLogPath).readAsString();
+      await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+      final second = await File(fx.cycleLogPath).readAsString();
 
-        expect(second.length, greaterThan(first.length));
-        expect('## Cycle: B-001 (red)'.allMatches(second), hasLength(2));
-        // The first entry is preserved verbatim (append-only).
-        expect(second.startsWith(first), isTrue);
-        expect(exitCode, 0);
-      },
-    );
+      expect(second.length, greaterThan(first.length));
+      expect('## Cycle: B-001 (red)'.allMatches(second), hasLength(2));
+      // The first entry is preserved verbatim (append-only).
+      expect(second.startsWith(first), isTrue);
+      expect(exitCode, 0);
+    });
 
     test(
       'U27: missing profile misfire-stops before any run, exit non-zero',
       () async {
-        final profile =
-            File('${fx.root.path}/.specify/memory/tdd-profile.md');
+        final profile = File('${fx.root.path}/.specify/memory/tdd-profile.md');
         profile.deleteSync();
         final runner = CliRunner(exitOnCompletion: false);
         final out = await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
@@ -123,222 +121,217 @@ void main() {
     );
   });
 
-/// Shared body for the dishonest-red matrix (US2 / T012): a rejected run
-/// exits non-zero, names the class, and leaves the cycle log untouched.
-Future<void> expectRejection({
-  required TddFixture fx,
-  required String id,
-  required String classification,
-  bool logExistedBefore = false,
-}) async {
-  final runner = CliRunner(exitOnCompletion: false);
-  final String? logBefore = logExistedBefore
-      ? await File(fx.cycleLogPath).readAsString()
-      : null;
-  final checksumsBefore = fx.checksumTestAndLib();
+  /// Shared body for the dishonest-red matrix (US2 / T012): a rejected run
+  /// exits non-zero, names the class, and leaves the cycle log untouched.
+  Future<void> expectRejection({
+    required TddFixture fx,
+    required String id,
+    required String classification,
+    bool logExistedBefore = false,
+  }) async {
+    final runner = CliRunner(exitOnCompletion: false);
+    final String? logBefore = logExistedBefore
+        ? await File(fx.cycleLogPath).readAsString()
+        : null;
+    final checksumsBefore = fx.checksumTestAndLib();
 
-  final out = await runner.runCapturing(['tdd', 'verify-red', id]);
-  expect(
-    out,
-    contains('verify-red: behavior=$id classification=$classification '
-        'certified=false feature=${fx.featureName}'),
-    reason: 'summary line must name the class: got:\n$out',
-  );
-  expect(exitCode, isNot(0), reason: '$classification must exit non-zero');
-  // The named class is also printed as a diagnostic line.
-  expect(out, contains('classification: $classification'));
+    final out = await runner.runCapturing(['tdd', 'verify-red', id]);
+    expect(
+      out,
+      contains(
+        'verify-red: behavior=$id classification=$classification '
+        'certified=false feature=${fx.featureName}',
+      ),
+      reason: 'summary line must name the class: got:\n$out',
+    );
+    expect(exitCode, isNot(0), reason: '$classification must exit non-zero');
+    // The named class is also printed as a diagnostic line.
+    expect(out, contains('classification: $classification'));
 
-  // No evidence written: byte-identical (or still absent).
-  if (logExistedBefore) {
-    expect(await File(fx.cycleLogPath).readAsString(), logBefore);
-  } else {
-    expect(File(fx.cycleLogPath).existsSync(), isFalse);
+    // No evidence written: byte-identical (or still absent).
+    if (logExistedBefore) {
+      expect(await File(fx.cycleLogPath).readAsString(), logBefore);
+    } else {
+      expect(File(fx.cycleLogPath).existsSync(), isFalse);
+    }
+    // Read-only over test/ and lib/ on rejections too.
+    expect(fx.checksumTestAndLib(), checksumsBefore);
   }
-  // Read-only over test/ and lib/ on rejections too.
-  expect(fx.checksumTestAndLib(), checksumsBefore);
-}
 
-group('dishonest-red rejection matrix (US2 / FR-004, FR-005, FR-007)', () {
-  test('A4: compile-broken test -> compile-error, no evidence', () async {
-    final fx2 = await TddFixture.create();
-    try {
-      Directory.current = fx2.root;
-      await fx2.registerBehavior(
-        id: 'B-001',
-        description: description,
-        testContent: TddFixture.compileErrorTest(description),
-      );
-      await expectRejection(
-        fx: fx2,
-        id: 'B-001',
-        classification: 'compile-error',
-      );
-    } finally {
-      Directory.current = prev;
-      fx2.dispose();
-      exitCode = 0;
-    }
-  });
-
-  test('A5: registry points at a missing file -> load-error', () async {
-    final fx2 = await TddFixture.create();
-    try {
-      Directory.current = fx2.root;
-      await fx2.registerBehavior(
-        id: 'B-001',
-        description: description,
-        writeTestFile: false,
-      );
-      await expectRejection(
-        fx: fx2,
-        id: 'B-001',
-        classification: 'load-error',
-      );
-    } finally {
-      Directory.current = prev;
-      fx2.dispose();
-      exitCode = 0;
-    }
-  });
-
-  test('A6: passing target test -> unexpected-green', () async {
-    final fx2 = await TddFixture.create();
-    try {
-      Directory.current = fx2.root;
-      await fx2.registerBehavior(
-        id: 'B-001',
-        description: description,
-        testContent: TddFixture.greenTest(description),
-      );
-      await expectRejection(
-        fx: fx2,
-        id: 'B-001',
-        classification: 'unexpected-green',
-      );
-    } finally {
-      Directory.current = prev;
-      fx2.dispose();
-      exitCode = 0;
-    }
-  });
-
-  test('A7: skipped target test -> skipped', () async {
-    final fx2 = await TddFixture.create();
-    try {
-      Directory.current = fx2.root;
-      await fx2.registerBehavior(
-        id: 'B-001',
-        description: description,
-        testContent: TddFixture.skippedTest(description),
-      );
-      await expectRejection(fx: fx2, id: 'B-001', classification: 'skipped');
-    } finally {
-      Directory.current = prev;
-      fx2.dispose();
-      exitCode = 0;
-    }
-  });
-
-  test(
-    'A8a: blended run (two tests match the filter) -> runner-error',
-    () async {
+  group('dishonest-red rejection matrix (US2 / FR-004, FR-005, FR-007)', () {
+    test('A4: compile-broken test -> compile-error, no evidence', () async {
       final fx2 = await TddFixture.create();
       try {
         Directory.current = fx2.root;
-        // The registry name is a substring of BOTH tests in the file, so
-        // the single-test filter matches two tests.
         await fx2.registerBehavior(
           id: 'B-001',
-          description: 'returns 42',
-          testContent: TddFixture.blendedTest(
-            'returns 42 when invoked with no args',
-            'returns 42 when invoked with some args',
-          ),
+          description: description,
+          testContent: TddFixture.compileErrorTest(description),
         );
         await expectRejection(
           fx: fx2,
           id: 'B-001',
-          classification: 'runner-error',
+          classification: 'compile-error',
         );
       } finally {
         Directory.current = prev;
         fx2.dispose();
         exitCode = 0;
       }
-    },
-  );
+    });
 
-  test(
-    'A8b: runner cannot launch (broken profile command) -> runner-error',
-    () async {
-      final fx2 = await TddFixture.create(
-        singleTemplate:
-            'definitely_not_a_real_binary_xyz {file} --plain-name "{name}"',
-      );
+    test('A5: registry points at a missing file -> load-error', () async {
+      final fx2 = await TddFixture.create();
       try {
         Directory.current = fx2.root;
-        await fx2.registerBehavior(id: 'B-001', description: description);
+        await fx2.registerBehavior(
+          id: 'B-001',
+          description: description,
+          writeTestFile: false,
+        );
         await expectRejection(
           fx: fx2,
           id: 'B-001',
-          classification: 'runner-error',
+          classification: 'load-error',
         );
       } finally {
         Directory.current = prev;
         fx2.dispose();
         exitCode = 0;
       }
-    },
-  );
+    });
 
-  test(
-    'U24: a rejected run leaves an existing cycle-log byte-identical',
-    () async {
+    test('A6: passing target test -> unexpected-green', () async {
       final fx2 = await TddFixture.create();
       try {
         Directory.current = fx2.root;
-        await fx2.registerBehavior(id: 'B-001', description: description);
         await fx2.registerBehavior(
-          id: 'B-002',
+          id: 'B-001',
           description: description,
           testContent: TddFixture.greenTest(description),
         );
-        // Seed prior evidence so the log exists with content.
-        await fx2.seedRedEvidence('B-001');
-        final before = await File(fx2.cycleLogPath).readAsString();
-
-        final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing(['tdd', 'verify-red', 'B-002']);
-        expect(exitCode, isNot(0));
-        expect(await File(fx2.cycleLogPath).readAsString(), before);
+        await expectRejection(
+          fx: fx2,
+          id: 'B-001',
+          classification: 'unexpected-green',
+        );
       } finally {
         Directory.current = prev;
         fx2.dispose();
         exitCode = 0;
       }
-    },
-  );
-});
+    });
 
-group('target resolution (US3 / FR-001, FR-002, SC-004)', () {
-  test(
-    'U18: unknown id errors naming the id BEFORE any run '
-    '(works even with no profile present)',
-    () async {
+    test('A7: skipped target test -> skipped', () async {
+      final fx2 = await TddFixture.create();
+      try {
+        Directory.current = fx2.root;
+        await fx2.registerBehavior(
+          id: 'B-001',
+          description: description,
+          testContent: TddFixture.skippedTest(description),
+        );
+        await expectRejection(fx: fx2, id: 'B-001', classification: 'skipped');
+      } finally {
+        Directory.current = prev;
+        fx2.dispose();
+        exitCode = 0;
+      }
+    });
+
+    test(
+      'A8a: blended run (two tests match the filter) -> runner-error',
+      () async {
+        final fx2 = await TddFixture.create();
+        try {
+          Directory.current = fx2.root;
+          // The registry name is a substring of BOTH tests in the file, so
+          // the single-test filter matches two tests.
+          await fx2.registerBehavior(
+            id: 'B-001',
+            description: 'returns 42',
+            testContent: TddFixture.blendedTest(
+              'returns 42 when invoked with no args',
+              'returns 42 when invoked with some args',
+            ),
+          );
+          await expectRejection(
+            fx: fx2,
+            id: 'B-001',
+            classification: 'runner-error',
+          );
+        } finally {
+          Directory.current = prev;
+          fx2.dispose();
+          exitCode = 0;
+        }
+      },
+    );
+
+    test(
+      'A8b: runner cannot launch (broken profile command) -> runner-error',
+      () async {
+        final fx2 = await TddFixture.create(
+          singleTemplate:
+              'definitely_not_a_real_binary_xyz {file} --plain-name "{name}"',
+        );
+        try {
+          Directory.current = fx2.root;
+          await fx2.registerBehavior(id: 'B-001', description: description);
+          await expectRejection(
+            fx: fx2,
+            id: 'B-001',
+            classification: 'runner-error',
+          );
+        } finally {
+          Directory.current = prev;
+          fx2.dispose();
+          exitCode = 0;
+        }
+      },
+    );
+
+    test(
+      'U24: a rejected run leaves an existing cycle-log byte-identical',
+      () async {
+        final fx2 = await TddFixture.create();
+        try {
+          Directory.current = fx2.root;
+          await fx2.registerBehavior(id: 'B-001', description: description);
+          await fx2.registerBehavior(
+            id: 'B-002',
+            description: description,
+            testContent: TddFixture.greenTest(description),
+          );
+          // Seed prior evidence so the log exists with content.
+          await fx2.seedRedEvidence('B-001');
+          final before = await File(fx2.cycleLogPath).readAsString();
+
+          final runner = CliRunner(exitOnCompletion: false);
+          await runner.runCapturing(['tdd', 'verify-red', 'B-002']);
+          expect(exitCode, isNot(0));
+          expect(await File(fx2.cycleLogPath).readAsString(), before);
+        } finally {
+          Directory.current = prev;
+          fx2.dispose();
+          exitCode = 0;
+        }
+      },
+    );
+  });
+
+  group('target resolution (US3 / FR-001, FR-002, SC-004)', () {
+    test('U18: unknown id errors naming the id BEFORE any run '
+        '(works even with no profile present)', () async {
       final fx2 = await TddFixture.create();
       try {
         Directory.current = fx2.root;
         // No profile: if the command tried to run anything it would
         // misfire on the missing profile instead — so seeing the
         // unknown-id error proves resolution happens first.
-        File('${fx2.root.path}/.specify/memory/tdd-profile.md')
-            .deleteSync();
+        File('${fx2.root.path}/.specify/memory/tdd-profile.md').deleteSync();
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing([
-          'tdd',
-          'verify-red',
-          'B-999',
-        ]);
+        final out = await runner.runCapturing(['tdd', 'verify-red', 'B-999']);
         expect(out, contains('B-999'));
         expect(out, contains('unknown behavior id'));
         expect(
@@ -354,113 +347,149 @@ group('target resolution (US3 / FR-001, FR-002, SC-004)', () {
         fx2.dispose();
         exitCode = 0;
       }
-    },
-  );
+    });
 
-  test(
-    'U19: no-arg with exactly one uncertified gen\'d behavior verifies it',
-    () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(['tdd', 'verify-red']);
-      expect(
-        out,
-        contains(
-          'verify-red: behavior=B-001 classification=assertion '
-          'certified=true feature=${fx.featureName}',
-        ),
-      );
-      expect(exitCode, 0);
-      final log = await File(fx.cycleLogPath).readAsString();
-      expect(log, contains('## Cycle: B-001 (red)'));
-    },
-  );
+    test(
+      'U19: no-arg with exactly one uncertified gen\'d behavior verifies it',
+      () async {
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing(['tdd', 'verify-red']);
+        expect(
+          out,
+          contains(
+            'verify-red: behavior=B-001 classification=assertion '
+            'certified=true feature=${fx.featureName}',
+          ),
+        );
+        expect(exitCode, 0);
+        final log = await File(fx.cycleLogPath).readAsString();
+        expect(log, contains('## Cycle: B-001 (red)'));
+      },
+    );
 
-  test(
-    'U20: no-arg with multiple uncertified behaviors lists the candidates',
-    () async {
-      await fx.registerBehavior(id: 'B-002', description: description);
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(['tdd', 'verify-red']);
-      expect(out, contains('ambiguous'));
-      expect(out, contains('B-001'));
-      expect(out, contains('B-002'));
-      expect(
-        out,
-        contains(
-          'verify-red: behavior=- classification=unresolved '
-          'certified=false feature=unknown',
-        ),
-      );
-      expect(exitCode, isNot(0));
-      // No evidence for either candidate.
-      expect(File(fx.cycleLogPath).existsSync(), isFalse);
-    },
-  );
+    test(
+      'U20: no-arg with multiple uncertified behaviors lists the candidates',
+      () async {
+        await fx.registerBehavior(id: 'B-002', description: description);
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing(['tdd', 'verify-red']);
+        expect(out, contains('ambiguous'));
+        expect(out, contains('B-001'));
+        expect(out, contains('B-002'));
+        expect(
+          out,
+          contains(
+            'verify-red: behavior=- classification=unresolved '
+            'certified=false feature=unknown',
+          ),
+        );
+        expect(exitCode, isNot(0));
+        // No evidence for either candidate.
+        expect(File(fx.cycleLogPath).existsSync(), isFalse);
+      },
+    );
 
-  test('U21: no-arg with zero candidates states that none exist', () async {
-    final fx2 = await TddFixture.create();
-    try {
-      Directory.current = fx2.root;
-      // Registry exists but every behavior already has red evidence.
-      await fx2.registerBehavior(id: 'B-001', description: description);
-      await fx2.seedRedEvidence('B-001');
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(['tdd', 'verify-red']);
-      expect(out, contains('no behavior with gen artifacts'));
-      expect(exitCode, isNot(0));
-    } finally {
-      Directory.current = prev;
-      fx2.dispose();
-      exitCode = 0;
-    }
-  });
+    test('U21: no-arg with zero candidates states that none exist', () async {
+      final fx2 = await TddFixture.create();
+      try {
+        Directory.current = fx2.root;
+        // Registry exists but every behavior already has red evidence.
+        await fx2.registerBehavior(id: 'B-001', description: description);
+        await fx2.seedRedEvidence('B-001');
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing(['tdd', 'verify-red']);
+        expect(out, contains('no behavior with gen artifacts'));
+        expect(exitCode, isNot(0));
+      } finally {
+        Directory.current = prev;
+        fx2.dispose();
+        exitCode = 0;
+      }
+    });
 
-  test(
-    'U22: known test-list id without registry artifacts instructs gen first',
-    () async {
-      // Seed a test list row for B-777 in the fixture feature, with no
-      // artifacts.json record for it.
-      await File(p.join(fx.featureDir, 'tdd', 'test-list.md')).writeAsString('''
+    test(
+      'U22: known test-list id without registry artifacts instructs gen first',
+      () async {
+        // Seed a test list row for B-777 in the fixture feature, with no
+        // artifacts.json record for it.
+        await File(p.join(fx.featureDir, 'tdd', 'test-list.md')).writeAsString(
+          '''
 # Test List
 
 | id | behavior | traces | kind | state | target |
 |----|----------|--------|------|-------|--------|
 | B-777 | planned but not generated | FR-007 | unit | PENDING | x |
-''');
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(['tdd', 'verify-red', 'B-777']);
-      expect(out, contains('B-777'));
-      expect(out, contains('zfa tdd gen B-777'));
-      expect(exitCode, isNot(0));
-    },
-  );
+''',
+        );
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing(['tdd', 'verify-red', 'B-777']);
+        expect(out, contains('B-777'));
+        expect(out, contains('zfa tdd gen B-777'));
+        expect(exitCode, isNot(0));
+      },
+    );
 
-  test(
-    'SC-004: ambiguous id across features fails with the candidate list',
-    () async {
-      // A SECOND feature directory inside the SAME project, so the
-      // command's registry scan sees two records for B-001.
-      const otherFeature = '091-other-fixture';
-      final otherDir = p.join(fx.root.path, 'specs', otherFeature);
-      await Directory(p.join(otherDir, 'tdd')).create(recursive: true);
-      await File(p.join(otherDir, 'tdd', 'artifacts.json')).writeAsString(
-        '{"feature":"$otherFeature","records":[{"behavior_id":"B-001",'
-        '"feature":"$otherFeature","source_criterion":"FR-007",'
-        '"test_path":"${fx.testPathOf('B-001')}",'
-        '"subject_path":"lib/b_001_subject.dart",'
-        '"runnable_test_name":"${fx.testPathOf('B-001')}::B-001::$description",'
-        '"test_ownership":"created","subject_ownership":"created",'
-        '"created_at":"2026-08-30T00:00:00.000Z"}]}',
-      );
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
-      expect(out, contains('ambiguous'));
-      expect(out, contains(fx.featureName));
-      expect(out, contains(otherFeature));
-      expect(exitCode, isNot(0));
-      // No evidence written for either candidate.
-      expect(File(fx.cycleLogPath).existsSync(), isFalse);
-    },
-  );
-});
+    test(
+      'SC-004: ambiguous id across features fails with the candidate list',
+      () async {
+        // A SECOND feature directory inside the SAME project, so the
+        // command's registry scan sees two records for B-001.
+        const otherFeature = '091-other-fixture';
+        final otherDir = p.join(fx.root.path, 'specs', otherFeature);
+        await Directory(p.join(otherDir, 'tdd')).create(recursive: true);
+        await File(p.join(otherDir, 'tdd', 'artifacts.json')).writeAsString(
+          '{"feature":"$otherFeature","records":[{"behavior_id":"B-001",'
+          '"feature":"$otherFeature","source_criterion":"FR-007",'
+          '"test_path":"${fx.testPathOf('B-001')}",'
+          '"subject_path":"lib/b_001_subject.dart",'
+          '"runnable_test_name":"${fx.testPathOf('B-001')}::B-001::$description",'
+          '"test_ownership":"created","subject_ownership":"created",'
+          '"created_at":"2026-08-30T00:00:00.000Z"}]}',
+        );
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+        expect(out, contains('ambiguous'));
+        expect(out, contains(fx.featureName));
+        expect(out, contains(otherFeature));
+        expect(exitCode, isNot(0));
+        // No evidence written for either candidate.
+        expect(File(fx.cycleLogPath).existsSync(), isFalse);
+      },
+    );
+  });
+
+  group('U26 — summary-line contract (US4 / FR-009, T016)', () {
+    final shape = RegExp(
+      r'^verify-red: behavior=(\S+) classification=(\S+) '
+      r'certified=(true|false) feature=(\S+)$',
+    );
+
+    test(
+      'certified and rejected runs both emit the pinned line format',
+      () async {
+        final runner = CliRunner(exitOnCompletion: false);
+        final certified = await runner.runCapturing([
+          'tdd',
+          'verify-red',
+          'B-001',
+        ]);
+        final certifiedLine = certified.trim().split('\n').last;
+        final m1 = shape.firstMatch(certifiedLine);
+        expect(m1, isNotNull, reason: 'line: \$certifiedLine');
+        expect(m1!.group(3), 'true');
+
+        // Rejected run: unknown id (no subprocess cost).
+        final rejected = await runner.runCapturing([
+          'tdd',
+          'verify-red',
+          'B-999',
+        ]);
+        final rejectedLine = rejected.trim().split('\n').last;
+        final m2 = shape.firstMatch(rejectedLine);
+        expect(m2, isNotNull, reason: 'line: \$rejectedLine');
+        expect(m2!.group(2), 'unresolved');
+        expect(m2.group(3), 'false');
+      },
+    );
+  });
 }

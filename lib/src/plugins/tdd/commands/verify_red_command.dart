@@ -78,7 +78,8 @@ class VerifyRedCommand extends Command<void> {
       'dishonest failure class and exit non-zero (spec 046).';
 
   @override
-  String get invocation => 'zfa tdd verify-red [<behavior-id>] [--feature <name>]';
+  String get invocation =>
+      'zfa tdd verify-red [<behavior-id>] [--feature <name>]';
 
   @override
   Future<void> run() async {
@@ -222,8 +223,11 @@ class VerifyRedCommand extends Command<void> {
       }
       if (matches.isEmpty) {
         // FR-002 / U22: distinguish "planned but not gen'd" from unknown.
-        final plannedFeature =
-            await _isPlannedInTestList(cwd, behaviorId, featureFlag);
+        final plannedFeature = await _isPlannedInTestList(
+          cwd,
+          behaviorId,
+          featureFlag,
+        );
         if (plannedFeature != null) {
           throw VerifyRedResolutionError(
             'behavior "$behaviorId" is planned in the $plannedFeature test '
@@ -290,7 +294,11 @@ class VerifyRedCommand extends Command<void> {
     if (featureFlag != null && featureFlag.isNotEmpty) {
       final featureDir = p.join(cwd, 'specs', featureFlag);
       return [
-        _RegistryEntry(featureFlag, featureDir, ArtifactRegistry(featureDir: featureDir)),
+        _RegistryEntry(
+          featureFlag,
+          featureDir,
+          ArtifactRegistry(featureDir: featureDir),
+        ),
       ];
     }
     final specsDir = Directory(p.join(cwd, 'specs'));
@@ -303,7 +311,11 @@ class VerifyRedCommand extends Command<void> {
       if (await registryFile.exists()) {
         final name = p.basename(dir.path);
         entries.add(
-          _RegistryEntry(name, dir.path, ArtifactRegistry(featureDir: dir.path)),
+          _RegistryEntry(
+            name,
+            dir.path,
+            ArtifactRegistry(featureDir: dir.path),
+          ),
         );
       }
     }
