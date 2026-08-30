@@ -53,25 +53,6 @@
       "registered_skills": [],
       "installed_at": "2026-08-28T17:17:51.746452+00:00"
     },
-    "gh-triage": {
-      "version": "1.1.0",
-      "source": "local",
-      "manifest_hash": "sha256:d294e02bbc8a2ec60d4a1c33446d295d8fc9fac5e525a16ab112e169ccae5552",
-      "enabled": true,
-      "priority": 10,
-      "registered_commands": {
-        "kimi": [
-          "speckit.gh-triage.triage",
-          "speckit.gh-triage.feature"
-        ],
-        "zed": [
-          "speckit.gh-triage.triage",
-          "speckit.gh-triage.feature"
-        ]
-      },
-      "registered_skills": [],
-      "installed_at": "2026-08-28T17:17:52.427930+00:00"
-    },
     "gym": {
       "version": "1.0.0",
       "source": "local",
@@ -167,6 +148,21 @@
       },
       "registered_skills": [],
       "installed_at": "2026-08-28T18:30:26.932682+00:00"
+    },
+    "gh-triage": {
+      "version": "1.1.0",
+      "source": "local",
+      "manifest_hash": "sha256:0b70af7e32667b9dd064dfc85d9e572e577e30bb952ea61b52350108fe639d61",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "zed": [
+          "speckit.gh-triage.triage",
+          "speckit.gh-triage.feature"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-08-30T07:50:56.467418+00:00"
     }
   }
 }
