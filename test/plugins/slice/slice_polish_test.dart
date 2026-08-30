@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 /// Tests for slice plugin polish behaviors (T071-T074).
 ///
 ///   T071: SlicePlugin configKey ('sliceByDefault') and config schema for

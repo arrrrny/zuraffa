@@ -1,4 +1,5 @@
-@Tags(['regression'])
+@Tags(['regression', 'slow'])
+
 library;
 
 import 'dart:io';

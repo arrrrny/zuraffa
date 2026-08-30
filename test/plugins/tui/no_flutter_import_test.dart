@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:test/test.dart';
 
+import '../../helpers/project_root.dart';
+
 /// **A26 / FR-012**: The TUI plugin path contains NO `package:flutter`
 /// import. This is a static grep test — it scans every Dart file under
 /// `lib/src/plugins/tui/` and `test/plugins/tui/` and fails if any file
@@ -9,13 +11,14 @@ import 'package:test/test.dart';
 /// The grep is intentionally literal (not regex) so that comments mentioning
 /// `package:flutter` are also caught — the spec contract is zero occurrences
 /// anywhere in the TUI path, including comments.
-void main() {
+void main() async {
+  final repoRoot = await findProjectRoot();
   test(
     'A26 / FR-012: no package:flutter import anywhere in the TUI plugin path',
     () {
       final tuiDirs = <Directory>[
-        Directory('lib/src/plugins/tui'),
-        Directory('test/plugins/tui'),
+        Directory('$repoRoot/lib/src/plugins/tui'),
+        Directory('$repoRoot/test/plugins/tui'),
       ];
 
       final offenders = <String>[];
@@ -57,13 +60,13 @@ void main() {
 
   test('A26 / FR-012 (extra): nocterm dependency is pinned and pubspec.lock '
       'has no resolved flutter package', () {
-    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final pubspec = File('$repoRoot/pubspec.yaml').readAsStringSync();
     expect(pubspec, contains('nocterm: ^0.9.0'));
 
     // pubspec.lock is the resolved dependency tree. If nocturn or any of
     // its transitive deps pulled in flutter, a `flutter:` package would
     // appear in the lockfile's packages section.
-    final lockFile = File('pubspec.lock');
+    final lockFile = File('$repoRoot/pubspec.lock');
     expect(
       lockFile.existsSync(),
       isTrue,

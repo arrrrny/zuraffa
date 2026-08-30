@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 // Tests for the PubspecDevDependenciesPatcher (spec 041-tdd-setup-plugin,
 // U16-U18).
 library;

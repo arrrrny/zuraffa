@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 /// Acceptance tests for `zfa slice cut` (A1, A2, A3, A4; gates T087-T090).
 ///
 /// Behaviors traced to specs/043-slice-plugin/tdd/test-list.md:

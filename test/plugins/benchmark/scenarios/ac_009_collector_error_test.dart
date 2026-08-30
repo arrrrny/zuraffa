@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 // Acceptance test AC-9 (specs/015-benchmark-plugin/spec.md US4):
 // a metric collector that throws is logged and does not fail the benchmark
 // or the suite.

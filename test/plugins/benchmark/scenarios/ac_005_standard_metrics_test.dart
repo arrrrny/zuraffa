@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 // Acceptance test AC-5 (specs/015-benchmark-plugin/spec.md US3):
 // a runner-executed scenario produces latency p50/p95/p99, throughput,
 // memory and CPU metrics.

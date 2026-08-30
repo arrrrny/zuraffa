@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 /// Tests for ImportGraphWalker (U20-U26) and FileGraph.
 ///
 /// Behaviors traced to specs/043-slice-plugin/tdd/test-list.md:

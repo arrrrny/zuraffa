@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 /// SC-001 acceptance test: drive `zfa bone generate` end to end and assert
 /// the bone's manifest, entity stubs, layer placeholders, and self-containment.
 ///

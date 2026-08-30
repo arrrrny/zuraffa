@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 /// Tests for ExportSliceCapability (U58; gate T086).
 ///
 /// Behavior traced to specs/043-slice-plugin/tdd/test-list.md:

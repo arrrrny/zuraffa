@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 // Acceptance test AC-6 (specs/015-benchmark-plugin/spec.md US3):
 // a benchmark exceeding a configured threshold is marked failed with the
 // specific violating metric named in the result.

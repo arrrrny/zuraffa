@@ -1,3 +1,5 @@
+@Tags(['regression', 'slow'])
+
 // Regression test for issue #441.
 //
 // `zfa make` (and other commands) resolved the project root via an unguarded

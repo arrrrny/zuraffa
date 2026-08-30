@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 // Success criterion SC-007 (specs/015-benchmark-plugin/spec.md):
 // cross-plugin compatibility — benchmarks from 3+ different plugins can
 // run in the same suite without conflicts.
