@@ -1,6 +1,6 @@
 # Feature Specification: zfa tdd Full-App Cycle — build a zik_zak-scale app using ONLY the zfa tdd loop
 
-**Feature Branch**: `580-tdd-full-app-cycle`
+**Feature Branch**: `045-tdd-full-app-cycle`
 
 **Created**: 2026-08-30
 
