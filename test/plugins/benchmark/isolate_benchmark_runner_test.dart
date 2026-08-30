@@ -1,5 +1,4 @@
 @Tags(['slow'])
-
 // Tests for lib/src/core/benchmark/isolate_benchmark_runner.dart —
 // behaviors U44–U46 of specs/015-benchmark-plugin/tdd/test-list.md.
 import 'package:test/test.dart';

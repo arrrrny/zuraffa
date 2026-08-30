@@ -1,5 +1,4 @@
 @Tags(['slow'])
-
 // Tests for the GenCommand (spec 044-test-tdd-generation, Phase 5 / T018–T027).
 //
 // The GenCommand materializes a planned behavior into exactly one test +

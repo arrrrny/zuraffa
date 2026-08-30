@@ -1,5 +1,4 @@
 @Tags(['slow'])
-
 // SC-001 acceptance test (spec 046-tdd-verify-red, US1.AC1-AC3 / T021):
 // an honestly-red behavior certifies end to end through the real CLI —
 // classification `assertion`, red entry appended, exit 0, and zero

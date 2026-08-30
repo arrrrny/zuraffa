@@ -1,5 +1,4 @@
 @Tags(['slow'])
-
 // Tests for the SubjectWriter service (spec 044-test-tdd-generation,
 // T010/T011–T013).
 //

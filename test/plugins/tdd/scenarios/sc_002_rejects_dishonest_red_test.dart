@@ -1,5 +1,4 @@
 @Tags(['slow'])
-
 // SC-002 acceptance test (spec 046-tdd-verify-red, US2.AC1-AC5 / T022):
 // every dishonest-red class is rejected — non-zero exit, named
 // classification, cycle log unchanged — through the real CLI.

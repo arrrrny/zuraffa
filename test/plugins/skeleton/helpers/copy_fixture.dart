@@ -14,8 +14,7 @@ Future<void> copyFixture(String fixtureName, String destParent) async {
   // Resolve via package URI so this helper is immune to CWD pollution when
   // other test files concurrently change Directory.current.
   final root = await findProjectRoot();
-  final src =
-      Directory('$root/test/plugins/skeleton/fixtures/$fixtureName');
+  final src = Directory('$root/test/plugins/skeleton/fixtures/$fixtureName');
   final dest = await Directory(
     '$destParent/$fixtureName',
   ).create(recursive: true);

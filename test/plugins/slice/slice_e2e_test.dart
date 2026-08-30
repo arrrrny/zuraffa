@@ -1,5 +1,4 @@
 @Tags(['slow'])
-
 /// End-to-end lifecycle test (T075; quickstart scenarios 1 and 2, T076).
 ///
 /// Full agent workflow on the fixture project: cut → verify → modify →

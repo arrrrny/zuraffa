@@ -1,5 +1,4 @@
 @Tags(['slow'])
-
 // Smoke test that `zfa tdd` is registered and lists all eight subcommands
 // (spec 041-tdd-setup-plugin Phase 1 / T007).
 library;
