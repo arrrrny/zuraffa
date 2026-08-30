@@ -4,9 +4,20 @@
 /// 8-field evidence contract — behavior id, source criterion, test path,
 /// runner command, runner exit code, classification, captured failure
 /// output, and timestamp (spec 046 FR-006).
+///
+/// Extended by spec 048-tdd-refactor (T003): the `refactor` kind records
+/// refactor evidence entries. The classification assert is relaxed to
+/// `kind != red || classification != null` so refactor (and green) entries
+/// may omit the failure classification; only red entries carry one. The
+/// `refactorActions` list renders as the `actions:` block per
+/// contracts/refactor.md, and `isNoOp` flags a clean no-op entry.
+///
+/// Existing red/green rendering stays byte-compatible (U10 invariant).
 library;
 
-enum CycleEntryKind { red, green }
+import 'refactor_action.dart';
+
+enum CycleEntryKind { red, green, refactor }
 
 enum FailureClass {
   assertionFailure,
@@ -29,10 +40,22 @@ class CycleLogEntry {
   final String sourceCriterion;
 
   /// The registry-recorded path of the test that produced this entry.
+  /// For refactor entries this is the suite scope the command re-proved
+  /// green (e.g. `test/plugins/tdd/`).
   final String testPath;
 
   /// ISO-8601 UTC timestamp of the run.
   final String timestamp;
+
+  /// Refactor actions recorded during this cycle (refactor entries only).
+  /// Empty for red/green entries; for refactor entries it lists every
+  /// applied pass with its command and filesChanged.
+  final List<RefactorAction> refactorActions;
+
+  /// True for a refactor entry that recorded zero actions (a clean no-op).
+  /// When true the entry is rendered with a `- no-op: true` marker so the
+  /// evidence is explicit about the absence of changes (spec 048 FR-008).
+  final bool isNoOp;
 
   CycleLogEntry({
     required this.behaviorId,
@@ -44,13 +67,15 @@ class CycleLogEntry {
     required this.testPath,
     required this.timestamp,
     this.classification,
+    this.refactorActions = const [],
+    this.isNoOp = false,
   }) : assert(
-         kind == CycleEntryKind.green || classification != null,
+         kind != CycleEntryKind.red || classification != null,
          'Red entries must carry a failure classification.',
        );
 
   String toMarkdown() {
-    final kindLabel = kind == CycleEntryKind.red ? 'red' : 'green';
+    final kindLabel = _kindLabel(kind);
     final buf = StringBuffer()
       ..writeln('## Cycle: $behaviorId ($kindLabel)')
       ..writeln()
@@ -64,13 +89,47 @@ class CycleLogEntry {
       ..writeln('- test: $testPath')
       ..writeln('- command: `$runnerCommand`')
       ..writeln('- exit: $exitCode')
-      ..writeln('- at: $timestamp')
+      ..writeln('- at: $timestamp');
+    if (isNoOp) {
+      buf.writeln('- no-op: true');
+    }
+    buf
       ..writeln('- output:')
       ..writeln('```')
       ..writeln(capturedOutput.trim())
-      ..writeln('```')
-      ..writeln();
+      ..writeln('```');
+    if (kind == CycleEntryKind.refactor && refactorActions.isNotEmpty) {
+      buf.writeln('actions:');
+      for (final action in refactorActions) {
+        buf
+          ..writeln('- action: ${action.name}')
+          ..writeln('  command: `${action.command}`')
+          ..writeln('  exit: ${action.exitCode}');
+        if (action.filesChanged.isEmpty) {
+          buf.writeln('  changed: (none)');
+        } else {
+          buf.writeln('  changed: ${action.filesChanged.join(', ')}');
+        }
+      }
+    }
+    buf.writeln();
     return buf.toString();
+  }
+
+  /// Map a [CycleEntryKind] to its lowercase contract label.
+  ///
+  /// Kept as a helper so the red/green/refactor labels stay in one place;
+  /// the previous `kind == red ? 'red' : 'green'` ternary silently
+  /// mislabelled refactor entries as green (spec 048 Decision 5).
+  static String _kindLabel(CycleEntryKind kind) {
+    switch (kind) {
+      case CycleEntryKind.red:
+        return 'red';
+      case CycleEntryKind.green:
+        return 'green';
+      case CycleEntryKind.refactor:
+        return 'refactor';
+    }
   }
 
   @override

@@ -12,6 +12,7 @@ export 'models/behavior.dart';
 export 'models/cycle_entry.dart';
 export 'models/mutation_outcome.dart';
 export 'models/ownership.dart';
+export 'models/refactor_action.dart';
 export 'models/run_state.dart';
 export 'models/tdd_profile.dart';
 
