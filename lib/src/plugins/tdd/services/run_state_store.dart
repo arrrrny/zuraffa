@@ -116,7 +116,17 @@ class RunStateStore {
   /// the state that are not in it are recorded under a `dropped` marker
   /// (audit trail; they stay in `behavior_states`).
   Future<void> save(RunState state, {Set<String>? activeBehaviorIds}) async {
-    final map = jsonDecode(state.toJson()) as Map<String, dynamic>;
+    final states = <String, String>{};
+    state.behaviorStates.forEach((k, v) => states[k] = v.name);
+    final map = <String, Object?>{
+      'feature': state.feature,
+      'behavior_states': states,
+      if (state.inFlightBehaviorId != null)
+        'in_flight_behavior_id': state.inFlightBehaviorId,
+      if (state.inFlightStep != null) 'in_flight_step': state.inFlightStep,
+      if (state.inFlightOwnerPid != null)
+        'in_flight_owner_pid': state.inFlightOwnerPid,
+    };
     if (activeBehaviorIds != null) {
       map['dropped'] = computeDropped(state, activeBehaviorIds);
     }

@@ -221,6 +221,19 @@ class RunCommand extends Command<void> {
         current = current.markInFlight(row.id, step, ownerPid: pid);
         await store.save(current, activeBehaviorIds: activeIds);
 
+        // Re-check for a concurrent run that claimed the feature after our
+        // in-flight marker was written (closes the simultaneous-start race
+        // left by the one-shot check at step 3, FR-006). A foreign live pid
+        // in the marker means a second run is now in flight, so stop before
+        // spawning any step.
+        final liveRefusal = store.refusalReason(await store.load());
+        if (liveRefusal != null) {
+          print('zfa tdd run: $liveRefusal');
+          _printSummary(feature, 'concurrent-run', rows, current);
+          exitCode = _exitConcurrentRun;
+          return;
+        }
+
         StepResult result;
         try {
           result = await runner.run(
