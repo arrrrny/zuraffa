@@ -12,8 +12,9 @@ suite_baseline: red
 
 Baseline note: `dart test test/plugins/tdd/` at `0118a465` → 104 passed, 2
 failed (pre-existing 044 failures: `verify_command_test.dart` NOT_ASSESSED
-expectation; `gen_command_test.dart` temp-dir cwd restore). The loop must not
-start on top of a red baseline — fix or explicitly quarantine these first.
+expectation; `gen_command_test.dart` temp-dir cwd restore). At `938a5aec`
+(“spec ready”) the scoped suite is fully green — 106 passed, 0 failed
+(re-verified at loop start). The loop starts on a green baseline.
 
 ## Outer loop: acceptance behaviors
 
@@ -112,7 +113,10 @@ by U23's append semantics.
 Copied from `.specify/memory/tdd-profile.md` at planning time (feature scope
 adapted to this feature's test tree):
 
-- Single test: `dart test test/<path>.dart -P "<name>"`
+- Single test: `dart test <file> --plain-name "<name>"`
+  (corrected at loop start: the profile’s recorded `-P` flag means `--preset`
+  to `dart test` and made every single-test run fail with “Undefined preset”;
+  `--plain-name` is the plain-text filter the profile describes)
 - Full suite (feature scope): `dart test test/plugins/tdd/`
 - Full suite (repo): `dart test` — slow; not for loop use
 - Static analysis (feature scope): `dart analyze lib/src/plugins/tdd/ test/plugins/tdd/`
