@@ -149,5 +149,37 @@ void main() {
         expect(mock.content, contains('saveProduct'));
       },
     );
+
+    test('inline interfaces preserve getter and setter syntax', () async {
+      final interface = File(
+        '$projectRoot/lib/src/presentation/pages/account/'
+        'account_presenter.dart',
+      );
+      await interface.create(recursive: true);
+      await interface.writeAsString('''
+abstract class AccountPresenter {
+  String get label;
+  set label(String value);
+  void refresh();
+}
+''');
+      const boundary = SliceBoundary(
+        typeName: 'AccountPresenter',
+        interfaceFile:
+            'lib/src/presentation/pages/account/account_presenter.dart',
+        mockStrategy: 'auto',
+      );
+
+      final mock = await generator.generate(
+        boundary: boundary,
+        projectRoot: projectRoot,
+        depth: SliceDepth.view,
+      );
+
+      expect(mock, isNotNull);
+      expect(mock!.content, contains('String get label;'));
+      expect(mock.content, contains('set label(String value);'));
+      expect(mock.content, contains('void refresh();'));
+    });
   });
 }

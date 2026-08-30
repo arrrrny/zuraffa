@@ -77,9 +77,9 @@ class SessionMetadata {
 ///
 /// The payload is a plain `Map<String, dynamic>` so any session domain —
 /// tokens, cookies, browser state, app-specific blobs — can be held without
-/// a predefined schema (spec FR-001). Domain layers (e.g. the
-/// `zikzak_session` package) map their typed structures onto the payload
-/// and keep the core generic.
+/// a predefined schema (spec FR-001). Domain layers (e.g. the standalone
+/// `zikzak_session` package, published on pub.dev as v0.2.0) map their
+/// typed structures onto the payload and keep the core generic.
 class Session {
   /// The preset/type identifier (e.g. `authToken`, `browser`).
   final String type;

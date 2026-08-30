@@ -83,14 +83,18 @@ void main() {
     test(
       'U20: existing directory → clear error, exit non-zero, untouched',
       () async {
-        final existing = Directory(p.join(tempDir.path, 'clash_pkg'))
+        // Use a collision-resistant name so a leftover `clash_pkg` entry left
+        // in /tmp by an interrupted prior run can never poison this test.
+        final collidingName =
+            'clash_pkg_${DateTime.now().microsecondsSinceEpoch}';
+        final existing = Directory(p.join(tempDir.path, collidingName))
           ..createSync();
         File(p.join(existing.path, 'precious.txt')).writeAsStringSync('data');
 
         final exitCode = await _run(runner, [
           'package',
           'create',
-          'clash_pkg',
+          collidingName,
           '--output',
           tempDir.path,
         ]);

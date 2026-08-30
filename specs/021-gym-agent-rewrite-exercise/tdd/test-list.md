@@ -5,7 +5,7 @@ profile: .specify/memory/tdd-profile.md
 spec_criteria: 4 # SC-001..SC-004 in spec.md; 12 story-level acceptance scenarios traced through the inner loop
 planned_at: b2af3cb4
 updated_at: post-implementation (all behaviors DONE)
-suite_baseline: green # feature scope. Baselines at b2af3cb4: existing exercise `generate-feature` -> exit 0; `dart analyze` -> 111 issues, 23 pre-existing errors confined to zikzak_session/ + examples/mcp_demo/ (missing git submodule content, documented in specs/038 tdd/verification.md); repo test suite untouched by this feature (no lib/ or test/ changes).
+suite_baseline: green # feature scope. Baselines at b2af3cb4: existing exercise `generate-feature` -> exit 0; `dart analyze` -> 111 issues, 23 pre-existing errors confined to the standalone `zikzak_session` package (now published on pub.dev) + examples/mcp_demo/; repo test suite untouched by this feature (no lib/ or test/ changes).
 ---
 
 # Test List: GYM Exercise — Agent Rewrite of a Dart Package Using Only zfa
@@ -94,5 +94,5 @@ Copied verbatim from `.specify/memory/tdd-profile.md` at planning time, adapted 
 
 - Exercise under test: `dart run .gym/exercise-agent-rewrite-zfa-only.dart`
 - Existing-exercise regression: `dart run .gym/exercise-generate-feature.dart`
-- Static analysis (repo, unchanged by feature): `dart analyze` — baseline 111 issues / 23 pre-existing errors (zikzak_session/, examples/mcp_demo/), exit 3 at b2af3cb4
+- Static analysis (repo, unchanged by feature): `dart analyze` — baseline 111 issues / 23 pre-existing errors (standalone `zikzak_session` package + examples/mcp_demo/), exit 3 at b2af3cb4
 - Repo suite (no lib/test changes in this feature): `dart test` (slow; scoped sub-runs acceptable per profile)

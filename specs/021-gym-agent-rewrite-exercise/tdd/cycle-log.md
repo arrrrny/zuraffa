@@ -8,7 +8,7 @@ runs from the repo root on branch `021-gym-agent-rewrite-exercise`.
 
 ## Baseline
 
-- suite: existing exercise `dart run .gym/exercise-generate-feature.dart` → `EXERCISE PASSED` exit 0; `dart analyze` → 111 issues / 23 pre-existing errors (zikzak_session/ + examples/mcp_demo/, missing git submodule content — identical to the master baseline documented in specs/038 tdd/verification.md §5), exit 3
+- suite: existing exercise `dart run .gym/exercise-generate-feature.dart` → `EXERCISE PASSED` exit 0; `dart analyze` → 111 issues / 23 pre-existing errors (standalone `zikzak_session` package + examples/mcp_demo/ — identical to the master baseline documented in specs/038 tdd/verification.md §5), exit 3
 - commit: `b2af3cb4` (master)
 - recorded: cycle 0, before any change
 

@@ -9,7 +9,7 @@ commands, layout, and conventions the auditor needs to grade tests cold.
   which 3.13.2 satisfies. Pure-Dart root package; no Flutter SDK required.
 - **Test runner**: `package:test` (`^1.25.0`). Invoked as `dart test`.
 - **Static analysis**: `dart analyze`. Configured via `analysis_options.yaml`
-  at repo root (uses `flutter_lints`).
+  at repo root (uses `package:lints/recommended.yaml`).
 - **Mutation tool**: none wired in CI. `/speckit.tdd.verify` Phase 4 falls back
   to deliberate-mutant sampling per the rubric.
 - **Coverage**: `dart test --coverage=<dir>` then
