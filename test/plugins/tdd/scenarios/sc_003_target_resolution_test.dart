@@ -3,6 +3,9 @@
 // SC-003 acceptance test (spec 046-tdd-verify-red, US3.AC1-AC4 / T023):
 // unambiguous target resolution — single-candidate inference, ambiguity
 // rejection with a candidate list, unknown id, and gen-first guidance.
+//
+// The fixture root is passed via `--project`; this suite never mutates
+// the process-global Directory.current.
 library;
 
 import 'dart:io';
@@ -14,18 +17,14 @@ import '../helpers/tdd_fixture.dart';
 
 void main() {
   late TddFixture fx;
-  late Directory prev;
   const description = 'returns 42 when invoked with no args';
 
   setUp(() async {
-    prev = Directory.current;
     fx = await TddFixture.create(featureName: '046-tdd-verify-red');
     await fx.registerBehavior(id: 'B-001', description: description);
-    Directory.current = fx.root;
   });
 
   tearDown(() {
-    Directory.current = prev;
     fx.dispose();
     exitCode = 0;
   });
@@ -34,7 +33,12 @@ void main() {
     'A9: no-arg with exactly one uncertified gen\'d behavior verifies it',
     () async {
       final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(['tdd', 'verify-red']);
+      final out = await runner.runCapturing([
+        'tdd',
+        'verify-red',
+        '--project',
+        fx.root.path,
+      ]);
       expect(
         out,
         contains(
@@ -51,7 +55,12 @@ void main() {
     () async {
       await fx.registerBehavior(id: 'B-002', description: description);
       final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(['tdd', 'verify-red']);
+      final out = await runner.runCapturing([
+        'tdd',
+        'verify-red',
+        '--project',
+        fx.root.path,
+      ]);
       expect(exitCode, isNot(0));
       expect(out, contains('B-001'));
       expect(out, contains('B-002'));
@@ -61,7 +70,13 @@ void main() {
 
   test('A11: unknown id exits non-zero naming the id before any run', () async {
     final runner = CliRunner(exitOnCompletion: false);
-    final out = await runner.runCapturing(['tdd', 'verify-red', 'B-999']);
+    final out = await runner.runCapturing([
+      'tdd',
+      'verify-red',
+      '--project',
+      fx.root.path,
+      'B-999',
+    ]);
     expect(exitCode, isNot(0));
     expect(out, contains('B-999'));
     expect(File(fx.cycleLogPath).existsSync(), isFalse);
@@ -78,7 +93,13 @@ void main() {
 | B-777 | planned but not generated | FR-007 | unit | PENDING | x |
 ''');
       final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(['tdd', 'verify-red', 'B-777']);
+      final out = await runner.runCapturing([
+        'tdd',
+        'verify-red',
+        '--project',
+        fx.root.path,
+        'B-777',
+      ]);
       expect(exitCode, isNot(0));
       expect(out, contains('zfa tdd gen B-777'));
     },

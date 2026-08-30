@@ -4,6 +4,9 @@
 // T024, U26): the summary line is the final stdout line in the pinned
 // contract format on every code path, and exit code 0 occurs exactly on
 // certification.
+//
+// The fixture root is passed via `--project`; this suite never mutates
+// the process-global Directory.current.
 library;
 
 import 'dart:io';
@@ -15,18 +18,14 @@ import '../helpers/tdd_fixture.dart';
 
 void main() {
   late TddFixture fx;
-  late Directory prev;
   const description = 'returns 42 when invoked with no args';
 
   setUp(() async {
-    prev = Directory.current;
     fx = await TddFixture.create(featureName: '046-tdd-verify-red');
     await fx.registerBehavior(id: 'B-001', description: description);
-    Directory.current = fx.root;
   });
 
   tearDown(() {
-    Directory.current = prev;
     fx.dispose();
     exitCode = 0;
   });
@@ -45,7 +44,13 @@ void main() {
   test('A13/U26: certified run ends with the contract summary line '
       '(final stdout line)', () async {
     final runner = CliRunner(exitOnCompletion: false);
-    final out = await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+    final out = await runner.runCapturing([
+      'tdd',
+      'verify-red',
+      '--project',
+      fx.root.path,
+      'B-001',
+    ]);
     final match = summaryShape.firstMatch(lastLine(out));
     expect(match, isNotNull, reason: 'last line was: ${lastLine(out)}');
     expect(match!.group(1), 'B-001');
@@ -59,20 +64,24 @@ void main() {
     () async {
       final fx2 = await TddFixture.create();
       try {
-        Directory.current = fx2.root;
         await fx2.registerBehavior(
           id: 'B-001',
           description: description,
           testContent: TddFixture.greenTest(description),
         );
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+        final out = await runner.runCapturing([
+          'tdd',
+          'verify-red',
+          '--project',
+          fx2.root.path,
+          'B-001',
+        ]);
         final match = summaryShape.firstMatch(lastLine(out));
         expect(match, isNotNull, reason: 'last line was: ${lastLine(out)}');
         expect(match!.group(2), 'unexpected-green');
         expect(match.group(3), 'false');
       } finally {
-        Directory.current = prev;
         fx2.dispose();
         exitCode = 0;
       }
@@ -83,7 +92,13 @@ void main() {
     'A13/U26: resolution error ends with the contract line (unresolved)',
     () async {
       final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(['tdd', 'verify-red', 'B-999']);
+      final out = await runner.runCapturing([
+        'tdd',
+        'verify-red',
+        '--project',
+        fx.root.path,
+        'B-999',
+      ]);
       final match = summaryShape.firstMatch(lastLine(out));
       expect(match, isNotNull, reason: 'last line was: ${lastLine(out)}');
       expect(match!.group(1), 'B-999');
@@ -96,15 +111,32 @@ void main() {
       'every rejection is non-zero', () async {
     // Certified -> 0.
     final runner = CliRunner(exitOnCompletion: false);
-    await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+    await runner.runCapturing([
+      'tdd',
+      'verify-red',
+      '--project',
+      fx.root.path,
+      'B-001',
+    ]);
     expect(exitCode, 0, reason: 'certified red must exit 0');
 
     // Rejected (unknown id) -> non-zero.
-    await runner.runCapturing(['tdd', 'verify-red', 'B-999']);
+    await runner.runCapturing([
+      'tdd',
+      'verify-red',
+      '--project',
+      fx.root.path,
+      'B-999',
+    ]);
     expect(exitCode, isNot(0), reason: 'resolution failure must be non-zero');
 
     // Rejected (no candidates after certification) -> non-zero.
-    await runner.runCapturing(['tdd', 'verify-red']);
+    await runner.runCapturing([
+      'tdd',
+      'verify-red',
+      '--project',
+      fx.root.path,
+    ]);
     expect(
       exitCode,
       isNot(0),

@@ -65,6 +65,16 @@ class VerifyRedCommand extends Command<void> {
           'resolution to specs/<feature>/tdd/artifacts.json. When '
           'omitted, every feature registry is scanned.',
     );
+    argParser.addOption(
+      'project',
+      aliases: const ['project-root'],
+      help:
+          'Project root containing specs/, test/, and .specify/ (the fixture '
+          'or target project). When omitted, the current working directory is '
+          'used. Tests pass the temp fixture root here instead of mutating '
+          'Directory.current, which is process-global and unsafe under '
+          'concurrent test execution.',
+    );
   }
 
   final TddPlugin plugin;
@@ -80,7 +90,8 @@ class VerifyRedCommand extends Command<void> {
 
   @override
   String get invocation =>
-      'zfa tdd verify-red [<behavior-id>] [--feature <name>]';
+      'zfa tdd verify-red [<behavior-id>] [--feature <name>] '
+      '[--project <path>]';
 
   @override
   Future<void> run() async {
@@ -90,7 +101,13 @@ class VerifyRedCommand extends Command<void> {
     if (featureFlag != null && featureFlag.isNotEmpty) {
       _validateFeatureSegment(featureFlag);
     }
-    final cwd = Directory.current.path;
+    // Prefer an explicit --project root so the command never depends on the
+    // process-global Directory.current (which other concurrent tests can
+    // mutate). Falls back to the current working directory for real CLI use.
+    final projectFlag = argResults?['project'] as String?;
+    final cwd = projectFlag != null && projectFlag.isNotEmpty
+        ? p.absolute(projectFlag)
+        : Directory.current.path;
 
     // ---------------------------------------------------------------
     // 1. Resolve the target from the registry (FR-001, FR-002).

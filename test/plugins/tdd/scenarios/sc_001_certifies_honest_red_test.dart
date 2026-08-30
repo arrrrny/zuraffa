@@ -4,6 +4,9 @@
 // an honestly-red behavior certifies end to end through the real CLI —
 // classification `assertion`, red entry appended, exit 0, and zero
 // writes under test/ or lib/.
+//
+// The fixture root is passed via `--project`; this suite never mutates
+// the process-global Directory.current.
 library;
 
 import 'dart:io';
@@ -15,22 +18,18 @@ import '../helpers/tdd_fixture.dart';
 
 void main() {
   late TddFixture fx;
-  late Directory prev;
   const description = 'returns 42 when invoked with no args';
 
   setUp(() async {
-    prev = Directory.current;
     fx = await TddFixture.create(featureName: '046-tdd-verify-red');
     await fx.registerBehavior(
       id: 'B-001',
       description: description,
       sourceCriterion: 'FR-004',
     );
-    Directory.current = fx.root;
   });
 
   tearDown(() {
-    Directory.current = prev;
     fx.dispose();
     exitCode = 0;
   });
@@ -39,7 +38,13 @@ void main() {
     'A1: honestly-red behavior certifies with classification assertion',
     () async {
       final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+      final out = await runner.runCapturing([
+        'tdd',
+        'verify-red',
+        '--project',
+        fx.root.path,
+        'B-001',
+      ]);
 
       expect(
         out,
@@ -57,7 +62,13 @@ void main() {
 
   test('A2: the red entry serializes 8 evidence fields plus kind', () async {
     final runner = CliRunner(exitOnCompletion: false);
-    await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+    await runner.runCapturing([
+      'tdd',
+      'verify-red',
+      '--project',
+      fx.root.path,
+      'B-001',
+    ]);
     final log = await File(fx.cycleLogPath).readAsString();
 
     final orderedFields = [
@@ -83,7 +94,13 @@ void main() {
   test('A3: a certified run modifies no file under test/ or lib/', () async {
     final before = fx.checksumTestAndLib();
     final runner = CliRunner(exitOnCompletion: false);
-    await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+    await runner.runCapturing([
+      'tdd',
+      'verify-red',
+      '--project',
+      fx.root.path,
+      'B-001',
+    ]);
     expect(fx.checksumTestAndLib(), equals(before));
   });
 }
