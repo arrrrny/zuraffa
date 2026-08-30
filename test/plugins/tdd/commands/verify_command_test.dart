@@ -1,4 +1,5 @@
 @Tags(['slow'])
+
 // Tests for the VerifyCommand (spec 044-test-tdd-generation, Phase 8 /
 // T044–T050).
 //
@@ -7,40 +8,30 @@
 // avoid the multi-minute `dart run mutation_test` runtime.
 library;
 
-import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:args/command_runner.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
-import 'package:zuraffa/src/plugins/tdd/commands/verify_red_command.dart'
-    show zfaTddWorkingDirectory;
 
 void main() {
   late Directory tmpDir;
   late String featureDir;
   late String featureName = '044-test-tdd-generation';
+  late Directory prev;
 
   setUp(() {
     tmpDir = Directory.systemTemp.createTempSync('verify_command_test_');
     featureDir = p.join(tmpDir.path, 'specs', featureName);
+    prev = Directory.current;
+    Directory.current = tmpDir;
   });
 
   tearDown(() {
+    Directory.current = prev;
     if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
   });
-
-  /// Zone-pins the CLI run to the temp project — no process-wide
-  /// `Directory.current` mutation (concurrent test files share one cwd).
-  Future<String> runInProject(
-    CliRunner runner,
-    Directory project,
-    List<String> args,
-  ) => runZoned(
-    () => runner.runCapturing(args),
-    zoneValues: {zfaTddWorkingDirectory: project.path},
-  );
 
   Future<void> _seedFeature({
     List<String> behaviorIds = const ['B-003'],
@@ -110,7 +101,7 @@ void main() {
         final runner = CliRunner(exitOnCompletion: false);
         String? output;
         try {
-          output = await runInProject(runner, tmpDir, [
+          output = await runner.runCapturing([
             'tdd',
             'verify',
             '--feature',

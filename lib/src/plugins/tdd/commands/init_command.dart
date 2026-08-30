@@ -1,7 +1,6 @@
 /// `zfa tdd init` — idempotently ensure the Part-1 TDD environment exists.
 library;
 
-import 'dart:async';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -10,7 +9,6 @@ import '../../../cli/writers/tdd/dart_test_yaml_writer.dart';
 import '../../../cli/writers/tdd/pubspec_dev_dependencies_patcher.dart';
 import '../../../cli/writers/tdd/smoke_test_writer.dart';
 import '../../../cli/writers/tdd/tdd_profile_writer.dart';
-import 'verify_red_command.dart' show zfaTddWorkingDirectory;
 import '../tdd_plugin.dart';
 
 class InitCommand extends Command<void> {
@@ -32,9 +30,7 @@ class InitCommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    final cwd =
-        Zone.current[zfaTddWorkingDirectory] as String? ??
-        Directory.current.path;
+    final cwd = Directory.current.path;
     final isFlutter = await _isFlutterProject(cwd);
 
     stdout.writeln(

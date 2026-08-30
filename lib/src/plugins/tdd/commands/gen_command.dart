@@ -25,7 +25,6 @@
 /// `--dry-run`: plans the pair without writing anything (FR-009).
 library;
 
-import 'dart:async';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -34,7 +33,6 @@ import 'package:path/path.dart' as p;
 import '../services/artifact_registry.dart';
 import '../services/behavior_test_writer.dart';
 import '../services/subject_writer.dart';
-import 'verify_red_command.dart' show zfaTddWorkingDirectory;
 import '../tdd_plugin.dart';
 
 class GenCommand extends Command<void> {
@@ -78,9 +76,7 @@ class GenCommand extends Command<void> {
     final behaviorId = rest.first;
     final dryRun = argResults!['dry-run'] as bool;
     final featureFlag = argResults!['feature'] as String?;
-    final cwd =
-        Zone.current[zfaTddWorkingDirectory] as String? ??
-        Directory.current.path;
+    final cwd = Directory.current.path;
 
     // Resolve the behavior. If --feature is set, only scan that one
     // feature's test-list. Otherwise, scan all features and prefer

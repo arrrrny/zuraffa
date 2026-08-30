@@ -1,4 +1,5 @@
 @Tags(['slow'])
+
 // Tests for the SingleTestRunner service (spec 046-tdd-verify-red,
 // U11-U14 / T005, T007).
 //
@@ -18,14 +19,17 @@ import 'helpers/tdd_fixture.dart';
 
 void main() {
   late TddFixture fx;
+  late Directory prev;
   const description = 'returns 42 when invoked with no args';
 
   setUp(() async {
+    prev = Directory.current;
     fx = await TddFixture.create();
     await fx.registerBehavior(id: 'B-001', description: description);
   });
 
   tearDown(() {
+    Directory.current = prev;
     fx.dispose();
   });
 

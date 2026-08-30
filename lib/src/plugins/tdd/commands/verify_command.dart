@@ -22,14 +22,12 @@
 ///  12. Exits non-zero whenever the gate is not PASS (FR-023).
 library;
 
-import 'dart:async';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/mutation_auditor.dart';
-import 'verify_red_command.dart' show zfaTddWorkingDirectory;
 import '../tdd_plugin.dart';
 
 class VerifyCommand extends Command<void> {
@@ -63,9 +61,7 @@ class VerifyCommand extends Command<void> {
     if (feature != null && feature.isNotEmpty) {
       _validateFeatureSegment(feature);
     }
-    final cwd =
-        Zone.current[zfaTddWorkingDirectory] as String? ??
-        Directory.current.path;
+    final cwd = Directory.current.path;
 
     // Resolve the feature directory. Treat empty string as absent.
     final featureName = (feature != null && feature.isNotEmpty)

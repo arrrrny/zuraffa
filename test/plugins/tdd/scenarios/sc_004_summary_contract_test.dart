@@ -1,32 +1,22 @@
 @Tags(['slow'])
+
 // SC-004 acceptance test (spec 046-tdd-verify-red, US4.AC1-AC2 / T016,
 // T024, U26): the summary line is the final stdout line in the pinned
 // contract format on every code path, and exit code 0 occurs exactly on
 // certification.
+//
+// The fixture root is passed via `--project`; this suite never mutates
+// the process-global Directory.current.
 library;
 
-import 'dart:async';
 import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
-import 'package:zuraffa/src/plugins/tdd/commands/verify_red_command.dart'
-    show zfaTddWorkingDirectory;
 
 import '../helpers/tdd_fixture.dart';
 
 void main() {
-  /// Zone-pins the CLI run to the fixture project — no process-wide
-  /// `Directory.current` mutation (concurrent test files share one cwd).
-  Future<String> runInFixture(
-    CliRunner runner,
-    String root,
-    List<String> args,
-  ) => runZoned(
-    () => runner.runCapturing(args),
-    zoneValues: {zfaTddWorkingDirectory: root},
-  );
-
   late TddFixture fx;
   const description = 'returns 42 when invoked with no args';
 
@@ -54,9 +44,11 @@ void main() {
   test('A13/U26: certified run ends with the contract summary line '
       '(final stdout line)', () async {
     final runner = CliRunner(exitOnCompletion: false);
-    final out = await runInFixture(runner, fx.root.path, [
+    final out = await runner.runCapturing([
       'tdd',
       'verify-red',
+      '--project',
+      fx.root.path,
       'B-001',
     ]);
     final match = summaryShape.firstMatch(lastLine(out));
@@ -78,9 +70,11 @@ void main() {
           testContent: TddFixture.greenTest(description),
         );
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runInFixture(runner, fx2.root.path, [
+        final out = await runner.runCapturing([
           'tdd',
           'verify-red',
+          '--project',
+          fx2.root.path,
           'B-001',
         ]);
         final match = summaryShape.firstMatch(lastLine(out));
@@ -98,9 +92,11 @@ void main() {
     'A13/U26: resolution error ends with the contract line (unresolved)',
     () async {
       final runner = CliRunner(exitOnCompletion: false);
-      final out = await runInFixture(runner, fx.root.path, [
+      final out = await runner.runCapturing([
         'tdd',
         'verify-red',
+        '--project',
+        fx.root.path,
         'B-999',
       ]);
       final match = summaryShape.firstMatch(lastLine(out));
@@ -115,15 +111,32 @@ void main() {
       'every rejection is non-zero', () async {
     // Certified -> 0.
     final runner = CliRunner(exitOnCompletion: false);
-    await runInFixture(runner, fx.root.path, ['tdd', 'verify-red', 'B-001']);
+    await runner.runCapturing([
+      'tdd',
+      'verify-red',
+      '--project',
+      fx.root.path,
+      'B-001',
+    ]);
     expect(exitCode, 0, reason: 'certified red must exit 0');
 
     // Rejected (unknown id) -> non-zero.
-    await runInFixture(runner, fx.root.path, ['tdd', 'verify-red', 'B-999']);
+    await runner.runCapturing([
+      'tdd',
+      'verify-red',
+      '--project',
+      fx.root.path,
+      'B-999',
+    ]);
     expect(exitCode, isNot(0), reason: 'resolution failure must be non-zero');
 
     // Rejected (no candidates after certification) -> non-zero.
-    await runInFixture(runner, fx.root.path, ['tdd', 'verify-red']);
+    await runner.runCapturing([
+      'tdd',
+      'verify-red',
+      '--project',
+      fx.root.path,
+    ]);
     expect(
       exitCode,
       isNot(0),
