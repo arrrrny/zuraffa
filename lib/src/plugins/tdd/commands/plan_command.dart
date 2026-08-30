@@ -4,12 +4,22 @@ library;
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 
 import '../services/spec_parser.dart';
 import '../tdd_plugin.dart';
 
 class PlanCommand extends Command<void> {
-  PlanCommand(this.plugin);
+  PlanCommand(this.plugin) {
+    argParser.addOption(
+      'project',
+      aliases: const ['project-root'],
+      help:
+          'Project root containing specs/<feature>/spec.md. When omitted, the '
+          'current working directory is used. Tests pass the temp fixture '
+          'root here instead of mutating Directory.current.',
+    );
+  }
 
   final TddPlugin plugin;
 
@@ -31,7 +41,12 @@ class PlanCommand extends Command<void> {
       usageException('Feature name is required: zfa tdd plan <feature>');
     }
     final feature = rest.first;
-    final repoRoot = Directory.current.path;
+    // Prefer an explicit --project root so the command never depends on the
+    // process-global Directory.current. Falls back to CWD for real CLI use.
+    final projectFlag = argResults?['project'] as String?;
+    final repoRoot = projectFlag != null && projectFlag.isNotEmpty
+        ? p.absolute(projectFlag)
+        : Directory.current.path;
     final specPath = '$repoRoot/specs/$feature/spec.md';
     final specFile = File(specPath);
     if (!await specFile.exists()) {

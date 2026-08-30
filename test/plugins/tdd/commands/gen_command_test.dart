@@ -5,6 +5,9 @@
 // The GenCommand materializes a planned behavior into exactly one test +
 // one compilable subject and persists an artifact record. These tests cover
 // US1.AC1–5 and US2.AC1–3 via the public CLI surface (`zfa tdd gen`).
+//
+// The temp fixture root is passed via `--project`; this suite never mutates
+// the process-global Directory.current.
 library;
 
 import 'dart:io';
@@ -18,17 +21,18 @@ void main() {
   late Directory tmpDir;
   late String featureDir;
   late String featureName = '044-test-tdd-generation';
-  late Directory prev;
+
+  /// Build `zfa tdd gen` args with an explicit project root so the command
+  /// never depends on Directory.current.
+  List<String> genArgs(String id, [List<String> extra = const <String>[]]) =>
+      ['tdd', 'gen', '--project', tmpDir.path, id, ...extra];
 
   setUp(() {
     tmpDir = Directory.systemTemp.createTempSync('gen_command_test_');
     featureDir = p.join(tmpDir.path, 'specs', featureName);
-    prev = Directory.current;
-    Directory.current = tmpDir;
   });
 
   tearDown(() {
-    Directory.current = prev;
     if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
   });
 
@@ -69,7 +73,7 @@ void main() {
       () async {
         await _seedSpecAndTestList();
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(['tdd', 'gen', 'B-003']);
+        final out = await runner.runCapturing(genArgs('B-003'));
         // The command must print a structured result with all six fields.
         expect(out.toLowerCase(), contains('behavior_id: b-003'));
         expect(out, contains('source_criterion: FR-007'));
@@ -103,7 +107,7 @@ void main() {
       () async {
         await _seedSpecAndTestList();
         final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing(['tdd', 'gen', 'B-003']);
+        await runner.runCapturing(genArgs('B-003'));
 
         // Locate the generated test file.
         final testFiles = await _findGeneratedFiles(
@@ -160,13 +164,13 @@ dependencies:
       final runner = CliRunner(exitOnCompletion: false);
       // The CliRunner throws UsageException on non-zero exits; we catch
       // the printed output.
-      String? output;
+      String output;
       try {
-        output = await runner.runCapturing(['tdd', 'gen', 'B-UNKNOWN']);
+        output = await runner.runCapturing(genArgs('B-UNKNOWN'));
       } on UsageException catch (e) {
         output = e.message;
       }
-      expect(output?.toLowerCase(), contains('unknown behavior id'));
+      expect(output.toLowerCase(), contains('unknown behavior id'));
       // No files written.
       final testFiles = await _findGeneratedFiles(
         '${tmpDir.path}/test',
@@ -197,7 +201,7 @@ dependencies:
 | B-009 |  | FR-009 | unit | PENDING | sampleSubject |
 ''');
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing(['tdd', 'gen', 'B-009']);
+      final output = await runner.runCapturing(genArgs('B-009'));
       expect(
         output.toLowerCase(),
         anyOf(
@@ -227,7 +231,7 @@ dependencies:
           target: 'scenarioRunner',
         );
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(['tdd', 'gen', 'B-010']);
+        final out = await runner.runCapturing(genArgs('B-010'));
         expect(out, contains('behavior_id: B-010'));
 
         final subjectFiles = await _findGeneratedFiles(
@@ -265,9 +269,9 @@ dependencies:
     test('repeat creates zero duplicate artifacts; ownership=reused', () async {
       await _seedSpecAndTestList();
       final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing(['tdd', 'gen', 'B-003']);
+      await runner.runCapturing(genArgs('B-003'));
       // Repeat.
-      final out2 = await runner.runCapturing(['tdd', 'gen', 'B-003']);
+      final out2 = await runner.runCapturing(genArgs('B-003'));
       expect(out2.toLowerCase(), contains('ownership: reused'));
 
       // Still exactly one test + one subject.
@@ -304,7 +308,7 @@ dependencies:
         final bytesBefore = await File(expectedTestPath).readAsBytes();
 
         final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing(['tdd', 'gen', 'B-003']);
+        final output = await runner.runCapturing(genArgs('B-003'));
         expect(
           output.toLowerCase(),
           anyOf(
@@ -335,7 +339,7 @@ dependencies:
         await Directory(subjectPath).create(recursive: true);
 
         final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing(['tdd', 'gen', 'B-003']);
+        final output = await runner.runCapturing(genArgs('B-003'));
 
         expect(output, contains('Error:'));
         expect(
@@ -356,12 +360,7 @@ dependencies:
     test('--dry-run plans without writing', () async {
       await _seedSpecAndTestList();
       final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing([
-        'tdd',
-        'gen',
-        'B-003',
-        '--dry-run',
-      ]);
+      final out = await runner.runCapturing(genArgs('B-003', ['--dry-run']));
       expect(out.toLowerCase(), contains('ownership: planned'));
       // No files written.
       final testFiles = await _findGeneratedFiles(

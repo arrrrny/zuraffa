@@ -4,6 +4,7 @@ library;
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 
 import '../../../cli/writers/tdd/dart_test_yaml_writer.dart';
 import '../../../cli/writers/tdd/pubspec_dev_dependencies_patcher.dart';
@@ -12,7 +13,16 @@ import '../../../cli/writers/tdd/tdd_profile_writer.dart';
 import '../tdd_plugin.dart';
 
 class InitCommand extends Command<void> {
-  InitCommand(this.plugin);
+  InitCommand(this.plugin) {
+    argParser.addOption(
+      'project',
+      aliases: const ['project-root'],
+      help:
+          'Project root to initialize the TDD baseline in. When omitted, the '
+          'current working directory is used. Tests pass the temp fixture '
+          'root here instead of mutating Directory.current.',
+    );
+  }
 
   final TddPlugin plugin;
 
@@ -30,7 +40,12 @@ class InitCommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    final cwd = Directory.current.path;
+    // Prefer an explicit --project root so the command never depends on the
+    // process-global Directory.current. Falls back to CWD for real CLI use.
+    final projectFlag = argResults?['project'] as String?;
+    final cwd = projectFlag != null && projectFlag.isNotEmpty
+        ? p.absolute(projectFlag)
+        : Directory.current.path;
     final isFlutter = await _isFlutterProject(cwd);
 
     stdout.writeln(

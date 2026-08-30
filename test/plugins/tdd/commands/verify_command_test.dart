@@ -19,73 +19,15 @@ void main() {
   late Directory tmpDir;
   late String featureDir;
   late String featureName = '044-test-tdd-generation';
-  late Directory prev;
 
   setUp(() {
     tmpDir = Directory.systemTemp.createTempSync('verify_command_test_');
     featureDir = p.join(tmpDir.path, 'specs', featureName);
-    prev = Directory.current;
-    Directory.current = tmpDir;
   });
 
   tearDown(() {
-    Directory.current = prev;
     if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
   });
-
-  Future<void> _seedFeature({
-    List<String> behaviorIds = const ['B-003'],
-    String subjectContent = 'library;',
-  }) async {
-    final specDir = Directory(featureDir);
-    await specDir.create(recursive: true);
-    await File(p.join(specDir.path, 'spec.md')).writeAsString('''
-# Spec for verify_command_test
-''');
-    final tddDir = Directory(p.join(specDir.path, 'tdd'));
-    await tddDir.create(recursive: true);
-    // Write a minimal artifacts.json with one record.
-    final records = behaviorIds
-        .map(
-          (id) => {
-            'behavior_id': id,
-            'feature': featureName,
-            'source_criterion': 'FR-007',
-            'test_path': 'test/${id.toLowerCase()}_test.dart',
-            'subject_path': 'lib/${id.toLowerCase()}_subject.dart',
-            'runnable_test_name':
-                'test/${id.toLowerCase()}_test.dart::$id::asserts behavior',
-            'test_ownership': 'created',
-            'subject_ownership': 'created',
-            'created_at': '2026-08-29T20:00:00Z',
-          },
-        )
-        .toList();
-    await File(p.join(tddDir.path, 'artifacts.json')).writeAsString(
-      '{"records": ${records.map((r) => r.toString()).join(',')}}',
-    );
-    // Write the subject file on disk.
-    for (final id in behaviorIds) {
-      final subjectFile = File(
-        p.join(tmpDir.path, 'lib', '${id.toLowerCase()}_subject.dart'),
-      );
-      await subjectFile.parent.create(recursive: true);
-      await subjectFile.writeAsString(subjectContent);
-    }
-    // Write the test file on disk (so preflight has something to run).
-    for (final id in behaviorIds) {
-      final testFile = File(
-        p.join(tmpDir.path, 'test', '${id.toLowerCase()}_test.dart'),
-      );
-      await testFile.parent.create(recursive: true);
-      await testFile.writeAsString('''
-import 'package:test/test.dart';
-void main() {
-  test('placeholder', () {});
-}
-''');
-    }
-  }
 
   group('VerifyCommand — no artifacts registered (FR-012)', () {
     test(
@@ -99,22 +41,24 @@ void main() {
         // No artifacts.json.
 
         final runner = CliRunner(exitOnCompletion: false);
-        String? output;
+        String output;
         try {
           output = await runner.runCapturing([
             'tdd',
             'verify',
+            '--project',
+            tmpDir.path,
             '--feature',
             featureName,
           ]);
         } on UsageException catch (e) {
           output = e.message;
         } on StateError catch (e) {
-          output = e.message ?? '';
+          output = e.message;
         }
-        expect(output?.toLowerCase(), contains('not_assessed'));
+        expect(output.toLowerCase(), contains('not_assessed'));
         expect(
-          output?.toLowerCase(),
+          output.toLowerCase(),
           contains('no behavior artifacts registered'),
         );
         // verification.md is written from the REAL run regardless of the

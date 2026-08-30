@@ -52,6 +52,14 @@ class GenCommand extends Command<void> {
           'When omitted, all feature dirs are scanned and the first match '
           'wins (with a preference for the cwd-matching feature).',
     );
+    argParser.addOption(
+      'project',
+      aliases: const ['project-root'],
+      help:
+          'Project root containing specs/, test/, and lib/. When omitted, the '
+          'current working directory is used. Tests pass the temp fixture '
+          'root here instead of mutating Directory.current.',
+    );
   }
 
   final TddPlugin plugin;
@@ -76,7 +84,12 @@ class GenCommand extends Command<void> {
     final behaviorId = rest.first;
     final dryRun = argResults!['dry-run'] as bool;
     final featureFlag = argResults!['feature'] as String?;
-    final cwd = Directory.current.path;
+    // Prefer an explicit --project root so the command never depends on the
+    // process-global Directory.current. Falls back to CWD for real CLI use.
+    final projectFlag = argResults!['project'] as String?;
+    final cwd = projectFlag != null && projectFlag.isNotEmpty
+        ? p.absolute(projectFlag)
+        : Directory.current.path;
 
     // Resolve the behavior. If --feature is set, only scan that one
     // feature's test-list. Otherwise, scan all features and prefer

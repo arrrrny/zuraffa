@@ -8,8 +8,13 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import '../../helpers/project_root.dart';
 
 void main() {
+  // Repo root, resolved once and CWD-independently, so the plan subcommand
+  // runs against the real specs/ tree without relying on Directory.current.
+  final repoRoot = findProjectRoot();
+
   test('zfa tdd --help lists all eight subcommands', () async {
     final runner = CliRunner(exitOnCompletion: false);
     final out = await runner.runCapturing(['tdd', '--help']);
@@ -56,56 +61,56 @@ void main() {
     'zfa tdd verify rejects a path-shaped --feature before auditing',
     () async {
       final tmpDir = Directory.systemTemp.createTempSync('zfa_tdd_verify_');
-      final prev = Directory.current;
-      try {
-        Directory.current = tmpDir;
-        final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing([
-          'tdd',
-          'verify',
-          '--feature',
-          '../../etc',
-        ]);
-        expect(out, contains('invalid --feature'));
-        // Rejected up front: the runner never announced a start, so no
-        // multi-minute audit is spent before an unusable flag is caught.
-        expect(out, isNot(contains('running mutation_test')));
-      } finally {
-        Directory.current = prev;
-        if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
-      }
+      // The fixture root is passed via --project so the command never
+      // depends on the process-global Directory.current.
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'verify',
+        '--project',
+        tmpDir.path,
+        '--feature',
+        '../../etc',
+      ]);
+      expect(out, contains('invalid --feature'));
+      // Rejected up front: the runner never announced a start, so no
+      // multi-minute audit is spent before an unusable flag is caught.
+      expect(out, isNot(contains('running mutation_test')));
+      if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
     },
   );
 
   test('zfa tdd plan on a missing spec exits non-zero', () async {
     final runner = CliRunner(exitOnCompletion: false);
-    final out = await runner.runCapturing(['tdd', 'plan', 'does-not-exist']);
+    final out = await runner.runCapturing([
+      'tdd',
+      'plan',
+      'does-not-exist',
+      '--project',
+      await repoRoot,
+    ]);
     expect(out.toLowerCase(), contains('spec not found'));
   });
 
   test('zfa tdd init on an empty directory is idempotent', () async {
     final tmpDir = Directory.systemTemp.createTempSync('zfa_tdd_init_smoke_');
-    final prev = Directory.current;
-    try {
-      Directory.current = tmpDir;
-      await File('${tmpDir.path}/pubspec.yaml').writeAsString('''
+    // The fixture root is passed via --project so the command never depends
+    // on the process-global Directory.current.
+    await File('${tmpDir.path}/pubspec.yaml').writeAsString('''
 name: smoke
 environment:
   sdk: ^3.11.0
 dependencies: {}
 dev_dependencies: {}
 ''');
-      final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing(['tdd', 'init']);
-      final runner2 = CliRunner(exitOnCompletion: false);
-      await runner2.runCapturing(['tdd', 'init']);
-      final smoke = File('${tmpDir.path}/test/bootstrap_smoke_test.dart');
-      expect(smoke.existsSync(), isTrue);
-      final profile = File('${tmpDir.path}/.specify/memory/tdd-profile.md');
-      expect(profile.existsSync(), isTrue);
-    } finally {
-      Directory.current = prev;
-      if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
-    }
+    final runner = CliRunner(exitOnCompletion: false);
+    await runner.runCapturing(['tdd', 'init', '--project', tmpDir.path]);
+    final runner2 = CliRunner(exitOnCompletion: false);
+    await runner2.runCapturing(['tdd', 'init', '--project', tmpDir.path]);
+    final smoke = File('${tmpDir.path}/test/bootstrap_smoke_test.dart');
+    expect(smoke.existsSync(), isTrue);
+    final profile = File('${tmpDir.path}/.specify/memory/tdd-profile.md');
+    expect(profile.existsSync(), isTrue);
+    if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
   });
 }

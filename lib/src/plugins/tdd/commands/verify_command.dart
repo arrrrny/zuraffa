@@ -39,6 +39,14 @@ class VerifyCommand extends Command<void> {
           'its scope from specs/<feature>/tdd/artifacts.json and writes '
           'specs/<feature>/tdd/verification.md.',
     );
+    argParser.addOption(
+      'project',
+      aliases: const ['project-root'],
+      help:
+          'Project root containing specs/, test/, and lib/. When omitted, the '
+          'current working directory is used. Tests pass the temp fixture '
+          'root here instead of mutating Directory.current.',
+    );
   }
 
   final TddPlugin plugin;
@@ -61,7 +69,12 @@ class VerifyCommand extends Command<void> {
     if (feature != null && feature.isNotEmpty) {
       _validateFeatureSegment(feature);
     }
-    final cwd = Directory.current.path;
+    // Prefer an explicit --project root so the command never depends on the
+    // process-global Directory.current. Falls back to CWD for real CLI use.
+    final projectFlag = argResults?['project'] as String?;
+    final cwd = projectFlag != null && projectFlag.isNotEmpty
+        ? p.absolute(projectFlag)
+        : Directory.current.path;
 
     // Resolve the feature directory. Treat empty string as absent.
     final featureName = (feature != null && feature.isNotEmpty)
