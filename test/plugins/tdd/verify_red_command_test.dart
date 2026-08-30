@@ -6,41 +6,55 @@
 // runner executes a REAL `dart test` subprocess inside the fixture.
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
-
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/plugins/tdd/commands/verify_red_command.dart'
+    show zfaTddWorkingDirectory;
 
 import 'helpers/tdd_fixture.dart';
 
 void main() {
   late TddFixture fx;
-  late Directory prev;
   const description = 'returns 42 when invoked with no args';
 
   setUp(() async {
-    prev = Directory.current;
     fx = await TddFixture.create();
     await fx.registerBehavior(id: 'B-001', description: description);
-    Directory.current = fx.root;
   });
 
   tearDown(() {
-    Directory.current = prev;
     fx.dispose();
     // The command signals rejection through dart:io `exitCode` (the
     // CliRunner honors it); reset between tests so each starts clean.
     exitCode = 0;
   });
 
+  /// Runs the CLI pinned to the fixture project through the zone-scoped
+  /// working directory — no process-wide `Directory.current` mutation
+  /// (dart test runs test files in isolates that share one process cwd).
+  Future<String> runInFixture(
+    CliRunner runner,
+    TddFixture fixture,
+    List<String> args,
+  ) => runZoned(
+    () => runner.runCapturing(args),
+    zoneValues: {zfaTddWorkingDirectory: fixture.root.path},
+  );
+
   group('certified honest red (US1 / FR-001, FR-003, FR-006, FR-009)', () {
     test(
       'U23/A1: honest red certifies — exit 0, summary line, one complete entry',
       () async {
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+        final out = await runInFixture(runner, fx, [
+          'tdd',
+          'verify-red',
+          'B-001',
+        ]);
 
         // Machine-readable summary line (FR-009).
         expect(
@@ -79,7 +93,7 @@ void main() {
       () async {
         final before = fx.checksumTestAndLib();
         final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+        await runInFixture(runner, fx, ['tdd', 'verify-red', 'B-001']);
         expect(fx.checksumTestAndLib(), equals(before));
       },
     );
@@ -111,9 +125,9 @@ void main() {
     test('re-run on a certified behavior appends a second dated entry '
         '(append-only history, spec edge case)', () async {
       final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+      await runInFixture(runner, fx, ['tdd', 'verify-red', 'B-001']);
       final first = await File(fx.cycleLogPath).readAsString();
-      await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+      await runInFixture(runner, fx, ['tdd', 'verify-red', 'B-001']);
       final second = await File(fx.cycleLogPath).readAsString();
 
       expect(second.length, greaterThan(first.length));
@@ -129,7 +143,11 @@ void main() {
         final profile = File('${fx.root.path}/.specify/memory/tdd-profile.md');
         profile.deleteSync();
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+        final out = await runInFixture(runner, fx, [
+          'tdd',
+          'verify-red',
+          'B-001',
+        ]);
         expect(out.toLowerCase(), contains('tdd-profile.md'));
         expect(
           out,
@@ -159,7 +177,7 @@ void main() {
         : null;
     final checksumsBefore = fx.checksumTestAndLib();
 
-    final out = await runner.runCapturing(['tdd', 'verify-red', id]);
+    final out = await runInFixture(runner, fx, ['tdd', 'verify-red', id]);
     expect(
       out,
       contains(
@@ -186,7 +204,6 @@ void main() {
     test('A4: compile-broken test -> compile-error, no evidence', () async {
       final fx2 = await TddFixture.create();
       try {
-        Directory.current = fx2.root;
         await fx2.registerBehavior(
           id: 'B-001',
           description: description,
@@ -198,7 +215,6 @@ void main() {
           classification: 'compile-error',
         );
       } finally {
-        Directory.current = prev;
         fx2.dispose();
         exitCode = 0;
       }
@@ -207,7 +223,6 @@ void main() {
     test('A5: registry points at a missing file -> load-error', () async {
       final fx2 = await TddFixture.create();
       try {
-        Directory.current = fx2.root;
         await fx2.registerBehavior(
           id: 'B-001',
           description: description,
@@ -219,7 +234,6 @@ void main() {
           classification: 'load-error',
         );
       } finally {
-        Directory.current = prev;
         fx2.dispose();
         exitCode = 0;
       }
@@ -228,7 +242,6 @@ void main() {
     test('A6: passing target test -> unexpected-green', () async {
       final fx2 = await TddFixture.create();
       try {
-        Directory.current = fx2.root;
         await fx2.registerBehavior(
           id: 'B-001',
           description: description,
@@ -240,7 +253,6 @@ void main() {
           classification: 'unexpected-green',
         );
       } finally {
-        Directory.current = prev;
         fx2.dispose();
         exitCode = 0;
       }
@@ -249,7 +261,6 @@ void main() {
     test('A7: skipped target test -> skipped', () async {
       final fx2 = await TddFixture.create();
       try {
-        Directory.current = fx2.root;
         await fx2.registerBehavior(
           id: 'B-001',
           description: description,
@@ -257,7 +268,6 @@ void main() {
         );
         await expectRejection(fx: fx2, id: 'B-001', classification: 'skipped');
       } finally {
-        Directory.current = prev;
         fx2.dispose();
         exitCode = 0;
       }
@@ -268,7 +278,6 @@ void main() {
       () async {
         final fx2 = await TddFixture.create();
         try {
-          Directory.current = fx2.root;
           // The registry name is a substring of BOTH tests in the file, so
           // the single-test filter matches two tests.
           await fx2.registerBehavior(
@@ -285,7 +294,6 @@ void main() {
             classification: 'runner-error',
           );
         } finally {
-          Directory.current = prev;
           fx2.dispose();
           exitCode = 0;
         }
@@ -300,7 +308,6 @@ void main() {
               'definitely_not_a_real_binary_xyz {file} --plain-name "{name}"',
         );
         try {
-          Directory.current = fx2.root;
           await fx2.registerBehavior(id: 'B-001', description: description);
           await expectRejection(
             fx: fx2,
@@ -308,7 +315,6 @@ void main() {
             classification: 'runner-error',
           );
         } finally {
-          Directory.current = prev;
           fx2.dispose();
           exitCode = 0;
         }
@@ -320,7 +326,6 @@ void main() {
       () async {
         final fx2 = await TddFixture.create();
         try {
-          Directory.current = fx2.root;
           await fx2.registerBehavior(id: 'B-001', description: description);
           await fx2.registerBehavior(
             id: 'B-002',
@@ -332,11 +337,10 @@ void main() {
           final before = await File(fx2.cycleLogPath).readAsString();
 
           final runner = CliRunner(exitOnCompletion: false);
-          await runner.runCapturing(['tdd', 'verify-red', 'B-002']);
+          await runInFixture(runner, fx2, ['tdd', 'verify-red', 'B-002']);
           expect(exitCode, isNot(0));
           expect(await File(fx2.cycleLogPath).readAsString(), before);
         } finally {
-          Directory.current = prev;
           fx2.dispose();
           exitCode = 0;
         }
@@ -349,13 +353,16 @@ void main() {
         '(works even with no profile present)', () async {
       final fx2 = await TddFixture.create();
       try {
-        Directory.current = fx2.root;
         // No profile: if the command tried to run anything it would
         // misfire on the missing profile instead — so seeing the
         // unknown-id error proves resolution happens first.
         File('${fx2.root.path}/.specify/memory/tdd-profile.md').deleteSync();
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(['tdd', 'verify-red', 'B-999']);
+        final out = await runInFixture(runner, fx2, [
+          'tdd',
+          'verify-red',
+          'B-999',
+        ]);
         expect(out, contains('B-999'));
         expect(out, contains('unknown behavior id'));
         expect(
@@ -367,7 +374,6 @@ void main() {
         );
         expect(exitCode, isNot(0));
       } finally {
-        Directory.current = prev;
         fx2.dispose();
         exitCode = 0;
       }
@@ -377,7 +383,7 @@ void main() {
       'U19: no-arg with exactly one uncertified gen\'d behavior verifies it',
       () async {
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(['tdd', 'verify-red']);
+        final out = await runInFixture(runner, fx, ['tdd', 'verify-red']);
         expect(
           out,
           contains(
@@ -396,7 +402,7 @@ void main() {
       () async {
         await fx.registerBehavior(id: 'B-002', description: description);
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(['tdd', 'verify-red']);
+        final out = await runInFixture(runner, fx, ['tdd', 'verify-red']);
         expect(out, contains('ambiguous'));
         expect(out, contains('B-001'));
         expect(out, contains('B-002'));
@@ -416,16 +422,14 @@ void main() {
     test('U21: no-arg with zero candidates states that none exist', () async {
       final fx2 = await TddFixture.create();
       try {
-        Directory.current = fx2.root;
         // Registry exists but every behavior already has red evidence.
         await fx2.registerBehavior(id: 'B-001', description: description);
         await fx2.seedRedEvidence('B-001');
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(['tdd', 'verify-red']);
+        final out = await runInFixture(runner, fx2, ['tdd', 'verify-red']);
         expect(out, contains('no behavior with gen artifacts'));
         expect(exitCode, isNot(0));
       } finally {
-        Directory.current = prev;
         fx2.dispose();
         exitCode = 0;
       }
@@ -446,7 +450,11 @@ void main() {
 ''',
         );
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(['tdd', 'verify-red', 'B-777']);
+        final out = await runInFixture(runner, fx, [
+          'tdd',
+          'verify-red',
+          'B-777',
+        ]);
         expect(out, contains('B-777'));
         expect(out, contains('zfa tdd gen B-777'));
         expect(exitCode, isNot(0));
@@ -471,7 +479,11 @@ void main() {
           '"created_at":"2026-08-30T00:00:00.000Z"}]}',
         );
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+        final out = await runInFixture(runner, fx, [
+          'tdd',
+          'verify-red',
+          'B-001',
+        ]);
         expect(out, contains('ambiguous'));
         expect(out, contains(fx.featureName));
         expect(out, contains(otherFeature));
@@ -492,7 +504,7 @@ void main() {
       'certified and rejected runs both emit the pinned line format',
       () async {
         final runner = CliRunner(exitOnCompletion: false);
-        final certified = await runner.runCapturing([
+        final certified = await runInFixture(runner, fx, [
           'tdd',
           'verify-red',
           'B-001',
@@ -503,7 +515,7 @@ void main() {
         expect(m1!.group(3), 'true');
 
         // Rejected run: unknown id (no subprocess cost).
-        final rejected = await runner.runCapturing([
+        final rejected = await runInFixture(runner, fx, [
           'tdd',
           'verify-red',
           'B-999',

@@ -4,31 +4,41 @@
 // writes under test/ or lib/.
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/plugins/tdd/commands/verify_red_command.dart'
+    show zfaTddWorkingDirectory;
 
 import '../helpers/tdd_fixture.dart';
 
 void main() {
+  /// Zone-pins the CLI run to the fixture project — no process-wide
+  /// `Directory.current` mutation (concurrent test files share one cwd).
+  Future<String> runInFixture(
+    CliRunner runner,
+    String root,
+    List<String> args,
+  ) => runZoned(
+    () => runner.runCapturing(args),
+    zoneValues: {zfaTddWorkingDirectory: root},
+  );
+
   late TddFixture fx;
-  late Directory prev;
   const description = 'returns 42 when invoked with no args';
 
   setUp(() async {
-    prev = Directory.current;
     fx = await TddFixture.create(featureName: '046-tdd-verify-red');
     await fx.registerBehavior(
       id: 'B-001',
       description: description,
       sourceCriterion: 'FR-004',
     );
-    Directory.current = fx.root;
   });
 
   tearDown(() {
-    Directory.current = prev;
     fx.dispose();
     exitCode = 0;
   });
@@ -37,7 +47,11 @@ void main() {
     'A1: honestly-red behavior certifies with classification assertion',
     () async {
       final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+      final out = await runInFixture(runner, fx.root.path, [
+        'tdd',
+        'verify-red',
+        'B-001',
+      ]);
 
       expect(
         out,
@@ -55,7 +69,7 @@ void main() {
 
   test('A2: the red entry serializes 8 evidence fields plus kind', () async {
     final runner = CliRunner(exitOnCompletion: false);
-    await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+    await runInFixture(runner, fx.root.path, ['tdd', 'verify-red', 'B-001']);
     final log = await File(fx.cycleLogPath).readAsString();
 
     final orderedFields = [
@@ -81,7 +95,7 @@ void main() {
   test('A3: a certified run modifies no file under test/ or lib/', () async {
     final before = fx.checksumTestAndLib();
     final runner = CliRunner(exitOnCompletion: false);
-    await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+    await runInFixture(runner, fx.root.path, ['tdd', 'verify-red', 'B-001']);
     expect(fx.checksumTestAndLib(), equals(before));
   });
 }
