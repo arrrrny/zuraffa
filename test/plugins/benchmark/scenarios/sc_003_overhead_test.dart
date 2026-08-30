@@ -56,13 +56,17 @@ void main() {
       return best;
     }
 
-    // One runner, warmed up first so the git-commit lookup (cached per
-    // runner) and JIT paths do not pollute the measurement.
+    // Warm up the runner AND the full 30-iteration framed path so the JIT
+    // compilation of the benchmark pipeline + workload loop does not pollute
+    // the timed measurements. The previous warm-up used `iterations: 1`,
+    // leaving the real 30-iteration path cold on the first timed run — which
+    // made the overhead ratio noisy (flaky first-run failures).
     final runner = DefaultBenchmarkRunner();
     await runner.runSingle(
       _OverheadScenario(workload),
-      config: const {'iterations': 1},
+      config: const {'iterations': 30},
     );
+    workload(); // also prime the direct workload path
 
     final raw = await minRaw();
     final framed = await minFramed(runner);
