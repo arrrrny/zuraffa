@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 // Tests for the SingleTestRunner service (spec 046-tdd-verify-red,
 // U11-U14 / T005, T007).
 //

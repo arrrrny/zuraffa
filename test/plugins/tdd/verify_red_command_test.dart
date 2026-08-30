@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 // Tests for the VerifyRedCommand (spec 046-tdd-verify-red, T008, T009,
 // T010 — certified honest-red path; U23, U25, U27, A1-A3).
 //
@@ -13,22 +15,27 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
+import '../../helpers/project_root.dart';
 import 'helpers/tdd_fixture.dart';
 
 void main() {
   late TddFixture fx;
-  late Directory prev;
+  // Captured once per test. Resolved via the CWD-independent package URI so it
+  // is immune to concurrent CWD mutation by other test files (which can leave
+  // Directory.current pointing at a since-deleted temp dir). The repo root
+  // always exists, so restoring to it can never throw.
+  late String repoRoot;
   const description = 'returns 42 when invoked with no args';
 
   setUp(() async {
-    prev = Directory.current;
+    repoRoot = await findProjectRoot();
     fx = await TddFixture.create();
     await fx.registerBehavior(id: 'B-001', description: description);
     Directory.current = fx.root;
   });
 
   tearDown(() {
-    Directory.current = prev;
+    Directory.current = Directory(repoRoot);
     fx.dispose();
     // The command signals rejection through dart:io `exitCode` (the
     // CliRunner honors it); reset between tests so each starts clean.
@@ -198,7 +205,7 @@ void main() {
           classification: 'compile-error',
         );
       } finally {
-        Directory.current = prev;
+        Directory.current = Directory(repoRoot);
         fx2.dispose();
         exitCode = 0;
       }
@@ -219,7 +226,7 @@ void main() {
           classification: 'load-error',
         );
       } finally {
-        Directory.current = prev;
+        Directory.current = Directory(repoRoot);
         fx2.dispose();
         exitCode = 0;
       }
@@ -240,7 +247,7 @@ void main() {
           classification: 'unexpected-green',
         );
       } finally {
-        Directory.current = prev;
+        Directory.current = Directory(repoRoot);
         fx2.dispose();
         exitCode = 0;
       }
@@ -257,7 +264,7 @@ void main() {
         );
         await expectRejection(fx: fx2, id: 'B-001', classification: 'skipped');
       } finally {
-        Directory.current = prev;
+        Directory.current = Directory(repoRoot);
         fx2.dispose();
         exitCode = 0;
       }
@@ -285,7 +292,7 @@ void main() {
             classification: 'runner-error',
           );
         } finally {
-          Directory.current = prev;
+          Directory.current = Directory(repoRoot);
           fx2.dispose();
           exitCode = 0;
         }
@@ -308,7 +315,7 @@ void main() {
             classification: 'runner-error',
           );
         } finally {
-          Directory.current = prev;
+          Directory.current = Directory(repoRoot);
           fx2.dispose();
           exitCode = 0;
         }
@@ -336,7 +343,7 @@ void main() {
           expect(exitCode, isNot(0));
           expect(await File(fx2.cycleLogPath).readAsString(), before);
         } finally {
-          Directory.current = prev;
+          Directory.current = Directory(repoRoot);
           fx2.dispose();
           exitCode = 0;
         }
@@ -367,7 +374,7 @@ void main() {
         );
         expect(exitCode, isNot(0));
       } finally {
-        Directory.current = prev;
+        Directory.current = Directory(repoRoot);
         fx2.dispose();
         exitCode = 0;
       }
@@ -425,7 +432,7 @@ void main() {
         expect(out, contains('no behavior with gen artifacts'));
         expect(exitCode, isNot(0));
       } finally {
-        Directory.current = prev;
+        Directory.current = Directory(repoRoot);
         fx2.dispose();
         exitCode = 0;
       }

@@ -1,3 +1,5 @@
+@Tags(['slow'])
+
 // SC-003 acceptance test (spec 046-tdd-verify-red, US3.AC1-AC4 / T023):
 // unambiguous target resolution — single-candidate inference, ambiguity
 // rejection with a candidate list, unknown id, and gen-first guidance.
