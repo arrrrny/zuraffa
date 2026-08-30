@@ -59,7 +59,7 @@ name lists, and threaded it through the barrel pipeline:
 
 ## Verification
 
-```
+```text
 dart test test/plugins/slice/engine/barrel_resolver_test.dart   -> 8 passed
 dart test test/plugins/slice/                                    -> 78 passed
 dart test --preset=all test/plugins/slice/slice_cut_integration_test.dart -> 9 passed

@@ -281,9 +281,14 @@ export 'overlay_card.dart' show OverlayCard;
           directives,
           contains("export 'overlay_card.dart' show OverlayCard;"),
         );
-        // BaseCard is declared in both targets but hidden by both show clauses,
-        // so it must not be re-exported (no duplicate-export error in the sandbox).
-        expect(directives.join('\n'), isNot(contains('BaseCard')));
+
+        final hiddenCollision = await resolver.expandImport(
+          importedPath: barrel.path,
+          importerSource: 'class View { Widget build() => BaseCard(); }',
+          shownSymbols: const ['BaseCard'],
+        );
+        // BaseCard is declared in both targets but hidden by both show clauses.
+        expect(hiddenCollision, isEmpty);
       },
     );
   });

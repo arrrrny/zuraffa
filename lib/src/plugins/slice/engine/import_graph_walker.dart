@@ -388,10 +388,16 @@ class ImportGraphWalker {
       shownSymbols: info.shownSymbols,
     );
     final existing = barrels?[target] ?? const <BarrelExport>[];
-    barrels?[target] = [
-      ...existing,
-      ...kept.where((k) => !existing.contains(k)),
-    ];
+    final merged = [...existing];
+    for (final candidate in kept) {
+      final alreadyKept = merged.any(
+        (item) =>
+            item.targetPath == candidate.targetPath &&
+            item.directiveText == candidate.directiveText,
+      );
+      if (!alreadyKept) merged.add(candidate);
+    }
+    barrels?[target] = merged;
     return kept.map((e) => e.targetPath).toList();
   }
 
