@@ -67,3 +67,28 @@ because the log is append-only.
 - refactor: none needed — the rendering is one writeln cascade in the
   shape the contract pins.
 - commit: (this commit)
+
+## Cycle 2: U1-U10 — RedClassification model + pure classify()
+
+- behaviors: U1-U10 (the full classifier fixture matrix) plus the
+  RedClassification/RunRecord model contract
+- test: `test/plugins/tdd/red_classifier_test.dart` (new) — 30 tests;
+  canned outputs captured from real `dart test` 3.13 runs (assertion,
+  flutter-shaped assertion, green, skipped, missing file, missing import,
+  compile error, bare CFE/flutter compile shape, blended, uncaught error,
+  timeout)
+- red: `dart test test/plugins/tdd/red_classifier_test.dart` ->
+  `Error: Error when reading
+  'lib/src/plugins/tdd/models/red_classification.dart': No such file or
+  directory` (modules absent — compile-level red, the language needs the
+  symbols first)
+- green: implemented `models/red_classification.dart` (six-way enum with
+  kebab labels + remediation hints, RunRecord value object) and
+  `services/red_classifier.dart` (pure `classify()` with the fixed
+  precedence runner-start -> load -> compile -> count-guard -> skip ->
+  green -> assertion -> runner-error, plus `parseExecutedTestCount()` on
+  the last progress line). Suite
+  `dart test test/plugins/tdd/` -> 140 passed, 0 failed.
+- refactor: none — the rules are one cascade in the order research.md
+  Decision 3 pins.
+- commit: (this commit)
