@@ -260,10 +260,21 @@ class CutSliceCapability implements ZuraffaCapability {
     final generatedFiles = <String>[];
     final mockRegistrations = <MockRegistration>[];
     for (final boundary in walkResult.boundaries) {
-      final interfaceTarget = p.join(sandboxDir, boundary.interfaceFile);
-      final interfaceFile = File(p.join(projectRoot, boundary.interfaceFile));
-      if (await interfaceFile.exists()) {
-        await _copyFile(interfaceFile, interfaceTarget);
+      final interfaceIncluded = layerAllowedAtDepth(
+        classifyLayer(boundary.interfaceFile),
+        depth,
+      );
+      // Only copy the real interface file when it lives in an included layer.
+      // At shallower depths a boundary may resolve to an excluded concrete file
+      // (e.g. the concrete ProductPresenter at `--depth view`); copying it would
+      // drag the excluded layer into the sandbox (A13 violation). The mock
+      // generator emits an inline abstract interface for those instead.
+      if (interfaceIncluded) {
+        final interfaceTarget = p.join(sandboxDir, boundary.interfaceFile);
+        final interfaceFile = File(p.join(projectRoot, boundary.interfaceFile));
+        if (await interfaceFile.exists()) {
+          await _copyFile(interfaceFile, interfaceTarget);
+        }
       }
       final mock = await _mockGenerator.generate(
         boundary: boundary,
@@ -281,12 +292,17 @@ class CutSliceCapability implements ZuraffaCapability {
           mockClassName: 'Mock${boundary.typeName}',
           mockImportPath: _relativeImport(
             fromDir: p.join(sandboxDir, 'lib', 'src', 'di'),
-            target: p.join(sandboxDir, mock.relativePath),
+            target: mockAbs,
           ),
-          interfaceImportPath: _relativeImport(
-            fromDir: p.join(sandboxDir, 'lib', 'src', 'di'),
-            target: interfaceTarget,
-          ),
+          interfaceImportPath: interfaceIncluded
+              ? _relativeImport(
+                  fromDir: p.join(sandboxDir, 'lib', 'src', 'di'),
+                  target: p.join(sandboxDir, boundary.interfaceFile),
+                )
+              : _relativeImport(
+                  fromDir: p.join(sandboxDir, 'lib', 'src', 'di'),
+                  target: mockAbs,
+                ),
         ),
       );
     }
@@ -305,7 +321,7 @@ class CutSliceCapability implements ZuraffaCapability {
           RealDiCall(
             importPath: _relativeImport(
               fromDir: p.join(sandboxDir, 'lib', 'src', 'di'),
-              target: nodePath,
+              target: p.join(sandboxDir, rel),
             ),
             functionName: functionName,
           ),
