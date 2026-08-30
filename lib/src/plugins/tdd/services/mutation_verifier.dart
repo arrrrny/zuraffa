@@ -174,7 +174,7 @@ class MutationVerifier {
     final stderrText = result.stderr.toString();
     final exitCode = result.exitCode;
 
-    final reportPath = p.join(outArg, 'mutation-test.$reportFormat');
+    final reportPath = p.join(outArg, 'mutation-test-report.$reportFormat');
     final reportFile = File(reportPath);
     final reportExists = await reportFile.exists();
     if (!reportExists && exitCode != 0) {
@@ -212,33 +212,58 @@ class MutationVerifier {
     return null;
   }
 
-  /// Parse killed / survived / timeout counts from the markdown report.
-  /// The mutation_test markdown report's summary section uses lines like:
-  ///   "Mutants killed: 42"
-  ///   "Mutants survived: 3"
-  ///   "Mutants timed out: 0"
-  /// In addition, the stdout from `dart run mutation_test` ends with a line
-  /// like "Killed X, survived Y, timeout Z". We scan both for robustness.
+  /// Parse killed / survived / timeout counts from the markdown report
+  /// and stdout. The mutation_test package (v1.8.0+) emits these in
+  /// multiple forms across versions; we scan for all known shapes:
+  ///
+  /// Report (markdown table rows):
+  ///   "Mutants killed: 42" / "Mutants survived: 3" / "Mutants timed out: 0"
+  ///   "Detected by: test 11" (killed) / "Undetected Mutations: 2" (survived)
+  ///   "Timeouts: 0"
+  ///
+  /// Stdout (single summary line):
+  ///   "Killed X, survived Y, timeout Z"
+  ///   "OK: 2/13 (15.38%) mutations were not detected!" (survived)
+  ///
+  /// We scan both report and stdout for robustness.
   _Counts _parseCounts(String reportText, String stdoutText) {
     var killed = 0;
     var survived = 0;
     var timeout = 0;
     for (final source in [reportText, stdoutText]) {
       if (source.isEmpty) continue;
+      // Killed: "killed: N" / "Mutants killed: N" / "Killed N"
+      // OR "Detected by: test N" (mutation_test v1.8+ format).
+      // Allow pipe `|` as separator for markdown table rows.
       final k = RegExp(
-        r'(?:killed|Mutants killed|Killed)[:\s]+(\d+)',
+        r'(?:killed|Mutants killed|Killed|Detected by: \w+)[\s:|]+(\d+)',
         caseSensitive: false,
       ).firstMatch(source);
+      // Survived: "survived: N" / "Mutants survived: N" / "Survived N"
+      // OR "Undetected Mutations: N" / "Undetected: N" / markdown
+      // table row "| Undetected | N |".
       final s = RegExp(
-        r'(?:survived|Mutants survived|Survived)[:\s]+(\d+)',
+        r'(?:survived|Mutants survived|Survived|Undetected Mutations|Undetected)[\s:|]+(\d+)',
         caseSensitive: false,
       ).firstMatch(source);
+      // The summary stdout line "OK: 2/13 (15.38%) mutations were not
+      // detected!" — capture the numerator as the survived count.
+      final s2 = RegExp(
+        r'OK:\s*(\d+)/\d+',
+        caseSensitive: false,
+      ).firstMatch(source);
+      // Timeout: "timed out: N" / "Mutants timed out: N" /
+      // "Timeouts: N" / markdown "| Timeouts | N |".
       final t = RegExp(
-        r'(?:timed?\s*out|Mutants timed out|Timeout)[:\s]+(\d+)',
+        r'(?:timed?\s*out|Mutants timed out|Timeouts?)[\s:|]+(\d+)',
         caseSensitive: false,
       ).firstMatch(source);
       if (k != null) killed = int.tryParse(k.group(1)!) ?? killed;
-      if (s != null) survived = int.tryParse(s.group(1)!) ?? survived;
+      if (s != null) {
+        survived = int.tryParse(s.group(1)!) ?? survived;
+      } else if (s2 != null) {
+        survived = int.tryParse(s2.group(1)!) ?? survived;
+      }
       if (t != null) timeout = int.tryParse(t.group(1)!) ?? timeout;
       if (killed != 0 || survived != 0 || timeout != 0) break;
     }
