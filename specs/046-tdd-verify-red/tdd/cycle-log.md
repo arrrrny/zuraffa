@@ -92,3 +92,33 @@ because the log is append-only.
 - refactor: none — the rules are one cascade in the order research.md
   Decision 3 pins.
 - commit: (this commit)
+
+## Cycle 3: U11-U14 — SingleTestRunner service (+ T001 fixture helper)
+
+- behaviors: U11 ({file}/{name} substitution into the executed command),
+  U12 (exit code + combined stdout/stderr capture), U13
+  (startedProcess=false on failed launch), U14 (executes in the provided
+  working directory); plus the profile loader contract that feeds U27
+  (Keys-block first, bullet fallback with <path>/<name> normalization,
+  misfire-stop on missing profile / missing single template)
+- test: `test/plugins/tdd/runner_test.dart` (new, 9 tests) +
+  `test/plugins/tdd/helpers/tdd_fixture.dart` (T001: temp project builder
+  with pubspec, profile, artifacts.json, per-kind test contents, and
+  test/lib fingerprints for SC-003). U11/U12/U14 run REAL `dart test`
+  subprocesses inside the fixture.
+- red: `dart test test/plugins/tdd/runner_test.dart` -> `Error: Error
+  when reading 'lib/src/plugins/tdd/services/runner.dart': No such file
+  or directory` + `Couldn't find constructor 'SingleTestRunner'` — the
+  module did not exist (compile-phase red; the test was written first,
+  then the module landed in one step, so no intermediate assertion red
+  was observed; noted here for the audit).
+- green: `services/runner.dart` — loadSingleTemplate() resolves the Keys
+  block then the bullet, _normalize() maps legacy placeholders,
+  runSingle() tokenizes BEFORE substitution (spaces in test names stay
+  one argument), strips template quoting, executes via Process.run with
+  workingDirectory, catches ProcessException into startedProcess=false,
+  and returns RunRecord with parseExecutedTestCount(). Suite
+  `dart test test/plugins/tdd/` -> 149 passed, 0 failed.
+- refactor: none needed; the service is one cohesion unit (load +
+  substitute + execute + capture).
+- commit: (this commit)
