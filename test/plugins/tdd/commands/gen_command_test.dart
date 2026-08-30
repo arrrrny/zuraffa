@@ -23,8 +23,14 @@ void main() {
 
   /// Build `zfa tdd gen` args with an explicit project root so the command
   /// never depends on Directory.current.
-  List<String> genArgs(String id, [List<String> extra = const <String>[]]) =>
-      ['tdd', 'gen', '--project', tmpDir.path, id, ...extra];
+  List<String> genArgs(String id, [List<String> extra = const <String>[]]) => [
+    'tdd',
+    'gen',
+    '--project',
+    tmpDir.path,
+    id,
+    ...extra,
+  ];
 
   setUp(() {
     tmpDir = Directory.systemTemp.createTempSync('gen_command_test_');
