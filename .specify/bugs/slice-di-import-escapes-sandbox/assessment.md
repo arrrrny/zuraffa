@@ -10,7 +10,7 @@
 
 From the failing test run (13 failures total; 11 of them share this root cause):
 
-```
+```text
 Error: Verification failed with 3 unresolved import(s) — the slice is NOT exportable.
 unresolved: lib/src/di/slice_di.dart:7 "../../../../../../lib/src/di/usecases/get_product_usecase_di.dart" — escapes the slice sandbox via a relative path traversal
 unresolved: lib/src/di/slice_di.dart:8 "../../../../../../lib/src/di/usecases/update_product_usecase_di.dart" — escapes the slice sandbox via a relative path traversal

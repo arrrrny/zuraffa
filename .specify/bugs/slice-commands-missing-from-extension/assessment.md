@@ -8,7 +8,7 @@
 
 ## Report (verbatim or summarized)
 
-```
+```text
 Expected: empty
   Actual: [
             'slice/merge_slice -> zfa.slice.merge_slice',

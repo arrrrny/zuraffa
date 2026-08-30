@@ -8,7 +8,7 @@
 
 ## Report (verbatim or summarized)
 
-```
+```text
 Expected: not contains 'lib/src/presentation/pages/product/product_presenter.dart'
   Actual: Set:[
             'main_slice.dart',
@@ -72,7 +72,9 @@ not re-include the presenter via the controller edge.
 ## Risks & Considerations
 
 - Changing depth filtering affects `view`/`presentation`/`feature`/`full` tiers — confirm the other tiers still include the presenter when appropriate.
-- Mock generation for the presenter (`mock_product_presenter.dart`) should be dropped at `view` depth too.
+- Exclude only the concrete `product_presenter.dart` at `view` depth. Retain
+  `mock_product_presenter.dart`, including its `MockProductPresenter` generation
+  and the corresponding `slice_di.dart` binding.
 
 ## Open Questions
 

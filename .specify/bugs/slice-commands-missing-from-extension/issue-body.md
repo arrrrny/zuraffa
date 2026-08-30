@@ -37,7 +37,7 @@ medium — breaks documented CLI surface parity; the 3 command `.md` files are m
 ## Proposed fix
 
 Add 3 `provides:` entries (`zfa.slice.merge_slice`, `zfa.slice.verify_slice`,
-`zfa.slice.ex_slice...`) + template-shaped `.md` files under
+`zfa.slice.export_slice`) + template-shaped `.md` files under
 `.specify/extensions/zuraffa/commands/slice/` (model on `cut_slice.md`).
 
 Assessment: .specify/bugs/slice-commands-missing-from-extension/assessment.md

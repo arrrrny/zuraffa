@@ -1,8 +1,8 @@
 ## Symptom
 
-At `--depth view`, the sliced file set still includes the **presenter** layer
-(`product_presenter.dart` and `mock_product_presenter.dart`). Expected: only
-view/controller/state plus the entry, mocks, and `slice_di.dart`.
+At `--depth view`, the sliced file set still includes the concrete presenter
+(`product_presenter.dart`). Expected: view/controller/state plus the entry,
+mocks (including `mock_product_presenter.dart`), and `slice_di.dart`.
 
 ## Reproduction
 

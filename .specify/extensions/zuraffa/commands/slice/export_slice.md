@@ -24,6 +24,7 @@ and refuses to export an unverifiable slice.
 
 - `<name>` — the slice name (matches the sandbox under `.zuraffa/slices/<name>/`).
 - `--format <fmt>` — required for export; `tar.gz` or `github`.
+- `--from <source>` — required for import; currently only `github`.
 
 ## Flags
 
