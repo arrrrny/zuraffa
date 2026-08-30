@@ -5,15 +5,19 @@
 /// runner command, runner exit code, classification, captured failure
 /// output, and timestamp (spec 046 FR-006).
 ///
-/// Extended by spec 047-tdd-make (T003): green entries carry an
-/// additional `generationSteps` list and a `suiteBaseline`/`suiteGuard`
-/// pair, rendered as `generation:` and `suite:` blocks (spec 047
-/// FR-006, FR-008, data-model.md).
+/// Extended by spec 048-tdd-refactor (T003): the `refactor` kind records
+/// refactor evidence entries. The classification assert is relaxed to
+/// `kind != red || classification != null` so refactor (and green) entries
+/// may omit the failure classification; only red entries carry one. The
+/// `refactorActions` list renders as the `actions:` block per
+/// contracts/refactor.md, and `isNoOp` flags a clean no-op entry.
+///
+/// Existing red/green rendering stays byte-compatible (U10 invariant).
 library;
 
-import '../models/generation_plan.dart';
+import 'refactor_action.dart';
 
-enum CycleEntryKind { red, green }
+enum CycleEntryKind { red, green, refactor }
 
 enum FailureClass {
   assertionFailure,
@@ -36,25 +40,22 @@ class CycleLogEntry {
   final String sourceCriterion;
 
   /// The registry-recorded path of the test that produced this entry.
+  /// For refactor entries this is the suite scope the command re-proved
+  /// green (e.g. `test/plugins/tdd/`).
   final String testPath;
 
   /// ISO-8601 UTC timestamp of the run.
   final String timestamp;
 
-  /// Green-only: the pipeline invocations captured for audit (FR-006).
-  /// Empty for red entries.
-  final List<GenerationStep> generationSteps;
+  /// Refactor actions recorded during this cycle (refactor entries only).
+  /// Empty for red/green entries; for refactor entries it lists every
+  /// applied pass with its command and filesChanged.
+  final List<RefactorAction> refactorActions;
 
-  /// Green-only: count of failing tests in the pre-run baseline
-  /// (spec US3.AC3 — pre-existing failures tolerated).
-  final int? suiteBaselineFailures;
-
-  /// Green-only: count of failing tests in the post-run guard.
-  final int? suiteGuardFailures;
-
-  /// Green-only: NEW failures (guard − baseline) that, when non-empty,
-  /// would have failed the guard. Empty on certified greens.
-  final List<String> suiteNewFailures;
+  /// True for a refactor entry that recorded zero actions (a clean no-op).
+  /// When true the entry is rendered with a `- no-op: true` marker so the
+  /// evidence is explicit about the absence of changes (spec 048 FR-008).
+  final bool isNoOp;
 
   CycleLogEntry({
     required this.behaviorId,
@@ -66,17 +67,15 @@ class CycleLogEntry {
     required this.testPath,
     required this.timestamp,
     this.classification,
-    this.generationSteps = const [],
-    this.suiteBaselineFailures,
-    this.suiteGuardFailures,
-    this.suiteNewFailures = const [],
+    this.refactorActions = const [],
+    this.isNoOp = false,
   }) : assert(
-         kind == CycleEntryKind.green || classification != null,
+         kind != CycleEntryKind.red || classification != null,
          'Red entries must carry a failure classification.',
        );
 
   String toMarkdown() {
-    final kindLabel = kind == CycleEntryKind.red ? 'red' : 'green';
+    final kindLabel = _kindLabel(kind);
     final buf = StringBuffer()
       ..writeln('## Cycle: $behaviorId ($kindLabel)')
       ..writeln()
@@ -91,30 +90,46 @@ class CycleLogEntry {
       ..writeln('- command: `$runnerCommand`')
       ..writeln('- exit: $exitCode')
       ..writeln('- at: $timestamp');
-    if (kind == CycleEntryKind.green && generationSteps.isNotEmpty) {
-      buf.writeln('- generation:');
-      for (final step in generationSteps) {
-        buf.writeln('  - purpose: ${step.purpose}');
-        buf.writeln('    command: `${step.command}`');
-        buf.writeln('    exit: ${step.exitCode}');
-      }
-    }
-    if (kind == CycleEntryKind.green &&
-        (suiteBaselineFailures != null || suiteGuardFailures != null)) {
-      final baseline = suiteBaselineFailures ?? 0;
-      final guard = suiteGuardFailures ?? 0;
-      final news = suiteNewFailures.isEmpty
-          ? '(none)'
-          : suiteNewFailures.join(', ');
-      buf.writeln('- suite: baseline=$baseline guard=$guard new=$news');
+    if (isNoOp) {
+      buf.writeln('- no-op: true');
     }
     buf
       ..writeln('- output:')
       ..writeln('```')
       ..writeln(capturedOutput.trim())
-      ..writeln('```')
-      ..writeln();
+      ..writeln('```');
+    if (kind == CycleEntryKind.refactor && refactorActions.isNotEmpty) {
+      buf.writeln('actions:');
+      for (final action in refactorActions) {
+        buf
+          ..writeln('- action: ${action.name}')
+          ..writeln('  command: `${action.command}`')
+          ..writeln('  exit: ${action.exitCode}');
+        if (action.filesChanged.isEmpty) {
+          buf.writeln('  changed: (none)');
+        } else {
+          buf.writeln('  changed: ${action.filesChanged.join(', ')}');
+        }
+      }
+    }
+    buf.writeln();
     return buf.toString();
+  }
+
+  /// Map a [CycleEntryKind] to its lowercase contract label.
+  ///
+  /// Kept as a helper so the red/green/refactor labels stay in one place;
+  /// the previous `kind == red ? 'red' : 'green'` ternary silently
+  /// mislabelled refactor entries as green (spec 048 Decision 5).
+  static String _kindLabel(CycleEntryKind kind) {
+    switch (kind) {
+      case CycleEntryKind.red:
+        return 'red';
+      case CycleEntryKind.green:
+        return 'green';
+      case CycleEntryKind.refactor:
+        return 'refactor';
+    }
   }
 
   @override

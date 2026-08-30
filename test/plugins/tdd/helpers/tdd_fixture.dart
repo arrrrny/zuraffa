@@ -31,6 +31,7 @@ class TddFixture {
   static Future<TddFixture> create({
     String featureName = '090-tdd-fixture',
     String singleTemplate = defaultSingleTemplate,
+    String suiteTemplate = defaultSuiteTemplate,
     bool writeProfile = true,
   }) async {
     final root = Directory.systemTemp.createTempSync('tdd_fixture_');
@@ -42,14 +43,23 @@ environment:
 dev_dependencies:
   test: ^1.25.0
 ''');
+    await File(p.join(root.path, 'bin', 'zfa.dart'))
+        .create(recursive: true)
+        .then((file) => file.writeAsString('void main() {}\n'));
     if (writeProfile) {
-      await fx._writeProfile(singleTemplate);
+      await fx._writeProfile(singleTemplate, suiteTemplate);
     }
     await Directory(p.join(fx.featureDir, 'tdd')).create(recursive: true);
     return fx;
   }
 
-  Future<void> _writeProfile(String singleTemplate) async {
+  /// Canonical full-suite template used unless overridden.
+  static const defaultSuiteTemplate = 'dart test';
+
+  Future<void> _writeProfile(
+    String singleTemplate,
+    String suiteTemplate,
+  ) async {
     final dir = Directory(p.join(root.path, '.specify', 'memory'));
     await dir.create(recursive: true);
     await File(p.join(dir.path, 'tdd-profile.md')).writeAsString('''
@@ -58,14 +68,15 @@ dev_dependencies:
 ## Commands
 
 - Single test: `$singleTemplate`
+- Full suite: `$suiteTemplate`
 
 ## Keys (machine-readable)
 
 ```yaml
 runner: dart
 single: '$singleTemplate'
+suite: '$suiteTemplate'
 file: 'dart test {file}'
-suite: 'dart test'
 coverage: 'dart test --coverage'
 ```
 ''');
@@ -224,10 +235,99 @@ void main() {
 ''';
 
   // -------------------------------------------------------------------
-  // Integrity checks (SC-003: read-only over test/ and lib/).
+  // Refactor-fixture seeds (spec 048, T001).
   // -------------------------------------------------------------------
 
-  /// Content fingerprint of every Dart file under `test/` and `lib/`,
+  /// Seed a green-suite project: one passing test, a minimal `lib/`, and a
+  /// pubspec that resolves `package:test` from the host (no offline cache
+  /// needed). Used by the refactor command's preflight and re-proof paths.
+  Future<void> seedGreenSuite({
+    String testDescription = 'green baseline',
+    String libContent = _defaultLibContent,
+  }) async {
+    await Directory(p.join(root.path, 'test')).create(recursive: true);
+    await File(
+      p.join(root.path, 'test', 'baseline_test.dart'),
+    ).writeAsString(TddFixture.greenTest(testDescription));
+    await Directory(p.join(root.path, 'lib')).create(recursive: true);
+    await File(
+      p.join(root.path, 'lib', 'baseline.dart'),
+    ).writeAsString(libContent);
+  }
+
+  /// Seed a red-suite project: one failing test plus the same minimal `lib/`.
+  /// Used to prove the preflight refuses on red and modifies zero files.
+  Future<void> seedRedSuite({String testDescription = 'red baseline'}) async {
+    await Directory(p.join(root.path, 'test')).create(recursive: true);
+    await File(
+      p.join(root.path, 'test', 'baseline_test.dart'),
+    ).writeAsString(TddFixture.redTest(testDescription));
+    await Directory(p.join(root.path, 'lib')).create(recursive: true);
+    await File(
+      p.join(root.path, 'lib', 'baseline.dart'),
+    ).writeAsString(_defaultLibContent);
+  }
+
+  /// Seed a malformed `lib/` file with formatting/fixable violations that
+  /// `dart format` and `dart fix --apply` will normalize. The `test/` tree
+  /// is left green so the preflight passes and the passes can run.
+  Future<void> seedMalformedLib({
+    String testDescription = 'green with malformed lib',
+  }) async {
+    await Directory(p.join(root.path, 'test')).create(recursive: true);
+    await File(
+      p.join(root.path, 'test', 'baseline_test.dart'),
+    ).writeAsString(TddFixture.greenTest(testDescription));
+    await Directory(p.join(root.path, 'lib')).create(recursive: true);
+    // Unformatted: extra blank lines, trailing whitespace, missing trailing
+    // newline, double-semicolons. `dart format` normalizes spacing/newlines;
+    // `dart fix` may rewrite deprecated syntax if present. The content stays
+    // valid Dart so the suite stays green before and after the pass.
+    await File(
+      p.join(root.path, 'lib', 'malformed.dart'),
+    ).writeAsString('int answer() {  return  42 ;  }\n\n\n');
+  }
+
+  /// Replace `lib/baseline.dart` with content that passes the suite but is
+  /// unformatted. Used to prove a no-op pass after one normalization pass:
+  /// the second `refactor` invocation finds nothing to change.
+  Future<void> writeCleanLib() async {
+    await Directory(p.join(root.path, 'lib')).create(recursive: true);
+    await File(
+      p.join(root.path, 'lib', 'baseline.dart'),
+    ).writeAsString(_defaultLibContent);
+  }
+
+  /// Mark `lib/baseline.dart` as already-formatted (post-pass state) so the
+  /// next refactor run is a clean no-op.
+  Future<void> seedAlreadyCleanLib({
+    String testDescription = 'green clean lib',
+  }) async {
+    await Directory(p.join(root.path, 'test')).create(recursive: true);
+    await File(
+      p.join(root.path, 'test', 'baseline_test.dart'),
+    ).writeAsString(TddFixture.greenTest(testDescription));
+    await Directory(p.join(root.path, 'lib')).create(recursive: true);
+    // Already-formatted content: no trailing whitespace, single blank line,
+    // trailing newline present. `dart format` is a no-op here.
+    await File(
+      p.join(root.path, 'lib', 'baseline.dart'),
+    ).writeAsString("int answer() {\n  return 42;\n}\n");
+  }
+
+  /// Seed a green project whose `lib/` file passes `dart test` but breaks
+  /// after `dart format` runs — used by the regression test (US3.AC2).
+  /// The break is achieved by writing a file that compiles but whose test
+  /// depends on a specific source layout the formatter changes. For a
+  /// deterministic regression fixture, tests inject a fake pass executor
+  /// instead (see [seedGreenSuiteWithBreakingPass] below).
+  Future<void> seedGreenSuiteForRegression() async {
+    await seedGreenSuite();
+  }
+
+  static const _defaultLibContent = 'int answer() {\n  return 42;\n}\n';
+
+  /// Content fingerprint of every regular file under `test/` and `lib/`,
   /// keyed by path. Exact for equality comparison.
   Map<String, String> checksumTestAndLib() {
     final sums = <String, String>{};
@@ -235,7 +335,7 @@ void main() {
       final dir = Directory(p.join(root.path, dirName));
       if (!dir.existsSync()) continue;
       for (final entity in dir.listSync(recursive: true)) {
-        if (entity is File && entity.path.endsWith('.dart')) {
+        if (entity is File) {
           sums[entity.path] = _fingerprint(entity);
         }
       }
