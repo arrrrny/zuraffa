@@ -17,7 +17,7 @@ Expected: all pass, no `slow` tags.
 ## 2. Driver + scenario suite (slow)
 
 ```bash
-dart test --tags slow test/plugins/tdd/run_command_test.dart \
+dart test --preset=all test/plugins/tdd/run_command_test.dart \
      test/plugins/tdd/scenarios/sc_013_run_drives_feature_test.dart \
      test/plugins/tdd/scenarios/sc_014_run_resumes_test.dart \
      test/plugins/tdd/scenarios/sc_015_run_stops_on_failure_test.dart \
