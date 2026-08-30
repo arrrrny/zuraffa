@@ -1,5 +1,4 @@
 @Tags(['slow'])
-
 // Success criterion SC-003 (specs/015-benchmark-plugin/spec.md):
 // benchmark execution adds less than 5% overhead to the measured operation
 // (framework overhead).

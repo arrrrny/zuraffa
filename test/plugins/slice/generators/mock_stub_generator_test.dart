@@ -1,5 +1,4 @@
 @Tags(['slow'])
-
 /// Tests for MockStubGenerator (U29, U30, U31).
 ///
 /// Behaviors traced to specs/043-slice-plugin/tdd/test-list.md:

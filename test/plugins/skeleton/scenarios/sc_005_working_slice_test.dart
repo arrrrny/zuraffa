@@ -1,5 +1,4 @@
 @Tags(['slow'])
-
 /// SC-005 acceptance test (feature 042): the Bone Working Slice end to end.
 ///
 /// Behaviors traced to specs/042-bone-working-slice/tdd/test-list.md:

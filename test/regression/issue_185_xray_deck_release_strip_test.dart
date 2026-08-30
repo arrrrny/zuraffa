@@ -1,5 +1,4 @@
 @Tags(['regression', 'slow'])
-
 // Spec 034 — Track 4.3: XRayControlDeck release-mode strip regression.
 // Issue #185 — SC-003: Release builds contain zero X-Ray-related code.
 library;

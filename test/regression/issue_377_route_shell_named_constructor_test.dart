@@ -1,5 +1,4 @@
 @Tags(['regression', 'slow'])
-
 // Regression test for issue #377.
 //
 // `zfa route shell` generated a `<Name>Shell` widget whose constructor took
@@ -24,7 +23,6 @@
 // path `zfa route shell` uses) and asserts the generated constructor is named.
 //
 // See: https://github.com/arrrrny/zuraffa/issues/377
-
 import 'package:test/test.dart';
 
 import 'package:zuraffa/src/plugins/route/builders/shell_routes_builder.dart';

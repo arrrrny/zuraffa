@@ -1,5 +1,4 @@
 @Tags(['regression', 'slow'])
-
 // Regression test for issue #239.
 //
 // `lib/src/migration/detectors/base_detector.dart` previously had an unused
@@ -9,7 +8,6 @@
 // silently come back.
 //
 // See: https://github.com/arrrrny/zuraffa/issues/239
-
 import 'dart:io';
 
 import 'package:path/path.dart' as p;

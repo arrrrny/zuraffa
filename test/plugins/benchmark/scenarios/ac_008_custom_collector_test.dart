@@ -1,5 +1,4 @@
 @Tags(['slow'])
-
 // Acceptance test AC-8 (specs/015-benchmark-plugin/spec.md US4):
 // a registered custom metric collector's data appears in the final
 // benchmark result, collected at the right lifecycle points.

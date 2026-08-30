@@ -1,5 +1,4 @@
 @Tags(['regression', 'slow'])
-
 // Regression test for issue #259.
 //
 // "[v6][audit] gql + graphql plugins exist in source but are NOT exposed in
@@ -12,7 +11,6 @@
 // id) cannot silently make them disappear again.
 //
 // See: https://github.com/arrrrny/zuraffa/issues/259
-
 import 'dart:convert';
 
 import 'package:test/test.dart';
