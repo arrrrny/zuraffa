@@ -1,5 +1,4 @@
 @Tags(['slow'])
-
 // Tests for the VerifyRedCommand (spec 046-tdd-verify-red, T008, T009,
 // T010 — certified honest-red path; U23, U25, U27, A1-A3).
 //
@@ -100,8 +99,9 @@ void main() {
     test(
       'U25: a mutating assertion failure is rejected without red evidence',
       () async {
-        await File(fx.testPathOf('B-001'))
-            .writeAsString(TddFixture.mutatingRedTest(description));
+        await File(
+          fx.testPathOf('B-001'),
+        ).writeAsString(TddFixture.mutatingRedTest(description));
         final runner = CliRunner(exitOnCompletion: false);
 
         final out = await runner.runCapturing(verifyRedArgs(fx, 'B-001'));

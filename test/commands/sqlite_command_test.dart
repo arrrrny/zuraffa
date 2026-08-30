@@ -1,5 +1,4 @@
 @Tags(['slow'])
-
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 

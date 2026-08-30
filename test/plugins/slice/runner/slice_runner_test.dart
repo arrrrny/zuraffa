@@ -1,5 +1,4 @@
 @Tags(['slow'])
-
 /// Tests for SliceRunner (U51, U52, U53; acceptance A20, A21, A22;
 /// gates T106-T108).
 ///

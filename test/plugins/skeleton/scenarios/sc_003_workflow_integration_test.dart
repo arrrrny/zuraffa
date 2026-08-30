@@ -1,5 +1,4 @@
 @Tags(['slow'])
-
 /// SC-003 acceptance test: SDD/TDD workflow integration.
 ///
 /// Behaviors traced to test-list.md:

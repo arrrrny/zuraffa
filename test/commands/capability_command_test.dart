@@ -1,5 +1,4 @@
 @Tags(['slow'])
-
 import 'package:test/test.dart';
 import 'package:args/command_runner.dart';
 import 'package:zuraffa/src/commands/capability_command.dart';

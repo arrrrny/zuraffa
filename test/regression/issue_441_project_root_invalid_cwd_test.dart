@@ -1,5 +1,4 @@
 @Tags(['regression', 'slow'])
-
 // Regression test for issue #441.
 //
 // `zfa make` (and other commands) resolved the project root via an unguarded
@@ -18,7 +17,6 @@
 // same guarded resolver.
 //
 // See: https://github.com/arrrrny/zuraffa/issues/441
-
 import 'dart:io';
 
 import 'package:path/path.dart' as p;

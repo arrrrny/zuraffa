@@ -1,5 +1,4 @@
 @Tags(['regression', 'slow'])
-
 // Spec 036 — Track 4.2: Release-mode strip regression for issue #181.
 //
 // Behavior B17: enable/disable no-op in release mode.
