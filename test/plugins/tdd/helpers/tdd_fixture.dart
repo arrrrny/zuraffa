@@ -370,6 +370,257 @@ void main() {
     return '${bytes.length}-$h';
   }
 
+  // -------------------------------------------------------------------
+  // 049-tdd-run extensions: run-state/test-list seeding, green evidence,
+  // and a scripted fake zfa step binary.
+  // -------------------------------------------------------------------
+
+  /// Path of the feature's `tdd/run-state.json`.
+  String get runStatePath => p.join(featureDir, 'tdd', 'run-state.json');
+
+  /// Path of the feature's `tdd/test-list.md`.
+  String get testListPath => p.join(featureDir, 'tdd', 'test-list.md');
+
+  /// Directory holding the scripted fake zfa binary, its config files and
+  /// its invocation log.
+  String get fakeZfaDir => p.join(root.path, '.fake-zfa');
+
+  /// The fake zfa entrypoint passed to the driver via `--zfa-bin`.
+  String get fakeZfaBin => p.join(fakeZfaDir, 'zfa');
+
+  /// Render one 4-column test-list section in the format
+  /// `plan_command.dart` writes.
+  static String _renderTestListSection(
+    String title,
+    List<(String, String, String, String)> rows,
+  ) {
+    final buf = StringBuffer()
+      ..writeln('## $title')
+      ..writeln()
+      ..writeln('| id | behavior | traces | state |')
+      ..writeln('| -- | -------- | ------ | ----- |');
+    for (final (id, description, traces, state) in rows) {
+      buf.writeln('| $id | $description | $traces | $state |');
+    }
+    buf.writeln();
+    return buf.toString();
+  }
+
+  /// Seed `specs/<feature>/tdd/test-list.md` in the 4-column format
+  /// `plan_command.dart` writes. Rows carrying `kind: 'acceptance'` land in
+  /// the outer-loop section, everything else in the inner-loop section.
+  Future<void> seedTestList(
+    List<
+      ({
+        String id,
+        String description,
+        String traces,
+        String state,
+        String kind,
+      })
+    >
+    rows,
+  ) async {
+    await Directory(p.join(featureDir, 'tdd')).create(recursive: true);
+    final acceptance = rows
+        .where((r) => r.kind == 'acceptance')
+        .map((r) => (r.id, r.description, r.traces, r.state))
+        .toList();
+    final unit = rows
+        .where((r) => r.kind != 'acceptance')
+        .map((r) => (r.id, r.description, r.traces, r.state))
+        .toList();
+    final buf = StringBuffer()
+      ..writeln('# Test List: $featureName')
+      ..writeln();
+    if (acceptance.isNotEmpty) {
+      buf.write(
+        _renderTestListSection('Outer loop: acceptance behaviors', acceptance),
+      );
+    }
+    if (unit.isNotEmpty) {
+      buf.write(_renderTestListSection('Inner loop: unit behaviors', unit));
+    }
+    await File(testListPath).writeAsString(buf.toString());
+  }
+
+  /// Seed `tdd/run-state.json` (the shape `RunStateStore` reads/writes).
+  Future<void> seedRunState({
+    required Map<String, String> states,
+    String? inFlightBehaviorId,
+    String? inFlightStep,
+    int? inFlightOwnerPid,
+  }) async {
+    await Directory(p.join(featureDir, 'tdd')).create(recursive: true);
+    await File(runStatePath).writeAsString(
+      jsonEncode({
+        'feature': featureName,
+        'behavior_states': states,
+        'in_flight_behavior_id': ?inFlightBehaviorId,
+        'in_flight_step': ?inFlightStep,
+        'in_flight_owner_pid': ?inFlightOwnerPid,
+      }),
+    );
+  }
+
+  /// Seed a green-evidence entry for [behaviorId] (mirrors [seedRedEvidence]).
+  Future<void> seedGreenEvidence(String behaviorId) async {
+    final file = File(cycleLogPath);
+    if (!await file.exists()) {
+      await file.parent.create(recursive: true);
+      await file.writeAsString('# Cycle Log\n\n');
+    }
+    await file.writeAsString('''
+## Cycle: $behaviorId (green)
+
+- behavior: $behaviorId
+- kind: green
+- criterion: FR-003
+- test: ${testPathOf(behaviorId)}
+- exit: 0
+- at: 2026-08-30T00:00:00.000Z
+
+''', mode: FileMode.append);
+  }
+
+  /// Write the scripted fake zfa binary (a POSIX shell script) plus its
+  /// empty config directory and invocation log.
+  ///
+  /// The fake receives the driver's step argv
+  /// `tdd <step> <id> --feature <f> --project <dir>`, appends
+  /// `<step> <id>` to the invocation log, and behaves per the config file
+  /// `config/<step>-<id>` when present (`ok` by default):
+  ///
+  /// - `ok` — success summary line, exit 0, evidence appended to the
+  ///   feature's cycle log (red for verify-red, green for make);
+  /// - `ok-no-evidence` — success summary + exit 0, no evidence written
+  ///   (drives the driver's evidence misfire path);
+  /// - `exit0:<outcome>` — prints `<outcome>`, exit 0 (contract-inconsistent
+  ///   success that the driver must reject);
+  /// - any other token — printed as the step's outcome/classification,
+  ///   exit 1 (a named step failure).
+  Future<void> writeFakeZfa() async {
+    await Directory(fakeZfaDir).create(recursive: true);
+    final configDir = p.join(fakeZfaDir, 'config');
+    await Directory(configDir).create(recursive: true);
+    final logPath = p.join(fakeZfaDir, 'log');
+    await File(logPath).writeAsString('');
+
+    const script = r'''#!/bin/sh
+# Fake zfa CLI for `zfa tdd run` driver tests (spec 049-tdd-run).
+# argv: tdd <step> <behavior-id> --feature <f> --project <dir>
+STEP="$2"
+ID="$3"
+FEATURE=""
+PROJECT=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --feature) FEATURE="$2"; shift ;;
+    --project) PROJECT="$2"; shift ;;
+  esac
+  shift
+done
+echo "$STEP $ID" >> "__LOG__"
+CFG="__CFG__/$STEP-$ID"
+if [ -f "$CFG" ]; then
+  OUTCOME=$(head -n 1 "$CFG")
+else
+  OUTCOME="ok"
+fi
+CYCLE="$PROJECT/specs/$FEATURE/tdd/cycle-log.md"
+case "$STEP" in
+  gen)
+    case "$OUTCOME" in
+      ok) exit 0 ;;
+      exit0:*) echo "gen: behavior=$ID outcome=${OUTCOME#exit0:}"; exit 0 ;;
+      *) echo "zfa tdd gen: $OUTCOME"; exit 1 ;;
+    esac
+    ;;
+  verify-red)
+    case "$OUTCOME" in
+      ok)
+        printf '\n## Cycle: %s (red)\n\n- behavior: %s\n- kind: red\n- classification: assertionFailure\n- criterion: FR-003\n- exit: 1\n- at: 2026-08-30T00:00:00.000Z\n' "$ID" "$ID" >> "$CYCLE"
+        echo "verify-red: behavior=$ID classification=assertion certified=true feature=$FEATURE"
+        exit 0
+        ;;
+      ok-no-evidence)
+        echo "verify-red: behavior=$ID classification=assertion certified=true feature=$FEATURE"
+        exit 0
+        ;;
+      exit0:*)
+        echo "verify-red: behavior=$ID classification=${OUTCOME#exit0:} certified=true feature=$FEATURE"
+        exit 0
+        ;;
+      *)
+        echo "verify-red: behavior=$ID classification=$OUTCOME certified=false feature=$FEATURE"
+        exit 1
+        ;;
+    esac
+    ;;
+  make)
+    case "$OUTCOME" in
+      ok)
+        printf '\n## Cycle: %s (green)\n\n- behavior: %s\n- kind: green\n- criterion: FR-003\n- exit: 0\n- at: 2026-08-30T00:00:00.000Z\n' "$ID" "$ID" >> "$CYCLE"
+        echo "make: behavior=$ID outcome=green feature=$FEATURE"
+        exit 0
+        ;;
+      ok-no-evidence)
+        echo "make: behavior=$ID outcome=green feature=$FEATURE"
+        exit 0
+        ;;
+      exit0:*)
+        echo "make: behavior=$ID outcome=${OUTCOME#exit0:} feature=$FEATURE"
+        exit 0
+        ;;
+      *)
+        echo "make: behavior=$ID outcome=$OUTCOME feature=$FEATURE"
+        exit 1
+        ;;
+    esac
+    ;;
+  refactor)
+    case "$OUTCOME" in
+      ok) echo "refactor: behavior=$ID outcome=clean feature=$FEATURE"; exit 0 ;;
+      exit0:*) echo "refactor: behavior=$ID outcome=${OUTCOME#exit0:} feature=$FEATURE"; exit 0 ;;
+      *) echo "refactor: behavior=$ID outcome=$OUTCOME feature=$FEATURE"; exit 1 ;;
+    esac
+    ;;
+  *)
+    echo "zfa tdd $STEP: unknown step"
+    exit 1
+    ;;
+esac
+''';
+    await File(fakeZfaBin).writeAsString(
+      script.replaceAll('__LOG__', logPath).replaceAll('__CFG__', configDir),
+    );
+    Process.runSync('chmod', ['+x', fakeZfaBin]);
+  }
+
+  /// Script the fake step's outcome for one (step, behavior) pair.
+  Future<void> setStepOutcome(String step, String id, String outcome) async {
+    await Directory(p.join(fakeZfaDir, 'config')).create(recursive: true);
+    await File(
+      p.join(fakeZfaDir, 'config', '$step-$id'),
+    ).writeAsString(outcome);
+  }
+
+  /// The fake's invocation log: one `<step> <id>` line per step spawn.
+  List<String> stepInvocations() {
+    final file = File(p.join(fakeZfaDir, 'log'));
+    if (!file.existsSync()) return const [];
+    return file
+        .readAsLinesSync()
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+  }
+
+  /// Truncate the fake's invocation log (between runs in a test).
+  void clearStepInvocations() {
+    File(p.join(fakeZfaDir, 'log')).writeAsStringSync('');
+  }
+
   /// Dispose the temp project.
   void dispose() {
     if (root.existsSync()) root.deleteSync(recursive: true);
