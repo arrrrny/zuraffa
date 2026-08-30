@@ -37,6 +37,9 @@ class ConflictDetector {
     required String? mainHash,
   }) {
     if (sandboxHash == null) {
+      if (mainHash != null && mainHash != cutHash) {
+        return MergeDecision.conflict;
+      }
       return MergeDecision.sandboxDeleted;
     }
     if (sandboxHash == cutHash) {

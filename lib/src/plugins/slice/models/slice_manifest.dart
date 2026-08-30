@@ -77,6 +77,8 @@ class SliceManifest {
   /// sandbox files are harness rather than agent work.
   final List<String> generatedFiles;
 
+  static const Object _unset = Object();
+
   /// Returns a copy with the given fields replaced.
   SliceManifest copyWith({
     String? name,
@@ -86,7 +88,7 @@ class SliceManifest {
     String? projectRoot,
     String? packageName,
     String? branch,
-    String? exportedTo,
+    Object? exportedTo = _unset,
     List<SliceFile>? files,
     List<SliceBoundary>? boundaries,
     List<String>? generatedFiles,
@@ -99,7 +101,8 @@ class SliceManifest {
       projectRoot: projectRoot ?? this.projectRoot,
       packageName: packageName ?? this.packageName,
       branch: branch ?? this.branch,
-      exportedTo: exportedTo ?? this.exportedTo,
+      exportedTo:
+          exportedTo == _unset ? this.exportedTo : exportedTo as String?,
       files: files ?? this.files,
       boundaries: boundaries ?? this.boundaries,
       generatedFiles: generatedFiles ?? this.generatedFiles,
@@ -209,13 +212,18 @@ class SliceManifest {
   static List<SliceFile> _files(dynamic node) {
     if (node is! List) return const [];
     return node.whereType<Map>().map((file) {
+      final ownershipValue = file['ownership'];
+      final ownership = switch (ownershipValue) {
+        'owned' => FileOwnership.owned,
+        'shared' => FileOwnership.shared,
+        'framework' => FileOwnership.framework,
+        _ => throw const SliceManifestYamlError(
+          'corrupt slice.yaml: invalid file ownership',
+        ),
+      };
       return SliceFile(
         relativePath: file['path'] as String? ?? '',
-        ownership: switch (file['ownership']) {
-          'shared' => FileOwnership.shared,
-          'framework' => FileOwnership.framework,
-          _ => FileOwnership.owned,
-        },
+        ownership: ownership,
         hashAtCut: file['hashAtCut'] as String? ?? '',
         layer: file['layer'] as String? ?? 'other',
       );
@@ -225,6 +233,13 @@ class SliceManifest {
   static List<SliceBoundary> _boundaries(dynamic node) {
     if (node is! List) return const [];
     return node.whereType<Map>().map((boundary) {
+      final mockStrategyValue = boundary['mockStrategy'] as String? ?? 'auto';
+      final mockStrategy = switch (mockStrategyValue) {
+        'auto' || 'existing' || 'none' => mockStrategyValue,
+        _ => throw const SliceManifestYamlError(
+          'corrupt slice.yaml: invalid mock strategy',
+        ),
+      };
       return SliceBoundary(
         typeName: boundary['typeName'] as String? ?? '',
         interfaceFile: boundary['interfaceFile'] as String? ?? '',
@@ -233,7 +248,7 @@ class SliceManifest {
                 boundary['diRegistrationFile'] == null
             ? null
             : boundary['diRegistrationFile'] as String,
-        mockStrategy: boundary['mockStrategy'] as String? ?? 'auto',
+        mockStrategy: mockStrategy,
       );
     }).toList();
   }

@@ -44,13 +44,15 @@ class MockStubGenerator {
     required SliceBoundary boundary,
     required String projectRoot,
     required SliceDepth depth,
+    String? sandboxRoot,
   }) async {
     if (depth == SliceDepth.full) return null;
     if (boundary.mockStrategy == 'existing') return null;
     if (boundary.mockStrategy == 'none') return null;
 
+    final targetRoot = sandboxRoot ?? projectRoot;
     final interfacePath = p.canonicalize(
-      p.join(projectRoot, boundary.interfaceFile),
+      p.join(targetRoot, boundary.interfaceFile),
     );
     final file = File(interfacePath);
     if (!await file.exists()) return null;
@@ -72,7 +74,7 @@ class MockStubGenerator {
     buffer.writeln();
     final interfaceImport = p.relative(
       interfacePath,
-      from: p.join(projectRoot, 'lib', 'src', 'mocks'),
+      from: p.join(targetRoot, 'lib', 'src', 'mocks'),
     );
     buffer.writeln("import '${interfaceImport.replaceAll('\\', '/')}';");
     buffer.writeln();

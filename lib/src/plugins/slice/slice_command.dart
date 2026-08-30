@@ -279,7 +279,7 @@ example:
     reporter.completed();
 
     print(result.message);
-    final warnings = result.data?['warnings'] as List;
+    final warnings = result.data?['warnings'] as List? ?? const [];
     for (final warning in warnings) {
       print('warning: $warning');
     }

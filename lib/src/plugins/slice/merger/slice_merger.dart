@@ -163,12 +163,18 @@ class SliceMerger {
     const exportArtifacts = {'pubspec.yaml', 'README.md'};
     final sandboxRoot = Directory(sandboxDir);
     if (await sandboxRoot.exists()) {
-      for (final entity in sandboxRoot.listSync(recursive: true)) {
+      for (final entity in sandboxRoot.listSync(recursive: true, followLinks: false)) {
         if (entity is! File) continue;
         final rel = p.relative(entity.path, from: sandboxDir);
+        if (rel.split(p.separator).contains('.git')) continue;
         if (known.contains(rel) || exportArtifacts.contains(rel)) continue;
+        final target = p.join(projectRoot, rel);
+        if (File(target).existsSync()) {
+          conflicts.add(rel);
+          continue;
+        }
         created.add(rel);
-        await _copy(entity.path, p.join(projectRoot, rel));
+        await _copy(entity.path, target);
       }
     }
 

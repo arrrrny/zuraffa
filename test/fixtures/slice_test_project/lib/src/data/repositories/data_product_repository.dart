@@ -1,9 +1,9 @@
 /// Data-layer ProductRepository implementation (fixture for spec 043).
 library;
 
-import '../domain/entities/product/product.dart';
-import '../domain/repositories/product_repository.dart';
-import 'datasources/product_remote_datasource.dart';
+import '../../domain/entities/product/product.dart';
+import '../../domain/repositories/product_repository.dart';
+import '../datasources/product_remote_datasource.dart';
 
 /// Implements [ProductRepository] against the remote datasource.
 class DataProductRepository implements ProductRepository {

@@ -199,8 +199,8 @@ class SandboxBootstrapper {
         buffer.writeln("import '${mock.interfaceImportPath}';");
       }
       buffer.writeln();
+      buffer.writeln("final getIt = GetIt.instance;");
     }
-    buffer.writeln("final getIt = GetIt.instance;");
     buffer.writeln();
     buffer.writeln(
       '/// Registers exactly the dependencies the "$sliceName" slice needs.',

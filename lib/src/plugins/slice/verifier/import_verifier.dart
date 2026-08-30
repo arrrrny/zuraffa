@@ -120,8 +120,17 @@ class ImportVerifier {
             final packagePath = uri.substring(
               'package:'.length + package.length + 1,
             );
-            final target = p.join(sandboxDir, 'lib', packagePath);
-            if (!File(target).existsSync()) {
+            final target = p.canonicalize(p.join(sandboxDir, 'lib', packagePath));
+            if (!p.isWithin(sandboxDir, target)) {
+              issues.add(
+                ImportIssue(
+                  rel,
+                  line,
+                  uri,
+                  'escapes the slice sandbox via a path traversal in package import',
+                ),
+              );
+            } else if (!File(target).existsSync()) {
               issues.add(
                 ImportIssue(
                   rel,
@@ -148,7 +157,16 @@ class ImportVerifier {
         final target = p.canonicalize(
           p.normalize(p.join(p.dirname(file.path), uri)),
         );
-        if (!File(target).existsSync()) {
+        if (!p.isWithin(sandboxDir, target)) {
+          issues.add(
+            ImportIssue(
+              rel,
+              line,
+              uri,
+              'escapes the slice sandbox via a relative path traversal',
+            ),
+          );
+        } else if (!File(target).existsSync()) {
           issues.add(
             ImportIssue(rel, line, uri, 'missing file (dangling import)'),
           );

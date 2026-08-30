@@ -18,6 +18,7 @@ import '../../../core/plugin_system/capability.dart';
 import '../engine/import_graph_walker.dart';
 import '../engine/ownership_classifier.dart';
 import '../engine/package_resolver.dart';
+import '../exporter/pubspec_filter.dart';
 import '../generators/agent_readme_generator.dart';
 import '../generators/manifest_writer.dart';
 import '../generators/mock_stub_generator.dart';
@@ -95,8 +96,51 @@ class CutSliceCapability implements ZuraffaCapability {
   };
 
   /// Sandbox root for [sliceName] under [projectRoot].
-  static String sandboxDirFor(String projectRoot, String sliceName) =>
-      p.join(projectRoot, '.zuraffa', 'slices', sliceName);
+  static String sandboxDirFor(String projectRoot, String sliceName) {
+    final safeName = validateSliceName(sliceName);
+    final root = p.canonicalize(projectRoot);
+    final sandbox = p.canonicalize(
+      p.join(root, '.zuraffa', 'slices', safeName),
+    );
+    if (!p.isWithin(root, sandbox)) {
+      throw ArgumentError.value(
+        sliceName,
+        'sliceName',
+        'must be a path-safe slug that stays under the project root',
+      );
+    }
+    return sandbox;
+  }
+
+  /// Validates a slice name is a separator-free slug that stays within the
+  /// project root rather than escaping into sibling paths.
+  static String validateSliceName(String sliceName) {
+    final trimmed = sliceName.trim();
+    if (trimmed.isEmpty || trimmed == '.' || trimmed == '..') {
+      throw ArgumentError.value(
+        sliceName,
+        'sliceName',
+        'must be a non-empty, path-safe slice name',
+      );
+    }
+    if (trimmed.contains('/') ||
+        trimmed.contains('\\') ||
+        trimmed.contains('..')) {
+      throw ArgumentError.value(
+        sliceName,
+        'sliceName',
+        'must not contain path separators or parent-directory traversal',
+      );
+    }
+    if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9_-]*$').hasMatch(trimmed)) {
+      throw ArgumentError.value(
+        sliceName,
+        'sliceName',
+        'must contain only letters, numbers, underscores, or dashes',
+      );
+    }
+    return trimmed;
+  }
 
   @override
   Future<EffectReport> plan(Map<String, dynamic> args) async {
@@ -152,7 +196,12 @@ class CutSliceCapability implements ZuraffaCapability {
     final progress =
         args['progressReporter'] as ProgressReporter? ?? NullProgressReporter();
 
-    final sandboxDir = sandboxDirFor(projectRoot, sliceName);
+    late final String sandboxDir;
+    try {
+      sandboxDir = sandboxDirFor(projectRoot, sliceName);
+    } on ArgumentError catch (e) {
+      return ExecutionResult(success: false, message: e.message.toString());
+    }
     if (Directory(sandboxDir).existsSync()) {
       return ExecutionResult(
         success: false,
@@ -211,9 +260,15 @@ class CutSliceCapability implements ZuraffaCapability {
     final generatedFiles = <String>[];
     final mockRegistrations = <MockRegistration>[];
     for (final boundary in walkResult.boundaries) {
+      final interfaceTarget = p.join(sandboxDir, boundary.interfaceFile);
+      final interfaceFile = File(p.join(projectRoot, boundary.interfaceFile));
+      if (await interfaceFile.exists()) {
+        await _copyFile(interfaceFile, interfaceTarget);
+      }
       final mock = await _mockGenerator.generate(
         boundary: boundary,
         projectRoot: projectRoot,
+        sandboxRoot: sandboxDir,
         depth: depth,
       );
       if (mock == null) continue;
@@ -230,7 +285,7 @@ class CutSliceCapability implements ZuraffaCapability {
           ),
           interfaceImportPath: _relativeImport(
             fromDir: p.join(sandboxDir, 'lib', 'src', 'di'),
-            target: p.join(projectRoot, boundary.interfaceFile),
+            target: interfaceTarget,
           ),
         ),
       );
@@ -317,6 +372,16 @@ class CutSliceCapability implements ZuraffaCapability {
       final target = p.join(sandboxDir, file.relativePath);
       await _copyFile(source, target);
     }
+
+    final filteredPubspec = await PubspecFilter().filter(
+      projectRoot: projectRoot,
+      sandboxDir: sandboxDir,
+      sliceDartFiles: [
+        for (final file in manifestFiles) file.relativePath,
+      ],
+    );
+    await _writeFile(p.join(sandboxDir, 'pubspec.yaml'), filteredPubspec);
+    generatedFiles.add('pubspec.yaml');
 
     // Filtered barrels (FR-005): mirror each encountered barrel at its
     // original path, exporting only the targets the slice kept, so barrel
