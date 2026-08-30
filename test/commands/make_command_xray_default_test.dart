@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:test/test.dart';
 
-import '../helpers/project_root.dart';
+import '../helpers/run_zfa_source.dart';
 
 // #360 xray default resolution in MakeCommand (see make_command.dart):
 //
@@ -18,11 +18,9 @@ import '../helpers/project_root.dart';
 // - The `--xray` CLI flag always wins.
 void main() {
   late Directory workspace;
-  late String zfaBin;
 
   setUpAll(() async {
-    final projectRoot = await findProjectRoot();
-    zfaBin = path.join(projectRoot, 'bin', 'zfa.dart');
+    await initZfaSourceBin();
   });
 
   setUp(() async {
@@ -65,10 +63,7 @@ class Product {
   }
 
   Future<ProcessResult> runZfa(List<String> args) {
-    return Process.run('dart', [
-      zfaBin,
-      ...args,
-    ], workingDirectory: workspace.path);
+    return runZfaSource(args, workingDirectory: workspace.path);
   }
 
   // Finds every generated `*_view.dart` under the temp project.

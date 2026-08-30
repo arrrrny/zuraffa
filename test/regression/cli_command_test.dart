@@ -378,9 +378,19 @@ environment:
         Directory.current = ghostDir.path;
         await ghostDir.delete(recursive: true);
 
-        // Directory.current itself throws when CWD is deleted;
-        // ProjectRoot.find() accesses Directory.current before it can recover.
-        expect(() => ProjectRoot.find(), throwsA(isA<PathNotFoundException>()));
+        // `Directory.current` itself throws on some platforms (macOS) when the
+        // CWD is deleted, but `ProjectRoot.find()` must still recover gracefully
+        // — it never depends on a valid CWD (see [ProjectRoot.safeCurrentPath])
+        // and resolves to a real, existing directory rather than crashing. The
+        // previous assertion expected a [PathNotFoundException]; that only ever
+        // held on platforms where `Directory.current` throws, and even there
+        // [safeCurrentPath] already swallows it. The portable contract is
+        // "resolves to a valid root", not "throws".
+        final root = ProjectRoot.find();
+        expect(Directory(root).existsSync(), isTrue,
+            reason: 'find() must recover to an existing directory');
+        expect(File(p.join(root, 'pubspec.yaml')).existsSync(), isTrue,
+            reason: 'recovered root must contain pubspec.yaml');
       } finally {
         try {
           Directory.current = savedCwd;

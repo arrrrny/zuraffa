@@ -132,7 +132,7 @@ void main() {
         expect(out, isNot(contains('refactor: feature=')));
       },
     );
-  });
+  }, timeout: const Timeout(Duration(minutes: 8)));
 
   group('US2 — Tool-driven refactors only (T012 / U16-U17, A4-A6)', () {
     test('A4: malformed lib is normalized by recorded tool actions, each with '
@@ -219,7 +219,7 @@ void main() {
         );
       },
     );
-  });
+  }, timeout: const Timeout(Duration(minutes: 8)));
 
   group(
     'US3 — Post-refactor re-proof and evidence (T015 / U18-U20, A7-A9)',
@@ -258,6 +258,7 @@ void main() {
         },
       );
     },
+    timeout: const Timeout(Duration(minutes: 8)),
   );
 
   group('US4 — Summary-line contract (T018 / U21, A10-A11)', () {
@@ -310,7 +311,7 @@ void main() {
         reason: 'last line was: "$last"\nfull output:\n$out',
       );
     });
-  });
+  }, timeout: const Timeout(Duration(minutes: 8)));
 }
 
 /// Compute a path -> content hash map for every regular file under a tree.

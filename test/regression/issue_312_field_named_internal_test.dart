@@ -43,12 +43,12 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../helpers/project_root.dart';
+import '../helpers/run_zfa_source.dart';
 
 void main() {
   group('#312 — field named `internal` (meta.internal collision)', () {
     late Directory workspace;
     late String repoRoot;
-    late String zfaBin;
     late String zorphyPath;
     late String zorphyAnnotationPath;
 
@@ -56,8 +56,8 @@ void main() {
         Process.run('dart', args, workingDirectory: workspace.path);
 
     setUp(() async {
+  await initZfaSourceBin();
       repoRoot = await findProjectRoot();
-      zfaBin = p.join(repoRoot, 'bin', 'zfa.dart');
       zorphyPath = p.normalize(p.join(repoRoot, '..', 'zorphy', 'zorphy'));
       zorphyAnnotationPath = p.normalize(
         p.join(repoRoot, '..', 'zorphy', 'zorphy_annotation'),
@@ -131,17 +131,14 @@ targets:
         // 3. Create the entity. `internal:bool?` is the field that used
         //    to collide with `meta.internal`. `id:String` is a required
         //    non-null field so the entity is well-formed.
-        final createResult = await Process.run('dart', [
-          zfaBin,
-          'entity',
+        final createResult = await runZfaSource(['entity',
           'create',
           '-n',
           'BooleanCustomFieldConfig',
           '--field',
           'id:String',
           '--field',
-          'internal:bool?',
-        ], workingDirectory: workspace.path);
+          'internal:bool?',], workingDirectory: workspace.path);
         expect(
           createResult.exitCode,
           0,

@@ -25,6 +25,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import '../helpers/run_zfa_source.dart';
+
 /// Resolve package root at discovery time, before any test changes CWD.
 final _zfaRoot = Directory.current.path;
 
@@ -35,13 +37,12 @@ void main() {
     late bool zorphyAvailable;
 
     Future<ProcessResult> runZfa(List<String> args) {
-      return Process.run('dart', [
-        zfaBin,
-        ...args,
+      return runZfaSource([...args,
       ], workingDirectory: workspace.path);
     }
 
     setUp(() async {
+  await initZfaSourceBin();
       zfaBin = p.join(_zfaRoot, 'bin', 'zfa.dart');
       workspace = await Directory.systemTemp.createTemp('issue_349_');
       // Local zorphy checkouts via path deps (mirrors zuraffa's own
@@ -434,8 +435,7 @@ Object? _webUriToJson(WebUri? value) => value?.toString();
       () async {
         final result = await Process.run('dart', [
           zfaBin,
-          '--help',
-        ], workingDirectory: _zfaRoot);
+          '--help',], workingDirectory: _zfaRoot);
         expect(result.exitCode, equals(0));
       },
     );

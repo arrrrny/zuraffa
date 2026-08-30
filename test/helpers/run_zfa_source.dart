@@ -114,6 +114,7 @@ bool _isNewer(String path, DateTime reference) =>
 Future<ProcessResult> runZfaSource(
   List<String> args, {
   required String workingDirectory,
+  Duration timeout = const Duration(seconds: 75),
 }) async {
   assert(zfaSourceBin != null, 'call initZfaSourceBin() in setUpAll');
 
@@ -121,15 +122,18 @@ Future<ProcessResult> runZfaSource(
       ? [zfaExePath!, ...args] // AOT fast path (milliseconds per spawn)
       : ['dart', zfaSourceBin!, ...args]; // source fallback
 
-  // Child guard MUST be shorter than the enclosing 2-minute test *group*
-  // timeout (see `xray_mock_cli_test.dart:38`). A hanging/over-slow spawn is
-  // killed here and fails fast with a clear diagnostic instead of silently
-  // consuming the whole group window — which is exactly the `TimeoutException
-  // after 0:02:00` the Linux runner hit (#531). 75s leaves ample headroom for a
-  // legitimate cold `dart` source fallback while never exceeding the group cap.
+  // Child guard MUST be shorter than the enclosing test *group* timeout (see
+  // `xray_mock_cli_test.dart:38`). A hanging/over-slow spawn is killed here and
+  // fails fast with a clear diagnostic instead of silently consuming the whole
+  // group window — which is exactly the `TimeoutException after 0:02:00` the
+  // Linux runner hit (#531). 75s is the default: ample headroom for a
+  // legitimate cold `dart` source fallback while never exceeding the 2-minute
+  // group cap. Callers that drive `build_runner` (e.g. `zfa build`) pass a
+  // longer budget, because the first `build.dart` AOT compile + codegen can
+  // legitimately exceed 75s under concurrency contention (#531, SC-001).
   return _runSupervised(
     command,
-    timeout: const Duration(seconds: 75),
+    timeout: timeout,
     workingDirectory: workingDirectory,
   );
 }

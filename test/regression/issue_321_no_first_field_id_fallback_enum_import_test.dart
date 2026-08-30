@@ -50,27 +50,24 @@ import 'package:path/path.dart' as path;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/utils/entity_field_resolver.dart';
 import '../helpers/project_root.dart';
+import '../helpers/run_zfa_source.dart';
 
 void main() {
   group('#321 — zfa make: no first-field id fallback + emit enum imports', () {
     late Directory workspace;
-    late String zfaBin;
     late String outputDir;
 
     Future<ProcessResult> runZfa(List<String> args) {
-      return Process.run('dart', [
-        zfaBin,
-        ...args,
-      ], workingDirectory: workspace.path);
+      return runZfaSource(args, workingDirectory: workspace.path);
     }
 
     setUp(() async {
+  await initZfaSourceBin();
       // Resolve the zuraffa root via the package URI, NOT Directory.current,
       // which can be polluted by other test files sharing the same process
       // CWD. This keeps the subprocess bin path and the pubspec `path:` root
       // correct regardless of test ordering or parallelism.
       final zfaRoot = await findProjectRoot();
-      zfaBin = path.join(zfaRoot, 'bin', 'zfa.dart');
       workspace = await Directory.systemTemp.createTemp('issue_321_');
       outputDir = path.join(workspace.path, 'lib', 'src');
       await Directory(outputDir).create(recursive: true);

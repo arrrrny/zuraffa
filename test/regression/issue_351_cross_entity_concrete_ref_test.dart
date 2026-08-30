@@ -47,12 +47,12 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../helpers/project_root.dart';
+import '../helpers/run_zfa_source.dart';
 
 void main() {
   group('#351 — cross-entity concrete reference (no `\$` prefix)', () {
     late Directory workspace;
     late String repoRoot;
-    late String zfaBin;
     late String zorphyPath;
     late String zorphyAnnotationPath;
 
@@ -60,8 +60,8 @@ void main() {
         Process.run('dart', args, workingDirectory: workspace.path);
 
     setUp(() async {
+  await initZfaSourceBin();
       repoRoot = await findProjectRoot();
-      zfaBin = p.join(repoRoot, 'bin', 'zfa.dart');
       zorphyPath = p.normalize(p.join(repoRoot, '..', 'zorphy', 'zorphy'));
       zorphyAnnotationPath = p.normalize(
         p.join(repoRoot, '..', 'zorphy', 'zorphy_annotation'),
@@ -92,16 +92,13 @@ void main() {
         await _writeBuildYaml(workspace);
 
         // 2. Create the referenced entity: ParentThing (value object).
-        final parentResult = await Process.run('dart', [
-          zfaBin,
-          'entity',
+        final parentResult = await runZfaSource(['entity',
           'create',
           '-n',
           'ParentThing',
           '--kind=value_object',
           '--field',
-          'name:String',
-        ], workingDirectory: workspace.path);
+          'name:String',], workingDirectory: workspace.path);
         expect(
           parentResult.exitCode,
           0,
@@ -114,9 +111,7 @@ void main() {
         //    `--allow-forward-refs` is used so the type validator doesn't
         //    abort on the entity type. The source will emit
         //    `$ParentThing? get parent;` (the #315 behavior).
-        final childResult = await Process.run('dart', [
-          zfaBin,
-          'entity',
+        final childResult = await runZfaSource(['entity',
           'create',
           '-n',
           'ChildThing',
@@ -125,8 +120,7 @@ void main() {
           '--field',
           'parent:ParentThing?',
           '--field',
-          'data:dynamic',
-        ], workingDirectory: workspace.path);
+          'data:dynamic',], workingDirectory: workspace.path);
         expect(
           childResult.exitCode,
           0,

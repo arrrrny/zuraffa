@@ -137,7 +137,7 @@ void main() {
     expect(m4!.group(2), 'generation-error');
     expect(exitCode, isNot(0));
     exitCode = 0;
-  });
+  }, timeout: const Timeout(Duration(minutes: 5)));
 
   test('A14 — exit code 0 occurs EXACTLY on `green`; every rejection and '
       'misfire is non-zero', () async {
@@ -197,5 +197,5 @@ void main() {
     ]);
     expect(exitCode, isNot(0));
     exitCode = 0;
-  });
+  }, timeout: const Timeout(Duration(minutes: 5)));
 }
