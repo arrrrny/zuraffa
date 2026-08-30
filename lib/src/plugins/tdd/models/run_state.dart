@@ -12,11 +12,18 @@ class RunState {
   final String? inFlightBehaviorId;
   final String? inFlightStep;
 
+  /// The pid of the process that set the in-flight marker (049-tdd-run):
+  /// a live foreign pid means a concurrent run holds the feature; a dead
+  /// (or absent) pid means a crashed run that should resume at the
+  /// in-flight step.
+  final int? inFlightOwnerPid;
+
   RunState({
     required this.feature,
     required this.behaviorStates,
     this.inFlightBehaviorId,
     this.inFlightStep,
+    this.inFlightOwnerPid,
   });
 
   factory RunState.empty(String feature) =>
@@ -30,15 +37,17 @@ class RunState {
       behaviorStates: Map.unmodifiable(next),
       inFlightBehaviorId: null,
       inFlightStep: null,
+      inFlightOwnerPid: null,
     );
   }
 
-  RunState markInFlight(String behaviorId, String step) {
+  RunState markInFlight(String behaviorId, String step, {int? ownerPid}) {
     return RunState(
       feature: feature,
       behaviorStates: behaviorStates,
       inFlightBehaviorId: behaviorId,
       inFlightStep: step,
+      inFlightOwnerPid: ownerPid,
     );
   }
 
@@ -51,6 +60,7 @@ class RunState {
       if (inFlightBehaviorId != null)
         'in_flight_behavior_id': inFlightBehaviorId,
       if (inFlightStep != null) 'in_flight_step': inFlightStep,
+      if (inFlightOwnerPid != null) 'in_flight_owner_pid': inFlightOwnerPid,
     });
   }
 
@@ -60,11 +70,13 @@ class RunState {
     final states = statesRaw.map(
       (k, v) => MapEntry(k, BehaviorState.values.byName(v as String)),
     );
+    final ownerPid = map['in_flight_owner_pid'];
     return RunState(
       feature: map['feature'] as String,
       behaviorStates: Map.unmodifiable(states),
       inFlightBehaviorId: map['in_flight_behavior_id'] as String?,
       inFlightStep: map['in_flight_step'] as String?,
+      inFlightOwnerPid: ownerPid is num ? ownerPid.toInt() : null,
     );
   }
 
