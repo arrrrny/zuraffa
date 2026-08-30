@@ -109,9 +109,13 @@ class BarrelResolver {
           final hideNames = <String>[];
           for (final combinator in directive.combinators) {
             if (combinator is ShowCombinator) {
-              showNames.addAll(combinator.shownNames.map((n) => n.token.lexeme));
+              showNames.addAll(
+                combinator.shownNames.map((n) => n.token.lexeme),
+              );
             } else if (combinator is HideCombinator) {
-              hideNames.addAll(combinator.hiddenNames.map((n) => n.token.lexeme));
+              hideNames.addAll(
+                combinator.hiddenNames.map((n) => n.token.lexeme),
+              );
             }
           }
           final targetPath = p.canonicalize(

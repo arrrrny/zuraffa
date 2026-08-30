@@ -277,7 +277,10 @@ export 'overlay_card.dart' show OverlayCard;
 
         final directives = expanded.map((e) => e.directiveText).toList();
         expect(directives, contains("export 'app_card.dart' show AppCard;"));
-        expect(directives, contains("export 'overlay_card.dart' show OverlayCard;"));
+        expect(
+          directives,
+          contains("export 'overlay_card.dart' show OverlayCard;"),
+        );
         // BaseCard is declared in both targets but hidden by both show clauses,
         // so it must not be re-exported (no duplicate-export error in the sandbox).
         expect(directives.join('\n'), isNot(contains('BaseCard')));
