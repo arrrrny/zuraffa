@@ -229,3 +229,26 @@ because the log is append-only.
 - refactor: `dart format` pass over the feature's files (11 files
   reformatted; suite re-run green afterwards).
 - commit: (this commit)
+
+## Cycle 8: CI race fix — zone-scoped working directory
+
+- finding: CI failed 19 tests (all subprocess-driven) that passed
+  locally. Root cause reproduced locally with `dart test -j 4`: dart
+  test runs test FILES concurrently in isolates that share one
+  process-wide `Directory.current`. The new tdd test files switched
+  cwd per test (setUp/tearDown), racing with each other AND with the
+  pre-existing gen/verify command tests — `PathNotFoundException`
+  restoring a deleted fixture cwd, and commands resolving registries
+  under the wrong project. This widened a race the spec's own baseline
+  note had already recorded for `gen_command_test` at `0118a465`.
+- fix: `verify_red_command.dart` resolves its working directory from a
+  zone value (`zfaTddWorkingDirectory`) with `Directory.current` as the
+  production fallback; every new tdd test drives the CLI through
+  `runZoned(zoneValues: {zfaTddWorkingDirectory: fixture.root.path})`
+  and no longer mutates `Directory.current` at all. Zones are
+  isolate-scoped, so concurrent files cannot interfere.
+- green: `dart test -j 4 test/plugins/tdd/` (the repro config, dart
+  3.13.1 = CI's pin) -> 183 passed, 0 failed. The pre-existing
+  gen/verify/smoke cwd race is unchanged (master status quo; those
+  files still pass).
+- commit: (this commit)

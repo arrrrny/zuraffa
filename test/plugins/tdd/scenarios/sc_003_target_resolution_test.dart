@@ -3,27 +3,37 @@
 // rejection with a candidate list, unknown id, and gen-first guidance.
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/plugins/tdd/commands/verify_red_command.dart'
+    show zfaTddWorkingDirectory;
 
 import '../helpers/tdd_fixture.dart';
 
 void main() {
+  /// Zone-pins the CLI run to the fixture project — no process-wide
+  /// `Directory.current` mutation (concurrent test files share one cwd).
+  Future<String> runInFixture(
+    CliRunner runner,
+    String root,
+    List<String> args,
+  ) => runZoned(
+    () => runner.runCapturing(args),
+    zoneValues: {zfaTddWorkingDirectory: root},
+  );
+
   late TddFixture fx;
-  late Directory prev;
   const description = 'returns 42 when invoked with no args';
 
   setUp(() async {
-    prev = Directory.current;
     fx = await TddFixture.create(featureName: '046-tdd-verify-red');
     await fx.registerBehavior(id: 'B-001', description: description);
-    Directory.current = fx.root;
   });
 
   tearDown(() {
-    Directory.current = prev;
     fx.dispose();
     exitCode = 0;
   });
@@ -32,7 +42,10 @@ void main() {
     'A9: no-arg with exactly one uncertified gen\'d behavior verifies it',
     () async {
       final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(['tdd', 'verify-red']);
+      final out = await runInFixture(runner, fx.root.path, [
+        'tdd',
+        'verify-red',
+      ]);
       expect(
         out,
         contains(
@@ -49,7 +62,10 @@ void main() {
     () async {
       await fx.registerBehavior(id: 'B-002', description: description);
       final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(['tdd', 'verify-red']);
+      final out = await runInFixture(runner, fx.root.path, [
+        'tdd',
+        'verify-red',
+      ]);
       expect(exitCode, isNot(0));
       expect(out, contains('B-001'));
       expect(out, contains('B-002'));
@@ -59,7 +75,11 @@ void main() {
 
   test('A11: unknown id exits non-zero naming the id before any run', () async {
     final runner = CliRunner(exitOnCompletion: false);
-    final out = await runner.runCapturing(['tdd', 'verify-red', 'B-999']);
+    final out = await runInFixture(runner, fx.root.path, [
+      'tdd',
+      'verify-red',
+      'B-999',
+    ]);
     expect(exitCode, isNot(0));
     expect(out, contains('B-999'));
     expect(File(fx.cycleLogPath).existsSync(), isFalse);
@@ -76,7 +96,11 @@ void main() {
 | B-777 | planned but not generated | FR-007 | unit | PENDING | x |
 ''');
       final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(['tdd', 'verify-red', 'B-777']);
+      final out = await runInFixture(runner, fx.root.path, [
+        'tdd',
+        'verify-red',
+        'B-777',
+      ]);
       expect(exitCode, isNot(0));
       expect(out, contains('zfa tdd gen B-777'));
     },

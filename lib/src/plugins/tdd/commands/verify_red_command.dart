@@ -32,6 +32,7 @@
 /// failures (resolution/misfire) where no test was executed.
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -44,6 +45,18 @@ import '../services/cycle_log.dart';
 import '../services/red_classifier.dart';
 import '../services/runner.dart';
 import '../tdd_plugin.dart';
+
+/// Zone key that pins the working directory for one `verify-red`
+/// invocation.
+///
+/// Production callers never set it: the command falls back to
+/// `Directory.current`. Test drivers use it to pin the fixture project
+/// WITHOUT mutating the process-wide working directory — `dart test` runs
+/// test files concurrently in isolates that share one process cwd, and
+/// per-test `Directory.current = ...` switches race with each other
+/// (the failure mode is a `PathNotFoundException` restoring a cwd another
+/// isolate already deleted).
+const Symbol zfaTddWorkingDirectory = #zfaTddWorkingDirectory;
 
 /// Resolution-stage failure: message + the feature context if known.
 class VerifyRedResolutionError implements Exception {
@@ -90,7 +103,9 @@ class VerifyRedCommand extends Command<void> {
     if (featureFlag != null && featureFlag.isNotEmpty) {
       _validateFeatureSegment(featureFlag);
     }
-    final cwd = Directory.current.path;
+    final cwd =
+        Zone.current[zfaTddWorkingDirectory] as String? ??
+        Directory.current.path;
 
     // ---------------------------------------------------------------
     // 1. Resolve the target from the registry (FR-001, FR-002).

@@ -4,27 +4,37 @@
 // certification.
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/plugins/tdd/commands/verify_red_command.dart'
+    show zfaTddWorkingDirectory;
 
 import '../helpers/tdd_fixture.dart';
 
 void main() {
+  /// Zone-pins the CLI run to the fixture project — no process-wide
+  /// `Directory.current` mutation (concurrent test files share one cwd).
+  Future<String> runInFixture(
+    CliRunner runner,
+    String root,
+    List<String> args,
+  ) => runZoned(
+    () => runner.runCapturing(args),
+    zoneValues: {zfaTddWorkingDirectory: root},
+  );
+
   late TddFixture fx;
-  late Directory prev;
   const description = 'returns 42 when invoked with no args';
 
   setUp(() async {
-    prev = Directory.current;
     fx = await TddFixture.create(featureName: '046-tdd-verify-red');
     await fx.registerBehavior(id: 'B-001', description: description);
-    Directory.current = fx.root;
   });
 
   tearDown(() {
-    Directory.current = prev;
     fx.dispose();
     exitCode = 0;
   });
@@ -43,7 +53,11 @@ void main() {
   test('A13/U26: certified run ends with the contract summary line '
       '(final stdout line)', () async {
     final runner = CliRunner(exitOnCompletion: false);
-    final out = await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+    final out = await runInFixture(runner, fx.root.path, [
+      'tdd',
+      'verify-red',
+      'B-001',
+    ]);
     final match = summaryShape.firstMatch(lastLine(out));
     expect(match, isNotNull, reason: 'last line was: ${lastLine(out)}');
     expect(match!.group(1), 'B-001');
@@ -57,20 +71,22 @@ void main() {
     () async {
       final fx2 = await TddFixture.create();
       try {
-        Directory.current = fx2.root;
         await fx2.registerBehavior(
           id: 'B-001',
           description: description,
           testContent: TddFixture.greenTest(description),
         );
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+        final out = await runInFixture(runner, fx2.root.path, [
+          'tdd',
+          'verify-red',
+          'B-001',
+        ]);
         final match = summaryShape.firstMatch(lastLine(out));
         expect(match, isNotNull, reason: 'last line was: ${lastLine(out)}');
         expect(match!.group(2), 'unexpected-green');
         expect(match.group(3), 'false');
       } finally {
-        Directory.current = prev;
         fx2.dispose();
         exitCode = 0;
       }
@@ -81,7 +97,11 @@ void main() {
     'A13/U26: resolution error ends with the contract line (unresolved)',
     () async {
       final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(['tdd', 'verify-red', 'B-999']);
+      final out = await runInFixture(runner, fx.root.path, [
+        'tdd',
+        'verify-red',
+        'B-999',
+      ]);
       final match = summaryShape.firstMatch(lastLine(out));
       expect(match, isNotNull, reason: 'last line was: ${lastLine(out)}');
       expect(match!.group(1), 'B-999');
@@ -94,15 +114,15 @@ void main() {
       'every rejection is non-zero', () async {
     // Certified -> 0.
     final runner = CliRunner(exitOnCompletion: false);
-    await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+    await runInFixture(runner, fx.root.path, ['tdd', 'verify-red', 'B-001']);
     expect(exitCode, 0, reason: 'certified red must exit 0');
 
     // Rejected (unknown id) -> non-zero.
-    await runner.runCapturing(['tdd', 'verify-red', 'B-999']);
+    await runInFixture(runner, fx.root.path, ['tdd', 'verify-red', 'B-999']);
     expect(exitCode, isNot(0), reason: 'resolution failure must be non-zero');
 
     // Rejected (no candidates after certification) -> non-zero.
-    await runner.runCapturing(['tdd', 'verify-red']);
+    await runInFixture(runner, fx.root.path, ['tdd', 'verify-red']);
     expect(
       exitCode,
       isNot(0),
