@@ -388,7 +388,7 @@ Something.
         );
 
         // Inject a broken relative import into one of the stub files.
-        final stubFile = File('$boneDir/lib/entities/widget.dart');
+        final stubFile = File('$boneDir/entities/widget.dart');
         final originalContent = await stubFile.readAsString();
         await stubFile.writeAsString(
           "import 'does_not_exist.dart';\n$originalContent",
@@ -446,7 +446,7 @@ Something.
 
         final boneDir = '$outputDir/pkg-feature';
         // Inject a package: import not backed by any declared dependency.
-        final stubFile = File('$boneDir/lib/entities/item.dart');
+        final stubFile = File('$boneDir/entities/item.dart');
         final originalContent = await stubFile.readAsString();
         await stubFile.writeAsString(
           "import 'package:not_a_declared_dep/x.dart';\n$originalContent",
@@ -520,7 +520,7 @@ Something.
         final boneDir = '$outputDir/pkg-feature-dep';
         // Inject a package: import whose name matches a declared dependency
         // slug (dep-feature → dep_feature).
-        final stubFile = File('$boneDir/lib/entities/item.dart');
+        final stubFile = File('$boneDir/entities/item.dart');
         final originalContent = await stubFile.readAsString();
         await stubFile.writeAsString(
           "import 'package:dep_feature/something.dart';\n$originalContent",
@@ -583,6 +583,248 @@ Something.
         );
       },
       timeout: const Timeout(Duration(seconds: 120)),
+    );
+  });
+
+  group('BoneCommand (042 working slice)', () {
+    test('042-U37: invalid --di value prints a usage error, exits non-zero, '
+        'and generates nothing', () async {
+      final spec = await writeSpec('''
+# Feature: Sample Feature
+
+## Key Entities
+
+- **Product** — a catalog item
+
+## Requirements
+
+- Something
+''');
+      final outputDir = '${tmpDir.path}/bones';
+      final command = BoneCommand();
+      final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
+
+      final output = await captureOutput(
+        () => runner.run([
+          'bone',
+          'generate',
+          'sample-feature',
+          '--spec',
+          spec.path,
+          '--output',
+          outputDir,
+          '--di',
+          'redis',
+        ]),
+      );
+
+      expect(output, contains('--di'));
+      expect(exitCode, isNot(equals(0)));
+      expect(
+        await Directory('$outputDir/sample-feature').exists(),
+        isFalse,
+        reason: 'invalid --di must not generate anything',
+      );
+      exitCode = 0;
+    });
+
+    test(
+      '042-U38: --export names the artifact <feature>-<di>.tar.gz',
+      () async {
+        final spec = await writeSpec('''
+# Feature: Sample Feature
+
+## Key Entities
+
+- **Product** — a catalog item
+
+## Requirements
+
+- Something
+''');
+        final outputDir = '${tmpDir.path}/bones';
+        final command = BoneCommand();
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
+
+        final output = await captureOutput(
+          () => runner.run([
+            'bone',
+            'generate',
+            'sample-feature',
+            '--spec',
+            spec.path,
+            '--output',
+            outputDir,
+            '--di',
+            'mock',
+            '--export',
+          ]),
+        );
+
+        final artifact = File('$outputDir/sample-feature-mock.tar.gz');
+        expect(
+          await artifact.exists(),
+          isTrue,
+          reason: 'artifact must exist; command output was: $output',
+        );
+        expect(output, contains('sample-feature-mock.tar.gz'));
+      },
+    );
+
+    test('042-U39: --di, --flutter, and --include-deps are plumbed to the '
+        'generator', () async {
+      final spec = await writeSpec('''
+# Feature: Sample Feature
+
+## Key Entities
+
+- **Product** — a catalog item
+
+## Requirements
+
+- Something
+''');
+      final outputDir = '${tmpDir.path}/bones';
+      final command = BoneCommand();
+      final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
+
+      await captureOutput(
+        () => runner.run([
+          'bone',
+          'generate',
+          'sample-feature',
+          '--spec',
+          spec.path,
+          '--output',
+          outputDir,
+          '--di',
+          'mock',
+          '--flutter',
+          '--include-deps',
+        ]),
+      );
+
+      final boneDir = '$outputDir/sample-feature';
+      // --flutter plumbed: pubspec + main + page + widget test.
+      expect(await File('$boneDir/pubspec.yaml').exists(), isTrue);
+      expect(await File('$boneDir/lib/main.dart').exists(), isTrue);
+      expect(
+        await File('$boneDir/presentation/sample_feature_page.dart').exists(),
+        isTrue,
+      );
+      expect(
+        await File('$boneDir/test/sample_feature_page_test.dart').exists(),
+        isTrue,
+      );
+      // --di mock plumbed into the manifest.
+      final manifest = await File('$boneDir/bone.yaml').readAsString();
+      expect(manifest, contains('di: mock'));
+      expect(manifest, contains('di_source:'));
+    });
+
+    test('042-U40: usage text documents the new flags', () async {
+      final command = BoneCommand();
+      final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
+
+      final output = await captureOutput(() => runner.run(['bone', '--help']));
+
+      expect(output, contains('--di <mock|firebase|auto>'));
+      expect(output, contains('--flutter'));
+      expect(output, contains('--include-deps'));
+      expect(output, contains('--export'));
+    });
+
+    test('042-U41: validate accepts packages declared in the bone pubspec '
+        '(flutter mode)', () async {
+      final spec = await writeSpec('''
+# Feature: Sample Feature
+
+## Key Entities
+
+- **Product** — a catalog item
+
+## Requirements
+
+- Something
+''');
+      final outputDir = '${tmpDir.path}/bones';
+      final command = BoneCommand();
+      final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
+
+      await captureOutput(
+        () => runner.run([
+          'bone',
+          'generate',
+          'sample-feature',
+          '--spec',
+          spec.path,
+          '--output',
+          outputDir,
+          '--flutter',
+        ]),
+      );
+
+      final output = await captureOutput(
+        () => runner.run([
+          'bone',
+          'validate',
+          'sample-feature',
+          '--bones-dir',
+          outputDir,
+        ]),
+      );
+      expect(output, contains('OK: bone "sample-feature" is valid.'));
+    });
+
+    test(
+      '042-U42: validate still rejects undeclared package imports',
+      () async {
+        final spec = await writeSpec('''
+# Feature: Sample Feature
+
+## Key Entities
+
+- **Product** — a catalog item
+
+## Requirements
+
+- Something
+''');
+        final outputDir = '${tmpDir.path}/bones';
+        final command = BoneCommand();
+        final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
+
+        await captureOutput(
+          () => runner.run([
+            'bone',
+            'generate',
+            'sample-feature',
+            '--spec',
+            spec.path,
+            '--output',
+            outputDir,
+          ]),
+        );
+
+        // Inject a rogue import into a generated file.
+        final rogue = File('$outputDir/sample-feature/entities/product.dart');
+        await rogue.writeAsString(
+          "import 'package:some_rogue_package/thing.dart';\n"
+          '${await rogue.readAsString()}',
+        );
+
+        final output = await captureOutput(
+          () => runner.run([
+            'bone',
+            'validate',
+            'sample-feature',
+            '--bones-dir',
+            outputDir,
+          ]),
+        );
+        expect(output, contains('undeclared package import'));
+        exitCode = 0;
+      },
     );
   });
 }

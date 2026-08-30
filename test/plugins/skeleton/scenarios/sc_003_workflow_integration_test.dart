@@ -79,16 +79,17 @@ void main() {
         expect(manifestContent, contains('Widget'));
         expect(manifestContent, contains('Signal'));
 
-        // Entity stubs must exist for each declared entity.
+        // Entity files must exist for each declared entity (042 layout:
+        // entities/<snake>.dart at the bone root).
         expect(
-          await File('$boneDir/lib/entities/widget.dart').exists(),
+          await File('$boneDir/entities/widget.dart').exists(),
           isTrue,
-          reason: 'widget.dart entity stub must exist',
+          reason: 'widget.dart entity file must exist',
         );
         expect(
-          await File('$boneDir/lib/entities/signal.dart').exists(),
+          await File('$boneDir/entities/signal.dart').exists(),
           isTrue,
-          reason: 'signal.dart entity stub must exist',
+          reason: 'signal.dart entity file must exist',
         );
       },
     );
@@ -138,43 +139,26 @@ void main() {
           .toList();
       expect(testFiles, isNotEmpty, reason: 'must have at least one test stub');
 
-      // Each test stub must parse as valid Dart (analysis check).
+      // Each test must be a real runnable test (042: plain-Dart main with
+      // real assertions; no TODO-only stubs).
       for (final testFile in testFiles) {
         final content = testFile.readAsStringSync();
 
         // Must have a main() function.
         expect(
-          content,
-          contains('void main()'),
+          RegExp(
+            r'^\s*(?:(?:Future<void>|void)\s+)?main\s*\(',
+            multiLine: true,
+          ).hasMatch(content),
+          isTrue,
           reason: '${p.basename(testFile.path)} must define main()',
         );
-
-        // Must import the barrel (relative import to lib/).
         expect(
-          content,
-          contains("import '../lib/"),
-          reason: '${p.basename(testFile.path)} must import the bone barrel',
+          content.contains('TODO'),
+          isFalse,
+          reason: '${p.basename(testFile.path)} must not be a TODO stub',
         );
       }
-
-      // Verify barrel exists and exports entities.
-      final barrelPath = '${boneDir.path}/lib/test_stub_feature.dart';
-      expect(
-        await File(barrelPath).exists(),
-        isTrue,
-        reason: 'barrel entry point must exist',
-      );
-      final barrelContent = await File(barrelPath).readAsString();
-      expect(
-        barrelContent,
-        contains("export 'entities/widget.dart'"),
-        reason: 'barrel must export widget.dart',
-      );
-      expect(
-        barrelContent,
-        contains("export 'entities/signal.dart'"),
-        reason: 'barrel must export signal.dart',
-      );
 
       // Parse-level validity: every .dart file in the bone must be
       // syntactically valid Dart. `dart format --output=none` exits

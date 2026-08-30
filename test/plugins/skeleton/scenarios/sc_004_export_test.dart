@@ -114,11 +114,11 @@ void main() {
           reason: 'archive must contain catalog_item.dart entity stub',
         );
 
-        // Must contain the barrel.
+        // Must contain the DI container (042 working slice).
         expect(
           fileNames,
-          anyElement(contains('export_feature.dart')),
-          reason: 'archive must contain barrel entry point',
+          anyElement(contains('injection.dart')),
+          reason: 'archive must contain di/injection.dart',
         );
 
         // Must contain test stubs.
@@ -178,9 +178,9 @@ void main() {
         final manifestContent = await manifestFile.readAsString();
         expect(manifestContent, contains('feature: export-feature'));
 
-        // Entity stubs must be present.
+        // Entity files must be present (042 layout: entities/).
         expect(
-          await File('${extractDir.path}/lib/entities/widget.dart').exists(),
+          await File('${extractDir.path}/entities/widget.dart').exists(),
           isTrue,
           reason: 'widget.dart must exist in extracted bone',
         );

@@ -69,33 +69,26 @@ void main() {
           reason: 'bone.yaml must exist',
         );
 
-        // Entity stubs exist.
+        // Entity files exist (042 working-slice layout).
         expect(
-          await File('$boneDir/lib/entities/product.dart').exists(),
+          await File('$boneDir/entities/product.dart').exists(),
           isTrue,
-          reason: 'product.dart entity stub must exist',
+          reason: 'product.dart entity file must exist',
         );
         expect(
-          await File('$boneDir/lib/entities/cart_item.dart').exists(),
+          await File('$boneDir/entities/cart_item.dart').exists(),
           isTrue,
-          reason: 'cart_item.dart entity stub must exist',
+          reason: 'cart_item.dart entity file must exist',
         );
 
-        // Layer placeholders exist.
-        for (final layer in ['domain', 'data', 'presentation']) {
+        // Layer directories exist with real working-slice files.
+        for (final layer in ['domain', 'data', 'di', 'test']) {
           expect(
             await Directory('$boneDir/$layer').exists(),
             isTrue,
             reason: '$layer/ directory must exist',
           );
         }
-
-        // Barrel entry point exists.
-        expect(
-          await File('$boneDir/lib/sample_feature.dart').exists(),
-          isTrue,
-          reason: 'barrel entry point must exist',
-        );
       },
     );
 
