@@ -367,6 +367,21 @@ provides:
       description: Extract a runnable, self-contained slice of the project from one or more entry points.
       aliases: [zfa.slice.cut_slice]
       category: slice
+    - name: speckit.zuraffa.slice.merge_slice
+      file: commands/slice/merge_slice.md
+      description: Merge agent changes from a slice back into the project (shared-file writes need confirmation).
+      aliases: [zfa.slice.merge_slice]
+      category: slice
+    - name: speckit.zuraffa.slice.verify_slice
+      file: commands/slice/verify_slice.md
+      description: Check a slice's imports resolve (optionally run dart analyze) before handing it to an agent.
+      aliases: [zfa.slice.verify_slice]
+      category: slice
+    - name: speckit.zuraffa.slice.export_slice
+      file: commands/slice/export_slice.md
+      description: Export a slice as a tar.gz archive or a GitHub repo, and import it back over the sandbox.
+      aliases: [zfa.slice.export_slice]
+      category: slice
 categories:
   setup:
     name: Setup

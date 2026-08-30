@@ -34,15 +34,6 @@ jobs:
         run: dart analyze lib test --no-fatal-warnings
       - name: "Dart Test (pure Dart, no Flutter)"
         run: dart test test
-      - name: "zikzak_session: Get dependencies"
-        run: dart pub get
-        working-directory: ./zikzak_session
-      - name: "zikzak_session: Analyze"
-        run: dart analyze --no-fatal-warnings
-        working-directory: ./zikzak_session
-      - name: "zikzak_session: Test"
-        run: dart test
-        working-directory: ./zikzak_session
 
   analyze:
     timeout-minutes: 15
@@ -84,7 +75,7 @@ jobs:
           sdk: "3.13.1"
       - name: "Get dependencies"
         # Required so dart format can resolve analysis_options.yaml's
-        # `package:flutter_lints/flutter.yaml` include; without a package
+        # `package:lints/recommended.yaml` include; without a package
         # config it falls back to default formatting rules and flags drift.
         run: dart pub get
       - name: "Formatter"

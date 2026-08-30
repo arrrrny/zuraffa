@@ -15,6 +15,7 @@ import 'package:path/path.dart' as p;
 
 import '../../../core/ast/file_parser.dart';
 import '../../../utils/string_utils.dart';
+import '../models/file_graph.dart';
 import '../models/slice_boundary.dart';
 import '../models/slice_depth.dart';
 
@@ -51,8 +52,16 @@ class MockStubGenerator {
     if (boundary.mockStrategy == 'none') return null;
 
     final targetRoot = sandboxRoot ?? projectRoot;
+    // When the concrete interface lives in an excluded layer at this depth, it
+    // is not copied into the sandbox; read its source from the project so the
+    // mock (with an inline abstract interface) can still be generated (A13/A14).
+    final interfaceIncluded = layerAllowedAtDepth(
+      classifyLayer(boundary.interfaceFile),
+      depth,
+    );
+    final sourceRoot = interfaceIncluded ? targetRoot : projectRoot;
     final interfacePath = p.canonicalize(
-      p.join(targetRoot, boundary.interfaceFile),
+      p.join(sourceRoot, boundary.interfaceFile),
     );
     final file = File(interfacePath);
     if (!await file.exists()) return null;
@@ -72,12 +81,33 @@ class MockStubGenerator {
     buffer.writeln('// return realistic values to exercise the slice.');
     buffer.writeln('library;');
     buffer.writeln();
-    final interfaceImport = p.relative(
-      interfacePath,
-      from: p.join(targetRoot, 'lib', 'src', 'mocks'),
-    );
-    buffer.writeln("import '${interfaceImport.replaceAll('\\', '/')}';");
-    buffer.writeln();
+
+    if (interfaceIncluded) {
+      final interfaceImport = p.relative(
+        interfacePath,
+        from: p.join(targetRoot, 'lib', 'src', 'mocks'),
+      );
+      buffer.writeln("import '${interfaceImport.replaceAll('\\', '/')}';");
+      buffer.writeln();
+    } else {
+      // The concrete interface lives in an excluded layer at this depth (e.g.
+      // the concrete ProductPresenter at `--depth view`). Keep its shape inline
+      // so the sandbox stays within the depth and the mock still resolves
+      // (A13/A14) without dragging the excluded layer into the sandbox.
+      final signatures = _abstractSignatures(source, boundary.typeName);
+      if (signatures != null) {
+        buffer.writeln(
+          '// Inline interface (concrete declaration is outside the slice depth).',
+        );
+        buffer.writeln('abstract class ${boundary.typeName} {');
+        for (final sig in signatures) {
+          buffer.writeln('  $sig');
+        }
+        buffer.writeln('}');
+        buffer.writeln();
+      }
+    }
+
     buffer.writeln('/// Mock of [${boundary.typeName}].');
     buffer.writeln('class $mockClassName implements ${boundary.typeName} {');
     for (final member in members) {
@@ -137,6 +167,58 @@ class MockStubGenerator {
       }
     }
     return members;
+  }
+
+  /// Renders every public member of [typeName] as an abstract signature (no
+  /// body), or null when the type is not declared in [source]. Used to keep a
+  /// boundary's shape inline when its concrete declaration is outside the cut
+  /// depth (so the sandbox does not import an excluded-layer file).
+  List<String>? _abstractSignatures(String source, String typeName) {
+    final result = _parser.parseSource(source);
+    final unit = result.unit;
+    if (unit == null) return null;
+    ClassDeclaration? declaration;
+    for (final decl in unit.declarations) {
+      if (decl is ClassDeclaration &&
+          decl.namePart.typeName.lexeme == typeName) {
+        declaration = decl;
+        break;
+      }
+    }
+    if (declaration == null) return null;
+
+    final signatures = <String>[];
+    final body = declaration.body;
+    if (body is! BlockClassBody) return signatures;
+    for (final member in body.members) {
+      if (member is MethodDeclaration) {
+        final name = member.name.toString();
+        if (name.startsWith('_')) continue;
+        final returnType = member.returnType?.toString();
+        final typeParams = member.typeParameters == null
+            ? ''
+            : member.typeParameters.toString();
+        final params = member.parameters?.toString() ?? '()';
+        if (member.isSetter) {
+          signatures.add('set $name$params;');
+        } else if (member.isGetter) {
+          signatures.add('${returnType ?? 'dynamic'} get $name;');
+        } else {
+          signatures.add('${returnType ?? 'dynamic'} $name$typeParams$params;');
+        }
+      } else if (member is FieldDeclaration) {
+        for (final variable in member.fields.variables) {
+          final name = variable.name.toString();
+          if (name.startsWith('_')) continue;
+          final type = member.fields.type?.toString() ?? 'dynamic';
+          signatures.add('$type get $name;');
+          if (!member.fields.isFinal) {
+            signatures.add('set $name($type value);');
+          }
+        }
+      }
+    }
+    return signatures;
   }
 
   String _stubMethod(MethodDeclaration method) {
