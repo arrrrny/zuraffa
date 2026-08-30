@@ -231,8 +231,14 @@ void main() {
       final content = toggleTestFile.readAsStringSync();
       // Class name follows the usecase generator's pattern.
       expect(content, contains('ToggleTodoUseCase'));
-      // The mock repository must be exercised via its toggle method.
-      expect(content, contains('mockRepository.toggle('));
+      // The zuraffa-native mock datasource is injected into the repository
+      // (the mock feature replaced mocktail — #524 / 783fd5dc). The usecase
+      // exercises the toggle path through this mock.
+      expect(
+        content,
+        contains('DataTodoRepository(mockDataSource)'),
+        reason: 'native mock datasource must be wired into the repository',
+      );
       // The params constructor must match the usecase generator's signature.
       expect(content, contains('ToggleParams<String, Field<Todo, dynamic>>'));
       // The Field constant must come from the entity's Fields class

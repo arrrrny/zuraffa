@@ -74,14 +74,22 @@ void main() {
       workspace = await Directory.systemTemp.createTemp('issue_321_');
       outputDir = path.join(workspace.path, 'lib', 'src');
       await Directory(outputDir).create(recursive: true);
-      // Minimal pubspec — `zfa make` only needs the package to exist.
+      // Minimal Flutter pubspec — the #321 suite verifies generated
+      // presentation code (presenter + controller) and controllers are
+      // Flutter-only (Constitution VII), so the target must declare a
+      // `flutter:` dependency or `zfa make` skips controller generation.
       await File(path.join(workspace.path, 'pubspec.yaml')).writeAsString('''
 name: issue_321_test_app
 environment:
   sdk: ^3.11.0
 dependencies:
+  flutter:
+    sdk: flutter
   zuraffa:
     path: ${path.normalize(zfaRoot)}
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
 ''');
     });
 

@@ -10,9 +10,10 @@ import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/test/builders/test_builder.dart';
 
 /// #354 regression: zfa test plugin must generate package:test/test.dart
-/// (not flutter_test) and package:zuraffa/zuraffa.dart (not
-/// zuraffa_flutter) when the target project is pure-Dart (no
-/// flutter: sdk: flutter in pubspec.yaml).
+/// (not flutter_test) and the canonical package:zuraffa/mock.dart marker
+/// (not zuraffa_flutter) when the target project is pure-Dart (no
+/// flutter: sdk: flutter in pubspec.yaml). The core import resolves to
+/// package:zuraffa/mock.dart for every flavor (see _zuraffaCoreImport).
 void main() {
   group('issue 354 - test plugin Flutter-vs-pure-Dart imports', () {
     late Directory tempDir;
@@ -202,8 +203,9 @@ dev_dependencies:
       expect(updateFile.content!, isNot(contains('flutter_test')));
       expect(updateFile.content!, isNot(contains('zuraffa_flutter')));
       expect(updateFile.content!, contains('package:test/test.dart'));
-      // update needs zuraffa core import - must be zuraffa, not zuraffa_flutter.
-      expect(updateFile.content!, contains('package:zuraffa/zuraffa.dart'));
+      // update needs the canonical zuraffa core import (package:zuraffa/mock.dart),
+      // never zuraffa_flutter.
+      expect(updateFile.content!, contains('package:zuraffa/mock.dart'));
     });
 
     test(
@@ -273,10 +275,11 @@ dev_dependencies:
           updateFile.content!,
           contains('package:flutter_test/flutter_test.dart'),
         );
-        // update needs zuraffa core import - must be zuraffa_flutter for Flutter.
+        // update needs the canonical zuraffa core import - package:zuraffa/mock.dart
+        // for every flavor (see _zuraffaCoreImport), never zuraffa_flutter.
         expect(
           updateFile.content!,
-          contains('package:zuraffa_flutter/zuraffa_flutter.dart'),
+          contains('package:zuraffa/mock.dart'),
         );
       },
     );
@@ -342,7 +345,7 @@ dependencies:
       expect(file.content!, isNot(contains('flutter_test')));
       expect(file.content!, isNot(contains('zuraffa_flutter')));
       expect(file.content!, contains('package:test/test.dart'));
-      expect(file.content!, contains('package:zuraffa/zuraffa.dart'));
+      expect(file.content!, contains('package:zuraffa/mock.dart'));
     });
 
     test('orchestrator test builder respects pure-Dart imports', () async {
@@ -377,7 +380,7 @@ dependencies:
       expect(file.content!, isNot(contains('flutter_test')));
       expect(file.content!, isNot(contains('zuraffa_flutter')));
       expect(file.content!, contains('package:test/test.dart'));
-      expect(file.content!, contains('package:zuraffa/zuraffa.dart'));
+      expect(file.content!, contains('package:zuraffa/mock.dart'));
     });
 
     test('polymorphic test builder respects pure-Dart imports', () async {
@@ -433,9 +436,9 @@ dependencies:
         );
         expect(
           file.content!,
-          contains('package:zuraffa/zuraffa.dart'),
+          contains('package:zuraffa/mock.dart'),
           reason:
-              'polymorphic test must import package:zuraffa/zuraffa.dart in pure-Dart',
+              'polymorphic test must import package:zuraffa/mock.dart in pure-Dart',
         );
       }
     });
