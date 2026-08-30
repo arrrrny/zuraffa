@@ -195,8 +195,9 @@ class MockStubGenerator {
         final name = member.name.toString();
         if (name.startsWith('_')) continue;
         final returnType = member.returnType?.toString();
-        final typeParams =
-            member.typeParameters == null ? '' : member.typeParameters.toString();
+        final typeParams = member.typeParameters == null
+            ? ''
+            : member.typeParameters.toString();
         final params = member.parameters?.toString() ?? '()';
         signatures.add('${returnType ?? 'dynamic'} $name$typeParams$params;');
       } else if (member is FieldDeclaration) {

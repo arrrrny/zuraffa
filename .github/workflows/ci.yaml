@@ -84,7 +84,7 @@ jobs:
           sdk: "3.13.1"
       - name: "Get dependencies"
         # Required so dart format can resolve analysis_options.yaml's
-        # `package:flutter_lints/flutter.yaml` include; without a package
+        # `package:lints/recommended.yaml` include; without a package
         # config it falls back to default formatting rules and flags drift.
         run: dart pub get
       - name: "Formatter"

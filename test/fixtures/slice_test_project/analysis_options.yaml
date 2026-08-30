@@ -1,0 +1,6 @@
+# Standalone Flutter fixture for the slice plugin tests (spec 043).
+# This is test DATA read by the slice engine, never compiled or analyzed
+# as part of the root package (it is excluded in the root analysis_options
+# `analyzer.exclude`). It carries its own analysis_options so `dart format`
+# run from the repo root does not fall back to the root file's
+# `package:lints/...` include, which this fixture cannot resolve.
