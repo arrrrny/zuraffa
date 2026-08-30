@@ -101,8 +101,9 @@ class SliceManifest {
       projectRoot: projectRoot ?? this.projectRoot,
       packageName: packageName ?? this.packageName,
       branch: branch ?? this.branch,
-      exportedTo:
-          exportedTo == _unset ? this.exportedTo : exportedTo as String?,
+      exportedTo: exportedTo == _unset
+          ? this.exportedTo
+          : exportedTo as String?,
       files: files ?? this.files,
       boundaries: boundaries ?? this.boundaries,
       generatedFiles: generatedFiles ?? this.generatedFiles,

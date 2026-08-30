@@ -145,14 +145,10 @@ void main() {
 
     test('copyWith can clear exportedTo back to null', () {
       final manifest = fullManifest().copyWith(
-        exportedTo:
-            'https://github.com/arrrrny/zik-zak-slice-profile-feature',
+        exportedTo: 'https://github.com/arrrrny/zik-zak-slice-profile-feature',
       );
 
-      expect(
-        manifest.copyWith(exportedTo: null).exportedTo,
-        isNull,
-      );
+      expect(manifest.copyWith(exportedTo: null).exportedTo, isNull);
     });
   });
 
@@ -195,9 +191,10 @@ void main() {
       },
     );
 
-    test('U3: invalid ownership values are rejected instead of defaulting',
-        () async {
-      await File('${tmpDir.path}/slice.yaml').writeAsString('''
+    test(
+      'U3: invalid ownership values are rejected instead of defaulting',
+      () async {
+        await File('${tmpDir.path}/slice.yaml').writeAsString('''
 name: bad_slice
 createdAt: "2026-08-30T10:30:00.000Z"
 depth: feature
@@ -214,21 +211,23 @@ boundaries: []
 generatedFiles: []
 ''');
 
-      await expectLater(
-        () => writer.read(tmpDir.path),
-        throwsA(
-          isA<SliceManifestError>().having(
-            (e) => e.message,
-            'message',
-            contains('invalid file ownership'),
+        await expectLater(
+          () => writer.read(tmpDir.path),
+          throwsA(
+            isA<SliceManifestError>().having(
+              (e) => e.message,
+              'message',
+              contains('invalid file ownership'),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
-    test('U3: invalid mock strategies are rejected instead of defaulting',
-        () async {
-      await File('${tmpDir.path}/slice.yaml').writeAsString('''
+    test(
+      'U3: invalid mock strategies are rejected instead of defaulting',
+      () async {
+        await File('${tmpDir.path}/slice.yaml').writeAsString('''
 name: bad_slice
 createdAt: "2026-08-30T10:30:00.000Z"
 depth: feature
@@ -246,16 +245,17 @@ boundaries:
 generatedFiles: []
 ''');
 
-      await expectLater(
-        () => writer.read(tmpDir.path),
-        throwsA(
-          isA<SliceManifestError>().having(
-            (e) => e.message,
-            'message',
-            contains('invalid mock strategy'),
+        await expectLater(
+          () => writer.read(tmpDir.path),
+          throwsA(
+            isA<SliceManifestError>().having(
+              (e) => e.message,
+              'message',
+              contains('invalid mock strategy'),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
   });
 }

@@ -376,9 +376,7 @@ class CutSliceCapability implements ZuraffaCapability {
     final filteredPubspec = await PubspecFilter().filter(
       projectRoot: projectRoot,
       sandboxDir: sandboxDir,
-      sliceDartFiles: [
-        for (final file in manifestFiles) file.relativePath,
-      ],
+      sliceDartFiles: [for (final file in manifestFiles) file.relativePath],
     );
     await _writeFile(p.join(sandboxDir, 'pubspec.yaml'), filteredPubspec);
     generatedFiles.add('pubspec.yaml');

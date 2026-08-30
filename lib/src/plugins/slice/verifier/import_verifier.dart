@@ -120,7 +120,9 @@ class ImportVerifier {
             final packagePath = uri.substring(
               'package:'.length + package.length + 1,
             );
-            final target = p.canonicalize(p.join(sandboxDir, 'lib', packagePath));
+            final target = p.canonicalize(
+              p.join(sandboxDir, 'lib', packagePath),
+            );
             if (!p.isWithin(sandboxDir, target)) {
               issues.add(
                 ImportIssue(

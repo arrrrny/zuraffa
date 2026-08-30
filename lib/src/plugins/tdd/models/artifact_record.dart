@@ -139,7 +139,10 @@ class ArtifactRecord {
         json['runnable_test_name'],
         'runnable_test_name',
       ),
-      testOwnership: _requireOwnership(json['test_ownership'], 'test_ownership'),
+      testOwnership: _requireOwnership(
+        json['test_ownership'],
+        'test_ownership',
+      ),
       subjectOwnership: _requireOwnership(
         json['subject_ownership'],
         'subject_ownership',
