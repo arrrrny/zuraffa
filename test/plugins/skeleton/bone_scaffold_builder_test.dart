@@ -1,10 +1,14 @@
-/// Tests for BoneScaffoldBuilder (U15-U16).
+/// Tests for BoneScaffoldBuilder (042 working slice).
 ///
-/// Behaviors traced to test-list.md:
-///   U15: emits domain/, data/, presentation/ placeholder files
-///   U16: the barrel entry point exports every entity stub
+/// The 020-era behaviors (empty entity stubs, layer README placeholders,
+/// TODO-only test stubs, barrel file) were retired by feature 042: issue #592
+/// calls that output "barely more useful than the spec itself". The scaffold
+/// now writes the working slice: real entities, domain, data, DI, tests — and
+/// presentation/pubspec/main only in --flutter mode.
 ///
-/// Uses temporary directories; cleans up after.
+/// Behaviors traced to specs/042-bone-working-slice/tdd/test-list.md:
+///   042 (FR-015): no README placeholders, no TODO-only test stubs
+///   042 (FR-001..006, FR-008, FR-012): full working-slice file set
 library;
 
 import 'dart:io';
@@ -14,12 +18,10 @@ import 'package:zuraffa/src/plugins/skeleton/builders/bone_scaffold_builder.dart
 import 'package:zuraffa/src/plugins/skeleton/models/bone.dart';
 
 void main() {
-  late BoneScaffoldBuilder builder;
   late Directory tmpDir;
 
   setUp(() async {
-    builder = BoneScaffoldBuilder();
-    tmpDir = await Directory.systemTemp.createTemp('bone_scaffold_test_');
+    tmpDir = await Directory.systemTemp.createTemp('scaffold_builder_test_');
   });
 
   tearDown(() async {
@@ -28,140 +30,164 @@ void main() {
     }
   });
 
-  Bone makeBone({List<String> entities = const ['Product']}) {
-    final entityStubs = entities
-        .map(
-          (e) => EntityStub(
-            name: e,
-            sourcePath: 'lib/entities/${_toSnake(e)}.dart',
-          ),
-        )
-        .toList();
-
-    final manifest = BoneManifest(
-      version: 1,
-      feature: 'test-feature',
-      generatedAt: '2026-08-29T12:00:00.000Z',
-      specVersion: 'sha256:${'a' * 64}',
-      entities: entities,
-      dependencies: [],
-      layers: ['domain', 'data', 'presentation'],
-    );
-
+  Bone buildBone({bool flutter = false, List<EntityStub> inlined = const []}) {
     return Bone(
-      featureSlug: 'test-feature',
-      featureName: 'TestFeature',
-      rootDir: '${tmpDir.path}/test-feature',
-      manifest: manifest,
-      entityStubs: entityStubs,
-      layers: [
-        const LayerPlaceholder(layer: 'domain', path: 'domain/'),
-        const LayerPlaceholder(layer: 'data', path: 'data/'),
-        const LayerPlaceholder(layer: 'presentation', path: 'presentation/'),
+      featureSlug: 'profile-feature',
+      featureName: 'ProfileFeature',
+      rootDir: '${tmpDir.path}/profile-feature',
+      manifest: BoneManifest(
+        version: 1,
+        feature: 'profile-feature',
+        generatedAt: '2026-08-29T12:00:00.000Z',
+        specVersion: 'sha256:${'a' * 64}',
+        entities: const ['User'],
+        dependencies: const [],
+        layers: const ['domain', 'data', 'presentation'],
+        diChoice: DiChoice.fromFlag('mock').resolve(),
+        flutter: flutter,
+      ),
+      entityStubs: const [
+        EntityStub(
+          name: 'User',
+          fields: [
+            EntityField(name: 'id', type: 'String'),
+            EntityField(name: 'displayName', type: 'String'),
+          ],
+          sourcePath: 'entities/user.dart',
+        ),
+      ],
+      inlinedEntities: inlined,
+      layers: const [
+        LayerPlaceholder(layer: 'domain', path: 'domain/'),
+        LayerPlaceholder(layer: 'data', path: 'data/'),
+        LayerPlaceholder(layer: 'presentation', path: 'presentation/'),
       ],
     );
   }
 
-  group('BoneScaffoldBuilder.build', () {
+  group('BoneScaffoldBuilder.build (042 working slice)', () {
+    test('writes the library working slice (no flutter files)', () async {
+      final bone = buildBone();
+      final builder = BoneScaffoldBuilder();
+      final boneDir = '${tmpDir.path}/profile-feature';
+
+      await builder.build(bone, boneDir);
+
+      // Core slice.
+      expect(await File('$boneDir/bone.yaml').exists(), isTrue);
+      expect(await File('$boneDir/entities/user.dart').exists(), isTrue);
+      expect(
+        await File(
+          '$boneDir/domain/repositories/user_repository.dart',
+        ).exists(),
+        isTrue,
+      );
+      expect(
+        await File('$boneDir/domain/usecases/get_user_usecase.dart').exists(),
+        isTrue,
+      );
+      expect(
+        await File('$boneDir/data/datasources/user_datasource.dart').exists(),
+        isTrue,
+      );
+      expect(
+        await File('$boneDir/data/datasources/user_mock.dart').exists(),
+        isTrue,
+      );
+      expect(
+        await File('$boneDir/data/datasources/user_firebase.dart').exists(),
+        isTrue,
+      );
+      expect(
+        await File(
+          '$boneDir/data/repositories/data_user_repository.dart',
+        ).exists(),
+        isTrue,
+      );
+      expect(await File('$boneDir/di/injection.dart').exists(), isTrue);
+      expect(await File('$boneDir/test/user_test.dart').exists(), isTrue);
+      expect(await File('$boneDir/test/di_test.dart').exists(), isTrue);
+
+      // Library mode: no flutter-only files.
+      expect(await File('$boneDir/pubspec.yaml').exists(), isFalse);
+      expect(await File('$boneDir/lib/main.dart').exists(), isFalse);
+      expect(
+        await File('$boneDir/presentation/profile_feature_page.dart').exists(),
+        isFalse,
+      );
+    });
+
+    test('flutter mode writes pubspec, main, page, and widget test', () async {
+      final bone = buildBone(flutter: true);
+      final builder = BoneScaffoldBuilder();
+      final boneDir = '${tmpDir.path}/profile-feature-fl';
+
+      await builder.build(bone, boneDir);
+
+      expect(await File('$boneDir/pubspec.yaml').exists(), isTrue);
+      expect(await File('$boneDir/lib/main.dart').exists(), isTrue);
+      expect(
+        await File('$boneDir/presentation/profile_feature_page.dart').exists(),
+        isTrue,
+      );
+      expect(
+        await File('$boneDir/test/profile_feature_page_test.dart').exists(),
+        isTrue,
+      );
+    });
+
     test(
-      'U15: emits domain/, data/, presentation/ placeholder files',
+      'FR-015: no README placeholders, no TODO-only test stubs anywhere',
       () async {
-        final bone = makeBone();
-        final boneDir = '${tmpDir.path}/test-feature';
+        final bone = buildBone(flutter: true);
+        final builder = BoneScaffoldBuilder();
+        final boneDir = '${tmpDir.path}/profile-feature-nph';
 
         await builder.build(bone, boneDir);
 
-        for (final layer in ['domain', 'data', 'presentation']) {
-          final dir = Directory('$boneDir/$layer');
+        final files = Directory(
+          boneDir,
+        ).listSync(recursive: true).whereType<File>().toList();
+        expect(files, isNotEmpty);
+        for (final file in files) {
           expect(
-            await dir.exists(),
-            isTrue,
-            reason: '$layer/ directory must exist',
+            file.path.endsWith('README.md'),
+            isFalse,
+            reason: '${file.path} must not be a README placeholder',
           );
+          final content = file.readAsStringSync();
+          if (file.path.endsWith('_test.dart')) {
+            expect(
+              content.contains('TODO'),
+              isFalse,
+              reason: '${file.path} must not be a TODO-only stub',
+            );
+            expect(
+              content.contains(' main()'),
+              isTrue,
+              reason: '${file.path} must be a real runnable test',
+            );
+          }
         }
       },
     );
 
-    test('U16: the barrel entry point exports every entity stub', () async {
-      final bone = makeBone(entities: ['Product', 'CartItem']);
-      final boneDir = '${tmpDir.path}/test-feature';
+    test('inlined dependency entities are written into entities/', () async {
+      final bone = buildBone(
+        inlined: const [
+          EntityStub(
+            name: 'Account',
+            fields: [EntityField(name: 'accountId', type: 'String')],
+            sourcePath: 'entities/account.dart',
+          ),
+        ],
+      );
+      final builder = BoneScaffoldBuilder();
+      final boneDir = '${tmpDir.path}/profile-feature-deps';
 
       await builder.build(bone, boneDir);
 
-      final barrel = File('$boneDir/lib/test_feature.dart');
-      expect(await barrel.exists(), isTrue, reason: 'barrel must exist');
-
-      final content = barrel.readAsStringSync();
-      expect(content, contains("export 'entities/product.dart'"));
-      expect(content, contains("export 'entities/cart_item.dart'"));
+      expect(await File('$boneDir/entities/account.dart').exists(), isTrue);
     });
-    test(
-      'U14-verify: barrel exports entities using snake_case paths derived from PascalCase names',
-      () async {
-        // Path derivation lives in BoneGenerator._toSnake (bone_generator.dart).
-        // This test verifies the scaffold builder uses those paths in the barrel.
-        final bone = makeBone(entities: ['CartItem', 'OrderItem']);
-        final boneDir = '${tmpDir.path}/test-feature';
-
-        await builder.build(bone, boneDir);
-
-        final barrel = File('$boneDir/lib/test_feature.dart');
-        final content = barrel.readAsStringSync();
-
-        // CartItem → cart_item.dart, OrderItem → order_item.dart
-        expect(
-          content,
-          contains("export 'entities/cart_item.dart'"),
-          reason: 'CartItem path must be lib/entities/cart_item.dart',
-        );
-        expect(
-          content,
-          contains("export 'entities/order_item.dart'"),
-          reason: 'OrderItem path must be lib/entities/order_item.dart',
-        );
-      },
-    );
-
-    test(
-      'U17: emits one test-package scaffold per entity importing the bone barrel',
-      () async {
-        final bone = makeBone(entities: ['Product', 'CartItem']);
-        final boneDir = '${tmpDir.path}/test-feature';
-
-        await builder.build(bone, boneDir);
-
-        // One test file per entity.
-        final productTest = File('$boneDir/test/product_test.dart');
-        final cartItemTest = File('$boneDir/test/cart_item_test.dart');
-
-        expect(
-          await productTest.exists(),
-          isTrue,
-          reason: 'product_test.dart must exist',
-        );
-        expect(
-          await cartItemTest.exists(),
-          isTrue,
-          reason: 'cart_item_test.dart must exist',
-        );
-
-        // Each test imports the barrel.
-        final productContent = productTest.readAsStringSync();
-        expect(productContent, contains("import '../lib/test_feature.dart'"));
-
-        final cartItemContent = cartItemTest.readAsStringSync();
-        expect(cartItemContent, contains("import '../lib/test_feature.dart'"));
-      },
-    );
   });
-}
-
-String _toSnake(String name) {
-  final result = name
-      .replaceAll('-', '_')
-      .replaceAllMapped(
-        RegExp(r'([A-Z])'),
-        (m) => '_${m.group(1)!.toLowerCase()}',
-      );
-  return result.startsWith('_') ? result.substring(1) : result;
 }

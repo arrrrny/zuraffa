@@ -70,19 +70,22 @@ Something.
         // bone.yaml exists.
         expect(await File('$boneDir/bone.yaml').exists(), isTrue);
 
-        // Entity stub exists.
+        // Real entity exists (042 working-slice shape).
+        expect(await File('$boneDir/entities/product.dart').exists(), isTrue);
+
+        // Working-slice layers exist with real files.
         expect(
-          await File('$boneDir/lib/entities/product.dart').exists(),
+          await File(
+            '$boneDir/domain/repositories/product_repository.dart',
+          ).exists(),
           isTrue,
         );
-
-        // Barrel exists.
-        expect(await File('$boneDir/lib/test_feature.dart').exists(), isTrue);
-
-        // Layer placeholders exist.
-        for (final layer in ['domain', 'data', 'presentation']) {
-          expect(await Directory('$boneDir/$layer').exists(), isTrue);
-        }
+        expect(
+          await File('$boneDir/data/datasources/product_mock.dart').exists(),
+          isTrue,
+        );
+        expect(await File('$boneDir/di/injection.dart').exists(), isTrue);
+        expect(await File('$boneDir/test/product_test.dart').exists(), isTrue);
       },
     );
 
@@ -304,6 +307,153 @@ Something.
         expect(manifestContent, contains('xray:'));
         expect(manifestContent, contains('overlay:'));
         expect(manifestContent, contains('{"enabled": true}'));
+      },
+    );
+  });
+
+  group('BoneGenerator.generate (042 working slice)', () {
+    test(
+      '042-U43: regeneration replaces the bone directory atomically',
+      () async {
+        final spec = await writeSpec('''
+# Feature: Replace Feature
+
+## Key Entities
+
+- **Item** — a thing
+
+## Requirements
+
+Something.
+''');
+        final outputDir = '${tmpDir.path}/bones';
+        final boneDir = await generator.generate(
+          specPath: spec,
+          outputDir: outputDir,
+        );
+
+        // Plant a stale file inside the bone from a "previous generation".
+        final stale = File('$boneDir/STALE_MARKER.txt');
+        await stale.writeAsString('stale');
+
+        // Regenerate.
+        await generator.generate(specPath: spec, outputDir: outputDir);
+
+        expect(
+          await stale.exists(),
+          isFalse,
+          reason: 'regeneration must replace the bone dir, not merge into it',
+        );
+        expect(await File('$boneDir/bone.yaml').exists(), isTrue);
+      },
+    );
+
+    test(
+      '042-U44: includeDeps inlines the recursive shared-entity closure',
+      () async {
+        // Chain: feature-c mentions Order (owned by feature-b) which mentions
+        // Product (owned by feature-a). Closure of c = {Order, Product}.
+        final specsRoot = '${tmpDir.path}/specs';
+        for (final fixture in ['feature-a', 'feature-b', 'feature-c']) {
+          await copyFixture(fixture, specsRoot);
+        }
+
+        final spec = File('$specsRoot/feature-c/spec.md');
+        final boneDir = await generator.generate(
+          specPath: spec,
+          outputDir: '${tmpDir.path}/bones',
+          specsRoot: specsRoot,
+          includeDeps: true,
+        );
+
+        // Own entity + transitive shared entities inlined.
+        expect(await File('$boneDir/entities/review.dart').exists(), isTrue);
+        expect(
+          await File('$boneDir/entities/order.dart').exists(),
+          isTrue,
+          reason: 'direct dep entity Order must be inlined',
+        );
+        expect(
+          await File('$boneDir/entities/product.dart').exists(),
+          isTrue,
+          reason: 'transitive dep entity Product must be inlined',
+        );
+
+        // Dependencies still declared in the manifest.
+        final manifest = await File('$boneDir/bone.yaml').readAsString();
+        expect(manifest, contains('bone: feature-b'));
+      },
+    );
+
+    test(
+      '042-U44: default generation declares deps without inlining files',
+      () async {
+        final specsRoot = '${tmpDir.path}/specs2';
+        for (final fixture in ['feature-a', 'feature-b', 'feature-c']) {
+          await copyFixture(fixture, specsRoot);
+        }
+
+        final spec = File('$specsRoot/feature-c/spec.md');
+        final boneDir = await generator.generate(
+          specPath: spec,
+          outputDir: '${tmpDir.path}/bones2',
+          specsRoot: specsRoot,
+        );
+
+        expect(await File('$boneDir/entities/review.dart').exists(), isTrue);
+        expect(
+          await File('$boneDir/entities/order.dart').exists(),
+          isFalse,
+          reason: 'without --include-deps, dep files must not be inlined',
+        );
+        final manifest = await File('$boneDir/bone.yaml').readAsString();
+        expect(manifest, contains('bone: feature-b'));
+      },
+    );
+
+    test(
+      '042-U45: inlined dep entity honors the dependency spec fields',
+      () async {
+        final specsRoot = '${tmpDir.path}/specs3';
+        await copyFixture('profile-feature', specsRoot);
+        // feature-b's Order entity has no fields; give a fielded dep owner:
+        // generate profile-feature with a dep chain is not needed — build a
+        // tiny synthetic owner spec instead.
+        final depDir = Directory('${tmpDir.path}/specs3/dep-owner')
+          ..createSync(recursive: true);
+        await File('${depDir.path}/spec.md').writeAsString('''
+# Feature: Dep Owner
+
+## Key Entities
+
+- **Account** — an upstream account
+  - accountId: String
+  - level: int
+
+## Requirements
+
+- Accounts are referenced by the profile feature
+''');
+        // profile-feature spec body mentions User/Post only; make it mention
+        // Account so an edge is created.
+        final profileSpec = File('$specsRoot/profile-feature/spec.md');
+        final updatedContent =
+            '${await profileSpec.readAsString()}'
+            '\n- The profile references the Account of the user\n';
+        await profileSpec.writeAsString(updatedContent);
+
+        final boneDir = await generator.generate(
+          specPath: profileSpec,
+          outputDir: '${tmpDir.path}/bones3',
+          specsRoot: specsRoot,
+          includeDeps: true,
+        );
+
+        final account = await File(
+          '$boneDir/entities/account.dart',
+        ).readAsString();
+        expect(account, contains('final String accountId;'));
+        expect(account, contains('final int level;'));
       },
     );
   });

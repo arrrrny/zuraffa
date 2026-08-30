@@ -14,6 +14,13 @@ class ManifestBuilder {
     buf.writeln('generated_at: ${_yamlString(manifest.generatedAt)}');
     buf.writeln('spec_version: ${manifest.specVersion}');
 
+    // 042: the resolved DI choice and its source.
+    final diChoice = manifest.diChoice;
+    if (diChoice != null) {
+      buf.writeln('di: ${diChoice.backendName}');
+      buf.writeln('di_source: ${diChoice.sourceName}');
+    }
+
     buf.writeln('entities:');
     for (final entity in manifest.entities) {
       buf.writeln('  - $entity');
@@ -32,6 +39,12 @@ class ManifestBuilder {
     buf.writeln('layers:');
     for (final layer in manifest.layers) {
       buf.writeln('  - $layer');
+    }
+
+    // 042: flutter-mode entry metadata.
+    if (manifest.flutter) {
+      buf.writeln('flutter: true');
+      buf.writeln('entrypoint: lib/main.dart');
     }
 
     if (manifest.xray.isNotEmpty) {

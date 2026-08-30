@@ -37,6 +37,16 @@
     <file>lib/src/plugins/tdd/commands/run_command.dart</file>
     <file>lib/src/plugins/tdd/commands/verify_command.dart</file>
     <file>lib/src/plugins/tdd/commands/verify_red_command.dart</file>
+    <file>lib/src/plugins/tdd/commands/gen_command.dart</file>
+    <file>lib/src/plugins/tdd/services/artifact_registry.dart</file>
+    <file>lib/src/plugins/tdd/services/behavior_test_writer.dart</file>
+    <file>lib/src/plugins/tdd/services/subject_writer.dart</file>
+    <file>lib/src/plugins/tdd/services/mutation_scope.dart</file>
+    <file>lib/src/plugins/tdd/services/mutation_auditor.dart</file>
+    <file>lib/src/plugins/tdd/services/source_restorer.dart</file>
+    <file>lib/src/plugins/tdd/models/ownership.dart</file>
+    <file>lib/src/plugins/tdd/models/artifact_record.dart</file>
+    <file>lib/src/plugins/tdd/models/mutation_outcome.dart</file>
     <file>lib/src/plugins/tdd/models/behavior.dart</file>
     <file>lib/src/plugins/tdd/models/cycle_entry.dart</file>
     <file>lib/src/plugins/tdd/models/run_state.dart</file>
