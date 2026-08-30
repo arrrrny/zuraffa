@@ -252,3 +252,23 @@ because the log is append-only.
   gen/verify/smoke cwd race is unchanged (master status quo; those
   files still pass).
 - commit: (this commit)
+
+## Cycle 9: residual race hardening — the pre-existing tdd command tests
+
+- finding: after cycle 8, `dart test -j 4 test/plugins/tdd/` still
+  flaked on `gen_command_test` (happy path) and `verify_command_test`
+  (NOT_ASSESSED) — the SAME process-wide `Directory.current` race, now
+  only between the three pre-existing cwd-mutating test files
+  (gen/verify command tests + tdd smoke test). This race predates the
+  feature (recorded in the baseline note at `0118a465`) but my slower
+  subprocess tests change CI scheduling enough to fire it.
+- fix: the zone seam (`zfaTddWorkingDirectory`) is now honored by
+  `gen`, `verify`, `init`, and `plan` commands too (behavior-preserving:
+  production callers still resolve `Directory.current`), and the three
+  pre-existing test files drive the CLI zone-pinned instead of
+  switching the process cwd. Also converted the CodeRabbit-added U25
+  mutating-run test (commit c8fe4732) to the zone wrapper.
+- green: `dart test -j 4 test/plugins/tdd/` -> 184 passed, 0 failed on
+  BOTH dart 3.13.2 and dart 3.13.1 (CI's pin). No test under
+  test/plugins/tdd/ mutates `Directory.current` anymore (grep: 0).
+- commit: (this commit)
