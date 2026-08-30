@@ -15,6 +15,7 @@
 /// Existing red/green rendering stays byte-compatible (U10 invariant).
 library;
 
+import 'generation_plan.dart';
 import 'refactor_action.dart';
 
 enum CycleEntryKind { red, green, refactor }
@@ -57,6 +58,20 @@ class CycleLogEntry {
   /// evidence is explicit about the absence of changes (spec 048 FR-008).
   final bool isNoOp;
 
+  /// Recorded generation steps (green/make entries only). Rendered as the
+  /// `generation:` block listing each step's command, exit code, and purpose
+  /// in execution order (spec 047 FR-006 / FR-008).
+  final List<GenerationStep> generationSteps;
+
+  /// Suite baseline failure count captured before generation (green entries).
+  final int suiteBaselineFailures;
+
+  /// Suite guard failure count from the pre-run baseline snapshot.
+  final int suiteGuardFailures;
+
+  /// New failures introduced by the generation, if any (green entries).
+  final List<String> suiteNewFailures;
+
   CycleLogEntry({
     required this.behaviorId,
     required this.kind,
@@ -69,6 +84,10 @@ class CycleLogEntry {
     this.classification,
     this.refactorActions = const [],
     this.isNoOp = false,
+    this.generationSteps = const [],
+    this.suiteBaselineFailures = 0,
+    this.suiteGuardFailures = 0,
+    this.suiteNewFailures = const [],
   }) : assert(
          kind != CycleEntryKind.red || classification != null,
          'Red entries must carry a failure classification.',
@@ -112,6 +131,27 @@ class CycleLogEntry {
         }
       }
     }
+
+    if (kind == CycleEntryKind.green) {
+      buf.writeln('- generation:');
+      if (generationSteps.isEmpty) {
+        buf.writeln('  (none)');
+      } else {
+        for (final step in generationSteps) {
+          buf.writeln('  - step: ${step.command}');
+          buf.writeln('    exit: ${step.exitCode}');
+          buf.writeln('    purpose: ${step.purpose}');
+        }
+      }
+      final newFailures = suiteNewFailures.isEmpty
+          ? '(none)'
+          : suiteNewFailures.join(', ');
+      buf.writeln(
+        '- suite: baseline=$suiteBaselineFailures '
+        'guard=$suiteGuardFailures new=$newFailures',
+      );
+    }
+
     buf.writeln();
     return buf.toString();
   }
