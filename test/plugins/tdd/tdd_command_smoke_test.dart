@@ -2,12 +2,26 @@
 // (spec 041-tdd-setup-plugin Phase 1 / T007).
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/plugins/tdd/commands/verify_red_command.dart'
+    show zfaTddWorkingDirectory;
 
 void main() {
+  /// Zone-pins the CLI run to the temp project — no process-wide
+  /// `Directory.current` mutation (concurrent test files share one cwd).
+  Future<String> runInProject(
+    CliRunner runner,
+    Directory project,
+    List<String> args,
+  ) => runZoned(
+    () => runner.runCapturing(args),
+    zoneValues: {zfaTddWorkingDirectory: project.path},
+  );
+
   test('zfa tdd --help lists all eight subcommands', () async {
     final runner = CliRunner(exitOnCompletion: false);
     final out = await runner.runCapturing(['tdd', '--help']);
@@ -54,11 +68,9 @@ void main() {
     'zfa tdd verify rejects a path-shaped --feature before auditing',
     () async {
       final tmpDir = Directory.systemTemp.createTempSync('zfa_tdd_verify_');
-      final prev = Directory.current;
       try {
-        Directory.current = tmpDir;
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing([
+        final out = await runInProject(runner, tmpDir, [
           'tdd',
           'verify',
           '--feature',
@@ -69,7 +81,6 @@ void main() {
         // multi-minute audit is spent before an unusable flag is caught.
         expect(out, isNot(contains('running mutation_test')));
       } finally {
-        Directory.current = prev;
         if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
       }
     },
@@ -83,9 +94,7 @@ void main() {
 
   test('zfa tdd init on an empty directory is idempotent', () async {
     final tmpDir = Directory.systemTemp.createTempSync('zfa_tdd_init_smoke_');
-    final prev = Directory.current;
     try {
-      Directory.current = tmpDir;
       await File('${tmpDir.path}/pubspec.yaml').writeAsString('''
 name: smoke
 environment:
@@ -94,15 +103,14 @@ dependencies: {}
 dev_dependencies: {}
 ''');
       final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing(['tdd', 'init']);
+      await runInProject(runner, tmpDir, ['tdd', 'init']);
       final runner2 = CliRunner(exitOnCompletion: false);
-      await runner2.runCapturing(['tdd', 'init']);
+      await runInProject(runner2, tmpDir, ['tdd', 'init']);
       final smoke = File('${tmpDir.path}/test/bootstrap_smoke_test.dart');
       expect(smoke.existsSync(), isTrue);
       final profile = File('${tmpDir.path}/.specify/memory/tdd-profile.md');
       expect(profile.existsSync(), isTrue);
     } finally {
-      Directory.current = prev;
       if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
     }
   });

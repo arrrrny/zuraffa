@@ -1,11 +1,13 @@
 /// `zfa tdd plan <feature>` — read `spec.md`, emit `tdd/test-list.md`.
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
 import '../services/spec_parser.dart';
+import 'verify_red_command.dart' show zfaTddWorkingDirectory;
 import '../tdd_plugin.dart';
 
 class PlanCommand extends Command<void> {
@@ -31,7 +33,9 @@ class PlanCommand extends Command<void> {
       usageException('Feature name is required: zfa tdd plan <feature>');
     }
     final feature = rest.first;
-    final repoRoot = Directory.current.path;
+    final repoRoot =
+        Zone.current[zfaTddWorkingDirectory] as String? ??
+        Directory.current.path;
     final specPath = '$repoRoot/specs/$feature/spec.md';
     final specFile = File(specPath);
     if (!await specFile.exists()) {

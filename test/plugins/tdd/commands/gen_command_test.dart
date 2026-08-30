@@ -5,30 +5,40 @@
 // US1.AC1–5 and US2.AC1–3 via the public CLI surface (`zfa tdd gen`).
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:args/command_runner.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/plugins/tdd/commands/verify_red_command.dart'
+    show zfaTddWorkingDirectory;
 
 void main() {
   late Directory tmpDir;
   late String featureDir;
   late String featureName = '044-test-tdd-generation';
-  late Directory prev;
 
   setUp(() {
     tmpDir = Directory.systemTemp.createTempSync('gen_command_test_');
     featureDir = p.join(tmpDir.path, 'specs', featureName);
-    prev = Directory.current;
-    Directory.current = tmpDir;
   });
 
   tearDown(() {
-    Directory.current = prev;
     if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
   });
+
+  /// Zone-pins the CLI run to the temp project — no process-wide
+  /// `Directory.current` mutation (concurrent test files share one cwd).
+  Future<String> runInProject(
+    CliRunner runner,
+    Directory project,
+    List<String> args,
+  ) => runZoned(
+    () => runner.runCapturing(args),
+    zoneValues: {zfaTddWorkingDirectory: project.path},
+  );
 
   Future<void> _seedSpecAndTestList({
     String behaviorId = 'B-003',
@@ -67,7 +77,7 @@ void main() {
       () async {
         await _seedSpecAndTestList();
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(['tdd', 'gen', 'B-003']);
+        final out = await runInProject(runner, tmpDir, ['tdd', 'gen', 'B-003']);
         // The command must print a structured result with all six fields.
         expect(out.toLowerCase(), contains('behavior_id: b-003'));
         expect(out, contains('source_criterion: FR-007'));
@@ -101,7 +111,7 @@ void main() {
       () async {
         await _seedSpecAndTestList();
         final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing(['tdd', 'gen', 'B-003']);
+        await runInProject(runner, tmpDir, ['tdd', 'gen', 'B-003']);
 
         // Locate the generated test file.
         final testFiles = await _findGeneratedFiles(
@@ -160,7 +170,11 @@ dependencies:
       // the printed output.
       String? output;
       try {
-        output = await runner.runCapturing(['tdd', 'gen', 'B-UNKNOWN']);
+        output = await runInProject(runner, tmpDir, [
+          'tdd',
+          'gen',
+          'B-UNKNOWN',
+        ]);
       } on UsageException catch (e) {
         output = e.message;
       }
@@ -195,7 +209,11 @@ dependencies:
 | B-009 |  | FR-009 | unit | PENDING | sampleSubject |
 ''');
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing(['tdd', 'gen', 'B-009']);
+      final output = await runInProject(runner, tmpDir, [
+        'tdd',
+        'gen',
+        'B-009',
+      ]);
       expect(
         output.toLowerCase(),
         anyOf(
@@ -225,7 +243,7 @@ dependencies:
           target: 'scenarioRunner',
         );
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(['tdd', 'gen', 'B-010']);
+        final out = await runInProject(runner, tmpDir, ['tdd', 'gen', 'B-010']);
         expect(out, contains('behavior_id: B-010'));
 
         final subjectFiles = await _findGeneratedFiles(
@@ -263,9 +281,9 @@ dependencies:
     test('repeat creates zero duplicate artifacts; ownership=reused', () async {
       await _seedSpecAndTestList();
       final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing(['tdd', 'gen', 'B-003']);
+      await runInProject(runner, tmpDir, ['tdd', 'gen', 'B-003']);
       // Repeat.
-      final out2 = await runner.runCapturing(['tdd', 'gen', 'B-003']);
+      final out2 = await runInProject(runner, tmpDir, ['tdd', 'gen', 'B-003']);
       expect(out2.toLowerCase(), contains('ownership: reused'));
 
       // Still exactly one test + one subject.
@@ -302,7 +320,11 @@ dependencies:
         final bytesBefore = await File(expectedTestPath).readAsBytes();
 
         final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing(['tdd', 'gen', 'B-003']);
+        final output = await runInProject(runner, tmpDir, [
+          'tdd',
+          'gen',
+          'B-003',
+        ]);
         expect(
           output.toLowerCase(),
           anyOf(
@@ -333,7 +355,11 @@ dependencies:
         await Directory(subjectPath).create(recursive: true);
 
         final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing(['tdd', 'gen', 'B-003']);
+        final output = await runInProject(runner, tmpDir, [
+          'tdd',
+          'gen',
+          'B-003',
+        ]);
 
         expect(output, contains('Error:'));
         expect(
@@ -354,7 +380,7 @@ dependencies:
     test('--dry-run plans without writing', () async {
       await _seedSpecAndTestList();
       final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing([
+      final out = await runInProject(runner, tmpDir, [
         'tdd',
         'gen',
         'B-003',
