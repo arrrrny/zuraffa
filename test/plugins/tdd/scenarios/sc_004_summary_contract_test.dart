@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // SC-004 acceptance test (spec 046-tdd-verify-red, US4.AC1-AC2 / T016,
 // T024, U26): the summary line is the final stdout line in the pinned
 // contract format on every code path, and exit code 0 occurs exactly on

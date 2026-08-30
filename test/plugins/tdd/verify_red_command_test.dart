@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Tests for the VerifyRedCommand (spec 046-tdd-verify-red, T008, T009,
 // T010 — certified honest-red path; U23, U25, U27, A1-A3).
 //
