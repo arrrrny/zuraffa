@@ -28,6 +28,9 @@ void main() {
       exitCode: 1,
       capturedOutput: 'failure',
       classification: FailureClass.assertionFailure,
+      sourceCriterion: 'FR-007',
+      testPath: 'test/foo_test.dart',
+      timestamp: '2026-08-30T09:15:00.000Z',
     );
     await log.append(entry);
     final file = File(p.join(tmpDir.path, 'tdd/cycle-log.md'));
@@ -49,6 +52,9 @@ void main() {
         exitCode: 1,
         capturedOutput: 'out-1',
         classification: FailureClass.assertionFailure,
+        sourceCriterion: 'FR-007',
+        testPath: 'test/foo_test.dart',
+        timestamp: '2026-08-30T09:15:00.000Z',
       );
       final entry2 = CycleLogEntry(
         behaviorId: 'A2',
@@ -56,6 +62,9 @@ void main() {
         runnerCommand: 'cmd-2',
         exitCode: 0,
         capturedOutput: 'out-2',
+        sourceCriterion: 'FR-007',
+        testPath: 'test/foo_test.dart',
+        timestamp: '2026-08-30T09:15:01.000Z',
       );
       await log.append(entry1);
       await Future<void>.delayed(Duration(milliseconds: 10));

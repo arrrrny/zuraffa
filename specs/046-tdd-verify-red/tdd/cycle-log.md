@@ -44,3 +44,26 @@ because the log is append-only.
   red test fails the full `dart test test` CI gate with no implementation
   to turn it green (`zfa tdd make` is a later feature). Nothing references
   the pair; the 046 test suite builds its own self-contained fixtures.
+
+## Cycle 1: U15, U16 — CycleLogEntry 8-field contract + widened FailureClass
+
+- behaviors: U15 (toMarkdown emits the 8 contract fields in fixed order),
+  U16 (FailureClass gains skipped + runnerError, round-trips by name)
+- test: `test/plugins/tdd/models/cycle_entry_test.dart` (new) — 4 new
+  tests; 4 pre-existing tests updated for the widened constructor
+  (sourceCriterion, testPath, timestamp are now required). Blast radius:
+  `test/plugins/tdd/services/cycle_log_test.dart` call sites updated too.
+- red: `dart test test/plugins/tdd/models/cycle_entry_test.dart` ->
+  compile error (fields absent) -> minimal field stubs added -> assertion
+  failure `Expected: <2> Actual: <1>` at the ordered-fields check:
+  `"- criterion: FR-006" must appear after the previous contract field`
+  (the stub toMarkdown did not emit criterion/test/at). That assertion
+  failure is the recorded red for U15; U16's red was the same compile
+  error phase (enum values absent).
+- green: `toMarkdown()` now emits behavior, kind, classification,
+  criterion, test, command, exit, at, output in the fixed order;
+  `FailureClass` widened to six values. Suite
+  `dart test test/plugins/tdd/` -> 110 passed, 0 failed.
+- refactor: none needed — the rendering is one writeln cascade in the
+  shape the contract pins.
+- commit: (this commit)
