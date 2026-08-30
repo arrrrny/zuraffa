@@ -64,7 +64,7 @@ export 'app_card.dart';
         );
 
         expect(expanded, hasLength(1));
-        expect(expanded.single, contains('primary_button.dart'));
+        expect(expanded.single.targetPath, contains('primary_button.dart'));
       },
     );
 
@@ -103,7 +103,7 @@ class ProfileView {
       );
 
       expect(expanded, hasLength(2));
-      final names = expanded.map((p) => p.split('/').last).toList();
+      final names = expanded.map((e) => e.targetPath.split('/').last).toList();
       expect(names, containsAll(['primary_button.dart', 'app_card.dart']));
       expect(names, isNot(contains('secondary_button.dart')));
       expect(names, isNot(contains('loading_indicator.dart')));
@@ -145,7 +145,7 @@ class ProfileView {
         );
 
         expect(expanded, hasLength(2));
-        final names = expanded.map((p) => p.split('/').last).toSet();
+        final names = expanded.map((e) => e.targetPath.split('/').last).toSet();
         expect(
           names,
           equals({
@@ -169,7 +169,127 @@ class ProfileView {
       );
 
       expect(expanded, hasLength(1));
-      expect(expanded.single, equals(plain.path));
+      expect(expanded.single.targetPath, equals(plain.path));
     });
+
+    test(
+      'U17: a barrel export show clause is preserved in the emitted directive text (A1)',
+      () async {
+        final barrel = await writeDart('widgets/index.dart', '''
+library;
+export 'primary_button.dart' show PrimaryButton;
+export 'secondary_button.dart';
+''');
+        await writeDart(
+          'widgets/primary_button.dart',
+          'class PrimaryButton {}\n',
+        );
+        await writeDart(
+          'widgets/secondary_button.dart',
+          'class SecondaryButton {}\n',
+        );
+
+        final expanded = await resolver.expandImport(
+          importedPath: barrel.path,
+          importerSource: 'class View { Widget build() => PrimaryButton(); }',
+          shownSymbols: const ['PrimaryButton'],
+        );
+
+        final primary = expanded.firstWhere(
+          (e) => e.directiveText.contains('primary_button.dart'),
+        );
+        expect(primary.directiveText, contains('show PrimaryButton'));
+        expect(primary.show, contains('PrimaryButton'));
+      },
+    );
+
+    test(
+      'U18: a barrel export hide clause is preserved in the emitted directive text (A2)',
+      () async {
+        final barrel = await writeDart('widgets/index.dart', '''
+library;
+export 'primary_button.dart' hide GhostButton;
+''');
+        await writeDart(
+          'widgets/primary_button.dart',
+          'class PrimaryButton {}\nclass GhostButton {}\n',
+        );
+
+        final expanded = await resolver.expandImport(
+          importedPath: barrel.path,
+          importerSource: 'class View { Widget build() => PrimaryButton(); }',
+          shownSymbols: const [],
+        );
+
+        final primary = expanded.firstWhere(
+          (e) => e.directiveText.contains('primary_button.dart'),
+        );
+        expect(primary.directiveText, contains('hide GhostButton'));
+        expect(primary.hide, contains('GhostButton'));
+      },
+    );
+
+    test(
+      'U19: export-level show hides symbols that are not shown (A4)',
+      () async {
+        final barrel = await writeDart('widgets/index.dart', '''
+library;
+export 'a.dart' show Foo;
+export 'b.dart' show Bar;
+''');
+        await writeDart('widgets/a.dart', 'class Foo {}\nclass Qux {}\n');
+        await writeDart('widgets/b.dart', 'class Bar {}\nclass Qux {}\n');
+
+        final expanded = await resolver.expandImport(
+          importedPath: barrel.path,
+          importerSource: 'class View { Widget build() => Qux(); }',
+          shownSymbols: const [],
+        );
+
+        // Qux is hidden by both show clauses, so neither target is included.
+        expect(expanded, isEmpty);
+      },
+    );
+
+    test(
+      'U20: colliding hidden symbols are disambiguated by show (no duplicate export) (A3)',
+      () async {
+        final barrel = await writeDart('widgets/index.dart', '''
+library;
+export 'app_card.dart' show AppCard;
+export 'overlay_card.dart' show OverlayCard;
+''');
+        await writeDart(
+          'widgets/app_card.dart',
+          'class AppCard {}\nclass BaseCard {}\n',
+        );
+        await writeDart(
+          'widgets/overlay_card.dart',
+          'class OverlayCard {}\nclass BaseCard {}\n',
+        );
+
+        final expanded = await resolver.expandImport(
+          importedPath: barrel.path,
+          importerSource:
+              'class View { Widget build() => Column(children: [AppCard(), OverlayCard()]); }',
+          shownSymbols: const [],
+        );
+
+        final directives = expanded.map((e) => e.directiveText).toList();
+        expect(directives, contains("export 'app_card.dart' show AppCard;"));
+        expect(
+          directives,
+          contains("export 'overlay_card.dart' show OverlayCard;"),
+        );
+
+        final hiddenCollision = await resolver.expandImport(
+          importedPath: barrel.path,
+          importerSource: 'class View { Widget build() => BaseCard(); }',
+          shownSymbols: const ['BaseCard'],
+        );
+        // BaseCard is declared in both targets but hidden by both show clauses.
+        expect(hiddenCollision, isEmpty);
+      },
+    );
   });
 }
