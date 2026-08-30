@@ -1,9 +1,11 @@
 // Tests for the CycleLogEntry model (spec 041-tdd-setup-plugin, U6-U7;
-// extended by spec 046-tdd-verify-red, U15-U16 / T002).
+// extended by spec 046-tdd-verify-red, U15-U16 / T002;
+// extended by spec 047-tdd-make, U21-U22 / T003).
 library;
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/models/cycle_entry.dart';
+import 'package:zuraffa/src/plugins/tdd/models/generation_plan.dart';
 
 void main() {
   group('CycleLogEntry', () {
@@ -149,5 +151,97 @@ void main() {
         expect(FailureClass.values.byName(value.name), same(value));
       }
     });
+  });
+
+  group('U21-U22 — green evidence extensions (spec 047-tdd-make, T003)', () {
+    test('U21: a green entry renders the generation: block listing each '
+        'step\'s command and exit code in execution order', () {
+      final entry = CycleLogEntry(
+        behaviorId: 'B-001',
+        kind: CycleEntryKind.green,
+        runnerCommand: 'dart test /x_test.dart --plain-name "x"',
+        exitCode: 0,
+        capturedOutput: 'All tests passed!',
+        sourceCriterion: 'FR-007',
+        testPath: '/x_test.dart',
+        timestamp: '2026-08-30T00:00:00.000Z',
+        generationSteps: [
+          GenerationStep(
+            command: 'zfa entity create User',
+            exitCode: 0,
+            output: 'created',
+            purpose: 'create entity User',
+          ),
+          GenerationStep(
+            command: 'zfa build',
+            exitCode: 0,
+            output: 'built',
+            purpose: 'build generated code',
+          ),
+        ],
+        suiteBaselineFailures: 0,
+        suiteGuardFailures: 0,
+        suiteNewFailures: const [],
+      );
+      final md = entry.toMarkdown();
+      expect(md, contains('- kind: green'));
+      expect(md, contains('- generation:'));
+      // Steps in execution order.
+      final firstCmdIdx = md.indexOf('zfa entity create User');
+      final secondCmdIdx = md.indexOf('zfa build');
+      expect(firstCmdIdx, greaterThan(0));
+      expect(secondCmdIdx, greaterThan(firstCmdIdx));
+      // Exit codes recorded.
+      expect(md, contains('exit: 0'));
+      expect(md, contains('purpose: create entity User'));
+      expect(md, contains('purpose: build generated code'));
+    });
+
+    test('U22: a green entry renders the suite: line with baseline and '
+        'guard counts', () {
+      final entry = CycleLogEntry(
+        behaviorId: 'B-002',
+        kind: CycleEntryKind.green,
+        runnerCommand: 'dart test /x_test.dart --plain-name "x"',
+        exitCode: 0,
+        capturedOutput: 'All tests passed!',
+        sourceCriterion: 'FR-007',
+        testPath: '/x_test.dart',
+        timestamp: '2026-08-30T00:00:00.000Z',
+        generationSteps: const [],
+        suiteBaselineFailures: 1,
+        suiteGuardFailures: 1,
+        suiteNewFailures: const [],
+      );
+      final md = entry.toMarkdown();
+      expect(md, contains('- suite: baseline=1 guard=1 new=(none)'));
+    });
+
+    test(
+      'U22b: a green entry with NEW failures lists them in the suite: line',
+      () {
+        final entry = CycleLogEntry(
+          behaviorId: 'B-003',
+          kind: CycleEntryKind.green,
+          runnerCommand: 'dart test /x_test.dart --plain-name "x"',
+          exitCode: 0,
+          capturedOutput: 'All tests passed!',
+          sourceCriterion: 'FR-007',
+          testPath: '/x_test.dart',
+          timestamp: '2026-08-30T00:00:00.000Z',
+          generationSteps: const [],
+          suiteBaselineFailures: 0,
+          suiteGuardFailures: 2,
+          suiteNewFailures: const [
+            'test/foo_test.dart: a',
+            'test/bar_test.dart: b',
+          ],
+        );
+        final md = entry.toMarkdown();
+        expect(md, contains('- suite: baseline=0 guard=2 new='));
+        expect(md, contains('foo_test'));
+        expect(md, contains('bar_test'));
+      },
+    );
   });
 }

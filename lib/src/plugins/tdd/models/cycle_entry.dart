@@ -4,7 +4,14 @@
 /// 8-field evidence contract — behavior id, source criterion, test path,
 /// runner command, runner exit code, classification, captured failure
 /// output, and timestamp (spec 046 FR-006).
+///
+/// Extended by spec 047-tdd-make (T003): green entries carry an
+/// additional `generationSteps` list and a `suiteBaseline`/`suiteGuard`
+/// pair, rendered as `generation:` and `suite:` blocks (spec 047
+/// FR-006, FR-008, data-model.md).
 library;
+
+import '../models/generation_plan.dart';
 
 enum CycleEntryKind { red, green }
 
@@ -34,6 +41,21 @@ class CycleLogEntry {
   /// ISO-8601 UTC timestamp of the run.
   final String timestamp;
 
+  /// Green-only: the pipeline invocations captured for audit (FR-006).
+  /// Empty for red entries.
+  final List<GenerationStep> generationSteps;
+
+  /// Green-only: count of failing tests in the pre-run baseline
+  /// (spec US3.AC3 — pre-existing failures tolerated).
+  final int? suiteBaselineFailures;
+
+  /// Green-only: count of failing tests in the post-run guard.
+  final int? suiteGuardFailures;
+
+  /// Green-only: NEW failures (guard − baseline) that, when non-empty,
+  /// would have failed the guard. Empty on certified greens.
+  final List<String> suiteNewFailures;
+
   CycleLogEntry({
     required this.behaviorId,
     required this.kind,
@@ -44,6 +66,10 @@ class CycleLogEntry {
     required this.testPath,
     required this.timestamp,
     this.classification,
+    this.generationSteps = const [],
+    this.suiteBaselineFailures,
+    this.suiteGuardFailures,
+    this.suiteNewFailures = const [],
   }) : assert(
          kind == CycleEntryKind.green || classification != null,
          'Red entries must carry a failure classification.',
@@ -64,7 +90,25 @@ class CycleLogEntry {
       ..writeln('- test: $testPath')
       ..writeln('- command: `$runnerCommand`')
       ..writeln('- exit: $exitCode')
-      ..writeln('- at: $timestamp')
+      ..writeln('- at: $timestamp');
+    if (kind == CycleEntryKind.green && generationSteps.isNotEmpty) {
+      buf.writeln('- generation:');
+      for (final step in generationSteps) {
+        buf.writeln('  - purpose: ${step.purpose}');
+        buf.writeln('    command: `${step.command}`');
+        buf.writeln('    exit: ${step.exitCode}');
+      }
+    }
+    if (kind == CycleEntryKind.green &&
+        (suiteBaselineFailures != null || suiteGuardFailures != null)) {
+      final baseline = suiteBaselineFailures ?? 0;
+      final guard = suiteGuardFailures ?? 0;
+      final news = suiteNewFailures.isEmpty
+          ? '(none)'
+          : suiteNewFailures.join(', ');
+      buf.writeln('- suite: baseline=$baseline guard=$guard new=$news');
+    }
+    buf
       ..writeln('- output:')
       ..writeln('```')
       ..writeln(capturedOutput.trim())
@@ -76,5 +120,5 @@ class CycleLogEntry {
   @override
   String toString() =>
       'CycleLogEntry($behaviorId, $kind, exit=$exitCode, '
-      'class=$classification)';
+      'class=$classification, steps=${generationSteps.length})';
 }
