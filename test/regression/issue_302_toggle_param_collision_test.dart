@@ -64,6 +64,12 @@ void main() {
     outputDir = workspace.outputDir;
   });
 
+  // Dispose the temp workspace so repeated --preset=all runs on a cloud
+  // agent do not accumulate populated .dart_tool dirs in /tmp (disk blow-out).
+  tearDown(() async {
+    await disposeWorkspace(workspace);
+  });
+
   group('#302 — toggle param name collision when entity field is `value`', () {
     test('#307 contract — an id-less Barcode resolves no id (no silent '
         'first-field fallback to `value`)', () async {
