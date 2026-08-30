@@ -60,7 +60,7 @@ class WalkResult {
   /// slice actually kept (FR-005). The cut writes a FILTERED barrel at the
   /// original path so the importer's barrel import still resolves without
   /// pulling in the whole barrel's contents.
-  final Map<String, List<String>> barrels;
+  final Map<String, List<BarrelExport>> barrels;
 }
 
 /// One import directive: its URI and any `show` symbols.
@@ -170,7 +170,7 @@ class ImportGraphWalker {
     final warnings = <String>[];
     final queue = Queue<String>.from(entries);
     final typeIndex = await _buildTypeIndex(projectRoot);
-    final barrels = <String, List<String>>{};
+    final barrels = <String, List<BarrelExport>>{};
 
     while (queue.isNotEmpty) {
       final path = queue.removeFirst();
@@ -368,7 +368,7 @@ class ImportGraphWalker {
     required String importerSource,
     required String projectRoot,
     required PackageResolver resolver,
-    Map<String, List<String>>? barrels,
+    Map<String, List<BarrelExport>>? barrels,
   }) async {
     final target = await _resolveImport(
       info: info,
@@ -387,12 +387,12 @@ class ImportGraphWalker {
       importerSource: importerSource,
       shownSymbols: info.shownSymbols,
     );
-    final existing = barrels?[target] ?? const <String>[];
+    final existing = barrels?[target] ?? const <BarrelExport>[];
     barrels?[target] = [
       ...existing,
       ...kept.where((k) => !existing.contains(k)),
     ];
-    return kept;
+    return kept.map((e) => e.targetPath).toList();
   }
 
   /// Index of top-level declared type names -> absolute file path.

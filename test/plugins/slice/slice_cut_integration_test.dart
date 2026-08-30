@@ -284,6 +284,55 @@ void main() {
       timeout: const Timeout(Duration(minutes: 2)),
     );
 
+    test(
+      'A4b (issue #605): a barrel with an export-level `show` keeps the '
+      'combinator in the filtered barrel instead of re-exporting wholesale',
+      () async {
+        // Give the shared widget barrel export-level combinators — the exact
+        // shape the bug dropped: the cut re-emitted `export 'x.dart';` and
+        // lost the `show`/`hide`, pulling the whole target into the slice.
+        final barrelFile = File(
+          '$projectRoot/lib/src/presentation/widgets/index.dart',
+        );
+        await barrelFile.writeAsString('''
+/// Shared widget barrel with export-level combinators (issue #605 repro).
+library;
+
+export 'primary_button.dart' show PrimaryButton;
+export 'secondary_button.dart' hide GhostButton;
+export 'app_card.dart';
+export 'loading_indicator.dart';
+''');
+
+        await captureOutput(
+          () => runner.run([
+            'slice',
+            'cut',
+            'product_feature',
+            '--entry',
+            'product',
+          ]),
+        );
+
+        final barrel = File(
+          '${sandbox()}/lib/src/presentation/widgets/index.dart',
+        ).readAsStringSync();
+        // The kept target keeps its export-level `show` in the filtered barrel.
+        expect(
+          barrel,
+          contains("export 'primary_button.dart' show PrimaryButton;"),
+        );
+        // The targets the slice does not need stay filtered out (product_view
+        // imports the barrel with `show PrimaryButton`).
+        expect(barrel, isNot(contains('secondary_button')));
+        expect(barrel, isNot(contains('app_card')));
+        expect(barrel, isNot(contains('loading_indicator')));
+        // No wholesale re-export slipped through (no bare `export 'x.dart';`).
+        expect(barrel, isNot(contains("export 'primary_button.dart';")));
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
+
     test('A1: main_slice.dart wires the entry view with mock DI', () async {
       await captureOutput(
         () => runner.run([
