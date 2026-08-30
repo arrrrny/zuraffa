@@ -122,3 +122,34 @@ because the log is append-only.
 - refactor: none needed; the service is one cohesion unit (load +
   substitute + execute + capture).
 - commit: (this commit)
+
+## Cycle 4: U23, U25, U27, A1-A3 — VerifyRedCommand certified path
+
+- behaviors: U23 (certified run appends exactly one 8-field red entry),
+  U25 (no write/create/delete under test/ or lib/), U27 (missing profile
+  misfire-stops before any run), A1-A3 (acceptance: classify assertion +
+  entry + exit 0; all 8 contract fields; checksum-verified read-only)
+- test: `test/plugins/tdd/verify_red_command_test.dart` (new, 4 tests)
+  + `test/plugins/tdd/scenarios/sc_001_certifies_honest_red_test.dart`
+  (new, 3 tests). Both drive the real CLI surface via
+  `CliRunner(exitOnCompletion: false).runCapturing` with a TddFixture
+  project and REAL `dart test` subprocess runs.
+- red: `dart test test/plugins/tdd/verify_red_command_test.dart` ->
+  assertions failed against the misfire-stop stub:
+  `Actual: '❌ Error: Bad state: zfa tdd verify-red: not yet implemented
+  (Phase 7 of specs/041-tdd-setup-plugin/tasks.md, tasks T055-T061).'`
+  — honest assertion red (the tests expected the summary line, the log
+  entry, and exit code 0; the stub provides none).
+- green: implemented `verify_red_command.dart` — registry-driven target
+  resolution (explicit id / single-certified inference / ambiguity
+  errors listing candidates), profile template loading with
+  misfire-stop, SingleTestRunner execution, classify(), evidence append
+  via CycleLog on assertion only, summary line as the final stdout line
+  via print() (captured by runCapturing), and rejection signaling
+  through dart:io `exitCode` (CliRunner honors it — no throw, so the
+  summary stays last). Two test-side bugs found and fixed during the
+  cycle (swapped expect() arguments; a misfire message emitted via
+  stdout.writeln bypassed the capturing zone — switched to print()).
+  Suite `dart test test/plugins/tdd/` -> 156 passed, 0 failed.
+- refactor: none this cycle (the command is the single new unit).
+- commit: (this commit)
