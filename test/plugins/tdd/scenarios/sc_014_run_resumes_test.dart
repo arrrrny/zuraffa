@@ -136,6 +136,26 @@ void main() {
     // idempotency is the step's own contract), then the run continues.
     expect(fx.stepInvocations().first, 'make B-002');
     expect(fx.stepInvocations(), hasLength(6));
+
+    // Discriminating case (verification remediation F1): the kill landed
+    // during verify-red — after gen completed — so the in-flight step is
+    // LATER than the state-implied one. The resume must re-enter at
+    // verify-red, not at a redundant gen (strictly less work).
+    exitCode = 0;
+    fx.clearStepInvocations();
+    await fx.seedRunState(
+      states: {'B-001': 'done', 'B-002': 'pending', 'B-003': 'pending'},
+      inFlightBehaviorId: 'B-002',
+      inFlightStep: 'verify-red',
+      inFlightOwnerPid: deadPid,
+    );
+
+    final out2 = await drive();
+
+    expect(exitCode, 0, reason: out2);
+    expect(fx.stepInvocations().first, 'verify-red B-002');
+    expect(fx.stepInvocations().where((l) => l == 'gen B-002'), isEmpty);
+    expect(fx.stepInvocations(), hasLength(7));
   });
 
   test(

@@ -8,6 +8,7 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
@@ -192,6 +193,25 @@ void main() {
       'make B-003',
       'refactor B-003',
     ]);
+
+    // Discriminating case (verification remediation F1): the in-flight
+    // marker sits on a step LATER than the state-implied one — a crash
+    // during verify-red, after gen had completed and advanced. Re-entry
+    // must happen at the in-flight verify-red, NOT at a redundant gen.
+    exitCode = 0;
+    fx.clearStepInvocations();
+    await fx.seedRunState(
+      states: {'B-001': 'done', 'B-002': 'pending'},
+      inFlightBehaviorId: 'B-002',
+      inFlightStep: 'verify-red',
+      inFlightOwnerPid: deadPid,
+    );
+
+    final out2 = await drive();
+
+    expect(exitCode, 0, reason: out2);
+    expect(fx.stepInvocations().first, 'verify-red B-002');
+    expect(fx.stepInvocations().where((l) => l == 'gen B-002'), isEmpty);
   });
 
   test(
@@ -340,6 +360,26 @@ void main() {
     await fx.setStepOutcome('refactor', 'B-002', 'regression');
     await drive();
     expect(exitCode, isNot(0));
+  });
+
+  test('FR-008: the driver never modifies test/ or lib/ itself', () async {
+    // Give the fixture a test/ and lib/ tree the fake steps never touch.
+    await Directory(p.join(fx.root.path, 'lib')).create(recursive: true);
+    await Directory(p.join(fx.root.path, 'test')).create(recursive: true);
+    await File(
+      p.join(fx.root.path, 'lib', 'subject.dart'),
+    ).writeAsString('int subject() => 42;\n');
+    await File(
+      p.join(fx.root.path, 'test', 'subject_test.dart'),
+    ).writeAsString('void main() {}\n');
+    final snapshot = fx.checksumTestAndLib();
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    // Nothing under test/ or lib/ changed across the whole run: the only
+    // tree the driver writes is specs/<feature>/tdd/run-state.json.
+    expect(fx.checksumTestAndLib(), snapshot);
   });
 
   test(
