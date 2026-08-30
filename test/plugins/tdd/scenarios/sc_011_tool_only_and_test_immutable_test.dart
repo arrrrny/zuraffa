@@ -100,7 +100,7 @@ void main() {
         log,
         contains(
           RegExp(
-            r'command: `(zfa build|dart format lib/|dart fix --apply lib/)`',
+            r'command: `(dart run bin/zfa\.dart build|dart format lib/|dart fix --apply lib/)`',
           ),
         ),
       );
@@ -113,10 +113,18 @@ Map<String, String> _checksumTree(String projectRoot, String treeName) {
   final dir = Directory(p.join(projectRoot, treeName));
   if (!dir.existsSync()) return sums;
   for (final entity in dir.listSync(recursive: true)) {
-    if (entity is File && entity.path.endsWith('.dart')) {
-      sums[p.relative(entity.path, from: projectRoot)] = entity
-          .readAsStringSync();
+    if (entity is File) {
+      sums[p.relative(entity.path, from: projectRoot)] = _fingerprint(entity);
     }
   }
   return sums;
+}
+
+String _fingerprint(File file) {
+  final bytes = file.readAsBytesSync();
+  var hash = bytes.length;
+  for (final byte in bytes) {
+    hash = (hash * 31 + byte) & 0x7fffffff;
+  }
+  return '${bytes.length}-$hash';
 }

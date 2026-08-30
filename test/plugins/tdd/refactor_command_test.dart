@@ -163,7 +163,7 @@ void main() {
           log,
           contains(
             RegExp(
-              r'command: `(zfa build|dart format lib/|dart fix --apply lib/)`',
+              r'command: `(dart run bin/zfa\.dart build|dart format lib/|dart fix --apply lib/)`',
             ),
           ),
         );
@@ -252,6 +252,9 @@ void main() {
           final match = RegExp(r'applied=(\d+)').firstMatch(out);
           expect(match, isNotNull);
           expect(int.parse(match!.group(1)!), 0);
+          final log = await File(fx.cycleLogPath).readAsString();
+          expect(log, contains('- no-op: true'));
+          expect(log, isNot(contains('actions:')));
         },
       );
     },
@@ -310,16 +313,24 @@ void main() {
   });
 }
 
-/// Compute a path -> content hash map for every Dart file under a tree.
+/// Compute a path -> content hash map for every regular file under a tree.
 Map<String, String> _checksumTree(String projectRoot, String treeName) {
   final sums = <String, String>{};
   final dir = Directory(p.join(projectRoot, treeName));
   if (!dir.existsSync()) return sums;
   for (final entity in dir.listSync(recursive: true)) {
-    if (entity is File && entity.path.endsWith('.dart')) {
-      sums[p.relative(entity.path, from: projectRoot)] = entity
-          .readAsStringSync();
+    if (entity is File) {
+      sums[p.relative(entity.path, from: projectRoot)] = _fingerprint(entity);
     }
   }
   return sums;
+}
+
+String _fingerprint(File file) {
+  final bytes = file.readAsBytesSync();
+  var hash = bytes.length;
+  for (final byte in bytes) {
+    hash = (hash * 31 + byte) & 0x7fffffff;
+  }
+  return '${bytes.length}-$hash';
 }

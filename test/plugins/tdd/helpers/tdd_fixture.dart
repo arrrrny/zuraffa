@@ -43,6 +43,9 @@ environment:
 dev_dependencies:
   test: ^1.25.0
 ''');
+    await File(p.join(root.path, 'bin', 'zfa.dart'))
+        .create(recursive: true)
+        .then((file) => file.writeAsString('void main() {}\n'));
     if (writeProfile) {
       await fx._writeProfile(singleTemplate, suiteTemplate);
     }
@@ -324,7 +327,7 @@ void main() {
 
   static const _defaultLibContent = 'int answer() {\n  return 42;\n}\n';
 
-  /// Content fingerprint of every Dart file under `test/` and `lib/`,
+  /// Content fingerprint of every regular file under `test/` and `lib/`,
   /// keyed by path. Exact for equality comparison.
   Map<String, String> checksumTestAndLib() {
     final sums = <String, String>{};
@@ -332,7 +335,7 @@ void main() {
       final dir = Directory(p.join(root.path, dirName));
       if (!dir.existsSync()) continue;
       for (final entity in dir.listSync(recursive: true)) {
-        if (entity is File && entity.path.endsWith('.dart')) {
+        if (entity is File) {
           sums[entity.path] = _fingerprint(entity);
         }
       }

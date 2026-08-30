@@ -10,8 +10,8 @@
 ///      `--skip-preflight` option (FR-002).
 ///   3. Captures a before snapshot of `test/` and `lib/` for the
 ///      post-pass immutability and attribution checks.
-///   4. Runs the fixed pass registry (`zfa build`, `dart format lib/`,
-///      `dart fix --apply lib/`) via [RefactorPasses]. Each pass is
+///   4. Runs the fixed pass registry (`dart run bin/zfa.dart build`,
+///      `dart format lib/`, `dart fix --apply lib/`) via [RefactorPasses]. Each pass is
 ///      recorded with its exact command, exit code, and filesChanged
 ///      (FR-003, FR-005). Misfire-stop on any failing pass (FR-010).
 ///   5. After all passes, asserts `test/` is byte-identical (FR-004) and
@@ -75,7 +75,8 @@ class RefactorCommand extends Command<void> {
   @override
   String get description =>
       'Refactor on a green suite only; never edit tests. Applies the fixed '
-      'pass registry (zfa build, dart format lib/, dart fix --apply lib/), '
+      'pass registry (dart run bin/zfa.dart build, dart format lib/, '
+      'dart fix --apply lib/), '
       're-proves the suite green, and appends refactor evidence to '
       'cycle-log.md.';
 
@@ -197,7 +198,7 @@ class RefactorCommand extends Command<void> {
       final testAfter = await TreeSnapshot.capture(cwd, trees: const ['test']);
       final testViolations = testBefore.changedPaths(testAfter);
       if (testViolations.isNotEmpty) {
-        print('   TEST-DIRECTORY IMMTABILITY VIOLATION:');
+        print('   TEST-DIRECTORY IMMUTABILITY VIOLATION:');
         for (final v in testViolations) {
           print('     $v');
         }
@@ -254,12 +255,35 @@ class RefactorCommand extends Command<void> {
         return;
       }
 
+      if (passResult.stopped) {
+        outcome = RefactorOutcome.runnerError;
+        _printSummary(feature: featureName, outcome: outcome, applied: applied);
+        exitCode = 1;
+        return;
+      }
+
       // 8. Green before AND after. Append evidence (FR-007) or record a
       // clean no-op (FR-008).
       if (applied == 0) {
         // Clean no-op — no fabricated actions.
         print('   no actions applied — clean no-op.');
         outcome = RefactorOutcome.clean;
+        final log = CycleLog(p.join(cwd, 'specs', featureName));
+        await log.append(
+          CycleLogEntry(
+            behaviorId: '$featureName-refactor',
+            kind: CycleEntryKind.refactor,
+            runnerCommand: suiteTemplate,
+            exitCode: 0,
+            capturedOutput:
+                'preflight: green\nre-proof: green\n'
+                'applied: 0 actions.',
+            sourceCriterion: 'FR-008',
+            testPath: 'test/',
+            timestamp: DateTime.now().toUtc().toIso8601String(),
+            isNoOp: true,
+          ),
+        );
       } else {
         outcome = RefactorOutcome.refactored;
         // Append refactor evidence.

@@ -46,9 +46,9 @@ class TreeSnapshot {
         recursive: true,
         followLinks: false,
       )) {
-        final relative = p.normalize(
-          p.relative(entity.path, from: projectRoot),
-        );
+        final relative = p
+            .normalize(p.relative(entity.path, from: projectRoot))
+            .replaceAll(p.separator, '/');
         if (entity is File) {
           entries[relative] =
               'file:${sha256.convert(await entity.readAsBytes())}';

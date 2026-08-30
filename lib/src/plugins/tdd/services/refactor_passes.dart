@@ -4,7 +4,7 @@
 /// The registry is a small, deliberately fixed set of idempotent
 /// tool-driven normalization passes, executed in order:
 ///
-///   1. `build`  — `zfa build` (codegen normalization)
+///   1. `build`  — `dart run bin/zfa.dart build` (codegen normalization)
 ///   2. `format` — `dart format lib/`
 ///   3. `fix`    — `dart fix --apply lib/`
 ///
@@ -173,12 +173,12 @@ class RefactorPasses {
 
   /// The default fixed pass set: build → format → fix (spec 048 Decision 2).
   ///
-  /// `zfa build` resolves to `dart run bin/zfa.dart build` when invoked from
-  /// the host zuraffa checkout; for fixture projects the command is
-  /// overridden via the injected executor. The default command line is
-  /// stable so the recorded evidence stays reproducible.
+  /// The build pass invokes the checkout's local CLI explicitly, so it does
+  /// not depend on a globally activated `zfa` executable being on `PATH`.
+  /// The default command line is stable so the recorded evidence stays
+  /// reproducible.
   static const defaultPassSpecs = [
-    RefactorPassSpec(name: 'build', command: 'zfa build'),
+    RefactorPassSpec(name: 'build', command: 'dart run bin/zfa.dart build'),
     RefactorPassSpec(name: 'format', command: 'dart format lib/'),
     RefactorPassSpec(name: 'fix', command: 'dart fix --apply lib/'),
   ];

@@ -91,6 +91,9 @@ void main() {
       final match = RegExp(r'applied=(\d+)').firstMatch(out);
       expect(match, isNotNull);
       expect(int.parse(match!.group(1)!), 0);
+      final log = await File(fx.cycleLogPath).readAsString();
+      expect(log, contains('- no-op: true'));
+      expect(log, isNot(contains('actions:')));
     },
   );
 }

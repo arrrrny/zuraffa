@@ -34,23 +34,23 @@ test suite (see `refactor_command_test.dart` U14/A2).
 
 | File                                                              | Tests | Behaviors covered            |
 |-------------------------------------------------------------------|-------|------------------------------|
-| `test/plugins/tdd/models/refactor_action_test.dart`               | 4     | T002: RefactorAction + RefactorOutcome (U8, U9, U10) |
+| `test/plugins/tdd/models/refactor_action_test.dart`               | 10    | T002: RefactorAction + RefactorOutcome (U8, U9, U10) |
 | `test/plugins/tdd/services/tree_snapshot_test.dart`               | 7     | T011: TreeSnapshot (U6, U7) |
 | `test/plugins/tdd/services/refactor_passes_test.dart`             | 7     | T010: RefactorPasses (U1, U2, U3, U4, U5) |
 | `test/plugins/tdd/runner_suite_test.dart`                         | 8     | T005: loadSuiteTemplate + runSuite (U11, U12) |
-| `test/plugins/tdd/models/cycle_entry_test.dart` (existing)        | 6     | U10 byte-compat invariant still passes |
-| **Fast tier subtotal**                                            | **32**| (116 baseline + 32 new = 148 total) |
+| `test/plugins/tdd/models/cycle_entry_test.dart` (existing)        | 8     | U10 byte-compat invariant still passes (excluded from new subtotal) |
+| **Fast tier subtotal (new)**                                      | **32**| (116 baseline + 32 new = 148 total) |
 
 ### Slow tier (`@Tags(['slow'])`)
 
 | File                                                                                | Tests | Behaviors covered            |
 |-------------------------------------------------------------------------------------|-------|------------------------------|
-| `test/plugins/tdd/refactor_command_test.dart`                                       | 11    | T007, T012, T015, T018 (U13-U22, A1-A11) |
+| `test/plugins/tdd/refactor_command_test.dart`                                       | 13    | T007, T012, T015, T018 (U13-U22, A1-A11) |
 | `test/plugins/tdd/scenarios/sc_010_refuses_red_suite_test.dart`                     | 3     | T008 (A2, A3, FR-002) |
 | `test/plugins/tdd/scenarios/sc_011_tool_only_and_test_immutable_test.dart`          | 3     | T013 (A4, A5, A6) |
 | `test/plugins/tdd/scenarios/sc_012_reproves_green_test.dart`                        | 3     | T016 (A1, A7, A9) |
-| **Slow tier subtotal (new)**                                                        | **20**| (Plus 68 pre-existing slow tests = 90 total slow) |
-| **Combined new**                                                                    | **52**| |
+| **Slow tier subtotal (new)**                                                        | **22**| (Plus 68 pre-existing slow tests = 90 total slow) |
+| **Combined new**                                                                    | **54**| |
 
 ## 3. Success criteria — PROVED vs not
 
@@ -69,7 +69,7 @@ Plus `refactor_command_test.dart` U14/A2 asserts the same. The
 
 **PROVED.** `sc_011_tool_only_and_test_immutable_test.dart` SC-011.A5
 asserts `test/` byte-identical after the run via `_checksumTree` of every
-`.dart` file under `test/`. Plus `refactor_command_test.dart` A5 asserts
+regular file under `test/`. Plus `refactor_command_test.dart` A5 asserts
 the same. The implementation also enforces this at runtime
 (`testViolations` check in `refactor_command.dart`).
 
@@ -99,8 +99,8 @@ exactly on clean/refactored) and the implementation's explicit
 - `exitCode == 0`
 - `applied=0` (parsed from the summary line)
 
-The implementation only writes an evidence entry on `refactored`; on
-`clean` no entry is written (no fabricated actions).
+The implementation writes an explicit no-op evidence entry on `clean` with
+`no-op: true` and no fabricated actions.
 
 ### SC-006: Summary line + exit-code contract stable for `zfa tdd run` consumption
 

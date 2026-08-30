@@ -37,13 +37,13 @@ class _FakeExecutor implements ProcessExecutor {
     final programmed = _outcomes[_next++];
     // Apply file mutations the test programmed for this pass.
     for (final mutation in programmed.fileMutations) {
-      mutation();
+      await mutation();
     }
     return ProcessRunOutcome(
       command: inv.command,
       exitCode: programmed.exitCode,
       output: programmed.output,
-      startedProcess: true,
+      startedProcess: programmed.startedProcess,
     );
   }
 }
@@ -53,11 +53,13 @@ class _ProgrammedOutcome {
     required this.exitCode,
     required this.output,
     this.fileMutations = const [],
+    this.startedProcess = true,
   });
 
   final int exitCode;
   final String output;
-  final List<void Function()> fileMutations;
+  final List<Future<void> Function()> fileMutations;
+  final bool startedProcess;
 }
 
 /// A throwaway in-memory "project" the fake executor can mutate. The pass
@@ -123,7 +125,7 @@ void main() {
           expect(build.name, 'build');
           expect(build.exitCode, 0);
           expect(build.output, 'build ok');
-          expect(build.command, contains('zfa build'));
+          expect(build.command, 'dart run bin/zfa.dart build');
           expect(build.filesChanged, isEmpty);
 
           final format = result.actions[1];
@@ -230,14 +232,18 @@ void main() {
       final project = await _ScratchProject.create();
       try {
         final executor = _FakeExecutor([
-          _ProgrammedOutcome(exitCode: 0, output: 'build ok'),
+          _ProgrammedOutcome(
+            exitCode: 0,
+            output: 'build did not start',
+            startedProcess: false,
+          ),
         ]);
         final passes = RefactorPasses(project.root.path, executor: executor);
         final result = await passes.run();
 
-        // Only one programmed outcome; format pass gets the default success.
-        expect(result.actions, hasLength(3));
-        expect(result.stopped, isFalse);
+        expect(result.actions, hasLength(1));
+        expect(result.stopped, isTrue);
+        expect(result.failedPass, 'build');
       } finally {
         project.dispose();
       }
