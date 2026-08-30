@@ -132,7 +132,7 @@ certified and rejected runs (spec SC-005).
 
 - [x] T018 Run `dart analyze` on all touched files and fix findings
 - [x] T019 Run scoped suite `dart test test/plugins/tdd/` and confirm green (after the pre-existing 044 failures noted in `tdd/cycle-log.md` baseline are fixed or quarantined)
-- [ ] T020 Execute quickstart.md scenarios 1–5 verbatim and record results in `specs/046-tdd-verify-red/tdd/` evidence
+- [x] T020 Execute quickstart.md scenarios 1–5 verbatim and record results in `specs/046-tdd-verify-red/tdd/` evidence
 
 ---
 
@@ -189,3 +189,23 @@ that never regress US1's green certification path.
   non-zero with a clear message (spec FR-010).
 - Acceptance scenario tasks T021–T024 were appended by `/speckit.tdd.plan`
   (ids continue the sequence; no existing task was renumbered).
+
+## Phase 8: TDD remediation (from tdd/verification.md — audit of 6b9a445a)
+
+- [ ] T025 [HIGH] Script the six deliberate mutants recorded in
+  `tdd/verification.md` as a repeatable strength check (a shell script or
+  Dart test-tagged fixture under `test/plugins/tdd/mutants/`) so the
+  classifier/runner/command strength claims are re-provable without a
+  manual audit. Prove: the script fails on each known mutant and passes
+  on the clean tree.
+- [ ] T026 [MED] Record the subprocess cost of the new tdd suites
+  (~3.5 min added to `dart test test/plugins/tdd/`, real `dart test`
+  child processes per fixture) in `.specify/memory/tdd-profile.md`'s
+  conventions so suite-tier expectations stay accurate. Prove: profile
+  notes updated and `dart test test/plugins/tdd/` wall time re-measured.
+
+The FAIL verdict in `tdd/verification.md` is blocking on finding 1
+(19/41 behaviors TEST_AFTER, admitted in the cycle log). The order
+cannot be restored retroactively; clearance is the strength evidence
+(6/6 deliberate mutants caught) plus the next consumer feature driving
+these contracts test-first.
