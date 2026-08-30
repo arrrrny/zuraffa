@@ -179,3 +179,30 @@ because the log is append-only.
   lib/. Suite `dart test test/plugins/tdd/` -> 168 passed, 0 failed.
 - refactor: none.
 - commit: (this commit)
+
+## Cycle 6: U17-U22, A9-A12 — target resolution rules
+
+- behaviors: U17 (explicit known id resolves its record — exercised by
+  every explicit-id test since cycle 4), U18 (unknown id errors before
+  any run), U19 (no-arg single uncertified candidate), U20 (no-arg
+  multiple candidates lists them), U21 (no-arg zero candidates states
+  none), U22 (test-list id without registry artifacts instructs
+  `zfa tdd gen`); acceptance A9-A12 mirror them; SC-004 cross-feature
+  ambiguity covered at command level
+- test: resolution group appended to
+  `test/plugins/tdd/verify_red_command_test.dart` (6 tests) +
+  `test/plugins/tdd/scenarios/sc_003_target_resolution_test.dart`
+  (4 tests)
+- red: GENUINE assertion red on the first run — the cross-feature
+  ambiguity test failed with
+  `Actual: '❌ Error: ...'` because the test's own fixture setup was
+  wrong (the second feature's registry was created in a separate temp
+  project the cwd scan cannot see); fixed by placing the second feature
+  under the SAME fixture root. The five other resolution tests passed
+  on first run (the resolution logic was implemented in cycle 4's
+  skeleton — test-after for the wiring, recorded as in cycle 5; the
+  ambiguity/inference paths were genuinely untested until now).
+- green: all resolution rules verified. Suite
+  `dart test test/plugins/tdd/` -> 178 passed, 0 failed.
+- refactor: none.
+- commit: (this commit)

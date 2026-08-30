@@ -1,0 +1,86 @@
+// SC-003 acceptance test (spec 046-tdd-verify-red, US3.AC1-AC4 / T023):
+// unambiguous target resolution — single-candidate inference, ambiguity
+// rejection with a candidate list, unknown id, and gen-first guidance.
+library;
+
+import 'dart:io';
+
+import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/cli_runner.dart';
+
+import '../helpers/tdd_fixture.dart';
+
+void main() {
+  late TddFixture fx;
+  late Directory prev;
+  const description = 'returns 42 when invoked with no args';
+
+  setUp(() async {
+    prev = Directory.current;
+    fx = await TddFixture.create(featureName: '046-tdd-verify-red');
+    await fx.registerBehavior(id: 'B-001', description: description);
+    Directory.current = fx.root;
+  });
+
+  tearDown(() {
+    Directory.current = prev;
+    fx.dispose();
+    exitCode = 0;
+  });
+
+  test(
+    'A9: no-arg with exactly one uncertified gen\'d behavior verifies it',
+    () async {
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(['tdd', 'verify-red']);
+      expect(
+        out,
+        contains(
+          'verify-red: behavior=B-001 classification=assertion '
+          'certified=true feature=046-tdd-verify-red',
+        ),
+      );
+      expect(exitCode, 0);
+    },
+  );
+
+  test(
+    'A10: no-arg with multiple candidates exits non-zero listing ids',
+    () async {
+      await fx.registerBehavior(id: 'B-002', description: description);
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(['tdd', 'verify-red']);
+      expect(exitCode, isNot(0));
+      expect(out, contains('B-001'));
+      expect(out, contains('B-002'));
+      expect(File(fx.cycleLogPath).existsSync(), isFalse);
+    },
+  );
+
+  test('A11: unknown id exits non-zero naming the id before any run', () async {
+    final runner = CliRunner(exitOnCompletion: false);
+    final out = await runner.runCapturing(['tdd', 'verify-red', 'B-999']);
+    expect(exitCode, isNot(0));
+    expect(out, contains('B-999'));
+    expect(File(fx.cycleLogPath).existsSync(), isFalse);
+  });
+
+  test(
+    'A12: test-list id without registry artifacts instructs gen first',
+    () async {
+      await File(
+        '${fx.featureDir}/tdd/test-list.md',
+      ).writeAsString('''
+# Test List
+
+| id | behavior | traces | kind | state | target |
+|----|----------|--------|------|-------|--------|
+| B-777 | planned but not generated | FR-007 | unit | PENDING | x |
+''');
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(['tdd', 'verify-red', 'B-777']);
+      expect(exitCode, isNot(0));
+      expect(out, contains('zfa tdd gen B-777'));
+    },
+  );
+}
