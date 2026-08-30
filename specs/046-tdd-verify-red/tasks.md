@@ -19,7 +19,7 @@ tasks by these markers.
 
 **Purpose**: Test fixture scaffolding shared by all stories
 
-- [ ] T001 Create fixture helper that builds a temp project with `specs/<feature>/tdd/artifacts.json`, `.specify/memory/tdd-profile.md`, and a synthetic test file, in `test/plugins/tdd/helpers/tdd_fixture.dart` (mirror `Directory.systemTemp` + `CliRunner(exitOnCompletion: false)` conventions from `test/plugins/tdd/tdd_command_smoke_test.dart`)
+- [x] T001 Create fixture helper that builds a temp project with `specs/<feature>/tdd/artifacts.json`, `.specify/memory/tdd-profile.md`, and a synthetic test file, in `test/plugins/tdd/helpers/tdd_fixture.dart` (mirror `Directory.systemTemp` + `CliRunner(exitOnCompletion: false)` conventions from `test/plugins/tdd/tdd_command_smoke_test.dart`)
 
 ---
 
@@ -29,10 +29,10 @@ tasks by these markers.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T002 [P] [U15] [U16] Widen `FailureClass` with `skipped` and `runnerError`, and extend `CycleLogEntry` with `sourceCriterion`, `testPath`, `timestamp` (ISO-8601 UTC) updating `toMarkdown()` to emit the fixed 8-field entry from contracts/verify-red.md, in `lib/src/plugins/tdd/models/cycle_entry.dart`
-- [ ] T003 [P] [U1] [U2] [U3] [U4] [U5] [U6] [U7] [U8] [U9] [U10] [U11] [U12] [U13] [U14] Add `RedClassification` enum (`assertion`, `compileError`, `loadError`, `skipped`, `unexpectedGreen`, `runnerError`) and `RunRecord` value object (`command`, `exitCode`, `output`, `startedProcess`, `testCount`) in `lib/src/plugins/tdd/models/red_classification.dart`
-- [ ] T004 [U1] [U2] [U3] [U4] [U5] [U6] [U7] [U8] [U9] [U10] Implement `red_classifier.dart` pure function `RedClassification classify(RunRecord)` applying the ordered rules from research.md Decision 3 (runner-error → load-error → compile-error → skipped → unexpected-green → assertion; `testCount != 1` forces runnerError except for load/compile), in `lib/src/plugins/tdd/services/red_classifier.dart`
-- [ ] T005 [U11] [U12] [U13] [U14] Implement `runner.dart` service: load `TddProfile` from `.specify/memory/tdd-profile.md`, `resolveSingle(file:, name:)`, execute via `Process.run` with working directory, capture exit code + combined output + process-start success, return `RunRecord`, in `lib/src/plugins/tdd/services/runner.dart`
+- [x] T002 [P] [U15] [U16] Widen `FailureClass` with `skipped` and `runnerError`, and extend `CycleLogEntry` with `sourceCriterion`, `testPath`, `timestamp` (ISO-8601 UTC) updating `toMarkdown()` to emit the fixed 8-field entry from contracts/verify-red.md, in `lib/src/plugins/tdd/models/cycle_entry.dart`
+- [x] T003 [P] [U1] [U2] [U3] [U4] [U5] [U6] [U7] [U8] [U9] [U10] [U11] [U12] [U13] [U14] Add `RedClassification` enum (`assertion`, `compileError`, `loadError`, `skipped`, `unexpectedGreen`, `runnerError`) and `RunRecord` value object (`command`, `exitCode`, `output`, `startedProcess`, `testCount`) in `lib/src/plugins/tdd/models/red_classification.dart`
+- [x] T004 [U1] [U2] [U3] [U4] [U5] [U6] [U7] [U8] [U9] [U10] Implement `red_classifier.dart` pure function `RedClassification classify(RunRecord)` applying the ordered rules from research.md Decision 3 (runner-error → load-error → compile-error → skipped → unexpected-green → assertion; `testCount != 1` forces runnerError except for load/compile), in `lib/src/plugins/tdd/services/red_classifier.dart`
+- [x] T005 [U11] [U12] [U13] [U14] Implement `runner.dart` service: load `TddProfile` from `.specify/memory/tdd-profile.md`, `resolveSingle(file:, name:)`, execute via `Process.run` with working directory, capture exit code + combined output + process-start success, return `RunRecord`, in `lib/src/plugins/tdd/services/runner.dart`
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 
@@ -49,15 +49,15 @@ tasks by these markers.
 
 ### Tests for User Story 1 ⚠️ (write first, watch fail)
 
-- [ ] T006 [P] [US1] [U1] Classifier test: canned runner outputs for assertion failures (dart + flutter shapes) classify as `assertion` in `test/plugins/tdd/red_classifier_test.dart`
-- [ ] T007 [P] [US1] [U11] [U12] [U13] [U14] Runner test: profile substitution and `RunRecord` capture against a tiny real temp `dart test` project in `test/plugins/tdd/runner_test.dart`
-- [ ] T008 [P] [US1] [U23] [U25] Command contract test: certified run exits 0, appends a complete 8-field entry matching contracts/verify-red.md, prints the summary line, and leaves `test/`+`lib/` checksums unchanged in `test/plugins/tdd/verify_red_command_test.dart`
-- [ ] T021 [P] [US1] [A1] [A2] [A3] Acceptance scenario test driving the real CLI entry end-to-end for the certified-honest-red path (stays red until US1 completes) in `test/plugins/tdd/scenarios/sc_001_certifies_honest_red_test.dart`
+- [x] T006 [P] [US1] [U1] Classifier test: canned runner outputs for assertion failures (dart + flutter shapes) classify as `assertion` in `test/plugins/tdd/red_classifier_test.dart`
+- [x] T007 [P] [US1] [U11] [U12] [U13] [U14] Runner test: profile substitution and `RunRecord` capture against a tiny real temp `dart test` project in `test/plugins/tdd/runner_test.dart`
+- [x] T008 [P] [US1] [U23] [U25] Command contract test: certified run exits 0, appends a complete 8-field entry matching contracts/verify-red.md, prints the summary line, and leaves `test/`+`lib/` checksums unchanged in `test/plugins/tdd/verify_red_command_test.dart`
+- [x] T021 [P] [US1] [A1] [A2] [A3] Acceptance scenario test driving the real CLI entry end-to-end for the certified-honest-red path (stays red until US1 completes) in `test/plugins/tdd/scenarios/sc_001_certifies_honest_red_test.dart`
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] [U23] [U27] Implement `VerifyRedCommand.run()`: explicit-id resolution via `ArtifactRegistry.findRecord`, load profile (misfire-stop when missing/unreadable), run via `runner.dart`, classify via `red_classifier.dart`, on `assertion` append `CycleLogEntry(kind: red)` via `CycleLog` and print summary line per contracts/verify-red.md, in `lib/src/plugins/tdd/commands/verify_red_command.dart`
-- [ ] T010 [US1] [U24] Wire stderr error reporting and remediation hints for non-assertion outcomes, exit non-zero without log writes, in `lib/src/plugins/tdd/commands/verify_red_command.dart`
+- [x] T009 [US1] [U23] [U27] Implement `VerifyRedCommand.run()`: explicit-id resolution via `ArtifactRegistry.findRecord`, load profile (misfire-stop when missing/unreadable), run via `runner.dart`, classify via `red_classifier.dart`, on `assertion` append `CycleLogEntry(kind: red)` via `CycleLog` and print summary line per contracts/verify-red.md, in `lib/src/plugins/tdd/commands/verify_red_command.dart`
+- [x] T010 [US1] [U24] Wire stderr error reporting and remediation hints for non-assertion outcomes, exit non-zero without log writes, in `lib/src/plugins/tdd/commands/verify_red_command.dart`
 
 **Checkpoint**: US1 fully functional and independently testable; A1–A3 green
 
@@ -74,13 +74,13 @@ cycle log byte-identical before/after (quickstart.md scenario 3).
 
 ### Tests for User Story 2 ⚠️ (write first, watch fail)
 
-- [ ] T011 [P] [US2] [U2] [U3] [U4] [U5] [U6] [U7] [U8] [U9] [U10] Classifier fixture-matrix test covering all five dishonest classes including blended-run (`testCount != 1`) and process-start failure, in `test/plugins/tdd/red_classifier_test.dart`
-- [ ] T012 [P] [US2] [U24] Command rejection test: each dishonest fixture exits non-zero, names the class on stderr, and leaves `cycle-log.md` byte-identical, in `test/plugins/tdd/verify_red_command_test.dart`
-- [ ] T022 [P] [US2] [A4] [A5] [A6] [A7] [A8] Acceptance scenario test driving the real CLI for all five dishonest classes (stays red until US2 completes) in `test/plugins/tdd/scenarios/sc_002_rejects_dishonest_red_test.dart`
+- [x] T011 [P] [US2] [U2] [U3] [U4] [U5] [U6] [U7] [U8] [U9] [U10] Classifier fixture-matrix test covering all five dishonest classes including blended-run (`testCount != 1`) and process-start failure, in `test/plugins/tdd/red_classifier_test.dart`
+- [x] T012 [P] [US2] [U24] Command rejection test: each dishonest fixture exits non-zero, names the class on stderr, and leaves `cycle-log.md` byte-identical, in `test/plugins/tdd/verify_red_command_test.dart`
+- [x] T022 [P] [US2] [A4] [A5] [A6] [A7] [A8] Acceptance scenario test driving the real CLI for all five dishonest classes (stays red until US2 completes) in `test/plugins/tdd/scenarios/sc_002_rejects_dishonest_red_test.dart`
 
 ### Implementation for User Story 2
 
-- [ ] T013 [US2] [A4] [A5] [A6] [A7] [A8] Implement per-class stderr messages with remediation hints (fix compile error; restore missing file; un-skip test; run `make` for unexpected-green; check runner/tooling for runner-error) in `lib/src/plugins/tdd/commands/verify_red_command.dart`
+- [x] T013 [US2] [A4] [A5] [A6] [A7] [A8] Implement per-class stderr messages with remediation hints (fix compile error; restore missing file; un-skip test; run `make` for unexpected-green; check runner/tooling for runner-error) in `lib/src/plugins/tdd/commands/verify_red_command.dart`
 
 **Checkpoint**: US1 AND US2 both work independently; A4–A8 green
 
@@ -96,12 +96,12 @@ missing-artifacts cases from spec US3.
 
 ### Tests for User Story 3 ⚠️ (write first, watch fail)
 
-- [ ] T014 [P] [US3] [U17] [U18] [U19] [U20] [U21] [U22] Resolution tests: unknown id errors before any run; no-arg with exactly one uncertified gen'd behavior selects it; no-arg with multiple candidates lists them and exits non-zero; id without registry artifacts instructs `zfa tdd gen` first, in `test/plugins/tdd/verify_red_command_test.dart`
-- [ ] T023 [P] [US3] [A9] [A10] [A11] [A12] Acceptance scenario test driving the real CLI for all four resolution rules (stays red until US3 completes) in `test/plugins/tdd/scenarios/sc_003_target_resolution_test.dart`
+- [x] T014 [P] [US3] [U17] [U18] [U19] [U20] [U21] [U22] Resolution tests: unknown id errors before any run; no-arg with exactly one uncertified gen'd behavior selects it; no-arg with multiple candidates lists them and exits non-zero; id without registry artifacts instructs `zfa tdd gen` first, in `test/plugins/tdd/verify_red_command_test.dart`
+- [x] T023 [P] [US3] [A9] [A10] [A11] [A12] Acceptance scenario test driving the real CLI for all four resolution rules (stays red until US3 completes) in `test/plugins/tdd/scenarios/sc_003_target_resolution_test.dart`
 
 ### Implementation for User Story 3
 
-- [ ] T015 [US3] [U17] [U18] [U19] [U20] [U21] [U22] Implement no-arg inference: load registry records, subtract behaviors with existing red entries in `cycle-log.md`, require exactly one candidate; `--feature` flag handling consistent with `gen_command.dart`, in `lib/src/plugins/tdd/commands/verify_red_command.dart`
+- [x] T015 [US3] [U17] [U18] [U19] [U20] [U21] [U22] Implement no-arg inference: load registry records, subtract behaviors with existing red entries in `cycle-log.md`, require exactly one candidate; `--feature` flag handling consistent with `gen_command.dart`, in `lib/src/plugins/tdd/commands/verify_red_command.dart`
 
 **Checkpoint**: US1–US3 all independently functional; A9–A12 green
 
@@ -117,12 +117,12 @@ certified and rejected runs (spec SC-005).
 
 ### Tests for User Story 4 ⚠️ (write first, watch fail)
 
-- [ ] T016 [P] [US4] [U26] Contract test pinning the summary-line format `verify-red: behavior=<id> classification=<class> certified=<bool> feature=<feature>` for both outcomes, in `test/plugins/tdd/verify_red_command_test.dart`
-- [ ] T024 [P] [US4] [A13] [A14] Acceptance scenario test asserting exit-code semantics (0 exactly on certification) and the final-line summary contract through the real CLI, in `test/plugins/tdd/scenarios/sc_004_summary_contract_test.dart`
+- [x] T016 [P] [US4] [U26] Contract test pinning the summary-line format `verify-red: behavior=<id> classification=<class> certified=<bool> feature=<feature>` for both outcomes, in `test/plugins/tdd/verify_red_command_test.dart`
+- [x] T024 [P] [US4] [A13] [A14] Acceptance scenario test asserting exit-code semantics (0 exactly on certification) and the final-line summary contract through the real CLI, in `test/plugins/tdd/scenarios/sc_004_summary_contract_test.dart`
 
 ### Implementation for User Story 4
 
-- [ ] T017 [US4] [U26] Emit the summary line as the final stdout line on every code path (certified, rejected, resolution error) in `lib/src/plugins/tdd/commands/verify_red_command.dart`
+- [x] T017 [US4] [U26] Emit the summary line as the final stdout line on every code path (certified, rejected, resolution error) in `lib/src/plugins/tdd/commands/verify_red_command.dart`
 
 **Checkpoint**: All user stories independently functional; A13–A14 green
 
@@ -130,8 +130,8 @@ certified and rejected runs (spec SC-005).
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T018 Run `dart analyze` on all touched files and fix findings
-- [ ] T019 Run scoped suite `dart test test/plugins/tdd/` and confirm green (after the pre-existing 044 failures noted in `tdd/cycle-log.md` baseline are fixed or quarantined)
+- [x] T018 Run `dart analyze` on all touched files and fix findings
+- [x] T019 Run scoped suite `dart test test/plugins/tdd/` and confirm green (after the pre-existing 044 failures noted in `tdd/cycle-log.md` baseline are fixed or quarantined)
 - [ ] T020 Execute quickstart.md scenarios 1–5 verbatim and record results in `specs/046-tdd-verify-red/tdd/` evidence
 
 ---

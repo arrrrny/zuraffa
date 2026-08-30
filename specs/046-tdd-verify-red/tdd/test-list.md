@@ -4,8 +4,8 @@ loop: outside-in
 profile: .specify/memory/tdd-profile.md
 spec_criteria: 14
 planned_at: 0118a465
-updated_at: 0118a465
-suite_baseline: red
+updated_at: 5232a80b
+suite_baseline: green
 ---
 
 # Test List: `zfa tdd verify-red`
@@ -25,20 +25,20 @@ works end to end. Scenario files follow the profile convention
 
 | id  | behavior | traces | kind | state | test |
 | --- | -------- | ------ | ---- | ----- | ---- |
-| A1 | Honestly-red behavior run: classification `assertion`, red entry appended, exit 0 | US1.AC1 | example | PENDING | |
-| A2 | Appended red entry carries all 8 contract fields (behavior, kind, classification, criterion, test, command, exit, at, output) | US1.AC2 | example | PENDING | |
-| A3 | A certified run modifies no file under `test/` or `lib/` (checksum-verified) | US1.AC3 | example | PENDING | |
-| A4 | Compile-broken subject → exit non-zero, `compile-error` named, log unchanged | US2.AC1 | example | PENDING | |
-| A5 | Missing test file/import → exit non-zero, `load-error` named, log unchanged | US2.AC2 | example | PENDING | |
-| A6 | Passing target test → exit non-zero, `unexpected-green` named, log unchanged | US2.AC3 | example | PENDING | |
-| A7 | Skipped/pending target test → exit non-zero, `skipped` named, log unchanged | US2.AC4 | example | PENDING | |
-| A8 | Runner cannot execute (tooling/timeout/blended run) → exit non-zero, `runner-error` named, log unchanged | US2.AC5 | example | PENDING | |
-| A9 | No-arg invocation with exactly one uncertified gen'd behavior verifies that behavior | US3.AC1 | example | PENDING | |
-| A10 | No-arg invocation with multiple uncertified behaviors exits non-zero listing candidate ids | US3.AC2 | example | PENDING | |
-| A11 | Unknown behavior id exits non-zero naming the id before any test run | US3.AC3 | example | PENDING | |
-| A12 | Behavior id without registry artifacts exits non-zero instructing `zfa tdd gen` first | US3.AC4 | example | PENDING | |
-| A13 | Every invocation ends with the summary line `verify-red: behavior=<id> classification=<class> certified=<bool> feature=<feature>` | US4.AC1 | example | PENDING | |
-| A14 | Exit code 0 occurs exactly on certification; every rejection is non-zero | US4.AC2 | example | PENDING | |
+| A1 | Honestly-red behavior run: classification `assertion`, red entry appended, exit 0 | US1.AC1 | example | DONE | sc_001_certifies_honest_red_test.dart::A1 |
+| A2 | Appended red entry carries all 8 contract fields (behavior, kind, classification, criterion, test, command, exit, at, output) | US1.AC2 | example | DONE | sc_001_certifies_honest_red_test.dart::A2 |
+| A3 | A certified run modifies no file under `test/` or `lib/` (checksum-verified) | US1.AC3 | example | DONE | sc_001_certifies_honest_red_test.dart::A3 |
+| A4 | Compile-broken subject → exit non-zero, `compile-error` named, log unchanged | US2.AC1 | example | DONE | sc_002_rejects_dishonest_red_test.dart::A4 |
+| A5 | Missing test file/import → exit non-zero, `load-error` named, log unchanged | US2.AC2 | example | DONE | sc_002_rejects_dishonest_red_test.dart::A5 |
+| A6 | Passing target test → exit non-zero, `unexpected-green` named, log unchanged | US2.AC3 | example | DONE | sc_002_rejects_dishonest_red_test.dart::A6 |
+| A7 | Skipped/pending target test → exit non-zero, `skipped` named, log unchanged | US2.AC4 | example | DONE | sc_002_rejects_dishonest_red_test.dart::A7 |
+| A8 | Runner cannot execute (tooling/timeout/blended run) → exit non-zero, `runner-error` named, log unchanged | US2.AC5 | example | DONE | sc_002_rejects_dishonest_red_test.dart::A8 |
+| A9 | No-arg invocation with exactly one uncertified gen'd behavior verifies that behavior | US3.AC1 | example | DONE | sc_003_target_resolution_test.dart::A9 |
+| A10 | No-arg invocation with multiple uncertified behaviors exits non-zero listing candidate ids | US3.AC2 | example | DONE | sc_003_target_resolution_test.dart::A10 |
+| A11 | Unknown behavior id exits non-zero naming the id before any test run | US3.AC3 | example | DONE | sc_003_target_resolution_test.dart::A11 |
+| A12 | Behavior id without registry artifacts exits non-zero instructing `zfa tdd gen` first | US3.AC4 | example | DONE | sc_003_target_resolution_test.dart::A12 |
+| A13 | Every invocation ends with the summary line `verify-red: behavior=<id> classification=<class> certified=<bool> feature=<feature>` | US4.AC1 | example | DONE | sc_004_summary_contract_test.dart::A13/U26 |
+| A14 | Exit code 0 occurs exactly on certification; every rejection is non-zero | US4.AC2 | example | DONE | sc_004_summary_contract_test.dart::A14 |
 
 ## Inner loop: unit behaviors
 
@@ -46,53 +46,53 @@ works end to end. Scenario files follow the profile convention
 
 | id  | behavior | traces | kind | state | test |
 | --- | -------- | ------ | ---- | ----- | ---- |
-| U1 | Non-zero exit with assertion signature (`Expected:`/`Actual:`/`TestFailure`) classifies `assertion` | FR-004 | example | PENDING | |
-| U2 | Exit 0 with no skip markers classifies `unexpected-green` | FR-004 | example | PENDING | |
-| U3 | Exit 0 where all executed tests are skipped/pending classifies `skipped` | FR-004 | example | PENDING | |
-| U4 | `Failed to load` / unresolvable import / missing file output classifies `load-error` | FR-004 | example | PENDING | |
-| U5 | CFE compilation diagnostics without load signature classify `compile-error` | FR-004 | example | PENDING | |
-| U6 | Process failed to start classifies `runner-error` | FR-004 | example | PENDING | |
-| U7 | Parsed executed-test count ≠ 1 classifies `runner-error` (blended run) | FR-005 | example | PENDING | |
-| U8 | Count ≠ 1 with a load/compile signature still classifies load/compile (signature beats count) | FR-005 | example | PENDING | |
-| U9 | Non-zero exit, one test, no assertion signature classifies `runner-error` (unexplained red is not honest red) | FR-004 | example | PENDING | |
-| U10 | Classification is deterministic when multiple signatures co-occur: fixed precedence runner-start → load → compile → skip → green → assertion → runner-error | FR-004 | example | PENDING | |
+| U1 | Non-zero exit with assertion signature (`Expected:`/`Actual:`/`TestFailure`) classifies `assertion` | FR-004 | example | DONE | red_classifier_test.dart::U1 |
+| U2 | Exit 0 with no skip markers classifies `unexpected-green` | FR-004 | example | DONE | red_classifier_test.dart::U2 |
+| U3 | Exit 0 where all executed tests are skipped/pending classifies `skipped` | FR-004 | example | DONE | red_classifier_test.dart::U3 |
+| U4 | `Failed to load` / unresolvable import / missing file output classifies `load-error` | FR-004 | example | DONE | red_classifier_test.dart::U4 |
+| U5 | CFE compilation diagnostics without load signature classify `compile-error` | FR-004 | example | DONE | red_classifier_test.dart::U5 |
+| U6 | Process failed to start classifies `runner-error` | FR-004 | example | DONE | red_classifier_test.dart::U6 |
+| U7 | Parsed executed-test count ≠ 1 classifies `runner-error` (blended run) | FR-005 | example | DONE | red_classifier_test.dart::U7 |
+| U8 | Count ≠ 1 with a load/compile signature still classifies load/compile (signature beats count) | FR-005 | example | DONE | red_classifier_test.dart::U8 |
+| U9 | Non-zero exit, one test, no assertion signature classifies `runner-error` (unexplained red is not honest red) | FR-004 | example | DONE | red_classifier_test.dart::U9 |
+| U10 | Classification is deterministic when multiple signatures co-occur: fixed precedence runner-start → load → compile → skip → green → assertion → runner-error | FR-004 | example | DONE | red_classifier_test.dart::U10 |
 
 ### `lib/src/plugins/tdd/services/runner.dart`
 
 | id  | behavior | traces | kind | state | test |
 | --- | -------- | ------ | ---- | ----- | ---- |
-| U11 | Substitutes `{file}` and `{name}` from the profile `single` template into the executed command | FR-003 | example | PENDING | |
-| U12 | Returns exit code and combined stdout+stderr of the run | FR-003 | example | PENDING | |
-| U13 | Records `startedProcess=false` when the executable cannot launch | FR-004 | example | PENDING | |
-| U14 | Executes in the provided working directory | FR-003 | example | PENDING | |
+| U11 | Substitutes `{file}` and `{name}` from the profile `single` template into the executed command | FR-003 | example | DONE | runner_test.dart::U11 |
+| U12 | Returns exit code and combined stdout+stderr of the run | FR-003 | example | DONE | runner_test.dart::U12 |
+| U13 | Records `startedProcess=false` when the executable cannot launch | FR-004 | example | DONE | runner_test.dart::U13 |
+| U14 | Executes in the provided working directory | FR-003 | example | DONE | runner_test.dart::U14 |
 
 ### `lib/src/plugins/tdd/models/cycle_entry.dart`
 
 | id  | behavior | traces | kind | state | test |
 | --- | -------- | ------ | ---- | ----- | ---- |
-| U15 | `toMarkdown()` emits the 8 contract fields in fixed order (behavior, kind, classification, criterion, test, command, exit, at, output) | FR-006 | example | PENDING | |
-| U16 | `FailureClass` includes `skipped` and `runnerError` and serializes them round-trip | FR-004, FR-006 | example | PENDING | |
+| U15 | `toMarkdown()` emits the 8 contract fields in fixed order (behavior, kind, classification, criterion, test, command, exit, at, output) | FR-006 | example | DONE | models/cycle_entry_test.dart::U15 |
+| U16 | `FailureClass` includes `skipped` and `runnerError` and serializes them round-trip | FR-004, FR-006 | example | DONE | models/cycle_entry_test.dart::U16 |
 
 ### `lib/src/plugins/tdd/commands/verify_red_command.dart` — resolution
 
 | id  | behavior | traces | kind | state | test |
 | --- | -------- | ------ | ---- | ----- | ---- |
-| U17 | Explicit known behavior id resolves its registry record | FR-001, FR-002 | example | PENDING | |
-| U18 | Unknown id errors naming the id before any runner invocation | FR-002 | example | PENDING | |
-| U19 | Zero-arg with exactly one uncertified record selects it | FR-002 | example | PENDING | |
-| U20 | Zero-arg with multiple uncertified records errors listing the candidates | FR-002 | example | PENDING | |
-| U21 | Zero-arg with zero candidates errors stating none exist | FR-002 | example | PENDING | |
-| U22 | Known behavior id without a registry record instructs `zfa tdd gen <id>` first | FR-002 | example | PENDING | |
+| U17 | Explicit known behavior id resolves its registry record | FR-001, FR-002 | example | DONE | verify_red_command_test.dart::U17 |
+| U18 | Unknown id errors naming the id before any runner invocation | FR-002 | example | DONE | verify_red_command_test.dart::U18 |
+| U19 | Zero-arg with exactly one uncertified record selects it | FR-002 | example | DONE | verify_red_command_test.dart::U19 |
+| U20 | Zero-arg with multiple uncertified records errors listing the candidates | FR-002 | example | DONE | verify_red_command_test.dart::U20 |
+| U21 | Zero-arg with zero candidates errors stating none exist | FR-002 | example | DONE | verify_red_command_test.dart::U21 |
+| U22 | Known behavior id without a registry record instructs `zfa tdd gen <id>` first | FR-002 | example | DONE | verify_red_command_test.dart::U22 |
 
 ### `lib/src/plugins/tdd/commands/verify_red_command.dart` — command behavior
 
 | id  | behavior | traces | kind | state | test |
 | --- | -------- | ------ | ---- | ----- | ---- |
-| U23 | Certified run appends exactly one red entry with all 8 fields | FR-006 | example | PENDING | |
-| U24 | Rejected run leaves `cycle-log.md` byte-identical | FR-007 | example | PENDING | |
-| U25 | No invocation writes, creates, or deletes under `test/` or `lib/` | FR-008 | example | PENDING | |
-| U26 | Summary line is the final stdout line in the contract format on every code path | FR-009 | example | PENDING | |
-| U27 | Missing/unreadable `tdd-profile.md` stops with a misfire error before any run | FR-003, FR-010 | example | PENDING | |
+| U23 | Certified run appends exactly one red entry with all 8 fields | FR-006 | example | DONE | verify_red_command_test.dart::U23 |
+| U24 | Rejected run leaves `cycle-log.md` byte-identical | FR-007 | example | DONE | verify_red_command_test.dart::U24 |
+| U25 | No invocation writes, creates, or deletes under `test/` or `lib/` | FR-008 | example | DONE | verify_red_command_test.dart::U25 |
+| U26 | Summary line is the final stdout line in the contract format on every code path | FR-009 | example | DONE | verify_red_command_test.dart::U26 |
+| U27 | Missing/unreadable `tdd-profile.md` stops with a misfire error before any run | FR-003, FR-010 | example | DONE | verify_red_command_test.dart::U27 |
 
 ## Invariants and edge cases still to place
 
