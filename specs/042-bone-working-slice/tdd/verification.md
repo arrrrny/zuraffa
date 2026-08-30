@@ -39,8 +39,7 @@ usecase / datasource / injection / app-entry / presentation builders (18), di re
 manifest builder (4 new + 7 legacy), bone command flags & validate (6 new + 12 legacy),
 bone generator (3 new + 7 legacy), scaffold builder (4 rewritten), and the end-to-end
 scenario `sc_005` (28 acceptance behaviors A1–A28). Coverage tooling not invoked (the repo's
-tdd-profile declares coverage opt-in); unit coverage is implicitly complete per the mapping
-above.
+tdd-profile declares coverage opt-in); test mapping is complete, but coverage is unmeasured.
 
 ## 2. Mutation
 
@@ -55,7 +54,7 @@ per-mutant full-scope runs infeasible during verification). **Honest gap**: test
 
 | Criterion | Status | Evidence |
 |---|---|---|
-| SC-001 `--flutter --di mock` bone contains a runnable Flutter app module | **PROVED (structure + pure-Dart core)** | A10–A13, A1–A3: pubspec + lib/main.dart + presentation page + widget test + entities/domain/data/DI/tests all emitted for exactly one feature |
+| SC-001 `--flutter --di mock` bone contains a Flutter app module (runnability unmeasured) | **PARTLY PROVED (structure + pure-Dart core)** | A10–A13, A1–A3 structurally verify pubspec + lib/main.dart + presentation page + widget test + entities/domain/data/DI/tests for exactly one feature. The Flutter module was not executed or analyzed because no Flutter SDK was available. |
 | SC-002 Bone compiles / analyzes with zero errors | **PROVED for the pure-Dart core; NOT PROVED for flutter-mode widget files** | A25 executes `dart analyze` on a scratch package containing entities/domain/data/di/tests → "No issues found". `flutter analyze` was **not** run — no Flutter SDK in this environment; widget files are verified by content assertions only |
 | SC-003 Mock bones work without external services | **PROVED** | A22 runs each generated test with `dart <file>` — no `pub get`, no network, zero package deps — all exit 0 (`user test: PASS`, `post test: PASS`, `di test: PASS`) |
 | SC-004 Firebase bones work with real Firebase credentials | **PARTLY PROVED** | Generated code + wiring + credential plumbing proven (A6, U22–U24, and A24's runtime StateError check inside `di_test`). A **live Firestore round-trip was NOT executed** (no credentials/network in CI) |
