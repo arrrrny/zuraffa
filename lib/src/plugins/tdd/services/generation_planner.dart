@@ -7,8 +7,11 @@
 ///
 /// Mapping rules (minimal generation — FR-005):
 ///   - **Entity-bearing behavior** (description starts with "entity"
-///     or contains "create entity"): plan starts with
-///     `zfa entity create <Name>` then `zfa build`.
+///     or contains "create entity"): plan is
+///     `zfa entity create -n <Name>` (bug #609: the real CLI requires
+///     `-n`), then `zfa tdd wire <id> --entity <Name>` (bug #610: the
+///     subject-implementation step — without it green is unreachable
+///     with the real pipeline), then `zfa build`.
 ///   - **CRUD / use-case behavior** (description contains "crud",
 ///     "use case", "use-case", "repository", or "service"): plan is
 ///     `zfa make <slug> --preset=...` then `zfa build`.
@@ -104,6 +107,19 @@ class GenerationPlanner {
             // regress it.
             args: ['entity', 'create', '-n', name],
             purpose: 'create entity $name for behavior ${summary.behaviorId}',
+          ),
+          GenerationStepSpec(
+            // Bug #610: the plan previously stopped at `build` — nothing
+            // implemented the gen'd subject stub, so green was
+            // unreachable with the real pipeline for ANY entity-bearing
+            // behavior. The wire step implements the subject against the
+            // generated entity (design decision: `zfa tdd wire` — see
+            // the command's doc comment and the epic 045 harness spec,
+            // precondition 5).
+            args: ['tdd', 'wire', summary.behaviorId, '--entity', name],
+            purpose:
+                'wire subject of behavior ${summary.behaviorId} to '
+                'entity $name',
           ),
           GenerationStepSpec(
             args: ['build'],

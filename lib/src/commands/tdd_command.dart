@@ -11,6 +11,7 @@ import '../plugins/tdd/commands/refactor_command.dart';
 import '../plugins/tdd/commands/run_command.dart';
 import '../plugins/tdd/commands/verify_command.dart';
 import '../plugins/tdd/commands/verify_red_command.dart';
+import '../plugins/tdd/commands/wire_command.dart';
 import '../plugins/tdd/tdd_plugin.dart';
 
 class TddCommand extends Command<void> {
@@ -20,6 +21,7 @@ class TddCommand extends Command<void> {
     addSubcommand(GenCommand(plugin));
     addSubcommand(VerifyRedCommand(plugin));
     addSubcommand(MakeCommand(plugin));
+    addSubcommand(WireCommand(plugin));
     addSubcommand(RefactorCommand(plugin));
     addSubcommand(RunCommand(plugin));
     addSubcommand(VerifyCommand(plugin));
@@ -33,7 +35,7 @@ class TddCommand extends Command<void> {
   @override
   String get description =>
       'Drive the full TDD red-green-refactor cycle (init, plan, gen, '
-      'verify-red, make, refactor, run, verify). See '
+      'verify-red, make, wire, refactor, run, verify). See '
       'specs/041-tdd-setup-plugin/spec.md for the full contract.';
 
   @override

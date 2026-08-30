@@ -359,6 +359,30 @@ before its phase starts. Suggested scopes (each spec author owns the details):
 5. **`zik_zak_tdd` greenfield harness** — scaffold + baseline + spec-corpus
    extraction + provenance audit mechanism.
 
+**Subject wiring decision (resolved 2026-08-30, bug #610)**: the harness's
+"created exclusively through `zfa` commands" contract (FR-003) requires the
+entity pipeline's subject-implementation step to be a real generator surface.
+The open design question — `zfa make <Entity> --with=tdd-subject --behavior
+<id>` vs a dedicated `zfa tdd wire <id> --entity <Name>` subcommand — is
+resolved in favor of **`zfa tdd wire`**, for three reasons that bind the
+harness spec: (1) ownership — the subject contract (`lib/tdd/<id>_subject.dart`,
+SubjectWriter, the artifact registry's subject artifacts) belongs to the tdd
+plugin, and a `make` flag would force a core→plugin dependency the
+architecture forbids (plugins depend on core, never the reverse); (2) provenance
+(FR-005) — a dedicated, self-describing invocation gives the audit an
+unambiguous attribution record for the subject implementation, where a flag
+overload would attribute the subject to a `make` invocation whose primary
+purpose was unrelated scaffolding; (3) surface stability — `zfa make`'s public
+CLI stays untouched (the same reasoning the #609 assessment applied when it
+rejected making `EntityCommand` accept a positional name). The entity plan is
+therefore `zfa entity create -n <Name>` → `zfa tdd wire <id> --entity <Name>`
+→ `zfa build`, and precondition 5's harness spec MUST carry this wiring step
+(its scaffold/baseline/provenance mechanisms attribute the subject through the
+wire invocation recorded in green evidence). The CRUD/use-case plan branch
+(`zfa make <slug>` + `build`) is NOT extended by this decision; subject wiring
+for non-entity-bearing behaviors remains a documented gap for the harness
+spec's own scope.
+
 Note: `zfa tdd gen` (Phase 6) is already delivered by spec 044 and needs no
 new spec; gaps discovered in it during the corpus run follow FR-012.
 

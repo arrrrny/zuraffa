@@ -87,10 +87,12 @@ void main() {
 
     // US1.AC3: the recorded pipeline invocations, replayed on the
     // pre-run state, reproduce the implementation (SC-001) —
-    // verifiable from the cycle log alone.
+    // verifiable from the cycle log alone. Bug #610: the plan now also
+    // carries the subject-wiring step between create and build.
     final calls = await fx.readFakeZfaLog();
-    expect(calls, hasLength(2));
+    expect(calls, hasLength(3));
     expect(calls.first, contains('entity create'));
+    expect(calls[1], contains('tdd wire'));
     expect(calls.last, contains('build'));
     expect(await File(fx.testPathOf('B-001')).readAsBytes(), testBytesBefore);
   });
