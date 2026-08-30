@@ -29,7 +29,8 @@ tail -1 <(dart run bin/zfa.dart tdd verify-red B-001) # summary line shape
 
 Expected: exit 0, summary line
 `verify-red: behavior=B-001 classification=assertion certified=true ...`, and
-a complete 8-field entry appended to `cycle-log.md`
+a complete 8-field evidence payload plus the required structural `kind` marker
+appended to `cycle-log.md`
 (see [contracts/verify-red.md](contracts/verify-red.md)).
 
 ## 3. Dishonest-red rejection matrix

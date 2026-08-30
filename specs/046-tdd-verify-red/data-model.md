@@ -35,6 +35,11 @@ except when classification already landed on `load-error`/`compile-error`.
 Current fields: `behaviorId`, `kind` (red|green), `runnerCommand`,
 `exitCode`, `capturedOutput`, `classification` (`FailureClass?`).
 
+`toMarkdown()` serializes nine labeled fields in fixed order: `behavior`,
+`kind`, `classification`, `criterion`, `test`, `command`, `exit`, `at`, and
+`output`. Eight are red-evidence fields; `kind` is a required structural marker
+that identifies the cycle phase and is not counted as evidence.
+
 Added fields (spec FR-006):
 
 - `sourceCriterion` (String) — e.g. `FR-007`, from the artifact record

@@ -74,9 +74,9 @@ void main() {
     });
   });
 
-  group('U15 — 8-field contract entry (spec 046, FR-006)', () {
+  group('U15 — 8 evidence fields plus structural kind (spec 046, FR-006)', () {
     test(
-      'red entry emits the contract fields in the fixed order '
+      'red entry emits all nine serialized fields in the fixed order '
       '(behavior, kind, classification, criterion, test, command, exit, at, output)',
       () {
         final entry = CycleLogEntry(

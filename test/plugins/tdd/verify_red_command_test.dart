@@ -52,7 +52,7 @@ void main() {
         );
         expect(exitCode, 0, reason: 'certified red must exit 0');
 
-        // Exactly one red entry appended with ALL 8 contract fields.
+        // Nine serialized fields: 8 evidence fields plus structural `kind`.
         final log = await File(fx.cycleLogPath).readAsString();
         expect(log, contains('## Cycle: B-001 (red)'));
         expect(log, contains('- behavior: B-001'));
@@ -81,6 +81,30 @@ void main() {
         final runner = CliRunner(exitOnCompletion: false);
         await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
         expect(fx.checksumTestAndLib(), equals(before));
+      },
+    );
+
+    test(
+      'U25: a mutating assertion failure is rejected without red evidence',
+      () async {
+        await File(fx.testPathOf('B-001'))
+            .writeAsString(TddFixture.mutatingRedTest(description));
+        final runner = CliRunner(exitOnCompletion: false);
+
+        final out = await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
+
+        expect(out, contains('read-only integrity violation'));
+        expect(out, contains('lib/verify_red_mutation.txt'));
+        expect(out, contains('test/verify_red_mutation.txt'));
+        expect(
+          out,
+          contains(
+            'verify-red: behavior=B-001 classification=runner-error '
+            'certified=false feature=${fx.featureName}',
+          ),
+        );
+        expect(exitCode, isNot(0));
+        expect(File(fx.cycleLogPath).existsSync(), isFalse);
       },
     );
 

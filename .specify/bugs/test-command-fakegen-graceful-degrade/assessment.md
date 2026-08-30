@@ -8,7 +8,7 @@
 
 ## Issues
 
-#533, #534, #536
+\#533, \#534, \#536
 
 ## Symptom
 
@@ -34,5 +34,5 @@ is missing (or the interface is not declared in it) it emits a graceful placehol
 `Fake{Name} implements {Interface}` stub and prints a warning, so generation succeeds
 and produces a usable file. The stale `Mock*` assertions in
 `test/commands/test_command_test.dart` were updated to the real `Fake*` output that
-#524 deliberately introduced (the success assertion and the meaningful content
+\#524 deliberately introduced (the success assertion and the meaningful content
 assertions are preserved, not weakened).

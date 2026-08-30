@@ -33,7 +33,8 @@ verify-red: behavior=B-001 classification=assertion certified=true feature=046-t
 # EXIT: 0
 ```
 
-Appended entry carries all 8 contract fields:
+Appended entry carries all 9 serialized fields (8 evidence fields plus the
+required structural `kind` marker):
 
 ```
 ## Cycle: B-001 (red)

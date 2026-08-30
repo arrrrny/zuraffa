@@ -53,7 +53,7 @@ void main() {
     },
   );
 
-  test('A2: the appended red entry carries all 8 contract fields', () async {
+  test('A2: the red entry serializes 8 evidence fields plus kind', () async {
     final runner = CliRunner(exitOnCompletion: false);
     await runner.runCapturing(['tdd', 'verify-red', 'B-001']);
     final log = await File(fx.cycleLogPath).readAsString();

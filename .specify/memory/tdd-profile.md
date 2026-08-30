@@ -20,10 +20,10 @@ commands, layout, and conventions the auditor needs to grade tests cold.
 - Single test: `dart test <file> --plain-name "<name>"` (the `--plain-name`
   filter matches test names containing the string).
 - Whole file: `dart test <file>`
-- Full suite (feature scope): `dart test test/plugins/benchmark/`
+- Full suite (feature scope): `dart test test/plugins/tdd/`
 - Full suite (repo): `dart test` — slow; do not run for feature work, run the
   scoped subset instead.
-- Static analysis (feature scope): `dart analyze lib/src/core/benchmark/ lib/src/plugins/benchmark/ test/plugins/benchmark/`
+- Static analysis (feature scope): `dart analyze lib/src/plugins/tdd/ test/plugins/tdd/`
 - Static analysis (full repo): `dart analyze`
 
 ## Keys (machine-readable)

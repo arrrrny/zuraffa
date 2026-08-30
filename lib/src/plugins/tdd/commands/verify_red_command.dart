@@ -35,6 +35,7 @@ library;
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/red_classification.dart';
@@ -140,6 +141,20 @@ class VerifyRedCommand extends Command<void> {
         : p.join(cwd, record.testPath);
     final testName = _runnableNameOf(record);
     print('   command: $template');
+    _ReadOnlyTreeSnapshot beforeRun;
+    try {
+      beforeRun = await _ReadOnlyTreeSnapshot.capture(cwd);
+    } on FileSystemException catch (e) {
+      print('zfa tdd verify-red: cannot snapshot test/ and lib/: ${e.message}');
+      _printSummary(
+        behavior: record.behaviorId,
+        classification: 'unresolved',
+        certified: false,
+        feature: target.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
     final run = await runner.runSingle(
       singleTemplate: template,
       testPath: testPath,
@@ -147,6 +162,31 @@ class VerifyRedCommand extends Command<void> {
       workingDirectory: cwd,
     );
     print('   runner exit: ${run.exitCode}');
+
+    List<String> changedPaths;
+    try {
+      final afterRun = await _ReadOnlyTreeSnapshot.capture(cwd);
+      changedPaths = beforeRun.changedPaths(afterRun);
+    } on FileSystemException catch (e) {
+      changedPaths = ['snapshot failed: ${e.message}'];
+    }
+    if (changedPaths.isNotEmpty) {
+      const classification = RedClassification.runnerError;
+      print('   classification: ${classification.label}');
+      print(
+        'zfa tdd verify-red: read-only integrity violation under test/ or lib/: '
+        '${changedPaths.join(', ')}',
+      );
+      print('   no evidence written');
+      _printSummary(
+        behavior: record.behaviorId,
+        classification: classification.label,
+        certified: false,
+        feature: target.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
 
     // ---------------------------------------------------------------
     // 4. Classify (FR-004, FR-005).
@@ -428,4 +468,42 @@ class _ResolvedTarget {
   final ArtifactRecord record;
   final String featureDir;
   final String featureName;
+}
+
+/// Content and shape snapshot for the command's read-only source trees.
+class _ReadOnlyTreeSnapshot {
+  const _ReadOnlyTreeSnapshot(this.entries);
+
+  final Map<String, String> entries;
+
+  static Future<_ReadOnlyTreeSnapshot> capture(String projectRoot) async {
+    final entries = <String, String>{};
+    for (final treeName in const ['test', 'lib']) {
+      final tree = Directory(p.join(projectRoot, treeName));
+      if (!await tree.exists()) continue;
+      entries['$treeName/'] = 'directory';
+      await for (final entity in tree.list(
+        recursive: true,
+        followLinks: false,
+      )) {
+        final relative = p.normalize(
+          p.relative(entity.path, from: projectRoot),
+        );
+        if (entity is File) {
+          entries[relative] =
+              'file:${sha256.convert(await entity.readAsBytes())}';
+        } else if (entity is Directory) {
+          entries['$relative/'] = 'directory';
+        } else if (entity is Link) {
+          entries[relative] = 'link:${await entity.target()}';
+        }
+      }
+    }
+    return _ReadOnlyTreeSnapshot(entries);
+  }
+
+  List<String> changedPaths(_ReadOnlyTreeSnapshot other) {
+    final paths = {...entries.keys, ...other.entries.keys}.toList()..sort();
+    return paths.where((path) => entries[path] != other.entries[path]).toList();
+  }
 }

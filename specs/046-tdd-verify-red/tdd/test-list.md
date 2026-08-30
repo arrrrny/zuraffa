@@ -26,7 +26,7 @@ works end to end. Scenario files follow the profile convention
 | id  | behavior | traces | kind | state | test |
 | --- | -------- | ------ | ---- | ----- | ---- |
 | A1 | Honestly-red behavior run: classification `assertion`, red entry appended, exit 0 | US1.AC1 | example | DONE | sc_001_certifies_honest_red_test.dart::A1 |
-| A2 | Appended red entry carries all 8 contract fields (behavior, kind, classification, criterion, test, command, exit, at, output) | US1.AC2 | example | DONE | sc_001_certifies_honest_red_test.dart::A2 |
+| A2 | Appended red entry carries all 9 serialized fields: 8 evidence fields plus required structural marker `kind` (behavior, kind, classification, criterion, test, command, exit, at, output) | US1.AC2 | example | DONE | sc_001_certifies_honest_red_test.dart::A2 |
 | A3 | A certified run modifies no file under `test/` or `lib/` (checksum-verified) | US1.AC3 | example | DONE | sc_001_certifies_honest_red_test.dart::A3 |
 | A4 | Compile-broken subject → exit non-zero, `compile-error` named, log unchanged | US2.AC1 | example | DONE | sc_002_rejects_dishonest_red_test.dart::A4 |
 | A5 | Missing test file/import → exit non-zero, `load-error` named, log unchanged | US2.AC2 | example | DONE | sc_002_rejects_dishonest_red_test.dart::A5 |
@@ -70,7 +70,7 @@ works end to end. Scenario files follow the profile convention
 
 | id  | behavior | traces | kind | state | test |
 | --- | -------- | ------ | ---- | ----- | ---- |
-| U15 | `toMarkdown()` emits the 8 contract fields in fixed order (behavior, kind, classification, criterion, test, command, exit, at, output) | FR-006 | example | DONE | models/cycle_entry_test.dart::U15 |
+| U15 | `toMarkdown()` emits all 9 serialized fields in fixed order: 8 evidence fields plus required structural marker `kind` (behavior, kind, classification, criterion, test, command, exit, at, output) | FR-006 | example | DONE | models/cycle_entry_test.dart::U15 |
 | U16 | `FailureClass` includes `skipped` and `runnerError` and serializes them round-trip | FR-004, FR-006 | example | DONE | models/cycle_entry_test.dart::U16 |
 
 ### `lib/src/plugins/tdd/commands/verify_red_command.dart` — resolution
@@ -88,7 +88,7 @@ works end to end. Scenario files follow the profile convention
 
 | id  | behavior | traces | kind | state | test |
 | --- | -------- | ------ | ---- | ----- | ---- |
-| U23 | Certified run appends exactly one red entry with all 8 fields | FR-006 | example | DONE | verify_red_command_test.dart::U23 |
+| U23 | Certified run appends exactly one red entry with all 8 evidence fields | FR-006 | example | DONE | verify_red_command_test.dart::U23 |
 | U24 | Rejected run leaves `cycle-log.md` byte-identical | FR-007 | example | DONE | verify_red_command_test.dart::U24 |
 | U25 | No invocation writes, creates, or deletes under `test/` or `lib/` | FR-008 | example | DONE | verify_red_command_test.dart::U25 |
 | U26 | Summary line is the final stdout line in the contract format on every code path | FR-009 | example | DONE | verify_red_command_test.dart::U26 |

@@ -161,6 +161,23 @@ void main() {
 
   static String redTest(String description) => _redTest(description);
 
+  static String mutatingRedTest(String description) =>
+      '''
+import 'dart:io';
+
+import 'package:test/test.dart';
+
+void main() {
+  test('$description', () {
+    File('lib/verify_red_mutation.txt')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('mutated');
+    File('test/verify_red_mutation.txt').writeAsStringSync('mutated');
+    expect(1, equals(2));
+  });
+}
+''';
+
   static String greenTest(String description) =>
       '''
 import 'package:test/test.dart';
