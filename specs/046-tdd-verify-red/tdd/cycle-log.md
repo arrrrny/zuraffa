@@ -153,3 +153,29 @@ because the log is append-only.
   Suite `dart test test/plugins/tdd/` -> 156 passed, 0 failed.
 - refactor: none this cycle (the command is the single new unit).
 - commit: (this commit)
+
+## Cycle 5: U24, A4-A8 — dishonest-red rejection matrix (TEST-AFTER ADMISSION)
+
+- behaviors: U24 (rejected run leaves cycle-log.md byte-identical),
+  A4-A8 (one acceptance rejection per dishonest class)
+- test: rejection matrix appended to
+  `test/plugins/tdd/verify_red_command_test.dart` (7 tests) +
+  `test/plugins/tdd/scenarios/sc_002_rejects_dishonest_red_test.dart`
+  (5 tests). Fixtures: compile-broken test, registry pointing at a
+  missing file, passing test, skipped test, blended run (registered
+  name matches two tests), and an unlaunchable profile command.
+- DEVIATION (recorded honestly per Hard Rule 2): the command's
+  non-assertion branch was implemented as part of cycle 4's command
+  skeleton, BEFORE these dedicated tests existed. The tests passed on
+  first run — this cycle is test-after for the command-level rejection
+  WIRING. The underlying classification logic (which six-way class each
+  transcript belongs to) was properly test-first in cycle 2
+  (red_classifier_test.dart, U1-U10, red observed before
+  implementation). The audit should classify U24/A4-A8 command wiring as
+  TEST_AFTER and the classifier behaviors as PROVEN.
+- green: all rejection paths verified — each dishonest class exits
+  non-zero with the named classification in the summary line, writes no
+  evidence (byte-identical log), and touches nothing under test/ or
+  lib/. Suite `dart test test/plugins/tdd/` -> 168 passed, 0 failed.
+- refactor: none.
+- commit: (this commit)
