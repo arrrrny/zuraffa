@@ -67,9 +67,9 @@ directory-by-directory (a single invocation exceeds CI session timeouts):
   slow-tagged — excluded from the default suite by `dart_test.yaml` (no fast
   tests there; "No tests match the requested tag selectors").
 - `dart analyze` full repo: same 23 pre-existing errors confined to
-  `examples/mcp_demo` and `zikzak_session` (missing git submodule content —
-  both predate this branch and reproduce on master), 108 total issues at
-  baseline vs. no new issues introduced here.
+  `examples/mcp_demo` and the standalone `zikzak_session` package (now
+  published on pub.dev — both predate this branch and reproduce on master),
+  108 total issues at baseline vs. no new issues introduced here.
 
 ## 6. Honest gaps and flagged pre-existing issues
 
