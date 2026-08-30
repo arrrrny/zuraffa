@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.1 - 2026-08-30
+
+- **Fix routing**: gh-triage now explicitly delegates bugs to `bug.fetch` (saved
+  under `.specify/bugs/`) and chores to `chore.fetch` (saved under
+  `.specify/chores/`). Only features are saved as specs under `specs/` via
+  `speckit.specify`. Added explicit guardrails and phase-level instructions to
+  prevent accidentally calling `speckit.specify` for bugs or chores.
+
 ## 1.1.0 - 2026-08-28
 
 - New `speckit.gh-triage.feature` command: file a GitHub issue describing a new

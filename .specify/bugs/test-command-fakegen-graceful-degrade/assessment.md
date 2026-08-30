@@ -1,8 +1,18 @@
-# Bug: `zfa test` generation throws instead of degrading gracefully (#533 / #534 / #536)
+# Bug Assessment: `zfa test` generation throws instead of degrading gracefully
 
-**Issues:** #533, #534, #536
+- **Slug**: test-command-fakegen-graceful-degrade
+- **Created**: 2026-08-30
+- **Source**: GitHub issues #533, #534, #536
+- **Verdict**: valid
+- **Severity**: high
 
-**Symptom:** Three `zfa test` generation scenarios fail with
+## Issues
+
+#533, #534, #536
+
+## Symptom
+
+Three `zfa test` generation scenarios fail with
 `expect(result.success, isTrue)` returning `false`:
 - custom use case with a repository dependency (`FetchUserUseCase` → `UserRepository`)
 - stream use case with a service dependency (`WatchOrdersUseCase` → `OrderService`)
