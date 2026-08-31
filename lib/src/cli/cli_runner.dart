@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:args/args.dart';
+import 'package:path/path.dart' as p;
 import '../commands/schema_command.dart';
 import '../commands/ui_command.dart';
 import '../commands/validate_command.dart';
@@ -54,6 +55,22 @@ class CliRunner {
             negatable: false,
             abbr: 'v',
             help: 'Print version',
+          )
+          // Global `-C/--directory <dir>`: run as if zfa was started in
+          // <dir> instead of the current working directory. The directory is
+          // applied as a scoped chdir (restored after the invocation), so
+          // tests can target a temp fixture project WITHOUT mutating the
+          // process-global Directory.current — which concurrent tests share
+          // and can corrupt (issue #441 / TDD CWD race). Most commands
+          // resolve their root from Directory.current, so they inherit the
+          // override automatically; commands with their own `--project-root`
+          // flag (ui, tdd *) take precedence via that flag when supplied.
+          ..argParser.addOption(
+            'directory',
+            abbr: 'C',
+            help:
+                'Run as if zfa was started in <dir> (scoped; the process '
+                'working directory is restored afterward).',
           );
   }
 
@@ -70,8 +87,13 @@ class CliRunner {
   static const Set<String> _noPluginCommands = {'xray'};
 
   void _ensureInitialized([List<String> args = const []]) {
+    // Strip the global `-C`/`--directory` flag (if present) before the
+    // plugin-skip decision so `zfa -C <dir> xray` still skips the plugin
+    // boot (issue #531).
+    final effectiveArgs = _stripDirectory(args);
     final skipPlugins =
-        args.isNotEmpty && _noPluginCommands.contains(args.first);
+        effectiveArgs.isNotEmpty &&
+        _noPluginCommands.contains(effectiveArgs.first);
 
     // Load plugins BEFORE the core commands so that `MakeCommand`'s
     // `argParser` is built against the fully-populated registry. Otherwise
@@ -147,31 +169,44 @@ class CliRunner {
 
   /// Run CLI with arguments.
   Future<void> run(List<String> args) async {
-    _ensureInitialized(args);
+    final directory = _extractDirectory(args);
+    // Strip the global `-C`/`--directory` flag before the pre-dispatch checks
+    // (empty / version / removed-generate) so that `zfa -C <dir> help` and
+    // `zfa -C <dir> generate ...` are classified correctly even though `-C`
+    // shifts `args.first` / `args.isEmpty`.
+    final commandArgs = _stripDirectory(args);
+    await _withDirectory(directory, () async {
+      _ensureInitialized(args);
 
-    if (args.isEmpty) {
-      _printHelp();
-      _exit(0);
-      return;
-    }
+      if (commandArgs.isEmpty) {
+        _printHelp();
+        _exit(0);
+        return;
+      }
 
-    if (_isVersionCommand(args)) {
-      print('zfa v$version');
-      print('Zuraffa Code Generator');
-      _exit(0);
-      return;
-    }
+      if (_isVersionCommand(commandArgs)) {
+        print('zfa v$version');
+        print('Zuraffa Code Generator');
+        _exit(0);
+        return;
+      }
 
-    if (_isRemovedGenerateCommand(args)) {
-      _printRemovedGenerateMessage();
-      _exit(64);
-      return;
-    }
+      if (_isRemovedGenerateCommand(commandArgs)) {
+        _printRemovedGenerateMessage();
+        _exit(64);
+        return;
+      }
 
+      await _runDispatched(args);
+    });
+  }
+
+  /// Run the dispatched command, honoring a failure exit code set by the
+  /// command (dart:io `exitCode`); calling `exit(0)` unconditionally would
+  /// clobber it.
+  Future<void> _runDispatched(List<String> args) async {
     try {
       await _runner.run(args);
-      // Respect a failure exit code set by the command (dart:io `exitCode`);
-      // calling `exit(0)` unconditionally would clobber it.
       _exit(exitCode);
     } on UsageException catch (e) {
       print('❌ ${e.message}');
@@ -187,49 +222,113 @@ class CliRunner {
     }
   }
 
+  /// If [directory] is non-null, scope [body] to a temporary working
+  /// directory (restored afterward). This is the safe replacement for tests
+  /// assigning `Directory.current` directly: the change is confined to this
+  /// invocation and never leaks into the shared process-global CWD.
+  ///
+  /// Crucially, command construction (`_ensureInitialized`) must happen
+  /// *inside* this scope: commands resolve their project root from
+  /// `Directory.current` in their constructors, so the chdir must be in
+  /// place before they are built (otherwise they bake in the wrong root).
+  Future<void> _withDirectory(
+    String? directory,
+    Future<void> Function() body,
+  ) async {
+    if (directory == null) {
+      await body();
+      return;
+    }
+    final saved = Directory.current;
+    Directory.current = p.absolute(directory);
+    try {
+      await body();
+    } finally {
+      Directory.current = saved;
+    }
+  }
+
+  /// Extract the global `-C`/`--directory` value from [args] (manual scan so
+  /// we can apply the scoped chdir before the command runs). The root
+  /// argParser also defines the option, so `_runner.run` still parses it.
+  String? _extractDirectory(List<String> args) {
+    for (var i = 0; i < args.length; i++) {
+      final a = args[i];
+      if (a == '--directory' || a == '-C') {
+        if (i + 1 < args.length) return args[i + 1];
+      } else if (a.startsWith('--directory=')) {
+        return a.substring('--directory='.length);
+      }
+    }
+    return null;
+  }
+
+  /// Remove the global `-C`/`--directory` flag from [args] (value and its
+  /// preceding flag) so downstream logic (plugin-skip decision) sees the
+  /// real command name first.
+  List<String> _stripDirectory(List<String> args) {
+    final result = <String>[];
+    for (var i = 0; i < args.length; i++) {
+      final a = args[i];
+      if (a == '--directory' || a == '-C') {
+        i++; // skip the value too
+        continue;
+      }
+      if (a.startsWith('--directory=')) continue;
+      result.add(a);
+    }
+    return result;
+  }
+
   /// Run CLI and capture output as string.
   Future<String> runCapturing(List<String> args) async {
-    _ensureInitialized(args);
-
     final output = <String>[];
 
-    if (args.isEmpty) {
-      _printHelpTo(output.add);
-      return '${output.join('\n')}\n';
-    }
+    final directory = _extractDirectory(args);
+    // Strip the global `-C`/`--directory` flag so the empty / version /
+    // removed-generate pre-checks classify correctly (see [run]).
+    final commandArgs = _stripDirectory(args);
+    await _withDirectory(directory, () async {
+      _ensureInitialized(args);
 
-    if (_isVersionCommand(args)) {
-      output.add('zfa v$version');
-      output.add('Zuraffa Code Generator');
-      return '${output.join('\n')}\n';
-    }
+      if (commandArgs.isEmpty) {
+        _printHelpTo(output.add);
+        return;
+      }
 
-    if (_isRemovedGenerateCommand(args)) {
-      _printRemovedGenerateMessageTo(output.add);
-      return '${output.join('\n')}\n';
-    }
+      if (_isVersionCommand(commandArgs)) {
+        output.add('zfa v$version');
+        output.add('Zuraffa Code Generator');
+        return;
+      }
 
-    await runZoned(
-      () async {
-        try {
-          await _runner.run(args);
-        } on UsageException catch (e) {
-          output.add('❌ ${e.message}');
-          output.add(e.usage);
-        } catch (e, stack) {
-          output.add('❌ Error: $e');
-          _addSuggestionsTo(output.add, e.toString());
-          if (args.contains('--verbose') || args.contains('-v')) {
-            output.add('\nStack trace:\n$stack');
+      if (_isRemovedGenerateCommand(commandArgs)) {
+        _printRemovedGenerateMessageTo(output.add);
+        return;
+      }
+
+      await runZoned(
+        () async {
+          try {
+            await _runner.run(args);
+          } on UsageException catch (e) {
+            output.add('❌ ${e.message}');
+            output.add(e.usage);
+          } catch (e, stack) {
+            output.add('❌ Error: $e');
+            _addSuggestionsTo(output.add, e.toString());
+            if (args.contains('--verbose') || args.contains('-v')) {
+              output.add('\nStack trace:\n$stack');
+            }
           }
-        }
-      },
-      zoneSpecification: ZoneSpecification(
-        print: (self, parent, zone, line) {
-          output.add(line);
         },
-      ),
-    );
+        zoneSpecification: ZoneSpecification(
+          print: (self, parent, zone, line) {
+            output.add(line);
+          },
+        ),
+      );
+    });
 
     return output.isEmpty ? '' : '${output.join('\n')}\n';
   }

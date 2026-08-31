@@ -5,7 +5,6 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
-import '../helpers/project_root.dart';
 
 void main() {
   group('FeatureCommand', () {
@@ -32,13 +31,9 @@ class Product {
   const Product({required this.id});
 }
 ''');
-      Directory.current = workspace.path;
     });
 
     tearDown(() async {
-      try {
-        Directory.current = await findProjectRoot();
-      } catch (_) {}
       if (workspace.existsSync()) {
         await workspace.delete(recursive: true);
       }
@@ -50,6 +45,8 @@ class Product {
         final runner = CliRunner(exitOnCompletion: false);
 
         final makeOutput = await runner.runCapturing([
+          '-C',
+          workspace.path,
           'make',
           'Product',
           '--preset=feature',
@@ -62,6 +59,8 @@ class Product {
         ]);
 
         final featureOutput = await runner.runCapturing([
+          '-C',
+          workspace.path,
           'feature',
           'scaffold',
           'Product',

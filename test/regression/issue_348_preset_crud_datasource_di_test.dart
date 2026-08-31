@@ -44,7 +44,6 @@ void main() {
   group('issue #348 — preset crud includes di + datasource activation', () {
     late Directory workspace;
     late String outputDir;
-    late String savedCwd;
 
     Future<void> writeWorkspacePubspec() {
       return File(p.join(workspace.path, 'pubspec.yaml')).writeAsString('''
@@ -70,27 +69,14 @@ class Product {
     }
 
     setUp(() async {
-      savedCwd = Directory.current.path;
       workspace = await Directory.systemTemp.createTemp('zfa_issue_348_');
       outputDir = p.join(workspace.path, 'lib', 'src');
       await Directory(outputDir).create(recursive: true);
       await writeWorkspacePubspec();
       await writeProductEntity();
-      Directory.current = workspace.path;
     });
 
     tearDown(() async {
-      try {
-        if (Directory(savedCwd).existsSync()) {
-          Directory.current = savedCwd;
-        } else {
-          Directory.current = Directory.systemTemp.path;
-        }
-      } catch (_) {
-        try {
-          Directory.current = Directory.systemTemp.path;
-        } catch (_) {}
-      }
       if (workspace.existsSync()) {
         await workspace.delete(recursive: true);
       }
@@ -101,6 +87,8 @@ class Product {
       () async {
         final runner = CliRunner(exitOnCompletion: false);
         await runner.run([
+          '-C',
+          workspace.path,
           'make',
           'Product',
           '--preset=crud',
@@ -190,6 +178,8 @@ class Product {
       () async {
         final runner = CliRunner(exitOnCompletion: false);
         await runner.run([
+          '-C',
+          workspace.path,
           'make',
           'Product',
           '--preset=crud',
@@ -249,6 +239,8 @@ class Product {
       () async {
         final runner = CliRunner(exitOnCompletion: false);
         await runner.run([
+          '-C',
+          workspace.path,
           'make',
           'Product',
           '--preset=read-only',
