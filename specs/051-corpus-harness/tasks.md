@@ -181,14 +181,14 @@ not_assessed→stopped+ledger; a waiver covering the exact outcome→waived
 with reason+actor+at visible; a waiver for a different outcome does not
 absorb (SC-002).
 
-- [ ] T019 [US2] [A5] [A6] Write the failing gate-matrix + waiver tests
+- [X] T019 [US2] [A5] [A6] Write the failing gate-matrix + waiver tests
   FIRST in `test/plugins/tdd/commands/corpus_run_command_test.dart`:
   each gate label (`fail_survived`, `fail_timeout`, `preflight_red`,
   `not_assessed`) stops with a ledger entry carrying the label;
   a waiver matching the exact gate → feature waived with reason+actor+at
   in progress and the report; a waiver naming a different gate does not
   absorb the failure — observe red
-- [ ] T020 [US2] [A4] [A5] [A6] Implement gate evaluation + waiver
+- [X] T020 [US2] [A4] [A5] [A6] Implement gate evaluation + waiver
   honoring in `lib/src/plugins/tdd/commands/corpus_run_command.dart`
   (waiver read from `.zfa/corpus/waivers.json`, exact gate match only,
   waiver copied into progress, surfaced in the final report) (depends on

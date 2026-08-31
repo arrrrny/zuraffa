@@ -145,3 +145,22 @@ test existed and failed before the implementation.
 - refactor: the fixture's rewriteFakeZfa now preserves the argv log
   (resume assertions count invocations across runs — SC-001)
 - commit: (this commit)
+## Cycle 9: A5 + A6 — the gate matrix and waivers (SC-002)
+
+- test: `test/plugins/tdd/commands/corpus_run_command_test.dart::A5 — the gate matrix (SC-002)` (4 tests: fail_survived / fail_timeout / preflight_red / not_assessed) + `::A6 — waivers (never silent)` (3 tests)
+- red: the gate/waiver evaluation shipped with cycle 7's loop, so these ran
+  green on first contact — the playbook's deliberate-mutant protocol
+  applied instead of a red:
+  1. ABSORB MUTANT (`verifyResult.success || true` — every gate counts as
+     done): the 4 gate-matrix tests FAILED (state not stopped, f2
+     started, ledger empty). Reverted exactly.
+  2. BROAD-WAIVER MUTANT (waiver matched on feature only, ignoring the
+     gate label): the "waiver naming a different gate does NOT absorb"
+     test FAILED. Reverted exactly.
+- green: `dart test --preset=all test/plugins/tdd/commands/corpus_run_command_test.dart`
+  -> `00:00 +16: All tests passed!`; `dart analyze` -> No issues found
+- notes: not_assessed stops and ledger like every other non-pass gate —
+  surfaced to the maintainer, never silently absorbed (FR-004, US2.AC2).
+  A waived feature is terminal (never re-driven); the waiver's reason +
+  actor + timestamp are visible in progress JSON and the report text.
+- commit: (this commit)

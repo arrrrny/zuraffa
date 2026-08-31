@@ -334,4 +334,134 @@ void main() {
       expect(lastLine, contains('done=3'));
     });
   });
+
+  group('A5 — the gate matrix (SC-002)', () {
+    for (final gate in [
+      'fail_survived',
+      'fail_timeout',
+      'preflight_red',
+      'not_assessed',
+    ]) {
+      test('gate=$gate stops the corpus, ledgered, never done', () async {
+        await fx.writeFakeZfa(outcomes: {
+          'verify:f1': (
+            exit: 1,
+            stdout: [
+              'mutation: gate=$gate killed=0 survived=1 timed_out=0 '
+                  'mutation_was_run=true',
+            ],
+          ),
+        });
+        await fx.writeManifest([
+          (name: 'f1', ready: true, reason: ''),
+          (name: 'f2', ready: true, reason: ''),
+        ]);
+        final out = await drive();
+        expect(exitCode, 1, reason: out);
+        // f2 never started.
+        expect(
+          (await fx.readCalls()).where((c) => c.contains(' f2 ')),
+          isEmpty,
+        );
+        // The ledger entry names the gate label as the outcome.
+        final ledger = await fx.readLedger();
+        expect(ledger, hasLength(1));
+        final gap = ledger.first as Map<String, dynamic>;
+        expect(gap['feature'], 'f1');
+        expect(gap['step'], 'verify');
+        expect(gap['outcome'], gate);
+        // The feature is not done — no silent absorption.
+        final progress = await fx.readProgress();
+        expect(progress!['features']['f1']['state'], 'stopped');
+        expect(progress['features']['f1']['gate'], gate);
+        expect(progress['features']['f1']['stopped_at'], 'gate:$gate');
+      });
+    }
+  });
+
+  group('A6 — waivers (never silent)', () {
+    Future<void> writeWaiver(String feature, String gate) async {
+      final file = File(fx.waiversPath);
+      await file.parent.create(recursive: true);
+      await file.writeAsString(
+        '[{"feature": "$feature", "gate": "$gate", '
+        '"reason": "mutation tool unavailable on CI image", '
+        '"actor": "maintainer", "at": "2026-08-31T01:00:00Z"}]',
+      );
+    }
+
+    test('an exact-match waiver marks the feature waived, recorded fully',
+        () async {
+      await fx.writeFakeZfa(outcomes: {
+        'verify:f1': (
+          exit: 1,
+          stdout: ['mutation: gate=not_assessed killed=0 survived=0 timed_out=0 mutation_was_run=false'],
+        ),
+      });
+      await writeWaiver('f1', 'not_assessed');
+      await fx.writeManifest([
+        (name: 'f1', ready: true, reason: ''),
+        (name: 'f2', ready: true, reason: ''),
+      ]);
+      final out = await drive();
+      expect(exitCode, 0, reason: out);
+      final progress = await fx.readProgress();
+      final f1 = progress!['features']['f1'] as Map<String, dynamic>;
+      expect(f1['state'], 'waived');
+      expect(f1['gate'], 'not_assessed');
+      final waiver = f1['waiver'] as Map<String, dynamic>;
+      expect(waiver['reason'], 'mutation tool unavailable on CI image');
+      expect(waiver['actor'], 'maintainer');
+      expect(waiver['at'], '2026-08-31T01:00:00Z');
+      // The waiver is visible in the report (never silent) — the run
+      // continued to f2 and completed.
+      expect(out, contains('waived'));
+      expect(out, contains('mutation tool unavailable on CI image'));
+      final lastLine = out.trim().split('\n').last;
+      expect(lastLine, contains('waived=1'));
+      expect(lastLine, contains('result=complete'));
+      // No ledger entry: the waiver is a decision, not a gap.
+      expect(await fx.readLedger(), isEmpty);
+    });
+
+    test('a waiver naming a different gate does NOT absorb the failure',
+        () async {
+      await fx.writeFakeZfa(outcomes: {
+        'verify:f1': (
+          exit: 1,
+          stdout: ['mutation: gate=fail_survived killed=0 survived=2 timed_out=0 mutation_was_run=true'],
+        ),
+      });
+      await writeWaiver('f1', 'not_assessed'); // different gate
+      await fx.writeManifest([
+        (name: 'f1', ready: true, reason: ''),
+      ]);
+      final out = await drive();
+      expect(exitCode, 1, reason: out);
+      final progress = await fx.readProgress();
+      expect(progress!['features']['f1']['state'], 'stopped');
+      final ledger = await fx.readLedger();
+      expect(ledger, hasLength(1));
+      expect((ledger.first as Map<String, dynamic>)['outcome'],
+          'fail_survived');
+    });
+
+    test('a waived feature is not re-driven on resume', () async {
+      await fx.writeFakeZfa(outcomes: {
+        'verify:f1': (
+          exit: 1,
+          stdout: ['mutation: gate=not_assessed killed=0 survived=0 timed_out=0 mutation_was_run=false'],
+        ),
+      });
+      await writeWaiver('f1', 'not_assessed');
+      await fx.writeManifest([
+        (name: 'f1', ready: true, reason: ''),
+      ]);
+      await drive();
+      final callsAfterFirst = await fx.readCalls();
+      // Re-run: zero new invocations (the waived feature is terminal).
+      await drive();
+      expect(await fx.readCalls(), hasLength(callsAfterFirst.length));
+    });
+  });
 }
