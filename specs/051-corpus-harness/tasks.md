@@ -101,7 +101,7 @@ Test-first: each group's failing tests land before its implementation.
   dropped computation) in
   `lib/src/plugins/tdd/services/corpus_progress_store.dart` (depends on
   T010 red)
-- [ ] T012 [P] [U15] [U16] [U17] [U18] Write the failing step-runner
+- [X] T012 [P] [U15] [U16] [U17] [U18] Write the failing step-runner
   tests FIRST in
   `test/plugins/tdd/services/corpus_step_runner_test.dart` (injected
   spawner, no real processes): run argv + `run:` line parse with
@@ -109,7 +109,7 @@ Test-first: each group's failing tests land before its implementation.
   with success = exit 0 AND gate=pass, non-pass label surfaced; missing
   summary line → runner-error; spawn failure → runner-error never a
   crash — observe red
-- [ ] T013 [P] [U15] [U16] [U17] [U18] Implement `CorpusStepRunner`
+- [X] T013 [P] [U15] [U16] [U17] [U18] Implement `CorpusStepRunner`
   (spawn `tdd run`/`tdd verify` via `--zfa-bin` or `dart bin/zfa.dart`,
   injectable spawner, machine-line parsing) in
   `lib/src/plugins/tdd/services/corpus_step_runner.dart` (depends on

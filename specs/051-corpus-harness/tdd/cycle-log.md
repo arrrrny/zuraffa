@@ -92,3 +92,17 @@ test existed and failed before the implementation.
   corrected to 2 (gap-001 open + gap-002 filed-not-merged) BEFORE the
   implementation was accepted, and the reason is recorded here.
 - commit: (this commit)
+## Cycle 6: U15 + U16 + U17 + U18 — the corpus step runner
+
+- test: `test/plugins/tdd/services/corpus_step_runner_test.dart` (U15 run spawn/parse x3, U16 verify x2, U17 missing line, U18 spawn failure)
+- red: `dart test test/plugins/tdd/services/corpus_step_runner_test.dart`
+  -> `UnimplementedError` (7 failed against the stubs)
+- green: implemented `CorpusStepRunner` (argv contracts `tdd run <f>
+  --project <dir>` / `tdd verify --feature <f> --project <dir>`, `.dart`
+  entrypoints through `dart`, injectable spawner, last-`<verb>:` line
+  parsing, success = exit 0 AND token agreement, missing-line and spawn
+  failures as runner-error misfires). Suite -> `00:00 +7: All tests
+  passed!`; `dart analyze` -> No issues found
+- refactor: moved the default spawner back inside the class after a
+  misplaced brace; no behavior change
+- commit: (this commit)
