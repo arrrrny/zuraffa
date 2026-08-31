@@ -252,4 +252,86 @@ void main() {
       expect(lastLine, contains('result=corrupt-state'));
     });
   });
+
+// ---------------------------------------------------------------------
+// A2 + A11 — resume with zero duplicate invocations; resolutions are new
+// ledger entries (cycle 8). The skip logic landed with the driving loop
+// (cycle 7), so these tests get the deliberate-mutant check: resume
+// green on first run is only accepted after breaking the skip proves
+// the tests pin it (playbook step 3).
+// ---------------------------------------------------------------------
+
+
+
+  group('A2 + A11 — resume after a fixed gap', () {
+    test('re-run drives 0 duplicates, appends a resolution, history intact',
+        () async {
+      await fx.writeFakeZfa(outcomes: {
+        'run:f2-gap': (
+          exit: 1,
+          stdout: [
+            'run: feature=f2-gap result=stopped pending=0 red=1 green=0 done=0 stopped_at=B-002:make',
+          ],
+        ),
+      });
+      await fx.writeManifest([
+        (name: 'f1-good', ready: true, reason: ''),
+        (name: 'f2-gap', ready: true, reason: ''),
+        (name: 'f3-later', ready: true, reason: ''),
+      ]);
+
+      // First drive: completes f1, stops at f2 (f3 never started).
+      final first = await drive();
+      expect(exitCode, 1, reason: first);
+      final callsAfterFirst = await fx.readCalls();
+      expect(
+        callsAfterFirst.where((c) => c.contains('f3-later')),
+        isEmpty,
+      );
+      final ledgerAfterFirst = await File(fx.ledgerPath).readAsString();
+      final gapBlock = ledgerAfterFirst.substring(
+        ledgerAfterFirst.indexOf('{'),
+        ledgerAfterFirst.indexOf('}') + 1,
+      );
+
+      // Fix the gap: re-script the fake so f2 succeeds (default lines).
+      await fx.rewriteFakeZfa(const {});
+
+      // Re-run: resumes at f2, never re-drives f1.
+      final second = await drive();
+      expect(exitCode, 0, reason: second);
+      final calls = await fx.readCalls();
+      final f1Calls = calls.where((c) => c.contains('f1-good')).toList();
+      expect(
+        f1Calls,
+        hasLength(2),
+        reason: 'SC-001: 0 duplicate invocations across the resume',
+      );
+      // f2: the failed run (drive 1) + the resumed run and verify
+      // (drive 2) — the stopped feature IS re-driven, by design.
+      final f2Calls = calls.where((c) => c.contains('f2-gap')).toList();
+      expect(f2Calls, hasLength(3));
+      expect(
+        f2Calls.where((c) => c.startsWith('tdd run')).toList(),
+        hasLength(2),
+      );
+      expect(calls.where((c) => c.contains('f3-later')).toList(), hasLength(2));
+
+      // A11: the old gap entry is byte-identical; the resolution is a new
+      // entry, not an edit.
+      final ledgerAfterSecond = await File(fx.ledgerPath).readAsString();
+      expect(ledgerAfterSecond, contains(gapBlock));
+      final entries = await fx.readLedger();
+      expect(entries, hasLength(2));
+      expect(entries.first['status'], 'open');
+      expect(entries.last['kind'], 'resolution');
+      expect(entries.last['resolves'], 'gap-001');
+      expect(entries.last['feature'], 'f2-gap');
+
+      // The final summary reports completion.
+      final lastLine = second.trim().split('\n').last;
+      expect(lastLine, contains('result=complete'));
+      expect(lastLine, contains('done=3'));
+    });
+  });
 }

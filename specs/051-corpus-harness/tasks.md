@@ -148,17 +148,17 @@ re-run after the fix resumes at f2 with 0 duplicate f1 invocations
   removed → dropped reported `dropped=`), no-manifest → exit 2 naming
   the path, concurrent → exit 4, and the exit 0/1/2/3/4 contract per
   contracts/corpus-harness.md (depends on T014 red)
-- [ ] T016 [US1] [A2] [A3] Write the failing resume + stop tests FIRST
+- [X] T016 [US1] [A2] [A3] Write the failing resume + stop tests FIRST
   (same file): after a stop at feature k, re-run with the gap fixed
   performs 0 duplicate invocations of features 1..k-1 (fake argv log)
   and resumes at k; the stop earlier appended a complete ledger entry —
   observe red
-- [ ] T017 [US1] [A2] [A3] Implement resume semantics in
+- [X] T017 [US1] [A2] [A3] Implement resume semantics in
   `lib/src/plugins/tdd/commands/corpus_run_command.dart`: skip
   done/waived features, spawn nothing for them, resume from the first
   non-done/waived feature, and STOP-ON-ROADBLOCK appends the ledger
   entry before exiting (depends on T016 red, extends T015)
-- [ ] T018 [US1] [A1] [A2] [A3] Slow-tier e2e scenario (real
+- [X] T018 [US1] [A1] [A2] [A3] Slow-tier e2e scenario (real
   sub-process fake zfa: drive → stop → ledger → fix → resume with 0
   duplicate invocations; concurrent-run refusal) in
   `test/plugins/tdd/scenarios/sc_020_corpus_harness_e2e_test.dart`

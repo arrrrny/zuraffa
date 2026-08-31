@@ -68,10 +68,13 @@ class CorpusFixture {
   /// gate), so tests only script the interesting features.
   Future<void> writeFakeZfa({
     Map<String, FakeOutcome> outcomes = const {},
+    bool resetLog = true,
   }) async {
     final dir = Directory(p.dirname(fakeBin));
     await dir.create(recursive: true);
-    await File(callsLog).writeAsString('');
+    if (resetLog) {
+      await File(callsLog).writeAsString('');
+    }
 
     final script = '''
 #!/usr/bin/env bash
@@ -120,11 +123,15 @@ exit 2
 
   static String shellQuoteInner(String s) => s;
 
-  /// Re-script one outcome (the "fix the gap" step of resume tests):
-  /// rewrite the fake with [outcomes] merged over the previous map.
+  /// Re-script the fake (the "fix the gap" step of resume tests):
+  /// rewrite the binary with [outcomes] merged over the previous map.
+  /// The argv log is preserved — resume assertions count invocations
+  /// ACROSS the re-run (SC-001).
   Future<void> rewriteFakeZfa(Map<String, FakeOutcome> outcomes) async {
-    await File(fakeBin).delete();
-    await writeFakeZfa(outcomes: outcomes);
+    if (await File(fakeBin).exists()) {
+      await File(fakeBin).delete();
+    }
+    await writeFakeZfa(outcomes: outcomes, resetLog: false);
   }
 
   /// The recorded argv lines, one per fake invocation.

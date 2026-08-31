@@ -124,3 +124,24 @@ test existed and failed before the implementation.
   `kill -0` cannot probe as a non-root user (EPERM -> correctly read as
   dead); the test now spawns a real `sleep` child and uses its pid.
 - commit: (this commit)
+## Cycle 8: A2 + A11 + SC-020 — resume, resolutions, the US1 e2e scenario
+
+- test: `test/plugins/tdd/commands/corpus_run_command_test.dart::A2 + A11 — resume after a fixed gap` + `test/plugins/tdd/scenarios/sc_020_corpus_harness_e2e_test.dart::SC-020/US1`
+- red: the resume test first failed on fixture/test bugs (the argv log was
+  reset by the fake rewrite; the f2 call-count expectation forgot the
+  failed first run) — fixed the fixture (log preserved across rewrites)
+  and corrected the expectation with the reason recorded; the scenario
+  then ran against cycle 7's implementation
+- deliberate-mutant checks (the behaviors shipped with cycle 7's loop, so
+  the playbook's pass-on-first-run protocol applied):
+  1. resume skip removed (done features re-driven) -> the A2 test FAILED
+     (`f1Calls` grew to 4); restored -> green.
+  2. a stray write into `specs/<feature>/tdd/runner-junk.txt` injected into
+     the loop -> the SC-020 specs-tree checksum FAILED; restored -> green.
+  Both mutants were reverted exactly (verified by re-run + analyze).
+- green: `dart test --preset=all` over the run-command tests + scenario ->
+  `00:00 +10: All tests passed!`; `dart analyze lib/ test/plugins/tdd/` ->
+  No issues found
+- refactor: the fixture's rewriteFakeZfa now preserves the argv log
+  (resume assertions count invocations across runs — SC-001)
+- commit: (this commit)
