@@ -164,3 +164,16 @@ test existed and failed before the implementation.
   A waived feature is terminal (never re-driven); the waiver's reason +
   actor + timestamp are visible in progress JSON and the report text.
 - commit: (this commit)
+## Cycle 10: A12 — ledger totals + named blocking gaps in the report
+
+- test: `test/plugins/tdd/commands/corpus_run_command_test.dart::A12 — ledger totals + blocking gaps in the final report`
+- red: green on first contact (the report shipped with cycle 7) — the
+  playbook's deliberate-mutant protocol applied: suppressing the
+  blocking-gap listing in the report made the test FAIL; restored exactly
+- green: `00:00 +17: All tests passed!`; analyze clean
+- notes: the first draft re-drove the corpus after hand-editing the ledger
+  to prove filed/merged counts through the report — but a stopped feature
+  is re-driven by design, appending a NEW gap. The filed/merged arithmetic
+  stays pinned by U11's totals unit tests; this test pins the report's own
+  obligation (the totals line + the named gap). Reason recorded here.
+- commit: (this commit)

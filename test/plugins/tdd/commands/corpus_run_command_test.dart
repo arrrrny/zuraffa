@@ -464,4 +464,34 @@ void main() {
       expect(await fx.readCalls(), hasLength(callsAfterFirst.length));
     });
   });
+
+  group('A12 — ledger totals + blocking gaps in the final report', () {
+    test('the report lists totals and names unresolved blocking gaps',
+        () async {
+      await fx.writeFakeZfa(outcomes: {
+        'run:f2-gap': (
+          exit: 1,
+          stdout: [
+            'run: feature=f2-gap result=stopped pending=0 red=1 green=0 done=0 stopped_at=B-002:make',
+          ],
+        ),
+      });
+      await fx.writeManifest([
+        (name: 'f1-good', ready: true, reason: ''),
+        (name: 'f2-gap', ready: true, reason: ''),
+      ]);
+      final out = await drive();
+      expect(exitCode, 1, reason: out);
+      // The totals line (FR-008).
+      expect(out, contains('ledger: found=1 filed=0 merged=0 blocking=1'));
+      // The unresolved blocking gap is NAMED.
+      expect(out, contains('blocking: gap-001 f2-gap run stopped (B-002)'));
+      // The summary carries the all-time gap count.
+      final lastLine = out.trim().split('\n').last;
+      expect(lastLine, contains('gaps=1'));
+      // filed/merged arithmetic over ledger entries is pinned by U11's
+      // totals unit tests; this test pins the report's obligation: the
+      // totals line and the named blocking gap.
+    });
+  });
 }

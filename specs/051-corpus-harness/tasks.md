@@ -209,14 +209,14 @@ totals and names unresolved blocking gaps.
 entry untouched, resolution entry appended; report totals
 found/filed/merged/blocking correct; blocking gaps named (SC-004).
 
-- [ ] T021 [US4] [A10] [A11] [A12] Write the failing ledger-completeness
+- [X] T021 [US4] [A10] [A11] [A12] Write the failing ledger-completeness
   + totals tests FIRST in
   `test/plugins/tdd/commands/corpus_run_command_test.dart`: every stop appends the five fields +
   issue-link placeholder with zero test/source edits (fixture tree
   checksummed); a resumed pass leaves the old entry byte-identical and
   appends a resolution entry; the final report lists totals and names
   unresolved blocking gaps — observe red
-- [ ] T022 [US4] [A10] [A11] [A12] Implement resolution entries + ledger
+- [X] T022 [US4] [A10] [A11] [A12] Implement resolution entries + ledger
   totals + blocking-gap listing in the run's final report
   (`lib/src/plugins/tdd/commands/corpus_run_command.dart` +
   `lib/src/plugins/tdd/models/corpus_ledger.dart` totals helpers)
