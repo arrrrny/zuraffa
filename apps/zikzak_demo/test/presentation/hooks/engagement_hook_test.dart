@@ -19,10 +19,13 @@ class _SpyTelemetryHook extends TelemetryHook {
     switch (phase) {
       case HookPhase.pre:
         preCount++;
+        break;
       case HookPhase.success:
         successCount++;
+        break;
       case HookPhase.failure:
         failureCount++;
+        break;
     }
     return super.execute(context, phase);
   }
