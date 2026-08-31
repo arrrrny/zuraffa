@@ -106,6 +106,43 @@ void main() {
     timeout: const Timeout(Duration(minutes: 2)),
   );
 
+  test(
+    'A13b (597): depth presentation — presenter in, domain still out',
+    () async {
+      final files = await cutAtDepth('presentation');
+
+      // The presenter layer joins at presentation depth (data model:
+      // View, Controller, Presenter, State).
+      expect(
+        files,
+        contains('lib/src/presentation/pages/product/product_presenter.dart'),
+      );
+      // Deeper layers stay out; their boundaries are mocked instead.
+      expect(
+        files,
+        isNot(
+          contains('lib/src/domain/usecases/product/get_product_usecase.dart'),
+        ),
+      );
+      expect(
+        files,
+        isNot(contains('lib/src/domain/entities/product/product.dart')),
+      );
+      expect(
+        files,
+        isNot(
+          contains('lib/src/data/repositories/data_product_repository.dart'),
+        ),
+      );
+      expect(files, contains('lib/src/mocks/mock_get_product_use_case.dart'));
+      final sliceDi = File(
+        '$projectRoot/.zuraffa/slices/product_feature/lib/src/di/slice_di.dart',
+      ).readAsStringSync();
+      expect(sliceDi, contains('MockGetProductUseCase'));
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
   test('A14 (T100): depth feature (default) — domain in, data out', () async {
     final files = await cutAtDepth('');
 

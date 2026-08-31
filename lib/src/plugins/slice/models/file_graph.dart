@@ -101,12 +101,18 @@ class FileGraph {
 /// Layers: `view` (page view/controller/state files), `presenter`,
 /// `presentation_shared` (widgets and shared UI), `domain`, `data`, `di`,
 /// and `other` for cross-cutting files (core/, config/, main.dart).
+///
+/// Issue #597: presenter detection is by file name wherever the file lives
+/// under `lib/src/presentation/` — not only under `pages/`. A presenter
+/// outside the canonical pages/ layout is still the presenter layer, so the
+/// `view` depth tier (which stops at view/controller/state) excludes it
+/// instead of smuggling it in as `presentation_shared`.
 String classifyLayer(String relativePath) {
   final normalized = relativePath.replaceAll('\\', '/');
-  if (normalized.startsWith('lib/src/presentation/pages/')) {
-    return normalized.contains('presenter') ? 'presenter' : 'view';
-  }
   if (normalized.startsWith('lib/src/presentation/')) {
+    final base = normalized.split('/').last;
+    if (base.contains('presenter')) return 'presenter';
+    if (normalized.startsWith('lib/src/presentation/pages/')) return 'view';
     return 'presentation_shared';
   }
   if (normalized.startsWith('lib/src/domain/')) return 'domain';
