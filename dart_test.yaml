@@ -4,8 +4,12 @@
 # default (tagged `slow`); every slow test also carries a tier tag:
 # `regression`, `integration`, `property`, `benchmark`.
 #
-# Run the full suite (CI / pre-commit):
+# Full suite (heavy, full-local baseline only — NOT for CI / cloud agents):
 #   dart test --preset=all
+# CI and cloud/CI agents run the default fast tier (`dart test`). --preset=all
+# also runs every slow tier (regression/integration/property/benchmark); each
+# spins up temp projects that run `dart pub get` + `build_runner` and can fill
+# several GB under /tmp, so avoid it on small/disposable agents.
 # Run a single slow tier:
 #   dart test --preset=regression
 #   dart test --preset=integration
