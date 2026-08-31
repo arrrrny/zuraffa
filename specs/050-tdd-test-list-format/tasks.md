@@ -33,7 +33,7 @@ tasks by these markers.
 
 - [ ] T003 [US2] [U4] [U5] Write the failing reader tests FIRST in `test/plugins/tdd/services/test_list_reader_test.dart`: a 6-column row whose kind cell is an extension test shape (`example`) in the outer section resolves as acceptance with the default target and triggers the one-time deprecation note; the same row in the inner section resolves as unit; a 6-column extension-shape row outside any section stays malformed; an unknown kind cell (neither acceptance/unit nor an extension shape) stays malformed — observe red before touching the reader
 - [ ] T004 [US2] [U6] Extend `TestListReader._parseDataRow` in `lib/src/plugins/tdd/services/test_list_reader.dart`: accept the extension's 6-column dialect (kind cell ∈ `example`/`property`/`contract`/`approval`/`characterization`) — kind from the section header (required, else malformed), last cell treated as a test reference (empty/path-like → `subject_<snake-id>` default), `deprecated: true` with the existing one-per-file stderr note; keep the `acceptance`/`unit` cell-wins rule and the named-line misfire-stop for every other shape (depends on T003 red)
-- [ ] T005 [US2] [U1] Re-point the existing U3 malformed-row test in `test/plugins/tdd/services/test_list_reader_test.dart` at a shape that stays malformed under the completed shim (unknown kind cell / wrong column count) so FR-005 keeps a live guard — test-first, observed red against the old expectation where applicable
+- [ ] T005 [US2] [U1] Re-point BOTH existing tests that pin the old malformed behavior of extension-shape kind cells in `test/plugins/tdd/services/test_list_reader_test.dart` — the U3 test ("a malformed row stops with an error naming the line", 4-col table + one 6-col `example` row) and the 617-shim test ("a 6-column row with an unusable kind cell stays malformed") — at shapes that stay malformed under the completed shim (unknown kind cell like `banana`, or a wrong column count) so FR-005 keeps a live guard; test-first, observed red where applicable
 
 **Checkpoint**: Foundation ready — user story work can begin
 
@@ -47,7 +47,7 @@ tasks by these markers.
 **Independent Test**: `dart test test/plugins/tdd/commands/plan_gen_contract_test.dart` + slow tier `sc_018_plan_run_loop_e2e_test.dart` pass; no `unknown behavior id`, no `stopped_at=A1:gen`.
 
 - [x] T006 [US1] [A1] [A2] Verify the existing coverage credits: `plan_gen_contract_test.dart` pins plan→gen round trip in both loop sections and target-defaulting (landed with #617); `sc_018_plan_run_loop_e2e_test.dart` pins the exact repro — plan → run on a real temp project with the real pipeline driving all behaviors to DONE, exit 0 (landed with #617). Confirm both still pass after T004 lands; add no duplicate
-- [ ] T007 [US1] [A3] Add the unknown-id fast guard if missing from the existing contract suite: `zfa tdd gen <unknown-id>` exits non-zero with `unknown behavior id` before any file is written, in `test/plugins/tdd/commands/plan_gen_contract_test.dart` (test-first if absent)
+- [x] T007 [US1] [A3] Credit the existing guard: `test/plugins/tdd/commands/gen_command_test.dart:178` already asserts `zfa tdd gen <unknown-id>` exits non-zero with `unknown behavior id` before any file is written — re-confirm it passes after T004 lands; add no duplicate
 
 ---
 
@@ -60,7 +60,7 @@ without a malformed stop; migration is a printed note, not a brick.
 
 - [ ] T008 [US2] [U2] [U7] Write the failing gen test FIRST in `test/plugins/tdd/commands/plan_gen_contract_test.dart`: `zfa tdd gen <id> --feature <f>` resolves a behavior id from a hand-written 6-column extension-dialect list (the 046/049 shape: kind cell `example`, test-path last cell) — observe red, then confirm it turns green with T004
 - [ ] T009 [US2] [A4] [U8] Write the failing run-level test FIRST: `zfa tdd run <feature>` gets past list-reading on a feature whose list is the hand-written 6-column extension dialect (no `result=runner-error` from the dialect) — seed the smallest honest fixture (a list whose rows are all already DONE with evidence, or a run that stops at a real step for a non-format reason), in `test/plugins/tdd/run_command_test.dart` or a scenario file as the existing style dictates
-- [ ] T010 [US2] [U3] Add the reader test proving the deprecation note is printed exactly once per file for a mixed-dialect list (one 4-col row + one 6-col extension row + one 6-col acceptance-cell row) and never re-printed for later rows, in `test/plugins/tdd/services/test_list_reader_test.dart`
+- [ ] T010 [US2] [U3] Add the reader test proving the deprecation note is printed exactly once per file for a mixed-dialect list (one 4-col row + one 6-col extension row + one 6-col acceptance-cell row) and never re-printed for later rows, in `test/plugins/tdd/services/test_list_reader_test.dart`; assert the list file's bytes are unchanged after the read (FR-010 side-effect-free)
 
 ---
 
