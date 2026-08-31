@@ -128,6 +128,23 @@ void main() {
     timeout: const Timeout(Duration(seconds: 120)),
   );
 
+  test('extension categories map declares the slice category', () {
+    // Issue #598: the slice provides entries reference category: slice, but
+    // the categories: map did not declare it. Registration and vocabulary
+    // must move together.
+    final doc =
+        loadYaml(File(p.join(zfaProjectRoot, extensionYml)).readAsStringSync())
+            as Map;
+    final categories = (doc['categories'] as Map?)?.keys.toSet() ?? <String>{};
+    expect(
+      categories,
+      contains('slice'),
+      reason:
+          'slice provides entries reference category: slice, which must be '
+          'declared under categories:',
+    );
+  });
+
   test('each command .md follows the template shape', () {
     final (:aliasesToFile, :aliases) = parseExtensionProvides();
     final requiredSections = [

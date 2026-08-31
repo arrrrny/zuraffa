@@ -404,3 +404,6 @@ categories:
   utilities:
     name: Utilities
     description: DI, caching, and helpers
+  slice:
+    name: Slice
+    description: Context-isolated codebase slices for agent delegation
