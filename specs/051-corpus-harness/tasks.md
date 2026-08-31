@@ -292,13 +292,13 @@ shape and exit codes (SC-005).
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T029 [A1] [A2] [A3] [A14] Full acceptance sweep: every outer-loop
+- [X] T029 [A1] [A2] [A3] [A14] Full acceptance sweep: every outer-loop
   behavior's test green (A1–A14) — run
   `dart test test/plugins/tdd/ test/plugins/tdd/scenarios/` slow tier
   via `dart test --preset=all test/plugins/tdd/` scoped, or per-file
-- [ ] T030 Run quickstart.md scenarios 1–4 against a scratch fixture
+- [X] T030 Run quickstart.md scenarios 1–4 against a scratch fixture
   app; record outcomes in the cycle log notes
-- [ ] T031 `dart format` (zero diff) + `dart analyze` (0 issues) + full
+- [X] T031 `dart format` (zero diff) + `dart analyze` (0 issues) + full
   chunked test run (`tools/run_tests_chunked.sh`); fix any drift
 - [ ] T032 Verify tdd artifacts complete (all behaviors DONE/PROVEN,
   cycle-log evidence, verification.md written by /speckit.tdd.verify) and
@@ -366,3 +366,37 @@ Polish. Each story keeps the fixture suite green on its own.
   (contracts/corpus-harness.md).
 - Commit after each task or logical group (`feat(051):` /
   `test(051):` / `fix(051):` prefixes).
+
+---
+
+## Phase 9: TDD remediation (from /speckit.tdd.verify, verdict FAIL)
+
+The feature is not TDD-complete until finding 1 is cleared; findings 2-5
+are quality debt that may land later.
+
+- [ ] T033 [verdict-blocking] Clear the TEST_AFTER evidence for A2, A5,
+  A6, A10, A11, A12 (finding 1): re-establish reds by reverting the six
+  behaviors' implementations to their pre-cycle-7 shape one at a time
+  (or by driving them against a stub), observing each test fail, then
+  restoring — recording each red in
+  `specs/051-corpus-harness/tdd/cycle-log.md` as new cycles; proof:
+  `dart test --preset=all test/plugins/tdd/commands/corpus_run_command_test.dart
+  test/plugins/tdd/scenarios/sc_020_corpus_harness_e2e_test.dart` green
+  and the cycle log carrying six new red entries
+- [ ] T034 [P] Split SC-020 into phase-scoped tests (finding 2):
+  separate drive, stop, resume assertions into labeled tests sharing
+  one fixture lifecycle in
+  `test/plugins/tdd/scenarios/sc_020_corpus_harness_e2e_test.dart`;
+  proof: a failing phase names itself in the test output
+- [ ] T035 [P] Split the A1 contract test's five observables (finding
+  3) into per-observable tests in
+  `test/plugins/tdd/commands/corpus_run_command_test.dart`; proof: each
+  test name states one observable
+- [ ] T036 Inject a clock into GapLedgerStore (finding 4) so future
+  timestamp assertions stay deterministic; proof: `dart test
+  test/plugins/tdd/services/gap_ledger_store_test.dart` green with an
+  injected fixed clock assertion
+- [ ] T037 [P] Unify the corpus fake-zfa fixture style with
+  `TddFixture.writeFakeZfaBin` dispatch conventions (finding 5) in
+  `test/plugins/tdd/helpers/corpus_fixture.dart`; proof: a reviewer can
+  trace both fixtures' scripting without learning two dialects
