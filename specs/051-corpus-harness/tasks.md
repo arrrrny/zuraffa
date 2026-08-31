@@ -36,7 +36,7 @@ Repo-root package (matches plan.md): implementation under
 
 **Purpose**: register the command family so the CLI surface exists
 
-- [ ] T001 Register `CorpusCommand` parent with `run`/`status`/`audit`
+- [X] T001 Register `CorpusCommand` parent with `run`/`status`/`audit`
   subcommands in `lib/src/plugins/tdd/commands/corpus_command.dart` +
   wire into `lib/src/commands/tdd_command.dart` (each subcommand file
   created as a usage-printing skeleton); update
