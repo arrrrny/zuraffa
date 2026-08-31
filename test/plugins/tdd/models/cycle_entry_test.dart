@@ -30,7 +30,7 @@ void main() {
       expect(md, contains('Expected: a value <> null'));
     });
 
-    test('green entry renders omitted evidence as missing', () {
+    test('green entry with omitted evidence renders (none) placeholders', () {
       final entry = CycleLogEntry(
         behaviorId: 'U3',
         kind: CycleEntryKind.green,
@@ -45,14 +45,8 @@ void main() {
       expect(md, contains('green'));
       expect(md, contains('U3'));
       expect(md, isNot(contains('classification')));
-      expect(md, contains('- generation:\n  (evidence missing)'));
-      expect(
-        md,
-        contains(
-          '- suite: baseline=(evidence missing) '
-          'guard=(evidence missing) new=(none)',
-        ),
-      );
+      expect(md, contains('- generation:\n  (none)'));
+      expect(md, contains('- suite: baseline=0 guard=0 new=(none)'));
     });
 
     test('red entry without classification is rejected', () {
