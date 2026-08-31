@@ -35,7 +35,7 @@ import 'plugin_loader.dart';
 /// CLI runner for Zuraffa.
 class CliRunner {
   final bool exitOnCompletion;
-  late final CommandRunner<void> _runner;
+  late CommandRunner<void> _runner;
   bool _coreInitialized = false;
 
   /// Plugin commands are registered separately from the core commands so a
@@ -44,35 +44,49 @@ class CliRunner {
   /// reused [CliRunner] (issue #531 regression).
   bool _pluginsInitialized = false;
 
-  CliRunner({this.exitOnCompletion = true}) {
-    _runner =
-        CommandRunner<void>(
-            'zfa',
-            'Zuraffa Code Generator - Clean Architecture for Flutter',
-          )
-          ..argParser.addFlag(
-            'version',
-            negatable: false,
-            abbr: 'v',
-            help: 'Print version',
-          )
-          // Global `-C/--directory <dir>`: run as if zfa was started in
-          // <dir> instead of the current working directory. The directory is
-          // applied as a scoped chdir (restored after the invocation), so
-          // tests can target a temp fixture project WITHOUT mutating the
-          // process-global Directory.current — which concurrent tests share
-          // and can corrupt (issue #441 / TDD CWD race). Most commands
-          // resolve their root from Directory.current, so they inherit the
-          // override automatically; commands with their own `--project-root`
-          // flag (ui, tdd *) take precedence via that flag when supplied.
-          ..argParser.addOption(
-            'directory',
-            abbr: 'C',
-            help:
-                'Run as if zfa was started in <dir> (scoped; the process '
-                'working directory is restored afterward).',
-          );
-  }
+  /// Directory the currently-registered commands were initialized against.
+  /// When a new invocation targets a different directory (e.g. a reused
+  /// [CliRunner] called with another `-C`), the root-bound commands are torn
+  /// down and rebuilt so they resolve the correct project root (CodeRabbit
+  /// review of #623). `null` until the first initialization.
+  String? _initializedDirectory;
+
+  /// Guard against overlapping `run`/`runCapturing` calls on the same instance.
+  /// The scoped chdir in [_withDirectory] mutates the process-wide
+  /// `Directory.current`; concurrent invocations would race on it. We reject
+  /// re-entrancy with a clear error rather than serialize with a shared lock
+  /// (which risks deadlocks and does not coordinate across isolates).
+  bool _active = false;
+
+  CliRunner({this.exitOnCompletion = true}) : _runner = _buildRunner();
+
+  static CommandRunner<void> _buildRunner() =>
+      CommandRunner<void>(
+          'zfa',
+          'Zuraffa Code Generator - Clean Architecture for Flutter',
+        )
+        ..argParser.addFlag(
+          'version',
+          negatable: false,
+          abbr: 'v',
+          help: 'Print version',
+        )
+        // Global `-C/--directory <dir>`: run as if zfa was started in
+        // <dir> instead of the current working directory. The directory is
+        // applied as a scoped chdir (restored after the invocation), so
+        // tests can target a temp fixture project WITHOUT mutating the
+        // process-global Directory.current — which concurrent tests share
+        // and can corrupt (issue #441 / TDD CWD race). Most commands
+        // resolve their root from Directory.current, so they inherit the
+        // override automatically; commands with their own `--project-root`
+        // flag (ui, tdd *) take precedence via that flag when supplied.
+        ..argParser.addOption(
+          'directory',
+          abbr: 'C',
+          help:
+              'Run as if zfa was started in <dir> (scoped; the process '
+              'working directory is restored afterward).',
+        );
 
   /// Top-level commands whose execution path never consumes the plugin
   /// registry (no plugin-provided subcommands, no generator plugins needed).
@@ -86,7 +100,23 @@ class CliRunner {
   /// registered regardless.
   static const Set<String> _noPluginCommands = {'xray'};
 
-  void _ensureInitialized([List<String> args = const []]) {
+  void _ensureInitialized(List<String> args, {required String? directory}) {
+    // If the active project directory changed since the last initialization
+    // (e.g. a reused CliRunner invoked with a different `-C`), the previously
+    // constructed root-bound commands (MakeCommand, etc.) still hold the stale
+    // project root. Tear them down and rebuild against the new directory.
+    //
+    // We rebuild the CommandRunner (not re-add to the existing one) so the
+    // re-init does not throw "command already exists" — the previous commands
+    // remain registered on the old runner instance (CodeRabbit review of #623).
+    final effectiveDir = directory ?? Directory.current.path;
+    if (effectiveDir != _initializedDirectory) {
+      _coreInitialized = false;
+      _pluginsInitialized = false;
+      _runner = _buildRunner();
+      _initializedDirectory = effectiveDir;
+    }
+
     // Strip the global `-C`/`--directory` flag (if present) before the
     // plugin-skip decision so `zfa -C <dir> xray` still skips the plugin
     // boot (issue #531).
@@ -169,36 +199,48 @@ class CliRunner {
 
   /// Run CLI with arguments.
   Future<void> run(List<String> args) async {
-    final directory = _extractDirectory(args);
-    // Strip the global `-C`/`--directory` flag before the pre-dispatch checks
-    // (empty / version / removed-generate) so that `zfa -C <dir> help` and
-    // `zfa -C <dir> generate ...` are classified correctly even though `-C`
-    // shifts `args.first` / `args.isEmpty`.
-    final commandArgs = _stripDirectory(args);
-    await _withDirectory(directory, () async {
-      _ensureInitialized(args);
+    if (_active) {
+      throw StateError(
+        'CliRunner.run/runCapturing is not reentrant: do not invoke '
+        'concurrently on the same instance (overlapping Directory.current '
+        'changes would race).',
+      );
+    }
+    _active = true;
+    try {
+      final directory = _extractDirectory(args);
+      // Strip the global `-C`/`--directory` flag before the pre-dispatch checks
+      // (empty / version / removed-generate) so that `zfa -C <dir> help` and
+      // `zfa -C <dir> generate ...` are classified correctly even though `-C`
+      // shifts `args.first` / `args.isEmpty`.
+      final commandArgs = _stripDirectory(args);
+      await _withDirectory(directory, () async {
+        _ensureInitialized(args, directory: directory);
 
-      if (commandArgs.isEmpty) {
-        _printHelp();
-        _exit(0);
-        return;
-      }
+        if (commandArgs.isEmpty) {
+          _printHelp();
+          _exit(0);
+          return;
+        }
 
-      if (_isVersionCommand(commandArgs)) {
-        print('zfa v$version');
-        print('Zuraffa Code Generator');
-        _exit(0);
-        return;
-      }
+        if (_isVersionCommand(commandArgs)) {
+          print('zfa v$version');
+          print('Zuraffa Code Generator');
+          _exit(0);
+          return;
+        }
 
-      if (_isRemovedGenerateCommand(commandArgs)) {
-        _printRemovedGenerateMessage();
-        _exit(64);
-        return;
-      }
+        if (_isRemovedGenerateCommand(commandArgs)) {
+          _printRemovedGenerateMessage();
+          _exit(64);
+          return;
+        }
 
-      await _runDispatched(args);
-    });
+        await _runDispatched(args);
+      });
+    } finally {
+      _active = false;
+    }
   }
 
   /// Run the dispatched command, honoring a failure exit code set by the
@@ -282,53 +324,64 @@ class CliRunner {
 
   /// Run CLI and capture output as string.
   Future<String> runCapturing(List<String> args) async {
-    final output = <String>[];
-
-    final directory = _extractDirectory(args);
-    // Strip the global `-C`/`--directory` flag so the empty / version /
-    // removed-generate pre-checks classify correctly (see [run]).
-    final commandArgs = _stripDirectory(args);
-    await _withDirectory(directory, () async {
-      _ensureInitialized(args);
-
-      if (commandArgs.isEmpty) {
-        _printHelpTo(output.add);
-        return;
-      }
-
-      if (_isVersionCommand(commandArgs)) {
-        output.add('zfa v$version');
-        output.add('Zuraffa Code Generator');
-        return;
-      }
-
-      if (_isRemovedGenerateCommand(commandArgs)) {
-        _printRemovedGenerateMessageTo(output.add);
-        return;
-      }
-
-      await runZoned(
-        () async {
-          try {
-            await _runner.run(args);
-          } on UsageException catch (e) {
-            output.add('❌ ${e.message}');
-            output.add(e.usage);
-          } catch (e, stack) {
-            output.add('❌ Error: $e');
-            _addSuggestionsTo(output.add, e.toString());
-            if (args.contains('--verbose') || args.contains('-v')) {
-              output.add('\nStack trace:\n$stack');
-            }
-          }
-        },
-        zoneSpecification: ZoneSpecification(
-          print: (self, parent, zone, line) {
-            output.add(line);
-          },
-        ),
+    if (_active) {
+      throw StateError(
+        'CliRunner.run/runCapturing is not reentrant: do not invoke '
+        'concurrently on the same instance (overlapping Directory.current '
+        'changes would race).',
       );
-    });
+    }
+    _active = true;
+    final output = <String>[];
+    try {
+      final directory = _extractDirectory(args);
+      // Strip the global `-C`/`--directory` flag so the empty / version /
+      // removed-generate pre-checks classify correctly (see [run]).
+      final commandArgs = _stripDirectory(args);
+      await _withDirectory(directory, () async {
+        _ensureInitialized(args, directory: directory);
+
+        if (commandArgs.isEmpty) {
+          _printHelpTo(output.add);
+          return;
+        }
+
+        if (_isVersionCommand(commandArgs)) {
+          output.add('zfa v$version');
+          output.add('Zuraffa Code Generator');
+          return;
+        }
+
+        if (_isRemovedGenerateCommand(commandArgs)) {
+          _printRemovedGenerateMessageTo(output.add);
+          return;
+        }
+
+        await runZoned(
+          () async {
+            try {
+              await _runner.run(args);
+            } on UsageException catch (e) {
+              output.add('❌ ${e.message}');
+              output.add(e.usage);
+            } catch (e, stack) {
+              output.add('❌ Error: $e');
+              _addSuggestionsTo(output.add, e.toString());
+              if (args.contains('--verbose') || args.contains('-v')) {
+                output.add('\nStack trace:\n$stack');
+              }
+            }
+          },
+          zoneSpecification: ZoneSpecification(
+            print: (self, parent, zone, line) {
+              output.add(line);
+            },
+          ),
+        );
+      });
+    } finally {
+      _active = false;
+    }
 
     return output.isEmpty ? '' : '${output.join('\n')}\n';
   }
