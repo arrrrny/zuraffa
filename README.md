@@ -39,6 +39,19 @@ ZikZak AI is an AI-Powered Price Comparison app that you scan barcodes, and disc
 
 ---
 
+## Scope
+
+`zfa` is scoped to **Zuraffa apps** — packages that depend on
+`zuraffa`/`zorphy_annotation` and carry a `.zfa.json`. The CLI generates
+clean-architecture code inside that contract and nothing else: it
+does not rewrite existing non-Zuraffa Flutter packages or plugins, and
+`zfa doctor` reporting missing Zuraffa dependencies inside such a package
+is expected behavior. Rewriting a non-Zuraffa plugin stays hand-written
+work unless you file a feature request for that support. See the
+[CLI guide](CLI_GUIDE.md#scope-what-zfa-operates-on) for details.
+
+---
+
 ## Installation
 
 Add Zuraffa to your project:
