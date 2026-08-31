@@ -26,7 +26,7 @@
 
 ---
 
-## Cycle 1: User Story 3 (EngagementHook in ZikZak) — PENDING
+## Cycle 1: User Story 3 (EngagementHook in ZikZak) — EXECUTED (bug 501, 2026-09-01)
 
 **Target**: Implement `EngagementHook` in ZikZak app and verify 5 acceptance behaviors (C1–C5).
 
@@ -43,6 +43,41 @@
 5. Remove manual `CreateTelemetryEventUseCase` calls from 5 controllers
 6. Write integration tests in `zik_zak/test/presentation/hooks/engagement_hook_test.dart`
 7. Verify zero tracking calls remain via grep
+
+### Execution Record (bug 501 remediation — mock app `apps/zikzak_demo/`)
+
+**Date**: 2026-09-01 | **Branch**: `fix/501-usecase-hook-engagementhook-missing` | **Base**: `11de4bf`
+
+ZikZak remained unavailable as a separate codebase, so the recorded remediation
+(assessment: "create a minimal mock ZikZak app") was executed against
+`apps/zikzak_demo/` — a pure-Dart mock with the real framework as a path dep.
+
+#### RED (commit `1b9bb88` — tests + mock app with manual calls, no hook)
+
+- Command: `dart test test/presentation/hooks/engagement_hook_test.dart`
+  → exit 1. Evidence (compile-level red, hook absent):
+  `Error: Method not found: 'EngagementHook'` (3 occurrences); `Some tests failed.`
+- Command: `dart test test/presentation/hooks/manual_calls_absence_test.dart`
+  → exit 1. Evidence (assertion-level red, 21 manual call sites):
+  `manual engagement calls must be removed (bug 501, criterion C5); found 21 offending line(s)`.
+
+#### GREEN (commit `3264f56` — hook implemented, manual calls removed)
+
+- Command: `dart test` (in `apps/zikzak_demo/`) → **6/6 passed**, exit 0
+  (C1, C2, C3, C4, SC-005 map, C5 source scan).
+- C5 grep: `grep -rn "CreateTelemetryEventUseCase\|track" lib/src/presentation/`
+  → 0 matches, exit 1 (no match).
+- Framework regression: root `tools/run_tests_chunked.sh` → 1307 tests passing
+  across 33 runnable chunks, 0 new failures (3 chunks — `test/benchmark`,
+  `test/core/dependencies`, `test/integration` — contain only tag-excluded tests
+  and exit 79 "No tests ran"; reproduced identical at base `11de4bf`, pre-existing).
+
+#### Deliberate mutants (test-strength sample, both restored + re-verified green)
+
+| Mutant | Behavior | Caught |
+|--------|----------|--------|
+| `engagement_hook.dart` `payloadFor` → return `''` always | C1/C2 payload | Yes (C1+C2 failed) |
+| `engagement_hook.dart` `phases` → all three phases | C3 success-only | Yes (C3 failed, exit 1) |
 
 ---
 

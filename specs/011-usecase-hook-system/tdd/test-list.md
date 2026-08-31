@@ -50,11 +50,11 @@
 
 | ID | Behavior | Type | Status | Test Location |
 |----|----------|------|--------|---------------|
-| C1 | Given `EngagementHook` is registered and the user scans a barcode, when the barcode scan UseCase completes successfully, then an `EngagementEvent(type=BARCODE_SCAN, payload=barcode_number)` is created via the `EngagementEventRepository` (stored locally in Hive, marked for background sync) | Acceptance | **PENDING** | ZikZak app — `zik_zak/test/presentation/hooks/engagement_hook_test.dart` (not yet created) |
-| C2 | Given `EngagementHook` is registered and the user submits a search query, when the search UseCase completes successfully, then an `EngagementEvent(type=SEARCH_TERM, payload=query_string)` is created | Acceptance | **PENDING** | ZikZak app — `zik_zak/test/presentation/hooks/engagement_hook_test.dart` (not yet created) |
-| C3 | Given `EngagementHook` is registered and a tracked UseCase FAILS, when the UseCase returns a failure result, then NO engagement event is created (the hook fires on success only) | Acceptance | **PENDING** | ZikZak app — `zik_zak/test/presentation/hooks/engagement_hook_test.dart` (not yet created) |
-| C4 | Given both `TelemetryHook` and `EngagementHook` are registered simultaneously, when a tracked UseCase executes, then both hooks fire independently — the telemetry hook creates an OTel span, and the engagement hook creates an engagement event — without interfering with each other | Acceptance | **PENDING** | ZikZak app — `zik_zak/test/presentation/hooks/engagement_hook_test.dart` (not yet created) |
-| C5 | Given `EngagementHook` is registered, when inspecting all ZikZak controllers, then there are ZERO manual `CreateTelemetryEventUseCase` calls or `trackXxx()` methods remaining — all tracking is fully automated via the hook | Acceptance | **PENDING** | Manual grep verification: `grep -r "CreateTelemetryEventUseCase\|track" zik_zak/lib/src/presentation/` |
+| C1 | Given `EngagementHook` is registered and the user scans a barcode, when the barcode scan UseCase completes successfully, then an `EngagementEvent(type=BARCODE_SCAN, payload=barcode_number)` is created via the `EngagementEventRepository` (stored locally in Hive, marked for background sync) | Acceptance | **DONE** | `apps/zikzak_demo/test/presentation/hooks/engagement_hook_test.dart` (bug 501 mock app) |
+| C2 | Given `EngagementHook` is registered and the user submits a search query, when the search UseCase completes successfully, then an `EngagementEvent(type=SEARCH_TERM, payload=query_string)` is created | Acceptance | **DONE** | `apps/zikzak_demo/test/presentation/hooks/engagement_hook_test.dart` (bug 501 mock app) |
+| C3 | Given `EngagementHook` is registered and a tracked UseCase FAILS, when the UseCase returns a failure result, then NO engagement event is created (the hook fires on success only) | Acceptance | **DONE** | `apps/zikzak_demo/test/presentation/hooks/engagement_hook_test.dart` (bug 501 mock app) |
+| C4 | Given both `TelemetryHook` and `EngagementHook` are registered simultaneously, when a tracked UseCase executes, then both hooks fire independently — the telemetry hook creates an OTel span, and the engagement hook creates an engagement event — without interfering with each other | Acceptance | **DONE** | `apps/zikzak_demo/test/presentation/hooks/engagement_hook_test.dart` (bug 501 mock app) |
+| C5 | Given `EngagementHook` is registered, when inspecting all ZikZak controllers, then there are ZERO manual `CreateTelemetryEventUseCase` calls or `trackXxx()` methods remaining — all tracking is fully automated via the hook | Acceptance | **DONE** | `apps/zikzak_demo/test/presentation/hooks/manual_calls_absence_test.dart` + grep (0 matches; bug 501 mock app) |
 
 ---
 
@@ -62,8 +62,8 @@
 
 | Status | Count |
 |--------|-------|
-| **DONE** | 23 |
-| **PENDING** | 5 |
+| **DONE** | 28 |
+| **PENDING** | 0 |
 | **BLOCKED** | 0 |
 | **Total** | 28 |
 
@@ -71,6 +71,6 @@
 
 ## Notes
 
-- The PENDING behaviors (C1–C5) are in the **ZikZak app** (`zik_zak/`), not in the Zuraffa framework. They require the ZikZak codebase to be present and the `EngagementHook` to be implemented.
+- C1–C5 are now **DONE** via the bug 501 mock ZikZak app (`apps/zikzak_demo/`, commits `1b9bb88` red → `3264f56` green, 2026-09-01).
 - All Zuraffa framework-level behaviors (A1–A11, B1–B7) are **DONE** with passing tests.
 - Baseline: `dart test test/core/hook_registry_test.dart test/core/telemetry_hook_test.dart test/domain/usecase_hook_test.dart test/domain/stream_usecase_hook_test.dart` — **41 tests passed** (commit `614e648`).
