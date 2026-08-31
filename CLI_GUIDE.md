@@ -10,6 +10,25 @@ This guide focuses on the current public surface. `zfa make` is the primary gene
 
 ---
 
+## Scope: what `zfa` operates on
+
+`zfa` is a clean-architecture generator for **Zuraffa apps** — Dart/Flutter
+packages whose `pubspec.yaml` depends on `zuraffa` and `zorphy_annotation`
+and whose project defaults live in `.zfa.json`. It scaffolds entities,
+controllers, repositories, data sources, and DI wiring inside that contract.
+
+`zfa` does not rewrite existing non-Zuraffa Flutter packages or plugins.
+Running `zfa` inside a plugin such as a WebView bridge is out of scope: `zfa
+doctor` will report `No .zfa.json found`, `Zuraffa package not found`, and
+`zorphy_annotation not found`. That is the expected scope
+check, not a malfunction of the CLI. For a non-Zuraffa package you have
+three options: keep the code hand-written, add the Zuraffa dependencies to
+opt the package into the generator, or file a feature request if `zfa`
+should support rewriting non-Zuraffa Flutter packages (for example
+generating platform-interface stubs) — that support does not exist today.
+
+---
+
 ## Installation
 
 ```bash
