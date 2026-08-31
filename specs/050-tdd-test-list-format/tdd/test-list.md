@@ -27,7 +27,7 @@ scenarios where the real pipeline is required).
 | A1  | plan → run on a real temp project with the real pipeline drives every plan-written behavior to DONE, exit 0, no `unknown behavior id`, no `stopped_at=A1:gen` | US1.AC1   | example | DONE    | `test/plugins/tdd/scenarios/sc_018_plan_run_loop_e2e_test.dart::SC-018: plan → run drives a plan-written list to all-DONE with the real pipeline (bug #617 loop e2e)` |
 | A2  | `zfa tdd gen <id>` resolves a plan-written 4-column row in either loop section: kind from the section header, target defaulted, six result fields printed | US1.AC2   | example | DONE    | `test/plugins/tdd/commands/plan_gen_contract_test.dart` (plan→gen round trip, both sections, target defaulting; landed 74c132db) |
 | A3  | `zfa tdd gen <unknown-id>` exits non-zero with `unknown behavior id` before any file is written | US1.AC3   | example | DONE    | `test/plugins/tdd/commands/gen_command_test.dart:178` (unknown behavior id guard) |
-| A4  | Loop commands read a hand-written 6-column extension-dialect list (kind cell `example`, test-ref last cell) and resolve its rows: gen resolves the id, run gets past list-reading, and a one-time deprecation note naming the canonical format is printed | US2.AC1   | example | GREEN   | `test/plugins/tdd/commands/plan_gen_contract_test.dart::A4/050: gen resolves an id from a hand-written 6-column extension-dialect list (the 046/049 shape)` (gen half; run half pinned by U8/A6) |
+| A4  | Loop commands read a hand-written 6-column extension-dialect list (kind cell `example`, test-ref last cell) and resolve its rows: gen resolves the id, run gets past list-reading, and a one-time deprecation note naming the canonical format is printed | US2.AC1   | example | DONE   | `test/plugins/tdd/commands/plan_gen_contract_test.dart::A4/050: gen resolves an id from a hand-written 6-column extension-dialect list (the 046/049 shape)` (gen half; run half pinned by U8/A6) |
 | A5  | A hand-written 6-column row with `acceptance`/`unit` in the kind cell is accepted with the cell winning over the section header | US2.AC2   | example | DONE    | `test/plugins/tdd/services/test_list_reader_test.dart::617-shim: deprecated 6-column rows parse with kind from the cell` |
 | A6  | `zfa tdd run <feature>` re-reads the repo's own hand-written 6-column list (e.g. specs/049-tdd-run) without a malformed-list `result=runner-error` | US2.AC3   | example | PENDING | |
 | A7  | A row matching no accepted shape stops the reading command non-zero with the file, line number, and raw line named | US3.AC1   | example | DONE    | `test/plugins/tdd/services/test_list_reader_test.dart` (unknown-state, 4-col-outside-section, missing-list guards) |
@@ -39,19 +39,19 @@ scenarios where the real pipeline is required).
 
 | id  | behavior                                                                                          | traces     | kind    | state   | test |
 | --- | ------------------------------------------------------------------------------------------------- | ---------- | ------- | ------- | ---- |
-| U1  | A 6-column row with an extension test-shape kind cell (`example`) in the outer section parses as acceptance kind with the default `subject_<snake-id>` target and is flagged deprecated | FR-007     | example | PENDING | |
-| U2  | The same extension-shape row in the inner section parses as unit kind with the default target | FR-007     | example | PENDING | |
+| U1  | A 6-column row with an extension test-shape kind cell (`example`) in the outer section parses as acceptance kind with the default `subject_<snake-id>` target and is flagged deprecated | FR-007     | example | DONE | `test_list_reader_test.dart::050: an extension-dialect row in the outer section resolves acceptance kind and the default target` |
+| U2  | The same extension-shape row in the inner section parses as unit kind with the default target | FR-007     | example | DONE | `test_list_reader_test.dart::050: an extension-dialect row in the inner section resolves unit kind and the default target` |
 | U3  | On a mixed-dialect list the deprecation note prints exactly once per file (never per row) and the list file's bytes are unchanged after the read | FR-009, FR-010 | example | PENDING | |
-| U4  | An extension-shape 6-column row outside any outer/inner loop section stays malformed with the line named | FR-005     | example | PENDING | |
+| U4  | An extension-shape 6-column row outside any outer/inner loop section stays malformed with the line named | FR-005     | example | DONE | `test_list_reader_test.dart::050: an extension-dialect row outside any section stays malformed` |
 | U5  | A 6-column row whose kind cell is neither acceptance/unit nor an extension test shape (e.g. `banana`) stays malformed with the line named | FR-005     | example | PENDING | |
-| U6  | Every extension test shape (`example`, `property`, `contract`, `approval`, `characterization`) is accepted in the shim | FR-007     | example | PENDING | |
-| U10 | A 6-column row whose behavior text contains a markdown-escaped pipe (`\|`, as in specs/049's U15) still splits into exactly 6 cells — the escaped pipe is cell content, not a delimiter | US2.AC3    | example | PENDING | |
+| U6  | Every extension test shape (`example`, `property`, `contract`, `approval`, `characterization`) is accepted in the shim | FR-007     | example | DONE | `test_list_reader_test.dart::050: every extension test shape is accepted` |
+| U10 | A 6-column row whose behavior text contains a markdown-escaped pipe (`\|`, as in specs/049's U15) still splits into exactly 6 cells — the escaped pipe is cell content, not a delimiter | US2.AC3    | example | DONE | `test_list_reader_test.dart::050: markdown-escaped pipes in cells stay cell content (specs/049 U15 shape)` |
 
 ### `lib/src/plugins/tdd/commands/gen_command.dart` (adapter through the reader)
 
 | id  | behavior                                                          | traces   | kind      | state   | test |
 | --- | ----------------------------------------------------------------- | -------- | --------- | ------- | ---- |
-| U7  | `zfa tdd gen <id> --feature <f>` resolves a behavior id from a hand-written 6-column extension-dialect list (the 046/049 shape) and reports the row's traces as the source criterion | FR-001, FR-004 | contract | PENDING | |
+| U7  | `zfa tdd gen <id> --feature <f>` resolves a behavior id from a hand-written 6-column extension-dialect list (the 046/049 shape) and reports the row's traces as the source criterion | FR-001, FR-004 | contract | DONE | `plan_gen_contract_test.dart::A4/050: gen resolves an id from a hand-written 6-column extension-dialect list (the 046/049 shape)` (same test as A4 — the adapter IS the acceptance path here; asserted `source_criterion: US1.AC1` from the 6-col row) |
 
 ### `lib/src/plugins/tdd/commands/run_command.dart` (driver list-reading)
 

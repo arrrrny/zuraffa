@@ -33,3 +33,49 @@ test existed and failed before the implementation.
 - pre-cycle test change (stated reason, before implementation): the U3 and 617-shim malformed-row fixtures in `test_list_reader_test.dart` were re-pointed from kind cell `example` to `banana` — FR-007 moves `example` from malformed to shim-accepted, so the FR-005 guard needed a shape that STAYS malformed; both re-pointed tests stayed green before and after the change (T005)
 - follow-up: mid-cycle discovery — the live repro surfaced specs/049 U15 (`outcome=clean\|refactored`), a markdown-escaped pipe inside a cell that naive `split('|')` counts as a 7th column; appended U10 to the test list for its own cycle
 - commit: `4eba2f75`
+
+## Cycle 2: U1 extension-dialect row in the outer section resolves acceptance kind + default target
+
+- test: `test/plugins/tdd/services/test_list_reader_test.dart::050: an extension-dialect row in the outer section resolves acceptance kind and the default target` (new)
+- red: none recorded — the test passed on FIRST run: the behavior was implemented by cycle 1's green (the shared reader branch serves A4 and U1 alike). Per the playbook's first-run rule, strength was proven with a deliberate mutant instead (below)
+- mutant: forced `kind: BehaviorKind.unit` in the extension branch (ignore the section header) -> this test failed `Expected: BehaviorKind:<BehaviorKind.acceptance> Actual: BehaviorKind:<BehaviorKind.unit>`; restored exactly; reader suite -> 16 passed, 0 failed
+- green: (already green; no code change this cycle) suite `dart test test/plugins/tdd/` -> 226 passed, 0 failed
+- refactor: none
+- commit: pending
+
+## Cycle 3: U2 extension-dialect row in the inner section resolves unit kind
+
+- test: `test/plugins/tdd/services/test_list_reader_test.dart::050: an extension-dialect row in the inner section resolves unit kind and the default target` (new)
+- red: none recorded — passed on FIRST run (same shared branch as U1); mirror mutant applied
+- mutant: forced `kind: BehaviorKind.acceptance` in the extension branch -> this test failed `Expected: BehaviorKind:<BehaviorKind.unit> Actual: BehaviorKind:<BehaviorKind.acceptance>`; restored exactly; suite green
+- green: no code change; suite 226 passed, 0 failed
+- refactor: none
+- commit: pending
+
+## Cycle 4: U4 extension-dialect row outside any section stays malformed
+
+- test: `test/plugins/tdd/services/test_list_reader_test.dart::050: an extension-dialect row outside any section stays malformed` (new)
+- red: none for the guard itself — the guard already worked (implemented with cycle 1). The FIRST run failed on a bug in MY test: I expected `line 6` but the fixture row sits on line 5; the reader's error verbatim was `test-list.md line 5: table row outside an outer/inner loop behavior section: "| U1 | orphaned extension row | FR-005 | example | PENDING |  |"` (proof the guard fired); expectation corrected to line 5
+- mutant: replaced the orphan guard with `kind ?? BehaviorKind.unit` (orphans allowed) -> this test failed (`Expected: throws TestListReadException ... Actual: Future completed`); restored exactly; suite green
+- green: no code change; suite 226 passed, 0 failed
+- refactor: none
+- commit: pending
+
+## Cycle 5: U6 every extension test shape is accepted
+
+- test: `test/plugins/tdd/services/test_list_reader_test.dart::050: every extension test shape is accepted` (new; loops example/property/contract/approval/characterization)
+- red: none recorded — passed on FIRST run
+- mutant: shrunk the accepted set to `{'example'}` -> this test failed `test-list.md line 5: expected 4 columns (id/behavior/traces/state), found 6: "| U1 | shape property row | FR-007 | property | PENDING | t.dart::U1 |"`. NOTE (honesty): the FIRST application of this mutant silently failed to apply (the replacement string did not match the formatted source) and the suite stayed green — caught precisely because the playbook requires OBSERVING the mutant failure, re-applied against the real source shape, and then observed the failure; restored exactly; suite green
+- green: no code change; suite 226 passed, 0 failed
+- refactor: none
+- commit: pending
+
+## Cycle 6: U10 markdown-escaped pipes stay cell content (specs/049 U15)
+
+- test: `test/plugins/tdd/services/test_list_reader_test.dart::050: markdown-escaped pipes in cells stay cell content (specs/049 U15 shape)` (new; fixture is the verbatim specs/049 line-72 row)
+- red: `dart test test/plugins/tdd/services/test_list_reader_test.dart --plain-name "050: markdown-escaped pipes in cells stay cell content (specs/049 U15 shape)"` ->
+  `test-list.md line 5: expected 4 columns (id/behavior/traces/state), found 7: "| U15 | refactor succeeds only on exit 0 AND `+"`out"+"come=clean\\|refactored` | FR-002 | example | DONE | ...`"+` (1 failed — discovered LIVE: `dart run bin/zfa.dart tdd run 049-tdd-run` stopped at this row after cycle 1)
+- green: `test_list_reader.dart` row splitting moved from `split('|')` to `_splitRow` — markdown's `\|` is unescaped to cell content, never a delimiter; suite `dart test test/plugins/tdd/` -> 226 passed, 0 failed. Live re-probe: `dart run bin/zfa.dart tdd gen U15 --feature 049-tdd-run --dry-run` -> `behavior_id: U15 / source_criterion: FR-002 / ownership: planned/planned` (dry-run; no files written)
+- mutant: reverted `_splitRow` call to `trimmed.split('|')` -> this test failed with the same `found 7` malformed error; restored exactly; suite green
+- refactor: none — `_splitRow` sits beside the other static cell helpers
+- commit: pending

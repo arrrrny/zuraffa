@@ -116,7 +116,7 @@ class TestListReader {
         continue;
       }
       if (!trimmed.startsWith('|')) continue;
-      final cells = trimmed.split('|').map((c) => c.trim()).toList();
+      final cells = _splitRow(trimmed).map((c) => c.trim()).toList();
       if (cells.length > 1 && cells.last.isEmpty) cells.removeLast();
       // Separator rows (`| -- | --- | ...`).
       final isSeparator = cells
@@ -278,5 +278,28 @@ class TestListReader {
       if (state.name == cell.toLowerCase()) return state;
     }
     return null;
+  }
+
+  /// Split a table row on UNESCAPED pipes: markdown's `\|` inside a cell
+  /// is a literal pipe, not a delimiter (spec 050; specs/049's hand-written
+  /// U15 row carries `outcome=clean\|refactored` in its behavior text —
+  /// a naive `split('|')` mis-counts 7 data columns and rejects the row).
+  static List<String> _splitRow(String line) {
+    final cells = <String>[];
+    final buf = StringBuffer();
+    for (var i = 0; i < line.length; i++) {
+      final ch = line[i];
+      if (ch == r'\' && i + 1 < line.length && line[i + 1] == '|') {
+        buf.write('|');
+        i++;
+      } else if (ch == '|') {
+        cells.add(buf.toString());
+        buf.clear();
+      } else {
+        buf.write(ch);
+      }
+    }
+    cells.add(buf.toString());
+    return cells;
   }
 }
