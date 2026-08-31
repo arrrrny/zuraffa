@@ -2,7 +2,7 @@
 /// red-green-refactor loop (spec 049-tdd-run, FR-001..011; 041 Phase 10,
 /// T070-T076).
 ///
-/// Given a feature with a behavior test list, the driver walks each
+/// Given a feature with a behavior test list, the driver walks every
 /// behavior through the certified steps delivered by specs 044 (`gen`),
 /// 046 (`verify-red`), 047 (`make`), and 048 (`refactor`), spawning each
 /// as a sub-process of this CLI and consuming its machine-readable
@@ -10,6 +10,31 @@
 /// plus the in-flight behavior/step persist to `tdd/run-state.json` after
 /// every completed step, so a run interrupted for minutes or weeks resumes
 /// exactly where it stopped.
+///
+/// Outside-in driving (bug #625): `zfa tdd plan` writes acceptance (A*)
+/// behaviors before unit (U*) behaviors — the right reading order — but
+/// acceptance prose is unexpressible to the generation planner by design,
+/// so one uniform per-behavior cycle deadlocked every feature at its
+/// first acceptance `make`, before any unit behavior could run. The
+/// driver therefore drives the loop in two passes:
+///
+/// - **Phase 1** — the uniform cycle in list order, with one addition:
+///   an ACCEPTANCE behavior whose `make` reports `unexpressible` — the
+///   planner's by-design refusal of acceptance prose — is deferred
+///   instead of stopping the feature: `[run] A1 make -> deferred
+///   (phase 2)`. Its test sits RED while the unit behaviors complete
+///   their full cycles to DONE. Any other step failure still stops the
+///   run honestly (FR-007), and an acceptance behavior whose make IS
+///   expressible completes its whole cycle exactly as before.
+/// - **Phase 2** — the deferred acceptance behaviors re-attempt
+///   `make + refactor`, now against a project where the units exist. A
+///   green outcome completes the feature; `unexpressible` here is a
+///   real, honest stop with the units DONE — bounded, resumable
+///   progress instead of the old whole-feature deadlock.
+///
+/// Run-state semantics are unchanged: acceptance behaviors sit RED
+/// between the phases, and a run interrupted anywhere resumes exactly
+/// where it stopped.
 ///
 /// Honesty rules:
 /// - Evidence beats state: a behavior is DONE only when its red AND green
@@ -202,126 +227,91 @@ class RunCommand extends Command<void> {
     if (skipped > 0) print('   $skipped already done — skipping');
 
     // -----------------------------------------------------------------
-    // 6. Drive the loop (FR-001, FR-004..FR-008).
+    // 6. Drive the loop in two phases (FR-001, FR-004..FR-008; bug #625).
+    //
+    // Phase 1 drives the uniform cycle in list order, EXCEPT that an
+    // acceptance behavior whose make reports `unexpressible` (the
+    // planner's by-design refusal of acceptance prose) is DEFERRED with
+    // `[run] A1 make -> deferred (phase 2)` instead of stopping the
+    // feature — the bug #625 deadlock. Unit behaviors therefore run to
+    // DONE. Phase 2 re-attempts make + refactor for the deferred
+    // acceptance behaviors; `unexpressible` there is a real, honest stop
+    // with the units DONE (FR-007). Run-state semantics are unchanged:
+    // acceptance behaviors sit RED between the phases, resumable
+    // mid-corpus (FR-003..FR-005).
     // -----------------------------------------------------------------
     final runner = StepRunner(zfaBin: zfaBin);
+
+    void applyStop(_Stop stop, RunState state) {
+      if (stop.message != null) print('zfa tdd run: ${stop.message}');
+      _printSummary(
+        feature,
+        stop.result,
+        rows,
+        state,
+        stoppedAt: stop.stoppedAt,
+      );
+      exitCode = stop.exitCode;
+    }
+
+    // --- Phase 1: the uniform cycle in list order; acceptance makes
+    // that report unexpressible defer to phase 2 (bug #625).
     for (final row in rows) {
-      var state = current.behaviorStates[row.id] ?? BehaviorState.pending;
+      final state = current.behaviorStates[row.id] ?? BehaviorState.pending;
       if (state == BehaviorState.done) continue;
 
       final inFlightStep = current.inFlightBehaviorId == row.id
           ? current.inFlightStep
           : null;
-      final steps = _stepsFor(state, inFlightStep);
-      for (final step in steps) {
-        // mark -> save -> spawn -> advance -> save: an interruption loses
-        // at most the in-flight step (FR-004).
-        current = current.markInFlight(row.id, step, ownerPid: pid);
-        await store.save(current, activeBehaviorIds: activeIds);
-
-        // Re-check for a concurrent run that claimed the feature after our
-        // in-flight marker was written (closes the simultaneous-start race
-        // left by the one-shot check at step 3, FR-006). A foreign live pid
-        // in the marker means a second run is now in flight, so stop before
-        // spawning any step.
-        final liveRefusal = store.refusalReason(await store.load());
-        if (liveRefusal != null) {
-          print('zfa tdd run: $liveRefusal');
-          _printSummary(feature, 'concurrent-run', rows, current);
-          exitCode = _exitConcurrentRun;
-          return;
-        }
-
-        StepResult result;
-        try {
-          result = await runner.run(
-            step: step,
-            behaviorId: row.id,
-            feature: feature,
-            projectRoot: projectRoot,
-          );
-        } on StateError catch (e) {
-          // Entrypoint resolution failed before any spawn: runner-error.
-          current = current.advance(row.id, state);
-          await store.save(current, activeBehaviorIds: activeIds);
-          print(
-            'zfa tdd run: step failed — behavior=${row.id} step=$step '
-            'outcome=runner-error',
-          );
-          print('   ${e.message}');
-          print('   resume: fix the issue, then re-run `zfa tdd run $feature`');
-          _printSummary(
-            feature,
-            'runner-error',
-            rows,
-            current,
-            stoppedAt: '${row.id}:$step',
-          );
-          exitCode = _exitRunnerError;
-          return;
-        }
-
-        print('[run] ${row.id} $step -> ${result.outcome}');
-
-        if (!result.success) {
-          // Honest stop (FR-007): leave the behavior at its last completed
-          // state, name what failed, never start later behaviors. A
-          // runner-error outcome (spawn/tooling failure) is its own class
-          // (FR-011).
-          final isRunnerError = result.outcome == 'runner-error';
-          current = current.advance(row.id, state);
-          await store.save(current, activeBehaviorIds: activeIds);
-          print(
-            'zfa tdd run: step failed — behavior=${row.id} step=$step '
-            'outcome=${result.outcome}',
-          );
-          _printOutputExcerpt(result.output);
-          print(
-            '   resume: fix the failing step, then re-run '
-            '`zfa tdd run $feature`',
-          );
-          _printSummary(
-            feature,
-            isRunnerError ? 'runner-error' : 'stopped',
-            rows,
-            current,
-            stoppedAt: '${row.id}:$step',
-          );
-          exitCode = isRunnerError ? _exitRunnerError : _exitStopped;
-          return;
-        }
-
-        // Evidence check before advancing: a certified step that did not
-        // write its evidence is a misfire (FR-003, FR-011).
-        final misfire = await _evidenceMisfire(evidence, step, row.id);
-        if (misfire != null) {
-          current = current.advance(row.id, state);
-          await store.save(current, activeBehaviorIds: activeIds);
-          print(
-            'zfa tdd run: step failed — behavior=${row.id} step=$step '
-            'outcome=runner-error',
-          );
-          print('   $misfire');
-          print(
-            '   resume: fix the failing step, then re-run '
-            '`zfa tdd run $feature`',
-          );
-          _printSummary(
-            feature,
-            'runner-error',
-            rows,
-            current,
-            stoppedAt: '${row.id}:$step',
-          );
-          exitCode = _exitRunnerError;
-          return;
-        }
-
-        final next = _maxState(state, _targetStateFor(step));
-        current = current.advance(row.id, next);
-        await store.save(current, activeBehaviorIds: activeIds);
-        state = next;
+      final result = await _driveBehavior(
+        row: row,
+        steps: _stepsFor(state, inFlightStep),
+        progressSuffix: '',
+        deferralAllowed: true,
+        current: current,
+        projectRoot: projectRoot,
+        activeIds: activeIds,
+        store: store,
+        evidence: evidence,
+        runner: runner,
+      );
+      if (result.stop != null) {
+        applyStop(result.stop!, result.state);
+        return;
       }
+      current = result.state;
+    }
+
+    // --- Phase 2: return to the deferred acceptance behaviors and
+    // re-attempt their make + refactor (bug #625). Unit behaviors were
+    // driven to DONE in phase 1; an acceptance behavior that completed
+    // its whole cycle in phase 1 (expressible make) is already DONE and
+    // skipped. `unexpressible` here is a real, honest stop (FR-007).
+    for (final row in rows) {
+      if (row.kind != BehaviorKind.acceptance) continue;
+      final state = current.behaviorStates[row.id] ?? BehaviorState.pending;
+      if (state == BehaviorState.done) continue;
+
+      final inFlightStep = current.inFlightBehaviorId == row.id
+          ? current.inFlightStep
+          : null;
+      final result = await _driveBehavior(
+        row: row,
+        steps: _phaseTwoSteps(state, inFlightStep),
+        progressSuffix: ' (phase 2)',
+        deferralAllowed: false,
+        current: current,
+        projectRoot: projectRoot,
+        activeIds: activeIds,
+        store: store,
+        evidence: evidence,
+        runner: runner,
+      );
+      if (result.stop != null) {
+        applyStop(result.stop!, result.state);
+        return;
+      }
+      current = result.state;
     }
 
     // -----------------------------------------------------------------
@@ -388,11 +378,16 @@ class RunCommand extends Command<void> {
   }
 
   // -------------------------------------------------------------------
-  // Step sequencing (FR-001, FR-005).
+  // Step sequencing (FR-001, FR-005; two-phase outside-in driving,
+  // bug #625).
   // -------------------------------------------------------------------
 
   /// The steps still to run for a behavior in [state], re-entering at
-  /// [inFlightStep] when a crashed run left its marker (U23).
+  /// [inFlightStep] when a crashed run left its marker (U23). Phase 1
+  /// uses the full window for every behavior — the uniform cycle — so
+  /// acceptance behaviors whose make IS expressible complete exactly as
+  /// before the fix; the deferral only engages on the unexpressible
+  /// outcome (bug #625).
   List<String> _stepsFor(BehaviorState state, String? inFlightStep) {
     const full = ['gen', 'verify-red', 'make', 'refactor'];
     var start = switch (state) {
@@ -406,6 +401,187 @@ class RunCommand extends Command<void> {
       if (index >= 0) start = index;
     }
     return full.sublist(start.clamp(0, full.length));
+  }
+
+  /// The phase-2 step window for an acceptance behavior (bug #625):
+  /// make + refactor only — the behavior was deferred at its phase-1
+  /// make and sits RED (or GREEN, when a crash followed a successful
+  /// make) here. Re-enters at [inFlightStep] when a crashed run left its
+  /// marker (U23).
+  List<String> _phaseTwoSteps(BehaviorState state, String? inFlightStep) {
+    const tail = ['make', 'refactor'];
+    var start = switch (state) {
+      // Unreachable: phase 1 certifies every non-DONE acceptance behavior
+      // red (or the run stopped). Defensive: treat as red.
+      BehaviorState.pending => 0,
+      BehaviorState.red => 0,
+      BehaviorState.green => 1,
+      BehaviorState.done => 2,
+    };
+    if (inFlightStep != null) {
+      final index = tail.indexOf(inFlightStep);
+      if (index >= 0) start = index;
+    }
+    return tail.sublist(start.clamp(0, tail.length));
+  }
+
+  /// Drive [row] through [steps] with the mark -> save -> spawn ->
+  /// advance -> save contract shared by both phases (FR-004, FR-006..
+  /// FR-008, FR-011). Returns the updated state plus, when the run must
+  /// stop, the stop report naming the summary result, `stopped_at`, exit
+  /// code, and — for the concurrent-run refusal — the refusal message.
+  ///
+  /// When [deferralAllowed] (phase 1) and the failing step is an
+  /// ACCEPTANCE behavior's `make` reporting `unexpressible` — the
+  /// planner's by-design refusal of acceptance prose — the behavior is
+  /// DEFERRED instead (bug #625): it stays at its last completed state
+  /// (RED), the deferral is announced with a phase marker, and the run
+  /// continues to the next behavior instead of deadlocking the feature.
+  Future<_DriveResult> _driveBehavior({
+    required BehaviorRow row,
+    required List<String> steps,
+    required String progressSuffix,
+    required bool deferralAllowed,
+    required RunState current,
+    required String projectRoot,
+    required Set<String> activeIds,
+    required RunStateStore store,
+    required CycleEvidence evidence,
+    required StepRunner runner,
+  }) async {
+    final feature = current.feature;
+    var updated = current;
+    var state = updated.behaviorStates[row.id] ?? BehaviorState.pending;
+    for (final step in steps) {
+      // mark -> save -> spawn -> advance -> save: an interruption loses
+      // at most the in-flight step (FR-004).
+      updated = updated.markInFlight(row.id, step, ownerPid: pid);
+      await store.save(updated, activeBehaviorIds: activeIds);
+
+      // Re-check for a concurrent run that claimed the feature after our
+      // in-flight marker was written (closes the simultaneous-start race
+      // left by the one-shot check at step 3, FR-006). A foreign live pid
+      // in the marker means a second run is now in flight, so stop before
+      // spawning any step.
+      final liveRefusal = store.refusalReason(await store.load());
+      if (liveRefusal != null) {
+        return (
+          state: updated,
+          stop: (
+            result: 'concurrent-run',
+            stoppedAt: null,
+            exitCode: _exitConcurrentRun,
+            message: liveRefusal,
+          ),
+        );
+      }
+
+      StepResult result;
+      try {
+        result = await runner.run(
+          step: step,
+          behaviorId: row.id,
+          feature: feature,
+          projectRoot: projectRoot,
+        );
+      } on StateError catch (e) {
+        // Entrypoint resolution failed before any spawn: runner-error.
+        updated = updated.advance(row.id, state);
+        await store.save(updated, activeBehaviorIds: activeIds);
+        print(
+          'zfa tdd run: step failed — behavior=${row.id} step=$step '
+          'outcome=runner-error',
+        );
+        print('   ${e.message}');
+        print('   resume: fix the issue, then re-run `zfa tdd run $feature`');
+        return (
+          state: updated,
+          stop: (
+            result: 'runner-error',
+            stoppedAt: '${row.id}:$step',
+            exitCode: _exitRunnerError,
+            message: null,
+          ),
+        );
+      }
+
+      print('[run] ${row.id} $step -> ${result.outcome}$progressSuffix');
+
+      if (!result.success) {
+        // Bug #625 deferral: acceptance prose is unexpressible to the
+        // generation planner BY DESIGN. Deferring is honest here — the
+        // outcome line above already named it — while stopping the whole
+        // feature before its unit behaviors ever ran is the deadlock.
+        // The behavior stays RED (its last completed state, FR-007
+        // semantics), and phase 2 re-attempts make + refactor.
+        if (deferralAllowed &&
+            step == 'make' &&
+            row.kind == BehaviorKind.acceptance &&
+            result.outcome == 'unexpressible') {
+          updated = updated.advance(row.id, state);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          print('[run] ${row.id} make -> deferred (phase 2)');
+          return (state: updated, stop: null);
+        }
+        // Honest stop (FR-007): leave the behavior at its last completed
+        // state, name what failed, never start later behaviors. A
+        // runner-error outcome (spawn/tooling failure) is its own class
+        // (FR-011).
+        final isRunnerError = result.outcome == 'runner-error';
+        updated = updated.advance(row.id, state);
+        await store.save(updated, activeBehaviorIds: activeIds);
+        print(
+          'zfa tdd run: step failed — behavior=${row.id} step=$step '
+          'outcome=${result.outcome}',
+        );
+        _printOutputExcerpt(result.output);
+        print(
+          '   resume: fix the failing step, then re-run '
+          '`zfa tdd run $feature`',
+        );
+        return (
+          state: updated,
+          stop: (
+            result: isRunnerError ? 'runner-error' : 'stopped',
+            stoppedAt: '${row.id}:$step',
+            exitCode: isRunnerError ? _exitRunnerError : _exitStopped,
+            message: null,
+          ),
+        );
+      }
+
+      // Evidence check before advancing: a certified step that did not
+      // write its evidence is a misfire (FR-003, FR-011).
+      final misfire = await _evidenceMisfire(evidence, step, row.id);
+      if (misfire != null) {
+        updated = updated.advance(row.id, state);
+        await store.save(updated, activeBehaviorIds: activeIds);
+        print(
+          'zfa tdd run: step failed — behavior=${row.id} step=$step '
+          'outcome=runner-error',
+        );
+        print('   $misfire');
+        print(
+          '   resume: fix the failing step, then re-run '
+          '`zfa tdd run $feature`',
+        );
+        return (
+          state: updated,
+          stop: (
+            result: 'runner-error',
+            stoppedAt: '${row.id}:$step',
+            exitCode: _exitRunnerError,
+            message: null,
+          ),
+        );
+      }
+
+      final next = _maxState(state, _targetStateFor(step));
+      updated = updated.advance(row.id, next);
+      await store.save(updated, activeBehaviorIds: activeIds);
+      state = next;
+    }
+    return (state: updated, stop: null);
   }
 
   /// The state a successful [step] certifies for a behavior.
@@ -511,6 +687,21 @@ class RunCommand extends Command<void> {
     return true;
   }
 }
+
+/// A stop report from `_driveBehavior` (bug #625 two-phase driving): the
+/// summary [result] name, the optional [stoppedAt] `behavior:step`, the
+/// process [exitCode], and an optional [message] printed before the
+/// summary line (the concurrent-run refusal names its reason).
+typedef _Stop = ({
+  String result,
+  String? stoppedAt,
+  int exitCode,
+  String? message,
+});
+
+/// The outcome of driving one behavior through its step window: the
+/// updated run state plus, when the run must stop, the [_Stop] report.
+typedef _DriveResult = ({RunState state, _Stop? stop});
 
 /// Segment check for the positional feature argument: it lands in a
 /// filesystem path, so keep it a single plain directory segment (mirrors

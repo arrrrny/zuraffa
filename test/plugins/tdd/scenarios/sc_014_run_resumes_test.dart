@@ -158,6 +158,121 @@ void main() {
     expect(fx.stepInvocations(), hasLength(7));
   });
 
+  test('bug 625: resume across the phase boundary — acceptance sits RED while '
+      'the unit completes first, then acceptance flips green', () async {
+    // Interrupted mid-phase-1: A1 (acceptance) certified red with its
+    // make deferred; U1 (unit) certified red, its make never ran. No
+    // in-flight marker — the previous run stopped honestly.
+    await fx.seedTestList([
+      (
+        id: 'A1',
+        description: 'the entity exists and is buildable.',
+        traces: 'FR-005',
+        state: 'PENDING',
+        kind: 'acceptance',
+      ),
+      (
+        id: 'U1',
+        description: 'unit behavior backing A1',
+        traces: 'FR-005',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+    ]);
+    await fx.seedRedEvidence('A1');
+    await fx.seedRedEvidence('U1');
+    await fx.seedRunState(states: {'A1': 'red', 'U1': 'red'});
+    // The resumed phase-1 make attempt for A1 hits the by-design
+    // unexpressible refusal again and defers; phase 2 flips it green.
+    await fx.setStepOutcome('make', 'A1', 'unexpressible\nok');
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    // The unit completes FIRST (U1 re-enters at its state-implied step);
+    // only then does phase 2 flip the deferred acceptance behavior
+    // green. A1 sits RED between the phases — resumable mid-corpus.
+    expect(fx.stepInvocations(), [
+      'make A1',
+      'make U1',
+      'refactor U1',
+      'make A1',
+      'refactor A1',
+    ]);
+    expect(out, contains('[run] A1 make -> deferred (phase 2)'));
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 green=0 done=2',
+      ),
+      reason: out,
+    );
+    final state =
+        jsonDecode(await File(fx.runStatePath).readAsString())
+            as Map<String, dynamic>;
+    expect(state['behavior_states'] as Map<String, dynamic>, {
+      'A1': 'done',
+      'U1': 'done',
+    });
+  });
+
+  test('bug 625: kill during an acceptance make re-enters at the in-flight '
+      'step and completes', () async {
+    // Phase 1 completed U1 (DONE with evidence); A1 sits RED — deferred
+    // at its phase-1 make, or killed mid-make. The in-flight marker
+    // survived either way; the resume re-enters at the make.
+    await fx.seedTestList([
+      (
+        id: 'A1',
+        description: 'the entity exists and is buildable.',
+        traces: 'FR-005',
+        state: 'PENDING',
+        kind: 'acceptance',
+      ),
+      (
+        id: 'U1',
+        description: 'unit behavior backing A1',
+        traces: 'FR-005',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+    ]);
+    await fx.seedRedEvidence('A1');
+    await fx.seedRedEvidence('U1');
+    await fx.seedGreenEvidence('U1');
+    final dead = await Process.start('sh', ['-c', 'exit 0']);
+    final deadPid = dead.pid;
+    await dead.exitCode;
+    await fx.seedRunState(
+      states: {'A1': 'red', 'U1': 'done'},
+      inFlightBehaviorId: 'A1',
+      inFlightStep: 'make',
+      inFlightOwnerPid: deadPid,
+    );
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    // Strictly less work: U1 (DONE) untouched; A1 re-enters at the
+    // in-flight make — its make is expressible now (units exist), so
+    // the uniform pass completes it; phase 2 finds nothing left.
+    expect(fx.stepInvocations(), ['make A1', 'refactor A1']);
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 green=0 done=2',
+      ),
+      reason: out,
+    );
+    final state =
+        jsonDecode(await File(fx.runStatePath).readAsString())
+            as Map<String, dynamic>;
+    expect(state['behavior_states'] as Map<String, dynamic>, {
+      'A1': 'done',
+      'U1': 'done',
+    });
+  });
+
   test(
     'A6: corrupted run-state.json stops non-zero with recovery path',
     () async {

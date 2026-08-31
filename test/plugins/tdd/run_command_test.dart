@@ -403,6 +403,155 @@ void main() {
     },
   );
 
+  test('bug 625: acceptance make unexpressible defers to phase 2 — unit '
+      'completes first, acceptance flips green, feature DONE exit 0', () async {
+    // Outside-in order as `zfa tdd plan` writes it: A1 (acceptance) in the
+    // outer loop, U1 (unit) in the inner loop. A1's make reports
+    // unexpressible on its phase-1 attempt (the planner's by-design
+    // refusal of acceptance prose — the bug #625 deadlock signature),
+    // so the driver defers it instead of stopping the feature; phase 2
+    // re-attempts make against the project where U1 exists and flips A1
+    // green.
+    await fx.seedTestList([
+      (
+        id: 'A1',
+        description: 'the entity exists and is buildable.',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'acceptance',
+      ),
+      (
+        id: 'U1',
+        description: 'unit behavior backing A1',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+    ]);
+    // Attempt 1 (phase 1): unexpressible. Attempt 2 (phase 2): green —
+    // the units exist now.
+    await fx.setStepOutcome('make', 'A1', 'unexpressible\nok');
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    // Phase 1 runs the uniform cycle: A1's make is attempted, defers on
+    // unexpressible, and U1 completes to DONE. Phase 2 re-attempts
+    // A1's make + refactor. The old single-cycle driver STOPPED the
+    // whole feature at the first line — the deadlock.
+    expect(fx.stepInvocations(), [
+      'gen A1',
+      'verify-red A1',
+      'make A1',
+      'gen U1',
+      'verify-red U1',
+      'make U1',
+      'refactor U1',
+      'make A1',
+      'refactor A1',
+    ]);
+    // The honest outcome line plus the deferral disposition marker
+    // (FR-009 progress lines; bug #625 phase marker).
+    expect(out, contains('[run] A1 make -> unexpressible'));
+    expect(out, contains('[run] A1 make -> deferred (phase 2)'));
+    expect(out, contains('[run] A1 make -> green (phase 2)'));
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 green=0 done=2',
+      ),
+      reason: out,
+    );
+    final state = await readState();
+    expect(state['behavior_states'] as Map<String, dynamic>, {
+      'A1': 'done',
+      'U1': 'done',
+    });
+  });
+
+  test('bug 625: acceptance unexpressible at phase 2 is an honest stop at '
+      'A1:make with the unit behavior DONE', () async {
+    await fx.seedTestList([
+      (
+        id: 'A1',
+        description: 'the entity exists and is buildable.',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'acceptance',
+      ),
+      (
+        id: 'U1',
+        description: 'unit behavior backing A1',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+    ]);
+    // The planner cannot express acceptance prose by design — every
+    // make attempt reports unexpressible. Phase 2 is a real, honest
+    // stop, but with the unit DONE (bounded progress) instead of the
+    // old whole-feature deadlock.
+    await fx.setStepOutcome('make', 'A1', 'unexpressible');
+
+    final out = await drive();
+
+    expect(exitCode, isNot(0), reason: out);
+    expect(fx.stepInvocations(), [
+      'gen A1',
+      'verify-red A1',
+      'make A1',
+      'gen U1',
+      'verify-red U1',
+      'make U1',
+      'refactor U1',
+      'make A1',
+    ]);
+    expect(out, contains('[run] A1 make -> deferred (phase 2)'));
+    expect(out, contains('result=stopped pending=0 red=1 green=0 done=1'));
+    expect(out, contains('stopped_at=A1:make'), reason: out);
+    final state = await readState();
+    expect(state['behavior_states'] as Map<String, dynamic>, {
+      'A1': 'red',
+      'U1': 'done',
+    });
+  });
+
+  test('bug 625: deferral is scoped to the unexpressible signature — any '
+      'other acceptance make failure still stops the run (FR-007)', () async {
+    await fx.seedTestList([
+      (
+        id: 'A1',
+        description: 'the entity exists and is buildable.',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'acceptance',
+      ),
+      (
+        id: 'U1',
+        description: 'unit behavior backing A1',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+    ]);
+    // A genuine tooling failure is NOT the by-design unexpressible
+    // refusal: it must stop the run immediately, no deferral.
+    await fx.setStepOutcome('make', 'A1', 'boom');
+
+    final out = await drive();
+
+    expect(exitCode, isNot(0), reason: out);
+    expect(fx.stepInvocations(), ['gen A1', 'verify-red A1', 'make A1']);
+    expect(out, isNot(contains('deferred (phase 2)')), reason: out);
+    expect(out, contains('result=stopped pending=1 red=1 green=0 done=0'));
+    expect(out, contains('stopped_at=A1:make'), reason: out);
+    final state = await readState();
+    expect(state['behavior_states'] as Map<String, dynamic>, {
+      'A1': 'red',
+      'U1': 'pending',
+    });
+  });
+
   test(
     'U29: new test-list rows enter as PENDING, DONE behaviors untouched',
     () async {
