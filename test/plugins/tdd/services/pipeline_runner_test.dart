@@ -204,7 +204,12 @@ void main() {
           workingDirectory: fx.root.path,
           zfaBinOverride: zfaBin,
         );
-        expect(await File(markerPath).readAsString(), '${fx.root.path}\n');
+        // Resolve symlinks so the marker the subprocess writes via `pwd`
+        // (canonical /private/var on macOS, where /var -> /private/var)
+        // matches the fixture root regardless of platform.
+        final expectedCwd =
+            Directory(fx.root.path).resolveSymbolicLinksSync();
+        expect(await File(markerPath).readAsString(), '$expectedCwd\n');
       },
     );
   });

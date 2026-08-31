@@ -410,13 +410,11 @@ class CutSliceCapability implements ZuraffaCapability {
         )
         ..writeln('library;');
       for (final keptTarget in entry.value) {
-        final keptRel = p.relative(keptTarget, from: projectRoot);
-        var exportUri = p.relative(
-          p.join(sandboxDir, keptRel),
-          from: p.dirname(barrelSandboxPath),
-        );
-        exportUri = exportUri.replaceAll('\\', '/');
-        buffer.writeln("export '$exportUri';");
+        // Re-emit the original export directive verbatim, with its
+        // `show`/`hide` combinator preserved (FR-005), so the filtered
+        // barrel stays faithful to the source instead of re-exporting the
+        // whole kept target.
+        buffer.writeln(keptTarget.directiveText);
       }
       await _writeFile(barrelSandboxPath, buffer.toString());
       generatedFiles.add(barrelRel);

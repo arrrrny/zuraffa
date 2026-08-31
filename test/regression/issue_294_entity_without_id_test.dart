@@ -40,6 +40,12 @@ void main() {
     outputDir = workspace.outputDir;
   });
 
+  // Dispose the temp workspace so repeated --preset=all runs on a cloud
+  // agent do not accumulate populated .dart_tool dirs in /tmp (disk blow-out).
+  tearDown(() async {
+    await disposeWorkspace(workspace);
+  });
+
   // ---------------------------------------------------------------------------
   // Gap 1 regression: entity WITHOUT an `id` field
   // ---------------------------------------------------------------------------

@@ -32,6 +32,9 @@ class Screen${i}View {}
         }
 
         final stage = RouteBuildStage(projectRoot: dir.path);
+        // Warm-up run so JIT/parser compilation of the scanner + generator
+        // does not dominate the timed (cold-start-sensitive) measurement.
+        await stage.run();
         final sw = Stopwatch()..start();
         final result = await stage.run();
         sw.stop();

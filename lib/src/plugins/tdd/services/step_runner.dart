@@ -75,6 +75,11 @@ class StepRunner {
 
   final StepSpawner _spawner;
 
+  /// Resolved entrypoint, cached after the first step so `defaultZfaBin`'s
+  /// `Isolate.resolvePackageUri` lookup runs once per run, not once per step
+  /// (minor finding from the review of #608).
+  String? _resolvedEntry;
+
   static const stepOrder = ['gen', 'verify-red', 'make', 'refactor'];
 
   /// Resolve this package's `bin/zfa.dart` (the entrypoint the driver
@@ -113,7 +118,7 @@ class StepRunner {
     if (!stepOrder.contains(step)) {
       throw ArgumentError.value(step, 'step', 'unknown TDD step');
     }
-    final entry = zfaBin ?? await defaultZfaBin();
+    final entry = _resolvedEntry ??= zfaBin ?? await defaultZfaBin();
     final argv = [
       'tdd',
       step,
@@ -152,7 +157,7 @@ class StepRunner {
 
     final stdout = process.stdout.toString();
     final stderr = process.stderr.toString();
-    final output = stderr.isEmpty ? stdout : '$stdout$stderr';
+    final output = stderr.isEmpty ? stdout : '$stdout\n$stderr';
     final kv = _parseSummaryLine(step, stdout);
     final exitOk = process.exitCode == 0;
 
