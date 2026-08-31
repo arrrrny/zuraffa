@@ -17,6 +17,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/commands/corpus_command.dart';
 import 'package:zuraffa/src/plugins/tdd/services/spec_parser.dart';
 
 import '../cli/services/helpers/fixture_corpus.dart';
@@ -55,48 +56,102 @@ void main() {
   /// machine-readable #628 batch-driving contract).
   Map<String, dynamic> readManifestJson() =>
       jsonDecode(
-        File(
-          p.join(app.path, '.zfa', 'manifests', 'corpus-manifest.json'),
-        ).readAsStringSync(),
-      ) as Map<String, dynamic>;
+            File(
+              p.join(app.path, '.zfa', 'manifests', 'corpus-manifest.json'),
+            ).readAsStringSync(),
+          )
+          as Map<String, dynamic>;
 
-  group('A3 (US1.AC3): not-loop-ready specs', () {
+  group('U16 (FR-001): import arg surface', () {
+    test('exposes --dry-run, --force and --project, with a source', () {
+      final cmd = CorpusImportCommand();
+      expect(cmd.name, equals('import'));
+      expect(cmd.argParser.options, contains('dry-run'));
+      expect(cmd.argParser.options, contains('force'));
+      expect(cmd.argParser.options, contains('project'));
+    });
+
     test(
-      'a no-scenario feature is imported verbatim AND reported not-ready '
-      '(never dropped, never mutated)',
+      'import without a source is a usage error naming the source',
       () async {
-        final out = await importCorpus();
-
-        // Imported anyway — the spec exists under the app's specs/ tree,
-        // byte-for-byte (never dropped).
-        final spec = File(
-          p.join(app.path, 'specs', '002-no-scenarios', 'spec.md'),
-        );
-        expect(
-          spec.existsSync(),
-          isTrue,
-          reason: 'not-ready feature must still be imported\nCLI output:\n$out',
-        );
-        expect(
-          spec.readAsStringSync(),
-          equals(FixtureCorpus.proseOnlySpec('002-no-scenarios')),
-          reason: 'spec content must be copied verbatim, never mutated',
-        );
-
-        // Reported — the CLI names the feature and its not-ready reason.
-        expect(out, contains('002-no-scenarios'));
-        expect(out, contains('not-ready'));
-        expect(out, contains('no acceptance scenarios'));
-
-        // The manifest carries the mark with a reason (US3's consumer
-        // contract).
-        final notReady = (readManifestJson()['features'] as List)
-            .where((f) => (f as Map)['name'] == '002-no-scenarios')
-            .single as Map;
-        expect(notReady['ready'], isFalse);
-        expect(notReady['reason'] as String, contains('no acceptance'));
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'corpus',
+          'import',
+          '--project',
+          app.path,
+        ]);
+        expect(out, contains('source'));
+        expect(out, contains('required'));
       },
     );
+  });
+
+  group('U17 (FR-001): invalid source', () {
+    test('fails with a message, not a crash', () async {
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'corpus',
+        'import',
+        p.join(app.path, 'no-such-corpus'),
+        '--project',
+        app.path,
+      ]);
+      expect(out, contains('❌'));
+      expect(out, contains('not found'));
+      // No stack trace without --verbose.
+      expect(out, isNot(contains('Stack trace')));
+    });
+  });
+
+  group('U18 (FR-001): registration', () {
+    test('corpus is registered in the CLI runner (help lists it)', () async {
+      final runner = CliRunner(exitOnCompletion: false);
+      final help = await runner.runCapturing([]);
+      expect(help, contains('corpus'));
+
+      // And the command family dispatches its usage.
+      final out = await runner.runCapturing(['corpus']);
+      expect(out, contains('import'));
+    });
+  });
+
+  group('A3 (US1.AC3): not-loop-ready specs', () {
+    test('a no-scenario feature is imported verbatim AND reported not-ready '
+        '(never dropped, never mutated)', () async {
+      final out = await importCorpus();
+
+      // Imported anyway — the spec exists under the app's specs/ tree,
+      // byte-for-byte (never dropped).
+      final spec = File(
+        p.join(app.path, 'specs', '002-no-scenarios', 'spec.md'),
+      );
+      expect(
+        spec.existsSync(),
+        isTrue,
+        reason: 'not-ready feature must still be imported\nCLI output:\n$out',
+      );
+      expect(
+        spec.readAsStringSync(),
+        equals(FixtureCorpus.proseOnlySpec('002-no-scenarios')),
+        reason: 'spec content must be copied verbatim, never mutated',
+      );
+
+      // Reported — the CLI names the feature and its not-ready reason.
+      expect(out, contains('002-no-scenarios'));
+      expect(out, contains('not-ready'));
+      expect(out, contains('no acceptance scenarios'));
+
+      // The manifest carries the mark with a reason (US3's consumer
+      // contract).
+      final notReady =
+          (readManifestJson()['features'] as List)
+                  .where((f) => (f as Map)['name'] == '002-no-scenarios')
+                  .single
+              as Map;
+      expect(notReady['ready'], isFalse);
+      expect(notReady['reason'] as String, contains('no acceptance'));
+    });
   });
 
   group('A2 (US1.AC2): loop-plannability after import', () {
@@ -110,9 +165,13 @@ void main() {
         // spec content was copied verbatim; the only structural addition
         // import made was the tdd/ directory).
         final planRunner = CliRunner(exitOnCompletion: false);
-        final planOut = await planRunner.runCapturing(
-          ['tdd', 'plan', '001-clean', '--project', app.path],
-        );
+        final planOut = await planRunner.runCapturing([
+          'tdd',
+          'plan',
+          '001-clean',
+          '--project',
+          app.path,
+        ]);
         final readyList = File(
           p.join(app.path, 'specs', '001-clean', 'tdd', 'test-list.md'),
         );
@@ -125,14 +184,23 @@ void main() {
 
         // The not-ready feature: plan refuses — no test list is written,
         // the CLI reports the failure instead of crashing.
-        final refuseOut = await planRunner.runCapturing(
-          ['tdd', 'plan', '002-no-scenarios', '--project', app.path],
-        );
+        final refuseOut = await planRunner.runCapturing([
+          'tdd',
+          'plan',
+          '002-no-scenarios',
+          '--project',
+          app.path,
+        ]);
         expect(refuseOut, contains('❌'));
         expect(
           File(
-            p.join(app.path, 'specs', '002-no-scenarios', 'tdd',
-                'test-list.md'),
+            p.join(
+              app.path,
+              'specs',
+              '002-no-scenarios',
+              'tdd',
+              'test-list.md',
+            ),
           ).existsSync(),
           isFalse,
           reason: 'plan must not write a list for a not-ready feature',
@@ -143,11 +211,11 @@ void main() {
         // `zfa tdd plan` uses) refuses 002 with the same reason the
         // manifest carries.
         final manifest = readManifestJson();
-        final notReady = (manifest['features'] as List)
-            .where(
-              (f) => (f as Map)['name'] == '002-no-scenarios',
-            )
-            .single as Map;
+        final notReady =
+            (manifest['features'] as List)
+                    .where((f) => (f as Map)['name'] == '002-no-scenarios')
+                    .single
+                as Map;
         expect(notReady['ready'], isFalse);
         final reason = notReady['reason'] as String;
         expect(reason, isNotEmpty);
@@ -168,41 +236,36 @@ void main() {
   });
 
   group('A1 (US1.AC1): N-feature corpus import', () {
-    test(
-      'copies every spec.md, creates per-feature tdd/ dirs, and lists all N '
-      'features deterministically in the manifest',
-      () async {
-        final out = await importCorpus();
+    test('copies every spec.md, creates per-feature tdd/ dirs, and lists all N '
+        'features deterministically in the manifest', () async {
+      final out = await importCorpus();
 
-        for (final name in FixtureCorpus.featureNames) {
-          final spec = File(
-            p.join(app.path, 'specs', name, 'spec.md'),
-          );
-          expect(
-            spec.existsSync(),
-            isTrue,
-            reason: 'missing $spec\nCLI output:\n$out',
-          );
-          expect(
-            Directory(p.join(app.path, 'specs', name, 'tdd')).existsSync(),
-            isTrue,
-            reason: 'missing tdd/ for $name\nCLI output:\n$out',
-          );
-        }
-
-        // The manifest is machine-readable and lists all N features in
-        // deterministic (lexicographic source) order — the #628 contract.
-        final manifest = readManifestJson();
-        final featureNames = (manifest['features'] as List)
-            .map((f) => (f as Map)['name'] as String)
-            .toList();
+      for (final name in FixtureCorpus.featureNames) {
+        final spec = File(p.join(app.path, 'specs', name, 'spec.md'));
         expect(
-          featureNames,
-          equals(FixtureCorpus.featureNames),
-          reason: 'manifest features out of order: $featureNames',
+          spec.existsSync(),
+          isTrue,
+          reason: 'missing $spec\nCLI output:\n$out',
         );
-        expect(manifest['source_corpus'], equals(corpus.root.path));
-      },
-    );
+        expect(
+          Directory(p.join(app.path, 'specs', name, 'tdd')).existsSync(),
+          isTrue,
+          reason: 'missing tdd/ for $name\nCLI output:\n$out',
+        );
+      }
+
+      // The manifest is machine-readable and lists all N features in
+      // deterministic (lexicographic source) order — the #628 contract.
+      final manifest = readManifestJson();
+      final featureNames = (manifest['features'] as List)
+          .map((f) => (f as Map)['name'] as String)
+          .toList();
+      expect(
+        featureNames,
+        equals(FixtureCorpus.featureNames),
+        reason: 'manifest features out of order: $featureNames',
+      );
+      expect(manifest['source_corpus'], equals(corpus.root.path));
+    });
   });
 }

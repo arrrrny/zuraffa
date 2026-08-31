@@ -29,16 +29,16 @@ class CorpusFeature {
   });
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'ready': ready,
-        'reason': reason,
-      };
+    'name': name,
+    'ready': ready,
+    'reason': reason,
+  };
 
   factory CorpusFeature.fromJson(Map<String, dynamic> json) => CorpusFeature(
-        name: json['name'] as String,
-        ready: json['ready'] as bool,
-        reason: json['reason'] as String,
-      );
+    name: json['name'] as String,
+    ready: json['ready'] as bool,
+    reason: json['reason'] as String,
+  );
 }
 
 /// The corpus manifest: every imported feature, in deterministic
@@ -52,23 +52,21 @@ class CorpusManifest {
     required List<CorpusFeature> features,
     required this.sourceCorpus,
     required this.importedAt,
-  }) : features = List.of(features)
-            ..sort((a, b) => a.name.compareTo(b.name));
+  }) : features = List.of(features)..sort((a, b) => a.name.compareTo(b.name));
 
   Map<String, dynamic> toJson() => {
-        'source_corpus': sourceCorpus,
-        'imported_at': importedAt,
-        'features': features.map((f) => f.toJson()).toList(),
-      };
+    'source_corpus': sourceCorpus,
+    'imported_at': importedAt,
+    'features': features.map((f) => f.toJson()).toList(),
+  };
 
-  factory CorpusManifest.fromJson(Map<String, dynamic> json) =>
-      CorpusManifest(
-        features: (json['features'] as List)
-            .map((f) => CorpusFeature.fromJson(f as Map<String, dynamic>))
-            .toList(),
-        sourceCorpus: json['source_corpus'] as String,
-        importedAt: json['imported_at'] as String,
-      );
+  factory CorpusManifest.fromJson(Map<String, dynamic> json) => CorpusManifest(
+    features: (json['features'] as List)
+        .map((f) => CorpusFeature.fromJson(f as Map<String, dynamic>))
+        .toList(),
+    sourceCorpus: json['source_corpus'] as String,
+    importedAt: json['imported_at'] as String,
+  );
 
   /// Reads the manifest from `<projectRoot>/.zfa/manifests/
   /// corpus-manifest.json`.
@@ -98,7 +96,9 @@ class CorpusManifest {
   }
 
   static File _manifestFile(String projectRoot) => File(
-        p.join(ProjectPaths(projectRoot).manifestsDirectory,
-            'corpus-manifest.json'),
-      );
+    p.join(
+      ProjectPaths(projectRoot).manifestsDirectory,
+      'corpus-manifest.json',
+    ),
+  );
 }

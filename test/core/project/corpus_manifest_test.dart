@@ -25,15 +25,20 @@ void main() {
   });
 
   CorpusManifest makeManifest() => CorpusManifest(
-        features: const [
-          CorpusFeature(name: '002-no-scenarios', ready: false, reason: 'no '
-              'acceptance scenarios'),
-          CorpusFeature(name: '001-clean', ready: true, reason: ''),
-          CorpusFeature(name: '003-speckit', ready: true, reason: ''),
-        ],
-        sourceCorpus: '/tmp/fx-corpus',
-        importedAt: '2026-09-01T00:00:00.000Z',
-      );
+    features: const [
+      CorpusFeature(
+        name: '002-no-scenarios',
+        ready: false,
+        reason:
+            'no '
+            'acceptance scenarios',
+      ),
+      CorpusFeature(name: '001-clean', ready: true, reason: ''),
+      CorpusFeature(name: '003-speckit', ready: true, reason: ''),
+    ],
+    sourceCorpus: '/tmp/fx-corpus',
+    importedAt: '2026-09-01T00:00:00.000Z',
+  );
 
   group('U1 (FR-002): json round-trip', () {
     test('round-trips features, sourceCorpus and importedAt', () {
@@ -48,9 +53,7 @@ void main() {
         equals({'002-no-scenarios', '001-clean', '003-speckit'}),
       );
       // (order is U2's behavior — U1 pins the content round-trip only)
-      final byName = {
-        for (final f in restored.features) f.name: f,
-      };
+      final byName = {for (final f in restored.features) f.name: f};
       final notReady = byName['002-no-scenarios']!;
       expect(notReady.ready, isFalse);
       expect(notReady.reason, equals('no acceptance scenarios'));
@@ -108,9 +111,9 @@ void main() {
       final raw2 = manifestFileFor(projectRoot.path).readAsStringSync();
 
       String stripImportedAt(String raw) => raw.replaceAll(
-            RegExp(r'"imported_at":\s*"[^"]*"'),
-            '"imported_at": "<ts>"',
-          );
+        RegExp(r'"imported_at":\s*"[^"]*"'),
+        '"imported_at": "<ts>"',
+      );
       expect(
         stripImportedAt(raw2),
         equals(stripImportedAt(raw1)),
@@ -133,6 +136,5 @@ void main() {
   });
 }
 
-File manifestFileFor(String projectRoot) => File(
-      p.join(projectRoot, '.zfa', 'manifests', 'corpus-manifest.json'),
-    );
+File manifestFileFor(String projectRoot) =>
+    File(p.join(projectRoot, '.zfa', 'manifests', 'corpus-manifest.json'));

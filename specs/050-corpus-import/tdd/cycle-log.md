@@ -144,3 +144,131 @@ test existed and failed before the implementation.
   the red observed and recorded, then the validation re-applied — the
   red-before-green sequence above is the real one.
 - commit: see US1 slice
+
+## Cycle 9: U6 an absent target spec is copied byte-for-byte
+
+- test: `test/cli/services/corpus_importer_test.dart::U6 (FR-001): copy an
+  absent target spec is copied byte-for-byte and reported imported` (new)
+- red: `dart test test/cli/services/corpus_importer_test.dart`
+  -> `Expected: ['001-clean', '002-no-scenarios', '003-speckit'] /
+  Actual: []` (the importer scanned nothing) (1 failed)
+- green: `_scanFeatures` (subdirectories carrying spec.md, hidden
+  directories and non-feature entries ignored, lexicographic order,
+  empty corpus rejected) + the absent-target copy through
+  `FileUtils.writeFile` (dry-run/force plumbing in place). Existing
+  targets deliberately throw `UnimplementedError` — that branch is US2's
+  (U7/U8/U9) and stays unimplemented until their tests exist. File
+  suite -> +3 All tests passed.
+- refactor: none needed
+- commit: see US1 slice
+
+## Cycle 10: U10 tdd/ is created when absent
+
+- test: `test/cli/services/corpus_importer_test.dart::U10 (FR-001): tdd/
+  working directory a per-feature tdd/ directory is created when absent`
+  (new)
+- red: `dart test test/cli/services/corpus_importer_test.dart`
+  -> `Expected: true / Actual: <false>` — `missing tdd/ working directory
+  for 001-clean` (1 failed)
+- green: per-feature `specs/<feature>/tdd/` creation (only when absent,
+  skipped under dry-run; existing contents never touched — that side is
+  U11's). File suite -> +4 All tests passed.
+- refactor: none needed
+- commit: see US1 slice
+
+## Cycle 11: U12 the readiness mark equals the SpecParser verdict
+
+- test: `test/cli/services/corpus_importer_test.dart::U12 (FR-006):
+  loop-readiness mark the mark equals the SpecParser verdict and carries
+  its reason` (new)
+- red: `dart test test/cli/services/corpus_importer_test.dart`
+  -> `Expected: <false> / Actual: <true>` — `mark for 002-no-scenarios
+  must equal the SpecParser verdict` (the placeholder `ready: true`
+  disagreed with the parser) (1 failed)
+- green: `_readiness` — the exact `const SpecParser().parse` entry point
+  `zfa tdd plan` uses (no second parser, no regex sniffing); a
+  `StateError` becomes `not-ready` with `_compactReason` mapping the
+  canonical refusal to `no acceptance scenarios` (any other parser
+  failure keeps its first sentence as the one-line reason). File suite ->
+  +5 All tests passed.
+- refactor: none needed
+- commit: see US1 slice
+
+## Cycle 12: U13 foreign artifacts are ignored and reported
+
+- test: `test/cli/services/corpus_importer_test.dart::U13 (FR-007):
+  foreign artifacts foreign artifacts are reported and ignored — never
+  copied, converted or deleted` (new)
+- red: `dart test test/cli/services/corpus_importer_test.dart`
+  -> `Expected: true / Actual: <false>` (`hasForeignArtifacts` never set)
+  (1 failed)
+- green: `_foreignArtifacts` — every source-feature entry other than
+  `spec.md` is reported by name (sorted) and ignored; the target for
+  003-speckit contains exactly `spec.md` + the empty `tdd/` import
+  created, and the source's foreign artifacts are untouched. File suite
+  -> +6 All tests passed.
+- refactor: none needed
+- commit: see US1 slice
+
+## Cycle 13: U15 the per-feature report and summary line match the contract
+
+- test: `test/cli/services/corpus_importer_test.dart::U15 (FR-005):
+  report + summary line ...` (new)
+- red: `dart test test/cli/services/corpus_importer_test.dart`
+  -> `UnimplementedError` (reportLines/summaryLine stubs) (1 failed)
+- green: `CorpusImportResult.reportLines` / `.summaryLine` — the
+  contracts/corpus-import.md line shape: `<name>: <outcome>
+  [foreign-artifacts-ignored (<entries>)][ not-ready (<reason>)]` and
+  `corpus import: N features — X imported, Y skipped, Z divergent, R
+  not-ready (manifest: <path>)`, `[dry-run] `-prefixed under dry-run;
+  divergent lines carry both sha256 hashes. File suite -> +7 All tests
+  passed; analyze clean after two interpolation-lint fixes.
+- refactor: `dart format` pass over the touched files.
+- commit: see US1 slice
+
+## Cycles 14-16: U16 arg surface / U17 invalid source / U18 registration
+
+- tests: `test/commands/corpus_command_test.dart::U16 (FR-001): import
+  arg surface ...`, `::U17 (FR-001): invalid source fails with a message,
+  not a crash`, `::U18 (FR-001): registration corpus is registered in
+  the CLI runner (help lists it)` (new — all written before any command
+  implementation, per tasks.md's "write first, watch fail")
+- red: compile error (`Error when reading
+  'lib/src/commands/corpus_command.dart': No such file or directory`),
+  then with a registered no-op stub family:
+  `Expected: contains 'dry-run' / Actual: {'help': ...}` (no flags),
+  `Expected: contains 'required' / Actual: '❌ Could not find an option
+  named "--project".'` (no source-required usage error),
+  `Expected: contains 'not found'` (no invalid-source message),
+  `Expected: contains 'corpus' / Actual: 'zfa - Zuraffa Code Generator
+  v6.1.0'` (help lacks the corpus line) — 6 command-level tests red
+- green: `lib/src/commands/corpus_command.dart` — `CorpusCommand` family
+  + `CorpusImportCommand` (mandatory `source` positional, `--dry-run`,
+  `--force`, `--project`/`--project-root`; prints report + summary;
+  completes with exit 0), registered in `_addCoreCommands`, plus the
+  `corpus import <dir>` line in the hand-written top-level help.
+  File suite -> +4 passing with A1-A3 still red.
+- refactor: none needed
+- commit: see US1 slice
+
+## Cycle 17: US1 outer loop closes — A1, A2, A3 green
+
+- With U16-U18 green, the A-tests ran end-to-end and failed only on the
+  missing manifest emission:
+  `PathNotFoundException: Cannot open file, path =
+  '/tmp/zfa_corpus_app_*/.zfa/manifests/corpus-manifest.json'`
+  (A1/A2/A3 red on the manifest contract — the last US1 gap).
+- green: the importer now emits the `CorpusManifest` (every feature,
+  name/ready/reason, source corpus, importedAt; regenerated on every
+  import; `dryRun` honored) after the per-feature pass.
+  `dart test test/commands/corpus_command_test.dart` -> +7 All tests
+  passed (A1, A2, A3 GREEN — US1 complete end-to-end: import → spec
+  copies → tdd/ dirs → readiness marks → manifest → report →
+  `zfa tdd plan` succeeds on the ready feature and refuses the
+  not-ready one with the manifest's reason).
+- full feature-scope suite: `dart test test/cli/services/ test/commands/
+  test/core/project/` -> 71 passed, 0 failed (53 baseline + 18 feature
+  tests). `dart analyze` on the touched trees: No issues found.
+- refactor: `dart format` pass; A2's plan-refusal assertions confirmed
+  the SpecParser-parity contract holds through the real CLI.
+- commit: see US1 slice

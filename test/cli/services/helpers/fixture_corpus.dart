@@ -36,11 +36,7 @@ class FixtureCorpus {
   /// Creates the 3-feature fixture corpus under a fresh system temp dir.
   static FixtureCorpus create() {
     final root = Directory.systemTemp.createTempSync('zfa_fixture_corpus_');
-    addFeature(
-      root.path,
-      '001-clean',
-      cleanSpec('001-clean'),
-    );
+    addFeature(root.path, '001-clean', cleanSpec('001-clean'));
     addFeature(
       root.path,
       '002-no-scenarios',
@@ -63,8 +59,7 @@ class FixtureCorpus {
     String specMd, {
     bool foreignArtifacts = false,
   }) {
-    final dir = Directory('$corpusRoot/$name')
-      ..createSync(recursive: true);
+    final dir = Directory('$corpusRoot/$name')..createSync(recursive: true);
     File('${dir.path}/spec.md').writeAsStringSync(specMd);
     if (foreignArtifacts) {
       _addForeignArtifacts(dir.path);

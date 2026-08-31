@@ -20,6 +20,10 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../../core/project/corpus_manifest.dart';
+import '../../plugins/tdd/services/spec_parser.dart';
+import '../../utils/file_utils.dart';
+
 /// Per-feature copy decision.
 enum ImportOutcome {
   /// Target spec was absent and has been copied.
@@ -78,17 +82,69 @@ class CorpusImportResult {
   /// Absolute path of the imported source corpus.
   final String sourceCorpus;
 
+  /// The app root the corpus was imported into.
+  final String projectRoot;
+
+  /// Whether this run was a dry run (every report line is prefixed).
+  final bool dryRun;
+
   const CorpusImportResult({
     required this.features,
     required this.sourceCorpus,
+    required this.projectRoot,
+    this.dryRun = false,
   });
 
   /// Per-feature report lines (one line per feature, every applicable
   /// outcome flag on the line — never a single pigeonhole).
-  List<String> get reportLines => throw UnimplementedError();
+  List<String> get reportLines => [
+    for (final f in features) '$_prefix${_lineFor(f)}',
+  ];
 
   /// The single summary line (counts + manifest path).
-  String get summaryLine => throw UnimplementedError();
+  String get summaryLine {
+    final imported = features
+        .where((f) => f.outcome == ImportOutcome.imported)
+        .length;
+    final skipped = features
+        .where((f) => f.outcome == ImportOutcome.skipped)
+        .length;
+    final divergent = features
+        .where((f) => f.outcome == ImportOutcome.divergent)
+        .length;
+    final notReady = features.where((f) => !f.ready).length;
+    return '$_prefix'
+        'corpus import: ${features.length} features — '
+        '$imported imported, $skipped skipped, $divergent divergent, '
+        '$notReady not-ready (manifest: $_manifestPath)';
+  }
+
+  String get _prefix => dryRun ? '[dry-run] ' : '';
+
+  String get _manifestPath =>
+      p.join(projectRoot, '.zfa', 'manifests', 'corpus-manifest.json');
+
+  String _lineFor(FeatureImportResult f) {
+    final flags = <String>[];
+    switch (f.outcome) {
+      case ImportOutcome.imported:
+        flags.add('imported');
+      case ImportOutcome.skipped:
+        flags.add('skipped');
+      case ImportOutcome.divergent:
+        flags.add(
+          'divergent (source sha256:${f.sourceHash}, '
+          'target sha256:${f.targetHash})',
+        );
+    }
+    if (f.hasForeignArtifacts) {
+      flags.add('foreign-artifacts-ignored (${f.ignoredArtifacts.join(', ')})');
+    }
+    if (!f.ready) {
+      flags.add('not-ready (${f.reason})');
+    }
+    return '${f.name}: ${flags.join(' ')}';
+  }
 }
 
 /// The shared corpus-import service.
@@ -107,9 +163,65 @@ class CorpusImporter {
     bool dryRun = false,
   }) async {
     final sourceDir = _validateSource(source);
-    return CorpusImportResult(
-      features: const [],
+    final featureNames = _scanFeatures(sourceDir);
+
+    final results = <FeatureImportResult>[];
+    for (final name in featureNames) {
+      final sourceSpec = File(p.join(sourceDir.path, name, 'spec.md'));
+      final targetSpec = File(p.join(projectRoot, 'specs', name, 'spec.md'));
+      if (targetSpec.existsSync()) {
+        // Existing-target handling (skip / divergent / --force) is US2
+        // territory — driven by U7/U8/U9. Not implemented yet.
+        throw UnimplementedError();
+      }
+      final content = sourceSpec.readAsStringSync();
+      final readiness = _readiness(name, content);
+      final foreign = _foreignArtifacts(
+        Directory(p.join(sourceDir.path, name)),
+      );
+      await FileUtils.writeFile(
+        targetSpec.path,
+        content,
+        'spec',
+        force: true,
+        dryRun: dryRun,
+      );
+      // Per-feature tdd/ working directory (U10): created when absent,
+      // never touching existing contents (U11/FR-003).
+      final targetTdd = Directory(p.join(projectRoot, 'specs', name, 'tdd'));
+      if (!targetTdd.existsSync() && !dryRun) {
+        await targetTdd.create(recursive: true);
+      }
+      results.add(
+        FeatureImportResult(
+          name: name,
+          outcome: ImportOutcome.imported,
+          ready: readiness.ready,
+          reason: readiness.reason,
+          hasForeignArtifacts: foreign.isNotEmpty,
+          ignoredArtifacts: foreign,
+        ),
+      );
+    }
+    // The corpus manifest — the #628 batch-driving contract (A1/FR-002):
+    // every imported feature, in deterministic order, with its readiness
+    // mark. Regenerated on every import so it always reflects the current
+    // corpus state; byte-stable except imported_at (SC-004).
+    final manifest = CorpusManifest(
+      features: [
+        for (final f in results)
+          CorpusFeature(name: f.name, ready: f.ready, reason: f.reason),
+      ],
       sourceCorpus: sourceDir.path,
+      importedAt: DateTime.now().toUtc().toIso8601String(),
+    );
+    await manifest.write(projectRoot, dryRun: dryRun);
+
+    return CorpusImportResult(
+      features: results,
+      sourceCorpus: sourceDir.path,
+      projectRoot: p.absolute(projectRoot),
+      dryRun: dryRun,
     );
   }
 
@@ -142,4 +254,78 @@ class CorpusImporter {
     }
     return sourceDir;
   }
+
+  /// Scans the corpus root for feature directories — subdirectories that
+  /// carry a `spec.md` (the source-corpus contract: a directory of feature
+  /// directories, each with at least spec.md). Files, hidden directories,
+  /// and directories without a spec are not features. Returned in
+  /// deterministic lexicographic order (FR-002).
+  List<String> _scanFeatures(Directory sourceDir) {
+    final names =
+        sourceDir
+            .listSync()
+            .whereType<Directory>()
+            .map((d) {
+              return p.basename(d.path);
+            })
+            .where((name) {
+              if (name.startsWith('.')) return false;
+              return File(p.join(sourceDir.path, name, 'spec.md')).existsSync();
+            })
+            .toList()
+          ..sort();
+    if (names.isEmpty) {
+      throw StateError(
+        'zfa corpus import: no feature specs found in ${sourceDir.path} '
+        '(expected a directory of feature directories, each containing '
+        'spec.md)',
+      );
+    }
+    return names;
+  }
+
+  /// Loop-readiness (U12, FR-006): the exact `SpecParser` entry point
+  /// `zfa tdd plan` uses — never a second parser, never regex sniffing
+  /// (plan.md Decision 4). A parse failure becomes the not-ready mark
+  /// with the parser's reason (compacted to one line); a parse success
+  /// becomes the ready mark.
+  _Readiness _readiness(String feature, String specMd) {
+    try {
+      const SpecParser().parse(feature, specMd);
+      return const _Readiness(true, '');
+    } on StateError catch (e) {
+      return _Readiness(false, _compactReason(e.message));
+    }
+  }
+
+  /// Compacts the parser's failure message to the one-line reason the
+  /// manifest carries. The canonical no-acceptance-scenarios refusal maps
+  /// to the documented phrase; any other parser failure keeps its first
+  /// sentence.
+  static String _compactReason(String message) {
+    if (message.contains('contains no acceptance scenarios')) {
+      return 'no acceptance scenarios';
+    }
+    final firstSentence = message.split('. ').first;
+    return firstSentence.endsWith('.') ? firstSentence : '$firstSentence.';
+  }
+
+  /// Foreign-artifact detection (U13, FR-007): every entry in a source
+  /// feature directory other than `spec.md` is a speckit-era artifact the
+  /// import ignores — reported by name, never copied, converted, or
+  /// deleted (format conversion is #617's contract, not ours).
+  List<String> _foreignArtifacts(Directory sourceFeature) {
+    return sourceFeature
+        .listSync()
+        .map((e) => p.basename(e.path))
+        .where((name) => name != 'spec.md')
+        .toList()
+      ..sort();
+  }
+}
+
+class _Readiness {
+  final bool ready;
+  final String reason;
+  const _Readiness(this.ready, this.reason);
 }

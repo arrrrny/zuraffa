@@ -8,6 +8,7 @@ import '../commands/ui_command.dart';
 import '../commands/validate_command.dart';
 import '../commands/create_command.dart' as create;
 import '../commands/config_command.dart' as config;
+import '../commands/corpus_command.dart';
 import '../commands/initialize_command.dart' as init;
 import '../commands/entity_command.dart';
 import '../commands/plugin_command.dart' as plugincmd;
@@ -169,6 +170,7 @@ class CliRunner {
     _runner.addCommand(XrayCommand());
     _runner.addCommand(UpdateCommand());
     _runner.addCommand(SetupCommand());
+    _runner.addCommand(CorpusCommand());
     _runner.addCommand(TddCommand(TddPlugin()));
     _runner.addCommand(AppCommand());
     _runner.addCommand(UiCommand());
@@ -432,6 +434,7 @@ BOOTSTRAP:
   setup <name>        Create a new Flutter/Dart app with zuraffa deps wired in
   init                Alias of initialize — wire deps + scaffold a test entity
   package create <name>  Create a Zuraffa-native reusable package (spec 025)
+  corpus import <dir> Import an extracted spec corpus (spec 050, issue #627)
 
 CORE COMMANDS:
   make <Name>         Canonical architecture/code generation command
