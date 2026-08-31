@@ -72,8 +72,11 @@ confidence — all three sides verified live.
 **Preferred**: make day zero self-consistent with the strong assertion
 intact — setup emits a minimal zfa-generated app module + DI index (via the
 app-shell builder with a bootstrap DI, or a minimal `app.dart` writer) so
-`AppContainer()` exists and `flutter test` is green immediately; `zfa app
-shell` then upgrades the minimal shell. The epic's provenance audit requires
+the container exists and `flutter test` is green immediately; `zfa app
+shell` then upgrades the minimal shell. **Naming contract (maintainer
+decision, issue comment): the symbol derives from the app name —
+`zfa setup zik_zak_tdd` emits `ZikZakTddContainer` (PascalCase of the app
+name) in `lib/app.dart`, and the smoke test asserts that exact symbol.** The epic's provenance audit requires
 the strong version (the app surface must be zfa-attributable), so weakening
 the smoke test is a fallback only.
 
