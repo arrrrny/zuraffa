@@ -43,9 +43,6 @@ analyzer:
     deprecated_member_use_from_same_package: ignore
     deprecated_member_use: ignore
     invalid_use_of_visible_for_overriding_member: ignore
-    # Internal DDA/route compiler classes expose getters typed with private
-    # element types; this is internal API, not a public contract.
-    library_private_types_in_public_api: ignore
     # Generated-templating doc comments intentionally show `<T>` generics;
     # wrapping every angle bracket in backticks would hurt readability.
     unintended_html_in_doc_comment: ignore
