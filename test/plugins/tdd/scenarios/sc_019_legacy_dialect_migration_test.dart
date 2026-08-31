@@ -6,11 +6,16 @@
 //
 //   U3: a mixed-dialect list read via the real `zfa tdd gen` prints the
 //       deprecation note exactly once per file and leaves the list's
-//       bytes untouched (FR-009 / FR-010).
+//       bytes untouched (FR-009 / FR-010). Bug #649: the note carries the
+//       CORRECTED migration advice — a manual format conversion of the
+//       test list — and never points at `zfa tdd plan` (which writes
+//       spec.md, not test-list.md).
 //   A6: `zfa tdd run` re-reads the repo's own specs/049-tdd-run list
 //       (copied verbatim into a temp project) without a malformed-list
 //       runner-error — the loop's front door stays open for the repo's
-//       own completed features (US2.AC3).
+//       own completed features (US2.AC3). Bug #649: the spec-sanctioned
+//       extension shape reads with ZERO stderr output — no deprecation
+//       note at all.
 library;
 
 import 'dart:convert';
@@ -104,7 +109,8 @@ void main() {
     expect(gen.stdout, contains('source_criterion: FR-007'));
 
     // The note: exactly once in this process's stderr, naming the
-    // canonical format and the producing command (FR-009).
+    // canonical format (FR-009) and the corrected manual migration
+    // advice (bug #649).
     final stderr = gen.stderr as String;
     expect(stderr, contains('deprecated 6-column test-list rows'));
     expect(
@@ -112,7 +118,12 @@ void main() {
       hasLength(1),
       reason: 'the note must print once per file, not per row:\n$stderr',
     );
-    expect(stderr, contains('zfa tdd plan'));
+    // Bug #649: the migration advice must describe a MANUAL format
+    // conversion of the test list itself. It must NEVER point at
+    // `zfa tdd plan` — plan writes spec.md, not test-list.md.
+    expect(stderr, isNot(contains('zfa tdd plan')));
+    expect(stderr, contains('manual'));
+    expect(stderr, contains('4-column'));
 
     // Reading is side-effect free (FR-010): the list's bytes are
     // unchanged by the read (gen wrote the test/subject pair, but not
@@ -192,5 +203,71 @@ void main() {
       reason: out,
     );
     expect(run.exitCode, 0, reason: out);
+
+    // Bug #649: the extension's own hand-written 6-column shape
+    // (specs/044-049, spec 050 FR-007) is spec-sanctioned — the run
+    // proceeds with ZERO stderr output. No deprecation note at all: the
+    // user did nothing wrong.
+    expect(
+      run.stderr,
+      isEmpty,
+      reason:
+          'a spec-sanctioned 6-column list must run silently, stderr was:\n'
+          '${run.stderr}',
+    );
   });
+
+  test(
+    'SC-019/B1: the real run on a gen-legacy 6-column list prints the '
+    'corrected one-time note — manual conversion, never `zfa tdd plan`',
+    () async {
+      const feature = '649-legacy';
+      final featureDir = p.join(tmp.path, 'specs', feature, 'tdd');
+      await Directory(featureDir).create(recursive: true);
+      // gen's old private dialect: the kind cell names the LOOP
+      // (acceptance/unit) and the last cell is the target. TWO legacy rows:
+      // the gate must still print the note at most ONCE per file.
+      const listContent =
+          '''
+# Test List: $feature
+
+## Inner loop: unit behaviors
+
+| id | behavior | traces | kind | state | target |
+|----|----------|--------|------|-------|--------|
+| U1 | gen-legacy row | FR-006 | unit | PENDING | sampleSubject |
+| U2 | another gen-legacy row | FR-008 | acceptance | PENDING | |
+''';
+      await File(p.join(featureDir, 'test-list.md')).writeAsString(listContent);
+
+      final gen = await _runRealZfa(repoRoot, [
+        'tdd',
+        'gen',
+        'U1',
+        '--feature',
+        feature,
+        '--project',
+        tmp.path,
+      ], workingDirectory: tmp.path);
+
+      expect(
+        gen.exitCode,
+        0,
+        reason: 'gen failed:\n${gen.stdout}${gen.stderr}',
+      );
+      final stderr = gen.stderr as String;
+      // The legacy dialect keeps a one-time deprecation note...
+      expect(stderr, contains('deprecated 6-column test-list rows'));
+      expect(
+        RegExp('deprecated 6-column test-list rows').allMatches(stderr),
+        hasLength(1),
+        reason: 'the note must print once per file:\n$stderr',
+      );
+      // ...with the CORRECTED advice: a manual format conversion of the
+      // test list to the canonical 4-column shape — never `zfa tdd plan`.
+      expect(stderr, isNot(contains('zfa tdd plan')));
+      expect(stderr, contains('manual'));
+      expect(stderr, contains('4-column'));
+    },
+  );
 }

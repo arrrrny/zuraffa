@@ -33,8 +33,11 @@
 /// that matches NEITHER dialect is malformed and stops the caller with
 /// an error naming the line (FR-011 misfire-stop; format drift is
 /// surfaced, not papered over — see specs/049-tdd-run research,
-/// Decision 5). A deprecation note naming the canonical 4-column
-/// format is printed to stderr once per file.
+/// Decision 5). Gen's old dialect keeps a one-time deprecation note on
+/// stderr naming the canonical 4-column format and a MANUAL migration
+/// (bug #649 — never `zfa tdd plan`, which writes spec.md, not the test
+/// list); the extension's own shape is spec-sanctioned (spec 050 FR-007)
+/// and reads silently.
 library;
 
 import 'dart:io';
@@ -125,20 +128,25 @@ class TestListReader {
       if (isSeparator) continue;
       // Header rows (`| id | behavior | ...`).
       if (cells.length > 1 && cells[1].toLowerCase() == 'id') continue;
-      final (row: row, deprecated: deprecated) = _parseDataRow(
+      final (row: row, dialect: dialect) = _parseDataRow(
         cells,
         kind: kind,
         lineNo: i + 1,
         raw: raw,
       );
       if (row != null) rows.add(row);
-      if (deprecated && !deprecatedDialectWarned) {
+      // Bug #649: only gen's old dialect warns. The tdd extension's own
+      // hand-written shape (specs/044–049, spec 050 FR-007) is
+      // spec-sanctioned for one release and reads silently — the user
+      // did nothing wrong.
+      if (dialect == _DeprecatedDialect.genLegacy && !deprecatedDialectWarned) {
         deprecatedDialectWarned = true;
         stderr.writeln(
           'zfa: ${file.path}: deprecated 6-column test-list rows detected '
-          '(id/behavior/traces/kind/state/target). The canonical format is '
-          "the 4-column shape `zfa tdd plan <feature>` writes — re-run it "
-          'to migrate; the 6-column dialect is accepted for one release.',
+          '(id/behavior/traces/kind/state/target). Migrate by manually '
+          'converting tdd/test-list.md to the canonical 4-column shape '
+          '(id/behavior/traces/state); the 6-column dialect is accepted '
+          'for one release.',
         );
       }
     }
@@ -146,10 +154,10 @@ class TestListReader {
   }
 
   /// Parse one data row. Returns the row (null when the line is a row
-  /// shaped like the deprecated 6-column dialect but with an unusable
-  /// kind cell — that falls through to the malformed error) plus whether
-  /// the deprecated dialect was used.
-  ({BehaviorRow? row, bool deprecated}) _parseDataRow(
+  /// shaped like a deprecated 6-column dialect but with an unusable
+  /// kind cell — that falls through to the malformed error) plus which
+  /// deprecated dialect the row used, if any (bug #649).
+  ({BehaviorRow? row, _DeprecatedDialect dialect}) _parseDataRow(
     List<String> cells, {
     required BehaviorKind? kind,
     required int lineNo,
@@ -178,7 +186,7 @@ class TestListReader {
           kind: kind,
           target: resolveDefaultTarget(id),
         ),
-        deprecated: false,
+        dialect: _DeprecatedDialect.none,
       );
     }
 
@@ -202,7 +210,7 @@ class TestListReader {
             kind: kindFromCell,
             target: resolveDefaultTarget(id, cell: cells[6]),
           ),
-          deprecated: true,
+          dialect: _DeprecatedDialect.genLegacy,
         );
       }
 
@@ -229,7 +237,7 @@ class TestListReader {
             kind: kind,
             target: resolveDefaultTarget(id, cell: cells[6]),
           ),
-          deprecated: true,
+          dialect: _DeprecatedDialect.extensionShape,
         );
       }
     }
@@ -310,3 +318,10 @@ class TestListReader {
     return cells;
   }
 }
+
+/// Which deprecated 6-column dialect a data row uses (bug #649): gen's
+/// old private dialect is genuinely legacy and warns once per file with
+/// manual migration advice; the tdd extension's own hand-written shape
+/// (specs/044–049, spec 050 FR-007) is spec-sanctioned and reads
+/// silently.
+enum _DeprecatedDialect { none, genLegacy, extensionShape }
