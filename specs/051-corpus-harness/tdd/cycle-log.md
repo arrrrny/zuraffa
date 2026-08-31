@@ -211,3 +211,18 @@ test existed and failed before the implementation.
 - notes: A9 pins the carve-out removal flip (the manifest is the only
   exemption path); U32 pins the vacuous files=0 pass.
 - commit: (this commit)
+## Cycle 13: A13 + A14 + U33 + U34 — the status command
+
+- test: `test/plugins/tdd/commands/corpus_status_command_test.dart` (4 tests: A13 read-only report, A14 exit-0-exactly-when-complete, no-manifest, corrupt)
+- red: `dart test test/plugins/tdd/commands/corpus_status_command_test.dart`
+  -> `Actual: 'Run "zfa help"...'` / `Actual: <0>` (4 failed — the T001 skeleton printed usage)
+- green: implemented `zfa tdd corpus status` (read-only aggregation of
+  manifest + progress + ledger + waivers: per-feature state lines with
+  gates and waivers, dropped list, ledger totals + blocking gaps, the
+  resume point, the `corpus:` summary line with
+  result=complete|incomplete|no-manifest|corrupt-state and exits
+  0/1/2/3). Suite -> `00:00 +4: All tests passed!`; analyze clean
+- refactor: fixed a String-vs-enum state comparison the analyzer flagged
+- notes: U33 (byte-identical state files) is asserted inside the A13 test
+  across manifest/progress/ledger/waivers.
+- commit: (this commit)

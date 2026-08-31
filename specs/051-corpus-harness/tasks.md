@@ -274,13 +274,13 @@ manifest features are done+gated/waived.
 counts + `resume_at` changing nothing; CI contract test pins the line
 shape and exit codes (SC-005).
 
-- [ ] T027 [US5] [A13] [A14] [U33] [U34] Write the failing status tests
+- [X] T027 [US5] [A13] [A14] [U33] [U34] Write the failing status tests
   FIRST in `test/plugins/tdd/commands/corpus_status_command_test.dart`:
   per-state counts + `resume_at` + ledger totals reported read-only
   (files byte-identical before/after); exit 0 exactly when all manifest
   features done|waived; incomplete → 1; no-manifest → 2; corrupt → 3 —
   observe red
-- [ ] T028 [US5] [A13] [A14] [U33] [U34] Implement `zfa tdd corpus
+- [X] T028 [US5] [A13] [A14] [U33] [U34] Implement `zfa tdd corpus
   status` in `lib/src/plugins/tdd/commands/corpus_status_command.dart`
   (read-only aggregation, per-state counts, resume point, ledger totals,
   `result=complete|incomplete` semantics) (depends on T027 red)
