@@ -32,4 +32,4 @@ test existed and failed before the implementation.
 - refactor: none needed — one branch mirroring the existing dialect-1 shape, plus `_isExtensionTestShape` beside `_kindFromCell`
 - pre-cycle test change (stated reason, before implementation): the U3 and 617-shim malformed-row fixtures in `test_list_reader_test.dart` were re-pointed from kind cell `example` to `banana` — FR-007 moves `example` from malformed to shim-accepted, so the FR-005 guard needed a shape that STAYS malformed; both re-pointed tests stayed green before and after the change (T005)
 - follow-up: mid-cycle discovery — the live repro surfaced specs/049 U15 (`outcome=clean\|refactored`), a markdown-escaped pipe inside a cell that naive `split('|')` counts as a 7th column; appended U10 to the test list for its own cycle
-- commit: pending (recorded post-commit)
+- commit: `4eba2f75`
