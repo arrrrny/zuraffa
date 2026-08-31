@@ -118,6 +118,27 @@ with the same file.
 
 ---
 
+## Phase 7: TDD remediation
+
+From `tdd/verification.md` (verdict FAIL at `f7e42e46`). The feature's
+*behavioral* coverage is complete (8/8 criteria end-to-end, 86/86 green,
+11/12 mutants caught), but the discipline record has gaps that must be
+cleared before the evidence can be called clean. R1 and R2 clear the
+HIGH findings; R3-R8 are quality. The six test-after behaviors (U4, U11,
+U14, U20, A7, A8) cannot be retroactively redded — their
+deliberate-mutant evidence stands as the record; the lesson for future
+features is to write the invariant/flag test before the implementation
+lands.
+
+- [ ] R1 [HIGH] Strengthen U5's "accepts a corpus root" to assert a positive observable: `result.features` maps to `FixtureCorpus.featureNames` and the manifest file exists after the call (`test/cli/services/corpus_importer_test.dart:450`; proof: `dart test test/cli/services/corpus_importer_test.dart`)
+- [ ] R2 [HIGH] Drive `corpus import <src> --dry-run` through the real CLI (`runCapturing`) in `test/commands/corpus_command_test.dart` and assert the `[dry-run] ` report prefix plus zero writes (specs + manifest) — closes the surviving M1 mutant (`lib/src/commands/corpus_command.dart:97`; proof: re-apply the M1 mutant and watch this test fail)
+- [ ] R3 [MED] Split A2 into plan-succeeds / refuses-without-list / reason-parity tests, asserting the refusal output carries the manifest's reason (`test/commands/corpus_command_test.dart:351-430`)
+- [ ] R4 [MED] Split A6 into default-keep (both hashes, target kept) and `--force` replace tests (`test/commands/corpus_command_test.dart:213-249`)
+- [ ] R5 [MED] Reduce T013's corpus to the novel shapes (`s-nofrs`, `s-malformed`) and keep the parity assertion (`test/cli/services/corpus_importer_test.dart:385`)
+- [ ] R6 [MED] Move the A1-A8 acceptance groups into `test/commands/scenarios/sc_<NNN>_corpus_<slug>_test.dart` per the repo's scenario-file convention (follow-up decision: amend tdd-profile.md's layout note, or amend the convention)
+- [ ] R7 [MED] Replace the vacuous `reportLines isNotEmpty` with the pinned 3-line dry-run report (`test/cli/services/corpus_importer_test.dart:268`)
+- [ ] R8 [LOW] Extract the recursive sha256-checksum helper and the manifest-path constant into `test/cli/services/helpers/` (`corpus_importer_test.dart:255`, `corpus_command_test.dart:194`, `corpus_manifest_test.dart:139`); rename U3's inverted locals (`test/core/project/corpus_manifest_test.dart:104-108`)
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
