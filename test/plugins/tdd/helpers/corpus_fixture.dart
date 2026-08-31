@@ -35,6 +35,8 @@ class CorpusFixture {
       p.join(root.path, '.zfa', 'corpus', 'progress.json');
   String get ledgerPath => p.join(root.path, '.zfa', 'corpus', 'gap-ledger.json');
   String get waiversPath => p.join(root.path, '.zfa', 'corpus', 'waivers.json');
+  String get auditReportPath =>
+      p.join(root.path, '.zfa', 'corpus', 'audit-report.json');
 
   void dispose() {
     if (root.existsSync()) root.deleteSync(recursive: true);

@@ -177,3 +177,37 @@ test existed and failed before the implementation.
   stays pinned by U11's totals unit tests; this test pins the report's own
   obligation (the totals line + the named gap). Reason recorded here.
 - commit: (this commit)
+## Cycle 11: U25..U30 — the provenance scanner
+
+- test: `test/plugins/tdd/services/provenance_scanner_test.dart` (11 tests: registry x2, refactor, provenance x2, carve-out, priority, normalization, unattributed x3)
+- red: `dart test test/plugins/tdd/services/provenance_scanner_test.dart`
+  -> `UnimplementedError` (11 failed against the scan stub)
+- green: implemented `ProvenanceScanner` (lib/ walk; the four sources in
+  priority order — artifacts.json subject_path, cycle-log refactor
+  `changed:` lists, `.zfa/provenance/*.json` records, carve-out manifest;
+  POSIX-relative normalization; malformed source rows skipped, never
+  fatal). Suite -> `00:00 +11: All tests passed!`; analyze clean
+- refactor: report counts split into three buckets (attributed excludes
+  carve-out — US3's "attributed / carve-out / unattributed" summary) after
+  the first green exposed the overlap; the U27 test's fixture
+  double-listed a file across two records (priority made the first record
+  win — correct), so the fixture was corrected instead
+- commit: (this commit)
+
+## Cycle 12: A7 + A8 + A9 + U31 + U32 — the audit command
+
+- test: `test/plugins/tdd/commands/corpus_audit_command_test.dart` (4 tests)
+- red: -> the T001 skeleton only printed usage (4 failed, `Actual` lines
+  were the help text)
+- green: implemented `zfa tdd corpus audit` in
+  `lib/src/plugins/tdd/commands/corpus_audit_command.dart`: scan -> human
+  summary + unattributed file names -> `.zfa/corpus/audit-report.json`
+  (per-file source+command, carve-out list, counts, result) -> the
+  `audit:` machine line; exit 0 pass / 1 fail. Suite (audit + scanner)
+  -> `00:00 +15: All tests passed!`; analyze clean
+- refactor: switched stdout.writeln to print (CliRunner.runCapturing
+  captures print through the zone specification — the house pattern the
+  loop commands use)
+- notes: A9 pins the carve-out removal flip (the manifest is the only
+  exemption path); U32 pins the vacuous files=0 pass.
+- commit: (this commit)

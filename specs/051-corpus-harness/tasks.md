@@ -237,24 +237,24 @@ provenance files audits 100%; planting one unattributed file fails the
 audit by name in 100% of runs; removing a carve-out entry flips its file
 to unattributed (SC-003, US3.AC3).
 
-- [ ] T023 [US3] [U25] [U26] [U27] [U28] [U29] [U30] Write the failing
+- [X] T023 [US3] [U25] [U26] [U27] [U28] [U29] [U30] Write the failing
   scanner tests FIRST in
   `test/plugins/tdd/services/provenance_scanner_test.dart`: registry
   subject_path attribution (absolute + relative), refactor `changed:`
   attribution, `.zfa/provenance/*.json` records (single + array),
   carve-out attribution, deterministic priority, POSIX path
   normalization — observe red
-- [ ] T024 [US3] [U25] [U26] [U27] [U28] [U29] [U30] Implement
+- [X] T024 [US3] [U25] [U26] [U27] [U28] [U29] [U30] Implement
   `ProvenanceScanner` in
   `lib/src/plugins/tdd/services/provenance_scanner.dart` (lib/ walk +
   the four sources + normalization) (depends on T023 red)
-- [ ] T025 [US3] [A7] [A8] [A9] [U31] [U32] Write the failing audit
+- [X] T025 [US3] [A7] [A8] [A9] [U31] [U32] Write the failing audit
   command tests FIRST in
   `test/plugins/tdd/commands/corpus_audit_command_test.dart`: 100%
   attribution exits 0 with the report JSON + `audit:` summary line; one
   planted unattributed file fails naming it; carve-out removal flips its
   file; no lib/ → trivial `files=0` pass — observe red
-- [ ] T026 [US3] [A7] [A8] [A9] [U31] [U32] Implement `zfa tdd corpus
+- [X] T026 [US3] [A7] [A8] [A9] [U31] [U32] Implement `zfa tdd corpus
   audit` in `lib/src/plugins/tdd/commands/corpus_audit_command.dart`
   (report at
   `.zfa/corpus/audit-report.json`, summary line, exit 0/1/2) (depends on
