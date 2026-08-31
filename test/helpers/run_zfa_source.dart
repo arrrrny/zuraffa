@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+
 import 'project_root.dart';
 
 /// Path to `bin/zfa.dart` resolved from the zuraffa project root.
@@ -65,6 +66,8 @@ Future<String?> _buildZfaExeIfPossible() async {
     return exePath;
   }
 
+  await Directory(exeDir).create(recursive: true);
+
   // Serialize the AOT build across parallel test files. Each test file calls
   // `initZfaSourceBin()` in its own `setUpAll`, and `dart test` runs multiple
   // files concurrently — without a lock every file starts its own
@@ -82,8 +85,6 @@ Future<String?> _buildZfaExeIfPossible() async {
     if (exeFile.existsSync() && !_isExeStale(exeFile)) {
       return exePath;
     }
-
-    await Directory(exeDir).create(recursive: true);
 
     // Build to a temp path and atomically rename into place. On Linux the
     // kernel refuses to exec a file that is currently being written (ETXTBSY /
@@ -111,14 +112,6 @@ Future<String?> _buildZfaExeIfPossible() async {
     // Any failure (compile error, timeout, missing SDK) → source fallback.
   } finally {
     await lock?.close();
-    // Drop the lock file so stale locks don't accumulate across test runs.
-    if (lockFile.existsSync()) {
-      try {
-        lockFile.deleteSync();
-      } on Object {
-        // Best-effort cleanup; never let cleanup failure mask the real result.
-      }
-    }
   }
   return null;
 }
@@ -134,11 +127,13 @@ Future<String?> _buildZfaExeIfPossible() async {
 Future<RandomAccessFile> _acquireLock(File lockFile) async {
   final deadline = DateTime.now().add(const Duration(minutes: 5));
   while (true) {
+    RandomAccessFile? file;
     try {
-      final file = await lockFile.open(mode: FileMode.write);
+      file = await lockFile.open(mode: FileMode.write);
       file.lockSync();
       return file;
     } on Object {
+      await file?.close();
       // `flock` on an already-locked file throws on some platforms; retry
       // rather than failing the whole test file. Some platforms don't
       // support `FileLock` at all, in which case the retry loop still lets
