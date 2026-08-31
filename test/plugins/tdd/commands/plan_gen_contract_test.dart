@@ -164,4 +164,58 @@ void main() {
       expect(unitTest, contains('equals(42)'));
     },
   );
+
+  // -------------------------------------------------------------------
+  // Spec 050 (FR-007) — the migration completion for bug #617: the
+  // repo's own hand-written lists (specs/044–049) use the tdd
+  // extension's 6-column dialect, whose kind cell names the test SHAPE
+  // (`example`), not the loop. The shim must read them: kind from the
+  // section header, test-reference cell -> default target.
+  // -------------------------------------------------------------------
+
+  test('A4/050: gen resolves an id from a hand-written 6-column '
+      'extension-dialect list (the 046/049 shape)', () async {
+    final legacyDir = p.join(tmpDir.path, 'specs', '050-legacy');
+    await Directory(p.join(legacyDir, 'tdd')).create(recursive: true);
+    await File(p.join(legacyDir, 'tdd', 'test-list.md')).writeAsString('''
+# Test List: 050-legacy
+
+## Outer loop: acceptance behaviors
+
+| id  | behavior | traces | kind | state | test |
+| --- | -------- | ------ | ---- | ----- | ---- |
+| A1 | Honestly-red behavior run: classification `assertion`, red entry appended, exit 0 | US1.AC1 | example | DONE | sc_001_certifies_honest_red_test.dart::A1 |
+
+## Inner loop: unit behaviors
+
+| id  | behavior | traces | kind | state | test |
+| --- | -------- | ------ | ---- | ----- | ---- |
+| U1 | Parses 4-column rows in list order | FR-001 | example | DONE | test_list_reader_test.dart::U1 |
+''');
+
+    final runner = CliRunner(exitOnCompletion: false);
+    final out = await runner.runCapturing([
+      'tdd',
+      'gen',
+      'A1',
+      '--feature',
+      '050-legacy',
+      '--project',
+      tmpDir.path,
+    ]);
+
+    expect(out, contains('behavior_id: A1'), reason: 'out:\n$out');
+    expect(out, contains('source_criterion: US1.AC1'));
+    expect(out, contains('ownership: created/created'));
+    expect(
+      File(p.join(tmpDir.path, 'test', 'tdd', 'a1_test.dart')).existsSync(),
+      isTrue,
+    );
+    // The test-reference cell is path-like -> the default target
+    // (FR-003), rendered in the subject stub.
+    final subject = File(
+      p.join(tmpDir.path, 'lib', 'tdd', 'a1_subject.dart'),
+    ).readAsStringSync();
+    expect(subject, contains('subject_a1'));
+  });
 }
