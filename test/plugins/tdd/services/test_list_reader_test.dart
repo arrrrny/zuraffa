@@ -91,8 +91,10 @@ Text, no table.
   });
 
   test('U3: a malformed row stops with an error naming the line', () async {
-    // 6-column row (the extension format) — plan writes 4 columns, so this
-    // is malformed for the driver's contract.
+    // A 6-column row whose kind cell is neither acceptance/unit nor an
+    // extension test shape (spec 050 FR-005) — no accepted dialect claims
+    // it, so the reader stops naming the line. (`example` moved from
+    // malformed to the 050 compat shim; the guard re-pointed here.)
     final dir = await seed('''
 # Test List: 090-fixture
 
@@ -101,7 +103,7 @@ Text, no table.
 | id | behavior | traces | state |
 | -- | -------- | ------ | ----- |
 | U1 | fine | FR-001 | PENDING |
-| U2 | six column row | FR-002 | example | PENDING |  |
+| U2 | six column row | FR-002 | banana | PENDING |  |
 ''');
 
     await expectLater(
@@ -217,7 +219,7 @@ Text, no table.
 | id | behavior | traces | state |
 | -- | -------- | ------ | ----- |
 | U1 | fine | FR-001 | PENDING |
-| U2 | six column row | FR-002 | example | PENDING |  |
+| U2 | six column row | FR-002 | banana | PENDING |  |
 ''');
 
       await expectLater(
