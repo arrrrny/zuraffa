@@ -374,7 +374,7 @@ Polish. Each story keeps the fixture suite green on its own.
 The feature is not TDD-complete until finding 1 is cleared; findings 2-5
 are quality debt that may land later.
 
-- [ ] T033 [verdict-blocking] Clear the TEST_AFTER evidence for A2, A5,
+- [x] T033 [verdict-blocking] Clear the TEST_AFTER evidence for A2, A5,
   A6, A10, A11, A12 (finding 1): re-establish reds by reverting the six
   behaviors' implementations to their pre-cycle-7 shape one at a time
   (or by driving them against a stub), observing each test fail, then
@@ -383,20 +383,20 @@ are quality debt that may land later.
   `dart test --preset=all test/plugins/tdd/commands/corpus_run_command_test.dart
   test/plugins/tdd/scenarios/sc_020_corpus_harness_e2e_test.dart` green
   and the cycle log carrying six new red entries
-- [ ] T034 [P] Split SC-020 into phase-scoped tests (finding 2):
+- [x] T034 [P] Split SC-020 into phase-scoped tests (finding 2):
   separate drive, stop, resume assertions into labeled tests sharing
   one fixture lifecycle in
   `test/plugins/tdd/scenarios/sc_020_corpus_harness_e2e_test.dart`;
   proof: a failing phase names itself in the test output
-- [ ] T035 [P] Split the A1 contract test's five observables (finding
+- [x] T035 [P] Split the A1 contract test's five observables (finding
   3) into per-observable tests in
   `test/plugins/tdd/commands/corpus_run_command_test.dart`; proof: each
   test name states one observable
-- [ ] T036 Inject a clock into GapLedgerStore (finding 4) so future
+- [x] T036 Inject a clock into GapLedgerStore (finding 4) so future
   timestamp assertions stay deterministic; proof: `dart test
   test/plugins/tdd/services/gap_ledger_store_test.dart` green with an
   injected fixed clock assertion
-- [ ] T037 [P] Unify the corpus fake-zfa fixture style with
+- [x] T037 [P] Unify the corpus fake-zfa fixture style with
   `TddFixture.writeFakeZfaBin` dispatch conventions (finding 5) in
   `test/plugins/tdd/helpers/corpus_fixture.dart`; proof: a reviewer can
   trace both fixtures' scripting without learning two dialects

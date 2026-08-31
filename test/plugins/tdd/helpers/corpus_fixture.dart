@@ -66,10 +66,14 @@ class CorpusFixture {
     }
   }
 
-  /// Write the scripted fake zfa binary. [outcomes] keys are
-  /// `<step>:<feature>` (`run:f1-good`, `verify:f2-gap`); unmatched
-  /// invocations default to success lines (a completing run + a passing
-  /// gate), so tests only script the interesting features.
+  /// Write the scripted fake zfa binary — the repo's canonical
+  /// `TddFixture.writeFakeZfaBin` conventions (ARGV substring dispatch
+  /// via `if [[ "$ARGV" == *"<pattern>"* ]]`, `LOG`-variable append),
+  /// extended with the corpus's two additions: scripted stdout machine
+  /// lines and success defaults. [outcomes] keys are `<step>:<feature>`
+  /// (`run:f1-good`, `verify:f2-gap`); unmatched invocations default to
+  /// success lines (a completing run + a passing gate), so tests only
+  /// script the interesting features.
   Future<void> writeFakeZfa({
     Map<String, FakeOutcome> outcomes = const {},
     bool resetLog = true,
@@ -80,53 +84,54 @@ class CorpusFixture {
       await File(callsLog).writeAsString('');
     }
 
-    final script =
-        '''
-#!/usr/bin/env bash
-ARGV="\$*"
-echo "\$ARGV" >> '${callsLog.replaceAll("'", "'\\''")}'
-STEP=""
-FEATURE=""
-while [[ \$# -gt 0 ]]; do
-  case "\$1" in
-    run) STEP="run"; FEATURE="\$2"; shift 2 ;;
-    verify) STEP="verify"; shift ;;
-    --feature) FEATURE="\$2"; shift 2 ;;
-    --project) shift 2 ;;
-    *) shift ;;
-  esac
-done
-KEY="\$STEP:\$FEATURE"
-case "\$KEY" in
-${_caseBlocks(outcomes)}esac
-# default: a completing run / a passing gate
-if [ "\$STEP" = "run" ]; then
-  echo "run: feature=\$FEATURE result=complete pending=0 red=0 green=1 done=1"
-  exit 0
-fi
-if [ "\$STEP" = "verify" ]; then
-  echo "mutation: gate=pass killed=1 survived=0 timed_out=0 mutation_was_run=true"
-  exit 0
-fi
-exit 2
-''';
-    await File(fakeBin).writeAsString(script);
+    final buf = StringBuffer()
+      ..writeln('#!/usr/bin/env bash')
+      ..writeln('set -e')
+      ..writeln('LOG="$callsLog"')
+      ..writeln('ARGV="\$*"')
+      ..writeln('echo "\$ARGV" >> "\$LOG"');
+    // outcome dispatch (substring match on argv — writeFakeZfaBin style)
+    outcomes.forEach((key, outcome) {
+      buf.writeln('if [[ "\$ARGV" == *"${_argvPattern(key)}"* ]]; then');
+      for (final line in outcome.stdout) {
+        buf.writeln('  echo ${shellQuote(line)}');
+      }
+      buf.writeln('  exit ${outcome.exit}');
+      buf.writeln('fi');
+    });
+    // default: a completing run / a passing gate (the corpus extension
+    // of writeFakeZfaBin's exit-0 tail — machine lines are required)
+    buf
+      ..writeln('if [[ "\$ARGV" == *" run "* ]]; then')
+      ..writeln('  FEATURE="\${ARGV#* run }"')
+      ..writeln('  FEATURE="\${FEATURE%% *}"')
+      ..writeln(
+        '  echo "run: feature=\$FEATURE result=complete pending=0 red=0 '
+        'green=1 done=1"',
+      )
+      ..writeln('  exit 0')
+      ..writeln('fi')
+      ..writeln('if [[ "\$ARGV" == *" verify "* ]]; then')
+      ..writeln(
+        '  echo "mutation: gate=pass killed=1 survived=0 timed_out=0 '
+        'mutation_was_run=true"',
+      )
+      ..writeln('  exit 0')
+      ..writeln('fi')
+      ..writeln('exit 2');
+    await File(fakeBin).writeAsString(buf.toString());
     await Process.run('chmod', ['+x', fakeBin]);
   }
 
-  static String _caseBlocks(Map<String, FakeOutcome> outcomes) {
-    final buf = StringBuffer();
-    outcomes.forEach((key, outcome) {
-      buf.writeln('  "${shellQuoteInner(key)}")');
-      for (final line in outcome.stdout) {
-        buf.writeln('    echo ${shellQuote(line)}');
-      }
-      buf.writeln('    exit ${outcome.exit}');
-    });
-    return buf.toString();
+  /// The argv substring a `<step>:<feature>` key dispatches on — the two
+  /// argv shapes the corpus runner spawns: `run <feature> …` and
+  /// `verify --feature <feature> …`.
+  static String _argvPattern(String key) {
+    final parts = key.split(':');
+    return parts.first == 'run'
+        ? 'run ${parts.last}'
+        : 'verify --feature ${parts.last}';
   }
-
-  static String shellQuoteInner(String s) => s;
 
   /// Re-script the fake (the "fix the gap" step of resume tests):
   /// rewrite the binary with [outcomes] merged over the previous map.

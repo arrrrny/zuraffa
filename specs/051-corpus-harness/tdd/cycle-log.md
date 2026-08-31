@@ -267,3 +267,150 @@ check. No behavior state changed that is not backed by a logged cycle.
   WORKING TREE only (HEAD was intact); restored from HEAD, verified
   green (15/15 commands, 7/7 smoke) before the final suite run.
 - commit: (this commit)
+
+## Cycle 15 (T033 remediation): A2 — red re-established for the resume skip
+
+- context: T033 (verdict-blocking finding 1 from tdd.verify): the A2
+  implementation shipped in cycle 7's batch before its test (cycle 8) —
+  no red existed. Remediation protocol: revert the behavior's
+  implementation to its pre-cycle-7 shape, observe the test fail, restore,
+  verify green.
+- revert: the resume skip in `corpus_run_command.dart`
+  (`if (existing?.state == done || waived) continue;`) removed — every
+  feature re-driven from scratch on every invocation (pre-cycle-7 shape).
+- red: `dart test --preset=all test/plugins/tdd/commands/corpus_run_command_test.dart -N "A2 + A11"`
+  -> `00:00 +0 -1: Some tests failed.`
+  `Expected: an object with length of <2>` — `f1Calls` (the fake argv log)
+  held 4 invocations for f1-good: the completed feature was re-driven on
+  the resume. SC-001's zero-duplicate contract is exactly what the red
+  pins.
+- restore: implementation restored byte-exact (verified by
+  `git diff --stat` -> empty); both files re-run ->
+  `00:01 +18: All tests passed!`; `dart analyze` -> No issues found.
+- commit: (this commit)
+
+## Cycle 16 (T033 remediation): A5 — red re-established for the gate matrix
+
+- revert: the verify-gate stop removed — every verify outcome absorbed as
+  `done (gate: pass)` (the pre-gate shape: no STOP-ON-ROADBLOCK at the
+  verify step).
+- red: `dart test --preset=all test/plugins/tdd/commands/corpus_run_command_test.dart -N "A5"`
+  -> `00:00 +0 -4: Some tests failed.` — all four gate-matrix tests
+  (fail_survived / fail_timeout / preflight_red / not_assessed):
+  `Expected: <1> Actual: <0>` (the run was expected to stop exit-1; it
+  completed exit-0 with the gate silently absorbed).
+- restore: restored byte-exact; the full two-file proof run ->
+  `00:01 +18: All tests passed!`.
+- commit: (this commit)
+
+## Cycle 17 (T033 remediation): A6 — red re-established for waivers
+
+- revert: the exact-match waiver lookup replaced with `final waiver = null;`
+  (pre-waiver shape: no waiver is ever consulted, every non-pass gate
+  stops).
+- red: `dart test --preset=all test/plugins/tdd/commands/corpus_run_command_test.dart -N "A6"`
+  -> `00:00 +1 -2: Some tests failed.` —
+  'an exact-match waiver marks the feature waived, recorded fully':
+  `Expected: <0> Actual: <1>` (waived completion vs stopped);
+  'a waived feature is not re-driven on resume': `Expected: an object with
+  length of <2>` (the stopped feature was re-driven). The third test
+  ('a waiver naming a different gate does NOT absorb') still passed —
+  correct: with no waiver consulted a foreign-gate waiver also does not
+  absorb.
+- restore: restored byte-exact; two-file proof run -> `+18: All tests
+  passed!`.
+- commit: (this commit)
+
+## Cycle 18 (T033 remediation): A10 — red re-established for the six-field ledger entry
+
+- revert: the `behavior` attribution in `_stopAtFeature` (parsed from the
+  step's `stopped_at=B-002:make` marker) replaced with `final behavior =
+  null;` — the pre-cycle-7 shape wrote ledger entries with no behavior
+  attribution.
+- red: `dart test --preset=all test/plugins/tdd/scenarios/sc_020_corpus_harness_e2e_test.dart`
+  -> `00:00 +0 -1: Some tests failed.`
+  `Expected: 'B-002' Actual: <null>` — the SC-020 six-field entry
+  assertion (gap['behavior']) is the pin. (The specs-tree checksum half
+  of A10 is structural — the runner writes only progress + ledger — and
+  was already mutation-proven in cycle 8's stray-write mutant.)
+- restore: restored byte-exact; two-file proof run -> `+18: All tests
+  passed!`.
+- commit: (this commit)
+
+## Cycle 19 (T033 remediation): A11 — red re-established for resolution entries
+
+- revert: the `_appendResolutionsIfGapped` call removed from the done-path
+  (pre-shape: a previously-gapped feature passing writes no resolution
+  entry).
+- red: `dart test --preset=all test/plugins/tdd/commands/corpus_run_command_test.dart -N "A2 + A11"`
+  -> `00:00 +0 -1: Some tests failed.`
+  `Expected: an object with length of <2>` — the ledger held only
+  `gap-001` (actual printed: the single gap entry); the resolution entry
+  never landed. The A2 half of the same test passed (resume skip intact),
+  isolating the red to A11.
+- restore: restored byte-exact; two-file proof run -> `+18: All tests
+  passed!`.
+- commit: (this commit)
+
+## Cycle 20 (T033 remediation): A12 — red re-established for report totals
+
+- revert: the `_printReport` ledger lines removed (the
+  `ledger: found=… filed=… merged=… blocking=…` totals line and the
+  per-gap `blocking:` names) — pre-cycle-7 shape: the report carried
+  feature state lists only.
+- red: `dart test --preset=all test/plugins/tdd/commands/corpus_run_command_test.dart -N "A12"`
+  -> `00:00 +0 -1: Some tests failed.`
+  `Expected: contains 'ledger: found=1 filed=0 merged=0 blocking=1'` —
+  the output had no totals line.
+- restore: restored byte-exact; the T033 proof command
+  `dart test --preset=all test/plugins/ttd/commands/... test/plugins/tdd/scenarios/sc_020...`
+  (corrected path) -> `00:01 +18: All tests passed!`;
+  `dart analyze` -> No issues found; `git diff --stat` -> empty (all six
+  reverts restored byte-exact before this entry was written).
+- commit: (this commit)
+
+## Cycle 21 (T034 + T035): SC-020 split into phase tests; A1 split into per-observable tests
+
+- T034 (finding 2): `sc_020_corpus_harness_e2e_test.dart`'s single
+  ~25-assertion test split into 7 phase-scoped tests sharing ONE fixture
+  lifecycle (`setUpAll`/`tearDownAll` + closure state — the phases are
+  sequential by design and dart runs tests in declaration order):
+  phase 1 (drive / FR-003 never-spawned / FR-007 six fields / A10
+  byte-stable specs tree) then phase 2 (SC-001 resume / A11 history /
+  honest report). Proof: a failing phase now names itself — verified by
+  the phase labels in the runner output. Every original assertion kept.
+  Green: `dart test --preset=all <file>` -> `+7: All tests passed!`.
+- T035 (finding 3): the A1 contract test's five observables (order,
+  exit, persistence, gate, summary) split into per-observable tests,
+  each name stating its one observable; every test re-drives the same
+  2-feature corpus on a fresh fixture. Green: the run-command suite ->
+  `+21: All tests passed!` (was +17: one A1 test became five).
+- commit: (this commit)
+
+## Cycle 22 (T036 + T037): clock injection; fixture dialect unified
+
+- T036 (finding 4), test-first: new group 'GapLedgerStore (T036 —
+  injected clock)' written first ->
+  `Error: No named parameter with the name 'clock'` (compile red,
+  quoted from the run) -> `GapLedgerStore` gained an injectable
+  `clock: DateTime Function()` (defaults to `DateTime.now`);
+  `_now()` now uses it. Green: `dart test
+  test/plugins/tdd/services/gap_ledger_store_test.dart` -> `+7: All
+  tests passed!` (fixed-stamp assertion: `2026-08-31T12:00:00.000Z`
+  in the entry, the resolution, and the persisted JSON; default-clock
+  wall-time bounds test added alongside).
+- T037 (finding 5): `corpus_fixture.dart`'s fake-zfa script rewritten
+  onto `TddFixture.writeFakeZfaBin`'s conventions — `LOG`-variable
+  append + `ARGV="$*"` header, dispatch via
+  `if [[ "$ARGV" == *"<pattern>"* ]]; then … fi` blocks (the corpus
+  keys `run:<f>`/`verify:<f>` map to the argv substrings the runner
+  actually spawns), `set -e`; the `shellQuoteInner` no-op helper and
+  the inline path-escaping removed. The corpus-only extensions (echoed
+  machine lines, success defaults) stay explicit. First run RED: the
+  default tail used prefix match (`"run "*`) while argv starts with
+  `tdd` -> every default invocation fell through to `exit 2` ->
+  `runner-error` (23 failures, root cause read from the failure
+  output); fixed to substring match (`*" run "*` +
+  `${ARGV#* run }` feature extraction). Green: all five corpus test
+  files `--preset=all` -> `+43: All tests passed!`.
+- commit: (this commit)

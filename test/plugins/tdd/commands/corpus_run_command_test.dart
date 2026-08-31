@@ -42,37 +42,62 @@ void main() {
   });
 
   group('A1 — driving in manifest order', () {
-    test(
-      'drives run-then-verify per feature in manifest order, exit 0',
-      () async {
-        await fx.writeManifest([
-          (name: 'f1-good', ready: true, reason: ''),
-          (name: 'f2-good', ready: true, reason: ''),
-        ]);
-        final out = await drive();
-        expect(exitCode, 0, reason: out);
-        // Order: run+verify per feature, in manifest order.
-        expect(await fx.readCalls(), [
-          'tdd run f1-good --project ${fx.root.path}',
-          'tdd verify --feature f1-good --project ${fx.root.path}',
-          'tdd run f2-good --project ${fx.root.path}',
-          'tdd verify --feature f2-good --project ${fx.root.path}',
-        ]);
-        // Progress persisted with both features done.
-        final pr = await progress();
-        expect(pr!['features']['f1-good']['state'], 'done');
-        expect(pr['features']['f2-good']['state'], 'done');
-        // The final line is the machine summary.
-        final lastLine = out.trim().split('\n').last;
-        expect(
-          lastLine,
-          startsWith(
-            'corpus: features=2 done=2 waived=0 stopped=0 '
-            'not_ready=0 pending=0 dropped=0 gaps=0 result=complete',
-          ),
-        );
-      },
-    );
+    // T035 (remediation finding 3): the contract's five observables are
+    // split into per-observable tests; each test name states its one
+    // observable. Every test drives the same 2-feature corpus against a
+    // fresh fixture (the shared setUp).
+    Future<void> setupTwoGoodFeatures() async {
+      await fx.writeManifest([
+        (name: 'f1-good', ready: true, reason: ''),
+        (name: 'f2-good', ready: true, reason: ''),
+      ]);
+    }
+
+    test('order: run-then-verify per feature, in manifest order', () async {
+      await setupTwoGoodFeatures();
+      final out = await drive();
+      expect(await fx.readCalls(), [
+        'tdd run f1-good --project ${fx.root.path}',
+        'tdd verify --feature f1-good --project ${fx.root.path}',
+        'tdd run f2-good --project ${fx.root.path}',
+        'tdd verify --feature f2-good --project ${fx.root.path}',
+      ], reason: out);
+    });
+
+    test('exit: a fully-complete corpus run exits 0', () async {
+      await setupTwoGoodFeatures();
+      final out = await drive();
+      expect(exitCode, 0, reason: out);
+    });
+
+    test('persistence: both features land done in progress', () async {
+      await setupTwoGoodFeatures();
+      final out = await drive();
+      final pr = await progress();
+      expect(pr!['features']['f1-good']['state'], 'done', reason: out);
+      expect(pr['features']['f2-good']['state'], 'done', reason: out);
+    });
+
+    test('gate: done features record gate=pass', () async {
+      await setupTwoGoodFeatures();
+      final out = await drive();
+      final pr = await progress();
+      expect(pr!['features']['f1-good']['gate'], 'pass', reason: out);
+      expect(pr['features']['f2-good']['gate'], 'pass', reason: out);
+    });
+
+    test('summary: the machine line reports done=2 result=complete', () async {
+      await setupTwoGoodFeatures();
+      final out = await drive();
+      final lastLine = out.trim().split('\n').last;
+      expect(
+        lastLine,
+        startsWith(
+          'corpus: features=2 done=2 waived=0 stopped=0 '
+          'not_ready=0 pending=0 dropped=0 gaps=0 result=complete',
+        ),
+      );
+    });
   });
 
   group('A4 — the gate is recorded', () {

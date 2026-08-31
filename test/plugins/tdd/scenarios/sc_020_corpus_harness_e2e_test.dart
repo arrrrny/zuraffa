@@ -5,6 +5,13 @@
 // drives, stops, ledgers, and resumes with zero duplicate invocations;
 // the runner writes only progress + ledger (the fixture tree is
 // checksummed before and after).
+//
+// T034 (remediation finding 2): the single ~25-assertion test is split
+// into phase-scoped tests (drive / stop / ledger / no-edits, then
+// resume / history / report) sharing ONE fixture lifecycle — the phases
+// are sequential by design (drive -> stop -> fix -> resume), so the
+// tests run in declaration order against shared closure state and a
+// failing phase names itself in the output.
 library;
 
 import 'dart:io';
@@ -18,36 +25,12 @@ import '../helpers/corpus_fixture.dart';
 void main() {
   late CorpusFixture fx;
 
-  setUp(() async {
-    fx = await CorpusFixture.create();
-    await fx.writeFakeZfa(
-      outcomes: {
-        'run:f2-gap': (
-          exit: 1,
-          stdout: [
-            'zfa tdd run: step failed — behavior=B-002 step=make outcome=unexpressible',
-            'run: feature=f2-gap result=stopped pending=0 red=1 green=0 done=0 stopped_at=B-002:make',
-          ],
-        ),
-      },
-    );
-    await fx.writeManifest([
-      (name: 'f1-good', ready: true, reason: ''),
-      (name: 'f2-gap', ready: true, reason: ''),
-      (name: 'f3-notready', ready: false, reason: 'no acceptance scenarios'),
-    ]);
-    // Loop working files the epic contract requires to exist.
-    for (final f in ['f1-good', 'f2-gap', 'f3-notready']) {
-      await File(
-        p.join(fx.root.path, 'specs', f, 'tdd', 'test-list.md'),
-      ).create(recursive: true);
-    }
-  });
-
-  tearDown(() {
-    fx.dispose();
-    exitCode = 0;
-  });
+  // Shared phase state: phase 1 (drive -> stop) produces outputs the
+  // phase-2 (resume) assertions must still see; dart runs tests in
+  // declaration order within the file, one at a time.
+  Map<String, String> specsBefore = const {};
+  String firstDrive = '';
+  String secondDrive = '';
 
   Future<String> drive() async {
     final runner = CliRunner(exitOnCompletion: false);
@@ -75,14 +58,42 @@ void main() {
     return files;
   }
 
-  test(
-    'SC-020/US1: drive -> stop -> ledger -> resume with 0 duplicates',
-    () async {
-      final before = await snapshotSpecsTree();
+  setUpAll(() async {
+    fx = await CorpusFixture.create();
+    await fx.writeFakeZfa(
+      outcomes: {
+        'run:f2-gap': (
+          exit: 1,
+          stdout: [
+            'zfa tdd run: step failed — behavior=B-002 step=make outcome=unexpressible',
+            'run: feature=f2-gap result=stopped pending=0 red=1 green=0 done=0 stopped_at=B-002:make',
+          ],
+        ),
+      },
+    );
+    await fx.writeManifest([
+      (name: 'f1-good', ready: true, reason: ''),
+      (name: 'f2-gap', ready: true, reason: ''),
+      (name: 'f3-notready', ready: false, reason: 'no acceptance scenarios'),
+    ]);
+    // Loop working files the epic contract requires to exist.
+    for (final f in ['f1-good', 'f2-gap', 'f3-notready']) {
+      await File(
+        p.join(fx.root.path, 'specs', f, 'tdd', 'test-list.md'),
+      ).create(recursive: true);
+    }
+    specsBefore = await snapshotSpecsTree();
+  });
 
-      // --- Drive 1: f1 done+verified, stop at f2, f3 not-ready untouched.
-      final first = await drive();
-      expect(exitCode, 1, reason: first);
+  tearDownAll(() {
+    fx.dispose();
+    exitCode = 0;
+  });
+
+  group('SC-020 phase 1 — drive and stop', () {
+    test('drive: f1 run+verified, f2 stops at its run step, exit 1', () async {
+      firstDrive = await drive();
+      expect(exitCode, 1, reason: firstDrive);
       final calls1 = await fx.readCalls();
       expect(
         calls1.where((c) => c.contains('f1-good')).toList(),
@@ -94,13 +105,17 @@ void main() {
         hasLength(1),
         reason: 'f2 stopped at its run step',
       );
-      expect(
-        calls1.where((c) => c.contains('f3-notready')).toList(),
-        isEmpty,
-        reason: 'not-ready features are never spawned (FR-003)',
-      );
+    });
 
-      // The ledger entry carries the six FR-007 fields.
+    test('FR-003: the not-ready feature is never spawned', () async {
+      expect(
+        (await fx.readCalls()).where((c) => c.contains('f3-notready')),
+        isEmpty,
+        reason: 'not-ready features are never spawned',
+      );
+    });
+
+    test('FR-007: the ledger entry carries the six fields', () async {
       final ledger1 = await fx.readLedger();
       expect(ledger1, hasLength(1));
       final gap = ledger1.first as Map<String, dynamic>;
@@ -110,60 +125,75 @@ void main() {
       expect(gap['outcome'], 'stopped');
       expect(gap['failing_command'], contains('tdd run f2-gap'));
       expect(gap['issue_link'], isNull);
+    });
 
-      // The runner wrote ONLY progress + ledger (A10 side: zero
-      // test/source edits — the fixture tree is byte-stable).
-      final after = await snapshotSpecsTree();
-      expect(after, before, reason: 'specs/ tree untouched (A10)');
-      final zfaFiles = <String>[];
-      final zfaDir = Directory(p.join(fx.root.path, '.zfa', 'corpus'));
-      if (await zfaDir.exists()) {
-        await for (final entity in zfaDir.list()) {
-          if (entity is File) zfaFiles.add(p.basename(entity.path));
+    test(
+      'A10: zero test/source edits — specs/ byte-stable, only progress + ledger written',
+      () async {
+        final after = await snapshotSpecsTree();
+        expect(after, specsBefore, reason: 'specs/ tree untouched (A10)');
+        final zfaFiles = <String>[];
+        final zfaDir = Directory(p.join(fx.root.path, '.zfa', 'corpus'));
+        if (await zfaDir.exists()) {
+          await for (final entity in zfaDir.list()) {
+            if (entity is File) zfaFiles.add(p.basename(entity.path));
+          }
         }
-      }
-      expect(zfaFiles, containsAll(['progress.json', 'gap-ledger.json']));
+        expect(zfaFiles, containsAll(['progress.json', 'gap-ledger.json']));
+      },
+    );
+  });
 
-      // --- Fix the gap and resume: f1 never re-driven.
-      await fx.rewriteFakeZfa(const {});
-      final second = await drive();
-      // f3 is still not-ready: reported, blocking completion honestly.
-      expect(exitCode, 1, reason: second);
-      final calls2 = await fx.readCalls();
-      final f1Total = calls2.where((c) => c.contains('f1-good')).toList();
-      expect(
-        f1Total,
-        hasLength(2),
-        reason: 'SC-001: 0 duplicate invocations across the resume',
-      );
-      expect(
-        calls2.where((c) => c.contains('f2-gap')).toList(),
-        hasLength(3),
-        reason: 'f2: failed run + resumed run + verify',
-      );
-      expect(
-        calls2.where((c) => c.contains('f3-notready')).toList(),
-        isEmpty,
-        reason: 'still never spawned',
-      );
+  group('SC-020 phase 2 — fix and resume', () {
+    test(
+      'SC-001: resume drives 0 duplicates, f2 re-driven, f3 still never spawned',
+      () async {
+        // Fix the gap: re-script the fake so f2 succeeds (default lines).
+        await fx.rewriteFakeZfa(const {});
+        secondDrive = await drive();
+        // f3 is still not-ready: reported, blocking completion honestly.
+        expect(exitCode, 1, reason: secondDrive);
+        final calls2 = await fx.readCalls();
+        final f1Total = calls2.where((c) => c.contains('f1-good')).toList();
+        expect(
+          f1Total,
+          hasLength(2),
+          reason: 'SC-001: 0 duplicate invocations across the resume',
+        );
+        expect(
+          calls2.where((c) => c.contains('f2-gap')).toList(),
+          hasLength(3),
+          reason: 'f2: failed run + resumed run + verify',
+        );
+        expect(
+          calls2.where((c) => c.contains('f3-notready')).toList(),
+          isEmpty,
+          reason: 'still never spawned',
+        );
+      },
+    );
 
-      // The resolution is a new entry; history is intact (A11).
+    test('A11: the resolution is a new entry, history intact', () async {
       final ledger2 = await fx.readLedger();
       expect(ledger2, hasLength(2));
       expect(ledger2.first['id'], 'gap-001');
       expect(ledger2.first['status'], 'open');
       expect(ledger2.last['kind'], 'resolution');
       expect(ledger2.last['resolves'], 'gap-001');
+    });
 
-      // Progress: f1 and f2 done; the final summary is honest about f3.
-      final progress = await fx.readProgress();
-      expect(progress!['features']['f1-good']['state'], 'done');
-      expect(progress['features']['f2-gap']['state'], 'done');
-      final lastLine = second.trim().split('\n').last;
-      expect(lastLine, contains('done=2'));
-      expect(lastLine, contains('not_ready=1'));
-      expect(lastLine, contains('result=incomplete'));
-      expect(lastLine, isNot(contains('stopped_at=')));
-    },
-  );
+    test(
+      'report: f1/f2 done, summary honest about the not-ready feature',
+      () async {
+        final progress = await fx.readProgress();
+        expect(progress!['features']['f1-good']['state'], 'done');
+        expect(progress['features']['f2-gap']['state'], 'done');
+        final lastLine = secondDrive.trim().split('\n').last;
+        expect(lastLine, contains('done=2'));
+        expect(lastLine, contains('not_ready=1'));
+        expect(lastLine, contains('result=incomplete'));
+        expect(lastLine, isNot(contains('stopped_at=')));
+      },
+    );
+  });
 }

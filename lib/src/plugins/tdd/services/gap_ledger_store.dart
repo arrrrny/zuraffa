@@ -12,10 +12,15 @@ import '../models/corpus_ledger.dart';
 import '../models/corpus_progress.dart';
 
 class GapLedgerStore {
-  GapLedgerStore(this.projectRoot);
+  GapLedgerStore(this.projectRoot, {DateTime Function()? clock})
+    : _clock = clock ?? DateTime.now;
 
   /// The driven app's project root.
   final String projectRoot;
+
+  /// Time source for entry stamps. Injectable so timestamp assertions
+  /// stay deterministic (T036); defaults to the wall clock.
+  final DateTime Function() _clock;
 
   String get path => p.join(projectRoot, '.zfa', 'corpus', 'gap-ledger.json');
 
@@ -97,7 +102,7 @@ class GapLedgerStore {
     return '$prefix-${(max + 1).toString().padLeft(3, '0')}';
   }
 
-  static String _now() => DateTime.now().toUtc().toIso8601String();
+  String _now() => _clock().toUtc().toIso8601String();
 
   /// Persist [entries] atomically (temp + rename). The encoder keeps a
   /// fixed field order, so previously-appended entries serialize

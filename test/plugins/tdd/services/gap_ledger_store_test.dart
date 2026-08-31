@@ -143,6 +143,54 @@ void main() {
       },
     );
   });
+
+  group('GapLedgerStore (T036 — injected clock)', () {
+    test(
+      'an injected fixed clock stamps every appended entry deterministically',
+      () async {
+        final fixed = DateTime.utc(2026, 8, 31, 12, 0, 0);
+        final clockStore = GapLedgerStore(root.path, clock: () => fixed);
+        final gap = await clockStore.appendGap(
+          feature: 'f2-gap',
+          step: 'run',
+          outcome: 'stopped',
+          failingCommand: 'zfa tdd run f2-gap',
+        );
+        expect(
+          gap.at,
+          '2026-08-31T12:00:00.000Z',
+          reason: 'the entry timestamp comes from the injected clock',
+        );
+        final resolution = await clockStore.appendResolution(
+          feature: 'f2-gap',
+          resolves: gap.id,
+        );
+        expect(
+          resolution.at,
+          '2026-08-31T12:00:00.000Z',
+          reason: 'resolution entries take the same clock',
+        );
+        // The persisted JSON carries the fixed stamp too (future
+        // timestamp assertions stay deterministic).
+        final raw = await File(clockStore.path).readAsString();
+        expect(raw, contains('2026-08-31T12:00:00.000Z'));
+      },
+    );
+
+    test('the default clock is the real wall clock', () async {
+      final before = DateTime.now().toUtc();
+      final entry = await store.appendGap(
+        feature: 'f1',
+        step: 'run',
+        outcome: 'stopped',
+        failingCommand: 'zfa tdd run f1',
+      );
+      final after = DateTime.now().toUtc();
+      final stamped = DateTime.parse(entry.at);
+      expect(!stamped.isBefore(before), isTrue);
+      expect(!stamped.isAfter(after), isTrue);
+    });
+  });
 }
 
 /// The serialized block of the first ledger entry (between the first `{`
