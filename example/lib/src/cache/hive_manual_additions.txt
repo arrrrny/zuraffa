@@ -1,0 +1,6 @@
+# Hive Manual Additions
+# Add nested entities and enums that need Hive adapters
+# Format: import_path|EntityName
+# Example: ../domain/entities/enums/index.dart|ParserType
+
+../domain/entities/todo/todo.dart|Todo
