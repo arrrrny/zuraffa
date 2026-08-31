@@ -45,12 +45,12 @@ class EngagementEvent {
   final bool synced;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'id': id,
-        'type': type.name,
-        'payload': payload,
-        'createdAt': createdAt.toIso8601String(),
-        'synced': synced,
-      };
+    'id': id,
+    'type': type.name,
+    'payload': payload,
+    'createdAt': createdAt.toIso8601String(),
+    'synced': synced,
+  };
 
   factory EngagementEvent.fromJson(Map<String, dynamic> json) =>
       EngagementEvent(

@@ -55,21 +55,27 @@ void main() {
   }
 
   group('EngagementHook — spec 011 US3', () {
-    test('C1: barcode scan success stores EngagementEvent(BARCODE_SCAN)',
-        () async {
-      await registerHook();
-      final useCase = CreateBarcodeScanUseCase();
+    test(
+      'C1: barcode scan success stores EngagementEvent(BARCODE_SCAN)',
+      () async {
+        await registerHook();
+        final useCase = CreateBarcodeScanUseCase();
 
-      final result = await useCase('4006381333931');
-      await pumpEventQueue();
+        final result = await useCase('4006381333931');
+        await pumpEventQueue();
 
-      expect(result.isSuccess, isTrue);
-      final events = await repository.getAll();
-      expect(events, hasLength(1));
-      expect(events.single.type, EngagementEventType.BARCODE_SCAN);
-      expect(events.single.payload, '4006381333931');
-      expect(events.single.synced, isFalse, reason: 'queued for background sync');
-    });
+        expect(result.isSuccess, isTrue);
+        final events = await repository.getAll();
+        expect(events, hasLength(1));
+        expect(events.single.type, EngagementEventType.BARCODE_SCAN);
+        expect(events.single.payload, '4006381333931');
+        expect(
+          events.single.synced,
+          isFalse,
+          reason: 'queued for background sync',
+        );
+      },
+    );
 
     test('C2: search success stores EngagementEvent(SEARCH_TERM)', () async {
       await registerHook();

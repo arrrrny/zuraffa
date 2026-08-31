@@ -14,7 +14,7 @@ import '../domain/engagement_event.dart';
 /// Local Hive-backed engagement event store.
 class EngagementEventRepository {
   EngagementEventRepository({String? boxName})
-      : _boxName = boxName ?? defaultBoxName;
+    : _boxName = boxName ?? defaultBoxName;
 
   /// Name of the local Hive box holding engagement events.
   static const defaultBoxName = 'engagement_events';
@@ -57,8 +57,7 @@ class EngagementEventRepository {
   Future<void> markSynced(String id) async {
     final raw = _store.get(id);
     if (raw == null) return;
-    final event =
-        EngagementEvent.fromJson(Map<String, dynamic>.from(raw));
+    final event = EngagementEvent.fromJson(Map<String, dynamic>.from(raw));
     await _store.put(id, <String, dynamic>{...event.toJson(), 'synced': true});
   }
 

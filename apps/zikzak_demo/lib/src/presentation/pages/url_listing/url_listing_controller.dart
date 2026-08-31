@@ -1,30 +1,16 @@
-import 'dart:async';
-
 import 'package:zuraffa/zuraffa.dart';
 
 import '../../../domain/usecases/engagement_usecases.dart';
-import '../../../telemetry/create_telemetry_event_use_case.dart';
 
-/// Controller for the outbound url listing page (RED — manual call present).
+/// Controller for the outbound url listing page.
+///
+/// Engagement capture is automated by the EngagementHook registered in
+/// main() — controllers carry no manual engagement call sites (C5).
 class UrlListingController {
-  UrlListingController(this._visitLink, this._telemetry);
+  UrlListingController(this._visitLink);
 
   final VisitLinkUseCase _visitLink;
-  final CreateTelemetryEventUseCase _telemetry;
 
   /// Navigates to [url] through the outbound-link UseCase.
-  Future<Result<void, AppFailure>> open(String url) async {
-    final result = await _visitLink(url);
-    result.fold(
-      (_) => _trackLinkVisited(url),
-      (_) {},
-    );
-    return result;
-  }
-
-  void _trackLinkVisited(String url) {
-    unawaited(
-      _telemetry.call(<String, dynamic>{'event': 'VISIT_LINK', 'payload': url}),
-    );
-  }
+  Future<Result<void, AppFailure>> open(String url) => _visitLink(url);
 }
