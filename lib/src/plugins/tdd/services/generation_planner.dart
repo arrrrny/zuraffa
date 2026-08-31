@@ -95,7 +95,14 @@ class GenerationPlanner {
         sourceCriterion: summary.sourceCriterion,
         steps: [
           GenerationStepSpec(
-            args: ['entity', 'create', name],
+            // Bug #609: the real EntityCommand requires `-n/--name` and
+            // rejects a bare positional name ("Error: Entity name is
+            // required. Use -n or --name to specify."). Emit the flag
+            // exactly as the real CLI parses it; the slow-tier
+            // generation_planner_real_cli_test.dart guards this argv
+            // against the real `bin/zfa.dart` so fake-zfa drift cannot
+            // regress it.
+            args: ['entity', 'create', '-n', name],
             purpose: 'create entity $name for behavior ${summary.behaviorId}',
           ),
           GenerationStepSpec(

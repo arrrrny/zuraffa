@@ -19,7 +19,8 @@ void main() {
 
   group('GenerationPlanner (T005 / FR-005)', () {
     test('U3: an entity-bearing behavior maps to a plan whose first step '
-        'is `entity create`', () {
+        'is `entity create` carrying the exact real-CLI argv — including '
+        'the required -n/--name flag (bug #609)', () {
       final plan = planner.plan(
         const BehaviorSummary(
           behaviorId: 'B-003',
@@ -30,8 +31,10 @@ void main() {
       );
       expect(plan.isExpressible, isTrue);
       expect(plan.steps, isNotEmpty);
-      expect(plan.steps.first.args.first, 'entity');
-      expect(plan.steps.first.args[1], 'create');
+      // Exact argv pin: the REAL EntityCommand rejects a bare positional
+      // name ("Error: Entity name is required. Use -n or --name to
+      // specify."), so the plan must carry `-n` (bug #609).
+      expect(plan.steps.first.args, ['entity', 'create', '-n', 'User']);
     });
 
     test('U4: a CRUD/use-case behavior maps to a `make` step with the '
