@@ -1,0 +1,23 @@
+{
+  "run_id": "scan-20260831T000000",
+  "type": "scan",
+  "timestamp": "2026-08-31T00:00:00Z",
+  "head": "unknown",
+  "files_scanned": 266,
+  "summary": {
+    "average_truthfulness": 52.7,
+    "verdicts": {
+      "truthful": 75,
+      "stale": 73,
+      "false": 118,
+      "obsolete": 0
+    },
+    "actions": {
+      "keep": 75,
+      "update": 191,
+      "delete": 0,
+      "create": 0
+    }
+  },
+  "actions_taken": []
+}

@@ -52,3 +52,10 @@ benchmarks/
 # Not committed; the audit score is appended to specs/<feature>/tdd/verification.md
 mutation-test-report/
 .specify/extensions/.cache/
+
+# Spec-kit plan artifacts legitimately live under specs/**/contracts/
+# (e.g. specs/050-corpus-import/contracts/corpus-import.md — the
+# report-line contract the tests pin). Re-include them; the bare
+# `contracts` rule above targets generated contract build dirs, not
+# spec documents.
+!specs/**/contracts/
