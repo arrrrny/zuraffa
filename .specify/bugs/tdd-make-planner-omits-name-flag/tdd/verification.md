@@ -13,7 +13,7 @@ criteria_total: 2
 criteria_covered: 2
 mutation_score: n/a # no mutation tool; deliberate mutant 1/1 caught
 mutants_survived: 0
-suite: fast tier 2670 passed / 1 pre-existing failure; tdd plugin --preset=all 345 passed / 0 failed; regression tier 279 passed / 1 pre-existing failure; integration+property tiers green
+suite: fast tier 2670 passed / 0 failed; tdd plugin --preset=all 345 passed / 0 failed; regression tier 279 passed / 1 pre-existing failure; integration+property tiers green
 ---
 
 # TDD Verification: `zfa tdd make` planner omits required `-n` flag (#609)

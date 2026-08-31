@@ -134,7 +134,8 @@ feature: ${fx.featureName}
     forwarderPath = p.join(binDir.path, 'zfa');
     await File(forwarderPath).writeAsString(
       '#!/usr/bin/env bash\nexec '
-      '${Platform.resolvedExecutable} ${p.join(repoRoot, 'bin', 'zfa.dart')} '
+      '"${Platform.resolvedExecutable}" '
+      '"${p.join(repoRoot, 'bin', 'zfa.dart')}" '
       '"\$@"\n',
     );
     await Process.run('chmod', ['+x', forwarderPath]);

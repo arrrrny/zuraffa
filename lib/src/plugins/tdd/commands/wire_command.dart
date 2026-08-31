@@ -170,9 +170,28 @@ class WireCommand extends Command<void> {
     // 2. The subject artifact must exist (gen wrote it).
     // -------------------------------------------------------------
     final recordedSubject = record.subjectPath;
-    final subjectPath = p.isAbsolute(recordedSubject)
-        ? recordedSubject
-        : p.join(cwd, recordedSubject);
+    final normalizedCwd = p.normalize(p.absolute(cwd));
+    final subjectPath = p.normalize(
+      p.isAbsolute(recordedSubject)
+          ? recordedSubject
+          : p.join(normalizedCwd, recordedSubject),
+    );
+    if (!p.equals(normalizedCwd, subjectPath) &&
+        !p.isWithin(normalizedCwd, subjectPath)) {
+      print(
+        'zfa tdd wire: the registry record for behavior '
+        '"${record.behaviorId}" points outside the project root at '
+        '"$recordedSubject". Run `zfa tdd gen ${record.behaviorId}` to '
+        'restore its artifacts.',
+      );
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: WireOutcome.runnerError,
+        feature: resolved.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
     final subjectFile = File(subjectPath);
     if (!await subjectFile.exists()) {
       print(

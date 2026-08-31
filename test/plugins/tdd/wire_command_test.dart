@@ -19,8 +19,10 @@
 //         be hand-implementation, not generation.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
@@ -225,4 +227,36 @@ class Weird {
       contains('wire: behavior=B-001 outcome=runner-error feature=unknown'),
     );
   });
+
+  for (final externalPath in <String, String Function()>{
+    'relative traversal': () => p.join('..', 'outside_subject.dart'),
+    'absolute path': () => p.join(fx.root.parent.path, 'outside_subject.dart'),
+  }.entries) {
+    test('U-W7: a registry subject outside the project root is rejected '
+        '(${externalPath.key})', () async {
+      await fx.registerBehavior(
+        id: 'B-001',
+        description: 'create entity User with email',
+      );
+      final registry =
+          jsonDecode(await File(fx.artifactsPath).readAsString())
+              as Map<String, dynamic>;
+      final records = registry['records'] as List<dynamic>;
+      (records.single as Map<String, dynamic>)['subject_path'] = externalPath
+          .value();
+      await File(fx.artifactsPath).writeAsString(jsonEncode(registry));
+
+      final out = await runWire();
+
+      expect(exitCode, isNot(0));
+      expect(out, contains('points outside the project root'));
+      expect(
+        out,
+        contains(
+          'wire: behavior=B-001 outcome=runner-error '
+          'feature=${fx.featureName}',
+        ),
+      );
+    });
+  }
 }
