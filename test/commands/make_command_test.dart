@@ -11,7 +11,6 @@ void main() {
   group('MakeCommand', () {
     late Directory workspace;
     late String outputDir;
-    late String previousCwd;
     late String zfaBin;
     late bool useCompiledBinary;
 
@@ -66,25 +65,9 @@ class Product {
   const Product({required this.id});
 }
 ''');
-      previousCwd = Directory.current.path;
-      Directory.current = workspace.path;
     });
 
     tearDown(() async {
-      // Always restore CWD to a known-valid directory before deleting
-      // the workspace, to prevent poisoning CWD for subsequently loaded
-      // test files that call findProjectRoot() at the top of main().
-      try {
-        if (Directory(previousCwd).existsSync()) {
-          Directory.current = previousCwd;
-        } else {
-          Directory.current = Directory.systemTemp.path;
-        }
-      } catch (_) {
-        try {
-          Directory.current = Directory.systemTemp.path;
-        } catch (_) {}
-      }
       // A late-exiting child subprocess (or the in-process CLI runner still
       // resolving its CWD) may still hold the workspace when a test times out;
       // deleting it races and throws PathNotFoundException. Tolerate ENOENT
@@ -100,7 +83,7 @@ class Product {
 
     test('supports --format=json with --plan', () async {
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing([
+      final output = await runner.runCapturing(['-C', workspace.path,
         'make',
         'Product',
         '--preset=crud',
@@ -129,7 +112,7 @@ class Product {
 
     test('fails fast when entity does not exist', () async {
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing([
+      final output = await runner.runCapturing(['-C', workspace.path,
         'make',
         'NonExistentEntity',
         '--preset=crud',
@@ -167,7 +150,7 @@ class Product {
       );
 
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing([
+      final output = await runner.runCapturing(['-C', workspace.path,
         'make',
         '--from-json',
         configFile.path,
@@ -194,7 +177,7 @@ class Product {
       );
 
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing([
+      final output = await runner.runCapturing(['-C', workspace.path,
         'make',
         'Product',
         '--preset=crud',
@@ -739,7 +722,6 @@ class TestEntity {
   group('MakeCommand #508 id-neutral regeneration', () {
     late Directory workspace;
     late String outputDir;
-    late String previousCwd;
 
     setUp(() async {
       workspace = await Directory.systemTemp.createTemp('zfa_make_508_');
@@ -752,22 +734,9 @@ environment:
 dependencies:
   uuid: ^4.6.0
 ''');
-      previousCwd = Directory.current.path;
-      Directory.current = workspace.path;
     });
 
     tearDown(() async {
-      try {
-        if (Directory(previousCwd).existsSync()) {
-          Directory.current = previousCwd;
-        } else {
-          Directory.current = Directory.systemTemp.path;
-        }
-      } catch (_) {
-        try {
-          Directory.current = Directory.systemTemp.path;
-        } catch (_) {}
-      }
       // A late-exiting child subprocess (or the in-process CLI runner still
       // resolving its CWD) may still hold the workspace when a test times out;
       // deleting it races and throws PathNotFoundException. Tolerate ENOENT
@@ -857,7 +826,7 @@ abstract class \$ChatMessage {
       await writeExistingUseCases();
 
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing([
+      final output = await runner.runCapturing(['-C', workspace.path,
         'make',
         'ChatMessage',
         '--test',
@@ -913,7 +882,7 @@ abstract class \$ChatMessage {
         await writeExistingUseCases();
 
         final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing([
+        final output = await runner.runCapturing(['-C', workspace.path,
           'make',
           'ChatMessage',
           '--test',
@@ -952,7 +921,7 @@ abstract class \$ChatMessage {
       await writeExistingUseCases();
 
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing([
+      final output = await runner.runCapturing(['-C', workspace.path,
         'make',
         'ChatMessage',
         'usecase',
@@ -995,7 +964,7 @@ abstract class \$ChatMessage {
       // _hasEntityMethods), so the active set is {usecase, test} — the
       // id-dependent member must keep the loud failure armed.
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing([
+      final output = await runner.runCapturing(['-C', workspace.path,
         'make',
         'ChatMessage',
         '--test',
@@ -1027,7 +996,7 @@ abstract class \$ChatMessage {
       await writeExistingUseCases();
 
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing([
+      final output = await runner.runCapturing(['-C', workspace.path,
         'make',
         'ChatMessage',
         '--test',
@@ -1103,7 +1072,7 @@ abstract class \$ChatMessage {
       await writeExistingUseCases();
 
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing([
+      final output = await runner.runCapturing(['-C', workspace.path,
         'make',
         'ChatMessage',
         '--force',

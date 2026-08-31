@@ -55,11 +55,20 @@ class AgentPlugin extends FileGeneratorPlugin {
   /// defaults to [kDefaultNamespace].
   final String? namespaceOverride;
 
+  /// Overrides the project root used to locate the entity's usecase
+  /// directory. When null, [Directory.current] is used (the legacy behavior,
+  /// retained for `zfa make Foo --agent` invoked from a real project where
+  /// CWD is the project root). Tests pass the temp fixture root here instead
+  /// of mutating the shared process-global working directory — which
+  /// concurrently-running tests corrupt (the CWD race, issue #441).
+  final String? projectRootOverride;
+
   AgentPlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     FileSystem? fileSystem,
     this.namespaceOverride,
+    this.projectRootOverride,
   }) : fileSystem = fileSystem ?? const DefaultFileSystem();
 
   @override
@@ -252,8 +261,9 @@ class AgentPlugin extends FileGeneratorPlugin {
   }
 
   String _resolveProjectRoot() {
-    // Use Directory.current.path — tests set this to a temp workspace.
-    return Directory.current.path;
+    // Prefer an explicit override (set by tests / callers that target a temp
+    // fixture). Fall back to CWD for CLI invocation from a real project root.
+    return projectRootOverride ?? Directory.current.path;
   }
 
   String _resolvePackageRoot(String projectRoot) {

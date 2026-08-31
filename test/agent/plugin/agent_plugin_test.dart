@@ -90,21 +90,17 @@ environment:
       () async {
         await writePubspec('zuraffa_agent_e2e');
         await writeFixtureUseCases('listing');
-        // Switch CWD to the temp project root so the plugin finds the
-        // fixture usecases.
-        final savedCwd = Directory.current.path;
-        Directory.current = tmp.path;
-        try {
-          final outputDir = p.join(tmp.path, 'lib', 'src');
-          final plugin = AgentPlugin(
-            outputDir: outputDir,
-            namespaceOverride: 'app',
-          );
-          final config = GeneratorConfig(
-            name: 'Listing',
-            outputDir: outputDir,
-            force: true,
-          );
+        final outputDir = p.join(tmp.path, 'lib', 'src');
+        final plugin = AgentPlugin(
+          outputDir: outputDir,
+          namespaceOverride: 'app',
+          projectRootOverride: tmp.path,
+        );
+        final config = GeneratorConfig(
+          name: 'Listing',
+          outputDir: outputDir,
+          force: true,
+        );
           final files = await plugin.generate(config);
 
           // Expect: 3 tool wrappers + 1 manifest = 4 files.
@@ -157,9 +153,6 @@ environment:
           expect(manifestSrc, contains('app.listing.delete'));
           expect(manifestSrc, contains("'listing'"));
           expect(manifestSrc, contains('ToolManifestEntry'));
-        } finally {
-          Directory.current = savedCwd;
-        }
       },
     );
 
@@ -168,17 +161,14 @@ environment:
       () async {
         await writePubspec('zuraffa_agent_e2e');
         // No fixture written — no usecases.
-        final savedCwd = Directory.current.path;
-        Directory.current = tmp.path;
-        try {
-          final outputDir = p.join(tmp.path, 'lib', 'src');
-          final plugin = AgentPlugin(outputDir: outputDir);
-          final config = GeneratorConfig(name: 'NoUse', outputDir: outputDir);
-          final files = await plugin.generate(config);
-          expect(files, isEmpty);
-        } finally {
-          Directory.current = savedCwd;
-        }
+        final outputDir = p.join(tmp.path, 'lib', 'src');
+        final plugin = AgentPlugin(
+          outputDir: outputDir,
+          projectRootOverride: tmp.path,
+        );
+        final config = GeneratorConfig(name: 'NoUse', outputDir: outputDir);
+        final files = await plugin.generate(config);
+        expect(files, isEmpty);
       },
     );
   });
@@ -207,16 +197,13 @@ environment:
     test('regenerate produces identical files (byte-for-byte)', () async {
       await writePubspec('zuraffa_agent_idem');
       await writeFixtureUseCases('listing');
-      final savedCwd = Directory.current.path;
-      Directory.current = tmp.path;
-      try {
-        final outputDir = p.join(tmp.path, 'lib', 'src');
-        final plugin = AgentPlugin(outputDir: outputDir);
-        final config = GeneratorConfig(
-          name: 'Listing',
-          outputDir: outputDir,
-          force: true,
-        );
+      final outputDir = p.join(tmp.path, 'lib', 'src');
+      final plugin = AgentPlugin(outputDir: outputDir, projectRootOverride: tmp.path);
+      final config = GeneratorConfig(
+        name: 'Listing',
+        outputDir: outputDir,
+        force: true,
+      );
 
         await plugin.generate(config);
         final toolsDir = Directory(p.join(outputDir, 'agent', 'tools'));
@@ -236,24 +223,21 @@ environment:
           expect(f.existsSync(), isTrue);
           expect(f.readAsStringSync().hashCode.toString(), entry.value);
         }
-      } finally {
-        Directory.current = savedCwd;
-      }
     });
 
     test('removed UseCase deletes its tool file + manifest entry', () async {
       await writePubspec('zuraffa_agent_sweep');
       await writeFixtureUseCases('listing');
-      final savedCwd = Directory.current.path;
-      Directory.current = tmp.path;
-      try {
-        final outputDir = p.join(tmp.path, 'lib', 'src');
-        final plugin = AgentPlugin(outputDir: outputDir);
-        final config = GeneratorConfig(
-          name: 'Listing',
-          outputDir: outputDir,
-          force: true,
-        );
+      final outputDir = p.join(tmp.path, 'lib', 'src');
+      final plugin = AgentPlugin(
+        outputDir: outputDir,
+        projectRootOverride: tmp.path,
+      );
+      final config = GeneratorConfig(
+        name: 'Listing',
+        outputDir: outputDir,
+        force: true,
+      );
 
         // Generate initial set (3 tools).
         await plugin.generate(config);
@@ -298,9 +282,6 @@ environment:
           p.join(toolsDir.path, 'manifest.dart'),
         ).readAsStringSync();
         expect(manifestSrc, isNot(contains('app.listing.delete')));
-      } finally {
-        Directory.current = savedCwd;
-      }
     });
   });
 
@@ -310,33 +291,30 @@ environment:
       () async {
         await writePubspec('zuraffa_agent_conflict');
         await writeFixtureUseCases('listing');
-        final savedCwd = Directory.current.path;
-        Directory.current = tmp.path;
-        try {
-          final outputDir = p.join(tmp.path, 'lib', 'src');
-          // Pre-create a manually-written tool file at the path that
-          // would be generated. No GENERATED markers.
-          final toolsDir = Directory(p.join(outputDir, 'agent', 'tools'));
-          await toolsDir.create(recursive: true);
-          final manualPath = p.join(toolsDir.path, 'listing_create_tool.dart');
-          await File(manualPath).writeAsString(
-            '// hand-written\n'
-            'class MyCustomTool extends McpTool { /* ... */ }\n',
-          );
+        final outputDir = p.join(tmp.path, 'lib', 'src');
+        // Pre-create a manually-written tool file at the path that
+        // would be generated. No GENERATED markers.
+        final toolsDir = Directory(p.join(outputDir, 'agent', 'tools'));
+        await toolsDir.create(recursive: true);
+        final manualPath = p.join(toolsDir.path, 'listing_create_tool.dart');
+        await File(manualPath).writeAsString(
+          '// hand-written\n'
+          'class MyCustomTool extends McpTool { /* ... */ }\n',
+        );
 
-          final plugin = AgentPlugin(outputDir: outputDir);
-          final config = GeneratorConfig(
-            name: 'Listing',
-            outputDir: outputDir,
-            force: true,
-          );
+        final plugin = AgentPlugin(
+          outputDir: outputDir,
+          projectRootOverride: tmp.path,
+        );
+        final config = GeneratorConfig(
+          name: 'Listing',
+          outputDir: outputDir,
+          force: true,
+        );
           expect(
             () => plugin.generate(config),
             throwsA(isA<ManualFileConflictException>()),
           );
-        } finally {
-          Directory.current = savedCwd;
-        }
       },
     );
   });
