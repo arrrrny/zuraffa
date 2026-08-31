@@ -62,7 +62,7 @@ void main() {
         Process.run('dart', args, workingDirectory: workspace.path);
 
     setUp(() async {
-      await initZfaSourceBin();
+  await initZfaSourceBin();
       repoRoot = await findProjectRoot();
       zorphyPath = p.normalize(p.join(repoRoot, '..', 'zorphy', 'zorphy'));
       zorphyAnnotationPath = p.normalize(
@@ -119,8 +119,7 @@ void main() {
         //    class. `--allow-forward-refs` opts out of the type validator
         //    so the command does not abort on the (deliberately)
         //    non-Zorphy target.
-        final createResult = await runZfaSource([
-          'entity',
+        final createResult = await runZfaSource(['entity',
           'create',
           '-n',
           'SearchResult',
@@ -130,8 +129,7 @@ void main() {
           'price:SearchResultPrice?',
           '--field',
           'priceWithTax:SearchResultPrice?',
-          '--allow-forward-refs',
-        ], workingDirectory: workspace.path);
+          '--allow-forward-refs',], workingDirectory: workspace.path);
         expect(
           createResult.exitCode,
           0,

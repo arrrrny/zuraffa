@@ -66,7 +66,7 @@ void main() {
         Process.run('dart', args, workingDirectory: workspace.path);
 
     setUp(() async {
-      await initZfaSourceBin();
+  await initZfaSourceBin();
       repoRoot = await findProjectRoot();
       zorphyPath = p.normalize(p.join(repoRoot, '..', 'zorphy', 'zorphy'));
       zorphyAnnotationPath = p.normalize(
@@ -103,8 +103,7 @@ void main() {
         // 2. Create the self-referencing entity. `children:List<Collection>?`
         //    is the field that used to emit the plain `List<Collection>?`
         //    (no `$`) and produce `InvalidType` in the concrete class.
-        final createResult = await runZfaSource([
-          'entity',
+        final createResult = await runZfaSource(['entity',
           'create',
           '-n',
           'Collection',
@@ -112,8 +111,7 @@ void main() {
           'id:String?',
           '--field',
           'children:List<Collection>?',
-          '--allow-forward-refs',
-        ], workingDirectory: workspace.path);
+          '--allow-forward-refs',], workingDirectory: workspace.path);
         expect(
           createResult.exitCode,
           0,
@@ -270,8 +268,7 @@ void main() {
         // 1. Create Order FIRST, referencing Customer (which does not exist
         //    yet). `--allow-forward-refs` opts out of the type validator so
         //    the command does not abort on the unresolved `Customer` type.
-        final orderResult = await runZfaSource([
-          'entity',
+        final orderResult = await runZfaSource(['entity',
           'create',
           '-n',
           'Order',
@@ -279,8 +276,7 @@ void main() {
           'id:String?',
           '--field',
           'customer:Customer?',
-          '--allow-forward-refs',
-        ], workingDirectory: workspace.path);
+          '--allow-forward-refs',], workingDirectory: workspace.path);
         expect(
           orderResult.exitCode,
           0,
@@ -331,16 +327,14 @@ void main() {
         );
 
         // 3. NOW create the forward-referenced Customer entity.
-        final customerResult = await runZfaSource([
-          'entity',
+        final customerResult = await runZfaSource(['entity',
           'create',
           '-n',
           'Customer',
           '--field',
           'id:String?',
           '--field',
-          'name:String',
-        ], workingDirectory: workspace.path);
+          'name:String',], workingDirectory: workspace.path);
         expect(
           customerResult.exitCode,
           0,

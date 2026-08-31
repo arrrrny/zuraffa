@@ -33,7 +33,8 @@ void main() {
     late String zfaBin;
 
     Future<ProcessResult> runZfa(List<String> args) {
-      return runZfaSource([...args], workingDirectory: workspace.path);
+      return runZfaSource([...args,
+      ], workingDirectory: workspace.path);
     }
 
     Future<ProcessResult> runZfaInRepo(List<String> args) {
@@ -41,7 +42,7 @@ void main() {
     }
 
     setUp(() async {
-      await initZfaSourceBin();
+  await initZfaSourceBin();
       zfaBin = p.join(_zfaRoot, 'bin', 'zfa.dart');
       workspace = await Directory.systemTemp.createTemp('issue_296_');
       // The entity command's dependency check scans pubspec.yaml for the

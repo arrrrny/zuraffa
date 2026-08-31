@@ -56,7 +56,7 @@ void main() {
         Process.run('dart', args, workingDirectory: workspace.path);
 
     setUp(() async {
-      await initZfaSourceBin();
+  await initZfaSourceBin();
       repoRoot = await findProjectRoot();
       zorphyPath = p.normalize(p.join(repoRoot, '..', 'zorphy', 'zorphy'));
       zorphyAnnotationPath = p.normalize(
@@ -131,16 +131,14 @@ targets:
         // 3. Create the entity. `internal:bool?` is the field that used
         //    to collide with `meta.internal`. `id:String` is a required
         //    non-null field so the entity is well-formed.
-        final createResult = await runZfaSource([
-          'entity',
+        final createResult = await runZfaSource(['entity',
           'create',
           '-n',
           'BooleanCustomFieldConfig',
           '--field',
           'id:String',
           '--field',
-          'internal:bool?',
-        ], workingDirectory: workspace.path);
+          'internal:bool?',], workingDirectory: workspace.path);
         expect(
           createResult.exitCode,
           0,

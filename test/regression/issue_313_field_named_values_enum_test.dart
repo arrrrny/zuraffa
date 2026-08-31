@@ -80,7 +80,7 @@ void main() {
     });
 
     setUp(() async {
-      await initZfaSourceBin();
+  await initZfaSourceBin();
       // Recover CWD in case a previous test file deleted its temp dir.
       await findProjectRoot();
       workspace = await Directory.systemTemp.createTemp('issue_313_');

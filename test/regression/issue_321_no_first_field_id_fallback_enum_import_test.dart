@@ -62,7 +62,7 @@ void main() {
     }
 
     setUp(() async {
-      await initZfaSourceBin();
+  await initZfaSourceBin();
       // Resolve the zuraffa root via the package URI, NOT Directory.current,
       // which can be polluted by other test files sharing the same process
       // CWD. This keeps the subprocess bin path and the pubspec `path:` root

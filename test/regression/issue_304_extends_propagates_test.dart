@@ -47,7 +47,7 @@ void main() {
     }
 
     setUp(() async {
-      await initZfaSourceBin();
+  await initZfaSourceBin();
       workspace = await Directory.systemTemp.createTemp('issue_304_');
       // The entity command's dependency check scans pubspec.yaml for the
       // strings `zorphy_annotation:` and `build_runner:`. The strings are

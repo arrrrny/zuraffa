@@ -387,16 +387,10 @@ environment:
         // [safeCurrentPath] already swallows it. The portable contract is
         // "resolves to a valid root", not "throws".
         final root = ProjectRoot.find();
-        expect(
-          Directory(root).existsSync(),
-          isTrue,
-          reason: 'find() must recover to an existing directory',
-        );
-        expect(
-          File(p.join(root, 'pubspec.yaml')).existsSync(),
-          isTrue,
-          reason: 'recovered root must contain pubspec.yaml',
-        );
+        expect(Directory(root).existsSync(), isTrue,
+            reason: 'find() must recover to an existing directory');
+        expect(File(p.join(root, 'pubspec.yaml')).existsSync(), isTrue,
+            reason: 'recovered root must contain pubspec.yaml');
       } finally {
         try {
           Directory.current = savedCwd;

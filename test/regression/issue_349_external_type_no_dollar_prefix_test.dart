@@ -37,11 +37,12 @@ void main() {
     late bool zorphyAvailable;
 
     Future<ProcessResult> runZfa(List<String> args) {
-      return runZfaSource([...args], workingDirectory: workspace.path);
+      return runZfaSource([...args,
+      ], workingDirectory: workspace.path);
     }
 
     setUp(() async {
-      await initZfaSourceBin();
+  await initZfaSourceBin();
       zfaBin = p.join(_zfaRoot, 'bin', 'zfa.dart');
       workspace = await Directory.systemTemp.createTemp('issue_349_');
       // Local zorphy checkouts via path deps (mirrors zuraffa's own
@@ -434,8 +435,7 @@ Object? _webUriToJson(WebUri? value) => value?.toString();
       () async {
         final result = await Process.run('dart', [
           zfaBin,
-          '--help',
-        ], workingDirectory: _zfaRoot);
+          '--help',], workingDirectory: _zfaRoot);
         expect(result.exitCode, equals(0));
       },
     );

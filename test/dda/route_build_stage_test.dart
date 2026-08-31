@@ -418,10 +418,10 @@ class ServiceLocator {}
 class ProductsView {}
 ''');
 
-      final proc = await runZfaSource([
-        'build',
-        '--dda-routes-only',
-      ], workingDirectory: sandbox.path);
+      final proc = await runZfaSource(
+        ['build', '--dda-routes-only'],
+        workingDirectory: sandbox.path,
+      );
       final out = '${proc.stdout}\n${proc.stderr}';
 
       expect(proc.exitCode, equals(0), reason: out);
@@ -444,10 +444,10 @@ class AView {}
 class BView {}
 ''');
 
-        final proc = await runZfaSource([
-          'build',
-          '--dda-routes-only',
-        ], workingDirectory: sandbox.path);
+        final proc = await runZfaSource(
+          ['build', '--dda-routes-only'],
+          workingDirectory: sandbox.path,
+        );
         final out = '${proc.stdout}\n${proc.stderr}';
 
         expect(proc.exitCode, equals(1), reason: out);
@@ -467,11 +467,10 @@ class BView {}
 class ProductsView {}
 ''');
 
-      final proc = await runZfaSource([
-        'build',
-        '--dda-routes-only',
-        '--no-dda-routes',
-      ], workingDirectory: sandbox.path);
+      final proc = await runZfaSource(
+        ['build', '--dda-routes-only', '--no-dda-routes'],
+        workingDirectory: sandbox.path,
+      );
       final out = '${proc.stdout}\n${proc.stderr}';
 
       expect(proc.exitCode, equals(0), reason: out);
