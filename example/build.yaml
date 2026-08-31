@@ -1,0 +1,31 @@
+targets:
+  $default:
+    builders:
+      zorphy:zorphy:
+        enabled: true
+        generate_for:
+          - lib/src/**
+
+      json_serializable:
+        enabled: true
+        generate_for:
+          - lib/src/**
+        options:
+          explicit_to_json: true
+          checked: true
+
+      source_gen:combining_builder:
+        enabled: true
+
+      hive_ce_generator:hive_adapters_generator:
+        enabled: true
+        generate_for:
+          - lib/src/cache/**
+
+      hive_ce_generator:hive_registrar_intermediate_generator:
+        enabled: true
+        generate_for:
+          - lib/src/cache/**
+
+      hive_ce_generator:hive_registrar_generator:
+        enabled: true
