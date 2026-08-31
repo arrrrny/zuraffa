@@ -207,8 +207,7 @@ void main() {
         // Resolve symlinks so the marker the subprocess writes via `pwd`
         // (canonical /private/var on macOS, where /var -> /private/var)
         // matches the fixture root regardless of platform.
-        final expectedCwd =
-            Directory(fx.root.path).resolveSymbolicLinksSync();
+        final expectedCwd = Directory(fx.root.path).resolveSymbolicLinksSync();
         expect(await File(markerPath).readAsString(), '$expectedCwd\n');
       },
     );

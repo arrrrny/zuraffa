@@ -55,10 +55,11 @@ void main() {
     Future<ProcessResult> runDart(List<String> args) =>
         Process.run('dart', args, workingDirectory: workspace.path);
 
-    Future<ProcessResult> runZfa(List<String> args) => runZfaSource(args, workingDirectory: workspace.path);
+    Future<ProcessResult> runZfa(List<String> args) =>
+        runZfaSource(args, workingDirectory: workspace.path);
 
     setUp(() async {
-  await initZfaSourceBin();
+      await initZfaSourceBin();
       repoRoot = await findProjectRoot();
       zorphyPath = p.normalize(p.join(repoRoot, '..', 'zorphy', 'zorphy'));
       zorphyAnnotationPath = p.normalize(

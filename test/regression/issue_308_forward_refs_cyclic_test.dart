@@ -382,7 +382,9 @@ dev_dependencies:
       'zfa binary is runnable (smoke)',
       timeout: const Timeout(Duration(minutes: 2)),
       () async {
-        final result = await runZfaSource(['--help'], workingDirectory: zfaRoot);
+        final result = await runZfaSource([
+          '--help',
+        ], workingDirectory: zfaRoot);
         expect(result.exitCode, equals(0));
       },
     );
