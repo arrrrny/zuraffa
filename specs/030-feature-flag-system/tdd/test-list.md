@@ -41,7 +41,7 @@ AC1-3 → A21-A23).
 | A15 | Given a `locale:en-US,en-GB` gate and app locale `fr-FR`, `FeatureFlags.isEnabled` returns `false`                                                                | US4.AC3 | example | DONE | `test/feature_flags/runtime_provider_test.dart` |
 | A16 | Given the same gate and app locale `en-US`, `FeatureFlags.isEnabled` returns `true`                                                                               | US4.AC4 | example | DONE | `test/feature_flags/runtime_provider_test.dart` |
 | A17 | Given both `membership:pro` and `locale:en-US` gates with user `pro` but locale `ja-JP`, the feature is disabled (ALL gates must pass)                            | US4.AC5 | example | DONE | `test/feature_flags/runtime_provider_test.dart` |
-| A18 | Given a `variant:a|b` feature, the build-time declaration carries both variants (emitted registry declares the variant list)                                      | US5.AC1 | example | DONE | `test/feature_flags/registry_emitter_test.dart` |
+| A18 | Given a `variant:a\|b` feature, the build-time declaration carries both variants (emitted registry declares the variant list)                                      | US5.AC1 | example | DONE | `test/feature_flags/registry_emitter_test.dart` |
 | A19 | Given a variant resolver returning `a`, the runtime resolves variant `a` as active for the feature                                                                | US5.AC2 | example | DONE | `test/feature_flags/runtime_provider_test.dart` |
 | A20 | Given a feature without a variant gate, it has a single default variant (no A/B branching)                                                                        | US5.AC3 | example | DONE | `test/feature_flags/runtime_provider_test.dart` |
 | A21 | Given a custom `FeatureFlagProvider` is registered, `isEnabled` reflects the provider's values instead of build-time defaults                                     | US6.AC1 | example | DONE | `test/feature_flags/runtime_provider_test.dart` |
@@ -83,7 +83,7 @@ AC1-3 → A21-A23).
 | --- | -------------------------------------------------------------------------------------------------------------------------------- | ----------- | ------- | ------- | ---- |
 | U8  | `membership:<tier>` resolves through the pluggable membership resolver (default local/mock implementation for tests)             | FR-006      | example | DONE | `test/feature_flags/runtime_provider_test.dart` |
 | U9  | `locale:<list>` evaluates against the runtime locale (comma-separated allow-list, exact or language-prefix match)                | FR-007      | example | DONE | `test/feature_flags/runtime_provider_test.dart` |
-| U10 | `variant:<a|b>` declares both variants and selects at runtime via the pluggable variant resolver; provider throw → static fallback | FR-008, FR-009, FR-010 | example | DONE | `test/feature_flags/runtime_provider_test.dart` |
+| U10 | `variant:<a\|b>` declares both variants and selects at runtime via the pluggable variant resolver; provider throw → static fallback | FR-008, FR-009, FR-010 | example | DONE | `test/feature_flags/runtime_provider_test.dart` |
 
 ## Invariants and edge cases still to place
 

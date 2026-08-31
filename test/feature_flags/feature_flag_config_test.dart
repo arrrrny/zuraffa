@@ -70,6 +70,38 @@ void main() {
       expect(config.flag('pro-analytics')!.enabled, isTrue);
     });
 
+    test('rejects invalid feature names used as map keys', () {
+      expect(
+        () => FeatureFlagConfig.fromJson(const {
+          'features': {'bad name!': true},
+        }),
+        throwsA(
+          isA<FeatureConfigException>().having(
+            (e) => e.message,
+            'message',
+            contains('bad name!'),
+          ),
+        ),
+      );
+    });
+
+    test('rejects an object whose embedded name differs from its map key', () {
+      expect(
+        () => FeatureFlagConfig.fromJson(const {
+          'features': {
+            'pro-analytics': {'name': 'notes', 'enabled': true},
+          },
+        }),
+        throwsA(
+          isA<FeatureConfigException>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('pro-analytics'), contains('notes')),
+          ),
+        ),
+      );
+    });
+
     test('empty/missing features section is valid and empty (A1 basis)', () {
       expect(FeatureFlagConfig.fromJson(const {}).featureNames, isEmpty);
       expect(
@@ -216,27 +248,24 @@ void main() {
       );
     });
 
-    test(
-      'flavor override referencing an undeclared feature fails naming it (A4, US1.AC4)',
-      () {
-        expect(
-          () => FeatureFlagConfig.fromJson(const {
-            'features': [
-              {'name': 'notes', 'enabled': true},
-            ],
-            'flavors': {
-              'free': {'ghost-feature': false},
-            },
-          }),
-          throwsA(
-            isA<FeatureConfigException>().having(
-              (e) => e.message,
-              'message',
-              contains('ghost-feature'),
-            ),
+    test('flavor override referencing an undeclared feature fails naming it (A4, US1.AC4)', () {
+      expect(
+        () => FeatureFlagConfig.fromJson(const {
+          'features': [
+            {'name': 'notes', 'enabled': true},
+          ],
+          'flavors': {
+            'free': {'ghost-feature': false},
+          },
+        }),
+        throwsA(
+          isA<FeatureConfigException>().having(
+            (e) => e.message,
+            'message',
+            contains('ghost-feature'),
           ),
-        );
-      },
-    );
+        ),
+      );
+    });
   });
 }

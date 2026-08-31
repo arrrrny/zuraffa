@@ -17,9 +17,9 @@ class FeatureFlagCli {
   /// `--format=json` emits a JSON array. Empty config -> empty list, exit 0
   /// (US1.AC1).
   static bool list({String format = 'text', String? projectRoot}) {
-    final raw = FeatureFlagConfig.loadRawJson(projectRoot: projectRoot);
     final FeatureFlagConfig config;
     try {
+      final raw = FeatureFlagConfig.loadRawJson(projectRoot: projectRoot);
       config = raw == null
           ? FeatureFlagConfig(flags: const {})
           : FeatureFlagConfig.fromJson(raw);
@@ -86,7 +86,16 @@ class FeatureFlagCli {
       return false;
     }
 
-    final raw = FeatureFlagConfig.loadRawJson(projectRoot: projectRoot) ?? {};
+    final Map<String, dynamic> raw;
+    try {
+      raw = FeatureFlagConfig.loadRawJson(projectRoot: projectRoot) ?? {};
+      // Validate the original declaration before normalizing its shape. This
+      // prevents unsupported values from being replaced with valid defaults.
+      FeatureFlagConfig.fromJson(raw);
+    } on FeatureConfigException catch (e) {
+      _fail(e.message);
+      return false;
+    }
 
     final existed = raw['features'] != null;
     final List<dynamic> rawFeatures;

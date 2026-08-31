@@ -24,7 +24,14 @@ environment:
   sdk: ^3.11.0
 ''');
     final entityDir = Directory(
-      p.join(workspace.path, 'lib', 'src', 'domain', 'entities'),
+      p.join(
+        workspace.path,
+        'lib',
+        'src',
+        'domain',
+        'entities',
+        'pro_analytics',
+      ),
     );
     await entityDir.create(recursive: true);
     await File(p.join(entityDir.path, 'pro_analytics.dart')).writeAsString('''
@@ -89,6 +96,12 @@ class ProAnalytics {
       'di',
       '--plan',
     ], workingDirectory: workspace.path);
+    expect(
+      result.exitCode,
+      0,
+      reason:
+          'enabled feature plan failed:\n${result.stdout}\n${result.stderr}',
+    );
     expect(
       '${result.stdout}${result.stderr}'.toLowerCase(),
       isNot(contains('skipped')),

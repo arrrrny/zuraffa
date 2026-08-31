@@ -39,8 +39,10 @@ typedef LocaleResolver = String? Function();
 
 /// A/B variant picker (FR-008): given the feature and its declared
 /// variants, return the active variant for this session.
-typedef VariantResolver =
-    String Function(String feature, List<String> variants);
+typedef VariantResolver = String Function(
+  String feature,
+  List<String> variants,
+);
 
 /// Custom gate handler: receives a [ProviderContext] and decides the gate.
 typedef CustomGateHandler = bool Function(ProviderContext context);
@@ -83,7 +85,7 @@ class FeatureFlagRuntime {
   /// Provider short-circuit, then static set membership, then gate
   /// evaluation (SC-003).
   bool isEnabled(String name) {
-    final context = _currentContext();
+    final context = _currentContext(name);
 
     // 1. Pluggable whole-feature provider (US6) — its answer wins; a
     //    throw or a null answer falls back to the static path (FR-010).
@@ -106,7 +108,7 @@ class FeatureFlagRuntime {
     final gates = _gates[name];
     if (gates == null || gates.isEmpty) return true;
     for (final gate in gates) {
-      if (!_gateSatisfied(gate, context)) return false;
+      if (!_gateSatisfied(name, gate, context)) return false;
     }
     return true;
   }
@@ -139,7 +141,7 @@ class FeatureFlagRuntime {
     return 'a';
   }
 
-  ProviderContext _currentContext() {
+  ProviderContext _currentContext(String feature) {
     final resolvers = _resolvers;
     String? tier;
     String? locale;
@@ -150,11 +152,15 @@ class FeatureFlagRuntime {
     return ProviderContext(
       membershipTier: tier,
       locale: locale,
-      variant: 'a', // per-feature variant resolved lazily in resolveVariant
+      variant: resolveVariant(feature),
     );
   }
 
-  bool _gateSatisfied(FeatureGate gate, ProviderContext context) {
+  bool _gateSatisfied(
+    String feature,
+    FeatureGate gate,
+    ProviderContext context,
+  ) {
     switch (gate.type) {
       case FeatureGateType.membership:
         final tier = context.membershipTier;
@@ -178,7 +184,7 @@ class FeatureFlagRuntime {
         final picker = _resolvers?.variants;
         if (picker == null) return gate.values.isNotEmpty;
         try {
-          final picked = picker(gate.raw, gate.values);
+          final picked = picker(feature, gate.values);
           return gate.values.contains(picked);
         } catch (_) {
           return false;

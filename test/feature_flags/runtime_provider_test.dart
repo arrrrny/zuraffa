@@ -42,27 +42,24 @@ void main() {
 
     test('A13: tier free -> disabled', () {
       expect(
-        runtimeWith(
-          ResolverContext(tier: 'free', locale: 'en-US'),
-        ).isEnabled('pro-analytics'),
+        runtimeWith(ResolverContext(tier: 'free', locale: 'en-US'))
+            .isEnabled('pro-analytics'),
         isFalse,
       );
     });
 
     test('A14: tier pro -> enabled', () {
       expect(
-        runtimeWith(
-          ResolverContext(tier: 'pro', locale: 'en-US'),
-        ).isEnabled('pro-analytics'),
+        runtimeWith(ResolverContext(tier: 'pro', locale: 'en-US'))
+            .isEnabled('pro-analytics'),
         isTrue,
       );
     });
 
     test('unavailable tier fails closed (membership provider missing)', () {
       expect(
-        runtimeWith(
-          ResolverContext(tier: null, locale: 'en-US'),
-        ).isEnabled('pro-analytics'),
+        runtimeWith(ResolverContext(tier: null, locale: 'en-US'))
+            .isEnabled('pro-analytics'),
         isFalse,
       );
     });
@@ -137,16 +134,24 @@ void main() {
   });
 
   group('variant gate (A19, A20, U10)', () {
-    test('A19: resolver returning a activates variant a', () {
+    test('A19: resolver returning b activates variant b', () {
+      final resolvedFeatures = <String>[];
       final runtime = FeatureFlagRuntime(
         enabled: {'experiment'},
         gates: {
           'experiment': [FeatureGate.parse('variant:a|b')],
         },
-        resolvers: Resolvers(variants: (feature, variants) => 'b'),
+        resolvers: Resolvers(
+          variants: (feature, variants) {
+            resolvedFeatures.add(feature);
+            return 'b';
+          },
+        ),
       );
       expect(runtime.isEnabled('experiment'), isTrue);
       expect(runtime.resolveVariant('experiment'), 'b');
+      expect(resolvedFeatures, isNotEmpty);
+      expect(resolvedFeatures, everyElement('experiment'));
     });
 
     test('A20: feature without variant gate has a single default variant', () {
@@ -188,6 +193,29 @@ void main() {
       );
       expect(runtime.isEnabled('heavy-export'), isFalse);
     });
+
+    test('handler context contains the resolved feature variant', () {
+      String? contextVariant;
+      final runtime = FeatureFlagRuntime(
+        enabled: {'heavy-export'},
+        gates: {
+          'heavy-export': [
+            FeatureGate.parse('variant:a|b'),
+            FeatureGate.parse('custom:power-user'),
+          ],
+        },
+        resolvers: Resolvers(variants: (feature, variants) => 'b'),
+        customGates: {
+          'power-user': (context) {
+            contextVariant = context.variant;
+            return true;
+          },
+        },
+      );
+
+      expect(runtime.isEnabled('heavy-export'), isTrue);
+      expect(contextVariant, 'b');
+    });
   });
 
   group('pluggable FeatureFlagProvider (A21, A23, U10)', () {
@@ -212,6 +240,22 @@ void main() {
       expect(runtime.isEnabled('pro-analytics'), isTrue);
       expect(runtime.isEnabled('beta-scheduler'), isFalse);
     });
+
+    test('provider context contains the resolved feature variant', () {
+      final provider = _CapturingProvider();
+      final runtime = FeatureFlagRuntime(
+        enabled: {'experiment'},
+        gates: {
+          'experiment': [FeatureGate.parse('variant:a|b')],
+        },
+        resolvers: Resolvers(variants: (feature, variants) => 'b'),
+        provider: provider,
+      );
+
+      expect(runtime.isEnabled('experiment'), isTrue);
+      expect(provider.feature, 'experiment');
+      expect(provider.context?.variant, 'b');
+    });
   });
 }
 
@@ -233,4 +277,16 @@ class _ThrowingProvider implements FeatureFlagProvider {
   @override
   bool? isEnabled(String feature, ProviderContext context) =>
       throw StateError('remote flag service down');
+}
+
+class _CapturingProvider implements FeatureFlagProvider {
+  String? feature;
+  ProviderContext? context;
+
+  @override
+  bool? isEnabled(String feature, ProviderContext context) {
+    this.feature = feature;
+    this.context = context;
+    return null;
+  }
 }

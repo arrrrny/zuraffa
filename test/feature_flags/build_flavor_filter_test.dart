@@ -179,4 +179,49 @@ class HomeView {}
     final combined = '${result.stdout}\n${result.stderr}';
     expect(combined, contains('nightly'));
   }, timeout: const Timeout(Duration(minutes: 3)));
+
+  test(
+    'dry-run route-only build does not write the feature registry',
+    () async {
+      seedProject();
+      writeConfig('''
+{
+  "features": [
+    { "name": "notes", "enabled": true }
+  ]
+}
+''');
+
+      final result = await runZfaSource([
+        'build',
+        '--dda-routes-only',
+        '--dry-run',
+        '--no-analyze',
+      ], workingDirectory: workspace.path);
+
+      expect(result.exitCode, 0);
+      expect(File(registryPath()).existsSync(), isFalse);
+    },
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
+
+  test('dry-run full build does not write the feature registry', () async {
+    seedProject();
+    writeConfig('''
+{
+  "features": [
+    { "name": "notes", "enabled": true }
+  ]
+}
+''');
+
+    final result = await runZfaSource([
+      'build',
+      '--dry-run',
+      '--no-analyze',
+    ], workingDirectory: workspace.path);
+
+    expect(result.exitCode, 0);
+    expect(File(registryPath()).existsSync(), isFalse);
+  }, timeout: const Timeout(Duration(minutes: 3)));
 }

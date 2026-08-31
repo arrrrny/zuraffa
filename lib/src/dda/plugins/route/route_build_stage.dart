@@ -63,7 +63,10 @@ class RouteBuildStage {
         if (boundary) return true;
       }
       // path-segment match (pro_analytics_view.dart / pro-analytics/...)
-      if (name.contains(snake) ||
+      final snakeSegment = RegExp(
+        '(^|[/\\\\])${RegExp.escape(snake)}(?=\$|[_./\\\\])',
+      );
+      if (snakeSegment.hasMatch(name) ||
           name.contains('/$kebab/') ||
           name.contains('\\$kebab\\')) {
         return true;

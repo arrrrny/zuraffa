@@ -123,4 +123,17 @@ class ProAnalyticsView {}
       contains("path: '/pro-analytics'"),
     );
   });
+
+  test('feature names match only at path-segment boundaries', () {
+    const set = ResolvedFeatureSet(enabled: {}, disabled: {'pro'}, gates: {});
+
+    expect(
+      RouteBuildStage.isOwnedByDisabledFeature('profile_view.dart', set),
+      isFalse,
+    );
+    expect(
+      RouteBuildStage.isOwnedByDisabledFeature('lib/views/pro_view.dart', set),
+      isTrue,
+    );
+  });
 }

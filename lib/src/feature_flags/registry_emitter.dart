@@ -18,7 +18,8 @@ String emitRegistry({
       ? ''
       : enabled.map((n) => "'$n'").join(', ');
 
-  final gateNames = resolved.gates.keys.toList()..sort();
+  final gateNames =
+      resolved.gates.keys.where(resolved.enabled.contains).toList()..sort();
   final gateLines = <String>[];
   for (final name in gateNames) {
     final gates = resolved.gates[name]!;

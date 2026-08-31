@@ -21,9 +21,10 @@ void main() {
     test('A10/U4: a disabled feature leaves no trace in the output', () {
       final source = emitRegistry(
         className: 'FeatureFlags',
-        resolved: _resolved(),
+        resolved: _resolved(withGates: true),
       );
       expect(source, isNot(contains('beta-scheduler')));
+      expect(source, isNot(contains('custom:internal')));
     });
 
     test('A11: embeds exactly the enabled set', () {
@@ -35,9 +36,8 @@ void main() {
       // the enabled literal must be exactly the two enabled features
       // (emitter sorts for stable output)
       expect(
-        RegExp(
-          r"_enabled = <String>\['notes', 'pro-analytics'\]",
-        ).hasMatch(source),
+        RegExp(r"_enabled = <String>\['notes', 'pro-analytics'\]")
+            .hasMatch(source),
         isTrue,
         reason: 'enabled list must be exactly [notes, pro-analytics]',
       );
@@ -108,6 +108,7 @@ ResolvedFeatureSet _resolved({
   final gates = <String, List<FeatureGate>>{};
   if (withGates) {
     gates['notes'] = [FeatureGate.parse('membership:pro')];
+    gates['beta-scheduler'] = [FeatureGate.parse('custom:internal')];
   }
   if (withVariants) {
     gates['notes'] = [FeatureGate.parse('variant:a|b')];

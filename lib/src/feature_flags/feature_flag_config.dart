@@ -21,9 +21,8 @@ class ResolvedFeatureSet {
   final Set<String> enabled;
   final Set<String> disabled;
 
-  /// Gates per feature name (gates of enabled AND disabled features —
-  /// disabled ones never resolve true, but the registry carries the full
-  /// declaration so runtime providers can consult it).
+  /// Gates per feature name (including disabled declarations). Consumers that
+  /// emit build artifacts must filter this map to [enabled].
   final Map<String, List<FeatureGate>> gates;
 
   const ResolvedFeatureSet({
@@ -84,6 +83,12 @@ class FeatureFlagConfig {
       for (final entry in rawFeatures.entries) {
         final name = entry.key.toString();
         final value = entry.value;
+        if (!isValidFeatureName(name)) {
+          throw FeatureConfigException(
+            'invalid feature name "$name" — use alphanumeric characters and '
+            'hyphens (e.g. "pro-analytics")',
+          );
+        }
         if (value is bool) {
           flags[name] = FeatureFlag(name: name, enabled: value);
           continue;
@@ -94,16 +99,21 @@ class FeatureFlagConfig {
             'boolean',
           );
         }
-        final flag = _parseFlagObject(
-          (value).cast<String, dynamic>(),
-          impliedName: name,
-        );
-        if (flags.containsKey(flag.name)) {
+        final map = value.cast<String, dynamic>();
+        final embeddedName = map['name'];
+        if (embeddedName != null && embeddedName.toString() != name) {
           throw FeatureConfigException(
-            'duplicate feature name "${flag.name}" in features section',
+            'feature "$name" has mismatched embedded name '
+            '"${embeddedName.toString()}"',
           );
         }
-        flags[flag.name] = flag;
+        final flag = _parseFlagObject(map, impliedName: name);
+        if (flags.containsKey(name)) {
+          throw FeatureConfigException(
+            'duplicate feature name "$name" in features section',
+          );
+        }
+        flags[name] = flag;
       }
     } else if (rawFeatures != null) {
       throw FeatureConfigException(
@@ -244,7 +254,9 @@ class FeatureFlagConfig {
       if (decoded is Map) {
         return decoded.map((k, v) => MapEntry(k.toString(), v));
       }
-      return null;
+      throw FeatureConfigException(
+        '${file.path} must contain a JSON object at the root',
+      );
     } on FormatException catch (e) {
       throw FeatureConfigException(
         '${file.path} is not valid JSON: ${e.message}',

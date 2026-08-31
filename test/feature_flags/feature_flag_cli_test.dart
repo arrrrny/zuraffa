@@ -20,9 +20,8 @@ void main() {
       jsonDecode(File(configPath()).readAsStringSync()) as Map<String, dynamic>;
 
   void writeConfig(Map<String, dynamic> json) {
-    File(
-      configPath(),
-    ).writeAsStringSync(const JsonEncoder.withIndent('  ').convert(json));
+    File(configPath())
+        .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(json));
   }
 
   setUpAll(initZfaSourceBin);
@@ -160,6 +159,67 @@ environment:
       expect(result.exitCode, isNot(0), reason: 'undeclared feature must fail');
       expect('${result.stdout}${result.stderr}', contains('ghost'));
     });
+  });
+
+  group('invalid config handling', () {
+    for (final command in const [
+      ['list'],
+      ['enable', 'notes'],
+      ['disable', 'notes'],
+    ]) {
+      test(
+        '${command.first} reports malformed JSON without changing it',
+        () async {
+          const malformed = '{"features": [';
+          File(configPath()).writeAsStringSync(malformed);
+
+          final result = await runZfaSource([
+            'feature',
+            ...command,
+          ], workingDirectory: workspace.path);
+
+          expect(result.exitCode, isNot(0));
+          expect('${result.stdout}${result.stderr}', contains('❌'));
+          expect(File(configPath()).readAsStringSync(), malformed);
+        },
+      );
+    }
+
+    test(
+      'enable rejects a non-object JSON root without replacing it',
+      () async {
+        const original = '[{"name":"notes","enabled":true}]';
+        File(configPath()).writeAsStringSync(original);
+
+        final result = await runZfaSource([
+          'feature',
+          'enable',
+          'notes',
+        ], workingDirectory: workspace.path);
+
+        expect(result.exitCode, isNot(0));
+        expect('${result.stdout}${result.stderr}', contains('JSON object'));
+        expect(File(configPath()).readAsStringSync(), original);
+      },
+    );
+
+    test(
+      'enable validates map values before normalizing and writing',
+      () async {
+        const original = '{"features":{"notes":42}}';
+        File(configPath()).writeAsStringSync(original);
+
+        final result = await runZfaSource([
+          'feature',
+          'enable',
+          'notes',
+        ], workingDirectory: workspace.path);
+
+        expect(result.exitCode, isNot(0));
+        expect('${result.stdout}${result.stderr}', contains('notes'));
+        expect(File(configPath()).readAsStringSync(), original);
+      },
+    );
   });
 
   group('scaffold dispatch preserved (U3)', () {

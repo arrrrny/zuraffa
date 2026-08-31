@@ -1,6 +1,6 @@
 # Verification: Feature-Flag System — enable/disable zuraffa features per build
 
-**Feature**: `030-feature-flag-system` | **Audited**: 2026-09-01 | **Auditor**: the implementing session (cold-context audit per `/speckit.tdd.verify`)
+**Feature**: `030-feature-flag-system` | **Audited**: 2026-08-31 | **Auditor**: the implementing session (cold-context audit per `/speckit.tdd.verify`)
 
 **Verdict: VERIFIED** — test-first evidence is real, all behaviors trace to
 the spec, the loop closed green, and deliberate-mutant sampling killed all

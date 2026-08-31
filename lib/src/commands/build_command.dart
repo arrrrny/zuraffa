@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
@@ -101,7 +102,9 @@ class BuildCommand extends Command {
         if (!result.success) {
           exit(1);
         }
-        await emitFeatureFlagsRegistry(featureSet, flavorName: flavor);
+        if (!dryRun) {
+          await emitFeatureFlagsRegistry(featureSet, flavorName: flavor);
+        }
         print('✅ DDA route stage completed');
       } else {
         print('⏭  DDA route stage disabled (--no-dda-routes) — nothing to do.');
@@ -116,6 +119,8 @@ class BuildCommand extends Command {
       if (!result.success) {
         exit(1);
       }
+    }
+    if (!dryRun) {
       await emitFeatureFlagsRegistry(featureSet, flavorName: flavor);
     }
 
