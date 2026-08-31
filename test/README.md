@@ -19,19 +19,14 @@ the `slow` tier (see `dart_test.yaml`).
 
 ## Commands
 
-Run the fast unit suite (default — this is the quick one):
+Run the fast unit suite (default — this is what CI and cloud/CI agents run,
+and the tier to use for routine validation):
 
 ```bash
 dart test
 ```
 
-Run the **full** suite (CI / pre-commit — includes all slow tiers):
-
-```bash
-dart test --preset=all
-```
-
-Run a single slow tier:
+Run a single slow tier (only when the user explicitly asks for one):
 
 ```bash
 dart test --preset=regression
@@ -58,7 +53,13 @@ dart test test/core/result_test.dart
 ## How it is wired
 
 - Slow tiers carry `@Tags([...])` at the top of each file (library-level).
-- `dart_test.yaml` sets `exclude_tags: slow` so the default run is fast, and
-  defines `presets` for the full suite and each tier.
+- `dart_test.yaml` sets `exclude_tags: slow` so the default run is fast. Run a
+  specific slow tier with `--preset=regression` / `integration` / `property` /
+  `benchmark` only when asked.
+- Do NOT run `dart test --preset=all` on cloud/CI agents: it pulls in every slow
+  tier, each spinning up temp projects that run `dart pub get` + `build_runner`
+  and can fill several GB under `/tmp`, exhausting disk/RAM on small agents.
+  Reserve `--preset=all` for an explicit full-local baseline on a developer
+  machine (see `dart_test.yaml`).
 - Add the `slow` tag (plus the tier tag) to any new E2E / heavy test so it is
   excluded from the default run automatically.

@@ -203,9 +203,15 @@ dart test test/core/artifact_publisher_test.dart
 dart test --preset=regression test/regression/docs_command_consistency_test.dart
 ```
 
-`dart test` runs the fast unit suite by default. Use `--preset=all` for the
-full suite, or `--preset=regression` / `integration` / `property` / `benchmark`
-for a single slow tier. See `test/README.md`. Use `dart analyze` on the files you touched.
+`dart test` runs the fast unit suite by default — this is the tier CI and
+cloud/CI agents run, and the tier to use for routine validation. The slow
+tiers are excluded by default (tagged `slow`); run one explicitly only when the
+user asks: `dart test --preset=regression` / `integration` / `property` /
+`benchmark`. Do NOT run `dart test --preset=all` on cloud/CI agents — it pulls
+in every slow tier, each spinning up temp projects that run `dart pub get` +
+`build_runner` and can fill several GB under `/tmp`, exhausting disk/RAM on
+small agents. Reserve `--preset=all` for an explicit full-local baseline on a
+developer machine. See `test/README.md`. Use `dart analyze` on the files you touched.
 
 ## Migration shorthand for older projects
 
