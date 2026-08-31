@@ -175,5 +175,5 @@ class CycleLogEntry {
   @override
   String toString() =>
       'CycleLogEntry($behaviorId, $kind, exit=$exitCode, '
-      'class=$classification, steps=${generationSteps.length})';
+      'class=$classification, steps=${generationSteps?.length ?? 'missing'})';
 }

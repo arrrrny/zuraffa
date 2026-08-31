@@ -205,6 +205,35 @@ void main() {
       },
     );
 
+    test('repeated barrel expansion keeps one value-distinct export', () async {
+      final secondEntry = File(
+        '$projectRoot/lib/src/presentation/pages/product/second_view.dart',
+      );
+      await secondEntry.writeAsString('''
+library;
+
+import '../../widgets/index.dart' show PrimaryButton;
+
+class SecondView {
+  PrimaryButton? button;
+}
+''');
+      final entries = walker.resolveEntrySpecs(['product'], projectRoot)
+        ..add(secondEntry.path);
+
+      final result = await walker.walk(
+        entries: entries,
+        projectRoot: projectRoot,
+        resolver: resolver,
+        depth: SliceDepth.feature,
+      );
+
+      final exports = result.barrels.values.single;
+      expect(exports, hasLength(1));
+      expect(exports.single.targetPath, endsWith('primary_button.dart'));
+      expect(exports.single.directiveText, "export 'primary_button.dart';");
+    });
+
     test(
       'U21: an import cycle terminates and includes every cycle file once',
       () async {

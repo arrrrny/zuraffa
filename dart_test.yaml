@@ -15,6 +15,19 @@
 #   dart test test/core
 #   dart test test/plugins/route
 #   dart test test/commands
+#
+# Concurrency cap
+# ---------------
+# Many regression/integration tests spin up a throwaway temp project and run
+# `dart pub get` + `build_runner build` (each accumulates a populated
+# `.dart_tool` + AOT snapshot in /tmp). At the dart-test default concurrency
+# (== number of cores, often 8-16 on cloud agents) those caches coexist and
+# can exhaust a constrained agent disk mid-run ("Unable to write file:
+# .../.dart_tool/build/entrypoint/build.dart.aot"). Capping parallelism bounds
+# the peak disk footprint so a fresh `dart test --preset=all` completes
+# instead of running out of space. Lower this further on very small disks.
+
+concurrency: 3
 
 exclude_tags: slow
 

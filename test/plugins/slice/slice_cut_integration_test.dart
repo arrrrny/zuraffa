@@ -284,6 +284,101 @@ void main() {
       timeout: const Timeout(Duration(minutes: 2)),
     );
 
+    test(
+      'A4b (issue #605): a barrel with an export-level `show` keeps the '
+      'combinator in the filtered barrel instead of re-exporting wholesale',
+      () async {
+        final viewFile = File(
+          '$projectRoot/lib/src/presentation/pages/product/product_view.dart',
+        );
+        final viewSource = await viewFile.readAsString();
+        final customizedView = viewSource.replaceFirst(
+          "show PrimaryButton;\nimport 'product_controller.dart';\n"
+              "import 'product_state.dart';",
+          "show PrimaryButton, SecondaryButton;\n"
+              "import 'product_controller.dart';",
+        );
+        await viewFile.writeAsString(
+          '$customizedView\n'
+          "const secondaryButton = SecondaryButton(label: 'Secondary');\n",
+        );
+
+        // Both kept targets declare GhostButton. The distinct export
+        // combinators must continue hiding that collision in the sandbox.
+        for (final target in ['primary_button.dart', 'secondary_button.dart']) {
+          final targetFile = File(
+            '$projectRoot/lib/src/presentation/widgets/$target',
+          );
+          await targetFile.writeAsString(
+            '${await targetFile.readAsString()}\nclass GhostButton {}\n',
+          );
+        }
+
+        final barrelFile = File(
+          '$projectRoot/lib/src/presentation/widgets/index.dart',
+        );
+        await barrelFile.writeAsString('''
+/// Shared widget barrel with export-level combinators (issue #605 repro).
+library;
+
+export 'primary_button.dart' show PrimaryButton;
+export 'secondary_button.dart' hide GhostButton;
+export 'app_card.dart';
+export 'loading_indicator.dart';
+''');
+
+        await captureOutput(
+          () => runner.run([
+            'slice',
+            'cut',
+            'product_feature',
+            '--entry',
+            'product',
+            '--depth',
+            'full',
+          ]),
+        );
+
+        final barrel = File(
+          '${sandbox()}/lib/src/presentation/widgets/index.dart',
+        ).readAsStringSync();
+        // The kept target keeps its export-level `show` in the filtered barrel.
+        expect(
+          barrel,
+          contains("export 'primary_button.dart' show PrimaryButton;"),
+        );
+        expect(
+          barrel,
+          contains("export 'secondary_button.dart' hide GhostButton;"),
+        );
+        // The targets the slice does not need stay filtered out.
+        expect(barrel, isNot(contains('app_card')));
+        expect(barrel, isNot(contains('loading_indicator')));
+        // No wholesale re-export slipped through (no bare `export 'x.dart';`).
+        expect(barrel, isNot(contains("export 'primary_button.dart';")));
+        expect(barrel, isNot(contains("export 'secondary_button.dart';")));
+
+        final pubGet = await Process.run('flutter', [
+          'pub',
+          'get',
+        ], workingDirectory: sandbox());
+        expect(
+          pubGet.exitCode,
+          0,
+          reason: 'flutter pub get failed:\n${pubGet.stdout}${pubGet.stderr}',
+        );
+        final analyze = await Process.run('dart', [
+          'analyze',
+        ], workingDirectory: sandbox());
+        expect(
+          analyze.exitCode,
+          0,
+          reason: 'dart analyze failed:\n${analyze.stdout}${analyze.stderr}',
+        );
+      },
+      timeout: const Timeout(Duration(minutes: 3)),
+    );
+
     test('A1: main_slice.dart wires the entry view with mock DI', () async {
       await captureOutput(
         () => runner.run([
