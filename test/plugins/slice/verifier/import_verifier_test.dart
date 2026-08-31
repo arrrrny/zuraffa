@@ -1,3 +1,4 @@
+@Tags(['flutter'])
 /// Tests for ImportVerifier (U45, U46, U47).
 ///
 /// Behaviors traced to specs/043-slice-plugin/tdd/test-list.md:

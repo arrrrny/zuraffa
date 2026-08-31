@@ -1,4 +1,4 @@
-@Tags(['slow'])
+@Tags(['flutter'])
 import 'dart:io';
 
 import 'package:test/test.dart';

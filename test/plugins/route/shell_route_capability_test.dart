@@ -1,3 +1,4 @@
+@Tags(['flutter'])
 import 'dart:io';
 
 import 'package:analyzer/dart/analysis/utilities.dart';

@@ -33,7 +33,10 @@ jobs:
         # from failing the build.
         run: dart analyze lib test --no-fatal-warnings
       - name: "Dart Test (pure Dart, no Flutter)"
-        run: dart test test
+        # Exclude the Flutter-generation tests (tagged `flutter`); those are
+        # covered by the `test` (flutter) job below. This keeps `dart_core` a
+        # true pure-Dart suite that runs on the Dart SDK only.
+        run: dart test test --exclude-tags flutter
 
   analyze:
     timeout-minutes: 15
@@ -100,8 +103,15 @@ jobs:
           channel: "stable"
       - name: "Get dependencies"
         run: flutter packages get
-      - name: "Flutter Core Test"
-        run: flutter test --coverage
+      - name: "Flutter Test (Flutter-generation only)"
+        # Runs only the Flutter-generation tests (tagged `flutter`). `flutter
+        # test` does NOT support `--preset`, so we select them directly with
+        # `--tags flutter`. The pure-Dart fast tier is covered by `dart_core`;
+        # this job verifies that zuraffa's *generated* Flutter output actually
+        # compiles/runs. It must NOT run the whole suite (that is
+        # `dart test --preset=all`, which spins up temp projects that exhaust
+        # disk/RAM on small agents).
+        run: flutter test --tags flutter --coverage
       - name: "Upload coverage to Codecov"
         uses: codecov/codecov-action@v3
         with:
