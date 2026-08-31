@@ -3,6 +3,7 @@ library;
 
 import 'package:args/command_runner.dart';
 
+import '../plugins/tdd/commands/corpus_command.dart';
 import '../plugins/tdd/commands/gen_command.dart';
 import '../plugins/tdd/commands/init_command.dart';
 import '../plugins/tdd/commands/make_command.dart';
@@ -25,6 +26,7 @@ class TddCommand extends Command<void> {
     addSubcommand(RefactorCommand(plugin));
     addSubcommand(RunCommand(plugin));
     addSubcommand(VerifyCommand(plugin));
+    addSubcommand(CorpusCommand(plugin));
   }
 
   final TddPlugin plugin;
