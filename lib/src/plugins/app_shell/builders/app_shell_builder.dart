@@ -42,6 +42,25 @@ import '../../../core/builder/shared/spec_library.dart';
 /// invocation, not by build_runner. `--force` is the explicit opt-in for
 /// re-generation when the user wants to refresh them.
 class AppShellBuilder {
+  static const _flutterCreateHelloWorldStub = '''
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MainApp());
+}
+
+class MainApp extends StatelessWidget {
+  const MainApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      home: Scaffold(body: Center(child: Text('Hello World!'))),
+    );
+  }
+}
+''';
+
   final SpecLibrary specLibrary;
 
   const AppShellBuilder({this.specLibrary = const SpecLibrary()});
@@ -554,6 +573,23 @@ Future<void> _startXRayBridge() async {
     ).firstMatch(pubspecContent);
     return m?.group(1);
   }
+
+  /// Returns true when [content] is the untouched `flutter create --empty`
+  /// Hello-World boilerplate (`MainApp` rendering 'Hello World!').
+  ///
+  /// Issue #626 upgrade path: `zfa setup` leaves the flutter-create stub at
+  /// `lib/main.dart`, and the stub — scaffolder output created moments
+  /// earlier, not user customization — must not require `--force` for the
+  /// shell to replace it. A hand-edited main.dart (error zones,
+  /// observability, custom widgets) differs from the complete template and
+  /// keeps the documented skip-unless-`--force` protection.
+  static bool isFlutterCreateHelloWorldStub(String content) {
+    return _normalizeTemplate(content) ==
+        _normalizeTemplate(_flutterCreateHelloWorldStub);
+  }
+
+  static String _normalizeTemplate(String content) =>
+      content.replaceAll('\r\n', '\n').trim();
 
   /// Maps a project-root-relative [outputDir] (e.g. `lib/src`, `lib/custom`)
   /// to the package-import base used by main.dart — the path relative to

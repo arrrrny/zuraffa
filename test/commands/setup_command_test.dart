@@ -404,6 +404,32 @@ dependency_overrides:
       expect(out, contains('flutter create'));
     });
 
+    // Issue #626: the day-zero baseline must be self-consistent even in
+    // dry-run preview — the app module + bootstrap barrels are emitted
+    // with the rest of the TDD baseline, and the reconciled Next Steps
+    // must include the app-shell upgrade so the documented sequence
+    // produces the full shell ("no step ever creates app.dart" was the
+    // original complaint).
+    test(
+      'dry-run previews the day-zero app module and app-shell next step',
+      () async {
+        final runner = CommandRunner('zfa', 'test')..addCommand(SetupCommand());
+        final prints = <String>[];
+        await runZoned(
+          () => runner.run(['setup', 'demo_app', '--dry-run', '--flutter']),
+          zoneSpecification: ZoneSpecification(
+            print: (self, parent, zone, message) => prints.add(message),
+          ),
+        );
+        final out = prints.join('\n');
+        expect(out, contains('lib/app.dart'));
+        expect(out, contains('lib/src/di/index.dart'));
+        expect(out, contains('lib/src/routing/index.dart'));
+        expect(out, contains('── Next steps ──'));
+        expect(out, contains('zfa app shell'));
+      },
+    );
+
     test(
       'default --flutter emits no --platforms (flutter default applies)',
       () async {

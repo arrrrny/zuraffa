@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
 
+import '../cli/writers/tdd/app_module_writer.dart';
 import '../cli/writers/tdd/dart_test_yaml_writer.dart';
 import '../cli/writers/tdd/pubspec_dev_dependencies_patcher.dart';
 import '../cli/writers/tdd/smoke_test_writer.dart';
@@ -309,12 +310,16 @@ class SetupCommand extends Command<void> {
     );
     print('   zfa make Product --preset=crud --with=vpc,state,di,test');
     print('   zfa build');
+    print(
+      '   zfa app shell      # upgrade the day-zero app module with the generated DI + routes',
+    );
     print('');
     if (isFlutter) {
       print('   Run the app:  flutter run');
       print(
-        '   Run tests:    flutter test   (TDD baseline emitted: '
-        'test/bootstrap_smoke_test.dart)',
+        '   Run tests:    flutter test   (green day zero: '
+        'test/bootstrap_smoke_test.dart asserts '
+        '${AppModuleWriter.containerSymbolFor(appName)})',
       );
     } else {
       print('   Run tests:    dart test');
@@ -322,16 +327,56 @@ class SetupCommand extends Command<void> {
   }
 
   /// Emits the Part-1 TDD day-zero baseline (spec 041-tdd-setup-plugin):
+  /// `lib/app.dart` + bootstrap DI/routing indexes (issue #626),
   /// `test/bootstrap_smoke_test.dart`, `dart_test.yaml`,
   /// `.specify/memory/tdd-profile.md`, and the testing
   /// `dev_dependencies` merged into `pubspec.yaml`. Optionally also emits
   /// `test/tdd_example_test.dart` when [tddExample] is true.
+  ///
+  /// The app module + bootstrap indexes are what make day zero
+  /// self-consistent (issue #626): the smoke test asserts
+  /// `<AppName>Container` from `lib/app.dart`, and the bootstrap barrels
+  /// let `zfa app shell` upgrade the minimal shell before the first
+  /// entity exists. Every writer is skip-if-exists, so re-running setup
+  /// never clobbers real generated DI/routing content.
   Future<void> _emitTddBaseline({
     required String projectRoot,
     required String appName,
     required bool tddExample,
     required bool dryRun,
   }) async {
+    // Issue #626: the zfa-attributable app module the smoke test asserts.
+    final appModulePath = await const AppModuleWriter(
+      isFlutter: true,
+    ).write(projectRoot, appName, dryRun: dryRun);
+    if (appModulePath == null) {
+      print('   ✓ lib/app.dart (already present)');
+    } else {
+      print('   ✓ $appModulePath (created)');
+    }
+
+    // Issue #626: bootstrap DI/routing barrels so `zfa app shell` runs
+    // (and upgrades the minimal shell) before the first entity exists.
+    final diIndexPath = await const BootstrapDiIndexWriter().write(
+      projectRoot,
+      dryRun: dryRun,
+    );
+    if (diIndexPath == null) {
+      print('   ✓ lib/src/di/index.dart (already present)');
+    } else {
+      print('   ✓ $diIndexPath (bootstrap created)');
+    }
+
+    final routingIndexPath = await const BootstrapRoutingIndexWriter().write(
+      projectRoot,
+      dryRun: dryRun,
+    );
+    if (routingIndexPath == null) {
+      print('   ✓ lib/src/routing/index.dart (already present)');
+    } else {
+      print('   ✓ $routingIndexPath (bootstrap created)');
+    }
+
     final profilePath = await const TddProfileWriter().write(
       projectRoot,
       dryRun: dryRun,
