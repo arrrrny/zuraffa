@@ -74,3 +74,21 @@ test existed and failed before the implementation.
 - refactor: removed two `unnecessary_cast`s; made the model's in-flight/
   dropped fields mutable (a runner-held state object saved by the store)
 - commit: (this commit)
+## Cycle 5: U11 + U12 + U13 + U14 — ledger totals + append-only store
+
+- test: `test/plugins/tdd/models/corpus_models_test.dart::GapLedger totals (U11) computes found / filed / merged / blocking from entries` + `test/plugins/tdd/services/gap_ledger_store_test.dart` (U12 x3, U13, U14)
+- red: `dart test test/plugins/tdd/services/gap_ledger_store_test.dart test/plugins/tdd/models/corpus_models_test.dart`
+  -> `UnimplementedError` (6 failed against the stubs — totals, monotonic ids, append stability, resolution semantics)
+- green: implemented `GapLedgerTotals.fromEntries` (found/filed/merged/
+  blocking; a gap resolves via status resolved/merged OR a resolution entry)
+  + `GapLedgerStore` (load with corrupt gate, `gap-###`/`res-###` monotonic
+  ids, atomic temp+rename persist with fixed field order for byte-stable
+  appends). Suite -> `00:00 +12: All tests passed!`;
+  `dart analyze lib/src/plugins/tdd/` -> No issues found
+- refactor: none needed
+- notes: the U11 test's first draft expected 1 blocking gap; the
+  data-model definition ("unresolved gaps whose feature is not done/waived")
+  makes a filed-but-unmerged gap still blocking — the expectation was
+  corrected to 2 (gap-001 open + gap-002 filed-not-merged) BEFORE the
+  implementation was accepted, and the reason is recorded here.
+- commit: (this commit)

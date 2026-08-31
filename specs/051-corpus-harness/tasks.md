@@ -66,10 +66,10 @@ Test-first: each group's failing tests land before its implementation.
 - [X] T005 [P] [U6] Implement `FeatureCorpusState`, `FeatureProgress`,
   `CorpusWaiver`, `CorpusProgress` (toJson/fromJson) in
   `lib/src/plugins/tdd/models/corpus_progress.dart` (depends on T004 red)
-- [ ] T006 [P] [U11] Write the failing ledger-totals tests FIRST in
+- [X] T006 [P] [U11] Write the failing ledger-totals tests FIRST in
   `test/plugins/tdd/models/corpus_models_test.dart`: found/filed/merged/
   blocking compute from entries — observe red
-- [ ] T007 [P] [U11] [U12] [U13] [U14] Implement `GapLedgerEntry`
+- [X] T007 [P] [U11] [U12] [U13] [U14] Implement `GapLedgerEntry`
   (gap + resolution kinds, status tokens, totals helper) in
   `lib/src/plugins/tdd/models/corpus_ledger.dart`, then the failing
   store tests FIRST in

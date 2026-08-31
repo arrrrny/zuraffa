@@ -3,6 +3,7 @@
 library;
 
 import 'package:test/test.dart';
+import 'package:zuraffa/src/plugins/tdd/models/corpus_ledger.dart';
 import 'package:zuraffa/src/plugins/tdd/models/corpus_manifest.dart';
 
 void main() {
@@ -112,4 +113,71 @@ void main() {
       );
     });
   });
+
+  group('GapLedger totals (U11)', () {
+    test('computes found / filed / merged / blocking from entries', () {
+      final entries = [
+        GapLedgerEntry.gap(
+          id: 'gap-001',
+          at: '2026-08-31T00:00:00Z',
+          feature: 'f2-gap',
+          behavior: 'B-002',
+          step: 'run',
+          outcome: 'stopped',
+          failingCommand: 'zfa tdd run f2-gap --project .',
+        ), // open, no issue link
+        GapLedgerEntry.gap(
+          id: 'gap-002',
+          at: '2026-08-31T01:00:00Z',
+          feature: 'f4-gap',
+          behavior: null,
+          step: 'verify',
+          outcome: 'not_assessed',
+          failingCommand: 'zfa tdd verify --feature f4-gap',
+          issueLink: 'https://github.com/arrrrny/zuraffa/issues/640',
+        ), // filed
+        GapLedgerEntry.gap(
+          id: 'gap-003',
+          at: '2026-08-31T02:00:00Z',
+          feature: 'f5-gap',
+          step: 'verify',
+          outcome: 'fail_survived',
+          failingCommand: 'zfa tdd verify --feature f5-gap',
+          status: 'merged',
+          issueLink: 'https://github.com/arrrrny/zuraffa/issues/641',
+        ), // merged (fixed in zuraffa)
+        GapLedgerEntry.resolution(
+          id: 'res-001',
+          at: '2026-08-31T03:00:00Z',
+          feature: 'f6-gap',
+          resolves: 'gap-004',
+        ),
+        GapLedgerEntry.gap(
+          id: 'gap-004',
+          at: '2026-08-31T02:30:00Z',
+          feature: 'f6-gap',
+          step: 'verify',
+          outcome: 'preflight_red',
+          failingCommand: 'zfa tdd verify --feature f6-gap',
+        ), // resolved by res-001
+      ];
+      final totals = GapLedgerTotals.fromEntries(
+        entries,
+        doneFeatures: const {'f9-done'},
+      );
+      expect(totals.found, 4, reason: 'gap entries only');
+      expect(totals.filed, 2, reason: 'issue links set (gap-002, gap-003)');
+      expect(totals.merged, 1, reason: 'status merged (gap-003)');
+      // Blocking: unresolved gaps whose feature is not done/waived —
+      // gap-001 (open) and gap-002 (filed but not merged — filing an
+      // issue does not unblock completion). gap-003 merged, gap-004
+      // resolved by res-001, f9-done is done.
+      expect(totals.blocking, hasLength(2));
+      expect(
+        totals.blocking.map((g) => g.id).toList(),
+        ['gap-001', 'gap-002'],
+      );
+    });
+  });
 }
+
