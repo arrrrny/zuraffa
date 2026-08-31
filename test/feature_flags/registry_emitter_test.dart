@@ -36,8 +36,9 @@ void main() {
       // the enabled literal must be exactly the two enabled features
       // (emitter sorts for stable output)
       expect(
-        RegExp(r"_enabled = <String>\['notes', 'pro-analytics'\]")
-            .hasMatch(source),
+        RegExp(
+          r"_enabled = <String>\['notes', 'pro-analytics'\]",
+        ).hasMatch(source),
         isTrue,
         reason: 'enabled list must be exactly [notes, pro-analytics]',
       );

@@ -20,8 +20,9 @@ void main() {
       jsonDecode(File(configPath()).readAsStringSync()) as Map<String, dynamic>;
 
   void writeConfig(Map<String, dynamic> json) {
-    File(configPath())
-        .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(json));
+    File(
+      configPath(),
+    ).writeAsStringSync(const JsonEncoder.withIndent('  ').convert(json));
   }
 
   setUpAll(initZfaSourceBin);

@@ -39,10 +39,8 @@ typedef LocaleResolver = String? Function();
 
 /// A/B variant picker (FR-008): given the feature and its declared
 /// variants, return the active variant for this session.
-typedef VariantResolver = String Function(
-  String feature,
-  List<String> variants,
-);
+typedef VariantResolver =
+    String Function(String feature, List<String> variants);
 
 /// Custom gate handler: receives a [ProviderContext] and decides the gate.
 typedef CustomGateHandler = bool Function(ProviderContext context);

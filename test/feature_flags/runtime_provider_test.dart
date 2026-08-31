@@ -42,24 +42,27 @@ void main() {
 
     test('A13: tier free -> disabled', () {
       expect(
-        runtimeWith(ResolverContext(tier: 'free', locale: 'en-US'))
-            .isEnabled('pro-analytics'),
+        runtimeWith(
+          ResolverContext(tier: 'free', locale: 'en-US'),
+        ).isEnabled('pro-analytics'),
         isFalse,
       );
     });
 
     test('A14: tier pro -> enabled', () {
       expect(
-        runtimeWith(ResolverContext(tier: 'pro', locale: 'en-US'))
-            .isEnabled('pro-analytics'),
+        runtimeWith(
+          ResolverContext(tier: 'pro', locale: 'en-US'),
+        ).isEnabled('pro-analytics'),
         isTrue,
       );
     });
 
     test('unavailable tier fails closed (membership provider missing)', () {
       expect(
-        runtimeWith(ResolverContext(tier: null, locale: 'en-US'))
-            .isEnabled('pro-analytics'),
+        runtimeWith(
+          ResolverContext(tier: null, locale: 'en-US'),
+        ).isEnabled('pro-analytics'),
         isFalse,
       );
     });

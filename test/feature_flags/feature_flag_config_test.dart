@@ -248,24 +248,27 @@ void main() {
       );
     });
 
-    test('flavor override referencing an undeclared feature fails naming it (A4, US1.AC4)', () {
-      expect(
-        () => FeatureFlagConfig.fromJson(const {
-          'features': [
-            {'name': 'notes', 'enabled': true},
-          ],
-          'flavors': {
-            'free': {'ghost-feature': false},
-          },
-        }),
-        throwsA(
-          isA<FeatureConfigException>().having(
-            (e) => e.message,
-            'message',
-            contains('ghost-feature'),
+    test(
+      'flavor override referencing an undeclared feature fails naming it (A4, US1.AC4)',
+      () {
+        expect(
+          () => FeatureFlagConfig.fromJson(const {
+            'features': [
+              {'name': 'notes', 'enabled': true},
+            ],
+            'flavors': {
+              'free': {'ghost-feature': false},
+            },
+          }),
+          throwsA(
+            isA<FeatureConfigException>().having(
+              (e) => e.message,
+              'message',
+              contains('ghost-feature'),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
   });
 }
