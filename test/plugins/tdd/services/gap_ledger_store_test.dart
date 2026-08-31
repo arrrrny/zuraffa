@@ -32,6 +32,7 @@ void main() {
           behavior: 'B-002',
           step: 'run',
           outcome: 'stopped',
+          expectedResult: 'complete',
           failingCommand: 'zfa tdd run f2-gap --project /app',
         );
         expect(first.id, 'gap-001');
@@ -44,6 +45,7 @@ void main() {
           feature: 'f3-gap',
           step: 'verify',
           outcome: 'not_assessed',
+          expectedResult: 'pass',
           failingCommand: 'zfa tdd verify --feature f3-gap',
         );
         expect(second.id, 'gap-002');
@@ -52,6 +54,7 @@ void main() {
         expect(reloaded, hasLength(2));
         expect(reloaded.first.feature, 'f2-gap');
         expect(reloaded.first.behavior, 'B-002');
+        expect(reloaded.first.expectedResult, 'complete');
         expect(reloaded.first.failingCommand, contains('tdd run'));
       },
     );
@@ -75,6 +78,31 @@ void main() {
         ),
       );
     });
+
+    test('malformed optional fields and expected_result are corrupt', () async {
+      final file = File(store.path);
+      await file.parent.create(recursive: true);
+      final base = {
+        'id': 'gap-001',
+        'kind': 'gap',
+        'at': '2026-08-31T00:00:00Z',
+        'feature': 'f1',
+        'expected_result': 'complete',
+      };
+      for (final malformed in [
+        {...base, 'outcome': 42},
+        {...base, 'status': false},
+        {...base}..remove('expected_result'),
+        {...base, 'expected_result': 'success'},
+      ]) {
+        await file.writeAsString(jsonEncode([malformed]));
+        expect(
+          () => store.load(),
+          throwsA(isA<CorpusCorruptException>()),
+          reason: '$malformed',
+        );
+      }
+    });
   });
 
   group('GapLedgerStore (U13)', () {
@@ -85,6 +113,7 @@ void main() {
           feature: 'f1',
           step: 'run',
           outcome: 'stopped',
+          expectedResult: 'complete',
           failingCommand: 'zfa tdd run f1',
         );
         final afterFirst = await File(store.path).readAsString();
@@ -94,6 +123,7 @@ void main() {
           feature: 'f2',
           step: 'verify',
           outcome: 'fail_survived',
+          expectedResult: 'pass',
           failingCommand: 'zfa tdd verify --feature f2',
         );
         final afterSecond = await File(store.path).readAsString();
@@ -118,6 +148,7 @@ void main() {
           feature: 'f2-gap',
           step: 'run',
           outcome: 'stopped',
+          expectedResult: 'complete',
           failingCommand: 'zfa tdd run f2-gap',
         );
         final gapBlock = _entryBlock(await File(store.path).readAsString());
@@ -154,6 +185,7 @@ void main() {
           feature: 'f2-gap',
           step: 'run',
           outcome: 'stopped',
+          expectedResult: 'complete',
           failingCommand: 'zfa tdd run f2-gap',
         );
         expect(
@@ -183,6 +215,7 @@ void main() {
         feature: 'f1',
         step: 'run',
         outcome: 'stopped',
+        expectedResult: 'complete',
         failingCommand: 'zfa tdd run f1',
       );
       final after = DateTime.now().toUtc();
@@ -201,8 +234,12 @@ String _entryBlock(String fileContent) {
   var inString = false;
   for (var i = start; i < fileContent.length; i++) {
     final ch = fileContent[i];
-    if (ch == '"' && (i == 0 || fileContent[i - 1] != r'\\')) {
-      inString = !inString;
+    if (ch == '"') {
+      var backslashes = 0;
+      for (var j = i - 1; j >= 0 && fileContent[j] == r'\'; j--) {
+        backslashes++;
+      }
+      if (backslashes.isEven) inString = !inString;
     } else if (!inString && ch == '{') {
       depth++;
     } else if (!inString && ch == '}') {

@@ -125,6 +125,7 @@ void main() {
           behavior: 'B-002',
           step: 'run',
           outcome: 'stopped',
+          expectedResult: 'complete',
           failingCommand: 'zfa tdd run f2-gap --project .',
         ), // open, no issue link
         GapLedgerEntry.gap(
@@ -134,6 +135,7 @@ void main() {
           behavior: null,
           step: 'verify',
           outcome: 'not_assessed',
+          expectedResult: 'pass',
           failingCommand: 'zfa tdd verify --feature f4-gap',
           issueLink: 'https://github.com/arrrrny/zuraffa/issues/640',
         ), // filed
@@ -143,6 +145,7 @@ void main() {
           feature: 'f5-gap',
           step: 'verify',
           outcome: 'fail_survived',
+          expectedResult: 'pass',
           failingCommand: 'zfa tdd verify --feature f5-gap',
           status: 'merged',
           issueLink: 'https://github.com/arrrrny/zuraffa/issues/641',
@@ -159,6 +162,7 @@ void main() {
           feature: 'f6-gap',
           step: 'verify',
           outcome: 'preflight_red',
+          expectedResult: 'pass',
           failingCommand: 'zfa tdd verify --feature f6-gap',
         ), // resolved by res-001
       ];

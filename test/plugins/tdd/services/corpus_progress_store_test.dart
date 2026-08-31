@@ -75,6 +75,44 @@ void main() {
       expect(restored.inFlight, isNull);
       expect(restored.dropped, isEmpty);
     });
+
+    test('rejects invalid done and waived terminal states', () {
+      expect(
+        () => CorpusProgress.fromJson({
+          'features': {
+            'f1': {'state': 'done', 'gate': 'fail_survived'},
+          },
+        }),
+        throwsA(isA<FormatException>()),
+      );
+      expect(
+        () => CorpusProgress.fromJson({
+          'features': {
+            'f2': {
+              'state': 'waived',
+              'gate': 'not_assessed',
+              'waiver': {
+                'feature': 'another-feature',
+                'gate': 'not_assessed',
+                'reason': 'reason',
+                'actor': 'actor',
+                'at': '2026-08-31T00:00:00Z',
+              },
+            },
+          },
+        }),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('rejects any non-string dropped entry', () {
+      expect(
+        () => CorpusProgress.fromJson({
+          'dropped': ['valid', 42],
+        }),
+        throwsA(isA<FormatException>()),
+      );
+    });
   });
 
   group('CorpusProgressStore (U7)', () {
@@ -147,6 +185,17 @@ void main() {
   });
 
   group('CorpusProgressStore (U9)', () {
+    test('exclusive ownership is atomic and reusable after release', () async {
+      final first = await store.tryAcquireOwnership();
+      expect(first, isNotNull);
+      expect(await store.tryAcquireOwnership(), isNull);
+      await first!.release();
+
+      final next = await store.tryAcquireOwnership();
+      expect(next, isNotNull);
+      await next!.release();
+    });
+
     test('a live foreign pid in the marker is refused', () {
       final progress = CorpusProgress(
         inFlight: CorpusInFlight(feature: 'f2-gap', ownerPid: 999999),

@@ -55,6 +55,7 @@ class GapLedgerStore {
     String? behavior,
     String? step,
     String? outcome,
+    required String expectedResult,
     String? failingCommand,
   }) async {
     final entries = await load();
@@ -66,6 +67,7 @@ class GapLedgerStore {
       behavior: behavior,
       step: step,
       outcome: outcome,
+      expectedResult: expectedResult,
       failingCommand: failingCommand,
     );
     await _persist([...entries, entry]);

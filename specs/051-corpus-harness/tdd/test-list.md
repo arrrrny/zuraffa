@@ -40,7 +40,7 @@ entry point.
 | A11 | A resumed run that passes the previously-gapped feature leaves the old ledger entry byte-identical and records the resolution as a new entry | US4.AC2 | example | DONE    | `corpus_run_command_test.dart::A2 + A11` + `sc_020_corpus_harness_e2e_test.dart::SC-020/US1` |
 | A12 | The final corpus report lists ledger totals (found / filed / merged / blocking) and names every unresolved gap blocking completion | US4.AC3 | example | DONE    | `corpus_run_command_test.dart::A12 — ledger totals + blocking gaps in the final report` |
 | A13 | `zfa tdd corpus status` on a partially driven corpus reports per-state feature counts, the resume point, and ledger totals, changing nothing | US5.AC1 | example | DONE    | `corpus_status_command_test.dart::A13: per-state counts, resume point, ledger totals, read-only` |
-| A14 | The `corpus status` summary line is stable for CI: exit 0 exactly when all manifest features are done+gated (or waived), any non-zero means incomplete, without prose scraping | US5.AC2 | example | DONE    | `corpus_status_command_test.dart::A14: exit 0 exactly when every manifest feature is done|waived` |
+| A14 | The `corpus status` summary line is stable for CI: exit 0 exactly when all manifest features are done+gated (or waived), any non-zero means incomplete, without prose scraping | US5.AC2 | example | DONE    | `corpus_status_command_test.dart::A14: exit 0 exactly when every manifest feature is done\|waived` |
 
 ## Inner loop: unit behaviors
 

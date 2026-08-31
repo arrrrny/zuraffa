@@ -212,5 +212,27 @@ run: feature=f2-gap result=stopped pending=0 red=1 green=0 done=0 stopped_at=B-0
       expect(result.exitCode, -1);
       expect(result.output, contains('spawn failed'));
     });
+
+    test(
+      'entrypoint resolution failure yields runner-error before spawn',
+      () async {
+        var spawned = false;
+        final runner = CorpusStepRunner(
+          entryResolver: () async => throw StateError('cannot resolve'),
+          spawner: (command, cwd) async {
+            spawned = true;
+            return ProcessResult(0, 0, '', '');
+          },
+        );
+        final result = await runner.runFeature(
+          feature: 'f',
+          projectRoot: projectRoot,
+        );
+        expect(spawned, isFalse);
+        expect(result.success, isFalse);
+        expect(result.outcome, 'runner-error');
+        expect(result.output, contains('entrypoint resolution failed'));
+      },
+    );
   });
 }

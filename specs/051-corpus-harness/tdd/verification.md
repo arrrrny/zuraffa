@@ -4,7 +4,7 @@ verdict: PASS
 standard: .specify/extensions/tdd/templates/tdd-test-quality-rubric.md # rubric graded against
 verified_at: 61d228f7 # short SHA audited (post remediation T033-T037)
 behaviors: 48
-proven: 47
+proven: 48
 likely: 0
 test_after: 0
 no_test: 0
@@ -12,7 +12,7 @@ high_smells: 0
 criteria_total: 14
 criteria_covered: 14
 mutation_score: n/a # no mutation tool in profile; deliberate-mutant sampling used
-mutants_sampled: 8 # all caught, 0 survived; 6 during the loop, 2 during the first audit
+mutants_sampled: 7 # all caught, 0 survived; U11 below was not a mutant
 suite: 2328 passed, 0 failed (fast tier, 64 chunks, runner exit 0) + 43 corpus slow-tier tests (preset=all), all green
 remediation: T033-T037 complete (cycles 15-22) — the prior FAIL verdict's six TEST_AFTER behaviors now carry re-established reds
 ---
@@ -75,7 +75,7 @@ commands) are never doubled.
 ## Mutation results
 
 No mutation tool is wired in this repo's profile; deliberate mutants on
-the highest-risk behaviors, per the rubric's fallback. Sample: 8
+the highest-risk behaviors, per the rubric's fallback. Sample: 7
 behaviors of 48 (not exhaustive).
 
 | Mutant | Behavior | Survived | Judgment |
@@ -89,7 +89,7 @@ behaviors of 48 (not exhaustive).
 | resolution entries never appended | A11 | No | the resume test failed (ledger length 1; now also a recorded red, cycle 19) |
 | ledger-totals blocking definition | U11 | — | not a mutant: the first test draft expected 1 blocking gap; the data-model definition (filed-but-unmerged still blocks) was applied and the expectation corrected before implementation was accepted — recorded in cycle 5 |
 
-All 8 mutants were restored exactly and verified by re-running the
+All 7 mutants were restored exactly and verified by re-running the
 suite green after each restore.
 
 ## Traceability

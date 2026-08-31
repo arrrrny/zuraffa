@@ -1,6 +1,6 @@
 /// `GapLedgerEntry` + totals — the append-only gap ledger model (spec
 /// 051-corpus-harness, FR-007/FR-008, data-model.md). Gap entries record
-/// every STOP-ON-ROADBLOCK with the six required fields; resolution
+/// every STOP-ON-ROADBLOCK with the required fields; resolution
 /// entries record a previously-gapped feature later passing (a NEW entry,
 /// never an edit — US4.AC2). Only `issueLink` and `status` are
 /// maintainer-edited after the fact.
@@ -17,6 +17,7 @@ class GapLedgerEntry {
     this.behavior,
     this.step,
     this.outcome,
+    required this.expectedResult,
     this.failingCommand,
     this.issueLink,
     this.status = 'open',
@@ -37,13 +38,17 @@ class GapLedgerEntry {
   /// gate/manifest-level stops.
   final String? behavior;
 
-  /// The failing corpus step: `run` | `verify`.
+  /// The failing inner run step, or `verify` for a verify-gate failure.
   final String? step;
 
   /// The run outcome token (`stopped`, `runner-error`, …) or the verify
   /// gate label (`fail_survived`, `not_assessed`, …). `resolved` for
   /// resolution entries.
   final String? outcome;
+
+  /// The successful result token expected from the failing corpus command:
+  /// `complete` for run, `pass` for verify.
+  final String? expectedResult;
 
   /// The spawned argv that failed (joined).
   final String? failingCommand;
@@ -65,6 +70,7 @@ class GapLedgerEntry {
     this.behavior,
     this.step,
     this.outcome,
+    required this.expectedResult,
     this.failingCommand,
     this.issueLink,
     this.status = 'open',
@@ -80,6 +86,7 @@ class GapLedgerEntry {
        behavior = null,
        step = null,
        outcome = 'resolved',
+       expectedResult = null,
        failingCommand = null,
        issueLink = null,
        status = 'resolved';
@@ -92,6 +99,7 @@ class GapLedgerEntry {
     if (behavior != null) 'behavior': behavior,
     if (step != null) 'step': step,
     if (outcome != null) 'outcome': outcome,
+    if (expectedResult != null) 'expected_result': expectedResult,
     if (failingCommand != null) 'failing_command': failingCommand,
     if (issueLink != null) 'issue_link': issueLink,
     if (status != null) 'status': status,
@@ -119,18 +127,34 @@ class GapLedgerEntry {
     if (kind == null) {
       throw FormatException('gap ledger entry kind "$kindRaw" is unknown');
     }
+    String? optionalString(String key) {
+      final value = map[key];
+      if (value != null && value is! String) {
+        throw FormatException('gap ledger entry "$key" is not a string');
+      }
+      return value as String?;
+    }
+
+    final expectedResult = optionalString('expected_result');
+    if (kind == GapLedgerKind.gap &&
+        !const {'complete', 'pass'}.contains(expectedResult)) {
+      throw FormatException(
+        'gap ledger entry "expected_result" must be "complete" or "pass"',
+      );
+    }
     return GapLedgerEntry(
       id: id,
       kind: kind,
       at: at,
       feature: feature,
-      behavior: map['behavior'] as String?,
-      step: map['step'] as String?,
-      outcome: map['outcome'] as String?,
-      failingCommand: map['failing_command'] as String?,
-      issueLink: map['issue_link'] as String?,
-      status: map['status'] as String?,
-      resolves: map['resolves'] as String?,
+      behavior: optionalString('behavior'),
+      step: optionalString('step'),
+      outcome: optionalString('outcome'),
+      expectedResult: expectedResult,
+      failingCommand: optionalString('failing_command'),
+      issueLink: optionalString('issue_link'),
+      status: optionalString('status'),
+      resolves: optionalString('resolves'),
     );
   }
 }

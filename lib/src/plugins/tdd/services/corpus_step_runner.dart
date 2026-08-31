@@ -69,14 +69,19 @@ class CorpusStepResult {
 }
 
 class CorpusStepRunner {
-  CorpusStepRunner({this.zfaBin, CorpusSpawner? spawner})
-    : _spawner = spawner ?? _defaultSpawner;
+  CorpusStepRunner({
+    this.zfaBin,
+    CorpusSpawner? spawner,
+    Future<String> Function()? entryResolver,
+  }) : _spawner = spawner ?? _defaultSpawner,
+       _entryResolver = entryResolver ?? StepRunner.defaultZfaBin;
 
   /// Explicit entrypoint override (`--zfa-bin`); null resolves the
   /// package's `bin/zfa.dart` via [StepRunner.defaultZfaBin].
   final String? zfaBin;
 
   final CorpusSpawner _spawner;
+  final Future<String> Function() _entryResolver;
 
   String? _resolvedEntry;
 
@@ -129,7 +134,12 @@ class CorpusStepRunner {
     required String successToken,
     required String tokenKey,
   }) async {
-    final entry = _resolvedEntry ??= zfaBin ?? await _resolveDefault();
+    final String entry;
+    try {
+      entry = _resolvedEntry ??= zfaBin ?? await _resolveDefault();
+    } on Object catch (e) {
+      return _runnerError(step, 'entrypoint resolution failed: $e');
+    }
     final command = [
       ...(entry.endsWith('.dart') ? ['dart', entry] : [entry]),
       ...argv,
@@ -141,11 +151,10 @@ class CorpusStepRunner {
     } on ProcessException catch (e) {
       return _runnerError(
         step,
-        command,
         'spawn failed for ${command.first}: ${e.message}',
       );
     } on IOException catch (e) {
-      return _runnerError(step, command, 'spawn failed: $e');
+      return _runnerError(step, 'spawn failed: $e');
     }
 
     final stdoutText = process.stdout.toString();
@@ -174,22 +183,19 @@ class CorpusStepRunner {
     );
   }
 
-  CorpusStepResult _runnerError(
-    CorpusStep step,
-    List<String> command,
-    String message,
-  ) => CorpusStepResult(
-    step: step,
-    exitCode: -1,
-    outcome: 'runner-error',
-    success: false,
-    output: message,
-  );
+  CorpusStepResult _runnerError(CorpusStep step, String message) =>
+      CorpusStepResult(
+        step: step,
+        exitCode: -1,
+        outcome: 'runner-error',
+        success: false,
+        output: message,
+      );
 
   Future<String> _resolveDefault() async {
     // The corpus spawns the same entrypoint the run driver spawns
     // (spec 049's resolution rule, reused verbatim).
-    return StepRunner.defaultZfaBin();
+    return _entryResolver();
   }
 
   /// The last `<prefix>: key=value …` line in [stdout], parsed into a map —

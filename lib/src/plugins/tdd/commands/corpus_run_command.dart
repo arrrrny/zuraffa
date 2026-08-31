@@ -122,147 +122,107 @@ class CorpusRunCommand extends Command<void> {
     }
 
     // -----------------------------------------------------------------
-    // 2. Progress: load (corrupt stops with the recovery path) and the
-    //    concurrent-run refusal (FR-010) — no writes before both pass.
+    // 2. Acquire atomic ownership before inspecting the persisted
+    //    marker. This closes the check-then-write race between two runs.
     // -----------------------------------------------------------------
-    final CorpusProgress progress;
+    final CorpusOwnership? ownership;
     try {
-      progress = await progressStore.load() ?? CorpusProgress();
-    } on CorpusCorruptException catch (e) {
-      print('zfa tdd corpus run: ${e.message}');
-      _printSummary(
-        features: manifest.features.length,
-        result: 'corrupt-state',
-      );
-      exitCode = _exitCorruptState;
+      ownership = await progressStore.tryAcquireOwnership();
+    } on IOException catch (e) {
+      print('zfa tdd corpus run: cannot acquire corpus ownership: $e');
+      _printSummary(features: manifest.features.length, result: 'runner-error');
+      exitCode = _exitRunnerError;
       return;
     }
-    final refusal = progressStore.refusalReason(progress);
-    if (refusal != null) {
-      print('zfa tdd corpus run: $refusal');
+    if (ownership == null) {
+      print('zfa tdd corpus run: another process owns this corpus run');
       _printSummary(
         features: manifest.features.length,
         result: 'concurrent-run',
-        progress: progress,
-        manifest: manifest,
       );
       exitCode = _exitConcurrentRun;
       return;
     }
 
-    final manifestNames = manifest.features.map((f) => f.name).toSet();
-    print(
-      'zfa tdd corpus run: ${manifest.features.length} feature(s) '
-      '(${manifest.features.where((f) => !f.ready).length} not-ready)',
-    );
-
-    // -----------------------------------------------------------------
-    // 3. Drive in manifest order (FR-001); STOP-ON-ROADBLOCK (FR-002).
-    // -----------------------------------------------------------------
-    final runner = CorpusStepRunner(zfaBin: zfaBin);
-    String? stoppedAtFeature;
-
-    Future<void> persist() =>
-        progressStore.save(progress, manifestFeatureNames: manifestNames);
-
-    for (final feature in manifest.features) {
-      final name = feature.name;
-      final existing = progress.features[name];
-
-      // Resume: done/waived features are never re-driven (US1.AC2).
-      if (existing?.state == FeatureCorpusState.done ||
-          existing?.state == FeatureCorpusState.waived) {
-        continue;
-      }
-
-      // Not-ready: skipped and reported, never spawned (FR-003).
-      if (!feature.ready) {
-        print(
-          '[corpus] $name not-ready (${feature.reason.isEmpty ? 'no reason recorded' : feature.reason}) '
-          '-- skipped, never driven',
-        );
-        continue;
-      }
-
-      // mark -> save -> spawn -> advance -> save: an interruption loses
-      // at most the in-flight feature (the 049 contract, one level up).
-      progress.updateFeature(
-        name,
-        FeatureProgress(state: FeatureCorpusState.driving),
-      );
-      progress.inFlight = CorpusInFlight(feature: name, ownerPid: pid);
-      await persist();
-
-      // --- zfa tdd run <feature> ---
-      final runResult = await runner.runFeature(
-        feature: name,
-        projectRoot: projectRoot,
-      );
-      print('[corpus] $name run -> ${runResult.outcome}');
-      if (!runResult.success) {
-        await _stopAtFeature(
-          feature: name,
-          step: 'run',
-          outcome: runResult.outcome,
-          stoppedAt: runResult.stoppedAt,
-          gate: null,
-          failingCommand: _runCommand(name, projectRoot),
-          output: runResult.output,
+    try {
+      // Progress + ledger corruption stops before any feature is driven.
+      final progress = await progressStore.load() ?? CorpusProgress();
+      final refusal = progressStore.refusalReason(progress);
+      if (refusal != null) {
+        print('zfa tdd corpus run: $refusal');
+        _printSummary(
+          features: manifest.features.length,
+          result: 'concurrent-run',
           progress: progress,
-          ledgerStore: ledgerStore,
-          persist: persist,
+          manifest: manifest,
         );
-        stoppedAtFeature = name;
-        break;
+        exitCode = _exitConcurrentRun;
+        return;
       }
+      await ledgerStore.load();
 
-      // --- zfa tdd verify --feature <feature> ---
-      final verifyResult = await runner.verifyFeature(
-        feature: name,
-        projectRoot: projectRoot,
+      final manifestNames = manifest.features.map((f) => f.name).toSet();
+      print(
+        'zfa tdd corpus run: ${manifest.features.length} feature(s) '
+        '(${manifest.features.where((f) => !f.ready).length} not-ready)',
       );
-      print('[corpus] $name verify -> ${verifyResult.outcome}');
 
-      if (verifyResult.success) {
+      // -----------------------------------------------------------------
+      // 3. Drive in manifest order (FR-001); STOP-ON-ROADBLOCK (FR-002).
+      // -----------------------------------------------------------------
+      final runner = CorpusStepRunner(zfaBin: zfaBin);
+      String? stoppedAtFeature;
+
+      Future<void> persist() =>
+          progressStore.save(progress, manifestFeatureNames: manifestNames);
+
+      for (final feature in manifest.features) {
+        final name = feature.name;
+        final existing = progress.features[name];
+
+        // Resume: done/waived features are never re-driven (US1.AC2).
+        if (existing?.state == FeatureCorpusState.done ||
+            existing?.state == FeatureCorpusState.waived) {
+          continue;
+        }
+
+        // Not-ready: skipped and reported, never spawned (FR-003).
+        if (!feature.ready) {
+          print(
+            '[corpus] $name not-ready (${feature.reason.isEmpty ? 'no reason recorded' : feature.reason}) '
+            '-- skipped, never driven',
+          );
+          continue;
+        }
+
+        // mark -> save -> spawn -> advance -> save: an interruption loses
+        // at most the in-flight feature (the 049 contract, one level up).
         progress.updateFeature(
           name,
-          FeatureProgress(state: FeatureCorpusState.done, gate: 'pass'),
+          FeatureProgress(state: FeatureCorpusState.driving),
         );
-        print('[corpus] $name -> done (gate: pass)');
-        // A previously-gapped feature passing records the resolution as
-        // NEW ledger entries — history is never edited (US4.AC2).
-        await _appendResolutionsIfGapped(
+        progress.inFlight = CorpusInFlight(feature: name, ownerPid: pid);
+        await persist();
+
+        // --- zfa tdd run <feature> ---
+        final runResult = await runner.runFeature(
           feature: name,
-          ledgerStore: ledgerStore,
+          projectRoot: projectRoot,
         );
-      } else {
-        // Exact-match waiver only (FR-004): a waiver for a different
-        // gate outcome never absorbs this failure.
-        final waiver = waivers
-            .where((w) => w.feature == name && w.gate == verifyResult.outcome)
-            .firstOrNull;
-        if (waiver != null) {
-          progress.updateFeature(
-            name,
-            FeatureProgress(
-              state: FeatureCorpusState.waived,
-              gate: verifyResult.outcome,
-              waiver: waiver,
-            ),
-          );
-          print(
-            '[corpus] $name -> waived (gate: ${verifyResult.outcome}; '
-            'reason: ${waiver.reason}; by ${waiver.actor} at ${waiver.at})',
-          );
-        } else {
+        print('[corpus] $name run -> ${runResult.outcome}');
+        if (!runResult.success) {
+          final stoppedAtParts = runResult.stoppedAt?.split(':');
           await _stopAtFeature(
             feature: name,
-            step: 'verify',
-            outcome: verifyResult.outcome,
-            stoppedAt: 'gate:${verifyResult.outcome}',
-            gate: verifyResult.outcome,
-            failingCommand: _verifyCommand(name, projectRoot),
-            output: verifyResult.output,
+            step: stoppedAtParts != null && stoppedAtParts.length > 1
+                ? stoppedAtParts[1]
+                : 'run',
+            outcome: runResult.outcome,
+            expectedResult: 'complete',
+            stoppedAt: runResult.stoppedAt,
+            gate: null,
+            failingCommand: _runCommand(name, projectRoot),
+            output: runResult.output,
             progress: progress,
             ledgerStore: ledgerStore,
             persist: persist,
@@ -270,44 +230,110 @@ class CorpusRunCommand extends Command<void> {
           stoppedAtFeature = name;
           break;
         }
+
+        // --- zfa tdd verify --feature <feature> ---
+        final verifyResult = await runner.verifyFeature(
+          feature: name,
+          projectRoot: projectRoot,
+        );
+        print('[corpus] $name verify -> ${verifyResult.outcome}');
+
+        if (verifyResult.success) {
+          progress.updateFeature(
+            name,
+            FeatureProgress(state: FeatureCorpusState.done, gate: 'pass'),
+          );
+          print('[corpus] $name -> done (gate: pass)');
+          // A previously-gapped feature passing records the resolution as
+          // NEW ledger entries — history is never edited (US4.AC2).
+          await _appendResolutionsIfGapped(
+            feature: name,
+            ledgerStore: ledgerStore,
+          );
+        } else {
+          // Exact-match waiver only (FR-004): a waiver for a different
+          // gate outcome never absorbs this failure.
+          final waiver = waivers
+              .where((w) => w.feature == name && w.gate == verifyResult.outcome)
+              .firstOrNull;
+          if (waiver != null) {
+            progress.updateFeature(
+              name,
+              FeatureProgress(
+                state: FeatureCorpusState.waived,
+                gate: verifyResult.outcome,
+                waiver: waiver,
+              ),
+            );
+            print(
+              '[corpus] $name -> waived (gate: ${verifyResult.outcome}; '
+              'reason: ${waiver.reason}; by ${waiver.actor} at ${waiver.at})',
+            );
+          } else {
+            await _stopAtFeature(
+              feature: name,
+              step: 'verify',
+              outcome: verifyResult.outcome,
+              expectedResult: 'pass',
+              stoppedAt: 'gate:${verifyResult.outcome}',
+              gate: verifyResult.outcome,
+              failingCommand: _verifyCommand(name, projectRoot),
+              output: verifyResult.output,
+              progress: progress,
+              ledgerStore: ledgerStore,
+              persist: persist,
+            );
+            stoppedAtFeature = name;
+            break;
+          }
+        }
+        progress.inFlight = null;
+        await persist();
       }
-      progress.inFlight = null;
-      await persist();
+
+      // -----------------------------------------------------------------
+      // 4. Final report + the machine summary line (FR-008/FR-009).
+      // -----------------------------------------------------------------
+      final ledger = await _loadLedger(ledgerStore);
+      final doneFeatures = progress.features.entries
+          .where(
+            (e) =>
+                e.value.state == FeatureCorpusState.done ||
+                e.value.state == FeatureCorpusState.waived,
+          )
+          .map((e) => e.key)
+          .toSet();
+      final totals = GapLedgerTotals.fromEntries(
+        ledger,
+        doneFeatures: doneFeatures,
+      );
+
+      _printReport(manifest: manifest, progress: progress, totals: totals);
+      final result = stoppedAtFeature != null
+          ? 'stopped'
+          : _complete(manifest, progress)
+          ? 'complete'
+          : 'incomplete';
+      _printSummary(
+        features: manifest.features.length,
+        result: result,
+        progress: progress,
+        manifest: manifest,
+        gaps: totals.found,
+        stoppedAt: stoppedAtFeature,
+      );
+
+      exitCode = result == 'complete' ? _exitComplete : _exitStopped;
+    } on CorpusCorruptException catch (e) {
+      print('zfa tdd corpus run: ${e.message}');
+      _printSummary(
+        features: manifest.features.length,
+        result: 'corrupt-state',
+      );
+      exitCode = _exitCorruptState;
+    } finally {
+      await ownership.release();
     }
-
-    // -----------------------------------------------------------------
-    // 4. Final report + the machine summary line (FR-008/FR-009).
-    // -----------------------------------------------------------------
-    final ledger = await _loadLedgerQuietly(ledgerStore);
-    final doneFeatures = progress.features.entries
-        .where(
-          (e) =>
-              e.value.state == FeatureCorpusState.done ||
-              e.value.state == FeatureCorpusState.waived,
-        )
-        .map((e) => e.key)
-        .toSet();
-    final totals = GapLedgerTotals.fromEntries(
-      ledger,
-      doneFeatures: doneFeatures,
-    );
-
-    _printReport(manifest: manifest, progress: progress, totals: totals);
-    final result = stoppedAtFeature != null
-        ? 'stopped'
-        : _complete(manifest, progress)
-        ? 'complete'
-        : 'incomplete';
-    _printSummary(
-      features: manifest.features.length,
-      result: result,
-      progress: progress,
-      manifest: manifest,
-      gaps: totals.found,
-      stoppedAt: stoppedAtFeature,
-    );
-
-    exitCode = result == 'complete' ? _exitComplete : _exitStopped;
   }
 
   /// Every manifest feature is done or waived (not-ready features block
@@ -330,6 +356,7 @@ class CorpusRunCommand extends Command<void> {
     required String feature,
     required String step,
     required String outcome,
+    required String expectedResult,
     required String? stoppedAt,
     required String? gate,
     required String failingCommand,
@@ -346,6 +373,7 @@ class CorpusRunCommand extends Command<void> {
       behavior: behavior,
       step: step,
       outcome: outcome,
+      expectedResult: expectedResult,
       failingCommand: failingCommand,
     );
     progress.updateFeature(
@@ -369,7 +397,7 @@ class CorpusRunCommand extends Command<void> {
     required String feature,
     required GapLedgerStore ledgerStore,
   }) async {
-    final ledger = await _loadLedgerQuietly(ledgerStore);
+    final ledger = await _loadLedger(ledgerStore);
     final resolvedIds = ledger
         .where((e) => e.kind == GapLedgerKind.resolution)
         .map((e) => e.resolves)
@@ -385,18 +413,8 @@ class CorpusRunCommand extends Command<void> {
     }
   }
 
-  static Future<List<GapLedgerEntry>> _loadLedgerQuietly(
-    GapLedgerStore store,
-  ) async {
-    try {
-      return await store.load();
-    } on CorpusCorruptException {
-      // The ledger is append-only history; if it is corrupt the stop
-      // surfaces elsewhere (the load gate in a next invocation). Here
-      // the report degrades to empty totals rather than crashing mid-run.
-      return const [];
-    }
-  }
+  static Future<List<GapLedgerEntry>> _loadLedger(GapLedgerStore store) =>
+      store.load();
 
   static String _runCommand(String feature, String projectRoot) =>
       'zfa tdd run $feature --project $projectRoot';

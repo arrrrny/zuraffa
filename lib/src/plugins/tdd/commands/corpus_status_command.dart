@@ -146,6 +146,7 @@ class CorpusStatusCommand extends Command<void> {
       // The resume point: the first non-done/waived feature in manifest
       // order (what `corpus run` would drive next).
       if (resumeAt == null &&
+          feature.ready &&
           state != FeatureCorpusState.done &&
           state != FeatureCorpusState.waived) {
         resumeAt = feature.name;

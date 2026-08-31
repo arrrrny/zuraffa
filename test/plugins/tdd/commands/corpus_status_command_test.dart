@@ -77,6 +77,7 @@ void main() {
             'feature': 'f2-stopped',
             'step': 'verify',
             'outcome': 'fail_survived',
+            'expected_result': 'pass',
             'failing_command': 'zfa tdd verify --feature f2-stopped',
             'status': 'open',
           },
@@ -176,5 +177,15 @@ void main() {
     expect(exitCode, 3, reason: out);
     expect(out, contains('Recovery'));
     expect(out.trim().split('\n').last, contains('result=corrupt-state'));
+  });
+
+  test('resume_at skips not-ready features in manifest order', () async {
+    await fx.writeManifest([
+      (name: 'f1-notready', ready: false, reason: 'not imported'),
+      (name: 'f2-ready', ready: true, reason: ''),
+    ]);
+    final out = await status();
+    expect(exitCode, 1, reason: out);
+    expect(out.trim().split('\n').last, contains('resume_at=f2-ready'));
   });
 }

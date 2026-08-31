@@ -69,10 +69,13 @@ Gap entries (runner-appended):
 - `feature` (String) — manifest feature name
 - `behavior` (String?) — the behavior id the stop hit (from run's
   `stopped_at`; null for gate/manifest-level stops)
-- `step` (String) — `run` | `verify` (the failing corpus step)
+- `step` (String) — the second token of run's `<behavior>:<step>` stop point,
+  or `verify` for a verify-gate failure
 - `outcome` (String) — run `result=` token (`stopped`, `runner-error`,
   `corrupt-state`, `concurrent-run`) or the verify gate label
   (`fail_survived`, `not_assessed`, …)
+- `expectedResult` (String) — the success token the failed command was
+  expected to report: `complete` for `run`, `pass` for `verify`
 - `failingCommand` (String) — the spawned argv joined (e.g.
   `zfa tdd run 001-app-bootstrap --project …`)
 - `issueLink` (String?) — null placeholder until the maintainer files the

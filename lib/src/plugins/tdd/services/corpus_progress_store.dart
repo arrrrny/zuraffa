@@ -23,6 +23,29 @@ class CorpusProgressStore {
   final bool Function(int pid) _pidAlive;
 
   String get path => p.join(projectRoot, '.zfa', 'corpus', 'progress.json');
+  String get ownershipPath => p.join(projectRoot, '.zfa', 'corpus', 'run.lock');
+
+  /// Atomically acquire exclusive corpus ownership. Exclusive file creation
+  /// closes the check-then-write race left by the persisted in-flight marker.
+  /// Returns null when another process already owns this corpus.
+  Future<CorpusOwnership?> tryAcquireOwnership() async {
+    final file = File(ownershipPath);
+    await file.parent.create(recursive: true);
+    try {
+      await file.create(exclusive: true);
+    } on FileSystemException {
+      if (await file.exists()) return null;
+      rethrow;
+    }
+    final token = '$pid:${DateTime.now().microsecondsSinceEpoch}';
+    try {
+      await file.writeAsString(token);
+      return CorpusOwnership._(file, token);
+    } on Object {
+      if (await file.exists()) await file.delete();
+      rethrow;
+    }
+  }
 
   /// Load the persisted progress, or `null` when no file exists.
   /// Corruption stops with [CorpusCorruptException] naming the file and
@@ -102,6 +125,23 @@ class CorpusProgressStore {
       return result.exitCode == 0;
     } on Object {
       return true;
+    }
+  }
+}
+
+/// A held atomic corpus owner file. Call [release] after final persistence.
+class CorpusOwnership {
+  CorpusOwnership._(this._file, this._token);
+
+  final File _file;
+  final String _token;
+  bool _released = false;
+
+  Future<void> release() async {
+    if (_released) return;
+    _released = true;
+    if (await _file.exists() && await _file.readAsString() == _token) {
+      await _file.delete();
     }
   }
 }

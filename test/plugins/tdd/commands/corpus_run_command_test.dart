@@ -10,6 +10,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/plugins/tdd/services/corpus_progress_store.dart';
 
 import '../helpers/corpus_fixture.dart';
 
@@ -149,8 +150,9 @@ void main() {
         final gap = ledger.first as Map<String, dynamic>;
         expect(gap['feature'], 'f2-gap');
         expect(gap['behavior'], 'B-002');
-        expect(gap['step'], 'run');
+        expect(gap['step'], 'make');
         expect(gap['outcome'], 'stopped');
+        expect(gap['expected_result'], 'complete');
         expect(gap['failing_command'], contains('tdd run f2-gap'));
         expect(gap['issue_link'], isNull);
         expect(gap['status'], 'open');
@@ -206,6 +208,21 @@ void main() {
   });
 
   group('U22 — concurrent corpus runs', () {
+    test('an atomic owner file refuses a competing run before steps', () async {
+      await fx.writeManifest([(name: 'f1-good', ready: true, reason: '')]);
+      final store = CorpusProgressStore(fx.root.path);
+      final ownership = await store.tryAcquireOwnership();
+      expect(ownership, isNotNull);
+      try {
+        final out = await drive();
+        expect(exitCode, 4, reason: out);
+        expect(out.trim().split('\n').last, contains('result=concurrent-run'));
+        expect(await fx.readCalls(), isEmpty);
+      } finally {
+        await ownership!.release();
+      }
+    });
+
     test('a live foreign pid in the marker is refused, exit 4', () async {
       await fx.writeManifest([(name: 'f1-good', ready: true, reason: '')]);
       // Seed an in-flight marker owned by a real live process we spawn
@@ -284,6 +301,18 @@ void main() {
       expect(out, contains('Recovery'));
       final lastLine = out.trim().split('\n').last;
       expect(lastLine, contains('result=corrupt-state'));
+    });
+
+    test('a corrupt gap ledger stops before driving any feature', () async {
+      await fx.writeManifest([(name: 'f1-good', ready: true, reason: '')]);
+      final ledgerFile = File(fx.ledgerPath);
+      await ledgerFile.parent.create(recursive: true);
+      await ledgerFile.writeAsString('[{"kind":"gap"}]');
+      final out = await drive();
+      expect(exitCode, 3, reason: out);
+      expect(out, contains('gap-ledger.json'));
+      expect(out.trim().split('\n').last, contains('result=corrupt-state'));
+      expect(await fx.readCalls(), isEmpty);
     });
   });
 
@@ -408,6 +437,7 @@ void main() {
         expect(gap['feature'], 'f1');
         expect(gap['step'], 'verify');
         expect(gap['outcome'], gate);
+        expect(gap['expected_result'], 'pass');
         // The feature is not done — no silent absorption.
         final progress = await fx.readProgress();
         expect(progress!['features']['f1']['state'], 'stopped');
@@ -538,7 +568,7 @@ void main() {
       // The totals line (FR-008).
       expect(out, contains('ledger: found=1 filed=0 merged=0 blocking=1'));
       // The unresolved blocking gap is NAMED.
-      expect(out, contains('blocking: gap-001 f2-gap run stopped (B-002)'));
+      expect(out, contains('blocking: gap-001 f2-gap make stopped (B-002)'));
       // The summary carries the all-time gap count.
       final lastLine = out.trim().split('\n').last;
       expect(lastLine, contains('gaps=1'));

@@ -49,6 +49,7 @@ class CorpusAuditCommand extends Command<void> {
 
   static const _exitPass = 0;
   static const _exitFail = 1;
+  static const _exitRunnerError = 2;
 
   @override
   Future<void> run() async {
@@ -61,61 +62,72 @@ class CorpusAuditCommand extends Command<void> {
     print('zfa tdd corpus audit: scanning lib/ provenance...');
     print('   project: $projectRoot');
 
-    final scanner = ProvenanceScanner(projectRoot);
-    final report = await scanner.scan();
+    ProvenanceReport? report;
+    try {
+      final scanner = ProvenanceScanner(projectRoot);
+      report = await scanner.scan();
+      final result = report.unattributed.isEmpty ? 'pass' : 'fail';
 
-    // The human summary + the failure names (FR-006).
-    print('   files: ${report.counts.files}');
-    print('   attributed: ${report.counts.attributed}');
-    print('   carve-out: ${report.counts.carveout}');
-    print('   unattributed: ${report.counts.unattributed}');
-    if (report.unattributed.isNotEmpty) {
-      print('unattributed files:');
-      for (final file in report.unattributed) {
-        print('   $file');
+      // The human summary + the failure names (FR-006).
+      print('   files: ${report.counts.files}');
+      print('   attributed: ${report.counts.attributed}');
+      print('   carve-out: ${report.counts.carveout}');
+      print('   unattributed: ${report.counts.unattributed}');
+      if (report.unattributed.isNotEmpty) {
+        print('unattributed files:');
+        for (final file in report.unattributed) {
+          print('   $file');
+        }
       }
+
+      // The machine-readable report (FR-006).
+      final reportPath = CorpusManifestStore(projectRoot).auditReportPath;
+      final reportFile = File(reportPath);
+      await reportFile.parent.create(recursive: true);
+      await reportFile.writeAsString(
+        const JsonEncoder.withIndent('  ').convert({
+          'project': projectRoot,
+          'files': {
+            for (final entry in report.files.entries)
+              entry.key: {
+                'source': entry.value.source.name,
+                'command': entry.value.command,
+              },
+          },
+          'carveouts': [
+            for (final entry in report.files.entries)
+              if (entry.value.source == AttributionSource.carveout)
+                {'path': entry.key, 'reason': entry.value.command},
+          ],
+          'unattributed': report.unattributed,
+          'counts': {
+            'files': report.counts.files,
+            'attributed': report.counts.attributed,
+            'carveout': report.counts.carveout,
+            'unattributed': report.counts.unattributed,
+          },
+          'result': result,
+        }),
+      );
+      print('   report: $reportPath');
+
+      _printSummary(report, result);
+      exitCode = result == 'pass' ? _exitPass : _exitFail;
+    } on IOException catch (e) {
+      print('zfa tdd corpus audit: runner error: $e');
+      _printSummary(report, 'runner-error');
+      exitCode = _exitRunnerError;
     }
+  }
 
-    // The machine-readable report (FR-006).
-    final reportPath = CorpusManifestStore(projectRoot).auditReportPath;
-    final reportFile = File(reportPath);
-    await reportFile.parent.create(recursive: true);
-    await reportFile.writeAsString(
-      const JsonEncoder.withIndent('  ').convert({
-        'project': projectRoot,
-        'files': {
-          for (final entry in report.files.entries)
-            entry.key: {
-              'source': entry.value.source.name,
-              'command': entry.value.command,
-            },
-        },
-        'carveouts': [
-          for (final entry in report.files.entries)
-            if (entry.value.source == AttributionSource.carveout)
-              {'path': entry.key, 'reason': entry.value.command},
-        ],
-        'unattributed': report.unattributed,
-        'counts': {
-          'files': report.counts.files,
-          'attributed': report.counts.attributed,
-          'carveout': report.counts.carveout,
-          'unattributed': report.counts.unattributed,
-        },
-        'result': report.unattributed.isEmpty ? 'pass' : 'fail',
-      }),
-    );
-    print('   report: $reportPath');
-
-    final result = report.unattributed.isEmpty ? 'pass' : 'fail';
+  static void _printSummary(ProvenanceReport? report, String result) {
+    final counts = report?.counts;
     print(
-      'audit: files=${report.counts.files} '
-      'attributed=${report.counts.attributed} '
-      'carveout=${report.counts.carveout} '
-      'unattributed=${report.counts.unattributed} '
+      'audit: files=${counts?.files ?? 0} '
+      'attributed=${counts?.attributed ?? 0} '
+      'carveout=${counts?.carveout ?? 0} '
+      'unattributed=${counts?.unattributed ?? 0} '
       'result=$result',
     );
-
-    exitCode = result == 'pass' ? _exitPass : _exitFail;
   }
 }

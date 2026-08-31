@@ -185,4 +185,17 @@ void main() {
       'audit: files=0 attributed=0 carveout=0 unattributed=0 result=pass',
     );
   });
+
+  test('a report write failure is a runner-error with exit 2', () async {
+    await libFile('mystery.dart');
+    await write('.zfa/corpus', 'blocks the report directory');
+    final out = await audit();
+    expect(exitCode, 2, reason: out);
+    expect(out, contains('runner error'));
+    expect(
+      out.trim().split('\n').last,
+      'audit: files=1 attributed=0 carveout=0 unattributed=1 '
+      'result=runner-error',
+    );
+  });
 }

@@ -208,6 +208,15 @@ class CorpusProgress {
           }
           waiver = CorpusWaiver.fromJson(w);
         }
+        if (state == FeatureCorpusState.done && gate != 'pass') {
+          bad('features["$name"] is done without gate "pass"');
+        }
+        if (state == FeatureCorpusState.waived &&
+            (waiver == null || waiver.feature != name || waiver.gate != gate)) {
+          bad(
+            'features["$name"] is waived without a matching feature/gate waiver',
+          );
+        }
         features[name] = FeatureProgress(
           state: state,
           gate: gate as String?,
@@ -230,9 +239,11 @@ class CorpusProgress {
     if (droppedRaw != null && droppedRaw is! List) {
       bad('"dropped" is not a list');
     }
-    final dropped = (droppedRaw as List? ?? const [])
-        .whereType<String>()
-        .toList();
+    final dropped = <String>[];
+    for (final entry in droppedRaw as List? ?? const []) {
+      if (entry is! String) bad('"dropped" contains a non-string entry');
+      dropped.add(entry);
+    }
     return CorpusProgress(
       features: features,
       inFlight: inFlight,

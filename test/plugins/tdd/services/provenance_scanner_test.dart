@@ -256,20 +256,22 @@ actions:
   });
 
   group('U30 — path normalization', () {
-    test('dot-prefixed and backslash variants match', () async {
+    test('dot-prefixed and Windows-backslash variants match', () async {
       await libFile('norm.dart');
-      await write(
-        '.zfa/provenance/setup.json',
-        jsonEncode({
-          'command': 'zfa setup demo',
-          'files': ['./lib/norm.dart'],
-        }),
-      );
-      expect(
-        (await scanner.scan()).attributed('lib/norm.dart'),
-        isNotNull,
-        reason: './lib/x normalizes to lib/x',
-      );
+      for (final recordedPath in ['./lib/norm.dart', r'.\lib\norm.dart']) {
+        await write(
+          '.zfa/provenance/setup.json',
+          jsonEncode({
+            'command': 'zfa setup demo',
+            'files': [recordedPath],
+          }),
+        );
+        expect(
+          (await scanner.scan()).attributed('lib/norm.dart'),
+          isNotNull,
+          reason: '$recordedPath normalizes to lib/norm.dart',
+        );
+      }
     });
   });
 

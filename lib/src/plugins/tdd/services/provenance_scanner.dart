@@ -95,7 +95,7 @@ class ProvenanceScanner {
     if (await libDir.exists()) {
       await for (final entity in libDir.list(recursive: true)) {
         if (entity is File) {
-          libFiles.add(p.relative(entity.path, from: projectRoot));
+          libFiles.add(normalize(entity.path));
         }
       }
     }
@@ -282,9 +282,11 @@ class ProvenanceScanner {
 
   /// Normalize a recorded path to a POSIX project-relative form.
   String normalize(String recorded) {
-    var path = recorded;
-    if (p.isAbsolute(path)) {
-      path = p.relative(path, from: projectRoot);
+    var path = recorded.replaceAll(r'\', '/');
+    if (p.isAbsolute(recorded)) {
+      path = p.relative(recorded, from: projectRoot).replaceAll(r'\', '/');
+    } else if (p.posix.isAbsolute(path)) {
+      path = p.posix.relative(path, from: projectRoot.replaceAll(r'\', '/'));
     }
     path = p.posix.normalize(path);
     return path;

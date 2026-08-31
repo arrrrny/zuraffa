@@ -115,14 +115,15 @@ void main() {
       );
     });
 
-    test('FR-007: the ledger entry carries the six fields', () async {
+    test('FR-007: the ledger entry carries the required fields', () async {
       final ledger1 = await fx.readLedger();
       expect(ledger1, hasLength(1));
       final gap = ledger1.first as Map<String, dynamic>;
       expect(gap['feature'], 'f2-gap');
       expect(gap['behavior'], 'B-002');
-      expect(gap['step'], 'run');
+      expect(gap['step'], 'make');
       expect(gap['outcome'], 'stopped');
+      expect(gap['expected_result'], 'complete');
       expect(gap['failing_command'], contains('tdd run f2-gap'));
       expect(gap['issue_link'], isNull);
     });
