@@ -2,7 +2,7 @@
 feature: tdd-make-planner-omits-name-flag
 verdict: PASS_WITH_GAPS
 standard: .specify/extensions/tdd/templates/tdd-test-quality-rubric.md # rubric graded against
-verified_at: 00ed1451
+verified_at: db00ff5e
 behaviors: 2
 proven: 0
 likely: 2
@@ -13,7 +13,7 @@ criteria_total: 2
 criteria_covered: 2
 mutation_score: n/a # no mutation tool; deliberate mutant 1/1 caught
 mutants_survived: 0
-suite: fast tier 2670 passed / 1 pre-existing failure; tdd plugin --preset=all 345 passed / 0 failed; regression tier 279 passed / 1 pre-existing failure; integration+property tiers green
+suite: fast tier 2670 passed / 0 failed; tdd plugin --preset=all 345 passed / 0 failed; regression tier 279 passed / 1 pre-existing failure; integration+property tiers green
 ---
 
 # TDD Verification: `zfa tdd make` planner omits required `-n` flag (#609)

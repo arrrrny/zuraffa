@@ -60,14 +60,17 @@ class CycleLogEntry {
 
   /// Recorded generation steps (green/make entries only). Rendered as the
   /// `generation:` block listing each step's command, exit code, and purpose
-  /// in execution order (spec 047 FR-006 / FR-008).
-  final List<GenerationStep> generationSteps;
+  /// in execution order (spec 047 FR-006 / FR-008). Null means the evidence
+  /// was not recorded; an empty list is a recorded plan with no steps.
+  final List<GenerationStep>? generationSteps;
 
-  /// Suite baseline failure count captured before generation (green entries).
-  final int suiteBaselineFailures;
+  /// Suite baseline failure count captured before generation (green entries),
+  /// or null when that evidence was not recorded.
+  final int? suiteBaselineFailures;
 
-  /// Suite guard failure count from the pre-run baseline snapshot.
-  final int suiteGuardFailures;
+  /// Suite guard failure count from the pre-run baseline snapshot, or null
+  /// when that evidence was not recorded.
+  final int? suiteGuardFailures;
 
   /// New failures introduced by the generation, if any (green entries).
   final List<String> suiteNewFailures;
@@ -84,9 +87,9 @@ class CycleLogEntry {
     this.classification,
     this.refactorActions = const [],
     this.isNoOp = false,
-    this.generationSteps = const [],
-    this.suiteBaselineFailures = 0,
-    this.suiteGuardFailures = 0,
+    this.generationSteps,
+    this.suiteBaselineFailures,
+    this.suiteGuardFailures,
     this.suiteNewFailures = const [],
   }) : assert(
          kind != CycleEntryKind.red || classification != null,
@@ -134,10 +137,12 @@ class CycleLogEntry {
 
     if (kind == CycleEntryKind.green) {
       buf.writeln('- generation:');
-      if (generationSteps.isEmpty) {
+      if (generationSteps == null) {
+        buf.writeln('  (evidence missing)');
+      } else if (generationSteps!.isEmpty) {
         buf.writeln('  (none)');
       } else {
-        for (final step in generationSteps) {
+        for (final step in generationSteps!) {
           buf.writeln('  - step: ${step.command}');
           buf.writeln('    exit: ${step.exitCode}');
           buf.writeln('    purpose: ${step.purpose}');
@@ -146,9 +151,11 @@ class CycleLogEntry {
       final newFailures = suiteNewFailures.isEmpty
           ? '(none)'
           : suiteNewFailures.join(', ');
+      final baselineFailures = suiteBaselineFailures ?? '(evidence missing)';
+      final guardFailures = suiteGuardFailures ?? '(evidence missing)';
       buf.writeln(
-        '- suite: baseline=$suiteBaselineFailures '
-        'guard=$suiteGuardFailures new=$newFailures',
+        '- suite: baseline=$baselineFailures '
+        'guard=$guardFailures new=$newFailures',
       );
     }
 
@@ -175,5 +182,5 @@ class CycleLogEntry {
   @override
   String toString() =>
       'CycleLogEntry($behaviorId, $kind, exit=$exitCode, '
-      'class=$classification, steps=${generationSteps.length})';
+      'class=$classification, steps=${generationSteps?.length ?? 'missing'})';
 }
