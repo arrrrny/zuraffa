@@ -1,0 +1,30 @@
+# MD Doctor Configuration
+# Copied to .specify/extensions/md-doctor/md-doctor-config.yml on install
+
+# Directories to scan for .md files, relative to the repository root.
+# Defaults to the whole repo. Add entries to narrow the scope, e.g.
+#   scan_paths:
+#     - "."
+#     - "docs"
+#     - "specs"
+scan_paths:
+  - "."
+
+# Glob patterns to exclude. Path-aware: "**" crosses directories, "*" stays
+# within one. Always excludes our own state dir and .git.
+exclude_globs:
+  - ".git/**"
+  - ".specify/md-doctor/**"
+  - ".specify/extensions/**"
+  - "node_modules/**"
+  - ".venv/**"
+  - "vendor/**"
+
+# When true (default), MD Doctor reads the TDD extension's outputs
+# (specs/*/tdd/verification.md verdicts and test-list.md behaviors) as ground
+# truth: a doc claiming a behavior TDD shows failing is marked false.
+tdd_integration: true
+
+# Files scoring at or above this are treated as "keep"; below it they are
+# candidates for update/delete. Used only to color the report.
+min_score: 60

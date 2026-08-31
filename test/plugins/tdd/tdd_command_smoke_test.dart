@@ -35,6 +35,37 @@ void main() {
     }
   });
 
+  test('zfa tdd --help lists the corpus family (051, T001)', () async {
+    final runner = CliRunner(exitOnCompletion: false);
+    final out = await runner.runCapturing(['tdd', '--help']);
+    expect(out, contains('corpus'));
+    // The corpus line itself must describe the harness (spec 051): batch
+    // driving, the verify gate, the provenance audit, and the gap ledger.
+    final corpusLine = out
+        .split('\n')
+        .firstWhere(
+          (line) => line.trimLeft().startsWith('corpus '),
+          orElse: () => '',
+        );
+    expect(corpusLine, isNotEmpty, reason: 'corpus subcommand must be listed');
+    expect(corpusLine.toLowerCase(), contains('corpus'));
+    expect(corpusLine.toLowerCase(), contains('ledger'));
+  });
+
+  test('zfa tdd corpus --help lists run, status, audit (051, T001)', () async {
+    final runner = CliRunner(exitOnCompletion: false);
+    final out = await runner.runCapturing(['tdd', 'corpus', '--help']);
+    for (final sub in ['run', 'status', 'audit']) {
+      expect(
+        out,
+        contains(sub),
+        reason:
+            '`zfa tdd corpus --help` must mention subcommand: $sub '
+            '(spec 051-corpus-harness)',
+      );
+    }
+  });
+
   test('zfa tdd --help describes verify as the mutation audit', () async {
     final runner = CliRunner(exitOnCompletion: false);
     final out = await runner.runCapturing(['tdd', '--help']);

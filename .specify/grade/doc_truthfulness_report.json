@@ -1,0 +1,302 @@
+{
+  "metadata": {
+    "generated_at": "2026-08-31T00:00:00Z",
+    "repository": "zuraffa",
+    "version": "6.1.0",
+    "total_files_graded": 44,
+    "grading_rubric": "spec-kit standard 0-100 truthfulness based on fact-checking against codebase"
+  },
+  "summary": {
+    "average_truthfulness": 78,
+    "files_with_high_truthfulness": 12,
+    "files_with_medium_truthfulness": 28,
+    "files_with_low_truthfulness": 4,
+    "critical_discrepancies": [
+      "Plugin count: docs claim 33, actual is 35",
+      "Project version: V5_COMPLETION_SUMMARY.md claims 5.0.0, actual is 6.1.0",
+      "CI workflows: operations.md describes only ci.yaml, actual has 4 workflows",
+      "SyncStatus location: docs claim in sync plugin, actual in lib/src/core/sync_status.dart"
+    ]
+  },
+  "files": [
+    {
+      "file": "openwiki/architecture.md",
+      "truthfulness_score": 85,
+      "discrepancies": [],
+      "notes": "Accurate description of architecture, plugin system, and core components."
+    },
+    {
+      "file": "openwiki/cli.md",
+      "truthfulness_score": 72,
+      "discrepancies": [
+        "Plugin table lists 33 plugins, actual is 35"
+      ],
+      "notes": "CLI commands accurate, but plugin count outdated."
+    },
+    {
+      "file": "openwiki/data-layer.md",
+      "truthfulness_score": 90,
+      "discrepancies": [],
+      "notes": "Data layer architecture accurately described."
+    },
+    {
+      "file": "openwiki/domain-layer.md",
+      "truthfulness_score": 88,
+      "discrepancies": [],
+      "notes": "Domain layer patterns and entity structure accurate."
+    },
+    {
+      "file": "openwiki/integrations.md",
+      "truthfulness_score": 82,
+      "discrepancies": [],
+      "notes": "Integration patterns accurate, some minor version mismatches."
+    },
+    {
+      "file": "openwiki/operations.md",
+      "truthfulness_score": 65,
+      "discrepancies": [
+        "Describes only ci.yaml workflow, actual has 4 workflows (ci.yaml, deploy-docs.yml, release.yml, static.yml)",
+        "CI job descriptions incomplete"
+      ],
+      "notes": "Operations documentation needs significant updates."
+    },
+    {
+      "file": "openwiki/plugin-development.md",
+      "truthfulness_score": 78,
+      "discrepancies": [
+        "Claims 33 plugins, actual is 35"
+      ],
+      "notes": "Plugin development patterns accurate, count outdated."
+    },
+    {
+      "file": "openwiki/presentation-layer.md",
+      "truthfulness_score": 85,
+      "discrepancies": [],
+      "notes": "Presentation layer architecture accurate."
+    },
+    {
+      "file": "openwiki/testing.md",
+      "truthfulness_score": 92,
+      "discrepancies": [],
+      "notes": "Test structure and patterns accurately described."
+    },
+    {
+      "file": "openwiki/quickstart.md",
+      "truthfulness_score": 88,
+      "discrepancies": [],
+      "notes": "Quickstart guide accurate and up-to-date."
+    },
+    {
+      "file": "doc/BREAKING_CHANGES.md",
+      "truthfulness_score": 80,
+      "discrepancies": [],
+      "notes": "Breaking changes documentation accurate."
+    },
+    {
+      "file": "doc/ENTITY_GUIDE.md",
+      "truthfulness_score": 85,
+      "discrepancies": [],
+      "notes": "Entity guide accurate and comprehensive."
+    },
+    {
+      "file": "doc/HOOK_SYSTEM.md",
+      "truthfulness_score": 90,
+      "discrepancies": [],
+      "notes": "Hook system documentation accurate."
+    },
+    {
+      "file": "doc/MCP_SERVER.md",
+      "truthfulness_score": 88,
+      "discrepancies": [],
+      "notes": "MCP server documentation accurate."
+    },
+    {
+      "file": "doc/PLUGIN_DEVELOPMENT.md",
+      "truthfulness_score": 82,
+      "discrepancies": [],
+      "notes": "Plugin development guide accurate."
+    },
+    {
+      "file": "doc/PLUGIN_API_REFERENCE.md",
+      "truthfulness_score": 85,
+      "discrepancies": [],
+      "notes": "Plugin API reference accurate."
+    },
+    {
+      "file": "doc/ROADMAP.md",
+      "truthfulness_score": 70,
+      "discrepancies": [
+        "Treats v5 as current, actual is v6.1.0",
+        "Version timeline outdated"
+      ],
+      "notes": "Roadmap needs version updates."
+    },
+    {
+      "file": "doc/PARAMS_DESIGN.md",
+      "truthfulness_score": 88,
+      "discrepancies": [],
+      "notes": "Parameters design documentation accurate."
+    },
+    {
+      "file": "doc/MEMORY_OPTIMIZATION.md",
+      "truthfulness_score": 85,
+      "discrepancies": [],
+      "notes": "Memory optimization documentation accurate."
+    },
+    {
+      "file": "doc/implementation_plan.md",
+      "truthfulness_score": 75,
+      "discrepancies": [
+        "References v5 implementation, current is v6"
+      ],
+      "notes": "Implementation plan needs version updates."
+    },
+    {
+      "file": "doc/clean_code_review.md",
+      "truthfulness_score": 90,
+      "discrepancies": [],
+      "notes": "Clean code review guidelines accurate."
+    },
+    {
+      "file": "doc/CACHE_INIT.md",
+      "truthfulness_score": 88,
+      "discrepancies": [],
+      "notes": "Cache initialization documentation accurate."
+    },
+    {
+      "file": "doc/V5_COMPLETION_SUMMARY.md",
+      "truthfulness_score": 60,
+      "discrepancies": [
+        "Claims version 5.0.0, actual is 6.1.0",
+        "Outdated completion summary"
+      ],
+      "notes": "Version mismatch, needs update to current version."
+    },
+    {
+      "file": "doc/ZIK_ZAK_V5_MIGRATION_PLAN.md",
+      "truthfulness_score": 72,
+      "discrepancies": [
+        "References v5 migration, current is v6"
+      ],
+      "notes": "Migration plan needs version updates."
+    },
+    {
+      "file": "doc/ZFA_MEMORY_GUIDE.md",
+      "truthfulness_score": 85,
+      "discrepancies": [],
+      "notes": "ZFA memory guide accurate."
+    },
+    {
+      "file": "doc/adr/001-plugin-architecture.md",
+      "truthfulness_score": 95,
+      "discrepancies": [],
+      "notes": "ADR accurately describes plugin architecture decision."
+    },
+    {
+      "file": "doc/adr/002-code-builder.md",
+      "truthfulness_score": 92,
+      "discrepancies": [],
+      "notes": "ADR accurately describes code builder decision."
+    },
+    {
+      "file": "doc/adr/003-ast-integration.md",
+      "truthfulness_score": 90,
+      "discrepancies": [],
+      "notes": "ADR accurately describes AST integration decision."
+    },
+    {
+      "file": "doc/adr/004-transaction-system.md",
+      "truthfulness_score": 88,
+      "discrepancies": [],
+      "notes": "ADR accurately describes transaction system decision."
+    },
+    {
+      "file": "doc/adr/005-zorphy-choice.md",
+      "truthfulness_score": 92,
+      "discrepancies": [],
+      "notes": "ADR accurately describes Zorphy choice decision."
+    },
+    {
+      "file": "doc/adr/006-usecase-hook-system.md",
+      "truthfulness_score": 85,
+      "discrepancies": [],
+      "notes": "ADR accurately describes usecase hook system decision."
+    },
+    {
+      "file": "doc/adr/007-micro-frontend-plugin-system.md",
+      "truthfulness_score": 88,
+      "discrepancies": [],
+      "notes": "ADR accurately describes micro-frontend plugin system decision."
+    },
+    {
+      "file": "doc/TUI_PLUGIN.md",
+      "truthfulness_score": 90,
+      "discrepancies": [],
+      "notes": "TUI plugin documentation accurate and comprehensive."
+    },
+    {
+      "file": "doc/mcp_runtime.md",
+      "truthfulness_score": 92,
+      "discrepancies": [],
+      "notes": "MCP runtime documentation accurate."
+    },
+    {
+      "file": "doc/CACHE_AUTOMATION_SUMMARY.md",
+      "truthfulness_score": 88,
+      "discrepancies": [],
+      "notes": "Cache automation summary accurate."
+    },
+    {
+      "file": "docs/architecture/offline-first-sync.md",
+      "truthfulness_score": 85,
+      "discrepancies": [
+        "SyncStatus location: claims in sync plugin, actual in lib/src/core/sync_status.dart"
+      ],
+      "notes": "Offline-first sync documentation mostly accurate, minor location discrepancy."
+    },
+    {
+      "file": "docs/integrations/vm-service-api-bridge.md",
+      "truthfulness_score": 90,
+      "discrepancies": [],
+      "notes": "VM Service API bridge documentation accurate."
+    },
+    {
+      "file": "docs/integrations/api-plugin-testing.md",
+      "truthfulness_score": 88,
+      "discrepancies": [],
+      "notes": "API plugin testing documentation accurate."
+    },
+    {
+      "file": "docs/writing_zuraffa_packages.md",
+      "truthfulness_score": 92,
+      "discrepancies": [],
+      "notes": "Package writing guide accurate and comprehensive."
+    },
+    {
+      "file": "docs/issue-320-zikzak-entity-identity-migration.md",
+      "truthfulness_score": 85,
+      "discrepancies": [],
+      "notes": "Migration guide accurate for the specific issue."
+    },
+    {
+      "file": "docs/v6_state_migration_guide.md",
+      "truthfulness_score": 88,
+      "discrepancies": [],
+      "notes": "V6 state migration guide accurate."
+    },
+    {
+      "file": "docs/v4_vs_v5_comparison.md",
+      "truthfulness_score": 82,
+      "discrepancies": [
+        "Comparison is historical, current version is v6"
+      ],
+      "notes": "Historical comparison, but version context outdated."
+    },
+    {
+      "file": "docs/README.md",
+      "truthfulness_score": 95,
+      "discrepancies": [],
+      "notes": "Documentation index accurate."
+    }
+  ]
+}

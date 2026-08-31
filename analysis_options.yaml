@@ -27,6 +27,10 @@ analyzer:
     # uri_does_not_exist / undefined_identifier errors. Analyzed from inside
     # its own directory, excluded from the root analyze pass.
     - examples/mcp_demo/**
+    # zikzak_demo: mock ZikZak app (bug 501, spec 011 US3) — standalone
+    # sub-package (own pubspec + path dep). Analyzed and tested from inside
+    # its own directory, excluded from the root analyze pass.
+    - apps/zikzak_demo/**
     # Slice plugin fixture (spec 043): a standalone Flutter-convention app
     # (imports package:flutter / package:get_it the root context cannot
     # resolve). It is test DATA read by the slice engine, never compiled or

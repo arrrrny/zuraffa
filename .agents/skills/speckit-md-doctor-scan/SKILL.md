@@ -1,0 +1,1 @@
+../../../.specify/extensions/md-doctor/.specify-dev/agent-commands/zed/speckit-md-doctor-scan/SKILL.md

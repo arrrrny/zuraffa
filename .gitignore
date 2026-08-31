@@ -41,7 +41,10 @@ patches
 contracts
 /extensions/
 .contracts
-apps/
+# Scratch apps stay ignored, but bug 501's mock ZikZak app is a committed
+# deliverable (US3 validation, spec 011) — re-include just that subtree.
+/apps/*
+!apps/zikzak_demo/
 pubspec_overrides.yaml
 .worktrees/
 # Benchmark baseline stores (test pollution; user projects keep their own)
@@ -52,3 +55,10 @@ benchmarks/
 # Not committed; the audit score is appended to specs/<feature>/tdd/verification.md
 mutation-test-report/
 .specify/extensions/.cache/
+
+# Spec-kit plan artifacts legitimately live under specs/**/contracts/
+# (e.g. specs/050-corpus-import/contracts/corpus-import.md — the
+# report-line contract the tests pin). Re-include them; the bare
+# `contracts` rule above targets generated contract build dirs, not
+# spec documents.
+!specs/**/contracts/

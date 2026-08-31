@@ -83,7 +83,23 @@ fail=0
 while IFS= read -r d; do
   [ -z "$d" ] && continue
   echo "=== chunk: $d ==="
-  dart test "$d" --exclude-tags flutter || fail=1
+  # Redirect stdin from /dev/null: `dart test` inherits the loop's stdin
+  # (the here-string chunk list) and slurps it, silently discarding every
+  # chunk after the first folder whose run consumes input — observed as
+  # 36-of-64 chunks running (test/plugins/tdd/* and everything after
+  # test/plugins/mcp never executed). Found while verifying spec 051.
+  if out="$(dart test "$d" --exclude-tags flutter < /dev/null 2>&1)"; then
+    printf '%s\n' "$out"
+  elif printf '%s\n' "$out" | grep -q "No tests ran"; then
+    # Every test in this folder carries a slow-tier tag (benchmark,
+    # integration, property, ...), which the fast suite excludes by
+    # design (dart_test.yaml). An empty folder is a skip, not a failure.
+    printf '%s\n' "$out"
+    echo "SKIP: no fast-tier tests in $d"
+  else
+    printf '%s\n' "$out"
+    fail=1
+  fi
   clean_kernel
 done <<< "$CHUNKS"
 

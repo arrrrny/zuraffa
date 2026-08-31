@@ -1,0 +1,8 @@
+# ZikZak mock app — standalone sub-package (own pubspec + path dep on the
+# framework root). Analyzed and tested from inside this directory; the root
+# analyzer context has no package_config for its package: URIs.
+include: ../../analysis_options.yaml
+
+analyzer:
+  exclude:
+    - build/**

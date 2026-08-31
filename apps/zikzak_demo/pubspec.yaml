@@ -1,0 +1,21 @@
+name: zikzak_demo
+description: >-
+  Minimal mock ZikZak app validating User Story 3 (EngagementHook) of spec
+  011-usecase-hook-system — remediation for GitHub issue #501.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  # Framework hook system (US1 & US2) — consumed as published, never modified.
+  zuraffa:
+    path: ../../
+  # Local persistence for engagement events (spec: stored locally in Hive,
+  # marked for background sync).
+  hive: ^2.2.3
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0
