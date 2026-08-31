@@ -523,7 +523,15 @@ done
 echo "$STEP $ID" >> "__LOG__"
 CFG="__CFG__/$STEP-$ID"
 if [ -f "$CFG" ]; then
-  OUTCOME=$(head -n 1 "$CFG")
+  # Multi-line configs script attempts in order: the first invocation of
+  # this (step, id) consumes line 1; every later invocation consumes the
+  # last line (bug #625 deferred-make re-attempts).
+  ATTEMPTS=$(grep -c "^$STEP $ID\$" "__LOG__")
+  if [ "$ATTEMPTS" -le 1 ]; then
+    OUTCOME=$(head -n 1 "$CFG")
+  else
+    OUTCOME=$(tail -n 1 "$CFG")
+  fi
 else
   OUTCOME="ok"
 fi
@@ -598,6 +606,12 @@ esac
   }
 
   /// Script the fake step's outcome for one (step, behavior) pair.
+  ///
+  /// A single-line [outcome] applies to every attempt. A multi-line
+  /// outcome scripts attempts in order: the first invocation consumes
+  /// line 1, every subsequent invocation consumes the LAST line (bug
+  /// #625: a deferred acceptance make can fail `unexpressible` on its
+  /// phase-1 attempt and report green when phase 2 re-attempts it).
   Future<void> setStepOutcome(String step, String id, String outcome) async {
     await Directory(p.join(fakeZfaDir, 'config')).create(recursive: true);
     await File(

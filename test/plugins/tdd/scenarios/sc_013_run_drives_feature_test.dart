@@ -155,6 +155,58 @@ void main() {
     },
   );
 
+  test('bug 625: acceptance-only feature defers every make at phase 1, then '
+      'phase 2 re-attempts make + refactor in list order', () async {
+    await fx.seedTestList([
+      (
+        id: 'A1',
+        description: 'the entity exists and is buildable.',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'acceptance',
+      ),
+      (
+        id: 'A2',
+        description: 'the feature end-to-end scenario holds.',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'acceptance',
+      ),
+    ]);
+    // Both makes report unexpressible on their phase-1 attempt (the
+    // bug #625 signature) and flip green when phase 2 re-attempts them.
+    await fx.setStepOutcome('make', 'A1', 'unexpressible\nok');
+    await fx.setStepOutcome('make', 'A2', 'unexpressible\nok');
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    // Phase 1: each acceptance behavior runs its uniform cycle; both
+    // makes defer on unexpressible. Phase 2: make + refactor in list
+    // order.
+    expect(fx.stepInvocations(), [
+      'gen A1',
+      'verify-red A1',
+      'make A1',
+      'gen A2',
+      'verify-red A2',
+      'make A2',
+      'make A1',
+      'refactor A1',
+      'make A2',
+      'refactor A2',
+    ]);
+    expect(out, contains('[run] A1 make -> deferred (phase 2)'));
+    expect(out, contains('[run] A2 make -> deferred (phase 2)'));
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 green=0 done=2',
+      ),
+      reason: out,
+    );
+  });
+
   test(
     'A3: a behavior appended mid-project is driven, DONE ones untouched',
     () async {
