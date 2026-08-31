@@ -1,0 +1,39 @@
+{
+  "run_id": "scan-D03-2026-08-31T14:00:00Z",
+  "type": "scan",
+  "timestamp": "2026-08-31T14:00:00Z",
+  "head": "7f2c2f1ad963b3193411dff9bc3527844bafe09d",
+  "scan_path": ".",
+  "batch": "D03",
+  "files_scanned": 25,
+  "summary": {
+    "avg_truthfulness": 82,
+    "truthful": 10,
+    "stale": 13,
+    "false": 2,
+    "obsolete": 0
+  },
+  "top_issues": [
+    {
+      "file": "openwiki/presentation-layer.md",
+      "severity": "critical",
+      "claim": "lib/src/presentation/ directory does NOT exist (moved to zuraffa_flutter)"
+    },
+    {
+      "file": "openwiki/quickstart.md",
+      "severity": "critical",
+      "claim": "Version listed as 5.3.0 but actual is 6.1.0"
+    },
+    {
+      "file": "openwiki/operations.md",
+      "severity": "major",
+      "claim": "CI described as 4 jobs with 'build_example'; actual is 4 jobs with 'dart_core'"
+    },
+    {
+      "file": "openwiki/testing.md",
+      "severity": "major",
+      "claim": "test_matchers.dart path wrong (should be test/helpers/test_matchers.dart)"
+    }
+  ],
+  "actions_taken": []
+}

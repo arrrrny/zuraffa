@@ -1,0 +1,70 @@
+schema_version: "1.0"
+
+extension:
+  id: md-doctor
+  name: "MD Doctor"
+  version: "1.0.0"
+  description: "Diagnose and grade the truthfulness of every agent-written .md file in a project against living ground truth (git history, .memsearch records, and TDD verification), then keep a run history so a later run re-evaluates what actually changed. Grades each doc 0-100, suggests update/delete/create, and integrates with the TDD extension."
+  author: arrrrny
+  repository: https://github.com/arrrrny/speckit-extensions
+  homepage: https://github.com/arrrrny/speckit-extensions
+  license: MIT
+
+requires:
+  speckit_version: ">=0.9.0"
+  tools:
+    - name: git
+      required: true
+    - name: jq
+      required: true
+  # TDD integration is optional (gated by md-doctor-config.yml `tdd_integration`,
+  # default true). When on, the tdd extension's verification.md verdicts and
+  # test-list.md behaviors become ground truth. Declaring the dependency here
+  # makes `specify extension add md-doctor` pull tdd in too.
+  commands:
+    - speckit.tdd.verify
+
+provides:
+  commands:
+    - name: speckit.md-doctor.init
+      file: commands/speckit.md-doctor.init.md
+      description: "Bootstrap md-doctor: write its config (if missing) and snapshot the current ground truth (git HEAD, TDD verdicts, .memsearch records) as the baseline for future drift checks"
+    - name: speckit.md-doctor.scan
+      file: commands/speckit.md-doctor.scan.md
+      description: "Deep-diagnose every tracked/untracked .md file: gather git creation+modification metadata, fact-check each doc's claims against ground truth, grade truthfulness 0-100, and write per-file suggestions (update/delete/create/keep)"
+    - name: speckit.md-doctor.drift
+      file: commands/speckit.md-doctor.drift.md
+      description: "Re-evaluate since the last run: compute the git/.memsearch/TDD delta, re-score previously graded files in light of what changed, and report which past suggestions were resolved or are now stale/false"
+    - name: speckit.md-doctor.report
+      file: commands/speckit.md-doctor.report.md
+      description: "Render the latest (or a specific) health report: average truthfulness, counts of truthful/stale/false/obsolete docs, and the queue of update/delete/create actions"
+    - name: speckit.md-doctor.apply
+      file: commands/speckit.md-doctor.apply.md
+      description: "Apply suggestions mechanically and safely: create stubs for missing docs and stamp verified docs by default; delete only with --delete (destructive)"
+  config:
+    - name: "md-doctor-config.yml"
+      template: "config-template.yml"
+      description: "MD Doctor configuration (scan paths, exclude globs, TDD integration toggle, min-score threshold)"
+      required: false
+
+hooks:
+  # Optional: after a TDD verification, offer to refresh ground truth with a
+  # scan. Off by default because it is a prompt, not a gate; the TDD artifacts
+  # are still read as ground truth on every scan/drift regardless of this hook.
+  after_verify:
+    command: speckit.md-doctor.scan
+    optional: true
+    prompt: "Refresh MD Doctor ground truth from this TDD verification?"
+    description: "After /speckit.tdd.verify writes its verdict, re-scan the feature's docs so a fresh TDD pass updates the truthfulness grades"
+
+tags:
+  - "md-doctor"
+  - "documentation"
+  - "truthfulness"
+  - "fact-check"
+  - "stale-docs"
+  - "quality"
+  - "tdd"
+  - "ground-truth"
+  - "spec-kit"
+  - "spec-kit-extension"

@@ -1,0 +1,375 @@
+{
+  "collected_at": "2026-08-31T11:33:51Z",
+  "head": "7f2c2f1ad963b3193411dff9bc3527844bafe09d",
+  "tdd_integration": true,
+  "tdd_verdicts": [
+    {
+      "feature": "002-add-toggle-method",
+      "verdict": "pass",
+      "source": "specs/002-add-toggle-method/tdd/verification.md"
+    },
+    {
+      "feature": "003-speckit-cli-commands",
+      "verdict": "unknown",
+      "source": "specs/003-speckit-cli-commands/tdd/verification.md"
+    },
+    {
+      "feature": "004-fix-zuraffa-gen",
+      "verdict": "pass",
+      "source": "specs/004-fix-zuraffa-gen/tdd/verification.md"
+    },
+    {
+      "feature": "005-speckit-extension-enhancements",
+      "verdict": "unknown",
+      "source": "specs/005-speckit-extension-enhancements/tdd/verification.md"
+    },
+    {
+      "feature": "006-fix-polymorphic-mock-data",
+      "verdict": "pass",
+      "source": "specs/006-fix-polymorphic-mock-data/tdd/verification.md"
+    },
+    {
+      "feature": "007-zuraffa-v5-foundation",
+      "verdict": "unknown",
+      "source": "specs/007-zuraffa-v5-foundation/tdd/verification.md"
+    },
+    {
+      "feature": "008-mock-json-method",
+      "verdict": "pass",
+      "source": "specs/008-mock-json-method/tdd/verification.md"
+    },
+    {
+      "feature": "009-cache-adapter-command",
+      "verdict": "pass",
+      "source": "specs/009-cache-adapter-command/tdd/verification.md"
+    },
+    {
+      "feature": "010-offline-first-sync",
+      "verdict": "unknown",
+      "source": "specs/010-offline-first-sync/tdd/verification.md"
+    },
+    {
+      "feature": "011-usecase-hook-system",
+      "verdict": "unknown",
+      "source": "specs/011-usecase-hook-system/tdd/verification.md"
+    },
+    {
+      "feature": "012-api-plugin",
+      "verdict": "unknown",
+      "source": "specs/012-api-plugin/tdd/verification.md"
+    },
+    {
+      "feature": "013-plugin-usecase-abstraction",
+      "verdict": "fail",
+      "source": "specs/013-plugin-usecase-abstraction/tdd/verification.md"
+    },
+    {
+      "feature": "014-pure-dart-core-split",
+      "verdict": "pass",
+      "source": "specs/014-pure-dart-core-split/tdd/verification.md"
+    },
+    {
+      "feature": "015-benchmark-plugin",
+      "verdict": "fail",
+      "source": "specs/015-benchmark-plugin/tdd/verification.md"
+    },
+    {
+      "feature": "017-tui-plugin",
+      "verdict": "pass",
+      "source": "specs/017-tui-plugin/tdd/verification.md"
+    },
+    {
+      "feature": "018-cli-plugin",
+      "verdict": "unknown",
+      "source": "specs/018-cli-plugin/tdd/verification.md"
+    },
+    {
+      "feature": "020-skeleton-plugin-bones",
+      "verdict": "pass",
+      "source": "specs/020-skeleton-plugin-bones/tdd/verification.md"
+    },
+    {
+      "feature": "021-gym-agent-rewrite-exercise",
+      "verdict": "fail",
+      "source": "specs/021-gym-agent-rewrite-exercise/tdd/verification.md"
+    },
+    {
+      "feature": "022-gym-real-exercises",
+      "verdict": "pass",
+      "source": "specs/022-gym-real-exercises/tdd/verification.md"
+    },
+    {
+      "feature": "023-agent-plugin-ui-render",
+      "verdict": "fail",
+      "source": "specs/023-agent-plugin-ui-render/tdd/verification.md"
+    },
+    {
+      "feature": "024-shadcn-plugin-ui-vocabulary",
+      "verdict": "pass",
+      "source": "specs/024-shadcn-plugin-ui-vocabulary/tdd/verification.md"
+    },
+    {
+      "feature": "025-v6-package-sdk",
+      "verdict": "fail",
+      "source": "specs/025-v6-package-sdk/tdd/verification.md"
+    },
+    {
+      "feature": "026-agent-kernel-mission",
+      "verdict": "fail",
+      "source": "specs/026-agent-kernel-mission/tdd/verification.md"
+    },
+    {
+      "feature": "027-agent-policy-shell",
+      "verdict": "fail",
+      "source": "specs/027-agent-policy-shell/tdd/verification.md"
+    },
+    {
+      "feature": "028-agent-runtime-plugin",
+      "verdict": "fail",
+      "source": "specs/028-agent-runtime-plugin/tdd/verification.md"
+    },
+    {
+      "feature": "029-agent-plugin-mcp-wrappers",
+      "verdict": "fail",
+      "source": "specs/029-agent-plugin-mcp-wrappers/tdd/verification.md"
+    },
+    {
+      "feature": "033-route-decorator-nav",
+      "verdict": "unknown",
+      "source": "specs/033-route-decorator-nav/tdd/verification.md"
+    },
+    {
+      "feature": "034-xray-control-deck",
+      "verdict": "pass",
+      "source": "specs/034-xray-control-deck/tdd/verification.md"
+    },
+    {
+      "feature": "035-mcp-xray-bridge",
+      "verdict": "pass",
+      "source": "specs/035-mcp-xray-bridge/tdd/verification.md"
+    },
+    {
+      "feature": "036-xray-visual-overlay",
+      "verdict": "pass",
+      "source": "specs/036-xray-visual-overlay/tdd/verification.md"
+    },
+    {
+      "feature": "037-graphql-core-schema-cache",
+      "verdict": "pass",
+      "source": "specs/037-graphql-core-schema-cache/tdd/verification.md"
+    },
+    {
+      "feature": "038-controlled-widget-fragment",
+      "verdict": "fail",
+      "source": "specs/038-controlled-widget-fragment/tdd/verification.md"
+    },
+    {
+      "feature": "041-tdd-setup-plugin",
+      "verdict": "fail",
+      "source": "specs/041-tdd-setup-plugin/tdd/verification.md"
+    },
+    {
+      "feature": "042-bone-working-slice",
+      "verdict": "fail",
+      "source": "specs/042-bone-working-slice/tdd/verification.md"
+    },
+    {
+      "feature": "043-slice-plugin",
+      "verdict": "fail",
+      "source": "specs/043-slice-plugin/tdd/verification.md"
+    },
+    {
+      "feature": "044-test-tdd-generation",
+      "verdict": "unknown",
+      "source": "specs/044-test-tdd-generation/tdd/verification.md"
+    },
+    {
+      "feature": "046-tdd-verify-red",
+      "verdict": "fail",
+      "source": "specs/046-tdd-verify-red/tdd/verification.md"
+    },
+    {
+      "feature": "047-tdd-make",
+      "verdict": "pass",
+      "source": "specs/047-tdd-make/tdd/verification.md"
+    },
+    {
+      "feature": "048-tdd-refactor",
+      "verdict": "pass",
+      "source": "specs/048-tdd-refactor/tdd/verification.md"
+    },
+    {
+      "feature": "049-tdd-run",
+      "verdict": "fail",
+      "source": "specs/049-tdd-run/tdd/verification.md"
+    }
+  ],
+  "tdd_features": [
+    "002-add-toggle-method",
+    "003-speckit-cli-commands",
+    "004-fix-zuraffa-gen",
+    "005-speckit-extension-enhancements",
+    "006-fix-polymorphic-mock-data",
+    "007-zuraffa-v5-foundation",
+    "008-mock-json-method",
+    "009-cache-adapter-command",
+    "010-offline-first-sync",
+    "011-usecase-hook-system",
+    "012-api-plugin",
+    "013-plugin-usecase-abstraction",
+    "014-pure-dart-core-split",
+    "015-benchmark-plugin",
+    "017-tui-plugin",
+    "018-cli-plugin",
+    "020-skeleton-plugin-bones",
+    "021-gym-agent-rewrite-exercise",
+    "022-gym-real-exercises",
+    "023-agent-plugin-ui-render",
+    "024-shadcn-plugin-ui-vocabulary",
+    "025-v6-package-sdk",
+    "026-agent-kernel-mission",
+    "027-agent-policy-shell",
+    "028-agent-runtime-plugin",
+    "029-agent-plugin-mcp-wrappers",
+    "033-route-decorator-nav",
+    "034-xray-control-deck",
+    "035-mcp-xray-bridge",
+    "036-xray-visual-overlay",
+    "037-graphql-core-schema-cache",
+    "038-controlled-widget-fragment",
+    "041-tdd-setup-plugin",
+    "042-bone-working-slice",
+    "043-slice-plugin",
+    "044-test-tdd-generation",
+    "046-tdd-verify-red",
+    "047-tdd-make",
+    "048-tdd-refactor",
+    "049-tdd-run"
+  ],
+  "memsearch_files": [
+    {
+      "date": "2026-05-02",
+      "path": ".memsearch/memory/2026-05-02.md"
+    },
+    {
+      "date": "2026-05-24",
+      "path": ".memsearch/memory/2026-05-24.md"
+    },
+    {
+      "date": "2026-06-06",
+      "path": ".memsearch/memory/2026-06-06.md"
+    },
+    {
+      "date": "2026-07-21",
+      "path": ".memsearch/memory/2026-07-21.md"
+    },
+    {
+      "date": "2026-07-22",
+      "path": ".memsearch/memory/2026-07-22.md"
+    },
+    {
+      "date": "2026-07-30",
+      "path": ".memsearch/memory/2026-07-30.md"
+    },
+    {
+      "date": "2026-07-31",
+      "path": ".memsearch/memory/2026-07-31.md"
+    },
+    {
+      "date": "2026-08-01",
+      "path": ".memsearch/memory/2026-08-01.md"
+    },
+    {
+      "date": "2026-08-02",
+      "path": ".memsearch/memory/2026-08-02.md"
+    },
+    {
+      "date": "2026-08-08",
+      "path": ".memsearch/memory/2026-08-08.md"
+    },
+    {
+      "date": "2026-08-09",
+      "path": ".memsearch/memory/2026-08-09.md"
+    },
+    {
+      "date": "2026-08-10",
+      "path": ".memsearch/memory/2026-08-10.md"
+    },
+    {
+      "date": "2026-08-11",
+      "path": ".memsearch/memory/2026-08-11.md"
+    },
+    {
+      "date": "2026-08-12",
+      "path": ".memsearch/memory/2026-08-12.md"
+    },
+    {
+      "date": "2026-08-13",
+      "path": ".memsearch/memory/2026-08-13.md"
+    },
+    {
+      "date": "2026-08-14",
+      "path": ".memsearch/memory/2026-08-14.md"
+    },
+    {
+      "date": "2026-08-15",
+      "path": ".memsearch/memory/2026-08-15.md"
+    },
+    {
+      "date": "2026-08-16",
+      "path": ".memsearch/memory/2026-08-16.md"
+    },
+    {
+      "date": "2026-08-17",
+      "path": ".memsearch/memory/2026-08-17.md"
+    },
+    {
+      "date": "2026-08-18",
+      "path": ".memsearch/memory/2026-08-18.md"
+    },
+    {
+      "date": "2026-08-20",
+      "path": ".memsearch/memory/2026-08-20.md"
+    },
+    {
+      "date": "2026-08-21",
+      "path": ".memsearch/memory/2026-08-21.md"
+    },
+    {
+      "date": "2026-08-22",
+      "path": ".memsearch/memory/2026-08-22.md"
+    },
+    {
+      "date": "2026-08-23",
+      "path": ".memsearch/memory/2026-08-23.md"
+    },
+    {
+      "date": "2026-08-25",
+      "path": ".memsearch/memory/2026-08-25.md"
+    },
+    {
+      "date": "2026-08-26",
+      "path": ".memsearch/memory/2026-08-26.md"
+    },
+    {
+      "date": "2026-08-27",
+      "path": ".memsearch/memory/2026-08-27.md"
+    },
+    {
+      "date": "2026-08-28",
+      "path": ".memsearch/memory/2026-08-28.md"
+    },
+    {
+      "date": "2026-08-29",
+      "path": ".memsearch/memory/2026-08-29.md"
+    },
+    {
+      "date": "2026-08-30",
+      "path": ".memsearch/memory/2026-08-30.md"
+    },
+    {
+      "date": "2026-08-31",
+      "path": ".memsearch/memory/2026-08-31.md"
+    }
+  ]
+}
