@@ -46,12 +46,7 @@ void main() {
       expect(md, contains('U3'));
       expect(md, isNot(contains('classification')));
       expect(md, contains('- generation:\n  (none)'));
-      expect(
-        md,
-        contains(
-          '- suite: baseline=0 guard=0 new=(none)',
-        ),
-      );
+      expect(md, contains('- suite: baseline=0 guard=0 new=(none)'));
     });
 
     test('red entry without classification is rejected', () {
