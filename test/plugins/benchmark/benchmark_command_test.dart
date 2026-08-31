@@ -1,4 +1,6 @@
 @Tags(['slow'])
+library;
+
 // Tests for lib/src/plugins/benchmark/cli/benchmark_command.dart —
 // behaviors U61–U67 of specs/015-benchmark-plugin/tdd/test-list.md.
 //

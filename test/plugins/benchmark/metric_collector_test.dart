@@ -1,4 +1,6 @@
 @Tags(['slow'])
+library;
+
 // Tests for lib/src/core/benchmark/metric_collector.dart — behaviors
 // U39–U43 of specs/015-benchmark-plugin/tdd/test-list.md.
 import 'package:test/test.dart';

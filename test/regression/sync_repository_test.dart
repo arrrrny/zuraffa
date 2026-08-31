@@ -1,4 +1,6 @@
 @Tags(['regression', 'slow'])
+library;
+
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -26,7 +28,7 @@ void main() {
     }
   });
 
-  Future<String> _generateRepo({
+  Future<String> generateRepo({
     List<String> methods = const [
       'get',
       'getList',
@@ -60,7 +62,7 @@ void main() {
   }
 
   test('repository constructor has 4 sync dependencies', () async {
-    final content = await _generateRepo();
+    final content = await generateRepo();
 
     expect(content, contains('_localDataSource'));
     expect(content, contains('_remoteDataSource'));
@@ -71,7 +73,7 @@ void main() {
   });
 
   test('create() writes to local and marks pending', () async {
-    final content = await _generateRepo();
+    final content = await generateRepo();
 
     expect(content, contains('_localDataSource.create'));
     expect(content, contains('_syncStrategy.markPending'));
@@ -79,42 +81,42 @@ void main() {
   });
 
   test('update() writes to local and marks pending', () async {
-    final content = await _generateRepo();
+    final content = await generateRepo();
 
     expect(content, contains('_localDataSource.update'));
     expect(content, contains('SyncOperation.update'));
   });
 
   test('get() reads from local only (no remote call)', () async {
-    final content = await _generateRepo();
+    final content = await generateRepo();
 
     expect(content, contains('_localDataSource.get'));
     expect(content, isNot(contains('_remoteDataSource.get')));
   });
 
   test('getList() reads from local only (no remote call)', () async {
-    final content = await _generateRepo(methods: const ['getList']);
+    final content = await generateRepo(methods: const ['getList']);
 
     expect(content, contains('_localDataSource.getList'));
     expect(content, isNot(contains('_remoteDataSource.getList')));
   });
 
   test('delete() hard-deletes locally and tombstones for remote', () async {
-    final content = await _generateRepo();
+    final content = await generateRepo();
 
     expect(content, contains('_localDataSource.delete'));
     expect(content, contains('_syncStrategy.markDeleted'));
   });
 
   test('syncPending() delegates to the sync strategy', () async {
-    final content = await _generateRepo();
+    final content = await generateRepo();
 
     expect(content, contains('Future<void> syncPending('));
     expect(content, contains('_syncStrategy.syncPending'));
   });
 
   test('pullRemote() delegates to the sync strategy', () async {
-    final content = await _generateRepo();
+    final content = await generateRepo();
 
     expect(content, contains('Future<void> pullRemote('));
     expect(content, contains('_syncStrategy.pullRemote'));

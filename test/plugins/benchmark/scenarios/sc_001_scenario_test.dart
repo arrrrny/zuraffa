@@ -1,4 +1,6 @@
 @Tags(['slow'])
+library;
+
 // Success criterion SC-001 (specs/015-benchmark-plugin/spec.md):
 // a new plugin can implement a benchmark scenario by implementing the
 // contract interface in under 50 lines of code.

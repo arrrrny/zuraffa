@@ -1,9 +1,6 @@
 import 'package:test/test.dart';
-import 'package:code_builder/code_builder.dart';
 import 'package:zuraffa/src/core/builder/factories/usecase_contract_factory.dart';
 import 'package:zuraffa/src/core/builder/shared/spec_library.dart';
-
-import 'package:test/test.dart' show isNot;
 
 void main() {
   group('UseCaseContractFactory', () {

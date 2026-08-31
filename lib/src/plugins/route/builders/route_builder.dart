@@ -1379,15 +1379,6 @@ class RouteBuilder {
     return null;
   }
 
-  /// #359: Returns the first branch root (`path: '/...'`) from a generated
-  /// `<name>_shell.dart` source — the first GoRoute `path:` literal in the
-  /// file is the first `StatefulShellBranch`'s root. Returns null when the
-  /// file contains no GoRoute path (e.g. still a stub).
-  String? _parseFirstGoRoutePath(String source) {
-    final match = RegExp(r"path:\s*'([^']*)'").firstMatch(source);
-    return match?.group(1);
-  }
-
   /// Returns all branch root paths from a generated `<name>_shell.dart` source.
   /// Each GoRoute `path:` literal corresponds to one StatefulShellBranch root.
   List<String> _parseAllGoRoutePaths(String source) {

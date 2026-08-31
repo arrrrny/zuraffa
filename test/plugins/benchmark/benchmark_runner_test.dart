@@ -1,4 +1,6 @@
 @Tags(['slow'])
+library;
+
 // Tests for lib/src/core/benchmark/benchmark_runner.dart — behaviors
 // U25–U38 of specs/015-benchmark-plugin/tdd/test-list.md.
 import 'package:test/test.dart';

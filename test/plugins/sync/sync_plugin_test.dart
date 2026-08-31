@@ -23,13 +23,13 @@ void main() {
     }
   });
 
-  SyncPlugin _plugin() => SyncPlugin(
+  SyncPlugin plugin0() => SyncPlugin(
     outputDir: outputDir,
     options: const GeneratorOptions(force: true),
   );
 
   test('exposes plugin identity metadata', () {
-    final plugin = _plugin();
+    final plugin = plugin0();
     expect(plugin.id, equals('sync'));
     expect(plugin.name, equals('Sync Plugin'));
     expect(plugin.version, equals('1.0.0'));
@@ -37,7 +37,7 @@ void main() {
   });
 
   test('config schema declares sync options', () {
-    final plugin = _plugin();
+    final plugin = plugin0();
     final schema = plugin.configSchema;
     expect(schema['type'], equals('object'));
     final properties = schema['properties'] as Map;
@@ -51,20 +51,20 @@ void main() {
   });
 
   test('resolves CreateSyncCapability', () {
-    final plugin = _plugin();
+    final plugin = plugin0();
     expect(plugin.capabilities, hasLength(1));
     expect(plugin.capabilities.first, isA<CreateSyncCapability>());
   });
 
   test('creates a SyncCommand', () {
-    final plugin = _plugin();
+    final plugin = plugin0();
     final command = plugin.createCommand();
     expect(command.name, equals('sync'));
     expect(command.description, contains('sync'));
   });
 
   test('generate returns no files when sync is disabled', () async {
-    final plugin = _plugin();
+    final plugin = plugin0();
     final files = await plugin.generate(
       GeneratorConfig(name: 'Product', enableSync: false, outputDir: outputDir),
     );
@@ -72,7 +72,7 @@ void main() {
   });
 
   test('generate produces sync files when sync is enabled', () async {
-    final plugin = _plugin();
+    final plugin = plugin0();
     final files = await plugin.generate(
       GeneratorConfig(
         name: 'Product',

@@ -41,7 +41,7 @@ void main() {
     if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
   });
 
-  Future<void> _seedSpecAndTestList({
+  Future<void> seedSpecAndTestList({
     String behaviorId = 'B-003',
     String classification = 'unit',
     String description = 'returns 42 when invoked with no args',
@@ -76,7 +76,7 @@ void main() {
     test(
       'happy path writes one test + one subject and exits 0 with the six required result fields',
       () async {
-        await _seedSpecAndTestList();
+        await seedSpecAndTestList();
         final runner = CliRunner(exitOnCompletion: false);
         final out = await runner.runCapturing(genArgs('B-003'));
         // The command must print a structured result with all six fields.
@@ -110,7 +110,7 @@ void main() {
     test(
       'the generated test fails with an assertion failure on first execution',
       () async {
-        await _seedSpecAndTestList();
+        await seedSpecAndTestList();
         final runner = CliRunner(exitOnCompletion: false);
         await runner.runCapturing(genArgs('B-003'));
 
@@ -165,7 +165,7 @@ dependencies:
 
   group('GenCommand — unknown id (US1.AC3 / FR-002)', () {
     test('unknown id exits non-zero before writing any file', () async {
-      await _seedSpecAndTestList();
+      await seedSpecAndTestList();
       final runner = CliRunner(exitOnCompletion: false);
       // The CliRunner throws UsageException on non-zero exits; we catch
       // the printed output.
@@ -228,7 +228,7 @@ dependencies:
     test(
       'acceptance classification works without pre-existing entity/use case/repository',
       () async {
-        await _seedSpecAndTestList(
+        await seedSpecAndTestList(
           behaviorId: 'B-010',
           classification: 'acceptance',
           description: 'the scenario runner reports the observable behavior',
@@ -272,7 +272,7 @@ dependencies:
 
   group('GenCommand — idempotent repeat (US2.AC1 / FR-006)', () {
     test('repeat creates zero duplicate artifacts; ownership=reused', () async {
-      await _seedSpecAndTestList();
+      await seedSpecAndTestList();
       final runner = CliRunner(exitOnCompletion: false);
       await runner.runCapturing(genArgs('B-003'));
       // Repeat.
@@ -297,7 +297,7 @@ dependencies:
     test(
       'file exists with no registry entry → exit non-zero, file unchanged',
       () async {
-        await _seedSpecAndTestList();
+        await seedSpecAndTestList();
         // Hand-write the test file before `gen` runs.
         // Determine what path gen would write to (based on convention:
         // test/tdd/<snake-id>_test.dart).
@@ -334,7 +334,7 @@ dependencies:
     test(
       'writer failure removes partial artifacts and records nothing',
       () async {
-        await _seedSpecAndTestList();
+        await seedSpecAndTestList();
         final subjectPath = p.join(
           tmpDir.path,
           'lib',
@@ -363,7 +363,7 @@ dependencies:
 
   group('GenCommand — dry-run (US2.AC3 / FR-009)', () {
     test('--dry-run plans without writing', () async {
-      await _seedSpecAndTestList();
+      await seedSpecAndTestList();
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(genArgs('B-003', ['--dry-run']));
       expect(out.toLowerCase(), contains('ownership: planned'));

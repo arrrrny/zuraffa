@@ -1,4 +1,6 @@
 @Tags(['regression', 'slow'])
+library;
+
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -25,7 +27,7 @@ void main() {
     test(
       'provider from existing service keeps NoParams param (no invalid_override)',
       () async {
-        final servicesDir = Directory('${outputDir}/domain/services')
+        final servicesDir = Directory('$outputDir/domain/services')
           ..createSync(recursive: true);
         File('${servicesDir.path}/my_service.dart').writeAsStringSync(r'''
 import 'package:zuraffa/zuraffa.dart';

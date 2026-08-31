@@ -96,17 +96,17 @@ class GenerationResult {
   GenerationResult({required this.filePath});
 
   final String filePath;
-  final List<_AnnotatedElement> _elements = [];
+  final List<AnnotatedElement> _elements = [];
 
   static final _formatter = DartFormatter(
     languageVersion: DartFormatter.latestLanguageVersion,
   );
 
   void add(MethodAST method, ZorphyContext context) {
-    _elements.add(_AnnotatedElement(method: method, context: context));
+    _elements.add(AnnotatedElement(method: method, context: context));
   }
 
-  List<_AnnotatedElement> get elements => List.unmodifiable(_elements);
+  List<AnnotatedElement> get elements => List.unmodifiable(_elements);
   bool get hasCode => _elements.any((e) => e.context.hasInjections);
 
   /// Generate the complete `.g.dart` part file as formatted Dart code.
@@ -193,8 +193,8 @@ class GenerationResult {
       'GenerationResult($filePath, ${_elements.length} elements)';
 }
 
-class _AnnotatedElement {
-  _AnnotatedElement({required this.method, required this.context});
+class AnnotatedElement {
+  AnnotatedElement({required this.method, required this.context});
   final MethodAST method;
   final ZorphyContext context;
 }

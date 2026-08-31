@@ -1,4 +1,6 @@
 @Tags(['slow'])
+library;
+
 // Parity test: every `zfa manifest` command must be registered in the speckit
 // zuraffa extension (extension.yml `provides:`), and each command .md must follow
 // the template shape. Drives the CLI via a subprocess so it tracks the real
@@ -77,7 +79,7 @@ parseExtensionProvides() {
     final aliasList = (entry['aliases'] as List?) ?? const [];
     for (final a in aliasList) {
       aliases.add(a as String);
-      aliasesToFile[a as String] = file;
+      aliasesToFile[a] = file;
     }
   }
   return (aliasesToFile: aliasesToFile, aliases: aliases);

@@ -1,4 +1,6 @@
 @Tags(['slow'])
+library;
+
 // Acceptance test AC-7 (specs/015-benchmark-plugin/spec.md US3):
 // running multiple benchmarks in sequence produces an aggregate report with
 // per-benchmark results and overall pass/fail status.

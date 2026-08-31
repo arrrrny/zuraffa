@@ -70,8 +70,9 @@ class CoalescingGroup {
   }
 
   void complete(MissionOutcome outcome) {
-    if (_done.isCompleted)
+    if (_done.isCompleted) {
       return; // already completed — no-op (e.g. cancel() ran first)
+    }
     mission.outcome = outcome;
     switch (outcome) {
       case OutcomeCompleted():

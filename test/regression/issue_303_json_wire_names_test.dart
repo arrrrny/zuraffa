@@ -1,4 +1,6 @@
 @Tags(['regression', 'slow'])
+library;
+
 // Regression test for issue #303.
 //
 // `zfa entity create` had no way to express a Dart field name different

@@ -226,12 +226,7 @@ class DeepLinkRouteCapability implements ZuraffaCapability {
       verbose: verbose,
     );
 
-    return [
-      routeFile,
-      if (indexFile != null) indexFile,
-      if (androidFile != null) androidFile,
-      if (iosFile != null) iosFile,
-    ];
+    return [routeFile, ?indexFile, ?androidFile, ?iosFile];
   }
 
   /// Ensures [dirPath] exists on the file system. Uses dart:io directly

@@ -45,13 +45,7 @@ class TarballExporter {
     );
 
     final tarBytes = TarEncoder().encode(archive);
-    if (tarBytes == null) {
-      throw ArgumentError('Failed to encode tar archive for $outputPath');
-    }
     final gzBytes = GZipEncoder().encode(tarBytes);
-    if (gzBytes == null) {
-      throw ArgumentError('Failed to compress tar archive for $outputPath');
-    }
 
     final outFile = File(outputPath);
     await outFile.parent.create(recursive: true);

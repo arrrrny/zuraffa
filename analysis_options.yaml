@@ -22,6 +22,11 @@ analyzer:
     # context has no package_config for their package: URIs.
     - examples/notes_package/**
     - examples/reference_package_app/**
+    # mcp_demo: standalone example package (own pubspec + path deps); the
+    # root context cannot resolve its package: URIs, surfacing as
+    # uri_does_not_exist / undefined_identifier errors. Analyzed from inside
+    # its own directory, excluded from the root analyze pass.
+    - examples/mcp_demo/**
     # Slice plugin fixture (spec 043): a standalone Flutter-convention app
     # (imports package:flutter / package:get_it the root context cannot
     # resolve). It is test DATA read by the slice engine, never compiled or
@@ -38,5 +43,8 @@ analyzer:
     deprecated_member_use_from_same_package: ignore
     deprecated_member_use: ignore
     invalid_use_of_visible_for_overriding_member: ignore
+    # Generated-templating doc comments intentionally show `<T>` generics;
+    # wrapping every angle bracket in backticks would hurt readability.
+    unintended_html_in_doc_comment: ignore
 enable-experiment:
   - extension-methods

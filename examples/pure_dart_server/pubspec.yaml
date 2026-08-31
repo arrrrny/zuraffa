@@ -9,3 +9,4 @@ environment:
 dependencies:
   zuraffa:
     path: ../../
+  logging: any

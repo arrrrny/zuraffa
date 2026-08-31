@@ -1,4 +1,6 @@
 @Tags(['regression', 'slow'])
+library;
+
 // Regression test for issue #306.
 //
 // `zfa entity enum` wrote values verbatim into the generated Dart source.
@@ -39,7 +41,6 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-import '../helpers/project_root.dart';
 import '../helpers/run_zfa_source.dart';
 
 void main() {

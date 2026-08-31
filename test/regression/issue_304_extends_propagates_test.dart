@@ -1,4 +1,6 @@
 @Tags(['regression', 'slow'])
+library;
+
 // Regression test for issue #304.
 //
 // `zfa entity create -n Sub --extends Base` used to emit
@@ -35,9 +37,6 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import '../helpers/run_zfa_source.dart';
-
-/// Resolve package root at discovery time, before any test changes CWD.
-final _zfaRoot = Directory.current.path;
 
 void main() {
   group('#304 — zfa entity create --extends propagates implements clause', () {

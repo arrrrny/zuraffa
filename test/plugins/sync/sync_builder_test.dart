@@ -24,7 +24,7 @@ void main() {
     }
   });
 
-  Future<GeneratorConfig> _config({
+  Future<GeneratorConfig> config0({
     String direction = 'push',
     List<String> methods = const [
       'get',
@@ -51,7 +51,7 @@ void main() {
       outputDir: outputDir,
       options: const GeneratorOptions(force: true),
     );
-    await builder.generate(await _config());
+    await builder.generate(await config0());
 
     final initFile = File('$outputDir/sync/product_sync.dart');
     expect(
@@ -72,7 +72,7 @@ void main() {
       outputDir: outputDir,
       options: const GeneratorOptions(force: true),
     );
-    await builder.generate(await _config());
+    await builder.generate(await config0());
 
     final storeFile = File(
       '$outputDir/data/datasources/product/product_sync_metadata_store.dart',
@@ -96,7 +96,7 @@ void main() {
       outputDir: outputDir,
       options: const GeneratorOptions(force: true),
     );
-    await builder.generate(await _config(direction: 'push'));
+    await builder.generate(await config0(direction: 'push'));
 
     final strategyFile = File(
       '$outputDir/data/datasources/product/product_sync_strategy.dart',
@@ -117,7 +117,7 @@ void main() {
       outputDir: outputDir,
       options: const GeneratorOptions(force: true),
     );
-    await builder.generate(await _config(direction: 'bidirectional'));
+    await builder.generate(await config0(direction: 'bidirectional'));
 
     final strategyFile = File(
       '$outputDir/data/datasources/product/product_sync_strategy.dart',
@@ -134,7 +134,7 @@ void main() {
       outputDir: outputDir,
       options: const GeneratorOptions(force: true),
     );
-    await builder.generate(await _config());
+    await builder.generate(await config0());
 
     final useCaseFile = File(
       '$outputDir/domain/usecases/product/product_sync_usecase.dart',
@@ -169,7 +169,7 @@ void main() {
       outputDir: outputDir,
       options: const GeneratorOptions(force: true),
     );
-    final config = await _config();
+    final config = await config0();
     await builder.generate(config);
 
     final useCaseFile = File(

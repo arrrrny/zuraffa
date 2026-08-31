@@ -28,7 +28,7 @@ List<String> verifyRedArgs(TddFixture fx, [String? id]) => [
   'verify-red',
   '--project',
   fx.root.path,
-  if (id != null) id,
+  ?id,
 ];
 
 void main() {

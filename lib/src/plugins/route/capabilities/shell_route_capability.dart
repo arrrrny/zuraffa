@@ -187,6 +187,6 @@ class ShellRouteCapability implements ZuraffaCapability {
     );
     final indexFile = await indexBuilder.regenerateIndex();
 
-    return [routeFile, if (indexFile != null) indexFile];
+    return [routeFile, ?indexFile];
   }
 }

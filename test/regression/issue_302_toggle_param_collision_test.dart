@@ -1,4 +1,6 @@
 @Tags(['regression', 'slow'])
+library;
+
 // Regression tests for issue #302.
 //
 // `zfa make`'s toggle method generator (controller + presenter) declared

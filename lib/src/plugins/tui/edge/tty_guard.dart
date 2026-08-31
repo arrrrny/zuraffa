@@ -38,7 +38,7 @@ class TuiException implements Exception {
 /// with a clear message OR fall back to a non-interactive mode, rather than
 /// hanging or corrupting output.
 class TuiNonTtyException extends TuiException {
-  const TuiNonTtyException(String message, {super.cause}) : super(message);
+  const TuiNonTtyException(super.message, {super.cause});
 }
 
 /// Thrown when the TUI engine (nocterm) cannot initialize the terminal.
@@ -48,7 +48,7 @@ class TuiNonTtyException extends TuiException {
 /// libraries, unsupported platform), the plugin MUST fail with an actionable
 /// message, not a raw crash.
 class TuiEngineInitException extends TuiException {
-  const TuiEngineInitException(String message, {super.cause}) : super(message);
+  const TuiEngineInitException(super.message, {super.cause});
 }
 
 /// TTY guard — detects whether stdout is attached to a real terminal.
