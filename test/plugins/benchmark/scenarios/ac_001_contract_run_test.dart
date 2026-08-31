@@ -1,4 +1,6 @@
 @Tags(['slow'])
+library;
+
 // Acceptance test AC-1 (specs/015-benchmark-plugin/spec.md US1):
 // a plugin developer implements BenchmarkContract and runs it through the
 // runner, receiving a structured result with metrics.

@@ -43,10 +43,6 @@ analyzer:
     deprecated_member_use_from_same_package: ignore
     deprecated_member_use: ignore
     invalid_use_of_visible_for_overriding_member: ignore
-    # Test files attach @Tags/@Timeout annotations at the top without a
-    # `library;` directive by design; this info-only lint would otherwise
-    # flag every tagged test file.
-    library_annotations: ignore
     # Internal DDA/route compiler classes expose getters typed with private
     # element types; this is internal API, not a public contract.
     library_private_types_in_public_api: ignore

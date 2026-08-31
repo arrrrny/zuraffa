@@ -1,4 +1,6 @@
 @Tags(['regression', 'slow'])
+library;
+
 // Regression tests for issue #299.
 //
 // `CommonPatterns.findUseCaseDomain` had a prefix-based fallback that ran:

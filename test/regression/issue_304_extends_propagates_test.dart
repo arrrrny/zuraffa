@@ -1,4 +1,6 @@
 @Tags(['regression', 'slow'])
+library;
+
 // Regression test for issue #304.
 //
 // `zfa entity create -n Sub --extends Base` used to emit

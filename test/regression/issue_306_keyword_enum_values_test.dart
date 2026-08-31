@@ -1,4 +1,6 @@
 @Tags(['regression', 'slow'])
+library;
+
 // Regression test for issue #306.
 //
 // `zfa entity enum` wrote values verbatim into the generated Dart source.

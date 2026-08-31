@@ -1,4 +1,6 @@
 @Tags(['regression', 'slow'])
+library;
+
 // Regression test for issue #417:
 // https://github.com/arrrrny/zuraffa/issues/417
 //

@@ -1,4 +1,6 @@
 @Tags(['regression', 'slow'])
+library;
+
 // Regression tests for issue #294.
 //
 // Gap 1: Generators hardcoded `EntityFields.id` regardless of the entity's

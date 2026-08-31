@@ -1,4 +1,6 @@
 @Tags(['regression', 'slow'])
+library;
+
 // Regression test for issue #296.
 //
 // `zfa entity create` with a field type that resolves to NEITHER an existing

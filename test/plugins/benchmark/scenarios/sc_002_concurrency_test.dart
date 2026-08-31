@@ -1,4 +1,6 @@
 @Tags(['slow'])
+library;
+
 // Success criterion SC-002 (specs/015-benchmark-plugin/spec.md):
 // the benchmark runner can execute 100+ concurrent benchmark scenarios
 // without resource contention issues.

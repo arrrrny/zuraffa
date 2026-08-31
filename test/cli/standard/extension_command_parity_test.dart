@@ -1,4 +1,6 @@
 @Tags(['slow'])
+library;
+
 // Parity test: every `zfa manifest` command must be registered in the speckit
 // zuraffa extension (extension.yml `provides:`), and each command .md must follow
 // the template shape. Drives the CLI via a subprocess so it tracks the real

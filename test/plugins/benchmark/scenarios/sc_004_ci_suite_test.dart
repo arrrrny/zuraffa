@@ -1,4 +1,6 @@
 @Tags(['slow'])
+library;
+
 // Success criterion SC-004 (specs/015-benchmark-plugin/spec.md):
 // CI/CD integration — running the full benchmark suite completes in under
 // 5 minutes for a typical Zuraffa app with 20 scenarios.

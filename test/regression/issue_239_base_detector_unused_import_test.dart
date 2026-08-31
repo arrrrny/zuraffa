@@ -1,4 +1,6 @@
 @Tags(['regression', 'slow'])
+library;
+
 // Regression test for issue #239.
 //
 // `lib/src/migration/detectors/base_detector.dart` previously had an unused

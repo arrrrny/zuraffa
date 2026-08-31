@@ -1,4 +1,6 @@
 @Tags(['property', 'slow'])
+library;
+
 import 'dart:math';
 
 import 'package:test/test.dart';

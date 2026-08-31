@@ -1,4 +1,6 @@
 @Tags(['regression', 'slow'])
+library;
+
 // Regression test for issue #416.
 //
 // `zfa entity create --sealed --generate-subs` used to delegate to

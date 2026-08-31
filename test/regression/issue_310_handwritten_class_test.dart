@@ -1,4 +1,6 @@
 @Tags(['regression', 'slow'])
+library;
+
 // Regression test for issue #310.
 //
 // `zfa entity create` must emit the PLAIN type (no `$` prefix) when a field
