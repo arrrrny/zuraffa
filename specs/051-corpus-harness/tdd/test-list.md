@@ -36,11 +36,11 @@ entry point.
 | A7  | On a corpus-driven app, `zfa tdd corpus audit` maps every `lib/` file to a recorded zfa invocation or carve-out entry; 100% attribution exits 0 | US3.AC1 | example | DONE    | `corpus_audit_command_test.dart::A7: 100% attribution exits 0 with report + summary line` |
 | A8  | A file under `lib/` with no recorded provenance and no carve-out entry fails the audit non-zero, named | US3.AC2 | example | DONE    | `corpus_audit_command_test.dart::A8: an unattributed file fails the audit BY NAME` |
 | A9  | Removing a carve-out manifest entry flips its file to unattributed and failing on the next audit — the manifest is the only exemption path | US3.AC3 | example | DONE    | `corpus_audit_command_test.dart::A9: removing a carve-out entry flips its file to unattributed` |
-| A10 | Any corpus stop appends a ledger entry carrying the five required fields (feature, behavior, step, outcome, failing command) plus the issue-link placeholder, with zero test/ source edits | US4.AC1 | example | PENDING | |
-| A11 | A resumed run that passes the previously-gapped feature leaves the old ledger entry byte-identical and records the resolution as a new entry | US4.AC2 | example | PENDING | |
-| A12 | The final corpus report lists ledger totals (found / filed / merged / blocking) and names every unresolved gap blocking completion | US4.AC3 | example | PENDING | |
-| A13 | `zfa tdd corpus status` on a partially driven corpus reports per-state feature counts, the resume point, and ledger totals, changing nothing | US5.AC1 | example | PENDING | |
-| A14 | The `corpus status` summary line is stable for CI: exit 0 exactly when all manifest features are done+gated (or waived), any non-zero means incomplete, without prose scraping | US5.AC2 | example | PENDING | |
+| A10 | Any corpus stop appends a ledger entry carrying the five required fields (feature, behavior, step, outcome, failing command) plus the issue-link placeholder, with zero test/ source edits | US4.AC1 | example | DONE    | `sc_020_corpus_harness_e2e_test.dart::SC-020/US1` (six-field entry + specs-tree checksum) + `corpus_run_command_test.dart::U23` |
+| A11 | A resumed run that passes the previously-gapped feature leaves the old ledger entry byte-identical and records the resolution as a new entry | US4.AC2 | example | DONE    | `corpus_run_command_test.dart::A2 + A11` + `sc_020_corpus_harness_e2e_test.dart::SC-020/US1` |
+| A12 | The final corpus report lists ledger totals (found / filed / merged / blocking) and names every unresolved gap blocking completion | US4.AC3 | example | DONE    | `corpus_run_command_test.dart::A12 — ledger totals + blocking gaps in the final report` |
+| A13 | `zfa tdd corpus status` on a partially driven corpus reports per-state feature counts, the resume point, and ledger totals, changing nothing | US5.AC1 | example | DONE    | `corpus_status_command_test.dart::A13: per-state counts, resume point, ledger totals, read-only` |
+| A14 | The `corpus status` summary line is stable for CI: exit 0 exactly when all manifest features are done+gated (or waived), any non-zero means incomplete, without prose scraping | US5.AC2 | example | DONE    | `corpus_status_command_test.dart::A14: exit 0 exactly when every manifest feature is done|waived` |
 
 ## Inner loop: unit behaviors
 
@@ -72,66 +72,66 @@ entry point.
 | U7  | A save that fails mid-write (injected writer error) leaves the previous progress file byte-identical (temp + rename) | FR-001, FR-010 | example | DONE    | `corpus_progress_store_test.dart::CorpusProgressStore (U7) a save that fails mid-write leaves the previous file byte-identical` |
 | U8  | A corrupt progress JSON stops with an error naming the file and the recovery path (delete to restart) | FR-011      | example | DONE    | `corpus_progress_store_test.dart::CorpusProgressStore (U8)` (3 tests) |
 | U9  | The in-flight marker refuses a live foreign pid; own pid, dead pid, or no marker never refuses | FR-010      | example | DONE    | `corpus_progress_store_test.dart::CorpusProgressStore (U9)` (2 tests) |
-| U10 | Progress features absent from the current manifest land in `dropped` and are retained (append-only audit trail) | US1 edge    | example | PENDING | |
+| U10 | Progress features absent from the current manifest land in `dropped` and are retained (append-only audit trail) | US1 edge | example | DONE    | `corpus_progress_store_test.dart::CorpusProgressStore (U10)` |
 
 ### `lib/src/plugins/tdd/models/corpus_ledger.dart`
 
 | id  | behavior                                                                                        | traces      | kind    | state   | test |
 | --- | ----------------------------------------------------------------------------------------------- | ----------- | ------- | ------- | ---- |
-| U11 | Ledger totals compute from entries: found = all, filed = issue link set, merged = status merged, blocking = open gaps whose feature is not done/waived | FR-008      | example | PENDING | |
+| U11 | Ledger totals compute from entries: found = all, filed = issue link set, merged = status merged, blocking = open gaps whose feature is not done/waived | FR-008 | example | DONE    | `corpus_models_test.dart::GapLedger totals (U11)` |
 
 ### `lib/src/plugins/tdd/services/gap_ledger_store.dart`
 
 | id  | behavior                                                                                        | traces      | kind    | state   | test |
 | --- | ----------------------------------------------------------------------------------------------- | ----------- | ------- | ------- | ---- |
-| U12 | Appending a gap produces a monotonic `gap-###` id and a complete entry: feature, behavior, step, outcome, failing command, issue-link placeholder, timestamp | FR-007      | example | PENDING | |
-| U13 | Appends never modify prior entries (byte-identical prefix) and the file stays decodable after every append | US4.AC2     | example | PENDING | |
-| U14 | A resolution entry appends with `resolves: <gap id>` and the resolved entry is untouched | US4.AC2     | example | PENDING | |
+| U12 | Appending a gap produces a monotonic `gap-###` id and a complete entry: feature, behavior, step, outcome, failing command, issue-link placeholder, timestamp | FR-007 | example | DONE    | `gap_ledger_store_test.dart::GapLedgerStore (U12)` (3 tests) |
+| U13 | Appends never modify prior entries (byte-identical prefix) and the file stays decodable after every append | US4.AC2 | example | DONE    | `gap_ledger_store_test.dart::GapLedgerStore (U13)` |
+| U14 | A resolution entry appends with `resolves: <gap id>` and the resolved entry is untouched | US4.AC2 | example | DONE    | `gap_ledger_store_test.dart::GapLedgerStore (U14)` |
 
 ### `lib/src/plugins/tdd/services/corpus_step_runner.dart`
 
 | id  | behavior                                                                                        | traces      | kind    | state   | test |
 | --- | ----------------------------------------------------------------------------------------------- | ----------- | ------- | ------- | ---- |
-| U15 | A `tdd run` invocation spawns the agreed argv via the `--zfa-bin` entrypoint and parses `run: feature=… result=… [stopped_at=behavior:step]`; success is exit 0 AND result=complete | FR-001, FR-002 | example | PENDING | |
-| U16 | A `tdd verify` invocation parses `mutation: gate=…`; success is exit 0 AND gate=pass; a non-pass gate surfaces its label even with a non-zero exit | FR-004      | example | PENDING | |
-| U17 | A step that exits 0 without its documented summary line is a runner-error misfire, never a silent success | FR-011      | example | PENDING | |
-| U18 | A spawn failure (missing binary, ProcessException) yields a runner-error result, never a crash | FR-011      | example | PENDING | |
+| U15 | A `tdd run` invocation spawns the agreed argv via the `--zfa-bin` entrypoint and parses `run: feature=… result=… [stopped_at=behavior:step]`; success is exit 0 AND result=complete | FR-001, FR-002 | example | DONE    | `corpus_step_runner_test.dart::U15 — tdd run spawn + parse` (3 tests) |
+| U16 | A `tdd verify` invocation parses `mutation: gate=…`; success is exit 0 AND gate=pass; a non-pass gate surfaces its label even with a non-zero exit | FR-004 | example | DONE    | `corpus_step_runner_test.dart::U16 — tdd verify spawn + parse` (2 tests) |
+| U17 | A step that exits 0 without its documented summary line is a runner-error misfire, never a silent success | FR-011 | example | DONE    | `corpus_step_runner_test.dart::U17 — missing summary line` |
+| U18 | A spawn failure (missing binary, ProcessException) yields a runner-error result, never a crash | FR-011 | example | DONE    | `corpus_step_runner_test.dart::U18 — spawn failure` |
 
 ### `lib/src/plugins/tdd/commands/corpus_run_command.dart` (inner boundaries)
 
 | id  | behavior                                                                                        | traces      | kind    | state   | test |
 | --- | ----------------------------------------------------------------------------------------------- | ----------- | ------- | ------- | ---- |
-| U19 | Not-ready manifest features are skipped and reported (`not_ready=` in the summary), never spawned | FR-003      | example | PENDING | |
-| U20 | A manifest edited mid-stream: features added are driven on the next run; features removed keep progress entries marked dropped | US1 edge    | example | PENDING | |
-| U21 | No manifest at the project root → `result=no-manifest`, exit 2, message naming the expected path | FR-001, FR-011 | example | PENDING | |
-| U22 | A second concurrent corpus run is refused: `result=concurrent-run`, exit 4, no state writes | FR-010      | example | PENDING | |
-| U23 | A feature whose `run` exits non-zero for ANY outcome (stopped / runner-error / corrupt-state / concurrent-run) stops the corpus with a ledger entry naming that outcome — the outcome is never absorbed into done | FR-002      | example | PENDING | |
-| U24 | Dropped features are reported in the final summary (`dropped=<n>`) and never re-driven | US1 edge    | example | PENDING | |
+| U19 | Not-ready manifest features are skipped and reported (`not_ready=` in the summary), never spawned | FR-003 | example | DONE    | `corpus_run_command_test.dart::U19 — not-ready features` |
+| U20 | A manifest edited mid-stream: features added are driven on the next run; features removed keep progress entries marked dropped | US1 edge | example | DONE    | `corpus_run_command_test.dart::U20 + U24 — manifest edited mid-stream` |
+| U21 | No manifest at the project root → `result=no-manifest`, exit 2, message naming the expected path | FR-001, FR-011 | example | DONE    | `corpus_run_command_test.dart::U21 — no manifest` |
+| U22 | A second concurrent corpus run is refused: `result=concurrent-run`, exit 4, no state writes | FR-010 | example | DONE    | `corpus_run_command_test.dart::U22 — concurrent corpus runs` |
+| U23 | A feature whose `run` exits non-zero for ANY outcome (stopped / runner-error / corrupt-state / concurrent-run) stops the corpus with a ledger entry naming that outcome — the outcome is never absorbed into done | FR-002 | example | DONE    | `corpus_run_command_test.dart::U23 — any run failure stops the corpus` |
+| U24 | Dropped features are reported in the final summary (`dropped=<n>`) and never re-driven | US1 edge | example | DONE    | `corpus_run_command_test.dart::U20 + U24 — manifest edited mid-stream` |
 
 ### `lib/src/plugins/tdd/services/provenance_scanner.dart`
 
 | id  | behavior                                                                                        | traces      | kind    | state   | test |
 | --- | ----------------------------------------------------------------------------------------------- | ----------- | ------- | ------- | ---- |
-| U25 | `specs/*/tdd/artifacts.json` subject_path entries attribute matching `lib/` files, in both absolute and project-relative form | FR-005      | example | PENDING | |
-| U26 | Cycle-log refactor entries' `changed:` file lists attribute matching `lib/` files | FR-005      | example | PENDING | |
-| U27 | `.zfa/provenance/*.json` records (single object or array) attribute their files to the recorded command | FR-005      | example | PENDING | |
-| U28 | Carve-out manifest entries attribute their exact-path files | US3.AC1     | example | PENDING | |
-| U29 | Attribution is deterministic: a file matched by multiple sources takes the loop attribution (registry before refactor before provenance before carve-out) | FR-006      | example | PENDING | |
-| U30 | Recorded paths normalize to POSIX project-relative form for comparison (absolute, `./`-prefixed, and backslash variants all match) | FR-005      | example | PENDING | |
+| U25 | `specs/*/tdd/artifacts.json` subject_path entries attribute matching `lib/` files, in both absolute and project-relative form | FR-005 | example | DONE    | `provenance_scanner_test.dart::U25` (2 tests) |
+| U26 | Cycle-log refactor entries' `changed:` file lists attribute matching `lib/` files | FR-005 | example | DONE    | `provenance_scanner_test.dart::U26` |
+| U27 | `.zfa/provenance/*.json` records (single object or array) attribute their files to the recorded command | FR-005 | example | DONE    | `provenance_scanner_test.dart::U27` (2 tests) |
+| U28 | Carve-out manifest entries attribute their exact-path files | US3.AC1 | example | DONE    | `provenance_scanner_test.dart::U28` |
+| U29 | Attribution is deterministic: a file matched by multiple sources takes the loop attribution (registry before refactor before provenance before carve-out) | FR-006 | example | DONE    | `provenance_scanner_test.dart::U29` |
+| U30 | Recorded paths normalize to POSIX project-relative form for comparison (absolute, `./`-prefixed, and backslash variants all match) | FR-005 | example | DONE    | `provenance_scanner_test.dart::U30` |
 
 ### `lib/src/plugins/tdd/commands/corpus_audit_command.dart`
 
 | id  | behavior                                                                                        | traces      | kind    | state   | test |
 | --- | ----------------------------------------------------------------------------------------------- | ----------- | ------- | ------- | ---- |
-| U31 | The audit writes `.zfa/corpus/audit-report.json` with the per-file attribution map, carve-out list, and counts, plus the `audit: files=… result=…` summary line | FR-006      | example | PENDING | |
-| U32 | An app with no `lib/` directory audits trivially green with `files=0` (vacuous truth, still a stable contract line) | FR-006      | example | PENDING | |
+| U31 | The audit writes `.zfa/corpus/audit-report.json` with the per-file attribution map, carve-out list, and counts, plus the `audit: files=… result=…` summary line | FR-006 | example | DONE    | `corpus_audit_command_test.dart::A7` (report JSON + summary line) |
+| U32 | An app with no `lib/` directory audits trivially green with `files=0` (vacuous truth, still a stable contract line) | FR-006 | example | DONE    | `corpus_audit_command_test.dart::U32: no lib/ audits trivially green` |
 
 ### `lib/src/plugins/tdd/commands/corpus_status_command.dart`
 
 | id  | behavior                                                                                        | traces      | kind    | state   | test |
 | --- | ----------------------------------------------------------------------------------------------- | ----------- | ------- | ------- | ---- |
-| U33 | `corpus status` changes nothing: manifest, progress, ledger, and waivers files are byte-identical before and after | US5.AC1     | example | PENDING | |
-| U34 | Status exit semantics: 0 exactly when every manifest feature is done or waived; incomplete → 1; no-manifest → 2; corrupt state → 3 | FR-009, SC-005 | example | PENDING | |
+| U33 | `corpus status` changes nothing: manifest, progress, ledger, and waivers files are byte-identical before and after | US5.AC1 | example | DONE    | `corpus_status_command_test.dart::A13` (byte-identical state files) |
+| U34 | Status exit semantics: 0 exactly when every manifest feature is done or waived; incomplete → 1; no-manifest → 2; corrupt state → 3 | FR-009, SC-005 | example | DONE    | `corpus_status_command_test.dart::U34` (no-manifest + corrupt tests) |
 
 ## Invariants and edge cases still to place
 

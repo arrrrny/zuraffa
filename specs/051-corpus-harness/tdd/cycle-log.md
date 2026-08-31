@@ -226,3 +226,11 @@ test existed and failed before the implementation.
 - notes: U33 (byte-identical state files) is asserted inside the A13 test
   across manifest/progress/ledger/waivers.
 - commit: (this commit)
+## Bookkeeping: test-list states aligned (all 48 behaviors DONE)
+
+The state column updates from cycles 4-13 silently failed on a table
+spacing mismatch (rows end with an empty test cell; the update patterns
+did not). All 30 affected rows (A10-A14, U10-U34) are now flipped to
+DONE with their test references — every flip corresponds to a cycle
+entry above with recorded red/green evidence or a deliberate-mutant
+check. No behavior state changed that is not backed by a logged cycle.
