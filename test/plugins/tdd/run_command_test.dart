@@ -608,4 +608,57 @@ void main() {
       });
     },
   );
+
+  // -------------------------------------------------------------------
+  // Spec 050 (FR-007 / U8) — the repo's hand-written 6-column
+  // extension dialect (specs/046–049's shape) must be drivable: the
+  // run gets PAST list-reading (no `result=runner-error`, no
+  // `expected 4 columns`) and drives the rows through the fake steps.
+  // -------------------------------------------------------------------
+
+  test('U8/050: run drives a hand-written 6-column extension-dialect list '
+      'past list-reading to all-DONE', () async {
+    // Seed the list directly in the extension's hand-written shape —
+    // the fixture's seedTestList only writes plan's 4-column shape.
+    await Directory(p.join(fx.featureDir, 'tdd')).create(recursive: true);
+    await File(fx.testListPath).writeAsString('''
+# Test List: $feature
+
+## Inner loop: unit behaviors
+
+One per functional requirement in `spec.md`.
+
+| id  | behavior | traces | kind | state | test |
+| --- | -------- | ------ | ---- | ----- | ---- |
+| B-001 | first legacy behavior | FR-001 | example | PENDING | sc_legacy_test.dart::B-001 |
+| B-002 | second legacy behavior | FR-002 | example | PENDING | sc_legacy_test.dart::B-002 |
+''');
+
+    final out = await drive();
+
+    // The dialect no longer bricks the loop's front door.
+    expect(out, isNot(contains('expected 4 columns')), reason: out);
+    expect(out, isNot(contains('result=runner-error')), reason: out);
+
+    // The rows resolved and were driven through every step.
+    expect(fx.stepInvocations(), [
+      'gen B-001',
+      'verify-red B-001',
+      'make B-001',
+      'refactor B-001',
+      'gen B-002',
+      'verify-red B-002',
+      'make B-002',
+      'refactor B-002',
+    ]);
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 '
+        'green=0 done=2',
+      ),
+      reason: out,
+    );
+    expect(exitCode, 0, reason: out);
+  });
 }

@@ -59,8 +59,8 @@ without a malformed stop; migration is a printed note, not a brick.
 **Independent Test**: Reader + gen tests on extension-dialect fixtures pass; a repo-fixture read of the 049 list resolves rows (no `result=runner-error` from list-reading).
 
 - [x] T008 [US2] [U2] [U7] Write the failing gen test FIRST in `test/plugins/tdd/commands/plan_gen_contract_test.dart`: `zfa tdd gen <id> --feature <f>` resolves a behavior id from a hand-written 6-column extension-dialect list (the 046/049 shape: kind cell `example`, test-path last cell) — observe red, then confirm it turns green with T004
-- [ ] T009 [US2] [A4] [U8] Write the failing run-level test FIRST: `zfa tdd run <feature>` gets past list-reading on a feature whose list is the hand-written 6-column extension dialect (no `result=runner-error` from the dialect) — seed the smallest honest fixture (a list whose rows are all already DONE with evidence, or a run that stops at a real step for a non-format reason), in `test/plugins/tdd/run_command_test.dart` or a scenario file as the existing style dictates
-- [ ] T010 [US2] [U3] Add the reader test proving the deprecation note is printed exactly once per file for a mixed-dialect list (one 4-col row + one 6-col extension row + one 6-col acceptance-cell row) and never re-printed for later rows, in `test/plugins/tdd/services/test_list_reader_test.dart`; assert the list file's bytes are unchanged after the read (FR-010 side-effect-free)
+- [x] T009 [US2] [A4] [U8] Write the failing run-level test FIRST: `zfa tdd run <feature>` gets past list-reading on a feature whose list is the hand-written 6-column extension dialect (no `result=runner-error` from the dialect) — seed the smallest honest fixture (a list whose rows are all already DONE with evidence, or a run that stops at a real step for a non-format reason), in `test/plugins/tdd/run_command_test.dart` or a scenario file as the existing style dictates
+- [x] T010 [US2] [U3] Add the reader test proving the deprecation note is printed exactly once per file for a mixed-dialect list (one 4-col row + one 6-col extension row + one 6-col acceptance-cell row) and never re-printed for later rows, in `test/plugins/tdd/services/test_list_reader_test.dart`; assert the list file's bytes are unchanged after the read (FR-010 side-effect-free)
 
 ---
 
@@ -72,7 +72,7 @@ loop's front door.
 **Independent Test**: Malformed-shape reader tests pass; slow-tier e2e present and green.
 
 - [x] T011 [US3] [A5] [U9] Verify the existing coverage credits: the reader's malformed-row tests (line number + raw line in the error, unknown state, empty id) and `sc_018` as the CI front door — confirm they still pass after the shim change; extend only where T005 re-pointed the malformed shape
-- [ ] T012 [US3] [A6] Add the repo-fixture regression guard: a test that reads the REAL `specs/049-tdd-run/tdd/test-list.md` (and the 046–048 siblings) through `TestListReader` and asserts rows resolve — so a future dialect change that re-bricks the repo's own completed features fails fast, in `test/plugins/tdd/services/test_list_reader_test.dart`
+- [x] T012 [US3] [A6] Add the repo-fixture regression guard: a test that reads the REAL `specs/049-tdd-run/tdd/test-list.md` (and the 046–048 siblings) through `TestListReader` and asserts rows resolve — so a future dialect change that re-bricks the repo's own completed features fails fast, in `test/plugins/tdd/services/test_list_reader_test.dart`
 
 ---
 

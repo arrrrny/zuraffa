@@ -277,6 +277,13 @@ class TestListReader {
     for (final state in BehaviorState.values) {
       if (state.name == cell.toLowerCase()) return state;
     }
+    // The tdd extension's verification verdict, seen on deprecated
+    // 6-column rows (specs/044 B-003): `PROVEN` means the audit proved
+    // the cycle — completed work — so it maps to the driver's `done`
+    // (spec 050, SC-002). Canonical plan rows never carry it (plan
+    // writes PENDING); every other extension bookkeeping state stays
+    // malformed so drift keeps surfacing.
+    if (cell.trim().toLowerCase() == 'proven') return BehaviorState.done;
     return null;
   }
 
