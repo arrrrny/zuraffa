@@ -16,6 +16,7 @@ library;
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 import 'package:zuraffa/src/plugins/slice/slice_command.dart';
@@ -235,6 +236,74 @@ void main() {
       ).readAsStringSync();
       expect(sliceDi, contains('registerGetProductUseCase(getIt);'));
       expect(sliceDi, contains('MockProductRepository'));
+    }, timeout: const Timeout(Duration(minutes: 2)));
+
+    test('A3b (issue #596): every import in a freshly cut slice_di.dart '
+        'resolves inside the sandbox', () async {
+      await captureOutput(
+        () => runner.run([
+          'slice',
+          'cut',
+          'product_feature',
+          '--entry',
+          'product',
+        ]),
+      );
+
+      final sandboxRoot = Directory(sandbox()).absolute.path;
+      final sliceDiPath = p.join(
+        sandboxRoot,
+        'lib',
+        'src',
+        'di',
+        'slice_di.dart',
+      );
+      final sliceDi = File(sliceDiPath).readAsStringSync();
+
+      // Every relative import directive in slice_di.dart (it is emitted at
+      // lib/src/di/, so its imports resolve from there) must stay inside the
+      // sandbox boundary and point at a file that was actually mirrored.
+      final importPattern = RegExp(r"import '([^']+)';");
+      final relativeImports = importPattern
+          .allMatches(sliceDi)
+          .map((m) => m.group(1)!)
+          .where(
+            (uri) => !uri.startsWith('dart:') && !uri.startsWith('package:'),
+          )
+          .toSet();
+
+      // The fixture's slice wires three real DI files plus the boundary
+      // mock; a cut that lost its registrations would make this test
+      // vacuously green.
+      expect(relativeImports.length, greaterThanOrEqualTo(4));
+
+      for (final uri in relativeImports) {
+        final resolved = p.normalize(
+          p.join(sandboxRoot, 'lib', 'src', 'di', uri),
+        );
+        expect(
+          p.isWithin(sandboxRoot, resolved),
+          isTrue,
+          reason:
+              "import '$uri' escapes the slice sandbox via a "
+              'relative path traversal',
+        );
+        expect(
+          File(resolved).existsSync(),
+          isTrue,
+          reason:
+              "import '$uri' resolves to $resolved, which was never "
+              'mirrored into the sandbox',
+        );
+      }
+
+      // The sibling-path contract from the remediation: DI registrations are
+      // emitted as `./`-prefixed sibling paths under usecases/, not as
+      // project-root traversal.
+      expect(
+        sliceDi,
+        contains("import './usecases/get_product_usecase_di.dart';"),
+      );
     }, timeout: const Timeout(Duration(minutes: 2)));
 
     test(

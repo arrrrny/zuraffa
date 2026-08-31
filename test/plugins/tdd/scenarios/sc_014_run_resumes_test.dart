@@ -192,12 +192,14 @@ void main() {
     // The unit completes FIRST (U1 re-enters at its state-implied step);
     // only then does phase 2 flip the deferred acceptance behavior
     // green. A1 sits RED between the phases — resumable mid-corpus.
+    // U1's refactor defers while A1 is RED (bug #635) and runs in the
+    // phase-2 refactor pass on the fully-green suite.
     expect(fx.stepInvocations(), [
       'make A1',
       'make U1',
-      'refactor U1',
       'make A1',
       'refactor A1',
+      'refactor U1',
     ]);
     expect(out, contains('[run] A1 make -> deferred (phase 2)'));
     expect(
