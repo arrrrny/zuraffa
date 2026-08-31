@@ -93,7 +93,8 @@ void main() {
     test('rejects an invalid corpus before creating the app', () async {
       final missing = '${workDir.path}/missing-corpus';
 
-      await expectLater(runSetup(specs: missing), throwsA(isA<StateError>()));
+      final out = await runSetup(specs: missing);
+      expect(out, contains('source corpus not found'));
       expect(Directory('${workDir.path}/demo_app').existsSync(), isFalse);
     });
   });

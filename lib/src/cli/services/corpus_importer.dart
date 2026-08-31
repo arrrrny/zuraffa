@@ -265,7 +265,8 @@ class CorpusImporter {
 
   /// sha256 hex of [content] — the divergence-reporting currency
   /// (FR-004), same hashing `TreeSnapshot` uses for tree fingerprints.
-  static String _sha256(List<int> content) => sha256.convert(content).toString();
+  static String _sha256(List<int> content) =>
+      sha256.convert(content).toString();
 
   /// Validates a source corpus before a caller performs any setup writes.
   void validateSource(String source) {

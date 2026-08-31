@@ -426,22 +426,25 @@ void main() {
       expect(byName['s-malformed']!.ready, isFalse);
     });
 
-    test('readiness describes the retained target when source diverges', () async {
-      await runImport();
-      corpus.editSpec(
-        '001-clean',
-        FixtureCorpus.proseOnlySpec('001-clean-source-v2'),
-      );
+    test(
+      'readiness describes the retained target when source diverges',
+      () async {
+        await runImport();
+        corpus.editSpec(
+          '001-clean',
+          FixtureCorpus.proseOnlySpec('001-clean-source-v2'),
+        );
 
-      final result = await runImport();
-      final feature = result.features.singleWhere(
-        (feature) = feature.name == '001-clean',
-      );
+        final result = await runImport();
+        final feature = result.features.singleWhere(
+          (feature) => feature.name == '001-clean',
+        );
 
-      expect(feature.outcome, ImportOutcome.divergent);
-      expect(feature.ready, isTrue);
-      expect(feature.reason, isEmpty);
-    });
+        expect(feature.outcome, ImportOutcome.divergent);
+        expect(feature.ready, isTrue);
+        expect(feature.reason, isEmpty);
+      },
+    );
   });
 
   group('U7 (FR-003): idempotent re-import', () {
