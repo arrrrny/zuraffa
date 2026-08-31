@@ -63,15 +63,15 @@ entry point.
 
 | id  | behavior                                                                                        | traces      | kind    | state   | test |
 | --- | ----------------------------------------------------------------------------------------------- | ----------- | ------- | ------- | ---- |
-| U6  | Corpus progress round-trips through JSON with per-feature state, gate, stoppedAt, waiver, the in-flight marker, and the dropped list intact | FR-001      | example | PENDING | |
+| U6  | Corpus progress round-trips through JSON with per-feature state, gate, stoppedAt, waiver, the in-flight marker, and the dropped list intact | FR-001      | example | DONE    | `corpus_progress_store_test.dart::CorpusProgress model (U6) round-trips state, gate, stoppedAt, waiver, in-flight, dropped` + `::empty progress round-trips to empty` |
 
 ### `lib/src/plugins/tdd/services/corpus_progress_store.dart`
 
 | id  | behavior                                                                                        | traces      | kind    | state   | test |
 | --- | ----------------------------------------------------------------------------------------------- | ----------- | ------- | ------- | ---- |
-| U7  | A save that fails mid-write (injected writer error) leaves the previous progress file byte-identical (temp + rename) | FR-001, FR-010 | example | PENDING | |
-| U8  | A corrupt progress JSON stops with an error naming the file and the recovery path (delete to restart) | FR-011      | example | PENDING | |
-| U9  | The in-flight marker refuses a live foreign pid; own pid, dead pid, or no marker never refuses | FR-010      | example | PENDING | |
+| U7  | A save that fails mid-write (injected writer error) leaves the previous progress file byte-identical (temp + rename) | FR-001, FR-010 | example | DONE    | `corpus_progress_store_test.dart::CorpusProgressStore (U7) a save that fails mid-write leaves the previous file byte-identical` |
+| U8  | A corrupt progress JSON stops with an error naming the file and the recovery path (delete to restart) | FR-011      | example | DONE    | `corpus_progress_store_test.dart::CorpusProgressStore (U8)` (3 tests) |
+| U9  | The in-flight marker refuses a live foreign pid; own pid, dead pid, or no marker never refuses | FR-010      | example | DONE    | `corpus_progress_store_test.dart::CorpusProgressStore (U9)` (2 tests) |
 | U10 | Progress features absent from the current manifest land in `dropped` and are retained (append-only audit trail) | US1 edge    | example | PENDING | |
 
 ### `lib/src/plugins/tdd/models/corpus_ledger.dart`

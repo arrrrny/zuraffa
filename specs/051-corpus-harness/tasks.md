@@ -59,11 +59,11 @@ Test-first: each group's failing tests land before its implementation.
 - [X] T003 [P] [U1] [U2] Implement `CorpusFeature` + `CorpusManifest`
   (fromJson with corrupt → `CorpusManifestException` naming recovery) in
   `lib/src/plugins/tdd/models/corpus_manifest.dart` (depends on T002 red)
-- [ ] T004 [P] [U6] Write the failing progress-model tests FIRST in
+- [X] T004 [P] [U6] Write the failing progress-model tests FIRST in
   `test/plugins/tdd/models/corpus_models_test.dart`: progress round-trips
   per-feature state, gate, stoppedAt, waiver, in-flight marker, dropped —
   observe red
-- [ ] T005 [P] [U6] Implement `FeatureCorpusState`, `FeatureProgress`,
+- [X] T005 [P] [U6] Implement `FeatureCorpusState`, `FeatureProgress`,
   `CorpusWaiver`, `CorpusProgress` (toJson/fromJson) in
   `lib/src/plugins/tdd/models/corpus_progress.dart` (depends on T004 red)
 - [ ] T006 [P] [U11] Write the failing ledger-totals tests FIRST in
@@ -89,14 +89,14 @@ Test-first: each group's failing tests land before its implementation.
   + carve-out + waivers readers, `.zfa/` path constants) in
   `lib/src/plugins/tdd/services/corpus_manifest_store.dart` (depends on
   T008 red)
-- [ ] T010 [P] [U7] [U8] [U9] [U10] Write the failing progress-store
+- [X] T010 [P] [U7] [U8] [U9] [U10] Write the failing progress-store
   tests FIRST in
   `test/plugins/tdd/services/corpus_progress_store_test.dart`: injected
   mid-write failure leaves the previous file byte-identical; corrupt JSON
   stops naming recovery; live foreign pid refused while own/dead/absent
   never refuse; features absent from the manifest land in `dropped` —
   observe red
-- [ ] T011 [P] [U7] [U8] [U9] [U10] Implement `CorpusProgressStore`
+- [X] T011 [P] [U7] [U8] [U9] [U10] Implement `CorpusProgressStore`
   (atomic temp+rename save, load corruption gate, pid in-flight refusal,
   dropped computation) in
   `lib/src/plugins/tdd/services/corpus_progress_store.dart` (depends on

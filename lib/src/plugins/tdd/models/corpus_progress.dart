@@ -136,6 +136,10 @@ class CorpusInFlight {
 }
 
 /// Corpus progress: per-feature state + in-flight marker + dropped list.
+///
+/// A mutable state object the runner updates as it drives (persisted by
+/// the store after every feature); the in-flight marker is cleared before
+/// the final save.
 class CorpusProgress {
   CorpusProgress({
     Map<String, FeatureProgress>? features,
@@ -145,12 +149,102 @@ class CorpusProgress {
         dropped = dropped ?? [];
 
   final Map<String, FeatureProgress> features;
-  final CorpusInFlight? inFlight;
-  final List<String> dropped;
+  CorpusInFlight? inFlight;
+  List<String> dropped;
+
+  /// Record [state] for [feature] (a new entry starts as pending).
+  void updateFeature(String feature, FeatureProgress state) {
+    features[feature] = state;
+  }
 
   Map<String, dynamic> toJson() => {
     'features': features.map((k, v) => MapEntry(k, v.toJson())),
     if (inFlight != null) 'in_flight': inFlight!.toJson(),
     'dropped': dropped,
   };
+
+  /// Decode the raw [decoded] JSON value (output of `jsonDecode`).
+  /// Shape mismatches throw a [FormatException] naming the cause.
+  static CorpusProgress fromJson(dynamic decoded) {
+    Never bad(String cause) => throw FormatException(
+      'corpus progress: $cause',
+    );
+
+    if (decoded is! Map) bad('top-level value is not an object');
+    final map = decoded;
+    final features = <String, FeatureProgress>{};
+    final featuresRaw = map['features'];
+    if (featuresRaw != null) {
+      if (featuresRaw is! Map) bad('"features" is not an object');
+      for (final entry in featuresRaw.entries) {
+        final name = entry.key;
+        if (name is! String || name.isEmpty) {
+          bad('feature name is not a non-empty string');
+        }
+        final row = entry.value;
+        if (row is! Map) bad('features["$name"] is not an object');
+        final stateRaw = row['state'];
+        if (stateRaw is! String) {
+          bad('features["$name"].state is not a string');
+        }
+        final state = FeatureCorpusState.fromName(stateRaw);
+        if (state == null) {
+          bad('features["$name"].state "$stateRaw" is unknown');
+        }
+        final gate = row['gate'];
+        if (gate != null && gate is! String) {
+          bad('features["$name"].gate is not a string');
+        }
+        final stoppedAt = row['stopped_at'];
+        if (stoppedAt != null && stoppedAt is! String) {
+          bad('features["$name"].stopped_at is not a string');
+        }
+        CorpusWaiver? waiver;
+        final waiverRaw = row['waiver'];
+        if (waiverRaw != null) {
+          if (waiverRaw is! Map) {
+            bad('features["$name"].waiver is not an object');
+          }
+          final w = Map<String, dynamic>.from(waiverRaw);
+          for (final field in ['feature', 'gate', 'reason', 'actor', 'at']) {
+            if (w[field] is! String) {
+              bad('features["$name"].waiver.$field is not a string');
+            }
+          }
+          waiver = CorpusWaiver.fromJson(w);
+        }
+        features[name] = FeatureProgress(
+          state: state,
+          gate: gate as String?,
+          stoppedAt: stoppedAt as String?,
+          waiver: waiver,
+        );
+      }
+    }
+    CorpusInFlight? inFlight;
+    final inFlightRaw = map['in_flight'];
+    if (inFlightRaw != null) {
+      if (inFlightRaw is! Map) bad('"in_flight" is not an object');
+      final feature = inFlightRaw['feature'];
+      final ownerPid = inFlightRaw['owner_pid'];
+      if (feature is! String) bad('"in_flight".feature is not a string');
+      if (ownerPid is! num) bad('"in_flight".owner_pid is not a number');
+      inFlight = CorpusInFlight(
+        feature: feature,
+        ownerPid: ownerPid.toInt(),
+      );
+    }
+    final droppedRaw = map['dropped'];
+    if (droppedRaw != null && droppedRaw is! List) {
+      bad('"dropped" is not a list');
+    }
+    final dropped = (droppedRaw as List? ?? const [])
+        .whereType<String>()
+        .toList();
+    return CorpusProgress(
+      features: features,
+      inFlight: inFlight,
+      dropped: dropped,
+    );
+  }
 }
