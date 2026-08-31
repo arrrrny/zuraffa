@@ -86,7 +86,7 @@ test existed and failed before the implementation.
 - red: none recorded — passed on FIRST run (the shared reader branch landed in cycle 1); strength proven by mutant 7 (below, shared with U3/A6): with the extension branch disabled this test's subject fails at the same front door (`result=runner-error` + `expected 4 columns`)
 - green: no code change; `dart test --preset=all test/plugins/tdd/run_command_test.dart` -> 18 passed, 0 failed (the deprecation note fires once for the dialect file, visible in the run's stderr)
 - refactor: none
-- commit: pending
+- commit: `b46d074b`
 
 ## Cycle 8: U9 + U11 the repo's real specs/044-049 lists resolve (regression guard)
 
@@ -96,7 +96,7 @@ test existed and failed before the implementation.
 - green (U11): `_parseState` maps the extension's `PROVEN` verdict to the driver's `done` (the extension's own meaning: the audit proved the cycle; canonical plan rows never carry it — every other extension bookkeeping state stays malformed so drift keeps surfacing). Suite `dart test test/plugins/tdd/` -> 227 passed, 0 failed
 - mutant: mutant 7 (extension branch disabled) failed this test via 046-049's rows; additionally the U11 mapping is pinned by this test's 044 read (a `PROVEN` -> malformed revert fails it at line 105)
 - refactor: none
-- commit: pending
+- commit: `b46d074b`
 
 ## Cycle 9: U3 deprecation note exactly once per file; list bytes unchanged
 
@@ -105,7 +105,7 @@ test existed and failed before the implementation.
 - mutants: (a) warn-per-row (`if (deprecated)` instead of `!deprecatedDialectWarned`) -> this test failed `the note must print once per file, not per row`; (b) mutant 7 (branch disabled) -> this test failed at gen's non-zero exit. Both restored exactly; suite green
 - green: no code change; `dart test --preset=all test/plugins/tdd/scenarios/sc_019_legacy_dialect_migration_test.dart` -> 2 passed, 0 failed
 - refactor: none
-- commit: pending
+- commit: `b46d074b`
 
 ## Cycle 10: A6 the real run re-reads the repo's own specs/049 list
 
@@ -114,4 +114,4 @@ test existed and failed before the implementation.
 - mutant: mutant 7 (extension branch disabled) -> this test failed with `result=runner-error` restored; restored exactly; suite green
 - green: no code change; the run reconciles all 42 rows as done-with-evidence -> `result=complete pending=0 red=0 green=0 done=42`, exit 0, zero step spawns
 - refactor: none
-- commit: pending
+- commit: `b46d074b`
