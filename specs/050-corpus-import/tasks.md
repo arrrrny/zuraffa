@@ -111,10 +111,10 @@ with the same file.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T015 [U19] [U20] `zfa setup --specs <dir>`: add the option to `setup_command.dart`, invoke `CorpusImporter` after the TDD baseline step (step numbering 7/7 → 8/8 when present); setup without `--specs` unchanged, in `lib/src/commands/setup_command.dart`
-- [ ] T016 Run `dart analyze` on all touched files and fix findings
-- [ ] T017 Run `dart test test/cli/services/ test/commands/ test/core/project/` and confirm green
-- [ ] T018 Execute quickstart.md scenarios 1–5 verbatim and record results in `specs/050-corpus-import/tdd/` evidence
+- [x] T015 [U19] [U20] `zfa setup --specs <dir>`: add the option to `setup_command.dart`, invoke `CorpusImporter` after the TDD baseline step (step numbering 7/7 → 8/8 when present); setup without `--specs` unchanged, in `lib/src/commands/setup_command.dart`
+- [x] T016 Run `dart analyze` on all touched files and fix findings
+- [x] T017 Run `dart test test/cli/services/ test/commands/ test/core/project/` and confirm green
+- [x] T018 Execute quickstart.md scenarios 1–5 verbatim and record results in `specs/050-corpus-import/tdd/` evidence
 
 ---
 

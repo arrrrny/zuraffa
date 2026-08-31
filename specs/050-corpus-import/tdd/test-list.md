@@ -70,8 +70,8 @@ One per acceptance criterion in `spec.md`, through the real CLI entry point
 
 | id  | behavior | traces | kind | state | test |
 | --- | -------- | ------ | ---- | ----- | ---- |
-| U19 | `--specs <dir>` triggers the import step after the TDD baseline | FR-001 | example | PENDING | |
-| U20 | `setup` without `--specs` behaves exactly as before | FR-001 | example | PENDING | |
+| U19 | `--specs <dir>` triggers the import step after the TDD baseline | FR-001 | example | DONE | `test/commands/setup_corpus_specs_test.dart::U19` |
+| U20 | `setup` without `--specs` behaves exactly as before | FR-001 | example | DONE | `test/commands/setup_corpus_specs_test.dart::U20` |
 
 ## Invariants and edge cases still to place
 

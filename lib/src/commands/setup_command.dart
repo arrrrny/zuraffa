@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
 
+import '../cli/services/corpus_importer.dart';
 import '../cli/writers/tdd/app_module_writer.dart';
 import '../cli/writers/tdd/dart_test_yaml_writer.dart';
 import '../cli/writers/tdd/pubspec_dev_dependencies_patcher.dart';
@@ -23,7 +24,7 @@ import '../utils/manifest_writer.dart';
 /// and scaffolds the domain directory structure.
 ///
 /// Usage:
-///   `zfa setup <name> [--flutter|--dart] [--platforms=<csv>] [--org=com.example] [-- <flutter/dart create flags>] [--dry-run] [--force]`
+///   `zfa setup <name> [--flutter|--dart] [--platforms=<csv>] [--org=com.example] [--specs=<dir>] [-- <flutter/dart create flags>] [--dry-run] [--force]`
 class SetupCommand extends Command<void> {
   @override
   final String name = 'setup';
@@ -121,6 +122,19 @@ class SetupCommand extends Command<void> {
           'demonstrate the red half of the red-green-refactor loop. See '
           'specs/041-tdd-setup-plugin/spec.md.',
     );
+    // spec 050-corpus-import: import an extracted spec corpus into the
+    // freshly scaffolded app so `zfa tdd plan/run/verify` can drive every
+    // feature immediately (issue #627).
+    argParser.addOption(
+      'specs',
+      valueHelp: 'dir',
+      help:
+          'Import an extracted spec corpus (a directory of feature '
+          'directories, each containing spec.md) into the new app: copies '
+          'every spec verbatim, creates per-feature tdd/ dirs, and emits '
+          'the corpus manifest for batch driving. See '
+          'specs/050-corpus-import/spec.md.',
+    );
   }
 
   @override
@@ -164,6 +178,10 @@ class SetupCommand extends Command<void> {
     final deepLinkHost = argResults!['deep-link-host'] as String?;
     final autoVerify = argResults!['auto-verify'] as bool;
     final tddExample = argResults!['tdd-example'] as bool;
+    final specsDir = argResults!['specs'] as String?;
+    // With --specs the corpus import becomes step 7 of 8 (after the TDD
+    // baseline); without it the flow keeps its legacy 7-step numbering.
+    final totalSteps = specsDir != null && specsDir.isNotEmpty ? 8 : 7;
 
     if (_isInvalidAppName(appName)) {
       usageException(
@@ -277,7 +295,7 @@ class SetupCommand extends Command<void> {
 
     // 6. TDD baseline (Part 1 of spec 041-tdd-setup-plugin).
     if (isFlutter) {
-      print('\n[6/7] Emitting TDD day-zero baseline...');
+      print('\n[6/$totalSteps] Emitting TDD day-zero baseline...');
       await _emitTddBaseline(
         projectRoot: appName,
         appName: appName,
@@ -286,12 +304,28 @@ class SetupCommand extends Command<void> {
       );
     } else {
       print(
-        '\n[6/7] Skipping TDD baseline (pure-Dart project; use `zfa tdd init` separately).',
+        '\n[6/$totalSteps] Skipping TDD baseline (pure-Dart project; use '
+        '`zfa tdd init` separately).',
       );
     }
 
-    // 7. Summary.
-    print('\n[7/7] Setup complete!');
+    // 7. Corpus import (spec 050-corpus-import): onboarding an extracted
+    //    spec corpus so the loop can drive it from day zero.
+    if (specsDir != null && specsDir.isNotEmpty) {
+      print('\n[7/8] Importing spec corpus from $specsDir...');
+      final result = await const CorpusImporter().import(
+        specsDir,
+        projectRoot: appName,
+        dryRun: dryRun,
+      );
+      for (final line in result.reportLines) {
+        print('   $line');
+      }
+      print('   ${result.summaryLine}');
+    }
+
+    // 8. Summary.
+    print('\n[$totalSteps/$totalSteps] Setup complete!');
     if (wireResult != null && !wireResult.isSuccess) {
       print(
         '\n⚠️  Some dependencies could not be wired automatically: '

@@ -399,4 +399,74 @@ test existed and failed before the implementation.
 - verdict: mutant-verified immediate pass.
 - US3 close: A7/A8 green; `dart test test/cli/services/ test/commands/
   test/core/project/` -> 83 passed, 0 failed; analyze clean.
-- commit: see US2/US3 slice
+- commit: `cac9c108`
+
+## Cycle 29: U19 --specs triggers the import step after the TDD baseline
+
+- test: `test/commands/setup_corpus_specs_test.dart::U19 (FR-001): --specs
+  triggers the import step the corpus import runs after the TDD baseline
+  step, with 8-step numbering when present` (+ `exposes the --specs
+  option`) (new — fast tier, drives setup in --dry-run so the whole flow
+  runs without subprocesses; setup's legacy test file is slow-tagged and
+  stays untouched)
+- red: `dart test test/commands/setup_corpus_specs_test.dart`
+  -> `Expected: a value greater than or equal to <0> / Actual: <-1>` (no
+  `[6/8]` step — the CLI output shows `❌ Could not find an option named
+  "--specs".`) and `Expected: contains 'specs'` (option surface) (2
+  failed; U20 passed — see below)
+- green: `setup_command.dart` gained `--specs <dir>`; with it the flow
+  numbers 8 steps, imports the corpus into the new app through the
+  shared `CorpusImporter` (dry-run plumbed), and prints the report; the
+  TDD-baseline step is [6/8], import [7/8], summary [8/8]. File suite ->
+  +3 All tests passed.
+- refactor: none needed (one guarded step + dynamic step total).
+- commit: see implement slice
+
+## Cycle 30: U20 setup without --specs behaves exactly as before
+
+- test: `test/commands/setup_corpus_specs_test.dart::U20 (FR-001): setup
+  without --specs is unchanged no corpus import step, legacy 7-step
+  numbering, no corpus output` (new)
+- red: immediate pass — U20 passed in cycle 29's red run (setup without
+  the flag was untouched, which IS the behavior). Deliberate-mutant
+  check: made the corpus-import step run unconditionally (guard removed)
+  -> U20 failed (`Some tests failed`, corpus output leaked into the
+  no-specs run) — caught. Restored exactly; file suite -> +3 All tests
+  passed.
+- verdict: mutant-verified immediate pass.
+- commit: see implement slice
+
+## Cycle 31: quickstart scenarios 1-5 executed verbatim (task T018)
+
+- command: `dart run bin/zfa.dart corpus import /tmp/fx-corpus --project
+  /tmp/fx-app` (a real 3-feature fixture corpus at /tmp/fx-corpus, fresh
+  app at /tmp/fx-app)
+- output (verbatim):
+  `001-clean: imported` /
+  `002-no-scenarios: imported not-ready (no acceptance scenarios)` /
+  `003-speckit: imported foreign-artifacts-ignored (checklists, tdd)` /
+  `corpus import: 3 features — 3 imported, 0 skipped, 0 divergent, 1
+  not-ready (manifest: /tmp/fx-app/.zfa/manifests/corpus-manifest.json)`
+  / `exit=0`
+- scenario 3 (loop-readiness): `dart run bin/zfa.dart tdd plan
+  001-clean --project /tmp/fx-app` -> `zfa tdd plan: wrote
+  File: '/tmp/fx-app/specs/001-clean/tdd/test-list.md' with 1 acceptance
+  + 1 unit behaviors (2 total).` `exit=0`; `tdd plan 002-no-scenarios`
+  -> `❌ Error: Bad state: zfa tdd plan: cannot derive behaviors`
+  `exit=1`, stderr carrying the parser's `contains no acceptance
+  scenarios` message — the manifest's reason.
+- scenario 4 (idempotency + divergence): re-import -> `001-clean:
+  skipped` / `002-no-scenarios: skipped not-ready (...)` /
+  `003-speckit: skipped foreign-artifacts-ignored (...)`, exit=0; after
+  editing the source spec -> `001-clean: divergent (source
+  sha256:7e426326..., target sha256:e1f91fdb...)` with the target kept
+  (grep for the new content in the target: 0 matches); `--force` ->
+  `001-clean: imported` and the target updated (1 match).
+- scenario 5 (dry-run): fresh app, `--dry-run` -> `[dry-run] `-prefixed
+  report, exit=0, and NEITHER `specs/` NOR `.zfa/` exists afterwards
+  (zero writes, manifest included).
+- setup wiring (dry-run end-to-end): `zfa setup demo_app --dart --no-git
+  --dry-run --specs /tmp/fx-corpus` -> `[6/8] Skipping TDD baseline ...`
+  `[7/8] Importing spec corpus from /tmp/fx-corpus...` + the [dry-run]
+  report + `[8/8] Setup complete!`.
+- commit: see implement slice
