@@ -336,9 +336,20 @@ class AppShellCommand extends Command<void> {
     }
 
     // 3. lib/main.dart — entrypoint; respect --force like every other glue
-    //    file but print a clearer message when skipping.
+    //    file but print a clearer message when skipping. Issue #626: the
+    //    untouched flutter-create Hello-World stub (`MainApp` + 'Hello
+    //    World') is scaffolder output, not user customization — the shell
+    //    replaces it without --force so the documented upgrade of the
+    //    day-zero minimal shell completes with the verbatim Next Steps.
     final mainPath = p.join(projectRoot, 'lib', 'main.dart');
     final mainExists = await _fileSystem.exists(mainPath);
+    var replacingHelloWorldStub = false;
+    if (mainExists && !force) {
+      final existingMain = await _fileSystem.read(mainPath);
+      replacingHelloWorldStub = AppShellBuilder.isFlutterCreateHelloWorldStub(
+        existingMain,
+      );
+    }
     final mainContent = _builder.buildMain(
       appName: appName,
       mockHint: mock,
@@ -352,7 +363,7 @@ class AppShellCommand extends Command<void> {
         mainPath,
         mainContent,
         'main',
-        force: force,
+        force: force || replacingHelloWorldStub,
         dryRun: dryRun,
         verbose: verbose,
         fileSystem: _fileSystem,
@@ -362,10 +373,17 @@ class AppShellCommand extends Command<void> {
     _logSummary(files, dryRun: dryRun, verbose: verbose);
 
     if (mainExists && !force && !dryRun) {
-      print(
-        '\nℹ️  lib/main.dart already exists — skipped (use --force to '
-        'overwrite). my_app.dart and app_router.dart were regenerated.',
-      );
+      if (replacingHelloWorldStub) {
+        print(
+          '\nℹ️  lib/main.dart was the flutter-create Hello-World stub '
+          '— replaced by the zfa shell (issue #626).',
+        );
+      } else {
+        print(
+          '\nℹ️  lib/main.dart already exists — skipped (use --force to '
+          'overwrite). my_app.dart and app_router.dart were regenerated.',
+        );
+      }
     }
 
     if (!dryRun) {

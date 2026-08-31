@@ -555,6 +555,19 @@ Future<void> _startXRayBridge() async {
     return m?.group(1);
   }
 
+  /// Returns true when [content] is the untouched `flutter create --empty`
+  /// Hello-World boilerplate (`MainApp` rendering 'Hello World!').
+  ///
+  /// Issue #626 upgrade path: `zfa setup` leaves the flutter-create stub at
+  /// `lib/main.dart`, and the stub — scaffolder output created moments
+  /// earlier, not user customization — must not require `--force` for the
+  /// shell to replace it. A hand-edited main.dart (error zones,
+  /// observability, custom widgets) does not carry both markers and keeps
+  /// the documented skip-unless-`--force` protection.
+  static bool isFlutterCreateHelloWorldStub(String content) {
+    return content.contains('class MainApp') && content.contains('Hello World');
+  }
+
   /// Maps a project-root-relative [outputDir] (e.g. `lib/src`, `lib/custom`)
   /// to the package-import base used by main.dart — the path relative to
   /// `lib/` (e.g. `src`, `custom`). Returns `''` when the output dir is

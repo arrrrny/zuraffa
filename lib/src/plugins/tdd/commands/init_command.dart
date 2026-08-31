@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../cli/writers/tdd/app_module_writer.dart';
 import '../../../cli/writers/tdd/dart_test_yaml_writer.dart';
 import '../../../cli/writers/tdd/pubspec_dev_dependencies_patcher.dart';
 import '../../../cli/writers/tdd/smoke_test_writer.dart';
@@ -92,6 +93,26 @@ class InitCommand extends Command<void> {
     } on StateError catch (e) {
       stdout.writeln('   ✗ test/bootstrap_smoke_test.dart: $e');
       failures.add('smoke_test_writer: $e');
+    }
+
+    // Issue #626: in a Flutter project the smoke test asserts the
+    // zfa-generated app module (<AppName>Container in lib/app.dart), so
+    // the baseline is only green when the module exists. Skip-if-exists —
+    // existing user content is never touched (FR-008).
+    if (isFlutter) {
+      try {
+        final written = await const AppModuleWriter(
+          isFlutter: true,
+        ).write(cwd, appName);
+        stdout.writeln(
+          written == null
+              ? '   ✓ lib/app.dart (already present)'
+              : '   ✓ lib/app.dart (created)',
+        );
+      } on StateError catch (e) {
+        stdout.writeln('   ✗ lib/app.dart: $e');
+        failures.add('app_module_writer: $e');
+      }
     }
 
     try {
