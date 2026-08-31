@@ -129,3 +129,14 @@ feature-scale convention, with `spec(050):`/`feat(050):`/`test(050):`/
   from malformed to accepted-by-shim per FR-007, and the malformed guard
   moves to a genuinely unknown shape
 - Pre-extension 7-column legacy lists stay out of scope (spec Assumptions)
+
+---
+
+## Phase 7: TDD remediation
+
+From `/speckit.tdd.verify` @ `767d4e83` (verdict FAIL — see
+`tdd/verification.md` for the full report and rationale).
+
+- [ ] T017 Process change for the next spec (finding #1, blocking): write the FULL unit-test set for every behavior BEFORE landing the shared implementation change — the outside-in trade (acceptance red first, units pinned after) left U1/U2/U3/U4/U6/U8/A6 with no per-behavior red. Not retroactively clearable: the ordering is permanent git history, and re-driving from a reverted implementation would manufacture reds the deliberate mutants already record per behavior. Verified by: the next feature's cycle log showing unit reds before its implementation commit.
+- [ ] T018 Optional, next spec (finding #2): if the repo's real specs/044–049 lists are ever edited wholesale (e.g. migrated to the canonical 4-column shape), give U9's regression guard a frozen-copies twin under `test/fixtures/` so its inputs stop being live repo state. Verified by: `dart test test/plugins/tdd/services/test_list_reader_test.dart` stays green through such an edit.
+- [ ] T019 Optional (finding #3): if the deprecation note's wording is ever reworded, consider extracting the note text to a constant both the reader and sc_019/U3 import, decoupling the test from prose. Verified by: `dart test --preset=all test/plugins/tdd/scenarios/sc_019_legacy_dialect_migration_test.dart` green.
