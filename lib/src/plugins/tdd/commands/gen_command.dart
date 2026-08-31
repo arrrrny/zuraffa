@@ -3,9 +3,14 @@
 /// FR-001..011).
 ///
 /// The command:
-///   1. Loads `specs/<feature>/tdd/test-list.md` and looks up the behavior
-///      row by id. If the id is unknown or the row is malformed, exits
-///      non-zero BEFORE any file is written (FR-002).
+///   1. Loads `specs/<feature>/tdd/test-list.md` through the SHARED
+///      [TestListReader] (bug #617: gen previously carried a private
+///      6-column parser that silently skipped the 4-column rows plan
+///      writes, so every planned behavior was "unknown" to gen and the
+///      full loop stopped at its first step). Looks up the behavior row
+///      by id; the target defaults in the reader. If the id is unknown
+///      or the row is malformed, exits non-zero BEFORE any file is
+///      written (FR-002).
 ///   2. Computes the test path + subject path + runnable test name for the
 ///      behavior. Path convention: `test/tdd/<snake-id>_test.dart` and
 ///      `lib/tdd/<snake-id>_subject.dart`.
@@ -33,6 +38,7 @@ import 'package:path/path.dart' as p;
 import '../services/artifact_registry.dart';
 import '../services/behavior_test_writer.dart';
 import '../services/subject_writer.dart';
+import '../services/test_list_reader.dart';
 import '../tdd_plugin.dart';
 
 class GenCommand extends Command<void> {
@@ -94,8 +100,17 @@ class GenCommand extends Command<void> {
     // Resolve the behavior. If --feature is set, only scan that one
     // feature's test-list. Otherwise, scan all features and prefer
     // `044-test-tdd-generation` (the feature this command lives under).
-    final resolved = await _resolveBehavior(cwd, behaviorId, featureFlag);
-    if (resolved == null) {
+    // A malformed test list stops honestly naming the line (FR-011) —
+    // never silently skipped (the anti-pattern behind bug #617).
+    final (Behavior?, String, String)? resolved;
+    try {
+      resolved = await _resolveBehavior(cwd, behaviorId, featureFlag);
+    } on TestListReadException catch (e) {
+      stderr.writeln('zfa tdd gen: ${e.message}');
+      throw StateError('zfa tdd gen: malformed test list — ${e.message}');
+    }
+    final (behavior, featureDir, featureName) = resolved;
+    if (behavior == null) {
       stderr.writeln(
         'zfa tdd gen: unknown behavior id "$behaviorId". '
         'No matching row found in any specs/<feature>/tdd/test-list.md'
@@ -103,7 +118,6 @@ class GenCommand extends Command<void> {
       );
       throw StateError('zfa tdd gen: unknown behavior id "$behaviorId"');
     }
-    final (behavior, featureDir, featureName) = resolved;
 
     // Validate required fields up front (FR-002).
     final missingFields = _missingRequiredFields(behavior);
@@ -187,33 +201,36 @@ class GenCommand extends Command<void> {
     }
   }
 
-  /// Resolve a behavior id (e.g. `B-003` or `U1`) by scanning feature
-  /// `test-list.md` files. If [featureFlag] is set, only that feature is
-  /// scanned. Otherwise, all features are scanned and the first match in
+  /// Resolve a behavior id (e.g. `A1`, `B-003` or `U1`) by scanning feature
+  /// `test-list.md` files through the shared [TestListReader] — the single
+  /// format contract (bug #617). If [featureFlag] is set, only that feature
+  /// is scanned. Otherwise, all features are scanned and the first match in
   /// alphabetical order wins, with a preference for
   /// `044-test-tdd-generation` (the feature this command lives under).
-  Future<(Behavior, String featureDir, String featureName)?> _resolveBehavior(
+  ///
+  /// Returns a null behavior when no row matches; a malformed list surfaces
+  /// as a [TestListReadException] (honest stop naming the line, FR-011).
+  Future<(Behavior?, String, String)> _resolveBehavior(
     String cwd,
     String behaviorId,
     String? featureFlag,
   ) async {
     final specsDir = Directory('$cwd/specs');
-    if (!await specsDir.exists()) return null;
+    if (!await specsDir.exists()) return (null, '', '');
 
     if (featureFlag != null && featureFlag.isNotEmpty) {
       // Only scan the specified feature.
       final featureDir = '$cwd/specs/$featureFlag';
       final testListFile = File('$featureDir/tdd/test-list.md');
       if (await testListFile.exists()) {
-        final raw = await testListFile.readAsString();
-        final behavior = _parseBehaviorRow(raw, behaviorId, featureFlag);
+        final behavior = await _findRow(featureDir, featureFlag, behaviorId);
         if (behavior != null) return (behavior, featureDir, featureFlag);
       }
-      return null;
+      return (null, '', '');
     }
 
     // No --feature given: scan all feature dirs and reject ambiguous IDs.
-    final matches = <(Behavior, String featureDir, String featureName)>[];
+    final matches = <(Behavior, String, String)>[];
     final dirs = <Directory>[];
     await for (final entity in specsDir.list()) {
       if (entity is Directory) dirs.add(entity);
@@ -223,13 +240,12 @@ class GenCommand extends Command<void> {
       final featureName = p.basename(entity.path);
       final testListFile = File('${entity.path}/tdd/test-list.md');
       if (!await testListFile.exists()) continue;
-      final raw = await testListFile.readAsString();
-      final behavior = _parseBehaviorRow(raw, behaviorId, featureName);
+      final behavior = await _findRow(entity.path, featureName, behaviorId);
       if (behavior != null) {
         matches.add((behavior, entity.path, featureName));
       }
     }
-    if (matches.isEmpty) return null;
+    if (matches.isEmpty) return (null, '', '');
     if (matches.length > 1) {
       final features = matches.map((m) => m.$3).join(', ');
       stderr.writeln(
@@ -243,56 +259,23 @@ class GenCommand extends Command<void> {
     return matches.first;
   }
 
-  /// Parse a behavior row from a test-list.md file.
-  Behavior? _parseBehaviorRow(String raw, String behaviorId, String feature) {
-    for (final line in raw.split('\n')) {
-      if (!line.trimLeft().startsWith('|')) continue;
-      if (line.contains('---')) continue; // separator
-      // Expected format:
-      // | <id> | <description> | <source> | <kind> | <state> | <target> |
-      // Don't filter empty cells — empty description is a valid (malformed)
-      // input that we must surface as a missing-required-field error.
-      final parts = line.split('|');
-      // The first and last elements are empty (before/after the outer pipes).
-      if (parts.length < 7) continue; // need 6 cells + 2 outer empties
-      // Strip outer empties and leading/trailing whitespace from each cell.
-      final cells = parts
-          .sublist(1, parts.length - 1)
-          .map((s) => s.trim())
-          .toList();
-      if (cells.length < 6) continue;
-      final id = cells[0];
-      if (id != behaviorId) continue;
-      final description = cells[1];
-      final sourceCriterion = cells[2];
-      final kindStr = cells[3].toLowerCase();
-      // target is in cells[5]; may be a test path (when the test-list
-      // was generated by `zfa tdd plan`) or a function name. When it
-      // looks like a path, default to a snake_case function name
-      // derived from the behavior id.
-      final cell5 = cells[5];
-      final target =
-          cell5.isEmpty ||
-              cell5.contains('/') ||
-              cell5.contains('::') ||
-              cell5.contains(r'$')
-          ? 'subject_${behaviorId.toLowerCase().replaceAll('-', '_')}'
-          : cell5;
-      final kind = kindStr.contains('acceptance')
-          ? BehaviorKind.acceptance
-          : kindStr.contains('unit')
-          ? BehaviorKind.unit
-          : throw StateError(
-              'zfa tdd gen: invalid classification "$kindStr" '
-              'for behavior $behaviorId. Expected "unit" or "acceptance".',
-            );
+  /// First row with [behaviorId] in the feature's test list, mapped onto
+  /// [Behavior] via the shared reader's contract.
+  Future<Behavior?> _findRow(
+    String featureDir,
+    String featureName,
+    String behaviorId,
+  ) async {
+    final rows = await TestListReader(featureDir).read();
+    for (final row in rows) {
+      if (row.id != behaviorId) continue;
       return Behavior(
-        id: id,
-        feature: feature,
-        kind: kind,
-        description: description,
-        sourceCriterion: sourceCriterion,
-        target: target,
+        id: row.id,
+        feature: featureName,
+        kind: row.kind,
+        description: row.description,
+        sourceCriterion: row.traces,
+        target: row.target,
       );
     }
     return null;
