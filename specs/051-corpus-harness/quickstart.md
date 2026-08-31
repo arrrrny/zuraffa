@@ -1,7 +1,7 @@
 # Quickstart: validating `zfa tdd corpus` (spec 051-corpus-harness)
 
 Runnable validation scenarios. The full behavior matrix lives in the test
-suite (`test/plugins/ttd/…corpus…`, `test/plugins/tdd/scenarios/
+suite (`test/plugins/tdd/…corpus…`, `test/plugins/tdd/scenarios/
 corpus_harness_scenario_test.dart`); this guide proves the loop manually
 with the same scripted-fake technique.
 

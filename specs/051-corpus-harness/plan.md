@@ -121,8 +121,10 @@ lib/src/plugins/tdd/
 ├── models/
 │   ├── corpus_manifest.dart       # CorpusFeature, CorpusManifest
 │   ├── corpus_progress.dart       # FeatureCorpusState, CorpusProgress,
-│   │                              #   CorpusWaiver, GapLedgerEntry
-│   └── corpus_ledger.dart         # ledger entry + issue-status helpers
+│   │                              #   CorpusWaiver (per-feature state,
+│   │                              #   waiver records, in-flight marker)
+│   └── corpus_ledger.dart         # GapLedgerEntry + resolution entries,
+│                                  #   issue-status helpers, ledger totals
 └── services/
     ├── corpus_manifest_store.dart    # manifest + carve-out reading
     ├── corpus_progress_store.dart    # atomic progress persistence,
