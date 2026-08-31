@@ -18,7 +18,7 @@
 When `zfa tdd run` encounters a feature using a test-list in the 6-column
 format (`tdd/test-list.md`), it prints a deprecation warning:
 
-```
+```text
 zfa: <feature>/tdd/test-list.md: deprecated 6-column test-list rows detected
 (id/behavior/traces/kind/state/target). The canonical format is the 4-column
 shape `zfa tdd plan <feature>` writes — re-run it to migrate; the 6-column
@@ -43,8 +43,9 @@ test-list itself.
 
 ## Expected Behavior
 
-The loop proceeds transparently for valid 6-column lists (accepted per spec
-050), or the warning text gives correct migration advice.
+- Valid 6-column lists (accepted per spec 050) must proceed transparently
+  without a deprecation warning.
+- Legacy rows must display accurate manual migration guidance.
 
 ## Suspected Code Path
 

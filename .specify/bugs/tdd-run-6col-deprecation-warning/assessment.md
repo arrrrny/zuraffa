@@ -12,7 +12,7 @@
 feature's `tdd/test-list.md` contains 6-column rows, regardless of who wrote
 them or why:
 
-```
+```text
 zfa: <feature>/tdd/test-list.md: deprecated 6-column test-list rows detected
 (id/behavior/traces/kind/state/target). The canonical format is the 4-column
 shape `zfa tdd plan <feature>` writes — re-run it to migrate; the 6-column

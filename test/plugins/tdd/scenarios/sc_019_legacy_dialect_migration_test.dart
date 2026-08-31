@@ -226,7 +226,7 @@ void main() {
       await Directory(featureDir).create(recursive: true);
       // gen's old private dialect: the kind cell names the LOOP
       // (acceptance/unit) and the last cell is the target. TWO legacy rows:
-      // the gate must still print the note at most ONCE per file.
+      // the gate must still print the note exactly ONCE per file.
       const listContent =
           '''
 # Test List: $feature
@@ -235,27 +235,52 @@ void main() {
 
 | id | behavior | traces | kind | state | target |
 |----|----------|--------|------|-------|--------|
-| U1 | gen-legacy row | FR-006 | unit | PENDING | sampleSubject |
-| U2 | another gen-legacy row | FR-008 | acceptance | PENDING | |
+| U1 | gen-legacy row | FR-006 | unit | DONE | sampleSubject |
+| U2 | another gen-legacy row | FR-008 | acceptance | DONE | |
 ''';
       await File(p.join(featureDir, 'test-list.md')).writeAsString(listContent);
 
-      final gen = await _runRealZfa(repoRoot, [
+      // Complete both rows with evidence so `tdd run` reads the legacy list
+      // without spawning any pipeline steps unrelated to this warning test.
+      await File(p.join(featureDir, 'run-state.json')).writeAsString(
+        jsonEncode({
+          'feature': feature,
+          'behavior_states': {'U1': 'done', 'U2': 'done'},
+          'in_flight_behavior_id': null,
+          'in_flight_step': null,
+          'in_flight_owner_pid': null,
+        }),
+      );
+      await File(p.join(featureDir, 'cycle-log.md')).writeAsString('''
+# Cycle Log
+## Cycle: U1 (red)
+- behavior: U1
+- kind: red
+## Cycle: U1 (green)
+- behavior: U1
+- kind: green
+## Cycle: U2 (red)
+- behavior: U2
+- kind: red
+## Cycle: U2 (green)
+- behavior: U2
+- kind: green
+''');
+
+      final run = await _runRealZfa(repoRoot, [
         'tdd',
-        'gen',
-        'U1',
-        '--feature',
+        'run',
         feature,
         '--project',
         tmp.path,
       ], workingDirectory: tmp.path);
 
       expect(
-        gen.exitCode,
+        run.exitCode,
         0,
-        reason: 'gen failed:\n${gen.stdout}${gen.stderr}',
+        reason: 'run failed:\n${run.stdout}${run.stderr}',
       );
-      final stderr = gen.stderr as String;
+      final stderr = run.stderr as String;
       // The legacy dialect keeps a one-time deprecation note...
       expect(stderr, contains('deprecated 6-column test-list rows'));
       expect(
