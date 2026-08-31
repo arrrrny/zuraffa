@@ -213,6 +213,22 @@ in every slow tier, each spinning up temp projects that run `dart pub get` +
 small agents. Reserve `--preset=all` for an explicit full-local baseline on a
 developer machine. See `test/README.md`. Use `dart analyze` on the files you touched.
 
+Disk-safe runs on small/disposable agents: a single `dart test test` compiles
+the entire test tree's kernel into one cache that can reach ~6.5 GB
+(`.dart_tool/test/incremental_kernel.*` plus per-process
+`$TMPDIR/dart_test.kernel.*`). On a ~10 GB disk that exhausts space and the run
+dies. For cloud/CI agents, run the fast suite in per-folder chunks with the
+kernel cache cleared between chunks instead:
+
+```bash
+tools/run_tests_chunked.sh          # fast suite, chunked, kernel cache cleaned between chunks
+DRY_RUN=1 tools/run_tests_chunked.sh # print the chunk list without running
+```
+
+The chunked runner recursively splits heavy folders (e.g. `test/plugins`,
+`test/core`) so each chunk's kernel stays a few hundred MB, and it never runs
+`--preset=all`.
+
 ## Migration shorthand for older projects
 
 If you encounter older guidance, normalize it to:
