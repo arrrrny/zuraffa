@@ -36,9 +36,6 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import '../helpers/run_zfa_source.dart';
 
-/// Resolve package root at discovery time, before any test changes CWD.
-final _zfaRoot = Directory.current.path;
-
 void main() {
   group('#304 — zfa entity create --extends propagates implements clause', () {
     late Directory workspace;

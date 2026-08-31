@@ -77,7 +77,7 @@ parseExtensionProvides() {
     final aliasList = (entry['aliases'] as List?) ?? const [];
     for (final a in aliasList) {
       aliases.add(a as String);
-      aliasesToFile[a as String] = file;
+      aliasesToFile[a] = file;
     }
   }
   return (aliasesToFile: aliasesToFile, aliases: aliases);

@@ -48,7 +48,6 @@ import '../helpers/run_zfa_source.dart';
 void main() {
   group('#308 — zfa entity create/add-field with --allow-forward-refs', () {
     late Directory workspace;
-    late String zfaBin;
     late String zfaRoot;
 
     Future<ProcessResult> runZfa(List<String> args) {
@@ -63,7 +62,6 @@ void main() {
       // See issue #442.
       await initZfaSourceBin();
       zfaRoot = await findProjectRoot();
-      zfaBin = p.join(zfaRoot, 'bin', 'zfa.dart');
       workspace = await Directory.systemTemp.createTemp('issue_308_');
       // The entity command's dependency check scans pubspec.yaml for the
       // strings `zorphy_annotation:` and `build_runner:`. The strings are

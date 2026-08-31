@@ -50,7 +50,7 @@ void main() {
     createdAt: '2026-08-29T20:00:00Z',
   );
 
-  Future<File> _writeSubject(String rel, String content) async {
+  Future<File> writeSubject(String rel, String content) async {
     final f = File(p.join(tmpDir.path, rel));
     await f.parent.create(recursive: true);
     await f.writeAsString(content);
@@ -63,7 +63,7 @@ void main() {
       () async {
         // Register an artifact for which the subject exists but the
         // paired test fails (preflight red).
-        final subjectFile = await _writeSubject(
+        final subjectFile = await writeSubject(
           'lib/b003_subject.dart',
           'library;',
         );
@@ -91,7 +91,7 @@ void main() {
     test(
       'tool unavailable → NOT_ASSESSED — mutation tool unavailable (FR-015)',
       () async {
-        final subjectFile = await _writeSubject(
+        final subjectFile = await writeSubject(
           'lib/b003_subject.dart',
           'library;',
         );
@@ -121,7 +121,7 @@ void main() {
     test(
       'empty/incomplete/unparseable report → NOT_ASSESSED (FR-016)',
       () async {
-        final subjectFile = await _writeSubject(
+        final subjectFile = await writeSubject(
           'lib/b003_subject.dart',
           'library;',
         );
@@ -159,7 +159,7 @@ void main() {
     test(
       'killed/survived/timed-out recorded as three separate buckets (FR-014)',
       () async {
-        final subjectFile = await _writeSubject(
+        final subjectFile = await writeSubject(
           'lib/b003_subject.dart',
           'library;',
         );
@@ -197,7 +197,7 @@ void main() {
     );
 
     test('strict policy: survived → FAIL_SURVIVED (FR-017)', () async {
-      final subjectFile = await _writeSubject(
+      final subjectFile = await writeSubject(
         'lib/b003_subject.dart',
         'library;',
       );
@@ -228,7 +228,7 @@ void main() {
     });
 
     test('strict policy: timeout-only → FAIL_TIMEOUT (FR-017)', () async {
-      final subjectFile = await _writeSubject(
+      final subjectFile = await writeSubject(
         'lib/b003_subject.dart',
         'library;',
       );
@@ -259,7 +259,7 @@ void main() {
     });
 
     test('all killed → PASS (FR-017)', () async {
-      final subjectFile = await _writeSubject(
+      final subjectFile = await writeSubject(
         'lib/b003_subject.dart',
         'library;',
       );
@@ -292,7 +292,7 @@ void main() {
     test(
       'report traces outcome to behavior id + source criterion (FR-018)',
       () async {
-        final subjectFile = await _writeSubject(
+        final subjectFile = await writeSubject(
           'lib/b003_subject.dart',
           'library;',
         );
@@ -328,7 +328,7 @@ void main() {
     );
 
     test('source restoration verified by sha256 post-audit (FR-021)', () async {
-      final subjectFile = await _writeSubject(
+      final subjectFile = await writeSubject(
         'lib/b003_subject.dart',
         'library;',
       );
@@ -373,11 +373,11 @@ void main() {
       // the auditor only restores subject files, never test files. The
       // auditor's restore scope is exactly the subject paths from the
       // registry, never the test paths.
-      final subjectFile = await _writeSubject(
+      final subjectFile = await writeSubject(
         'lib/b003_subject.dart',
         'library;',
       );
-      final testFile = await _writeSubject(
+      final testFile = await writeSubject(
         'test/b003_test.dart',
         '// user test',
       );
@@ -445,7 +445,7 @@ void main() {
     });
 
     test('non-sensitive repro diagnostics (FR-020)', () async {
-      final subjectFile = await _writeSubject(
+      final subjectFile = await writeSubject(
         'lib/b003_subject.dart',
         'library;',
       );

@@ -104,6 +104,8 @@ class PolicyGate {
   /// decision is cancelled, completing its future with `null`; the
   /// `whenComplete` callback then removes it from `pending`.
   void dispose() {
-    for (final d in List.of(_pending)) d.cancel();
+    for (final d in List.of(_pending)) {
+      d.cancel();
+    }
   }
 }

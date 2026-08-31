@@ -23,7 +23,7 @@ void main() {
     if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
   });
 
-  Future<File> _writeFile(String rel, String content) async {
+  Future<File> writeFile(String rel, String content) async {
     final f = File('${tmpDir.path}/$rel');
     await f.parent.create(recursive: true);
     await f.writeAsString(content);
@@ -34,8 +34,8 @@ void main() {
     test(
       'captures sha256 of every in-scope subject pre-audit (FR-021)',
       () async {
-        final f1 = await _writeFile('lib/subject1.dart', 'content one');
-        final f2 = await _writeFile('lib/subject2.dart', 'content two');
+        final f1 = await writeFile('lib/subject1.dart', 'content one');
+        final f2 = await writeFile('lib/subject2.dart', 'content two');
         final restorer = SourceRestorer(paths: [f1.path, f2.path]);
         await restorer.capture();
         expect(restorer.capturedPaths, hasLength(2));
@@ -50,14 +50,8 @@ void main() {
     test(
       'restores every subject post-audit and verifies sha256 match (FR-021)',
       () async {
-        final f1 = await _writeFile(
-          'lib/subject1.dart',
-          'original content one',
-        );
-        final f2 = await _writeFile(
-          'lib/subject2.dart',
-          'original content two',
-        );
+        final f1 = await writeFile('lib/subject1.dart', 'original content one');
+        final f2 = await writeFile('lib/subject2.dart', 'original content two');
         final restorer = SourceRestorer(paths: [f1.path, f2.path]);
         await restorer.capture();
 
@@ -82,7 +76,7 @@ void main() {
     test(
       'restoration runs even on simulated interrupt (try/finally) (FR-021)',
       () async {
-        final f1 = await _writeFile('lib/subject1.dart', 'original content');
+        final f1 = await writeFile('lib/subject1.dart', 'original content');
         final restorer = SourceRestorer(paths: [f1.path]);
         await restorer.capture();
         // Mutate.
@@ -103,7 +97,7 @@ void main() {
     );
 
     test('restoreAndVerify returns failed=false on success', () async {
-      final f1 = await _writeFile('lib/subject1.dart', 'content');
+      final f1 = await writeFile('lib/subject1.dart', 'content');
       final restorer = SourceRestorer(paths: [f1.path]);
       await restorer.capture();
       // No mutation: hashes still match.
@@ -115,7 +109,7 @@ void main() {
     test(
       'restoreAndVerify restores a deleted file from captured bytes',
       () async {
-        final f1 = await _writeFile('lib/subject1.dart', 'content');
+        final f1 = await writeFile('lib/subject1.dart', 'content');
         final restorer = SourceRestorer(paths: [f1.path]);
         await restorer.capture();
         // Delete the file (simulating a destructive mutation or audit bug).

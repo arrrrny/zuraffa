@@ -9,7 +9,6 @@ library;
 
 import 'dart:io';
 
-import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/models/artifact_record.dart';
 import 'package:zuraffa/src/plugins/tdd/models/ownership.dart';

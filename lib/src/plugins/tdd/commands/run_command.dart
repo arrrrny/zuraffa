@@ -41,8 +41,6 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
-import '../models/behavior.dart';
-import '../models/run_state.dart';
 import '../services/cycle_evidence.dart';
 import '../services/run_state_store.dart';
 import '../services/step_runner.dart';

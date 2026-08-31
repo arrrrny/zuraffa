@@ -291,7 +291,6 @@ class PlainView {}
       final code = File(routerPath()).readAsStringSync();
       expect(code, contains('Deep-link-aware'));
       final plainIndex = code.indexOf("path: '/plain'");
-      final shareIndex = code.indexOf('Deep-link-aware');
       // The marker belongs to /share, not to /plain (plain route has none).
       expect(plainIndex, greaterThan(-1));
       expect(

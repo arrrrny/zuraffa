@@ -25,7 +25,7 @@ void main() {
     test(
       'provider from existing service with NoParams includes NoParams param',
       () async {
-        final servicesDir = Directory('${outputDir}/domain/services')
+        final servicesDir = Directory('$outputDir/domain/services')
           ..createSync(recursive: true);
         File('${servicesDir.path}/my_service.dart').writeAsStringSync(r'''
 import 'package:zuraffa/zuraffa.dart';

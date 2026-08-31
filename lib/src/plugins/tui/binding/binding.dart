@@ -93,8 +93,9 @@ class BindingState<T> {
   String toString() {
     if (isInitial) return 'BindingState<T>.initial()';
     if (isInFlight) return 'BindingState<T>.inFlight($value)';
-    if (failure != null)
+    if (failure != null) {
       return 'BindingState<T>.failure($failure, value: $value)';
+    }
     return 'BindingState<T>.value($value)';
   }
 
@@ -225,10 +226,9 @@ class StreamUseCaseBinding<T, P> extends Binding<T> {
     required this.params,
     void Function(T value)? onValue,
     void Function(AppFailure failure)? onFailure,
-    CancelToken? parentCancelToken,
+    super.parentCancelToken,
   }) : _onValue = onValue,
-       _onFailure = onFailure,
-       super(parentCancelToken: parentCancelToken);
+       _onFailure = onFailure;
 
   /// The stream use case being observed.
   final StreamUseCase<T, P> useCase;
@@ -300,11 +300,10 @@ class RepositoryBinding<T> extends Binding<T> {
     required Stream<T> Function(CancelToken cancelToken) source,
     void Function(T value)? onValue,
     void Function(AppFailure failure)? onFailure,
-    CancelToken? parentCancelToken,
+    super.parentCancelToken,
   }) : _source = source,
        _onValue = onValue,
-       _onFailure = onFailure,
-       super(parentCancelToken: parentCancelToken);
+       _onFailure = onFailure;
 
   final Stream<T> Function(CancelToken cancelToken) _source;
   final void Function(T value)? _onValue;
@@ -346,10 +345,9 @@ class UseCaseResultBinding<T, P> extends Binding<T> {
     required this.params,
     void Function(T value)? onValue,
     void Function(AppFailure failure)? onFailure,
-    CancelToken? parentCancelToken,
+    super.parentCancelToken,
   }) : _onValue = onValue,
-       _onFailure = onFailure,
-       super(parentCancelToken: parentCancelToken);
+       _onFailure = onFailure;
 
   final UseCase<T, P> useCase;
   final P params;

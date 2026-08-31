@@ -431,7 +431,7 @@ void main() {
         );
         await hook.onMissionStart('m1');
 
-        final ctx = (String name) => ToolCallContext(
+        ToolCallContext ctx(String name) => ToolCallContext(
           missionId: 'm1',
           toolName: name,
           args: {},
