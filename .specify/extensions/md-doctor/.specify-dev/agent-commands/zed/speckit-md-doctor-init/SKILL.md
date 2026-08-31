@@ -42,8 +42,13 @@ With no input, run the full workflow below.
 Run the deterministic bootstrap. It writes the config (from the template, if the
 resolved config path is missing), collects ground truth, and seeds empty state:
 
+Forward a path argument as `--state-dir` (or forward the recognized
+`--state-dir` value directly), shell-quoted as one argument. Omit the option
+when no custom state directory was requested:
+
 ```bash
-bash .specify/extensions/md-doctor/scripts/bash/md-doctor.sh init
+bash .specify/extensions/md-doctor/scripts/bash/md-doctor.sh init \
+  --state-dir "$STATE_DIR_ARG"
 ```
 
 If the engine is not yet at that resolved path (dev checkout), fall back to the

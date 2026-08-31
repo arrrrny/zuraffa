@@ -30,8 +30,24 @@ With no input, show the latest health summary.
 
 ### Phase 1: Aggregate
 
+With no modifier, run the default aggregate:
+
 ```bash
 bash .specify/extensions/md-doctor/scripts/bash/md-doctor.sh report
+```
+
+Forward `--json` when requested:
+
+```bash
+bash .specify/extensions/md-doctor/scripts/bash/md-doctor.sh report --json
+```
+
+For `--run <run-id>`, shell-quote the run id and ask the engine for that report
+instead of the latest aggregate (do not combine `--run` with `--json`):
+
+```bash
+bash .specify/extensions/md-doctor/scripts/bash/md-doctor.sh report \
+  --run "$RUN_ID"
 ```
 
 (Dev fallback: `bash <extension-root>/md-doctor/scripts/bash/md-doctor.sh report`.)

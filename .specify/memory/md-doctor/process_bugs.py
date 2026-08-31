@@ -7,13 +7,13 @@ Extract claims, fact-check against source, compute truthfulness scores.
 import os
 import json
 import re
-import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
-BUGS_DIR = Path("/Users/ahmettok/Developer/zuraffa/.specify/bugs")
-FACTS_FILE = Path("/Users/ahmettok/Developer/zuraffa/.specify/memory/md-doctor/facts.json")
-TODAY = datetime(2026, 8, 31)
+REPO_ROOT = Path(__file__).resolve().parents[3]
+BUGS_DIR = REPO_ROOT / ".specify/bugs"
+FACTS_FILE = REPO_ROOT / ".specify/memory/md-doctor/facts.json"
+TODAY = datetime.now()
 
 def get_mtime(filepath):
     """Get file modification time."""
@@ -78,7 +78,7 @@ def fact_check_claim(claim, bugs_dir):
     # Simple fact-checking for file existence
     if claim.startswith("File exists:"):
         filepath = claim.split("File exists:")[1].strip()
-        full_path = Path("/Users/ahmettok/Developer/zuraffa") / filepath
+        full_path = REPO_ROOT / filepath
         if full_path.exists():
             return "verified"
         else:
@@ -89,7 +89,6 @@ def fact_check_claim(claim, bugs_dir):
 
 def process_bug_directory(bug_dir):
     """Process a single bug directory and extract facts."""
-    bug_name = bug_dir.name
     results = []
     
     # Get all .md files in the directory
@@ -150,7 +149,7 @@ def process_bug_directory(bug_dir):
             
             # Build file entry
             file_entry = {
-                "path": str(md_file.relative_to(Path("/Users/ahmettok/Developer/zuraffa"))),
+                "path": str(md_file.relative_to(REPO_ROOT)),
                 "created": modified_date.isoformat(),
                 "modified": modified_date.isoformat(),
                 "hash": "unknown",  # Would need git to get actual hash

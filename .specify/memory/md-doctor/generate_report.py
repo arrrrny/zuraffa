@@ -7,9 +7,10 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-FACTS_FILE = Path("/Users/ahmettok/Developer/zuraffa/.specify/memory/md-doctor/facts.json")
-REPORT_DIR = Path("/Users/ahmettok/Developer/zuraffa/.specify/memory/md-doctor/reports")
-TODAY = datetime(2026, 8, 31)
+REPO_ROOT = Path(__file__).resolve().parents[3]
+FACTS_FILE = REPO_ROOT / ".specify/memory/md-doctor/facts.json"
+REPORT_DIR = REPO_ROOT / ".specify/memory/md-doctor/reports"
+TODAY = datetime.now()
 
 def generate_report():
     """Generate the human-readable report."""
@@ -21,7 +22,10 @@ def generate_report():
     
     # Calculate statistics
     total_files = len(files)
-    avg_truthfulness = sum(f["truthfulness"] for f in files) / total_files
+    avg_truthfulness = (
+        sum(f["truthfulness"] for f in files) / total_files
+        if total_files else 0
+    )
     
     # Count by verdict
     verdicts = {}
@@ -56,7 +60,7 @@ def generate_report():
     
     for verdict in ["truthful", "stale", "false", "obsolete"]:
         count = verdicts.get(verdict, 0)
-        percentage = (count / total_files) * 100
+        percentage = (count / total_files) * 100 if total_files else 0
         report += f"| {verdict} | {count} | {percentage:.1f}% |\n"
     
     report += f"""
@@ -73,7 +77,7 @@ def generate_report():
         elif action == "update":
             desc = "File needs updating (stale or false claims)"
         elif action == "delete":
-            desc = "File should be deleted (obsolete or false)"
+            desc = "File should be deleted (obsolete)"
         else:
             desc = "File should be created (missing documentation)"
         report += f"| {action} | {count} | {desc} |\n"

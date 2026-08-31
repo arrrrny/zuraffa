@@ -23,7 +23,7 @@ $ARGUMENTS
 Recognized modifiers:
 
 - `--action create` — only create the missing-doc stubs.
-- `--action stamp` — only append a "verified" footer to keep/update docs.
+- `--action stamp` — only append a "verified" footer to `keep` docs.
 - `--action delete` — show the delete plan (destructive; see `--delete`).
 - `--delete` — actually delete files the engine marked `delete`. **Destructive.**
 - `--all` — do everything (create + stamp + delete); implies `--delete`.
@@ -49,7 +49,7 @@ bash .specify/extensions/md-doctor/scripts/bash/md-doctor.sh apply [--delete] [-
 What it does, by flag:
 
 - **default** — for each `create` fact, write a stub at `proposed_path`; for each
-  `keep`/`update` fact, append a footer `> Verified by md-doctor on <date> —
+  `keep` fact, append a footer `> Verified by md-doctor on <date> —
   truthfulness <n>/100.` (idempotent: skips files stamped today).
 - `--action create` — stubs only.
 - `--action stamp` — footers only.
@@ -57,6 +57,11 @@ What it does, by flag:
   nothing.
 - `--delete` — also removes files marked `delete`.
 - `--all` — create + stamp + delete.
+
+Before creating, stamping, or deleting any fact-supplied path, the engine rejects
+absolute/traversal paths and non-Markdown targets, resolves symlinked parents, and
+requires the resolved target to remain inside the Git work tree. `--delete` remains
+the separate, explicit confirmation for destructive changes.
 
 ### Phase 2: Review the engine output
 

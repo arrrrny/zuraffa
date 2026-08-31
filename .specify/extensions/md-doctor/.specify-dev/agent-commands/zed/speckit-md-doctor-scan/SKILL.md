@@ -31,15 +31,22 @@ With no input, scan the whole repo.
 
 ## Ground truth (already collected for you)
 
-Run the engine to enumerate files and collect ground truth in one manifest:
+Run the engine to enumerate files and collect ground truth in one manifest.
+Forward only recognized `--path` and `--min-score` values from `$ARGUMENTS`,
+shell-quoted as individual arguments; omit either option when absent:
 
 ```bash
-bash .specify/extensions/md-doctor/scripts/bash/md-doctor.sh scan --json > /tmp/md-doctor-manifest.json
+bash .specify/extensions/md-doctor/scripts/bash/md-doctor.sh scan --json \
+  --path "$PATH_ARG" --min-score "$MIN_SCORE_ARG" \
+  > /tmp/md-doctor-manifest.json
 ```
 
 (Dev fallback: `bash <extension-root>/md-doctor/scripts/bash/md-doctor.sh scan --json`.)
 
 The manifest contains:
+
+- `min_score`: the configured or user-supplied threshold to use when narrowing
+  the report after all files have been graded.
 
 - `ground_truths`: `{ head, tdd_integration, tdd_verdicts[], tdd_features[], memsearch_files[] }`.
   - `tdd_verdicts` — per feature, the TDD `verification.md` verdict (`pass`/`fail`).
@@ -132,6 +139,8 @@ freshness at the band for that entry's age instead.
 4. Write a human report to `.specify/md-doctor/reports/<run-id>.md` (run-id =
    `scan-<YYYYMMDDTHHMMSS>`). Summarize: files scanned, average truthfulness,
    counts by verdict, and the action queue (update/delete/create) with paths.
+   Grade and count every file, but when `min_score` was supplied, list only
+   files scoring below that threshold in the detailed report sections.
 5. Update `.specify/md-doctor/state/last-run.json` with `run_id`, `type:"scan"`,
    `timestamp`, `head` (from the manifest's `ground_truths.head`), `files_scanned`,
    and the summary counts. Keep `actions_taken: []` (nothing is applied during scan).

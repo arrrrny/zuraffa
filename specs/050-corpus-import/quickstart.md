@@ -17,10 +17,30 @@ Expected: all pass, no `slow` tags.
 
 ```bash
 # build a 3-feature fixture corpus
-mkdir -p /tmp/fx-corpus/{001-clean,002-no-scenarios,003-speckit}/ ...
-# 001: spec.md with Given/When/Then + FR
-# 002: spec.md with prose only (no acceptance scenarios)
-# 003: spec.md + checklists/ + tdd/test-list.md (foreign format)
+mkdir -p /tmp/fx-corpus/{001-clean,002-no-scenarios,003-speckit} \
+         /tmp/fx-corpus/003-speckit/{checklists,tdd}
+
+printf '%s\n' '# Feature Specification: 001-clean' \
+  '## Acceptance Scenarios' \
+  '1. **Given** two numbers **When** added **Then** return the sum' \
+  '## Functional Requirements' \
+  '- **FR-001**: Add two numbers' \
+  > /tmp/fx-corpus/001-clean/spec.md
+
+printf '%s\n' '# Feature Specification: 002-no-scenarios' \
+  'This feature is described in prose only.' \
+  > /tmp/fx-corpus/002-no-scenarios/spec.md
+
+printf '%s\n' '# Feature Specification: 003-speckit' \
+  '## Acceptance Scenarios' \
+  '1. **Given** a legacy spec **When** imported **Then** copy only spec.md' \
+  '## Functional Requirements' \
+  '- **FR-001**: Ignore foreign artifacts' \
+  > /tmp/fx-corpus/003-speckit/spec.md
+printf '%s\n' '# Requirements checklist' '- [x] Legacy artifact' \
+  > /tmp/fx-corpus/003-speckit/checklists/requirements.md
+printf '%s\n' '# Test List' '| A1 | legacy row |' \
+  > /tmp/fx-corpus/003-speckit/tdd/test-list.md
 
 cd <fresh zfa app (or temp project)>
 dart run bin/zfa.dart corpus import /tmp/fx-corpus

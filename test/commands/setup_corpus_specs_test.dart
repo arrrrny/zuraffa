@@ -64,6 +64,8 @@ void main() {
       // setup --dry-run must not write the corpus into the app).
       expect(out, contains('[dry-run] 001-clean: imported'));
       expect(out, contains('not-ready'));
+      expect(RegExp(r'\[\d+/8\]').allMatches(out), isNotEmpty);
+      expect(RegExp(r'\[\d+/(?!8\d*\])').hasMatch(out), isFalse);
     });
 
     test('exposes the --specs option', () {
@@ -83,7 +85,16 @@ void main() {
         expect(out, isNot(contains('[8/8]')));
         expect(out, isNot(contains('Importing spec corpus')));
         expect(out, isNot(contains('corpus-manifest')));
+        expect(RegExp(r'\[\d+/7\]').allMatches(out), isNotEmpty);
+        expect(RegExp(r'\[\d+/(?!7\d*\])').hasMatch(out), isFalse);
       },
     );
+
+    test('rejects an invalid corpus before creating the app', () async {
+      final missing = '${workDir.path}/missing-corpus';
+
+      await expectLater(runSetup(specs: missing), throwsA(isA<StateError>()));
+      expect(Directory('${workDir.path}/demo_app').existsSync(), isFalse);
+    });
   });
 }

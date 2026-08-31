@@ -171,8 +171,7 @@ class CorpusImporter {
     for (final name in featureNames) {
       final sourceSpec = File(p.join(sourceDir.path, name, 'spec.md'));
       final targetSpec = File(p.join(projectRoot, 'specs', name, 'spec.md'));
-      final content = sourceSpec.readAsStringSync();
-      final readiness = _readiness(name, content);
+      final sourceBytes = sourceSpec.readAsBytesSync();
       final foreign = _foreignArtifacts(
         Directory(p.join(sourceDir.path, name)),
       );
@@ -183,8 +182,11 @@ class CorpusImporter {
       ImportOutcome outcome;
       String? sourceHash;
       String? targetHash;
+      List<int> retainedBytes;
       if (!targetSpec.existsSync()) {
         outcome = ImportOutcome.imported;
+        retainedBytes = sourceBytes;
+        final content = utf8.decode(sourceBytes);
         await FileUtils.writeFile(
           targetSpec.path,
           content,
@@ -193,14 +195,18 @@ class CorpusImporter {
           dryRun: dryRun,
         );
       } else {
-        sourceHash = _sha256(content);
-        targetHash = _sha256(targetSpec.readAsStringSync());
+        final targetBytes = targetSpec.readAsBytesSync();
+        sourceHash = _sha256(sourceBytes);
+        targetHash = _sha256(targetBytes);
         if (sourceHash == targetHash) {
           outcome = ImportOutcome.skipped;
+          retainedBytes = targetBytes;
         } else if (force) {
           // --force: the source content replaces the divergent copy
           // (U9, FR-004 — explicit opt-in).
           outcome = ImportOutcome.imported;
+          retainedBytes = sourceBytes;
+          final content = utf8.decode(sourceBytes);
           await FileUtils.writeFile(
             targetSpec.path,
             content,
@@ -212,8 +218,10 @@ class CorpusImporter {
           // Divergent: the imported copy is kept; both hashes travel in
           // the result and the report line (FR-004).
           outcome = ImportOutcome.divergent;
+          retainedBytes = targetBytes;
         }
       }
+      final readiness = _readiness(name, utf8.decode(retainedBytes));
       // Per-feature tdd/ working directory (U10): created when absent,
       // never touching existing contents (U11/FR-003).
       final targetTdd = Directory(p.join(projectRoot, 'specs', name, 'tdd'));
@@ -257,8 +265,12 @@ class CorpusImporter {
 
   /// sha256 hex of [content] — the divergence-reporting currency
   /// (FR-004), same hashing `TreeSnapshot` uses for tree fingerprints.
-  static String _sha256(String content) =>
-      sha256.convert(utf8.encode(content)).toString();
+  static String _sha256(List<int> content) => sha256.convert(content).toString();
+
+  /// Validates a source corpus before a caller performs any setup writes.
+  void validateSource(String source) {
+    _scanFeatures(_validateSource(source));
+  }
 
   /// Validates that [source] is a corpus root and returns it as a
   /// [Directory] (U5): it must exist, be a directory, not be a single

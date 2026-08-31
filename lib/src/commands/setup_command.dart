@@ -183,6 +183,10 @@ class SetupCommand extends Command<void> {
     // baseline); without it the flow keeps its legacy 7-step numbering.
     final totalSteps = specsDir != null && specsDir.isNotEmpty ? 8 : 7;
 
+    if (specsDir != null && specsDir.isNotEmpty) {
+      const CorpusImporter().validateSource(specsDir);
+    }
+
     if (_isInvalidAppName(appName)) {
       usageException(
         'Invalid app name: "$appName". Use snake_case (lowercase letters, digits, underscores).',
@@ -222,6 +226,7 @@ class SetupCommand extends Command<void> {
       dryRun: dryRun,
       force: force,
       verbose: verbose,
+      totalSteps: totalSteps,
     );
     if (!created) return;
 
@@ -235,7 +240,7 @@ class SetupCommand extends Command<void> {
     );
 
     // 2. Wire the standard zuraffa dependency set (dart pub add + overrides).
-    print('\n[2/5] Wiring zuraffa dependencies...');
+    print('\n[2/$totalSteps] Wiring zuraffa dependencies...');
     WireResult? wireResult;
     if (dryRun) {
       final missing = DependencyWirer.findMissing(
@@ -255,7 +260,7 @@ class SetupCommand extends Command<void> {
     }
 
     // 3. Create build.yaml + domain directory structure.
-    print('\n[3/5] Creating build.yaml + domain structure...');
+    print('\n[3/$totalSteps] Creating build.yaml + domain structure...');
     if (dryRun) {
       await DependencyWirer.ensureProjectStructure(
         projectRoot: appName,
@@ -270,7 +275,7 @@ class SetupCommand extends Command<void> {
     }
 
     // 4. Create default .zfa.json in the new project.
-    print('\n[4/5] Creating .zfa.json...');
+    print('\n[4/$totalSteps] Creating .zfa.json...');
     if (dryRun) {
       print('   Would create: $appName/.zfa.json');
     } else {
@@ -280,7 +285,7 @@ class SetupCommand extends Command<void> {
     // 5. Pre-seed the deep-link URL scheme in the platform files
     //    (Flutter only — pure Dart packages have no manifest to write).
     if (isFlutter && deepLinkScheme != null && deepLinkScheme.isNotEmpty) {
-      print('\n[5/7] Pre-seeding deep-link scheme: $deepLinkScheme');
+      print('\n[5/$totalSteps] Pre-seeding deep-link scheme: $deepLinkScheme');
       await _seedDeepLinkScheme(
         projectRoot: appName,
         scheme: deepLinkScheme,
@@ -290,7 +295,10 @@ class SetupCommand extends Command<void> {
         verbose: verbose,
       );
     } else {
-      print('\n[5/7] Skipping deep-link pre-seed (no --deep-link-scheme).');
+      print(
+        '\n[5/$totalSteps] Skipping deep-link pre-seed '
+        '(no --deep-link-scheme).',
+      );
     }
 
     // 6. TDD baseline (Part 1 of spec 041-tdd-setup-plugin).
@@ -312,7 +320,7 @@ class SetupCommand extends Command<void> {
     // 7. Corpus import (spec 050-corpus-import): onboarding an extracted
     //    spec corpus so the loop can drive it from day zero.
     if (specsDir != null && specsDir.isNotEmpty) {
-      print('\n[7/8] Importing spec corpus from $specsDir...');
+      print('\n[7/$totalSteps] Importing spec corpus from $specsDir...');
       final result = await const CorpusImporter().import(
         specsDir,
         projectRoot: appName,
@@ -540,6 +548,7 @@ class SetupCommand extends Command<void> {
     required bool dryRun,
     required bool force,
     required bool verbose,
+    required int totalSteps,
   }) async {
     final targetDir = Directory(appName);
     if (targetDir.existsSync()) {
@@ -588,11 +597,11 @@ class SetupCommand extends Command<void> {
       }
       args.addAll(passthrough);
       if (dryRun) {
-        print('\n[1/5] Would run: flutter ${args.join(" ")}');
+        print('\n[1/$totalSteps] Would run: flutter ${args.join(" ")}');
         return true;
       }
       print(
-        '\n[1/5] Creating Flutter app: $appName'
+        '\n[1/$totalSteps] Creating Flutter app: $appName'
         '${platforms != null ? ' (platforms: $platforms)' : ''}'
         '${org != null ? ' (org: $org)' : ''}',
       );
@@ -624,10 +633,10 @@ class SetupCommand extends Command<void> {
     final args = <String>['create', '-t', 'package', appName];
     args.addAll(passthrough);
     if (dryRun) {
-      print('\n[1/5] Would run: dart ${args.join(" ")}');
+      print('\n[1/$totalSteps] Would run: dart ${args.join(" ")}');
       return true;
     }
-    print('\n[1/5] Creating Dart package: $appName');
+    print('\n[1/$totalSteps] Creating Dart package: $appName');
     if (verbose) print('   Running: dart ${args.join(" ")}');
     final result = await Process.run('dart', args);
     if (result.exitCode != 0) {

@@ -3,43 +3,76 @@
 Enhanced MD Doctor fact-checking with deeper source code verification.
 """
 
-import os
 import json
 import re
-import subprocess
 from pathlib import Path
-from datetime import datetime
 
-FACTS_FILE = Path("/Users/ahmettok/Developer/zuraffa/.specify/memory/md-doctor/facts.json")
-SOURCE_DIR = Path("/Users/ahmettok/Developer/zuraffa/lib/src")
+REPO_ROOT = Path(__file__).resolve().parents[3]
+FACTS_FILE = REPO_ROOT / ".specify/memory/md-doctor/facts.json"
+SOURCE_DIR = REPO_ROOT / "lib/src"
 
-def run_grep(pattern, path):
-    """Run grep and return matches."""
-    try:
-        result = subprocess.run(
-            ['grep', '-r', pattern, str(path)],
-            capture_output=True, text=True, timeout=5
-        )
-        return result.stdout.strip().split('\n') if result.stdout else []
-    except:
-        return []
+def _dart_code_only(source):
+    """Replace Dart comments and strings with spaces, preserving newlines."""
+    result = list(source)
+    i = 0
+    while i < len(source):
+        if source.startswith('//', i):
+            end = source.find('\n', i)
+            end = len(source) if end == -1 else end
+        elif source.startswith('/*', i):
+            depth = 1
+            end = i + 2
+            while end < len(source) and depth:
+                if source.startswith('/*', end):
+                    depth += 1
+                    end += 2
+                elif source.startswith('*/', end):
+                    depth -= 1
+                    end += 2
+                else:
+                    end += 1
+        elif source[i] in "'\"":
+            quote = source[i]
+            marker = quote * 3 if source.startswith(quote * 3, i) else quote
+            end = i + len(marker)
+            while end < len(source):
+                if source.startswith(marker, end):
+                    end += len(marker)
+                    break
+                end += 2 if source[end] == '\\' and len(marker) == 1 else 1
+        else:
+            i += 1
+            continue
+        for pos in range(i, min(end, len(result))):
+            if result[pos] != '\n':
+                result[pos] = ' '
+        i = end
+    return ''.join(result)
+
+
+def _dart_sources():
+    for path in SOURCE_DIR.rglob('*.dart'):
+        yield _dart_code_only(path.read_text(encoding='utf-8'))
 
 def verify_function_exists(func_name):
     """Verify if a function exists in the source code."""
-    matches = run_grep(f'function {func_name}', SOURCE_DIR)
-    if not matches:
-        matches = run_grep(func_name, SOURCE_DIR)
-    return len(matches) > 0
+    name = re.escape(func_name)
+    declaration = re.compile(
+        rf'(?m)^[ \t]*(?:(?:abstract|external|late|static)[ \t]+)*'
+        rf'(?:[A-Za-z][\w<>,?. ]*[ \t]+)?{name}[ \t]*'
+        rf'\([^;{{}}]*\)[ \t]*(?:(?:async|sync)[ \t]*)?(?:=>|{{)'
+    )
+    return any(declaration.search(source) for source in _dart_sources())
 
 def verify_file_exists(filepath):
     """Verify if a file exists."""
-    full_path = Path("/Users/ahmettok/Developer/zuraffa") / filepath
+    full_path = REPO_ROOT / filepath
     return full_path.exists()
 
 def verify_class_exists(class_name):
     """Verify if a class exists."""
-    matches = run_grep(f'class {class_name}', SOURCE_DIR)
-    return len(matches) > 0
+    declaration = re.compile(rf'\bclass[ \t]+{re.escape(class_name)}\b')
+    return any(declaration.search(source) for source in _dart_sources())
 
 def enhanced_factcheck(claims):
     """Enhanced fact-checking with source code verification."""
@@ -160,7 +193,10 @@ def main():
     for v, count in sorted(verdicts.items()):
         print(f"  {v}: {count}")
     
-    avg_truth = sum(f["truthfulness"] for f in enhanced_files) / len(enhanced_files)
+    avg_truth = (
+        sum(f["truthfulness"] for f in enhanced_files) / len(enhanced_files)
+        if enhanced_files else 0
+    )
     print(f"\nAverage truthfulness: {avg_truth:.1f}")
 
 if __name__ == "__main__":

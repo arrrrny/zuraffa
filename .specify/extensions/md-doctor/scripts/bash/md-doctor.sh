@@ -24,6 +24,7 @@
 #
 # Dependencies: git, jq. (No yq/PyYAML — config is read by a tiny awk loader.)
 
+# `apply` additionally uses `realpath` to contain fact-supplied targets.
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
@@ -33,14 +34,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 STATE_DIR="${MDD_STATE_DIR:-.specify/md-doctor}"
-STATE_SUB="$STATE_DIR/state"
-REPORTS_DIR="$STATE_DIR/reports"
 CONFIG_PATH="${MDD_CONFIG:-.specify/extensions/md-doctor/md-doctor-config.yml}"
 TEMPLATE_CONFIG="$EXT_ROOT/config-template.yml"
 
-LAST_RUN="$STATE_SUB/last-run.json"
-GROUND_TRUTHS="$STATE_SUB/ground-truths.json"
-FACTS="$STATE_SUB/facts.json"
+set_state_paths() {
+  STATE_SUB="$STATE_DIR/state"
+  REPORTS_DIR="$STATE_DIR/reports"
+  LAST_RUN="$STATE_SUB/last-run.json"
+  GROUND_TRUTHS="$STATE_SUB/ground-truths.json"
+  FACTS="$STATE_SUB/facts.json"
+}
+set_state_paths
 
 # Defaults (overridden by config where present)
 DEF_SCAN_PATHS="."
@@ -84,8 +88,8 @@ while [ $# -gt 0 ]; do
 done
 
 [ -z "$SUBCMD" ] && { echo "md-doctor: no subcommand (init|scan|drift|report|apply)" >&2; exit 2; }
-[ -n "$ARG_MIN_SCORE" ] && MIN_SCORE="$ARG_MIN_SCORE"
-[ -n "$ARG_JSON" ] && true
+[ -z "$STATE_DIR" ] && { echo "md-doctor: --state-dir requires a directory" >&2; exit 2; }
+set_state_paths
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -118,8 +122,20 @@ iso_to_epoch() {
 # mtime epoch of a file, portable
 mtime_epoch() {
   local f="$1"
-  if stat -f %m "$f" 2>/dev/null; then return; fi
-  stat -c %Y "$f" 2>/dev/null || echo 0
+  if stat -c %Y "$f" >/dev/null 2>&1; then
+    stat -c %Y "$f"
+  else
+    stat -f %m "$f" 2>/dev/null || echo 0
+  fi
+}
+
+epoch_to_iso() {
+  local epoch="$1"
+  if date -u -d "@$epoch" +%Y-%m-%dT%H:%M:%SZ >/dev/null 2>&1; then
+    date -u -d "@$epoch" +%Y-%m-%dT%H:%M:%SZ
+  else
+    date -r "$epoch" -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo ""
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -135,8 +151,15 @@ load_config() {
   local cfg_path
   cfg_path="$(resolve_config_path)"
   [ -z "$cfg_path" ] && return 0
-  local parsed
-  parsed="$(awk '
+  local key value
+  while IFS=$'\t' read -r key value; do
+    case "$key" in
+      scan_paths) [ -n "$value" ] && SCAN_PATHS="$value" ;;
+      exclude_globs) [ -n "$value" ] && EXCLUDE_GLOBS="$value" ;;
+      tdd_integration) [ -n "$value" ] && TDD_INTEGRATION="$value" ;;
+      min_score) [ -n "$value" ] && MIN_SCORE="$value" ;;
+    esac
+  done < <(awk '
     {
       line=$0; sub(/\r$/,"",line); sub(/^ */,"",line)
       sub(/[ \t]#.*$/,"",line)
@@ -155,25 +178,29 @@ load_config() {
         sub(/^[ \t]+/,"",val); sub(/[ \t]+$/,"",val)
         if (val ~ /^""$/) val=""
         else if (substr(val,1,1)=="\"" && substr(val,length(val),1)=="\"") val=substr(val,2,length(val)-2)
-        gsub(/[^a-zA-Z0-9_]/,"_",key)
         if (val=="") { cont=key; next }
         cont=""
-        print "CFG_" key "=\"" val "\""
+        if (key=="scan_paths" || key=="exclude_globs" || key=="tdd_integration" || key=="min_score")
+          print key "\t" val
         next
       }
     }
     END {
-      # Names must match the lowercase YAML keys read by load_config below,
-      # same convention as the scalar path ("CFG_" key).
-      if (SP!="") print "CFG_scan_paths=\"" substr(SP,2) "\""
-      if (EG!="") print "CFG_exclude_globs=\"" substr(EG,2) "\""
+      if (SP!="") print "scan_paths\t" substr(SP,2)
+      if (EG!="") print "exclude_globs\t" substr(EG,2)
     }
-  ' "$cfg_path")"
-  [ -n "$parsed" ] && eval "$parsed"
-  [ -n "${CFG_scan_paths:-}" ] && SCAN_PATHS="$CFG_scan_paths"
-  [ -n "${CFG_exclude_globs:-}" ] && EXCLUDE_GLOBS="$CFG_exclude_globs"
-  [ -n "${CFG_tdd_integration:-}" ] && TDD_INTEGRATION="$CFG_tdd_integration"
-  [ -n "${CFG_min_score:-}" ] && MIN_SCORE="$CFG_min_score"
+  ' "$cfg_path")
+}
+
+finalize_min_score() {
+  [ -n "$ARG_MIN_SCORE" ] && MIN_SCORE="$ARG_MIN_SCORE"
+  case "$MIN_SCORE" in
+    ''|*[!0-9]*) echo "md-doctor: --min-score must be an integer from 0 to 100" >&2; exit 2 ;;
+  esac
+  [ "$MIN_SCORE" -le 100 ] || {
+    echo "md-doctor: --min-score must be an integer from 0 to 100" >&2
+    exit 2
+  }
 }
 
 ensure_state_dirs() {
@@ -225,7 +252,7 @@ file_modified_iso() {
   [ -n "$out" ] && { echo "$out"; return; }
   # untracked: fall back to mtime
   local e; e="$(mtime_epoch "$f")"
-  [ "$e" -gt 0 ] 2>/dev/null && date -r "$e" -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo ""
+  [ "$e" -gt 0 ] 2>/dev/null && epoch_to_iso "$e" || echo ""
 }
 file_hash() { git hash-object "$f" 2>/dev/null || echo ""; }
 
@@ -332,6 +359,7 @@ cmd_init() {
 cmd_scan() {
   require_git
   load_config
+  finalize_min_score
   ensure_state_dirs
   collect_ground_truths
   local scope="${ARG_PATH:-$SCAN_PATHS}"
@@ -353,8 +381,9 @@ cmd_scan() {
   # Manifest = files + ground truth, so the agent has everything in one read.
   local gt; gt="$(cat "$GROUND_TRUTHS")"
   local manifest
-  manifest="$(jq -n --arg ts "$(now_ts)" --argjson gt "$gt" --argjson files "[$objs]" \
-    '{generated_at:$ts, ground_truths:$gt, files:$files}')"
+  manifest="$(jq -n --arg ts "$(now_ts)" --argjson min_score "$MIN_SCORE" \
+    --argjson gt "$gt" --argjson files "[$objs]" \
+    '{generated_at:$ts, min_score:$min_score, ground_truths:$gt, files:$files}')"
   if [ "$ARG_JSON" = "true" ]; then
     printf '%s' "$manifest"
   else
@@ -407,8 +436,17 @@ cmd_report() {
   [ -f "$FACTS" ] || { echo "md-doctor: no facts yet. Run 'scan' first." >&2; exit 1; }
   local target="$FACTS"
   if [ -n "$ARG_RUN" ]; then
+    case "$ARG_RUN" in
+      *[!A-Za-z0-9_-]*) echo "md-doctor: invalid report run id: $ARG_RUN" >&2; exit 2 ;;
+    esac
+    [ "$ARG_JSON" = "false" ] || {
+      echo "md-doctor: --run and --json cannot be combined" >&2
+      exit 2
+    }
     local r="$REPORTS_DIR/$ARG_RUN.md"
     [ -f "$r" ] || { echo "md-doctor: no report for run $ARG_RUN" >&2; exit 1; }
+    cat "$r"
+    return
   fi
   # Summarize from facts.json
   local summary
@@ -443,7 +481,12 @@ cmd_report() {
 # Subcommand: apply  (mechanical, safe by default)
 # ---------------------------------------------------------------------------
 cmd_apply() {
+  require_git
   require_jq
+  command -v realpath >/dev/null 2>&1 || {
+    echo "md-doctor: 'realpath' not found" >&2
+    exit 1
+  }
   [ -f "$FACTS" ] || { echo "md-doctor: no facts to apply. Run 'scan' first." >&2; exit 1; }
   local stamped=0 created=0 deleted=0
   local do_create=false do_stamp=false do_delete=false
@@ -455,16 +498,43 @@ cmd_apply() {
   esac
   [ "$ARG_ALL" = "true" ] && { do_create=true; do_stamp=true; do_delete=true; }
   [ "$ARG_DELETE" = "true" ] && do_delete=true
-  local ts; ts="$(now_ts)"
+  local ts repo_root
+  ts="$(now_ts)"
+  repo_root="$(git rev-parse --show-toplevel)"
+  repo_root="$(cd "$repo_root" && pwd -P)"
+
+  resolve_markdown_target() {
+    local raw="$1" resolved
+    case "$raw" in
+      ''|/*|*$'\n'*|*$'\r'*) return 1 ;;
+    esac
+    case "/$raw/" in
+      */../*|*/./*) return 1 ;;
+    esac
+    case "$raw" in
+      *.md) ;;
+      *) return 1 ;;
+    esac
+    resolved="$(realpath -m -- "$repo_root/$raw")" || return 1
+    case "$resolved" in
+      "$repo_root"/*.md) printf '%s\n' "$resolved" ;;
+      *) return 1 ;;
+    esac
+  }
   # create: stub missing docs (safe)
   if [ "$do_create" = "true" ]; then
     while IFS= read -r entry; do
       [ -z "$entry" ] && continue
-      local p; p="$(echo "$entry" | jq -r '.proposed_path // empty')"
+      local p target
+      p="$(echo "$entry" | jq -r '.proposed_path // empty')"
       [ -z "$p" ] && continue
-      [ -f "$p" ] && continue
-      mkdir -p "$(dirname "$p")"
-      cat > "$p" <<EOF
+      if ! target="$(resolve_markdown_target "$p")"; then
+        echo "md-doctor: refusing unsafe Markdown target: $p" >&2
+        continue
+      fi
+      [ -f "$target" ] && continue
+      mkdir -p "$(dirname "$target")"
+      cat > "$target" <<EOF
 # $(basename "$p" .md)
 
 > Stub created by md-doctor on $ts. Fill in or delete.
@@ -473,33 +543,53 @@ EOF
       echo "  + created stub: $p"
     done < <(jq -c '.files[]? | select(.action=="create")' "$FACTS" 2>/dev/null)
   fi
-  # stamp: footer on keep/update files (safe, non-destructive)
+  # stamp: footer on keep files (safe, non-destructive)
   if [ "$do_stamp" = "true" ]; then
     while IFS= read -r entry; do
       [ -z "$entry" ] && continue
-      local p sc
+      local p sc target
       p="$(echo "$entry" | jq -r '.path // empty')"
       sc="$(echo "$entry" | jq -r '.truthfulness // "?"')"
-      [ -z "$p" ] || [ ! -f "$p" ] && continue
-      grep -q "md-doctor on ${ts:0:10}" "$p" 2>/dev/null && continue
-      printf '\n---\n\n> Verified by md-doctor on %s — truthfulness %s/100.\n' "$ts" "$sc" >> "$p"
+      [ -z "$p" ] && continue
+      if ! target="$(resolve_markdown_target "$p")"; then
+        echo "md-doctor: refusing unsafe Markdown target: $p" >&2
+        continue
+      fi
+      [ -f "$target" ] || continue
+      grep -q "md-doctor on ${ts:0:10}" "$target" 2>/dev/null && continue
+      printf '\n---\n\n> Verified by md-doctor on %s — truthfulness %s/100.\n' "$ts" "$sc" >> "$target"
       stamped=$((stamped+1))
       echo "  ~ stamped: $p"
-    done < <(jq -c '.files[]? | select(.action=="keep" or .action=="update")' "$FACTS" 2>/dev/null)
+    done < <(jq -c '.files[]? | select(.action=="keep")' "$FACTS" 2>/dev/null)
   fi
   # delete: only when explicitly requested (destructive)
   if [ "$do_delete" = "true" ]; then
     while IFS= read -r entry; do
       [ -z "$entry" ] && continue
-      local p; p="$(echo "$entry" | jq -r '.path // empty')"
-      [ -z "$p" ] || [ ! -f "$p" ] && continue
-      rm -f "$p"
+      local p target
+      p="$(echo "$entry" | jq -r '.path // empty')"
+      [ -z "$p" ] && continue
+      if ! target="$(resolve_markdown_target "$p")"; then
+        echo "md-doctor: refusing unsafe Markdown target: $p" >&2
+        continue
+      fi
+      [ -f "$target" ] || continue
+      rm -f -- "$target"
       deleted=$((deleted+1))
       echo "  - deleted: $p"
     done < <(jq -c '.files[]? | select(.action=="delete")' "$FACTS" 2>/dev/null)
   elif [ "$ARG_ACTION" = "delete" ] && [ "$ARG_DELETE" != "true" ]; then
     echo "md-doctor: delete requires --delete (destructive). Showing plan only:"
-    jq -r '.files[]? | select(.action=="delete") | "  would delete: " + .path' "$FACTS" 2>/dev/null
+    while IFS= read -r entry; do
+      [ -z "$entry" ] && continue
+      local p target
+      p="$(echo "$entry" | jq -r '.path // empty')"
+      if target="$(resolve_markdown_target "$p")" && [ -f "$target" ]; then
+        echo "  would delete: $p"
+      else
+        echo "md-doctor: refusing unsafe Markdown target: $p" >&2
+      fi
+    done < <(jq -c '.files[]? | select(.action=="delete")' "$FACTS" 2>/dev/null)
   fi
   echo "md-doctor apply: created=$created stamped=$stamped deleted=$deleted"
 }

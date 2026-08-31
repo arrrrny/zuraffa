@@ -38,8 +38,12 @@ the user to run `/speckit.md-doctor.init` first.
 
 ### Phase 1: Compute the delta
 
+Forward the recognized `--path` value from `$ARGUMENTS`, shell-quoted as one
+argument; omit it when absent:
+
 ```bash
-bash .specify/extensions/md-doctor/scripts/bash/md-doctor.sh drift --json > /tmp/md-doctor-delta.json
+bash .specify/extensions/md-doctor/scripts/bash/md-doctor.sh drift --json \
+  --path "$PATH_ARG" > /tmp/md-doctor-delta.json
 ```
 
 (Dev fallback: `bash <extension-root>/md-doctor/scripts/bash/md-doctor.sh drift --json`.)

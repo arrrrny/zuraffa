@@ -29,7 +29,7 @@ in automatically when `tdd_integration` is on (the default).
 
 ## Usage
 
-```
+```text
 /speckit.md-doctor.init     # bootstrap config + snapshot baseline ground truth
 /speckit.md-doctor.scan     # deep-diagnose: grade every .md 0-100, suggest actions
 /speckit.md-doctor.drift    # re-evaluate since last run (git/.memsearch/tdd delta)
