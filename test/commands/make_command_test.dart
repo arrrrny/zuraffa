@@ -83,7 +83,9 @@ class Product {
 
     test('supports --format=json with --plan', () async {
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing(['-C', workspace.path,
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
         'make',
         'Product',
         '--preset=crud',
@@ -112,7 +114,9 @@ class Product {
 
     test('fails fast when entity does not exist', () async {
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing(['-C', workspace.path,
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
         'make',
         'NonExistentEntity',
         '--preset=crud',
@@ -150,7 +154,9 @@ class Product {
       );
 
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing(['-C', workspace.path,
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
         'make',
         '--from-json',
         configFile.path,
@@ -177,7 +183,9 @@ class Product {
       );
 
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing(['-C', workspace.path,
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
         'make',
         'Product',
         '--preset=crud',
@@ -826,7 +834,9 @@ abstract class \$ChatMessage {
       await writeExistingUseCases();
 
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing(['-C', workspace.path,
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
         'make',
         'ChatMessage',
         '--test',
@@ -882,7 +892,9 @@ abstract class \$ChatMessage {
         await writeExistingUseCases();
 
         final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing(['-C', workspace.path,
+        final output = await runner.runCapturing([
+          '-C',
+          workspace.path,
           'make',
           'ChatMessage',
           '--test',
@@ -921,7 +933,9 @@ abstract class \$ChatMessage {
       await writeExistingUseCases();
 
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing(['-C', workspace.path,
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
         'make',
         'ChatMessage',
         'usecase',
@@ -964,7 +978,9 @@ abstract class \$ChatMessage {
       // _hasEntityMethods), so the active set is {usecase, test} — the
       // id-dependent member must keep the loud failure armed.
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing(['-C', workspace.path,
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
         'make',
         'ChatMessage',
         '--test',
@@ -996,7 +1012,9 @@ abstract class \$ChatMessage {
       await writeExistingUseCases();
 
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing(['-C', workspace.path,
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
         'make',
         'ChatMessage',
         '--test',
@@ -1072,7 +1090,9 @@ abstract class \$ChatMessage {
       await writeExistingUseCases();
 
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing(['-C', workspace.path,
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
         'make',
         'ChatMessage',
         '--force',

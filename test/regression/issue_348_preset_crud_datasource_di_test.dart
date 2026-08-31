@@ -86,7 +86,9 @@ class Product {
       '--preset=crud --with=di generates datasource DI (regression for #346/#347)',
       () async {
         final runner = CliRunner(exitOnCompletion: false);
-        await runner.run(['-C', workspace.path,
+        await runner.run([
+          '-C',
+          workspace.path,
           'make',
           'Product',
           '--preset=crud',
@@ -175,7 +177,9 @@ class Product {
       '--preset=crud ALONE generates datasource DI (the #348 preset-consistency fix)',
       () async {
         final runner = CliRunner(exitOnCompletion: false);
-        await runner.run(['-C', workspace.path,
+        await runner.run([
+          '-C',
+          workspace.path,
           'make',
           'Product',
           '--preset=crud',
@@ -234,7 +238,9 @@ class Product {
       '--preset=read-only ALONE generates datasource DI (read-only parity with crud)',
       () async {
         final runner = CliRunner(exitOnCompletion: false);
-        await runner.run(['-C', workspace.path,
+        await runner.run([
+          '-C',
+          workspace.path,
           'make',
           'Product',
           '--preset=read-only',

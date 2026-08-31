@@ -92,7 +92,8 @@ class CliRunner {
     // boot (issue #531).
     final effectiveArgs = _stripDirectory(args);
     final skipPlugins =
-        effectiveArgs.isNotEmpty && _noPluginCommands.contains(effectiveArgs.first);
+        effectiveArgs.isNotEmpty &&
+        _noPluginCommands.contains(effectiveArgs.first);
 
     // Load plugins BEFORE the core commands so that `MakeCommand`'s
     // `argParser` is built against the fully-populated registry. Otherwise
@@ -230,7 +231,10 @@ class CliRunner {
   /// *inside* this scope: commands resolve their project root from
   /// `Directory.current` in their constructors, so the chdir must be in
   /// place before they are built (otherwise they bake in the wrong root).
-  Future<void> _withDirectory(String? directory, Future<void> Function() body) async {
+  Future<void> _withDirectory(
+    String? directory,
+    Future<void> Function() body,
+  ) async {
     if (directory == null) {
       await body();
       return;

@@ -51,7 +51,9 @@ class Product {
     test('cli make from flags creates output', () async {
       final runner = CliRunner(exitOnCompletion: false);
 
-      await runner.run(['-C', workspace.path,
+      await runner.run([
+        '-C',
+        workspace.path,
         'make',
         'Product',
         '--preset=crud',
@@ -79,7 +81,9 @@ class Product {
       );
 
       final runner = CliRunner(exitOnCompletion: false);
-      await runner.run(['-C', workspace.path,
+      await runner.run([
+        '-C',
+        workspace.path,
         'make',
         '--from-json',
         configFile.path,
@@ -98,7 +102,12 @@ class Product {
 
     test('cli plugin list prints available plugins', () async {
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing(['-C', workspace.path,'plugin', 'list']);
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
+        'plugin',
+        'list',
+      ]);
 
       expect(output, contains('repository'));
       expect(output, contains('usecase'));
@@ -108,7 +117,9 @@ class Product {
       'cli plugin mcp --dry-run passes flags through without writing files',
       () async {
         final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing(['-C', workspace.path,
+        final output = await runner.runCapturing([
+          '-C',
+          workspace.path,
           'plugin',
           'mcp',
           '--dry-run',
@@ -133,7 +144,12 @@ class Product {
 
     test('removed generate command prints migration guidance', () async {
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing(['-C', workspace.path,'generate', 'Product']);
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
+        'generate',
+        'Product',
+      ]);
 
       expect(
         output,
@@ -144,7 +160,7 @@ class Product {
 
     test('cli help lists make as canonical command', () async {
       final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing(['-C', workspace.path,]);
+      final output = await runner.runCapturing(['-C', workspace.path]);
 
       expect(output, contains('make <Name>'));
       expect(output, contains('feature <Name>'));
