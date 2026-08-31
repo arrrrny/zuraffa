@@ -10,6 +10,12 @@
 # also runs every slow tier (regression/integration/property/benchmark); each
 # spins up temp projects that run `dart pub get` + `build_runner` and can fill
 # several GB under /tmp, so avoid it on small/disposable agents.
+#
+# Even the fast tier, run as one `dart test test` invocation, compiles the
+# whole tree's kernel into a ~6.5 GB cache that overflows small disks. On
+# cloud/disposable agents use the chunked runner instead, which clears the
+# kernel cache between per-folder chunks:
+#   tools/run_tests_chunked.sh
 # Run a single slow tier:
 #   dart test --preset=regression
 #   dart test --preset=integration
