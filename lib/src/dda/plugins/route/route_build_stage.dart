@@ -5,6 +5,8 @@ import 'package:yaml/yaml.dart';
 
 import '../../models/zorphy_context.dart';
 import '../../compiler/ast_scanner.dart';
+import '../../../feature_flags/feature_flag.dart';
+import '../../../feature_flags/feature_flag_config.dart';
 import 'route_plugin.dart';
 import 'route_validator.dart';
 
@@ -25,6 +27,7 @@ class RouteBuildStage {
     required this.projectRoot,
     this.dryRun = false,
     this.verbose = false,
+    this.featureSet,
   });
 
   /// Absolute or relative path of the project root (the directory holding
@@ -33,6 +36,41 @@ class RouteBuildStage {
 
   final bool dryRun;
   final bool verbose;
+
+  /// Spec 030 (FR-004): when set, `@Route` hits owned by DISABLED features
+  /// (normalized name match on class name or file path) are dropped before
+  /// the router emit — disabled features leave no routes/nav items
+  /// (SC-001). Null = no filtering (behavior unchanged).
+  final ResolvedFeatureSet? featureSet;
+
+  /// True when [name] (a class name or file path segment) belongs to a
+  /// feature disabled in [featureSet].
+  static bool isOwnedByDisabledFeature(
+    String name,
+    ResolvedFeatureSet featureSet,
+  ) {
+    for (final flag in featureSet.disabled) {
+      final feature = FeatureFlag(name: flag, enabled: false);
+      final pascal = feature.pascalName;
+      final snake = feature.snakeName;
+      final kebab = flag;
+      // class-name prefix match on a PascalCase boundary (ProAnalyticsView)
+      if (name.startsWith(pascal)) {
+        final rest = name.substring(pascal.length);
+        final boundary =
+            rest.isEmpty ||
+            RegExp(r'^[A-Z0-9_]').hasMatch(rest.substring(0, 1));
+        if (boundary) return true;
+      }
+      // path-segment match (pro_analytics_view.dart / pro-analytics/...)
+      if (name.contains(snake) ||
+          name.contains('/$kebab/') ||
+          name.contains('\\$kebab\\')) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   /// Annotation names this stage scans for.
   static const List<String> routeDecoratorNames = ['Route', 'ZfaRoute'];
@@ -73,14 +111,38 @@ class RouteBuildStage {
         .where((r) => routeDecoratorNames.contains(r.decorator.name))
         .toList();
 
+    // ── Spec 030: drop route hits owned by disabled features ──
+    final set = featureSet;
+    var droppedByFlag = 0;
+    final filteredRouteResults = set == null
+        ? routeResults
+        : routeResults.where((r) {
+            final className = r.method.className ?? r.method.name;
+            final filePath = (r.method.libraryUri ?? '').replaceFirst(
+              RegExp('^package:[^/]+/'),
+              '',
+            );
+            final owned =
+                isOwnedByDisabledFeature(className, set) ||
+                isOwnedByDisabledFeature(filePath, set);
+            if (owned) droppedByFlag++;
+            return !owned;
+          }).toList();
+    if (droppedByFlag > 0) {
+      _log(
+        'Feature flags: dropped $droppedByFlag route(s) owned by disabled '
+        'features',
+      );
+    }
+
     _log(
       'Scanned ${scanResults.length} annotation(s), '
-      '${routeResults.length} @Route annotation(s)',
+      '${filteredRouteResults.length} @Route annotation(s)',
     );
 
     // ── 2. Collect ──
     final processingErrors = <String>[];
-    for (final scan in routeResults) {
+    for (final scan in filteredRouteResults) {
       try {
         final ctx = ZorphyContext(
           className: scan.method.className ?? scan.method.name,

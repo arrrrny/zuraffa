@@ -12,6 +12,8 @@ import '../cli/plugin_loader.dart';
 import '../core/project/project_root.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_manager.dart';
+import '../feature_flags/feature_flag.dart';
+import '../feature_flags/feature_flag_config.dart';
 import '../models/generated_file.dart';
 import '../utils/entity_field_resolver.dart';
 
@@ -442,6 +444,17 @@ class MakeCommand extends Command<void> {
     if (entityName.isEmpty) {
       print('❌ Missing required feature/entity name.');
       exit(1);
+    }
+
+    // ── Spec 030 (FR-004, US2.AC2): a feature disabled via the `features:`
+    // section of .zfa.json generates NOTHING — the run is skipped before
+    // planning and before the entity-exists guard, so a disabled slice
+    // leaves no trace in the build output (SC-001). Name mapping is by
+    // convention: `ProAnalytics` slice <-> `pro-analytics` flag.
+    final flagSkipReason = _disabledFeatureSkipReason(entityName);
+    if (flagSkipReason != null) {
+      print('⏭ Skipped: $flagSkipReason');
+      return;
     }
 
     final explicitPluginIds = rest.skip(1).toList();
@@ -891,6 +904,28 @@ class MakeCommand extends Command<void> {
         }
       }
     }
+  }
+
+  /// Returns the skip reason when [entityName] normalizes to a feature
+  /// disabled in .zfa.json's `features:` section, or null when generation
+  /// should proceed (no flags declared, feature enabled/unknown).
+  String? _disabledFeatureSkipReason(String entityName) {
+    final FeatureFlagConfig flagConfig;
+    try {
+      flagConfig = FeatureFlagConfig.load(projectRoot: manager.projectRoot);
+    } on FeatureConfigException catch (e) {
+      throw MakeCommandException(e.message);
+    }
+    if (flagConfig.isEmpty) return null;
+
+    final flagName = pascalToKebab(entityName);
+    final resolved = flagConfig.resolve();
+    if (resolved.disabled.contains(flagName)) {
+      return 'feature "$flagName" is disabled in .zfa.json — no code '
+          'generated for $entityName (enable it with '
+          '`zfa feature enable $flagName`)';
+    }
+    return null;
   }
 }
 
