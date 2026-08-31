@@ -106,3 +106,21 @@ test existed and failed before the implementation.
 - refactor: moved the default spawner back inside the class after a
   misplaced brace; no behavior change
 - commit: (this commit)
+## Cycle 7: A1 + A4 + U19..U24 — the corpus driving loop
+
+- test: `test/plugins/ttd/commands/../tdd/commands/corpus_run_command_test.dart` (8 tests: A1 order+persist+summary, A4 gate recorded, U23 stop+ledger, U19 not-ready, U21 no-manifest, U22 concurrent, U20+U24 manifest edit, corrupt-state) + `test/plugins/tdd/helpers/corpus_fixture.dart` (new fixture: manifest writer + scripted fake zfa with argv log)
+- red: `dart test --preset=all test/plugins/tdd/commands/corpus_run_command_test.dart`
+  -> `Actual: []` (zero fake invocations) + `Expected: <1> Actual: <0>` (exit codes) — 8 failed: the T001 skeleton only printed usage
+- green: implemented the driving loop in `lib/src/plugins/tdd/commands/corpus_run_command.dart`
+  (manifest read with no-manifest/corrupt classes, progress load + concurrent
+  refusal with zero prior writes, mark-driving -> spawn run -> spawn verify ->
+  gate -> persist per feature, STOP-ON-ROADBLOCK ledger entries with the six
+  FR-007 fields, not-ready skip-and-report, dropped computation, the human
+  report, and the `corpus:` summary line with exits 0/1/2/3/4).
+  Suite -> `00:00 +8: All tests passed!`; `dart analyze` -> No issues found
+- refactor: fixed the plugin import path; record the gate on stopped
+  features; simplified the exit-code expression
+- notes: U22's first draft seeded the in-flight marker with pid 1, which
+  `kill -0` cannot probe as a non-root user (EPERM -> correctly read as
+  dead); the test now spawns a real `sleep` child and uses its pid.
+- commit: (this commit)

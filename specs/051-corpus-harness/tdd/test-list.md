@@ -27,10 +27,10 @@ entry point.
 
 | id  | behavior                                                                                                                             | traces  | kind    | state   | test |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------ | ------- | ------- | ------- | ---- |
-| A1  | A manifest of N ready features driven by `zfa tdd corpus run` invokes `run`-then-`verify` per feature in manifest order, persists corpus progress after each feature, and ends with the per-feature `corpus:` summary line, exit 0 | US1.AC1 | example | PENDING | |
+| A1  | A manifest of N ready features driven by `zfa tdd corpus run` invokes `run`-then-`verify` per feature in manifest order, persists corpus progress after each feature, and ends with the per-feature `corpus:` summary line, exit 0 | US1.AC1 | example | DONE    | `corpus_run_command_test.dart::A1 — driving in manifest order` |
 | A2  | A corpus run interrupted after feature k re-run drives features 1..k zero more times (fake argv log: 0 duplicate invocations) and resumes at k+1 | US1.AC2 | example | PENDING | |
 | A3  | A feature whose loop stops halts the whole corpus run non-zero with a gap-ledger entry (feature, behavior, step, outcome, issue-link placeholder) and later features are never started | US1.AC3 | example | PENDING | |
-| A4  | A feature whose loop completed and whose verify gate passes is marked done in corpus progress with the gate recorded | US2.AC1 | example | PENDING | |
+| A4  | A feature whose loop completed and whose verify gate passes is marked done in corpus progress with the gate recorded | US2.AC1 | example | DONE    | `corpus_run_command_test.dart::A4 — the gate is recorded` |
 | A5  | A feature whose verify gate returns `not_assessed` stops the run, ledger-records the reason, and the feature is not counted done | US2.AC2 | example | PENDING | |
 | A6  | An explicit recorded waiver for a verify outcome is visible (reason + who + when) in corpus progress and the final report — never silent | US2.AC3 | example | PENDING | |
 | A7  | On a corpus-driven app, `zfa tdd corpus audit` maps every `lib/` file to a recorded zfa invocation or carve-out entry; 100% attribution exits 0 | US3.AC1 | example | PENDING | |

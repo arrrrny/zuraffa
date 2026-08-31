@@ -131,7 +131,7 @@ drives f1 to done, stops on f2 with a ledger entry, never spawns f3;
 re-run after the fix resumes at f2 with 0 duplicate f1 invocations
 (SC-001).
 
-- [ ] T014 [US1] [A1] [A4] [U23] Write the failing corpus-run command
+- [X] T014 [US1] [A1] [A4] [U23] Write the failing corpus-run command
   tests FIRST in `test/plugins/tdd/commands/corpus_run_command_test.dart`
   (slow tier: CliRunner in-process + fake zfa sub-process): a 2-feature
   manifest drives run-then-verify per feature in manifest order, the
@@ -139,7 +139,7 @@ re-run after the fix resumes at f2 with 0 duplicate f1 invocations
   line with exit 0; a feature whose fake run exits non-zero (each
   outcome token) stops the corpus non-zero with a ledger entry naming
   that outcome and no later feature spawned — observe red
-- [ ] T015 [US1] [A1] [A4] [U19] [U20] [U21] [U22] [U23] [U24] Implement
+- [X] T015 [US1] [A1] [A4] [U19] [U20] [U21] [U22] [U23] [U24] Implement
   the driving loop in
   `lib/src/plugins/tdd/commands/corpus_run_command.dart`: manifest read →
   progress load → concurrent refusal → per-feature mark-driving → spawn
