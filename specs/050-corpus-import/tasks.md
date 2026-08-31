@@ -30,7 +30,7 @@ tasks by these markers.
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
 - [x] T002 [P] [U1] [U2] [U3] [U4] Implement `CorpusFeature` and `CorpusManifest` (features in deterministic lexicographic order, `sourceCorpus`, `importedAt`, `toJson`/`fromJson`/`read`/`write` via `ProjectPaths.manifestsDirectory` at `.zfa/manifests/corpus-manifest.json`) in `lib/src/core/project/corpus_manifest.dart`
-- [ ] T003 [U5] [U6] [U7] [U8] [U9] [U10] [U11] [U12] [U13] [U14] [U15] Implement `CorpusImporter.import(...)`: source validation (corpus root vs single-feature rejection), per-feature scan, `spec.md` sha256-aware copy (identical → skipped; different → divergent unless `--force`; absent → imported), `tdd/` directory creation (never touching existing contents), readiness via `SpecParser` (reuse exactly), per-feature report + summary line per contracts/corpus-import.md, in `lib/src/cli/services/corpus_importer.dart`
+- [x] T003 [U5] [U6] [U7] [U8] [U9] [U10] [U11] [U12] [U13] [U14] [U15] Implement `CorpusImporter.import(...)`: source validation (corpus root vs single-feature rejection), per-feature scan, `spec.md` sha256-aware copy (identical → skipped; different → divergent unless `--force`; absent → imported), `tdd/` directory creation (never touching existing contents), readiness via `SpecParser` (reuse exactly), per-feature report + summary line per contracts/corpus-import.md, in `lib/src/cli/services/corpus_importer.dart`
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 
@@ -48,15 +48,15 @@ feature, manifest in lexicographic order, summary line exact
 ### Tests for User Story 1 ⚠️ (write first, watch fail)
 
 - [x] T004 [P] [US1] [U1] [U2] [U3] [U4] Manifest tests (fast): round-trip, deterministic order, byte-identical re-write except `importedAt`, missing manifest → null, in `test/core/project/corpus_manifest_test.dart`
-- [ ] T005 [P] [US1] [U6] [U7] [U8] [U10] [U12] [U13] Importer matrix tests (fast): fixture corpus → outcomes `imported`/`not-ready (no acceptance scenarios)`/`imported foreign-artifacts-ignored`, `tdd/` dirs created, manifest ready marks match the SpecParser verdict, spec content byte-identical, in `test/cli/services/corpus_importer_test.dart`
-- [ ] T006 [P] [US1] [A2] Plannability proof (fast): for the fixture's ready feature, `zfa tdd plan`-equivalent parsing succeeds with zero edits; for the not-ready one it refuses with the manifest's reason, in `test/cli/services/corpus_importer_test.dart`
-- [ ] T007 [P] [US1] [U16] [U18] Command tests (fast): `corpus import` arg surface (mandatory `source`, `--dry-run`, `--force`), registration in the runner, invalid source rejection, in `test/commands/corpus_command_test.dart`
+- [x] T005 [P] [US1] [U6] [U7] [U8] [U10] [U12] [U13] Importer matrix tests (fast): fixture corpus → outcomes `imported`/`not-ready (no acceptance scenarios)`/`imported foreign-artifacts-ignored`, `tdd/` dirs created, manifest ready marks match the SpecParser verdict, spec content byte-identical, in `test/cli/services/corpus_importer_test.dart`
+- [x] T006 [P] [US1] [A2] Plannability proof (fast): for the fixture's ready feature, `zfa tdd plan`-equivalent parsing succeeds with zero edits; for the not-ready one it refuses with the manifest's reason, in `test/cli/services/corpus_importer_test.dart`
+- [x] T007 [P] [US1] [U16] [U18] Command tests (fast): `corpus import` arg surface (mandatory `source`, `--dry-run`, `--force`), registration in the runner, invalid source rejection, in `test/commands/corpus_command_test.dart`
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] [U16] [U17] Implement `corpus_command.dart`: top-level `corpus` with `import <source>` subcommand wired to `CorpusImporter`, printing the report + summary line per contract and setting `exitCode` 0 on completed import (not-ready is reported, not fatal), in `lib/src/commands/corpus_command.dart`
-- [ ] T009 [US1] [U18] Register `CorpusCommand` in the CLI runner's command list, in `lib/src/cli/cli_runner.dart` (+ help-text mention)
-- [ ] T019 [US1] [A1] [A2] [A3] Acceptance test driving the real CLI end-to-end for the import, plannability, and not-ready report (stays red until US1 completes), in `test/commands/corpus_command_test.dart`
+- [x] T008 [US1] [U16] [U17] Implement `corpus_command.dart`: top-level `corpus` with `import <source>` subcommand wired to `CorpusImporter`, printing the report + summary line per contract and setting `exitCode` 0 on completed import (not-ready is reported, not fatal), in `lib/src/commands/corpus_command.dart`
+- [x] T009 [US1] [U18] Register `CorpusCommand` in the CLI runner's command list, in `lib/src/cli/cli_runner.dart` (+ help-text mention)
+- [x] T019 [US1] [A1] [A2] [A3] Acceptance test driving the real CLI end-to-end for the import, plannability, and not-ready report (stays red until US1 completes), in `test/commands/corpus_command_test.dart`
 
 **Checkpoint**: US1 fully functional and independently testable; A1–A3 green
 
@@ -74,13 +74,13 @@ divergent report with both hashes, target unchanged; `--force` → updated;
 
 ### Tests for User Story 2 ⚠️ (write first, watch fail)
 
-- [ ] T010 [P] [US2] [U7] [U11] Idempotency tests (fast): re-import → all skipped, target trees checksum-unchanged (spec + existing `tdd/` contents), manifest stable except `importedAt`, in `test/cli/services/corpus_importer_test.dart`
-- [ ] T011 [P] [US2] [U8] [U9] [U14] Divergence tests (fast): changed source → `divergent` with both hashes and target kept; `--force` → `imported`; dry-run reports without writing, in `test/cli/services/corpus_importer_test.dart`
-- [ ] T020 [P] [US2] [A4] [A5] [A6] Acceptance test driving the real CLI for growth re-import, `tdd/`-immutability, and divergence/`--force` (stays red until US2 completes), in `test/commands/corpus_command_test.dart`
+- [x] T010 [P] [US2] [U7] [U11] Idempotency tests (fast): re-import → all skipped, target trees checksum-unchanged (spec + existing `tdd/` contents), manifest stable except `importedAt`, in `test/cli/services/corpus_importer_test.dart`
+- [x] T011 [P] [US2] [U8] [U9] [U14] Divergence tests (fast): changed source → `divergent` with both hashes and target kept; `--force` → `imported`; dry-run reports without writing, in `test/cli/services/corpus_importer_test.dart`
+- [x] T020 [P] [US2] [A4] [A5] [A6] Acceptance test driving the real CLI for growth re-import, `tdd/`-immutability, and divergence/`--force` (stays red until US2 completes), in `test/commands/corpus_command_test.dart`
 
 ### Implementation for User Story 2
 
-- [ ] T012 [US2] [U8] [U9] [U14] Wire `--force` and `--dry-run` through the importer's copy decision and manifest write (dry-run writes nothing, manifest included), in `lib/src/cli/services/corpus_importer.dart` and `lib/src/commands/corpus_command.dart`
+- [x] T012 [US2] [U8] [U9] [U14] Wire `--force` and `--dry-run` through the importer's copy decision and manifest write (dry-run writes nothing, manifest included), in `lib/src/cli/services/corpus_importer.dart` and `lib/src/commands/corpus_command.dart`
 
 **Checkpoint**: US1 AND US2 both work independently; A4–A6 green
 
@@ -98,12 +98,12 @@ with the same file.
 
 ### Tests for User Story 3 ⚠️ (write first, watch fail)
 
-- [ ] T013 [P] [US3] [U12] Readiness-parity tests (fast): for 4 fixture shapes (full / no scenarios / no FRs / malformed), assert importer mark == plan parser verdict, in `test/cli/services/corpus_importer_test.dart`
-- [ ] T021 [P] [US3] [A7] [A8] Acceptance test: manifest marks survive CLI import and are directly consumable (ready/not-ready + reason present per feature), in `test/commands/corpus_command_test.dart`
+- [x] T013 [P] [US3] [U12] Readiness-parity tests (fast): for 4 fixture shapes (full / no scenarios / no FRs / malformed), assert importer mark == plan parser verdict, in `test/cli/services/corpus_importer_test.dart`
+- [x] T021 [P] [US3] [A7] [A8] Acceptance test: manifest marks survive CLI import and are directly consumable (ready/not-ready + reason present per feature), in `test/commands/corpus_command_test.dart`
 
 ### Implementation for User Story 3
 
-- [ ] T014 [US3] [U12] Ensure readiness uses the exact `SpecParser` entry point plan uses (no second parser, no regex sniffing), capturing its error as the manifest reason, in `lib/src/cli/services/corpus_importer.dart`
+- [x] T014 [US3] [U12] Ensure readiness uses the exact `SpecParser` entry point plan uses (no second parser, no regex sniffing), capturing its error as the manifest reason, in `lib/src/cli/services/corpus_importer.dart`
 
 **Checkpoint**: All user stories independently functional; A7–A8 green
 

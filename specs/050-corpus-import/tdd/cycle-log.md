@@ -271,4 +271,132 @@ test existed and failed before the implementation.
   tests). `dart analyze` on the touched trees: No issues found.
 - refactor: `dart format` pass; A2's plan-refusal assertions confirmed
   the SpecParser-parity contract holds through the real CLI.
-- commit: see US1 slice
+- commit: `5efc0385`
+
+## Cycles 18-20: A4 / A5 / A6 open US2's outer loop (RED)
+
+- tests: `test/commands/corpus_command_test.dart::A4 (US2.AC1) re-import
+  after corpus growth touches only the new features ...`,
+  `::A5 (US2.AC2) tdd/ immutability re-import leaves existing tdd/ trees
+  byte-identical (checksum-verified)`, `::A6 (US2.AC3) divergence a
+  divergent spec is kept by default with both hashes reported; --force
+  updates it` (new — written before any existing-target implementation)
+- red: `dart test test/commands/corpus_command_test.dart`
+  -> `Actual: '❌ Error: UnimplementedError'` for A4 and A6 (the
+  existing-target branch was a deliberate stub from cycle 9); A5
+  initially PASSED vacuously — its only assertion (tdd/ checksums)
+  held because the failing import never touched anything — so it was
+  strengthened BEFORE any implementation to also assert the re-import
+  completes (`expect(out, isNot(contains('❌')))` + the skipped report
+  line), after which A5 failed with the same `UnimplementedError`
+  (3 failed)
+- green: not yet — the units below drive it
+- commit: see US2/US3 slice
+
+## Cycle 21: U7 an identical existing spec is skipped
+
+- test: `test/cli/services/corpus_importer_test.dart::U7 (FR-003):
+  idempotent re-import an identical existing spec is skipped` (new)
+- red: `dart test test/cli/services/corpus_importer_test.dart`
+  -> `UnimplementedError` (1 failed)
+- green: sha256-aware copy decision — absent -> imported (copy),
+  identical -> skipped (nothing written). The divergent branch remains
+  a deliberate stub for U8. File suite -> +8 All tests passed.
+- refactor: the copy decision was extracted into one place (absent /
+  identical / divergent-force branches) with the hashes computed once.
+- commit: see US2/US3 slice
+
+## Cycle 22: U8 a different existing spec is kept with both hashes
+
+- test: `test/cli/services/corpus_importer_test.dart::U8 (FR-004):
+  divergence a different existing spec is kept with both hashes
+  reported` (new)
+- red: `dart test test/cli/services/corpus_importer_test.dart`
+  -> `UnimplementedError` (the divergent branch stub) (1 failed)
+- green: divergent -> target kept, both sha256 hashes carried in the
+  result and printed on the report line (`divergent (source
+  sha256:<hex>, target sha256:<hex>)`). File suite -> +9 All tests
+  passed.
+- refactor: none needed
+- commit: see US2/US3 slice
+
+## Cycle 23: U9 --force replaces a divergent spec
+
+- test: `test/cli/services/corpus_importer_test.dart::U9 (FR-004): force
+  replaces a divergent spec (imported)` (new)
+- red: `dart test test/cli/services/corpus_importer_test.dart`
+  -> `UnimplementedError` (the force branch stub) (1 failed)
+- green: `--force` writes the source content over the divergent copy
+  (outcome `imported`); A4/A5/A6 closed green with it (command file ->
+  +10 All tests passed — US2 complete end-to-end).
+- refactor: the force write reuses the same `FileUtils.writeFile` call
+  as the absent-target copy.
+- commit: see US2/US3 slice
+
+## Cycle 24: U11 existing tdd/ contents are never modified
+
+- test: `test/cli/services/corpus_importer_test.dart::U11 (FR-003):
+  tdd/ immutability existing tdd/ contents are never modified
+  (checksum-verified)` (new; checks both a plain and a `--force`
+  re-import leave a populated tdd/ tree byte-identical)
+- red: immediate pass — the importer never writes under `tdd/` by
+  construction (U10's creation-only branch). Deliberate-mutant check:
+  made the import write `tdd/marker.txt` unconditionally ->
+  `+1 -10: Some tests failed` (U11 among them) — the test catches
+  tdd/ mutation. Restored exactly; file suite -> +11 All tests passed.
+- verdict: mutant-verified immediate pass.
+- commit: see US2/US3 slice
+
+## Cycle 25: U14 --dry-run writes nothing, manifest included
+
+- test: `test/cli/services/corpus_importer_test.dart::U14 (FR-003):
+  dry-run writes nothing, manifest included` (+ a second test: dry-run
+  after a real import writes nothing new) (new)
+- red: immediate pass — the dry-run plumbing (FileUtils `dryRun`, tdd/
+  guard, manifest `dryRun`) landed with U6/U10/US1-close. Deliberate-
+  mutant check: dropped `dryRun: dryRun` from the manifest write ->
+  `U14 ... [E]` (manifest written under dry-run) — caught. Restored
+  exactly; file suite -> +13 All tests passed.
+- verdict: mutant-verified immediate pass.
+- commit: see US2/US3 slice
+
+## Cycle 26: A7 manifest marks every feature ready/not-ready
+
+- test: `test/commands/corpus_command_test.dart::A7 (US3.AC1): manifest
+  readiness marks manifest marks every feature ready/not-ready with a
+  one-line reason` (new)
+- red: immediate pass — the marks were driven by US1's close (A1/A3).
+  Deliberate-mutant check: manifest emission dropped the reason
+  (`reason: ''`) -> `A7 ... [E]` — caught. Restored exactly.
+- verdict: mutant-verified immediate pass.
+- commit: see US2/US3 slice
+
+## Cycle 27: A8 the manifest mark is the consumer contract
+
+- test: `test/commands/corpus_command_test.dart::A8 (US3.AC2): the
+  manifest mark is the consumer contract a consumer (batch driving,
+  #628) can rely on the manifest mark without re-deriving it` (new —
+  simulates #628's batch driver deciding purely from the manifest JSON)
+- red: immediate pass. Deliberate-mutant check: inverted the manifest's
+  `ready` mark -> `A8 ... [E]` (drivable/blocked lists wrong) — caught.
+  Restored exactly; command file -> +12 All tests passed.
+- verdict: mutant-verified immediate pass.
+- commit: see US2/US3 slice
+
+## Cycle 28: T013/U12 readiness parity across 4 borderline shapes
+
+- test: `test/cli/services/corpus_importer_test.dart::U12/T013
+  (FR-006): readiness parity across borderline shapes the importer mark
+  equals the plan parser verdict for 4 fixture shapes (full / no
+  scenarios / no FRs / malformed)` (new — tasks.md T013's 4-shape
+  matrix: full and no-FRs -> ready; no-scenarios and empty spec ->
+  not-ready, exactly what `zfa tdd plan` does with the same files)
+- red: immediate pass (U12's `_readiness` IS the parser call).
+  Deliberate-mutant check: `_readiness` made to return always-ready
+  without consulting the parser -> `+8 -2 ... [E]` (parity broken for
+  s-noscen/s-malformed) — caught. Restored exactly; file suite -> +14
+  All tests passed.
+- verdict: mutant-verified immediate pass.
+- US3 close: A7/A8 green; `dart test test/cli/services/ test/commands/
+  test/core/project/` -> 83 passed, 0 failed; analyze clean.
+- commit: see US2/US3 slice

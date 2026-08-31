@@ -16,8 +16,10 @@
 /// read or written.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../../core/project/corpus_manifest.dart';
@@ -169,23 +171,49 @@ class CorpusImporter {
     for (final name in featureNames) {
       final sourceSpec = File(p.join(sourceDir.path, name, 'spec.md'));
       final targetSpec = File(p.join(projectRoot, 'specs', name, 'spec.md'));
-      if (targetSpec.existsSync()) {
-        // Existing-target handling (skip / divergent / --force) is US2
-        // territory — driven by U7/U8/U9. Not implemented yet.
-        throw UnimplementedError();
-      }
       final content = sourceSpec.readAsStringSync();
       final readiness = _readiness(name, content);
       final foreign = _foreignArtifacts(
         Directory(p.join(sourceDir.path, name)),
       );
-      await FileUtils.writeFile(
-        targetSpec.path,
-        content,
-        'spec',
-        force: true,
-        dryRun: dryRun,
-      );
+
+      // sha256-aware copy decision (FR-001/FR-003/FR-004): absent ->
+      // imported; identical -> skipped; different -> divergent unless
+      // --force (U8/U9).
+      ImportOutcome outcome;
+      String? sourceHash;
+      String? targetHash;
+      if (!targetSpec.existsSync()) {
+        outcome = ImportOutcome.imported;
+        await FileUtils.writeFile(
+          targetSpec.path,
+          content,
+          'spec',
+          force: true,
+          dryRun: dryRun,
+        );
+      } else {
+        sourceHash = _sha256(content);
+        targetHash = _sha256(targetSpec.readAsStringSync());
+        if (sourceHash == targetHash) {
+          outcome = ImportOutcome.skipped;
+        } else if (force) {
+          // --force: the source content replaces the divergent copy
+          // (U9, FR-004 — explicit opt-in).
+          outcome = ImportOutcome.imported;
+          await FileUtils.writeFile(
+            targetSpec.path,
+            content,
+            'spec',
+            force: true,
+            dryRun: dryRun,
+          );
+        } else {
+          // Divergent: the imported copy is kept; both hashes travel in
+          // the result and the report line (FR-004).
+          outcome = ImportOutcome.divergent;
+        }
+      }
       // Per-feature tdd/ working directory (U10): created when absent,
       // never touching existing contents (U11/FR-003).
       final targetTdd = Directory(p.join(projectRoot, 'specs', name, 'tdd'));
@@ -195,11 +223,13 @@ class CorpusImporter {
       results.add(
         FeatureImportResult(
           name: name,
-          outcome: ImportOutcome.imported,
+          outcome: outcome,
           ready: readiness.ready,
           reason: readiness.reason,
           hasForeignArtifacts: foreign.isNotEmpty,
           ignoredArtifacts: foreign,
+          sourceHash: sourceHash,
+          targetHash: targetHash,
         ),
       );
     }
@@ -224,6 +254,11 @@ class CorpusImporter {
       dryRun: dryRun,
     );
   }
+
+  /// sha256 hex of [content] — the divergence-reporting currency
+  /// (FR-004), same hashing `TreeSnapshot` uses for tree fingerprints.
+  static String _sha256(String content) =>
+      sha256.convert(utf8.encode(content)).toString();
 
   /// Validates that [source] is a corpus root and returns it as a
   /// [Directory] (U5): it must exist, be a directory, not be a single

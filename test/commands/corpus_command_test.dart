@@ -14,6 +14,7 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
@@ -113,6 +114,199 @@ void main() {
       // And the command family dispatches its usage.
       final out = await runner.runCapturing(['corpus']);
       expect(out, contains('import'));
+    });
+  });
+
+  /// Sha256 hex of [content] — the report's divergence currency.
+  String sha256Of(String content) =>
+      sha256.convert(utf8.encode(content)).toString();
+
+  group('A4 (US2.AC1): re-import after corpus growth', () {
+    test('touches only the new features — old specs and tdd/ evidence stay '
+        'put, manifest reflects the new total', () async {
+      await importCorpus();
+      // Simulate loop progress on an imported feature.
+      File(
+        p.join(app.path, 'specs', '001-clean', 'tdd', 'test-list.md'),
+      ).writeAsStringSync('# loop evidence\n');
+      final oldSpec = File(
+        p.join(app.path, 'specs', '001-clean', 'spec.md'),
+      ).readAsStringSync();
+
+      corpus.grow(); // +011-growth-a, +012-growth-b
+      final out = await importCorpus();
+
+      // Old features report skipped; new ones imported.
+      expect(out, contains('001-clean: skipped'));
+      expect(out, contains('002-no-scenarios: skipped not-ready'));
+      expect(out, contains('011-growth-a: imported'));
+      expect(out, contains('012-growth-b: imported'));
+
+      // Old spec content untouched.
+      expect(
+        File(
+          p.join(app.path, 'specs', '001-clean', 'spec.md'),
+        ).readAsStringSync(),
+        equals(oldSpec),
+      );
+      // Old loop evidence untouched.
+      expect(
+        File(
+          p.join(app.path, 'specs', '001-clean', 'tdd', 'test-list.md'),
+        ).readAsStringSync(),
+        equals('# loop evidence\n'),
+      );
+
+      // The manifest reflects the new total, in order.
+      final manifest = readManifestJson();
+      expect(
+        (manifest['features'] as List).map((f) => (f as Map)['name']),
+        equals([
+          '001-clean',
+          '002-no-scenarios',
+          '003-speckit',
+          '011-growth-a',
+          '012-growth-b',
+        ]),
+      );
+    });
+  });
+
+  group('A5 (US2.AC2): tdd/ immutability', () {
+    test('re-import leaves existing tdd/ trees byte-identical '
+        '(checksum-verified)', () async {
+      await importCorpus();
+      // Loop progress: a test list, a cycle log, an artifact.
+      final tddDir = Directory(
+        p.join(app.path, 'specs', '002-no-scenarios', 'tdd'),
+      );
+      File(
+        p.join(tddDir.path, 'test-list.md'),
+      ).writeAsStringSync('# Test List (imported-then-driven)\n');
+      File(
+        p.join(tddDir.path, 'cycle-log.md'),
+      ).writeAsStringSync('# Cycle Log\n## Cycle 1\n');
+      Directory(p.join(tddDir.path, 'artifacts')).createSync();
+      File(
+        p.join(tddDir.path, 'artifacts', 'red.txt'),
+      ).writeAsStringSync('red evidence\n');
+
+      Map<String, String> checksums(Directory root) => {
+        for (final entity in root.listSync(recursive: true))
+          if (entity is File)
+            p.relative(entity.path, from: app.path): sha256
+                .convert(entity.readAsBytesSync())
+                .toString(),
+      };
+      final before = checksums(tddDir);
+
+      final out = await importCorpus(); // re-import
+
+      // The re-import must complete (not fail) for the immutability
+      // claim to mean anything.
+      expect(out, isNot(contains('❌')), reason: out);
+      expect(out, contains('002-no-scenarios: skipped'));
+      expect(checksums(tddDir), equals(before));
+    });
+  });
+
+  group('A6 (US2.AC3): divergence', () {
+    test('a divergent spec is kept by default with both hashes reported; '
+        '--force updates it', () async {
+      await importCorpus();
+      final imported = File(
+        p.join(app.path, 'specs', '001-clean', 'spec.md'),
+      ).readAsStringSync();
+
+      // The source spec changes upstream.
+      final changed = FixtureCorpus.cleanSpec('001-clean-v2');
+      corpus.editSpec('001-clean', changed);
+
+      // Default: keep the imported copy, report both hashes.
+      final out = await importCorpus();
+      expect(out, contains('001-clean: divergent'));
+      expect(out, contains(sha256Of(changed)));
+      expect(out, contains(sha256Of(imported)));
+      expect(
+        File(
+          p.join(app.path, 'specs', '001-clean', 'spec.md'),
+        ).readAsStringSync(),
+        equals(imported),
+        reason: 'divergent target must be kept by default',
+      );
+
+      // --force: the source content replaces the imported copy.
+      final forced = await importCorpus(force: true);
+      expect(forced, contains('001-clean: imported'));
+      expect(
+        File(
+          p.join(app.path, 'specs', '001-clean', 'spec.md'),
+        ).readAsStringSync(),
+        equals(changed),
+        reason: '--force must update the divergent spec',
+      );
+    });
+  });
+
+  group('A7 (US3.AC1): manifest readiness marks', () {
+    test(
+      'manifest marks every feature ready/not-ready with a one-line reason',
+      () async {
+        await importCorpus();
+
+        final features = readManifestJson()['features'] as List;
+        expect(features, hasLength(3));
+        for (final f in features) {
+          final m = f as Map;
+          expect(m['ready'], isA<bool>(), reason: '$m');
+          final reason = m['reason'] as String;
+          if (m['ready'] == true) {
+            expect(reason, isEmpty, reason: 'ready features carry no reason');
+          } else {
+            expect(reason, isNotEmpty);
+            expect(
+              reason.contains('\n'),
+              isFalse,
+              reason: 'the reason must be one line',
+            );
+          }
+        }
+
+        // The fixture's pinned marks.
+        final byName = {
+          for (final f in features) (f as Map)['name'] as String: f,
+        };
+        expect(byName['001-clean']!['ready'], isTrue);
+        expect(byName['003-speckit']!['ready'], isTrue);
+        expect(byName['002-no-scenarios']!['ready'], isFalse);
+        expect(
+          byName['002-no-scenarios']!['reason'] as String,
+          equals('no acceptance scenarios'),
+        );
+      },
+    );
+  });
+
+  group('A8 (US3.AC2): the manifest mark is the consumer contract', () {
+    test('a consumer (batch driving, #628) can rely on the manifest mark '
+        'without re-deriving it', () async {
+      await importCorpus();
+
+      // Simulate #628's batch driver: every decision comes from the
+      // manifest JSON alone — no spec re-parsing, no SpecParser call.
+      final manifest = readManifestJson();
+      final features = manifest['features'] as List;
+      final drivable = [
+        for (final f in features)
+          if ((f as Map)['ready'] == true) f['name'] as String,
+      ];
+      final blocked = [
+        for (final f in features)
+          if ((f as Map)['ready'] != true) '${f['name']}: ${f['reason']}',
+      ];
+
+      expect(drivable, equals(['001-clean', '003-speckit']));
+      expect(blocked, equals(['002-no-scenarios: no acceptance scenarios']));
     });
   });
 
