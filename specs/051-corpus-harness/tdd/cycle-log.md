@@ -234,3 +234,36 @@ did not). All 30 affected rows (A10-A14, U10-U34) are now flipped to
 DONE with their test references — every flip corresponds to a cycle
 entry above with recorded red/green evidence or a deliberate-mutant
 check. No behavior state changed that is not backed by a logged cycle.
+## Cycle 14: T030 + T031 — quickstart validated live; the full suite
+
+- quickstart (T030): scenarios 1-4 executed against a real scratch app
+  through the real entrypoint (`dart bin/zfa.dart tdd corpus ...`):
+  drive -> stop at f2 (ledger gap-001 with all six fields) -> fix ->
+  resume (f1 not re-driven; res-001 appended, gap-001 untouched) ->
+  status (result=incomplete, resume_at=f3-later, exit 1 — the not-ready
+  feature blocks completion honestly) -> audit (unattributed file named,
+  exit 1; after removal 100% attribution exit 0; carve-out removal flips
+  its file). One quickstart bug found and fixed in the doc: the fake
+  zfa's verify pattern must match `verify --feature <f>` (the argv shape),
+  and the "fixed" fake needs machine-line defaults.
+- full suite (T031): `dart analyze` -> No issues found; `dart format`
+  -> zero diff; `tools/run_tests_chunked.sh` -> with two pre-existing
+  runner bugs found by this verification and fixed in
+  `tools/run_tests_chunked.sh` (fix(051) commit):
+  1. `dart test` inside the `while read` loop slurped the here-string
+     chunk list — only 36 of 64 chunks ran; every chunk from
+     `test/plugins/method_append` on (including ALL of
+     `test/plugins/tdd/*`, where this feature's tests live) was silently
+     skipped. Fix: `< /dev/null`.
+  2. Tag-empty folders (all tests slow-tier-tagged: test/benchmark,
+     test/core/dependencies, test/integration, test/property,
+     test/plugins/tdd/scenarios) exit 79 "No tests ran." and were counted
+     as FAIL. Fix: counted as SKIP (the fast suite excludes them by
+     design — reproduced on pristine master 11de4bfc).
+- Final counts with the fixed runner: 64 chunks, 5 skipped
+  (tag-empty), **2326 tests passed, 0 failed**, runner exit 0.
+- notes: a mid-session `git checkout master -- .` verification sequence
+  clobbered `lib/src/commands/tdd_command.dart` and the smoke test in the
+  WORKING TREE only (HEAD was intact); restored from HEAD, verified
+  green (15/15 commands, 7/7 smoke) before the final suite run.
+- commit: (this commit)
