@@ -80,7 +80,7 @@ void main() {
     });
 
     setUp(() async {
-  await initZfaSourceBin();
+      await initZfaSourceBin();
       workspace = await Directory.systemTemp.createTemp('issue_323_');
       outputDir = path.join(workspace.path, 'lib', 'src');
       await Directory(outputDir).create(recursive: true);

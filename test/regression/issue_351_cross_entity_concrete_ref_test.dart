@@ -60,7 +60,7 @@ void main() {
         Process.run('dart', args, workingDirectory: workspace.path);
 
     setUp(() async {
-  await initZfaSourceBin();
+      await initZfaSourceBin();
       repoRoot = await findProjectRoot();
       zorphyPath = p.normalize(p.join(repoRoot, '..', 'zorphy', 'zorphy'));
       zorphyAnnotationPath = p.normalize(
@@ -92,13 +92,15 @@ void main() {
         await _writeBuildYaml(workspace);
 
         // 2. Create the referenced entity: ParentThing (value object).
-        final parentResult = await runZfaSource(['entity',
+        final parentResult = await runZfaSource([
+          'entity',
           'create',
           '-n',
           'ParentThing',
           '--kind=value_object',
           '--field',
-          'name:String',], workingDirectory: workspace.path);
+          'name:String',
+        ], workingDirectory: workspace.path);
         expect(
           parentResult.exitCode,
           0,
@@ -111,7 +113,8 @@ void main() {
         //    `--allow-forward-refs` is used so the type validator doesn't
         //    abort on the entity type. The source will emit
         //    `$ParentThing? get parent;` (the #315 behavior).
-        final childResult = await runZfaSource(['entity',
+        final childResult = await runZfaSource([
+          'entity',
           'create',
           '-n',
           'ChildThing',
@@ -120,7 +123,8 @@ void main() {
           '--field',
           'parent:ParentThing?',
           '--field',
-          'data:dynamic',], workingDirectory: workspace.path);
+          'data:dynamic',
+        ], workingDirectory: workspace.path);
         expect(
           childResult.exitCode,
           0,

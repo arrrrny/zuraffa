@@ -27,10 +27,11 @@ void main() {
   group('#416 — zfa entity create: reject --sealed --generate-subs', () {
     late Directory workspace;
     late String repoRoot;
-    Future<ProcessResult> runZfa(List<String> args) => runZfaSource(args, workingDirectory: workspace.path);
+    Future<ProcessResult> runZfa(List<String> args) =>
+        runZfaSource(args, workingDirectory: workspace.path);
 
     setUp(() async {
-  await initZfaSourceBin();
+      await initZfaSourceBin();
       repoRoot = await findProjectRoot();
       workspace = await Directory.systemTemp.createTemp('issue_416_');
       // Minimal pubspec so the entity command's dependency check (scans for

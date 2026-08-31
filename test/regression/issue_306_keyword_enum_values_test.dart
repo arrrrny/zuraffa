@@ -50,7 +50,7 @@ void main() {
     }
 
     setUp(() async {
-  await initZfaSourceBin();
+      await initZfaSourceBin();
       // CWD-independent root: other suites (e.g. issue_348) chdir the
       // process mid-run, which would poison a Directory.current snapshot.
       workspace = await Directory.systemTemp.createTemp('issue_306_');
