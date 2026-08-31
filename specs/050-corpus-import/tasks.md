@@ -19,7 +19,7 @@ tasks by these markers.
 
 **Purpose**: Fixture corpus helper
 
-- [ ] T001 Create a fixture-corpus helper that builds the 3-feature matrix (clean spec with Given/When/Then + FR / prose-only spec / spec + foreign `checklists/` + `tdd/test-list.md`) under `Directory.systemTemp`, in `test/cli/services/helpers/fixture_corpus.dart`
+- [x] T001 Create a fixture-corpus helper that builds the 3-feature matrix (clean spec with Given/When/Then + FR / prose-only spec / spec + foreign `checklists/` + `tdd/test-list.md`) under `Directory.systemTemp`, in `test/cli/services/helpers/fixture_corpus.dart`
 
 ---
 
@@ -29,7 +29,7 @@ tasks by these markers.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T002 [P] [U1] [U2] [U3] [U4] Implement `CorpusFeature` and `CorpusManifest` (features in deterministic lexicographic order, `sourceCorpus`, `importedAt`, `toJson`/`fromJson`/`read`/`write` via `ProjectPaths.manifestsDirectory` at `.zfa/manifests/corpus-manifest.json`) in `lib/src/core/project/corpus_manifest.dart`
+- [x] T002 [P] [U1] [U2] [U3] [U4] Implement `CorpusFeature` and `CorpusManifest` (features in deterministic lexicographic order, `sourceCorpus`, `importedAt`, `toJson`/`fromJson`/`read`/`write` via `ProjectPaths.manifestsDirectory` at `.zfa/manifests/corpus-manifest.json`) in `lib/src/core/project/corpus_manifest.dart`
 - [ ] T003 [U5] [U6] [U7] [U8] [U9] [U10] [U11] [U12] [U13] [U14] [U15] Implement `CorpusImporter.import(...)`: source validation (corpus root vs single-feature rejection), per-feature scan, `spec.md` sha256-aware copy (identical → skipped; different → divergent unless `--force`; absent → imported), `tdd/` directory creation (never touching existing contents), readiness via `SpecParser` (reuse exactly), per-feature report + summary line per contracts/corpus-import.md, in `lib/src/cli/services/corpus_importer.dart`
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
@@ -47,7 +47,7 @@ feature, manifest in lexicographic order, summary line exact
 
 ### Tests for User Story 1 ⚠️ (write first, watch fail)
 
-- [ ] T004 [P] [US1] [U1] [U2] [U3] [U4] Manifest tests (fast): round-trip, deterministic order, byte-identical re-write except `importedAt`, missing manifest → null, in `test/core/project/corpus_manifest_test.dart`
+- [x] T004 [P] [US1] [U1] [U2] [U3] [U4] Manifest tests (fast): round-trip, deterministic order, byte-identical re-write except `importedAt`, missing manifest → null, in `test/core/project/corpus_manifest_test.dart`
 - [ ] T005 [P] [US1] [U6] [U7] [U8] [U10] [U12] [U13] Importer matrix tests (fast): fixture corpus → outcomes `imported`/`not-ready (no acceptance scenarios)`/`imported foreign-artifacts-ignored`, `tdd/` dirs created, manifest ready marks match the SpecParser verdict, spec content byte-identical, in `test/cli/services/corpus_importer_test.dart`
 - [ ] T006 [P] [US1] [A2] Plannability proof (fast): for the fixture's ready feature, `zfa tdd plan`-equivalent parsing succeeds with zero edits; for the not-ready one it refuses with the manifest's reason, in `test/cli/services/corpus_importer_test.dart`
 - [ ] T007 [P] [US1] [U16] [U18] Command tests (fast): `corpus import` arg surface (mandatory `source`, `--dry-run`, `--force`), registration in the runner, invalid source rejection, in `test/commands/corpus_command_test.dart`

@@ -22,9 +22,9 @@ One per acceptance criterion in `spec.md`, through the real CLI entry point
 
 | id  | behavior | traces | kind | state | test |
 | --- | -------- | ------ | ---- | ----- | ---- |
-| A1 | N-feature corpus imports: every `spec.md` present, per-feature `tdd/` dir exists, manifest lists all N deterministically | US1.AC1 | example | PENDING | |
-| A2 | Every imported feature plans via `zfa tdd plan` semantics with zero manual edits | US1.AC2 | example | PENDING | |
-| A3 | A no-scenario feature is imported AND reported `not-ready` (never dropped, never mutated) | US1.AC3 | example | PENDING | |
+| A1 | N-feature corpus imports: every `spec.md` present, per-feature `tdd/` dir exists, manifest lists all N deterministically | US1.AC1 | example | RED | `test/commands/corpus_command_test.dart::A1` |
+| A2 | Every imported feature plans via `zfa tdd plan` semantics with zero manual edits | US1.AC2 | example | RED | `test/commands/corpus_command_test.dart::A2` |
+| A3 | A no-scenario feature is imported AND reported `not-ready` (never dropped, never mutated) | US1.AC3 | example | RED | `test/commands/corpus_command_test.dart::A3` |
 | A4 | Re-import after corpus growth touches only new features (old untouched, manifest reflects the new total) | US2.AC1 | example | PENDING | |
 | A5 | Re-import leaves existing `tdd/` trees (test lists, cycle logs, artifacts) byte-identical | US2.AC2 | example | PENDING | |
 | A6 | Divergent spec is kept by default with both hashes reported; `--force` updates it | US2.AC3 | example | PENDING | |
@@ -37,16 +37,16 @@ One per acceptance criterion in `spec.md`, through the real CLI entry point
 
 | id  | behavior | traces | kind | state | test |
 | --- | -------- | ------ | ---- | ----- | ---- |
-| U1 | Round-trips through `toJson`/`fromJson` (features, sourceCorpus, importedAt) | FR-002 | example | PENDING | |
-| U2 | Features serialize in deterministic lexicographic order | FR-002 | example | PENDING | |
-| U3 | write→read is stable except `importedAt` across identical re-imports | SC-004 | example | PENDING | |
-| U4 | A missing manifest reads as null (not an error) | FR-002 | example | PENDING | |
+| U1 | Round-trips through `toJson`/`fromJson` (features, sourceCorpus, importedAt) | FR-002 | example | DONE | `test/core/project/corpus_manifest_test.dart::U1` |
+| U2 | Features serialize in deterministic lexicographic order | FR-002 | example | DONE | `test/core/project/corpus_manifest_test.dart::U2` |
+| U3 | write→read is stable except `importedAt` across identical re-imports | SC-004 | example | DONE | `test/core/project/corpus_manifest_test.dart::U3` |
+| U4 | A missing manifest reads as null (not an error) | FR-002 | example | DONE | `test/core/project/corpus_manifest_test.dart::U4` |
 
 ### `lib/src/cli/services/corpus_importer.dart`
 
 | id  | behavior | traces | kind | state | test |
 | --- | -------- | ------ | ---- | ----- | ---- |
-| U5 | A corpus root is accepted; a single-feature path is rejected with a clear message | FR-001 | example | PENDING | |
+| U5 | A corpus root is accepted; a single-feature path is rejected with a clear message | FR-001 | example | DONE | `test/cli/services/corpus_importer_test.dart::U5` |
 | U6 | An absent target spec is copied byte-for-byte (`imported`) | FR-001 | example | PENDING | |
 | U7 | An identical existing spec is skipped | FR-003 | example | PENDING | |
 | U8 | A different existing spec is kept with both hashes reported (`divergent`) | FR-004 | example | PENDING | |
