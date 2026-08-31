@@ -55,9 +55,9 @@ entry point.
 
 | id  | behavior                                                                                        | traces      | kind    | state   | test |
 | --- | ----------------------------------------------------------------------------------------------- | ----------- | ------- | ------- | ---- |
-| U3  | An absent manifest file yields the distinct no-manifest outcome naming the expected path (vs. corrupt) | FR-001      | example | PENDING | |
-| U4  | The carve-out manifest decodes `{carveouts: [{path, reason}]}`; a malformed shape is a corrupt-state-class error naming the file | US3.AC3     | example | PENDING | |
-| U5  | Waivers decode `{feature, gate, reason, actor, at}` rows; an absent waivers file means no waivers | US2.AC3     | example | PENDING | |
+| U3  | An absent manifest file yields the distinct no-manifest outcome naming the expected path (vs. corrupt) | FR-001      | example | DONE    | `corpus_manifest_store_test.dart::U3 — manifest reading` (3 tests) |
+| U4  | The carve-out manifest decodes `{carveouts: [{path, reason}]}`; a malformed shape is a corrupt-state-class error naming the file | US3.AC3     | example | DONE    | `corpus_manifest_store_test.dart::U4 — carve-out reading` (3 tests) |
+| U5  | Waivers decode `{feature, gate, reason, actor, at}` rows; an absent waivers file means no waivers | US2.AC3     | example | DONE    | `corpus_manifest_store_test.dart::U5 — waivers reading` (3 tests) |
 
 ### `lib/src/plugins/tdd/models/corpus_progress.dart`
 

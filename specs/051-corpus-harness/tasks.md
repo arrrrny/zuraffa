@@ -79,13 +79,13 @@ Test-first: each group's failing tests land before its implementation.
   `GapLedgerStore` (load/append/atomic rename) in
   `lib/src/plugins/tdd/services/gap_ledger_store.dart` (depends on T006
   red)
-- [ ] T008 [P] [U3] [U4] [U5] Write the failing manifest-store tests
+- [X] T008 [P] [U3] [U4] [U5] Write the failing manifest-store tests
   FIRST in
   `test/plugins/tdd/services/corpus_manifest_store_test.dart`: absent
   manifest → no-manifest outcome naming the path; carve-out
   `{carveouts: [{path, reason}]}` decode + malformed shape error;
   waivers decode + absent file → empty — observe red
-- [ ] T009 [P] [U3] [U4] [U5] Implement `CorpusManifestStore` (manifest
+- [X] T009 [P] [U3] [U4] [U5] Implement `CorpusManifestStore` (manifest
   + carve-out + waivers readers, `.zfa/` path constants) in
   `lib/src/plugins/tdd/services/corpus_manifest_store.dart` (depends on
   T008 red)

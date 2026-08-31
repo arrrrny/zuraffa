@@ -46,3 +46,17 @@ test existed and failed before the implementation.
 - commit: (this commit)
 
 
+## Cycle 3: U3 + U4 + U5 — the manifest store reads manifest, carve-out, waivers
+
+- test: `test/plugins/tdd/services/corpus_manifest_store_test.dart` (U3 manifest reading x3, U4 carve-out x3, U5 waivers x3, + the path-constants test)
+- red: `dart test test/plugins/tdd/services/corpus_manifest_store_test.dart`
+  -> `Which: threw UnimplementedError:<UnimplementedError>` (7 of 10 failed against the store stubs; the path-constants test passed — pure plumbing already pinned)
+- green: implemented `readManifest` (absent -> `CorpusManifestMissingException`
+  naming the path + #627 remediation; invalid JSON -> corrupt), `readCarveOut`
+  (absent -> empty; `{carveouts: [{path, reason}]}` validated), `readWaivers`
+  (absent -> empty; row shape validated) + `CarveOutEntry` /
+  `CorpusManifestMissingException` models and the full `.zfa/` path constants.
+  Suite (models + store) -> `00:00 +16: All tests passed!`;
+  `dart analyze lib/src/plugins/tdd/` -> No issues found
+- refactor: dropped an `unnecessary_cast`; nothing else needed
+- commit: (this commit)

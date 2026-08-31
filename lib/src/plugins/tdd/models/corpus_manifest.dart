@@ -19,6 +19,29 @@ class CorpusManifestException implements Exception {
   String toString() => message;
 }
 
+/// Raised when the manifest file is absent: the distinct no-manifest
+/// outcome (runner-error class, exit 2) — never conflated with corruption.
+class CorpusManifestMissingException implements Exception {
+  const CorpusManifestMissingException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// One carve-out manifest row (`.zfa/manifests/corpus-carveout.json`):
+/// the audit's sole file exemption path (US3/FR-005, US3.AC3).
+class CarveOutEntry {
+  const CarveOutEntry({required this.path, required this.reason});
+
+  /// Project-relative file path (exact path, no globs).
+  final String path;
+
+  /// Why this file is manual work (e.g. the epic 045 manual-UI carve-out).
+  final String reason;
+}
+
 /// One manifest row: a feature directory name plus its readiness mark.
 class CorpusFeature {
   const CorpusFeature({required this.name, required this.ready, this.reason = ''});
