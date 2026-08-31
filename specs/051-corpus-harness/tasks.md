@@ -300,7 +300,7 @@ shape and exit codes (SC-005).
   app; record outcomes in the cycle log notes
 - [X] T031 `dart format` (zero diff) + `dart analyze` (0 issues) + full
   chunked test run (`tools/run_tests_chunked.sh`); fix any drift
-- [ ] T032 Verify tdd artifacts complete (all behaviors DONE/PROVEN,
+- [X] T032 Verify tdd artifacts complete (all behaviors DONE/PROVEN,
   cycle-log evidence, verification.md written by /speckit.tdd.verify) and
   commit history clean
 
