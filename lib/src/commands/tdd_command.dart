@@ -8,6 +8,7 @@ import '../plugins/tdd/commands/init_command.dart';
 import '../plugins/tdd/commands/make_command.dart';
 import '../plugins/tdd/commands/plan_command.dart';
 import '../plugins/tdd/commands/refactor_command.dart';
+import '../plugins/tdd/commands/corpus_command.dart';
 import '../plugins/tdd/commands/run_command.dart';
 import '../plugins/tdd/commands/verify_command.dart';
 import '../plugins/tdd/commands/verify_red_command.dart';
@@ -18,6 +19,7 @@ class TddCommand extends Command<void> {
   TddCommand(this.plugin) {
     addSubcommand(InitCommand(plugin));
     addSubcommand(PlanCommand(plugin));
+    addSubcommand(CorpusCommand(plugin));
     addSubcommand(GenCommand(plugin));
     addSubcommand(VerifyRedCommand(plugin));
     addSubcommand(MakeCommand(plugin));
