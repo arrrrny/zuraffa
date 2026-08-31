@@ -62,6 +62,14 @@ class ZfaConfig {
   final bool zorphyOnly;
   final String domainRoot;
 
+  /// Spec 030: raw `features:`/`flavors:` sections of .zfa.json, preserved
+  /// verbatim across save() cycles so other commands (plugin enable, init)
+  /// never clobber the feature-flag declaration. Parsed/validated by
+  /// FeatureFlagConfig (lib/src/feature_flags/) — ZfaConfig only carries
+  /// them round-trip.
+  final Object? rawFeatures;
+  final Object? rawFlavors;
+
   ZfaConfig({
     Map<String, bool>? pluginDefaults,
     Set<String>? disabledPlugins,
@@ -84,6 +92,8 @@ class ZfaConfig {
     bool? graphqlByDefault,
     bool? appendByDefault,
     bool? cacheByDefault,
+    this.rawFeatures,
+    this.rawFlavors,
   }) : pluginDefaults = Map.unmodifiable({
          ..._builtinPluginDefaults,
          ...?pluginDefaults,
@@ -164,6 +174,8 @@ class ZfaConfig {
     bool? entityFirst,
     bool? zorphyOnly,
     String? domainRoot,
+    Object? rawFeatures,
+    Object? rawFlavors,
   }) {
     return ZfaConfig(
       pluginDefaults: pluginDefaults ?? this.pluginDefaults,
@@ -179,6 +191,8 @@ class ZfaConfig {
       entityFirst: entityFirst ?? this.entityFirst,
       zorphyOnly: zorphyOnly ?? this.zorphyOnly,
       domainRoot: domainRoot ?? this.domainRoot,
+      rawFeatures: rawFeatures ?? this.rawFeatures,
+      rawFlavors: rawFlavors ?? this.rawFlavors,
     );
   }
 
@@ -260,6 +274,8 @@ class ZfaConfig {
       entityFirst: entity['entityFirst'] != false,
       zorphyOnly: true,
       domainRoot: fixedDomainRoot,
+      rawFeatures: json['features'],
+      rawFlavors: json['flavors'],
     );
   }
 
@@ -312,6 +328,9 @@ class ZfaConfig {
     },
     'buildByDefault': buildByDefault,
     'formatByDefault': formatByDefault,
+    // Spec 030: preserved verbatim (parsed/validated by FeatureFlagConfig).
+    if (rawFeatures != null) 'features': rawFeatures,
+    if (rawFlavors != null) 'flavors': rawFlavors,
   };
 
   static Future<void> init({String? projectRoot}) async {

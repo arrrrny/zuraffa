@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:args/command_runner.dart';
 
 import '../core/plugin_system/plugin_registry.dart';
+import '../feature_flags/feature_flag_cli.dart';
 import '../plugins/feature/feature_plugin.dart';
 import 'make_command.dart';
 
@@ -144,7 +147,8 @@ class FeatureCommand extends Command<void> {
 
   @override
   String get invocation =>
-      'zfa feature [scaffold|route|di|mock|test|view|presenter|controller|state] <Name> [options]';
+      'zfa feature [scaffold|route|di|mock|test|view|presenter|controller|state] <Name> [options]'
+      ' | zfa feature list [--format=json] | zfa feature enable|disable <name>';
 
   static const Set<String> _supportedModes = {
     'scaffold',
@@ -158,11 +162,27 @@ class FeatureCommand extends Command<void> {
     'state',
   };
 
+  /// Spec 030 (FR-002): feature-FLAG management tokens intercepted before
+  /// the scaffold-mode dispatch. `list`/`enable`/`disable` are reserved
+  /// words for the scaffold path (entity names are PascalCase, so no real
+  /// collision exists).
+  static const Set<String> _flagManagementTokens = {
+    'list',
+    'enable',
+    'disable',
+  };
+
   @override
   Future<void> run() async {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       printUsage();
+      return;
+    }
+
+    // ── Spec 030: feature-flag management (zfa feature list/enable/disable)
+    if (_flagManagementTokens.contains(rest.first)) {
+      _runFlagManagement(rest);
       return;
     }
 
@@ -185,6 +205,30 @@ class FeatureCommand extends Command<void> {
     final runner = CommandRunner<void>('zfa', 'Zuraffa Code Generator')
       ..addCommand(MakeCommand(PluginRegistry.instance));
     await runner.run(translatedArgs);
+  }
+
+  /// Dispatches the feature-flag management subcommands. Handled failures
+  /// set the dart:io exitCode global (honored by CliRunner._runDispatched).
+  void _runFlagManagement(List<String> rest) {
+    final format = (argResults?['format'] as String?) ?? 'text';
+    switch (rest.first) {
+      case 'list':
+        FeatureFlagCli.list(format: format);
+        return;
+      case 'enable':
+      case 'disable':
+        if (rest.length < 2) {
+          print('❌ Usage: zfa feature ${rest.first} <name>');
+          exitCode = 1;
+          return;
+        }
+        if (rest.first == 'enable') {
+          FeatureFlagCli.enable(rest[1]);
+        } else {
+          FeatureFlagCli.disable(rest[1]);
+        }
+        return;
+    }
   }
 
   List<String> _buildMakeArgs(String featureName, {required String mode}) {

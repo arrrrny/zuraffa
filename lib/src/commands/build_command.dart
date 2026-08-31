@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
@@ -6,6 +7,8 @@ import 'package:path/path.dart' as p;
 import 'build_yaml_guard.dart';
 import '../core/project/project_root.dart';
 import '../dda/plugins/route/route_build_stage.dart';
+import '../feature_flags/feature_flag_config.dart';
+import '../feature_flags/registry_emitter.dart';
 
 class BuildCommand extends Command {
   @override
@@ -21,6 +24,14 @@ class BuildCommand extends Command {
       abbr: 'c',
       help: 'Delete the build cache before building (fixes stale cache errors)',
       negatable: false,
+    );
+    argParser.addOption(
+      'flavor',
+      help:
+          'Build a named flavor (spec 030): resolves the features:/'
+          'flavors: sections of .zfa.json into this build\'s feature-set — '
+          'disabled features generate nothing and the generated '
+          'FeatureFlags registry reflects the flavor.',
     );
     argParser.addFlag(
       'dry-run',
@@ -69,14 +80,30 @@ class BuildCommand extends Command {
     final ddaRoutes = argResults!['dda-routes'] as bool;
     final ddaRoutesOnly = argResults!['dda-routes-only'] as bool;
 
+    // ── Spec 030 (FR-003): per-flavor builds. Resolve + validate the
+    // feature-set BEFORE any stage runs so a bad config fails fast.
+    final flavor = argResults?['flavor'] as String?;
+    final ResolvedFeatureSet? featureSet = await _resolveFeatureSet(flavor);
+    if (flavor != null && featureSet == null) {
+      // _resolveFeatureSet already printed the reason (unknown flavor,
+      // no features section, or invalid config) and exited non-zero.
+      return;
+    }
+
     // ── DDA @Route stage (spec 033 / issue #187) ──
     // Runs FIRST so route misconfigurations fail fast, before any
     // expensive build_runner work.
     if (ddaRoutesOnly) {
       if (ddaRoutes) {
-        final result = await runDdaRouteStage(dryRun: dryRun);
+        final result = await runDdaRouteStage(
+          dryRun: dryRun,
+          featureSet: featureSet,
+        );
         if (!result.success) {
           exit(1);
+        }
+        if (!dryRun) {
+          await emitFeatureFlagsRegistry(featureSet, flavorName: flavor);
         }
         print('✅ DDA route stage completed');
       } else {
@@ -85,10 +112,16 @@ class BuildCommand extends Command {
       return;
     }
     if (ddaRoutes) {
-      final result = await runDdaRouteStage(dryRun: dryRun);
+      final result = await runDdaRouteStage(
+        dryRun: dryRun,
+        featureSet: featureSet,
+      );
       if (!result.success) {
         exit(1);
       }
+    }
+    if (!dryRun) {
+      await emitFeatureFlagsRegistry(featureSet, flavorName: flavor);
     }
 
     if (clean) {
@@ -186,9 +219,14 @@ class BuildCommand extends Command {
   Future<RouteBuildResult> runDdaRouteStage({
     String? projectRoot,
     bool dryRun = false,
+    ResolvedFeatureSet? featureSet,
   }) async {
     final root = projectRoot ?? ProjectRoot.safeCurrentPath();
-    final stage = RouteBuildStage(projectRoot: root, dryRun: dryRun);
+    final stage = RouteBuildStage(
+      projectRoot: root,
+      dryRun: dryRun,
+      featureSet: featureSet,
+    );
     final result = await stage.run();
     for (final file in result.generatedFiles) {
       print('   ✅ $file');
@@ -213,6 +251,69 @@ class BuildCommand extends Command {
       );
     }
     return result;
+  }
+
+  /// Spec 030 (FR-003, US1.AC4): resolves the effective feature-set for
+  /// [flavor]. Returns null when no feature-flag config exists (build
+  /// proceeds unchanged). An INVALID config or an unknown [flavor] is
+  /// fatal: prints the reason naming the offender and exits non-zero —
+  /// the build must never silently ignore a broken feature declaration.
+  Future<ResolvedFeatureSet?> _resolveFeatureSet(String? flavor) async {
+    final root = ProjectRoot.safeCurrentPath();
+    final FeatureFlagConfig config;
+    try {
+      config = FeatureFlagConfig.load(projectRoot: root);
+    } on FeatureConfigException catch (e) {
+      print('❌ $e');
+      exit(1);
+    }
+    if (config.isEmpty) {
+      if (flavor != null) {
+        print(
+          '❌ --flavor "$flavor" requested but .zfa.json declares no '
+          'features: section.',
+        );
+        exit(1);
+      }
+      return null;
+    }
+    try {
+      final resolved = config.resolve(flavor: flavor);
+      if (flavor != null) {
+        print(
+          '🏷  Flavor "$flavor": ${resolved.enabled.length} feature(s) '
+          'enabled, ${resolved.disabled.length} disabled',
+        );
+      }
+      return resolved;
+    } on FeatureConfigException catch (e) {
+      print('❌ $e');
+      exit(1);
+    }
+  }
+
+  /// Spec 030 (FR-005): emits the target app's feature_flags.g.dart from
+  /// [featureSet]. Skipped when no feature flags are declared (build
+  /// output identical to a no-features project — US2.AC4).
+  Future<void> emitFeatureFlagsRegistry(
+    ResolvedFeatureSet? featureSet, {
+    String? projectRoot,
+    String? flavorName,
+  }) async {
+    if (featureSet == null) return;
+    final root = projectRoot ?? ProjectRoot.safeCurrentPath();
+    final outDir = Directory(p.join(root, 'lib', 'src', 'core'));
+    if (!outDir.existsSync()) {
+      outDir.createSync(recursive: true);
+    }
+    final outFile = File(p.join(outDir.path, 'feature_flags.g.dart'));
+    final source = emitRegistry(
+      className: 'FeatureFlags',
+      resolved: featureSet,
+      flavor: flavorName,
+    );
+    await outFile.writeAsString(source);
+    print('   ✅ ${outFile.path} (FeatureFlags registry)');
   }
 
   /// Ensures `build.yaml` is in a state that lets build_runner produce zorphy
