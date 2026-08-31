@@ -277,10 +277,7 @@ dev_dependencies:
         );
         // update needs the canonical zuraffa core import - package:zuraffa/mock.dart
         // for every flavor (see _zuraffaCoreImport), never zuraffa_flutter.
-        expect(
-          updateFile.content!,
-          contains('package:zuraffa/mock.dart'),
-        );
+        expect(updateFile.content!, contains('package:zuraffa/mock.dart'));
       },
     );
 
