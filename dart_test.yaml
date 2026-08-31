@@ -41,6 +41,7 @@ concurrency: 2
 # run excludes `slow`; the slow tiers are selected by the presets below.
 tags:
   slow:
+  flutter:
   regression:
   integration:
   property:
@@ -62,4 +63,7 @@ presets:
     exclude_tags: "false"
   benchmark:
     include_tags: benchmark
+    exclude_tags: "false"
+  flutter:
+    include_tags: flutter
     exclude_tags: "false"

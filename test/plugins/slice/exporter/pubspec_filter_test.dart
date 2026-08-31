@@ -1,4 +1,4 @@
-@Tags(['slow'])
+@Tags(['flutter'])
 /// Tests for PubspecFilter (U54, U55, U56).
 ///
 /// Behaviors traced to specs/043-slice-plugin/tdd/test-list.md:
