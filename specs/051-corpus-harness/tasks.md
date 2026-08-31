@@ -50,13 +50,13 @@ Repo-root package (matches plan.md): implementation under
 **Purpose**: the models + stores + spawner every P1 story consumes.
 Test-first: each group's failing tests land before its implementation.
 
-- [ ] T002 [P] [U1] [U2] Write the failing manifest-model tests FIRST in
+- [X] T002 [P] [U1] [U2] Write the failing manifest-model tests FIRST in
   `test/plugins/tdd/models/corpus_models_test.dart`: decode preserves
   file order with optional sourceCorpus/importedAt; every malformed
   shape (invalid JSON, non-object root, non-list features, row missing
   name/ready, non-bool ready) is rejected naming the file + recovery —
   observe red before the model exists
-- [ ] T003 [P] [U1] [U2] Implement `CorpusFeature` + `CorpusManifest`
+- [X] T003 [P] [U1] [U2] Implement `CorpusFeature` + `CorpusManifest`
   (fromJson with corrupt → `CorpusManifestException` naming recovery) in
   `lib/src/plugins/tdd/models/corpus_manifest.dart` (depends on T002 red)
 - [ ] T004 [P] [U6] Write the failing progress-model tests FIRST in

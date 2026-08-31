@@ -48,8 +48,8 @@ entry point.
 
 | id  | behavior                                                                                        | traces      | kind    | state   | test |
 | --- | ----------------------------------------------------------------------------------------------- | ----------- | ------- | ------- | ---- |
-| U1  | A manifest decodes with its features in file order (order is the driving order) and optional sourceCorpus/importedAt | FR-001      | example | PENDING | |
-| U2  | A malformed manifest (invalid JSON, non-object root, non-list features, a row missing name/ready, non-bool ready) is rejected with an error naming the file and the recovery path | FR-011      | example | PENDING | |
+| U1  | A manifest decodes with its features in file order (order is the driving order) and optional sourceCorpus/importedAt | FR-001      | example | DONE    | `corpus_models_test.dart::CorpusManifest (U1) decodes features in file order with optional provenance` + `::decodes without sourceCorpus/importedAt and defaults reason` |
+| U2  | A malformed manifest (invalid JSON, non-object root, non-list features, a row missing name/ready, non-bool ready) is rejected with an error naming the file and the recovery path | FR-011      | example | DONE    | `corpus_models_test.dart::CorpusManifest malformed (U2)` (4 tests) |
 
 ### `lib/src/plugins/tdd/services/corpus_manifest_store.dart`
 

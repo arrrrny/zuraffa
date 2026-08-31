@@ -31,3 +31,18 @@ test existed and failed before the implementation.
   is smoke-tested; the driving/status/audit logic lands with the behavior
   cycles below.
 
+## Cycle 2: U1 + U2 — the manifest model decodes in order, rejects malformed
+
+- test: `test/plugins/tdd/models/corpus_models_test.dart::CorpusManifest (U1) decodes features in file order with optional provenance` + 5 siblings (U1 pair + U2 malformed matrix)
+- red: `dart test test/plugins/tdd/models/corpus_models_test.dart`
+  -> `UnimplementedError` / `Which: threw UnimplementedError:<UnimplementedError>` (6 failed against the minimal stub — order, optional fields, and every malformed shape unpinned)
+- green: implemented `CorpusManifest.fromJson` + `CorpusFeature` +
+  `CorpusManifestException` (message names corpus-manifest.json + recovery)
+  in `lib/src/plugins/tdd/models/corpus_manifest.dart`.
+  Suite -> `00:00 +6: All tests passed!`;
+  `dart analyze lib/src/plugins/tdd/models/` -> No issues found
+- refactor: dropped an `unnecessary_cast` the analyzer flagged; no other
+  change needed
+- commit: (this commit)
+
+
