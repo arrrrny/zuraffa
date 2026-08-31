@@ -82,8 +82,13 @@ void main() {
           description: 'create entity User with email',
         ),
       );
-      // Entity behavior → exactly 2 steps: entity create, build.
-      expect(plan.steps, hasLength(2));
+      // Entity behavior → exactly 3 steps: entity create, tdd wire
+      // (bug #610 — the subject-implementation step without which green
+      // is unreachable on the real pipeline), build.
+      expect(plan.steps, hasLength(3));
+      // The wire step carries the behavior id and the entity name so
+      // `zfa tdd wire` can resolve both artifacts.
+      expect(plan.steps[1].args, ['tdd', 'wire', 'B-003', '--entity', 'User']);
     });
 
     test('U7: an unmappable behavior yields an unexpressibleReason naming '

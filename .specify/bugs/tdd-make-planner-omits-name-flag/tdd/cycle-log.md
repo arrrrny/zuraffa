@@ -46,4 +46,4 @@ the test existed and failed before the implementation.
   the red phase itself is the mutant — dropping `-n` from the emitted
   argv was caught by both the U3 pin and the real-CLI drift guard;
   restoring `-n` returned the suite to green. 1 mutant, 1 caught.
-- commit: `db00ff5e`
+- commit: (this commit)

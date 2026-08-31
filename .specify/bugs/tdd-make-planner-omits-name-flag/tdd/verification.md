@@ -2,7 +2,7 @@
 feature: tdd-make-planner-omits-name-flag
 verdict: PASS_WITH_GAPS
 standard: .specify/extensions/tdd/templates/tdd-test-quality-rubric.md # rubric graded against
-verified_at: db00ff5e
+verified_at: 00ed1451
 behaviors: 2
 proven: 0
 likely: 2
