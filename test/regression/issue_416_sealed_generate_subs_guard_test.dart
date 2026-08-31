@@ -21,21 +21,17 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../helpers/project_root.dart';
+import '../helpers/run_zfa_source.dart';
 
 void main() {
   group('#416 — zfa entity create: reject --sealed --generate-subs', () {
     late Directory workspace;
     late String repoRoot;
-    late String zfaBin;
-
-    Future<ProcessResult> runZfa(List<String> args) => Process.run('dart', [
-      zfaBin,
-      ...args,
-    ], workingDirectory: workspace.path);
+    Future<ProcessResult> runZfa(List<String> args) => runZfaSource(args, workingDirectory: workspace.path);
 
     setUp(() async {
+  await initZfaSourceBin();
       repoRoot = await findProjectRoot();
-      zfaBin = p.join(repoRoot, 'bin', 'zfa.dart');
       workspace = await Directory.systemTemp.createTemp('issue_416_');
       // Minimal pubspec so the entity command's dependency check (scans for
       // `zorphy_annotation:` and `build_runner:`) succeeds without running

@@ -43,6 +43,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../helpers/project_root.dart';
+import '../helpers/run_zfa_source.dart';
 
 void main() {
   group('#308 — zfa entity create/add-field with --allow-forward-refs', () {
@@ -51,10 +52,7 @@ void main() {
     late String zfaRoot;
 
     Future<ProcessResult> runZfa(List<String> args) {
-      return Process.run('dart', [
-        zfaBin,
-        ...args,
-      ], workingDirectory: workspace.path);
+      return runZfaSource(args, workingDirectory: workspace.path);
     }
 
     setUp(() async {
@@ -63,6 +61,7 @@ void main() {
       // polluted by other regression tests (which do
       // `Directory.current = tempDir`) cannot poison the resolved path.
       // See issue #442.
+      await initZfaSourceBin();
       zfaRoot = await findProjectRoot();
       zfaBin = p.join(zfaRoot, 'bin', 'zfa.dart');
       workspace = await Directory.systemTemp.createTemp('issue_308_');
@@ -383,10 +382,7 @@ dev_dependencies:
       'zfa binary is runnable (smoke)',
       timeout: const Timeout(Duration(minutes: 2)),
       () async {
-        final result = await Process.run('dart', [
-          zfaBin,
-          '--help',
-        ], workingDirectory: zfaRoot);
+        final result = await runZfaSource(['--help'], workingDirectory: zfaRoot);
         expect(result.exitCode, equals(0));
       },
     );

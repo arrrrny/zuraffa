@@ -40,23 +40,19 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../helpers/project_root.dart';
+import '../helpers/run_zfa_source.dart';
 
 void main() {
   group('#306 — zfa entity enum keyword values generate valid Dart', () {
     late Directory workspace;
-    late String zfaBin;
-
     Future<ProcessResult> runZfa(List<String> args) {
-      return Process.run('dart', [
-        zfaBin,
-        ...args,
-      ], workingDirectory: workspace.path);
+      return runZfaSource(args, workingDirectory: workspace.path);
     }
 
     setUp(() async {
+  await initZfaSourceBin();
       // CWD-independent root: other suites (e.g. issue_348) chdir the
       // process mid-run, which would poison a Directory.current snapshot.
-      zfaBin = p.join(await findProjectRoot(), 'bin', 'zfa.dart');
       workspace = await Directory.systemTemp.createTemp('issue_306_');
       // The entity command's dependency check scans pubspec.yaml for the
       // strings `zorphy_annotation:` and `build_runner:`. The strings are

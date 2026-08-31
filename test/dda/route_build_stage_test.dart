@@ -6,6 +6,7 @@ import 'package:test/test.dart';
 import 'package:zuraffa/zuraffa.dart';
 
 import '../helpers/project_root.dart';
+import '../helpers/run_zfa_source.dart';
 
 // A1, A3, A4 + U10–U24: end-to-end route build stage over temp projects.
 //
@@ -407,11 +408,8 @@ class ServiceLocator {}
   });
 
   group('build command wiring (subprocess)', () {
-    late String zfaBin;
-
     setUpAll(() async {
-      final projectRoot = await findProjectRoot();
-      zfaBin = p.join(projectRoot, 'bin', 'zfa.dart');
+      await initZfaSourceBin();
     });
 
     test('zfa build --dda-routes-only produces the router file', () async {
@@ -420,11 +418,10 @@ class ServiceLocator {}
 class ProductsView {}
 ''');
 
-      final proc = await Process.run('dart', [
-        zfaBin,
-        'build',
-        '--dda-routes-only',
-      ], workingDirectory: sandbox.path);
+      final proc = await runZfaSource(
+        ['build', '--dda-routes-only'],
+        workingDirectory: sandbox.path,
+      );
       final out = '${proc.stdout}\n${proc.stderr}';
 
       expect(proc.exitCode, equals(0), reason: out);
@@ -447,11 +444,10 @@ class AView {}
 class BView {}
 ''');
 
-        final proc = await Process.run('dart', [
-          zfaBin,
-          'build',
-          '--dda-routes-only',
-        ], workingDirectory: sandbox.path);
+        final proc = await runZfaSource(
+          ['build', '--dda-routes-only'],
+          workingDirectory: sandbox.path,
+        );
         final out = '${proc.stdout}\n${proc.stderr}';
 
         expect(proc.exitCode, equals(1), reason: out);
@@ -471,12 +467,10 @@ class BView {}
 class ProductsView {}
 ''');
 
-      final proc = await Process.run('dart', [
-        zfaBin,
-        'build',
-        '--dda-routes-only',
-        '--no-dda-routes',
-      ], workingDirectory: sandbox.path);
+      final proc = await runZfaSource(
+        ['build', '--dda-routes-only', '--no-dda-routes'],
+        workingDirectory: sandbox.path,
+      );
       final out = '${proc.stdout}\n${proc.stderr}';
 
       expect(proc.exitCode, equals(0), reason: out);

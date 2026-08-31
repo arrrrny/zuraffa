@@ -34,6 +34,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import '../helpers/run_zfa_source.dart';
 
 /// Resolve package root at discovery time, before any test changes CWD.
 final _zfaRoot = Directory.current.path;
@@ -41,17 +42,12 @@ final _zfaRoot = Directory.current.path;
 void main() {
   group('#304 — zfa entity create --extends propagates implements clause', () {
     late Directory workspace;
-    late String zfaBin;
-
     Future<ProcessResult> runZfa(List<String> args) {
-      return Process.run('dart', [
-        zfaBin,
-        ...args,
-      ], workingDirectory: workspace.path);
+      return runZfaSource(args, workingDirectory: workspace.path);
     }
 
     setUp(() async {
-      zfaBin = p.join(_zfaRoot, 'bin', 'zfa.dart');
+  await initZfaSourceBin();
       workspace = await Directory.systemTemp.createTemp('issue_304_');
       // The entity command's dependency check scans pubspec.yaml for the
       // strings `zorphy_annotation:` and `build_runner:`. The strings are

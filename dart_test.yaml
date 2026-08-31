@@ -20,14 +20,27 @@
 # ---------------
 # Many regression/integration tests spin up a throwaway temp project and run
 # `dart pub get` + `build_runner build` (each accumulates a populated
-# `.dart_tool` + AOT snapshot in /tmp). At the dart-test default concurrency
-# (== number of cores, often 8-16 on cloud agents) those caches coexist and
-# can exhaust a constrained agent disk mid-run ("Unable to write file:
-# .../.dart_tool/build/entrypoint/build.dart.aot"). Capping parallelism bounds
-# the peak disk footprint so a fresh `dart test --preset=all` completes
-# instead of running out of space. Lower this further on very small disks.
+# `.dart_tool` + AOT snapshot in /tmp), and a `dart run build_runner build`
+# spawns a heavy AOT compile of `build.dart` that can use several GB of RAM.
+# At the dart-test default concurrency (== number of cores, often 8-16 on
+# cloud agents) those heavy compiles coincide, exhaust RAM, and OOM-kill the
+# test runner's other concurrent compile isolates — surfacing as hundreds of
+# silent "Failed to load" errors for unrelated suites. Capping parallelism
+# bounds both the peak disk footprint and the RAM pressure so a fresh
+# `dart test --preset=all` completes green instead of running out of space or
+# memory. Lower this further (to 1) on very small disks / low-RAM agents.
 
-concurrency: 3
+concurrency: 2
+
+# Declare every suite-level tag so a test using one never prints the
+# "A tag was used that wasn't specified in dart_test.yaml" warning. The default
+# run excludes `slow`; the slow tiers are selected by the presets below.
+tags:
+  slow:
+  regression:
+  integration:
+  property:
+  benchmark:
 
 exclude_tags: slow
 

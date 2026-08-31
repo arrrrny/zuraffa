@@ -145,7 +145,15 @@ void main() {
       );
 
       // 6. The full build/codegen pipeline — identical command as an app.
-      final build = await runZfaSource(['build'], workingDirectory: pkgPath);
+      // `build_runner build` compiles `build.dart` (AOT) then runs codegen; the
+      // first such compile in a fresh sandbox can exceed the 75s default child
+      // guard, so allow a generous budget (still inside the 8-min group cap and
+      // the < 5-min total assertion for a healthy machine).
+      final build = await runZfaSource(
+        ['build'],
+        workingDirectory: pkgPath,
+        timeout: const Duration(seconds: 300),
+      );
       // ignore: avoid_print
       print('BUILD exitCode=${build.exitCode}\n${_out(build)}');
       expect(build.exitCode, 0, reason: 'build failed: ${_out(build)}');

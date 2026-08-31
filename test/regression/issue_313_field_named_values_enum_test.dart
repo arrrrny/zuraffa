@@ -59,6 +59,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../helpers/project_root.dart';
+import '../helpers/run_zfa_source.dart';
 
 /// Resolve package root at discovery time, before any test changes CWD.
 late final String _zfaRoot;
@@ -66,13 +67,8 @@ late final String _zfaRoot;
 void main() {
   group('#313 — zfa entity create with field named `values`', () {
     late Directory workspace;
-    late String zfaBin;
-
     Future<ProcessResult> runZfa(List<String> args) {
-      return Process.run('dart', [
-        zfaBin,
-        ...args,
-      ], workingDirectory: workspace.path);
+      return runZfaSource(args, workingDirectory: workspace.path);
     }
 
     Future<ProcessResult> runDart(List<String> args) {
@@ -81,10 +77,10 @@ void main() {
 
     setUpAll(() async {
       _zfaRoot = await findProjectRoot();
-      zfaBin = p.join(_zfaRoot, 'bin', 'zfa.dart');
     });
 
     setUp(() async {
+  await initZfaSourceBin();
       // Recover CWD in case a previous test file deleted its temp dir.
       await findProjectRoot();
       workspace = await Directory.systemTemp.createTemp('issue_313_');

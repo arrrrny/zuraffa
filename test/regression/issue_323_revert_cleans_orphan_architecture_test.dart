@@ -60,24 +60,27 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:test/test.dart';
 
+import '../helpers/project_root.dart';
+import '../helpers/run_zfa_source.dart';
+
 /// Resolve package root at discovery time, before any test changes CWD.
-final _zfaRoot = Directory.current.path;
+late final String _zfaRoot;
 
 void main() {
   group('#323 — zfa make --revert deep-cleans orphan architecture', () {
     late Directory workspace;
-    late String zfaBin;
     late String outputDir;
 
     Future<ProcessResult> runZfa(List<String> args) {
-      return Process.run('dart', [
-        zfaBin,
-        ...args,
-      ], workingDirectory: workspace.path);
+      return runZfaSource([...args], workingDirectory: workspace.path);
     }
 
+    setUpAll(() async {
+      _zfaRoot = await findProjectRoot();
+    });
+
     setUp(() async {
-      zfaBin = path.join(_zfaRoot, 'bin', 'zfa.dart');
+  await initZfaSourceBin();
       workspace = await Directory.systemTemp.createTemp('issue_323_');
       outputDir = path.join(workspace.path, 'lib', 'src');
       await Directory(outputDir).create(recursive: true);

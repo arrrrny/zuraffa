@@ -49,12 +49,12 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../helpers/project_root.dart';
+import '../helpers/run_zfa_source.dart';
 
 void main() {
   group('#310 — hand-written class reference gets plain type', () {
     late Directory workspace;
     late String repoRoot;
-    late String zfaBin;
     late String zorphyPath;
     late String zorphyAnnotationPath;
 
@@ -62,8 +62,8 @@ void main() {
         Process.run('dart', args, workingDirectory: workspace.path);
 
     setUp(() async {
+  await initZfaSourceBin();
       repoRoot = await findProjectRoot();
-      zfaBin = p.join(repoRoot, 'bin', 'zfa.dart');
       zorphyPath = p.normalize(p.join(repoRoot, '..', 'zorphy', 'zorphy'));
       zorphyAnnotationPath = p.normalize(
         p.join(repoRoot, '..', 'zorphy', 'zorphy_annotation'),
@@ -119,9 +119,7 @@ void main() {
         //    class. `--allow-forward-refs` opts out of the type validator
         //    so the command does not abort on the (deliberately)
         //    non-Zorphy target.
-        final createResult = await Process.run('dart', [
-          zfaBin,
-          'entity',
+        final createResult = await runZfaSource(['entity',
           'create',
           '-n',
           'SearchResult',
@@ -131,8 +129,7 @@ void main() {
           'price:SearchResultPrice?',
           '--field',
           'priceWithTax:SearchResultPrice?',
-          '--allow-forward-refs',
-        ], workingDirectory: workspace.path);
+          '--allow-forward-refs',], workingDirectory: workspace.path);
         expect(
           createResult.exitCode,
           0,
