@@ -51,7 +51,8 @@ class ProvenanceReport {
          // Three separate buckets (US3): attributed = traced to a zfa
          // invocation; carveout = exempted by the manifest; the rest
          // unattributed. attributed + carveout + unattributed == files.
-         attributed: attributedFiles.length -
+         attributed:
+             attributedFiles.length -
              attributedFiles.values
                  .where((a) => a.source == AttributionSource.carveout)
                  .length,
@@ -109,9 +110,7 @@ class ProvenanceScanner {
     // --- Source 4: the carve-out manifest (the sole exemption path). ---
     await _collectCarveOutAttributions(files);
 
-    final unattributed = libFiles
-        .where((f) => files[f] == null)
-        .toList();
+    final unattributed = libFiles.where((f) => files[f] == null).toList();
     return ProvenanceReport(
       attributedFiles: {
         for (final f in libFiles)
@@ -131,9 +130,7 @@ class ProvenanceScanner {
     if (!await specsDir.exists()) return;
     await for (final featureDir in specsDir.list()) {
       if (featureDir is! Directory) continue;
-      final registry = File(
-        p.join(featureDir.path, 'tdd', 'artifacts.json'),
-      );
+      final registry = File(p.join(featureDir.path, 'tdd', 'artifacts.json'));
       if (!await registry.exists()) continue;
       try {
         final decoded = jsonDecode(await registry.readAsString());

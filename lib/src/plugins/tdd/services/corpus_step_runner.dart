@@ -150,9 +150,7 @@ class CorpusStepRunner {
 
     final stdoutText = process.stdout.toString();
     final stderrText = process.stderr.toString();
-    final output = stderrText.isEmpty
-        ? stdoutText
-        : '$stdoutText\n$stderrText';
+    final output = stderrText.isEmpty ? stdoutText : '$stdoutText\n$stderrText';
     final kv = _parseSummaryLine(summaryPrefix, stdoutText);
     if (kv == null) {
       // No machine line: the contract is unfulfilled — a misfire, never
@@ -196,10 +194,7 @@ class CorpusStepRunner {
 
   /// The last `<prefix>: key=value …` line in [stdout], parsed into a map —
   /// the step commands' machine contract (mirrors StepRunner).
-  static Map<String, String>? _parseSummaryLine(
-    String prefix,
-    String stdout,
-  ) {
+  static Map<String, String>? _parseSummaryLine(String prefix, String stdout) {
     Map<String, String>? last;
     for (final line in stdout.split('\n')) {
       if (!line.startsWith('$prefix: ')) continue;

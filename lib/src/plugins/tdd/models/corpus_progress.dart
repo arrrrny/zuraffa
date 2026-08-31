@@ -129,10 +129,7 @@ class CorpusInFlight {
   final String feature;
   final int ownerPid;
 
-  Map<String, dynamic> toJson() => {
-    'feature': feature,
-    'owner_pid': ownerPid,
-  };
+  Map<String, dynamic> toJson() => {'feature': feature, 'owner_pid': ownerPid};
 }
 
 /// Corpus progress: per-feature state + in-flight marker + dropped list.
@@ -145,8 +142,8 @@ class CorpusProgress {
     Map<String, FeatureProgress>? features,
     this.inFlight,
     List<String>? dropped,
-  })  : features = features ?? {},
-        dropped = dropped ?? [];
+  }) : features = features ?? {},
+       dropped = dropped ?? [];
 
   final Map<String, FeatureProgress> features;
   CorpusInFlight? inFlight;
@@ -166,9 +163,7 @@ class CorpusProgress {
   /// Decode the raw [decoded] JSON value (output of `jsonDecode`).
   /// Shape mismatches throw a [FormatException] naming the cause.
   static CorpusProgress fromJson(dynamic decoded) {
-    Never bad(String cause) => throw FormatException(
-      'corpus progress: $cause',
-    );
+    Never bad(String cause) => throw FormatException('corpus progress: $cause');
 
     if (decoded is! Map) bad('top-level value is not an object');
     final map = decoded;
@@ -229,10 +224,7 @@ class CorpusProgress {
       final ownerPid = inFlightRaw['owner_pid'];
       if (feature is! String) bad('"in_flight".feature is not a string');
       if (ownerPid is! num) bad('"in_flight".owner_pid is not a number');
-      inFlight = CorpusInFlight(
-        feature: feature,
-        ownerPid: ownerPid.toInt(),
-      );
+      inFlight = CorpusInFlight(feature: feature, ownerPid: ownerPid.toInt());
     }
     final droppedRaw = map['dropped'];
     if (droppedRaw != null && droppedRaw is! List) {

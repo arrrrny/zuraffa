@@ -25,10 +25,7 @@ void main() {
 
   CorpusProgress sampleProgress() => CorpusProgress(
     features: {
-      'f1-good': FeatureProgress(
-        state: FeatureCorpusState.done,
-        gate: 'pass',
-      ),
+      'f1-good': FeatureProgress(state: FeatureCorpusState.done, gate: 'pass'),
       'f2-gap': FeatureProgress(
         state: FeatureCorpusState.stopped,
         gate: 'fail_survived',
@@ -51,8 +48,7 @@ void main() {
   );
 
   group('CorpusProgress model (U6)', () {
-    test('round-trips state, gate, stoppedAt, waiver, in-flight, dropped',
-        () {
+    test('round-trips state, gate, stoppedAt, waiver, in-flight, dropped', () {
       final progress = sampleProgress();
       final decoded = jsonDecode(jsonEncode(progress.toJson()));
       final restored = CorpusProgress.fromJson(decoded);
@@ -85,9 +81,11 @@ void main() {
     test(
       'a save that fails mid-write leaves the previous file byte-identical',
       () async {
-        final first = CorpusProgress(features: {
-          'f1': FeatureProgress(state: FeatureCorpusState.done, gate: 'pass'),
-        });
+        final first = CorpusProgress(
+          features: {
+            'f1': FeatureProgress(state: FeatureCorpusState.done, gate: 'pass'),
+          },
+        );
         await store.save(first);
         final before = await File(store.path).readAsString();
 
@@ -95,11 +93,16 @@ void main() {
         // directory so writeAsString cannot succeed.
         final tmp = Directory('${store.path}.tmp');
         await tmp.create(recursive: true);
-        final second = CorpusProgress(features: {
-          'f1': FeatureProgress(state: FeatureCorpusState.done, gate: 'pass'),
-          'f2': FeatureProgress(state: FeatureCorpusState.pending),
-        });
-        await expectLater(store.save(second), throwsA(isA<FileSystemException>()));
+        final second = CorpusProgress(
+          features: {
+            'f1': FeatureProgress(state: FeatureCorpusState.done, gate: 'pass'),
+            'f2': FeatureProgress(state: FeatureCorpusState.pending),
+          },
+        );
+        await expectLater(
+          store.save(second),
+          throwsA(isA<FileSystemException>()),
+        );
         final after = await File(store.path).readAsString();
         expect(after, before, reason: 'the previous file must survive');
         expect(jsonDecode(after), isA<Map<String, dynamic>>());
@@ -108,26 +111,28 @@ void main() {
   });
 
   group('CorpusProgressStore (U8)', () {
-    test('a corrupt progress file stops naming the file and recovery',
-        () async {
-      final file = File(store.path);
-      await file.parent.create(recursive: true);
-      await file.writeAsString('{"features": "not-a-map"}');
-      expect(
-        () => store.load(),
-        throwsA(
-          isA<CorpusCorruptException>().having(
-            (e) => e.message,
-            'message',
-            allOf(
-              contains('progress.json'),
-              contains('Recovery'),
-              contains('delete'),
+    test(
+      'a corrupt progress file stops naming the file and recovery',
+      () async {
+        final file = File(store.path);
+        await file.parent.create(recursive: true);
+        await file.writeAsString('{"features": "not-a-map"}');
+        expect(
+          () => store.load(),
+          throwsA(
+            isA<CorpusCorruptException>().having(
+              (e) => e.message,
+              'message',
+              allOf(
+                contains('progress.json'),
+                contains('Recovery'),
+                contains('delete'),
+              ),
             ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
     test('invalid JSON text is corruption, not absence', () async {
       final file = File(store.path);
@@ -146,10 +151,7 @@ void main() {
       final progress = CorpusProgress(
         inFlight: CorpusInFlight(feature: 'f2-gap', ownerPid: 999999),
       );
-      final refusal = store.refusalReason(
-        progress,
-        pidAlive: (pid) => true,
-      );
+      final refusal = store.refusalReason(progress, pidAlive: (pid) => true);
       expect(refusal, isNotNull);
       expect(refusal, contains('f2-gap'));
       expect(refusal, contains('999999'));
@@ -173,25 +175,32 @@ void main() {
       );
       expect(dead, isNull, reason: 'the owner is not alive');
 
-      final absent = store.refusalReason(CorpusProgress(), pidAlive: (pid) => true);
+      final absent = store.refusalReason(
+        CorpusProgress(),
+        pidAlive: (pid) => true,
+      );
       expect(absent, isNull, reason: 'no in-flight marker');
     });
   });
 
   group('CorpusProgressStore (U10)', () {
-    test('features absent from the manifest land in dropped and are kept',
-        () async {
-      final progress = CorpusProgress(features: {
-        'f1': FeatureProgress(state: FeatureCorpusState.done, gate: 'pass'),
-        'f0-removed': FeatureProgress(state: FeatureCorpusState.pending),
-      });
-      await store.save(progress, manifestFeatureNames: {'f1', 'f2-new'});
-      final persisted = await store.load();
-      expect(persisted!.dropped, ['f0-removed']);
-      // The entry itself is retained (append-only audit trail).
-      expect(persisted.features.containsKey('f0-removed'), isTrue);
-      expect(persisted.features['f1']!.state, FeatureCorpusState.done);
-    });
+    test(
+      'features absent from the manifest land in dropped and are kept',
+      () async {
+        final progress = CorpusProgress(
+          features: {
+            'f1': FeatureProgress(state: FeatureCorpusState.done, gate: 'pass'),
+            'f0-removed': FeatureProgress(state: FeatureCorpusState.pending),
+          },
+        );
+        await store.save(progress, manifestFeatureNames: {'f1', 'f2-new'});
+        final persisted = await store.load();
+        expect(persisted!.dropped, ['f0-removed']);
+        // The entry itself is retained (append-only audit trail).
+        expect(persisted.features.containsKey('f0-removed'), isTrue);
+        expect(persisted.features['f1']!.state, FeatureCorpusState.done);
+      },
+    );
   });
 
   group('CorpusProgressStore save/load (integration)', () {
@@ -199,16 +208,15 @@ void main() {
       await store.save(sampleProgress());
       final restored = await store.load();
       expect(restored!.features.keys, hasLength(3));
-      expect(restored.features['f3-waived']!.waiver?.at,
-          '2026-08-31T01:00:00Z');
+      expect(
+        restored.features['f3-waived']!.waiver?.at,
+        '2026-08-31T01:00:00Z',
+      );
       expect(restored.inFlight?.ownerPid, 4242);
     });
 
     test('the store path lives under .zfa/corpus/', () {
-      expect(
-        store.path,
-        p.join(root.path, '.zfa', 'corpus', 'progress.json'),
-      );
+      expect(store.path, p.join(root.path, '.zfa', 'corpus', 'progress.json'));
     });
   });
 }

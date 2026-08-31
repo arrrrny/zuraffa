@@ -20,15 +20,17 @@ void main() {
 
   setUp(() async {
     fx = await CorpusFixture.create();
-    await fx.writeFakeZfa(outcomes: {
-      'run:f2-gap': (
-        exit: 1,
-        stdout: [
-          'zfa tdd run: step failed — behavior=B-002 step=make outcome=unexpressible',
-          'run: feature=f2-gap result=stopped pending=0 red=1 green=0 done=0 stopped_at=B-002:make',
-        ],
-      ),
-    });
+    await fx.writeFakeZfa(
+      outcomes: {
+        'run:f2-gap': (
+          exit: 1,
+          stdout: [
+            'zfa tdd run: step failed — behavior=B-002 step=make outcome=unexpressible',
+            'run: feature=f2-gap result=stopped pending=0 red=1 green=0 done=0 stopped_at=B-002:make',
+          ],
+        ),
+      },
+    );
     await fx.writeManifest([
       (name: 'f1-good', ready: true, reason: ''),
       (name: 'f2-gap', ready: true, reason: ''),

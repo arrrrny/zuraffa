@@ -75,7 +75,10 @@ class CorpusManifestStore {
         );
       }
       entries.add(
-        CarveOutEntry(path: row['path'] as String, reason: row['reason'] as String),
+        CarveOutEntry(
+          path: row['path'] as String,
+          reason: row['reason'] as String,
+        ),
       );
     }
     return entries;

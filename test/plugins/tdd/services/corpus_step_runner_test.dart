@@ -29,11 +29,14 @@ run: feature=f2-gap result=stopped pending=0 red=1 green=0 done=0 stopped_at=B-0
         feature: 'f2-gap',
         projectRoot: projectRoot,
       );
-      expect(
-        spawned,
-        ['/fake/zfa', 'tdd', 'run', 'f2-gap', '--project', projectRoot],
-        reason: 'a non-.dart entrypoint executes directly with the run argv',
-      );
+      expect(spawned, [
+        '/fake/zfa',
+        'tdd',
+        'run',
+        'f2-gap',
+        '--project',
+        projectRoot,
+      ], reason: 'a non-.dart entrypoint executes directly with the run argv');
       expect(result.step, CorpusStep.run);
       expect(result.exitCode, 1);
       expect(result.outcome, 'stopped');
@@ -117,18 +120,15 @@ run: feature=f2-gap result=stopped pending=0 red=1 green=0 done=0 stopped_at=B-0
         feature: 'f2-gap',
         projectRoot: projectRoot,
       );
-      expect(
-        spawned,
-        [
-          '/fake/zfa',
-          'tdd',
-          'verify',
-          '--feature',
-          'f2-gap',
-          '--project',
-          projectRoot,
-        ],
-      );
+      expect(spawned, [
+        '/fake/zfa',
+        'tdd',
+        'verify',
+        '--feature',
+        'f2-gap',
+        '--project',
+        projectRoot,
+      ]);
       expect(result.step, CorpusStep.verify);
       expect(result.outcome, 'fail_survived');
       // The label is surfaced even with a non-zero exit (never absorbed).
@@ -172,8 +172,7 @@ run: feature=f2-gap result=stopped pending=0 red=1 green=0 done=0 stopped_at=B-0
   });
 
   group('U17 — missing summary line', () {
-    test('exit 0 without the machine line is a runner-error misfire',
-        () async {
+    test('exit 0 without the machine line is a runner-error misfire', () async {
       for (final step in [CorpusStep.run, CorpusStep.verify]) {
         final runner = CorpusStepRunner(
           zfaBin: '/fake/zfa',

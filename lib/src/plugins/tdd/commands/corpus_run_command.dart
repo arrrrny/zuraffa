@@ -130,7 +130,10 @@ class CorpusRunCommand extends Command<void> {
       progress = await progressStore.load() ?? CorpusProgress();
     } on CorpusCorruptException catch (e) {
       print('zfa tdd corpus run: ${e.message}');
-      _printSummary(features: manifest.features.length, result: 'corrupt-state');
+      _printSummary(
+        features: manifest.features.length,
+        result: 'corrupt-state',
+      );
       exitCode = _exitCorruptState;
       return;
     }
@@ -159,10 +162,8 @@ class CorpusRunCommand extends Command<void> {
     final runner = CorpusStepRunner(zfaBin: zfaBin);
     String? stoppedAtFeature;
 
-    Future<void> persist() => progressStore.save(
-      progress,
-      manifestFeatureNames: manifestNames,
-    );
+    Future<void> persist() =>
+        progressStore.save(progress, manifestFeatureNames: manifestNames);
 
     for (final feature in manifest.features) {
       final name = feature.name;
@@ -464,7 +465,9 @@ class CorpusRunCommand extends Command<void> {
       print('   pending (${pending.length}): ${pending.join(', ')}');
     }
     if (progress.dropped.isNotEmpty) {
-      print('   dropped (${progress.dropped.length}): ${progress.dropped.join(', ')}');
+      print(
+        '   dropped (${progress.dropped.length}): ${progress.dropped.join(', ')}',
+      );
     }
     print(
       '   ledger: found=${totals.found} filed=${totals.filed} '

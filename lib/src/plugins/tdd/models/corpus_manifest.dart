@@ -44,7 +44,11 @@ class CarveOutEntry {
 
 /// One manifest row: a feature directory name plus its readiness mark.
 class CorpusFeature {
-  const CorpusFeature({required this.name, required this.ready, this.reason = ''});
+  const CorpusFeature({
+    required this.name,
+    required this.ready,
+    this.reason = '',
+  });
 
   final String name;
   final bool ready;

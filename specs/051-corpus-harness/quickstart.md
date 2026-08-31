@@ -33,9 +33,9 @@ stops f2 (`result=stopped stopped_at=B-002:make`), never sees f3:
 mkdir -p "$APP/fake" && cat > "$APP/fake/zfa" <<'SH'
 #!/bin/sh
 case "$*" in
-  *"run f1-good"*)  echo "run: feature=f1-good result=complete pending=0 red=0 green=1 done=1"; exit 0;;
-  *"verify f1-good"*) echo "mutation: gate=pass killed=2 survived=0 timed_out=0 mutation_was_run=true"; exit 0;;
-  *"run f2-gap"*)   echo "run: feature=f2-gap result=stopped pending=0 red=1 green=0 done=0 stopped_at=B-002:make"; exit 1;;
+  *"run f1-good"*)        echo "run: feature=f1-good result=complete pending=0 red=0 green=1 done=1"; exit 0;;
+  *"verify --feature f1-good"*) echo "mutation: gate=pass killed=2 survived=0 timed_out=0 mutation_was_run=true"; exit 0;;
+  *"run f2-gap"*)         echo "run: feature=f2-gap result=stopped pending=0 red=1 green=0 done=0 stopped_at=B-002:make"; exit 1;;
 esac
 exit 2
 SH
@@ -52,14 +52,26 @@ cat "$APP/.zfa/corpus/progress.json"     # f1 done+gated, f2 stopped, f3 untouch
 Fix the gap (re-script f2's run/verify to succeed) and re-run:
 
 ```sh
+# "Fix" the gap: replace the fake with success defaults.
+cat > "$APP/fake/zfa" <<'SH'
+#!/bin/sh
+case "$*" in
+  tdd\ run*)    echo "run: feature=default result=complete pending=0 red=0 green=1 done=1"; exit 0;;
+  tdd\ verify*) echo "mutation: gate=pass killed=1 survived=0 timed_out=0 mutation_was_run=true"; exit 0;;
+esac
+exit 2
+SH
+chmod +x "$APP/fake/zfa"
 dart bin/zfa.dart tdd corpus run --project "$APP" --zfa-bin "$APP/fake/zfa"
-echo "exit=$?"                       # 0 — and the fake's argv log shows f1 was NOT re-driven
+echo "exit=$?"                       # 1 — incomplete: f3 not-ready (honest)
 ```
 
 Expected: f1 never re-spawned across the resume; ledger gained a
 resolution entry, gap-001 untouched (append-only); f3 still reported
 not-ready and never spawned; final line
-`corpus: features=3 done=2 waived=0 stopped=0 not_ready=1 pending=0 … result=complete`.
+`corpus: features=3 done=2 waived=0 stopped=0 not_ready=1 pending=0 … result=incomplete`
+with exit 1 (the not-ready feature blocks completion honestly — fix its
+spec or re-import to mark it ready, then exit 0).
 
 ## 2. Gate matrix + waiver (US2)
 

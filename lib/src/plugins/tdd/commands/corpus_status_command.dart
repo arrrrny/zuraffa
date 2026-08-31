@@ -119,9 +119,7 @@ class CorpusStatusCommand extends Command<void> {
     var pending = 0;
     String? resumeAt;
     final doneFeatures = <String>{};
-    final waiversByFeature = {
-      for (final w in waivers) w.feature: w,
-    };
+    final waiversByFeature = {for (final w in waivers) w.feature: w};
 
     for (final feature in manifest.features) {
       final state = progress.features[feature.name]?.state;
@@ -198,11 +196,10 @@ class CorpusStatusCommand extends Command<void> {
       'merged=${totals.merged} blocking=${totals.blocking.length}',
     );
     for (final gap in totals.blocking) {
-      print(
-        '   blocking: ${gap.id} ${gap.feature} ${gap.step} ${gap.outcome}',
-      );
+      print('   blocking: ${gap.id} ${gap.feature} ${gap.step} ${gap.outcome}');
     }
-    final complete = notReady == 0 &&
+    final complete =
+        notReady == 0 &&
         pending == 0 &&
         stopped == 0 &&
         done + waived == manifest.features.length;

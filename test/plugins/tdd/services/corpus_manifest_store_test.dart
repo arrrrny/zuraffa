@@ -45,41 +45,46 @@ void main() {
         store.waiversPath,
         p.join(root.path, '.zfa', 'corpus', 'waivers.json'),
       );
-      expect(
-        store.provenanceDir,
-        p.join(root.path, '.zfa', 'provenance'),
-      );
+      expect(store.provenanceDir, p.join(root.path, '.zfa', 'provenance'));
     });
   });
 
   group('U3 — manifest reading', () {
-    test('absent manifest -> CorpusManifestMissingException naming the path',
-        () async {
-      expect(
-        () => store.readManifest(),
-        throwsA(
-          isA<CorpusManifestMissingException>().having(
-            (e) => e.message,
-            'message',
-            allOf(contains('corpus-manifest.json'), contains(root.path)),
+    test(
+      'absent manifest -> CorpusManifestMissingException naming the path',
+      () async {
+        expect(
+          () => store.readManifest(),
+          throwsA(
+            isA<CorpusManifestMissingException>().having(
+              (e) => e.message,
+              'message',
+              allOf(contains('corpus-manifest.json'), contains(root.path)),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
-    test('a present manifest decodes through the model in file order', () async {
-      await write('.zfa/manifests/corpus-manifest.json', jsonEncode({
-        'features': [
-          {'name': 'b-second', 'ready': true},
-          {'name': 'a-first', 'ready': false, 'reason': 'not loop-ready'},
-        ],
-      }));
-      final manifest = await store.readManifest();
-      expect(
-        manifest.features.map((f) => f.name).toList(),
-        ['b-second', 'a-first'],
-      );
-    });
+    test(
+      'a present manifest decodes through the model in file order',
+      () async {
+        await write(
+          '.zfa/manifests/corpus-manifest.json',
+          jsonEncode({
+            'features': [
+              {'name': 'b-second', 'ready': true},
+              {'name': 'a-first', 'ready': false, 'reason': 'not loop-ready'},
+            ],
+          }),
+        );
+        final manifest = await store.readManifest();
+        expect(manifest.features.map((f) => f.name).toList(), [
+          'b-second',
+          'a-first',
+        ]);
+      },
+    );
 
     test('invalid manifest JSON text -> CorpusCorruptException', () async {
       await write('.zfa/manifests/corpus-manifest.json', '{not json');
@@ -92,11 +97,14 @@ void main() {
 
   group('U4 — carve-out reading', () {
     test('decodes {carveouts: [{path, reason}]}', () async {
-      await write('.zfa/manifests/corpus-carveout.json', jsonEncode({
-        'carveouts': [
-          {'path': 'lib/manual_ui.dart', 'reason': 'manual UI (epic 045)'},
-        ],
-      }));
+      await write(
+        '.zfa/manifests/corpus-carveout.json',
+        jsonEncode({
+          'carveouts': [
+            {'path': 'lib/manual_ui.dart', 'reason': 'manual UI (epic 045)'},
+          ],
+        }),
+      );
       final entries = await store.readCarveOut();
       expect(entries, hasLength(1));
       expect(entries.single.path, 'lib/manual_ui.dart');
@@ -107,37 +115,45 @@ void main() {
       expect(await store.readCarveOut(), isEmpty);
     });
 
-    test('malformed carve-out shape -> CorpusCorruptException naming the file',
-        () async {
-      await write('.zfa/manifests/corpus-carveout.json', jsonEncode({
-        'carveouts': [
-          {'reason': 'no path'},
-        ],
-      }));
-      expect(
-        () => store.readCarveOut(),
-        throwsA(
-          isA<CorpusCorruptException>().having(
-            (e) => e.message,
-            'message',
-            contains('corpus-carveout.json'),
+    test(
+      'malformed carve-out shape -> CorpusCorruptException naming the file',
+      () async {
+        await write(
+          '.zfa/manifests/corpus-carveout.json',
+          jsonEncode({
+            'carveouts': [
+              {'reason': 'no path'},
+            ],
+          }),
+        );
+        expect(
+          () => store.readCarveOut(),
+          throwsA(
+            isA<CorpusCorruptException>().having(
+              (e) => e.message,
+              'message',
+              contains('corpus-carveout.json'),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
   });
 
   group('U5 — waivers reading', () {
     test('decodes rows {feature, gate, reason, actor, at}', () async {
-      await write('.zfa/corpus/waivers.json', jsonEncode([
-        {
-          'feature': 'f2-gap',
-          'gate': 'not_assessed',
-          'reason': 'mutation tool unavailable on CI',
-          'actor': 'maintainer',
-          'at': '2026-08-31T01:00:00Z',
-        },
-      ]));
+      await write(
+        '.zfa/corpus/waivers.json',
+        jsonEncode([
+          {
+            'feature': 'f2-gap',
+            'gate': 'not_assessed',
+            'reason': 'mutation tool unavailable on CI',
+            'actor': 'maintainer',
+            'at': '2026-08-31T01:00:00Z',
+          },
+        ]),
+      );
       final waivers = await store.readWaivers();
       expect(waivers, hasLength(1));
       expect(waivers.single.feature, 'f2-gap');
@@ -151,21 +167,26 @@ void main() {
       expect(await store.readWaivers(), isEmpty);
     });
 
-    test('malformed waivers shape -> CorpusCorruptException naming the file',
-        () async {
-      await write('.zfa/corpus/waivers.json', jsonEncode([
-        {'feature': 'f2-gap'}, // missing gate/reason/actor/at
-      ]));
-      expect(
-        () => store.readWaivers(),
-        throwsA(
-          isA<CorpusCorruptException>().having(
-            (e) => e.message,
-            'message',
-            contains('waivers.json'),
+    test(
+      'malformed waivers shape -> CorpusCorruptException naming the file',
+      () async {
+        await write(
+          '.zfa/corpus/waivers.json',
+          jsonEncode([
+            {'feature': 'f2-gap'}, // missing gate/reason/actor/at
+          ]),
+        );
+        expect(
+          () => store.readWaivers(),
+          throwsA(
+            isA<CorpusCorruptException>().having(
+              (e) => e.message,
+              'message',
+              contains('waivers.json'),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
   });
 }

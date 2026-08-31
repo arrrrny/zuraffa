@@ -19,10 +19,11 @@ void main() {
         'importedAt': '2026-08-31T00:00:00Z',
       });
       // Order IS the driving order (FR-001) — never re-sorted.
-      expect(
-        manifest.features.map((f) => f.name).toList(),
-        ['f1-good', 'f2-gap', 'f3-later'],
-      );
+      expect(manifest.features.map((f) => f.name).toList(), [
+        'f1-good',
+        'f2-gap',
+        'f3-later',
+      ]);
       expect(manifest.features[2].ready, isFalse);
       expect(manifest.features[2].reason, 'no acceptance');
       expect(manifest.sourceCorpus, '/corpus');
@@ -173,11 +174,7 @@ void main() {
       // issue does not unblock completion). gap-003 merged, gap-004
       // resolved by res-001, f9-done is done.
       expect(totals.blocking, hasLength(2));
-      expect(
-        totals.blocking.map((g) => g.id).toList(),
-        ['gap-001', 'gap-002'],
-      );
+      expect(totals.blocking.map((g) => g.id).toList(), ['gap-001', 'gap-002']);
     });
   });
 }
-

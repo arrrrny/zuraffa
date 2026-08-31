@@ -24,42 +24,43 @@ void main() {
   });
 
   group('GapLedgerStore (U12)', () {
-    test('appending a gap produces a monotonic id and the complete entry',
-        () async {
-      final first = await store.appendGap(
-        feature: 'f2-gap',
-        behavior: 'B-002',
-        step: 'run',
-        outcome: 'stopped',
-        failingCommand: 'zfa tdd run f2-gap --project /app',
-      );
-      expect(first.id, 'gap-001');
-      expect(first.kind, GapLedgerKind.gap);
-      expect(first.at, isNotEmpty);
-      expect(first.issueLink, isNull, reason: 'the placeholder starts null');
-      expect(first.status, 'open');
+    test(
+      'appending a gap produces a monotonic id and the complete entry',
+      () async {
+        final first = await store.appendGap(
+          feature: 'f2-gap',
+          behavior: 'B-002',
+          step: 'run',
+          outcome: 'stopped',
+          failingCommand: 'zfa tdd run f2-gap --project /app',
+        );
+        expect(first.id, 'gap-001');
+        expect(first.kind, GapLedgerKind.gap);
+        expect(first.at, isNotEmpty);
+        expect(first.issueLink, isNull, reason: 'the placeholder starts null');
+        expect(first.status, 'open');
 
-      final second = await store.appendGap(
-        feature: 'f3-gap',
-        step: 'verify',
-        outcome: 'not_assessed',
-        failingCommand: 'zfa tdd verify --feature f3-gap',
-      );
-      expect(second.id, 'gap-002');
+        final second = await store.appendGap(
+          feature: 'f3-gap',
+          step: 'verify',
+          outcome: 'not_assessed',
+          failingCommand: 'zfa tdd verify --feature f3-gap',
+        );
+        expect(second.id, 'gap-002');
 
-      final reloaded = await store.load();
-      expect(reloaded, hasLength(2));
-      expect(reloaded.first.feature, 'f2-gap');
-      expect(reloaded.first.behavior, 'B-002');
-      expect(reloaded.first.failingCommand, contains('tdd run'));
-    });
+        final reloaded = await store.load();
+        expect(reloaded, hasLength(2));
+        expect(reloaded.first.feature, 'f2-gap');
+        expect(reloaded.first.behavior, 'B-002');
+        expect(reloaded.first.failingCommand, contains('tdd run'));
+      },
+    );
 
     test('an absent ledger loads as empty', () async {
       expect(await store.load(), isEmpty);
     });
 
-    test('a corrupt ledger is a corrupt-state stop naming the file',
-        () async {
+    test('a corrupt ledger is a corrupt-state stop naming the file', () async {
       final file = File(store.path);
       await file.parent.create(recursive: true);
       await file.writeAsString('[{nonsense');
@@ -77,62 +78,70 @@ void main() {
   });
 
   group('GapLedgerStore (U13)', () {
-    test('appends never modify prior entries and the file stays decodable',
-        () async {
-      await store.appendGap(
-        feature: 'f1',
-        step: 'run',
-        outcome: 'stopped',
-        failingCommand: 'zfa tdd run f1',
-      );
-      final afterFirst = await File(store.path).readAsString();
-      final firstEntries = await store.load();
+    test(
+      'appends never modify prior entries and the file stays decodable',
+      () async {
+        await store.appendGap(
+          feature: 'f1',
+          step: 'run',
+          outcome: 'stopped',
+          failingCommand: 'zfa tdd run f1',
+        );
+        final afterFirst = await File(store.path).readAsString();
+        final firstEntries = await store.load();
 
-      await store.appendGap(
-        feature: 'f2',
-        step: 'verify',
-        outcome: 'fail_survived',
-        failingCommand: 'zfa tdd verify --feature f2',
-      );
-      final afterSecond = await File(store.path).readAsString();
+        await store.appendGap(
+          feature: 'f2',
+          step: 'verify',
+          outcome: 'fail_survived',
+          failingCommand: 'zfa tdd verify --feature f2',
+        );
+        final afterSecond = await File(store.path).readAsString();
 
-      // The first entry's serialized block survives byte-identical.
-      final firstBlock = _entryBlock(afterFirst);
-      expect(afterSecond, contains(firstBlock));
-      // The file decodes as JSON after every append.
-      expect(jsonDecode(afterSecond), isA<List<dynamic>>());
-      // And the reloaded first entry is unchanged.
-      final reloaded = await store.load();
-      expect(reloaded.first.toJson(), firstEntries.first.toJson());
-    });
+        // The first entry's serialized block survives byte-identical.
+        final firstBlock = _entryBlock(afterFirst);
+        expect(afterSecond, contains(firstBlock));
+        // The file decodes as JSON after every append.
+        expect(jsonDecode(afterSecond), isA<List<dynamic>>());
+        // And the reloaded first entry is unchanged.
+        final reloaded = await store.load();
+        expect(reloaded.first.toJson(), firstEntries.first.toJson());
+      },
+    );
   });
 
   group('GapLedgerStore (U14)', () {
-    test('a resolution appends with resolves and the gap is untouched',
-        () async {
-      final gap = await store.appendGap(
-        feature: 'f2-gap',
-        step: 'run',
-        outcome: 'stopped',
-        failingCommand: 'zfa tdd run f2-gap',
-      );
-      final gapBlock = _entryBlock(await File(store.path).readAsString());
+    test(
+      'a resolution appends with resolves and the gap is untouched',
+      () async {
+        final gap = await store.appendGap(
+          feature: 'f2-gap',
+          step: 'run',
+          outcome: 'stopped',
+          failingCommand: 'zfa tdd run f2-gap',
+        );
+        final gapBlock = _entryBlock(await File(store.path).readAsString());
 
-      final resolution = await store.appendResolution(
-        feature: 'f2-gap',
-        resolves: gap.id,
-      );
-      expect(resolution.kind, GapLedgerKind.resolution);
-      expect(resolution.resolves, 'gap-001');
-      expect(resolution.id, 'res-001');
+        final resolution = await store.appendResolution(
+          feature: 'f2-gap',
+          resolves: gap.id,
+        );
+        expect(resolution.kind, GapLedgerKind.resolution);
+        expect(resolution.resolves, 'gap-001');
+        expect(resolution.id, 'res-001');
 
-      final content = await File(store.path).readAsString();
-      expect(content, contains(gapBlock), reason: 'the gap is never edited');
-      final entries = await store.load();
-      expect(entries, hasLength(2));
-      expect(entries.first.status, 'open', reason: 'gap stays open-as-written');
-      expect(entries.last.resolves, 'gap-001');
-    });
+        final content = await File(store.path).readAsString();
+        expect(content, contains(gapBlock), reason: 'the gap is never edited');
+        final entries = await store.load();
+        expect(entries, hasLength(2));
+        expect(
+          entries.first.status,
+          'open',
+          reason: 'gap stays open-as-written',
+        );
+        expect(entries.last.resolves, 'gap-001');
+      },
+    );
   });
 }
 

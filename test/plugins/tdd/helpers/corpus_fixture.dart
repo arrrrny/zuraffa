@@ -33,7 +33,8 @@ class CorpusFixture {
       p.join(root.path, '.zfa', 'manifests', 'corpus-manifest.json');
   String get progressPath =>
       p.join(root.path, '.zfa', 'corpus', 'progress.json');
-  String get ledgerPath => p.join(root.path, '.zfa', 'corpus', 'gap-ledger.json');
+  String get ledgerPath =>
+      p.join(root.path, '.zfa', 'corpus', 'gap-ledger.json');
   String get waiversPath => p.join(root.path, '.zfa', 'corpus', 'waivers.json');
   String get auditReportPath =>
       p.join(root.path, '.zfa', 'corpus', 'audit-report.json');
@@ -59,8 +60,9 @@ class CorpusFixture {
       }),
     );
     for (final f in features) {
-      await Directory(p.join(root.path, 'specs', f.name, 'tdd'))
-          .create(recursive: true);
+      await Directory(
+        p.join(root.path, 'specs', f.name, 'tdd'),
+      ).create(recursive: true);
     }
   }
 
@@ -78,7 +80,8 @@ class CorpusFixture {
       await File(callsLog).writeAsString('');
     }
 
-    final script = '''
+    final script =
+        '''
 #!/usr/bin/env bash
 ARGV="\$*"
 echo "\$ARGV" >> '${callsLog.replaceAll("'", "'\\''")}'

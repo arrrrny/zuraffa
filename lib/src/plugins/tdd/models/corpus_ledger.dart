@@ -107,7 +107,9 @@ class GapLedgerEntry {
     final kindRaw = map['kind'];
     final at = map['at'];
     final feature = map['feature'];
-    if (id is! String || kindRaw is! String || at is! String ||
+    if (id is! String ||
+        kindRaw is! String ||
+        at is! String ||
         feature is! String) {
       throw FormatException('gap ledger entry is missing id/kind/at/feature');
     }
@@ -175,9 +177,7 @@ class GapLedgerTotals {
         resolvedIds.contains(gap.id);
 
     final blocking = gaps
-        .where(
-          (gap) => !isResolved(gap) && !doneFeatures.contains(gap.feature),
-        )
+        .where((gap) => !isResolved(gap) && !doneFeatures.contains(gap.feature))
         .toList();
 
     return GapLedgerTotals(
