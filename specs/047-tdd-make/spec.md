@@ -81,10 +81,14 @@ uncertified behavior can silently pass against a vacuous test.
 2. **Given** a behavior id unknown to the registry, **When** `make <id>`
    runs, **Then** it exits non-zero naming the id and instructing
    `zfa tdd gen <id>` first, before any generation.
-3. **Given** a behavior whose certified-red test currently passes already
-   (drift: someone implemented it by hand), **When** `make <id>` runs,
-   **Then** it detects the test is already green, reports the drift, and
-   exits non-zero rather than recording a vacuous green.
+3. **Given** a behavior whose certified-red test currently passes already,
+   **When** `make <id>` runs, **Then** it takes the skip transition
+   (amended 2026-09-01 by issue #694; was: report drift, exit non-zero):
+   generation is skipped, the full suite is re-certified with no NEW
+   failures, a green evidence entry with an explicitly empty generation
+   block is appended, and the command exits 0 with `outcome=skipped` so
+   `zfa tdd run` proceeds past already-completed behaviors instead of
+   deadlocking on re-runs.
 
 ---
 
@@ -169,9 +173,11 @@ any failure (non-zero).
 - The behavior's test passes for the wrong reason after generation (e.g., a
   sibling change made it vacuously green): out of detection scope for `make`;
   caught by `zfa tdd verify`'s mutation gate at feature completion.
-- Re-running `make` after the target test is already green is drift: stop
-  non-zero without generating or appending duplicate evidence, and direct the
-  developer to re-certify red or revert the hand-written implementation.
+- Re-running `make` after the target test is already green takes the skip
+  transition (amended 2026-09-01 by issue #694; was: drift, stop non-zero):
+  generate nothing, re-certify the suite, and append one green evidence entry
+  whose generation block is explicitly `(none)` — never a duplicate of a
+  generation entry.
 - Multiple behaviors share a subject file: the regression guard (US3) is the
   protection; `make` never reverts other behaviors' implementations.
 - The registry record exists but the subject file was deleted:
@@ -191,8 +197,10 @@ any failure (non-zero).
 - **FR-002**: Target resolution (explicit id, single-candidate inference,
   ambiguity error) MUST follow the same rules as `zfa tdd verify-red`.
 - **FR-003**: Before generating, the command MUST re-run the target test and
-  confirm it still fails; an already-green test is reported as drift and
-  stops the command non-zero.
+  confirm it still fails; an already-green test takes the skip transition
+  (amended 2026-09-01 by issue #694; was: drift, stop non-zero) — generation
+  never runs, the suite is re-certified, and the command exits 0 with
+  `outcome=skipped`.
 
 **Generation-only implementation**
 
@@ -274,5 +282,7 @@ any failure (non-zero).
 - "Minimal generation" means the smallest set of pipeline invocations that
   turns the target test green; when multiple are equivalent, the simplest
   (fewest generated files) wins.
-- Re-running `make` when the target test is already green reports `drift`,
-  exits non-zero, and appends no duplicate evidence.
+- Re-running `make` when the target test is already green reports
+  `outcome=skipped`, exits 0, and appends a green evidence entry whose
+  generation block is explicitly `(none)` (amended 2026-09-01 by issue #694;
+  was: report `drift`, exit non-zero, append no duplicate evidence).

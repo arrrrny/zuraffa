@@ -628,6 +628,44 @@ void main() {
     });
   });
 
+  test('bug 694: a make reporting skipped (already green) advances the '
+      'behavior and the run proceeds past it — no drift stop', () async {
+    // B-002's make is the issue #694 re-run scenario: the target test
+    // already passes from a prior run, so make reports the skip
+    // transition (outcome=skipped, exit 0, green evidence appended —
+    // the fake's `skip` token mirrors the real contract). The loop
+    // must advance B-002 GREEN and continue with B-003 instead of
+    // stopping at outcome=drift.
+    await fx.setStepOutcome('make', 'B-002', 'skip');
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    expect(out, contains('[run] B-002 make -> skipped'), reason: out);
+    expect(out, isNot(contains('outcome=drift')), reason: out);
+    // The run proceeded: B-002's refactor ran, then B-003's full cycle.
+    expect(fx.stepInvocations(), [
+      'gen B-001',
+      'verify-red B-001',
+      'make B-001',
+      'refactor B-001',
+      'gen B-002',
+      'verify-red B-002',
+      'make B-002',
+      'refactor B-002',
+      'gen B-003',
+      'verify-red B-003',
+      'make B-003',
+      'refactor B-003',
+    ]);
+    final state = await readState();
+    expect(state['behavior_states'] as Map<String, dynamic>, {
+      'B-001': 'done',
+      'B-002': 'done',
+      'B-003': 'done',
+    });
+  });
+
   test(
     'U29: new test-list rows enter as PENDING, DONE behaviors untouched',
     () async {

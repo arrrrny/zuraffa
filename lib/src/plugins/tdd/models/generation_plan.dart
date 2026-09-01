@@ -25,9 +25,11 @@ enum MakeOutcome {
   /// Non-zero exit, no green entry.
   notCertifiedRed('not-certified-red'),
 
-  /// Target test already green before generation (drift).
-  /// Non-zero exit, no green entry.
-  drift('drift'),
+  /// Target test already green before generation — the skip transition
+  /// (issue #694, amending US2.AC3): generation never runs, the suite is
+  /// re-certified with no NEW failures, a green evidence entry with an
+  /// explicitly empty generation block is appended, exit 0.
+  skipped('skipped'),
 
   /// Planner cannot map behavior to pipeline steps.
   /// Non-zero exit, no green entry.

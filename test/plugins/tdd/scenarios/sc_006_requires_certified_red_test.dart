@@ -5,7 +5,8 @@
 // Three refusal paths:
 //   A4: no red evidence → refused, verify-red remediation named
 //   A5: unknown behavior id → refused, gen remediation, nothing generated
-//   A6: already-green target test → drift reported, exit non-zero
+//   A6: already-green target test → skip transition (issue #694):
+//       outcome=skipped, exit 0, green evidence, no generation
 library;
 
 import 'dart:io';
@@ -96,10 +97,13 @@ void main() {
     expect(log, isEmpty);
   });
 
-  test('A6 — already-green target test → drift reported, exit non-zero, '
-      'no vacuous green', () async {
-    // Seed certified-red but with a GREEN test (someone hand-
-    // implemented the behavior — drift).
+  test('A6 (issue #694) — already-green target test → skip transition: '
+      'exit 0, outcome=skipped, green evidence, no generation', () async {
+    // Seed certified-red but with a GREEN test (the behavior is already
+    // satisfied from a prior run — the issue #694 re-run scenario). The
+    // old contract reported drift and stopped non-zero, deadlocking the
+    // `zfa tdd run` loop; the amended contract skips generation and
+    // re-certifies through the suite guard.
     await fx.seedCertifiedRed(
       id: 'B-001',
       description: 'create entity User with email',
@@ -118,13 +122,20 @@ void main() {
       'B-001',
     ]);
 
-    expect(exitCode, isNot(0));
-    expect(out, contains('drift'));
+    expect(exitCode, 0, reason: out);
     expect(
       out,
-      contains('make: behavior=B-001 outcome=drift feature=${fx.featureName}'),
+      contains(
+        'make: behavior=B-001 outcome=skipped feature=${fx.featureName}',
+      ),
     );
+    // No vacuous generation: the pipeline never ran.
     final log = await fx.readFakeZfaLog();
     expect(log, isEmpty);
+    // The skip is certified with real evidence: a green entry whose
+    // generation block is explicitly empty.
+    final cycleLog = await File(fx.cycleLogPath).readAsString();
+    expect(cycleLog, contains('## Cycle: B-001 (green)'));
+    expect(cycleLog, contains('  (none)'));
   });
 }

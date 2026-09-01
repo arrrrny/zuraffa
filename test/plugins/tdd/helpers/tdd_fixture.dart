@@ -572,6 +572,15 @@ case "$STEP" in
         echo "make: behavior=$ID outcome=green feature=$FEATURE"
         exit 0
         ;;
+      skip)
+        # Issue #694 skip transition: green evidence appended (like `ok`)
+        # but the summary outcome is `skipped` and the process exits 0 —
+        # exactly what the real `zfa tdd make` prints for an
+        # already-green target test.
+        printf '\n## Cycle: %s (green)\n\n- behavior: %s\n- kind: green\n- criterion: FR-003\n- exit: 0\n- at: 2026-08-30T00:00:00.000Z\n' "$ID" "$ID" >> "$CYCLE"
+        echo "make: behavior=$ID outcome=skipped feature=$FEATURE"
+        exit 0
+        ;;
       ok-no-evidence)
         echo "make: behavior=$ID outcome=green feature=$FEATURE"
         exit 0

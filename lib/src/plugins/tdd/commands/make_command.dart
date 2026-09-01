@@ -10,8 +10,13 @@
 ///      Missing precondition → `not-certified-red` non-zero exit
 ///      naming the remediation (US2.AC1).
 ///   3. Re-runs the target test before generating and confirms it
-///      STILL fails (FR-003); an already-green test is reported as
-///      `drift` and stops non-zero (US2.AC3).
+///      STILL fails (FR-003). An already-green test takes the SKIP
+///      transition (issue #694, amending US2.AC3): generation is
+///      skipped entirely, the full suite is re-certified with no NEW
+///      failures, a green evidence entry with an explicitly empty
+///      generation block is appended, and the command exits 0 with
+///      `outcome=skipped` so the run loop proceeds past completed
+///      behaviors instead of deadlocking on re-runs.
 ///   4. Plans the minimal generation through the zuraffa pipeline
 ///      (FR-005): `entity create` / `make` / `build` (never hand-
 ///      writes source, never edits tests — FR-004).
@@ -213,7 +218,13 @@ class MakeCommand extends Command<void> {
 
     // ---------------------------------------------------------------
     // 4. Drift check: re-run target test BEFORE generation (FR-003).
-    //    If it passes, the behavior was hand-implemented — refuse.
+    //    If it passes, the behavior is already satisfied (a prior make
+    //    run or an equivalent implementation): SKIP transition (issue
+    //    #694). Generation never runs; the full suite is re-certified
+    //    with no NEW failures below, a green evidence entry with an
+    //    explicitly empty generation block is appended, and the summary
+    //    reports `outcome=skipped` with exit 0 so `zfa tdd run`
+    //    proceeds past already-completed behaviors instead of stopping.
     // ---------------------------------------------------------------
     final driftRun = await runner.runSingle(
       singleTemplate: singleTemplate,
@@ -221,19 +232,12 @@ class MakeCommand extends Command<void> {
       testName: testName,
       workingDirectory: cwd,
     );
-    if (driftRun.exitCode == 0 && driftRun.startedProcess) {
+    final alreadyGreen = driftRun.exitCode == 0 && driftRun.startedProcess;
+    if (alreadyGreen) {
       print(
-        'zfa tdd make: target test already passes — drift detected. '
-        'Run `zfa tdd verify-red ${record.behaviorId}` to re-certify '
-        'the red, or revert the hand-written implementation.',
+        '   target test already passes — skipping generation (issue #694 '
+        'skip transition); re-certifying with the suite guard',
       );
-      _printSummary(
-        behavior: record.behaviorId,
-        outcome: MakeOutcome.drift,
-        feature: target.featureName,
-      );
-      exitCode = 1;
-      return;
     }
 
     // ---------------------------------------------------------------
@@ -268,131 +272,135 @@ class MakeCommand extends Command<void> {
     }
 
     // ---------------------------------------------------------------
-    // 6. Plan the minimal generation (FR-005).
+    // 6-8. Plan, pipeline, and post-generation re-run — the generation
+    //      path only. An already-green target (issue #694 skip
+    //      transition) never plans or generates; its evidence command is
+    //      the drift re-run itself and its generation block is empty.
     // ---------------------------------------------------------------
-    final summary = BehaviorSummary.fromRecord(
-      record,
-      description: _descriptionFor(record),
-      target: _targetFor(record),
-    );
-    final plan = planner.plan(summary);
-    GenerationPlan effectivePlan;
-    if (plan.isExpressible) {
-      effectivePlan = plan;
-      print('   plan: ${plan.steps.length} step(s)');
-    } else {
-      // -------------------------------------------------------------
-      // Composition fallback (issue #642, spec 052): the planner is pure
-      // and description-keyed, so an acceptance behavior's prose stays
-      // unexpressible to it BY DESIGN — deterministically across run
-      // phases. When the target's test-list row is acceptance-kind and
-      // the feature holds composable green unit subjects, offer the
-      // composition plan (compose → build) that wires the acceptance
-      // subject against them, so a deferred phase-2 acceptance make can
-      // actually flip green. Everything else keeps the honest stop:
-      // unit-kind behaviors and unknown rows (fail-closed), and
-      // acceptance prose with zero composable anchors (FR-009), report
-      // `unexpressible` exactly as before.
-      // -------------------------------------------------------------
-      final composed = await _compositionFallback(
-        cwd: cwd,
-        record: record,
-        featureDir: target.featureDir,
-        featureName: target.featureName,
-        summary: summary,
+    PipelineResult? pipelineResult;
+    var postRun = driftRun;
+    if (!alreadyGreen) {
+      // 6. Plan the minimal generation (FR-005).
+      final summary = BehaviorSummary.fromRecord(
+        record,
+        description: _descriptionFor(record),
+        target: _targetFor(record),
       );
-      if (composed == null) {
-        print(
-          'zfa tdd make: cannot plan a generation for behavior '
-          '"${record.behaviorId}". ${plan.unexpressibleReason}',
+      final plan = planner.plan(summary);
+      GenerationPlan effectivePlan;
+      if (plan.isExpressible) {
+        effectivePlan = plan;
+        print('   plan: ${plan.steps.length} step(s)');
+      } else {
+        // ---------------------------------------------------------
+        // Composition fallback (issue #642, spec 052): the planner is
+        // pure and description-keyed, so an acceptance behavior's
+        // prose stays unexpressible to it BY DESIGN —
+        // deterministically across run phases. When the target's
+        // test-list row is acceptance-kind and the feature holds
+        // composable green unit subjects, offer the composition plan
+        // (compose → build) that wires the acceptance subject against
+        // them, so a deferred phase-2 acceptance make can actually
+        // flip green. Everything else keeps the honest stop:
+        // unit-kind behaviors and unknown rows (fail-closed), and
+        // acceptance prose with zero composable anchors (FR-009),
+        // report `unexpressible` exactly as before.
+        // ---------------------------------------------------------
+        final composed = await _compositionFallback(
+          cwd: cwd,
+          record: record,
+          featureDir: target.featureDir,
+          featureName: target.featureName,
+          summary: summary,
         );
+        if (composed == null) {
+          print(
+            'zfa tdd make: cannot plan a generation for behavior '
+            '"${record.behaviorId}". ${plan.unexpressibleReason}',
+          );
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: MakeOutcome.unexpressible,
+            feature: target.featureName,
+          );
+          exitCode = 1;
+          return;
+        }
+        effectivePlan = composed;
+        print(
+          '   plan: composition fallback — '
+          '${effectivePlan.steps.length} step(s)',
+        );
+      }
+
+      // 7. Execute the plan via the pipeline (FR-006, US1 / U8-U13).
+      try {
+        pipelineResult = await pipelineRunner.runPlan(
+          plan: effectivePlan,
+          workingDirectory: cwd,
+          zfaBinOverride: zfaBinFlag,
+          feature: target.featureName,
+        );
+      } on PipelineResolutionError catch (e) {
+        print('zfa tdd make: ${e.message}');
         _printSummary(
           behavior: record.behaviorId,
-          outcome: MakeOutcome.unexpressible,
+          outcome: MakeOutcome.runnerError,
           feature: target.featureName,
         );
         exitCode = 1;
         return;
       }
-      effectivePlan = composed;
-      print(
-        '   plan: composition fallback — '
-        '${effectivePlan.steps.length} step(s)',
-      );
-    }
 
-    // ---------------------------------------------------------------
-    // 7. Execute the plan via the pipeline (FR-006, US1 / U8-U13).
-    // ---------------------------------------------------------------
-    PipelineResult pipelineResult;
-    try {
-      pipelineResult = await pipelineRunner.runPlan(
-        plan: effectivePlan,
-        workingDirectory: cwd,
-        zfaBinOverride: zfaBinFlag,
-        feature: target.featureName,
-      );
-    } on PipelineResolutionError catch (e) {
-      print('zfa tdd make: ${e.message}');
-      _printSummary(
-        behavior: record.behaviorId,
-        outcome: MakeOutcome.runnerError,
-        feature: target.featureName,
-      );
-      exitCode = 1;
-      return;
-    }
-
-    // Misfire-stop on generation failure (FR-004, US4.AC2).
-    if (!pipelineResult.completed) {
-      final idx = pipelineResult.firstFailureIndex;
-      final failed = idx >= 0 && idx < pipelineResult.steps.length
-          ? pipelineResult.steps[idx]
-          : null;
-      print(
-        'zfa tdd make: generation step failed at index $idx'
-        '${failed != null ? ' (${failed.purpose})' : ''}:',
-      );
-      if (failed != null) {
-        print('   command: `${failed.command}`');
-        print('   exit: ${failed.exitCode}');
-        print('   output (tail):');
-        final tail = failed.output.length > 800
-            ? failed.output.substring(failed.output.length - 800)
-            : failed.output;
-        print(tail.split('\n').take(20).join('\n'));
+      // Misfire-stop on generation failure (FR-004, US4.AC2).
+      if (!pipelineResult.completed) {
+        final idx = pipelineResult.firstFailureIndex;
+        final failed = idx >= 0 && idx < pipelineResult.steps.length
+            ? pipelineResult.steps[idx]
+            : null;
+        print(
+          'zfa tdd make: generation step failed at index $idx'
+          '${failed != null ? ' (${failed.purpose})' : ''}:',
+        );
+        if (failed != null) {
+          print('   command: `${failed.command}`');
+          print('   exit: ${failed.exitCode}');
+          print('   output (tail):');
+          final tail = failed.output.length > 800
+              ? failed.output.substring(failed.output.length - 800)
+              : failed.output;
+          print(tail.split('\n').take(20).join('\n'));
+        }
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.generationError,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
       }
-      _printSummary(
-        behavior: record.behaviorId,
-        outcome: MakeOutcome.generationError,
-        feature: target.featureName,
-      );
-      exitCode = 1;
-      return;
-    }
 
-    // ---------------------------------------------------------------
-    // 8. Target test post-generation (FR-007).
-    // ---------------------------------------------------------------
-    final postRun = await runner.runSingle(
-      singleTemplate: singleTemplate,
-      testPath: testPath,
-      testName: testName,
-      workingDirectory: cwd,
-    );
-    print('   target test exit: ${postRun.exitCode}');
-    if (postRun.exitCode != 0) {
-      print(
-        'zfa tdd make: target test still fails after generation '
-        '(exit ${postRun.exitCode}).',
+      // 8. Target test post-generation (FR-007).
+      postRun = await runner.runSingle(
+        singleTemplate: singleTemplate,
+        testPath: testPath,
+        testName: testName,
+        workingDirectory: cwd,
       );
-      _printSummary(
-        behavior: record.behaviorId,
-        outcome: MakeOutcome.generationError,
-        feature: target.featureName,
-      );
-      exitCode = 1;
-      return;
+      print('   target test exit: ${postRun.exitCode}');
+      if (postRun.exitCode != 0) {
+        print(
+          'zfa tdd make: target test still fails after generation '
+          '(exit ${postRun.exitCode}).',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.generationError,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
     }
 
     // ---------------------------------------------------------------
@@ -442,7 +450,10 @@ class MakeCommand extends Command<void> {
     }
 
     // ---------------------------------------------------------------
-    // 10. Green evidence append (FR-008).
+    // 10. Green evidence append (FR-008). For the issue #694 skip
+    //     transition the generation block is explicitly empty and the
+    //     evidence command is the drift re-run; the suite baseline /
+    //     guard numbers are real either way.
     // ---------------------------------------------------------------
     final log = CycleLog(target.featureDir);
     await log.append(
@@ -455,7 +466,7 @@ class MakeCommand extends Command<void> {
         sourceCriterion: record.sourceCriterion,
         testPath: record.testPath,
         timestamp: DateTime.now().toUtc().toIso8601String(),
-        generationSteps: pipelineResult.steps,
+        generationSteps: pipelineResult?.steps ?? const [],
         suiteBaselineFailures: baseline.failedTests.length,
         suiteGuardFailures: guardSnap.failedTests.length,
         suiteNewFailures: diff.newFailures,
@@ -467,7 +478,7 @@ class MakeCommand extends Command<void> {
     );
     _printSummary(
       behavior: record.behaviorId,
-      outcome: MakeOutcome.green,
+      outcome: alreadyGreen ? MakeOutcome.skipped : MakeOutcome.green,
       feature: target.featureName,
     );
     exitCode = 0;

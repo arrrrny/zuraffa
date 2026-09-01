@@ -221,10 +221,12 @@ void main() {
     });
 
     test(
-      'U25/A6: already-green target test → drift reported, exit non-zero',
+      'U25/A6 (issue #694): already-green target test → skip transition: '
+      'exit 0, outcome=skipped, green evidence appended, no generation',
       () async {
         // Seed the certified-red precondition, but with a GREEN test
-        // (simulating someone having hand-implemented the behavior).
+        // (the behavior is already satisfied from a prior run — the
+        // issue #694 re-run scenario).
         await fx.seedCertifiedRed(
           id: 'B-001',
           description: _targetDescription,
@@ -236,17 +238,28 @@ void main() {
         final out = await runner.runCapturing(
           makeArgs(fx, id: 'B-001', zfaBin: zfaBin),
         );
-        expect(out, contains('drift'));
+        // The skip transition succeeds: the run loop must proceed past
+        // already-green behaviors instead of stopping on drift.
+        expect(exitCode, 0, reason: out);
+        expect(out, contains('skipped'));
         expect(
           out,
           contains(
-            'make: behavior=B-001 outcome=drift feature=${fx.featureName}',
+            'make: behavior=B-001 outcome=skipped feature=${fx.featureName}',
           ),
         );
-        expect(exitCode, isNot(0));
-        // Pipeline NEVER invoked — drift detected before generation.
+        // Generation NEVER invoked — the skip transition happens before
+        // planning.
         final log = await fx.readFakeZfaLog();
         expect(log, isEmpty);
+        // The skip is certified, not silently ignored: a green evidence
+        // entry exists with an explicit `(none)` generation block and a
+        // real suite guard line.
+        final cycleLog = await File(fx.cycleLogPath).readAsString();
+        expect(cycleLog, contains('## Cycle: B-001 (green)'));
+        expect(cycleLog, contains('- generation:'));
+        expect(cycleLog, contains('  (none)'));
+        expect(cycleLog, contains('- suite: baseline='));
       },
     );
   });

@@ -146,6 +146,37 @@ void main() {
     expect(result.success, isFalse);
   });
 
+  test('U14 (issue #694): make succeeds on outcome=skipped — the '
+      'already-green skip transition is a success, not a stop', () async {
+    var spawner = _RecordingSpawner(
+      () => _result(stdout: 'make: behavior=B-001 outcome=skipped feature=f\n'),
+    );
+    var result = await runnerWith(spawner).run(
+      step: 'make',
+      behaviorId: 'B-001',
+      feature: feature,
+      projectRoot: projectRoot,
+    );
+    expect(result.success, isTrue);
+    expect(result.outcome, 'skipped');
+
+    // exit 1 with outcome=skipped stays a failure (the exit code is
+    // part of the contract).
+    spawner = _RecordingSpawner(
+      () => _result(
+        exitCode: 1,
+        stdout: 'make: behavior=B-001 outcome=skipped feature=f\n',
+      ),
+    );
+    result = await runnerWith(spawner).run(
+      step: 'make',
+      behaviorId: 'B-001',
+      feature: feature,
+      projectRoot: projectRoot,
+    );
+    expect(result.success, isFalse);
+  });
+
   test('U14: make succeeds only on exit 0 AND outcome=green', () async {
     var spawner = _RecordingSpawner(
       () => _result(stdout: 'make: behavior=B-001 outcome=green feature=f\n'),
