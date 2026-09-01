@@ -262,6 +262,94 @@ void main() {
         expect(cycleLog, contains('- suite: baseline='));
       },
     );
+
+    test('bug 696: a unit behavior whose description names no entity plans '
+        '`zfa make <slug> --no-entity` and goes green — no "no entity '
+        'source file was found" failure', () async {
+      // Issue #696 repro shape: the behavior id is NOT an entity name
+      // and the description carries no entity either. The planner's
+      // CRUD branch must not hand the bare slugified id to
+      // `zfa make` without --no-entity (the real CLI fail-fasts with
+      // "no entity source file was found", #496).
+      const description = 'service exposes the count of pending items';
+      await fx.seedCertifiedRed(
+        id: 'U-6',
+        description: description,
+        testContent: TddFixture.subjectDrivenTest('U-6', description),
+      );
+      // The fake pipeline's `make u_6 --no-entity` invocation
+      // implements the subject, turning the target test green.
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'make u_6': fx.overwriteSubjectCommands(
+            'U-6',
+            TddFixture.subjectReturning('U-6', 42),
+          ),
+        },
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'U-6', zfaBin: zfaBin),
+      );
+
+      expect(exitCode, 0, reason: out);
+      expect(out, contains('outcome=green'), reason: out);
+      // The make invocation carried --no-entity: the slugified
+      // behavior id never reached the real CLI as a bare entity name.
+      final log = await fx.readFakeZfaLog();
+      final makeCalls = log.where((l) => l.startsWith('make ')).toList();
+      expect(makeCalls, isNotEmpty, reason: log.join('\n'));
+      expect(
+        makeCalls.first,
+        contains('--no-entity'),
+        reason:
+            'the plan must pass --no-entity when no entity name is '
+            'derivable from the behavior (issue #696): ${makeCalls.first}',
+      );
+    });
+
+    test(
+      'bug 696: a unit behavior whose description names the entity plans '
+      '`zfa make <Entity>` with the derived name, not the behavior id',
+      () async {
+        const description = 'create User use case returns the saved entity';
+        await fx.seedCertifiedRed(
+          id: 'U-5',
+          description: description,
+          testContent: TddFixture.subjectDrivenTest('U-5', description),
+        );
+        final zfaBin = await fx.writeFakeZfaBin(
+          logPath: fx.fakeZfaLogPath,
+          sideEffectByArgv: {
+            'make User': fx.overwriteSubjectCommands(
+              'U-5',
+              TddFixture.subjectReturning('U-5', 42),
+            ),
+          },
+        );
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing(
+          makeArgs(fx, id: 'U-5', zfaBin: zfaBin),
+        );
+
+        expect(exitCode, 0, reason: out);
+        final log = await fx.readFakeZfaLog();
+        final makeCalls = log.where((l) => l.startsWith('make ')).toList();
+        expect(makeCalls, isNotEmpty, reason: log.join('\n'));
+        expect(
+          makeCalls.first,
+          contains('make User'),
+          reason:
+              'the entity name must be derived from the behavior '
+              'description, not the behavior id (issue #696): '
+              '${makeCalls.first}',
+        );
+        expect(makeCalls.first, isNot(contains('--no-entity')));
+      },
+    );
   });
 
   group('US3 — regression guard via the full suite', () {

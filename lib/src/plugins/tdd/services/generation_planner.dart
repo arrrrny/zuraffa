@@ -15,7 +15,13 @@
 ///     with the real pipeline), then `zfa build`.
 ///   - **CRUD / use-case behavior** (description contains "crud",
 ///     "use case", "use-case", "repository", or "service"): plan is
-///     `zfa make <slug> --preset=...` then `zfa build`.
+///     `zfa make <Name>` then `zfa build`, where `<Name>` is derived
+///     from the behavior's trace — the explicit target or a
+///     capitalized entity name in the description (bug #696). When the
+///     description names no entity, `<Name>` is the slugified behavior
+///     id and the plan passes `--no-entity` so the real CLI's #496
+///     fail-fast ("no entity source file was found") cannot break the
+///     run.
 ///   - **Function-intent behavior** (bug #657: description carries a
 ///     plain-function verb phrase — render, format, parse, compute,
 ///     convert, return — but matches neither surface above): plan is
@@ -139,14 +145,25 @@ class GenerationPlanner {
     // 2. CRUD / use-case / repository / service behavior: plan is
     //    `make <slug>` (the make preset generates the use-case /
     //    repository scaffolds) then `build`.
+    //
+    //    Bug #696: the behavior ID is NOT an entity name — a slugified
+    //    id (`U5` → `u5`) handed to the real `zfa make` fail-fasts with
+    //    "no entity source file was found" (#496). The entity name is
+    //    therefore derived from the behavior's own trace first — the
+    //    explicit target, then a capitalized name carried by the
+    //    description — and ONLY when the description names no entity at
+    //    all does the plan fall back to the slugified id, passing
+    //    `--no-entity` so the real CLI accepts it.
     if (desc.contains('crud') ||
         desc.contains('use case') ||
         desc.contains('use-case') ||
         desc.contains('usecase') ||
         desc.contains('repository') ||
         desc.contains('service')) {
+      final derivedName =
+          summary.target ?? _extractEntityName(summary.description);
       final slug =
-          summary.target ??
+          derivedName ??
           _slugify(summary.behaviorId) ??
           'feature_${summary.behaviorId}';
       return GenerationPlan(
@@ -155,7 +172,9 @@ class GenerationPlanner {
         sourceCriterion: summary.sourceCriterion,
         steps: [
           GenerationStepSpec(
-            args: ['make', slug],
+            args: derivedName != null
+                ? ['make', slug]
+                : ['make', slug, '--no-entity'],
             purpose:
                 'generate use-case/repository scaffolds for $slug '
                 '(behavior ${summary.behaviorId})',
