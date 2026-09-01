@@ -19,6 +19,13 @@
 /// resolved via `Platform.script` with `Isolate.resolvePackageUri` as
 /// fallback (handles both normal CLI runs and test contexts). A `.dart`
 /// entrypoint is run through `dart`; anything else is executed directly.
+///
+/// Bug #690: when zfa is installed as a system binary (compiled exe or
+/// pub-global snapshot), neither the script path nor the package path
+/// resolves. The chain therefore adds the same system-binary tiers
+/// #665 gave `PipelineRunner`: a concrete PATH lookup of `zfa`, and a
+/// final `Platform.resolvedExecutable` fallback (the running binary
+/// itself, when it is not the Dart VM).
 library;
 
 import 'dart:io';
@@ -83,12 +90,8 @@ class StepRunner {
 
   static const stepOrder = ['gen', 'verify-red', 'make', 'refactor'];
 
-  /// Resolve this package's `bin/zfa.dart` (the entrypoint the driver
-  /// spawns when `--zfa-bin` is absent).
-  ///
-  /// Uses `Platform.script` to derive the entrypoint — the same runtime
-  /// that is currently executing — so this works regardless of whether
-  /// zuraffa is on the package path or running as a compiled snapshot.
+  /// Resolve the zfa entrypoint the driver spawns when `--zfa-bin` is
+  /// absent.
   ///
   /// Resolution order:
   ///   1. `Platform.script` when its basename is `zfa.dart` or `zuraffa.dart`
@@ -98,8 +101,30 @@ class StepRunner {
   ///      of `bin/`.
   ///   3. `Isolate.resolvePackageUri` fallback — handles test contexts where
   ///      `Platform.script` points at the test runner.
-  static Future<String> defaultZfaBin() async {
-    final script = Platform.script;
+  ///   4. The system-installed `zfa` binary, resolved concretely from PATH
+  ///      (bug #690 — the same tier #665 added to `PipelineRunner`).
+  ///   5. `Platform.script` as a usable file (compiled snapshot).
+  ///   6. `Platform.resolvedExecutable` when it is not the Dart VM — the
+  ///      running binary IS the system-installed zfa (bug #690, the final
+  ///      `resolvedExecutable`+`script` fallback #665 introduced).
+  static Future<String> defaultZfaBin() {
+    return resolveEntrypoint(
+      script: Platform.script,
+      resolvedExecutable: Platform.resolvedExecutable,
+      environment: Platform.environment,
+    );
+  }
+
+  /// The [defaultZfaBin] chain over injected inputs — visible for testing
+  /// so every tier (including the bug #690 system-binary fallbacks) can be
+  /// exercised without compiling a real binary.
+  static Future<String> resolveEntrypoint({
+    required Uri script,
+    required String resolvedExecutable,
+    required Map<String, String> environment,
+    Future<Uri?> Function(Uri packageUri)? resolvePackageUri,
+  }) async {
+    final resolve = resolvePackageUri ?? Isolate.resolvePackageUri;
     if (script.scheme == 'file') {
       final scriptPath = script.toFilePath();
       final base = p.basename(scriptPath);
@@ -114,9 +139,7 @@ class StepRunner {
     }
     // Fallback: resolve via the package path (handles test contexts where
     // Platform.script points at the test kernel).
-    final uri = await Isolate.resolvePackageUri(
-      Uri.parse('package:zuraffa/src/zfa_cli.dart'),
-    );
+    final uri = await resolve(Uri.parse('package:zuraffa/src/zfa_cli.dart'));
     if (uri != null) {
       // <pkg>/lib/src/zfa_cli.dart -> <pkg>/bin/zfa.dart
       final bin = p.join(
@@ -126,14 +149,63 @@ class StepRunner {
       );
       if (await File(bin).exists()) return bin;
     }
-    // Fallback: Platform.script (compiled snapshot / global activate).
-    final scriptPath = Platform.script.toFilePath();
-    if (await File(scriptPath).exists()) return scriptPath;
+    // Fallback (bug #690): the system-installed `zfa` binary on PATH —
+    // resolved concretely, no shell, mirroring #665's tier for the
+    // pipeline runner. This is the tier that makes a system-installed
+    // zfa work without --zfa-bin.
+    final onPath = _findExecutableOnPath('zfa', environment['PATH']);
+    if (onPath != null) return onPath;
+    // Fallback: Platform.script as a usable file (compiled snapshot).
+    if (script.scheme == 'file') {
+      final scriptPath = script.toFilePath();
+      if (await File(scriptPath).exists()) return scriptPath;
+    }
+    // Final fallback (bug #690): Platform.resolvedExecutable — the same
+    // resolvedExecutable+script fallback #665 introduced. When this
+    // process runs as a compiled system binary, the executable IS the
+    // zfa entrypoint; use it directly. The Dart VM names are excluded so
+    // a source/test context never spawns the bare VM with step argv.
+    if (!_isDartVmName(p.basename(resolvedExecutable)) &&
+        await File(resolvedExecutable).exists()) {
+      return resolvedExecutable;
+    }
     throw StateError(
       'cannot resolve the zfa entrypoint (package:zuraffa is not on the '
       'package path and Platform.script is not a usable file); '
       'pass --zfa-bin explicitly',
     );
+  }
+
+  /// Whether [basename] is a Dart VM executable rather than a compiled
+  /// zfa binary (bug #690): `dart`, `dartvm`, `dartaotruntime` and their
+  /// `.exe` variants.
+  static bool _isDartVmName(String basename) {
+    const names = {'dart', 'dartvm', 'dartaotruntime'};
+    final lower = basename.toLowerCase();
+    return names.contains(lower) || names.any((name) => lower == '$name.exe');
+  }
+
+  /// Resolve the concrete executable [name] from the [path] environment
+  /// variable without a shell (mirrors `PipelineRunner`'s #665 lookup).
+  /// Returns null when [path] is empty or no executable candidate exists.
+  static String? _findExecutableOnPath(String name, String? path) {
+    if (path == null || path.isEmpty) return null;
+    final extensions = Platform.isWindows
+        ? (Platform.environment['PATHEXT'] ?? '.EXE;.BAT;.CMD')
+              .split(';')
+              .where((extension) => extension.isNotEmpty)
+        : const [''];
+    for (final directory in path.split(Platform.isWindows ? ';' : ':')) {
+      if (directory.isEmpty) continue;
+      for (final extension in extensions) {
+        final candidate = File(p.join(directory, '$name$extension'));
+        if (!candidate.existsSync()) continue;
+        if (Platform.isWindows || (candidate.statSync().mode & 0x49) != 0) {
+          return candidate.path;
+        }
+      }
+    }
+    return null;
   }
 
   /// Run one step for [behaviorId] and map the sub-process result onto the
