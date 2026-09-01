@@ -1,3 +1,16 @@
+## [Unreleased]
+
+### Fixed
+- `zfa tdd refactor` build pass now calls the system `zfa build` directly
+  instead of resolving a project-local `bin/zfa.dart` that `zfa setup` never
+  creates (issue #717). The shared entrypoint chain's package-config tier
+  resolved the running package tree's own `bin/zfa.dart` in source/test/kernel
+  contexts and shadowed the system install on PATH; the refactor build pass
+  suppresses that tier so the effective order is `--zfa-bin` override →
+  running-from-source → system `zfa` on PATH → dart+script fallbacks. Adds an
+  end-to-end regression test asserting the PATH-resolved zfa binary actually
+  executes with `build` in a project without `bin/zfa.dart`.
+
 ## [6.1.0] - 2026-08-28
 
 ### Change
