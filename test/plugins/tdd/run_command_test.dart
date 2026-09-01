@@ -810,4 +810,112 @@ One per functional requirement in `spec.md`.
     // re-attempt.
     expect(fx.stepInvocations().where((l) => l == 'make B-002'), hasLength(2));
   });
+
+  // -------------------------------------------------------------------
+  // Bug #682 — tdd-run-cannot-bootstrap-from-evidence. `_reconcile()`
+  // demoted `done` claims without evidence but never promoted `pending`
+  // behaviors that HAD evidence, so a brownfield project with complete
+  // red+green cycle-log evidence and no (or all-pending) run-state.json
+  // re-drove already-proven behaviors from `gen` instead of skipping
+  // them.
+  // -------------------------------------------------------------------
+  Future<void> seedFullEvidence() async {
+    for (final id in const ['B-001', 'B-002', 'B-003']) {
+      await fx.seedRedEvidence(id);
+      await fx.seedGreenEvidence(id);
+    }
+  }
+
+  test(
+    'bug #682: bootstraps from complete cycle-log evidence when '
+    'run-state.json is absent — proven behaviors are skipped, exit 0',
+    () async {
+      // Brownfield shape from the issue: every behavior already proven
+      // (red+green in cycle-log.md), no run-state.json (RunState.empty()
+      // seeds all pending). Any step the driver would re-spawn must fail,
+      // so a pre-fix run cannot sneak through by regenerating.
+      await seedFullEvidence();
+      await fx.setStepOutcome('gen', 'B-001', 'error');
+
+      final out = await drive();
+
+      expect(exitCode, 0, reason: out);
+      expect(
+        out,
+        contains(
+          'run: feature=$feature result=complete pending=0 red=0 green=0 '
+          'done=3',
+        ),
+        reason: out,
+      );
+      expect(out, contains('3 already done — skipping'), reason: out);
+      expect(
+        fx.stepInvocations(),
+        isEmpty,
+        reason: 'proven behaviors must not be re-driven from gen',
+      );
+      // The bootstrapped state is persisted for future runs.
+      final state = await readState();
+      expect(
+        (state['behavior_states'] as Map<String, dynamic>)['B-001'],
+        'done',
+      );
+    },
+  );
+
+  test('bug #682: promotes an all-pending run-state.json when full evidence '
+      'exists (the literal issue title scenario)', () async {
+    await seedFullEvidence();
+    await fx.seedRunState(
+      states: {'B-001': 'pending', 'B-002': 'pending', 'B-003': 'pending'},
+    );
+    await fx.setStepOutcome('gen', 'B-001', 'error');
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 green=0 '
+        'done=3',
+      ),
+      reason: out,
+    );
+    expect(fx.stepInvocations(), isEmpty, reason: out);
+  });
+
+  test(
+    'bug #682: promotion is evidence-graded — red+green to done, red-only '
+    'to red (re-driven from make, never gen), no evidence stays pending',
+    () async {
+      // B-001: full evidence -> done (skipped).
+      await fx.seedRedEvidence('B-001');
+      await fx.seedGreenEvidence('B-001');
+      // B-002: red evidence only -> red (resume at make).
+      await fx.seedRedEvidence('B-002');
+      // B-003: no evidence -> pending (drives gen, which fails).
+      await fx.setStepOutcome('gen', 'B-003', 'error');
+
+      final out = await drive();
+
+      expect(exitCode, isNot(0), reason: out);
+      expect(
+        out,
+        contains(
+          'run: feature=$feature result=stopped pending=1 red=0 green=0 '
+          'done=2 '
+          'stopped_at=B-003:gen',
+        ),
+        reason: out,
+      );
+      // B-001 was never re-driven; B-002 resumed at make (its red evidence
+      // was honored), not at gen.
+      expect(fx.stepInvocations(), [
+        'make B-002',
+        'refactor B-002',
+        'gen B-003',
+      ], reason: out);
+    },
+  );
 }

@@ -405,9 +405,18 @@ class RunCommand extends Command<void> {
   // -------------------------------------------------------------------
 
   /// Merge loaded state with the current test list: new rows enter as
-  /// PENDING, removed rows are retained (dropped), and a DONE claim
-  /// without both red and green evidence demotes to the highest
-  /// evidence-backed state. In-flight markers survive the merge.
+  /// PENDING, removed rows are retained (dropped), and claims are
+  /// reconciled with evidence in BOTH directions (FR-003, bug #682):
+  /// a DONE claim without both red and green evidence demotes to the
+  /// highest evidence-backed state, and a PENDING behavior with existing
+  /// evidence is promoted to that state — so a brownfield project with
+  /// complete `tdd/cycle-log.md` evidence but no (or all-pending)
+  /// `run-state.json` bootstraps from the evidence instead of
+  /// regenerating already-proven behaviors. Promotion skips a behavior
+  /// pinned by a live in-flight marker: the crashed run's step must
+  /// re-enter and re-certify there (U23/A5 resume contract), and the
+  /// re-run re-records the evidence honestly. In-flight markers survive
+  /// the merge.
   RunState _reconcile(
     RunState state,
     List<BehaviorRow> rows,
@@ -418,7 +427,11 @@ class RunCommand extends Command<void> {
     for (final row in rows) {
       final claimed = states[row.id] ?? BehaviorState.pending;
       var effective = claimed;
-      if (claimed == BehaviorState.done) {
+      final hasLiveMarker =
+          state.inFlightBehaviorId == row.id &&
+          state.inFlightStep != null &&
+          state.inFlightStep!.isNotEmpty;
+      if (effective == BehaviorState.done) {
         final hasRed = red.contains(row.id);
         final hasGreen = green.contains(row.id);
         if (hasRed && hasGreen) {
@@ -429,6 +442,19 @@ class RunCommand extends Command<void> {
           effective = BehaviorState.red;
         } else {
           effective = BehaviorState.pending;
+        }
+      } else if (effective == BehaviorState.pending && !hasLiveMarker) {
+        // Bug #682: promote a pending behavior to its evidence-backed
+        // state — unless a live in-flight marker pins it to a crashed
+        // step (A5): that step re-runs first and re-certifies.
+        final hasRed = red.contains(row.id);
+        final hasGreen = green.contains(row.id);
+        if (hasRed && hasGreen) {
+          effective = BehaviorState.done;
+        } else if (hasGreen) {
+          effective = BehaviorState.green;
+        } else if (hasRed) {
+          effective = BehaviorState.red;
         }
       }
       states[row.id] = effective;

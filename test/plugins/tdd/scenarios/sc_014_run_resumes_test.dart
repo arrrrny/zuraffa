@@ -155,7 +155,11 @@ void main() {
     expect(exitCode, 0, reason: out2);
     expect(fx.stepInvocations().first, 'verify-red B-002');
     expect(fx.stepInvocations().where((l) => l == 'gen B-002'), isEmpty);
-    expect(fx.stepInvocations(), hasLength(7));
+    // B-002 is re-driven from its in-flight step (3 invocations). B-003
+    // is NOT: case 1 already drove it to green, so its cycle-log evidence
+    // is complete and bug #682's promotion marks it done — re-driving a
+    // proven behavior from gen is exactly what #682 forbids.
+    expect(fx.stepInvocations(), hasLength(3));
   });
 
   test('bug 625: resume across the phase boundary — acceptance sits RED while '
