@@ -97,3 +97,16 @@ Sample size: 1 of 1 changed behaviors — exhaustive for this single-declaration
 - No mutation tool run (profile has none); a single deliberate mutant was used.
 - The rest of the TDD plugin's 20+ services were not re-audited — out of scope
   for a single-declaration fix.
+
+## Shared verify (branch-level, combined stack 695→694→696)
+
+- `dart analyze` (whole repo) → No issues found
+- `tools/run_tests_chunked.sh` (fast suite, chunked) → SCRIPT_EXIT=0, 66 chunks, **2509 tests, 0 failures** (`OK: all chunks passed.`)
+- `dart format .` (Dart 3.13.3) → 0 files changed after the `chore: dart format 3.13.3` commit; `git diff --stat` → empty (zero remaining formatting diffs)
+- 2 failures in `make_command_test.dart` (planner-message wording) were verified PRE-EXISTING on the base commit via `git stash` and are out of scope; they are counted in the per-file runs above, not in the chunked fast suite (both are slow-tier tests)
+
+## Shared verify (branch-level)
+
+- `dart analyze` (whole repo) → No issues found
+- `tools/run_tests_chunked.sh` (fast suite, chunked) → SCRIPT_EXIT=0, 66 chunks, **2509 tests, 0 failures** (`OK: all chunks passed.`)
+- `dart format .` (Dart 3.13.3) → 0 files changed after the `chore: dart format 3.13.3` commit; `git diff --stat` → empty (zero remaining formatting diffs)
