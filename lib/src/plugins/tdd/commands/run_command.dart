@@ -80,6 +80,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/cycle_evidence.dart';
+import '../services/cycle_log.dart';
 import '../services/run_state_store.dart';
 import '../services/step_runner.dart';
 import '../services/test_list_reader.dart';
@@ -644,6 +645,39 @@ class RunCommand extends Command<void> {
           await store.save(updated, activeBehaviorIds: activeIds);
           print('[run] ${row.id} make -> deferred (phase 2)');
           return (state: updated, stop: null);
+        }
+        // Bug #693: `drift` — make's pre-generation check that the target
+        // test ALREADY passes (the outcome #657 introduced when the stub
+        // is enough) — is a success, not a generation error. Map
+        // drift -> green: record the green evidence make's drift path
+        // never writes (its contract is "non-zero exit, no green entry"),
+        // advance the behavior to GREEN, and let refactor proceed as
+        // usual instead of hard-stopping the run with the behavior
+        // pending.
+        if (step == 'make' && result.outcome == 'drift') {
+          if (!await _hasEvidence(evidence.greenEvidence, row.id)) {
+            await CycleLog(p.join(projectRoot, 'specs', feature)).append(
+              CycleLogEntry(
+                behaviorId: row.id,
+                kind: CycleEntryKind.green,
+                runnerCommand: 'zfa tdd make ${row.id} (drift)',
+                exitCode: result.exitCode,
+                capturedOutput:
+                    'drift — the target test already passes; green '
+                    'evidence recorded by the run driver (bug #693).\n'
+                    '${result.output.split('\n').take(2).join('\n')}',
+                sourceCriterion: row.traces,
+                testPath: 'test/',
+                timestamp: DateTime.now().toUtc().toIso8601String(),
+              ),
+            );
+          }
+          final next = _maxState(state, _targetStateFor(step));
+          updated = updated.advance(row.id, next);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          state = next;
+          print('[run] ${row.id} make -> green (drift)$progressSuffix');
+          continue;
         }
         // Honest stop (FR-007): leave the behavior at its last completed
         // state, name what failed, never start later behaviors. A

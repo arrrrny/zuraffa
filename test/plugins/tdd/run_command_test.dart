@@ -364,6 +364,77 @@ void main() {
     expect(exitCode, isNot(0));
   });
 
+  test(
+    'bug #693: make reporting drift maps to green — the behavior proceeds '
+    'instead of a generation-error stop',
+    () async {
+      // verify-red certifies red (fake writes the red evidence); make
+      // reports `drift` (the target test already passes — the outcome
+      // #657 introduced), which the pre-#693 driver treated as a step
+      // failure and hard-stopped with the behavior pending.
+      await fx.setStepOutcome('make', 'B-001', 'drift');
+
+      final out = await drive();
+
+      // The run no longer stops at B-001:make.
+      expect(exitCode, 0, reason: out);
+      expect(
+        out,
+        isNot(contains('step failed — behavior=B-001 step=make')),
+        reason: out,
+      );
+      expect(out, contains('[run] B-001 make -> drift'));
+      expect(out, contains('[run] B-001 make -> green (drift)'));
+      // B-001 proceeds through refactor and later behaviors still run.
+      expect(fx.stepInvocations(), [
+        'gen B-001',
+        'verify-red B-001',
+        'make B-001',
+        'refactor B-001',
+        'gen B-002',
+        'verify-red B-002',
+        'make B-002',
+        'refactor B-002',
+        'gen B-003',
+        'verify-red B-003',
+        'make B-003',
+        'refactor B-003',
+      ]);
+      // B-001 ends DONE with the evidence refactor's contract requires:
+      // the driver records the green evidence make's drift path never
+      // writes (its contract is "non-zero exit, no green entry").
+      final state = await readState();
+      expect(
+        (state['behavior_states'] as Map<String, dynamic>)['B-001'],
+        'done',
+      );
+      final cycleLog = await File(fx.cycleLogPath).readAsString();
+      expect(cycleLog, contains('- behavior: B-001\n- kind: green'));
+      // And the run completes across the whole feature.
+      expect(
+        out,
+        contains('run: feature=$feature result=complete pending=0 red=0 '
+            'green=0 done=3'),
+        reason: out,
+      );
+    },
+  );
+
+  test(
+    'bug #693: an existing green evidence entry is not duplicated when '
+    'make reports drift',
+    () async {
+      await fx.seedGreenEvidence('B-001');
+      await fx.setStepOutcome('make', 'B-001', 'drift');
+
+      final out = await drive();
+
+      expect(exitCode, 0, reason: out);
+      final cycleLog = await File(fx.cycleLogPath).readAsString();
+      expect('## Cycle: B-001 (green)'.allMatches(cycleLog).length, 1);
+    },
+  );
+
   test('FR-008: the driver never modifies test/ or lib/ itself', () async {
     // Give the fixture a test/ and lib/ tree the fake steps never touch.
     await Directory(p.join(fx.root.path, 'lib')).create(recursive: true);
