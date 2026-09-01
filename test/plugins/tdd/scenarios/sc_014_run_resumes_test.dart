@@ -69,6 +69,7 @@ void main() {
   test(
     'A4: resume with B-002 RED skips DONE B-001 and re-enters at make',
     () async {
+      await fx.registerBehavior(id: 'B-002', description: 'second behavior');
       await fx.seedRedEvidence('B-001');
       await fx.seedGreenEvidence('B-001');
       await fx.seedRedEvidence('B-002');
@@ -162,7 +163,10 @@ void main() {
       'the unit completes first, then acceptance flips green', () async {
     // Interrupted mid-phase-1: A1 (acceptance) certified red with its
     // make deferred; U1 (unit) certified red, its make never ran. No
-    // in-flight marker — the previous run stopped honestly.
+    // in-flight marker — the previous run stopped honestly. The gen
+    // artifacts are registered so the red claims keep their
+    // state-implied make re-entries (bug #720 demotes artifact-less
+    // claims to gen instead).
     await fx.seedTestList([
       (
         id: 'A1',
@@ -179,6 +183,15 @@ void main() {
         kind: 'unit',
       ),
     ]);
+    await fx.registerBehavior(
+      id: 'A1',
+      description: 'the entity exists and is buildable.',
+      writeTestFile: false,
+    );
+    await fx.registerBehavior(
+      id: 'U1',
+      description: 'unit behavior backing A1',
+    );
     await fx.seedRedEvidence('A1');
     await fx.seedRedEvidence('U1');
     await fx.seedRunState(states: {'A1': 'red', 'U1': 'red'});
