@@ -97,7 +97,12 @@ class InitCommand extends Command<void> {
 
     final appName = _deriveAppName(cwd);
     try {
-      final written = await const SmokeTestWriter().write(cwd, appName);
+      // Issue #664: gate the smoke-test flavor behind the project flavor —
+      // a pure Dart package must not receive `package:flutter_test` imports
+      // it cannot resolve.
+      final written = await SmokeTestWriter(
+        isFlutter: isFlutter,
+      ).write(cwd, appName);
       stdout.writeln(
         written == null
             ? '   ✓ test/bootstrap_smoke_test.dart (already present)'
