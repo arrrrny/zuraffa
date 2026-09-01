@@ -372,6 +372,7 @@ void main() {
     // `unexpected-green` (certified=false). The pre-#691 driver treated
     // that as a step failure and hard-stopped the whole feature.
     await fx.setStepOutcome('verify-red', 'B-001', 'unexpected-green');
+    await fx.setStepOutcome('make', 'B-001', 'skip');
     await fx.seedRedEvidence('B-001');
     await fx.seedGreenEvidence('B-001');
 

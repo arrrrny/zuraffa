@@ -667,9 +667,10 @@ class RunCommand extends Command<void> {
         // Bug #691: `unexpected-green` — verify-red on a target test that
         // ALREADY passes — means the behavior is complete from prior
         // work, not a failure. Skip to make instead of stopping the run:
-        // the window continues with make, whose drift check re-verifies
-        // the green (a `drift` outcome is make's honest "already green"
-        // report), and refactor proceeds as usual.
+        // the window continues with make, whose pre-generation check
+        // re-verifies the green (make's `skipped` outcome — issue #694
+        // skip transition — is the honest "already green" report), and
+        // refactor proceeds as usual.
         if (step == 'verify-red' && result.outcome == 'unexpected-green') {
           updated = updated.advance(row.id, state);
           await store.save(updated, activeBehaviorIds: activeIds);
