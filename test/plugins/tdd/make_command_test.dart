@@ -352,6 +352,68 @@ void main() {
     );
   });
 
+  group('bug 718 — unit behaviors route to the plain-function generator', () {
+    test('a unit behavior (U5) with CRUD-keyword prose goes green through '
+        '`tdd func` — the make step never dispatches `zfa make u5` '
+        '(issue #718 repro)', () async {
+      // Issue #718 repro shape: the run loop stops at U5:make with
+      // outcome=generation-error because the make step dispatches
+      // `zfa make u5` (the slugified behavior id as an entity name).
+      // A unit behavior's artifacts are a plain no-arg subject function
+      // and its test (spec 044), so the only generator that can flip it
+      // green is `tdd func` (the #657/#660 plain-function surface).
+      const description = 'service exposes the count of pending items';
+      await fx.seedCertifiedRed(
+        id: 'U5',
+        description: description,
+        testContent: TddFixture.subjectDrivenTest('U5', description),
+      );
+      // The fake pipeline turns the test green ONLY through the func
+      // step — a `make u5` dispatch leaves the stub returning 0 and the
+      // target test red (the pre-fix generation-error).
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'tdd func': fx.overwriteSubjectCommands(
+            'U5',
+            TddFixture.subjectReturning('U5', 42),
+          ),
+        },
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'U5', zfaBin: zfaBin),
+      );
+
+      // Pre-fix this was exit 1 with outcome=generation-error ("target
+      // test still fails after generation").
+      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(
+        out,
+        contains('make: behavior=U5 outcome=green feature=${fx.featureName}'),
+        reason: 'out:\n$out',
+      );
+      // Dispatch evidence: the func step ran, and no `make <slug>`
+      // invocation ever happened.
+      final log = await fx.readFakeZfaLog();
+      expect(
+        log.where((l) => l.contains('tdd func')),
+        isNotEmpty,
+        reason:
+            'the unit behavior must route to the plain-function '
+            'generator: ${log.join('\n')}',
+      );
+      expect(
+        log.where((l) => l.startsWith('make ')),
+        isEmpty,
+        reason:
+            'the behavior id must never reach `zfa make` as an '
+            'entity name (issue #718): ${log.join('\n')}',
+      );
+    });
+  });
+
   group('US3 — regression guard via the full suite', () {
     test('U15/U17/A7: clean guard → green entry records both target-test '
         'pass and full-suite pass', () async {
