@@ -114,8 +114,12 @@ void main() {
         ),
       );
       expect(plan.isExpressible, isTrue);
+      // Issue #696: the description names no capitalized entity, so the
+      // slugified behavior id is the only name left — and it MUST carry
+      // --no-entity (the real CLI's #496 fail-fast rejects a bare name
+      // with no entity source file).
       expect(plan.steps.map((s) => s.args).toList(), [
-        ['make', 'b_002'],
+        ['make', 'b_002', '--no-entity'],
         ['build'],
       ]);
       expect(
