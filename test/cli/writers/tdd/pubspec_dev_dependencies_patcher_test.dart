@@ -26,7 +26,7 @@ void main() {
     await file.writeAsString(content);
   }
 
-  test('adds all six missing dev_dependencies', () async {
+  test('adds all seven missing dev_dependencies', () async {
     await writePubspec('''
 name: myapp
 environment:
@@ -38,8 +38,9 @@ dev_dependencies: {}
 ''');
     final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
     final added = await patcher.ensure(tmpDir.path);
-    expect(added.length, 6);
+    expect(added.length, 7);
     expect(added.any((e) => e.startsWith('flutter_test')), isTrue);
+    expect(added.any((e) => e.startsWith('test:')), isTrue);
     expect(added.any((e) => e.startsWith('mocktail')), isTrue);
     expect(added.any((e) => e.startsWith('build_runner')), isTrue);
     expect(added.any((e) => e.startsWith('json_serializable')), isTrue);
@@ -52,6 +53,7 @@ dev_dependencies: {}
       devDeps.keys,
       containsAll([
         'flutter_test',
+        'test',
         'mocktail',
         'build_runner',
         'json_serializable',
@@ -76,7 +78,7 @@ dev_dependencies:
 ''');
     final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
     final added = await patcher.ensure(tmpDir.path);
-    expect(added.length, 4);
+    expect(added.length, 5);
     expect(added.any((e) => e.startsWith('flutter_test')), isFalse);
     expect(added.any((e) => e.startsWith('mocktail')), isFalse);
     final raw = await File(p.join(tmpDir.path, 'pubspec.yaml')).readAsString();
@@ -110,7 +112,7 @@ dependencies: {}
 ''');
     final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
     final added = await patcher.ensure(tmpDir.path);
-    expect(added.length, 6);
+    expect(added.length, 7);
     final raw = await File(p.join(tmpDir.path, 'pubspec.yaml')).readAsString();
     expect(raw, contains('dev_dependencies:'));
     expect(raw, contains('flutter_test:'));
@@ -128,25 +130,85 @@ dev_dependencies: {lints: ^5.0.0}
     expect(() => patcher.ensure(tmpDir.path), throwsA(isA<UnsupportedError>()));
   });
 
+  // Bug #716: `zfa setup` (and `zfa tdd init`) emit tests that import
+  // `package:test/test.dart` (the tdd behavior/smoke templates), but the
+  // Flutter dev_dependencies set omitted the `test` package — generated
+  // Flutter projects could not compile their tests out of the box.
+  // `flutter_test` does NOT provide `package:test/test.dart` (it wraps
+  // test_api/matcher, not the `test` runner package), so the `test` package
+  // must be present for Flutter projects too.
+  group('bug #716 — Flutter projects get the test package', () {
+    test('flutterDevDependencies includes test ^1.0.0', () {
+      expect(
+        PubspecDevDependenciesPatcher.flutterDevDependencies['test'],
+        '^1.0.0',
+        reason:
+            'generated tests import package:test/test.dart, which '
+            'flutter_test does not provide',
+      );
+    });
+
+    test('flutter-mode ensure adds test to a fresh Flutter pubspec', () async {
+      await writePubspec('''
+name: myapp
+environment:
+  sdk: ^3.11.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+''');
+      final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
+      final added = await patcher.ensure(tmpDir.path);
+      expect(added.any((e) => e.startsWith('test')), isTrue);
+      final raw = await File(
+        p.join(tmpDir.path, 'pubspec.yaml'),
+      ).readAsString();
+      final doc = loadYaml(raw) as YamlMap;
+      final devDeps = doc['dev_dependencies'] as YamlMap;
+      expect(devDeps['test'], '^1.0.0');
+      // flutter_test is preserved alongside test.
+      expect(devDeps['flutter_test'], isA<YamlMap>());
+    });
+
+    test(
+      'flutter-mode ensure does not duplicate an existing test entry',
+      () async {
+        await writePubspec('''
+name: myapp
+environment:
+  sdk: ^3.11.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  test: ^1.0.0
+''');
+        final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
+        final added = await patcher.ensure(tmpDir.path);
+        expect(added.any((e) => e.startsWith('test')), isFalse);
+        final raw = await File(
+          p.join(tmpDir.path, 'pubspec.yaml'),
+        ).readAsString();
+        final testCount = RegExp(
+          r'^\s*test:',
+          multiLine: true,
+        ).allMatches(raw).length;
+        expect(testCount, 1, reason: 'test should appear exactly once');
+      },
+    );
+  });
+
   // Bug #688: `zfa tdd gen` generates tests importing
   // `package:test/test.dart`, but the `test` package was missing from the
   // pure-Dart dev_dependencies set — generated tests were uncompilable out
   // of the box. These tests pin the Dart-mode contract.
   group('bug #688 — pure Dart projects get the test package', () {
-    test('dartDevDependencies includes test ^1.25.0 and flutterDevDependencies '
-        'does not', () {
+    test('dartDevDependencies includes test ^1.25.0', () {
       expect(
         PubspecDevDependenciesPatcher.dartDevDependencies['test'],
         '^1.25.0',
-      );
-      expect(
-        PubspecDevDependenciesPatcher.flutterDevDependencies.containsKey(
-          'test',
-        ),
-        isFalse,
-        reason:
-            'Flutter projects use flutter_test (which re-exports test); '
-            'adding test again would risk version conflicts',
       );
       expect(
         PubspecDevDependenciesPatcher.flutterDevDependencies['flutter_test'],

@@ -11,8 +11,14 @@ class PubspecDevDependenciesPatcher {
 
   final bool isFlutter;
 
+  // Bug #716: the generated test templates (tdd behavior tests, package
+  // scaffold tests) import `package:test/test.dart`, which `flutter_test`
+  // does NOT provide — `flutter_test` wraps test_api/matcher, not the
+  // `test` runner package. Without an explicit `test` dependency, fresh
+  // Flutter projects could not compile their generated tests.
   static const Map<String, String> flutterDevDependencies = {
     'flutter_test': 'sdk: flutter',
+    'test': '^1.0.0',
     'mocktail': '^1.0.0',
     'build_runner': '^2.4.0',
     'json_serializable': '^6.7.0',
