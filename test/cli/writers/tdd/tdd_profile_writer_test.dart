@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/writers/tdd/tdd_profile_writer.dart';
+import 'package:zuraffa/src/plugins/tdd/models/tdd_profile.dart';
 
 void main() {
   late Directory tmpDir;
@@ -79,4 +80,78 @@ void main() {
       expect(second, isNull);
     },
   );
+
+  // ------------------------------------------------------------------
+  // Issue #680 — the overwrite guard is a RUNNER-FAMILY check, not an
+  // exact-content byte comparison. A valid non-Flutter (Dart) profile is
+  // accepted as-is when targeting Dart; the only hard conflict is a
+  // Flutter-vs-Dart flavor mismatch — in BOTH directions.
+  // ------------------------------------------------------------------
+  group('issue #680 — runner-family guard', () {
+    void seedProfile(String content) {
+      final dir = Directory(p.join(tmpDir.path, '.specify/memory'))
+        ..createSync(recursive: true);
+      File(p.join(dir.path, 'tdd-profile.md')).writeAsStringSync(content);
+    }
+
+    test('accepts a valid custom Dart profile (different single:) when '
+        'targeting Dart — no StateError, no overwrite (issue repro)', () async {
+      seedProfile('''# TDD Profile — enriched by ecosystem detector
+
+```yaml
+runner: "package:test (^1.24.0)"
+single: 'dart test -n "{name}"'
+suite: 'dart test'
+```
+''');
+      final writer = const TddProfileWriter(profile: TddProfile.dart);
+      final result = await writer.write(tmpDir.path);
+      expect(result, isNull, reason: 'accepted as-is (no-op)');
+      final file = File(p.join(tmpDir.path, '.specify/memory/tdd-profile.md'));
+      // The enriched content must survive untouched — overwriting it
+      // with the preset template would lose information (issue #680).
+      expect(file.readAsStringSync(), contains('package:test (^1.24.0)'));
+      expect(file.readAsStringSync(), contains("dart test -n"));
+    });
+
+    test('still throws when a Flutter-runner profile exists but a Dart '
+        'profile is being written (flavor conflict preserved)', () async {
+      seedProfile('# TDD Profile\n\n```yaml\nrunner: flutter_test\n```\n');
+      final writer = const TddProfileWriter(profile: TddProfile.dart);
+      await expectLater(writer.write(tmpDir.path), throwsA(isA<StateError>()));
+    });
+
+    test('throws in the reverse direction too: a Dart-runner profile exists '
+        'but a Flutter profile is being written (documented "or vice '
+        'versa" contract)', () async {
+      seedProfile('# TDD Profile\n\n```yaml\nrunner: dart\n```\n');
+      final writer = const TddProfileWriter(profile: TddProfile.flutter);
+      await expectLater(
+        writer.write(tmpDir.path),
+        throwsA(isA<StateError>()),
+        reason:
+            'silently keeping a Dart profile in a Flutter project '
+            'leaves the baseline running `dart test` against Flutter '
+            'tests — the cross-family guard must fire here too',
+      );
+    });
+
+    test('runner family check is case-insensitive: "runner: Flutter_test" '
+        'under a Dart-targeting write is a flavor conflict, not a valid '
+        'Dart runner', () async {
+      seedProfile('# TDD Profile\n\n```yaml\nrunner: Flutter_test\n```\n');
+      final writer = const TddProfileWriter(profile: TddProfile.dart);
+      await expectLater(writer.write(tmpDir.path), throwsA(isA<StateError>()));
+    });
+
+    test('an existing profile with no parseable runner still falls back to '
+        'the exact-content guard (untrusted flavor → reject/force)', () async {
+      seedProfile('# Different content, no runner line\n');
+      final writer = const TddProfileWriter(profile: TddProfile.dart);
+      await expectLater(writer.write(tmpDir.path), throwsA(isA<StateError>()));
+      // --force overwrites it (unchanged behavior).
+      final forced = await writer.write(tmpDir.path, force: true);
+      expect(forced, isNotNull);
+    });
+  });
 }
