@@ -127,4 +127,80 @@ dev_dependencies: {lints: ^5.0.0}
     final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
     expect(() => patcher.ensure(tmpDir.path), throwsA(isA<UnsupportedError>()));
   });
+
+  // Bug #688: generated TDD tests import `package:test/test.dart`, but the
+  // pure-Dart dev_dependencies map was missing the `test` package, so the
+  // generated tests were uncompilable out of the box
+  // ("Could not find package `test`").
+  group('bug #688 — pure Dart projects get package:test', () {
+    test(
+      'dartDevDependencies includes test ^1.25.0 and ensures it lands',
+      () async {
+        await writePubspec('''
+name: myapp
+environment:
+  sdk: ^3.11.0
+
+dependencies: {}
+
+dev_dependencies: {}
+''');
+        const patcher = PubspecDevDependenciesPatcher(isFlutter: false);
+        // The map itself carries the fix.
+        expect(
+          PubspecDevDependenciesPatcher.dartDevDependencies['test'],
+          '^1.25.0',
+        );
+        final added = await patcher.ensure(tmpDir.path);
+        expect(added.any((e) => e.startsWith('test:')), isTrue);
+        final raw = await File(
+          p.join(tmpDir.path, 'pubspec.yaml'),
+        ).readAsString();
+        expect(raw, contains('test: ^1.25.0'));
+      },
+    );
+
+    test(
+      'flutterDevDependencies does NOT include test (flutter_test only)',
+      () async {
+        expect(
+          PubspecDevDependenciesPatcher.flutterDevDependencies.containsKey(
+            'test',
+          ),
+          isFalse,
+          reason:
+              'Flutter projects use flutter_test; adding test would be '
+              'redundant and could cause version conflicts',
+        );
+        expect(
+          PubspecDevDependenciesPatcher.flutterDevDependencies.containsKey(
+            'flutter_test',
+          ),
+          isTrue,
+        );
+      },
+    );
+
+    test('dry-run for a Dart project reports test as missing', () async {
+      await writePubspec('''
+name: myapp
+environment:
+  sdk: ^3.11.0
+
+dependencies: {}
+
+dev_dependencies:
+  mocktail: ^1.0.0
+''');
+      const patcher = PubspecDevDependenciesPatcher(isFlutter: false);
+      final missing = await patcher.ensure(tmpDir.path, dryRun: true);
+      // Dry-run reports package NAMES (unlike ensure()'s rendered entries).
+      expect(missing, contains('test'));
+      // Dry-run never touched the file: test still absent.
+      final raw = await File(
+        p.join(tmpDir.path, 'pubspec.yaml'),
+      ).readAsString();
+      expect(raw.contains('test:'), isFalse);
+    });
+  });
 }
