@@ -26,9 +26,10 @@ void main() {
     await file.writeAsString(content);
   }
 
-  test('adds all seven missing dev_dependencies (bug #716 added `test`)',
-      () async {
-    await writePubspec('''
+  test(
+    'adds all seven missing dev_dependencies (bug #716 added `test`)',
+    () async {
+      await writePubspec('''
 name: myapp
 environment:
   sdk: ^3.11.0
@@ -37,32 +38,35 @@ dependencies: {}
 
 dev_dependencies: {}
 ''');
-    final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
-    final added = await patcher.ensure(tmpDir.path);
-    expect(added.length, 7);
-    expect(added.any((e) => e.startsWith('flutter_test')), isTrue);
-    expect(added.any((e) => e.startsWith('test')), isTrue);
-    expect(added.any((e) => e.startsWith('mocktail')), isTrue);
-    expect(added.any((e) => e.startsWith('build_runner')), isTrue);
-    expect(added.any((e) => e.startsWith('json_serializable')), isTrue);
-    expect(added.any((e) => e.startsWith('coverage')), isTrue);
-    expect(added.any((e) => e.startsWith('mutation_test')), isTrue);
-    final raw = await File(p.join(tmpDir.path, 'pubspec.yaml')).readAsString();
-    final doc = loadYaml(raw) as YamlMap;
-    final devDeps = doc['dev_dependencies'] as YamlMap;
-    expect(
-      devDeps.keys,
-      containsAll([
-        'flutter_test',
-        'test',
-        'mocktail',
-        'build_runner',
-        'json_serializable',
-        'coverage',
-        'mutation_test',
-      ]),
-    );
-  });
+      final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
+      final added = await patcher.ensure(tmpDir.path);
+      expect(added.length, 7);
+      expect(added.any((e) => e.startsWith('flutter_test')), isTrue);
+      expect(added.any((e) => e.startsWith('test')), isTrue);
+      expect(added.any((e) => e.startsWith('mocktail')), isTrue);
+      expect(added.any((e) => e.startsWith('build_runner')), isTrue);
+      expect(added.any((e) => e.startsWith('json_serializable')), isTrue);
+      expect(added.any((e) => e.startsWith('coverage')), isTrue);
+      expect(added.any((e) => e.startsWith('mutation_test')), isTrue);
+      final raw = await File(
+        p.join(tmpDir.path, 'pubspec.yaml'),
+      ).readAsString();
+      final doc = loadYaml(raw) as YamlMap;
+      final devDeps = doc['dev_dependencies'] as YamlMap;
+      expect(
+        devDeps.keys,
+        containsAll([
+          'flutter_test',
+          'test',
+          'mocktail',
+          'build_runner',
+          'json_serializable',
+          'coverage',
+          'mutation_test',
+        ]),
+      );
+    },
+  );
 
   test('does not duplicate existing entries', () async {
     await writePubspec('''
@@ -142,30 +146,36 @@ dev_dependencies: {lints: ^5.0.0}
   // Flutter template must also carry `test` — otherwise fresh Flutter
   // projects bootstrapped by `zfa setup` cannot compile their generated
   // tests either.
-  group('bug #688/#716 — both Dart and Flutter templates include the test package', () {
-    test('dartDevDependencies includes test ^1.25.0', () {
-      expect(
-        PubspecDevDependenciesPatcher.dartDevDependencies['test'],
-        '^1.25.0',
-      );
-    });
+  group(
+    'bug #688/#716 — both Dart and Flutter templates include the test package',
+    () {
+      test('dartDevDependencies includes test ^1.25.0', () {
+        expect(
+          PubspecDevDependenciesPatcher.dartDevDependencies['test'],
+          '^1.25.0',
+        );
+      });
 
-    test('flutterDevDependencies includes test ^1.0.0 alongside flutter_test '
-        '(bug #716: flutter_test does NOT provide package:test/test.dart)', () {
-      expect(
-        PubspecDevDependenciesPatcher.flutterDevDependencies['test'],
-        '^1.0.0',
+      test(
+        'flutterDevDependencies includes test ^1.0.0 alongside flutter_test '
+        '(bug #716: flutter_test does NOT provide package:test/test.dart)',
+        () {
+          expect(
+            PubspecDevDependenciesPatcher.flutterDevDependencies['test'],
+            '^1.0.0',
+          );
+          expect(
+            PubspecDevDependenciesPatcher
+                .flutterDevDependencies['flutter_test'],
+            'sdk: flutter',
+          );
+        },
       );
-      expect(
-        PubspecDevDependenciesPatcher.flutterDevDependencies['flutter_test'],
-        'sdk: flutter',
-      );
-    });
 
-    test(
-      'dart-mode ensure adds test (and no flutter_test) to a Dart project',
-      () async {
-        await writePubspec('''
+      test(
+        'dart-mode ensure adds test (and no flutter_test) to a Dart project',
+        () async {
+          await writePubspec('''
 name: pure_dart_app
 environment:
   sdk: ^3.11.0
@@ -173,30 +183,30 @@ environment:
 dev_dependencies:
   lints: ^6.0.0
 ''');
-        final patcher = const PubspecDevDependenciesPatcher(isFlutter: false);
-        final added = await patcher.ensure(tmpDir.path);
-        final raw = await File(
-          p.join(tmpDir.path, 'pubspec.yaml'),
-        ).readAsString();
-        final doc = loadYaml(raw) as YamlMap;
-        final devDeps = doc['dev_dependencies'] as YamlMap;
-        expect(devDeps['test'], '^1.25.0');
-        expect(
-          devDeps.containsKey('flutter_test'),
-          isFalse,
-          reason:
-              'a pure Dart project must not receive the flutter_test SDK dep',
-        );
-        // Existing entries are preserved, not duplicated.
-        expect(added.any((e) => e.startsWith('lints')), isFalse);
-        expect(devDeps['lints'], '^6.0.0');
-      },
-    );
+          final patcher = const PubspecDevDependenciesPatcher(isFlutter: false);
+          final added = await patcher.ensure(tmpDir.path);
+          final raw = await File(
+            p.join(tmpDir.path, 'pubspec.yaml'),
+          ).readAsString();
+          final doc = loadYaml(raw) as YamlMap;
+          final devDeps = doc['dev_dependencies'] as YamlMap;
+          expect(devDeps['test'], '^1.25.0');
+          expect(
+            devDeps.containsKey('flutter_test'),
+            isFalse,
+            reason:
+                'a pure Dart project must not receive the flutter_test SDK dep',
+          );
+          // Existing entries are preserved, not duplicated.
+          expect(added.any((e) => e.startsWith('lints')), isFalse);
+          expect(devDeps['lints'], '^6.0.0');
+        },
+      );
 
-    test(
-      'dart-mode ensure does not duplicate an existing test entry',
-      () async {
-        await writePubspec('''
+      test(
+        'dart-mode ensure does not duplicate an existing test entry',
+        () async {
+          await writePubspec('''
 name: pure_dart_app
 environment:
   sdk: ^3.11.0
@@ -204,18 +214,19 @@ environment:
 dev_dependencies:
   test: ^1.25.0
 ''');
-        final patcher = const PubspecDevDependenciesPatcher(isFlutter: false);
-        final added = await patcher.ensure(tmpDir.path);
-        expect(added.any((e) => e.startsWith('test')), isFalse);
-        final raw = await File(
-          p.join(tmpDir.path, 'pubspec.yaml'),
-        ).readAsString();
-        final testCount = RegExp(
-          r'^\s*test:',
-          multiLine: true,
-        ).allMatches(raw).length;
-        expect(testCount, 1, reason: 'test should appear exactly once');
-      },
-    );
-  });
+          final patcher = const PubspecDevDependenciesPatcher(isFlutter: false);
+          final added = await patcher.ensure(tmpDir.path);
+          expect(added.any((e) => e.startsWith('test')), isFalse);
+          final raw = await File(
+            p.join(tmpDir.path, 'pubspec.yaml'),
+          ).readAsString();
+          final testCount = RegExp(
+            r'^\s*test:',
+            multiLine: true,
+          ).allMatches(raw).length;
+          expect(testCount, 1, reason: 'test should appear exactly once');
+        },
+      );
+    },
+  );
 }

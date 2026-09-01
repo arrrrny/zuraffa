@@ -397,8 +397,7 @@ int sampleSubject() {
     });
 
     test('regenerates the pair when ONLY the test file is stale (subject '
-        'unchanged but test rendered differently by the new binary)',
-        () async {
+        'unchanged but test rendered differently by the new binary)', () async {
       // The byte-comparison covers BOTH test and subject — a binary
       // rebuild may change either half. A subject-only check (the
       // earlier narrow version) would miss this case.
@@ -406,12 +405,7 @@ int sampleSubject() {
       final runner = CliRunner(exitOnCompletion: false);
       await runner.runCapturing(genArgs('B-003'));
 
-      final testPath = p.join(
-        tmpDir.path,
-        'test',
-        'tdd',
-        'b_003_test.dart',
-      );
+      final testPath = p.join(tmpDir.path, 'test', 'tdd', 'b_003_test.dart');
       final subjectPath = p.join(
         tmpDir.path,
         'lib',
