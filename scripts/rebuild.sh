@@ -16,9 +16,12 @@ echo "🔄 Rebuilding ZFA..."
 # change — see .specify/bugs/rebuild-stale-binary.
 rm -rf build .dart_tool
 
-# Get dependencies
+# Get dependencies.
+# --no-example skips the nested `example/` Flutter app so `dart pub get`
+# doesn't fail with "the Flutter SDK is not available" when only the Dart
+# SDK is on PATH. The example app is a sibling demo, not a build dep.
 echo "📥 Getting dependencies..."
-dart pub get > /dev/null 2>&1
+dart pub get --no-example > /dev/null 2>&1
 echo "  ✅ Dependencies resolved"
 mkdir -p "$INSTALL_DIR"
 

@@ -254,9 +254,9 @@ void main() {
       }
     });
 
-    test('the default pass set is exactly build, format, fix', () {
+    test('the default pass set is exactly build, format, fix', () async {
       final passes = RefactorPasses('/tmp/unused');
-      expect(passes.passSpecs.map((s) => s.name).toList(), [
+      expect((await passes.passSpecs).map((s) => s.name).toList(), [
         'build',
         'format',
         'fix',
@@ -269,12 +269,12 @@ void main() {
     // pass must resolve the zfa entrypoint the same way make/gen/verify
     // do (PipelineRunner FR-004/U11 tiers).
     group('bug #689 — build pass resolves the zfa entrypoint', () {
-      test('an explicit --zfa-bin override wins and names the binary', () {
+      test('an explicit --zfa-bin override wins and names the binary', () async {
         final passes = RefactorPasses(
           '/tmp/unused',
           zfaBinOverride: '/home/dev/.local/bin/zfa',
         );
-        final build = passes.passSpecs.first;
+        final build = (await passes.passSpecs).first;
         expect(build.name, 'build');
         expect(build.command, '/home/dev/.local/bin/zfa build');
         expect(
@@ -298,15 +298,16 @@ void main() {
             'PATH': '/usr/bin:${fakeBin.path}',
           };
           RefactorPasses('/tmp/unused', environment: environment);
-          final build = RefactorPasses.defaultPassSpecs(
+          final build = (await RefactorPasses.defaultPassSpecs(
             environment: environment,
-          ).first;
+          )).first;
           expect(build.command, '${zfa.path} build');
         },
       );
 
-      test('the default command never names the nonexistent bin/zfa.dart', () {
-        final build = RefactorPasses.defaultPassSpecs().first;
+      test('the default command never names the nonexistent bin/zfa.dart',
+          () async {
+        final build = (await RefactorPasses.defaultPassSpecs()).first;
         expect(build.name, 'build');
         expect(
           build.command,

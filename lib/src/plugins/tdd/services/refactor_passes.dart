@@ -246,8 +246,11 @@ class RefactorPasses {
   }
 
   /// The pass specs this registry will execute, in order.
-  List<RefactorPassSpec> get passSpecs =>
-      List<RefactorPassSpec>.unmodifiable(_passSpecs);
+  ///
+  /// Async because the default spec list depends on
+  /// [StepRunner.resolveEntrypoint], which performs file I/O checks.
+  Future<List<RefactorPassSpec>> get passSpecs async =>
+      List<RefactorPassSpec>.unmodifiable(await _passSpecsFuture);
 
   /// Run every pass in order, stopping at the first failure.
   ///
@@ -260,7 +263,8 @@ class RefactorPasses {
   ///   6. On non-zero exit or `startedProcess: false`, stop remaining passes.
   Future<RefactorPassesResult> run() async {
     final actions = <RefactorAction>[];
-    for (final spec in _passSpecs) {
+    final specs = await passSpecs;
+    for (final spec in specs) {
       final before = await TreeSnapshot.capture(
         projectRoot,
         trees: const ['lib'],
