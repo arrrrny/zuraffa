@@ -28,3 +28,14 @@ existed and failed before the implementation.
 - commit: `053-zuraffa-branding` branch
 - tasks: T003 [X], T004 [X], T005 [X], T006 [X], T007 [X], T008 [X], T009 [X]
 - recorded: cycle 2
+
+## Cycle 3
+
+- behaviors: U12–U17 (SetupCommand + MakeCommand hooks); A1–A4 (end-to-end acceptance)
+- red: zfa setup failed with `PathNotFoundException: '/Users/ahmettok/assets/zuraffa_app_icons/'` — `findZuraffaRoot` walked from /private/tmp and never matched
+- fix: `findZuraffaRoot` now uses 3-stage strategy: (1) pubspec walk for `name: zuraffa`, (2) walk from `Platform.script` for `assets/zuraffa_app_icons/` marker, (3) walk from CWD for same marker
+- green: `dart run zuraffa.dart setup accept_flutter --flutter` — produced assets/zuraffa_app_icons/, ios/Runner/Assets.xcassets/AppIcon.appiconset/, android/app/src/main/res/mipmap-*/, pubspec.yaml updated, no flutter.png/flutter_animated.png
+- green: `dart run zuraffa.dart setup accept_dart --dart` — produced assets/zuraffa_app_icons/, README has "Zuraffa" banner in first 5 lines
+- commit: `053-zuraffa-branding` branch
+- tasks: T001–T002, T010–T011, T012–T018, T019–T020, T021–T028 [X]
+- recorded: cycle 3 (all 17 unit + 4 acceptance behaviors DONE)

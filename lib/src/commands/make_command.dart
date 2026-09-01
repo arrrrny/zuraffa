@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 
+
 import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
 
@@ -9,6 +10,7 @@ import '../plugins/shadcn/vocabulary/composite_scaffolder.dart';
 import '../plugins/shadcn/vocabulary/ui_node_registry.dart';
 import '../config/zfa_config.dart';
 import '../cli/plugin_loader.dart';
+import '../core/branding/branding_writer.dart';
 import '../core/project/project_root.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_manager.dart';
@@ -703,6 +705,29 @@ class MakeCommand extends Command<void> {
         rethrow;
       }
       exit(1);
+    }
+
+    // 5b. Apply Zuraffa branding (spec 053): icons, assets, README.
+    //     Skipped in plan/explain mode; idempotent so safe to call on
+    //     any project regardless of whether setup already ran branding.
+    if (argResults?['plan'] != true && argResults?['explain'] != true) {
+      final verbose = argResults!['verbose'] as bool? ?? false;
+      final dryRun = argResults!['dry-run'] as bool? ?? false;
+      final isFlutter = context.data['isFlutter'] as bool? ?? true;
+      final brandingWriter = BrandingWriter(zuraffaRoot: findZuraffaRoot());
+      if (isFlutter) {
+        await brandingWriter.writeFlutterBranding(
+          projectRoot: manager.projectRoot,
+          dryRun: dryRun,
+          verbose: verbose,
+        );
+      } else {
+        await brandingWriter.writeDartBranding(
+          projectRoot: manager.projectRoot,
+          dryRun: dryRun,
+          verbose: verbose,
+        );
+      }
     }
 
     if (argResults?['format'] != 'json') {

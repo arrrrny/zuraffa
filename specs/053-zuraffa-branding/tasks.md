@@ -10,8 +10,8 @@
 
 **Purpose**: Create the branding module scaffold
 
-- [ ] T001 Create directory `lib/src/core/branding/` in the zuraffa repository
-- [ ] T002 [P] Create `lib/src/core/branding/branding_config.dart` — holds `BrandAssetConfig` class with asset source path (default: `assets/zuraffa_app_icons/`) and platform options, configurable via `.zfa.json`
+- [X] T001 [X] Create directory `lib/src/core/branding/` in the zuraffa repository
+- [X] T002 [X] Create `lib/src/core/branding/branding_config.dart` — holds `BrandAssetConfig` class with asset source path (default: `assets/zuraffa_app_icons/`) and platform options, configurable via `.zfa.json`
 
 ---
 
@@ -19,13 +19,13 @@
 
 **Purpose**: Core branding logic used by both Flutter and Dart CLI paths
 
-- [ ] T003 Create `lib/src/core/branding/branding_writer.dart` — define `BrandingWriter` class with:
+- [X] T003 [X] Create `lib/src/core/branding/branding_writer.dart` — define `BrandingWriter` class with:
   - `_copyAssetDirectory()` — copies all files from source to target directory recursively, skip-if-exists for idempotency
   - `_copyIconFiles()` — copies only icon files to platform-specific directories
   - `_updatePubspecAssets()` — adds `assets/zuraffa_app_icons/` to pubspec.yaml flutter assets section if not already present
   - `_updateReadme()` — prepends Zuraffa banner to README.md if not already present
   - `_removeFlutterDefaults()` — deletes any `flutter.png`, `flutter_animated.png` in the target project
-- [ ] T004 Create `lib/src/core/branding/branding_writer_test.dart` — unit tests for BrandingWriter using a temp directory fixture. **Write tests FIRST, ensure they FAIL before implementation.** Test tasks below carry `[U1]`–`[U11]` behavior markers.
+- [X] T004 [X] Create `lib/src/core/branding/branding_writer_test.dart` — unit tests for BrandingWriter using a temp directory fixture. **Write tests FIRST, ensure they FAIL before implementation.** Test tasks below carry `[U1]`–`[U11]` behavior markers.
 
 ---
 
@@ -40,15 +40,15 @@
 > Write these tests FIRST, ensure they FAIL before implementation
 
 - [X] T005 [X] [US1] [U1] Test: `BrandingWriter.writeFlutterBranding()` copies assets/zuraffa_app_icons/ to target project assets/ directory in `test/core/branding/branding_writer_test.dart`
-- [ ] T006 [P] [US1] [U9] [U11] Test: Flutter branding is idempotent: calling twice produces identical output in `test/core/branding/branding_writer_test.dart`
-- [ ] T007 [US1] [U4] Test: After Flutter branding, `pubspec.yaml` contains `assets/zuraffa_app_icons/` in flutter assets section in `test/core/branding/branding_writer_test.dart`
+- [X] T006 [X] [US1] [U9] [U11] Test: Flutter branding is idempotent: calling twice produces identical output in `test/core/branding/branding_writer_test.dart`
+- [X] T007 [X] [US1] [U4] Test: After Flutter branding, `pubspec.yaml` contains `assets/zuraffa_app_icons/` in flutter assets section in `test/core/branding/branding_writer_test.dart`
 
 ### Implementation for User Story 1
 
-- [ ] T008 [P] [US1] [U1] [U2] [U3] Implement `writeFlutterBranding()` in `lib/src/core/branding/branding_writer.dart` — copies iOS icons to `ios/Runner/Assets.xcassets/AppIcon.appiconset/`, Android icons to `android/app/src/main/res/mipmap-*/`, store images to `assets/`
-- [ ] T009 [P] [US1] [U5] [U6] Implement `writeDartBranding()` in `lib/src/core/branding/branding_writer.dart` — copies brand assets to `assets/`, updates README
-- [ ] T010 [US1] [U12] Hook `BrandingWriter` into `lib/src/commands/setup_command.dart` — call `brandingWriter.writeFlutterBranding()` as step 5a after deep-link pre-seed, before TDD baseline; pass `projectRoot`, `dryRun`, `verbose`
-- [ ] T011 [US1] [U15] Hook `BrandingWriter` into `lib/src/commands/make_command.dart` — call `brandingWriter.writeFlutterBranding()` after entity code generation if project is Flutter and `assets/zuraffa_app_icons/` does not exist; pass `projectRoot`, `dryRun`, `verbose`
+- [X] T008 [X] [US1] [U1] [U2] [U3] Implement `writeFlutterBranding()` in `lib/src/core/branding/branding_writer.dart` — copies iOS icons to `ios/Runner/Assets.xcassets/AppIcon.appiconset/`, Android icons to `android/app/src/main/res/mipmap-*/`, store images to `assets/`
+- [X] T009 [X] [US1] [U5] [U6] Implement `writeDartBranding()` in `lib/src/core/branding/branding_writer.dart` — copies brand assets to `assets/`, updates README
+- [X] T010 [X] [US1] [U12] Hook `BrandingWriter` into `lib/src/commands/setup_command.dart` — call `brandingWriter.writeFlutterBranding()` as step 5a after deep-link pre-seed, before TDD baseline; pass `projectRoot`, `dryRun`, `verbose`
+- [X] T011 [X] [US1] [U15] Hook `BrandingWriter` into `lib/src/commands/make_command.dart` — call `brandingWriter.writeFlutterBranding()` after entity code generation if project is Flutter and `assets/zuraffa_app_icons/` does not exist; pass `projectRoot`, `dryRun`, `verbose`
 
 ---
 
@@ -62,14 +62,14 @@
 
 > Write these tests FIRST, ensure they FAIL before implementation
 
-- [ ] T012 [P] [US2] [U5] Test: `BrandingWriter.writeDartBranding()` copies brand assets to target `assets/` directory in `test/core/branding/branding_writer_test.dart`
-- [ ] T013 [P] [US2] [U6] Test: After Dart branding, `README.md` contains "Zuraffa" within first 10 lines in `test/core/branding/branding_writer_test.dart`
+- [X] T012 [X] [US2] [U5] Test: `BrandingWriter.writeDartBranding()` copies brand assets to target `assets/` directory in `test/core/branding/branding_writer_test.dart`
+- [X] T013 [X] [US2] [U6] Test: After Dart branding, `README.md` contains "Zuraffa" within first 10 lines in `test/core/branding/branding_writer_test.dart`
 
 ### Implementation for User Story 2
 
-- [ ] T014 [P] [US2] [U5] [U6] Implement `writeDartBranding()` — copies brand assets to `assets/zuraffa_app_icons/`, prepends Zuraffa banner to README.md (may be combined with T009 if both share implementation)
-- [ ] T015 [US2] [U13] Hook `BrandingWriter.writeDartBranding()` into `lib/src/commands/setup_command.dart` — in the `--dart` branch, call branding step after wiring dependencies
-- [ ] T016 [US2] [U16] Hook `BrandingWriter.writeDartBranding()` into `lib/src/commands/make_command.dart` — in Dart CLI path, call branding if `assets/zuraffa_app_icons/` does not exist
+- [X] T014 [X] [US2] [U5] [U6] Implement `writeDartBranding()` — copies brand assets to `assets/zuraffa_app_icons/`, prepends Zuraffa banner to README.md (may be combined with T009 if both share implementation)
+- [X] T015 [X] [US2] [U13] Hook `BrandingWriter.writeDartBranding()` into `lib/src/commands/setup_command.dart` — in the `--dart` branch, call branding step after wiring dependencies
+- [X] T016 [X] [US2] [U16] Hook `BrandingWriter.writeDartBranding()` into `lib/src/commands/make_command.dart` — in Dart CLI path, call branding if `assets/zuraffa_app_icons/` does not exist
 
 ---
 
@@ -83,31 +83,31 @@
 
 > Write these tests FIRST, ensure they FAIL before implementation
 
-- [ ] T017 [P] [US3] [U7] Test: `writeFlutterBranding()` removes any `flutter.png` from target project in `test/core/branding/branding_writer_test.dart`
-- [ ] T018 [P] [US3] [U8] Test: After Flutter branding, searching for "FlutterLogo" in drawable XML files returns zero results in `test/core/branding/branding_writer_test.dart`
+- [X] T017 [X] [US3] [U7] Test: `writeFlutterBranding()` removes any `flutter.png` from target project in `test/core/branding/branding_writer_test.dart`
+- [X] T018 [X] [US3] [U8] Test: After Flutter branding, searching for "FlutterLogo" in drawable XML files returns zero results in `test/core/branding/branding_writer_test.dart`
 
 ### Implementation for User Story 3
 
-- [ ] T019 [US3] [U7] [U8] Implement `_removeFlutterDefaults()` in `BrandingWriter` — scan for and delete `flutter.png`, `flutter_animated.png` in `android/app/src/main/res/drawable*/`; also update `android/app/src/main/res/values/ic_launcher_background.xml` to remove FlutterLogo references if present
-- [ ] T020 [US3] [U7] [U8] Add FlutterLogo removal to `writeFlutterBranding()` — call `_removeFlutterDefaults()` as part of the branding flow
+- [X] T019 [X] [US3] [U7] [U8] Implement `_removeFlutterDefaults()` in `BrandingWriter` — scan for and delete `flutter.png`, `flutter_animated.png` in `android/app/src/main/res/drawable*/`; also update `android/app/src/main/res/values/ic_launcher_background.xml` to remove FlutterLogo references if present
+- [X] T020 [X] [US3] [U7] [U8] Add FlutterLogo removal to `writeFlutterBranding()` — call `_removeFlutterDefaults()` as part of the branding flow
 
 ---
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T021 [P] Run `dart analyze lib/src/core/branding/` and fix any lint warnings
-- [ ] T022 Run `dart test test/core/branding/` and verify all tests pass
-- [ ] T023 Run quickstart.md validation scenarios end-to-end (Flutter + Dart CLI setup in temp dirs)
-- [ ] T024 [P] Update `doc/HOOK_SYSTEM.md` or relevant docs if branding affects command hook ordering
+- [X] T021 [X] Run `dart analyze lib/src/core/branding/` and fix any lint warnings
+- [X] T022 [X] Run `dart test test/core/branding/` and verify all tests pass
+- [X] T023 [X] Run quickstart.md validation scenarios end-to-end (Flutter + Dart CLI setup in temp dirs)
+- [X] T024 [X] Update `doc/HOOK_SYSTEM.md` or relevant docs if branding affects command hook ordering
 
 ---
 
 ## Acceptance Behavior Verification Tasks
 
-- [ ] T025 [A1] Acceptance: Run `zfa setup test_flutter_app --flutter` in temp dir and verify `test_flutter_app/assets/zuraffa_app_icons/` exists with giraffe icons
-- [ ] T026 [A2] Acceptance: Run `zfa setup test_dart_pkg --dart` in temp dir and verify `test_dart_pkg/assets/zuraffa_app_icons/` exists
-- [ ] T027 [A3] Acceptance: Search generated Flutter app for `flutter.png`, `flutter_animated.png` — expect zero results
-- [ ] T028 [A4] Acceptance: Verify generated app README contains "Zuraffa" within first 10 lines
+- [X] T025 [X] [A1] Acceptance: Run `zfa setup test_flutter_app --flutter` in temp dir and verify `test_flutter_app/assets/zuraffa_app_icons/` exists with giraffe icons
+- [X] T026 [X] [A2] Acceptance: Run `zfa setup test_dart_pkg --dart` in temp dir and verify `test_dart_pkg/assets/zuraffa_app_icons/` exists
+- [X] T027 [X] [A3] Acceptance: Search generated Flutter app for `flutter.png`, `flutter_animated.png` — expect zero results
+- [X] T028 [X] [A4] Acceptance: Verify generated app README contains "Zuraffa" within first 10 lines
 
 ---
 

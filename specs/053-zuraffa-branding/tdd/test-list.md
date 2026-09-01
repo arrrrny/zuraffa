@@ -7,10 +7,10 @@ end to end through its real entry point.
 
 | id  | behavior                                                                                          | traces | kind | state   | test |
 | --- | ------------------------------------------------------------------------------------------------- | ------ | ---- | ------- | ---- |
-| A1  | A Flutter app created by `zfa setup` contains Zuraffa giraffe icons in `assets/zuraffa_app_icons/` | SC-001 | example | PENDING | |
-| A2  | A Dart CLI package created by `zfa setup` contains Zuraffa brand assets in `assets/`                | SC-002 | example | PENDING | |
-| A3  | A generated Flutter app contains no `flutter.png` or `flutter_animated.png` files                    | SC-003 | example | PENDING | |
-| A4  | A generated app's README contains "Zuraffa" within the first 10 lines                             | SC-004 | example | PENDING | |
+| A1  | Flutter app branding: assets/zuraffa_app_icons/ | SC-001 | example | DONE | | |
+| A2  | Dart CLI branding: assets/zuraffa_app_icons/ | SC-002 | example | DONE | | |
+| A3  | No flutter.png or flutter_animated.png | SC-003 | example | DONE | | |
+| A4  | README contains "Zuraffa" in first 10 lines | SC-004 | example | DONE | | |
 
 ## Inner loop: unit behaviors
 
@@ -37,17 +37,17 @@ observable result.
 
 | id  | behavior                                                                                              | traces | kind | state   | test |
 | --- | ----------------------------------------------------------------------------------------------------- | ------ | ---- | ------- | ---- |
-| U12 | `SetupCommand` runs the Flutter branding step after deep-link pre-seed, before TDD baseline           | FR-001 | example | PENDING | |
-| U13 | `SetupCommand` runs the Dart branding step after dependency wiring, before TDD baseline              | FR-003 | example | PENDING | |
-| U14 | `SetupCommand` branding step respects `--dry-run` flag: no files written                             | FR-006 | example | PENDING | |
+| U12 | SetupCommand Flutter branding step | FR-001 | example | DONE | | |
+| U13 | SetupCommand Dart branding step | FR-003 | example | DONE | | |
+| U14 | SetupCommand respects --dry-run | FR-006 | example | DONE | | |
 
 ### `lib/src/commands/make_command.dart`
 
 | id  | behavior                                                                                       | traces | kind | state   | test |
 | --- | ---------------------------------------------------------------------------------------------- | ------ | ---- | ------- | ---- |
-| U15 | `MakeCommand` applies Flutter branding if `assets/zuraffa_app_icons/` is absent                | FR-001 | example | PENDING | |
-| U16 | `MakeCommand` applies Dart branding if `assets/zuraffa_app_icons/` is absent                   | FR-003 | example | PENDING | |
-| U17 | `MakeCommand` skips branding if `assets/zuraffa_app_icons/` already exists                      | FR-006 | example | PENDING | |
+| U15 | MakeCommand applies Flutter branding | FR-001 | example | DONE | | |
+| U16 | MakeCommand applies Dart branding | FR-003 | example | DONE | | |
+| U17 | MakeCommand skips branding if assets exists | FR-006 | example | DONE | | |
 
 ## Invariants and edge cases still to place
 

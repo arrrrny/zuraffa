@@ -11,6 +11,7 @@ import '../cli/writers/tdd/smoke_test_writer.dart';
 import '../cli/writers/tdd/tdd_example_writer.dart';
 import '../cli/writers/tdd/tdd_profile_writer.dart';
 import '../config/zfa_config.dart';
+import '../core/branding/branding_writer.dart';
 import '../core/dependencies/dependency_wirer.dart';
 import '../utils/manifest_writer.dart';
 
@@ -179,9 +180,9 @@ class SetupCommand extends Command<void> {
     final autoVerify = argResults!['auto-verify'] as bool;
     final tddExample = argResults!['tdd-example'] as bool;
     final specsDir = argResults!['specs'] as String?;
-    // With --specs the corpus import becomes step 7 of 8 (after the TDD
-    // baseline); without it the flow keeps its legacy 7-step numbering.
-    final totalSteps = specsDir != null && specsDir.isNotEmpty ? 8 : 7;
+    // With --specs the corpus import becomes step 8 of 9 (after branding
+    // step 5a and the TDD baseline); without it the flow has 8 steps.
+    final totalSteps = specsDir != null && specsDir.isNotEmpty ? 9 : 8;
 
     if (specsDir != null && specsDir.isNotEmpty) {
       const CorpusImporter().validateSource(specsDir);
@@ -299,6 +300,30 @@ class SetupCommand extends Command<void> {
         '\n[5/$totalSteps] Skipping deep-link pre-seed '
         '(no --deep-link-scheme).',
       );
+    }
+
+    // 5a. Apply Zuraffa branding (spec 053).
+    //     Flutter apps: icons, pubspec assets, remove flutter defaults.
+    //     Dart packages: assets + README banner.
+    print('\n[5a/$totalSteps] Applying Zuraffa branding...');
+    final brandingWriter = BrandingWriter(zuraffaRoot: findZuraffaRoot());
+    if (isFlutter) {
+      await brandingWriter.writeFlutterBranding(
+        projectRoot: appName,
+        dryRun: dryRun,
+        verbose: verbose,
+      );
+    } else {
+      await brandingWriter.writeDartBranding(
+        projectRoot: appName,
+        dryRun: dryRun,
+        verbose: verbose,
+      );
+    }
+    if (!dryRun) {
+      print('   Zuraffa branding applied.');
+    } else {
+      print('   (dry-run: no files written)');
     }
 
     // 6. TDD baseline (Part 1 of spec 041-tdd-setup-plugin).

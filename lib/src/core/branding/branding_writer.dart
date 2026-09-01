@@ -6,6 +6,74 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+/// Finds the zuraffa repository root by walking upward from [startPath].
+/// First it looks for a `pubspec.yaml` declaring `name: zuraffa`. If that
+/// walk fails (e.g. /tmp has no ancestor pubspec, or pubspec is missing),
+/// it falls back to looking for `assets/zuraffa_app_icons/` in any ancestor
+/// — that directory is unique to the zuraffa repo and survives pubspec
+/// renames. As a last resort it walks up from `Platform.script`.
+String findZuraffaRoot({String? startPath}) {
+  // 1) Try a pubspec walk from the requested start (default: CWD).
+  final start = startPath ?? _scriptDir();
+  final pubspecRoot = _walkUpFor(
+    start: start,
+    predicate: (dir) {
+      final pubspec = File(p.join(dir.path, 'pubspec.yaml'));
+      if (!pubspec.existsSync()) return false;
+      final content = pubspec.readAsStringSync();
+      return content.contains('name: zuraffa') ||
+          content.contains('"zuraffa"') ||
+          content.contains("'zuraffa'");
+    },
+  );
+  if (pubspecRoot != null) return pubspecRoot;
+
+  // 2) Fallback: walk up from Platform.script to find the brand assets
+  //    directory — unique marker for the zuraffa repo.
+  final brandRoot = _walkUpFor(
+    start: File(Platform.script.toFilePath()).parent.path,
+    predicate: (dir) =>
+        Directory(p.join(dir.path, 'assets', 'zuraffa_app_icons'))
+            .existsSync(),
+  );
+  if (brandRoot != null) return brandRoot;
+
+  // 3) Last resort: walk up from CWD looking for the brand assets.
+  return _walkUpFor(
+        start: start,
+        predicate: (dir) => Directory(
+            p.join(dir.path, 'assets', 'zuraffa_app_icons'))
+            .existsSync(),
+      ) ??
+      start;
+}
+
+String? _walkUpFor({
+  required String start,
+  required bool Function(Directory) predicate,
+}) {
+  var dir = Directory(p.normalize(p.absolute(start)));
+  if (!dir.existsSync()) dir = dir.parent;
+  while (true) {
+    if (predicate(dir)) return dir.path;
+    final parent = dir.parent;
+    if (parent.path == dir.path) return null;
+    dir = parent;
+  }
+}
+
+String _scriptDir() {
+  try {
+    return Directory.current.path;
+  } catch (_) {
+    try {
+      return File(Platform.script.toFilePath()).parent.path;
+    } catch (_) {
+      return Platform.script.toFilePath();
+    }
+  }
+}
+
 /// Writes Zuraffa brand assets into a generated app project.
 class BrandingWriter {
   /// The root directory of the zuraffa repository.
