@@ -23,6 +23,17 @@ class InitCommand extends Command<void> {
           'current working directory is used. Tests pass the temp fixture '
           'root here instead of mutating Directory.current.',
     );
+    argParser.addFlag(
+      'force',
+      abbr: 'f',
+      help:
+          'Overwrite existing baseline files whose content differs from what '
+          'the writers would generate. Without --force, `zfa tdd init` is '
+          'strictly idempotent and refuses to clobber a file that was hand '
+          'edited or generated under a different profile (e.g. Dart vs '
+          'Flutter). With --force, those files are replaced in place.',
+      negatable: false,
+    );
   }
 
   final TddPlugin plugin;
@@ -48,10 +59,12 @@ class InitCommand extends Command<void> {
         ? p.absolute(projectFlag)
         : Directory.current.path;
     final isFlutter = await _isFlutterProject(cwd);
+    final force = argResults?['force'] == true;
 
     stdout.writeln(
       'zfa tdd init: ensuring TDD baseline in $cwd '
-      '(${isFlutter ? "Flutter" : "Dart"})',
+      '(${isFlutter ? "Flutter" : "Dart"})'
+      '${force ? " (force: overwrite on content mismatch)" : ""}',
     );
 
     final failures = <String>[];
@@ -59,7 +72,7 @@ class InitCommand extends Command<void> {
     try {
       final written = await TddProfileWriter(
         profile: isFlutter ? TddProfile.flutter : TddProfile.dart,
-      ).write(cwd);
+      ).write(cwd, force: force);
       stdout.writeln(
         written == null
             ? '   ✓ .specify/memory/tdd-profile.md (already present)'
