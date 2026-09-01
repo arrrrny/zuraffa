@@ -61,6 +61,7 @@ import '../services/generation_planner.dart';
 import '../services/pipeline_runner.dart';
 import '../services/runner.dart';
 import '../services/suite_guard.dart';
+import '../services/test_list_reader.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -281,11 +282,24 @@ class MakeCommand extends Command<void> {
     PipelineResult? pipelineResult;
     var postRun = driftRun;
     if (!alreadyGreen) {
-      // 6. Plan the minimal generation (FR-005).
+      // 6. Plan the minimal generation (FR-005). The behavior's loop
+      //    kind rides along (bug #723): unit-kind behaviors route to
+      //    the plain-function generator, not the entity/make generator.
+      final kind = await _kindFor(
+        featureDir: target.featureDir,
+        record: record,
+      );
+      if (kind == BehaviorKind.unit) {
+        print(
+          '   unit behavior: routing to the plain-function generator '
+          '(bug #723)',
+        );
+      }
       final summary = BehaviorSummary.fromRecord(
         record,
         description: _descriptionFor(record),
         target: _targetFor(record),
+        kind: kind,
       );
       final plan = planner.plan(summary);
       GenerationPlan effectivePlan;
@@ -555,6 +569,39 @@ class MakeCommand extends Command<void> {
     return segments.isEmpty || segments.last.isEmpty
         ? record.runnableTestName
         : segments.last;
+  }
+
+  /// The behavior's loop kind for the make dispatch (bug #723). The
+  /// feature's test-list row is the kind source of truth (the shared
+  /// [TestListReader] contract — the same source the composition
+  /// fallback uses); when the row or the list is missing or malformed,
+  /// the repo's id convention decides (`A<n>` acceptance / `U<n>` unit —
+  /// the spec-parser id scheme `zfa tdd plan` reconciles by). Null keeps
+  /// the pre-#723 description-keyed dispatch.
+  Future<BehaviorKind?> _kindFor({
+    required String featureDir,
+    required ArtifactRecord record,
+  }) async {
+    try {
+      for (final row in await TestListReader(featureDir).read()) {
+        if (row.id == record.behaviorId) return row.kind;
+      }
+    } on TestListReadException {
+      // Fail soft here: the list is the planner's kind hint, not a
+      // precondition (make's own preconditions were already enforced).
+      // The id convention below keeps the dispatch correct for the
+      // list-less fixtures and brownfield features.
+    }
+    return _kindFromId(record.behaviorId);
+  }
+
+  /// The id-convention kind: `A<n>` acceptance, `U<n>` unit (the
+  /// spec-parser id scheme; `zfa tdd plan` reconciles by the same
+  /// prefix rule). Null for ids outside the scheme.
+  static BehaviorKind? _kindFromId(String id) {
+    final m = RegExp(r'^([AU])\d+$').firstMatch(id);
+    if (m == null) return null;
+    return m.group(1) == 'A' ? BehaviorKind.acceptance : BehaviorKind.unit;
   }
 
   Future<_ResolvedTarget> _resolveTarget(

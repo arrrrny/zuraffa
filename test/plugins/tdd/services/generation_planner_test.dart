@@ -12,6 +12,7 @@
 library;
 
 import 'package:test/test.dart';
+import 'package:zuraffa/src/plugins/tdd/models/behavior.dart';
 import 'package:zuraffa/src/plugins/tdd/services/generation_planner.dart';
 
 void main() {
@@ -236,6 +237,91 @@ void main() {
         GenerationPlanner.functionIntentVerb('Provision bespoke DSL syntax'),
         isNull,
       );
+    });
+  });
+
+  group('GenerationPlanner — bug 723: unit-kind behaviors route to the '
+      'plain-function generator, not the entity/make generator', () {
+    test('U-723a: a unit behavior whose description carries CRUD/use-case '
+        'vocabulary routes to `tdd func <id>` — the #657/#660 '
+        'plain-function surface — never to `make <slugified-id>` '
+        '(issue #723 exact repro shape)', () {
+      // The #723 repro: unit behavior U5, description naming no entity
+      // but carrying use-case/service vocabulary. Pre-fix this routed to
+      // `zfa make u5 --no-entity` — the behavior ID as an entity name —
+      // and the run stopped at U5:make with generation-error.
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'U5',
+          feature: '001-app-bootstrap',
+          sourceCriterion: 'FR-005',
+          description: 'use case returns the count of pending items',
+          kind: BehaviorKind.unit,
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      expect(plan.steps.first.args, ['tdd', 'func', 'U5']);
+      expect(plan.steps.last.args, contains('build'));
+    });
+
+    test('U-723b: a unit behavior routes to the function surface even '
+        'when its description is entity-bearing — the loop kind decides '
+        'the generator, not the description text', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'U2',
+          feature: '001-app-bootstrap',
+          sourceCriterion: 'FR-002',
+          description: 'create entity User with email',
+          kind: BehaviorKind.unit,
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      expect(plan.steps.first.args, ['tdd', 'func', 'U2']);
+      expect(plan.steps.last.args, contains('build'));
+    });
+
+    test('U-723c: an acceptance-kind behavior keeps the description-keyed '
+        'dispatch — kind-aware routing never narrows the acceptance '
+        'surfaces (entity / make / composition fallback path)', () {
+      final make = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'A1',
+          feature: '001-app-bootstrap',
+          sourceCriterion: 'AC-1',
+          description: 'service exposes the count of pending items',
+          kind: BehaviorKind.acceptance,
+        ),
+      );
+      expect(make.isExpressible, isTrue, reason: make.unexpressibleReason);
+      expect(make.steps.first.args.first, 'make');
+
+      final entity = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'A2',
+          feature: '001-app-bootstrap',
+          sourceCriterion: 'AC-2',
+          description: 'create entity Invoice with totals',
+          kind: BehaviorKind.acceptance,
+        ),
+      );
+      expect(entity.isExpressible, isTrue);
+      expect(entity.steps.first.args, ['entity', 'create', '-n', 'Invoice']);
+    });
+
+    test('U-723d: a summary with no kind (null) keeps the pre-#723 '
+        'description-keyed dispatch — the #696 contract for kindless '
+        'summaries is unchanged', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'U6',
+          feature: '001-app-bootstrap',
+          sourceCriterion: 'FR-006',
+          description: 'service exposes the count of pending items',
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      expect(plan.steps.first.args, ['make', 'u6', '--no-entity']);
     });
   });
 

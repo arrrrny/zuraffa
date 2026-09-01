@@ -6,7 +6,18 @@
 /// are derived; every other component consumes the plan it produces.
 ///
 /// Mapping rules (minimal generation — FR-005; bug #657 function
-/// surface):
+/// surface; bug #723 kind-based dispatch):
+///   - **Unit-kind behavior** (bug #723: the summary carries
+///     `kind: unit` — the test-list row is the source of truth and the
+///     `U<n>` id convention the fallback): plan is `zfa tdd func <id>`
+///     (the plain-function generator surface from #657/#660 — gen pairs
+///     every unit behavior with a no-argument subject stub, and the
+///     paired test asserts THAT subject is implemented) then `zfa
+///     build`. The kind decides the generator BEFORE any description
+///     keyword scan: a unit description carrying entity/use-case
+///     vocabulary ("use case returns the count ...") must never route
+///     to `zfa entity create` / `zfa make <slugified-id>` — the #723
+///     misfire that stopped every run at its first unit behavior.
 ///   - **Entity-bearing behavior** (description starts with "entity"
 ///     or contains "create entity"): plan is
 ///     `zfa entity create -n <Name>` (bug #609: the real CLI requires
@@ -44,6 +55,7 @@
 library;
 
 import '../models/artifact_record.dart';
+import '../models/behavior.dart';
 import '../models/generation_plan.dart';
 
 /// Behavior summary the planner consumes. Mirrors just enough of an
@@ -61,12 +73,19 @@ class BehaviorSummary {
   /// (used as the entity slug or preset target).
   final String? target;
 
+  /// The behavior's loop kind (acceptance vs unit) when the caller
+  /// resolved it — the test-list row is the source of truth and the
+  /// `A<n>`/`U<n>` id convention the fallback (bug #723). Null keeps the
+  /// pre-#723 description-keyed dispatch.
+  final BehaviorKind? kind;
+
   const BehaviorSummary({
     required this.behaviorId,
     required this.feature,
     required this.sourceCriterion,
     required this.description,
     this.target,
+    this.kind,
   });
 
   /// Construct a summary from a registry record.
@@ -74,6 +93,7 @@ class BehaviorSummary {
     ArtifactRecord record, {
     String? description,
     String? target,
+    BehaviorKind? kind,
   }) {
     return BehaviorSummary(
       behaviorId: record.behaviorId,
@@ -81,6 +101,7 @@ class BehaviorSummary {
       sourceCriterion: record.sourceCriterion,
       description: description ?? record.behaviorId,
       target: target,
+      kind: kind,
     );
   }
 }
@@ -94,6 +115,19 @@ class GenerationPlanner {
   /// non-empty, ending in `build`) or unexpressible (carries a reason
   /// phrased in behavior terms).
   GenerationPlan plan(BehaviorSummary summary) {
+    // 0. Kind-based dispatch (bug #723): a unit-kind behavior's
+    //    implementation target is its plain-function subject stub, so it
+    //    routes to the `tdd func` surface BEFORE the description keyword
+    //    scan. Entity/CRUD vocabulary in a unit description ("use case
+    //    returns ...", "service exposes ...") must not send the
+    //    slugified behavior id to the entity/make generator.
+    if (summary.kind == BehaviorKind.unit) {
+      return _functionPlan(
+        summary,
+        functionIntentVerb(summary.description.toLowerCase()),
+      );
+    }
+
     final desc = summary.description.toLowerCase();
 
     // 1. Entity-bearing behavior: first step is `entity create <Name>`.
@@ -195,23 +229,7 @@ class GenerationPlanner {
     //    Invoice with totals to render" still maps to `entity create`.
     final verb = functionIntentVerb(desc);
     if (verb != null) {
-      return GenerationPlan(
-        behaviorId: summary.behaviorId,
-        feature: summary.feature,
-        sourceCriterion: summary.sourceCriterion,
-        steps: [
-          GenerationStepSpec(
-            args: ['tdd', 'func', summary.behaviorId],
-            purpose:
-                'scaffold the $verb function for behavior '
-                '${summary.behaviorId} from its description',
-          ),
-          GenerationStepSpec(
-            args: ['build'],
-            purpose: 'build generated code for behavior ${summary.behaviorId}',
-          ),
-        ],
-      );
+      return _functionPlan(summary, verb);
     }
 
     // 4. Misfire: no pipeline mapping. Phrase the reason in behavior
@@ -223,6 +241,33 @@ class GenerationPlanner {
       sourceCriterion: summary.sourceCriterion,
       steps: const [],
       unexpressibleReason: reason,
+    );
+  }
+
+  /// The plain-function generator plan (`tdd func <id>` then `build`)
+  /// — the #657/#660 surface, reached two ways: description-keyed (a
+  /// function-intent verb) and kind-keyed (bug #723: a unit-kind
+  /// behavior, whatever its description says). [verb] is the matched
+  /// function-intent verb when the description carried one.
+  GenerationPlan _functionPlan(BehaviorSummary summary, String? verb) {
+    return GenerationPlan(
+      behaviorId: summary.behaviorId,
+      feature: summary.feature,
+      sourceCriterion: summary.sourceCriterion,
+      steps: [
+        GenerationStepSpec(
+          args: ['tdd', 'func', summary.behaviorId],
+          purpose: verb != null
+              ? 'scaffold the $verb function for behavior '
+                    '${summary.behaviorId} from its description'
+              : 'scaffold the plain-function subject of unit behavior '
+                    '${summary.behaviorId} (kind-based routing, bug #723)',
+        ),
+        GenerationStepSpec(
+          args: ['build'],
+          purpose: 'build generated code for behavior ${summary.behaviorId}',
+        ),
+      ],
     );
   }
 

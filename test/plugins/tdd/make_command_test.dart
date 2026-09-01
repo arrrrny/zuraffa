@@ -979,4 +979,127 @@ void main() {
       );
     });
   });
+
+  group('bug 723 — unit behaviors route to the plain-function generator', () {
+    test('U-723e: a certified-red unit behavior (U*) whose description '
+        'carries use-case/service vocabulary is routed to `tdd func <id>` '
+        '— never to `zfa make <slugified-id>` — and make certifies green '
+        'when the function surface implements the subject', () async {
+      // The #723 repro shape: unit behavior U5, description naming no
+      // entity but carrying use-case vocabulary. Pre-fix the plan was
+      // `zfa make u5 --no-entity` (the behavior ID as an entity name) and
+      // make stopped with generation-error.
+      await fx.seedCertifiedRed(
+        id: 'U5',
+        description: 'use case returns the count of pending items',
+        sourceCriterion: 'FR-005',
+        testContent: TddFixture.subjectDrivenTest(
+          'U5',
+          'use case returns the count of pending items',
+        ),
+      );
+      // No test list on purpose: the id-prefix convention (U<n> → unit)
+      // is the kind fallback and must engage.
+
+      // The fake pipeline turns the target green when invoked as the
+      // plain-function generator (`tdd func U5`).
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'tdd func': fx.overwriteSubjectCommands(
+            'U5',
+            TddFixture.subjectReturning('U5', 42),
+          ),
+        },
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'U5', zfaBin: zfaBin),
+      );
+
+      expect(
+        out,
+        contains('make: behavior=U5 outcome=green feature=${fx.featureName}'),
+      );
+      expect(exitCode, 0, reason: out);
+
+      // Routing evidence: the func surface ran; the entity/make generator
+      // (with the slugified behavior id) never did.
+      final log = await fx.readFakeZfaLog();
+      expect(
+        log.any((line) => line.startsWith('tdd func U5')),
+        isTrue,
+        reason: 'expected a `tdd func U5` pipeline invocation, got: $log',
+      );
+      expect(
+        log.any((line) => line.contains('make u5')),
+        isFalse,
+        reason:
+            'the behavior id must never be dispatched as an entity '
+            'name, got: $log',
+      );
+
+      // Green evidence records the func generation step.
+      final cycleLog = await File(fx.cycleLogPath).readAsString();
+      expect(cycleLog, contains('## Cycle: U5 (green)'));
+      expect(cycleLog, contains('tdd func'));
+    });
+
+    test('U-723f: the test-list row is the kind source of truth — a unit '
+        'behavior registered in the inner loop routes to `tdd func` even '
+        'when only the row kind (not the id prefix) could tell', () async {
+      await fx.seedCertifiedRed(
+        id: 'U5',
+        description: 'use case returns the count of pending items',
+        sourceCriterion: 'FR-005',
+        testContent: TddFixture.subjectDrivenTest(
+          'U5',
+          'use case returns the count of pending items',
+        ),
+      );
+      // Inner-loop row → kind=unit via the shared TestListReader contract.
+      await fx.seedTestList([
+        (
+          id: 'U5',
+          description: 'use case returns the count of pending items',
+          traces: 'FR-005',
+          state: 'PENDING',
+          kind: 'unit',
+        ),
+      ]);
+
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'tdd func': fx.overwriteSubjectCommands(
+            'U5',
+            TddFixture.subjectReturning('U5', 42),
+          ),
+        },
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'U5', zfaBin: zfaBin),
+      );
+
+      expect(
+        out,
+        contains('make: behavior=U5 outcome=green feature=${fx.featureName}'),
+      );
+      expect(exitCode, 0, reason: out);
+      final log = await fx.readFakeZfaLog();
+      expect(
+        log.any((line) => line.startsWith('tdd func U5')),
+        isTrue,
+        reason: 'got: $log',
+      );
+      expect(
+        log.any((line) => line.contains('make u5')),
+        isFalse,
+        reason: 'got: $log',
+      );
+    });
+  });
 }
