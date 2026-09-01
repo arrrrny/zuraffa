@@ -12,6 +12,7 @@ import '../../../cli/writers/tdd/pubspec_dev_dependencies_patcher.dart';
 import '../../../cli/writers/tdd/smoke_test_writer.dart';
 import '../../../cli/writers/tdd/tdd_profile_writer.dart';
 import '../tdd_plugin.dart';
+import '../../../core/project/project_root.dart';
 
 class InitCommand extends Command<void> {
   InitCommand(this.plugin) {
@@ -57,7 +58,7 @@ class InitCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : Directory.current.path;
+        : ProjectRoot.find();
     final isFlutter = await _isFlutterProject(cwd);
     final force = argResults?['force'] == true;
 

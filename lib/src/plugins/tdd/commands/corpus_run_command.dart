@@ -41,6 +41,7 @@ import '../services/corpus_manifest_store.dart';
 import '../services/corpus_progress_store.dart';
 import '../services/corpus_step_runner.dart';
 import '../services/gap_ledger_store.dart';
+import '../../../core/project/project_root.dart';
 
 class CorpusRunCommand extends Command<void> {
   CorpusRunCommand(this.plugin) {
@@ -89,7 +90,7 @@ class CorpusRunCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : Directory.current.path;
+        : ProjectRoot.find();
     final zfaBin = argResults?['zfa-bin'] as String?;
 
     final manifestStore = CorpusManifestStore(projectRoot);

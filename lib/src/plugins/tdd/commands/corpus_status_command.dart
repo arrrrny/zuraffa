@@ -24,6 +24,7 @@ import '../models/corpus_progress.dart';
 import '../services/corpus_manifest_store.dart';
 import '../services/corpus_progress_store.dart';
 import '../services/gap_ledger_store.dart';
+import '../../../core/project/project_root.dart';
 
 class CorpusStatusCommand extends Command<void> {
   CorpusStatusCommand(this.plugin) {
@@ -60,7 +61,7 @@ class CorpusStatusCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : Directory.current.path;
+        : ProjectRoot.find();
 
     final manifestStore = CorpusManifestStore(projectRoot);
     final progressStore = CorpusProgressStore(projectRoot);

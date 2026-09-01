@@ -29,6 +29,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/mutation_auditor.dart';
 import '../tdd_plugin.dart';
+import '../../../core/project/project_root.dart';
 
 class VerifyCommand extends Command<void> {
   VerifyCommand(this.plugin) {
@@ -74,7 +75,7 @@ class VerifyCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : Directory.current.path;
+        : ProjectRoot.find();
 
     // Resolve the feature directory. Treat empty string as absent.
     final featureName = (feature != null && feature.isNotEmpty)

@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/spec_parser.dart';
 import '../tdd_plugin.dart';
+import '../../../core/project/project_root.dart';
 
 class PlanCommand extends Command<void> {
   PlanCommand(this.plugin) {
@@ -46,7 +47,7 @@ class PlanCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final repoRoot = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : Directory.current.path;
+        : ProjectRoot.find();
     final specPath = '$repoRoot/specs/$feature/spec.md';
     final specFile = File(specPath);
     if (!await specFile.exists()) {
