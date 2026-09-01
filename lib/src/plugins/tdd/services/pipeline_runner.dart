@@ -22,21 +22,11 @@ library;
 
 import 'dart:io';
 
-import 'package:path/path.dart' as p;
-
 import '../models/generation_plan.dart';
+import 'zfa_entrypoint.dart';
 
-/// Resolution-stage failure: the zfa entrypoint could not be resolved
-/// or is missing on disk. Carries the feature context if known.
-class PipelineResolutionError implements Exception {
-  PipelineResolutionError(this.message, {this.feature});
-
-  final String message;
-  final String? feature;
-
-  @override
-  String toString() => message;
-}
+export 'zfa_entrypoint.dart'
+    show PipelineResolutionError, ResolvedZfaEntrypoint, resolveZfaEntrypoint;
 
 /// Result of running a [GenerationPlan]: the captured steps (in
 /// execution order), whether the plan completed (`false` if any step
@@ -82,10 +72,10 @@ class PipelineRunner {
         entrypoint: '(unexpressible plan)',
       );
     }
-    final entrypoint = await _resolveEntrypoint(
+    final entrypoint = await resolveZfaEntrypoint(
       zfaBinOverride: zfaBinOverride,
-      workingDirectory: workingDirectory,
       feature: feature,
+      commandLabel: 'zfa tdd make',
     );
 
     final captured = <GenerationStep>[];
@@ -134,122 +124,4 @@ class PipelineRunner {
       entrypoint: entrypoint.displayCommand,
     );
   }
-
-  /// Resolve the zfa entrypoint (FR-004 / U11, U12).
-  ///
-  /// Order:
-  ///   1. [zfaBinOverride] (the `--zfa-bin` flag) when set and the
-  ///      target is an executable file.
-  ///   2. `Platform.script` when this CLI is running from source — a
-  ///      `file://` URL whose path ends in `/bin/zfa.dart` or
-  ///      `/bin/zuraffa.dart`. The entrypoint is `dart <that path>`.
-  ///   3. `zfa` on PATH — verified to be on PATH via
-  ///      a direct lookup of the executable in `PATH`.
-  ///   4. Fallback: `Platform.script` is a `file://` URL but the basename
-  ///      is not `zfa.dart`/`zuraffa.dart` (compiled snapshot or global
-  ///      activate). Use `dart <Platform.script.toFilePath()>`.
-  ///
-  /// Misfire-stop (U12): throws [PipelineResolutionError] when nothing
-  /// resolves.
-  Future<_ResolvedEntrypoint> _resolveEntrypoint({
-    required String? zfaBinOverride,
-    required String workingDirectory,
-    String? feature,
-  }) async {
-    // 1. Explicit override.
-    if (zfaBinOverride != null && zfaBinOverride.isNotEmpty) {
-      final f = File(zfaBinOverride);
-      if (!await f.exists()) {
-        throw PipelineResolutionError(
-          'zfa tdd make: --zfa-bin "$zfaBinOverride" does not exist on '
-          'disk. Provide a path to a real zfa entrypoint.',
-          feature: feature,
-        );
-      }
-      return _ResolvedEntrypoint(
-        executable: zfaBinOverride,
-        displayCommand: zfaBinOverride,
-      );
-    }
-
-    // 2. Running CLI from source (Platform.script).
-    final script = Platform.script;
-    if (script.scheme == 'file') {
-      final scriptPath = script.toFilePath();
-      final base = p.basename(scriptPath);
-      // bin/zfa.dart or bin/zuraffa.dart — invoke via the dart binary.
-      if (base == 'zfa.dart' || base == 'zuraffa.dart') {
-        return _ResolvedEntrypoint(
-          executable: Platform.resolvedExecutable,
-          arguments: [scriptPath],
-          displayCommand: '${Platform.resolvedExecutable} $scriptPath',
-        );
-      }
-      // Non-standard basename: fall through to PATH lookup (tier 3),
-      // then to the compiled-snapshot fallback (tier 4) if PATH also fails.
-    }
-
-    // 3. Resolve the concrete `zfa` executable from PATH without a shell.
-    final pathEntrypoint = _findExecutableOnPath('zfa');
-    if (pathEntrypoint != null) {
-      return _ResolvedEntrypoint(
-        executable: pathEntrypoint,
-        displayCommand: pathEntrypoint,
-      );
-    }
-
-    // 4. Final fallback: Platform.resolvedExecutable + Platform.script.
-    //    Catches compiled-snapshot and global-activate scenarios where
-    //    Platform.script basename is not zfa.dart/zuraffa.dart.
-    if (script.scheme == 'file') {
-      final scriptPath = script.toFilePath();
-      return _ResolvedEntrypoint(
-        executable: Platform.resolvedExecutable,
-        arguments: [scriptPath],
-        displayCommand: '${Platform.resolvedExecutable} $scriptPath',
-      );
-    }
-
-    throw PipelineResolutionError(
-      'zfa tdd make: cannot resolve the zfa entrypoint. The command '
-      'needs to invoke `zfa entity create` / `zfa make` / `zfa build` '
-      'as sub-processes, but neither --zfa-bin, Platform.script '
-      '(running from source), nor `zfa` on PATH resolved. Run from '
-      'inside a checkout of zuraffa, or pass --zfa-bin <path>.',
-      feature: feature,
-    );
-  }
-
-  String? _findExecutableOnPath(String name) {
-    final path = Platform.environment['PATH'];
-    if (path == null || path.isEmpty) return null;
-    final extensions = Platform.isWindows
-        ? (Platform.environment['PATHEXT'] ?? '.EXE;.BAT;.CMD')
-              .split(';')
-              .where((extension) => extension.isNotEmpty)
-        : const [''];
-    for (final directory in path.split(Platform.isWindows ? ';' : ':')) {
-      if (directory.isEmpty) continue;
-      for (final extension in extensions) {
-        final candidate = File(p.join(directory, '$name$extension'));
-        if (!candidate.existsSync()) continue;
-        if (Platform.isWindows || (candidate.statSync().mode & 0x49) != 0) {
-          return candidate.path;
-        }
-      }
-    }
-    return null;
-  }
-}
-
-class _ResolvedEntrypoint {
-  const _ResolvedEntrypoint({
-    required this.executable,
-    required this.displayCommand,
-    this.arguments = const [],
-  });
-
-  final String executable;
-  final List<String> arguments;
-  final String displayCommand;
 }

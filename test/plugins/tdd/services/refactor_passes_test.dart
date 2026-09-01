@@ -13,6 +13,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/services/refactor_passes.dart';
+import 'package:zuraffa/src/plugins/tdd/services/zfa_entrypoint.dart';
 
 /// A fake process executor that records every invocation and returns
 /// programmed outcomes in order.
@@ -117,7 +118,14 @@ void main() {
             ),
             _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
           ]);
-          final passes = RefactorPasses(project.root.path, executor: executor);
+          final passes = RefactorPasses(
+            project.root.path,
+            executor: executor,
+            // Explicit specs keep the recorded command deterministic for
+            // this capture-contract test; the resolution behavior is
+            // covered by the bug #689 group below.
+            passSpecs: RefactorPasses.defaultPassSpecs,
+          );
           final result = await passes.run();
 
           expect(result.actions, hasLength(3));
@@ -125,7 +133,7 @@ void main() {
           expect(build.name, 'build');
           expect(build.exitCode, 0);
           expect(build.output, 'build ok');
-          expect(build.command, 'dart run bin/zfa.dart build');
+          expect(build.command, 'zfa build');
           expect(build.filesChanged, isEmpty);
 
           final format = result.actions[1];
@@ -257,6 +265,75 @@ void main() {
         'fix',
       ]);
     });
+
+    test('bug #689: the static default build pass is `zfa build`, not the '
+        'missing project-local `dart run bin/zfa.dart build`', () {
+      expect(RefactorPasses.defaultPassSpecs.first.command, 'zfa build');
+      expect(
+        RefactorPasses.defaultPassSpecs.map((s) => s.command),
+        isNot(contains('dart run bin/zfa.dart build')),
+      );
+    });
+
+    test(
+      'bug #689: with default specs the build pass command resolves the '
+      'zfa entrypoint the same way make does and ends with `build`',
+      () async {
+        final project = await _ScratchProject.create();
+        try {
+          final executor = _FakeExecutor([
+            _ProgrammedOutcome(exitCode: 0, output: 'build ok'),
+            _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
+            _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+          ]);
+          // No explicit passSpecs: the build command must be RESOLVED.
+          final passes = RefactorPasses(project.root.path, executor: executor);
+          final result = await passes.run();
+
+          final buildCommand = result.actions.first.command;
+          expect(buildCommand, endsWith(' build'));
+          expect(
+            buildCommand,
+            isNot('dart run bin/zfa.dart build'),
+            reason: 'the hardcoded project-local command is the bug',
+          );
+          // format/fix passes are unchanged.
+          expect(result.actions[1].command, 'dart format lib/');
+          expect(result.actions[2].command, 'dart fix --apply lib/');
+          expect(result.stopped, isFalse);
+        } finally {
+          project.dispose();
+        }
+      },
+    );
+
+    test(
+      'bug #689: entrypoint resolution — an existing --zfa-bin override '
+      'wins; a missing override misfire-stops with a resolution error',
+      () async {
+        final fake = await Directory.systemTemp.createTemp('zfa_entry_');
+        final fakeBin = File(p.join(fake.path, 'zfa-fake'));
+        await fakeBin.writeAsString('#!/bin/sh\nexit 0\n');
+        try {
+          final resolved = await resolveZfaEntrypoint(
+            zfaBinOverride: fakeBin.path,
+            commandLabel: 'zfa tdd refactor',
+          );
+          expect(resolved.executable, fakeBin.path);
+          expect(resolved.commandFor('build'), endsWith('build'));
+
+          await expectLater(
+            resolveZfaEntrypoint(
+              zfaBinOverride: p.join(fake.path, 'missing-zfa'),
+              commandLabel: 'zfa tdd refactor',
+            ),
+            throwsA(isA<PipelineResolutionError>()),
+          );
+        } finally {
+          fake.deleteSync(recursive: true);
+        }
+      },
+    );
   });
 }
 

@@ -4,7 +4,10 @@
 /// The registry is a small, deliberately fixed set of idempotent
 /// tool-driven normalization passes, executed in order:
 ///
-///   1. `build`  — `dart run bin/zfa.dart build` (codegen normalization)
+///   1. `build`  — the resolved zfa CLI's `build` subcommand (codegen
+///      normalization; bug #689 — resolves the entrypoint exactly like
+///      `zfa tdd make` does via the shared zfa entrypoint resolver, with
+///      `zfa build` as the static fallback spec)
 ///   2. `format` — `dart format lib/`
 ///   3. `fix`    — `dart fix --apply lib/`
 ///
@@ -25,6 +28,7 @@ import 'dart:io';
 
 import '../models/refactor_action.dart';
 import 'tree_snapshot.dart';
+import 'zfa_entrypoint.dart';
 
 /// One invocation the registry asks the executor to run.
 class RefactorPassInvocation {
@@ -163,29 +167,65 @@ class RefactorPasses {
     ProcessExecutor? executor,
     List<RefactorPassSpec>? passSpecs,
   }) : _executor = executor ?? const DefaultProcessExecutor(),
-       _passSpecs = passSpecs ?? defaultPassSpecs;
+       _explicitPassSpecs = passSpecs;
 
   /// Project root the passes operate on.
   final String projectRoot;
 
   final ProcessExecutor _executor;
-  final List<RefactorPassSpec> _passSpecs;
+
+  /// Explicit specs injected by the caller (tests); when null the build
+  /// pass resolves the zfa entrypoint at run() time (bug #689).
+  final List<RefactorPassSpec>? _explicitPassSpecs;
 
   /// The default fixed pass set: build → format → fix (spec 048 Decision 2).
   ///
-  /// The build pass invokes the checkout's local CLI explicitly, so it does
-  /// not depend on a globally activated `zfa` executable being on `PATH`.
-  /// The default command line is stable so the recorded evidence stays
-  /// reproducible.
+  /// The build pass invokes the system-installed `zfa` CLI (bug #689):
+  /// `zfa setup` installs the zfa executable on PATH but never creates a
+  /// project-local `bin/zfa.dart`, so the previous hardcoded
+  /// `dart run bin/zfa.dart build` failed on every freshly bootstrapped
+  /// project. When the default specs are used at run() time, the command
+  /// is resolved through the shared zfa entrypoint resolver (the same
+  /// resolution `zfa tdd make` uses), so running from a source checkout
+  /// still prefers the checkout's CLI. These static specs remain the
+  /// documented fallback and the evidence-stable default when resolution
+  /// is unavailable.
   static const defaultPassSpecs = [
-    RefactorPassSpec(name: 'build', command: 'dart run bin/zfa.dart build'),
+    RefactorPassSpec(name: 'build', command: 'zfa build'),
     RefactorPassSpec(name: 'format', command: 'dart format lib/'),
     RefactorPassSpec(name: 'fix', command: 'dart fix --apply lib/'),
   ];
 
-  /// The pass specs this registry will execute, in order.
-  List<RefactorPassSpec> get passSpecs =>
-      List<RefactorPassSpec>.unmodifiable(_passSpecs);
+  /// The pass specs this registry will execute, in order. Before run(),
+  /// this is either the caller's explicit specs or the static default set
+  /// above; the resolved build command (if any) is materialized in run().
+  List<RefactorPassSpec> get passSpecs => List<RefactorPassSpec>.unmodifiable(
+    _explicitPassSpecs ?? defaultPassSpecs,
+  );
+
+  /// Resolve the effective pass specs (bug #689): explicit specs win;
+  /// otherwise resolve the zfa entrypoint exactly like `zfa tdd make` and
+  /// point the build pass at its `build` subcommand. If resolution fails,
+  /// fall back to the static default specs — the executor then records the
+  /// concrete misfire (failed start / non-zero exit) as pass evidence.
+  Future<List<RefactorPassSpec>> _effectivePassSpecs() async {
+    final explicit = _explicitPassSpecs;
+    if (explicit != null) return explicit;
+    try {
+      final entrypoint = await resolveZfaEntrypoint(
+        commandLabel: 'zfa tdd refactor',
+      );
+      return [
+        RefactorPassSpec(
+          name: 'build',
+          command: entrypoint.commandFor('build'),
+        ),
+        ...defaultPassSpecs.skip(1),
+      ];
+    } on PipelineResolutionError {
+      return defaultPassSpecs;
+    }
+  }
 
   /// Run every pass in order, stopping at the first failure.
   ///
@@ -198,7 +238,8 @@ class RefactorPasses {
   ///   6. On non-zero exit or `startedProcess: false`, stop remaining passes.
   Future<RefactorPassesResult> run() async {
     final actions = <RefactorAction>[];
-    for (final spec in _passSpecs) {
+    final specs = await _effectivePassSpecs();
+    for (final spec in specs) {
       final before = await TreeSnapshot.capture(
         projectRoot,
         trees: const ['lib'],

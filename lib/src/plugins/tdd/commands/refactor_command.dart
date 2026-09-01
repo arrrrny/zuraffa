@@ -10,8 +10,10 @@
 ///      `--skip-preflight` option (FR-002).
 ///   3. Captures a before snapshot of `test/` and `lib/` for the
 ///      post-pass immutability and attribution checks.
-///   4. Runs the fixed pass registry (`dart run bin/zfa.dart build`,
-///      `dart format lib/`, `dart fix --apply lib/`) via [RefactorPasses]. Each pass is
+///   4. Runs the fixed pass registry (the resolved zfa CLI's `build`
+///      subcommand — resolved the same way `zfa tdd make` resolves its
+///      pipeline entrypoint, bug #689 — plus `dart format lib/`,
+///      `dart fix --apply lib/`) via [RefactorPasses]. Each pass is
 ///      recorded with its exact command, exit code, and filesChanged
 ///      (FR-003, FR-005). Misfire-stop on any failing pass (FR-010).
 ///   5. After all passes, asserts `test/` is byte-identical (FR-004) and
@@ -76,7 +78,7 @@ class RefactorCommand extends Command<void> {
   @override
   String get description =>
       'Refactor on a green suite only; never edit tests. Applies the fixed '
-      'pass registry (dart run bin/zfa.dart build, dart format lib/, '
+      'pass registry (resolved zfa build, dart format lib/, '
       'dart fix --apply lib/), '
       're-proves the suite green, and appends refactor evidence to '
       'cycle-log.md.';
