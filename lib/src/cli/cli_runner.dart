@@ -334,6 +334,14 @@ class CliRunner {
       );
     }
     _active = true;
+    // Reset the global exitCode so each runCapturing invocation is
+    // hermetic — `dart:io exit(N)` inside the dispatched command sets
+    // exitCode and would otherwise leak across runs (a prior test
+    // calling `exit(2)` from `create_command.dart` would poison every
+    // later test that reads `exitCode`). The runner's own exit status
+    // is preserved through the `_runDispatched` path, which uses its
+    // own `_exit(exitCode)` to honor whatever the command set.
+    exitCode = 0;
     final output = <String>[];
     try {
       final directory = _extractDirectory(args);
