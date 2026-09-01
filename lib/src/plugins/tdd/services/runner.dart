@@ -105,9 +105,14 @@ class SingleTestRunner {
     // extract the `single:` value from inside the `---...---` YAML frontmatter.
     // Supports both `single:` and `stacks:...single:` nesting (see
     // https://github.com/arrrrny/zuraffa/issues/664 for context).
+    // NOTE: dotAll (NOT multiLine). multiLine:true makes ^ match at every line
+    // start, so the non-greedy [\s\S]*? stops at the FIRST \n--- in the file
+    // (e.g. a `---` inside a nested block) and captures only a prefix of the
+    // frontmatter — see issue #681. dotAll keeps ^ anchored to the string start
+    // while still allowing . to match newlines.
     final frontmatterBlock = RegExp(
       r'^---\n([\s\S]*?)\n---',
-      multiLine: true,
+      dotAll: true,
     ).firstMatch(raw);
     if (frontmatterBlock != null) {
       final frontmatter = frontmatterBlock.group(1)!;
@@ -177,9 +182,12 @@ class SingleTestRunner {
     // 1b. Legacy frontmatter YAML block (pre-spec-kit-detector format):
     // extract the `suite:` value from inside the `---...---` YAML frontmatter.
     // Supports both `suite:` and `stacks:...suite:` nesting.
+    // NOTE: dotAll (NOT multiLine) — see issue #681. multiLine:true makes ^ match
+    // at every line start, so the non-greedy [\s\S]*? stops at the FIRST \n---
+    // in the file and captures only a prefix of the frontmatter.
     final frontmatterBlock = RegExp(
       r'^---\n([\s\S]*?)\n---',
-      multiLine: true,
+      dotAll: true,
     ).firstMatch(raw);
     if (frontmatterBlock != null) {
       final frontmatter = frontmatterBlock.group(1)!;
