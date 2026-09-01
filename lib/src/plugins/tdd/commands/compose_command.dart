@@ -429,7 +429,15 @@ $returnType $functionName() {$body}
     String subjectDir,
   ) {
     final libRoot = p.join(projectRoot, 'lib');
-    if (p.isWithin(libRoot, anchor.subjectPath)) {
+    // Resolve symlinks to handle macOS /var/folders -> /private/var/folders
+    // mismatch between resolved cwd and unresolved artifact paths.
+    var anchorPath = anchor.subjectPath;
+    try {
+      anchorPath = Link(anchorPath).resolveSymbolicLinksSync();
+    } catch (_) {
+      // Not a link or doesn't exist — use the original path.
+    }
+    if (p.isWithin(libRoot, anchorPath)) {
       final pubspec = File(p.join(projectRoot, 'pubspec.yaml'));
       var pkg = 'app';
       if (pubspec.existsSync()) {
@@ -439,7 +447,7 @@ $returnType $functionName() {$body}
         ).firstMatch(pubspec.readAsStringSync());
         if (m != null) pkg = m.group(1)!;
       }
-      final rel = p.relative(anchor.subjectPath, from: libRoot);
+      final rel = p.relative(anchorPath, from: libRoot);
       return 'package:$pkg/${rel.replaceAll(r'\', '/')}';
     }
     // Fallback: a relative import from the composing subject's directory.

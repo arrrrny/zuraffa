@@ -180,9 +180,9 @@ class SetupCommand extends Command<void> {
     final autoVerify = argResults!['auto-verify'] as bool;
     final tddExample = argResults!['tdd-example'] as bool;
     final specsDir = argResults!['specs'] as String?;
-    // With --specs the corpus import becomes step 8 of 9 (after branding
-    // step 5a and the TDD baseline); without it the flow has 8 steps.
-    final totalSteps = specsDir != null && specsDir.isNotEmpty ? 9 : 8;
+    // With --specs the corpus import becomes step 7 of 8 (after branding
+    // step 5a and the TDD baseline); without it the flow has 7 steps.
+    final totalSteps = specsDir != null && specsDir.isNotEmpty ? 8 : 7;
 
     if (specsDir != null && specsDir.isNotEmpty) {
       const CorpusImporter().validateSource(specsDir);
