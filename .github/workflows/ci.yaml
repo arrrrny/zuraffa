@@ -24,7 +24,7 @@ jobs:
         with:
           sdk: "3.13.1"
       - name: "Get dependencies"
-        run: dart pub get
+        run: dart pub get --no-example
       - name: "Dart Analyze (pure Dart, no Flutter)"
         # Scoped to the root package (lib/ + test/). The root package is
         # pure Dart; zuraffa_flutter is a separate Flutter package and must
@@ -55,7 +55,7 @@ jobs:
           flutter-version: ${{ env.flutter_version }}
           channel: "stable"
       - name: "Get dependencies"
-        run: flutter packages get
+        run: flutter packages get --no-example
       - name: "Dart Analyze"
         # Root package only (lib/ + test/). This job covers the pure-Dart
         # root package under the Flutter SDK. --no-fatal-infos/--no-fatal-warnings
@@ -80,7 +80,7 @@ jobs:
         # Required so dart format can resolve analysis_options.yaml's
         # `package:lints/recommended.yaml` include; without a package
         # config it falls back to default formatting rules and flags drift.
-        run: dart pub get
+        run: dart pub get --no-example
       - name: "Formatter"
         # Root package only (lib/ + test/).
         run: dart format --set-exit-if-changed lib test
@@ -102,7 +102,7 @@ jobs:
           flutter-version: ${{ env.flutter_version }}
           channel: "stable"
       - name: "Get dependencies"
-        run: flutter packages get
+        run: flutter packages get --no-example
       - name: "Flutter Test (Flutter-generation only)"
         # Runs only the Flutter-generation tests (tagged `flutter`). `flutter
         # test` does NOT support `--preset`, so we select them directly with
