@@ -14,6 +14,13 @@ import 'package:zuraffa/src/core/branding/branding_writer.dart';
 /// assets directory (or a zuraffa pubspec).
 final _zuraffaRoot = findZuraffaRoot();
 
+/// Whether the brand asset source directory exists. On CI and minimal clones
+/// the assets may not be checked out; tests that need real assets skip
+/// themselves in that case so the suite stays green.
+final _brandAssetsExist = Directory(
+  p.join(_zuraffaRoot, 'assets', 'zuraffa_app_icons'),
+).existsSync();
+
 void main() {
   group('BrandingWriter', () {
     group('writeFlutterBranding', () {
@@ -21,6 +28,10 @@ void main() {
       test(
         'copies assets/zuraffa_app_icons/ to target project assets/ directory',
         () async {
+          if (!_brandAssetsExist) {
+            markTestSkipped('brand assets not checked out');
+            return;
+          }
           final tmp = await Directory.systemTemp.createTemp('branding_test_');
           addTearDown(() => tmp.deleteSync(recursive: true));
 
@@ -53,6 +64,10 @@ void main() {
 
       // ── U2 ────────────────────────────────────────────────────────────────
       test('copies iOS icons to ios/Runner/Assets.xcassets/', () async {
+        if (!_brandAssetsExist) {
+          markTestSkipped('brand assets not checked out');
+          return;
+        }
         final tmp = await Directory.systemTemp.createTemp('branding_test2_');
         addTearDown(() => tmp.deleteSync(recursive: true));
 
@@ -84,6 +99,10 @@ void main() {
 
       // ── U3 ────────────────────────────────────────────────────────────────
       test('copies Android icons to android/app/src/main/res/', () async {
+        if (!_brandAssetsExist) {
+          markTestSkipped('brand assets not checked out');
+          return;
+        }
         final tmp = await Directory.systemTemp.createTemp('branding_test_');
         addTearDown(() => tmp.deleteSync(recursive: true));
 
@@ -120,6 +139,10 @@ void main() {
       test(
         'adds assets/zuraffa_app_icons/ to pubspec.yaml flutter assets',
         () async {
+          if (!_brandAssetsExist) {
+            markTestSkipped('brand assets not checked out');
+            return;
+          }
           final tmp = await Directory.systemTemp.createTemp('branding_test_');
           addTearDown(() => tmp.deleteSync(recursive: true));
 
@@ -202,6 +225,10 @@ flutter:
 
       // ── U9 ────────────────────────────────────────────────────────────────
       test('is idempotent: calling twice produces identical output', () async {
+        if (!_brandAssetsExist) {
+          markTestSkipped('brand assets not checked out');
+          return;
+        }
         final tmp = await Directory.systemTemp.createTemp('branding_test_');
         addTearDown(() => tmp.deleteSync(recursive: true));
 
@@ -264,6 +291,10 @@ flutter:
     group('writeDartBranding', () {
       // ── U5 ────────────────────────────────────────────────────────────────
       test('copies brand assets to target assets/ directory', () async {
+        if (!_brandAssetsExist) {
+          markTestSkipped('brand assets not checked out');
+          return;
+        }
         final tmp = await Directory.systemTemp.createTemp('branding_test_');
         addTearDown(() => tmp.deleteSync(recursive: true));
 
@@ -320,6 +351,10 @@ flutter:
 
       // ── U10 ───────────────────────────────────────────────────────────────
       test('is idempotent: calling twice produces identical output', () async {
+        if (!_brandAssetsExist) {
+          markTestSkipped('brand assets not checked out');
+          return;
+        }
         final tmp = await Directory.systemTemp.createTemp('branding_test_');
         addTearDown(() => tmp.deleteSync(recursive: true));
 
