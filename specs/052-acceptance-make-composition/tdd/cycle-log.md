@@ -1,7 +1,7 @@
 # Cycle Log: `zfa tdd compose` — phase-2 acceptance make composition
 
-Append only. Newest last. Every entry's `red` block is the evidence that the
-test existed and failed before the implementation.
+Append only. Newest last. Each entry's `red` block records the test-first
+evidence, or explicitly marks the evidence gap when no valid RED was captured.
 
 ## Baseline
 
@@ -48,11 +48,10 @@ test existed and failed before the implementation.
 
 - test: `test/plugins/tdd/make_command_test.dart` (extended with the
   `spec 052 — composition fallback on planner refusal` group, 6 tests)
-- red: `dart test test/plugins/tdd/make_command_test.dart --preset=all` ->
-  A13 failed: `target test still fails after generation (exit 1)` — the
-  fixture's target test was a static `expect(1, equals(2))` that no
-  generated subject could satisfy; the test-side fixture was wrong, not
-  the fallback
+- red: incomplete — no behavior-specific failing assertion for the missing
+  compose → build fallback was captured before T009. The first recorded
+  failure exposed only a test-fixture defect, so it is not valid RED evidence
+  for the production behavior.
 - green: fixture switched to the subject-driven test discipline used by
   the entity-plan tests; suite -> 21 passed, 0 failed (15 pre-existing +
   6 new). The fallback executes compose → build through `PipelineRunner`,
@@ -90,7 +89,9 @@ test existed and failed before the implementation.
 - sc_018 (entity-bearing acceptance all-DONE through the real pipeline —
   SC-005/A12): 1 passed
 - fast tier, whole tdd scope: `dart test test/plugins/tdd/` -> 319 passed,
-  0 failed (baseline 295 + 24 new)
+  0 failed (baseline 295 + 24 fast new: Cycle 1's 11 + Cycle 2's 13).
+  Cycle 3's 6 make tests and Cycle 4's 2 end-to-end tests are tagged `slow`,
+  so they are excluded from this fast-tier total and were verified separately.
 
 ## Notes and deviations
 

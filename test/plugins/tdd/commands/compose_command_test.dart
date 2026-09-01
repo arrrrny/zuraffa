@@ -292,6 +292,32 @@ void main() {
       expect(out, contains('zfa tdd gen'));
     });
 
+    test(
+      'U12: an in-root subject symlink targeting outside the project is refused',
+      () async {
+        final outside = await Directory.systemTemp.createTemp(
+          'zuraffa-compose-outside-',
+        );
+        addTearDown(() => outside.delete(recursive: true));
+        final outsideSubject = File(p.join(outside.path, 'a_001_subject.dart'));
+        final original = acceptanceStub('A-001');
+        await outsideSubject.writeAsString(original);
+        final inRootSubject = File(fx.subjectPathOf('A-001'));
+        await inRootSubject.delete();
+        await Link(inRootSubject.path).create(outsideSubject.path);
+
+        final out = await runner.runCapturing(composeArgs(fx, id: 'A-001'));
+
+        expect(exitCode, isNot(0), reason: out);
+        expect(out, contains('outcome=runner-error'));
+        expect(out, contains('outside the project root'));
+        expect(await outsideSubject.readAsString(), original);
+      },
+      onPlatform: {
+        'windows': const Skip('symlink creation may need privileges'),
+      },
+    );
+
     test('U13: the composed body is stamped and anchored (int + void '
         'subjects)', () async {
       final out = await runner.runCapturing(composeArgs(fx, id: 'A-001'));

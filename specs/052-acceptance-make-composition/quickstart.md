@@ -17,26 +17,35 @@ feature.
 ```bash
 # 1. Create a temp project with a tdd profile (see
 #    test/plugins/tdd/helpers/tdd_fixture.dart for the canonical shape).
-#    Give it one acceptance behavior (pure prose) + one unit behavior:
-#    test list rows, for example:
-#      | A1 | the signup flow creates an account | FR-001 | PENDING |  (## Outer loop:)
-#      | U1 | unit behavior backing A1            | FR-001 | PENDING |  (## Inner loop:)
+#    Give it one pure-prose acceptance scenario plus this concrete unit FR:
+#      - **FR-001**: create entity Account with status
+#    `zfa tdd plan` turns that FR into U1. Its entity shape is fixture-backed
+#    by the real entity-create + wire + build pipeline used in SC-021, so U1
+#    can become green before A1 is composed against `subject_u1`.
+
+# Run this block from the zuraffa repository checkout.
+ZURAFFA_REPO="$(pwd)"
+DART_BIN="$(command -v dart)"
+PROJECT_ROOT="$(mktemp -d /tmp/zuraffa-compose-quickstart.XXXXXX)"
+FEATURE="001-compose-demo"
+mkdir -p "$PROJECT_ROOT/fake_bin"
+cd "$PROJECT_ROOT"
 
 # 2. Pure exec forwarder to the real CLI (SC-017/SC-018 pattern):
-cat > fake_bin/zfa <<'EOF'
+cat > fake_bin/zfa <<EOF
 #!/usr/bin/env bash
-exec "<dart>" "<zuraffa-repo>/bin/zfa.dart" "$@"
+exec "$DART_BIN" "$ZURAFFA_REPO/bin/zfa.dart" "\$@"
 EOF
 chmod +x fake_bin/zfa
 
 # 3. Gen + certify red for both behaviors (real steps):
-dart run <zuraffa-repo>/bin/zfa.dart tdd gen A1 --project .
-dart run <zuraffa-repo>/bin/zfa.dart tdd verify-red A1 --project .
-dart run <zuraffa-repo>/bin/zfa.dart tdd gen U1 --project .
-dart run <zuraffa-repo>/bin/zfa.dart tdd verify-red U1 --project .
+"$DART_BIN" "$ZURAFFA_REPO/bin/zfa.dart" tdd gen A1 --project .
+"$DART_BIN" "$ZURAFFA_REPO/bin/zfa.dart" tdd verify-red A1 --project .
+"$DART_BIN" "$ZURAFFA_REPO/bin/zfa.dart" tdd gen U1 --project .
+"$DART_BIN" "$ZURAFFA_REPO/bin/zfa.dart" tdd verify-red U1 --project .
 
 # 4. Drive the loop (real pipeline end to end):
-dart run <zuraffa-repo>/bin/zfa.dart tdd run <feature> --project . --zfa-bin fake_bin/zfa
+"$DART_BIN" "$ZURAFFA_REPO/bin/zfa.dart" tdd run "$FEATURE" --project . --zfa-bin fake_bin/zfa
 ```
 
 ## Expected (after this feature)
@@ -52,10 +61,10 @@ dart run <zuraffa-repo>/bin/zfa.dart tdd run <feature> --project . --zfa-bin fak
 [run] A1 make -> green (phase 2)            # THE FLIP: make falls back to compose+build
 [run] A1 refactor -> clean (phase 2)
 [run] U1 refactor -> clean (phase 2)
-run: feature=<feature> result=complete pending=0 red=0 green=0 done=2
+run: feature=001-compose-demo result=complete pending=0 red=0 green=0 done=2
 ```
 
-And in `specs/<feature>/tdd/cycle-log.md`, A1's green entry lists the
+And in `specs/$FEATURE/tdd/cycle-log.md`, A1's green entry lists the
 captured steps including `zfa tdd compose A1` (SC-002).
 
 ## Expected (before this feature — the gap this closes)
@@ -65,13 +74,17 @@ The phase-2 re-attempt of A1's make deterministically reported
 
 ```text
 [run] A1 make -> unexpressible (phase 2)
-run: feature=<feature> result=stopped ... stopped_at=A1:make
+run: feature=001-compose-demo result=stopped ... stopped_at=A1:make
 ```
 
 ## Also verify the honest stops survive
 
-- Same fixture, but delete the unit behavior's green evidence before the
-  run → phase 2 stops non-zero at `A1:make` with `unexpressible`, units
-  green (SC-003).
+- After U1's implementation tests pass in phase 1 but before phase 2 starts,
+  delete only U1's persisted `## Cycle: U1 (green)` section from
+  `specs/$FEATURE/tdd/cycle-log.md`. Leave U1's unit row, registry record,
+  generated subject, and passing implementation test intact. The unit test
+  result is still green, but `CompositionTargets` has no persisted green
+  cycle evidence, so phase 2 stops non-zero at `A1:make` with
+  `unexpressible` (SC-003).
 - A feature whose unexpressible behavior is unit-kind → the run stops at
   that behavior's make in phase 1, never composing (SC-004).

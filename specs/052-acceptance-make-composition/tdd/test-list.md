@@ -2,7 +2,7 @@
 feature: 052-acceptance-make-composition
 loop: outside-in
 profile: .specify/memory/tdd-profile.md
-spec_criteria: 13
+spec_criteria: 15
 planned_at: acdb3722
 updated_at: acdb3722
 suite_baseline: green
@@ -18,10 +18,12 @@ the authoritative slow-tier guards for the #625/#635 contracts.
 
 ## Outer loop: acceptance behaviors
 
-One per acceptance criterion in `spec.md` (13 criteria → A1..A15; A12 is
-credited to the existing SC-018 suite). Fast-tier acceptance behaviors drive
-the real CLI entry point in-process (`CliRunner`, the sc_001–sc_012
-pattern); A1/A2 drive the real pipeline end to end (the sc_018 pattern).
+The 15 A-rows trace all 15 criteria in `spec.md`; the `traces` column names
+the criterion covered by each row, while a criterion may have evidence from
+more than one test. A12 credits the existing SC-018 suite for US3.AC4.
+Fast-tier acceptance behaviors drive the real CLI entry point in-process
+(`CliRunner`, the sc_001–sc_012 pattern); A1/A2 drive the real pipeline end
+to end (the sc_018 pattern).
 
 | id  | behavior | traces | kind | state | test |
 | --- | -------- | ------ | ---- | ----- | ---- |

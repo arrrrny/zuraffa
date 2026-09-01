@@ -1,6 +1,6 @@
 # Contracts: `zfa tdd compose` — phase-2 acceptance make composition
 
-Feature: 052-acceptance-make-composition | Date: 2026-09-01 | Spec: [spec.md](./spec.md)
+Feature: 052-acceptance-make-composition | Date: 2026-09-01 | Spec: [spec.md](../spec.md)
 
 ## C1 — `zfa tdd compose` command contract
 

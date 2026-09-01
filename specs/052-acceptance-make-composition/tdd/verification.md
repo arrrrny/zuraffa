@@ -9,8 +9,8 @@ likely: 0
 test_after: 0
 no_test: 0
 high_smells: 0
-criteria_total: 13
-criteria_covered: 13
+criteria_total: 15
+criteria_covered: 15
 mutation_score: 3/3 sampled mutants caught (no mutation tool wired; deliberate-mutant sampling per the rubric)
 mutants_survived: 0
 suite: fast tier 2477 passed, 0 failed (chunked, 65 chunks) / slow+integration scenario evidence recorded per suite below
@@ -18,13 +18,12 @@ suite: fast tier 2477 passed, 0 failed (chunked, 65 chunks) / slow+integration s
 
 # TDD Verification: `zfa tdd compose` — phase-2 acceptance make composition
 
-**Verdict: PASS_WITH_GAPS.** Every behavior carries recorded red+green
-evidence (`tdd/cycle-log.md`), all 13 acceptance criteria reach a test, and
-the deliberate-mutant sample (3/3 caught) found no test-strength gap in the
-new surfaces. The gaps that keep this from `PASS`: mutation strength is
-sampled, not measured (no mutation tool is wired in CI), and the audit was
-run by the same session that wrote the tests — same mitigations as
-spec 049's audit.
+**Verdict: PASS_WITH_GAPS.** All 15 acceptance criteria reach a test, every
+behavior reached green, and the deliberate-mutant sample (3/3 caught) found no
+test-strength gap in the new surfaces. The gaps that keep this from `PASS`:
+Cycle 3 has no valid behavior-specific RED, mutation strength is sampled rather
+than measured (no mutation tool is wired in CI), and the audit was run by the
+same session that wrote the tests — same mitigations as spec 049's audit.
 
 ## Audit independence disclosure
 
@@ -45,10 +44,10 @@ in the branch history.
   behavioral red caught by U10 (success paths inherited the refused
   invocation's process-global `exitCode=1`) — fixed by make's explicit
   `exitCode = 0` discipline. Green: 13 passed.
-- **Make fallback (A10, A11, A13–A15, U17–U20)**: red = A13
-  (`Expected: <0> Actual: <1>` — fixture's target test was not
-  subject-driven; test-side fix per the entity-plan discipline). Green:
-  21 passed (15 pre-existing + 6 new).
+- **Make fallback (A10, A11, A13–A15, U17–U20)**: behavior-specific RED
+  evidence was not captured before T009; the first recorded failure exposed
+  only a test-fixture defect, so this cycle's test-first evidence is
+  incomplete. Green: 21 passed (15 pre-existing + 6 new).
 - **Real-pipeline flip (A1, A2)**: red (implementation stashed) =
   `run: feature=001-compose-demo result=stopped pending=0 red=1 green=1
   done=0 stopped_at=A1:make` — the deterministic phase-2 honest stop that
@@ -59,7 +58,7 @@ in the branch history.
   composed subject stamped/anchored and the green entry recording
   `tdd compose A1` + `build`.
 
-## Acceptance criteria → tests (13/13 covered)
+## Acceptance criteria → tests (15/15 covered)
 
 | Criterion | Behaviors | Evidence |
 | --- | --- | --- |

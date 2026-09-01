@@ -13,8 +13,8 @@ contracts/contracts.md, quickstart.md, tasks.md, tdd/test-list.md
 2. **SC coverage**: SC-001 → T010/T011 (A1); SC-002 → T010 (A2); SC-003 →
    T008 (A10) + T010; SC-004 → T008 (A11); SC-005 → T010 (A12, credited);
    SC-006 → T004 (U8 credit + A9 pin); SC-007 → T012.
-3. **AC coverage**: all 13 acceptance criteria (US1.AC1-3, US2.AC1-5,
-   US3.AC1-4, US4.AC1-3) map 1:1 to A1..A15 behaviors in tdd/test-list.md
+3. **AC coverage**: all 15 acceptance criteria (US1.AC1-3, US2.AC1-5,
+   US3.AC1-4, US4.AC1-3) map to A1..A15 behaviors in tdd/test-list.md
    (A-batches per US; A12 credited to the existing SC-018 suite).
 4. **Marker alignment**: every `[A*]`/`[U*]` marker in tasks.md resolves to
    a test-list row; no marker references a dropped/renumbered id.

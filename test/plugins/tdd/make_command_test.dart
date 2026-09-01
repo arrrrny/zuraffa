@@ -602,9 +602,8 @@ void main() {
       await fx.registerBehavior(id: 'U-100', description: 'unit one');
       await fx.seedGreenEvidence('U-100');
       await Directory(p.join(fx.root.path, 'lib')).create(recursive: true);
-      await File(
-        fx.subjectPathOf('U-100'),
-      ).writeAsString('int subject_u_100() => 0;\n');
+      await File(fx.subjectPathOf('U-100'))
+          .writeAsString('int subject_u_100() => 0;\n');
     }
 
     test('A13/U19: acceptance make falls back to compose → build, both '
@@ -691,6 +690,7 @@ void main() {
       () async {
         // A feature with a green unit sibling AND a unit-kind unexpressible
         // behavior: the fallback must not engage for the unit.
+        await seedAcceptanceWithGreenUnit(fx);
         await fx.seedTestList([
           (
             id: 'A-100',
@@ -714,7 +714,6 @@ void main() {
             kind: 'unit',
           ),
         ]);
-        await seedAcceptanceWithGreenUnit(fx);
         await fx.seedCertifiedRed(
           id: 'B-200',
           description: 'parse bespoke DSL syntax with no generator surface',

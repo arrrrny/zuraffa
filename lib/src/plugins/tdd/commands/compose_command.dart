@@ -183,8 +183,42 @@ class ComposeCommand extends Command<void> {
           ? recordedSubject
           : p.join(normalizedCwd, recordedSubject),
     );
-    if (!p.equals(normalizedCwd, subjectPath) &&
-        !p.isWithin(normalizedCwd, subjectPath)) {
+    final unresolvedSubjectFile = File(subjectPath);
+    late final String resolvedCwd;
+    late final String resolvedSubjectPath;
+    try {
+      resolvedCwd = await Directory(normalizedCwd).resolveSymbolicLinks();
+      if (!await unresolvedSubjectFile.exists()) {
+        print(
+          'zfa tdd compose: the registry record for behavior '
+          '"${record.behaviorId}" points to a missing subject file at '
+          '"$recordedSubject". Run `zfa tdd gen ${record.behaviorId}` to '
+          'restore its artifacts.',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: ComposeOutcome.runnerError,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+      resolvedSubjectPath = await unresolvedSubjectFile.resolveSymbolicLinks();
+    } on FileSystemException catch (e) {
+      print(
+        'zfa tdd compose: could not resolve the subject path '
+        '"$recordedSubject": ${e.message}',
+      );
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: ComposeOutcome.runnerError,
+        feature: target.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+    if (!p.equals(resolvedCwd, resolvedSubjectPath) &&
+        !p.isWithin(resolvedCwd, resolvedSubjectPath)) {
       print(
         'zfa tdd compose: the registry record for behavior '
         '"${record.behaviorId}" points outside the project root at '
@@ -199,29 +233,14 @@ class ComposeCommand extends Command<void> {
       exitCode = 1;
       return;
     }
-    final subjectFile = File(subjectPath);
-    if (!await subjectFile.exists()) {
-      print(
-        'zfa tdd compose: the registry record for behavior '
-        '"${record.behaviorId}" points to a missing subject file at '
-        '"$recordedSubject". Run `zfa tdd gen ${record.behaviorId}` to '
-        'restore its artifacts.',
-      );
-      _printSummary(
-        behavior: record.behaviorId,
-        outcome: ComposeOutcome.runnerError,
-        feature: target.featureName,
-      );
-      exitCode = 1;
-      return;
-    }
+    final subjectFile = File(resolvedSubjectPath);
 
     // -------------------------------------------------------------
     // 4. Discover the composable green unit subjects (FR-003). The kind
     //    gate lives here too: a unit-kind target fails closed.
     // -------------------------------------------------------------
     final discovery = await const CompositionTargets().discover(
-      projectRoot: normalizedCwd,
+      projectRoot: resolvedCwd,
       featureDir: target.featureDir,
       behaviorId: record.behaviorId,
     );
@@ -247,7 +266,22 @@ class ComposeCommand extends Command<void> {
     // -------------------------------------------------------------
     // 5. Parse the subject stub (FR-005: idempotence + refusal).
     // -------------------------------------------------------------
-    final raw = await subjectFile.readAsString();
+    late final String raw;
+    try {
+      raw = await subjectFile.readAsString();
+    } on FileSystemException catch (e) {
+      print(
+        'zfa tdd compose: could not read the subject file at '
+        '"$recordedSubject": ${e.message}',
+      );
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: ComposeOutcome.runnerError,
+        feature: target.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
     if (!raw.contains('UnimplementedError')) {
       // Idempotent re-run (resumed pipeline): nothing to do.
       print(
@@ -288,10 +322,24 @@ class ComposeCommand extends Command<void> {
       returnType: returnType,
       functionName: functionName,
       anchors: anchors,
-      projectRoot: normalizedCwd,
-      subjectDir: p.dirname(subjectPath),
+      projectRoot: resolvedCwd,
+      subjectDir: p.dirname(resolvedSubjectPath),
     );
-    await subjectFile.writeAsString(composed);
+    try {
+      await subjectFile.writeAsString(composed);
+    } on FileSystemException catch (e) {
+      print(
+        'zfa tdd compose: could not write the subject file at '
+        '"$recordedSubject": ${e.message}',
+      );
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: ComposeOutcome.runnerError,
+        feature: target.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
     print('   composed: $recordedSubject');
     _printSummary(
       behavior: record.behaviorId,
