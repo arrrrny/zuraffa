@@ -338,4 +338,122 @@ void main() {
     expect(p.basename(bin), 'zfa.dart');
     expect(await File(bin).exists(), isTrue);
   });
+
+  group('bug #690: system-binary entrypoint fallback', () {
+    /// A real executable file in a temp dir (the compiled system binary
+    /// the tests stand in for).
+    Future<File> executableFile(String dirName, String name) async {
+      final dir = await Directory.systemTemp.createTemp(dirName);
+      addTearDown(() => dir.delete(recursive: true));
+      final file = File(p.join(dir.path, name));
+      await file.writeAsString('#!/bin/sh\nexit 0\n');
+      await Process.run('chmod', ['+x', file.path]);
+      return file;
+    }
+
+    Future<Uri?> noPackageUri(Uri packageUri) async => null;
+    const staleScript = '/build/stale/zfa.dart.dill';
+
+    test('resolves the system-installed zfa on PATH (tier 4)', () async {
+      final systemZfa = await executableFile('zfa690_path', 'zfa');
+
+      final bin = await StepRunner.resolveEntrypoint(
+        // The pub-global snapshot shape: script is the snapshot itself,
+        // NOT a .dart entrypoint, and the package is not resolvable.
+        script: Uri.file('/build/stale/zfa.jit'),
+        resolvedExecutable: '/usr/bin/dart',
+        environment: {'PATH': p.dirname(systemZfa.path)},
+        resolvePackageUri: noPackageUri,
+      );
+
+      expect(bin, systemZfa.path);
+    });
+
+    test('final fallback is Platform.resolvedExecutable for a compiled zfa '
+        'binary not on PATH (tier 6)', () async {
+      final compiled = await executableFile('zfa690_exe', 'zfa');
+
+      final bin = await StepRunner.resolveEntrypoint(
+        script: Uri.file('/build/stale/never-existed.dill'),
+        resolvedExecutable: compiled.path,
+        environment: {'PATH': '/usr/bin:/bin'},
+        resolvePackageUri: noPackageUri,
+      );
+
+      expect(bin, compiled.path);
+    });
+
+    test('a usable Platform.script still wins over the resolvedExecutable '
+        'fallback when nothing is on PATH (tier 5 preserved)', () async {
+      final compiled = await executableFile('zfa690_exe2', 'zfa');
+      final snapshot = await executableFile('zfa690_snap', 'zfa.jit');
+
+      final bin = await StepRunner.resolveEntrypoint(
+        script: Uri.file(snapshot.path),
+        resolvedExecutable: compiled.path,
+        environment: {'PATH': '/usr/bin:/bin'},
+        resolvePackageUri: noPackageUri,
+      );
+
+      expect(bin, snapshot.path);
+    });
+
+    test('the Dart VM is never returned as the entrypoint — unresolved '
+        'input still throws the pass --zfa-bin error', () async {
+      await expectLater(
+        StepRunner.resolveEntrypoint(
+          script: Uri.file(staleScript),
+          resolvedExecutable: '/usr/bin/dart',
+          environment: {'PATH': ''},
+          resolvePackageUri: noPackageUri,
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('cannot resolve the zfa entrypoint'),
+          ),
+        ),
+      );
+    });
+
+    test('a non-executable PATH candidate is skipped (executable bit '
+        'checked, mirroring #665)', () async {
+      final dir = await Directory.systemTemp.createTemp('zfa690_nox');
+      addTearDown(() => dir.delete(recursive: true));
+      final notExecutable = File(p.join(dir.path, 'zfa'));
+      await notExecutable.writeAsString('#!/bin/sh\nexit 0\n');
+      final compiled = await executableFile('zfa690_exe3', 'zfa');
+
+      final bin = await StepRunner.resolveEntrypoint(
+        script: Uri.file(staleScript),
+        resolvedExecutable: compiled.path,
+        environment: {'PATH': dir.path},
+        resolvePackageUri: noPackageUri,
+      );
+
+      expect(bin, compiled.path, reason: 'falls through to tier 6');
+    });
+
+    test('run() spawns steps through the resolved entrypoint', () async {
+      final spawner = _RecordingSpawner(() => _result());
+      // No --zfa-bin: the runner must fall through to defaultZfaBin(),
+      // which resolves the system zfa on PATH for this test's inputs.
+      final runner = StepRunner(spawner: spawner.call);
+
+      await runner.run(
+        step: 'gen',
+        behaviorId: 'B-001',
+        feature: feature,
+        projectRoot: projectRoot,
+      );
+
+      // In the `dart test` context the package tier (3) resolves first,
+      // so the spawn goes through this package's bin/zfa.dart via dart.
+      expect(spawner.commands.single.take(2), [
+        'dart',
+        await StepRunner.defaultZfaBin(),
+      ]);
+    });
+  });
 }
