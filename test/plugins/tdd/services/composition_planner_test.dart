@@ -131,7 +131,7 @@ void main() {
           behaviorId: 'B-003',
           feature: '052-compose',
           sourceCriterion: 'FR-007',
-          description: 'parse bespoke DSL syntax with no generator surface',
+          description: 'interpret bespoke DSL syntax with no generator surface',
         ),
       );
       expect(plan.isExpressible, isFalse);
@@ -140,7 +140,7 @@ void main() {
         'behavior "B-003" requires an implementation '
         'the zuraffa generation pipeline cannot express: no generator '
         'surface maps the behavior description '
-        '"parse bespoke DSL syntax with no generator surface" to a `zfa '
+        '"interpret bespoke DSL syntax with no generator surface" to a `zfa '
         'entity create` / `zfa make` '
         '/ `zfa build` invocation. File a zuraffa gap per the STOP-ON-'
         'ROADBLOCK policy.',
