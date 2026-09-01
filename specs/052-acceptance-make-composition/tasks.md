@@ -37,7 +37,7 @@ Repo-root package (matches plan.md): implementation under
 
 **Purpose**: register the compose command so the CLI surface exists
 
-- [ ] T001 Create `ComposeCommand` as a skeleton in
+- [X] T001 Create `ComposeCommand` as a skeleton in
   `lib/src/plugins/tdd/commands/compose_command.dart` (flags: `--feature`,
   `--project`; outcome enum + summary printer) and register it in
   `lib/src/commands/tdd_command.dart` next to `WireCommand`; update
@@ -52,7 +52,7 @@ Repo-root package (matches plan.md): implementation under
 command (US2) and the make fallback (US1) consume. Test-first: each group's
 failing tests land before its implementation.
 
-- [ ] T002 [P] [U1] [U2] [U3] [U4] [U5] Write the failing discovery tests FIRST in
+- [X] T002 [P] [U1] [U2] [U3] [U4] [U5] Write the failing discovery tests FIRST in
   `test/plugins/tdd/services/composition_targets_test.dart`: discovery =
   unit-kind test-list rows ∩ green cycle-log evidence ∩ existing subject
   files; zero anchors reported as no-green-units (not an error state, a
@@ -60,19 +60,19 @@ failing tests land before its implementation.
   failure naming the artifact; the compose target itself is never an anchor
   — observe red before the service exists (depends on T001 for imports
   only)
-- [ ] T003 [P] Implement `CompositionTargets` in
+- [X] T003 [P] Implement `CompositionTargets` in
   `lib/src/plugins/tdd/services/composition_targets.dart` (pure-ish
   filesystem reader: test list via shared `TestListReader`, green evidence
   via `CycleEvidence`, subject paths via `ArtifactRegistry`; returns
   anchors or a typed failure; depends on T002 red)
-- [ ] T004 [P] [U6] [U7] [U8] [A9] Write the failing fallback-planner tests
+- [X] T004 [P] [U6] [U7] [U8] [A9] Write the failing fallback-planner tests
   FIRST in `test/plugins/tdd/services/composition_planner_test.dart`: an
   acceptance summary + ≥1 anchor yields the plan `tdd compose <id>` →
   `build` (terminal build step, captured purposes); planner purity — the
   result depends only on (summary, anchors); SC-006 pin —
   `GenerationPlanner.plan()` plans are byte-identical to its pinned
   outputs (entity / CRUD / prose) — observe red
-- [ ] T005 [P] Implement `CompositionPlanner` in
+- [X] T005 [P] Implement `CompositionPlanner` in
   `lib/src/plugins/tdd/services/composition_planner.dart` (pure:
   `(BehaviorSummary, List<ComposableUnitSubject>) → GenerationPlan`;
   depends on T004 red)
@@ -84,7 +84,7 @@ failing tests land before its implementation.
 **Purpose**: the `zfa tdd compose` command the fallback plan invokes.
 Test-first.
 
-- [ ] T006 [A3] [A4] [A5] [A6] [A7] [A8] [U9] [U10] [U11] [U12] [U13] [U14]
+- [X] T006 [A3] [A4] [A5] [A6] [A7] [A8] [U9] [U10] [U11] [U12] [U13] [U14]
   [U15] [U16] Write the failing compose-command tests FIRST in
   `test/plugins/tdd/commands/compose_command_test.dart` (fast tier,
   `TddFixture`-based, real CLI entry via `CliRunner`): wired path —
@@ -98,7 +98,7 @@ Test-first.
   unrecognized stub shape → refusal, no rewrite (U15, FR-005); unknown id
   / ambiguity → named errors (U9/U10, FR-001); summary line final stdout
   on every path (U16, FR-006) — observe red
-- [ ] T007 Implement `ComposeCommand` in
+- [X] T007 Implement `ComposeCommand` in
   `lib/src/plugins/tdd/commands/compose_command.dart` following wire's
   shape (resolution rules, stub-signature parsing, ownership refusals,
   idempotence, `compose: behavior=... outcome=... feature=...` final-line
@@ -112,7 +112,7 @@ Test-first.
 **Purpose**: wire the fallback into the 047 make pipeline behind the
 planner-refusal branch. Test-first.
 
-- [ ] T008 [A10] [A11] [A13] [A14] [A15] [U17] [U18] [U19] [U20] Write the
+- [X] T008 [A10] [A11] [A13] [A14] [A15] [U17] [U18] [U19] [U20] Write the
   failing make-fallback tests FIRST in
   `test/plugins/tdd/commands/make_command_test.dart` (extend the existing
   suite): acceptance-kind unexpressible behavior + green unit subjects →
@@ -124,7 +124,7 @@ planner-refusal branch. Test-first.
   `unexpressible` (U18, FR-007); failed compose step → `generation-error`,
   no green entry (A14/U20, US4.AC2/FR-010); failed build after a composed
   subject → `generation-error`, no green entry (A15, US4.AC3) — observe red
-- [ ] T009 Implement the composition fallback in
+- [X] T009 Implement the composition fallback in
   `lib/src/plugins/tdd/commands/make_command.dart`: on
   `!plan.isExpressible`, resolve the behavior's test-list row kind
   (shared `TestListReader`); acceptance-kind → discover anchors
@@ -140,7 +140,7 @@ planner-refusal branch. Test-first.
 **Purpose**: the SC-001 proof — the scripted flip's real-pipeline
 counterpart. Test-first, slow tier.
 
-- [ ] T010 [A1] [A2] [A12] Write the failing scenario tests FIRST in
+- [X] T010 [A1] [A2] [A12] Write the failing scenario tests FIRST in
   `test/plugins/tdd/scenarios/sc_021_acceptance_composition_e2e_test.dart`
   (slow tier, pure exec forwarder to the REAL `bin/zfa.dart` — SC-017/018
   provisioning): SC-001 — prose acceptance + unit behavior driven
@@ -150,7 +150,7 @@ counterpart. Test-first, slow tier.
   carries the compose step (A1/A2, SC-001/SC-002); SC-005 — the
   entity-bearing acceptance path stays all-DONE (A12, no regression) —
   observe red
-- [ ] T011 [A1] Fix any real-pipeline gaps the scenario exposes (argument
+- [X] T011 [A1] Fix any real-pipeline gaps the scenario exposes (argument
   plumbing, anchor import paths, build step behavior in fixtures) and
   re-run SC-021 to green (depends on T010 red)
 
@@ -158,7 +158,7 @@ counterpart. Test-first, slow tier.
 
 ## Phase 6: Verification & polish
 
-- [ ] T012 Run the regression guards and record evidence:
+- [X] T012 Run the regression guards and record evidence:
   existing driver/deferral suites (sc_013–sc_016), planner unit suite,
   SC-018 entity-bearing e2e, `dart analyze`, `tools/run_tests_chunked.sh`,
   `dart format .`; append the verification summary to
