@@ -78,7 +78,7 @@ full-suite preflight.
 
 | # | Mutant (one small change, restored exactly after) | Result |
 | --- | --- | --- |
-| 1 | `|| await _hasPendingWithArtifacts(…)` replaced by `|| false` (the bug #734 deferral condition dropped — pre-fix behavior restored in place) | CAUGHT — both new tests fail: spawn order degrades to `refactor A1` before `gen U3` (the #734 signature) and the gate test sees `runner-error` instead of the skip. Restored exactly; bug-734 pair re-ran green |
+| 1 | `\|\| await _hasPendingWithArtifacts(…)` replaced by `\|\| false` (the bug #734 deferral condition dropped — pre-fix behavior restored in place) | CAUGHT — both new tests fail: spawn order degrades to `refactor A1` before `gen U3` (the #734 signature) and the gate test sees `runner-error` instead of the skip. Restored exactly; bug-734 pair re-ran green |
 | 2 | Phase-2b gate inverted: `!certifiedGreen.contains(id)` → `certifiedGreen.contains(id)` | CAUGHT — gate test fails (skips the certified behavior, refactors the uncertified one). Restored exactly |
 | 3 | Skip path fakes DONE: `current = current.advance(id, BehaviorState.done)` inserted before the skip print (FR-008 violation) | CAUGHT — gate test fails: run reports `result=complete`, exit 0 instead of the honest `result=stopped`, exit 1. Restored exactly; restore verified byte-identical against the saved fix diff, pair re-ran green |
 
