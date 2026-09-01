@@ -62,6 +62,7 @@ import '../services/pipeline_runner.dart';
 import '../services/runner.dart';
 import '../services/suite_guard.dart';
 import '../tdd_plugin.dart';
+import '../../../core/project/project_root.dart';
 
 /// Resolution-stage failure: message, outcome, and feature context if known.
 class MakeResolutionError implements Exception {
@@ -141,7 +142,7 @@ class MakeCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : Directory.current.path;
+        : ProjectRoot.find();
     final zfaBinFlag = argResults?['zfa-bin'] as String?;
 
     final runner = const SingleTestRunner();

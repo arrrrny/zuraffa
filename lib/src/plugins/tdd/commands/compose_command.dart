@@ -49,6 +49,7 @@ import 'package:path/path.dart' as p;
 import '../services/artifact_registry.dart';
 import '../services/composition_targets.dart';
 import '../tdd_plugin.dart';
+import '../../../core/project/project_root.dart';
 
 /// Outcome labels for the machine-readable summary line.
 enum ComposeOutcome {
@@ -129,7 +130,7 @@ class ComposeCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : Directory.current.path;
+        : ProjectRoot.find();
 
     // -------------------------------------------------------------
     // 1. Resolve the behavior's registry record (FR-001).

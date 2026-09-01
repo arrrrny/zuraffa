@@ -41,6 +41,7 @@ import '../services/refactor_passes.dart';
 import '../services/runner.dart';
 import '../services/tree_snapshot.dart';
 import '../tdd_plugin.dart';
+import '../../../core/project/project_root.dart';
 
 class RefactorCommand extends Command<void> {
   RefactorCommand(this.plugin) {
@@ -93,7 +94,7 @@ class RefactorCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : Directory.current.path;
+        : ProjectRoot.find();
 
     await _run(cwd: cwd, featureFlag: featureFlag);
   }

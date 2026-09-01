@@ -44,6 +44,7 @@ import '../services/cycle_log.dart';
 import '../services/red_classifier.dart';
 import '../services/runner.dart';
 import '../tdd_plugin.dart';
+import '../../../core/project/project_root.dart';
 
 /// Resolution-stage failure: message + the feature context if known.
 class VerifyRedResolutionError implements Exception {
@@ -110,7 +111,7 @@ class VerifyRedCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : Directory.current.path;
+        : ProjectRoot.find();
 
     // ---------------------------------------------------------------
     // 1. Resolve the target from the registry (FR-001, FR-002).

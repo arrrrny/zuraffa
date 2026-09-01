@@ -22,6 +22,7 @@ import 'package:path/path.dart' as p;
 import '../tdd_plugin.dart';
 import '../services/corpus_manifest_store.dart';
 import '../services/provenance_scanner.dart';
+import '../../../core/project/project_root.dart';
 
 class CorpusAuditCommand extends Command<void> {
   CorpusAuditCommand(this.plugin) {
@@ -57,7 +58,7 @@ class CorpusAuditCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : Directory.current.path;
+        : ProjectRoot.find();
 
     print('zfa tdd corpus audit: scanning lib/ provenance...');
     print('   project: $projectRoot');

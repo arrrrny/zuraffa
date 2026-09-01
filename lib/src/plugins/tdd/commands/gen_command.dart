@@ -40,6 +40,7 @@ import '../services/behavior_test_writer.dart';
 import '../services/subject_writer.dart';
 import '../services/test_list_reader.dart';
 import '../tdd_plugin.dart';
+import '../../../core/project/project_root.dart';
 
 class GenCommand extends Command<void> {
   GenCommand(this.plugin) {
@@ -95,7 +96,7 @@ class GenCommand extends Command<void> {
     final projectFlag = argResults!['project'] as String?;
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : Directory.current.path;
+        : ProjectRoot.find();
 
     // Resolve the behavior. If --feature is set, only scan that one
     // feature's test-list. Otherwise, scan all features and prefer

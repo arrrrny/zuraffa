@@ -89,6 +89,7 @@ import '../services/run_state_store.dart';
 import '../services/step_runner.dart';
 import '../services/test_list_reader.dart';
 import '../tdd_plugin.dart';
+import '../../../core/project/project_root.dart';
 
 class RunCommand extends Command<void> {
   RunCommand(this.plugin) {
@@ -147,7 +148,7 @@ class RunCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : Directory.current.path;
+        : ProjectRoot.find();
     final zfaBin = argResults?['zfa-bin'] as String?;
 
     final featureDir = p.join(projectRoot, 'specs', feature);
