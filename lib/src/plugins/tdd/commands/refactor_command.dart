@@ -10,8 +10,8 @@
 ///      `--skip-preflight` option (FR-002).
 ///   3. Captures a before snapshot of `test/` and `lib/` for the
 ///      post-pass immutability and attribution checks.
-///   4. Runs the fixed pass registry (`dart run bin/zfa.dart build`,
-///      `dart format lib/`, `dart fix --apply lib/`) via [RefactorPasses]. Each pass is
+///   4. Runs the fixed pass registry (the resolved zfa build, `dart format
+///      lib/`, `dart fix --apply lib/`) via [RefactorPasses]. Each pass is
 ///      recorded with its exact command, exit code, and filesChanged
 ///      (FR-003, FR-005). Misfire-stop on any failing pass (FR-010).
 ///   5. After all passes, asserts `test/` is byte-identical (FR-004) and
@@ -63,6 +63,15 @@ class RefactorCommand extends Command<void> {
           'of mutating Directory.current, which is process-global and '
           'unsafe under concurrent test execution.',
     );
+    argParser.addOption(
+      'zfa-bin',
+      help:
+          'Path to the zfa entrypoint the build pass invokes (bug #689). '
+          'When omitted, the entrypoint resolves the same way make/gen/verify '
+          'resolve it: the running CLI from source, then the system zfa on '
+          'PATH, then the dart+script fallback — never a hardcoded '
+          'bin/zfa.dart, which zfa setup does not create.',
+    );
     // Note (FR-002): there is INTENTIONALLY no --skip-preflight option.
     // The preflight is the entire discipline of the refactor step; skipping
     // it would destroy the signal that makes refactoring safe.
@@ -76,14 +85,14 @@ class RefactorCommand extends Command<void> {
   @override
   String get description =>
       'Refactor on a green suite only; never edit tests. Applies the fixed '
-      'pass registry (dart run bin/zfa.dart build, dart format lib/, '
+      'pass registry (resolved zfa build, dart format lib/, '
       'dart fix --apply lib/), '
       're-proves the suite green, and appends refactor evidence to '
       'cycle-log.md.';
 
   @override
   String get invocation =>
-      'zfa tdd refactor [--feature <name>] [--project <path>]';
+      'zfa tdd refactor [--feature <name>] [--project <path>] [--zfa-bin <path>]';
 
   @override
   Future<void> run() async {
@@ -95,14 +104,19 @@ class RefactorCommand extends Command<void> {
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find();
+    final zfaBinFlag = argResults?['zfa-bin'] as String?;
 
-    await _run(cwd: cwd, featureFlag: featureFlag);
+    await _run(cwd: cwd, featureFlag: featureFlag, zfaBin: zfaBinFlag);
   }
 
   /// The body of the command, extracted so it can return a typed outcome
   /// for testing. The [injectablePasses] parameter is used by tests to
   /// drive the pass registry without real subprocesses.
-  Future<void> _run({required String cwd, String? featureFlag}) async {
+  Future<void> _run({
+    required String cwd,
+    String? featureFlag,
+    String? zfaBin,
+  }) async {
     RefactorOutcome outcome;
     int applied = 0;
     String featureName = featureFlag ?? 'unknown';
@@ -172,9 +186,15 @@ class RefactorCommand extends Command<void> {
       final testBefore = await TreeSnapshot.capture(cwd, trees: const ['test']);
       final libBefore = await TreeSnapshot.capture(cwd, trees: const ['lib']);
 
-      // 5. Run the pass registry (FR-003, FR-005, FR-010).
+      // 5. Run the pass registry (FR-003, FR-005, FR-010). The build pass
+      // entrypoint resolves through the same tiers make/gen/verify use;
+      // --zfa-bin overrides it (bug #689: never the hardcoded
+      // bin/zfa.dart, which zfa setup does not create).
       print('zfa tdd refactor: applying passes');
-      final passes = RefactorPasses(cwd);
+      final passes = RefactorPasses(
+        cwd,
+        zfaBinOverride: (zfaBin != null && zfaBin.isNotEmpty) ? zfaBin : null,
+      );
       final passResult = await passes.run();
       for (final action in passResult.actions) {
         print('   pass: ${action.name}');
