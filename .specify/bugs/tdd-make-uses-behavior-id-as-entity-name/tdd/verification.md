@@ -129,3 +129,10 @@ exhaustively sampled.
   quality is the `zfa make` surface's own contract).
 - The 2 pre-existing make_command failures documented in the #694 audit are
   equally out of scope here (planner-message owner).
+
+## Shared verify (branch-level, combined stack 695→694→696)
+
+- `dart analyze` (whole repo) → No issues found
+- `tools/run_tests_chunked.sh` (fast suite, chunked) → SCRIPT_EXIT=0, 66 chunks, **2509 tests, 0 failures** (`OK: all chunks passed.`)
+- `dart format .` (Dart 3.13.3) → 0 files changed after the `chore: dart format 3.13.3` commit; `git diff --stat` → empty (zero remaining formatting diffs)
+- 2 failures in `make_command_test.dart` (planner-message wording) were verified PRE-EXISTING on the base commit via `git stash` and are out of scope; they are counted in the per-file runs above, not in the chunked fast suite (both are slow-tier tests)
