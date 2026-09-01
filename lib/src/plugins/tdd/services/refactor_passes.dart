@@ -4,7 +4,16 @@
 /// The registry is a small, deliberately fixed set of idempotent
 /// tool-driven normalization passes, executed in order:
 ///
-///   1. `build`  — `dart run bin/zfa.dart build` (codegen normalization)
+///   1. `build`  — the resolved zfa entrypoint + `build` (codegen
+///      normalization). Bug #689: this pass previously hardcoded
+///      `dart run bin/zfa.dart build`, but `zfa setup` never creates
+///      `bin/zfa.dart` in the project (it installs the system zfa), so
+///      the pass — and therefore every refactor — misfired. The
+///      entrypoint now resolves through the same tiers make/gen/verify
+///      use via [PipelineRunner] (FR-004 / U11): `--zfa-bin` override →
+///      the running CLI from source (Platform.script basename
+///      zfa.dart/zuraffa.dart) → `zfa` on PATH → the dart+script
+///      fallback.
 ///   2. `format` — `dart format lib/`
 ///   3. `fix`    — `dart fix --apply lib/`
 ///
@@ -24,6 +33,7 @@ import 'dart:async';
 import 'dart:io';
 
 import '../models/refactor_action.dart';
+import 'step_runner.dart';
 import 'tree_snapshot.dart';
 
 /// One invocation the registry asks the executor to run.
@@ -109,18 +119,44 @@ class DefaultProcessExecutor implements ProcessExecutor {
   }
 
   /// Tokenize a command line into an executable + argument list. Quote
-  /// pairs wrapping a token are stripped (shell quoting, not data).
+  /// pairs wrapping a token are stripped (shell quoting, not data). The
+  /// splitter is quote-aware so a quoted path containing spaces (e.g. a
+  /// resolved zfa entrypoint under "C:\Program Files\..." or "/home/my
+  /// tools/bin/zfa") survives as ONE token (bug #689 follow-up:
+  /// resolved absolute paths must execute verbatim).
   static List<String> _tokenize(String command) {
-    final rawTokens = command.trim().split(RegExp(r'\s+'));
-    return rawTokens.map((token) {
-      var out = token;
-      if (out.length >= 2 && out.startsWith('"') && out.endsWith('"')) {
-        out = out.substring(1, out.length - 1);
-      } else if (out.length >= 2 && out.startsWith("'") && out.endsWith("'")) {
-        out = out.substring(1, out.length - 1);
+    final tokens = <String>[];
+    final buffer = StringBuffer();
+    String? quote;
+    for (var i = 0; i < command.length; i++) {
+      final c = command[i];
+      if (quote != null) {
+        if (c == quote) {
+          quote = null;
+        } else {
+          buffer.write(c);
+        }
+        continue;
       }
-      return out;
-    }).toList();
+      if (c == '"' || c == "'") {
+        quote = c;
+        continue;
+      }
+      if (c == ' ' || c == '\t') {
+        if (buffer.isNotEmpty) {
+          tokens.add(buffer.toString());
+          buffer.clear();
+        }
+        continue;
+      }
+      buffer.write(c);
+    }
+    if (quote != null) {
+      // Unbalanced quote: keep the raw remainder rather than dropping it.
+      buffer.write(quote);
+    }
+    if (buffer.isNotEmpty) tokens.add(buffer.toString());
+    return tokens;
   }
 }
 
@@ -162,8 +198,14 @@ class RefactorPasses {
     this.projectRoot, {
     ProcessExecutor? executor,
     List<RefactorPassSpec>? passSpecs,
+    String? zfaBinOverride,
+    Map<String, String>? environment,
   }) : _executor = executor ?? const DefaultProcessExecutor(),
-       _passSpecs = passSpecs ?? defaultPassSpecs;
+       _passSpecs = passSpecs ??
+           defaultPassSpecs(
+             zfaBinOverride: zfaBinOverride,
+             environment: environment,
+           );
 
   /// Project root the passes operate on.
   final String projectRoot;
@@ -173,15 +215,33 @@ class RefactorPasses {
 
   /// The default fixed pass set: build → format → fix (spec 048 Decision 2).
   ///
-  /// The build pass invokes the checkout's local CLI explicitly, so it does
-  /// not depend on a globally activated `zfa` executable being on `PATH`.
-  /// The default command line is stable so the recorded evidence stays
-  /// reproducible.
-  static const defaultPassSpecs = [
-    RefactorPassSpec(name: 'build', command: 'dart run bin/zfa.dart build'),
-    RefactorPassSpec(name: 'format', command: 'dart format lib/'),
-    RefactorPassSpec(name: 'fix', command: 'dart fix --apply lib/'),
-  ];
+  /// The build pass invokes the zfa entrypoint resolved through the same
+  /// tiers make/gen/verify use (PipelineRunner FR-004 / U11 / StepRunner
+  /// bug #690) — bug #689: the previous hardcoded `dart run bin/zfa.dart
+  /// build` misfired with exit 255 in every project bootstrapped by
+  /// `zfa setup`, which installs the system zfa and never creates
+  /// `bin/zfa.dart`.
+  ///
+  /// [zfaBinOverride] (the `--zfa-bin` flag) wins when provided, mirroring
+  /// tier 1. [environment] is the full platform environment handed to
+  /// [StepRunner.resolveEntrypoint]; tests inject a fixture PATH, while
+  /// production reads `Platform.environment` directly.
+  static List<RefactorPassSpec> defaultPassSpecs({
+    String? zfaBinOverride,
+    Map<String, String>? environment,
+  }) {
+    return [
+      RefactorPassSpec(
+        name: 'build',
+        command: zfaBuildCommand(
+          zfaBinOverride: zfaBinOverride,
+          environment: environment,
+        ),
+      ),
+      const RefactorPassSpec(name: 'format', command: 'dart format lib/'),
+      const RefactorPassSpec(name: 'fix', command: 'dart fix --apply lib/'),
+    ];
+  }
 
   /// The pass specs this registry will execute, in order.
   List<RefactorPassSpec> get passSpecs =>
@@ -241,4 +301,56 @@ class RefactorPasses {
       failedPass: null,
     );
   }
+}
+
+/// Resolve the `build` pass command line (bug #689).
+///
+/// Delegates the entrypoint search to [StepRunner.resolveEntrypoint]
+/// (the same tier-2-through-tier-6 chain bug #690 added for the TDD
+/// step runner): `bin/zfa.dart` in the running CLI's tree, the package
+/// path fallback, then a system `zfa` on PATH, then `Platform.script`,
+/// then `Platform.resolvedExecutable`. The explicit `--zfa-bin`
+/// override is honored first.
+///
+/// The returned path is shaped into a command line: a `.dart` source is
+/// run with `dart <path> build`; a compiled binary is invoked directly
+/// as `<path> build`. Tokens that contain spaces are quoted; the
+/// executor's quote-aware tokenizer keeps them as single argv entries.
+///
+/// [environment] lets tests inject a fixture PATH; production callers
+/// pass null and the chain reads `Platform.environment` itself.
+String zfaBuildCommand({
+  String? zfaBinOverride,
+  Map<String, String>? environment,
+}) {
+  String quoteIfNeeded(String token) =>
+      token.contains(' ') || token.contains('\t') ? '"$token"' : token;
+
+  // Tier 1 — explicit override (mirrors PipelineRunner / StepRunner tier 1).
+  if (zfaBinOverride != null && zfaBinOverride.isNotEmpty) {
+    return '${quoteIfNeeded(zfaBinOverride)} build';
+  }
+
+  // Tiers 2-6 — delegate to the canonical chain. Tests inject a fixture
+  // environment; production uses the live platform.
+  final env = environment ?? Platform.environment;
+  String entrypoint;
+  try {
+    entrypoint = StepRunner.resolveEntrypoint(
+      script: Platform.script,
+      resolvedExecutable: Platform.resolvedExecutable,
+      environment: env,
+    );
+  } on StateError {
+    // Genuinely unresolvable: keep the bare-name fallback so the
+    // executor records the misfire honestly (FR-010) instead of
+    // crashing the refactor command.
+    return 'zfa build';
+  }
+
+  if (entrypoint.endsWith('.dart')) {
+    return '${quoteIfNeeded(Platform.resolvedExecutable)} '
+        '${quoteIfNeeded(entrypoint)} build';
+  }
+  return '${quoteIfNeeded(entrypoint)} build';
 }

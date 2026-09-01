@@ -125,7 +125,12 @@ void main() {
           expect(build.name, 'build');
           expect(build.exitCode, 0);
           expect(build.output, 'build ok');
-          expect(build.command, 'dart run bin/zfa.dart build');
+          // Bug #689: the build pass resolves the zfa entrypoint (override
+          // → running-from-source → PATH → fallback), never the hardcoded
+          // `dart run bin/zfa.dart build` that misfired in projects without
+          // that file. The executor records the exact resolved command.
+          expect(build.command, endsWith(' build'));
+          expect(build.command, isNot(contains('bin/zfa.dart')));
           expect(build.filesChanged, isEmpty);
 
           final format = result.actions[1];
@@ -256,6 +261,62 @@ void main() {
         'format',
         'fix',
       ]);
+    });
+
+    // Bug #689: the build pass hardcoded `dart run bin/zfa.dart build`,
+    // but `zfa setup` never creates bin/zfa.dart in the project (it
+    // installs the system zfa), so refactor always misfired. The build
+    // pass must resolve the zfa entrypoint the same way make/gen/verify
+    // do (PipelineRunner FR-004/U11 tiers).
+    group('bug #689 — build pass resolves the zfa entrypoint', () {
+      test('an explicit --zfa-bin override wins and names the binary', () {
+        final passes = RefactorPasses(
+          '/tmp/unused',
+          zfaBinOverride: '/home/dev/.local/bin/zfa',
+        );
+        final build = passes.passSpecs.first;
+        expect(build.name, 'build');
+        expect(build.command, '/home/dev/.local/bin/zfa build');
+        expect(
+          build.command,
+          isNot(contains('bin/zfa.dart')),
+          reason: 'the hardcoded bin/zfa.dart path was the bug',
+        );
+      });
+
+      test(
+        'a zfa on PATH (system install) is preferred over the fallback',
+        () async {
+          final fakeBin = Directory.systemTemp.createTempSync('fake_path_689_');
+          addTearDown(() => fakeBin.deleteSync(recursive: true));
+          final zfa = File(p.join(fakeBin.path, 'zfa'));
+          zfa.writeAsStringSync('#!/bin/sh\nexit 0\n');
+          // The resolver only accepts executable candidates (same contract
+          // as PipelineRunner's PATH lookup), so mark the fake executable.
+          await Process.run('chmod', ['+x', zfa.path]);
+          final environment = <String, String>{
+            'PATH': '/usr/bin:${fakeBin.path}',
+          };
+          RefactorPasses('/tmp/unused', environment: environment);
+          final build = RefactorPasses.defaultPassSpecs(
+            environment: environment,
+          ).first;
+          expect(build.command, '${zfa.path} build');
+        },
+      );
+
+      test('the default command never names the nonexistent bin/zfa.dart', () {
+        final build = RefactorPasses.defaultPassSpecs().first;
+        expect(build.name, 'build');
+        expect(
+          build.command,
+          isNot(equals('dart run bin/zfa.dart build')),
+          reason:
+              'hardcoding bin/zfa.dart regressed every project without '
+              'that file (bug #689, exit 255)',
+        );
+        expect(build.command, endsWith(' build'));
+      });
     });
   });
 }

@@ -20,22 +20,33 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 
 import 'helpers/tdd_fixture.dart';
 
-/// Build the CLI args for `zfa tdd refactor`, pinning the project root so
-/// the command resolves specs/test/.specify under [fx] without depending on
-/// Directory.current.
-List<String> refactorArgs(TddFixture fx, {String? feature}) => [
-  'tdd',
-  'refactor',
-  '--project',
-  fx.root.path,
-  if (feature != null) ...['--feature', feature],
-];
-
 void main() {
   late TddFixture fx;
+  // Bug #689: the suite pins the build-pass entrypoint via --zfa-bin (the
+  // same override make accepts). In-process default resolution cannot be
+  // deterministic under `dart test` (Platform.script is the test kernel),
+  // so every invocation drives the fixture's fake system zfa — mirroring
+  // the real scenario of a system-installed zfa without bin/zfa.dart.
+  late String fakeZfa;
+
+  /// Build the CLI args for `zfa tdd refactor`, pinning the project root so
+  /// the command resolves specs/test/.specify under [fx] without depending
+  /// on Directory.current. Defaults `--zfa-bin` to the fixture's fake
+  /// system zfa (bug #689 override surface).
+  List<String> refactorArgs(TddFixture f, {String? feature, String? zfaBin}) =>
+      [
+        'tdd',
+        'refactor',
+        '--project',
+        f.root.path,
+        if (feature != null) ...['--feature', feature],
+        '--zfa-bin',
+        zfaBin ?? fakeZfa,
+      ];
 
   setUp(() async {
     fx = await TddFixture.create();
+    fakeZfa = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
   });
 
   tearDown(() {
@@ -87,10 +98,15 @@ void main() {
       );
       try {
         await fxBroken.seedGreenSuite();
+        final fxBrokenZfa = await fxBroken.writeFakeZfaBin(
+          logPath: fxBroken.fakeZfaLogPath,
+        );
         final checksumsBefore = fxBroken.checksumTestAndLib();
 
         final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(refactorArgs(fxBroken));
+        final out = await runner.runCapturing(
+          refactorArgs(fxBroken, zfaBin: fxBrokenZfa),
+        );
 
         expect(out, contains('outcome=runner-error'));
         expect(exitCode, isNot(0));
@@ -158,12 +174,15 @@ void main() {
         // The actions block in the cycle-log lists every action.
         final log = await File(fx.cycleLogPath).readAsString();
         expect(log, contains('actions:'));
-        // Each action block names its command.
+        // Each action block names its command. Bug #689: the build pass
+        // command is the RESOLVED zfa entrypoint (the fake zfa this suite
+        // drives via --zfa-bin, or a resolved absolute entrypoint), no
+        // longer the hardcoded `dart run bin/zfa.dart build`.
         expect(
           log,
           contains(
             RegExp(
-              r'command: `(dart run bin/zfa\.dart build|dart format lib/|dart fix --apply lib/)`',
+              r'command: `([^`]+/zfa build|[^`]+zfa\.dart build|dart format lib/|dart fix --apply lib/)`',
             ),
           ),
         );
@@ -266,6 +285,33 @@ void main() {
       r'^refactor: feature=(\S+) outcome=(clean|refactored|not-green|regression|runner-error) applied=(\d+)$',
     );
 
+    // Bug #689: a project bootstrapped by `zfa setup` has NO bin/zfa.dart
+    // (the system zfa lives outside the project). The build pass must use
+    // the resolved zfa entrypoint — with --zfa-bin, the same override make
+    // accepts — and the refactor must complete green without the hardcoded
+    // `dart run bin/zfa.dart build` misfiring.
+    test(
+      'A12: a project without bin/zfa.dart refactors green via --zfa-bin',
+      () async {
+        await fx.seedAlreadyCleanLib();
+        // The bug precondition: no bin/zfa.dart (zfa setup never creates it).
+        final seededBin = File(p.join(fx.root.path, 'bin', 'zfa.dart'));
+        if (seededBin.existsSync()) seededBin.deleteSync();
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing(refactorArgs(fx));
+        expect(
+          out,
+          contains(RegExp(r'outcome=(clean|refactored)')),
+          reason: 'refactor output:\n$out',
+        );
+        expect(exitCode, 0);
+        // The build pass actually invoked the resolved entrypoint.
+        final calls = await fx.readFakeZfaLog();
+        expect(calls, contains('build'));
+      },
+    );
+
     test('A10: every invocation ends with the summary line '
         '`refactor: feature=<f> outcome=<o> applied=<n>`', () async {
       await fx.seedAlreadyCleanLib();
@@ -288,9 +334,12 @@ void main() {
         final fxRed = await TddFixture.create();
         try {
           await fxRed.seedRedSuite();
+          final fxRedZfa = await fxRed.writeFakeZfaBin(
+            logPath: fxRed.fakeZfaLogPath,
+          );
           exitCode = 0;
           runner = CliRunner(exitOnCompletion: false);
-          await runner.runCapturing(refactorArgs(fxRed));
+          await runner.runCapturing(refactorArgs(fxRed, zfaBin: fxRedZfa));
           expect(exitCode, isNot(0));
         } finally {
           fxRed.dispose();
