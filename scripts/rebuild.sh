@@ -24,7 +24,7 @@ rm -rf build .dart_tool
 # 2>&1` swallowed the real error and made the script silently hang.
 echo "📥 Getting dependencies..."
 PUB_STDERR=$(mktemp)
-if ! dart pub get --no-example 2> "$PUB_STDERR"; then
+if ! dart pub get --no-example > /dev/null 2> "$PUB_STDERR"; then
   echo "  ❌ dart pub get failed:" >&2
   cat "$PUB_STDERR" >&2
   rm -f "$PUB_STDERR"
@@ -39,7 +39,7 @@ mkdir -p "$INSTALL_DIR"
 echo "🔨 Compiling zfa..."
 rm -rf build/zfa_bundle
 ZFA_STDERR=$(mktemp)
-if ! dart build cli --target=bin/zfa.dart -o build/zfa_bundle 2> "$ZFA_STDERR"; then
+if ! dart build cli --target=bin/zfa.dart -o build/zfa_bundle > /dev/null 2> "$ZFA_STDERR"; then
   echo "  ❌ zfa compile failed:" >&2
   cat "$ZFA_STDERR" >&2
   rm -f "$ZFA_STDERR"
@@ -54,7 +54,7 @@ echo "  ✅ $INSTALL_DIR/zfa"
 echo "🔨 Compiling zuraffa_mcp_server..."
 rm -rf build/mcp_server_bundle
 MCP_STDERR=$(mktemp)
-if ! dart build cli --target=bin/zuraffa_mcp_server.dart -o build/mcp_server_bundle 2> "$MCP_STDERR"; then
+if ! dart build cli --target=bin/zuraffa_mcp_server.dart -o build/mcp_server_bundle > /dev/null 2> "$MCP_STDERR"; then
   echo "  ❌ mcp compile failed:" >&2
   cat "$MCP_STDERR" >&2
   rm -f "$MCP_STDERR"
