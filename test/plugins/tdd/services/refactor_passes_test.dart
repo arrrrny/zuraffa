@@ -294,9 +294,13 @@ void main() {
           // The resolver only accepts executable candidates (same contract
           // as PipelineRunner's PATH lookup), so mark the fake executable.
           await Process.run('chmod', ['+x', zfa.path]);
-          final pathEnv = '/usr/bin:${fakeBin.path}';
-          RefactorPasses('/tmp/unused', pathEnv: pathEnv);
-          final build = RefactorPasses.defaultPassSpecs(pathEnv: pathEnv).first;
+          final environment = <String, String>{
+            'PATH': '/usr/bin:${fakeBin.path}',
+          };
+          RefactorPasses('/tmp/unused', environment: environment);
+          final build = RefactorPasses.defaultPassSpecs(
+            environment: environment,
+          ).first;
           expect(build.command, '${zfa.path} build');
         },
       );

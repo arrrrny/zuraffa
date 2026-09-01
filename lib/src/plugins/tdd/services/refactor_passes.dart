@@ -32,9 +32,8 @@ library;
 import 'dart:async';
 import 'dart:io';
 
-import 'package:path/path.dart' as p;
-
 import '../models/refactor_action.dart';
+import 'step_runner.dart';
 import 'tree_snapshot.dart';
 
 /// One invocation the registry asks the executor to run.
@@ -200,11 +199,13 @@ class RefactorPasses {
     ProcessExecutor? executor,
     List<RefactorPassSpec>? passSpecs,
     String? zfaBinOverride,
-    String? pathEnv,
+    Map<String, String>? environment,
   }) : _executor = executor ?? const DefaultProcessExecutor(),
-       _passSpecs =
-           passSpecs ??
-           defaultPassSpecs(zfaBinOverride: zfaBinOverride, pathEnv: pathEnv);
+       _passSpecs = passSpecs ??
+           defaultPassSpecs(
+             zfaBinOverride: zfaBinOverride,
+             environment: environment,
+           );
 
   /// Project root the passes operate on.
   final String projectRoot;
@@ -215,25 +216,26 @@ class RefactorPasses {
   /// The default fixed pass set: build → format → fix (spec 048 Decision 2).
   ///
   /// The build pass invokes the zfa entrypoint resolved through the same
-  /// tiers make/gen/verify use (PipelineRunner FR-004 / U11) — bug #689:
-  /// the previous hardcoded `dart run bin/zfa.dart build` misfired with
-  /// exit 255 in every project bootstrapped by `zfa setup`, which installs
-  /// the system zfa and never creates `bin/zfa.dart`.
+  /// tiers make/gen/verify use (PipelineRunner FR-004 / U11 / StepRunner
+  /// bug #690) — bug #689: the previous hardcoded `dart run bin/zfa.dart
+  /// build` misfired with exit 255 in every project bootstrapped by
+  /// `zfa setup`, which installs the system zfa and never creates
+  /// `bin/zfa.dart`.
   ///
   /// [zfaBinOverride] (the `--zfa-bin` flag) wins when provided, mirroring
-  /// PipelineRunner tier 1. [pathEnv] overrides the PATH scanned for a
-  /// system-installed `zfa` (tests inject a fixture bin dir; production
-  /// reads Platform.environment).
+  /// tier 1. [environment] is the full platform environment handed to
+  /// [StepRunner.resolveEntrypoint]; tests inject a fixture PATH, while
+  /// production reads `Platform.environment` directly.
   static List<RefactorPassSpec> defaultPassSpecs({
     String? zfaBinOverride,
-    String? pathEnv,
+    Map<String, String>? environment,
   }) {
     return [
       RefactorPassSpec(
         name: 'build',
         command: zfaBuildCommand(
           zfaBinOverride: zfaBinOverride,
-          pathEnv: pathEnv,
+          environment: environment,
         ),
       ),
       const RefactorPassSpec(name: 'format', command: 'dart format lib/'),
@@ -303,66 +305,52 @@ class RefactorPasses {
 
 /// Resolve the `build` pass command line (bug #689).
 ///
-/// Mirrors the PipelineRunner entrypoint tiers (FR-004 / U11 — the same
-/// resolution make/gen/verify use), so `zfa tdd refactor` invokes the SAME
-/// zfa binary the user ran:
+/// Delegates the entrypoint search to [StepRunner.resolveEntrypoint]
+/// (the same tier-2-through-tier-6 chain bug #690 added for the TDD
+/// step runner): `bin/zfa.dart` in the running CLI's tree, the package
+/// path fallback, then a system `zfa` on PATH, then `Platform.script`,
+/// then `Platform.resolvedExecutable`. The explicit `--zfa-bin`
+/// override is honored first.
 ///
-///   1. [zfaBinOverride] (the `--zfa-bin` flag) when set.
-///   2. The running CLI from source: Platform.script basename
-///      `zfa.dart`/`zuraffa.dart` → `<dart> <script> build`.
-///   3. A system-installed `zfa` on PATH (issue scenario:
-///      `~/.local/bin/zfa`) → `<zfa> build`.
-///   4. Fallback: `<dart> <Platform.script> build` (compiled snapshot /
-///      global-activate shapes).
+/// The returned path is shaped into a command line: a `.dart` source is
+/// run with `dart <path> build`; a compiled binary is invoked directly
+/// as `<path> build`. Tokens that contain spaces are quoted; the
+/// executor's quote-aware tokenizer keeps them as single argv entries.
 ///
-/// Tokens that contain spaces are emitted quoted; the executor's
-/// quote-aware tokenizer keeps them as single argv entries.
-String zfaBuildCommand({String? zfaBinOverride, String? pathEnv}) {
+/// [environment] lets tests inject a fixture PATH; production callers
+/// pass null and the chain reads `Platform.environment` itself.
+String zfaBuildCommand({
+  String? zfaBinOverride,
+  Map<String, String>? environment,
+}) {
   String quoteIfNeeded(String token) =>
       token.contains(' ') || token.contains('\t') ? '"$token"' : token;
 
-  // 1. Explicit override (tier 1).
+  // Tier 1 — explicit override (mirrors PipelineRunner / StepRunner tier 1).
   if (zfaBinOverride != null && zfaBinOverride.isNotEmpty) {
     return '${quoteIfNeeded(zfaBinOverride)} build';
   }
 
-  final script = Platform.script;
-  final scriptPath = script.scheme == 'file' ? script.toFilePath() : null;
-  final scriptBase = scriptPath?.split(Platform.pathSeparator).last;
+  // Tiers 2-6 — delegate to the canonical chain. Tests inject a fixture
+  // environment; production uses the live platform.
+  final env = environment ?? Platform.environment;
+  String entrypoint;
+  try {
+    entrypoint = StepRunner.resolveEntrypoint(
+      script: Platform.script,
+      resolvedExecutable: Platform.resolvedExecutable,
+      environment: env,
+    );
+  } on StateError {
+    // Genuinely unresolvable: keep the bare-name fallback so the
+    // executor records the misfire honestly (FR-010) instead of
+    // crashing the refactor command.
+    return 'zfa build';
+  }
 
-  // 2. Running CLI from source (tier 2).
-  if (scriptBase == 'zfa.dart' || scriptBase == 'zuraffa.dart') {
+  if (entrypoint.endsWith('.dart')) {
     return '${quoteIfNeeded(Platform.resolvedExecutable)} '
-        '${quoteIfNeeded(scriptPath!)} build';
+        '${quoteIfNeeded(entrypoint)} build';
   }
-
-  // 3. System-installed zfa on PATH (tier 3).
-  final path = pathEnv ?? Platform.environment['PATH'];
-  if (path != null && path.isNotEmpty) {
-    final extensions = Platform.isWindows
-        ? (Platform.environment['PATHEXT'] ?? '.EXE;.BAT;.CMD')
-              .split(';')
-              .where((extension) => extension.isNotEmpty)
-        : const [''];
-    for (final directory in path.split(Platform.isWindows ? ';' : ':')) {
-      if (directory.isEmpty) continue;
-      for (final extension in extensions) {
-        final candidate = File(p.join(directory, 'zfa$extension'));
-        if (!candidate.existsSync()) continue;
-        if (Platform.isWindows || (candidate.statSync().mode & 0x49) != 0) {
-          return '${quoteIfNeeded(candidate.path)} build';
-        }
-      }
-    }
-  }
-
-  // 4. Fallback (tier 4): dart + the running script.
-  if (scriptPath != null) {
-    return '${quoteIfNeeded(Platform.resolvedExecutable)} '
-        '${quoteIfNeeded(scriptPath)} build';
-  }
-
-  // Last resort: bare name — the executor records the failure honestly
-  // if this shape cannot run (misfire-stop, FR-010).
-  return 'zfa build';
+  return '${quoteIfNeeded(entrypoint)} build';
 }
