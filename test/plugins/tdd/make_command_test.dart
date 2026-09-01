@@ -674,8 +674,9 @@ void main() {
       await fx.registerBehavior(id: 'U-100', description: 'unit one');
       await fx.seedGreenEvidence('U-100');
       await Directory(p.join(fx.root.path, 'lib')).create(recursive: true);
-      await File(fx.subjectPathOf('U-100'))
-          .writeAsString('int subject_u_100() => 0;\n');
+      await File(
+        fx.subjectPathOf('U-100'),
+      ).writeAsString('int subject_u_100() => 0;\n');
     }
 
     test('A13/U19: acceptance make falls back to compose → build, both '
