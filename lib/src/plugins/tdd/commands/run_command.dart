@@ -137,7 +137,7 @@ class RunCommand extends Command<void> {
         invocation,
       );
     }
-    final feature = rest.first;
+    final feature = _stripSpecsPrefix(rest.first);
     _validateFeatureSegment(feature);
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
@@ -839,6 +839,22 @@ typedef _Stop = ({
 /// The outcome of driving one behavior through its step window: the
 /// updated run state plus, when the run must stop, the [_Stop] report.
 typedef _DriveResult = ({RunState state, _Stop? stop});
+
+/// Strip a leading `specs/` prefix from a user-supplied feature
+/// reference. Lets users paste the path format shown throughout
+/// zuraffa's docs and error messages (`specs/<feature>`) without
+/// triggering the segment check below. The traversal guard on
+/// `_validateFeatureSegment` still rejects `..` and absolute paths
+/// after stripping.
+String _stripSpecsPrefix(String feature) {
+  if (feature.startsWith('specs/') || feature.startsWith('specs\\')) {
+    final stripped = feature.substring('specs/'.length);
+    // `specs/` alone is not a feature name.
+    if (stripped.isEmpty) return feature;
+    return stripped;
+  }
+  return feature;
+}
 
 /// Segment check for the positional feature argument: it lands in a
 /// filesystem path, so keep it a single plain directory segment (mirrors

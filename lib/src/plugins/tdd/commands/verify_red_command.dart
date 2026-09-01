@@ -97,7 +97,10 @@ class VerifyRedCommand extends Command<void> {
   Future<void> run() async {
     final rest = argResults?.rest ?? const <String>[];
     final behaviorId = rest.isNotEmpty ? rest.first : null;
-    final featureFlag = argResults?['feature'] as String?;
+    final rawFeatureFlag = argResults?['feature'] as String?;
+    final featureFlag = (rawFeatureFlag != null && rawFeatureFlag.isNotEmpty)
+        ? _stripSpecsPrefix(rawFeatureFlag)
+        : rawFeatureFlag;
     if (featureFlag != null && featureFlag.isNotEmpty) {
       _validateFeatureSegment(featureFlag);
     }
@@ -469,6 +472,22 @@ void _validateFeatureSegment(String feature) {
       'zfa tdd verify-red [<behavior-id>] [--feature <name>]',
     );
   }
+}
+
+/// Strip a leading `specs/` prefix from a user-supplied --feature
+/// reference. Lets users paste the path format shown throughout
+/// zuraffa's docs and error messages (`specs/<feature>`) without
+/// triggering the segment check above. The traversal guard on
+/// `_validateFeatureSegment` still rejects `..` and absolute paths
+/// after stripping.
+String _stripSpecsPrefix(String feature) {
+  if (feature.startsWith('specs/') || feature.startsWith('specs\\')) {
+    final stripped = feature.substring('specs/'.length);
+    // `specs/` alone is not a feature name.
+    if (stripped.isEmpty) return feature;
+    return stripped;
+  }
+  return feature;
 }
 
 class _RegistryEntry {
