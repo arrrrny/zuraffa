@@ -118,7 +118,10 @@ void main() {
   test(
     'U21: a done claim without red+green evidence demotes to the evidence-backed state',
     () async {
-      // Red only: demoted to red -> re-driven from make.
+      // Red only: demoted to red -> re-driven from make. The gen artifacts
+      // are registered so the red claim's state-implied make re-entry
+      // applies (bug #720 demotes artifact-less claims to gen instead).
+      await fx.registerBehavior(id: 'B-001', description: 'first behavior');
       await fx.seedRedEvidence('B-001');
       await fx.seedRunState(states: {'B-001': 'done'});
 
@@ -144,7 +147,11 @@ void main() {
   test(
     'U22: resume skips DONE and re-enters at the state-implied step',
     () async {
-      // RED -> make; GREEN -> refactor; DONE -> skip.
+      // RED -> make; GREEN -> refactor; DONE -> skip. The gen artifacts
+      // are registered so the state-implied re-entries apply (bug #720
+      // demotes artifact-less claims to gen instead).
+      await fx.registerBehavior(id: 'B-002', description: 'second behavior');
+      await fx.registerBehavior(id: 'B-003', description: 'third behavior');
       await fx.seedRedEvidence('B-001');
       await fx.seedGreenEvidence('B-001');
       await fx.seedRedEvidence('B-002');
@@ -903,7 +910,10 @@ One per functional requirement in `spec.md`.
     // certifies B-001 (red+green) and carries red-only evidence for B-002;
     // B-003 has no evidence at all. FR-003 (evidence beats state) must
     // promote the reconciled states instead of treating the feature as
-    // never-started.
+    // never-started. B-002's gen artifacts are registered so its red
+    // claim keeps the state-implied make re-entry (bug #720 demotes
+    // artifact-less claims to gen instead).
+    await fx.registerBehavior(id: 'B-002', description: 'second behavior');
     await fx.seedRedEvidence('B-001');
     await fx.seedGreenEvidence('B-001');
     await fx.seedRedEvidence('B-002');
@@ -972,6 +982,11 @@ One per functional requirement in `spec.md`.
     // bootstrap must not fabricate the missing red half, so the resumed
     // refactor certifies and then fails the evidence check (FR-003/
     // FR-011) — the behavior stays GREEN and the run stops naming it.
+    // The gen artifacts are registered so the green/red claims keep
+    // their state-implied re-entries (bug #720 demotes artifact-less
+    // claims to gen instead).
+    await fx.registerBehavior(id: 'B-001', description: 'first behavior');
+    await fx.registerBehavior(id: 'B-002', description: 'second behavior');
     await fx.seedGreenEvidence('B-001');
     await fx.seedRedEvidence('B-002');
 
@@ -1009,5 +1024,96 @@ One per functional requirement in `spec.md`.
       'B-002': 'done',
       'B-003': 'done',
     });
+  });
+
+  test('bug 720: a clean state with residual red evidence starts at gen, '
+      'not make', () async {
+    // The issue's exact repro: run-state.json, artifacts.json and the gen
+    // files are all gone, but the cycle log still carries red evidence for
+    // B-001 from a prior interrupted run that never wrote an in-flight
+    // marker. The #682 bootstrap promotes B-001 to RED, and the red claim's
+    // make re-entry is only valid when the gen artifacts exist — the real
+    // make refuses "no gen artifacts" otherwise. The driver must check the
+    // artifacts, not the state claim, and start B-001 at gen.
+    await fx.seedRedEvidence('B-001');
+    // No run-state.json, no artifacts.json record, no test files: a fully
+    // clean state except the residual red evidence.
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    // B-001 re-drives the FULL cycle from gen (the red claim is not trusted
+    // without artifacts); B-002/B-003 are untouched pendings on the same
+    // full cycle.
+    expect(fx.stepInvocations(), [
+      'gen B-001',
+      'verify-red B-001',
+      'make B-001',
+      'refactor B-001',
+      'gen B-002',
+      'verify-red B-002',
+      'make B-002',
+      'refactor B-002',
+      'gen B-003',
+      'verify-red B-003',
+      'make B-003',
+      'refactor B-003',
+    ]);
+    expect(out, contains('[run] B-001 gen -> ok'));
+    expect(out, contains('[run] B-001 verify-red -> certified'));
+    expect(out, contains('[run] B-001 make -> green'));
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 '
+        'green=0 done=3',
+      ),
+      reason: out,
+    );
+    final state = await readState();
+    expect(state['behavior_states'] as Map<String, dynamic>, {
+      'B-001': 'done',
+      'B-002': 'done',
+      'B-003': 'done',
+    });
+  });
+
+  test('bug 720: an in-flight marker still re-enters at its step even '
+      'when the gen artifacts are missing', () async {
+    // The gen check only fills in a MISSING resume decision — it must not
+    // override a live in-flight marker (U23): a crash mid-make left the
+    // marker, and the resume re-enters at make exactly as before.
+    final dead = await Process.start('sh', ['-c', 'exit 0']);
+    final deadPid = dead.pid;
+    await dead.exitCode;
+    await fx.seedRedEvidence('B-001');
+    await fx.seedRunState(
+      states: {'B-001': 'red', 'B-002': 'pending', 'B-003': 'pending'},
+      inFlightBehaviorId: 'B-001',
+      inFlightStep: 'make',
+      inFlightOwnerPid: deadPid,
+    );
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    expect(fx.stepInvocations().first, 'make B-001');
+    expect(fx.stepInvocations().where((l) => l == 'gen B-001'), isEmpty);
+  });
+
+  test('bug 720: a red claim WITH gen artifacts still re-enters at make '
+      '(the artifacts check does not regress certified resumes)', () async {
+    // The artifacts check only demotes artifact-less claims. B-001 is red
+    // WITH its registry record (gen completed in a prior run; verify-red
+    // certified; the run stopped before make), so the state-implied make
+    // re-entry stays exactly as the pre-#720 contract.
+    await fx.registerBehavior(id: 'B-001', description: 'first behavior');
+    await fx.seedRedEvidence('B-001');
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    expect(fx.stepInvocations().first, 'make B-001');
+    expect(fx.stepInvocations().where((l) => l == 'gen B-001'), isEmpty);
   });
 }

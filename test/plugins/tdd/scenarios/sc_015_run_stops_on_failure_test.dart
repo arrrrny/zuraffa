@@ -147,7 +147,11 @@ void main() {
     'A9: red without green evidence is never DONE, whatever the state says',
     () async {
       // The state file claims B-001 done, but the cycle log holds only its
-      // red entry — evidence beats state, so B-001 is re-driven from make.
+      // red entry — evidence beats state, so B-001 is demoted to red and
+      // re-driven from make. The gen artifacts are registered so the red
+      // claim keeps its state-implied make re-entry (bug #720 demotes
+      // artifact-less claims to gen instead).
+      await fx.registerBehavior(id: 'B-001', description: 'first behavior');
       await fx.seedRedEvidence('B-001');
       await fx.seedRunState(
         states: {'B-001': 'done', 'B-002': 'pending', 'B-003': 'pending'},

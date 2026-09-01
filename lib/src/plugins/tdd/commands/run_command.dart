@@ -84,6 +84,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../services/artifact_registry.dart';
 import '../services/cycle_evidence.dart';
 import '../services/run_state_store.dart';
 import '../services/step_runner.dart';
@@ -287,6 +288,7 @@ class RunCommand extends Command<void> {
     // come due while ANY behavior sits RED defer too (bug #635, so a
     // deferred unit make leaves the suite knowingly red exactly like a
     // deferred acceptance make).
+    final registry = ArtifactRegistry(featureDir: featureDir);
     for (final row in rows) {
       final state = current.behaviorStates[row.id] ?? BehaviorState.pending;
       if (state == BehaviorState.done) continue;
@@ -294,9 +296,15 @@ class RunCommand extends Command<void> {
       final inFlightStep = current.inFlightBehaviorId == row.id
           ? current.inFlightStep
           : null;
+      // Bug #720: the state claim is only as good as its artifacts. A red
+      // (or green) claim whose gen artifacts are gone — a wiped or never-
+      // written artifacts.json after an interrupted run — cannot resume at
+      // make: make refuses "no gen artifacts" and the run dies at the
+      // first behavior. Check the registry, not the claim.
+      final hasGenArtifacts = await registry.findRecord(row.id) != null;
       final result = await _driveBehavior(
         row: row,
-        steps: _stepsFor(state, inFlightStep),
+        steps: _stepsFor(state, inFlightStep, hasGenArtifacts: hasGenArtifacts),
         progressSuffix: '',
         deferralAllowed: true,
         rows: rows,
@@ -473,7 +481,20 @@ class RunCommand extends Command<void> {
   /// before the fixes; the make deferral only engages on the
   /// unexpressible outcome (bug #625) and the refactor deferral only
   /// while an acceptance behavior sits RED (bug #635).
-  List<String> _stepsFor(BehaviorState state, String? inFlightStep) {
+  ///
+  /// Bug #720: a state claim without gen artifacts cannot drive its
+  /// state-implied resume window. When [inFlightStep] is null/empty (no
+  /// crashed-run marker) and [hasGenArtifacts] is false — no record in
+  /// the feature's tdd/artifacts.json, the same contract make enforces
+  /// with its "no gen artifacts" refusal — the state-implied start is
+  /// demoted to gen regardless of [state]: the artifacts, not the claim,
+  /// decide whether make/refactor can resume. A marker (U23) or present
+  /// artifacts keep the state-implied window untouched.
+  List<String> _stepsFor(
+    BehaviorState state,
+    String? inFlightStep, {
+    required bool hasGenArtifacts,
+  }) {
     const full = ['gen', 'verify-red', 'make', 'refactor'];
     var start = switch (state) {
       BehaviorState.pending => 0,
@@ -481,9 +502,15 @@ class RunCommand extends Command<void> {
       BehaviorState.green => 3,
       BehaviorState.done => 4,
     };
-    if (inFlightStep != null) {
+    if (inFlightStep != null && inFlightStep.isNotEmpty) {
       final index = full.indexOf(inFlightStep);
       if (index >= 0) start = index;
+    } else if (!hasGenArtifacts) {
+      // Bug #720: a claim without artifacts resumes at gen. `gen` is a
+      // no-op reuse when artifacts exist elsewhere on disk and re-creates
+      // them when they don't; verify-red then re-certifies the red claim
+      // honestly before make re-runs.
+      start = 0;
     }
     return full.sublist(start.clamp(0, full.length));
   }
