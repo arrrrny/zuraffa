@@ -384,5 +384,108 @@ flutter:
         expect(files.isNotEmpty, isTrue);
       });
     });
+
+    // ── BUG 735 regression ──────────────────────────────────────────────────
+    // zfa setup injected assets/zuraffa_app_icons/ into pubspec.yaml but never
+    // created the directory when the brand asset source was absent (minimal
+    // CI clone, findZuraffaRoot failure). Every flutter test then failed with
+    // "Error: unable to find directory entry in pubspec.yaml".
+    //
+    // These tests deliberately do NOT skip when brand assets are absent —
+    // that blind spot (U4/U5's markTestSkipped) is exactly how bug 735
+    // shipped. A temp zuraffaRoot with no assets/zuraffa_app_icons/ inside
+    // simulates the minimal CI clone deterministically on any machine.
+    group('bug 735: pubspec assets entry is never dangling', () {
+      Future<(Directory, File)> seedTargetProject() async {
+        final tmp = await Directory.systemTemp.createTemp('branding_735_');
+        addTearDown(() => tmp.deleteSync(recursive: true));
+
+        final projectRoot = p.join(tmp.path, 'my_app');
+        final pubspecFile = File(p.join(projectRoot, 'pubspec.yaml'));
+        pubspecFile.createSync(recursive: true);
+        pubspecFile.writeAsStringSync('''
+name: my_app
+flutter:
+  uses-material-design: true
+''');
+        return (tmp, pubspecFile);
+      }
+
+      test(
+        'creates assets/zuraffa_app_icons/ when brand asset source is absent',
+        () async {
+          // Fresh temp root WITHOUT assets/zuraffa_app_icons/ — simulates a
+          // minimal CI clone where the brand assets are not checked out.
+          final fakeRoot = await Directory.systemTemp.createTemp(
+            'branding_735_root_',
+          );
+          addTearDown(() => fakeRoot.deleteSync(recursive: true));
+          expect(
+            Directory(
+              p.join(fakeRoot.path, 'assets', 'zuraffa_app_icons'),
+            ).existsSync(),
+            isFalse,
+            reason: 'precondition: brand asset source must be absent',
+          );
+
+          final (tmp, _) = await seedTargetProject();
+          final dest = Directory(
+            p.join(tmp.path, 'my_app', 'assets', 'zuraffa_app_icons'),
+          );
+
+          final writer = BrandingWriter(zuraffaRoot: fakeRoot.path);
+          await writer.writeFlutterBranding(
+            projectRoot: p.join(tmp.path, 'my_app'),
+            dryRun: false,
+            verbose: false,
+          );
+
+          expect(
+            dest.existsSync(),
+            isTrue,
+            reason:
+                'assets/zuraffa_app_icons/ must exist even when the brand '
+                'asset source is absent — otherwise every flutter test '
+                'fails with "unable to find directory entry in '
+                'pubspec.yaml" (bug 735)',
+          );
+        },
+      );
+
+      test('pubspec assets entry is backed by an existing directory', () async {
+        final fakeRoot = await Directory.systemTemp.createTemp(
+          'branding_735_root_',
+        );
+        addTearDown(() => fakeRoot.deleteSync(recursive: true));
+
+        final (tmp, pubspecFile) = await seedTargetProject();
+        final dest = Directory(
+          p.join(tmp.path, 'my_app', 'assets', 'zuraffa_app_icons'),
+        );
+
+        final writer = BrandingWriter(zuraffaRoot: fakeRoot.path);
+        await writer.writeFlutterBranding(
+          projectRoot: p.join(tmp.path, 'my_app'),
+          dryRun: false,
+          verbose: false,
+        );
+
+        final content = pubspecFile.readAsStringSync();
+        expect(
+          content.contains('assets/zuraffa_app_icons/'),
+          isTrue,
+          reason:
+              'pubspec.yaml should still reference the assets entry '
+              '(spec 053 branding contract is unchanged)',
+        );
+        expect(
+          dest.existsSync(),
+          isTrue,
+          reason:
+              'the pubspec entry must never dangle: the referenced '
+              'directory has to exist on disk (bug 735)',
+        );
+      });
+    });
   });
 }
