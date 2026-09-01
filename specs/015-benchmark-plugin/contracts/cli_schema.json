@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zuraffa.dev/schemas/benchmark-cli.json",
+  "title": "Benchmark CLI Command Schema",
+  "type": "object",
+  "description": "Schema for zfa benchmark CLI command arguments and options",
+  "oneOf": [
+    { "$ref": "#/$defs/runCommand" },
+    { "$ref": "#/$defs/listCommand" },
+    { "$ref": "#/$defs/baselineCommand" },
+    { "$ref": "#/$defs/reportCommand" }
+  ],
+  "$defs": {
+    "runCommand": {
+      "type": "object",
+      "properties": {
+        "command": { "const": "run" },
+        "scenario": { "type": "string", "description": "Specific scenario ID to run (optional, runs all if omitted)" },
+        "dryRun": { "type": "boolean", "description": "Validate configuration without executing" },
+        "output": { "type": "string", "enum": ["json", "console", "html"], "default": "console", "description": "Output format" },
+        "thresholdConfig": { "type": "string", "description": "Path to threshold configuration file" },
+        "globalConfig": { "type": "string", "description": "Path to global configuration file" },
+        "tags": { "type": "array", "items": { "type": "string" }, "description": "Run only scenarios with these tags" },
+        "isolate": { "type": "boolean", "default": true, "description": "Run each scenario in separate isolate" }
+      },
+      "required": ["command"]
+    },
+    "listCommand": {
+      "type": "object",
+      "properties": {
+        "command": { "const": "list" },
+        "json": { "type": "boolean", "description": "Output as JSON" },
+        "tags": { "type": "array", "items": { "type": "string" }, "description": "Filter by tags" }
+      },
+      "required": ["command"]
+    },
+    "baselineCommand": {
+      "type": "object",
+      "properties": {
+        "command": { "const": "baseline" },
+        "subcommand": { "type": "string", "enum": ["save", "load", "compare", "list", "delete"] },
+        "scenarioId": { "type": "string", "description": "Scenario ID" },
+        "label": { "type": "string", "description": "Baseline label" },
+        "baselineLabel": { "type": "string", "description": "Baseline label to compare against (for compare subcommand)" }
+      },
+      "required": ["command", "subcommand"]
+    },
+    "reportCommand": {
+      "type": "object",
+      "properties": {
+        "command": { "const": "report" },
+        "runId": { "type": "string", "description": "Run ID or 'latest'" },
+        "format": { "type": "string", "enum": ["console", "json", "html"], "default": "console" },
+        "output": { "type": "string", "description": "Output file path" }
+      },
+      "required": ["command", "runId"]
+    }
+  }
+}

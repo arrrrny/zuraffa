@@ -8,7 +8,7 @@
 .idea/
 .packages
 .pub/
-
+apps/
 build/
 ios/.generated/
 ios/Flutter/Generated.xcconfig
