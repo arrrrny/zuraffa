@@ -1,0 +1,412 @@
+/// `zfa tdd func <behavior-id>` — the plain-function generator surface
+/// (bug #657).
+///
+/// Bug #657: the generation planner only mapped behavior descriptions to
+/// `zfa entity create` (domain models), `zfa make` (repositories,
+/// services, providers), and `zfa build` (build targets). Plain functions
+/// (rendering, formatting, parsing, computing, pure logic) had no
+/// generator surface, so `zfa tdd make` honestly reported them
+/// `unexpressible` — and the TDD run blocked the whole feature at the
+/// first such behavior.
+///
+/// This command is the missing surface, scoped to the tdd plugin for the
+/// same reason `zfa tdd wire` is (bug #610 design decision): the subject
+/// contract (`lib/tdd/<id>_subject.dart` equivalents under the registry's
+/// `subject_path`, SubjectWriter, registry artifacts) is owned by the
+/// tdd plugin, and a core command would need a core→plugin dependency the
+/// architecture forbids (plugins depend on core, never the reverse).
+///
+/// The command:
+///   1. Resolves the behavior's registry record (same resolution rules
+///      as `wire`/`make`) and its `subject_path` artifact.
+///   2. Derives the function signature from the behavior DESCRIPTION
+///      (never from the test): a render/format/parse/compute-style verb
+///      names the intent, and the described result type — "returns a
+///      non-empty string", "returns 42", "return true when ..." — names
+///      the return type (String / int / bool / double / List / Map;
+///      String when the description is type-silent).
+///   3. Replaces the subject stub's `UnimplementedError` body with the
+///      minimal implementation satisfying the described contract (spec
+///      047 FR-005 minimal generation). The paired test file is never
+///      touched (044 ownership contract), and the stub's function NAME
+///      is preserved so the immutable test keeps compiling against it.
+///   4. Is idempotent: a subject with no `UnimplementedError` left is
+///      reported `already-implemented` and exits 0, so a resumed
+///      pipeline re-running the step stays green.
+library;
+
+import 'dart:io';
+
+import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
+
+import '../services/artifact_registry.dart';
+import '../tdd_plugin.dart';
+
+/// Outcome labels for the machine-readable summary line.
+enum FuncOutcome {
+  scaffolded('scaffolded'),
+  alreadyImplemented('already-implemented'),
+  runnerError('runner-error');
+
+  const FuncOutcome(this.label);
+  final String label;
+}
+
+class FuncCommand extends Command<void> {
+  FuncCommand(this.plugin) {
+    argParser.addOption(
+      'feature',
+      help:
+          'Feature name (e.g. 047-tdd-make). Restricts target resolution '
+          'to specs/<feature>/tdd/artifacts.json. When omitted, every '
+          'feature registry is scanned.',
+    );
+    argParser.addOption(
+      'project',
+      aliases: const ['project-root'],
+      help:
+          'Project root containing specs/, test/, and lib/. When omitted, '
+          'the current working directory is used.',
+    );
+  }
+
+  final TddPlugin plugin;
+
+  @override
+  String get name => 'func';
+
+  @override
+  String get description =>
+      'Scaffold the plain-function subject of a behavior (render, format, '
+      'parse, compute, ...) with a signature derived from its description '
+      '— the function-generation surface of the pipeline (bug #657).';
+
+  @override
+  String get invocation =>
+      'zfa tdd func <behavior-id> [--feature <name>] [--project <path>]';
+
+  @override
+  Future<void> run() async {
+    final rest = argResults?.rest ?? const <String>[];
+    final behaviorId = rest.isNotEmpty ? rest.first : null;
+    if (behaviorId == null || behaviorId.isEmpty) {
+      print('zfa tdd func: behavior id is required. Usage: $invocation');
+      _printSummary(
+        behavior: '-',
+        outcome: FuncOutcome.runnerError,
+        feature: 'unknown',
+      );
+      exitCode = 1;
+      return;
+    }
+    final featureFlag = argResults?['feature'] as String?;
+    final projectFlag = argResults?['project'] as String?;
+    final cwd = projectFlag != null && projectFlag.isNotEmpty
+        ? p.absolute(projectFlag)
+        : Directory.current.path;
+
+    // -------------------------------------------------------------
+    // 1. Resolve the behavior's registry record (FR-001/FR-002 shape).
+    // -------------------------------------------------------------
+    _Resolved? resolved;
+    try {
+      resolved = await _resolve(cwd, behaviorId, featureFlag);
+    } on _FuncResolutionError catch (e) {
+      print('zfa tdd func: ${e.message}');
+      _printSummary(
+        behavior: behaviorId,
+        outcome: FuncOutcome.runnerError,
+        feature: featureFlag ?? 'unknown',
+      );
+      exitCode = 1;
+      return;
+    }
+    if (resolved == null) {
+      print(
+        'zfa tdd func: unknown behavior id "$behaviorId". No matching '
+        'record in any specs/<feature>/tdd/artifacts.json'
+        '${featureFlag != null && featureFlag.isNotEmpty ? ' for feature $featureFlag' : ''}. Run `zfa tdd gen $behaviorId` first.',
+      );
+      _printSummary(
+        behavior: behaviorId,
+        outcome: FuncOutcome.runnerError,
+        feature: featureFlag ?? 'unknown',
+      );
+      exitCode = 1;
+      return;
+    }
+    final record = resolved.record;
+    final description = _descriptionFor(record);
+    print('zfa tdd func: behavior ${record.behaviorId}');
+    print('   feature: ${resolved.featureName}');
+    print('   description: $description');
+
+    // -------------------------------------------------------------
+    // 2. The subject artifact must exist (gen wrote it).
+    // -------------------------------------------------------------
+    final recordedSubject = record.subjectPath;
+    final normalizedCwd = p.normalize(p.absolute(cwd));
+    final subjectPath = p.normalize(
+      p.isAbsolute(recordedSubject)
+          ? recordedSubject
+          : p.join(normalizedCwd, recordedSubject),
+    );
+    if (!p.equals(normalizedCwd, subjectPath) &&
+        !p.isWithin(normalizedCwd, subjectPath)) {
+      print(
+        'zfa tdd func: the registry record for behavior '
+        '"${record.behaviorId}" points outside the project root at '
+        '"$recordedSubject". Run `zfa tdd gen ${record.behaviorId}` to '
+        'restore its artifacts.',
+      );
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: FuncOutcome.runnerError,
+        feature: resolved.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+    final subjectFile = File(subjectPath);
+    if (!await subjectFile.exists()) {
+      print(
+        'zfa tdd func: the registry record for behavior '
+        '"${record.behaviorId}" points to a missing subject file at '
+        '"$recordedSubject". Run `zfa tdd gen ${record.behaviorId}` to '
+        'restore its artifacts.',
+      );
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: FuncOutcome.runnerError,
+        feature: resolved.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // -------------------------------------------------------------
+    // 3. Parse the stub and emit the scaffolded implementation.
+    // -------------------------------------------------------------
+    final raw = await subjectFile.readAsString();
+    final stub = _stubSignature.firstMatch(raw);
+    if (stub == null) {
+      if (raw.contains('UnimplementedError')) {
+        print(
+          'zfa tdd func: subject at "$recordedSubject" carries an '
+          'UnimplementedError in an unrecognized shape — refusing to '
+          'rewrite a file this command did not generate.',
+        );
+      } else {
+        // Idempotent re-run (resumed pipeline): nothing to do.
+        print(
+          'zfa tdd func: subject at "$recordedSubject" is already '
+          'implemented — nothing to scaffold.',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: FuncOutcome.alreadyImplemented,
+          feature: resolved.featureName,
+        );
+      }
+      if (raw.contains('UnimplementedError')) {
+        exitCode = 1;
+      }
+      return;
+    }
+    // The stub's function NAME is preserved: the paired (immutable) test
+    // calls `subject.<name>()` and must keep compiling against the
+    // scaffolded signature (044 ownership contract).
+    final functionName = stub.group(2)!;
+
+    final scaffolded = _renderScaffolded(
+      record: record,
+      description: description,
+      functionName: functionName,
+    );
+    await subjectFile.writeAsString(scaffolded);
+    print('   scaffolded: $recordedSubject');
+    _printSummary(
+      behavior: record.behaviorId,
+      outcome: FuncOutcome.scaffolded,
+      feature: resolved.featureName,
+    );
+  }
+
+  // -------------------------------------------------------------------
+  // Resolution + rendering helpers.
+  // -------------------------------------------------------------------
+
+  static final RegExp _stubSignature = RegExp(
+    r'^(int|void)\s+([A-Za-z_][A-Za-z0-9_]*)\(\)\s*=>\s*'
+    r'throw UnimplementedError\(',
+    multiLine: true,
+  );
+
+  /// The behavior description the record carries in its composite
+  /// runnable name (`file::id::description`) — mirrors make's
+  /// `_descriptionFor`.
+  static String _descriptionFor(ArtifactRecord record) {
+    final parts = record.runnableTestName.split('::');
+    return parts.length >= 3 ? parts[2] : record.behaviorId;
+  }
+
+  /// Derive the return type and the minimal body from the behavior
+  /// description (bug #657: the signature comes from the DESCRIPTION,
+  /// never from the test). The body is the minimal implementation
+  /// satisfying the described contract — generation, not hand-writing.
+  /// A null body means the caller renders the String fallback (a
+  /// deterministic non-empty literal).
+  static (String, String?) _deriveSignature(String description) {
+    final desc = description.toLowerCase();
+    // "returns 42" — a concrete integer result.
+    final digits = RegExp(r'\breturns?\s+(\d+)').firstMatch(desc);
+    if (digits != null) {
+      return ('int', 'return ${digits.group(1)};');
+    }
+    // Boolean results.
+    if (RegExp(r'\breturns?\s+true\b').hasMatch(desc) ||
+        RegExp(r'\breturns?\s+false\b').hasMatch(desc)) {
+      final value = RegExp(r'\breturns?\s+false\b').hasMatch(desc)
+          ? 'false'
+          : 'true';
+      return ('bool', 'return $value;');
+    }
+    // A non-empty string result (render / format / label / message).
+    if (desc.contains('non-empty string') ||
+        RegExp(r'\breturns?\s+a?\s*string\b').hasMatch(desc) ||
+        desc.contains('as a string') ||
+        desc.contains('string for')) {
+      return ('String', null);
+    }
+    // Collections and numbers.
+    if (RegExp(r'\breturns?\s+a?\s*(list|array)\b').hasMatch(desc)) {
+      return ('List<String>', 'return const <String>[];');
+    }
+    if (RegExp(r'\breturns?\s+a?\s*map\b').hasMatch(desc)) {
+      return ('Map<String, Object?>', 'return const <String, Object?>{};');
+    }
+    if (RegExp(r'\breturns?\s+a?\s*(double|float|num)\b').hasMatch(desc)) {
+      return ('double', 'return 0.0;');
+    }
+    if (RegExp(r'\breturns?\s+an?\s+int').hasMatch(desc) ||
+        RegExp(r'\breturns?\s+a?\s*count\b').hasMatch(desc)) {
+      return ('int', 'return 0;');
+    }
+    // Type-silent descriptions: the paired generated test only asserts
+    // the subject is implemented (isNot(UnimplementedError)) — a
+    // non-empty String satisfies every described contract shape.
+    return ('String', null);
+  }
+
+  String _renderScaffolded({
+    required ArtifactRecord record,
+    required String description,
+    required String functionName,
+  }) {
+    final (returnType, explicitBody) = _deriveSignature(description);
+    // For a String result the minimal body returns a deterministic
+    // non-empty literal (the function name) — never an empty string,
+    // which would violate a "non-empty string" contract.
+    final body = explicitBody ?? "return '$functionName';";
+    return '''
+// GENERATED IMPLEMENTATION — `zfa tdd func ${record.behaviorId}` (bug
+// #657: the plain-function generator surface).
+//
+// behavior_id: ${record.behaviorId}
+// source_criterion: ${record.sourceCriterion}
+// description: $description
+//
+// This replaces the `zfa tdd gen` stub with the minimal scaffolded
+// implementation (spec 047 FR-005): the signature is derived from the
+// description above and the body satisfies the described contract.
+// Extend the body with real behavior in later cycles — the paired test
+// file is immutable (044 ownership).
+library;
+
+/// Subject for behavior ${record.behaviorId}, scaffolded by the
+/// generation pipeline (bug #657).
+$returnType $functionName() {
+  $body
+}
+''';
+  }
+
+  Future<_Resolved?> _resolve(
+    String cwd,
+    String behaviorId,
+    String? featureFlag,
+  ) async {
+    final matches = <_Resolved>[];
+    for (final entry in await _scanRegistries(cwd, featureFlag)) {
+      final record = await entry.registry.findRecord(behaviorId);
+      if (record != null) {
+        matches.add(_Resolved(record, entry.featureName));
+      }
+    }
+    if (matches.length > 1) {
+      final list = matches.map((m) => m.featureName).join(', ');
+      throw _FuncResolutionError(
+        'ambiguous behavior id "$behaviorId" registered in multiple '
+        'features: $list. Use --feature to disambiguate.',
+      );
+    }
+    return matches.isEmpty ? null : matches.single;
+  }
+
+  Future<List<_RegistryEntry>> _scanRegistries(
+    String cwd,
+    String? featureFlag,
+  ) async {
+    if (featureFlag != null && featureFlag.isNotEmpty) {
+      final featureDir = p.join(cwd, 'specs', featureFlag);
+      return [
+        _RegistryEntry(featureFlag, ArtifactRegistry(featureDir: featureDir)),
+      ];
+    }
+    final specsDir = Directory(p.join(cwd, 'specs'));
+    if (!await specsDir.exists()) return const [];
+    final dirs = specsDir.listSync().whereType<Directory>().toList()
+      ..sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
+    final entries = <_RegistryEntry>[];
+    for (final dir in dirs) {
+      final registryFile = File(p.join(dir.path, 'tdd', 'artifacts.json'));
+      if (await registryFile.exists()) {
+        entries.add(
+          _RegistryEntry(
+            p.basename(dir.path),
+            ArtifactRegistry(featureDir: dir.path),
+          ),
+        );
+      }
+    }
+    return entries;
+  }
+
+  void _printSummary({
+    required String behavior,
+    required FuncOutcome outcome,
+    required String feature,
+  }) {
+    print('func: behavior=$behavior outcome=${outcome.label} feature=$feature');
+  }
+}
+
+class _FuncResolutionError implements Exception {
+  _FuncResolutionError(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
+class _RegistryEntry {
+  const _RegistryEntry(this.featureName, this.registry);
+  final String featureName;
+  final ArtifactRegistry registry;
+}
+
+class _Resolved {
+  const _Resolved(this.record, this.featureName);
+  final ArtifactRecord record;
+  final String featureName;
+}

@@ -99,14 +99,16 @@ void main() {
     final out = await drive();
 
     expect(exitCode, isNot(0), reason: out);
-    // B-001's four advances were all persisted; B-002's verify-red advance
-    // (pending -> red) was persisted before the failing make ran; B-003
-    // was never touched.
+    // Bug #657: a UNIT behavior's unexpressible make now defers like the
+    // acceptance deferral (bug #625) instead of stopping the feature —
+    // so B-003 runs its full phase-1 cycle (its refactor defers while
+    // B-002 sits RED), and the honest stop lands at the phase-2 make
+    // re-attempt of B-002 (stopped_at=B-002:make).
     final state = await readState();
     expect(state['behavior_states'] as Map<String, dynamic>, {
       'B-001': 'done',
       'B-002': 'red',
-      'B-003': 'pending',
+      'B-003': 'green',
     });
     // The state file carries no in-flight marker after an honest stop.
     expect(state.containsKey('in_flight_behavior_id'), isFalse);
@@ -734,5 +736,78 @@ One per functional requirement in `spec.md`.
       reason: out,
     );
     expect(exitCode, 0, reason: out);
+  });
+
+  // ------------------------------------------------------------------
+  // Bug #657: a UNIT behavior's unexpressible make is a deferral, not a
+  // feature-blocking stop.
+  // ------------------------------------------------------------------
+
+  test('bug 657: a unit behavior whose make reports unexpressible defers '
+      'to phase 2 — later behaviors still run, the honest stop lands at '
+      'the phase-2 re-attempt', () async {
+    await fx.setStepOutcome('make', 'B-002', 'unexpressible');
+
+    final out = await drive();
+
+    // The deferral is announced in phase 1...
+    expect(
+      out,
+      contains('[run] B-002 make -> deferred (phase 2)'),
+      reason: out,
+    );
+    // ...B-003 still runs its full cycle (refactor defers while B-002
+    // sits RED)...
+    expect(
+      fx.stepInvocations(),
+      containsAllInOrder([
+        'make B-002',
+        'gen B-003',
+        'verify-red B-003',
+        'make B-003',
+      ]),
+    );
+    expect(
+      fx.stepInvocations().where((l) => l == 'refactor B-003'),
+      isEmpty,
+      reason: 'refactor must defer while B-002 sits RED',
+    );
+    // ...and the honest stop happens at the phase-2 re-attempt, after
+    // everything else ran.
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=stopped pending=0 red=1 green=1 '
+        'done=1 stopped_at=B-002:make',
+      ),
+      reason: out,
+    );
+    expect(exitCode, isNot(0), reason: out);
+  });
+
+  test('bug 657: a unit make that reports unexpressible then ok completes '
+      'the whole feature (the deferral is re-attempted, not fatal)', () async {
+    // Multi-line config: phase-1 attempt unexpressible, phase-2 re-attempt ok.
+    await fx.setStepOutcome('make', 'B-002', 'unexpressible\nok');
+
+    final out = await drive();
+
+    expect(
+      out,
+      contains('[run] B-002 make -> deferred (phase 2)'),
+      reason: out,
+    );
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 '
+        'green=0 done=3',
+      ),
+      reason: out,
+    );
+    expect(exitCode, 0, reason: out);
+    // B-002's make ran twice: the phase-1 attempt and the phase-2
+    // re-attempt.
+    expect(fx.stepInvocations().where((l) => l == 'make B-002'), hasLength(2));
   });
 }

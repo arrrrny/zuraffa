@@ -386,10 +386,12 @@ void main() {
     test('A10/U7: pipeline-inexpressible behavior → exit non-zero naming '
         'the unmet capability, no evidence', () async {
       // Seed a behavior whose description cannot be mapped to
-      // any pipeline capability.
+      // any pipeline capability. Bug #657: verb phrases like "parse"
+      // now map to the `tdd func` surface, so the genuinely unmappable
+      // case here uses a verb with no function-generation intent.
       await fx.seedCertifiedRed(
         id: 'B-042',
-        description: 'parse bespoke DSL syntax with no generator surface',
+        description: 'provision bespoke DSL syntax with no generator surface',
       );
       final zfaBin = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
 
@@ -446,7 +448,7 @@ void main() {
         'cycle log unchanged', () async {
       await fx.seedCertifiedRed(
         id: 'B-042',
-        description: 'parse bespoke DSL syntax with no generator surface',
+        description: 'provision bespoke DSL syntax with no generator surface',
       );
       final beforeChecksums = fx.checksumTestAndLib();
       final zfaBin = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
@@ -456,6 +458,76 @@ void main() {
       expect(exitCode, isNot(0));
       // Test files and lib/ byte-identical (no pipeline ran).
       expect(fx.checksumTestAndLib(), equals(beforeChecksums));
+    });
+
+    test('bug 657: an unexpressible make names the verb and the stub path '
+        'with the manual-implementation hint ("implement manually at '
+        '<stub_path>, then re-run")', () async {
+      await fx.seedCertifiedRed(
+        id: 'B-042',
+        description: 'provision bespoke DSL syntax with no generator surface',
+      );
+      final zfaBin = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'B-042', zfaBin: zfaBin),
+      );
+      expect(exitCode, isNot(0), reason: out);
+      // The actionable remediation line from bug #657: which verb has no
+      // generator, where the manual implementation lands, and that the
+      // run resumes afterwards.
+      expect(out, contains("no generator for 'provision'"));
+      expect(out, contains('implement manually at'));
+      expect(out, contains(fx.subjectPathOf('B-042')));
+      expect(out, contains('then re-run'));
+      // The outcome/exit contract is unchanged (honest non-zero misfire).
+      expect(
+        out,
+        contains(
+          'make: behavior=B-042 outcome=unexpressible '
+          'feature=${fx.featureName}',
+        ),
+      );
+    });
+
+    test('bug 657: a render-type behavior plans the `tdd func` step '
+        'through the pipeline (no longer unexpressible)', () async {
+      const desc =
+          'render returns a non-empty string for a fully populated '
+          'task';
+      await fx.seedCertifiedRed(
+        id: 'B-043',
+        description: desc,
+        // Subject-driven: turns green when the fake pipeline writes the
+        // production subject — the same mechanics as US1's entity create.
+        testContent: TddFixture.subjectDrivenTest('B-043', desc),
+      );
+      // The fake `tdd func` step writes the production subject — proving
+      // the plan reaches the new surface and certifies green.
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'tdd func': fx.overwriteSubjectCommands(
+            'B-043',
+            TddFixture.subjectReturning('B-043', 42),
+          ),
+        },
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'B-043', zfaBin: zfaBin),
+      );
+      expect(exitCode, 0, reason: out);
+      // The plan carried the new generator surface.
+      final log = await fx.readFakeZfaLog();
+      expect(
+        log.any((l) => l.contains('tdd func B-043')),
+        isTrue,
+        reason: 'fake zfa argv log: $log',
+      );
+      expect(out, contains('make: behavior=B-043 outcome=green'));
     });
   });
 
@@ -535,7 +607,7 @@ void main() {
       // 2. unexpressible
       await fx.seedCertifiedRed(
         id: 'B-042',
-        description: 'parse bespoke DSL with no generator',
+        description: 'provision bespoke DSL with no generator',
       );
       await runner.runCapturing(makeArgs(fx, id: 'B-042', zfaBin: zfaBin));
       expect(exitCode, isNot(0));
