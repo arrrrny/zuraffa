@@ -288,6 +288,203 @@ flutter:
       );
     });
 
+    // ── Issue #735 regression ─────────────────────────────────────────────
+    // zfa setup injects assets/zuraffa_app_icons/ into pubspec.yaml even when
+    // the directory was never created (brand asset source absent — minimal
+    // CI clone, findZuraffaRoot failure, globally-activated zfa). The
+    // dangling entry makes every `flutter test` run fail with
+    // "unable to find directory entry in pubspec.yaml".
+    group('issue 735 — pubspec asset entry never dangles', () {
+      /// Builds a minimal Flutter-style project whose pubspec declares
+      /// `uses-material-design: true` (the injection anchor used by
+      /// _updatePubspecAssets).
+      (Directory, File) buildFlutterProject(Directory tmp, {String? pubspec}) {
+        final projectRoot = Directory(p.join(tmp.path, 'my_app'))
+          ..createSync(recursive: true);
+        Directory(
+          p.join(projectRoot.path, 'assets'),
+        ).createSync(recursive: true);
+        final pubspecFile = File(p.join(projectRoot.path, 'pubspec.yaml'))
+          ..writeAsStringSync(
+            pubspec ??
+                'name: my_app\n\nflutter:\n  uses-material-design: true\n',
+          );
+        return (projectRoot, pubspecFile);
+      }
+
+      /// A zuraffa "root" WITHOUT assets/zuraffa_app_icons/ — simulates the
+      /// bug's silent-skip path (minimal CI clone / findZuraffaRoot failure).
+      String absentSourceRoot(Directory tmp) {
+        Directory(p.join(tmp.path, 'zuraffa_root')).createSync(recursive: true);
+        return p.join(tmp.path, 'zuraffa_root');
+      }
+
+      // ── R1 ──────────────────────────────────────────────────────────────
+      test(
+        'creates assets/zuraffa_app_icons/ when the brand asset source is absent',
+        () async {
+          final tmp = await Directory.systemTemp.createTemp('branding_735_');
+          addTearDown(() => tmp.deleteSync(recursive: true));
+
+          final absentRoot = absentSourceRoot(tmp);
+          final (projectRoot, pubspecFile) = buildFlutterProject(tmp);
+
+          final writer = BrandingWriter(zuraffaRoot: absentRoot);
+          await writer.writeFlutterBranding(
+            projectRoot: projectRoot.path,
+            dryRun: false,
+            verbose: false,
+          );
+
+          expect(
+            pubspecFile.readAsStringSync().contains(
+              'assets/zuraffa_app_icons/',
+            ),
+            isTrue,
+            reason: 'pubspec.yaml should reference the assets directory',
+          );
+          expect(
+            Directory(
+              p.join(projectRoot.path, 'assets', 'zuraffa_app_icons'),
+            ).existsSync(),
+            isTrue,
+            reason:
+                'the referenced directory must exist — a dangling pubspec '
+                'entry breaks every flutter test run (issue #735)',
+          );
+        },
+      );
+
+      // ── R2 ──────────────────────────────────────────────────────────────
+      test(
+        'repairs a missing directory when the pubspec already references it',
+        () async {
+          final tmp = await Directory.systemTemp.createTemp('branding_735_');
+          addTearDown(() => tmp.deleteSync(recursive: true));
+
+          final absentRoot = absentSourceRoot(tmp);
+          final (projectRoot, pubspecFile) = buildFlutterProject(
+            tmp,
+            pubspec: '''
+name: my_app
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/zuraffa_app_icons/
+''',
+          );
+          // An affected v6.1.0 project: pubspec entry present, directory
+          // missing (the exact state the issue reports).
+
+          final writer = BrandingWriter(zuraffaRoot: absentRoot);
+          await writer.writeFlutterBranding(
+            projectRoot: projectRoot.path,
+            dryRun: false,
+            verbose: false,
+          );
+
+          expect(
+            Directory(
+              p.join(projectRoot.path, 'assets', 'zuraffa_app_icons'),
+            ).existsSync(),
+            isTrue,
+            reason:
+                're-running setup on an affected project must repair the '
+                'dangling entry instead of leaving it broken (issue #735)',
+          );
+          expect(
+            pubspecFile.readAsStringSync().contains(
+              '    - assets/zuraffa_app_icons/',
+            ),
+            isTrue,
+            reason: 'the existing entry must not be duplicated or removed',
+          );
+        },
+      );
+
+      // ── R3 ──────────────────────────────────────────────────────────────
+      test(
+        'injects nothing and creates nothing for a pubspec without a flutter block',
+        () async {
+          final tmp = await Directory.systemTemp.createTemp('branding_735_');
+          addTearDown(() => tmp.deleteSync(recursive: true));
+
+          final absentRoot = absentSourceRoot(tmp);
+          final (projectRoot, pubspecFile) = buildFlutterProject(
+            tmp,
+            pubspec: 'name: my_app\ndescription: not a flutter app\n',
+          );
+          final original = pubspecFile.readAsStringSync();
+
+          final writer = BrandingWriter(zuraffaRoot: absentRoot);
+          await writer.writeFlutterBranding(
+            projectRoot: projectRoot.path,
+            dryRun: false,
+            verbose: false,
+          );
+
+          expect(
+            pubspecFile.readAsStringSync(),
+            equals(original),
+            reason: 'without a flutter block there is nothing to inject',
+          );
+          expect(
+            Directory(
+              p.join(projectRoot.path, 'assets', 'zuraffa_app_icons'),
+            ).existsSync(),
+            isFalse,
+            reason:
+                'no pubspec reference was written, so no directory is needed',
+          );
+        },
+      );
+
+      // ── R4 ──────────────────────────────────────────────────────────────
+      test(
+        'creates the directory for the flutter: block-style injection path too',
+        () async {
+          final tmp = await Directory.systemTemp.createTemp('branding_735_');
+          addTearDown(() => tmp.deleteSync(recursive: true));
+
+          final absentRoot = absentSourceRoot(tmp);
+          // No uses-material-design anchor — exercises the `flutter:` block
+          // fallback branch in _updatePubspecAssets.
+          final (projectRoot, pubspecFile) = buildFlutterProject(
+            tmp,
+            pubspec: '''
+name: my_app
+
+flutter:
+  uses-material-design: false
+''',
+          );
+
+          final writer = BrandingWriter(zuraffaRoot: absentRoot);
+          await writer.writeFlutterBranding(
+            projectRoot: projectRoot.path,
+            dryRun: false,
+            verbose: false,
+          );
+
+          expect(
+            pubspecFile.readAsStringSync().contains(
+              'assets/zuraffa_app_icons/',
+            ),
+            isTrue,
+            reason: 'pubspec.yaml should reference the assets directory',
+          );
+          expect(
+            Directory(
+              p.join(projectRoot.path, 'assets', 'zuraffa_app_icons'),
+            ).existsSync(),
+            isTrue,
+            reason: 'entry and directory must stay in sync (issue #735)',
+          );
+        },
+      );
+    });
+
     group('writeDartBranding', () {
       // ── U5 ────────────────────────────────────────────────────────────────
       test('copies brand assets to target assets/ directory', () async {

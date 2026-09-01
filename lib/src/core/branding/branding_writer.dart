@@ -184,12 +184,40 @@ class BrandingWriter {
   }
 
   /// Adds assets/zuraffa_app_icons/ to pubspec.yaml flutter assets section.
+  ///
+  /// Issue #735: the pubspec entry must never reference a directory that
+  /// does not exist. [_copyBrandAssetsToAssets] silently skips directory
+  /// creation when the brand asset source is absent (minimal CI clone,
+  /// `findZuraffaRoot` failure, globally-activated zfa), so the destination
+  /// can stay missing while this method injects `assets/zuraffa_app_icons/`
+  /// — and every subsequent `flutter test` run then fails with
+  /// "unable to find directory entry in pubspec.yaml". The directory is
+  /// therefore created here whenever the pubspec references it (already or
+  /// about to), which also repairs projects affected before the fix when
+  /// setup is re-run.
   Future<void> _updatePubspecAssets(String projectRoot) async {
     final pubspecFile = File(p.join(projectRoot, 'pubspec.yaml'));
     if (!pubspecFile.existsSync()) return;
 
     var content = pubspecFile.readAsStringSync();
-    if (content.contains('zuraffa_app_icons')) return; // already added
+    final alreadyAdded = content.contains('zuraffa_app_icons');
+    final willInject =
+        !alreadyAdded &&
+        (content.contains('uses-material-design: true') ||
+            content.contains('flutter:'));
+
+    // Write the entry only when the directory it references exists on disk.
+    // Creating it here (possibly empty when nothing could be copied) keeps
+    // the pubspec reference from dangling regardless of whether
+    // [_copyBrandAssetsToAssets] ran or its source was present.
+    if (alreadyAdded || willInject) {
+      final iconsDir = Directory(
+        p.join(projectRoot, 'assets', 'zuraffa_app_icons'),
+      );
+      if (!iconsDir.existsSync()) iconsDir.createSync(recursive: true);
+    }
+
+    if (alreadyAdded) return; // already added
 
     // Inject after "uses-material-design: true"
     if (content.contains('uses-material-design: true')) {
