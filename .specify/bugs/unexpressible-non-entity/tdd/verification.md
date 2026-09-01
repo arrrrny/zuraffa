@@ -44,7 +44,7 @@ executed against the unmodified tree and failed for the RIGHT reason
 | Behavior (assessment remediation) | RED evidence (verbatim failure mode) | GREEN evidence |
 | --- | --- | --- |
 | Planner maps function-intent verbs to `tdd func` | U8-657: `Expected: true / Actual: <false>` with the unexpressible reason naming "render returns a non-empty string..." — generation_planner_test.dart:163; U9-657 same for all six verbs | U8-657/U9-657 pass; U10-657 (entity precedence) and U11-657 (spec 003 U3 stays unexpressible) pass |
-| `zfa tdd func` scaffolds a description-derived signature | All 8 U-F tests fail: `Could not find an option named "--project"` — the `tdd func` subcommand did not exist | U-F1..U-F8 pass (18/18 with planner, re-verified post-format) |
+| `zfa tdd func` scaffolds a description-derived return type for a no-argument function | All 8 U-F tests fail: `Could not find an option named "--project"` — the `tdd func` subcommand did not exist | U-F1..U-F8 pass (18/18 with planner, re-verified post-format) |
 | make's unexpressible message carries the manual-implementation hint | `Expected: contains 'no generator for \'provision\''` against the old bare capability report | hint test passes; render-type behavior's make plans `tdd func` through the pipeline and certifies green |
 | Run defers a unit `unexpressible` make instead of hard-stopping | `[run] B-002 make -> unexpressible` then `step failed — behavior=B-002 step=make outcome=unexpressible`, `result=stopped pending=1 red=1 green=0 done=1 stopped_at=B-002:make` — the whole feature blocked | bug-657 deferral test: B-003 runs, refactor defers, honest stop at phase-2 re-attempt (`pending=0 red=1 green=1 done=1`); unexpressible→ok test completes the feature (`result=complete done=3`) |
 

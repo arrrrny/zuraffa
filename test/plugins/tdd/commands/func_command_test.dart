@@ -6,9 +6,9 @@
 // UnimplementedError subject stub SubjectWriter emits). Mirrors the
 // wire_command_test.dart conventions:
 //   U-F1: a gen-shaped stub for a render-type behavior is rewritten to
-//         the derived signature + minimal implementation (no
+//         the derived return type + minimal no-argument implementation (no
 //         UnimplementedError, non-empty string returned).
-//   U-F2: "returns 42"-style descriptions derive an int signature and
+//   U-F2: "returns 42"-style descriptions derive an int return type and
 //         a `return 42;` body.
 //   U-F3: boolean descriptions derive a bool signature.
 //   U-F4: idempotent — an already-implemented subject reports
@@ -18,6 +18,8 @@
 //   U-F7: an unrecognized UnimplementedError shape is refused, never
 //         guessed at.
 //   U-F8: the paired test file is never touched (044 ownership).
+//   U-F9: only the matched stub declaration is replaced; surrounding source
+//         content is preserved.
 library;
 
 import 'dart:io';
@@ -62,7 +64,7 @@ void main() {
   }
 
   test('U-F1: a gen-shaped stub for a render-type behavior is rewritten to '
-      'the derived signature + minimal implementation', () async {
+      'the derived return type + minimal no-argument implementation', () async {
     await fx.registerBehavior(
       id: 'B-001',
       description:
@@ -82,7 +84,7 @@ void main() {
     );
     final subject = await File(fx.subjectPathOf('B-001')).readAsString();
     expect(subject, isNot(contains('UnimplementedError')));
-    // The signature is derived from the description: a String render().
+    // Only the return type is derived; the generated no-argument shape stays.
     expect(subject, contains('String subject_b_001()'));
     // The minimal implementation satisfies the described contract:
     // a non-empty string.
@@ -200,6 +202,10 @@ int subject_b_001() {
     expect(exitCode, isNot(0), reason: 'out: $out');
     expect(out, contains('unrecognized'));
     expect(out, contains('UnimplementedError'));
+    expect(
+      out.trim().split('\n').last,
+      'func: behavior=B-001 outcome=runner-error feature=${fx.featureName}',
+    );
   });
 
   test('U-F8: the paired test file is never touched (044 ownership)', () async {
@@ -214,5 +220,34 @@ int subject_b_001() {
 
     final testAfter = await File(fx.testPathOf('B-001')).readAsString();
     expect(testAfter, testBefore);
+  });
+
+  test('U-F9: scaffolding replaces only the matched stub declaration and '
+      'preserves surrounding source', () async {
+    await fx.registerBehavior(
+      id: 'B-001',
+      description: 'render returns a non-empty string',
+    );
+    const import = "import 'dart:math' as math;";
+    const helper = 'int helper() => math.max(1, 2);';
+    await File(fx.subjectPathOf('B-001')).writeAsString('''
+library;
+
+$import
+
+const marker = 'keep me';
+int subject_b_001() => throw UnimplementedError('subject_b_001 not implemented');
+$helper
+''');
+
+    final out = await runFunc();
+
+    expect(exitCode, 0, reason: 'out: $out');
+    final subject = await File(fx.subjectPathOf('B-001')).readAsString();
+    expect(subject, contains(import));
+    expect(subject, contains("const marker = 'keep me';"));
+    expect(subject, contains(helper));
+    expect(subject, contains('String subject_b_001()'));
+    expect(subject, isNot(contains('UnimplementedError')));
   });
 }

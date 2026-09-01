@@ -492,6 +492,8 @@ class MakeCommand extends Command<void> {
   String _leadingVerb(String description) {
     final trimmed = description.trim();
     if (trimmed.isEmpty) return 'unknown';
+    final functionVerb = GenerationPlanner.functionIntentVerb(trimmed);
+    if (functionVerb != null) return functionVerb;
     final firstWord = RegExp(
       r'^[a-zA-Z][a-zA-Z0-9_]*',
     ).firstMatch(trimmed)?.group(0);

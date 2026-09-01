@@ -8,7 +8,8 @@
 
 ## Report (verbatim or summarized)
 
-GitHub issue #657 (see `issue.md` for the verbatim body): `zfa tdd make` returns
+GitHub issue #657 (see `issue.md` for the imported body with clarified
+completion criteria): `zfa tdd make` returns
 `unexpressible` for behaviors that don't map to a zuraffa generator surface, and
 `zfa tdd run` stops at the first such behavior, blocking the whole feature. Two
 real cases: forklift spec 004 U1 ("`render` returns a non-empty string for a
@@ -87,11 +88,14 @@ proposes.
 
 1. **New generator surface — `zfa tdd func <behavior-id>`** (new
    `FuncCommand` in the tdd plugin, registered in `TddCommand`). It resolves
-   the behavior record (same resolution rules as `wire`), derives a function
-   signature from the behavior description (verb + return type: "returns a
+   the behavior record (same resolution rules as `wire`), derives only the
+   return type from the behavior description ("returns a
    string" → `String`, "returns a bool/true/false" → `bool`,
    "returns an int" → `int`, "returns a list" → `List<String>`, default
-   `String`), and rewrites the gen'd subject stub's `UnimplementedError` body
+   `String`), and preserves the generated stub's function name and no-argument
+   shape. The behavior record carries no input-parameter schema, and
+   `BehaviorTestWriter` invokes the generated subject with no arguments. The
+   command rewrites the gen'd subject stub's `UnimplementedError` body
    with the minimal implementation satisfying the described contract (e.g.
    render → return a non-empty string). Idempotent: an already-implemented
    subject reports `already-implemented` and exits 0. Never touches the paired
@@ -145,9 +149,9 @@ proposes.
   `tdd func <id>` and whose last step is `build` (RED first — currently
   unexpressible); every function-intent verb maps; CRUD/entity descriptions
   are unchanged.
-- Func command: scaffolds the derived signature + minimal implementation into
-  the subject stub; target test goes green; idempotent re-run reports
-  `already-implemented`; missing record misfire-stops.
+- Func command: scaffolds the derived return type and minimal implementation
+  into the no-argument subject stub; target test goes green; idempotent re-run
+  reports `already-implemented`; missing record misfire-stops.
 - Make: an unexpressible behavior's output names the verb and the stub path
   with the `implement manually ... then re-run` hint (outcome stays
   `unexpressible`, exit stays 1).

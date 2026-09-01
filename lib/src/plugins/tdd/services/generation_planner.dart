@@ -20,13 +20,13 @@
 ///     plain-function verb phrase — render, format, parse, compute,
 ///     convert, return — but matches neither surface above): plan is
 ///     `zfa tdd func <id>` (the plain-function generator surface that
-///     scaffolds a signature derived from the behavior description),
+///     derives a return type for the generated no-argument function),
 ///     then `zfa build`.
 ///   - Every expressible plan terminates in a `build` step
 ///     (T005 / U5): build is the only step that produces
 ///     compile-validated output.
 ///   - Behaviors whose description names a capability the pipeline
-///     does not expose (e.g. "parse bespoke syntax", "wire custom
+///     does not expose (e.g. "provision bespoke syntax", "wire custom
 ///     DSL") → `unexpressible` with a reason phrased in behavior
 ///     terms, naming the unmet capability (FR-005, SC-005).
 ///
@@ -174,7 +174,7 @@ class GenerationPlanner {
     //    func` generator surface. The entity and CRUD/use-case branches
     //    above keep precedence, so a description like "create entity
     //    Invoice with totals to render" still maps to `entity create`.
-    final verb = _functionIntentVerb(desc);
+    final verb = functionIntentVerb(desc);
     if (verb != null) {
       return GenerationPlan(
         behaviorId: summary.behaviorId,
@@ -241,12 +241,23 @@ class GenerationPlanner {
   /// return/returns/returned/...) so prose like "render returns a
   /// non-empty string" or "returns 42 when invoked" resolves to the
   /// function surface.
+  static const Set<String> functionIntentVerbs = {
+    'render',
+    'format',
+    'parse',
+    'compute',
+    'convert',
+    'return',
+  };
+
   static final RegExp _functionVerb = RegExp(
-    r'\b(render|format|parse|compute|convert|return)(s|ed|ing)?\b',
+    '\\b(${functionIntentVerbs.join('|')})(s|ed|ing)?\\b',
   );
 
-  String? _functionIntentVerb(String lowercasedDescription) {
-    final m = _functionVerb.firstMatch(lowercasedDescription);
+  /// Returns the recognized function-intent verb found anywhere in
+  /// [description], or null when the planner has no matching function surface.
+  static String? functionIntentVerb(String description) {
+    final m = _functionVerb.firstMatch(description.toLowerCase());
     return m?.group(1);
   }
 

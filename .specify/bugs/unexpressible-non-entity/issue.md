@@ -43,14 +43,15 @@ zfa tdd run --feature <feature>
 
 Add a generator surface for plain functions/methods — e.g. `zfa func` or `zfa method` — so the planner can map behavior descriptions like "render X as a string" or "parse Y into Z" to a concrete generation target. At minimum:
 
-1. **New generator surface** — `zfa func` that scaffolds a standalone function (or a method on an existing class) with a signature derived from the behavior description.
+1. **New generator surface** — `zfa func` that scaffolds a standalone no-argument function (or a method on an existing class), preserving the generated function name and deriving its return type from the behavior description.
 2. **Planner mapping** — extend the generation planner to recognize verb phrases like "render", "format", "parse", "compute", "return" as function-generation intents.
 3. **Fallback behavior** — when `make` would be `unexpressible`, log a clear message: `"no generator for '<verb>'; implement manually at <stub_path>, then re-run"` instead of hard-stopping the whole run.
 
 ## Verification
 
-- A spec with a `render`-type behavior (`U1: render returns a non-empty string for a fully populated task`) should generate a working `String render(Task task)` implementation via `zfa tdd make`.
-- The TDD cycle should complete all behaviors in a feature without manual intervention for plain-function behaviors.
+- A spec with a supported `render`-type behavior (`U1: render returns a non-empty string for a fully populated task`) should generate a working no-argument `String render()` implementation via `zfa tdd make`.
+- The TDD cycle should complete recognized, supported plain-function intents without manual intervention.
+- Unmapped behaviors remain `unexpressible` and require manual implementation at the recorded subject path; they are not completed automatically.
 - Existing entity/service/repository generation is unchanged.
 
 ## Context

@@ -223,5 +223,19 @@ void main() {
       expect(plan.steps, isEmpty);
       expect(plan.unexpressibleReason, isNotNull);
     });
+
+    test('U12-657: the shared function-intent matcher scans past framing '
+        'words', () {
+      expect(
+        GenerationPlanner.functionIntentVerb(
+          'The operator must parse the raw payload',
+        ),
+        'parse',
+      );
+      expect(
+        GenerationPlanner.functionIntentVerb('Provision bespoke DSL syntax'),
+        isNull,
+      );
+    });
   });
 }

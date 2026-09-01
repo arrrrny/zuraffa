@@ -19,15 +19,17 @@
 /// The command:
 ///   1. Resolves the behavior's registry record (same resolution rules
 ///      as `wire`/`make`) and its `subject_path` artifact.
-///   2. Derives the function signature from the behavior DESCRIPTION
-///      (never from the test): a render/format/parse/compute-style verb
-///      names the intent, and the described result type — "returns a
-///      non-empty string", "returns 42", "return true when ..." — names
-///      the return type (String / int / bool / double / List / Map;
-///      String when the description is type-silent).
-///   3. Replaces the subject stub's `UnimplementedError` body with the
-///      minimal implementation satisfying the described contract (spec
-///      047 FR-005 minimal generation). The paired test file is never
+///   2. Derives only the return type from the behavior DESCRIPTION (never
+///      from the test): a described result such as "returns a non-empty
+///      string", "returns 42", or "return true when ..." maps to String,
+///      int, or bool (with support for double / List / Map and a String
+///      fallback). The function name and no-argument shape come from the
+///      generated subject stub because the behavior record carries no input
+///      parameter schema and the paired generated test invokes it with no args.
+///   3. Replaces only the subject stub declaration containing
+///      `UnimplementedError` with the minimal implementation satisfying the
+///      described contract (spec 047 FR-005 minimal generation). The paired
+///      test file is never
 ///      touched (044 ownership contract), and the stub's function NAME
 ///      is preserved so the immutable test keeps compiling against it.
 ///   4. Is idempotent: a subject with no `UnimplementedError` left is
@@ -79,7 +81,7 @@ class FuncCommand extends Command<void> {
   @override
   String get description =>
       'Scaffold the plain-function subject of a behavior (render, format, '
-      'parse, compute, ...) with a signature derived from its description '
+      'parse, compute, ...) with a description-derived return type '
       '— the function-generation surface of the pipeline (bug #657).';
 
   @override
@@ -191,12 +193,19 @@ class FuncCommand extends Command<void> {
     final raw = await subjectFile.readAsString();
     final stub = _stubSignature.firstMatch(raw);
     if (stub == null) {
-      if (raw.contains('UnimplementedError')) {
+      final hasUnimplementedError = raw.contains('UnimplementedError');
+      if (hasUnimplementedError) {
         print(
           'zfa tdd func: subject at "$recordedSubject" carries an '
           'UnimplementedError in an unrecognized shape — refusing to '
           'rewrite a file this command did not generate.',
         );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: FuncOutcome.runnerError,
+          feature: resolved.featureName,
+        );
+        exitCode = 1;
       } else {
         // Idempotent re-run (resumed pipeline): nothing to do.
         print(
@@ -209,9 +218,6 @@ class FuncCommand extends Command<void> {
           feature: resolved.featureName,
         );
       }
-      if (raw.contains('UnimplementedError')) {
-        exitCode = 1;
-      }
       return;
     }
     // The stub's function NAME is preserved: the paired (immutable) test
@@ -220,11 +226,11 @@ class FuncCommand extends Command<void> {
     final functionName = stub.group(2)!;
 
     final scaffolded = _renderScaffolded(
-      record: record,
       description: description,
       functionName: functionName,
     );
-    await subjectFile.writeAsString(scaffolded);
+    final updated = raw.replaceRange(stub.start, stub.end, scaffolded);
+    await subjectFile.writeAsString(updated);
     print('   scaffolded: $recordedSubject');
     _printSummary(
       behavior: record.behaviorId,
@@ -238,8 +244,8 @@ class FuncCommand extends Command<void> {
   // -------------------------------------------------------------------
 
   static final RegExp _stubSignature = RegExp(
-    r'^(int|void)\s+([A-Za-z_][A-Za-z0-9_]*)\(\)\s*=>\s*'
-    r'throw UnimplementedError\(',
+    r'^(int|void)[ \t]+([A-Za-z_][A-Za-z0-9_]*)\(\)[ \t]*=>[ \t]*'
+    r'throw[ \t]+UnimplementedError\([^;\r\n]*\);[ \t]*$',
     multiLine: true,
   );
 
@@ -252,7 +258,7 @@ class FuncCommand extends Command<void> {
   }
 
   /// Derive the return type and the minimal body from the behavior
-  /// description (bug #657: the signature comes from the DESCRIPTION,
+  /// description (bug #657: only the return type comes from the DESCRIPTION,
   /// never from the test). The body is the minimal implementation
   /// satisfying the described contract — generation, not hand-writing.
   /// A null body means the caller renders the String fallback (a
@@ -300,7 +306,6 @@ class FuncCommand extends Command<void> {
   }
 
   String _renderScaffolded({
-    required ArtifactRecord record,
     required String description,
     required String functionName,
   }) {
@@ -309,27 +314,9 @@ class FuncCommand extends Command<void> {
     // non-empty literal (the function name) — never an empty string,
     // which would violate a "non-empty string" contract.
     final body = explicitBody ?? "return '$functionName';";
-    return '''
-// GENERATED IMPLEMENTATION — `zfa tdd func ${record.behaviorId}` (bug
-// #657: the plain-function generator surface).
-//
-// behavior_id: ${record.behaviorId}
-// source_criterion: ${record.sourceCriterion}
-// description: $description
-//
-// This replaces the `zfa tdd gen` stub with the minimal scaffolded
-// implementation (spec 047 FR-005): the signature is derived from the
-// description above and the body satisfies the described contract.
-// Extend the body with real behavior in later cycles — the paired test
-// file is immutable (044 ownership).
-library;
-
-/// Subject for behavior ${record.behaviorId}, scaffolded by the
-/// generation pipeline (bug #657).
-$returnType $functionName() {
+    return '''$returnType $functionName() {
   $body
-}
-''';
+}''';
   }
 
   Future<_Resolved?> _resolve(
