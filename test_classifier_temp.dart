@@ -8,11 +8,12 @@ void main() async {
       workingDirectory: '/Users/ahmettok/Developer/forklift',
     );
     print('Template: [$template]');
-    
+
     final record = await runner.runSingle(
       singleTemplate: template,
       testPath: '/Users/ahmettok/Developer/forklift/test/tdd/a1_test.dart',
-      testName: 'A1 (US1-S1) A clear instruction maps to a phase-1 capability, is executed, and the outcome is reported in plain language',
+      testName:
+          'A1 (US1-S1) A clear instruction maps to a phase-1 capability, is executed, and the outcome is reported in plain language',
       workingDirectory: '/Users/ahmettok/Developer/forklift',
     );
     print('Command: [${record.command}]');
@@ -20,7 +21,7 @@ void main() async {
     print('TestCount: ${record.testCount}');
     final cls = classify(record);
     print('Classification: $cls');
-  } catch(e) {
+  } catch (e) {
     print('Error: $e');
   }
 }
