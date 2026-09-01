@@ -1041,4 +1041,71 @@ void main() {
       );
     });
   });
+
+  // -------------------------------------------------------------------
+  // Bug #726 — tdd-suite-template-truncation. With an ecosystem-style
+  // profile whose `suite:` value is UNQUOTED and multi-word
+  // (`suite: dart test`), the old unquoted-value regex truncated the
+  // template to its first word (`dart`), so the suite baseline ran the
+  // bare `dart` CLI (help text, exit 0, unparseable) and make refused
+  // with "the suite baseline did not produce a usable snapshot" even
+  // though the package is a perfectly normal pure-Dart project.
+  // -------------------------------------------------------------------
+  group('bug #726 — make with an unquoted multi-word suite template', () {
+    test('U15: the suite baseline runs the REAL suite and make completes '
+        'green on a certified-red behavior', () async {
+      final fx2 = await TddFixture.create(writeProfile: false);
+      try {
+        // Ecosystem-detector-style profile: frontmatter shape, quoted
+        // single (isolate the suite bug), unquoted multi-word suite.
+        final dir = Directory('${fx2.root.path}/.specify/memory');
+        await dir.create(recursive: true);
+        await File('${dir.path}/tdd-profile.md').writeAsString('''
+---
+detected_at: 2026-01-15
+project: tdd_fixture
+stacks:
+  dart:
+    runner: dart
+    single: 'dart test {file} --plain-name "{name}"'
+    file: 'dart test {file}'
+    suite: dart test
+---
+# TDD Profile
+''');
+        await fx2.seedCertifiedRed(
+          id: 'B-001',
+          description: _targetDescription,
+          testContent: TddFixture.subjectDrivenTest(
+            'B-001',
+            _targetDescription,
+          ),
+        );
+        final zfaBin = await fx2.writeFakeZfaBin(
+          logPath: fx2.fakeZfaLogPath,
+          sideEffectByArgv: {
+            'entity create': fx2.overwriteSubjectCommands(
+              'B-001',
+              TddFixture.subjectReturning('B-001', 42),
+            ),
+          },
+        );
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing(
+          makeArgs(fx2, id: 'B-001', zfaBin: zfaBin),
+        );
+
+        expect(exitCode, 0, reason: out);
+        expect(out, contains('suite baseline: dart test'));
+        expect(out, contains('outcome=green'));
+        final log = await File(fx2.cycleLogPath).readAsString();
+        expect(log, contains('- suite: baseline='));
+        expect(log, contains('new=(none)'));
+      } finally {
+        fx2.dispose();
+        exitCode = 0;
+      }
+    });
+  });
 }
