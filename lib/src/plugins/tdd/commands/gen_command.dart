@@ -228,19 +228,25 @@ class GenCommand extends Command<void> {
   /// Detect a stub written by an OLDER binary (bug #683) and regenerate
   /// the pair when the current binary would render different content.
   ///
-  /// Option B (lenient) from the issue:
+  /// Option B (lenient):
   /// - the subject on disk no longer contains `UnimplementedError` → it
   ///   progressed past the stub stage (func scaffolding / implementation);
   ///   return false without touching anything;
-  /// - the subject content matches the current render exactly → the
-  ///   binary has not changed since the stub was written; return false
-  ///   and stay silent (FR-006 idempotency preserved);
+  /// - the on-disk pair matches what the current binary would render →
+  ///   return false and stay silent (FR-006 idempotency preserved);
   /// - otherwise the stub is stale → rewrite the pair with the current
-  ///   writers (same transactional contract as the create path) and
-  ///   return true so the caller prints the
+  ///   writers, returning true so the caller prints the
   ///   `binary updated, stub regenerated` note. Ownership stays
-  ///   `reused/reused`: the registry record is unchanged and the issue's
-  ///   verification criterion expects `reused/reused` + regeneration.
+  ///   `reused/reused`: the registry record is unchanged.
+  ///
+  /// Byte-comparison covers BOTH test and subject files (the writers are
+  /// both a function of the generating binary — bug #683 covers a test
+  /// half drift too). The current render is produced into a temp mirror
+  /// under `<tmp>/test/tdd` + `<tmp>/lib/tdd` so the test's relative
+  /// subject import resolves to a sibling on disk, byte-identical to a
+  /// real `gen`. If the partial rewrite fails after touching one file,
+  /// both files are restored to their pre-attempt bytes so a failed
+  /// regeneration never leaves less on disk than before.
   Future<bool> _regenerateStaleStub({
     required Behavior behavior,
     required String testPath,
@@ -248,32 +254,62 @@ class GenCommand extends Command<void> {
   }) async {
     final subjectFile = File(subjectPath);
     if (!await subjectFile.exists()) return false;
-    final onDisk = await subjectFile.readAsString();
+    final onDiskSubject = await subjectFile.readAsString();
     // A progressed artifact is never clobbered by the staleness check.
-    if (!onDisk.contains('UnimplementedError')) return false;
+    if (!onDiskSubject.contains('UnimplementedError')) return false;
 
-    final expected = const SubjectWriter().render(behavior);
-    if (expected == onDisk) return false;
-
+    // Render the expected pair into a temp mirror (no real paths touched).
+    final mirror = await Directory.systemTemp.createTemp('zfa_gen_stale_');
     try {
-      final testWriter = const BehaviorTestWriter();
-      await testWriter.write(
-        behavior: behavior,
-        testPath: testPath,
-        subjectPath: subjectPath,
+      final mirroredTest = p.join(
+        mirror.path,
+        'test',
+        'tdd',
+        p.basename(testPath),
       );
-      final subjectWriter = const SubjectWriter();
-      await subjectWriter.write(behavior: behavior, subjectPath: subjectPath);
-    } on FileSystemException catch (_) {
-      // Regeneration is best-effort: on filesystem failure keep the
-      // pre-existing (stale) pair and skip the note rather than
-      // destroying artifacts the registry still owns. The next gen
-      // run retries the check. Other exception types (ArgumentError,
-      // StateError, etc.) bubble up so genuine bugs surface instead of
-      // being silently swallowed by an over-broad catch.
-      return false;
+      final mirroredSubject = p.join(
+        mirror.path,
+        'lib',
+        'tdd',
+        p.basename(subjectPath),
+      );
+      await const BehaviorTestWriter().write(
+        behavior: behavior,
+        testPath: mirroredTest,
+        subjectPath: mirroredSubject,
+      );
+      await const SubjectWriter().write(
+        behavior: behavior,
+        subjectPath: mirroredSubject,
+      );
+      final expectedTest = await File(mirroredTest).readAsString();
+      final expectedSubject = await File(mirroredSubject).readAsString();
+      final onDiskTest = await File(testPath).readAsString();
+      if (expectedSubject == onDiskSubject && expectedTest == onDiskTest) {
+        return false;
+      }
+
+      // Rewrite the real pair; roll back if either write fails so the
+      // on-disk state is exactly what it was before this attempt.
+      try {
+        await File(testPath).writeAsString(expectedTest);
+        await File(subjectPath).writeAsString(expectedSubject);
+      } catch (error) {
+        // Best-effort rollback: restore the pre-attempt bytes. If even
+        // the rollback fails (e.g. permissions flipped mid-flight), let
+        // the original error propagate so the caller sees a real failure.
+        try {
+          await File(testPath).writeAsString(onDiskTest);
+          await File(subjectPath).writeAsString(onDiskSubject);
+        } catch (_) {
+          // Ignore rollback errors; surface the original failure.
+        }
+        rethrow;
+      }
+      return true;
+    } finally {
+      if (await mirror.exists()) await mirror.delete(recursive: true);
     }
-    return true;
   }
 
   Future<void> _deleteIfCreated(String path) async {

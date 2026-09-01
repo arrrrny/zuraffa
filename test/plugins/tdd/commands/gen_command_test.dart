@@ -395,6 +395,50 @@ int sampleSubject() {
       // the behavior back to red (the exact failure mode of #683).
       expect(await File(subjectPath).readAsString(), implemented);
     });
+
+    test('regenerates the pair when ONLY the test file is stale (subject '
+        'unchanged but test rendered differently by the new binary)',
+        () async {
+      // The byte-comparison covers BOTH test and subject — a binary
+      // rebuild may change either half. A subject-only check (the
+      // earlier narrow version) would miss this case.
+      await seedSpecAndTestList();
+      final runner = CliRunner(exitOnCompletion: false);
+      await runner.runCapturing(genArgs('B-003'));
+
+      final testPath = p.join(
+        tmpDir.path,
+        'test',
+        'tdd',
+        'b_003_test.dart',
+      );
+      final subjectPath = p.join(
+        tmpDir.path,
+        'lib',
+        'tdd',
+        'b_003_subject.dart',
+      );
+      final originalTest = await File(testPath).readAsString();
+      final originalSubject = await File(subjectPath).readAsString();
+
+      // Drift the test half only — leave the subject byte-identical.
+      final driftedTest = originalTest.replaceFirst(
+        '// GENERATED TEST — `zfa tdd gen B-003`',
+        '// GENERATED TEST — `zfa tdd gen B-003` (older binary, test half)',
+      );
+      expect(driftedTest, isNot(originalTest));
+      await File(testPath).writeAsString(driftedTest);
+
+      final out2 = await runner.runCapturing(genArgs('B-003'));
+      expect(
+        out2,
+        contains('binary updated, stub regenerated'),
+        reason: 'a divergent test file must trigger regeneration',
+      );
+      // Both halves are rewritten by the current binary.
+      expect(await File(testPath).readAsString(), originalTest);
+      expect(await File(subjectPath).readAsString(), originalSubject);
+    });
   }, timeout: const Timeout(Duration(minutes: 3)));
 
   group('GenCommand — ownership conflict (US2.AC2 / FR-008)', () {
