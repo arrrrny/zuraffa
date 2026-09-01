@@ -34,13 +34,19 @@ class BrandingWriter {
   /// - app icons to android/app/src/main/res/ and ios/
   /// - store listing images to assets/
   /// - Zuraffa assets to assets/zuraffa_app_icons/
+  /// - removes default Flutter logo files
+  /// - updates pubspec.yaml
   Future<void> writeFlutterBranding({
     required String projectRoot,
     required bool dryRun,
     required bool verbose,
   }) async {
     if (dryRun) return;
+
     await _copyBrandAssetsToAssets(projectRoot);
+    await _copyIconFiles(projectRoot);
+    await _updatePubspecAssets(projectRoot);
+    await _removeFlutterDefaults(projectRoot);
   }
 
   /// Copies brand assets for a Dart CLI package:
@@ -52,13 +58,16 @@ class BrandingWriter {
     required bool verbose,
   }) async {
     if (dryRun) return;
+
     await _copyBrandAssetsToAssets(projectRoot);
+    await _updateReadme(projectRoot);
   }
 
   /// Copies brand assets to {projectRoot}/assets/zuraffa_app_icons/.
   /// Idempotent: skips if destination already exists.
   Future<void> _copyBrandAssetsToAssets(String projectRoot) async {
-    final destDir = Directory(p.join(projectRoot, 'assets', 'zuraffa_app_icons'));
+    final destDir =
+        Directory(p.join(projectRoot, 'assets', 'zuraffa_app_icons'));
     if (destDir.existsSync()) return; // already branded
     destDir.createSync(recursive: true);
     final sourceDir = Directory(_brandAssetsSource);
@@ -66,6 +75,107 @@ class BrandingWriter {
       if (entity is File) {
         final destPath = p.join(destDir.path, p.basename(entity.path));
         await entity.copy(destPath);
+      }
+    }
+  }
+
+  /// Copies iOS and Android app icons to platform-specific directories.
+  Future<void> _copyIconFiles(String projectRoot) async {
+    // iOS icons — source is Assets.xcassets/ at brand root, dest is ios/Runner/Assets.xcassets/
+    final iosSource =
+        Directory(p.join(_brandAssetsSource, 'Assets.xcassets'));
+    final iosDest =
+        Directory(p.join(projectRoot, 'ios', 'Runner', 'Assets.xcassets'));
+    if (iosSource.existsSync()) {
+      if (!iosDest.existsSync()) iosDest.createSync(recursive: true);
+      await for (final entity in iosSource.list(recursive: true)) {
+        if (entity is File) {
+          final rel = p.relative(entity.path, from: iosSource.path);
+          final destPath = p.join(iosDest.path, rel);
+          File(destPath).parent.createSync(recursive: true);
+          await entity.copy(destPath);
+        }
+      }
+    }
+
+    // Android icons
+    final androidSource =
+        Directory(p.join(_brandAssetsSource, 'android'));
+    final androidRes = Directory(
+        p.join(projectRoot, 'android', 'app', 'src', 'main', 'res'));
+    if (!androidRes.existsSync()) androidRes.createSync(recursive: true);
+    if (androidSource.existsSync()) {
+      await for (final entity in androidSource.list(recursive: true)) {
+        if (entity is File) {
+          final rel = p.relative(entity.path, from: androidSource.path);
+          final destPath = p.join(androidRes.path, rel);
+          File(destPath).parent.createSync(recursive: true);
+          await entity.copy(destPath);
+        }
+      }
+    }
+  }
+
+  /// Adds assets/zuraffa_app_icons/ to pubspec.yaml flutter assets section.
+  Future<void> _updatePubspecAssets(String projectRoot) async {
+    final pubspecFile = File(p.join(projectRoot, 'pubspec.yaml'));
+    if (!pubspecFile.existsSync()) return;
+
+    var content = pubspecFile.readAsStringSync();
+    if (content.contains('zuraffa_app_icons')) return; // already added
+
+    // Inject after "uses-material-design: true"
+    if (content.contains('uses-material-design: true')) {
+      content = content.replaceFirst(
+        'uses-material-design: true',
+        'uses-material-design: true\n  assets:\n    - assets/zuraffa_app_icons/',
+      );
+    } else if (content.contains('flutter:')) {
+      content = content.replaceFirst(
+        RegExp(r'flutter:\s*\{'),
+        'flutter: {\n  assets:\n    - assets/zuraffa_app_icons/',
+      );
+    }
+    await pubspecFile.writeAsString(content);
+  }
+
+  /// Prepends a Zuraffa banner to README.md.
+  Future<void> _updateReadme(String projectRoot) async {
+    final readme = File(p.join(projectRoot, 'README.md'));
+    if (!readme.existsSync()) return;
+
+    final content = readme.readAsStringSync();
+    if (content.contains('Zuraffa')) return; // already branded
+
+    final banner = '''# Zuraffa
+
+> Built with [Zuraffa](https://github.com/arrrrny/zuraffa) — the Flutter/Dart project generator.
+
+''';
+    await readme.writeAsString(banner + content);
+  }
+
+  /// Removes default Flutter logo files from the target project.
+  Future<void> _removeFlutterDefaults(String projectRoot) async {
+    final assetsDir = Directory(p.join(projectRoot, 'assets'));
+    if (!assetsDir.existsSync()) return;
+
+    for (final name in ['flutter.png', 'flutter_animated.png']) {
+      final file = File(p.join(assetsDir.path, name));
+      if (file.existsSync()) await file.delete();
+    }
+
+    // Also check drawable directories for any flutter-related files
+    final androidRes = Directory(
+        p.join(projectRoot, 'android', 'app', 'src', 'main', 'res'));
+    if (!androidRes.existsSync()) return;
+
+    await for (final entity in androidRes.list(recursive: true)) {
+      if (entity is File) {
+        final name = p.basename(entity.path).toLowerCase();
+        if (name.contains('flutter') || name.contains('ic_launcher')) {
+          // Skip — these are legitimate app icons, not Flutter logo defaults
+        }
       }
     }
   }

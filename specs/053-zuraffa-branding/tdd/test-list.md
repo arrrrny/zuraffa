@@ -22,16 +22,16 @@ observable result.
 | id  | behavior                                                                      | traces    | kind | state   | test |
 | --- | ----------------------------------------------------------------------------- | --------- | ---- | ------- | ---- |
 | U1  | `writeFlutterBranding()` copies all brand files to `assets/zuraffa_app_icons/` | FR-001    | example | DONE | |
-| U2  | `writeFlutterBranding()` copies iOS icons to `ios/Runner/Assets.xcassets/`     | FR-002    | example | PENDING | |
-| U3  | `writeFlutterBranding()` copies Android icons to `android/app/src/main/res/`      | FR-002    | example | PENDING | |
-| U4  | `writeFlutterBranding()` adds `assets/zuraffa_app_icons/` to `pubspec.yaml`     | FR-001    | example | PENDING | |
-| U5  | `writeDartBranding()` copies brand assets to `assets/zuraffa_app_icons/`        | FR-003    | example | PENDING | |
-| U6  | `writeDartBranding()` prepends Zuraffa banner to `README.md`                     | FR-004    | example | PENDING | |
-| U7  | `writeFlutterBranding()` removes `flutter.png` from the target project           | FR-005    | example | PENDING | |
-| U8  | `writeFlutterBranding()` removes `flutter_animated.png` from the target project   | FR-005    | example | PENDING | |
-| U9  | `writeFlutterBranding()` is idempotent: calling twice produces identical output  | FR-006    | example | PENDING | |
-| U10 | `writeDartBranding()` is idempotent: calling twice produces identical output      | FR-006    | example | PENDING | |
-| U11 | Branding step is skipped when `assets/zuraffa_app_icons/` already exists         | FR-006    | example | PENDING | |
+| U2  | `writeFlutterBranding()` copies iOS icons to `ios/Runner/Assets.xcassets/`     | FR-002    | example | DONE | | |
+| U3  | `writeFlutterBranding()` copies Android icons to `android/app/src/main/res/`      | FR-002    | example | DONE | | |
+| U4  | `writeFlutterBranding()` adds `assets/zuraffa_app_icons/` to `pubspec.yaml`     | FR-001    | example | DONE | | |
+| U5  | `writeDartBranding()` copies brand assets to `assets/zuraffa_app_icons/`        | FR-003    | example | DONE | | |
+| U6  | `writeDartBranding()` prepends Zuraffa banner to `README.md`                     | FR-004    | example | DONE | | |
+| U7  | `writeFlutterBranding()` removes `flutter.png` from the target project           | FR-005    | example | DONE | | |
+| U8  | `writeFlutterBranding()` removes `flutter_animated.png` from the target project   | FR-005    | example | DONE | | |
+| U9  | `writeFlutterBranding()` is idempotent: calling twice produces identical output  | FR-006    | example | DONE | | |
+| U10 | `writeDartBranding()` is idempotent: calling twice produces identical output      | FR-006    | example | DONE | | |
+| U11 | Branding step is skipped when `assets/zuraffa_app_icons/` already exists         | FR-006    | example | DONE | | |
 
 ### `lib/src/commands/setup_command.dart`
 

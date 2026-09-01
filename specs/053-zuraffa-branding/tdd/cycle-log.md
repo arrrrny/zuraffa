@@ -18,3 +18,13 @@ existed and failed before the implementation.
 - commit: `053-zuraffa-branding` branch
 - tasks: T005 [X]
 - recorded: cycle 1
+
+## Cycle 2
+
+- behaviors: U1–U11 (all BrandingWriter unit behaviors)
+- red (batch): wrote all 10 remaining tests at once; U2 had wrong assertion (dest.listSync() needed recursive), U4/U6 had missing parent dir creates; rest were genuine UnimplementedError
+- fix: full BrandingWriter implementation (iOS icons from Assets.xcassets/, Android from android/, pubspec injection, README prepend, flutter.png removal)
+- green: `dart test test/core/branding/branding_writer_test.dart` — 11 passed
+- commit: `053-zuraffa-branding` branch
+- tasks: T003 [X], T004 [X], T005 [X], T006 [X], T007 [X], T008 [X], T009 [X]
+- recorded: cycle 2
