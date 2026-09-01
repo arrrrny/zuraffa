@@ -15,22 +15,26 @@ class TddProfileWriter {
   ///
   /// Detection is layered:
   ///   1. **Lenient runner-family check** (existing frontmatter is parsed
-  ///      for its `runner:` value): if the existing file's runner is in
-  ///      the same family as the one we're writing (both Flutter or both
-  ///      non-Flutter), it's accepted as a no-op. This handles the
-  ///      common case where a previous `zfa tdd init` (or a CI detector
-  ///      or a manual author) wrote an equally-valid Dart runner such
-  ///      as `package:test (^1.24.0)`.
-  ///   2. **Exact-content match** (Flutter family only): if the existing
-  ///      file's runner is `flutter_test`/`flutter` AND its body matches
+  ///      for its `runner:` value, case-insensitively): if the existing
+  ///      file's runner is in the same family as the one we're writing,
+  ///      it's handled by family, not by bytes. This handles the common
+  ///      case where a previous `zfa tdd init` (or a CI detector or a
+  ///      manual author) wrote an equally-valid Dart runner such as
+  ///      `package:test (^1.24.0)` — accepted as a no-op even though its
+  ///      body differs from the preset template (issue #680).
+  ///   2. **Exact-content match** (Flutter family, or an existing file
+  ///      with no parseable runner): if the existing file's body matches
   ///      what we'd render, it's accepted as a no-op.
   ///   3. **`--force` override**: when the existing file is in the same
   ///      family and content differs, [force] lets the caller clobber
   ///      it instead of throwing.
-  ///   4. **Hard conflict**: cross-family runner (Flutter runner in a
-  ///      Dart-targeting init, or vice versa) is rejected with
-  ///      [StateError]; [force] does NOT bypass this because changing
-  ///      the test runner is a real semantic change.
+  ///   4. **Hard conflict**: cross-family runner is rejected with
+  ///      [StateError] in BOTH directions — a Flutter runner in a
+  ///      Dart-targeting init, AND a Dart runner in a Flutter-targeting
+  ///      init (silently keeping the wrong-family profile would leave the
+  ///      baseline invoking the wrong test runner); [force] does NOT
+  ///      bypass this because changing the test runner is a real
+  ///      semantic change.
   ///
   /// When [dryRun] is true the file is not touched and the would-be
   /// path is returned.
@@ -50,36 +54,52 @@ class TddProfileWriter {
     if (await file.exists()) {
       final existing = await file.readAsString();
 
-      // Lenient check: extract the runner from the existing frontmatter.
-      // If the existing file already uses a Dart runner (non-Flutter), accept it
-      // — it may have been written by a different tool (e.g. a previous
-      // `zfa tdd init` run, a CI detector, or a manual author) with a different
-      // but equally-valid runner value (e.g. "package:test (^1.24.0)" vs the
-      // hardcoded 'dart' literal). The only conflict we reject is a Flutter
-      // runner in a Dart-targeting init (or vice-versa).
+      // Lenient check: extract the runner from the existing frontmatter
+      // (case-insensitively — `Flutter_test` and `flutter_test` are the
+      // same runner). If the existing file already uses a Dart runner
+      // (non-Flutter) and we're targeting Dart, accept it — it may have
+      // been written by a different tool (e.g. a previous `zfa tdd init`
+      // run, a CI detector, or a manual author) with a different but
+      // equally-valid runner value (e.g. "package:test (^1.24.0)" vs the
+      // hardcoded 'dart' literal). The only hard conflicts are
+      // cross-family: a Flutter runner in a Dart-targeting init, or a
+      // Dart runner in a Flutter-targeting init (issue #680).
       final frontmatterRunner = _extractRunner(existing);
-      final existingIsFlutterRunner =
-          frontmatterRunner == 'flutter_test' || frontmatterRunner == 'flutter';
-      final writingDartProfile = !isFlutterProfile;
+      final runnerFamily = _runnerFamily(frontmatterRunner);
+      final writingFamily = isFlutterProfile
+          ? _RunnerFamily.flutter
+          : _RunnerFamily.dart;
 
-      if (existingIsFlutterRunner && writingDartProfile) {
-        throw StateError(
-          'tdd-profile.md already exists with a Flutter runner '
-          '("$frontmatterRunner") but `zfa tdd init` is targeting a Dart '
-          'project. Delete the file first to re-detect.',
-        );
+      if (frontmatterRunner.isNotEmpty) {
+        if (runnerFamily == _RunnerFamily.flutter &&
+            writingFamily == _RunnerFamily.dart) {
+          throw StateError(
+            'tdd-profile.md already exists with a Flutter runner '
+            '("$frontmatterRunner") but `zfa tdd init` is targeting a Dart '
+            'project. Delete the file first to re-detect.',
+          );
+        }
+        if (runnerFamily == _RunnerFamily.dart &&
+            writingFamily == _RunnerFamily.flutter) {
+          throw StateError(
+            'tdd-profile.md already exists with a Dart runner '
+            '("$frontmatterRunner") but `zfa tdd init` is targeting a '
+            'Flutter project. Delete the file first to re-detect.',
+          );
+        }
+        // Same family. A Dart profile is accepted as-is regardless of its
+        // body: every Dart runner is equally valid and overwriting an
+        // enriched profile with the preset template would lose
+        // information (issue #680). A Flutter profile falls through to
+        // the exact-content check below.
+        if (runnerFamily == _RunnerFamily.dart) {
+          return null;
+        }
       }
 
-      // Same runner family: non-Flutter runners are all equally valid for a
-      // Dart profile. Accept the existing file and return null (no-op).
-      // Reject profiles with no parseable runner — empty means the value
-      // was missing or unquoted and we can't trust the flavor check.
-      if (!existingIsFlutterRunner && frontmatterRunner.isNotEmpty) {
-        return null;
-      }
-
-      // Same runner family (Flutter) and content differs: exact-content match
-      // is required.
+      // Same Flutter family (or an unparseable/missing runner — flavor
+      // can't be trusted, so the bytes decide) and content differs:
+      // exact-content match is required.
       if (existing.trim() == content.trim()) {
         return null;
       }
@@ -112,6 +132,16 @@ class TddProfileWriter {
       multiLine: true,
     ).firstMatch(content);
     return (match?.group(1) ?? match?.group(2) ?? match?.group(3) ?? '').trim();
+  }
+
+  /// Classifies a runner value into its family (Flutter vs Dart),
+  /// case-insensitively so `Flutter_test` / `FLUTTER` land in the Flutter
+  /// family instead of sneaking through as "valid Dart runners".
+  _RunnerFamily _runnerFamily(String runner) {
+    final normalized = runner.toLowerCase();
+    return normalized == 'flutter_test' || normalized == 'flutter'
+        ? _RunnerFamily.flutter
+        : _RunnerFamily.dart;
   }
 
   String _render(TddProfile p) {
@@ -152,3 +182,5 @@ coverage: '${p.coverage}'
 ''';
   }
 }
+
+enum _RunnerFamily { flutter, dart }
