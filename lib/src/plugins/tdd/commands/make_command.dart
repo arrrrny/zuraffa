@@ -61,6 +61,7 @@ import '../services/generation_planner.dart';
 import '../services/pipeline_runner.dart';
 import '../services/runner.dart';
 import '../services/suite_guard.dart';
+import '../services/test_list_reader.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -281,11 +282,18 @@ class MakeCommand extends Command<void> {
     PipelineResult? pipelineResult;
     var postRun = driftRun;
     if (!alreadyGreen) {
-      // 6. Plan the minimal generation (FR-005).
+      // 6. Plan the minimal generation (FR-005). The behavior's loop
+      //    kind rides along (bug #723): a unit-kind behavior must be
+      //    dispatched to the plain-function generator, never to the
+      //    entity generator via its lowercased id.
       final summary = BehaviorSummary.fromRecord(
         record,
         description: _descriptionFor(record),
         target: _targetFor(record),
+        kind: await _behaviorKind(
+          featureDir: target.featureDir,
+          behaviorId: record.behaviorId,
+        ),
       );
       final plan = planner.plan(summary);
       GenerationPlan effectivePlan;
@@ -488,6 +496,35 @@ class MakeCommand extends Command<void> {
   // -------------------------------------------------------------------
   // Helpers — resolution + summary (mirror verify_red_command.dart).
   // -------------------------------------------------------------------
+
+  /// The behavior's loop kind for generation dispatch (bug #723, the
+  /// dispatch side of #718). The feature's test list is the kind source
+  /// of truth — the same shared [TestListReader] contract every other
+  /// consumer uses. When the list is missing, unreadable, or carries no
+  /// row for the behavior, the behavior-id prefix decides (`U<digits>`
+  /// → unit; the plan/spec-kit writers name unit behaviors exactly
+  /// that way). Null when neither signal applies: dispatch then stays
+  /// purely description-keyed, which keeps pre-list fixtures and
+  /// hand-registered behaviors on their existing paths.
+  Future<BehaviorKind?> _behaviorKind({
+    required String featureDir,
+    required String behaviorId,
+  }) async {
+    try {
+      final rows = await TestListReader(featureDir).read();
+      for (final row in rows) {
+        if (row.id == behaviorId) return row.kind;
+      }
+    } on TestListReadException {
+      // Fall through to the prefix heuristic — a missing or malformed
+      // list must not silently re-enable the entity dispatch for a
+      // unit behavior.
+    }
+    if (RegExp(r'^U\d+$', caseSensitive: false).hasMatch(behaviorId)) {
+      return BehaviorKind.unit;
+    }
+    return null;
+  }
 
   /// The composition fallback for an unexpressible plan (issue #642, spec
   /// 052). Returns the composition plan (`compose <id>` → `build`) when

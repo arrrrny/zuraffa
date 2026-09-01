@@ -12,6 +12,7 @@
 library;
 
 import 'package:test/test.dart';
+import 'package:zuraffa/src/plugins/tdd/models/behavior.dart';
 import 'package:zuraffa/src/plugins/tdd/services/generation_planner.dart';
 
 void main() {
@@ -299,4 +300,79 @@ void main() {
       });
     },
   );
+
+  group('GenerationPlanner — bug 723: unit behaviors route to the '
+      'plain-function generator', () {
+    test('U-723a: a unit-kind behavior whose description hits the CRUD '
+        'branch maps to `tdd func <id>`, never `zfa make <slug>`', () {
+      // The #718/#723 repro shape: unit behavior U5 whose prose carries
+      // a CRUD keyword. Pre-fix the plan was `['make', 'u5',
+      // '--no-entity']` — the lowercased behavior ID as an entity name —
+      // which never implements the unit subject, so the run loop
+      // stopped at U5:make with generation-error.
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'U5',
+          feature: '001-app-bootstrap',
+          sourceCriterion: 'FR-005',
+          description: 'the validation service returns a non-empty label',
+          kind: BehaviorKind.unit,
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      expect(plan.steps.first.args, ['tdd', 'func', 'U5']);
+      // Every expressible plan still terminates in a `build` step (U5).
+      expect(plan.steps.last.args, contains('build'));
+    });
+
+    test('U-723b: with no kind signal the dispatch stays '
+        'description-keyed — the #696 `make <slug> --no-entity` plan is '
+        'preserved', () {
+      // Backward compatibility: pre-list fixtures and hand-registered
+      // behaviors (kind null) keep the exact #696 plan.
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'U6',
+          feature: '001-app-bootstrap',
+          sourceCriterion: 'FR-006',
+          description: 'service exposes the count of pending items',
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      expect(plan.steps.first.args, ['make', 'u6', '--no-entity']);
+      expect(plan.steps.last.args, contains('build'));
+    });
+
+    test('U-723c: an acceptance-kind behavior with a CRUD description '
+        'keeps the entity `make` path', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'A2',
+          feature: '001-app-bootstrap',
+          sourceCriterion: 'AC-2',
+          description: 'the repository exposes the saved session',
+          kind: BehaviorKind.acceptance,
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      expect(plan.steps.first.args.first, 'make');
+    });
+
+    test('U-723d: an entity-bearing unit behavior keeps the entity '
+        'pipeline — only the CRUD/make dispatch reroutes', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'U9',
+          feature: '001-app-bootstrap',
+          sourceCriterion: 'FR-009',
+          description: 'create entity User with email',
+          kind: BehaviorKind.unit,
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      expect(plan.steps.first.args, ['entity', 'create', '-n', 'User']);
+      expect(plan.steps[1].args, ['tdd', 'wire', 'U9', '--entity', 'User']);
+      expect(plan.steps.last.args, contains('build'));
+    });
+  });
 }

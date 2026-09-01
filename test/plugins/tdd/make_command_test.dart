@@ -979,4 +979,178 @@ void main() {
       );
     });
   });
+
+  group('unit-behavior routing (bug #723)', () {
+    test('U5: a unit behavior whose description hits the CRUD branch '
+        'routes to the plain-function generator (tdd func), NOT '
+        '`zfa make <lowercased-id>`', () async {
+      // The reporter's failing shape: a unit behavior (U5) whose prose
+      // carries a CRUD keyword ("service"), so the description-keyed
+      // planner used to dispatch `zfa make u5 --no-entity` — the
+      // lowercased behavior id as an entity name. The use-case
+      // scaffolds never implement the unit subject, the target test
+      // stayed red, and the run loop stopped with generation-error.
+      const description =
+          'the validation service returns a non-empty error label';
+      await fx.seedCertifiedRed(
+        id: 'U5',
+        description: description,
+        testContent: TddFixture.subjectDrivenTest('U5', description),
+      );
+      // The plan-written test list is the kind source of truth: U5 is
+      // an inner-loop (unit) row.
+      await fx.seedTestList([
+        (
+          id: 'U5',
+          description: description,
+          traces: 'FR-005',
+          state: 'PENDING',
+          kind: 'unit',
+        ),
+      ]);
+
+      // The REAL `zfa tdd func` implements the subject stub; the fake
+      // pipeline mirrors that by overwriting the subject on the
+      // `tdd func` argv only. If make still dispatches `zfa make u5`,
+      // no side effect fires and the test stays red.
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'tdd func': fx.overwriteSubjectCommands(
+            'U5',
+            TddFixture.subjectReturning('U5', 42),
+          ),
+        },
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'U5', zfaBin: zfaBin),
+      );
+
+      // The dispatch must be the plain-function surface — the #657/#660
+      // generator for unit subjects — never the entity generator.
+      final log = await fx.readFakeZfaLog();
+      expect(
+        log.join('\n'),
+        contains('tdd func U5'),
+        reason:
+            'the plan must route the unit behavior to `tdd func`, '
+            'got invocations:\n${log.join('\n')}',
+      );
+      expect(
+        log.join('\n'),
+        isNot(contains('make u5')),
+        reason:
+            'the behavior id must never be dispatched as an entity name '
+            '(`zfa make u5`), got invocations:\n${log.join('\n')}',
+      );
+
+      // The plain-function surface turns the target green and the cycle
+      // certifies — the run loop proceeds past U5 instead of stopping
+      // with generation-error.
+      expect(
+        out,
+        contains('make: behavior=U5 outcome=green feature=${fx.featureName}'),
+        reason: out,
+      );
+      expect(exitCode, 0, reason: 'green certified must exit 0; out:\n$out');
+      expect(
+        await File(fx.cycleLogPath).readAsString(),
+        contains('## Cycle: U5 (green)'),
+      );
+    });
+
+    test('U6: without a test-list row, a U<digits> behavior id routes to '
+        'the plain-function generator (prefix fallback)', () async {
+      const description =
+          'the audit repository returns the number of recorded events';
+      await fx.seedCertifiedRed(
+        id: 'U7',
+        description: description,
+        testContent: TddFixture.subjectDrivenTest('U7', description),
+      );
+      // NO test list seeded — the behavior-id prefix (U<digits>) is the
+      // only kind signal, mirroring projects whose list predates the
+      // bookkeeping or fixtures that register behaviors directly.
+
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'tdd func': fx.overwriteSubjectCommands(
+            'U7',
+            TddFixture.subjectReturning('U7', 42),
+          ),
+        },
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'U7', zfaBin: zfaBin),
+      );
+
+      final log = await fx.readFakeZfaLog();
+      expect(log.join('\n'), contains('tdd func U7'), reason: log.join('\n'));
+      expect(
+        log.join('\n'),
+        isNot(contains('make u7')),
+        reason: log.join('\n'),
+      );
+      expect(
+        out,
+        contains('make: behavior=U7 outcome=green feature=${fx.featureName}'),
+        reason: out,
+      );
+      expect(exitCode, 0, reason: out);
+    });
+
+    test('U8: an entity-bearing unit behavior keeps the entity pipeline '
+        '(create + wire + build) — only the CRUD/make dispatch is '
+        'rerouted', () async {
+      const description = 'create entity User with email';
+      await fx.seedCertifiedRed(
+        id: 'U9',
+        description: description,
+        testContent: TddFixture.subjectDrivenTest('U9', description),
+      );
+      await fx.seedTestList([
+        (
+          id: 'U9',
+          description: description,
+          traces: 'FR-009',
+          state: 'PENDING',
+          kind: 'unit',
+        ),
+      ]);
+
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'tdd wire': fx.overwriteSubjectCommands(
+            'U9',
+            TddFixture.subjectReturning('U9', 42),
+          ),
+        },
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'U9', zfaBin: zfaBin),
+      );
+
+      final log = await fx.readFakeZfaLog();
+      expect(
+        log.join('\n'),
+        contains('entity create -n User'),
+        reason: log.join('\n'),
+      );
+      expect(log.join('\n'), contains('tdd wire U9'), reason: log.join('\n'));
+      expect(
+        out,
+        contains('make: behavior=U9 outcome=green feature=${fx.featureName}'),
+        reason: out,
+      );
+      expect(exitCode, 0, reason: out);
+    });
+  });
 }

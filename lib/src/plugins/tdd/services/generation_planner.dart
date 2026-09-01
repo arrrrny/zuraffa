@@ -44,6 +44,7 @@
 library;
 
 import '../models/artifact_record.dart';
+import '../models/behavior.dart';
 import '../models/generation_plan.dart';
 
 /// Behavior summary the planner consumes. Mirrors just enough of an
@@ -61,12 +62,20 @@ class BehaviorSummary {
   /// (used as the entity slug or preset target).
   final String? target;
 
+  /// The behavior's loop kind (acceptance vs unit), when the caller
+  /// knows it — the test-list row kind (the kind source of truth) or,
+  /// failing that, the behavior-id prefix. Null keeps the dispatch
+  /// purely description-keyed (bug #723: a unit-kind behavior must
+  /// never be dispatched to the entity generator by its lowercased id).
+  final BehaviorKind? kind;
+
   const BehaviorSummary({
     required this.behaviorId,
     required this.feature,
     required this.sourceCriterion,
     required this.description,
     this.target,
+    this.kind,
   });
 
   /// Construct a summary from a registry record.
@@ -74,6 +83,7 @@ class BehaviorSummary {
     ArtifactRecord record, {
     String? description,
     String? target,
+    BehaviorKind? kind,
   }) {
     return BehaviorSummary(
       behaviorId: record.behaviorId,
@@ -81,6 +91,7 @@ class BehaviorSummary {
       sourceCriterion: record.sourceCriterion,
       description: description ?? record.behaviorId,
       target: target,
+      kind: kind,
     );
   }
 }
@@ -154,6 +165,27 @@ class GenerationPlanner {
     //    description — and ONLY when the description names no entity at
     //    all does the plan fall back to the slugified id, passing
     //    `--no-entity` so the real CLI accepts it.
+    //
+    //    Bug #723 (re-report of #718): a UNIT behavior must never take
+    //    this branch. `zfa make <slug>` generates use-case scaffolds
+    //    named after the slug; it never implements the unit subject
+    //    stub, so the target test stays red after a "successful"
+    //    generation and `zfa tdd run` hard-stops at the behavior with
+    //    outcome=generation-error. A unit-kind behavior routes to the
+    //    plain-function generator surface (bug #657 / PR #660) instead
+    //    — the surface that actually implements the unit subject.
+    //    Acceptance-kind and unknown-kind dispatches keep the entity
+    //    path, and entity-bearing descriptions keep the entity branch
+    //    (checked first, above).
+    if (summary.kind == BehaviorKind.unit &&
+        (desc.contains('crud') ||
+            desc.contains('use case') ||
+            desc.contains('use-case') ||
+            desc.contains('usecase') ||
+            desc.contains('repository') ||
+            desc.contains('service'))) {
+      return _functionPlan(summary);
+    }
     if (desc.contains('crud') ||
         desc.contains('use case') ||
         desc.contains('use-case') ||
@@ -195,23 +227,7 @@ class GenerationPlanner {
     //    Invoice with totals to render" still maps to `entity create`.
     final verb = functionIntentVerb(desc);
     if (verb != null) {
-      return GenerationPlan(
-        behaviorId: summary.behaviorId,
-        feature: summary.feature,
-        sourceCriterion: summary.sourceCriterion,
-        steps: [
-          GenerationStepSpec(
-            args: ['tdd', 'func', summary.behaviorId],
-            purpose:
-                'scaffold the $verb function for behavior '
-                '${summary.behaviorId} from its description',
-          ),
-          GenerationStepSpec(
-            args: ['build'],
-            purpose: 'build generated code for behavior ${summary.behaviorId}',
-          ),
-        ],
-      );
+      return _functionPlan(summary, verb: verb);
     }
 
     // 4. Misfire: no pipeline mapping. Phrase the reason in behavior
@@ -223,6 +239,33 @@ class GenerationPlanner {
       sourceCriterion: summary.sourceCriterion,
       steps: const [],
       unexpressibleReason: reason,
+    );
+  }
+
+  /// The plain-function generator plan (bug #657 / PR #660): `tdd func
+  /// <id>` scaffolds the behavior's subject implementation, then
+  /// `build`. This is the surface unit-kind behaviors route to (bug
+  /// #723) — the only one that implements the unit subject stub.
+  GenerationPlan _functionPlan(BehaviorSummary summary, {String? verb}) {
+    return GenerationPlan(
+      behaviorId: summary.behaviorId,
+      feature: summary.feature,
+      sourceCriterion: summary.sourceCriterion,
+      steps: [
+        GenerationStepSpec(
+          args: ['tdd', 'func', summary.behaviorId],
+          purpose: verb != null
+              ? 'scaffold the $verb function for behavior '
+                    '${summary.behaviorId} from its description'
+              : 'scaffold the plain-function subject for behavior '
+                    '${summary.behaviorId} from its description '
+                    '(unit-kind routing, bug #723)',
+        ),
+        GenerationStepSpec(
+          args: ['build'],
+          purpose: 'build generated code for behavior ${summary.behaviorId}',
+        ),
+      ],
     );
   }
 
