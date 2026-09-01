@@ -364,6 +364,54 @@ void main() {
     expect(exitCode, isNot(0));
   });
 
+  test('bug #691: verify-red reporting unexpected-green on an already-green '
+      'behavior skips to make instead of stopping the run', () async {
+    // The behavior was completed by prior work: its full manual cycle
+    // left red+green evidence in the cycle log, and the target test
+    // already passes — so the scripted verify-red classifies it
+    // `unexpected-green` (certified=false). The pre-#691 driver treated
+    // that as a step failure and hard-stopped the whole feature.
+    await fx.setStepOutcome('verify-red', 'B-001', 'unexpected-green');
+    await fx.setStepOutcome('make', 'B-001', 'skip');
+    await fx.seedRedEvidence('B-001');
+    await fx.seedGreenEvidence('B-001');
+
+    final out = await drive();
+
+    // The run no longer stops at B-001:verify-red.
+    expect(exitCode, 0, reason: out);
+    expect(
+      out,
+      isNot(contains('step failed — behavior=B-001 step=verify-red')),
+      reason: out,
+    );
+    expect(out, contains('[run] B-001 verify-red -> unexpected-green'));
+    expect(
+      out,
+      contains(
+        '[run] B-001 verify-red -> skipped (already '
+        'green)',
+      ),
+    );
+    // Skipped TO MAKE: the window continued with make (not a full
+    // re-drive of gen, not a stop) and completed the behavior.
+    expect(
+      fx.stepInvocations().where((l) => l.contains('B-001')),
+      containsAllInOrder(['verify-red B-001', 'make B-001']),
+    );
+    // Later behaviors were never blocked.
+    expect(fx.stepInvocations(), contains('gen B-002'));
+    // Whole feature completes.
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 '
+        'green=0 done=3',
+      ),
+      reason: out,
+    );
+  });
+
   test('FR-008: the driver never modifies test/ or lib/ itself', () async {
     // Give the fixture a test/ and lib/ tree the fake steps never touch.
     await Directory(p.join(fx.root.path, 'lib')).create(recursive: true);
