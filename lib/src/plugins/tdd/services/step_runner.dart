@@ -13,11 +13,10 @@
 /// - `refactor` — exit 0 and `outcome=clean` or `outcome=refactored`
 ///   (U15).
 ///
-/// The entrypoint is the `--zfa-bin` override when given (U18), else the
-/// package root's `bin/zfa.dart` resolved via
-/// `Isolate.resolvePackageUri`. A `.dart` entrypoint is run through `dart`;
-/// anything else (a compiled executable or a scripted fake) is executed
-/// directly.
+/// The entrypoint is the `--zfa-bin` override when given (U18), else
+/// resolved via `Platform.script` with `Isolate.resolvePackageUri` as
+/// fallback (handles both normal CLI runs and test contexts). A `.dart`
+/// entrypoint is run through `dart`; anything else is executed directly.
 library;
 
 import 'dart:io';
@@ -84,26 +83,54 @@ class StepRunner {
 
   /// Resolve this package's `bin/zfa.dart` (the entrypoint the driver
   /// spawns when `--zfa-bin` is absent).
+  ///
+  /// Uses `Platform.script` to derive the entrypoint — the same runtime
+  /// that is currently executing — so this works regardless of whether
+  /// zuraffa is on the package path or running as a compiled snapshot.
+  ///
+  /// Resolution order:
+  ///   1. `Platform.script` when its basename is `zfa.dart` or `zuraffa.dart`
+  ///      (running from the entrypoint directly).
+  ///   2. `p.join(dirname(Platform.script), 'bin', 'zfa.dart')` — handles
+  ///      compiled-snapshot / global-activate where the script is a sibling
+  ///      of `bin/`.
+  ///   3. `Isolate.resolvePackageUri` fallback — handles test contexts where
+  ///      `Platform.script` points at the test runner.
   static Future<String> defaultZfaBin() async {
+    final script = Platform.script;
+    if (script.scheme == 'file') {
+      final scriptPath = script.toFilePath();
+      final base = p.basename(scriptPath);
+      if (base == 'zfa.dart' || base == 'zuraffa.dart') {
+        // Running from bin/zfa.dart or bin/zuraffa.dart — already the entrypoint.
+        return scriptPath;
+      }
+      // Running from a compiled snapshot or sibling path.
+      final derived = p.join(p.dirname(scriptPath), 'bin', 'zfa.dart');
+      if (await File(derived).exists()) return derived;
+      // Fall through: the derived path may not exist (e.g. test runner).
+    }
+    // Fallback: resolve via the package path (handles test contexts where
+    // Platform.script points at the test kernel).
     final uri = await Isolate.resolvePackageUri(
       Uri.parse('package:zuraffa/src/zfa_cli.dart'),
     );
     if (uri == null) {
       throw StateError(
-        'cannot resolve the zfa entrypoint (package:zuraffa is not on the '
-        'package path); pass --zfa-bin explicitly',
+        'cannot resolve the zfa entrypoint; pass --zfa-bin explicitly. '
+        'Neither Platform.script resolution nor package:zuraffa lookup succeeded.',
       );
     }
     // <pkg>/lib/src/zfa_cli.dart -> <pkg>/bin/zfa.dart
-    final bin = p.join(
+    final binPath = p.join(
       p.dirname(p.dirname(p.dirname(p.fromUri(uri)))),
       'bin',
       'zfa.dart',
     );
-    if (!await File(bin).exists()) {
-      throw StateError('zfa entrypoint not found at $bin');
+    if (!await File(binPath).exists()) {
+      throw StateError('zfa entrypoint not found at $binPath');
     }
-    return bin;
+    return binPath;
   }
 
   /// Run one step for [behaviorId] and map the sub-process result onto the
