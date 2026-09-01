@@ -264,10 +264,13 @@ class GenCommand extends Command<void> {
       );
       final subjectWriter = const SubjectWriter();
       await subjectWriter.write(behavior: behavior, subjectPath: subjectPath);
-    } catch (_) {
-      // Regeneration is best-effort: on writer failure keep the pre-existing
-      // (stale) pair and skip the note rather than destroying artifacts the
-      // registry still owns. The next gen run retries the check.
+    } on FileSystemException catch (_) {
+      // Regeneration is best-effort: on filesystem failure keep the
+      // pre-existing (stale) pair and skip the note rather than
+      // destroying artifacts the registry still owns. The next gen
+      // run retries the check. Other exception types (ArgumentError,
+      // StateError, etc.) bubble up so genuine bugs surface instead of
+      // being silently swallowed by an over-broad catch.
       return false;
     }
     return true;
