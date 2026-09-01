@@ -11,7 +11,18 @@ class TddProfileWriter {
 
   final TddProfile profile;
 
-  Future<String?> write(String projectRoot, {bool dryRun = false}) async {
+  /// Write the profile to `.specify/memory/tdd-profile.md`.
+  ///
+  /// When [force] is true and an existing file has different content,
+  /// the file is overwritten unconditionally instead of throwing
+  /// [StateError]. Matching content is still a no-op regardless of
+  /// [force] (idempotency preserved). When [dryRun] is true the file
+  /// is not touched and the would-be path is returned.
+  Future<String?> write(
+    String projectRoot, {
+    bool force = false,
+    bool dryRun = false,
+  }) async {
     final dir = Directory('$projectRoot/.specify/memory');
     final file = File('${dir.path}/tdd-profile.md');
     final content = _render(profile);
@@ -25,11 +36,14 @@ class TddProfileWriter {
       if (existing.trim() == content.trim()) {
         return null;
       }
-      throw StateError(
-        'tdd-profile.md already exists at ${file.path} with different '
-        'content; refusing to overwrite. Delete the file first if you want '
-        'to regenerate.',
-      );
+      if (!force) {
+        throw StateError(
+          'tdd-profile.md already exists at ${file.path} with different '
+          'content; refusing to overwrite. Pass --force to overwrite or '
+          'delete the file first if you want to regenerate.',
+        );
+      }
+      // force + different content: overwrite unconditionally.
     }
 
     await dir.create(recursive: true);

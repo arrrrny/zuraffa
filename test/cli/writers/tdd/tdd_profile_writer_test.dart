@@ -51,4 +51,32 @@ void main() {
     final writer = const TddProfileWriter();
     expect(() => writer.write(tmpDir.path), throwsA(isA<StateError>()));
   });
+
+  test(
+    'force: true overwrites an existing file with different content',
+    () async {
+      final dir = Directory(p.join(tmpDir.path, '.specify/memory'))
+        ..createSync(recursive: true);
+      final file = File(p.join(dir.path, 'tdd-profile.md'));
+      file.writeAsStringSync('# Different content\n');
+      final writer = const TddProfileWriter();
+      final returned = await writer.write(tmpDir.path, force: true);
+      expect(returned, isNotNull);
+      expect(file.readAsStringSync(), contains('runner: flutter_test'));
+      expect(file.readAsStringSync(), isNot(contains('Different content')));
+    },
+  );
+
+  test(
+    'force: true is a no-op when existing content already matches',
+    () async {
+      final writer = const TddProfileWriter();
+      final first = await writer.write(tmpDir.path);
+      expect(first, isNotNull);
+      // Second call with force: true still returns null because the
+      // content is already a match (idempotency preserved).
+      final second = await writer.write(tmpDir.path, force: true);
+      expect(second, isNull);
+    },
+  );
 }
