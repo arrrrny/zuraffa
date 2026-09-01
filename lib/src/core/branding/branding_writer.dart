@@ -131,13 +131,17 @@ class BrandingWriter {
     );
     if (destDir.existsSync()) return; // already branded
     final sourceDir = Directory(_brandAssetsSource);
+    destDir.createSync(recursive: true);
     if (!sourceDir.existsSync()) {
       // Graceful degradation: the brand assets may not be checked out
-      // (e.g. minimal CI clone). Skip silently — callers pass verbose:true
-      // to surface this. See spec 053 edge case.
+      // (e.g. minimal CI clone). The destination directory is still created
+      // (empty) so the pubspec.yaml entry written by _updatePubspecAssets is
+      // never dangling — a referenced-but-missing directory makes every
+      // flutter test fail with "unable to find directory entry in
+      // pubspec.yaml" (bug 735). Callers pass verbose:true to surface the
+      // missing source. See spec 053 edge case.
       return;
     }
-    destDir.createSync(recursive: true);
     await for (final entity in sourceDir.list()) {
       if (entity is File) {
         final destPath = p.join(destDir.path, p.basename(entity.path));
@@ -184,12 +188,23 @@ class BrandingWriter {
   }
 
   /// Adds assets/zuraffa_app_icons/ to pubspec.yaml flutter assets section.
+  ///
+  /// Defensive (bug 735): the referenced directory is created on disk before
+  /// the entry is injected, so a pubspec reference to assets/zuraffa_app_icons/
+  /// can never dangle — even if [_copyBrandAssetsToAssets] did not run.
   Future<void> _updatePubspecAssets(String projectRoot) async {
     final pubspecFile = File(p.join(projectRoot, 'pubspec.yaml'));
     if (!pubspecFile.existsSync()) return;
 
     var content = pubspecFile.readAsStringSync();
     if (content.contains('zuraffa_app_icons')) return; // already added
+
+    // Never write an entry that points at a missing directory: every
+    // flutter test fails with "unable to find directory entry in
+    // pubspec.yaml" until the directory exists (bug 735).
+    Directory(
+      p.join(projectRoot, 'assets', 'zuraffa_app_icons'),
+    ).createSync(recursive: true);
 
     // Inject after "uses-material-design: true"
     if (content.contains('uses-material-design: true')) {
