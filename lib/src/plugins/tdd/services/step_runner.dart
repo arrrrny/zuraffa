@@ -115,22 +115,23 @@ class StepRunner {
     final uri = await Isolate.resolvePackageUri(
       Uri.parse('package:zuraffa/src/zfa_cli.dart'),
     );
-    if (uri == null) {
-      throw StateError(
-        'cannot resolve the zfa entrypoint; pass --zfa-bin explicitly. '
-        'Neither Platform.script resolution nor package:zuraffa lookup succeeded.',
+    if (uri != null) {
+      // <pkg>/lib/src/zfa_cli.dart -> <pkg>/bin/zfa.dart
+      final bin = p.join(
+        p.dirname(p.dirname(p.dirname(p.fromUri(uri)))),
+        'bin',
+        'zfa.dart',
       );
+      if (await File(bin).exists()) return bin;
     }
-    // <pkg>/lib/src/zfa_cli.dart -> <pkg>/bin/zfa.dart
-    final binPath = p.join(
-      p.dirname(p.dirname(p.dirname(p.fromUri(uri)))),
-      'bin',
-      'zfa.dart',
+    // Fallback: Platform.script (compiled snapshot / global activate).
+    final scriptPath = Platform.script.toFilePath();
+    if (await File(scriptPath).exists()) return scriptPath;
+    throw StateError(
+      'cannot resolve the zfa entrypoint (package:zuraffa is not on the '
+      'package path and Platform.script is not a usable file); '
+      'pass --zfa-bin explicitly',
     );
-    if (!await File(binPath).exists()) {
-      throw StateError('zfa entrypoint not found at $binPath');
-    }
-    return binPath;
   }
 
   /// Run one step for [behaviorId] and map the sub-process result onto the

@@ -76,16 +76,9 @@ String _scriptDir() {
 /// Writes Zuraffa brand assets into a generated app project.
 class BrandingWriter {
   /// The root directory of the zuraffa repository.
-  /// Auto-detected from the location of this library file.
-  static String get zuraffaRoot {
-    // Derive from the location of this source file: lib/src/core/branding/ ->
-    // three levels up from lib/src/core/branding/ reaches the repo root.
-    final scriptUri = Platform.script.toFilePath();
-    final brandingDir = p.dirname(scriptUri); // branding/
-    final coreDir = p.dirname(brandingDir); // src/core/
-    final srcDir = p.dirname(coreDir); // lib/src/
-    return p.dirname(srcDir); // repo root
-  }
+  /// Uses [findZuraffaRoot] so callers that omit `zuraffaRoot` get a
+  /// CI-safe walk rather than a `Platform.script`-derived path.
+  static String get zuraffaRoot => findZuraffaRoot();
 
   final String _zuraffaRoot;
 
@@ -137,8 +130,14 @@ class BrandingWriter {
       p.join(projectRoot, 'assets', 'zuraffa_app_icons'),
     );
     if (destDir.existsSync()) return; // already branded
-    destDir.createSync(recursive: true);
     final sourceDir = Directory(_brandAssetsSource);
+    if (!sourceDir.existsSync()) {
+      // Graceful degradation: the brand assets may not be checked out
+      // (e.g. minimal CI clone). Skip silently — callers pass verbose:true
+      // to surface this. See spec 053 edge case.
+      return;
+    }
+    destDir.createSync(recursive: true);
     await for (final entity in sourceDir.list()) {
       if (entity is File) {
         final destPath = p.join(destDir.path, p.basename(entity.path));
@@ -199,9 +198,11 @@ class BrandingWriter {
         'uses-material-design: true\n  assets:\n    - assets/zuraffa_app_icons/',
       );
     } else if (content.contains('flutter:')) {
+      // Block-style "flutter:" (no inline { — newline-terminated). Insert
+      // "assets:" as a child of the block on the next line.
       content = content.replaceFirst(
-        RegExp(r'flutter:\s*\{'),
-        'flutter: {\n  assets:\n    - assets/zuraffa_app_icons/',
+        RegExp(r'flutter:\s*\n'),
+        'flutter:\n  assets:\n    - assets/zuraffa_app_icons/\n',
       );
     }
     await pubspecFile.writeAsString(content);
@@ -233,7 +234,8 @@ class BrandingWriter {
       if (file.existsSync()) await file.delete();
     }
 
-    // Also check drawable directories for any flutter-related files
+    // Also delete default Flutter logo images nested in Android res dirs
+    // (e.g. drawable/flutter.png).
     final androidRes = Directory(
       p.join(projectRoot, 'android', 'app', 'src', 'main', 'res'),
     );
@@ -242,8 +244,8 @@ class BrandingWriter {
     await for (final entity in androidRes.list(recursive: true)) {
       if (entity is File) {
         final name = p.basename(entity.path).toLowerCase();
-        if (name.contains('flutter') || name.contains('ic_launcher')) {
-          // Skip — these are legitimate app icons, not Flutter logo defaults
+        if (name == 'flutter.png' || name == 'flutter_animated.png') {
+          await entity.delete();
         }
       }
     }

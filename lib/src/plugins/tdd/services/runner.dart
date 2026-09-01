@@ -92,12 +92,12 @@ class SingleTestRunner {
       dotAll: true,
     ).firstMatch(raw);
     if (keysBlock != null) {
-      final single = RegExp(
-        r"""^\s*single:\s*['"](.+)['"]\s*$""",
-        multiLine: true,
-      ).firstMatch(keysBlock.group(1)!);
-      if (single != null && single.group(1)!.trim().isNotEmpty) {
-        return _normalize(single.group(1)!.trim());
+      final single = _firstMatchValue(
+        r'''^\s*single:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))\s*$''',
+        keysBlock.group(1)!,
+      );
+      if (single != null && single.isNotEmpty) {
+        return _normalize(single.trim());
       }
     }
 
@@ -117,22 +117,22 @@ class SingleTestRunner {
     if (frontmatterBlock != null) {
       final frontmatter = frontmatterBlock.group(1)!;
       // Try top-level `single:` first.
-      var single = RegExp(
-        r"""^\s*single:\s*['"](.+)['"]\s*$""",
-        multiLine: true,
-      ).firstMatch(frontmatter);
-      if (single != null && single.group(1)!.trim().isNotEmpty) {
-        return _normalize(single.group(1)!.trim());
+      var single = _firstMatchValue(
+        r'''^\s*single:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))\s*$''',
+        frontmatter,
+      );
+      if (single != null && single.isNotEmpty) {
+        return _normalize(single.trim());
       }
       // Fall back to `stacks: <label>:\s+single:` nesting (keys are
       // indented under their nesting labels; drop ^ anchor so any indentation
       // level is matched). Also handles bare top-level `single:` in flat YAML.
-      final nestedSingle = RegExp(
-        r"""^\s*single:\s*['"](.+)['"]""",
-        multiLine: true,
-      ).firstMatch(frontmatter);
-      if (nestedSingle != null && nestedSingle.group(1)!.trim().isNotEmpty) {
-        return _normalize(nestedSingle.group(1)!.trim());
+      final nestedSingle = _firstMatchValue(
+        r'''^\s*single:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))''',
+        frontmatter,
+      );
+      if (nestedSingle != null && nestedSingle.isNotEmpty) {
+        return _normalize(nestedSingle.trim());
       }
     }
 
@@ -170,12 +170,12 @@ class SingleTestRunner {
       dotAll: true,
     ).firstMatch(raw);
     if (keysBlock != null) {
-      final suite = RegExp(
-        r"""^\s*suite:\s*['"](.+)['"]\s*$""",
-        multiLine: true,
-      ).firstMatch(keysBlock.group(1)!);
-      if (suite != null && suite.group(1)!.trim().isNotEmpty) {
-        return suite.group(1)!.trim();
+      final suite = _firstMatchValue(
+        r'''^\s*suite:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))\s*$''',
+        keysBlock.group(1)!,
+      );
+      if (suite != null && suite.isNotEmpty) {
+        return suite.trim();
       }
     }
 
@@ -192,20 +192,20 @@ class SingleTestRunner {
     if (frontmatterBlock != null) {
       final frontmatter = frontmatterBlock.group(1)!;
       // Try top-level `suite:` first.
-      var suite = RegExp(
-        r"""^\s*suite:\s*['"](.+)['"]""",
-        multiLine: true,
-      ).firstMatch(frontmatter);
-      if (suite != null && suite.group(1)!.trim().isNotEmpty) {
-        return suite.group(1)!.trim();
+      var suite = _firstMatchValue(
+        r'''^\s*suite:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))\s*$''',
+        frontmatter,
+      );
+      if (suite != null && suite.isNotEmpty) {
+        return suite.trim();
       }
       // Fall back to `stacks: <label>:\s+suite:` nesting.
-      final nestedSuite = RegExp(
-        r"""^\s*suite:\s*['"](.+)['"]""",
-        multiLine: true,
-      ).firstMatch(frontmatter);
-      if (nestedSuite != null && nestedSuite.group(1)!.trim().isNotEmpty) {
-        return nestedSuite.group(1)!.trim();
+      final nestedSuite = _firstMatchValue(
+        r'''^\s*suite:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))''',
+        frontmatter,
+      );
+      if (nestedSuite != null && nestedSuite.isNotEmpty) {
+        return nestedSuite.trim();
       }
     }
 
@@ -251,6 +251,18 @@ class SingleTestRunner {
       .replaceAll('<path>', '{file}')
       .replaceAll('<file>', '{file}')
       .replaceAll('<name>', '{name}');
+
+  /// Match a YAML scalar that may be double-quoted, single-quoted, or
+  /// unquoted. Returns the first captured group that matched, or null.
+  static String? _firstMatchValue(String pattern, String input) {
+    final match = RegExp(pattern, multiLine: true).firstMatch(input);
+    if (match == null) return null;
+    for (var i = 1; i <= match.groupCount; i++) {
+      final g = match.group(i);
+      if (g != null && g.isNotEmpty) return g;
+    }
+    return null;
+  }
 
   /// Run exactly one test through the template.
   ///

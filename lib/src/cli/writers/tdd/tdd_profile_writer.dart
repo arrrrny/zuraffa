@@ -72,7 +72,9 @@ class TddProfileWriter {
 
       // Same runner family: non-Flutter runners are all equally valid for a
       // Dart profile. Accept the existing file and return null (no-op).
-      if (!existingIsFlutterRunner) {
+      // Reject profiles with no parseable runner — empty means the value
+      // was missing or unquoted and we can't trust the flavor check.
+      if (!existingIsFlutterRunner && frontmatterRunner.isNotEmpty) {
         return null;
       }
 
@@ -99,16 +101,17 @@ class TddProfileWriter {
     return file.path;
   }
 
-  bool get isFlutterProfile => profile.runner == 'flutter_test';
+  bool get isFlutterProfile =>
+      profile.runner == 'flutter_test' || profile.runner == 'flutter';
 
   String _extractRunner(String content) {
     // Match `runner: <value>` in the YAML frontmatter block.
     // Handles both single and double-quoted values.
     final match = RegExp(
-      r'''^\s*runner:\s*["']([^"']+)["']''',
+      r'''^\s*runner:\s*(?:"([^"]+)"|'([^']+)'|([^\s#]+))\s*$''',
       multiLine: true,
     ).firstMatch(content);
-    return match?.group(1)?.trim() ?? '';
+    return (match?.group(1) ?? match?.group(2) ?? match?.group(3) ?? '').trim();
   }
 
   String _render(TddProfile p) {
