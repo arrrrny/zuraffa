@@ -544,6 +544,105 @@ void main() {
       expect(log, contains('- suite: baseline='));
       expect(log, contains('guard='));
     });
+    test('bug 731: pre-existing red behaviors with unstable failing-test '
+        'ids never flip an already-green target to regression — the '
+        'skip transition reports skipped', () async {
+      // A deferred acceptance sibling: red in EVERY suite run (honest
+      // pre-existing breakage, like A1-A5 deferred to phase 2), but its
+      // failing-test IDENTIFIER varies between the baseline and guard
+      // runs (a dynamic test name) — the exact #731 false-positive
+      // shape: the guard's name-diff sees a "new" failure that is
+      // really the same pre-existing red behavior.
+      final deferredSibling = '''
+import 'package:test/test.dart';
+
+void main() {
+  test('deferred acceptance \${DateTime.now().microsecondsSinceEpoch}', () {
+    fail('deferred to phase 2');
+  });
+}
+''';
+      await fx.registerBehavior(
+        id: 'A-DEF',
+        description: 'deferred acceptance behavior',
+        testContent: deferredSibling,
+      );
+      // The target's test ALREADY passes (a prior run made it green)
+      // while its certified-red evidence is still present: the issue
+      // #694 skip transition. No pipeline runs (skip never generates).
+      await fx.seedCertifiedRed(
+        id: 'B-001',
+        description: _targetDescription,
+        testContent: _greenTest,
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(makeArgs(fx, id: 'B-001'));
+      expect(
+        exitCode,
+        0,
+        reason:
+            'pre-existing red behaviors must not block an '
+            'already-green target (issue #731); out: $out',
+      );
+      expect(out, contains('outcome=skipped'));
+      expect(out, isNot(contains('outcome=regression')));
+      // Green evidence with an explicitly empty generation block is
+      // appended (the skip transition's contract, issue #694).
+      final log = await File(fx.cycleLogPath).readAsString();
+      expect(log, contains('## Cycle: B-001 (green)'));
+    });
+
+    test('bug 731: a regression in a file that was ALREADY red at baseline '
+        'is tolerated on the generation path too — make goes green when '
+        'only pre-existing red behaviors fail', () async {
+      // Same unstable pre-existing red sibling; this time the target is
+      // genuinely red and the fake pipeline turns it green. The
+      // deferred sibling fails both suite runs with different ids —
+      // the guard must not call that a regression.
+      final deferredSibling = '''
+import 'package:test/test.dart';
+
+void main() {
+  test('deferred acceptance \${DateTime.now().microsecondsSinceEpoch}', () {
+    fail('deferred to phase 2');
+  });
+}
+''';
+      await fx.registerBehavior(
+        id: 'A-DEF',
+        description: 'deferred acceptance behavior',
+        testContent: deferredSibling,
+      );
+      await fx.seedCertifiedRed(
+        id: 'B-001',
+        description: _targetDescription,
+        testContent: TddFixture.subjectDrivenTest('B-001', _targetDescription),
+      );
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'entity create': fx.overwriteSubjectCommands(
+            'B-001',
+            TddFixture.subjectReturning('B-001', 42),
+          ),
+        },
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'B-001', zfaBin: zfaBin),
+      );
+      expect(
+        exitCode,
+        0,
+        reason:
+            'failures confined to already-red files are pre-existing '
+            'red behaviors (issue #731); out: $out',
+      );
+      expect(out, contains('outcome=green'));
+      expect(out, isNot(contains('outcome=regression')));
+    });
   });
 
   group('US4 — misfire-stop on unexpressible behaviors', () {

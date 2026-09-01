@@ -1,43 +1,76 @@
-# Bug Assessment: zfa tdd make's regression check counts pre-existing red behaviors — false positive when A* behaviors are deferred
+# Assessment: tdd-make-regression-false-positive (issue #731)
 
-- **Slug**: tdd-make-regression-false-positive
-- **Created**: 2026-09-01
-- **Source**: https://github.com/arrrrny/zuraffa/issues/731
-- **Verdict**: valid
-- **Severity**: high
-
-## Report
-
-`zfa tdd make` reports `outcome=regression` when the suite guard sees 1+ new failure, but it doesn't distinguish between NEW failures (caused by this make) and PRE-EXISTING failures (caused by prior deferred behaviors). Direct call says `skipped` (test passes), but run driver says `regression`.
+- **Assessed**: 2026-09-02 (this fix session)
+- **Severity**: high — `zfa tdd run` deadlocks on already-completed behaviors
+- **Input record**: `./issue.md` (GitHub issue #731, sole triage input; the
+  `.specify/bugs/<slug>/` records named by the workflow were not present on any
+  branch of this repository, so the issue body is the authoritative record)
 
 ## Symptom
 
-Spec 004 with A1-A5 deferred (5 red), U1 green, U2 test passes → `U2:make` false-positived as `regression` due to pre-existing red A1-A5 tests in the suite baseline.
+`zfa tdd make <id>` for a behavior whose test already passes reports
+`outcome=regression` (exit 1) when the suite carries pre-existing red behaviors
+(deferred acceptance tests). `zfa tdd run` then stops:
+`step failed — behavior=U2 step=make outcome=regression`.
 
-## Suspected Code Paths
+## Root cause (verified in this session)
 
-- `lib/src/plugins/tdd/commands/make_command.dart:420-446` — `diff.hasNewFailures` check counts full-suite failures vs baseline.
+The suite guard (`make_command.dart` step 9, formerly lines ~407-451) diffs the
+failing-test identifier sets of two full-suite runs — a pre-make **baseline**
+and a post-make **guard** — and reports a regression on ANY identifier present
+in the guard but not the baseline:
 
-## Root Cause Hypothesis
+```dart
+if (diff.hasNewFailures) { ... outcome: MakeOutcome.regression ... }
+```
 
-The suite-guard logic counts failures in the full suite vs a pre-make baseline. When the baseline snapshot is taken AFTER A1-A5 are deferred (5 failing tests already), the guard's comparison logic thinks the current behavior caused a new failure. It should compare only the current behavior's test file, not the full suite. Confidence: **high** — the reproduction is deterministic and the direct-call vs run-driver mismatch confirms it.
+`SuiteGuard.diff` matches failing-test identifiers by exact name
+(`services/suite_guard.dart`). A pre-existing red behavior's identifier is NOT
+stable across two suite runs: a dynamic test name (e.g. a name embedding a
+timestamp or generated id) yields a different failing-test identifier in every
+run. With a deferred acceptance behavior red in both runs, the guard run's
+identifier is absent from the baseline set, `hasNewFailures` fires, and an
+already-green target's make is graded `regression` — a false positive that
+deadlocks the run loop.
 
-## Proposed Remediation
+Reproduced deterministically (RED evidence, this session): a fixture sibling
+whose failing test name embeds `DateTime.now().microsecondsSinceEpoch` fails
+both suite runs with different identifiers; `zfa tdd make` on an already-green
+target reported:
 
-Make the regression check compare the count of failures in the CURRENT behavior's test file (or test name) against the baseline, not the full suite. If only the current test passes, report `outcome=skipped` (per #694) regardless of other behaviors being red.
+```
+baseline exit: 1, failed: 1
+zfa tdd make: regression detected — 1 NEW failure(s) introduced by the generation:
+   - test/a_def_test.dart: deferred acceptance 1788296985218510
+make: behavior=B-001 outcome=regression feature=090-tdd-fixture
+```
 
-**Files likely to change**:
-- `lib/src/plugins/tdd/commands/make_command.dart`
+The shape matches the issue's production reproduction exactly (baseline failed: 1,
+target green, pre-existing red → `regression`).
 
-**Tests to add or update**:
-- Spec with A1-A5 deferred (5 red), U1 green, U2 test passes → `U2:make` reports `outcome=skipped`, run continues to U2:refactor.
-- A regression should only be reported when a test that was previously passing is now failing because of this make.
+## Remediation (implemented)
 
-## Risks & Considerations
+Scope the regression verdict in `make_command.dart` to failures THIS make can
+be held responsible for. A guard failure absent from the baseline by name is a
+regression only when:
 
-- This interacts with the #694 skip transition — ensure consistency between direct-call and run-driver paths.
-- The suite-guard logic must still catch genuine regressions (a test that was passing before this make is now failing).
+1. it lives in the current behavior's own test file (the file this make owns), or
+2. its file had NO failures at baseline — the whole file was previously green, so
+   a red there is a genuine collateral regression (keeps acceptance test A8
+   green: sibling file green at baseline → broken by this make → still a
+   regression).
 
-## Open Questions
+Failures confined to a file that was ALREADY red at baseline belong to a
+pre-existing red behavior — tolerated regardless of identifier stability, per
+the issue's "regardless of other behaviors being red". Tolerated identifiers are
+printed with an explicit reason line, and the green-evidence entry records the
+scoped verdict (`suiteNewFailures`).
 
-- None blocking.
+## Constraints honored
+
+- Production changes confined to `lib/src/plugins/tdd/commands/make_command.dart`
+  (the regression-check logic). `services/suite_guard.dart` untouched.
+- One PR for the bug.
+- Existing guard contracts preserved: A8 (collateral sibling regression →
+  regression), A9 (pre-existing broken sibling tolerated), U15/U17/A7 (clean
+  guard → green entry), issue #694 skip transition.

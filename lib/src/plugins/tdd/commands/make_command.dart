@@ -26,8 +26,15 @@
 ///      (US4.AC2).
 ///   6. Runs the target test via the profile `single` command and
 ///      requires a PASS (FR-007). Then runs the full suite via the
-///      profile `suite` command and requires NO NEW failures
-///      relative to a pre-run baseline (US3).
+///      profile `suite` command and requires no NEW failures that are
+///      attributable to this make, relative to a pre-run baseline
+///      (US3; issue #731): a failure counts against the make only
+///      when it lives in the current behavior's own test file or in a
+///      file that was fully green at baseline. Failures confined to
+///      files that were ALREADY red at baseline are pre-existing red
+///      behaviors (e.g. deferred acceptance tests) and never block
+///      the make — their failing-test identifiers may even vary
+///      between the two suite runs.
 ///   7. On success, appends a green-evidence entry to
 ///      `specs/<feature>/tdd/cycle-log.md` (FR-008) containing the
 ///      generation commands, runner command, runner exit code,
@@ -416,6 +423,32 @@ class MakeCommand extends Command<void> {
       capturedAt: DateTime.now().toUtc().toIso8601String(),
     );
     final diff = guard.diff(baseline: baseline, guard: guardSnap);
+    // Issue #731: scope the regression verdict to failures THIS make
+    // could have caused. The name-diff alone false-positives when the
+    // suite already carries pre-existing red behaviors (e.g. deferred
+    // acceptance tests): a red test's failing-test IDENTIFIER may vary
+    // between the baseline and guard runs (dynamic test names), so the
+    // guard sees a "new" failure that is really the same pre-existing
+    // red behavior — and an already-green target's make reported
+    // `regression` instead of `skipped`, deadlocking `tdd run`.
+    final regressed = _regressionsAttributableToThisMake(
+      baseline: baseline,
+      newFailures: diff.newFailures,
+      testPath: testPath,
+    );
+    if (regressed.length < diff.newFailures.length) {
+      final tolerated = diff.newFailures
+          .where((id) => !regressed.contains(id))
+          .toList();
+      print(
+        '   suite guard: ${tolerated.length} failing id(s) belong to files '
+        'already red at baseline — pre-existing red behaviors, tolerated '
+        '(issue #731):',
+      );
+      for (final id in tolerated) {
+        print('   - $id');
+      }
+    }
     if (!guardRun.startedProcess ||
         !guardSnap.parseable ||
         guardSnap.exitCode != 0 && guardSnap.failedTests.isEmpty) {
@@ -432,12 +465,12 @@ class MakeCommand extends Command<void> {
       exitCode = 1;
       return;
     }
-    if (diff.hasNewFailures) {
+    if (regressed.isNotEmpty) {
       print(
-        'zfa tdd make: regression detected — ${diff.newFailures.length} '
+        'zfa tdd make: regression detected — ${regressed.length} '
         'NEW failure(s) introduced by the generation:',
       );
-      for (final id in diff.newFailures) {
+      for (final id in regressed) {
         print('   - $id');
       }
       print('   generated source left in place for inspection.');
@@ -470,7 +503,7 @@ class MakeCommand extends Command<void> {
         generationSteps: pipelineResult?.steps ?? const [],
         suiteBaselineFailures: baseline.failedTests.length,
         suiteGuardFailures: guardSnap.failedTests.length,
-        suiteNewFailures: diff.newFailures,
+        suiteNewFailures: regressed,
       ),
     );
     print(
@@ -555,6 +588,75 @@ class MakeCommand extends Command<void> {
     return segments.isEmpty || segments.last.isEmpty
         ? record.runnableTestName
         : segments.last;
+  }
+
+  // -----------------------------------------------------------------
+  // Suite-guard regression scoping (issue #731).
+  // -----------------------------------------------------------------
+
+  /// The NEW failures (guard − baseline, by name) that THIS make can
+  /// be held responsible for (issue #731). A new failing identifier is
+  /// a regression only when
+  ///
+  ///   - it lives in the current behavior's own test file — the file
+  ///     this make owns, so any new red in it is this make's doing; or
+  ///   - its file had NO failures at baseline — the whole file was
+  ///     passing before this make, so a red there is a genuine
+  ///     collateral regression.
+  ///
+  /// Failures confined to a file that was ALREADY red at baseline
+  /// belong to a pre-existing red behavior (e.g. an acceptance test
+  /// deferred to phase 2). Such a behavior stays red across the whole
+  /// cycle by design, and its failing-test identifier may even vary
+  /// between the two suite runs (dynamic test names), so it never
+  /// blocks this make: if only the current behavior's test passes,
+  /// the make certifies green/skipped regardless of other behaviors
+  /// being red.
+  List<String> _regressionsAttributableToThisMake({
+    required SuiteSnapshot baseline,
+    required List<String> newFailures,
+    required String testPath,
+  }) {
+    final baselineRedFiles = baseline.failedTests.map(_testFileOf).toSet();
+    final regressed = <String>[];
+    for (final id in newFailures) {
+      final file = _testFileOf(id);
+      final inCurrentBehaviorFile = _sameTestFile(testPath, file);
+      final fileWasAlreadyRed = baselineRedFiles.any(
+        (redFile) => _sameTestFile(file, redFile),
+      );
+      if (inCurrentBehaviorFile || !fileWasAlreadyRed) {
+        regressed.add(id);
+      }
+    }
+    return regressed;
+  }
+
+  /// The test-file path embedded in a failing-test identifier (or in a
+  /// target test path). Handles the three shapes the suite transcript
+  /// produces:
+  ///
+  ///   - progress lines: `test/foo_test.dart: group name test name`
+  ///     (everything before the first `:` is the file);
+  ///   - load failures: `loading test/foo_test.dart`;
+  ///   - target test paths, which are already bare file paths.
+  String _testFileOf(String id) {
+    var s = id.trim();
+    const loading = 'loading ';
+    if (s.startsWith(loading)) s = s.substring(loading.length);
+    final idx = s.indexOf(':');
+    if (idx > 0) s = s.substring(0, idx);
+    return s.trim();
+  }
+
+  /// Whether two test-file paths denote the same file. Paths compared
+  /// may mix absolute target paths with runner-printed relative ones,
+  /// so the match is a boundary-aware suffix match (the `/` boundary
+  /// keeps `xu2_test.dart` from matching `u2_test.dart`).
+  bool _sameTestFile(String a, String b) {
+    final x = a.replaceAll(r'\', '/');
+    final y = b.replaceAll(r'\', '/');
+    return x == y || x.endsWith('/$y') || y.endsWith('/$x');
   }
 
   Future<_ResolvedTarget> _resolveTarget(
