@@ -197,21 +197,21 @@ class RefactorPasses {
   RefactorPasses(
     this.projectRoot, {
     ProcessExecutor? executor,
-    List<RefactorPassSpec>? passSpecs,
+    Future<List<RefactorPassSpec>>? passSpecs,
     String? zfaBinOverride,
     Map<String, String>? environment,
-  }) : _executor = executor ?? const DefaultProcessExecutor(),
-       _passSpecs = passSpecs ??
-           defaultPassSpecs(
-             zfaBinOverride: zfaBinOverride,
-             environment: environment,
-           );
+  })  : _executor = executor ?? const DefaultProcessExecutor(),
+        _passSpecsFuture = passSpecs ??
+            defaultPassSpecs(
+              zfaBinOverride: zfaBinOverride,
+              environment: environment,
+            );
 
   /// Project root the passes operate on.
   final String projectRoot;
 
   final ProcessExecutor _executor;
-  final List<RefactorPassSpec> _passSpecs;
+  final Future<List<RefactorPassSpec>> _passSpecsFuture;
 
   /// The default fixed pass set: build → format → fix (spec 048 Decision 2).
   ///
@@ -226,18 +226,20 @@ class RefactorPasses {
   /// tier 1. [environment] is the full platform environment handed to
   /// [StepRunner.resolveEntrypoint]; tests inject a fixture PATH, while
   /// production reads `Platform.environment` directly.
-  static List<RefactorPassSpec> defaultPassSpecs({
+  ///
+  /// Async because the build entrypoint search reads files; tests can
+  /// inject a pre-resolved [RefactorPassSpec.list] via the [passSpecs]
+  /// constructor parameter to avoid awaiting the resolution.
+  static Future<List<RefactorPassSpec>> defaultPassSpecs({
     String? zfaBinOverride,
     Map<String, String>? environment,
-  }) {
+  }) async {
+    final buildCommand = await zfaBuildCommand(
+      zfaBinOverride: zfaBinOverride,
+      environment: environment,
+    );
     return [
-      RefactorPassSpec(
-        name: 'build',
-        command: zfaBuildCommand(
-          zfaBinOverride: zfaBinOverride,
-          environment: environment,
-        ),
-      ),
+      RefactorPassSpec(name: 'build', command: buildCommand),
       const RefactorPassSpec(name: 'format', command: 'dart format lib/'),
       const RefactorPassSpec(name: 'fix', command: 'dart fix --apply lib/'),
     ];
@@ -319,10 +321,31 @@ class RefactorPasses {
 ///
 /// [environment] lets tests inject a fixture PATH; production callers
 /// pass null and the chain reads `Platform.environment` itself.
-String zfaBuildCommand({
+/// Resolve the `build` pass command line (bug #689).
+///
+/// Delegates the entrypoint search to [StepRunner.resolveEntrypoint]
+/// (the same tier-2-through-tier-6 chain bug #690 added for the TDD
+/// step runner): `bin/zfa.dart` in the running CLI's tree, the package
+/// path fallback, then a system `zfa` on PATH, then `Platform.script`,
+/// then `Platform.resolvedExecutable`. The explicit `--zfa-bin`
+/// override is honored first.
+///
+/// The returned path is shaped into a command line: a `.dart` source is
+/// run with `dart <path> build`; a compiled binary is invoked directly
+/// as `<path> build`. Tokens that contain spaces are quoted; the
+/// executor's quote-aware tokenizer keeps them as single argv entries.
+///
+/// [environment] lets tests inject a fixture PATH; production callers
+/// pass null and the chain reads `Platform.environment` itself.
+///
+/// This is async because [StepRunner.resolveEntrypoint] performs file
+/// I/O checks. The pass registry ([RefactorPasses.defaultPassSpecs]) is
+/// async-aware: callers that need a synchronous spec list should use
+/// [zfaBuildCommandSync] with a pre-resolved entrypoint.
+Future<String> zfaBuildCommand({
   String? zfaBinOverride,
   Map<String, String>? environment,
-}) {
+}) async {
   String quoteIfNeeded(String token) =>
       token.contains(' ') || token.contains('\t') ? '"$token"' : token;
 
@@ -336,7 +359,7 @@ String zfaBuildCommand({
   final env = environment ?? Platform.environment;
   String entrypoint;
   try {
-    entrypoint = StepRunner.resolveEntrypoint(
+    entrypoint = await StepRunner.resolveEntrypoint(
       script: Platform.script,
       resolvedExecutable: Platform.resolvedExecutable,
       environment: env,
@@ -348,6 +371,21 @@ String zfaBuildCommand({
     return 'zfa build';
   }
 
+  if (entrypoint.endsWith('.dart')) {
+    return '${quoteIfNeeded(Platform.resolvedExecutable)} '
+        '${quoteIfNeeded(entrypoint)} build';
+  }
+  return '${quoteIfNeeded(entrypoint)} build';
+}
+
+/// Build the command line for a pre-resolved entrypoint (bug #689).
+///
+/// Useful when the entrypoint has already been resolved (e.g. by an
+/// earlier `await zfaBuildCommand`) and the caller only needs the
+/// shape step. Synchronous; does no I/O.
+String zfaBuildCommandSync({required String entrypoint}) {
+  String quoteIfNeeded(String token) =>
+      token.contains(' ') || token.contains('\t') ? '"$token"' : token;
   if (entrypoint.endsWith('.dart')) {
     return '${quoteIfNeeded(Platform.resolvedExecutable)} '
         '${quoteIfNeeded(entrypoint)} build';
