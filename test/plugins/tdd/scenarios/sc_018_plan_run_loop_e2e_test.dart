@@ -214,9 +214,16 @@ dev_dependencies:
       final subject = File(
         p.join(fx.root.path, 'lib', 'tdd', '${snake}_subject.dart'),
       ).readAsStringSync();
+      // Bug #718: unit behaviors route to the `tdd func` surface, whose
+      // documented contract replaces ONLY the stub declaration — the
+      // gen stub's prose doc comment ("Throws [UnimplementedError]
+      // until the real implementation lands") legitimately remains. The
+      // functional stub marker is the throw itself: an unimplemented
+      // subject always carries `throw UnimplementedError`, a scaffolded
+      // one never does.
       expect(
         subject,
-        isNot(contains('UnimplementedError')),
+        isNot(contains('throw UnimplementedError')),
         reason: 'the pipeline must replace the $snake stub',
       );
     }

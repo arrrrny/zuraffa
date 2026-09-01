@@ -207,11 +207,15 @@ void main() {
     });
 
     test('U11-657: a behavior whose description carries no function-intent '
-        'verb stays unexpressible (spec 003 U3 shape) — the non-stop '
+        'verb stays unexpressible (spec 003 shape) — the non-stop '
         'fallback handles it downstream', () {
+      // Bug #718: unexpressibility keyed on the description is now only
+      // reachable for NON-unit behavior ids — a `U<n>` id routes to the
+      // func surface before description matching ever runs (see the bug
+      // 718 group below). The pin uses a legacy non-unit id.
       final plan = planner.plan(
         const BehaviorSummary(
-          behaviorId: 'U3',
+          behaviorId: 'B-003',
           feature: '003-user-communication-interface',
           sourceCriterion: 'FR-003',
           description:
@@ -242,24 +246,28 @@ void main() {
   group(
     'GenerationPlanner — bug 696: the behavior ID is not an entity name',
     () {
+      // Bug #718 note: unit-kind ids (`U<n>`) no longer reach the CRUD
+      // branch at all — they route to the `tdd func` surface before
+      // description matching (see the bug 718 group below). The #696
+      // name-derivation contract is pinned here on non-unit ids, the
+      // only callers the CRUD branch still serves.
       test('U-696a: a CRUD/use-case behavior whose description names the '
           'entity derives the `make` name from the description trace, not '
           'from the behavior ID', () {
-        // The issue #696 repro: behavior U5 ("u5" after slugification) is
-        // NOT an entity. The description carries the real name — the plan
-        // must use it.
+        // The issue #696 repro shape: the behavior id is NOT an entity.
+        // The description carries the real name — the plan must use it.
         final plan = planner.plan(
           const BehaviorSummary(
-            behaviorId: 'U5',
+            behaviorId: 'B-005',
             feature: '001-app-bootstrap',
             sourceCriterion: 'FR-005',
             description: 'create User use case returns the saved entity',
           ),
         );
         expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
-        // Pre-fix this was `['make', 'u5']` — the slugified behavior ID —
-        // which the real CLI rejects with "no entity source file was
-        // found" (#496 fail-fast).
+        // Pre-fix this was `['make', 'b_005']` — the slugified behavior
+        // ID — which the real CLI rejects with "no entity source file
+        // was found" (#496 fail-fast).
         expect(plan.steps.first.args, ['make', 'User']);
         expect(plan.steps.last.args, contains('build'));
       });
@@ -269,7 +277,7 @@ void main() {
           'a missing entity source file', () {
         final plan = planner.plan(
           const BehaviorSummary(
-            behaviorId: 'U6',
+            behaviorId: 'B-006',
             feature: '001-app-bootstrap',
             sourceCriterion: 'FR-006',
             description: 'service exposes the count of pending items',
@@ -279,7 +287,7 @@ void main() {
         // No entity name is derivable anywhere: the slugified ID is the
         // only name left, and the real CLI REQUIRES --no-entity for it
         // (issue #696's exact failure without the flag).
-        expect(plan.steps.first.args, ['make', 'u6', '--no-entity']);
+        expect(plan.steps.first.args, ['make', 'b_006', '--no-entity']);
         expect(plan.steps.last.args, contains('build'));
       });
 
@@ -287,7 +295,7 @@ void main() {
           'trace and never carries --no-entity', () {
         final plan = planner.plan(
           const BehaviorSummary(
-            behaviorId: 'U7',
+            behaviorId: 'B-007',
             feature: '001-app-bootstrap',
             sourceCriterion: 'FR-007',
             description: 'create Invoice use case with totals',
@@ -299,4 +307,134 @@ void main() {
       });
     },
   );
+
+  group('GenerationPlanner — bug 718: unit behaviors route to the '
+      'plain-function generator', () {
+    // Issue #718: `zfa tdd make` stopped at the first unit behavior
+    // (U5+) with `outcome=generation-error` because the planner keyed
+    // dispatch on the DESCRIPTION: CRUD keyword prose ("service",
+    // "repository", "use case", ...) won branch 2 and produced
+    // `zfa make u5` — the slugified behavior id as an entity name.
+    // A unit behavior's paired artifacts are a plain no-argument
+    // subject function and its test (spec 044), so entity/CRUD
+    // scaffolds can never flip its test green. The fix: the behavior
+    // id prefix IS the kind (SpecParser emits `U<n>` for unit, `A<n>`
+    // for acceptance) and unit-kind dispatches to the `tdd func`
+    // surface (bug #657/#660) BEFORE any description matching.
+    test('U-718a: a unit behavior with CRUD-keyword prose routes to '
+        '`tdd func <id>` — never `zfa make <slugified-id>` '
+        '(the issue #718 repro)', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'U5',
+          feature: '001-app-bootstrap',
+          sourceCriterion: 'FR-005',
+          description: 'service exposes the count of pending items',
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      // Pre-fix this was `['make', 'u5', '--no-entity']` — the exact
+      // issue #718 dispatch (behavior id as entity name).
+      expect(plan.steps.first.args, ['tdd', 'func', 'U5']);
+      expect(plan.steps.last.args, contains('build'));
+      expect(plan.unexpressibleReason, isNull);
+    });
+
+    test('U-718b: a unit behavior with entity-bearing prose routes to '
+        '`tdd func <id>` — never `entity create` + `tdd wire`', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'U6',
+          feature: '001-app-bootstrap',
+          sourceCriterion: 'FR-006',
+          description: 'create entity User with email',
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      expect(plan.steps, hasLength(2));
+      expect(plan.steps.first.args, ['tdd', 'func', 'U6']);
+      expect(plan.steps.last.args, contains('build'));
+    });
+
+    test('U-718c: an explicit target cannot pull a unit behavior back '
+        'onto the CRUD branch', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'U7',
+          feature: '001-app-bootstrap',
+          sourceCriterion: 'FR-007',
+          description: 'create Invoice use case with totals',
+          target: 'Invoice',
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      expect(plan.steps.first.args, ['tdd', 'func', 'U7']);
+    });
+
+    test('U-718d: a unit behavior keeps its function-intent verb in the '
+        'step purpose when the description carries one', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'U8',
+          feature: '001-app-bootstrap',
+          sourceCriterion: 'FR-008',
+          description: 'service renders the pending count and returns a string',
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      expect(plan.steps.first.args, ['tdd', 'func', 'U8']);
+      expect(plan.steps.first.purpose, contains('render'));
+    });
+
+    test('U-718e: acceptance and legacy ids keep description-keyed '
+        'routing — the unit branch never captures them', () {
+      // Acceptance id + entity prose → entity branch (unchanged).
+      final acceptance = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'A1',
+          feature: '001-app-bootstrap',
+          sourceCriterion: 'AC-1',
+          description: 'create entity User with email',
+        ),
+      );
+      expect(acceptance.isExpressible, isTrue);
+      expect(acceptance.steps.first.args, ['entity', 'create', '-n', 'User']);
+
+      // Legacy id + CRUD prose → CRUD branch (unchanged); the entity
+      // name comes from the description trace (#696), not the id.
+      final legacy = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'B-007',
+          feature: '001-app-bootstrap',
+          sourceCriterion: 'FR-005',
+          description: 'create User use case returns the saved entity',
+        ),
+      );
+      expect(legacy.isExpressible, isTrue);
+      expect(legacy.steps.first.args, ['make', 'User']);
+
+      // Dashed unit-style id (legacy dialect, not the SpecParser
+      // `U<n>` encoding) keeps the #696 CRUD contract.
+      final dashed = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'U-6',
+          feature: '001-app-bootstrap',
+          sourceCriterion: 'FR-006',
+          description: 'service exposes the count of pending items',
+        ),
+      );
+      expect(dashed.isExpressible, isTrue);
+      expect(dashed.steps.first.args, ['make', 'u_6', '--no-entity']);
+    });
+
+    test('U-718f: the unit-id matcher recognizes exactly the SpecParser '
+        '`U<n>` encoding', () {
+      for (final id in ['U1', 'U5', 'U12', 'U999']) {
+        expect(GenerationPlanner.isUnitBehaviorId(id), isTrue, reason: id);
+      }
+      for (final id in ['A1', 'A12', 'B-003', 'U-6', 'u5', 'UU5', 'U', '']) {
+        expect(GenerationPlanner.isUnitBehaviorId(id), isFalse, reason: id);
+      }
+    });
+  });
 }
