@@ -139,24 +139,22 @@ String stripSlugPrefix(String slug) =>
     slug.replaceFirst(RegExp(r'^\d+(-|$)'), '');
 
 /// `042-bone-working-slice` → `BoneWorkingSlice`.
-String slugToPascalCase(String slug) =>
-    stripSlugPrefix(slug)
-        .split('-')
-        .where((part) => part.isNotEmpty)
-        .map((part) => part[0].toUpperCase() + part.substring(1))
-        .join();
+String slugToPascalCase(String slug) => stripSlugPrefix(slug)
+    .split('-')
+    .where((part) => part.isNotEmpty)
+    .map((part) => part[0].toUpperCase() + part.substring(1))
+    .join();
 
 /// `042-bone-working-slice` → `bone_working_slice`.
 String slugToSnakeCase(String slug) =>
     stripSlugPrefix(slug).replaceAll('-', '_');
 
 /// `042-bone-working-slice` → `Bone Working Slice`.
-String slugToDisplayName(String slug) =>
-    stripSlugPrefix(slug)
-        .split('-')
-        .where((part) => part.isNotEmpty)
-        .map((part) => part[0].toUpperCase() + part.substring(1))
-        .join(' ');
+String slugToDisplayName(String slug) => stripSlugPrefix(slug)
+    .split('-')
+    .where((part) => part.isNotEmpty)
+    .map((part) => part[0].toUpperCase() + part.substring(1))
+    .join(' ');
 
 /// Converts a PascalCase name to snake_case (`CartItem` → `cart_item`).
 String pascalToSnake(String name) {

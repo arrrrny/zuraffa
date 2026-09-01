@@ -180,9 +180,9 @@ class SqliteDataSourceBuilder {
                 )
                 ..body = Block(
                   (b) => b.statements.addAll([
-                    declareVar('items')
-                        .assign(refer('_selectAll').call([]).awaited)
-                        .statement,
+                    declareVar(
+                      'items',
+                    ).assign(refer('_selectAll').call([]).awaited).statement,
                     Code(
                       'if (params.offset != null && params.offset! > 0) '
                       '{ items = items.skip(params.offset!).toList(); }',
@@ -213,11 +213,9 @@ class SqliteDataSourceBuilder {
                       ..type = refer('NoParams'),
                   ),
                 )
-                ..body = refer('_selectAll')
-                    .call([])
-                    .awaited
-                    .returned
-                    .statement,
+                ..body = refer(
+                  '_selectAll',
+                ).call([]).awaited.returned.statement,
             ),
           );
           break;
@@ -273,18 +271,17 @@ class SqliteDataSourceBuilder {
                     if (isNoParams) ...[
                       declareFinal('existing')
                           .assign(
-                            refer('_selectAll')
-                                .call([])
-                                .awaited
-                                .property('first'),
+                            refer(
+                              '_selectAll',
+                            ).call([]).awaited.property('first'),
                           )
                           .statement,
                     ] else ...[
                       declareFinal('existing')
                           .assign(
-                            refer('_selectById')
-                                .call([refer('params').property('id')])
-                                .awaited,
+                            refer(
+                              '_selectById',
+                            ).call([refer('params').property('id')]).awaited,
                           )
                           .statement,
                       Code(
@@ -332,9 +329,9 @@ class SqliteDataSourceBuilder {
                   (b) => b.statements.addAll([
                     declareFinal('existing')
                         .assign(
-                          refer('_selectById')
-                              .call([refer('params').property('id')])
-                              .awaited,
+                          refer(
+                            '_selectById',
+                          ).call([refer('params').property('id')]).awaited,
                         )
                         .statement,
                     Code(
@@ -402,8 +399,9 @@ class SqliteDataSourceBuilder {
                 ..body = refer('Stream')
                     .property('periodic')
                     .call([
-                      refer('Duration')
-                          .constInstance(const [], {'seconds': literalNum(2)}),
+                      refer(
+                        'Duration',
+                      ).constInstance(const [], {'seconds': literalNum(2)}),
                     ])
                     .property('asyncMap')
                     .call([
@@ -441,8 +439,9 @@ class SqliteDataSourceBuilder {
                 ..body = refer('Stream')
                     .property('periodic')
                     .call([
-                      refer('Duration')
-                          .constInstance(const [], {'seconds': literalNum(2)}),
+                      refer(
+                        'Duration',
+                      ).constInstance(const [], {'seconds': literalNum(2)}),
                     ])
                     .property('asyncMap')
                     .call([
@@ -452,11 +451,9 @@ class SqliteDataSourceBuilder {
                           ..requiredParameters.add(
                             Parameter((p) => p..name = '_'),
                           )
-                          ..body = refer('_selectAll')
-                              .call([])
-                              .awaited
-                              .returned
-                              .code,
+                          ..body = refer(
+                            '_selectAll',
+                          ).call([]).awaited.returned.code,
                       ).closure,
                     ])
                     .returned
@@ -506,9 +503,9 @@ class SqliteDataSourceBuilder {
             (b) => b.statements.addAll([
               declareFinal('rows')
                   .assign(
-                    refer('_db')
-                        .property('select')
-                        .call([literalString('SELECT data FROM $table')]),
+                    refer('_db').property('select').call([
+                      literalString('SELECT data FROM $table'),
+                    ]),
                   )
                   .statement,
               refer('rows')
@@ -521,8 +518,9 @@ class SqliteDataSourceBuilder {
                           Parameter((p) => p..name = 'row'),
                         )
                         ..body = refer('$entityName.fromJson').call([
-                          refer('jsonDecode')
-                              .call([refer("row['data'] as String")]),
+                          refer(
+                            'jsonDecode',
+                          ).call([refer("row['data'] as String")]),
                         ]).code,
                     ).closure,
                   ])

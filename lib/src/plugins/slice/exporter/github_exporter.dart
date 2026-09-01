@@ -17,10 +17,11 @@ import 'package:path/path.dart' as p;
 ///
 /// [args] are the command arguments: either `gh` arguments (e.g.
 /// `['auth', 'status']`) or `['git', ...]` for git plumbing.
-typedef GhLauncher = Future<ProcessResult> Function(
-  List<String> args, {
-  String? workingDirectory,
-});
+typedef GhLauncher =
+    Future<ProcessResult> Function(
+      List<String> args, {
+      String? workingDirectory,
+    });
 
 /// The outcome of a GitHub export.
 class GithubExportResult {
@@ -95,8 +96,9 @@ class GithubExporter {
       }
     }
     if (pubspecContent != null) {
-      await File(p.join(sandboxDir, 'pubspec.yaml'))
-          .writeAsString(pubspecContent);
+      await File(
+        p.join(sandboxDir, 'pubspec.yaml'),
+      ).writeAsString(pubspecContent);
     }
 
     final repoName = repo ?? '${_slug(packageName)}-slice-${_slug(sliceName)}';

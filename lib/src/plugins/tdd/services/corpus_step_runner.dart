@@ -28,10 +28,11 @@ enum CorpusStep { run, verify }
 
 /// The spawner hook (injectable for fast-tier tests, mirroring
 /// `StepSpawner`).
-typedef CorpusSpawner = Future<ProcessResult> Function(
-  List<String> command,
-  String workingDirectory,
-);
+typedef CorpusSpawner =
+    Future<ProcessResult> Function(
+      List<String> command,
+      String workingDirectory,
+    );
 
 /// One spawned step's machine-readable outcome.
 class CorpusStepResult {

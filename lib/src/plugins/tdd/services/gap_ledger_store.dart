@@ -113,8 +113,9 @@ class GapLedgerStore {
     await Directory(p.dirname(path)).create(recursive: true);
     final tmp = File('$path.tmp');
     await tmp.writeAsString(
-      const JsonEncoder.withIndent('  ')
-          .convert(entries.map((e) => e.toJson()).toList()),
+      const JsonEncoder.withIndent(
+        '  ',
+      ).convert(entries.map((e) => e.toJson()).toList()),
     );
     await tmp.rename(path);
   }

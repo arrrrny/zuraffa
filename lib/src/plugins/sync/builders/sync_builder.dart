@@ -257,26 +257,23 @@ class SyncBuilder {
     // Build callback lambdas
     final fetchLocalLambda = _asyncLambda(
       [Parameter((p) => p..name = 'keys')],
-      refer('localDataSource')
-          .property('getByIds')
-          .call([refer('keys')])
-          .awaited,
+      refer(
+        'localDataSource',
+      ).property('getByIds').call([refer('keys')]).awaited,
     );
 
     final createRemoteLambda = _asyncLambda(
       [Parameter((p) => p..name = entityCamel)],
-      refer('remoteDataSource')
-          .property('create')
-          .call([refer(entityCamel)])
-          .awaited,
+      refer(
+        'remoteDataSource',
+      ).property('create').call([refer(entityCamel)]).awaited,
     );
 
     final updateRemoteLambda = _asyncLambda(
       [Parameter((p) => p..name = entityCamel)],
-      refer('remoteDataSource')
-          .property('update')
-          .call([refer(entityCamel)])
-          .awaited,
+      refer(
+        'remoteDataSource',
+      ).property('update').call([refer(entityCamel)]).awaited,
     );
 
     final deleteRemoteLambda = _asyncLambda(
@@ -309,10 +306,9 @@ class SyncBuilder {
       );
       strategyArgs['saveLocal'] = _asyncLambda(
         [Parameter((p) => p..name = entityCamel)],
-        refer('localDataSource')
-            .property('put')
-            .call([refer(entityCamel)])
-            .awaited,
+        refer(
+          'localDataSource',
+        ).property('put').call([refer(entityCamel)]).awaited,
       );
     }
 
@@ -320,8 +316,9 @@ class SyncBuilder {
         ? 'BidirectionalSyncStrategy'
         : 'PushOnlySyncStrategy';
 
-    final strategyCall = refer(strategyClass)
-        .call([], strategyArgs, [refer(entityName)]);
+    final strategyCall = refer(
+      strategyClass,
+    ).call([], strategyArgs, [refer(entityName)]);
 
     final method = Method(
       (m) => m

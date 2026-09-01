@@ -14,11 +14,12 @@ import '../capabilities/cut_slice_capability.dart';
 import '../verifier/import_verifier.dart';
 
 /// Process execution seam (injected in tests; defaults to [Process.run]).
-typedef RunLauncher = Future<ProcessResult> Function(
-  String executable,
-  List<String> args, {
-  String? workingDirectory,
-});
+typedef RunLauncher =
+    Future<ProcessResult> Function(
+      String executable,
+      List<String> args, {
+      String? workingDirectory,
+    });
 
 /// The outcome of a launch attempt.
 class RunResult {

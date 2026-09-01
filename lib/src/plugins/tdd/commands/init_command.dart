@@ -101,8 +101,9 @@ class InitCommand extends Command<void> {
       // Issue #664: gate the smoke-test flavor behind the project flavor —
       // a pure Dart package must not receive `package:flutter_test` imports
       // it cannot resolve.
-      final written = await SmokeTestWriter(isFlutter: isFlutter)
-          .write(cwd, appName);
+      final written = await SmokeTestWriter(
+        isFlutter: isFlutter,
+      ).write(cwd, appName);
       stdout.writeln(
         written == null
             ? '   ✓ test/bootstrap_smoke_test.dart (already present)'
@@ -119,8 +120,9 @@ class InitCommand extends Command<void> {
     // existing user content is never touched (FR-008).
     if (isFlutter) {
       try {
-        final written = await const AppModuleWriter(isFlutter: true)
-            .write(cwd, appName);
+        final written = await const AppModuleWriter(
+          isFlutter: true,
+        ).write(cwd, appName);
         stdout.writeln(
           written == null
               ? '   ✓ lib/app.dart (already present)'
@@ -133,8 +135,9 @@ class InitCommand extends Command<void> {
     }
 
     try {
-      final added = await PubspecDevDependenciesPatcher(isFlutter: isFlutter)
-          .ensure(cwd);
+      final added = await PubspecDevDependenciesPatcher(
+        isFlutter: isFlutter,
+      ).ensure(cwd);
       if (added.isEmpty) {
         stdout.writeln('   ✓ pubspec.yaml dev_dependencies (already complete)');
       } else {
