@@ -104,4 +104,84 @@ dev_dependencies:
       );
     });
   });
+
+  group('GenerationPlanner ⇄ real zfa CLI (bug #696 drift guard)', () {
+    test('the planner-emitted `make <slug> --no-entity` argv is accepted '
+        'by the REAL `zfa make` CLI, and the bare slug without the flag '
+        'is rejected with the issue #696 failure', () async {
+      // 1. The planner plans a unit CRUD behavior whose description
+      //    names no entity: the slugified behavior id is the only name.
+      const planner = GenerationPlanner();
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'U-6',
+          feature: '090-planner-real-cli',
+          sourceCriterion: 'FR-006',
+          description: 'service exposes the count of pending items',
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      final argv = plan.steps.first.args;
+      expect(argv.first, 'make');
+
+      // 2. A minimal temp project for the real CLI.
+      final tmp = await Directory.systemTemp.createTemp('planner_real_cli_');
+      addTearDown(() {
+        if (tmp.existsSync()) tmp.deleteSync(recursive: true);
+      });
+      await File(p.join(tmp.path, 'pubspec.yaml')).writeAsString('''
+name: planner_real_cli_fixture
+environment:
+  sdk: ^3.11.0
+dependencies:
+  zorphy_annotation: any
+dev_dependencies:
+  build_runner: any
+''');
+
+      // 3. The bare slug (pre-#696 behavior) is REJECTED by the real
+      //    CLI's #496 fail-fast: no entity source file was found.
+      final repoRoot =
+          _findZuraffaRoot(Directory.current) ??
+          _findZuraffaRoot(File(Platform.script.toFilePath()).parent);
+      expect(repoRoot, isNotNull, reason: 'cannot locate zuraffa repo root');
+      final bare = await Process.run(Platform.resolvedExecutable, [
+        p.join(repoRoot!.path, 'bin', 'zfa.dart'),
+        'make',
+        'u_6',
+      ], workingDirectory: tmp.path);
+      final bareOutput = '${bare.stdout}${bare.stderr}';
+      expect(
+        bareOutput,
+        contains('no entity source file was found'),
+        reason:
+            'the pre-fix argv (bare slugified behavior id) must '
+            'reproduce the issue #696 failure against the real CLI:\n'
+            '$bareOutput',
+      );
+
+      // 4. The planner's emitted argv — the same slug WITH --no-entity —
+      //    is accepted verbatim by the real CLI (PipelineRunner runs
+      //    exactly this).
+      final fixed = await Process.run(Platform.resolvedExecutable, [
+        p.join(repoRoot.path, 'bin', 'zfa.dart'),
+        ...argv,
+      ], workingDirectory: tmp.path);
+      final fixedOutput = '${fixed.stdout}${fixed.stderr}';
+      expect(
+        fixed.exitCode,
+        0,
+        reason:
+            'the real zfa CLI rejected the planner-emitted argv '
+            '($argv) — planner/CLI drift:\n$fixedOutput',
+      );
+      expect(
+        fixedOutput,
+        isNot(contains('no entity source file was found')),
+        reason:
+            'the --no-entity flag must bypass the #496 fail-fast '
+            '(issue #696):\n$fixedOutput',
+      );
+    });
+  });
 }

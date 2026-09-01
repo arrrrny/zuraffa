@@ -238,4 +238,65 @@ void main() {
       );
     });
   });
+
+  group(
+    'GenerationPlanner — bug 696: the behavior ID is not an entity name',
+    () {
+      test('U-696a: a CRUD/use-case behavior whose description names the '
+          'entity derives the `make` name from the description trace, not '
+          'from the behavior ID', () {
+        // The issue #696 repro: behavior U5 ("u5" after slugification) is
+        // NOT an entity. The description carries the real name — the plan
+        // must use it.
+        final plan = planner.plan(
+          const BehaviorSummary(
+            behaviorId: 'U5',
+            feature: '001-app-bootstrap',
+            sourceCriterion: 'FR-005',
+            description: 'create User use case returns the saved entity',
+          ),
+        );
+        expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+        // Pre-fix this was `['make', 'u5']` — the slugified behavior ID —
+        // which the real CLI rejects with "no entity source file was
+        // found" (#496 fail-fast).
+        expect(plan.steps.first.args, ['make', 'User']);
+        expect(plan.steps.last.args, contains('build'));
+      });
+
+      test('U-696b: a CRUD/use-case behavior whose description names no '
+          'entity passes --no-entity so the real CLI does not fail-fast on '
+          'a missing entity source file', () {
+        final plan = planner.plan(
+          const BehaviorSummary(
+            behaviorId: 'U6',
+            feature: '001-app-bootstrap',
+            sourceCriterion: 'FR-006',
+            description: 'service exposes the count of pending items',
+          ),
+        );
+        expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+        // No entity name is derivable anywhere: the slugified ID is the
+        // only name left, and the real CLI REQUIRES --no-entity for it
+        // (issue #696's exact failure without the flag).
+        expect(plan.steps.first.args, ['make', 'u6', '--no-entity']);
+        expect(plan.steps.last.args, contains('build'));
+      });
+
+      test('U-696c: an explicit target still wins over the description '
+          'trace and never carries --no-entity', () {
+        final plan = planner.plan(
+          const BehaviorSummary(
+            behaviorId: 'U7',
+            feature: '001-app-bootstrap',
+            sourceCriterion: 'FR-007',
+            description: 'create Invoice use case with totals',
+            target: 'Invoice',
+          ),
+        );
+        expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+        expect(plan.steps.first.args, ['make', 'Invoice']);
+      });
+    },
+  );
 }
