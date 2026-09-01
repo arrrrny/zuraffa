@@ -59,8 +59,7 @@ class TddProfileWriter {
       // runner in a Dart-targeting init (or vice-versa).
       final frontmatterRunner = _extractRunner(existing);
       final existingIsFlutterRunner =
-          frontmatterRunner == 'flutter_test' ||
-          frontmatterRunner == 'flutter';
+          frontmatterRunner == 'flutter_test' || frontmatterRunner == 'flutter';
       final writingDartProfile = !isFlutterProfile;
 
       if (existingIsFlutterRunner && writingDartProfile) {
@@ -105,8 +104,10 @@ class TddProfileWriter {
   String _extractRunner(String content) {
     // Match `runner: <value>` in the YAML frontmatter block.
     // Handles both single and double-quoted values.
-    final match = RegExp(r'''^\s*runner:\s*["']([^"']+)["']''', multiLine: true)
-        .firstMatch(content);
+    final match = RegExp(
+      r'''^\s*runner:\s*["']([^"']+)["']''',
+      multiLine: true,
+    ).firstMatch(content);
     return match?.group(1)?.trim() ?? '';
   }
 

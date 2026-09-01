@@ -33,8 +33,7 @@ String findZuraffaRoot({String? startPath}) {
   final brandRoot = _walkUpFor(
     start: File(Platform.script.toFilePath()).parent.path,
     predicate: (dir) =>
-        Directory(p.join(dir.path, 'assets', 'zuraffa_app_icons'))
-            .existsSync(),
+        Directory(p.join(dir.path, 'assets', 'zuraffa_app_icons')).existsSync(),
   );
   if (brandRoot != null) return brandRoot;
 
@@ -42,8 +41,8 @@ String findZuraffaRoot({String? startPath}) {
   return _walkUpFor(
         start: start,
         predicate: (dir) => Directory(
-            p.join(dir.path, 'assets', 'zuraffa_app_icons'))
-            .existsSync(),
+          p.join(dir.path, 'assets', 'zuraffa_app_icons'),
+        ).existsSync(),
       ) ??
       start;
 }
@@ -83,9 +82,9 @@ class BrandingWriter {
     // three levels up from lib/src/core/branding/ reaches the repo root.
     final scriptUri = Platform.script.toFilePath();
     final brandingDir = p.dirname(scriptUri); // branding/
-    final coreDir = p.dirname(brandingDir);   // src/core/
-    final srcDir = p.dirname(coreDir);        // lib/src/
-    return p.dirname(srcDir);                 // repo root
+    final coreDir = p.dirname(brandingDir); // src/core/
+    final srcDir = p.dirname(coreDir); // lib/src/
+    return p.dirname(srcDir); // repo root
   }
 
   final String _zuraffaRoot;
@@ -94,7 +93,7 @@ class BrandingWriter {
   static const _defaultBrandAssetDir = 'assets/zuraffa_app_icons';
 
   BrandingWriter({String? zuraffaRoot})
-      : _zuraffaRoot = zuraffaRoot ?? BrandingWriter.zuraffaRoot;
+    : _zuraffaRoot = zuraffaRoot ?? BrandingWriter.zuraffaRoot;
 
   String get _brandAssetsSource => p.join(_zuraffaRoot, _defaultBrandAssetDir);
 
@@ -134,8 +133,9 @@ class BrandingWriter {
   /// Copies brand assets to {projectRoot}/assets/zuraffa_app_icons/.
   /// Idempotent: skips if destination already exists.
   Future<void> _copyBrandAssetsToAssets(String projectRoot) async {
-    final destDir =
-        Directory(p.join(projectRoot, 'assets', 'zuraffa_app_icons'));
+    final destDir = Directory(
+      p.join(projectRoot, 'assets', 'zuraffa_app_icons'),
+    );
     if (destDir.existsSync()) return; // already branded
     destDir.createSync(recursive: true);
     final sourceDir = Directory(_brandAssetsSource);
@@ -150,10 +150,10 @@ class BrandingWriter {
   /// Copies iOS and Android app icons to platform-specific directories.
   Future<void> _copyIconFiles(String projectRoot) async {
     // iOS icons — source is Assets.xcassets/ at brand root, dest is ios/Runner/Assets.xcassets/
-    final iosSource =
-        Directory(p.join(_brandAssetsSource, 'Assets.xcassets'));
-    final iosDest =
-        Directory(p.join(projectRoot, 'ios', 'Runner', 'Assets.xcassets'));
+    final iosSource = Directory(p.join(_brandAssetsSource, 'Assets.xcassets'));
+    final iosDest = Directory(
+      p.join(projectRoot, 'ios', 'Runner', 'Assets.xcassets'),
+    );
     if (iosSource.existsSync()) {
       if (!iosDest.existsSync()) iosDest.createSync(recursive: true);
       await for (final entity in iosSource.list(recursive: true)) {
@@ -167,10 +167,10 @@ class BrandingWriter {
     }
 
     // Android icons
-    final androidSource =
-        Directory(p.join(_brandAssetsSource, 'android'));
+    final androidSource = Directory(p.join(_brandAssetsSource, 'android'));
     final androidRes = Directory(
-        p.join(projectRoot, 'android', 'app', 'src', 'main', 'res'));
+      p.join(projectRoot, 'android', 'app', 'src', 'main', 'res'),
+    );
     if (!androidRes.existsSync()) androidRes.createSync(recursive: true);
     if (androidSource.existsSync()) {
       await for (final entity in androidSource.list(recursive: true)) {
@@ -235,7 +235,8 @@ class BrandingWriter {
 
     // Also check drawable directories for any flutter-related files
     final androidRes = Directory(
-        p.join(projectRoot, 'android', 'app', 'src', 'main', 'res'));
+      p.join(projectRoot, 'android', 'app', 'src', 'main', 'res'),
+    );
     if (!androidRes.existsSync()) return;
 
     await for (final entity in androidRes.list(recursive: true)) {

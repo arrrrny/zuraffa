@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 
-
 import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
 
