@@ -254,7 +254,11 @@ class SingleTestRunner {
 
   /// Match a YAML scalar that may be double-quoted, single-quoted, or
   /// unquoted. Returns the first captured group that matched, or null.
-  static String? _firstMatchValue(String pattern, String input) {
+  ///
+  /// Instance method by design (issue #695): all six call sites invoke it
+  /// unqualified from instance methods, so a `static` declaration is a
+  /// static/instance mismatch that breaks compilation downstream.
+  String? _firstMatchValue(String pattern, String input) {
     final match = RegExp(pattern, multiLine: true).firstMatch(input);
     if (match == null) return null;
     for (var i = 1; i <= match.groupCount; i++) {
