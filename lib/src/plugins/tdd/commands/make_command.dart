@@ -318,27 +318,6 @@ class MakeCommand extends Command<void> {
       print(
         '   plan: composition fallback — '
         '${effectivePlan.steps.length} step(s)',
-    if (!plan.isExpressible) {
-      // Bug #657: the misfire message carries the actionable remediation
-      // — WHICH verb has no generator, WHERE the manual implementation
-      // lands, and THAT the run resumes afterwards — instead of a bare
-      // capability report that hard-stops the whole feature.
-      final verb = _leadingVerb(summary.description);
-      final subjectPath = p.isAbsolute(record.subjectPath)
-          ? record.subjectPath
-          : p.join(cwd, record.subjectPath);
-      print(
-        'zfa tdd make: cannot plan a generation for behavior '
-        '"${record.behaviorId}". ${plan.unexpressibleReason}',
-      );
-      print(
-        '   no generator for \'$verb\'; implement manually at '
-        '$subjectPath, then re-run.',
-      );
-      _printSummary(
-        behavior: record.behaviorId,
-        outcome: MakeOutcome.unexpressible,
-        feature: target.featureName,
       );
     }
 
@@ -564,23 +543,6 @@ class MakeCommand extends Command<void> {
     return segments.isEmpty || segments.last.isEmpty
         ? record.runnableTestName
         : segments.last;
-  }
-
-  /// The behavior description's leading verb (bug #657 remediation
-  /// message): the first word of the first sentence-ish clause, or the
-  /// first recognized function-intent verb anywhere in the description.
-  String _leadingVerb(String description) {
-    final trimmed = description.trim();
-    if (trimmed.isEmpty) return 'unknown';
-    final functionVerb = GenerationPlanner.functionIntentVerb(trimmed);
-    if (functionVerb != null) return functionVerb;
-    final firstWord = RegExp(
-      r'^[a-zA-Z][a-zA-Z0-9_]*',
-    ).firstMatch(trimmed)?.group(0);
-    if (firstWord != null && firstWord.isNotEmpty) {
-      return firstWord.toLowerCase();
-    }
-    return trimmed.split(RegExp(r'\s+')).first.toLowerCase();
   }
 
   Future<_ResolvedTarget> _resolveTarget(
