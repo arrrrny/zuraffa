@@ -22,7 +22,13 @@
 ///      runnable_test_name, ownership.
 ///
 /// Idempotent: a repeat `gen` for the same behavior is a no-op that returns
-/// `Ownership.reused` for both artifacts (FR-006).
+/// `Ownership.reused` for both artifacts (FR-006) — with one exception
+/// (bug #683): when the stub on disk was written by an OLDER binary (its
+/// content no longer matches what the current binary would render) and is
+/// still an `UnimplementedError` stub, the pair is regenerated with a
+/// `binary updated, stub regenerated` note so a rebuilt binary cannot
+/// silently leave a stale stub behind. A progressed subject (no
+/// `UnimplementedError` left) is never clobbered.
 ///
 /// Ownership conflict: if a file exists on disk but the registry has no
 /// record for it, exits non-zero WITHOUT modifying the file (FR-008).
@@ -183,8 +189,32 @@ class GenCommand extends Command<void> {
       }
     }
 
+    // Binary-change detection (bug #683): a `reused/reused` preflight only
+    // proves the stub on disk was owned by SOME zfa binary — not by the
+    // CURRENT one. After a rebuild that changes what the writers render,
+    // the stale stub silently regressed the resumed pipeline (make ran the
+    // test against the old stub). Option B (lenient): when the subject on
+    // disk is still an UnimplementedError stub, compare its content against
+    // what the current binary would render; regenerate the pair when they
+    // differ, stay silent when they match. A subject that no longer
+    // contains UnimplementedError has PROGRESSED (func scaffolding or a
+    // real implementation) and must never be clobbered.
+    var regeneratedNote = false;
+    if (record.testOwnership == Ownership.reused &&
+        record.subjectOwnership == Ownership.reused &&
+        !dryRun) {
+      regeneratedNote = await _regenerateStaleStub(
+        behavior: behavior,
+        testPath: testPath,
+        subjectPath: subjectPath,
+      );
+    }
+
     // Print the structured result. Use `print` (not `stdout.writeln`) so
     // the CliRunner's runCapturing zone can capture it.
+    if (regeneratedNote) {
+      print('note: binary updated, stub regenerated');
+    }
     print(
       'behavior_id: ${record.behaviorId}\n'
       'source_criterion: ${record.sourceCriterion}\n'
@@ -193,6 +223,57 @@ class GenCommand extends Command<void> {
       'runnable_test_name: ${record.runnableTestName}\n'
       'ownership: ${record.testOwnership.name}/${record.subjectOwnership.name}',
     );
+  }
+
+  /// Detect a stub written by an OLDER binary (bug #683) and regenerate
+  /// the pair when the current binary would render different content.
+  ///
+  /// Option B (lenient) from the issue:
+  /// - the subject on disk no longer contains `UnimplementedError` → it
+  ///   progressed past the stub stage (func scaffolding / implementation);
+  ///   return false without touching anything;
+  /// - the subject content matches the current render exactly → the
+  ///   binary has not changed since the stub was written; return false
+  ///   and stay silent (FR-006 idempotency preserved);
+  /// - otherwise the stub is stale → rewrite the pair with the current
+  ///   writers (same transactional contract as the create path) and
+  ///   return true so the caller prints the
+  ///   `binary updated, stub regenerated` note. Ownership stays
+  ///   `reused/reused`: the registry record is unchanged and the issue's
+  ///   verification criterion expects `reused/reused` + regeneration.
+  Future<bool> _regenerateStaleStub({
+    required Behavior behavior,
+    required String testPath,
+    required String subjectPath,
+  }) async {
+    final subjectFile = File(subjectPath);
+    if (!await subjectFile.exists()) return false;
+    final onDisk = await subjectFile.readAsString();
+    // A progressed artifact is never clobbered by the staleness check.
+    if (!onDisk.contains('UnimplementedError')) return false;
+
+    final expected = const SubjectWriter().render(behavior);
+    if (expected == onDisk) return false;
+
+    try {
+      final testWriter = const BehaviorTestWriter();
+      await testWriter.write(
+        behavior: behavior,
+        testPath: testPath,
+        subjectPath: subjectPath,
+      );
+      final subjectWriter = const SubjectWriter();
+      await subjectWriter.write(behavior: behavior, subjectPath: subjectPath);
+    } on FileSystemException catch (_) {
+      // Regeneration is best-effort: on filesystem failure keep the
+      // pre-existing (stale) pair and skip the note rather than
+      // destroying artifacts the registry still owns. The next gen
+      // run retries the check. Other exception types (ArgumentError,
+      // StateError, etc.) bubble up so genuine bugs surface instead of
+      // being silently swallowed by an over-broad catch.
+      return false;
+    }
+    return true;
   }
 
   Future<void> _deleteIfCreated(String path) async {
