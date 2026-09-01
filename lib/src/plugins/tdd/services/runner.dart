@@ -101,6 +101,36 @@ class SingleTestRunner {
       }
     }
 
+    // 1b. Legacy frontmatter YAML block (pre-spec-kit-detector format):
+    // extract the `single:` value from inside the `---...---` YAML frontmatter.
+    // Supports both `single:` and `stacks:...single:` nesting (see
+    // https://github.com/arrrrny/zuraffa/issues/664 for context).
+    final frontmatterBlock = RegExp(
+      r'^---\n([\s\S]*?)\n---',
+      multiLine: true,
+    ).firstMatch(raw);
+    if (frontmatterBlock != null) {
+      final frontmatter = frontmatterBlock.group(1)!;
+      // Try top-level `single:` first.
+      var single = RegExp(
+        r"""^\s*single:\s*['"](.+)['"]\s*$""",
+        multiLine: true,
+      ).firstMatch(frontmatter);
+      if (single != null && single.group(1)!.trim().isNotEmpty) {
+        return _normalize(single.group(1)!.trim());
+      }
+      // Fall back to `stacks: <label>:\s+single:` nesting (keys are
+      // indented under their nesting labels; drop ^ anchor so any indentation
+      // level is matched). Also handles bare top-level `single:` in flat YAML.
+      final nestedSingle = RegExp(
+        r"""^\s*single:\s*['"](.+)['"]""",
+        multiLine: true,
+      ).firstMatch(frontmatter);
+      if (nestedSingle != null && nestedSingle.group(1)!.trim().isNotEmpty) {
+        return _normalize(nestedSingle.group(1)!.trim());
+      }
+    }
+
     // 2. Human-facing bullet.
     final bullet = RegExp(r'-\s*Single test:\s*`([^`]+)`').firstMatch(raw);
     if (bullet != null && bullet.group(1)!.trim().isNotEmpty) {
@@ -141,6 +171,33 @@ class SingleTestRunner {
       ).firstMatch(keysBlock.group(1)!);
       if (suite != null && suite.group(1)!.trim().isNotEmpty) {
         return suite.group(1)!.trim();
+      }
+    }
+
+    // 1b. Legacy frontmatter YAML block (pre-spec-kit-detector format):
+    // extract the `suite:` value from inside the `---...---` YAML frontmatter.
+    // Supports both `suite:` and `stacks:...suite:` nesting.
+    final frontmatterBlock = RegExp(
+      r'^---\n([\s\S]*?)\n---',
+      multiLine: true,
+    ).firstMatch(raw);
+    if (frontmatterBlock != null) {
+      final frontmatter = frontmatterBlock.group(1)!;
+      // Try top-level `suite:` first.
+      var suite = RegExp(
+        r"""^\s*suite:\s*['"](.+)['"]""",
+        multiLine: true,
+      ).firstMatch(frontmatter);
+      if (suite != null && suite.group(1)!.trim().isNotEmpty) {
+        return suite.group(1)!.trim();
+      }
+      // Fall back to `stacks: <label>:\s+suite:` nesting.
+      final nestedSuite = RegExp(
+        r"""^\s*suite:\s*['"](.+)['"]""",
+        multiLine: true,
+      ).firstMatch(frontmatter);
+      if (nestedSuite != null && nestedSuite.group(1)!.trim().isNotEmpty) {
+        return nestedSuite.group(1)!.trim();
       }
     }
 
