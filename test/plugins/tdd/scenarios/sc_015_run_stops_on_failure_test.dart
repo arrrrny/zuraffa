@@ -1,9 +1,9 @@
 @Tags(['slow'])
 // SC-015 acceptance tests (spec 049-tdd-run, US3 / T017): the driver stops
 // honestly on failure — make unexpressible leaves the behavior RED and
-// never starts later behaviors (A7), the report names behavior, step,
-// outcome class, and the resume command (A8), and a done claim without
-// green evidence is never honored (A9).
+// DEFERS to phase 2 instead of blocking the feature (A7, bug #657), the
+// report names behavior, step, outcome class, and the resume command (A8),
+// and a done claim without green evidence is never honored (A9).
 library;
 
 import 'dart:convert';
@@ -67,7 +67,8 @@ void main() {
   });
 
   test(
-    'A7: make unexpressible at B-002 stops, B-002 stays RED, B-003 never started',
+    'A7: make unexpressible at B-002 defers (bug #657) — B-003 still runs, '
+    'the honest stop lands at the phase-2 re-attempt of B-002:make',
     () async {
       await fx.setStepOutcome('make', 'B-002', 'unexpressible');
 
@@ -77,23 +78,40 @@ void main() {
       expect(
         out,
         contains(
-          'run: feature=$feature result=stopped pending=1 red=1 green=0 done=1 '
+          'run: feature=$feature result=stopped pending=0 red=1 green=1 '
+          'done=1 '
           'stopped_at=B-002:make',
         ),
         reason: out,
       );
-      // Residual state: B-001 done, B-002 still red, B-003 untouched.
+      // Residual state: B-001 done, B-002 still red, B-003 green (its
+      // refactor deferred while B-002 sat RED).
       final state =
           jsonDecode(await File(fx.runStatePath).readAsString())
               as Map<String, dynamic>;
       expect(state['behavior_states'] as Map<String, dynamic>, {
         'B-001': 'done',
         'B-002': 'red',
-        'B-003': 'pending',
+        'B-003': 'green',
       });
-      // No later behavior started: nothing for B-003 in the invocation log.
-      expect(fx.stepInvocations().last, 'make B-002');
-      expect(fx.stepInvocations().where((l) => l.contains('B-003')), isEmpty);
+      // B-003 ran its gen/verify-red/make after B-002's deferral, and the
+      // run ended on the phase-2 make re-attempt of B-002.
+      final invocations = fx.stepInvocations();
+      expect(
+        invocations,
+        containsAllInOrder([
+          'make B-002',
+          'gen B-003',
+          'verify-red B-003',
+          'make B-003',
+          'make B-002',
+        ]),
+      );
+      expect(
+        invocations.where((l) => l == 'refactor B-003'),
+        isEmpty,
+        reason: 'refactor must defer while B-002 sits RED',
+      );
       // B-002 has red evidence but no green evidence.
       final log = await File(fx.cycleLogPath).readAsString();
       expect(RegExp('## Cycle: B-002 \\(green\\)').allMatches(log).length, 0);

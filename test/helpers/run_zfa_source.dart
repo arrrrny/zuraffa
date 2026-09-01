@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+
 import 'project_root.dart';
 
 /// Path to `bin/zfa.dart` resolved from the zuraffa project root.
@@ -56,6 +57,8 @@ Future<String?> _buildZfaExeIfPossible() async {
   final exeDir = p.join(zfaProjectRoot, '.dart_tool', 'zfa_cli_bin');
   final exePath = p.join(exeDir, 'zfa_exe');
   final exeFile = File(exePath);
+  final lockPath = p.join(exeDir, 'build.lock');
+  final lockFile = File(lockPath);
 
   // Reuse a previous build unless the entrypoint or any file under lib/src is
   // newer than the executable (invalidate the cache when CLI deps change).
@@ -63,20 +66,82 @@ Future<String?> _buildZfaExeIfPossible() async {
     return exePath;
   }
 
+  await Directory(exeDir).create(recursive: true);
+
+  // Serialize the AOT build across parallel test files. Each test file calls
+  // `initZfaSourceBin()` in its own `setUpAll`, and `dart test` runs multiple
+  // files concurrently — without a lock every file starts its own
+  // `dart compile exe` writing to the same `.dart_tool/zfa_cli_bin/zfa_exe`.
+  // The losers either exec a half-written binary (Linux ETXTBSY /
+  // "Text file busy" — the failure that made `zfa feature enable notes` die on
+  // the CI runner, issue #644) or fall back to the slow `dart bin/zfa.dart`
+  // path and time out. The lock makes exactly one process compile; everyone
+  // else waits for the result and reuses the cached binary.
+  RandomAccessFile? lock;
   try {
-    await Directory(exeDir).create(recursive: true);
+    lock = await _acquireLock(lockFile);
+    // Re-check staleness while holding the lock: another process may have just
+    // finished a build while we waited.
+    if (exeFile.existsSync() && !_isExeStale(exeFile)) {
+      return exePath;
+    }
+
+    // Build to a temp path and atomically rename into place. On Linux the
+    // kernel refuses to exec a file that is currently being written (ETXTBSY /
+    // "Text file busy"), and parallel test files each call
+    // `_buildZfaExeIfPossible()` in their own `setUpAll`. Writing the final
+    // path directly means a concurrent test can start the AOT binary while
+    // `dart compile exe` is still appending to it — the exact race that made
+    // `zfa feature enable notes` fail on the CI runner with
+    // `sh: 1: .../zfa_exe: Text file busy` (issue #644). Compiling to a temp
+    // sibling and `renameSync`-ing it makes the final path appear fully-formed
+    // or not at all, so no spawn ever lands on a half-written binary.
+    final tmpPath = p.join(exeDir, 'zfa_exe.tmp');
+    final tmpFile = File(tmpPath);
+    if (tmpFile.existsSync()) tmpFile.deleteSync();
     final result = await _runSupervised(
-      ['dart', 'compile', 'exe', zfaSourceBin!, '--output', exePath],
+      ['dart', 'compile', 'exe', zfaSourceBin!, '--output', tmpPath],
       timeout: const Duration(seconds: 100),
       workingDirectory: zfaProjectRoot,
     );
-    if (result.exitCode == 0 && exeFile.existsSync()) {
+    if (result.exitCode == 0 && tmpFile.existsSync()) {
+      tmpFile.renameSync(exePath);
       return exePath;
     }
   } on Object {
     // Any failure (compile error, timeout, missing SDK) → source fallback.
+  } finally {
+    await lock?.close();
   }
   return null;
+}
+
+/// Acquire an exclusive advisory lock on [lockFile], retrying with a short
+/// backoff until it succeeds.
+///
+/// Uses `File.open()` + `lockSync()` (POSIX `flock`) so the lock is tied to the
+/// file descriptor, not a process — a crashed or killed test process releases
+/// it automatically. `dart test` runs multiple test files concurrently, so
+/// every caller must contend for the same lock; the retry loop prevents the
+/// build from being attempted twice in parallel.
+Future<RandomAccessFile> _acquireLock(File lockFile) async {
+  final deadline = DateTime.now().add(const Duration(minutes: 5));
+  while (true) {
+    RandomAccessFile? file;
+    try {
+      file = await lockFile.open(mode: FileMode.write);
+      file.lockSync();
+      return file;
+    } on Object {
+      await file?.close();
+      // `flock` on an already-locked file throws on some platforms; retry
+      // rather than failing the whole test file. Some platforms don't
+      // support `FileLock` at all, in which case the retry loop still lets
+      // the build happen (serially) when possible.
+      if (DateTime.now().isAfter(deadline)) rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+  }
 }
 
 /// True when [exeFile] is older than the CLI entrypoint ([zfaSourceBin]) or any
@@ -131,11 +196,32 @@ Future<ProcessResult> runZfaSource(
   // group cap. Callers that drive `build_runner` (e.g. `zfa build`) pass a
   // longer budget, because the first `build.dart` AOT compile + codegen can
   // legitimately exceed 75s under concurrency contention (#531, SC-001).
-  return _runSupervised(
-    command,
-    timeout: timeout,
-    workingDirectory: workingDirectory,
-  );
+
+  // On Linux a freshly-written AOT binary can refuse to execute with
+  // `Text file busy` (ETXTBSY) for a few milliseconds after the write
+  // completes, and the AOT path is the one that lands on the CI runner. The
+  // atomic rename in `_buildZfaExeIfPossible` removes the half-written-binary
+  // window; this retry is the second line of defense for the rare case where
+  // the kernel still holds the exec cache. The fallback `dart` path never
+  // hits ETXTBSY, so retries only cost a few milliseconds.
+  const maxRetries = 3;
+  for (var attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await _runSupervised(
+        command,
+        timeout: timeout,
+        workingDirectory: workingDirectory,
+      );
+    } on ProcessException catch (e) {
+      final busy =
+          e.toString().contains('Text file busy') ||
+          e.toString().contains('ETXTBSY');
+      if (!busy || attempt == maxRetries - 1) rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+  }
+  // Unreachable: the loop either returns or rethrows.
+  throw StateError('runZfaSource retry loop exited without result');
 }
 
 /// Start [command] (first element is the executable) in [workingDirectory],

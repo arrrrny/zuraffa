@@ -5,7 +5,8 @@
 /// It is the SOLE place where a behavior's required generation steps
 /// are derived; every other component consumes the plan it produces.
 ///
-/// Mapping rules (minimal generation — FR-005):
+/// Mapping rules (minimal generation — FR-005; bug #657 function
+/// surface):
 ///   - **Entity-bearing behavior** (description starts with "entity"
 ///     or contains "create entity"): plan is
 ///     `zfa entity create -n <Name>` (bug #609: the real CLI requires
@@ -15,11 +16,17 @@
 ///   - **CRUD / use-case behavior** (description contains "crud",
 ///     "use case", "use-case", "repository", or "service"): plan is
 ///     `zfa make <slug> --preset=...` then `zfa build`.
+///   - **Function-intent behavior** (bug #657: description carries a
+///     plain-function verb phrase — render, format, parse, compute,
+///     convert, return — but matches neither surface above): plan is
+///     `zfa tdd func <id>` (the plain-function generator surface that
+///     derives a return type for the generated no-argument function),
+///     then `zfa build`.
 ///   - Every expressible plan terminates in a `build` step
 ///     (T005 / U5): build is the only step that produces
 ///     compile-validated output.
 ///   - Behaviors whose description names a capability the pipeline
-///     does not expose (e.g. "parse bespoke syntax", "wire custom
+///     does not expose (e.g. "provision bespoke syntax", "wire custom
 ///     DSL") → `unexpressible` with a reason phrased in behavior
 ///     terms, naming the unmet capability (FR-005, SC-005).
 ///
@@ -161,7 +168,34 @@ class GenerationPlanner {
       );
     }
 
-    // 3. Misfire: no pipeline mapping. Phrase the reason in behavior
+    // 3. Function-intent behavior (bug #657): a description whose verb
+    //    phrase names a plain function — rendering, formatting, parsing,
+    //    computing, converting, returning a value — maps to the `tdd
+    //    func` generator surface. The entity and CRUD/use-case branches
+    //    above keep precedence, so a description like "create entity
+    //    Invoice with totals to render" still maps to `entity create`.
+    final verb = functionIntentVerb(desc);
+    if (verb != null) {
+      return GenerationPlan(
+        behaviorId: summary.behaviorId,
+        feature: summary.feature,
+        sourceCriterion: summary.sourceCriterion,
+        steps: [
+          GenerationStepSpec(
+            args: ['tdd', 'func', summary.behaviorId],
+            purpose:
+                'scaffold the $verb function for behavior '
+                '${summary.behaviorId} from its description',
+          ),
+          GenerationStepSpec(
+            args: ['build'],
+            purpose: 'build generated code for behavior ${summary.behaviorId}',
+          ),
+        ],
+      );
+    }
+
+    // 4. Misfire: no pipeline mapping. Phrase the reason in behavior
     //    terms and name the unmet capability (SC-005).
     final reason = _unexpressibleReason(summary);
     return GenerationPlan(
@@ -198,6 +232,33 @@ class GenerationPlanner {
     }
     final s = buf.toString();
     return s.isEmpty ? null : s;
+  }
+
+  /// The plain-function intent verb carried by a lowercased behavior
+  /// description, or null when the description carries none (bug #657).
+  ///
+  /// Verb stems match their inflections (render/renders/rendered/...
+  /// return/returns/returned/...) so prose like "render returns a
+  /// non-empty string" or "returns 42 when invoked" resolves to the
+  /// function surface.
+  static const Set<String> functionIntentVerbs = {
+    'render',
+    'format',
+    'parse',
+    'compute',
+    'convert',
+    'return',
+  };
+
+  static final RegExp _functionVerb = RegExp(
+    '\\b(${functionIntentVerbs.join('|')})(s|ed|ing)?\\b',
+  );
+
+  /// Returns the recognized function-intent verb found anywhere in
+  /// [description], or null when the planner has no matching function surface.
+  static String? functionIntentVerb(String description) {
+    final m = _functionVerb.firstMatch(description.toLowerCase());
+    return m?.group(1);
   }
 
   /// Phrase the unexpressible reason in behavior terms (SC-005).

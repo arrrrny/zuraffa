@@ -254,6 +254,7 @@ class WireCommand extends Command<void> {
           outcome: WireOutcome.alreadyWired,
           feature: resolved.featureName,
         );
+        exitCode = 0;
       }
       if (raw.contains('UnimplementedError')) {
         exitCode = 1;
@@ -277,6 +278,13 @@ class WireCommand extends Command<void> {
       outcome: WireOutcome.wired,
       feature: resolved.featureName,
     );
+    // Explicitly clear the process-global exit code on the success path.
+    // `dart:io`'s `exitCode` is process-global and retains whatever the last
+    // command set, so without this a successful wire inherits a non-zero
+    // code from a prior command in the same runner — the exact failure that
+    // made `zfa tdd wire` report `outcome=wired` with `exitCode=1` on the CI
+    // runner (issue #652).
+    exitCode = 0;
   }
 
   // -------------------------------------------------------------------

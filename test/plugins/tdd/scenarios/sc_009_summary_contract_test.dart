@@ -98,7 +98,7 @@ void main() {
     // Unexpressible.
     await fx.seedCertifiedRed(
       id: 'B-042',
-      description: 'parse bespoke DSL syntax with no generator surface',
+      description: 'provision bespoke DSL syntax with no generator surface',
     );
     final unexpr = await runner.runCapturing([
       'tdd',
@@ -184,7 +184,7 @@ void main() {
     // Unexpressible → non-zero.
     await fx.seedCertifiedRed(
       id: 'B-042',
-      description: 'parse bespoke DSL with no generator',
+      description: 'provision bespoke DSL with no generator',
     );
     await runner.runCapturing([
       'tdd',

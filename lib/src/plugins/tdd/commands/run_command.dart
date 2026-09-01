@@ -19,32 +19,33 @@
 /// driver therefore drives the loop in two passes:
 ///
 /// - **Phase 1** — the uniform cycle in list order, with two deferrals
-///   (bugs #625 and #635). An ACCEPTANCE behavior whose `make` reports
+///   (bugs #625, #635 and #657). ANY behavior whose `make` reports
 ///   `unexpressible` — the planner's by-design refusal of acceptance
-///   prose — is deferred instead of stopping the feature: `[run] A1
-///   make -> deferred (phase 2)`. And because `refactor` (spec 048
-///   FR-001) demands an absolutely green suite — impossible while a
-///   deferred acceptance test sits honestly RED — ANY behavior whose
-///   `refactor` comes due while an acceptance behavior sits RED defers
-///   too: `[run] U1 refactor -> deferred (phase 2)` (bug #635; the
-///   deferral concept is applied to both steps, not half-applied to
+///   prose (bug #625), or of a unit plain-function behavior until `zfa
+///   tdd func` scaffolds it (bug #657) — is deferred instead of stopping
+///   the feature: `[run] A1 make -> deferred (phase 2)`. And because
+///   `refactor` (spec 048 FR-001) demands an absolutely green suite —
+///   impossible while a deferred behavior sits honestly RED — ANY
+///   behavior whose `refactor` comes due while ANY behavior sits RED
+///   defers too: `[run] U1 refactor -> deferred (phase 2)` (bug #635;
+///   the deferral concept is applied to both steps, not half-applied to
 ///   `make` alone). Deferred behaviors stay at their last completed
 ///   state (RED / GREEN) while the rest of phase 1 proceeds. Any other
-///   step failure still stops the run honestly (FR-007), and an
-///   acceptance behavior whose make IS expressible completes its whole
-///   cycle exactly as before — by the time its refactor runs, no
-///   acceptance behavior is RED.
+///   step failure still stops the run honestly (FR-007), and a behavior
+///   whose make IS expressible completes its whole cycle exactly as
+///   before — by the time its refactor runs, no behavior is RED.
 /// - **Phase 2** — the deferred work finishes on the now-fully-green
-///   suite, in two stages. First every deferred acceptance behavior
-///   re-attempts `make` in list order (bug #625); a green outcome flips
-///   it, and `unexpressible` here is a real, honest stop with the units
-///   GREEN (FR-007). Then a refactor pass runs `refactor` for every
-///   behavior still short of DONE — per behavior, in list order — on
-///   the fully-green suite and marks each DONE (bug #635), keeping
-///   refactor's absolute-green contract met by construction.
+///   suite, in two stages. First every deferred behavior re-attempts
+///   `make` in list order (bug #625; generalized to unit behaviors by
+///   bug #657); a green outcome flips it, and `unexpressible` here is a
+///   real, honest stop with everything else done (FR-007). Then a
+///   refactor pass runs `refactor` for every behavior still short of
+///   DONE — per behavior, in list order — on the fully-green suite and
+///   marks each DONE (bug #635), keeping refactor's absolute-green
+///   contract met by construction.
 ///
-/// Run-state semantics are unchanged: acceptance behaviors sit RED
-/// between the phases (their units sit GREEN with the refactor
+/// Run-state semantics are unchanged: deferred behaviors sit RED
+/// between the phases (their unit siblings sit GREEN with the refactor
 /// deferred, bug #635), and a run interrupted anywhere resumes exactly
 /// where it stopped.
 ///
@@ -240,22 +241,25 @@ class RunCommand extends Command<void> {
 
     // -----------------------------------------------------------------
     // 6. Drive the loop in two phases (FR-001, FR-004..FR-008; bugs
-    //    #625 and #635).
+    //    #625, #635 and #657).
     //
-    // Phase 1 drives the uniform cycle in list order, EXCEPT that an
-    // acceptance behavior whose make reports `unexpressible` (the
-    // planner's by-design refusal of acceptance prose) is DEFERRED with
-    // `[run] A1 make -> deferred (phase 2)` instead of stopping the
-    // feature — the bug #625 deadlock — and ANY behavior whose refactor
-    // comes due while an acceptance behavior sits RED is deferred with
-    // `[run] U1 refactor -> deferred (phase 2)` — the bug #635 deadlock
-    // (refactor's absolute-green preflight, spec 048 FR-001, can never
-    // pass against a knowingly-red suite). Phase 2 re-attempts the
-    // deferred acceptance makes, then runs refactor for every behavior
-    // on the fully-green suite; `unexpressible` there is a real, honest
-    // stop (FR-007). Run-state semantics are unchanged: acceptance
-    // behaviors sit RED between the phases, resumable
-    // mid-corpus (FR-003..FR-005).
+    // Phase 1 drives the uniform cycle in list order, EXCEPT that ANY
+    // behavior whose make reports `unexpressible` is DEFERRED with
+    // `[run] <id> make -> deferred (phase 2)` instead of stopping the
+    // feature — the bug #625 acceptance-prose deadlock, generalized to
+    // unit behaviors by bug #657 (plain-function behaviors have no
+    // expressible surface until `zfa tdd func` scaffolds them; blocking
+    // every later behavior on the first one starves the feature) — and
+    // ANY behavior's refactor that comes due while any behavior sits
+    // RED is deferred with `[run] <id> refactor -> deferred (phase 2)`
+    // — the bug #635 deadlock (refactor's absolute-green preflight,
+    // spec 048 FR-001, can never pass against a knowingly-red suite).
+    // Phase 2 re-attempts the deferred makes, then runs refactor for
+    // every behavior on the fully-green suite; `unexpressible` there is
+    // a real, honest stop (FR-007) — by then every other behavior has
+    // run, and make's own remediation line (bug #657) names the manual
+    // path. Run-state semantics are unchanged: deferred behaviors sit
+    // RED between the phases, resumable mid-corpus (FR-003..FR-005).
     // -----------------------------------------------------------------
     final runner = StepRunner(zfaBin: zfaBin);
 
@@ -271,10 +275,12 @@ class RunCommand extends Command<void> {
       exitCode = stop.exitCode;
     }
 
-    // --- Phase 1: the uniform cycle in list order; acceptance makes
-    // that report unexpressible defer to phase 2 (bug #625), and
-    // refactors that come due while an acceptance sits RED defer too
-    // (bug #635).
+    // --- Phase 1: the uniform cycle in list order; a make that reports
+    // unexpressible defers to phase 2 (bug #625 for acceptance prose,
+    // bug #657 for unit plain-function behaviors), and refactors that
+    // come due while ANY behavior sits RED defer too (bug #635, so a
+    // deferred unit make leaves the suite knowingly red exactly like a
+    // deferred acceptance make).
     for (final row in rows) {
       final state = current.behaviorStates[row.id] ?? BehaviorState.pending;
       if (state == BehaviorState.done) continue;
@@ -302,16 +308,19 @@ class RunCommand extends Command<void> {
       current = result.state;
     }
 
-    // --- Phase 2a: return to the deferred acceptance behaviors and
-    // re-attempt their make (bug #625). Unit behaviors left phase 1
-    // GREEN with their refactor deferred (bug #635); an acceptance
-    // behavior that completed its whole cycle in phase 1 (expressible
-    // make) is already DONE and skipped. `unexpressible` here is a
-    // real, honest stop (FR-007).
+    // --- Phase 2a: return to every behavior deferred at its phase-1
+    // make and re-attempt it (bug #625 for acceptance prose; bug #657
+    // generalizes the re-attempt to unit plain-function behaviors). A
+    // behavior left phase 1 GREEN has only its refactor outstanding
+    // (bug #635); one that completed its whole cycle in phase 1
+    // (expressible make) is already DONE and skipped. `unexpressible`
+    // here is a real, honest stop (FR-007).
     for (final row in rows) {
-      if (row.kind != BehaviorKind.acceptance) continue;
       final state = current.behaviorStates[row.id] ?? BehaviorState.pending;
       if (state == BehaviorState.done) continue;
+      // Only behaviors still sitting RED are here for their make; GREEN
+      // behaviors are waiting on the phase-2 refactor pass instead.
+      if (state == BehaviorState.green) continue;
 
       final inFlightStep = current.inFlightBehaviorId == row.id
           ? current.inFlightStep
@@ -557,7 +566,7 @@ class RunCommand extends Command<void> {
       // now-fully-green suite.
       if (deferralAllowed &&
           step == 'refactor' &&
-          _hasRedAcceptance(rows, updated)) {
+          _hasRedBehavior(rows, updated)) {
         updated = updated.advance(row.id, state);
         await store.save(updated, activeBehaviorIds: activeIds);
         print('[run] ${row.id} refactor -> deferred (phase 2)');
@@ -618,15 +627,18 @@ class RunCommand extends Command<void> {
       print('[run] ${row.id} $step -> ${result.outcome}$progressSuffix');
 
       if (!result.success) {
-        // Bug #625 deferral: acceptance prose is unexpressible to the
-        // generation planner BY DESIGN. Deferring is honest here — the
-        // outcome line above already named it — while stopping the whole
-        // feature before its unit behaviors ever ran is the deadlock.
-        // The behavior stays RED (its last completed state, FR-007
-        // semantics), and phase 2 re-attempts the make.
+        // Bug #625/#657 deferral: a make reporting `unexpressible` is the
+        // planner's by-design refusal for descriptions no generator
+        // surface maps — acceptance prose (bug #625) or a unit
+        // plain-function behavior until `zfa tdd func` scaffolds it or
+        // the capability lands (bug #657). Deferring is honest here —
+        // the outcome line above already named it, and make's own
+        // remediation message names the manual path — while stopping the
+        // whole feature before its later behaviors ever ran is the
+        // deadlock. The behavior stays RED (its last completed state,
+        // FR-007 semantics), and phase 2 re-attempts the make.
         if (deferralAllowed &&
             step == 'make' &&
-            row.kind == BehaviorKind.acceptance &&
             result.outcome == 'unexpressible') {
           updated = updated.advance(row.id, state);
           await store.save(updated, activeBehaviorIds: activeIds);
@@ -703,14 +715,13 @@ class RunCommand extends Command<void> {
     _ => throw ArgumentError.value(step, 'step', 'unknown TDD step'),
   };
 
-  /// Whether any ACCEPTANCE behavior in [rows] currently sits RED — its
-  /// make deferred to phase 2 by design (bug #625). While one does, the
-  /// suite is knowingly red and refactor's absolute-green preflight
-  /// (spec 048 FR-001) can never pass, so phase 1 defers refactors
-  /// (bug #635).
-  bool _hasRedAcceptance(List<BehaviorRow> rows, RunState state) {
+  /// Whether any behavior in [rows] currently sits RED — its make
+  /// deferred to phase 2 by design (bug #625 acceptance prose, bug #657
+  /// unit plain-function behaviors). While one does, the suite is
+  /// knowingly red and refactor's absolute-green preflight (spec 048
+  /// FR-001) can never pass, so phase 1 defers refactors (bug #635).
+  bool _hasRedBehavior(List<BehaviorRow> rows, RunState state) {
     for (final row in rows) {
-      if (row.kind != BehaviorKind.acceptance) continue;
       if ((state.behaviorStates[row.id] ?? BehaviorState.pending) ==
           BehaviorState.red) {
         return true;
