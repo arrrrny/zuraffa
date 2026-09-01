@@ -1,9 +1,11 @@
 import 'package:args/command_runner.dart';
+
 import '../shadcn_plugin.dart';
 import '../../../core/plugin_system/plugin_registry.dart';
 import '../../../config/zfa_config.dart';
 import '../../../cli/plugin_loader.dart';
 import '../../../core/plugin_system/plugin_manager.dart';
+
 import 'dart:io';
 
 class ShadcnCommand extends Command<void> {

@@ -27,8 +27,7 @@ class CreateStrategyCapability implements ZuraffaCapability {
       },
       'strategies': {
         'type': 'string',
-        'description':
-            'Comma-separated variant names (e.g. scraper,ai). Each becomes a concrete class.',
+        'description': 'Comma-separated variant names (e.g. scraper,ai). Each becomes a concrete class.',
       },
       'params': {
         'type': 'string',
@@ -42,8 +41,7 @@ class CreateStrategyCapability implements ZuraffaCapability {
       },
       'domain': {
         'type': 'string',
-        'description':
-            'Provider domain folder (e.g. listing). Defaults to name snake_case.',
+        'description': 'Provider domain folder (e.g. listing). Defaults to name snake_case.',
       },
       'dryRun': {
         'type': 'boolean',

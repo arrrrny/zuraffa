@@ -1,4 +1,5 @@
 import 'package:args/command_runner.dart';
+
 import '../../core/generator_options.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';

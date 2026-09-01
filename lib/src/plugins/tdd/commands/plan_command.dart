@@ -70,9 +70,8 @@ class PlanCommand extends Command<void> {
     if (await outFile.exists()) {
       final raw = await outFile.readAsString();
       for (final line in raw.split('\n')) {
-        final m = RegExp(
-          r'^\|\s*([A|U]\d+)\s*\|.*?\|\s*([A-Z0-9\-, ]+)\s*\|',
-        ).firstMatch(line);
+        final m = RegExp(r'^\|\s*([A|U]\d+)\s*\|.*?\|\s*([A-Z0-9\-, ]+)\s*\|')
+            .firstMatch(line);
         if (m != null) {
           final id = m.group(1)!;
           final traces = m.group(2)!.trim();

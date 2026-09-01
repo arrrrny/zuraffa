@@ -36,11 +36,10 @@ import 'package:path/path.dart' as p;
 /// Spawn hook so fast-tier tests can drive the parser without real
 /// processes (the slow tier exercises the real spawn path with the
 /// fixture's fake zfa binary).
-typedef StepSpawner =
-    Future<ProcessResult> Function(
-      List<String> command,
-      String workingDirectory,
-    );
+typedef StepSpawner = Future<ProcessResult> Function(
+  List<String> command,
+  String workingDirectory,
+);
 
 /// One step invocation's machine-readable outcome.
 class StepResult {

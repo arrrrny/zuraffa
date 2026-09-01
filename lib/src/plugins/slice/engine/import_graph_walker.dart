@@ -463,9 +463,8 @@ class ImportGraphWalker {
       // Rule A: types declared by the edge file that included files use.
       final declared = _barrelResolver.declaredTopLevelNames(source);
       for (final typeName in declared) {
-        if (RegExp(
-          '\\b${RegExp.escape(typeName)}\\b',
-        ).hasMatch(includedSource)) {
+        if (RegExp('\\b${RegExp.escape(typeName)}\\b')
+            .hasMatch(includedSource)) {
           final diFile = _serviceLocatorAnalyzer.diRegistrationFileFor(
             typeName,
             projectRoot,

@@ -10,12 +10,11 @@ library;
 import 'dart:io';
 
 /// Process execution seam (injected in tests; defaults to [Process.run]).
-typedef ProcessLauncher =
-    Future<ProcessResult> Function(
-      String executable,
-      List<String> args, {
-      String? workingDirectory,
-    });
+typedef ProcessLauncher = Future<ProcessResult> Function(
+  String executable,
+  List<String> args, {
+  String? workingDirectory,
+});
 
 /// The analyze outcome.
 class AnalyzeResult {

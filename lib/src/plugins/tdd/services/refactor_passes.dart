@@ -200,12 +200,13 @@ class RefactorPasses {
     Future<List<RefactorPassSpec>>? passSpecs,
     String? zfaBinOverride,
     Map<String, String>? environment,
-  })  : _executor = executor ?? const DefaultProcessExecutor(),
-        _passSpecsFuture = passSpecs ??
-            defaultPassSpecs(
-              zfaBinOverride: zfaBinOverride,
-              environment: environment,
-            );
+  }) : _executor = executor ?? const DefaultProcessExecutor(),
+       _passSpecsFuture =
+           passSpecs ??
+           defaultPassSpecs(
+             zfaBinOverride: zfaBinOverride,
+             environment: environment,
+           );
 
   /// Project root the passes operate on.
   final String projectRoot;

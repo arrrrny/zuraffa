@@ -210,9 +210,8 @@ class SingleTestRunner {
     }
 
     // 2. Human-facing bullet — pick the first `- Full suite` line.
-    final bullet = RegExp(
-      r'-\s*Full suite[^\n]*?:\s*`([^`]+)`',
-    ).firstMatch(raw);
+    final bullet = RegExp(r'-\s*Full suite[^\n]*?:\s*`([^`]+)`')
+        .firstMatch(raw);
     if (bullet != null && bullet.group(1)!.trim().isNotEmpty) {
       return bullet.group(1)!.trim();
     }

@@ -367,9 +367,8 @@ class RefactorCommand extends Command<void> {
     final names = <String>{};
     for (final line in output.split('\n')) {
       // Match lines like `00:01 +0 -1: some test name [E]`.
-      final m = RegExp(
-        r'^\s*\d{2}:\d{2}\s+\+?\d*\s+-\d+:\s+(.+?)\s+\[E\]\s*$',
-      ).firstMatch(line);
+      final m = RegExp(r'^\s*\d{2}:\d{2}\s+\+?\d*\s+-\d+:\s+(.+?)\s+\[E\]\s*$')
+          .firstMatch(line);
       if (m != null) {
         names.add(m.group(1)!);
       }

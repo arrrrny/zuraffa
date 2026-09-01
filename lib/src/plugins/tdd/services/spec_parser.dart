@@ -27,9 +27,8 @@ class SpecParser {
 
     Behavior? flush() {
       if (scenarioBuffer.isEmpty) return null;
-      final header = RegExp(
-        r'^\s*(\d+)\.\s*\*\*Given\*\*',
-      ).firstMatch(scenarioBuffer.first);
+      final header = RegExp(r'^\s*(\d+)\.\s*\*\*Given\*\*')
+          .firstMatch(scenarioBuffer.first);
       if (header == null) {
         scenarioBuffer = <String>[];
         return null;

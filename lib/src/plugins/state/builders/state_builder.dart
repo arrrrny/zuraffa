@@ -552,9 +552,8 @@ class StateBuilder {
             ..type = refer('bool?'),
         ),
       ]);
-      values['${entityCamel}List'] = refer(
-        '${entityCamel}List',
-      ).ifNullThen(_this('${entityCamel}List'));
+      values['${entityCamel}List'] = refer('${entityCamel}List')
+          .ifNullThen(_this('${entityCamel}List'));
       values['offset'] = refer('offset').ifNullThen(_this('offset'));
       values['limit'] = refer('limit').ifNullThen(_this('limit'));
       values['hasMore'] = refer('hasMore').ifNullThen(_this('hasMore'));
@@ -1022,9 +1021,8 @@ class StateBuilder {
             ..type = _nullableType('List<$entityName>'),
         ),
       );
-      values['${entityCamel}List'] = refer(
-        '${entityCamel}List',
-      ).ifNullThen(_this('${entityCamel}List'));
+      values['${entityCamel}List'] = refer('${entityCamel}List')
+          .ifNullThen(_this('${entityCamel}List'));
       params.add(
         Parameter(
           (p) => p

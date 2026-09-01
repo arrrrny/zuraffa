@@ -1,4 +1,5 @@
 import 'package:path/path.dart' as path;
+
 import '../../../core/generator_options.dart';
 import '../../../core/plugin_system/discovery_engine.dart';
 import '../../../core/context/file_system.dart';

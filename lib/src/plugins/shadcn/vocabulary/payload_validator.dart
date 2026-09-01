@@ -200,9 +200,8 @@ class UiPayloadValidator {
     final actionId = node['actionId'];
     if (actionId != null &&
         (actionId is! String ||
-            !RegExp(
-              VocabularySchemaExporter.actionIdPattern,
-            ).hasMatch(actionId))) {
+            !RegExp(VocabularySchemaExporter.actionIdPattern)
+                .hasMatch(actionId))) {
       errors.add(
         UiPayloadError(
           ValidationErrorCategory.invalidAction,
