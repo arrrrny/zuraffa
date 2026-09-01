@@ -21,15 +21,15 @@ All 17 unit behaviors and 4 acceptance behaviors were driven by red-green-refact
 ## Test strength
 
 - **11 unit tests** exercise real `dart:io` filesystem operations against the
-  real brand asset source at `/Users/ahmettok/Developer/zuraffa/assets/zuraffa_app_icons/`.
+  real brand asset source at `assets/zuraffa_app_icons/` (resolved via
+  `findZuraffaRoot()` so the path is portable across checkouts).
   No mocks — assertions verify file existence, file content, and that the
   brand directory is the source of truth.
 - **Idempotency** is verified by U9/U10 (calling writeFlutterBranding twice
   produces no errors and identical state).
 - **Skip-if-exists** is verified by U11 (sentinel file in
   assets/zuraffa_app_icons/ is preserved after second call).
-- **End-to-end acceptance** (A1–A4) runs the actual `dart run
-  /Users/ahmettok/Developer/zuraffa/bin/zuraffa.dart setup` command in
+- **End-to-end acceptance** (A1–A4) runs the actual `zfa setup` command in
   /tmp — exercising the full CLI flow including flutter create, dependency
   wiring, and branding step 5a.
 

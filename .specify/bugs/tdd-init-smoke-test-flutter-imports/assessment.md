@@ -35,7 +35,7 @@ Fresh pure-Dart packages fail `dart test` right after `zfa tdd init` because the
 
 **Preferred**: Pass `isFlutter` (or `ProjectFlavor`) to `SmokeTestWriter` and gate the Flutter smoke-test content behind it. For pure Dart projects, either:
 1. Skip writing `test/bootstrap_smoke_test.dart` entirely (already-existing sentinel), OR
-2. Write a Dart-compatible smoke test (e.g., `test('smoke', () {});`) matching the project's `dart_test.yaml` and `tdd-profile.md` runner (`package:test (^1.24.0)`).
+2. Write a Dart-compatible smoke test (e.g., `import 'package:test/test.dart';` + `test('smoke', () {});`) matching the project's `dart_test.yaml` and `tdd-profile.md` runner (`package:test (^1.24.0)`).
 
 **Files likely to change**:
 - `lib/src/cli/writers/tdd/smoke_test_writer.dart`

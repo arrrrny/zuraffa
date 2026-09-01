@@ -13,7 +13,7 @@
 
 When running `zfa tdd verify-red` (and other TDD sub-commands), the user must currently pass `--project` explicitly:
 
-```
+```bash
 zfa tdd verify-red U1 --feature 001-permission-port --project .
 ```
 
@@ -23,7 +23,7 @@ The code already defaults to `Directory.current.path` when `--project` is absent
 
 `zfa tdd verify-red` (and other `zfa tdd` sub-commands) should work from within the project directory **without** requiring `--project`:
 
-```
+```bash
 zfa tdd verify-red U1 --feature 001-permission-port
 ```
 

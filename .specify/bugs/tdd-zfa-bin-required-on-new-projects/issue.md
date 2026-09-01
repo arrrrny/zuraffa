@@ -17,7 +17,11 @@ When running `zfa tdd` commands (e.g., `zfa tdd run`, `zfa tdd make`, `zfa tdd v
 
 1. On a machine or in an environment where `zfa` is not on PATH (e.g., after `dart pub global activate` without PATH wrapping, or a fresh clone).
 2. Run `zfa tdd run <feature>` without `--zfa-bin`.
-3. Observe: `PipelineResolutionError: cannot resolve the zfa entrypoint. The command needs to invoke \`zfa entity create\` / \`zfa make\` / \`zfa build\` as sub-processes, but neither --zfa-bin, Platform.script (running from source), nor \`zfa\` on PATH resolved.`
+3. Observe:
+
+```text
+PipelineResolutionError: cannot resolve the zfa entrypoint. The command needs to invoke `zfa entity create` / `zfa make` / `zfa build` as sub-processes, but neither --zfa-bin, Platform.script (running from source), nor `zfa` on PATH resolved.
+```
 
 ## Root Cause
 
