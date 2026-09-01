@@ -49,6 +49,8 @@ import 'package:path/path.dart' as p;
 
 import '../models/generation_plan.dart';
 import '../services/artifact_registry.dart';
+import '../services/composition_planner.dart';
+import '../services/composition_targets.dart';
 import '../services/cycle_log.dart';
 import '../services/generation_planner.dart';
 import '../services/pipeline_runner.dart';
@@ -274,20 +276,50 @@ class MakeCommand extends Command<void> {
       target: _targetFor(record),
     );
     final plan = planner.plan(summary);
-    if (!plan.isExpressible) {
+    GenerationPlan effectivePlan;
+    if (plan.isExpressible) {
+      effectivePlan = plan;
+      print('   plan: ${plan.steps.length} step(s)');
+    } else {
+      // -------------------------------------------------------------
+      // Composition fallback (issue #642, spec 052): the planner is pure
+      // and description-keyed, so an acceptance behavior's prose stays
+      // unexpressible to it BY DESIGN — deterministically across run
+      // phases. When the target's test-list row is acceptance-kind and
+      // the feature holds composable green unit subjects, offer the
+      // composition plan (compose → build) that wires the acceptance
+      // subject against them, so a deferred phase-2 acceptance make can
+      // actually flip green. Everything else keeps the honest stop:
+      // unit-kind behaviors and unknown rows (fail-closed), and
+      // acceptance prose with zero composable anchors (FR-009), report
+      // `unexpressible` exactly as before.
+      // -------------------------------------------------------------
+      final composed = await _compositionFallback(
+        cwd: cwd,
+        record: record,
+        featureDir: target.featureDir,
+        featureName: target.featureName,
+        summary: summary,
+      );
+      if (composed == null) {
+        print(
+          'zfa tdd make: cannot plan a generation for behavior '
+          '"${record.behaviorId}". ${plan.unexpressibleReason}',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.unexpressible,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+      effectivePlan = composed;
       print(
-        'zfa tdd make: cannot plan a generation for behavior '
-        '"${record.behaviorId}". ${plan.unexpressibleReason}',
+        '   plan: composition fallback — '
+        '${effectivePlan.steps.length} step(s)',
       );
-      _printSummary(
-        behavior: record.behaviorId,
-        outcome: MakeOutcome.unexpressible,
-        feature: target.featureName,
-      );
-      exitCode = 1;
-      return;
     }
-    print('   plan: ${plan.steps.length} step(s)');
 
     // ---------------------------------------------------------------
     // 7. Execute the plan via the pipeline (FR-006, US1 / U8-U13).
@@ -295,7 +327,7 @@ class MakeCommand extends Command<void> {
     PipelineResult pipelineResult;
     try {
       pipelineResult = await pipelineRunner.runPlan(
-        plan: plan,
+        plan: effectivePlan,
         workingDirectory: cwd,
         zfaBinOverride: zfaBinFlag,
         feature: target.featureName,
@@ -444,6 +476,45 @@ class MakeCommand extends Command<void> {
   // -------------------------------------------------------------------
   // Helpers — resolution + summary (mirror verify_red_command.dart).
   // -------------------------------------------------------------------
+
+  /// The composition fallback for an unexpressible plan (issue #642, spec
+  /// 052). Returns the composition plan (`compose <id>` → `build`) when
+  /// the fallback engages, or null when the honest `unexpressible` stop
+  /// stands:
+  ///
+  /// - the behavior has no test-list row, or the list is unreadable —
+  ///   fail-closed (the fallback never guesses kinds);
+  /// - the row is unit-kind (a unit subject implements its own logic);
+  /// - the feature has zero composable green unit subjects (nothing to
+  ///   wire against — the acceptance prose remains uncomposable).
+  ///
+  /// The fallback shapes the plan through the pure `CompositionPlanner`;
+  /// the planner itself (FR-008, SC-006) stays untouched and unaware of
+  /// phases, run state, or subjects.
+  Future<GenerationPlan?> _compositionFallback({
+    required String cwd,
+    required ArtifactRecord record,
+    required String featureDir,
+    required String featureName,
+    required BehaviorSummary summary,
+  }) async {
+    final discovery = await const CompositionTargets().discover(
+      projectRoot: cwd,
+      featureDir: featureDir,
+      behaviorId: record.behaviorId,
+    );
+    if (discovery is CompositionTargetFailure) {
+      // Fail-closed: name the disengagement reason, keep the honest stop.
+      print('   composition fallback disengaged: ${discovery.message}');
+      return null;
+    }
+    final anchors = (discovery as CompositionTargetResolved).anchors;
+    print(
+      '   composition fallback: ${anchors.length} green unit subject(s) '
+      '(${anchors.map((a) => a.behaviorId).join(', ')})',
+    );
+    return const CompositionPlanner().plan(summary, anchors);
+  }
 
   /// The behavior description the planner will see. The fixture's
   /// registry record carries only the runnable test name composite
