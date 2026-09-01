@@ -148,6 +148,9 @@ void main() {
     () async {
       // The state file claims B-001 done, but the cycle log holds only its
       // red entry — evidence beats state, so B-001 is re-driven from make.
+      // B-001 keeps its gen artifacts registered so the #720 artifact
+      // check honors the demoted red claim's make re-entry.
+      await fx.registerBehavior(id: 'B-001', description: 'first behavior');
       await fx.seedRedEvidence('B-001');
       await fx.seedRunState(
         states: {'B-001': 'done', 'B-002': 'pending', 'B-003': 'pending'},

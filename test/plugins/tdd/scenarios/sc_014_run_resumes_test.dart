@@ -69,6 +69,9 @@ void main() {
   test(
     'A4: resume with B-002 RED skips DONE B-001 and re-enters at make',
     () async {
+      // B-002 keeps its gen artifacts registered so the #720 artifact
+      // check honors its red claim's make re-entry.
+      await fx.registerBehavior(id: 'B-002', description: 'second behavior');
       await fx.seedRedEvidence('B-001');
       await fx.seedGreenEvidence('B-001');
       await fx.seedRedEvidence('B-002');
@@ -182,6 +185,16 @@ void main() {
     await fx.seedRedEvidence('A1');
     await fx.seedRedEvidence('U1');
     await fx.seedRunState(states: {'A1': 'red', 'U1': 'red'});
+    // Both keep their gen artifacts registered so the #720 artifact
+    // check honors their red claims' make re-entries.
+    await fx.registerBehavior(
+      id: 'A1',
+      description: 'the entity exists and is buildable.',
+    );
+    await fx.registerBehavior(
+      id: 'U1',
+      description: 'unit behavior backing A1',
+    );
     // The resumed phase-1 make attempt for A1 hits the by-design
     // unexpressible refusal again and defers; phase 2 flips it green.
     await fx.setStepOutcome('make', 'A1', 'unexpressible\nok');

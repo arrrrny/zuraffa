@@ -84,6 +84,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../services/artifact_registry.dart';
 import '../services/cycle_evidence.dart';
 import '../services/run_state_store.dart';
 import '../services/step_runner.dart';
@@ -269,6 +270,17 @@ class RunCommand extends Command<void> {
     // -----------------------------------------------------------------
     final runner = StepRunner(zfaBin: zfaBin);
 
+    // Bug #720: gen-artifact presence per behavior, read once — a record
+    // in the feature's artifacts.json whose recorded test file exists on
+    // disk (the same resolution `make` performs before it will run). A
+    // behavior without it can never start at make: make would runner-error
+    // with "no gen artifacts", so sequencing starts at gen instead.
+    final genArtifactIds = await _genArtifactIds(
+      featureDir: featureDir,
+      projectRoot: projectRoot,
+      behaviorIds: activeIds,
+    );
+
     void applyStop(_Stop stop, RunState state) {
       if (stop.message != null) print('zfa tdd run: ${stop.message}');
       _printSummary(
@@ -296,7 +308,11 @@ class RunCommand extends Command<void> {
           : null;
       final result = await _driveBehavior(
         row: row,
-        steps: _stepsFor(state, inFlightStep),
+        steps: _stepsFor(
+          state,
+          inFlightStep,
+          hasGenArtifacts: genArtifactIds.contains(row.id),
+        ),
         progressSuffix: '',
         deferralAllowed: true,
         rows: rows,
@@ -473,7 +489,24 @@ class RunCommand extends Command<void> {
   /// before the fixes; the make deferral only engages on the
   /// unexpressible outcome (bug #625) and the refactor deferral only
   /// while an acceptance behavior sits RED (bug #635).
-  List<String> _stepsFor(BehaviorState state, String? inFlightStep) {
+  ///
+  /// Bug #720: a state claim cannot skip `gen` when the behavior has no
+  /// gen artifacts. The #682 bootstrap promotes a clean state carrying
+  /// residual red (or green) cycle-log evidence to RED (or GREEN), and a
+  /// stale claim can survive an artifacts wipe — sequencing from the
+  /// claim alone sent the driver straight to `make`, which runner-erred
+  /// with "no gen artifacts". When no in-flight marker claims a crashed
+  /// step and [hasGenArtifacts] is false, the behavior re-enters at gen
+  /// regardless of [state] (a RED claim re-runs gen then verify-red; a
+  /// GREEN claim, whose artifacts cannot support a refactor either, does
+  /// too). An in-flight marker still wins — U23 resume semantics are
+  /// unchanged — and a behavior WITH artifacts keeps the state-implied
+  /// re-entry (red -> make, green -> refactor; bug #682).
+  List<String> _stepsFor(
+    BehaviorState state,
+    String? inFlightStep, {
+    required bool hasGenArtifacts,
+  }) {
     const full = ['gen', 'verify-red', 'make', 'refactor'];
     var start = switch (state) {
       BehaviorState.pending => 0,
@@ -481,11 +514,41 @@ class RunCommand extends Command<void> {
       BehaviorState.green => 3,
       BehaviorState.done => 4,
     };
-    if (inFlightStep != null) {
+    if (inFlightStep != null && inFlightStep.isNotEmpty) {
       final index = full.indexOf(inFlightStep);
       if (index >= 0) start = index;
+    } else if (!hasGenArtifacts) {
+      start = 0;
     }
     return full.sublist(start.clamp(0, full.length));
+  }
+
+  /// The behavior ids in [behaviorIds] whose gen artifacts are materialized:
+  /// a record in the feature's `tdd/artifacts.json` registry whose recorded
+  /// test file exists on disk — the exact precondition `make` enforces
+  /// before it will run (a record pointing at a missing test file is
+  /// make's own runner-error, so such a behavior sequences from gen too).
+  /// The recorded paths are honored wherever gen landed them, absolute or
+  /// relative to [projectRoot]. The subject file is deliberately not part
+  /// of this check: gen's ownership preflight refuses a broken pair with a
+  /// precise conflict, and a missing subject surfaces inside make as an
+  /// honest test failure — neither is the "no gen artifacts" skip bug
+  /// #720 fixes.
+  Future<Set<String>> _genArtifactIds({
+    required String featureDir,
+    required String projectRoot,
+    required Set<String> behaviorIds,
+  }) async {
+    final records = await ArtifactRegistry(featureDir: featureDir).loadAll();
+    final ids = <String>{};
+    for (final record in records) {
+      if (!behaviorIds.contains(record.behaviorId)) continue;
+      final testPath = p.isAbsolute(record.testPath)
+          ? record.testPath
+          : p.join(projectRoot, record.testPath);
+      if (await File(testPath).exists()) ids.add(record.behaviorId);
+    }
+    return ids;
   }
 
   /// The phase-2 make window for an acceptance behavior (bug #625):
