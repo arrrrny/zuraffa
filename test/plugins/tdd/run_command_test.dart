@@ -722,6 +722,223 @@ void main() {
   });
 
   test(
+    'bug 734: refactor defers while a pending behavior carries generated '
+    'stubs — the run drives it first, then refactors every behavior',
+    () async {
+      // The #734 deadlock: phase 1 stopped early at U2 (the #731
+      // false-positive family), leaving U3+ PENDING with generated stubs
+      // whose tests throw UnimplementedError. On resume the already-green
+      // behaviors re-enter at refactor, refactor's full-suite preflight
+      // (spec 048 FR-001) refuses against the red stubs, and every
+      // refactor reports not-green — blocking the feature for behaviors
+      // that ARE green. The bug #635 deferral only engaged on RED rows;
+      // a pending-with-gen-artifacts row is not RED, so the driver spawned
+      // refactor into a knowingly-red suite anyway.
+      //
+      // Seeded resume state: A1 + U1 + U2 GREEN with complete evidence and
+      // their refactors outstanding; U3 PENDING with gen artifacts (its
+      // stub test is red on disk — exactly the state the real full-suite
+      // preflight refuses).
+      await fx.seedTestList([
+        (
+          id: 'A1',
+          description: 'the entity exists and is buildable.',
+          traces: 'FR-001',
+          state: 'PENDING',
+          kind: 'acceptance',
+        ),
+        (
+          id: 'U1',
+          description: 'unit behavior backing A1',
+          traces: 'FR-001',
+          state: 'PENDING',
+          kind: 'unit',
+        ),
+        (
+          id: 'U2',
+          description: 'second unit behavior',
+          traces: 'FR-001',
+          state: 'PENDING',
+          kind: 'unit',
+        ),
+        (
+          id: 'U3',
+          description: 'pending stub behavior',
+          traces: 'FR-001',
+          state: 'PENDING',
+          kind: 'unit',
+        ),
+      ]);
+      // The green claims carry gen artifacts (bug #720 keeps their
+      // state-implied refactor re-entry) — registry records only, the
+      // stub files on disk are U3's.
+      await fx.registerBehavior(
+        id: 'A1',
+        description: 'the entity exists and is buildable.',
+        writeTestFile: false,
+      );
+      await fx.registerBehavior(
+        id: 'U1',
+        description: 'unit behavior backing A1',
+        writeTestFile: false,
+      );
+      await fx.registerBehavior(
+        id: 'U2',
+        description: 'second unit behavior',
+        writeTestFile: false,
+      );
+      await fx.registerBehavior(id: 'U3', description: 'pending stub behavior');
+      for (final id in ['A1', 'U1', 'U2']) {
+        await fx.seedRedEvidence(id);
+        await fx.seedGreenEvidence(id);
+      }
+      await fx.seedRunState(
+        states: {'A1': 'green', 'U1': 'green', 'U2': 'green', 'U3': 'pending'},
+      );
+
+      final out = await drive();
+
+      expect(exitCode, 0, reason: out);
+      // The green behaviors' refactors DEFER (no spawn) while U3 sits
+      // pending with generated stubs; the run drives U3's full cycle
+      // first, and only then do the deferred refactors run (phase 2b) —
+      // bounded progress instead of the A1:refactor not-green deadlock.
+      expect(fx.stepInvocations(), [
+        'gen U3',
+        'verify-red U3',
+        'make U3',
+        'refactor U3',
+        'refactor A1',
+        'refactor U1',
+        'refactor U2',
+      ]);
+      expect(out, contains('[run] A1 refactor -> deferred (phase 2)'));
+      expect(out, contains('[run] U1 refactor -> deferred (phase 2)'));
+      expect(out, contains('[run] U2 refactor -> deferred (phase 2)'));
+      expect(out, contains('[run] A1 refactor -> clean (phase 2)'));
+      expect(out, contains('[run] U1 refactor -> clean (phase 2)'));
+      expect(out, contains('[run] U2 refactor -> clean (phase 2)'));
+      expect(
+        out,
+        contains(
+          'run: feature=$feature result=complete pending=0 red=0 green=0 done=4',
+        ),
+        reason: out,
+      );
+      final state = await readState();
+      expect(state['behavior_states'] as Map<String, dynamic>, {
+        'A1': 'done',
+        'U1': 'done',
+        'U2': 'done',
+        'U3': 'done',
+      });
+    },
+  );
+
+  test('bug 734: phase-2b refactor gates per behavior on that behavior\'s '
+      'own test being green — a behavior without green evidence is skipped '
+      'with a recorded reason while the rest of the pass completes', () async {
+    // The phase-2 refactor pass used to spawn refactor for EVERY green
+    // behavior unconditionally. A green claim whose own test is not
+    // certified green (a brownfield/seeded state or a lost cycle-log —
+    // the bug #682 reconciliation keeps green claims that lack green
+    // evidence) would ride into refactor and die at the post-spawn
+    // evidence misfire (runner-error), stopping the pass for every
+    // other behavior. The per-behavior gate skips it BEFORE the spawn
+    // with a recorded reason (the behavior is not yet green) and the
+    // rest of the pass completes; the skipped behavior stays GREEN and
+    // resumable — never a fake DONE (FR-008).
+    await fx.seedTestList([
+      (
+        id: 'A1',
+        description: 'the entity exists and is buildable.',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'acceptance',
+      ),
+      (
+        id: 'U1',
+        description: 'unit behavior backing A1',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+      (
+        id: 'U2',
+        description: 'pending stub behavior',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+    ]);
+    // U2 sits pending WITH gen artifacts so the greens' phase-1
+    // refactors defer (bug #734) and actually reach the phase-2b pass.
+    // The green claims carry gen artifacts too (bug #720 keeps their
+    // state-implied refactor re-entry) — registry records only.
+    await fx.registerBehavior(
+      id: 'A1',
+      description: 'the entity exists and is buildable.',
+      writeTestFile: false,
+    );
+    await fx.registerBehavior(
+      id: 'U1',
+      description: 'unit behavior backing A1',
+      writeTestFile: false,
+    );
+    await fx.registerBehavior(id: 'U2', description: 'pending stub behavior');
+    // A1: a green claim WITHOUT green evidence — its own test is not
+    // certified green. U1: a green claim WITH complete evidence.
+    await fx.seedRedEvidence('A1');
+    await fx.seedRedEvidence('U1');
+    await fx.seedGreenEvidence('U1');
+    await fx.seedRunState(
+      states: {'A1': 'green', 'U1': 'green', 'U2': 'pending'},
+    );
+
+    final out = await drive();
+
+    expect(exitCode, 1, reason: out);
+    // The gate skipped A1's refactor before any spawn; U2 was driven to
+    // green and refactored, and U1's refactor completed the pass.
+    expect(fx.stepInvocations(), [
+      'gen U2',
+      'verify-red U2',
+      'make U2',
+      'refactor U2',
+      'refactor U1',
+    ]);
+    expect(out, contains('[run] A1 refactor -> deferred (phase 2)'));
+    expect(out, contains('[run] U1 refactor -> deferred (phase 2)'));
+    expect(out, contains('[run] A1 refactor -> skipped (own test not green)'));
+    expect(
+      out,
+      contains(
+        'no green evidence entry for "A1" in tdd/cycle-log.md — make must '
+        'certify the behavior\'s own test green before refactor',
+      ),
+    );
+    expect(out, isNot(contains('[run] A1 refactor -> clean')));
+    expect(out, contains('[run] U1 refactor -> clean (phase 2)'));
+    // The run stops honestly with the skipped behavior still GREEN and
+    // the resume path named (FR-007) — bounded, resumable progress.
+    expect(out, contains('refactor skipped for A1'));
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=stopped pending=0 red=0 green=1 '
+        'done=2 stopped_at=A1:refactor',
+      ),
+      reason: out,
+    );
+    final state = await readState();
+    expect(state['behavior_states'] as Map<String, dynamic>, {
+      'A1': 'green',
+      'U1': 'done',
+      'U2': 'done',
+    });
+  });
+
+  test(
     'U29: new test-list rows enter as PENDING, DONE behaviors untouched',
     () async {
       await drive();
