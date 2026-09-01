@@ -37,7 +37,7 @@ dependencies:
   opentelemetry: ^0.18.11
   code_builder: ^4.11.1
   dart_style: ^3.1.12
-  analyzer: 14.2.0
+  analyzer: ^14.3.0
   graphql: ^5.2.3
   gql: ^1.0.1
 
