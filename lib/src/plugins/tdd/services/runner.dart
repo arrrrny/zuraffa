@@ -92,12 +92,47 @@ class SingleTestRunner {
       dotAll: true,
     ).firstMatch(raw);
     if (keysBlock != null) {
-      final single = RegExp(
-        r"""^\s*single:\s*['"](.+)['"]\s*$""",
-        multiLine: true,
-      ).firstMatch(keysBlock.group(1)!);
-      if (single != null && single.group(1)!.trim().isNotEmpty) {
-        return _normalize(single.group(1)!.trim());
+      final single = _firstMatchValue(
+        r'''^\s*single:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))\s*$''',
+        keysBlock.group(1)!,
+      );
+      if (single != null && single.isNotEmpty) {
+        return _normalize(single.trim());
+      }
+    }
+
+    // 1b. Legacy frontmatter YAML block (pre-spec-kit-detector format):
+    // extract the `single:` value from inside the `---...---` YAML frontmatter.
+    // Supports both `single:` and `stacks:...single:` nesting (see
+    // https://github.com/arrrrny/zuraffa/issues/664 for context).
+    // NOTE: dotAll (NOT multiLine). multiLine:true makes ^ match at every line
+    // start, so the non-greedy [\s\S]*? stops at the FIRST \n--- in the file
+    // (e.g. a `---` inside a nested block) and captures only a prefix of the
+    // frontmatter — see issue #681. dotAll keeps ^ anchored to the string start
+    // while still allowing . to match newlines.
+    final frontmatterBlock = RegExp(
+      r'^---\n([\s\S]*?)\n---',
+      dotAll: true,
+    ).firstMatch(raw);
+    if (frontmatterBlock != null) {
+      final frontmatter = frontmatterBlock.group(1)!;
+      // Try top-level `single:` first.
+      var single = _firstMatchValue(
+        r'''^\s*single:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))\s*$''',
+        frontmatter,
+      );
+      if (single != null && single.isNotEmpty) {
+        return _normalize(single.trim());
+      }
+      // Fall back to `stacks: <label>:\s+single:` nesting (keys are
+      // indented under their nesting labels; drop ^ anchor so any indentation
+      // level is matched). Also handles bare top-level `single:` in flat YAML.
+      final nestedSingle = _firstMatchValue(
+        r'''^\s*single:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))''',
+        frontmatter,
+      );
+      if (nestedSingle != null && nestedSingle.isNotEmpty) {
+        return _normalize(nestedSingle.trim());
       }
     }
 
@@ -135,12 +170,42 @@ class SingleTestRunner {
       dotAll: true,
     ).firstMatch(raw);
     if (keysBlock != null) {
-      final suite = RegExp(
-        r"""^\s*suite:\s*['"](.+)['"]\s*$""",
-        multiLine: true,
-      ).firstMatch(keysBlock.group(1)!);
-      if (suite != null && suite.group(1)!.trim().isNotEmpty) {
-        return suite.group(1)!.trim();
+      final suite = _firstMatchValue(
+        r'''^\s*suite:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))\s*$''',
+        keysBlock.group(1)!,
+      );
+      if (suite != null && suite.isNotEmpty) {
+        return suite.trim();
+      }
+    }
+
+    // 1b. Legacy frontmatter YAML block (pre-spec-kit-detector format):
+    // extract the `suite:` value from inside the `---...---` YAML frontmatter.
+    // Supports both `suite:` and `stacks:...suite:` nesting.
+    // NOTE: dotAll (NOT multiLine) — see issue #681. multiLine:true makes ^ match
+    // at every line start, so the non-greedy [\s\S]*? stops at the FIRST \n---
+    // in the file and captures only a prefix of the frontmatter.
+    final frontmatterBlock = RegExp(
+      r'^---\n([\s\S]*?)\n---',
+      dotAll: true,
+    ).firstMatch(raw);
+    if (frontmatterBlock != null) {
+      final frontmatter = frontmatterBlock.group(1)!;
+      // Try top-level `suite:` first.
+      var suite = _firstMatchValue(
+        r'''^\s*suite:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))\s*$''',
+        frontmatter,
+      );
+      if (suite != null && suite.isNotEmpty) {
+        return suite.trim();
+      }
+      // Fall back to `stacks: <label>:\s+suite:` nesting.
+      final nestedSuite = _firstMatchValue(
+        r'''^\s*suite:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))''',
+        frontmatter,
+      );
+      if (nestedSuite != null && nestedSuite.isNotEmpty) {
+        return nestedSuite.trim();
       }
     }
 
@@ -186,6 +251,18 @@ class SingleTestRunner {
       .replaceAll('<path>', '{file}')
       .replaceAll('<file>', '{file}')
       .replaceAll('<name>', '{name}');
+
+  /// Match a YAML scalar that may be double-quoted, single-quoted, or
+  /// unquoted. Returns the first captured group that matched, or null.
+  static String? _firstMatchValue(String pattern, String input) {
+    final match = RegExp(pattern, multiLine: true).firstMatch(input);
+    if (match == null) return null;
+    for (var i = 1; i <= match.groupCount; i++) {
+      final g = match.group(i);
+      if (g != null && g.isNotEmpty) return g;
+    }
+    return null;
+  }
 
   /// Run exactly one test through the template.
   ///

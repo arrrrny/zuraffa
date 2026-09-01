@@ -13,11 +13,27 @@ class TddProfileWriter {
 
   /// Write the profile to `.specify/memory/tdd-profile.md`.
   ///
-  /// When [force] is true and an existing file has different content,
-  /// the file is overwritten unconditionally instead of throwing
-  /// [StateError]. Matching content is still a no-op regardless of
-  /// [force] (idempotency preserved). When [dryRun] is true the file
-  /// is not touched and the would-be path is returned.
+  /// Detection is layered:
+  ///   1. **Lenient runner-family check** (existing frontmatter is parsed
+  ///      for its `runner:` value): if the existing file's runner is in
+  ///      the same family as the one we're writing (both Flutter or both
+  ///      non-Flutter), it's accepted as a no-op. This handles the
+  ///      common case where a previous `zfa tdd init` (or a CI detector
+  ///      or a manual author) wrote an equally-valid Dart runner such
+  ///      as `package:test (^1.24.0)`.
+  ///   2. **Exact-content match** (Flutter family only): if the existing
+  ///      file's runner is `flutter_test`/`flutter` AND its body matches
+  ///      what we'd render, it's accepted as a no-op.
+  ///   3. **`--force` override**: when the existing file is in the same
+  ///      family and content differs, [force] lets the caller clobber
+  ///      it instead of throwing.
+  ///   4. **Hard conflict**: cross-family runner (Flutter runner in a
+  ///      Dart-targeting init, or vice versa) is rejected with
+  ///      [StateError]; [force] does NOT bypass this because changing
+  ///      the test runner is a real semantic change.
+  ///
+  /// When [dryRun] is true the file is not touched and the would-be
+  /// path is returned.
   Future<String?> write(
     String projectRoot, {
     bool force = false,
@@ -33,9 +49,43 @@ class TddProfileWriter {
 
     if (await file.exists()) {
       final existing = await file.readAsString();
+
+      // Lenient check: extract the runner from the existing frontmatter.
+      // If the existing file already uses a Dart runner (non-Flutter), accept it
+      // — it may have been written by a different tool (e.g. a previous
+      // `zfa tdd init` run, a CI detector, or a manual author) with a different
+      // but equally-valid runner value (e.g. "package:test (^1.24.0)" vs the
+      // hardcoded 'dart' literal). The only conflict we reject is a Flutter
+      // runner in a Dart-targeting init (or vice-versa).
+      final frontmatterRunner = _extractRunner(existing);
+      final existingIsFlutterRunner =
+          frontmatterRunner == 'flutter_test' || frontmatterRunner == 'flutter';
+      final writingDartProfile = !isFlutterProfile;
+
+      if (existingIsFlutterRunner && writingDartProfile) {
+        throw StateError(
+          'tdd-profile.md already exists with a Flutter runner '
+          '("$frontmatterRunner") but `zfa tdd init` is targeting a Dart '
+          'project. Delete the file first to re-detect.',
+        );
+      }
+
+      // Same runner family: non-Flutter runners are all equally valid for a
+      // Dart profile. Accept the existing file and return null (no-op).
+      // Reject profiles with no parseable runner — empty means the value
+      // was missing or unquoted and we can't trust the flavor check.
+      if (!existingIsFlutterRunner && frontmatterRunner.isNotEmpty) {
+        return null;
+      }
+
+      // Same runner family (Flutter) and content differs: exact-content match
+      // is required.
       if (existing.trim() == content.trim()) {
         return null;
       }
+
+      // Same Flutter family but content actually differs. --force lets
+      // the caller clobber it; otherwise reject with a clear message.
       if (!force) {
         throw StateError(
           'tdd-profile.md already exists at ${file.path} with different '
@@ -43,7 +93,7 @@ class TddProfileWriter {
           'delete the file first if you want to regenerate.',
         );
       }
-      // force + different content: overwrite unconditionally.
+      // force + different content: fall through and overwrite.
     }
 
     await dir.create(recursive: true);
@@ -51,8 +101,20 @@ class TddProfileWriter {
     return file.path;
   }
 
+  bool get isFlutterProfile =>
+      profile.runner == 'flutter_test' || profile.runner == 'flutter';
+
+  String _extractRunner(String content) {
+    // Match `runner: <value>` in the YAML frontmatter block.
+    // Handles both single and double-quoted values.
+    final match = RegExp(
+      r'''^\s*runner:\s*(?:"([^"]+)"|'([^']+)'|([^\s#]+))\s*$''',
+      multiLine: true,
+    ).firstMatch(content);
+    return (match?.group(1) ?? match?.group(2) ?? match?.group(3) ?? '').trim();
+  }
+
   String _render(TddProfile p) {
-    final isFlutterProfile = p.runner == 'flutter_test';
     final platform = isFlutterProfile ? 'Flutter' : 'Dart';
     final runnerHint = isFlutterProfile
         ? '`flutter_test`. Invoked as `flutter test`.'

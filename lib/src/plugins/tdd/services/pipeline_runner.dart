@@ -174,8 +174,7 @@ class PipelineRunner {
 
     // 2. Running CLI from source (Platform.script).
     final script = Platform.script;
-    final isScriptFile = script.scheme == 'file';
-    if (isScriptFile) {
+    if (script.scheme == 'file') {
       final scriptPath = script.toFilePath();
       final base = p.basename(scriptPath);
       // bin/zfa.dart or bin/zuraffa.dart — invoke via the dart binary.
@@ -199,10 +198,10 @@ class PipelineRunner {
       );
     }
 
-    // 4. Fallback: running from a compiled snapshot or global activate where
-    // Platform.script is a file URL (basename was not zfa.dart). Use the
-    // same runtime that is currently running.
-    if (isScriptFile) {
+    // 4. Final fallback: Platform.resolvedExecutable + Platform.script.
+    //    Catches compiled-snapshot and global-activate scenarios where
+    //    Platform.script basename is not zfa.dart/zuraffa.dart.
+    if (script.scheme == 'file') {
       final scriptPath = script.toFilePath();
       return _ResolvedEntrypoint(
         executable: Platform.resolvedExecutable,
