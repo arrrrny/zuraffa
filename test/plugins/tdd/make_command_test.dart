@@ -352,214 +352,6 @@ void main() {
     );
   });
 
-  group('bug 718 — unit behaviors route to the plain-function generator', () {
-    test('a unit behavior (U5) with CRUD-keyword prose goes green through '
-        '`tdd func` — the make step never dispatches `zfa make u5` '
-        '(issue #718 repro)', () async {
-      // Issue #718 repro shape: the run loop stops at U5:make with
-      // outcome=generation-error because the make step dispatches
-      // `zfa make u5` (the slugified behavior id as an entity name).
-      // A unit behavior's artifacts are a plain no-arg subject function
-      // and its test (spec 044), so the only generator that can flip it
-      // green is `tdd func` (the #657/#660 plain-function surface).
-      const description = 'service exposes the count of pending items';
-      await fx.seedCertifiedRed(
-        id: 'U5',
-        description: description,
-        testContent: TddFixture.subjectDrivenTest('U5', description),
-      );
-      // The fake pipeline turns the test green ONLY through the func
-      // step — a `make u5` dispatch leaves the stub returning 0 and the
-      // target test red (the pre-fix generation-error).
-      final zfaBin = await fx.writeFakeZfaBin(
-        logPath: fx.fakeZfaLogPath,
-        sideEffectByArgv: {
-          'tdd func': fx.overwriteSubjectCommands(
-            'U5',
-            TddFixture.subjectReturning('U5', 42),
-          ),
-        },
-      );
-
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(
-        makeArgs(fx, id: 'U5', zfaBin: zfaBin),
-      );
-
-      // Pre-fix this was exit 1 with outcome=generation-error ("target
-      // test still fails after generation").
-      expect(exitCode, 0, reason: 'out:\n$out');
-      expect(
-        out,
-        contains('make: behavior=U5 outcome=green feature=${fx.featureName}'),
-        reason: 'out:\n$out',
-      );
-      // Dispatch evidence: the func step ran, and no `make <slug>`
-      // invocation ever happened.
-      final log = await fx.readFakeZfaLog();
-      expect(
-        log.where((l) => l.contains('tdd func')),
-        isNotEmpty,
-        reason:
-            'the unit behavior must route to the plain-function '
-            'generator: ${log.join('\n')}',
-      );
-      expect(
-        log.where((l) => l.startsWith('make ')),
-        isEmpty,
-        reason:
-            'the behavior id must never reach `zfa make` as an '
-            'entity name (issue #718): ${log.join('\n')}',
-      );
-    });
-  });
-
-  group('bug 737 — the make plan\'s terminal build step is guarded '
-      'per-behavior', () {
-    test(
-      'a unit behavior reports skipped (not generation-error) when the '
-      'plan\'s terminal build step fails against a pre-existing red suite '
-      'while the behavior\'s own test passes after the func scaffold',
-      () async {
-        // Issue #737 state: U3 fresh stub (certified red), a sibling U4
-        // also still red (pending stub). The make plan for U3 is
-        // [tdd func U3, build]; the func scaffold flips U3's test green,
-        // but the terminal `build` step exits non-zero — the project's
-        // build/suite state, not this behavior's generation. Pre-fix, the
-        // pipeline treats the non-zero build exit as a plan failure and
-        // the make reports outcome=generation-error, stopping
-        // `zfa tdd run` on a healthy behavior (the false negative).
-        const description = 'returns 42 when invoked with no args';
-        await fx.seedCertifiedRed(
-          id: 'U3',
-          description: description,
-          testContent: TddFixture.subjectDrivenTest('U3', description),
-        );
-        // The pre-existing red sibling: still red at baseline AND at guard
-        // time (its own pending stub) — never this make's responsibility.
-        await fx.seedCertifiedRed(
-          id: 'U4',
-          description: 'returns 43 when invoked with no args',
-          testContent: TddFixture.subjectDrivenTest(
-            'U4',
-            'returns 43 when invoked with no args',
-          ),
-        );
-        final zfaBin = await fx.writeFakeZfaBin(
-          logPath: fx.fakeZfaLogPath,
-          // The func step scaffolds the subject — U3's own test passes
-          // afterwards.
-          sideEffectByArgv: {
-            'tdd func': fx.overwriteSubjectCommands(
-              'U3',
-              TddFixture.subjectReturning('U3', 42),
-            ),
-          },
-          // The terminal build step fails (exit 1) the way a real
-          // project's build/suite guard fails on pre-existing red state.
-          exitByArgv: {'build': 1},
-        );
-
-        final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(
-          makeArgs(fx, id: 'U3', zfaBin: zfaBin),
-        );
-
-        // Pre-fix: exit 1 with outcome=generation-error.
-        expect(exitCode, 0, reason: 'out:\n$out');
-        expect(
-          out,
-          contains(
-            'make: behavior=U3 outcome=skipped feature=${fx.featureName}',
-          ),
-          reason: 'out:\n$out',
-        );
-        // The plan executed end to end: the func step ran (scaffolded) and
-        // the build step ran (and failed — the failure is what the
-        // per-behavior guard tolerates).
-        final log = await fx.readFakeZfaLog();
-        expect(
-          log.where((l) => l.contains('tdd func')),
-          isNotEmpty,
-          reason: 'the func scaffold must have run: ${log.join('\n')}',
-        );
-        expect(
-          log.where((l) => l.contains('build')),
-          isNotEmpty,
-          reason: 'the build step must have run: ${log.join('\n')}',
-        );
-        // Green evidence appended for U3 (the #694 skip-transition shape:
-        // exit 0, run loop proceeds).
-        final cycleLog = await File(fx.cycleLogPath).readAsString();
-        expect(cycleLog, contains('## Cycle: U3 (green)'));
-      },
-    );
-
-    test('the tolerance never masks a genuinely failed generation: a red '
-        'target test after the failed build still stops with '
-        'generation-error', () async {
-      // Same failed terminal build step — but the func step leaves the
-      // stub unimplemented, so the behavior's own test is still red. The
-      // per-behavior guard must refuse to tolerate and keep the honest
-      // generation-error (safe-failure, never a silent pass).
-      const description = 'returns 42 when invoked with no args';
-      await fx.seedCertifiedRed(
-        id: 'U3',
-        description: description,
-        testContent: TddFixture.subjectDrivenTest('U3', description),
-      );
-      final zfaBin = await fx.writeFakeZfaBin(
-        logPath: fx.fakeZfaLogPath,
-        exitByArgv: {'build': 1},
-      );
-
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(
-        makeArgs(fx, id: 'U3', zfaBin: zfaBin),
-      );
-
-      expect(exitCode, isNot(0), reason: 'out:\n$out');
-      expect(
-        out,
-        contains('make: behavior=U3 outcome=generation-error'),
-        reason: 'out:\n$out',
-      );
-      final cycleLog = await File(fx.cycleLogPath).readAsString();
-      expect(cycleLog, isNot(contains('## Cycle: U3 (green)')));
-    });
-
-    test('only the terminal build step qualifies: a failed scaffold step '
-        'keeps the honest generation-error', () async {
-      // The func step itself fails — real generation work never ran, so
-      // the per-behavior build tolerance must not engage (the fix is
-      // scoped to the make plan's build/guard logic, issue #737).
-      const description = 'returns 42 when invoked with no args';
-      await fx.seedCertifiedRed(
-        id: 'U3',
-        description: description,
-        testContent: TddFixture.subjectDrivenTest('U3', description),
-      );
-      final zfaBin = await fx.writeFakeZfaBin(
-        logPath: fx.fakeZfaLogPath,
-        exitByArgv: {'tdd func': 3},
-      );
-
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(
-        makeArgs(fx, id: 'U3', zfaBin: zfaBin),
-      );
-
-      expect(exitCode, isNot(0), reason: 'out:\n$out');
-      expect(
-        out,
-        contains('make: behavior=U3 outcome=generation-error'),
-        reason: 'out:\n$out',
-      );
-      final cycleLog = await File(fx.cycleLogPath).readAsString();
-      expect(cycleLog, isNot(contains('## Cycle: U3 (green)')));
-    });
-  });
-
   group('US3 — regression guard via the full suite', () {
     test('U15/U17/A7: clean guard → green entry records both target-test '
         'pass and full-suite pass', () async {
@@ -689,105 +481,6 @@ void main() {
       // Suite line records the pre-existing failure.
       expect(log, contains('- suite: baseline='));
       expect(log, contains('guard='));
-    });
-    test('bug 731: pre-existing red behaviors with unstable failing-test '
-        'ids never flip an already-green target to regression — the '
-        'skip transition reports skipped', () async {
-      // A deferred acceptance sibling: red in EVERY suite run (honest
-      // pre-existing breakage, like A1-A5 deferred to phase 2), but its
-      // failing-test IDENTIFIER varies between the baseline and guard
-      // runs (a dynamic test name) — the exact #731 false-positive
-      // shape: the guard's name-diff sees a "new" failure that is
-      // really the same pre-existing red behavior.
-      final deferredSibling = '''
-import 'package:test/test.dart';
-
-void main() {
-  test('deferred acceptance \${DateTime.now().microsecondsSinceEpoch}', () {
-    fail('deferred to phase 2');
-  });
-}
-''';
-      await fx.registerBehavior(
-        id: 'A-DEF',
-        description: 'deferred acceptance behavior',
-        testContent: deferredSibling,
-      );
-      // The target's test ALREADY passes (a prior run made it green)
-      // while its certified-red evidence is still present: the issue
-      // #694 skip transition. No pipeline runs (skip never generates).
-      await fx.seedCertifiedRed(
-        id: 'B-001',
-        description: _targetDescription,
-        testContent: _greenTest,
-      );
-
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(makeArgs(fx, id: 'B-001'));
-      expect(
-        exitCode,
-        0,
-        reason:
-            'pre-existing red behaviors must not block an '
-            'already-green target (issue #731); out: $out',
-      );
-      expect(out, contains('outcome=skipped'));
-      expect(out, isNot(contains('outcome=regression')));
-      // Green evidence with an explicitly empty generation block is
-      // appended (the skip transition's contract, issue #694).
-      final log = await File(fx.cycleLogPath).readAsString();
-      expect(log, contains('## Cycle: B-001 (green)'));
-    });
-
-    test('bug 731: a regression in a file that was ALREADY red at baseline '
-        'is tolerated on the generation path too — make goes green when '
-        'only pre-existing red behaviors fail', () async {
-      // Same unstable pre-existing red sibling; this time the target is
-      // genuinely red and the fake pipeline turns it green. The
-      // deferred sibling fails both suite runs with different ids —
-      // the guard must not call that a regression.
-      final deferredSibling = '''
-import 'package:test/test.dart';
-
-void main() {
-  test('deferred acceptance \${DateTime.now().microsecondsSinceEpoch}', () {
-    fail('deferred to phase 2');
-  });
-}
-''';
-      await fx.registerBehavior(
-        id: 'A-DEF',
-        description: 'deferred acceptance behavior',
-        testContent: deferredSibling,
-      );
-      await fx.seedCertifiedRed(
-        id: 'B-001',
-        description: _targetDescription,
-        testContent: TddFixture.subjectDrivenTest('B-001', _targetDescription),
-      );
-      final zfaBin = await fx.writeFakeZfaBin(
-        logPath: fx.fakeZfaLogPath,
-        sideEffectByArgv: {
-          'entity create': fx.overwriteSubjectCommands(
-            'B-001',
-            TddFixture.subjectReturning('B-001', 42),
-          ),
-        },
-      );
-
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(
-        makeArgs(fx, id: 'B-001', zfaBin: zfaBin),
-      );
-      expect(
-        exitCode,
-        0,
-        reason:
-            'failures confined to already-red files are pre-existing '
-            'red behaviors (issue #731); out: $out',
-      );
-      expect(out, contains('outcome=green'));
-      expect(out, isNot(contains('outcome=regression')));
     });
   });
 
@@ -1259,18 +952,8 @@ void main() {
       );
     });
 
-    test('A15 (amended by issue #737): a failed terminal build after a '
-        'successful compose takes the per-behavior skip transition when the '
-        'behavior\'s own test passes — outcome=skipped, green entry', () async {
-      // Issue #737 amended the terminal-build contract for EVERY make
-      // plan shape (the composition plan included — the composition
-      // path hits the same pre-existing-red suite in phase 2): a
-      // non-zero terminal `build` step is only fatal when the
-      // behavior's own test fails. The compose step succeeded and the
-      // acceptance subject's test passes, so the build failure —
-      // unattributable to this make — is tolerated and the make takes
-      // the #694 skip transition instead of the #737 false-negative
-      // `generation-error` stop.
+    test('A15: a failed build after a successful compose → '
+        'generation-error, no green entry', () async {
       await seedAcceptanceWithGreenUnit(fx);
       final zfaBin = await fx.writeFakeZfaBin(
         logPath: fx.fakeZfaLogPath,
@@ -1288,86 +971,135 @@ void main() {
         makeArgs(fx, id: 'A-100', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: 'out:\n$out');
-      expect(
-        out,
-        contains(
-          'make: behavior=A-100 outcome=skipped feature=${fx.featureName}',
-        ),
-        reason: 'out:\n$out',
-      );
-      expect(out, contains('issue #737'));
+      expect(exitCode, isNot(0), reason: out);
+      expect(out, contains('generation-error'));
       expect(
         await File(fx.cycleLogPath).readAsString(),
-        contains('## Cycle: A-100 (green)'),
+        isNot(contains('## Cycle: A-100 (green)')),
       );
     });
   });
 
-  // -------------------------------------------------------------------
-  // Bug #726 — tdd-suite-template-truncation. With an ecosystem-style
-  // profile whose `suite:` value is UNQUOTED and multi-word
-  // (`suite: dart test`), the old unquoted-value regex truncated the
-  // template to its first word (`dart`), so the suite baseline ran the
-  // bare `dart` CLI (help text, exit 0, unparseable) and make refused
-  // with "the suite baseline did not produce a usable snapshot" even
-  // though the package is a perfectly normal pure-Dart project.
-  // -------------------------------------------------------------------
-  group('bug #726 — make with an unquoted multi-word suite template', () {
-    test('U15: the suite baseline runs the REAL suite and make completes '
-        'green on a certified-red behavior', () async {
-      final fx2 = await TddFixture.create(writeProfile: false);
-      try {
-        // Ecosystem-detector-style profile: frontmatter shape, quoted
-        // single (isolate the suite bug), unquoted multi-word suite.
-        final dir = Directory('${fx2.root.path}/.specify/memory');
-        await dir.create(recursive: true);
-        await File('${dir.path}/tdd-profile.md').writeAsString('''
----
-detected_at: 2026-01-15
-project: tdd_fixture
-stacks:
-  dart:
-    runner: dart
-    single: 'dart test {file} --plain-name "{name}"'
-    file: 'dart test {file}'
-    suite: dart test
----
-# TDD Profile
-''');
-        await fx2.seedCertifiedRed(
-          id: 'B-001',
-          description: _targetDescription,
-          testContent: TddFixture.subjectDrivenTest(
-            'B-001',
-            _targetDescription,
+  group('bug 723 — unit behaviors route to the plain-function generator', () {
+    test('U-723e: a certified-red unit behavior (U*) whose description '
+        'carries use-case/service vocabulary is routed to `tdd func <id>` '
+        '— never to `zfa make <slugified-id>` — and make certifies green '
+        'when the function surface implements the subject', () async {
+      // The #723 repro shape: unit behavior U5, description naming no
+      // entity but carrying use-case vocabulary. Pre-fix the plan was
+      // `zfa make u5 --no-entity` (the behavior ID as an entity name) and
+      // make stopped with generation-error.
+      await fx.seedCertifiedRed(
+        id: 'U5',
+        description: 'use case returns the count of pending items',
+        sourceCriterion: 'FR-005',
+        testContent: TddFixture.subjectDrivenTest(
+          'U5',
+          'use case returns the count of pending items',
+        ),
+      );
+      // No test list on purpose: the id-prefix convention (U<n> → unit)
+      // is the kind fallback and must engage.
+
+      // The fake pipeline turns the target green when invoked as the
+      // plain-function generator (`tdd func U5`).
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'tdd func': fx.overwriteSubjectCommands(
+            'U5',
+            TddFixture.subjectReturning('U5', 42),
           ),
-        );
-        final zfaBin = await fx2.writeFakeZfaBin(
-          logPath: fx2.fakeZfaLogPath,
-          sideEffectByArgv: {
-            'entity create': fx2.overwriteSubjectCommands(
-              'B-001',
-              TddFixture.subjectReturning('B-001', 42),
-            ),
-          },
-        );
+        },
+      );
 
-        final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(
-          makeArgs(fx2, id: 'B-001', zfaBin: zfaBin),
-        );
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'U5', zfaBin: zfaBin),
+      );
 
-        expect(exitCode, 0, reason: out);
-        expect(out, contains('suite baseline: dart test'));
-        expect(out, contains('outcome=green'));
-        final log = await File(fx2.cycleLogPath).readAsString();
-        expect(log, contains('- suite: baseline='));
-        expect(log, contains('new=(none)'));
-      } finally {
-        fx2.dispose();
-        exitCode = 0;
-      }
+      expect(
+        out,
+        contains('make: behavior=U5 outcome=green feature=${fx.featureName}'),
+      );
+      expect(exitCode, 0, reason: out);
+
+      // Routing evidence: the func surface ran; the entity/make generator
+      // (with the slugified behavior id) never did.
+      final log = await fx.readFakeZfaLog();
+      expect(
+        log.any((line) => line.startsWith('tdd func U5')),
+        isTrue,
+        reason: 'expected a `tdd func U5` pipeline invocation, got: $log',
+      );
+      expect(
+        log.any((line) => line.contains('make u5')),
+        isFalse,
+        reason:
+            'the behavior id must never be dispatched as an entity '
+            'name, got: $log',
+      );
+
+      // Green evidence records the func generation step.
+      final cycleLog = await File(fx.cycleLogPath).readAsString();
+      expect(cycleLog, contains('## Cycle: U5 (green)'));
+      expect(cycleLog, contains('tdd func'));
+    });
+
+    test('U-723f: the test-list row is the kind source of truth — a unit '
+        'behavior registered in the inner loop routes to `tdd func` even '
+        'when only the row kind (not the id prefix) could tell', () async {
+      await fx.seedCertifiedRed(
+        id: 'U5',
+        description: 'use case returns the count of pending items',
+        sourceCriterion: 'FR-005',
+        testContent: TddFixture.subjectDrivenTest(
+          'U5',
+          'use case returns the count of pending items',
+        ),
+      );
+      // Inner-loop row → kind=unit via the shared TestListReader contract.
+      await fx.seedTestList([
+        (
+          id: 'U5',
+          description: 'use case returns the count of pending items',
+          traces: 'FR-005',
+          state: 'PENDING',
+          kind: 'unit',
+        ),
+      ]);
+
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'tdd func': fx.overwriteSubjectCommands(
+            'U5',
+            TddFixture.subjectReturning('U5', 42),
+          ),
+        },
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'U5', zfaBin: zfaBin),
+      );
+
+      expect(
+        out,
+        contains('make: behavior=U5 outcome=green feature=${fx.featureName}'),
+      );
+      expect(exitCode, 0, reason: out);
+      final log = await fx.readFakeZfaLog();
+      expect(
+        log.any((line) => line.startsWith('tdd func U5')),
+        isTrue,
+        reason: 'got: $log',
+      );
+      expect(
+        log.any((line) => line.contains('make u5')),
+        isFalse,
+        reason: 'got: $log',
+      );
     });
   });
 }

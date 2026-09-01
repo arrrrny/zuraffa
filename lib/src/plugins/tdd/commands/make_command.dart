@@ -12,41 +12,22 @@
 ///   3. Re-runs the target test before generating and confirms it
 ///      STILL fails (FR-003). An already-green test takes the SKIP
 ///      transition (issue #694, amending US2.AC3): generation is
-///      skipped entirely, NO suite run happens — the scoped single-test
-///      re-run is the evidence run (issue #741), a green evidence entry
-///      with an explicitly empty generation block is appended, and the
-///      command exits 0 with `outcome=skipped` so the run loop proceeds
-///      past completed behaviors instead of deadlocking on re-runs.
+///      skipped entirely, the full suite is re-certified with no NEW
+///      failures, a green evidence entry with an explicitly empty
+///      generation block is appended, and the command exits 0 with
+///      `outcome=skipped` so the run loop proceeds past completed
+///      behaviors instead of deadlocking on re-runs.
 ///   4. Plans the minimal generation through the zuraffa pipeline
 ///      (FR-005): `entity create` / `make` / `build` (never hand-
 ///      writes source, never edits tests — FR-004).
 ///   5. Executes the plan via [PipelineRunner], capturing every
 ///      invocation as a [GenerationStep] (FR-006). Misfire-stop on
 ///      unexpressible behaviors (US4) or failing generation steps
-///      (US4.AC2) — with one per-behavior guard (issue #737): a
-///      failure of the plan's TERMINAL `build` step is tolerated when
-///      the CURRENT behavior's own test passes (the profile `single`
-///      command) after the generation steps ran. The build step
-///      validates the whole project, so it can fail on pre-existing
-///      red suite state the make is not responsible for; grading the
-///      behavior per-behavior (the #694 skip transition,
-///      `outcome=skipped`) instead of `generation-error` keeps
-///      `zfa tdd run` off a false negative.
+///      (US4.AC2).
 ///   6. Runs the target test via the profile `single` command and
-///      requires a PASS (FR-007). Then requires no NEW suite failures
-///      that are attributable to this make, relative to a pre-run
-///      baseline (US3; issue #731): a failure counts against the make
-///      only when it lives in the current behavior's own test file or
-///      in a file that was fully green at baseline. Failures confined
-///      to files that were ALREADY red at baseline are pre-existing red
-///      behaviors (e.g. deferred acceptance tests) and never block
-///      the make — their failing-test identifiers may even vary
-///      between the two suite runs. Issue #741: the baseline may come
-///      from the run's cached snapshot (`--suite-baseline`, written
-///      once per `zfa tdd run`) and the guard may be the scoped
-///      single-test result; the live full suite runs only for a
-///      standalone make or when the cache/scoped transcript is
-///      unusable (safe fallback).
+///      requires a PASS (FR-007). Then runs the full suite via the
+///      profile `suite` command and requires NO NEW failures
+///      relative to a pre-run baseline (US3).
 ///   7. On success, appends a green-evidence entry to
 ///      `specs/<feature>/tdd/cycle-log.md` (FR-008) containing the
 ///      generation commands, runner command, runner exit code,
@@ -72,16 +53,15 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/generation_plan.dart';
-import '../models/red_classification.dart';
 import '../services/artifact_registry.dart';
 import '../services/composition_planner.dart';
 import '../services/composition_targets.dart';
 import '../services/cycle_log.dart';
 import '../services/generation_planner.dart';
 import '../services/pipeline_runner.dart';
-import '../services/run_baseline_cache.dart';
 import '../services/runner.dart';
 import '../services/suite_guard.dart';
+import '../services/test_list_reader.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -122,16 +102,6 @@ class MakeCommand extends Command<void> {
           'Override the zfa entrypoint for pipeline sub-processes. Tests use '
           'this to point at a fake zfa script; production runs auto-resolve '
           'via Platform.script or `zfa` on PATH.',
-    );
-    argParser.addOption(
-      'suite-baseline',
-      help:
-          'Path to a cached full-suite baseline snapshot (run-baseline.json) '
-          'written once per run by `zfa tdd run` (issue #741). When given and '
-          'readable, make reuses the cached pre-run failure set instead of '
-          'running the full suite, and certifies the post-generation guard '
-          'from the scoped single-test result — falling back to the live '
-          'suite when the cache is missing, corrupt, or unparseable.',
     );
   }
 
@@ -175,11 +145,6 @@ class MakeCommand extends Command<void> {
         ? p.absolute(projectFlag)
         : ProjectRoot.find();
     final zfaBinFlag = argResults?['zfa-bin'] as String?;
-    final suiteBaselineFlag = argResults?['suite-baseline'] as String?;
-    final suiteBaselinePath =
-        suiteBaselineFlag != null && suiteBaselineFlag.isNotEmpty
-        ? suiteBaselineFlag
-        : null;
 
     final runner = const SingleTestRunner();
     final planner = const GenerationPlanner();
@@ -273,70 +238,39 @@ class MakeCommand extends Command<void> {
     if (alreadyGreen) {
       print(
         '   target test already passes — skipping generation (issue #694 '
-        'skip transition); the suite is not re-run (issue #741)',
+        'skip transition); re-certifying with the suite guard',
       );
     }
 
     // ---------------------------------------------------------------
-    // 5. Pre-run suite baseline (FR-007 / US3.AC3). Issue #741: the
-    //    already-green skip transition runs no suite at all, and a
-    //    run-cached baseline (`--suite-baseline`, written once per
-    //    `tdd run` by the driver) replaces the per-behavior suite run.
-    //    The live suite runs only for a standalone make (no flag) or
-    //    when the cache is missing/corrupt/unparseable — the same
-    //    safe fallback as before this fix.
+    // 5. Pre-run suite baseline (FR-007 / US3.AC3).
     // ---------------------------------------------------------------
-    SuiteSnapshot? baseline;
-    var baselineFromCache = false;
-    if (!alreadyGreen) {
-      SuiteSnapshot? cached;
-      if (suiteBaselinePath != null) {
-        cached = await const RunBaselineCache().read(suiteBaselinePath);
-        if (cached == null || !cached.parseable) {
-          print(
-            '   suite baseline cache unreadable — falling back to the '
-            'live suite',
-          );
-        }
-      }
-      if (cached != null && cached.parseable) {
-        baseline = cached;
-        baselineFromCache = true;
-        print(
-          '   suite baseline: cached (${baseline.capturedAt}) — '
-          '${baseline.failedTests.length} pre-existing failure(s) '
-          '(issue #741)',
-        );
-      } else {
-        print('   suite baseline: $suiteTemplate');
-        final baselineRun = await runner.runSuite(
-          suiteTemplate: suiteTemplate,
-          workingDirectory: cwd,
-        );
-        final live = guard.fromRunRecord(
-          record: baselineRun,
-          capturedAt: DateTime.now().toUtc().toIso8601String(),
-        );
-        print(
-          '   baseline exit: ${live.exitCode}, failed: ${live.failedTests.length}',
-        );
-        if (!baselineRun.startedProcess ||
-            !live.parseable ||
-            live.exitCode != 0 && live.failedTests.isEmpty) {
-          print(
-            'zfa tdd make: the suite baseline did not produce a usable snapshot. '
-            'Refusing to generate without a trustworthy pre-run failure set.',
-          );
-          _printSummary(
-            behavior: record.behaviorId,
-            outcome: MakeOutcome.runnerError,
-            feature: target.featureName,
-          );
-          exitCode = 1;
-          return;
-        }
-        baseline = live;
-      }
+    print('   suite baseline: $suiteTemplate');
+    final baselineRun = await runner.runSuite(
+      suiteTemplate: suiteTemplate,
+      workingDirectory: cwd,
+    );
+    final baseline = guard.fromRunRecord(
+      record: baselineRun,
+      capturedAt: DateTime.now().toUtc().toIso8601String(),
+    );
+    print(
+      '   baseline exit: ${baseline.exitCode}, failed: ${baseline.failedTests.length}',
+    );
+    if (!baselineRun.startedProcess ||
+        !baseline.parseable ||
+        baseline.exitCode != 0 && baseline.failedTests.isEmpty) {
+      print(
+        'zfa tdd make: the suite baseline did not produce a usable snapshot. '
+        'Refusing to generate without a trustworthy pre-run failure set.',
+      );
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: MakeOutcome.runnerError,
+        feature: target.featureName,
+      );
+      exitCode = 1;
+      return;
     }
 
     // ---------------------------------------------------------------
@@ -347,16 +281,25 @@ class MakeCommand extends Command<void> {
     // ---------------------------------------------------------------
     PipelineResult? pipelineResult;
     var postRun = driftRun;
-    // Issue #737: set when the plan's terminal `build` step failed but
-    // the per-behavior guard tolerated it (the behavior's own test
-    // passes) — the make then takes the #694 skip transition.
-    var buildStepTolerated = false;
     if (!alreadyGreen) {
-      // 6. Plan the minimal generation (FR-005).
+      // 6. Plan the minimal generation (FR-005). The behavior's loop
+      //    kind rides along (bug #723): unit-kind behaviors route to
+      //    the plain-function generator, not the entity/make generator.
+      final kind = await _kindFor(
+        featureDir: target.featureDir,
+        record: record,
+      );
+      if (kind == BehaviorKind.unit) {
+        print(
+          '   unit behavior: routing to the plain-function generator '
+          '(bug #723)',
+        );
+      }
       final summary = BehaviorSummary.fromRecord(
         record,
         description: _descriptionFor(record),
         target: _targetFor(record),
+        kind: kind,
       );
       final plan = planner.plan(summary);
       GenerationPlan effectivePlan;
@@ -424,198 +367,50 @@ class MakeCommand extends Command<void> {
         return;
       }
 
-      // Misfire-stop on generation failure (FR-004, US4.AC2) — with the
-      // issue #737 per-behavior guard for the plan's terminal build
-      // step.
+      // Misfire-stop on generation failure (FR-004, US4.AC2).
       if (!pipelineResult.completed) {
         final idx = pipelineResult.firstFailureIndex;
         final failed = idx >= 0 && idx < pipelineResult.steps.length
             ? pipelineResult.steps[idx]
             : null;
-        // Issue #737: the plan's terminal `build` step validates the
-        // WHOLE project (build_runner + analyze over the full tree), so
-        // it can exit non-zero for reasons this behavior's generation
-        // is not responsible for — e.g. a pre-existing red suite (the
-        // pending U* stubs) or build-config noise. The pipeline
-        // (FR-006) treats any non-zero exit as a plan failure; grading
-        // that failure as `generation-error` is a false negative when
-        // the generation steps themselves succeeded and the CURRENT
-        // behavior's test passes. The guard is per-behavior BY
-        // CONSTRUCTION: only the terminal `build` step qualifies (an
-        // earlier failure means real generation work never ran), and
-        // the behavior's own test must pass right now. Anything else
-        // keeps the honest `generation-error` stop (safe-failure,
-        // never a silent pass).
-        final toleratedRun = await _toleratedTerminalBuildFailure(
-          runner: runner,
-          plan: effectivePlan,
-          result: pipelineResult,
-          singleTemplate: singleTemplate,
-          testPath: testPath,
-          testName: testName,
-          workingDirectory: cwd,
-        );
-        if (toleratedRun != null) {
-          print(
-            '   terminal build step failed: `${failed!.command}` '
-            '(exit ${failed.exitCode}).',
-          );
-          print(
-            "   per-behavior check: the behavior's own test passes — the "
-            'build failure is not attributable to this make (issue #737 '
-            'per-behavior guard); taking the #694 skip transition.',
-          );
-          postRun = toleratedRun;
-          buildStepTolerated = true;
-        } else {
-          print(
-            'zfa tdd make: generation step failed at index $idx'
-            '${failed != null ? ' (${failed.purpose})' : ''}:',
-          );
-          if (failed != null) {
-            print('   command: `${failed.command}`');
-            print('   exit: ${failed.exitCode}');
-            print('   output (tail):');
-            final tail = failed.output.length > 800
-                ? failed.output.substring(failed.output.length - 800)
-                : failed.output;
-            print(tail.split('\n').take(20).join('\n'));
-          }
-          _printSummary(
-            behavior: record.behaviorId,
-            outcome: MakeOutcome.generationError,
-            feature: target.featureName,
-          );
-          exitCode = 1;
-          return;
-        }
-      }
-
-      // 8. Target test post-generation (FR-007). When the terminal
-      //    build step was tolerated (issue #737) the per-behavior
-      //    guard's passing run IS the post-generation target run.
-      if (!buildStepTolerated) {
-        postRun = await runner.runSingle(
-          singleTemplate: singleTemplate,
-          testPath: testPath,
-          testName: testName,
-          workingDirectory: cwd,
-        );
-        print('   target test exit: ${postRun.exitCode}');
-        if (postRun.exitCode != 0) {
-          print(
-            'zfa tdd make: target test still fails after generation '
-            '(exit ${postRun.exitCode}).',
-          );
-          _printSummary(
-            behavior: record.behaviorId,
-            outcome: MakeOutcome.generationError,
-            feature: target.featureName,
-          );
-          exitCode = 1;
-          return;
-        }
-      }
-    }
-
-    // ---------------------------------------------------------------
-    // 9. Suite guard (FR-007, US3). Issue #741: the skip transition
-    //    runs no guard (nothing was generated, so no NEW failure is
-    //    attributable to this make); with a run-cached baseline the
-    //    guard is certified from the scoped single-test result, falling
-    //    back to the live full-suite guard only when that transcript is
-    //    unusable (safe failure — never a silent pass).
-    // ---------------------------------------------------------------
-    SuiteSnapshot? guardSnap;
-    var regressed = const <String>[];
-    if (!alreadyGreen) {
-      if (baselineFromCache) {
-        final scopedGuard = guard.parse(
-          command: postRun.command,
-          exitCode: postRun.exitCode,
-          output: postRun.output,
-          capturedAt: DateTime.now().toUtc().toIso8601String(),
-        );
-        if (scopedGuard.parseable) {
-          print(
-            '   suite guard: scoped single-test result (issue #741 '
-            'baseline cache)',
-          );
-          guardSnap = scopedGuard;
-        } else {
-          print(
-            '   scoped guard transcript unusable — falling back to the '
-            'live suite',
-          );
-        }
-      }
-      if (guardSnap == null) {
-        final guardRun = await runner.runSuite(
-          suiteTemplate: suiteTemplate,
-          workingDirectory: cwd,
-        );
-        final liveGuard = guard.fromRunRecord(
-          record: guardRun,
-          capturedAt: DateTime.now().toUtc().toIso8601String(),
-        );
-        if (!guardRun.startedProcess ||
-            !liveGuard.parseable ||
-            liveGuard.exitCode != 0 && liveGuard.failedTests.isEmpty) {
-          print(
-            'zfa tdd make: cannot parse the suite output to identify failing '
-            'tests. Refusing to certify — the suite guard is a safe-failure '
-            '(never a silent pass).',
-          );
-          _printSummary(
-            behavior: record.behaviorId,
-            outcome: MakeOutcome.runnerError,
-            feature: target.featureName,
-          );
-          exitCode = 1;
-          return;
-        }
-        guardSnap = liveGuard;
-      }
-      final baselineSnapshot = baseline!;
-      final diff = guard.diff(baseline: baselineSnapshot, guard: guardSnap);
-      // Issue #731: scope the regression verdict to failures THIS make
-      // could have caused. The name-diff alone false-positives when the
-      // suite already carries pre-existing red behaviors (e.g. deferred
-      // acceptance tests): a red test's failing-test IDENTIFIER may vary
-      // between the baseline and guard runs (dynamic test names), so the
-      // guard sees a "new" failure that is really the same pre-existing
-      // red behavior — and an already-green target's make reported
-      // `regression` instead of `skipped`, deadlocking `tdd run`.
-      regressed = _regressionsAttributableToThisMake(
-        baseline: baselineSnapshot,
-        newFailures: diff.newFailures,
-        testPath: testPath,
-      );
-      if (regressed.length < diff.newFailures.length) {
-        final tolerated = diff.newFailures
-            .where((id) => !regressed.contains(id))
-            .toList();
         print(
-          '   suite guard: ${tolerated.length} failing id(s) belong to files '
-          'already red at baseline — pre-existing red behaviors, tolerated '
-          '(issue #731):',
+          'zfa tdd make: generation step failed at index $idx'
+          '${failed != null ? ' (${failed.purpose})' : ''}:',
         );
-        for (final id in tolerated) {
-          print('   - $id');
+        if (failed != null) {
+          print('   command: `${failed.command}`');
+          print('   exit: ${failed.exitCode}');
+          print('   output (tail):');
+          final tail = failed.output.length > 800
+              ? failed.output.substring(failed.output.length - 800)
+              : failed.output;
+          print(tail.split('\n').take(20).join('\n'));
         }
-      }
-      if (regressed.isNotEmpty) {
-        print(
-          'zfa tdd make: regression detected — ${regressed.length} '
-          'NEW failure(s) introduced by the generation:',
-        );
-        for (final id in regressed) {
-          print('   - $id');
-        }
-        print('   generated source left in place for inspection.');
         _printSummary(
           behavior: record.behaviorId,
-          outcome: MakeOutcome.regression,
+          outcome: MakeOutcome.generationError,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+
+      // 8. Target test post-generation (FR-007).
+      postRun = await runner.runSingle(
+        singleTemplate: singleTemplate,
+        testPath: testPath,
+        testName: testName,
+        workingDirectory: cwd,
+      );
+      print('   target test exit: ${postRun.exitCode}');
+      if (postRun.exitCode != 0) {
+        print(
+          'zfa tdd make: target test still fails after generation '
+          '(exit ${postRun.exitCode}).',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.generationError,
           feature: target.featureName,
         );
         exitCode = 1;
@@ -624,14 +419,56 @@ class MakeCommand extends Command<void> {
     }
 
     // ---------------------------------------------------------------
+    // 9. Suite guard (FR-007, US3).
+    // ---------------------------------------------------------------
+    final guardRun = await runner.runSuite(
+      suiteTemplate: suiteTemplate,
+      workingDirectory: cwd,
+    );
+    final guardSnap = guard.fromRunRecord(
+      record: guardRun,
+      capturedAt: DateTime.now().toUtc().toIso8601String(),
+    );
+    final diff = guard.diff(baseline: baseline, guard: guardSnap);
+    if (!guardRun.startedProcess ||
+        !guardSnap.parseable ||
+        guardSnap.exitCode != 0 && guardSnap.failedTests.isEmpty) {
+      print(
+        'zfa tdd make: cannot parse the suite output to identify failing '
+        'tests. Refusing to certify — the suite guard is a safe-failure '
+        '(never a silent pass).',
+      );
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: MakeOutcome.runnerError,
+        feature: target.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+    if (diff.hasNewFailures) {
+      print(
+        'zfa tdd make: regression detected — ${diff.newFailures.length} '
+        'NEW failure(s) introduced by the generation:',
+      );
+      for (final id in diff.newFailures) {
+        print('   - $id');
+      }
+      print('   generated source left in place for inspection.');
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: MakeOutcome.regression,
+        feature: target.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // ---------------------------------------------------------------
     // 10. Green evidence append (FR-008). For the issue #694 skip
     //     transition the generation block is explicitly empty and the
-    //     evidence command is the drift re-run. Issue #741: on the skip
-    //     transition no suite ran, so the suite numbers record the
-    //     honest zeros (nothing generated → no suite risk taken); with
-    //     a run-cached baseline the baseline number is the cached
-    //     snapshot's and the guard number is the scoped single-test
-    //     result's. Every number is real, from the run that produced it.
+    //     evidence command is the drift re-run; the suite baseline /
+    //     guard numbers are real either way.
     // ---------------------------------------------------------------
     final log = CycleLog(target.featureDir);
     await log.append(
@@ -645,9 +482,9 @@ class MakeCommand extends Command<void> {
         testPath: record.testPath,
         timestamp: DateTime.now().toUtc().toIso8601String(),
         generationSteps: pipelineResult?.steps ?? const [],
-        suiteBaselineFailures: baseline?.failedTests.length ?? 0,
-        suiteGuardFailures: guardSnap?.failedTests.length ?? 0,
-        suiteNewFailures: regressed,
+        suiteBaselineFailures: baseline.failedTests.length,
+        suiteGuardFailures: guardSnap.failedTests.length,
+        suiteNewFailures: diff.newFailures,
       ),
     );
     print(
@@ -656,9 +493,7 @@ class MakeCommand extends Command<void> {
     );
     _printSummary(
       behavior: record.behaviorId,
-      outcome: alreadyGreen || buildStepTolerated
-          ? MakeOutcome.skipped
-          : MakeOutcome.green,
+      outcome: alreadyGreen ? MakeOutcome.skipped : MakeOutcome.green,
       feature: target.featureName,
     );
     exitCode = 0;
@@ -707,56 +542,6 @@ class MakeCommand extends Command<void> {
     return const CompositionPlanner().plan(summary, anchors);
   }
 
-  // -------------------------------------------------------------------
-  // Per-behavior guard for the make plan's terminal build step
-  // (issue #737).
-  // -------------------------------------------------------------------
-
-  /// The per-behavior guard for the make plan's terminal `build` step
-  /// (issue #737). Returns the passing target-test [RunRecord] when the
-  /// tolerance engages, null otherwise (the honest `generation-error`
-  /// stop stands).
-  ///
-  /// The plan's terminal `build` step validates the WHOLE project, so
-  /// its non-zero exit can reflect pre-existing red suite state or
-  /// build-config noise rather than this behavior's generation. The
-  /// tolerance engages only when ALL of the following hold:
-  ///
-  ///   - the pipeline failed at the plan's TERMINAL step (an earlier
-  ///     failure means real generation work never ran — no tolerance);
-  ///   - that step is a `build` step (the #737 scope: the make plan's
-  ///     build/guard logic only);
-  ///   - the CURRENT behavior's own test — the profile `single`
-  ///     command, e.g. `dart test test/tdd/u3_test.dart` — runs and
-  ///     passes right now (the same per-behavior check the TDD loop is
-  ///     built on; it also compiles the scaffolded subject, so broken
-  ///     generated code still fails here).
-  ///
-  /// Anything else (launch failure, red target test, non-build step)
-  /// returns null: safe-failure, never a silent pass.
-  Future<RunRecord?> _toleratedTerminalBuildFailure({
-    required SingleTestRunner runner,
-    required GenerationPlan plan,
-    required PipelineResult result,
-    required String singleTemplate,
-    required String testPath,
-    required String testName,
-    required String workingDirectory,
-  }) async {
-    final idx = result.firstFailureIndex;
-    if (idx < 0 || idx != plan.steps.length - 1) return null;
-    final args = plan.steps[idx].args;
-    if (args.isEmpty || args.first != 'build') return null;
-    final run = await runner.runSingle(
-      singleTemplate: singleTemplate,
-      testPath: testPath,
-      testName: testName,
-      workingDirectory: workingDirectory,
-    );
-    if (!run.startedProcess || run.exitCode != 0) return null;
-    return run;
-  }
-
   /// The behavior description the planner will see. The fixture's
   /// registry record carries only the runnable test name composite
   /// (`file::id::description`) — extract the description segment.
@@ -786,73 +571,37 @@ class MakeCommand extends Command<void> {
         : segments.last;
   }
 
-  // -----------------------------------------------------------------
-  // Suite-guard regression scoping (issue #731).
-  // -----------------------------------------------------------------
-
-  /// The NEW failures (guard − baseline, by name) that THIS make can
-  /// be held responsible for (issue #731). A new failing identifier is
-  /// a regression only when
-  ///
-  ///   - it lives in the current behavior's own test file — the file
-  ///     this make owns, so any new red in it is this make's doing; or
-  ///   - its file had NO failures at baseline — the whole file was
-  ///     passing before this make, so a red there is a genuine
-  ///     collateral regression.
-  ///
-  /// Failures confined to a file that was ALREADY red at baseline
-  /// belong to a pre-existing red behavior (e.g. an acceptance test
-  /// deferred to phase 2). Such a behavior stays red across the whole
-  /// cycle by design, and its failing-test identifier may even vary
-  /// between the two suite runs (dynamic test names), so it never
-  /// blocks this make: if only the current behavior's test passes,
-  /// the make certifies green/skipped regardless of other behaviors
-  /// being red.
-  List<String> _regressionsAttributableToThisMake({
-    required SuiteSnapshot baseline,
-    required List<String> newFailures,
-    required String testPath,
-  }) {
-    final baselineRedFiles = baseline.failedTests.map(_testFileOf).toSet();
-    final regressed = <String>[];
-    for (final id in newFailures) {
-      final file = _testFileOf(id);
-      final inCurrentBehaviorFile = _sameTestFile(testPath, file);
-      final fileWasAlreadyRed = baselineRedFiles.any(
-        (redFile) => _sameTestFile(file, redFile),
-      );
-      if (inCurrentBehaviorFile || !fileWasAlreadyRed) {
-        regressed.add(id);
+  /// The behavior's loop kind for the make dispatch (bug #723). The
+  /// feature's test-list row is the kind source of truth (the shared
+  /// [TestListReader] contract — the same source the composition
+  /// fallback uses); when the row or the list is missing or malformed,
+  /// the repo's id convention decides (`A<n>` acceptance / `U<n>` unit —
+  /// the spec-parser id scheme `zfa tdd plan` reconciles by). Null keeps
+  /// the pre-#723 description-keyed dispatch.
+  Future<BehaviorKind?> _kindFor({
+    required String featureDir,
+    required ArtifactRecord record,
+  }) async {
+    try {
+      for (final row in await TestListReader(featureDir).read()) {
+        if (row.id == record.behaviorId) return row.kind;
       }
+    } on TestListReadException {
+      // Fail soft here: the list is the planner's kind hint, not a
+      // precondition (make's own preconditions were already enforced).
+      // The id convention below keeps the dispatch correct for the
+      // list-less fixtures and brownfield features.
     }
-    return regressed;
+    return _kindFromId(record.behaviorId);
   }
 
-  /// The test-file path embedded in a failing-test identifier (or in a
-  /// target test path). Handles the three shapes the suite transcript
-  /// produces:
-  ///
-  ///   - progress lines: `test/foo_test.dart: group name test name`
-  ///     (everything before the first `:` is the file);
-  ///   - load failures: `loading test/foo_test.dart`;
-  ///   - target test paths, which are already bare file paths.
-  String _testFileOf(String id) {
-    var s = id.trim();
-    const loading = 'loading ';
-    if (s.startsWith(loading)) s = s.substring(loading.length);
-    final idx = s.indexOf(':');
-    if (idx > 0) s = s.substring(0, idx);
-    return s.trim();
-  }
-
-  /// Whether two test-file paths denote the same file. Paths compared
-  /// may mix absolute target paths with runner-printed relative ones,
-  /// so the match is a boundary-aware suffix match (the `/` boundary
-  /// keeps `xu2_test.dart` from matching `u2_test.dart`).
-  bool _sameTestFile(String a, String b) {
-    final x = a.replaceAll(r'\', '/');
-    final y = b.replaceAll(r'\', '/');
-    return x == y || x.endsWith('/$y') || y.endsWith('/$x');
+  /// The id-convention kind: `A<n>` acceptance, `U<n>` unit (the
+  /// spec-parser id scheme; `zfa tdd plan` reconciles by the same
+  /// prefix rule). Null for ids outside the scheme.
+  static BehaviorKind? _kindFromId(String id) {
+    final m = RegExp(r'^([AU])\d+$').firstMatch(id);
+    if (m == null) return null;
+    return m.group(1) == 'A' ? BehaviorKind.acceptance : BehaviorKind.unit;
   }
 
   Future<_ResolvedTarget> _resolveTarget(
