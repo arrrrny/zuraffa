@@ -293,6 +293,110 @@ dependencies:
     });
   });
 
+  group('GenCommand — stale stub after binary change (bug #683)', () {
+    test(
+      'reused/reused with a stub from an OLDER binary regenerates the stub',
+      () async {
+        await seedSpecAndTestList();
+        final runner = CliRunner(exitOnCompletion: false);
+        // Run 1: current binary writes stub v1 (registry + files created).
+        await runner.runCapturing(genArgs('B-003'));
+
+        final subjectPath = p.join(
+          tmpDir.path,
+          'lib',
+          'tdd',
+          'b_003_subject.dart',
+        );
+        final v1 = await File(subjectPath).readAsString();
+
+        // Simulate an OLDER binary: the stub on disk was written by a
+        // previous binary whose stub template differed (still an honest
+        // UnimplementedError stub, but not what the CURRENT binary would
+        // render). This is the post-rebuild state from the issue: the
+        // binary was rebuilt with a fix, the stub predates it.
+        final staleStub = v1.replaceFirst(
+          '// GENERATED STUB — `zfa tdd gen B-003`',
+          '// GENERATED STUB — `zfa tdd gen B-003` (older binary)',
+        );
+        expect(staleStub, isNot(v1), reason: 'fixture must alter the stub');
+        await File(subjectPath).writeAsString(staleStub);
+
+        // Run 2: gen must NOT return a silent reused/reused that leaves
+        // the stale stub in place — it must regenerate the stub with the
+        // current binary's content and print a note.
+        final out2 = await runner.runCapturing(genArgs('B-003'));
+        expect(out2, contains('binary updated, stub regenerated'));
+
+        final after = await File(subjectPath).readAsString();
+        expect(
+          after,
+          v1,
+          reason: 'stub must be regenerated to the current binary content',
+        );
+        // The regenerated stub is still an honest stub (no implementation).
+        expect(after, contains('UnimplementedError'));
+      },
+    );
+
+    test('reused/reused with content identical to the current render skips '
+        'silently (no note, no rewrite)', () async {
+      await seedSpecAndTestList();
+      final runner = CliRunner(exitOnCompletion: false);
+      await runner.runCapturing(genArgs('B-003'));
+
+      final subjectPath = p.join(
+        tmpDir.path,
+        'lib',
+        'tdd',
+        'b_003_subject.dart',
+      );
+      final before = await File(subjectPath).readAsString();
+
+      final out2 = await runner.runCapturing(genArgs('B-003'));
+      expect(out2.toLowerCase(), contains('ownership: reused'));
+      // No spurious regeneration when the binary has not changed.
+      expect(out2, isNot(contains('binary updated, stub regenerated')));
+      final after = await File(subjectPath).readAsString();
+      expect(after, before);
+    });
+
+    test('a PROGRESSED subject (func-scaffolded implementation) is never '
+        'clobbered by the staleness check', () async {
+      await seedSpecAndTestList();
+      final runner = CliRunner(exitOnCompletion: false);
+      await runner.runCapturing(genArgs('B-003'));
+
+      final subjectPath = p.join(
+        tmpDir.path,
+        'lib',
+        'tdd',
+        'b_003_subject.dart',
+      );
+      // Simulate `zfa tdd func` scaffolding: UnimplementedError replaced
+      // by a minimal implementation derived from the description
+      // ("returns 42 when invoked with no args").
+      const implemented = '''
+// Scaffolded implementation.
+
+library;
+
+/// Subject for behavior B-003.
+int sampleSubject() {
+  return 42;
+}
+''';
+      await File(subjectPath).writeAsString(implemented);
+
+      final out2 = await runner.runCapturing(genArgs('B-003'));
+      expect(out2.toLowerCase(), contains('ownership: reused'));
+      expect(out2, isNot(contains('binary updated, stub regenerated')));
+      // The implementation survives — regenerating it would regress
+      // the behavior back to red (the exact failure mode of #683).
+      expect(await File(subjectPath).readAsString(), implemented);
+    });
+  }, timeout: const Timeout(Duration(minutes: 3)));
+
   group('GenCommand — ownership conflict (US2.AC2 / FR-008)', () {
     test(
       'file exists with no registry entry → exit non-zero, file unchanged',
