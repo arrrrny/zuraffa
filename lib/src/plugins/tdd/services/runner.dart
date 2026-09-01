@@ -93,7 +93,7 @@ class SingleTestRunner {
     ).firstMatch(raw);
     if (keysBlock != null) {
       final single = _firstMatchValue(
-        r'''^\s*single:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))\s*$''',
+        r'''^\s*single:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))\s*$''',
         keysBlock.group(1)!,
       );
       if (single != null && single.isNotEmpty) {
@@ -118,7 +118,7 @@ class SingleTestRunner {
       final frontmatter = frontmatterBlock.group(1)!;
       // Try top-level `single:` first.
       var single = _firstMatchValue(
-        r'''^\s*single:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))\s*$''',
+        r'''^\s*single:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))\s*$''',
         frontmatter,
       );
       if (single != null && single.isNotEmpty) {
@@ -128,7 +128,7 @@ class SingleTestRunner {
       // indented under their nesting labels; drop ^ anchor so any indentation
       // level is matched). Also handles bare top-level `single:` in flat YAML.
       final nestedSingle = _firstMatchValue(
-        r'''^\s*single:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))''',
+        r'''^\s*single:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))''',
         frontmatter,
       );
       if (nestedSingle != null && nestedSingle.isNotEmpty) {
@@ -171,7 +171,7 @@ class SingleTestRunner {
     ).firstMatch(raw);
     if (keysBlock != null) {
       final suite = _firstMatchValue(
-        r'''^\s*suite:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))\s*$''',
+        r'''^\s*suite:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))\s*$''',
         keysBlock.group(1)!,
       );
       if (suite != null && suite.isNotEmpty) {
@@ -193,7 +193,7 @@ class SingleTestRunner {
       final frontmatter = frontmatterBlock.group(1)!;
       // Try top-level `suite:` first.
       var suite = _firstMatchValue(
-        r'''^\s*suite:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))\s*$''',
+        r'''^\s*suite:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))\s*$''',
         frontmatter,
       );
       if (suite != null && suite.isNotEmpty) {
@@ -201,7 +201,7 @@ class SingleTestRunner {
       }
       // Fall back to `stacks: <label>:\s+suite:` nesting.
       final nestedSuite = _firstMatchValue(
-        r'''^\s*suite:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))''',
+        r'''^\s*suite:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))''',
         frontmatter,
       );
       if (nestedSuite != null && nestedSuite.isNotEmpty) {
