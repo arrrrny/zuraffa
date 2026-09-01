@@ -848,4 +848,118 @@ One per functional requirement in `spec.md`.
     // re-attempt.
     expect(fx.stepInvocations().where((l) => l == 'make B-002'), hasLength(2));
   });
+
+  test('bug 682: a fresh run bootstraps run-state from existing cycle-log '
+      'evidence instead of re-driving certified behaviors', () async {
+    // Brownfield feature: no run-state.json yet, but the cycle log already
+    // certifies B-001 (red+green) and carries red-only evidence for B-002;
+    // B-003 has no evidence at all. FR-003 (evidence beats state) must
+    // promote the reconciled states instead of treating the feature as
+    // never-started.
+    await fx.seedRedEvidence('B-001');
+    await fx.seedGreenEvidence('B-001');
+    await fx.seedRedEvidence('B-002');
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    // B-001 (red+green -> done) is skipped entirely; B-002 (red)
+    // re-enters at make; B-003 (no evidence) drives the full cycle.
+    expect(fx.stepInvocations(), [
+      'make B-002',
+      'refactor B-002',
+      'gen B-003',
+      'verify-red B-003',
+      'make B-003',
+      'refactor B-003',
+    ]);
+    expect(out, contains('1 already done — skipping'));
+    final state = await readState();
+    expect(state['behavior_states'] as Map<String, dynamic>, {
+      'B-001': 'done',
+      'B-002': 'done',
+      'B-003': 'done',
+    });
+  });
+
+  test('bug 682: an all-pending run-state.json with complete evidence '
+      'promotes every behavior to done and drives nothing', () async {
+    // The issue's exact repro state: run-state.json exists, every behavior
+    // claimed pending, while the cycle log certifies red AND green for all
+    // of them. Nothing may be re-driven; the state file must be reconciled
+    // to done.
+    for (final id in const ['B-001', 'B-002', 'B-003']) {
+      await fx.seedRedEvidence(id);
+      await fx.seedGreenEvidence(id);
+    }
+    await fx.seedRunState(
+      states: {'B-001': 'pending', 'B-002': 'pending', 'B-003': 'pending'},
+    );
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    expect(fx.stepInvocations(), isEmpty);
+    expect(out, contains('3 already done — skipping'));
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 '
+        'green=0 done=3',
+      ),
+      reason: out,
+    );
+    final state = await readState();
+    expect(state['behavior_states'] as Map<String, dynamic>, {
+      'B-001': 'done',
+      'B-002': 'done',
+      'B-003': 'done',
+    });
+  });
+
+  test('bug 682: green-only evidence promotes to green and the owed '
+      'refactor honestly misfires while red evidence is missing', () async {
+    // The issue's mapping, green-only -> green (make certified, refactor
+    // outstanding), composed with the pre-existing honesty contract: the
+    // bootstrap must not fabricate the missing red half, so the resumed
+    // refactor certifies and then fails the evidence check (FR-003/
+    // FR-011) — the behavior stays GREEN and the run stops naming it.
+    await fx.seedGreenEvidence('B-001');
+    await fx.seedRedEvidence('B-002');
+
+    final out = await drive();
+
+    expect(fx.stepInvocations(), [
+      'make B-002',
+      'refactor B-002',
+      'gen B-003',
+      'verify-red B-003',
+      'make B-003',
+      'refactor B-003',
+      'refactor B-001',
+    ]);
+    expect(
+      out,
+      contains(
+        'refactor certified but evidence for "B-001" is incomplete in '
+        'tdd/cycle-log.md (red: false, green: true)',
+      ),
+      reason: out,
+    );
+    expect(
+      out,
+      contains(
+        'result=runner-error pending=0 red=0 green=1 done=2 '
+        'stopped_at=B-001:refactor',
+      ),
+      reason: out,
+    );
+    expect(exitCode, 2);
+    final state = await readState();
+    expect(state['behavior_states'] as Map<String, dynamic>, {
+      'B-001': 'green',
+      'B-002': 'done',
+      'B-003': 'done',
+    });
+  });
 }

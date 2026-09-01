@@ -50,9 +50,14 @@
 /// where it stopped.
 ///
 /// Honesty rules:
-/// - Evidence beats state: a behavior is DONE only when its red AND green
-///   entries exist in `tdd/cycle-log.md`; a state-file claim without
-///   evidence is demoted to the evidence-backed state (FR-003).
+/// - Evidence beats state, in both directions: a behavior is DONE only when
+///   its red AND green entries exist in `tdd/cycle-log.md`; a state-file
+///   claim without evidence is demoted to the evidence-backed state, and —
+///   when no in-flight marker marks the file as an interrupted run — a
+///   pending (or missing) claim with evidence is promoted to it (FR-003;
+///   bug #682 — a missing or all-pending `run-state.json` bootstraps from
+///   existing brownfield evidence instead of re-driving certified
+///   behaviors).
 /// - Any step failure stops the run immediately, non-zero: the behavior is
 ///   left at its last fully-completed state, the failing step and outcome
 ///   are named, later behaviors never start, and resume instructions are
@@ -405,9 +410,20 @@ class RunCommand extends Command<void> {
   // -------------------------------------------------------------------
 
   /// Merge loaded state with the current test list: new rows enter as
-  /// PENDING, removed rows are retained (dropped), and a DONE claim
-  /// without both red and green evidence demotes to the highest
-  /// evidence-backed state. In-flight markers survive the merge.
+  /// PENDING, removed rows are retained (dropped), DONE claims without
+  /// complete evidence demote, and — when the state file carries no
+  /// in-flight marker — PENDING claims (including the missing-row default
+  /// from `RunState.empty()`) with evidence promote to the evidence-backed
+  /// state (red+green -> DONE, green -> GREEN, red -> RED, none ->
+  /// PENDING). That promotion is the bug #682 bootstrap: a brownfield
+  /// feature with complete `tdd/cycle-log.md` evidence but no (or an
+  /// all-pending) `run-state.json` is recognized as certified instead of
+  /// being re-driven from gen. A marked file describes an interrupted run
+  /// instead — it resumes by its claims (U23), so promotion is gated off
+  /// there. RED and GREEN claims keep their resume semantics (re-enter at
+  /// make / refactor) either way. In-flight markers survive the merge. A
+  /// re-prove of a certified behavior clears its cycle-log evidence (the
+  /// certification source), not the state file.
   RunState _reconcile(
     RunState state,
     List<BehaviorRow> rows,
@@ -415,10 +431,12 @@ class RunCommand extends Command<void> {
     Set<String> green,
   ) {
     final states = Map<String, BehaviorState>.from(state.behaviorStates);
+    final bootstrappable = state.inFlightBehaviorId == null;
     for (final row in rows) {
       final claimed = states[row.id] ?? BehaviorState.pending;
       var effective = claimed;
-      if (claimed == BehaviorState.done) {
+      if (claimed == BehaviorState.done ||
+          (bootstrappable && claimed == BehaviorState.pending)) {
         final hasRed = red.contains(row.id);
         final hasGreen = green.contains(row.id);
         if (hasRed && hasGreen) {
