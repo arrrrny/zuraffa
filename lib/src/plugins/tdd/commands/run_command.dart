@@ -664,6 +664,18 @@ class RunCommand extends Command<void> {
           print('[run] ${row.id} make -> deferred (phase 2)');
           return (state: updated, stop: null);
         }
+        // Bug #691: `unexpected-green` — verify-red on a target test that
+        // ALREADY passes — means the behavior is complete from prior
+        // work, not a failure. Skip to make instead of stopping the run:
+        // the window continues with make, whose drift check re-verifies
+        // the green (a `drift` outcome is make's honest "already green"
+        // report), and refactor proceeds as usual.
+        if (step == 'verify-red' && result.outcome == 'unexpected-green') {
+          updated = updated.advance(row.id, state);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          print('[run] ${row.id} verify-red -> skipped (already green)');
+          continue;
+        }
         // Honest stop (FR-007): leave the behavior at its last completed
         // state, name what failed, never start later behaviors. A
         // runner-error outcome (spawn/tooling failure) is its own class
