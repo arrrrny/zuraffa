@@ -34,7 +34,7 @@ void main() {
       'unmet capability, no evidence', () async {
     await fx.seedCertifiedRed(
       id: 'B-042',
-      description: 'parse bespoke DSL syntax with no generator surface',
+      description: 'provision bespoke DSL syntax with no generator surface',
     );
     final zfaBin = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
 
@@ -115,7 +115,7 @@ void main() {
       'log unchanged', () async {
     await fx.seedCertifiedRed(
       id: 'B-042',
-      description: 'parse bespoke DSL syntax with no generator surface',
+      description: 'provision bespoke DSL syntax with no generator surface',
     );
     final beforeChecksums = fx.checksumTestAndLib();
     final zfaBin = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);

@@ -93,12 +93,15 @@ void main() {
 
     test('U7: an unmappable behavior yields an unexpressibleReason naming '
         'the unmet capability in behavior terms', () {
+      // Bug #657: verb phrases like "parse" now map to the `tdd func`
+      // generator surface, so the unmappable case here uses a verb that
+      // carries no function-generation intent.
       final plan = planner.plan(
         const BehaviorSummary(
           behaviorId: 'B-042',
           feature: '047-tdd-make',
           sourceCriterion: 'FR-005',
-          description: 'parse bespoke DSL syntax with no generator surface',
+          description: 'provision bespoke DSL syntax with no generator surface',
         ),
       );
       expect(plan.isExpressible, isFalse);
@@ -140,6 +143,99 @@ void main() {
       expect(bad.isExpressible, isFalse);
       expect(bad.unexpressibleReason, isNotNull);
       expect(bad.steps, isEmpty);
+    });
+  });
+
+  group('GenerationPlanner — bug 657: function-intent behaviors map to the '
+      '`tdd func` generator surface', () {
+    test('U8-657: a render-type behavior maps to a plan whose first step '
+        'is `tdd func <id>` and whose last step is `build` (spec 004 U1 '
+        'shape)', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'U1',
+          feature: '004-cloud-agent-task-dispatch',
+          sourceCriterion: 'FR-001',
+          description:
+              'render returns a non-empty string for a fully '
+              'populated task',
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      expect(plan.steps.first.args, ['tdd', 'func', 'U1']);
+      // Every expressible plan still terminates in a `build` step (U5).
+      expect(plan.steps.last.args, contains('build'));
+      expect(plan.unexpressibleReason, isNull);
+    });
+
+    test('U9-657: every function-intent verb phrase maps to the func '
+        'surface (render, format, parse, compute, convert, return)', () {
+      for (final desc in [
+        'render returns a non-empty string for a fully populated task',
+        'format the timestamp as an ISO string',
+        'parse the raw payload into a map',
+        'compute the total price for the cart',
+        'convert the record into a row',
+        'return true when the task is fully populated',
+      ]) {
+        final plan = planner.plan(
+          BehaviorSummary(
+            behaviorId: 'B-fn',
+            feature: 'f',
+            sourceCriterion: 'FR-005',
+            description: desc,
+          ),
+        );
+        expect(plan.isExpressible, isTrue, reason: desc);
+        expect(plan.steps.first.args, ['tdd', 'func', 'B-fn'], reason: desc);
+      }
+    });
+
+    test('U10-657: entity and CRUD/use-case surfaces take precedence — a '
+        'description carrying both an entity and a function verb still '
+        'maps to `entity create`', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'B-both',
+          feature: 'f',
+          sourceCriterion: 'FR-005',
+          description: 'create entity Invoice with totals to render',
+        ),
+      );
+      expect(plan.isExpressible, isTrue);
+      expect(plan.steps.first.args, ['entity', 'create', '-n', 'Invoice']);
+    });
+
+    test('U11-657: a behavior whose description carries no function-intent '
+        'verb stays unexpressible (spec 003 U3 shape) — the non-stop '
+        'fallback handles it downstream', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'U3',
+          feature: '003-user-communication-interface',
+          sourceCriterion: 'FR-003',
+          description:
+              'system must provide a conversational interface '
+              'between the operator',
+        ),
+      );
+      expect(plan.isExpressible, isFalse);
+      expect(plan.steps, isEmpty);
+      expect(plan.unexpressibleReason, isNotNull);
+    });
+
+    test('U12-657: the shared function-intent matcher scans past framing '
+        'words', () {
+      expect(
+        GenerationPlanner.functionIntentVerb(
+          'The operator must parse the raw payload',
+        ),
+        'parse',
+      );
+      expect(
+        GenerationPlanner.functionIntentVerb('Provision bespoke DSL syntax'),
+        isNull,
+      );
     });
   });
 }
