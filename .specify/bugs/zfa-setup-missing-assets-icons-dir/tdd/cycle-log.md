@@ -27,8 +27,8 @@ session that produced the branch
 ## Cycle 1 — R1: directory created when brand asset source is absent
 
 - RED (fix not yet written; new regression group added to
-  `test/core/branding/branding_writer_test.dart` at `505969d4`; full output
-  in `red-evidence.log`):
+  `test/core/branding/branding_writer_test.dart` at `505969d4`; output
+  verbatim below):
   - Command: `dart test test/core/branding/branding_writer_test.dart`
   - Output (3 of the 4 new tests fail; R3 is the no-injection freeze and
     passes on both sides):
@@ -57,6 +57,21 @@ session that produced the branch
   `_updatePubspecAssets`: create the referenced directory before the entry is
   written or kept):
   - Command: `dart test test/core/branding/branding_writer_test.dart`
-  - Output: `00:00 +15: All tests passed!` (full output in
-    `green-evidence.log`)
+  - Output: `00:00 +15: All tests passed!`
 - Refactor: none required (`dart format` clean, `dart analyze` clean).
+
+## Test strength sampling (deliberate mutants, post-green)
+
+No mutation tool is wired for this repo (tdd-profile), so deliberate mutants
+were sampled on the changed surface (`_updatePubspecAssets` in
+`lib/src/core/branding/branding_writer.dart`). Each mutant was restored
+exactly (verified with `git diff`) and the suite re-run green before the next
+step.
+
+| Mutant | Expected guard | Result |
+| ------ | -------------- | ------ |
+| Mutant 1 — directory-creation guard dropped (`if (false && !iconsDir.existsSync()) ... createSync`) — reinstates the bug | R1/R2/R4 directory-exists assertions | CAUGHT — exit 1, `+12 -3`: exactly the 3 regression tests fail (R1 "the referenced directory must exist", R2 "must repair the dangling entry", R4 "entry and directory must stay in sync") |
+| Mutant 2 — pubspec injection disabled (`willInject = false && ...`) — the entry is never written | R1/R4 pubspec-entry assertions (and pre-existing U4) | CAUGHT — exit 1, `+13 -2`: R1 and R4 fail on the missing `assets/zuraffa_app_icons/` reference; R2 correctly unaffected (its pubspec already carries the entry) |
+
+Sampled: 2 mutants, both caught. Restore verified: suite green (`00:00 +15:
+All tests passed!`) after each mutant.
