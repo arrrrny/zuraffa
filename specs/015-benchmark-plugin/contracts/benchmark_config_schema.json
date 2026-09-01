@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zuraffa.dev/schemas/benchmark-scenario-config.json",
+  "title": "Benchmark Scenario Configuration",
+  "type": "object",
+  "description": "Configuration schema for a benchmark scenario. This is validated against the scenario's configSchema at registration time.",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Unique identifier (kebab-case)"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable name"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.-]+)?(\\+[a-zA-Z0-9.-]+)?$",
+      "description": "Semantic version"
+    },
+    "description": {
+      "type": "string",
+      "description": "What this benchmark measures"
+    },
+    "configSchema": {
+      "type": "object",
+      "description": "JSON Schema for scenario-specific configuration",
+      "additionalProperties": true
+    },
+    "thresholds": {
+      "type": "object",
+      "description": "Threshold configurations per metric",
+      "additionalProperties": {
+        "$ref": "#/$defs/thresholdConfig"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Categorization tags"
+    }
+  },
+  "required": ["id", "name", "version"],
+  "additionalProperties": false,
+  "$defs": {
+    "thresholdConfig": {
+      "type": "object",
+      "properties": {
+        "metric": {
+          "type": "string",
+          "description": "Metric name (standard or custom)"
+        },
+        "operator": {
+          "type": "string",
+          "enum": ["lt", "lte", "gt", "gte"],
+          "description": "Comparison operator"
+        },
+        "value": {
+          "type": "number",
+          "description": "Threshold value"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["error", "warn"],
+          "description": "Failure severity"
+        }
+      },
+      "required": ["metric", "operator", "value", "severity"],
+      "additionalProperties": false
+    }
+  }
+}

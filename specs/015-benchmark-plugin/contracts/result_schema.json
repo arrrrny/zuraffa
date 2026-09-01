@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zuraffa.dev/schemas/benchmark-result.json",
+  "title": "Benchmark Result",
+  "type": "object",
+  "description": "Structured output of a single benchmark scenario execution",
+  "properties": {
+    "scenarioId": {
+      "type": "string",
+      "description": "ID of the executed scenario"
+    },
+    "scenarioName": {
+      "type": "string",
+      "description": "Name of the scenario"
+    },
+    "scenarioVersion": {
+      "type": "string",
+      "description": "Version of the scenario"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["passed", "failed", "error", "skipped"],
+      "description": "Execution status"
+    },
+    "metrics": {
+      "type": "object",
+      "description": "All collected metrics",
+      "additionalProperties": { "type": "number" },
+      "properties": {
+        "latency_p50": { "type": "number", "description": "Median latency (ms)" },
+        "latency_p95": { "type": "number", "description": "95th percentile latency (ms)" },
+        "latency_p99": { "type": "number", "description": "99th percentile latency (ms)" },
+        "throughput_ops_sec": { "type": "number", "description": "Operations per second" },
+        "memory_mb": { "type": "number", "description": "Peak memory usage (MB)" },
+        "cpu_percent": { "type": "number", "description": "CPU utilization (%)" }
+      }
+    },
+    "thresholdViolations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/thresholdViolation" },
+      "description": "Thresholds that were exceeded"
+    },
+    "duration": {
+      "type": "integer",
+      "description": "Wall-clock execution time in milliseconds"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the benchmark ran (ISO 8601)"
+    },
+    "gitCommit": {
+      "type": "string",
+      "description": "Current git commit SHA"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional context",
+      "additionalProperties": true
+    }
+  },
+  "required": ["scenarioId", "scenarioName", "scenarioVersion", "status", "metrics", "duration", "timestamp", "gitCommit"],
+  "additionalProperties": false,
+  "$defs": {
+    "thresholdViolation": {
+      "type": "object",
+      "properties": {
+        "metric": { "type": "string", "description": "Name of the metric" },
+        "expected": { "type": "string", "description": "Expected condition (e.g., \"latency_p99 <= 100\")" },
+        "actual": { "type": "number", "description": "Actual measured value" },
+        "severity": { "type": "string", "enum": ["error", "warn"], "description": "error or warn" },
+        "message": { "type": "string", "description": "Human-readable description" }
+      },
+      "required": ["metric", "expected", "actual", "severity", "message"],
+      "additionalProperties": false
+    }
+  }
+}
