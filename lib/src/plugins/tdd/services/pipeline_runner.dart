@@ -6,7 +6,9 @@
 ///   1. Resolve the zfa entrypoint: `--zfa-bin` override → running
 ///      CLI's `Platform.script` when launched from source (a `file://`
 ///      URL ending in `/bin/zfa.dart` or `/bin/zuraffa.dart`) → `zfa`
-///      on PATH (FR-004 / U11). An unresolvable entrypoint misfire-
+///      on PATH → fallback to `Platform.resolvedExecutable` with
+///      `Platform.script` path (handles compiled-snapshot / global-activate
+///      case) (FR-004 / U11). An unresolvable entrypoint misfire-
 ///      stops before any step executes (U12).
 ///   2. For each [GenerationStepSpec], run `zfa <args...>` via
 ///      `Process.run` in the target project's working directory
@@ -143,6 +145,9 @@ class PipelineRunner {
   ///      `/bin/zuraffa.dart`. The entrypoint is `dart <that path>`.
   ///   3. `zfa` on PATH — verified to be on PATH via
   ///      a direct lookup of the executable in `PATH`.
+  ///   4. Fallback: `Platform.script` is a `file://` URL but the basename
+  ///      is not `zfa.dart`/`zuraffa.dart` (compiled snapshot or global
+  ///      activate). Use `dart <Platform.script.toFilePath()>`.
   ///
   /// Misfire-stop (U12): throws [PipelineResolutionError] when nothing
   /// resolves.
@@ -169,7 +174,8 @@ class PipelineRunner {
 
     // 2. Running CLI from source (Platform.script).
     final script = Platform.script;
-    if (script.scheme == 'file') {
+    final isScriptFile = script.scheme == 'file';
+    if (isScriptFile) {
       final scriptPath = script.toFilePath();
       final base = p.basename(scriptPath);
       // bin/zfa.dart or bin/zuraffa.dart — invoke via the dart binary.
@@ -180,8 +186,8 @@ class PipelineRunner {
           displayCommand: '${Platform.resolvedExecutable} $scriptPath',
         );
       }
-      // In tests, Platform.script points at the test runner — fall
-      // through to option 3.
+      // Non-standard basename: fall through to PATH lookup (tier 3),
+      // then to the compiled-snapshot fallback (tier 4) if PATH also fails.
     }
 
     // 3. Resolve the concrete `zfa` executable from PATH without a shell.
@@ -190,6 +196,18 @@ class PipelineRunner {
       return _ResolvedEntrypoint(
         executable: pathEntrypoint,
         displayCommand: pathEntrypoint,
+      );
+    }
+
+    // 4. Fallback: running from a compiled snapshot or global activate where
+    // Platform.script is a file URL (basename was not zfa.dart). Use the
+    // same runtime that is currently running.
+    if (isScriptFile) {
+      final scriptPath = script.toFilePath();
+      return _ResolvedEntrypoint(
+        executable: Platform.resolvedExecutable,
+        arguments: [scriptPath],
+        displayCommand: '${Platform.resolvedExecutable} $scriptPath',
       );
     }
 
