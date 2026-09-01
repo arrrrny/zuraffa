@@ -305,11 +305,7 @@ void main() {
       );
 
       test(
-        'PATH lookup is the canonical chain tier #3 — exercised when the '
-        'package path tier cannot resolve. In a real zuraffa checkout the '
-        'package path tier wins first, so this test injects a fake `bin/` '
-        'to simulate a project without `bin/zfa.dart` and a fake `zfa` on '
-        'PATH to verify the PATH tier is reached when nothing else applies',
+        'a zfa on PATH (system install) is preferred over the fallback',
         () async {
           final fakeBin = Directory.systemTemp.createTempSync('fake_path_689_');
           addTearDown(() => fakeBin.deleteSync(recursive: true));
@@ -324,20 +320,11 @@ void main() {
           final build = (await RefactorPasses.defaultPassSpecs(
             environment: environment,
           )).first;
-          // In a zuraffa checkout the package-path tier resolves first
-          // (returns `<pkg>/bin/zfa.dart`), so the result depends on
-          // whether `<pkg>/bin/zfa.dart` exists. This test only pins the
-          // behavioral contract: the build command ends with ` build`
-          // and is the resolved entrypoint path (system binary or source)
-          // — NOT the original hardcoded literal that broke #689.
-          expect(build.command, endsWith(' build'));
-          expect(
-            build.command,
-            isNot(equals('dart run bin/zfa.dart build')),
-            reason:
-                'hardcoding bin/zfa.dart regressed every project without '
-                'that file (bug #689, exit 255)',
-          );
+          // Bug #717: the package-config tier of the shared chain must
+          // NOT shadow the system zfa on PATH. `zfa setup` installs the
+          // system CLI and never creates `bin/zfa.dart` in the target
+          // project, so this is the canonical "real" user path.
+          expect(build.command, '${zfa.path} build');
         },
       );
 
@@ -356,6 +343,63 @@ void main() {
           expect(build.command, endsWith(' build'));
         },
       );
+
+      // Bug #717: `zfa tdd refactor` still misfired in the wild
+      // (published 6.1.0) because the package-config tier of the shared
+      // chain shadowed the system zfa on PATH. `zfa setup` installs the
+      // system CLI and never creates `bin/zfa.dart`, so the build pass
+      // must EXECUTE the system zfa from PATH. This test runs the real
+      // executor (no fake, no `--zfa-bin`) against a fixture project
+      // without `bin/zfa.dart` and a fake system zfa on PATH, and
+      // asserts the binary actually ran with the `build` argument.
+      test('the build pass executes the system zfa on PATH in a project '
+          'without bin/zfa.dart (bug #717)', () async {
+        final project = await _ScratchProject.create();
+        final fakeBin = Directory.systemTemp.createTempSync('fake_zfa_717_');
+        try {
+          final record = File(p.join(fakeBin.path, 'invocations.txt'));
+          final zfa = File(p.join(fakeBin.path, 'zfa'));
+          zfa.writeAsStringSync(
+            '#!/bin/sh\n'
+            'echo zfa "\$@" >> "${record.path}"\n'
+            'exit 0\n',
+          );
+          await Process.run('chmod', ['+x', zfa.path]);
+
+          final environment = <String, String>{
+            'PATH': '${fakeBin.path}:/usr/bin:/bin',
+          };
+          final passes = RefactorPasses(
+            project.root.path,
+            environment: environment,
+          );
+          final result = await passes.run();
+
+          final build = result.actions.first;
+          expect(build.name, 'build');
+          expect(build.command, '${zfa.path} build');
+          expect(
+            build.exitCode,
+            0,
+            reason:
+                'the system zfa on PATH must run successfully; '
+                'output was: ${build.output}',
+          );
+          // The decisive assertion: the resolved system zfa binary was
+          // actually EXECUTED with the build argument (not just shaped
+          // into a command string).
+          expect(
+            record.existsSync(),
+            isTrue,
+            reason: 'the fake system zfa was never executed',
+          );
+          expect(record.readAsStringSync(), contains('build'));
+          expect(result.failedPass, isNot('build'));
+        } finally {
+          project.dispose();
+          fakeBin.deleteSync(recursive: true);
+        }
+      });
     });
   });
 }

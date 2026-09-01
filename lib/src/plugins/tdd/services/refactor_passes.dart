@@ -359,8 +359,19 @@ Future<String> zfaBuildCommand({
     return '${quoteIfNeeded(zfaBinOverride)} build';
   }
 
-  // Tiers 2-6 — delegate to the canonical chain. Tests inject a fixture
+  // Tiers 2+ — delegate to the canonical chain. Tests inject a fixture
   // environment; production uses the live platform.
+  //
+  // Bug #717: the canonical chain's package-config tier resolves the
+  // RUNNING package tree's own `bin/zfa.dart` (reachable only in
+  // source/test/kernel contexts, never from a compiled system binary)
+  // and thereby shadowed the system zfa on PATH. `zfa setup` installs
+  // the system CLI and never creates `bin/zfa.dart` in the target
+  // project, so the build pass calls the system zfa directly (Option
+  // B, issue #717). Suppressing the package tier leaves this pass the
+  // documented order: `--zfa-bin` override → running-from-source →
+  // `zfa` on PATH → dart+script fallbacks. `make` / `gen` / `verify-red`
+  // / `tdd run` keep the shared chain unchanged.
   final env = environment ?? Platform.environment;
   String entrypoint;
   try {
@@ -368,6 +379,7 @@ Future<String> zfaBuildCommand({
       script: Platform.script,
       resolvedExecutable: Platform.resolvedExecutable,
       environment: env,
+      resolvePackageUri: (_) async => null,
     );
   } on StateError {
     // Genuinely unresolvable: keep the bare-name fallback so the
