@@ -14,7 +14,7 @@ void main() {
   // runs against the real specs/ tree without relying on Directory.current.
   final repoRoot = findProjectRoot();
 
-  test('zfa tdd --help lists all eight subcommands', () async {
+  test('zfa tdd --help lists all subcommands', () async {
     final runner = CliRunner(exitOnCompletion: false);
     final out = await runner.runCapturing(['tdd', '--help']);
     for (final sub in [
@@ -23,6 +23,7 @@ void main() {
       'gen',
       'verify-red',
       'make',
+      'compose',
       'refactor',
       'run',
       'verify',

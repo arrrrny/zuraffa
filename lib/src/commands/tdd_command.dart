@@ -3,6 +3,7 @@ library;
 
 import 'package:args/command_runner.dart';
 
+import '../plugins/tdd/commands/compose_command.dart';
 import '../plugins/tdd/commands/corpus_command.dart';
 import '../plugins/tdd/commands/func_command.dart';
 import '../plugins/tdd/commands/gen_command.dart';
@@ -24,6 +25,7 @@ class TddCommand extends Command<void> {
     addSubcommand(VerifyRedCommand(plugin));
     addSubcommand(MakeCommand(plugin));
     addSubcommand(WireCommand(plugin));
+    addSubcommand(ComposeCommand(plugin));
     addSubcommand(FuncCommand(plugin));
     addSubcommand(RefactorCommand(plugin));
     addSubcommand(RunCommand(plugin));

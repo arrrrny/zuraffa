@@ -11,6 +11,7 @@ library;
 
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
@@ -633,6 +634,248 @@ void main() {
       // Pipeline NEVER invoked.
       final log = await fx.readFakeZfaLog();
       expect(log, isEmpty);
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // Spec 052 — the composition fallback (the phase-2 acceptance flip).
+  // When the planner refuses an ACCEPTANCE-kind behavior and the feature
+  // holds green unit subjects, make falls back to compose → build.
+  // -------------------------------------------------------------------
+  group('spec 052 — composition fallback on planner refusal', () {
+    Future<void> seedAcceptanceWithGreenUnit(TddFixture fx) async {
+      await fx.seedTestList([
+        (
+          id: 'A-100',
+          description: 'the signup flow completes and the account is usable',
+          traces: 'FR-052',
+          state: 'PENDING',
+          kind: 'acceptance',
+        ),
+        (
+          id: 'U-100',
+          description: 'unit behavior backing A-100',
+          traces: 'FR-052',
+          state: 'PENDING',
+          kind: 'unit',
+        ),
+      ]);
+      await fx.seedCertifiedRed(
+        id: 'A-100',
+        description: 'the signup flow completes and the account is usable',
+        // The target test must depend on the production subject so the
+        // fallback's compose step (via the fake's side effect) can turn
+        // it green — the same discipline as the entity-plan tests.
+        testContent: TddFixture.subjectDrivenTest(
+          'A-100',
+          'the signup flow completes and the account is usable',
+        ),
+      );
+      await fx.registerBehavior(id: 'U-100', description: 'unit one');
+      await fx.seedGreenEvidence('U-100');
+      await Directory(p.join(fx.root.path, 'lib')).create(recursive: true);
+      await File(
+        fx.subjectPathOf('U-100'),
+      ).writeAsString('int subject_u_100() => 0;\n');
+    }
+
+    test('A13/U19: acceptance make falls back to compose → build, both '
+        'steps captured in the green entry, exit 0', () async {
+      await seedAcceptanceWithGreenUnit(fx);
+      // The fake compose step turns the target test green by writing the
+      // production subject (the fallback pipeline's real effect).
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'tdd compose': fx.overwriteSubjectCommands(
+            'A-100',
+            TddFixture.subjectReturning('A-100', 42),
+          ),
+        },
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'A-100', zfaBin: zfaBin),
+      );
+
+      expect(exitCode, 0, reason: out);
+      expect(
+        out,
+        contains(
+          'make: behavior=A-100 outcome=green feature=${fx.featureName}',
+        ),
+      );
+      // The fallback plan executed compose then build, in order.
+      final log = await fx.readFakeZfaLog();
+      expect(log, hasLength(2), reason: log.join('\n'));
+      expect(log[0], contains('tdd compose A-100'));
+      expect(log[0], contains('--feature'));
+      expect(log[1], 'build');
+      // Both invocations are recorded in the green evidence (FR-010).
+      final cycleLog = await File(fx.cycleLogPath).readAsString();
+      expect(cycleLog, contains('## Cycle: A-100 (green)'));
+      expect(cycleLog, contains('tdd compose A-100'));
+    });
+
+    test('A10: acceptance make with zero composable anchors honest-stops '
+        'unexpressible (FR-009, SC-003)', () async {
+      await fx.seedTestList([
+        (
+          id: 'A-101',
+          description: 'pure prose acceptance behavior',
+          traces: 'FR-052',
+          state: 'PENDING',
+          kind: 'acceptance',
+        ),
+      ]);
+      await fx.seedCertifiedRed(
+        id: 'A-101',
+        description: 'pure prose acceptance behavior',
+      );
+      // No unit behaviors, no green evidence: nothing to compose against.
+      final zfaBin = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'A-101', zfaBin: zfaBin),
+      );
+
+      expect(exitCode, isNot(0), reason: out);
+      expect(
+        out,
+        contains(
+          'make: behavior=A-101 outcome=unexpressible '
+          'feature=${fx.featureName}',
+        ),
+      );
+      // Pipeline NEVER invoked — the fallback disengaged before spawning.
+      final log = await fx.readFakeZfaLog();
+      expect(log, isEmpty);
+      expect(
+        await File(fx.cycleLogPath).readAsString(),
+        isNot(contains('## Cycle: A-101 (green)')),
+      );
+    });
+
+    test(
+      'A11/U17: a unit-kind unexpressible make never composes (SC-004)',
+      () async {
+        // A feature with a green unit sibling AND a unit-kind unexpressible
+        // behavior: the fallback must not engage for the unit.
+        await seedAcceptanceWithGreenUnit(fx);
+        await fx.seedTestList([
+          (
+            id: 'A-100',
+            description: 'the signup flow completes and the account is usable',
+            traces: 'FR-052',
+            state: 'PENDING',
+            kind: 'acceptance',
+          ),
+          (
+            id: 'U-100',
+            description: 'unit behavior backing A-100',
+            traces: 'FR-052',
+            state: 'PENDING',
+            kind: 'unit',
+          ),
+          (
+            id: 'B-200',
+            description: 'parse bespoke DSL syntax with no generator surface',
+            traces: 'FR-052',
+            state: 'PENDING',
+            kind: 'unit',
+          ),
+        ]);
+        await fx.seedCertifiedRed(
+          id: 'B-200',
+          description: 'parse bespoke DSL syntax with no generator surface',
+        );
+        final zfaBin = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing(
+          makeArgs(fx, id: 'B-200', zfaBin: zfaBin),
+        );
+
+        expect(exitCode, isNot(0), reason: out);
+        expect(out, contains('outcome=unexpressible'));
+        // No fallback attempt: compose never spawned.
+        final log = await fx.readFakeZfaLog();
+        expect(log, isEmpty);
+      },
+    );
+
+    test('U18: a malformed test list fails the fallback closed '
+        '(unexpressible, no spawn)', () async {
+      await fx.seedCertifiedRed(
+        id: 'A-102',
+        description: 'pure prose acceptance behavior',
+      );
+      await File(fx.testListPath).writeAsString(
+        '# Test List: broken\n\n| A-102 | missing columns | FR-052 |\n',
+      );
+      final zfaBin = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'A-102', zfaBin: zfaBin),
+      );
+
+      expect(exitCode, isNot(0), reason: out);
+      expect(out, contains('outcome=unexpressible'));
+      expect(out, contains('test-list.md'));
+      final log = await fx.readFakeZfaLog();
+      expect(log, isEmpty);
+    });
+
+    test('A14/U20: a failed compose step → generation-error, no green '
+        'entry, failed step named', () async {
+      await seedAcceptanceWithGreenUnit(fx);
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        exitByArgv: {'tdd compose': 1},
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'A-100', zfaBin: zfaBin),
+      );
+
+      expect(exitCode, isNot(0), reason: out);
+      expect(out, contains('generation-error'));
+      expect(out, contains('compose'));
+      expect(
+        await File(fx.cycleLogPath).readAsString(),
+        isNot(contains('## Cycle: A-100 (green)')),
+      );
+    });
+
+    test('A15: a failed build after a successful compose → '
+        'generation-error, no green entry', () async {
+      await seedAcceptanceWithGreenUnit(fx);
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'tdd compose': fx.overwriteSubjectCommands(
+            'A-100',
+            TddFixture.subjectReturning('A-100', 42),
+          ),
+        },
+        exitByArgv: {'build': 1},
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'A-100', zfaBin: zfaBin),
+      );
+
+      expect(exitCode, isNot(0), reason: out);
+      expect(out, contains('generation-error'));
+      expect(
+        await File(fx.cycleLogPath).readAsString(),
+        isNot(contains('## Cycle: A-100 (green)')),
+      );
     });
   });
 }
