@@ -75,4 +75,50 @@ void main() {
     );
     expect(file.readAsStringSync(), '// Custom user test\n');
   });
+
+  // Issue #664: a pure Dart package must not receive Flutter imports its
+  // `dart test` cannot resolve — the day-zero baseline must be green.
+  group('issue #664 — pure Dart flavor', () {
+    test(
+      'render() emits a package:test smoke test with no Flutter imports',
+      () {
+        const writer = SmokeTestWriter(isFlutter: false);
+        final rendered = writer.render('myapp');
+        expect(rendered, contains("import 'package:test/test.dart';"));
+        expect(rendered, isNot(contains('flutter_test')));
+        expect(rendered, isNot(contains('app.dart')));
+        expect(rendered, isNot(contains('Container()')));
+        // Still a real group/test body, not an empty file.
+        expect(rendered, contains("group('bootstrap smoke', () {"));
+        expect(rendered, contains('expect('));
+      },
+    );
+
+    test(
+      'write() on a pure Dart package writes the Dart-compatible test',
+      () async {
+        final writer = const SmokeTestWriter(isFlutter: false);
+        final path = await writer.write(tmpDir.path, 'myapp');
+        expect(path, isNotNull);
+        final file = File(
+          p.join(tmpDir.path, 'test/bootstrap_smoke_test.dart'),
+        );
+        expect(file.existsSync(), isTrue);
+        final content = file.readAsStringSync();
+        expect(content, contains("import 'package:test/test.dart';"));
+        expect(content, isNot(contains('flutter_test')));
+        expect(content, isNot(contains('package:myapp/app.dart')));
+      },
+    );
+
+    test('write() stays idempotent for the pure Dart flavor', () async {
+      final writer = const SmokeTestWriter(isFlutter: false);
+      await writer.write(tmpDir.path, 'myapp');
+      final file = File(p.join(tmpDir.path, 'test/bootstrap_smoke_test.dart'));
+      await file.writeAsString('// Custom user test\n');
+      final result = await writer.write(tmpDir.path, 'myapp');
+      expect(result, isNull, reason: 'skip-if-exists sentinel preserved');
+      expect(file.readAsStringSync(), '// Custom user test\n');
+    });
+  });
 }
