@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zuraffa.dev/schemas/threshold-config.json",
+  "title": "Threshold Configuration",
+  "type": "object",
+  "description": "Configuration for a single metric threshold that determines pass/fail status",
+  "properties": {
+    "metric": {
+      "type": "string",
+      "description": "Metric name (standard or custom)",
+      "examples": ["latency_p99", "throughput_ops_sec", "memory_mb", "cpu_percent", "custom_db_queries"]
+    },
+    "operator": {
+      "type": "string",
+      "enum": ["lt", "lte", "gt", "gte"],
+      "description": "Comparison operator: less than, less than or equal, greater than, greater than or equal"
+    },
+    "value": {
+      "type": "number",
+      "description": "Threshold value to compare against"
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["error", "warn"],
+      "description": "Severity level: error = build failure, warn = logged warning only"
+    }
+  },
+  "required": ["metric", "operator", "value", "severity"],
+  "additionalProperties": false
+}

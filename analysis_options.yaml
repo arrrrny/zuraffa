@@ -31,6 +31,12 @@ analyzer:
     # sub-package (own pubspec + path dep). Analyzed and tested from inside
     # its own directory, excluded from the root analyze pass.
     - apps/zikzak_demo/**
+    # example: CLI demo app scaffolded via `zfa new --example`. A standalone
+    # sub-package with its own pubspec + path deps. Its tests use `override`
+    # annotations that don't match the base class signature in the example
+    # context, producing false-positive override warnings. Analyzed and tested
+    # from inside its own directory, excluded from the root analyze pass.
+    - example/**
     # Slice plugin fixture (spec 043): a standalone Flutter-convention app
     # (imports package:flutter / package:get_it the root context cannot
     # resolve). It is test DATA read by the slice engine, never compiled or
