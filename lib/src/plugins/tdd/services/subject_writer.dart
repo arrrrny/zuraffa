@@ -28,9 +28,15 @@ class SubjectWriter {
   }) async {
     final file = File(subjectPath);
     await file.parent.create(recursive: true);
-    final content = _renderSubject(behavior);
+    final content = renderSubject(behavior: behavior);
     await file.writeAsString(content);
   }
+
+  /// Render the subject content this binary would write for [behavior]
+  /// without touching disk (bug #683 — lets `gen` compare on-disk artifacts
+  /// against current output before deciding to regenerate).
+  String renderSubject({required Behavior behavior}) =>
+      _renderSubject(behavior);
 
   String _renderSubject(Behavior b) {
     final target = b.target.isEmpty ? 'subjectUnderTest' : b.target;

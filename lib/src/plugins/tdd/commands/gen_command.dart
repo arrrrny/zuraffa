@@ -24,6 +24,17 @@
 /// Idempotent: a repeat `gen` for the same behavior is a no-op that returns
 /// `Ownership.reused` for both artifacts (FR-006).
 ///
+/// Binary-change detection (bug #683): when the repeat returns
+/// reused/reused, the record's `binary_mtime` is compared against the
+/// RUNNING binary's mtime. If the binary was rebuilt since the artifacts
+/// were generated AND the on-disk content differs from what the current
+/// binary renders (Option B — lenient), the pair is regenerated with a
+/// note (`binary updated since last gen - stub regenerated`). If the
+/// content is already identical, the reuse stays silent — no spurious
+/// regeneration. If the binary is unchanged, the files are never touched
+/// (a subject `make` already implemented is safe). `--force` regenerates
+/// regardless of binary state.
+///
 /// Ownership conflict: if a file exists on disk but the registry has no
 /// record for it, exits non-zero WITHOUT modifying the file (FR-008).
 ///
@@ -48,6 +59,15 @@ class GenCommand extends Command<void> {
       'dry-run',
       abbr: 'n',
       help: 'Plan the test+subject pair without writing anything (FR-009).',
+      defaultsTo: false,
+      negatable: false,
+    );
+    argParser.addFlag(
+      'force',
+      abbr: 'f',
+      help:
+          'Regenerate the test+subject pair even when ownership is '
+          'reused/reused and the binary has not changed (bug #683).',
       defaultsTo: false,
       negatable: false,
     );
@@ -80,7 +100,7 @@ class GenCommand extends Command<void> {
       '(spec 044-test-tdd-generation, FR-001..011).';
 
   @override
-  String get invocation => 'zfa tdd gen <behavior-id> [--dry-run]';
+  String get invocation => 'zfa tdd gen <behavior-id> [--dry-run] [--force]';
 
   @override
   Future<void> run() async {
@@ -90,6 +110,7 @@ class GenCommand extends Command<void> {
     }
     final behaviorId = rest.first;
     final dryRun = argResults!['dry-run'] as bool;
+    final force = argResults!['force'] as bool;
     final featureFlag = argResults!['feature'] as String?;
     // Prefer an explicit --project root so the command never depends on the
     // process-global Directory.current. Falls back to CWD for real CLI use.
@@ -144,6 +165,9 @@ class GenCommand extends Command<void> {
 
     // Build the proposed record, then preflight ownership without changing
     // the registry. The record is appended only after both writes succeed.
+    // The record carries the RUNNING binary's mtime (bug #683) so a later
+    // gen can detect that the binary was rebuilt since generation.
+    final currentBinaryMtime = await _currentBinaryMtime();
     var record = ArtifactRecord(
       behaviorId: behavior.id,
       feature: featureName,
@@ -154,6 +178,7 @@ class GenCommand extends Command<void> {
       testOwnership: dryRun ? Ownership.planned : Ownership.created,
       subjectOwnership: dryRun ? Ownership.planned : Ownership.created,
       createdAt: DateTime.now().toUtc().toIso8601String(),
+      binaryMtime: currentBinaryMtime,
     );
 
     try {
@@ -163,9 +188,71 @@ class GenCommand extends Command<void> {
       throw StateError('zfa tdd gen: ownership conflict — $e');
     }
 
+    // Binary-change detection (bug #683). When preflight reports a clean
+    // reuse, the record describes artifacts written by an EARLIER binary.
+    // If this binary is newer and would render different content, the stale
+    // pair is regenerated (the issue's regression scenario); if the content
+    // is already current, the reuse stays silent; if the binary is
+    // unchanged, the files are never touched — a subject `make` already
+    // implemented must survive a repeat gen. `--force` skips the freshness
+    // gate and regenerates unconditionally.
+    var regenerated = false;
+    if (!dryRun && record.testOwnership == Ownership.reused) {
+      final storedMtime = record.binaryMtime;
+      final binaryChanged =
+          storedMtime != null &&
+          currentBinaryMtime != null &&
+          storedMtime != currentBinaryMtime;
+      if (force || binaryChanged) {
+        final contentStale = await _artifactsDifferFromCurrentBinary(
+          behavior,
+          testPath: testPath,
+          subjectPath: subjectPath,
+        );
+        if (force || contentStale) {
+          record = record.copyWithOwnership(
+            testOwnership: Ownership.created,
+            subjectOwnership: Ownership.created,
+          );
+          final testExisted = await File(testPath).exists();
+          final subjectExisted = await File(subjectPath).exists();
+          try {
+            final testWriter = const BehaviorTestWriter();
+            await testWriter.write(
+              behavior: behavior,
+              testPath: testPath,
+              subjectPath: subjectPath,
+            );
+            final subjectWriter = const SubjectWriter();
+            await subjectWriter.write(
+              behavior: behavior,
+              subjectPath: subjectPath,
+            );
+            // Persist the CURRENT binary's mtime so the next gen is a
+            // silent reuse again (idempotency survives regeneration).
+            record = await registry.update(
+              record.copyWithBinaryMtime(currentBinaryMtime),
+            );
+          } catch (error, stackTrace) {
+            // Pre-existing artifacts are owned — never delete them on a
+            // failed regeneration attempt (unlike the create path below).
+            if (!testExisted) await _deleteIfCreated(testPath);
+            if (!subjectExisted) await _deleteIfCreated(subjectPath);
+            Error.throwWithStackTrace(error, stackTrace);
+          }
+          print(
+            force
+                ? 'note: stub regenerated (--force)'
+                : 'note: binary updated since last gen - stub regenerated',
+          );
+          regenerated = true;
+        }
+      }
+    }
+
     // Write a new pair transactionally from the command's perspective. Any
     // writer or registry failure removes artifacts created by this attempt.
-    if (record.testOwnership != Ownership.reused && !dryRun) {
+    if (!regenerated && record.testOwnership != Ownership.reused && !dryRun) {
       try {
         final testWriter = const BehaviorTestWriter();
         await testWriter.write(
@@ -199,6 +286,47 @@ class GenCommand extends Command<void> {
     final file = File(path);
     if (await file.exists()) {
       await file.delete();
+    }
+  }
+
+  /// The running binary's ISO-8601 UTC mtime, or null when it cannot be
+  /// determined (test kernels, snapshots that no longer exist). A null on
+  /// either side of the comparison skips the freshness check.
+  Future<String?> _currentBinaryMtime() async {
+    try {
+      final script = Platform.script;
+      if (script.scheme != 'file') return null;
+      final stat = await File(script.toFilePath()).stat();
+      return stat.modified.toUtc().toIso8601String();
+    } on IOException {
+      return null;
+    }
+  }
+
+  /// Whether the on-disk test+subject pair differs from what THIS binary
+  /// renders for [behavior] (bug #683 Option B — the content comparison
+  /// behind the mtime gate).
+  Future<bool> _artifactsDifferFromCurrentBinary(
+    Behavior behavior, {
+    required String testPath,
+    required String subjectPath,
+  }) async {
+    try {
+      final expectedTest = const BehaviorTestWriter().renderTest(
+        behavior: behavior,
+        testPath: testPath,
+        subjectPath: subjectPath,
+      );
+      final expectedSubject = const SubjectWriter().renderSubject(
+        behavior: behavior,
+      );
+      final actualTest = await File(testPath).readAsString();
+      final actualSubject = await File(subjectPath).readAsString();
+      return actualTest != expectedTest || actualSubject != expectedSubject;
+    } on FileSystemException {
+      // An artifact vanished between preflight and comparison — treat as
+      // stale so the regeneration path can restore the pair.
+      return true;
     }
   }
 

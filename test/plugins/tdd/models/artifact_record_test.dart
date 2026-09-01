@@ -93,5 +93,28 @@ void main() {
       expect(r.testOwnership, Ownership.created);
       expect(r.subjectOwnership, Ownership.reused);
     });
+
+    test('binaryMtime round-trips losslessly (bug #683)', () {
+      final stamped = record.copyWithBinaryMtime('2026-09-01T14:09:44.000Z');
+      expect(stamped.binaryMtime, '2026-09-01T14:09:44.000Z');
+      final decoded = ArtifactRecord.fromJson(
+        jsonDecode(jsonEncode(stamped.toJson())) as Map<String, dynamic>,
+      );
+      expect(decoded.binaryMtime, '2026-09-01T14:09:44.000Z');
+    });
+
+    test('legacy JSON without binary_mtime deserializes with null '
+        '(backwards compatible, bug #683)', () {
+      final legacy = Map<String, dynamic>.from(record.toJson())
+        ..remove('binary_mtime');
+      final decoded = ArtifactRecord.fromJson(legacy);
+      expect(decoded.binaryMtime, isNull);
+      // Ownership copies preserve a null binaryMtime.
+      final copied = decoded.copyWithOwnership(
+        testOwnership: Ownership.reused,
+        subjectOwnership: Ownership.reused,
+      );
+      expect(copied.binaryMtime, isNull);
+    });
   });
 }

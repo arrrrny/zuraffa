@@ -238,6 +238,32 @@ void main() {
       expect(records, isEmpty);
     });
   });
+
+  group('ArtifactRegistry — update (bug #683)', () {
+    test('update replaces the prior record for the same behavior id', () async {
+      final record = sampleRecord();
+      await registry.register(record);
+
+      final updated = await registry.update(
+        record.copyWithBinaryMtime('2026-09-01T16:00:00.000Z'),
+      );
+      expect(updated.binaryMtime, '2026-09-01T16:00:00.000Z');
+
+      final records = await registry.loadAll();
+      expect(records, hasLength(1));
+      expect(records.single.binaryMtime, '2026-09-01T16:00:00.000Z');
+    });
+
+    test('update appends when no prior record exists', () async {
+      final record = sampleRecord();
+      await registry.update(record.copyWithBinaryMtime('m1'));
+
+      final records = await registry.loadAll();
+      expect(records, hasLength(1));
+      expect(records.single.behaviorId, 'B-003');
+      expect(records.single.binaryMtime, 'm1');
+    });
+  });
 }
 
 String _sha256(File f) {

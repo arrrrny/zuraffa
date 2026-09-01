@@ -38,10 +38,23 @@ class BehaviorTestWriter {
   }) async {
     final testFile = File(testPath);
     await testFile.parent.create(recursive: true);
-    final relativeSubjectPath = _relativeSubjectPath(testPath, subjectPath);
-    final content = _renderTest(behavior, relativeSubjectPath);
-    await testFile.writeAsString(content);
+    await testFile.writeAsString(
+      renderTest(
+        behavior: behavior,
+        testPath: testPath,
+        subjectPath: subjectPath,
+      ),
+    );
   }
+
+  /// Render the test content this binary would write for [behavior] without
+  /// touching disk (bug #683 — lets `gen` compare on-disk artifacts against
+  /// current output before deciding to regenerate).
+  String renderTest({
+    required Behavior behavior,
+    required String testPath,
+    required String subjectPath,
+  }) => _renderTest(behavior, _relativeSubjectPath(testPath, subjectPath));
 
   String _renderTest(Behavior b, String relativeSubjectPath) {
     final description = b.description;

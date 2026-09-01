@@ -205,6 +205,27 @@ class ArtifactRegistry {
     );
   }
 
+  /// Replace the prior record for [record]'s behavior id (or append when no
+  /// prior exists) and persist the registry (bug #683).
+  ///
+  /// `gen` uses this after regenerating a stale stub so the record carries
+  /// the CURRENT binary's mtime — the next gen is a silent reuse again.
+  /// Unlike [append], a prior record is replaced rather than treated as a
+  /// no-op, because regeneration re-writes artifacts the record describes.
+  Future<ArtifactRecord> update(ArtifactRecord record) async {
+    final existing = await _loadRecords();
+    final index = existing.indexWhere(
+      (candidate) => candidate.behaviorId == record.behaviorId,
+    );
+    if (index >= 0) {
+      existing[index] = record;
+    } else {
+      existing.add(record);
+    }
+    await _writeRecords(existing);
+    return record;
+  }
+
   /// Load all records for this feature.
   ///
   /// Returns an empty list if the registry file does not exist (FR-012).
