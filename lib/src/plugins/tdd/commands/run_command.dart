@@ -25,24 +25,33 @@
 ///   tdd func` scaffolds it (bug #657) — is deferred instead of stopping
 ///   the feature: `[run] A1 make -> deferred (phase 2)`. And because
 ///   `refactor` (spec 048 FR-001) demands an absolutely green suite —
-///   impossible while a deferred behavior sits honestly RED — ANY
-///   behavior whose `refactor` comes due while ANY behavior sits RED
-///   defers too: `[run] U1 refactor -> deferred (phase 2)` (bug #635;
+///   impossible while a deferred behavior sits honestly RED, or while a
+///   behavior still PENDING carries generated stubs whose tests throw
+///   `UnimplementedError` (bug #734: a run that stopped early leaves
+///   U3+ pending, and the full suite refuses every refactor for the
+///   already-green behaviors) — ANY behavior whose `refactor` comes due
+///   while ANY behavior sits RED or PENDING with gen artifacts defers
+///   too: `[run] U1 refactor -> deferred (phase 2)` (bugs #635, #734;
 ///   the deferral concept is applied to both steps, not half-applied to
 ///   `make` alone). Deferred behaviors stay at their last completed
 ///   state (RED / GREEN) while the rest of phase 1 proceeds. Any other
 ///   step failure still stops the run honestly (FR-007), and a behavior
 ///   whose make IS expressible completes its whole cycle exactly as
-///   before — by the time its refactor runs, no behavior is RED.
+///   before — by the time its refactor runs, no behavior is RED and no
+///   pending stub sits un-driven.
 /// - **Phase 2** — the deferred work finishes on the now-fully-green
 ///   suite, in two stages. First every deferred behavior re-attempts
 ///   `make` in list order (bug #625; generalized to unit behaviors by
 ///   bug #657); a green outcome flips it, and `unexpressible` here is a
 ///   real, honest stop with everything else done (FR-007). Then a
 ///   refactor pass runs `refactor` for every behavior still short of
-///   DONE — per behavior, in list order — on the fully-green suite and
-///   marks each DONE (bug #635), keeping refactor's absolute-green
-///   contract met by construction.
+///   DONE — per behavior, in list order, gated per behavior on THAT
+///   behavior's own test being green (the green evidence make certified,
+///   bug #734) rather than on the whole suite — and marks each DONE
+///   (bug #635). A behavior whose own test is not certified green is
+///   skipped with a recorded reason instead of dying mid-pass at the
+///   evidence misfire; the spawned `refactor`'s own full-suite preflight
+///   (spec 048 FR-001) remains the absolute authority either way.
 ///
 /// Run-state semantics are unchanged: deferred behaviors sit RED
 /// between the phases (their unit siblings sit GREEN with the refactor
@@ -248,7 +257,7 @@ class RunCommand extends Command<void> {
 
     // -----------------------------------------------------------------
     // 6. Drive the loop in two phases (FR-001, FR-004..FR-008; bugs
-    //    #625, #635 and #657).
+    //    #625, #635, #657 and #734).
     //
     // Phase 1 drives the uniform cycle in list order, EXCEPT that ANY
     // behavior whose make reports `unexpressible` is DEFERRED with
@@ -260,13 +269,19 @@ class RunCommand extends Command<void> {
     // ANY behavior's refactor that comes due while any behavior sits
     // RED is deferred with `[run] <id> refactor -> deferred (phase 2)`
     // — the bug #635 deadlock (refactor's absolute-green preflight,
-    // spec 048 FR-001, can never pass against a knowingly-red suite).
+    // spec 048 FR-001, can never pass against a knowingly-red suite) —
+    // and, bug #734, while any behavior sits PENDING with gen artifacts
+    // (a run that stopped early leaves later behaviors' generated stubs
+    // red on disk; spawning refactor then refuses for the ALREADY-GREEN
+    // behaviors and the feature deadlocks at its first refactor).
     // Phase 2 re-attempts the deferred makes, then runs refactor for
-    // every behavior on the fully-green suite; `unexpressible` there is
-    // a real, honest stop (FR-007) — by then every other behavior has
-    // run, and make's own remediation line (bug #657) names the manual
-    // path. Run-state semantics are unchanged: deferred behaviors sit
-    // RED between the phases, resumable mid-corpus (FR-003..FR-005).
+    // every behavior, gated per behavior on that behavior's own test
+    // being green (its certified green evidence, bug #734);
+    // `unexpressible` there is a real, honest stop (FR-007) — by then
+    // every other behavior has run, and make's own remediation line
+    // (bug #657) names the manual path. Run-state semantics are
+    // unchanged: deferred behaviors sit RED between the phases,
+    // resumable mid-corpus (FR-003..FR-005).
     // -----------------------------------------------------------------
     final runner = StepRunner(zfaBin: zfaBin);
 
@@ -287,7 +302,11 @@ class RunCommand extends Command<void> {
     // bug #657 for unit plain-function behaviors), and refactors that
     // come due while ANY behavior sits RED defer too (bug #635, so a
     // deferred unit make leaves the suite knowingly red exactly like a
-    // deferred acceptance make).
+    // deferred acceptance make) — as does a refactor that comes due
+    // while any behavior sits PENDING with gen artifacts (bug #734: a
+    // run that stopped early leaves later behaviors' generated stubs
+    // red on disk; the spawned refactor's full-suite preflight would
+    // refuse for the already-green behaviors and deadlock the feature).
     final registry = ArtifactRegistry(featureDir: featureDir);
     for (final row in rows) {
       final state = current.behaviorStates[row.id] ?? BehaviorState.pending;
@@ -314,6 +333,7 @@ class RunCommand extends Command<void> {
         store: store,
         evidence: evidence,
         runner: runner,
+        registry: registry,
       );
       if (result.stop != null) {
         applyStop(result.stop!, result.state);
@@ -351,6 +371,7 @@ class RunCommand extends Command<void> {
         store: store,
         evidence: evidence,
         runner: runner,
+        registry: registry,
       );
       if (result.stop != null) {
         applyStop(result.stop!, result.state);
@@ -359,16 +380,44 @@ class RunCommand extends Command<void> {
       current = result.state;
     }
 
-    // --- Phase 2b: the refactor pass (bug #635). Every behavior still
-    // short of DONE now sits GREEN — the units whose refactor deferred
-    // in phase 1 plus the acceptance behaviors phase 2a just flipped —
-    // and every make in the feature is certified green, so the suite
-    // is fully green. Run refactor per behavior, in list order, and
-    // mark each DONE: refactor's absolute-green contract (spec 048
-    // FR-001) is met by construction instead of being relaxed.
+    // --- Phase 2b: the refactor pass (bugs #635 and #734). Every
+    // behavior still short of DONE now sits GREEN — the units whose
+    // refactor deferred in phase 1 plus the acceptance behaviors phase
+    // 2a just flipped — and every pending stub has been driven. The
+    // pass is gated PER BEHAVIOR on that behavior's own test being
+    // green (bug #734): the green evidence entry make appended when it
+    // certified the behavior's test target exiting 0, not the whole
+    // suite. A green claim without green evidence (a brownfield/seeded
+    // state or a lost cycle-log — the bug #682 reconciliation keeps
+    // such claims) is skipped with a recorded reason instead of riding
+    // into refactor and dying at the post-spawn evidence misfire,
+    // which would stop the pass for every other behavior. Behaviors
+    // whose own test IS certified green refactor as before; the
+    // spawned command's full-suite preflight (spec 048 FR-001) remains
+    // the absolute authority either way.
+    final certifiedGreen = await evidence.greenEvidence();
+    final skippedRefactors = <String>[];
     for (final row in rows) {
       final state = current.behaviorStates[row.id] ?? BehaviorState.pending;
       if (state != BehaviorState.green) continue;
+
+      // Bug #734 per-behavior gate, decided BEFORE the spawn (the same
+      // pre-spawn discipline as the bug #635/#734 deferrals): refactor
+      // runs only when THIS behavior's own test is certified green —
+      // the green evidence entry naming its test target exiting 0.
+      // Skipped behaviors stay GREEN (their last completed state,
+      // FR-007 semantics) and the pass moves on; the run reports them
+      // honestly at the end instead of faking DONE (FR-008).
+      if (!certifiedGreen.contains(row.id)) {
+        skippedRefactors.add(row.id);
+        print('[run] ${row.id} refactor -> skipped (own test not green)');
+        print(
+          '   no green evidence entry for "${row.id}" in tdd/cycle-log.md '
+          '— make must certify the behavior\'s own test green before '
+          'refactor',
+        );
+        continue;
+      }
 
       final inFlightStep = current.inFlightBehaviorId == row.id
           ? current.inFlightStep
@@ -385,6 +434,7 @@ class RunCommand extends Command<void> {
         store: store,
         evidence: evidence,
         runner: runner,
+        registry: registry,
       );
       if (result.stop != null) {
         applyStop(result.stop!, result.state);
@@ -399,6 +449,30 @@ class RunCommand extends Command<void> {
     final allDone = rows.every(
       (r) => current.behaviorStates[r.id] == BehaviorState.done,
     );
+    if (!allDone && skippedRefactors.isNotEmpty) {
+      // Bug #734 per-behavior gate: the pass completed for every
+      // behavior whose own test is certified green; the rest stay GREEN
+      // with their refactor outstanding — bounded, resumable progress
+      // (FR-007), never a fake DONE (FR-008). The run stops honestly,
+      // naming the skips and the resume path.
+      print(
+        'zfa tdd run: refactor skipped for ${skippedRefactors.join(', ')} '
+        '— own test not green',
+      );
+      print(
+        '   resume: re-run make for the skipped behaviors to restore '
+        'green, then re-run `zfa tdd run $feature`',
+      );
+      _printSummary(
+        feature,
+        'stopped',
+        rows,
+        current,
+        stoppedAt: '${skippedRefactors.first}:refactor',
+      );
+      exitCode = _exitStopped;
+      return;
+    }
     if (!allDone) {
       // Defensive: the loop only exits cleanly when every row reached
       // done; anything else means the driver's own invariant broke.
@@ -583,7 +657,12 @@ class RunCommand extends Command<void> {
   ///   a knowingly-red suite, so the behavior stays at its last completed
   ///   state (GREEN) and the phase-2 refactor pass runs it on the
   ///   fully-green suite instead of deadlocking the feature at
-  ///   `<id>:refactor` with `outcome=not-green`.
+  ///   `<id>:refactor` with `outcome=not-green`. Bug #734 extends the
+  ///   same deferral to a refactor that comes due while any behavior
+  ///   sits PENDING with gen artifacts — a run that stopped early leaves
+  ///   later behaviors' generated stubs red on disk, and the preflight
+  ///   would refuse for the already-green behaviors exactly the same way
+  ///   (`[run] A5 refactor -> not-green`).
   Future<_DriveResult> _driveBehavior({
     required BehaviorRow row,
     required List<String> steps,
@@ -596,23 +675,28 @@ class RunCommand extends Command<void> {
     required RunStateStore store,
     required CycleEvidence evidence,
     required StepRunner runner,
+    required ArtifactRegistry registry,
   }) async {
     final feature = current.feature;
     var updated = current;
     var state = updated.behaviorStates[row.id] ?? BehaviorState.pending;
     for (final step in steps) {
-      // Bug #635 deferral (decided BEFORE the spawn): refactor's contract
-      // (spec 048 FR-001) is an absolutely green suite. While any
-      // acceptance behavior sits RED — its make deferred to phase 2 by
-      // design — the suite is knowingly red, so refactor is not even
+      // Bug #635/#734 deferral (decided BEFORE the spawn): refactor's
+      // contract (spec 048 FR-001) is an absolutely green suite. While
+      // any acceptance behavior sits RED — its make deferred to phase 2
+      // by design — the suite is knowingly red, so refactor is not even
       // attempted (the real preflight's not-green refusal IS the bug
-      // #635 deadlock): defer it like make (bug #625) instead. The
-      // behavior stays GREEN (its last completed state, FR-007
-      // semantics), and the phase-2 refactor pass runs it on the
-      // now-fully-green suite.
+      // #635 deadlock): defer it like make (bug #625) instead. Bug
+      // #734: the same holds while any behavior sits PENDING with gen
+      // artifacts — its generated stub's test may sit red, and the
+      // preflight would refuse for the already-green behaviors exactly
+      // the same way. The behavior stays at its last completed state
+      // (GREEN, FR-007 semantics), and the phase-2 refactor pass runs
+      // it on the now-fully-green suite.
       if (deferralAllowed &&
           step == 'refactor' &&
-          _hasRedBehavior(rows, updated)) {
+          (_hasRedBehavior(rows, updated) ||
+              await _hasPendingWithArtifacts(rows, updated, registry))) {
         updated = updated.advance(row.id, state);
         await store.save(updated, activeBehaviorIds: activeIds);
         print('[run] ${row.id} refactor -> deferred (phase 2)');
@@ -783,6 +867,32 @@ class RunCommand extends Command<void> {
     for (final row in rows) {
       if ((state.behaviorStates[row.id] ?? BehaviorState.pending) ==
           BehaviorState.red) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Whether any behavior in [rows] sits PENDING with gen artifacts in
+  /// the registry (bug #734): a run that stopped early in phase 1 (e.g.
+  /// the #731 false-positive family) leaves later behaviors' generated
+  /// stubs on disk — their tests throw `UnimplementedError`, the full
+  /// suite is red, and refactor's absolute-green preflight (spec 048
+  /// FR-001) would refuse for the ALREADY-GREEN behaviors, deadlocking
+  /// the feature at its first refactor. The registry is the source of
+  /// truth for artifact existence (bug #720), so a pending row without
+  /// a record contributes no red risk and never defers.
+  Future<bool> _hasPendingWithArtifacts(
+    List<BehaviorRow> rows,
+    RunState state,
+    ArtifactRegistry registry,
+  ) async {
+    for (final row in rows) {
+      if ((state.behaviorStates[row.id] ?? BehaviorState.pending) !=
+          BehaviorState.pending) {
+        continue;
+      }
+      if (await registry.findRecord(row.id) != null) {
         return true;
       }
     }
