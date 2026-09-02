@@ -272,7 +272,7 @@ class GenCommand extends Command<void> {
     final testPath = '$cwd/test/tdd/${snakeId}_test.dart';
     final subjectPath = '$cwd/lib/tdd/${snakeId}_subject.dart';
     final runnableTestName =
-        '$testPath::${behavior.id}::${behavior.description}';
+        '$testPath::${behavior.id}::${behavior.id} \u2014 ${behavior.description}';
 
     final registry = ArtifactRegistry(featureDir: featureDir);
 

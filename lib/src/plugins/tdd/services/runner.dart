@@ -384,15 +384,27 @@ class SingleTestRunner {
   String _substitute(String template, String file, String name) =>
       template.replaceAll('{file}', file).replaceAll('{name}', name);
 
+  /// Escape regex metacharacters so a test name containing `(...)`,
+  /// `[...]`, etc. matches literally under `dart test -n` (issue #760).
+  String _escapeRegExp(String s) {
+    final special = RegExp(r'[\\^$.*+?()\[\]{}|]');
+    return s.replaceAllMapped(special, (m) => '\\${m.group(0)}');
+  }
+
   /// Tokenize the template into an executable + argument list.
   ///
   /// Splitting happens BEFORE substitution so a test name containing
   /// spaces stays one argument; quote pairs wrapping a substituted token
   /// are stripped (they were the template's shell quoting, not data).
+  /// Regex metacharacters in the test name are escaped so the single
+  /// test runner's `-n` regex matches the name literally (issue #760).
   List<String> _tokenize(String template, String file, String name) {
+    final escapedName = _escapeRegExp(name);
     final rawTokens = template.trim().split(RegExp(r'\s+'));
     return rawTokens.map((token) {
-      var out = token.replaceAll('{file}', file).replaceAll('{name}', name);
+      var out = token
+          .replaceAll('{file}', file)
+          .replaceAll('{name}', escapedName);
       if (out.length >= 2 && out.startsWith('"') && out.endsWith('"')) {
         out = out.substring(1, out.length - 1);
       } else if (out.length >= 2 && out.startsWith("'") && out.endsWith("'")) {
