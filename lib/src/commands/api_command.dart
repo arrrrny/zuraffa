@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import '../models/generated_file.dart';
 import '../plugins/api/api_plugin.dart';
 import '../plugins/api/capabilities/create_api_bridge_capability.dart';
@@ -14,6 +16,10 @@ class ApiCommand extends PluginCommand {
   final ApiPlugin plugin;
 
   ApiCommand(this.plugin) : super(plugin, registerSubcommands: false) {
+    argParser.addOption(
+      'name',
+      help: 'Entity name (alternative to the positional argument)',
+    );
     argParser.addOption(
       'domain',
       abbr: 'd',
@@ -38,13 +44,22 @@ class ApiCommand extends PluginCommand {
       return super.run();
     }
 
-    if (argResults?.rest.isEmpty ?? true) {
+    // The manifest advertises this capability as `api create-api-bridge`;
+// treat that name as an optional alias so manifest-driven invocations
+// and the plain positional form both work.
+    final positional = argResults!.rest
+        .where((r) => r != 'create-api-bridge')
+        .toList();
+
+    if (positional.isEmpty && argResults?['name'] == null) {
       print('❌ Usage: zfa api <EntityName> [options]');
       print('   Example: zfa api Product');
-      return;
+      exit(64);
     }
 
-    final entityName = argResults!.rest.first;
+    final entityName = positional.isNotEmpty
+        ? positional.first
+        : argResults!['name'] as String;
     final domain = argResults!['domain'] as String?;
 
     final capability = plugin.capabilities

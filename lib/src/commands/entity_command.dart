@@ -22,6 +22,14 @@ class EntityCommand {
 
     final subCommand = args[0];
 
+    // Handle the help path before the pubspec guard so `zfa entity --help`
+    // prints usage anywhere (help must never require a project context).
+    if (subCommand == '--help' || subCommand == '-h' || subCommand == 'help') {
+      _printHelp();
+      if (exitOnCompletion) exit(0);
+      return;
+    }
+
     final shouldBuild = args.contains('--build');
     final shouldFormat = args.contains('--dart-format');
     final subArgs = args

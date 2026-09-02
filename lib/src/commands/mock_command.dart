@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:args/command_runner.dart';
 import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
@@ -52,7 +54,7 @@ class MockCommand extends PluginCommand {
       print('❌ Usage: zfa mock <EntityName> [options]');
       print('   Or: zfa mock data <EntityName> [options]');
       print('   Or: zfa mock json <EntityName> [options]');
-      return;
+      exit(64);
     }
 
     final entityName = argResults!.rest.first;
@@ -195,6 +197,10 @@ class JsonMockCommand extends Command<void> {
 
   JsonMockCommand(this.plugin) {
     argParser.addOption(
+      'name',
+      help: 'Entity name (alternative to the positional argument)',
+    );
+    argParser.addOption(
       'domain',
       abbr: 'd',
       help: 'Domain folder for grouping JSON files',
@@ -228,12 +234,15 @@ class JsonMockCommand extends Command<void> {
   @override
   Future<void> run() async {
     final results = argResults;
-    if (results == null || results.rest.isEmpty) {
+    if (results == null ||
+        (results.rest.isEmpty && results['name'] == null)) {
       print('❌ Usage: zfa mock json <EntityName> [options]');
-      return;
+      exit(64);
     }
 
-    final entityName = results.rest.first;
+    final entityName = results.rest.isNotEmpty
+        ? results.rest.first
+        : results['name'] as String;
     final capability =
         plugin.capabilities.firstWhere((c) => c is JsonMockCapability)
             as JsonMockCapability;
