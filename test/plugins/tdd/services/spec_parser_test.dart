@@ -126,4 +126,81 @@ void main() {
       expect(behaviors.last.kind, BehaviorKind.unit);
     });
   });
+
+  group('SpecParser — bug 829: Key Entities extraction', () {
+    const parser = SpecParser();
+
+    test('extracts entity names and backticked field pairs from the '
+        'corpus-style section', () {
+      const spec = '''
+# Feature Spec
+
+## Requirements
+
+- **FR-001**: The system shall persist a User with a name and an email.
+
+### Key Entities
+
+- **User**: The domain entity for stored users. Contains `name: String`, `email: String`.
+- **Role**: The role assigned to a user.
+''';
+      final entities = parser.parseKeyEntities(spec);
+      expect(entities.length, 2);
+      expect(entities[0].name, 'User');
+      expect(entities[0].fields.map((f) => '${f.name}:${f.type}').toList(), [
+        'name:String',
+        'email:String',
+      ]);
+      expect(entities[1].name, 'Role');
+      expect(entities[1].fields, isEmpty);
+    });
+
+    test('strips a generic suffix from the entity name', () {
+      const spec = '''
+### Key Entities
+
+- **ToggleParams<I, F>**: Parameter class for toggle operations. Contains `id: I`, `value: bool`.
+''';
+      final entities = parser.parseKeyEntities(spec);
+      expect(entities.single.name, 'ToggleParams');
+      expect(entities.single.fields.map((f) => f.name).toList(), [
+        'id',
+        'value',
+      ]);
+    });
+
+    test('returns empty when the spec declares no Key Entities', () {
+      const spec = '''
+# Feature Spec
+
+- **FR-001**: System MUST do X
+''';
+      expect(parser.parseKeyEntities(spec), isEmpty);
+    });
+
+    test('stops the section at the next heading', () {
+      const spec = '''
+### Key Entities
+
+- **User**: The user entity. Contains `name: String`.
+
+## Success Criteria
+
+- **SC-1**: works
+''';
+      final entities = parser.parseKeyEntities(spec);
+      expect(entities.single.name, 'User');
+    });
+
+    test('skips bullets whose name is not a valid Dart identifier', () {
+      const spec = '''
+### Key Entities
+
+- **User & Role**: not a single identifier.
+- **User**: the valid one.
+''';
+      final entities = parser.parseKeyEntities(spec);
+      expect(entities.single.name, 'User');
+    });
+  });
 }

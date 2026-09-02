@@ -259,4 +259,78 @@ class Weird {
       );
     });
   }
+
+  group('bug 829: wire accepts every pipeline-generated subject', () {
+    test('U-829a: a func-scaffolded subject (the gen stub header survives '
+        'the func scaffold, so its doc comment still mentions '
+        'UnimplementedError) is already implemented — already-wired, '
+        'exit 0, never an unrecognized-shape refusal', () async {
+      await fx.registerBehavior(
+        id: 'B-001',
+        description: 'create entity User with email',
+      );
+      // The exact shape `zfa tdd func` leaves on disk: the gen stub's
+      // header comment (which mentions UnimplementedError in PROSE) plus
+      // the scaffolded implementation body.
+      await File(fx.subjectPathOf('B-001')).writeAsString('''
+// GENERATED STUB — `zfa tdd gen B-001` (spec 044-test-tdd-generation).
+//
+// behavior_id: B-001
+// source_criterion: FR-001
+// description: The system shall persist a User with a name.
+//
+// This is a MINIMAL COMPILABLE STUB. It compiles cleanly (FR-011) but
+// does NOT satisfy the behavior described above — the paired test will
+// fail on first execution with an assertion-level failure (honest red).
+// Replace this stub body with real implementation to make the test pass.
+library;
+
+/// Subject for behavior B-001.
+///
+/// Throws [UnimplementedError] until the real implementation lands.
+String subject_b_001() {
+  return 'subject_b_001';
+}
+''');
+
+      final out = await runWire();
+
+      expect(exitCode, 0, reason: 'out: $out');
+      expect(
+        out,
+        contains(
+          'wire: behavior=B-001 outcome=already-wired '
+          'feature=${fx.featureName}',
+        ),
+      );
+      // The implemented subject is left untouched.
+      final subject = await File(fx.subjectPathOf('B-001')).readAsString();
+      expect(subject, contains("return 'subject_b_001';"));
+    });
+
+    test('U-829b: an executable UnimplementedError in a non-stub shape is '
+        'STILL refused — the U-W5 contract survives the comment-aware '
+        'classification', () async {
+      await fx.registerBehavior(
+        id: 'B-001',
+        description: 'create entity User with email',
+      );
+      await File(fx.subjectPathOf('B-001')).writeAsString('''
+library;
+
+class Weird {
+  void run() {
+    throw UnimplementedError('hand-written shape');
+  }
+}
+''');
+
+      final out = await runWire();
+
+      expect(exitCode, isNot(0));
+      expect(out, contains('unrecognized shape'));
+      final subject = await File(fx.subjectPathOf('B-001')).readAsString();
+      expect(subject, contains('class Weird'));
+    });
+  });
 }

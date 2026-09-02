@@ -1686,4 +1686,114 @@ One per functional requirement in `spec.md`.
       );
     },
   );
+
+  group(
+    'bug 829 — phase 0: spec Key Entities are created before behaviors',
+    () {
+      Future<void> seedEntitiesSection(String body) async {
+        final list = File(fx.testListPath);
+        await list.writeAsString('${await list.readAsString()}\n$body');
+      }
+
+      test(
+        'U-829c: the driver creates every declared entity (with the '
+        'spec-carried fields) and builds ONCE, before the first gen',
+        () async {
+          await seedEntitiesSection('''
+## Key entities
+
+| entity | fields |
+| ------ | ------ |
+| User | name: String, email: String |
+''');
+
+          final out = await drive();
+
+          expect(exitCode, 0, reason: out);
+          expect(out, contains('[run] phase-0 entity User -> created'));
+          expect(out, contains('[run] phase-0 build -> ok'));
+          // The spawn order: phase-0 entity create + build land BEFORE the
+          // first driver step.
+          final argv = fx.stepArgvLog();
+          expect(argv.first, contains('entity create -n User'));
+          expect(argv.first, contains('--field name:String'));
+          expect(argv.first, contains('--field email:String'));
+          expect(argv[1], 'build');
+          expect(argv[2], contains('tdd gen'));
+          expect(argv.where((l) => l == 'build'), hasLength(1));
+        },
+      );
+
+      test('U-829d: an existing entity is REUSED, never regenerated — no '
+          'entity create and no build spawn at all', () async {
+        await seedEntitiesSection('''
+## Key entities
+
+| entity | fields |
+| ------ | ------ |
+| User | name: String |
+''');
+        final entityFile = File(
+          p.join(
+            fx.root.path,
+            'lib',
+            'src',
+            'domain',
+            'entities',
+            'user',
+            'user.dart',
+          ),
+        );
+        await entityFile.parent.create(recursive: true);
+        await entityFile.writeAsString('// hand-tuned entity\n');
+
+        final out = await drive();
+
+        expect(exitCode, 0, reason: out);
+        expect(out, contains('[run] phase-0 entity User -> reused'));
+        expect(out, contains('[run] phase-0 build -> skipped'));
+        final argv = fx.stepArgvLog();
+        expect(argv.where((l) => l.contains('entity create')), isEmpty);
+        expect(argv.where((l) => l == 'build'), isEmpty);
+        expect(
+          await entityFile.readAsString(),
+          '// hand-tuned entity\n',
+          reason: 'the hand-tuned entity file must be untouched',
+        );
+      });
+
+      test('U-829e: a failed entity create stops the run honestly '
+          '(runner-error, stopped_at names phase 0)', () async {
+        await seedEntitiesSection('''
+## Key entities
+
+| entity | fields |
+| ------ | ------ |
+| User | name: String |
+''');
+        await fx.setStepOutcome('entity', 'create', 'field type rejected');
+
+        final out = await drive();
+
+        expect(exitCode, 2, reason: out);
+        expect(out, contains('[run] phase-0 entity User -> failed'));
+        expect(out, contains('field type rejected'));
+        expect(out, contains('result=runner-error'), reason: out);
+        expect(out, contains('stopped_at=phase-0:entity'));
+        // No behavior was ever driven.
+        expect(fx.stepInvocations(), isEmpty);
+      });
+
+      test('U-829f: a feature with no declared entities runs no phase-0 '
+          'spawn at all (every pre-829 run is unchanged)', () async {
+        final out = await drive();
+
+        expect(exitCode, 0, reason: out);
+        expect(out, isNot(contains('[run] phase-0')));
+        final argv = fx.stepArgvLog();
+        expect(argv.where((l) => l.contains('entity create')), isEmpty);
+        expect(argv.where((l) => l == 'build'), isEmpty);
+      });
+    },
+  );
 }

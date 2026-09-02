@@ -512,6 +512,7 @@ void main() {
 echo "$@" >> "__ARGVLOG__"
 STEP="$2"
 ID="$3"
+HEAD="$1"
 FEATURE=""
 PROJECT=""
 while [ $# -gt 0 ]; do
@@ -521,6 +522,19 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+if [ "$HEAD" != "tdd" ]; then
+  # Non-driver invocations (bug 829: the run driver's phase-0
+  # `entity create` / `build` spawns). The fake has no generation
+  # semantics for them: a config file keyed `<w1>-<w2>` scripts a
+  # failure, anything else exits 0. They are visible in the argv log
+  # only — the `<step> <id>` step log stays driver-step-shaped.
+  CFG0="__CFG__/$HEAD-$STEP"
+  if [ -f "$CFG0" ]; then
+    echo "zfa $HEAD $STEP: $(cat "$CFG0")"
+    exit 1
+  fi
+  exit 0
+fi
 echo "$STEP $ID" >> "__LOG__"
 CFG="__CFG__/$STEP-$ID"
 if [ -f "$CFG" ]; then

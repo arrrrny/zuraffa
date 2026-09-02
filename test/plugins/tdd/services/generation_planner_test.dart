@@ -560,4 +560,46 @@ void main() {
       ]);
     });
   });
+
+  group('GenerationPlanner — bug 829: entity-traced unit behaviors route '
+      'to the entity pipeline', () {
+    test('U-829a: a unit behavior traced to a declared entity plans '
+        'entity create -> make <Entity> -> wire -> build — the '
+        'architecture engages instead of the empty func subject', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'U1',
+          feature: '090-entity-orch',
+          sourceCriterion: 'FR-001',
+          description: 'The system shall persist a User with a name.',
+          entityTraced: 'User',
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      expect(plan.steps.map((s) => s.args), [
+        ['entity', 'create', '-n', 'User'],
+        ['make', 'User'],
+        ['tdd', 'wire', 'U1', '--entity', 'User'],
+        ['build'],
+      ]);
+    });
+
+    test('U-829b: a unit behavior with NO entity trace keeps the '
+        'bug-718 func surface (the pure-function path for pure '
+        'functions)', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'U3',
+          feature: '090-entity-orch',
+          sourceCriterion: 'FR-003',
+          description: 'render returns a non-empty string',
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      expect(plan.steps.map((s) => s.args), [
+        ['tdd', 'func', 'U3'],
+        ['build'],
+      ]);
+    });
+  });
 }

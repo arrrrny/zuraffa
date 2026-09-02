@@ -1371,191 +1371,189 @@ stacks:
     });
   });
 
-  // -------------------------------------------------------------------
-  // Bug #826 — memory-bounded subprocess execution + classified kill
-  // verdict. A generation subprocess killed under resource pressure
-  // (the exit -9 / SIGKILL signature) must surface a CLASSIFIED verdict
-  // — `resource-limit` or `timeout`, with the exit code, a `--> fix:`
-  // line, and the telemetry JSON — never a bare `generation-error`; and
-  // a behavior whose inner `zfa make` plan resolves to no active plugins
-  // must record a no-op WITHOUT attempting the subprocess.
-  // -------------------------------------------------------------------
-  group('bug #826 — classified kill verdict + empty-plan no-op', () {
-    /// A fake zfa whose `make ...` invocation SIGKILLs itself — the
-    /// deterministic stand-in for the OOM killer's exit -9.
-    Future<String> writeSigkillZfa(TddFixture fixture) async {
-      final binDir = Directory(p.join(fixture.root.path, 'fake_bin_kill'));
-      await binDir.create(recursive: true);
-      final scriptPath = p.join(binDir.path, 'zfa');
-      await File(scriptPath).writeAsString('''
-#!/usr/bin/env bash
-case "\$*" in
-  make|make\\ *)
-    kill -9 \$\$
-    ;;
-  *)
-    exit 0
-    ;;
-esac
+  group('bug 829 — unit behaviors traced to a spec Key Entity route to '
+      'the entity pipeline', () {
+    Future<void> seedEntityTracedFeature() async {
+      await fx.seedCertifiedRed(
+        id: 'U1',
+        description:
+            'The system shall persist a User with a name and an '
+            'email.',
+        sourceCriterion: 'FR-001',
+        testContent: TddFixture.subjectDrivenTest(
+          'U1',
+          'The system shall persist a User with a name and an email.',
+        ),
+      );
+      // The test list (as `zfa tdd plan` writes it post-829): the unit
+      // row plus the extracted Key entities section.
+      await Directory(p.join(fx.featureDir, 'tdd')).create(recursive: true);
+      await File(p.join(fx.featureDir, 'tdd', 'test-list.md')).writeAsString('''
+# Test List: ${fx.featureName}
+
+## Inner loop: unit behaviors
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| U1 | The system shall persist a User with a name and an email. | FR-001 | PENDING |
+
+## Key entities
+
+| entity | fields |
+| ------ | ------ |
+| User | name: String, email: String |
 ''');
-      await Process.run('chmod', ['+x', scriptPath]);
-      return scriptPath;
     }
 
-    test('B1: a SIGKILLed make step reports outcome=resource-limit with '
-        'the verdict, fix line, and telemetry JSON — never a bare '
-        'generation-error', () async {
-      // A CRUD-shaped description so the plan is `zfa make a1 --no-entity`
-      // + `zfa build` — the exact shape the issue reports.
-      await fx.seedCertifiedRed(
-        id: 'A1',
-        description: 'crud repository for order line 1',
+    test('U-829g: the plan is entity create -> make <Entity> -> wire -> '
+        'build, and the wire step flips the subject green', () async {
+      await seedEntityTracedFeature();
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'tdd wire': fx.overwriteSubjectCommands(
+            'U1',
+            TddFixture.subjectReturning('U1', 42),
+          ),
+        },
       );
-      final zfaBin = await writeSigkillZfa(fx);
 
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(
-        makeArgs(fx, id: 'A1', zfaBin: zfaBin),
+        makeArgs(fx, id: 'U1', zfaBin: zfaBin),
       );
 
-      // The classified summary line — machine-parseable for corpus drivers.
+      expect(exitCode, 0, reason: 'out:\n$out');
       expect(
         out,
-        contains(
-          'make: behavior=A1 outcome=resource-limit '
-          'feature=${fx.featureName}',
-        ),
+        contains('make: behavior=U1 outcome=green feature=${fx.featureName}'),
+        reason: 'out:\n$out',
       );
-      expect(out, contains('verdict: resource-limit (exit -9)'));
-      expect(out, contains('--> fix:'));
+      final log = await fx.readFakeZfaLog();
       expect(
-        out,
-        contains('"verdict":"resource-limit","exitCode":-9,"timedOut":false'),
+        log.where((l) => l.contains('entity create -n User')),
+        isNotEmpty,
+        reason: 'the entity must be created when absent: ${log.join('\n')}',
+      );
+      expect(
+        log.where((l) => l.startsWith('make User')),
+        isNotEmpty,
         reason:
-            'the telemetry JSON verdict must carry the class, the exit '
-            'code, and the resource telemetry',
+            'the entity pipeline must generate the domain layer '
+            '(usecases/repos/di): ${log.join('\n')}',
       );
-      expect(out, contains('"rssBeforeKb":'));
-      expect(out, contains('"wallClockMs":'));
-      // Never the bare failure the bug reported.
-      expect(out, isNot(contains('outcome=generation-error')));
-      expect(exitCode, 1);
-      // No green entry — the kill certifies nothing.
-      final log = await File(fx.cycleLogPath).readAsString();
-      expect(log, isNot(contains('- kind: green')));
+      expect(
+        log.where((l) => l.contains('tdd wire U1 --entity User')),
+        isNotEmpty,
+        reason: 'the subject must be wired to the entity: ${log.join('\n')}',
+      );
     });
 
-    test('B3: a make step killed at the deadline reports outcome=timeout '
-        'with the classified fix line', () async {
-      // The profile's `single` command is a fast fake that exits 1 (the
-      // honest red) so the drift check completes inside a tiny deadline;
-      // the pipeline's `make` step then hangs past that same deadline —
-      // the --timeout flag is uniform across every spawn (bug #742) —
-      // and is killed. The make must classify that kill as `timeout`,
-      // never a bare generation-error.
-      final fx2 = await TddFixture.create();
-      try {
-        final redRunner = p.join(fx2.root.path, 'fake_red_runner.sh');
-        await File(redRunner).writeAsString('#!/usr/bin/env bash\nexit 1\n');
-        await Process.run('chmod', ['+x', redRunner]);
-
-        // Re-write the profile with the fake single template (fast red).
-        final profileDir = Directory('${fx2.root.path}/.specify/memory');
-        await File('${profileDir.path}/tdd-profile.md').writeAsString('''
-# TDD Profile — fixture (bug 826 timeout scenario)
-
-## Commands
-
-- Single test: `$redRunner {file}`
-- Full suite: `dart test`
-
-## Keys (machine-readable)
-
-```yaml
-runner: dart
-single: '$redRunner {file}'
-suite: 'dart test'
-file: 'dart test {file}'
-coverage: 'dart test --coverage'
-```
-''');
-
-        await fx2.seedCertifiedRed(
-          id: 'A1',
-          description: 'crud repository for order line 1',
+    test(
+      'U-829h: an existing entity is REUSED — the plan drops the '
+      'entity create step (never regenerates over hand-tuned fields)',
+      () async {
+        await seedEntityTracedFeature();
+        final entityFile = File(
+          p.join(
+            fx.root.path,
+            'lib',
+            'src',
+            'domain',
+            'entities',
+            'user',
+            'user.dart',
+          ),
         );
-
-        // A fake zfa whose `make ...` invocation hangs (blocks without
-        // spawning a grandchild, so the deadline kill closes the pipes).
-        final hangBin = Directory(p.join(fx2.root.path, 'fake_bin_hang'));
-        await hangBin.create(recursive: true);
-        final hangZfa = p.join(hangBin.path, 'zfa');
-        await File(
-          hangZfa,
-        ).writeAsString('#!/usr/bin/env bash\nread -t 30 x\nexit 0\n');
-        await Process.run('chmod', ['+x', hangZfa]);
+        await entityFile.parent.create(recursive: true);
+        await entityFile.writeAsString('// hand-tuned entity\n');
+        final zfaBin = await fx.writeFakeZfaBin(
+          logPath: fx.fakeZfaLogPath,
+          sideEffectByArgv: {
+            'tdd wire': fx.overwriteSubjectCommands(
+              'U1',
+              TddFixture.subjectReturning('U1', 42),
+            ),
+          },
+        );
 
         final runner = CliRunner(exitOnCompletion: false);
         final out = await runner.runCapturing(
-          makeArgs(
-            fx2,
-            id: 'A1',
-            zfaBin: hangZfa,
-          ).followedBy(['--timeout', '0.03']).toList(), // 1.8s uniform deadline
+          makeArgs(fx, id: 'U1', zfaBin: zfaBin),
         );
 
+        expect(exitCode, 0, reason: 'out:\n$out');
+        expect(out, contains('already exists — reuse'));
+        final log = await fx.readFakeZfaLog();
         expect(
-          out,
-          contains(
-            'make: behavior=A1 outcome=timeout feature=${fx2.featureName}',
-          ),
-          reason: out,
+          log.where((l) => l.contains('entity create')),
+          isEmpty,
+          reason:
+              'an existing entity must never be regenerated: '
+              '${log.join('\n')}',
         );
-        expect(out, contains('verdict: timeout (exit -1)'));
-        expect(out, contains('--> fix:'));
-        expect(out, contains('"verdict":"timeout"'));
-        // Never the bare failure.
-        expect(out, isNot(contains('outcome=generation-error')));
-        expect(exitCode, 1);
-      } finally {
-        fx2.dispose();
-        exitCode = 0;
-      }
-    });
+        expect(
+          log.where((l) => l.startsWith('make User')),
+          isNotEmpty,
+          reason:
+              'the rest of the entity pipeline still runs: '
+              '${log.join('\n')}',
+        );
+        expect(
+          await entityFile.readAsString(),
+          '// hand-tuned entity\n',
+          reason: 'the hand-tuned entity file must be untouched',
+        );
+      },
+    );
 
-    test('B2: an inner make plan with no active plugins records a no-op '
-        'WITHOUT attempting the subprocess', () async {
+    test('U-829i: a unit behavior whose FR traces to NO declared entity '
+        'keeps the func surface (no phase-0-style entity spawn)', () async {
       await fx.seedCertifiedRed(
-        id: 'A1',
-        description: 'crud repository for order line 1',
-      );
-      // No --zfa-bin: the pre-flight models the real child's cheap plan
-      // resolution (the fixture has no .zfa.json, so no plugin is enabled
-      // by default) and short-circuits before the analyzer-heavy spawn.
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(makeArgs(fx, id: 'A1'));
-
-      expect(
-        out,
-        contains(
-          'plan: `zfa make a1` resolves to no active plugins — nothing to '
-          'generate (bug #826).',
+        id: 'U2',
+        description: 'render returns a non-empty string',
+        sourceCriterion: 'FR-002',
+        testContent: TddFixture.subjectDrivenTest(
+          'U2',
+          'render returns a non-empty string',
         ),
-        reason: out,
       );
-      expect(out, contains('verdict: no-op'));
-      expect(out, contains('--> fix:'));
-      expect(
-        out,
-        contains('make: behavior=A1 outcome=no-op feature=${fx.featureName}'),
+      await Directory(p.join(fx.featureDir, 'tdd')).create(recursive: true);
+      await File(p.join(fx.featureDir, 'tdd', 'test-list.md')).writeAsString('''
+# Test List: ${fx.featureName}
+
+## Inner loop: unit behaviors
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| U2 | render returns a non-empty string | FR-002 | PENDING |
+
+## Key entities
+
+| entity | fields |
+| ------ | ------ |
+| User | name: String |
+''');
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'tdd func': fx.overwriteSubjectCommands(
+            'U2',
+            TddFixture.subjectReturning('U2', 42),
+          ),
+        },
       );
-      expect(exitCode, 1);
-      // The generation subprocess was never attempted: no pipeline
-      // capture, no post-generation target re-run.
-      expect(out, isNot(contains('target test exit:')));
-      expect(out, isNot(contains('telemetry json:')));
-      final log = await File(fx.cycleLogPath).readAsString();
-      expect(log, isNot(contains('- kind: green')));
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'U2', zfaBin: zfaBin),
+      );
+
+      expect(exitCode, 0, reason: 'out:\n$out');
+      final log = await fx.readFakeZfaLog();
+      expect(log.where((l) => l.contains('tdd func')), isNotEmpty);
+      expect(log.where((l) => l.contains('entity create')), isEmpty);
+      expect(log.where((l) => l.startsWith('make ')), isEmpty);
     });
   });
 }

@@ -228,4 +228,44 @@ void main() {
     ).readAsStringSync();
     expect(subject, contains('subject_a1'));
   });
+
+  group('bug 829: plan extracts the spec Key Entities into the test list', () {
+    test('a spec with a Key Entities section yields the entities table; '
+        'the behavior rows are unchanged', () async {
+      await File(p.join(featureDir, 'spec.md')).writeAsString('''
+# Spec: 001-demo
+
+## Functional Requirements
+
+- **FR-001**: The system shall persist a User with a name and an email.
+
+## Acceptance Scenarios
+
+1. **Given** a fresh calculator **When** the user asks for the answer **Then** returns 42 when invoked with no args
+
+### Key Entities
+
+- **User**: The domain entity for stored users. Contains `name: String`, `email: String`.
+''');
+      await runPlan();
+
+      final list = File(
+        p.join(featureDir, 'tdd', 'test-list.md'),
+      ).readAsStringSync();
+      expect(list, contains('## Key entities'));
+      expect(list, contains('| User | name: String, email: String |'));
+      // The behavior rows keep the canonical 4-column shape.
+      expect(list, contains('| U1 | The system shall persist a User'));
+    });
+
+    test('a spec without Key Entities writes no entities section '
+        '(pre-829 lists are byte-identical in shape)', () async {
+      await runPlan();
+
+      final list = File(
+        p.join(featureDir, 'tdd', 'test-list.md'),
+      ).readAsStringSync();
+      expect(list, isNot(contains('## Key entities')));
+    });
+  });
 }
