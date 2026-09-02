@@ -57,7 +57,7 @@ Error paths (before the summary, human context):
 ```text
 zfa tdd replay: no recorded history for feature <feature> at specs/<feature>/tdd/cycle-log.md
 zfa tdd replay: unknown behavior <id> — recorded behaviors: <a, b, c>
-zfa tdd replay: <n> behaviors recorded but none carry machine-format entries (narrative log?)
+zfa tdd replay: no machine-format entries recorded for feature <feature> (narrative log?)
 ```
 
 ## Exit codes (#778 vocabulary, spec FR-013)
@@ -74,7 +74,10 @@ zfa tdd replay: <n> behaviors recorded but none carry machine-format entries (na
 See data-model.md §ReplayEvent for the exact shapes. Guarantees:
 
 1. One JSON object per line, UTF-8, `\n`-terminated.
-2. Starts with `replay.start`, ends with `replay.end`.
+2. The staging path starts with `replay.start` and ends with
+   `replay.end`; infrastructure failures detected before staging (missing
+   log, unknown behavior, sandbox failure) may carry only `replay.end` —
+   still written, still terminating in the process exit.
 3. Written on every outcome (clean, divergent, partial, infra failure) — an agent
    harness can always read the outcome.
 4. `replay.end.exit` equals the process exit code.
