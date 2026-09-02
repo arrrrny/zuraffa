@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:args/args.dart';
 import 'package:path/path.dart' as p;
 import '../commands/schema_command.dart';
+import '../commands/simulate_command.dart';
 import '../commands/ui_command.dart';
 import '../commands/validate_command.dart';
 import '../commands/create_command.dart' as create;
@@ -175,6 +176,7 @@ class CliRunner {
     _runner.addCommand(AppCommand());
     _runner.addCommand(UiCommand());
     _runner.addCommand(PackageCommand());
+    _runner.addCommand(SimulateCommand());
   }
 
   void _loadAndRegisterPlugins() {
