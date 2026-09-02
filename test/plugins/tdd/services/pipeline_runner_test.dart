@@ -490,35 +490,48 @@ esac
       },
     );
 
-    test('U15: tier 2 — running from source keeps dart <bin/zfa.dart>', () async {
-      final logPath = fx.fakeZfaLogPath;
-      final fakeDart = await fx.writeFakeZfaBin(logPath: logPath, name: 'dart-vm');
-      final sourceScript = p.join(fx.root.path, 'bin', 'zfa.dart');
-      await File(sourceScript).create(recursive: true);
+    test(
+      'U15: tier 2 — running from source keeps dart <bin/zfa.dart>',
+      () async {
+        final logPath = fx.fakeZfaLogPath;
+        final fakeDart = await fx.writeFakeZfaBin(
+          logPath: logPath,
+          name: 'dart-vm',
+        );
+        final sourceScript = p.join(fx.root.path, 'bin', 'zfa.dart');
+        await File(sourceScript).create(recursive: true);
 
-      const runner = PipelineRunner();
-      final result = await runner.runPlan(
-        plan: await singleStepPlan(fx),
-        workingDirectory: fx.root.path,
-        scriptPathOverride: sourceScript,
-        resolvedExecutableOverride: fakeDart,
-        pathEnvOverride: '/nonexistent-zfa-path-dir',
-      );
+        const runner = PipelineRunner();
+        final result = await runner.runPlan(
+          plan: await singleStepPlan(fx),
+          workingDirectory: fx.root.path,
+          scriptPathOverride: sourceScript,
+          resolvedExecutableOverride: fakeDart,
+          pathEnvOverride: '/nonexistent-zfa-path-dir',
+        );
 
-      expect(result.completed, isTrue);
-      expect(result.entrypoint, '$fakeDart $sourceScript');
-      final log = await fx.readFakeZfaLog();
-      expect(log, hasLength(1));
-      // The fake VM received the source script as its first argument.
-      expect(log.single, '$sourceScript make Todo');
-    });
+        expect(result.completed, isTrue);
+        expect(result.entrypoint, '$fakeDart $sourceScript');
+        final log = await fx.readFakeZfaLog();
+        expect(log, hasLength(1));
+        // The fake VM received the source script as its first argument.
+        expect(log.single, '$sourceScript make Todo');
+      },
+    );
 
     test('U16: tier 3 — zfa on PATH wins over the snapshot fallback', () async {
       final logPath = fx.fakeZfaLogPath;
       final fakeZfa = await fx.writeFakeZfaBin(logPath: logPath);
-      final fakeDart = await fx.writeFakeZfaBin(logPath: logPath, name: 'dart-vm');
+      final fakeDart = await fx.writeFakeZfaBin(
+        logPath: logPath,
+        name: 'dart-vm',
+      );
       // Snapshot-shaped script path (a tier-2 miss) while PATH holds zfa.
-      final snapshotPath = p.join(fx.root.path, 'snapshots', 'zfa.dart.snapshot');
+      final snapshotPath = p.join(
+        fx.root.path,
+        'snapshots',
+        'zfa.dart.snapshot',
+      );
       await File(snapshotPath).create(recursive: true);
 
       const runner = PipelineRunner();
@@ -541,10 +554,15 @@ esac
       'U17: tier 4 — compiled snapshot keeps the dart <snapshot> shape',
       () async {
         final logPath = fx.fakeZfaLogPath;
-        final fakeDart =
-            await fx.writeFakeZfaBin(logPath: logPath, name: 'dart-vm');
-        final snapshotPath =
-            p.join(fx.root.path, 'snapshots', 'zfa.dart.snapshot');
+        final fakeDart = await fx.writeFakeZfaBin(
+          logPath: logPath,
+          name: 'dart-vm',
+        );
+        final snapshotPath = p.join(
+          fx.root.path,
+          'snapshots',
+          'zfa.dart.snapshot',
+        );
         await File(snapshotPath).create(recursive: true);
 
         const runner = PipelineRunner();

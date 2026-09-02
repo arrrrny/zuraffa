@@ -313,7 +313,10 @@ class PipelineRunner {
     }
 
     // 3. Resolve the concrete `zfa` executable from PATH without a shell.
-    final pathEntrypoint = _findExecutableOnPath('zfa', pathEnv: pathEnvOverride);
+    final pathEntrypoint = _findExecutableOnPath(
+      'zfa',
+      pathEnv: pathEnvOverride,
+    );
     if (pathEntrypoint != null) {
       return _ResolvedEntrypoint(
         executable: pathEntrypoint,
