@@ -165,6 +165,53 @@ class CorpusFixture {
     if (!await file.exists()) return const [];
     return jsonDecode(await file.readAsString()) as List<dynamic>;
   }
+
+  // -------------------------------------------------------------------
+  // Bug #836 additions: the plan input (`--plan`), the per-feature spec
+  // file (the provenance hash source), and per-feature test lists (the
+  // plan-gap coverage source).
+  // -------------------------------------------------------------------
+
+  /// Write [content] to [name] under the fixture root, returning the
+  /// absolute path (the `--plan` argument).
+  Future<String> writePlan(
+    String content, {
+    String name = 'rewrite-plan.md',
+  }) async {
+    final file = File(p.join(root.path, name));
+    await file.parent.create(recursive: true);
+    await file.writeAsString(content);
+    return file.path;
+  }
+
+  /// Write `specs/<feature>/spec.md` (the intent document whose sha256
+  /// binds green runs to intent — bug #836 remediation 2).
+  Future<void> writeSpec(String feature, String content) async {
+    final dir = Directory(p.join(root.path, 'specs', feature));
+    await dir.create(recursive: true);
+    await File(p.join(dir.path, 'spec.md')).writeAsString(content);
+  }
+
+  /// Write `specs/<feature>/tdd/test-list.md` with canonical 4-column
+  /// rows (the TestListReader's one format contract): every declared
+  /// behavior traces to one FR/AC criterion (the plan-gap coverage
+  /// source, bug #836 remediation 3).
+  Future<void> writeTestList(
+    String feature,
+    List<({String id, String traces})> rows,
+  ) async {
+    final dir = Directory(p.join(root.path, 'specs', feature, 'tdd'));
+    await dir.create(recursive: true);
+    final buf = StringBuffer()
+      ..writeln('# Test list')
+      ..writeln('## Inner loop:');
+    for (final row in rows) {
+      buf.writeln(
+        '| ${row.id} | behavior ${row.id} | ${row.traces} | PENDING |',
+      );
+    }
+    await File(p.join(dir.path, 'test-list.md')).writeAsString(buf.toString());
+  }
 }
 
 String shellQuote(String s) => "'${s.replaceAll("'", "'\\''")}'";

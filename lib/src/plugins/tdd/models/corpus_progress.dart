@@ -100,6 +100,7 @@ class FeatureProgress {
     this.gate,
     this.stoppedAt,
     this.waiver,
+    this.specHash,
   });
 
   final FeatureCorpusState state;
@@ -114,11 +115,18 @@ class FeatureProgress {
   /// Copied in full when a waiver applied (never silent).
   final CorpusWaiver? waiver;
 
+  /// The sha256 of the feature's `specs/<f>/spec.md` when the feature
+  /// completed (bug #836 remediation 2): the green run binds to the
+  /// intent it verified. A later run whose recorded hash no longer
+  /// matches the file is evidence drift (exit 3), never a silent pass.
+  final String? specHash;
+
   Map<String, dynamic> toJson() => {
     'state': state.name,
     if (gate != null) 'gate': gate,
     if (stoppedAt != null) 'stopped_at': stoppedAt,
     if (waiver != null) 'waiver': waiver!.toJson(),
+    if (specHash != null) 'spec_hash': specHash,
   };
 }
 
@@ -194,6 +202,10 @@ class CorpusProgress {
         if (stoppedAt != null && stoppedAt is! String) {
           bad('features["$name"].stopped_at is not a string');
         }
+        final specHash = row['spec_hash'];
+        if (specHash != null && specHash is! String) {
+          bad('features["$name"].spec_hash is not a string');
+        }
         CorpusWaiver? waiver;
         final waiverRaw = row['waiver'];
         if (waiverRaw != null) {
@@ -222,6 +234,7 @@ class CorpusProgress {
           gate: gate as String?,
           stoppedAt: stoppedAt as String?,
           waiver: waiver,
+          specHash: specHash as String?,
         );
       }
     }

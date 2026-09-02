@@ -31,16 +31,19 @@ library;
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
 import '../tdd_plugin.dart';
 import '../models/corpus_ledger.dart';
 import '../models/corpus_manifest.dart';
+import '../models/corpus_plan.dart';
 import '../models/corpus_progress.dart';
 import '../services/corpus_manifest_store.dart';
 import '../services/corpus_progress_store.dart';
 import '../services/corpus_step_runner.dart';
 import '../services/gap_ledger_store.dart';
+import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
 import '../../../core/project/project_root.dart';
 
@@ -70,6 +73,20 @@ class CorpusRunCommand extends Command<void> {
           '(bug #742; default 10). Fractions are allowed. On timeout the '
           'child is killed and the corpus stops with a runner-error.',
     );
+    argParser.addOption(
+      'plan',
+      valueHelp: 'file',
+      help:
+          'Rewrite plan (bug #836): a markdown file whose `A -> B` / '
+          '`A→B` lines declare dependency edges and whose '
+          '`F001: FR-1, AC-2` lines declare per-feature criteria — or a '
+          'TUPEC inventory.json (features[].id/name/dependencies/'
+          'criteria). The manifest is topologically ordered by the '
+          'declared edges before anything is driven; declared criteria '
+          'without behaviors land in the gap ledger (the completeness '
+          'proof). Plan errors (missing file, unknown feature, cycle) '
+          'stop honestly with exit 2 and nothing driven.',
+    );
   }
 
   final TddPlugin plugin;
@@ -85,7 +102,8 @@ class CorpusRunCommand extends Command<void> {
 
   @override
   String get invocation =>
-      'zfa tdd corpus run [--project <dir>] [--zfa-bin <path>]';
+      'zfa tdd corpus run [--project <dir>] [--zfa-bin <path>] '
+      '[--plan <file>]';
 
   static const _exitComplete = 0;
   static const _exitStopped = 1;
@@ -101,6 +119,7 @@ class CorpusRunCommand extends Command<void> {
         ? p.absolute(projectFlag)
         : ProjectRoot.find();
     final zfaBin = argResults?['zfa-bin'] as String?;
+    final planFlag = argResults?['plan'] as String?;
 
     // Bug #742: the --timeout override for each spawned per-feature command.
     final Duration? timeoutOverride;
@@ -145,6 +164,52 @@ class CorpusRunCommand extends Command<void> {
     }
 
     // -----------------------------------------------------------------
+    // 1b. The plan (--plan, bug #836): parse + topologically order the
+    //     manifest BEFORE any state is touched. A plan error is the
+    //     honest runner-error outcome (exit 2) with nothing driven.
+    // -----------------------------------------------------------------
+    CorpusPlan? plan;
+    List<CorpusFeature> driveOrder = manifest.features;
+    if (planFlag != null && planFlag.isNotEmpty) {
+      final planFile = File(planFlag);
+      if (!await planFile.exists()) {
+        print(
+          'zfa tdd corpus run: no corpus plan at $planFlag — pass the '
+          'rewrite-plan.md (or TUPEC inventory.json) path via --plan.',
+        );
+        _printSummary(
+          features: manifest.features.length,
+          result: 'runner-error',
+        );
+        exitCode = _exitRunnerError;
+        return;
+      }
+      try {
+        plan = CorpusPlan.parse(await planFile.readAsString(), path: planFlag);
+        driveOrder = CorpusPlan.orderManifest(manifest, plan);
+        if (plan.features.isEmpty) {
+          print(
+            '[corpus] plan: no dependency edges declared — manifest '
+            'order preserved',
+          );
+        } else {
+          print(
+            '[corpus] plan: ${plan.features.length} feature(s), '
+            'order: ${driveOrder.map((f) => f.name).join(' -> ')}',
+          );
+        }
+      } on CorpusPlanException catch (e) {
+        print('zfa tdd corpus run: $e');
+        _printSummary(
+          features: manifest.features.length,
+          result: 'runner-error',
+        );
+        exitCode = _exitRunnerError;
+        return;
+      }
+    }
+
+    // -----------------------------------------------------------------
     // 2. Acquire atomic ownership before inspecting the persisted
     //    marker. This closes the check-then-write race between two runs.
     // -----------------------------------------------------------------
@@ -184,6 +249,55 @@ class CorpusRunCommand extends Command<void> {
       }
       await ledgerStore.load();
 
+      // -----------------------------------------------------------------
+      // 2b. Provenance drift gate (bug #836 remediation 2): a recorded
+      //     spec hash that no longer matches specs/<f>/spec.md means the
+      //     green evidence no longer binds to intent — stop with exit 3
+      //     BEFORE anything is driven. Rows without a recorded hash
+      //     (pre-#836 progress) never false-positive.
+      // -----------------------------------------------------------------
+      final drifted = await _driftedFeatures(projectRoot, progress);
+      if (drifted.isNotEmpty) {
+        for (final name in drifted) {
+          final recorded = progress.features[name]?.specHash;
+          final current = await _specHashFor(projectRoot, name);
+          print(
+            'zfa tdd corpus run: evidence drift on $name: '
+            'specs/$name/spec.md changed after its green run '
+            '(recorded ${_shortHash(recorded)}, now ${_shortHash(current)}) '
+            '— the corpus evidence no longer binds to intent.',
+          );
+        }
+        print(
+          'zfa tdd corpus run: ${drifted.length} drifted feature(s); '
+          'recovery: re-drive them (reset their corpus progress) or '
+          'restore the spec — the run stopped before driving anything.',
+        );
+        _printSummary(
+          features: manifest.features.length,
+          result: 'corrupt-state',
+          progress: progress,
+          manifest: manifest,
+        );
+        exitCode = _exitCorruptState;
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // 2c. Plan-gap reconciliation (bug #836 remediation 3, plan mode):
+      //     every declared criterion without a behavior lands in the
+      //     ledger (append-only, deduped across resumes); a criterion
+      //     that became covered resolves its open gap (a NEW entry).
+      //     The ledger IS the completeness proof.
+      // -----------------------------------------------------------------
+      if (plan != null) {
+        await _reconcilePlanGaps(
+          plan: plan,
+          projectRoot: projectRoot,
+          ledgerStore: ledgerStore,
+        );
+      }
+
       final manifestNames = manifest.features.map((f) => f.name).toSet();
       print(
         'zfa tdd corpus run: ${manifest.features.length} feature(s) '
@@ -191,7 +305,9 @@ class CorpusRunCommand extends Command<void> {
       );
 
       // -----------------------------------------------------------------
-      // 3. Drive in manifest order (FR-001); STOP-ON-ROADBLOCK (FR-002).
+      // 3. Drive in plan/topological order when --plan is given (bug
+      //    #836), else manifest order (FR-001); STOP-ON-ROADBLOCK
+      //    (FR-002).
       // -----------------------------------------------------------------
       final runner = CorpusStepRunner(zfaBin: zfaBin, timeout: timeoutOverride);
       String? stoppedAtFeature;
@@ -199,7 +315,7 @@ class CorpusRunCommand extends Command<void> {
       Future<void> persist() =>
           progressStore.save(progress, manifestFeatureNames: manifestNames);
 
-      for (final feature in manifest.features) {
+      for (final feature in driveOrder) {
         final name = feature.name;
         final existing = progress.features[name];
 
@@ -264,7 +380,11 @@ class CorpusRunCommand extends Command<void> {
         if (verifyResult.success) {
           progress.updateFeature(
             name,
-            FeatureProgress(state: FeatureCorpusState.done, gate: 'pass'),
+            FeatureProgress(
+              state: FeatureCorpusState.done,
+              gate: 'pass',
+              specHash: await _specHashFor(projectRoot, name),
+            ),
           );
           print('[corpus] $name -> done (gate: pass)');
           // A previously-gapped feature passing records the resolution as
@@ -286,6 +406,7 @@ class CorpusRunCommand extends Command<void> {
                 state: FeatureCorpusState.waived,
                 gate: verifyResult.outcome,
                 waiver: waiver,
+                specHash: await _specHashFor(projectRoot, name),
               ),
             );
             print(
@@ -360,6 +481,7 @@ class CorpusRunCommand extends Command<void> {
         manifest: manifest,
         gaps: totals.found,
         stoppedAt: stoppedAtFeature,
+        order: plan != null ? 'topological' : null,
       );
 
       exitCode = result == 'complete' ? _exitComplete : _exitStopped;
@@ -433,7 +555,11 @@ class CorpusRunCommand extends Command<void> {
   }
 
   /// Resolution entries for a previously-gapped feature that just passed
-  /// (US4.AC2): one NEW entry per unresolved gap, never an edit.
+  /// (US4.AC2): one NEW entry per unresolved gap, never an edit. Plan-gap
+  /// entries (step=plan, bug #836) are excluded: they resolve by the
+  /// criterion becoming covered (reconciliation at 2c), not by the
+  /// feature completing — a done feature with a still-missing behavior
+  /// stays honestly gapped.
   Future<void> _appendResolutionsIfGapped({
     required String feature,
     required GapLedgerStore ledgerStore,
@@ -447,11 +573,137 @@ class CorpusRunCommand extends Command<void> {
     for (final gap in ledger) {
       if (gap.kind != GapLedgerKind.gap) continue;
       if (gap.feature != feature) continue;
+      if (gap.step == 'plan') continue;
       if (gap.status == 'resolved' || gap.status == 'merged') continue;
       if (resolvedIds.contains(gap.id)) continue;
       await ledgerStore.appendResolution(feature: feature, resolves: gap.id);
       print('[corpus] $feature gap ${gap.id} resolved (new ledger entry)');
     }
+  }
+
+  /// The done/waived features whose recorded spec hash no longer matches
+  /// the current `specs/<f>/spec.md` (bug #836 remediation 2). Features
+  /// without a recorded hash (pre-#836 progress) are never drift.
+  static Future<List<String>> _driftedFeatures(
+    String projectRoot,
+    CorpusProgress progress,
+  ) async {
+    final drifted = <String>[];
+    for (final entry in progress.features.entries) {
+      final state = entry.value.state;
+      if (state != FeatureCorpusState.done &&
+          state != FeatureCorpusState.waived) {
+        continue;
+      }
+      final recorded = entry.value.specHash;
+      if (recorded == null) continue;
+      final current = await _specHashFor(projectRoot, entry.key);
+      if (current != null && current != recorded) {
+        drifted.add(entry.key);
+      }
+    }
+    return drifted;
+  }
+
+  /// The sha256 of `specs/<feature>/spec.md` (the intent the green run
+  /// binds to), null when the feature has no spec file.
+  static Future<String?> _specHashFor(
+    String projectRoot,
+    String feature,
+  ) async {
+    final file = File(p.join(projectRoot, 'specs', feature, 'spec.md'));
+    if (!await file.exists()) return null;
+    return crypto.sha256.convert(await file.readAsBytes()).toString();
+  }
+
+  static String _shortHash(String? hash) {
+    if (hash == null || hash.length < 8) return hash ?? '(none)';
+    return '${hash.substring(0, 8)}…';
+  }
+
+  /// Plan-gap reconciliation (bug #836 remediation 3): for every plan
+  /// criterion, compare against the trace tokens of the feature's
+  /// `tdd/test-list.md` rows (the TestListReader single format contract).
+  /// Uncovered + no open entry → append a gap entry
+  /// (`step=plan`, `outcome=missing_behavior`, `expected_result=behavior`).
+  /// Covered + open entry → append a resolution (never an edit). Covered
+  /// + no entry and uncovered + open entry are no-ops (dedupe keeps the
+  /// append-only ledger stable across resume runs).
+  Future<void> _reconcilePlanGaps({
+    required CorpusPlan plan,
+    required String projectRoot,
+    required GapLedgerStore ledgerStore,
+  }) async {
+    final ledger = await _loadLedger(ledgerStore);
+    final openPlanGaps = <String, GapLedgerEntry>{};
+    for (final entry in ledger) {
+      if (entry.kind != GapLedgerKind.gap) continue;
+      if (entry.step != 'plan') continue;
+      if (entry.status == 'resolved' || entry.status == 'merged') continue;
+      openPlanGaps['${entry.feature}|${entry.behavior}'] = entry;
+    }
+    final resolvedIds = ledger
+        .where((e) => e.kind == GapLedgerKind.resolution)
+        .map((e) => e.resolves)
+        .whereType<String>()
+        .toSet();
+
+    for (final row in plan.features) {
+      if (row.criteria.isEmpty) continue;
+      final covered = await _coveredCriteria(projectRoot, row.name);
+      for (final criterion in row.criteria) {
+        final key = '${row.name}|$criterion';
+        final open = openPlanGaps[key];
+        if (covered.contains(criterion)) {
+          if (open != null && !resolvedIds.contains(open.id)) {
+            await ledgerStore.appendResolution(
+              feature: row.name,
+              resolves: open.id,
+            );
+            print(
+              '[corpus] plan-gap ${open.id} resolved: $key has a behavior '
+              '(new ledger entry)',
+            );
+          }
+        } else if (open == null) {
+          final entry = await ledgerStore.appendGap(
+            feature: row.name,
+            behavior: criterion,
+            step: 'plan',
+            outcome: 'missing_behavior',
+            expectedResult: 'behavior',
+          );
+          print(
+            '[corpus] plan-gap ${entry.id}: $key declares $criterion but '
+            'no behavior traces to it (gap ledger)',
+          );
+        }
+      }
+    }
+  }
+
+  /// The trace tokens of [feature]'s test-list rows (uppercase, split on
+  /// commas/whitespace); empty when the feature has no (readable) test
+  /// list — every declared criterion is then honestly uncovered.
+  static Future<Set<String>> _coveredCriteria(
+    String projectRoot,
+    String feature,
+  ) async {
+    final reader = TestListReader(p.join(projectRoot, 'specs', feature));
+    final List<BehaviorRow> rows;
+    try {
+      rows = await reader.read();
+    } on TestListReadException {
+      return const {};
+    }
+    final tokens = <String>{};
+    for (final row in rows) {
+      for (final token in row.traces.split(RegExp(r'[,\s]+'))) {
+        final normalized = token.trim().toUpperCase();
+        if (normalized.isNotEmpty) tokens.add(normalized);
+      }
+    }
+    return tokens;
   }
 
   static Future<List<GapLedgerEntry>> _loadLedger(GapLedgerStore store) =>
@@ -547,6 +799,7 @@ class CorpusRunCommand extends Command<void> {
     CorpusManifest? manifest,
     int gaps = 0,
     String? stoppedAt,
+    String? order,
   }) {
     var done = 0;
     var waived = 0;
@@ -579,7 +832,8 @@ class CorpusRunCommand extends Command<void> {
       'corpus: features=$features done=$done waived=$waived stopped=$stopped '
       'not_ready=$notReady pending=$pending dropped=$dropped gaps=$gaps '
       'result=$result'
-      '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}',
+      '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}'
+      '${order != null ? ' order=$order' : ''}',
     );
   }
 }

@@ -47,7 +47,9 @@ class GapLedgerEntry {
   final String? outcome;
 
   /// The successful result token expected from the failing corpus command:
-  /// `complete` for run, `pass` for verify.
+  /// `complete` for run, `pass` for verify, `behavior` for a plan-gap
+  /// entry (an FR/AC declared by the plan whose behavior is missing —
+  /// bug #836).
   final String? expectedResult;
 
   /// The spawned argv that failed (joined).
@@ -137,9 +139,10 @@ class GapLedgerEntry {
 
     final expectedResult = optionalString('expected_result');
     if (kind == GapLedgerKind.gap &&
-        !const {'complete', 'pass'}.contains(expectedResult)) {
+        !const {'complete', 'pass', 'behavior'}.contains(expectedResult)) {
       throw FormatException(
-        'gap ledger entry "expected_result" must be "complete" or "pass"',
+        'gap ledger entry "expected_result" must be "complete", "pass" '
+        'or "behavior" (a plan-gap entry — bug #836)',
       );
     }
     return GapLedgerEntry(
