@@ -1,7 +1,5 @@
-import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/sqlite/sqlite_plugin.dart';
-import '../plugins/sqlite/capabilities/create_sqlite_adapter_capability.dart';
 
 /// `zfa sqlite [adapter] <Entity>` — generates a SQLite-backed DataSource.
 ///
@@ -35,58 +33,12 @@ class SqliteCommand extends PluginCommand {
       return super.run();
     }
 
-    var rest = argResults?.rest ?? const <String>[];
-    if (rest.isEmpty) {
-      print('❌ Usage: zfa sqlite [adapter] <EntityName> [options]');
-      return;
-    }
-    // Tolerate the issue's `zfa sqlite adapter <Entity>` spelling.
-    if (rest.first == 'adapter' && rest.length > 1) {
-      rest = rest.sublist(1);
-    }
-    final entityName = rest.first;
-
-    final methodsStr = argResults?['methods'] as String?;
-    final methods = methodsStr == null || methodsStr.trim().isEmpty
-        ? const <String>[]
-        : methodsStr
-              .split(',')
-              .map((m) => m.trim())
-              .where((m) => m.isNotEmpty)
-              .toList();
-
-    final capability =
-        plugin.capabilities.firstWhere(
-              (c) => c is CreateSqliteAdapterCapability,
-            )
-            as CreateSqliteAdapterCapability;
-
-    final result = await capability.execute({
-      'name': entityName,
-      'methods': methods,
-      'dryRun': isDryRun,
-      'force': isForce,
-      'verbose': isVerbose,
-      'outputDir': outputDir,
-    });
-
-    if (result.success) {
-      final files =
-          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
-      logSummary(files);
-      print(
-        '\n💡 Add the sqlite3 dependency to pubspec.yaml to use the adapter:\n'
-        '   dart pub add sqlite3'
-        '\n   (Flutter apps also need sqlite3_flutter_libs)',
-      );
-      print(
-        '\n   The generated class takes an open Database:\n'
-        '   final ds = ${entityName}SqliteDataSource(\n'
-        '     sqlite3.openInMemory(), // or sqlite3.open(dbPath)\n'
-        '   );',
-      );
-    } else {
-      print('❌ ${result.message}');
-    }
+    // Bug #856: the positional grammar this command's usage strings
+    // advertised (`zfa sqlite [adapter] <EntityName>`) is unreachable
+    // through the CLI — package:args rejects a bare entity name as a
+    // subcommand attempt before run() ever executes. The subcommand grammar
+    // is the only live contract (`zfa manifest`):
+    // `zfa sqlite create --name <Entity>`.
+    reportSubcommandUsage();
   }
 }

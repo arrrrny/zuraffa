@@ -2,11 +2,9 @@ import 'dart:io';
 import 'package:args/args.dart';
 
 import '../models/generator_config.dart';
-import '../models/generated_file.dart';
 import '../models/generator_result.dart';
 import 'base_plugin_command.dart';
 import '../plugins/test/test_plugin.dart';
-import '../plugins/test/capabilities/create_test_capability.dart';
 
 /// CLI command that generates tests for existing use cases.
 ///
@@ -155,38 +153,11 @@ class TestCommand extends PluginCommand {
   @override
   /// Runs the command using parsed CLI args.
   Future<void> run() async {
-    if (argResults?.rest.isEmpty ?? true) {
-      print('❌ Usage: zfa test <EntityName> [options]');
-      return;
-    }
-
-    final entityName = argResults!.rest.first;
-    final methodsValue = (argResults?['methods'] as String?) ?? '';
-    final methods = methodsValue.trim().isEmpty
-        ? <String>[]
-        : methodsValue.split(',').where((m) => m.trim().isNotEmpty).toList();
-    final domain = (argResults?['domain'] as String?) ?? 'general';
-
-    final capability =
-        plugin.capabilities.firstWhere((c) => c is CreateTestCapability)
-            as CreateTestCapability;
-
-    final result = await capability.execute({
-      'name': entityName,
-      'methods': methods,
-      'domain': domain,
-      'dryRun': isDryRun,
-      'force': isForce,
-      'verbose': isVerbose,
-      'outputDir': outputDir,
-    });
-
-    if (result.success) {
-      final files =
-          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
-      logSummary(files);
-    } else {
-      print('Failed to generate test');
-    }
+    // Bug #856: the positional grammar this command's usage strings
+    // advertised (`zfa test <EntityName>`) is unreachable through the
+    // CLI — package:args rejects a bare entity name as a subcommand attempt
+    // before run() ever executes. The subcommand grammar is the only live
+    // contract (`zfa manifest`): `zfa test create --name <Entity>`.
+    reportSubcommandUsage();
   }
 }

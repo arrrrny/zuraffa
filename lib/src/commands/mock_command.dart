@@ -50,71 +50,12 @@ class MockCommand extends PluginCommand {
       return super.run();
     }
 
-    if (argResults?.rest.isEmpty ?? true) {
-      print('❌ Usage: zfa mock <EntityName> [options]');
-      print('   Or: zfa mock data <EntityName> [options]');
-      print('   Or: zfa mock json <EntityName> [options]');
-      exit(64);
-    }
-
-    final entityName = argResults!.rest.first;
-    final useJson = argResults?['json'] as bool? ?? false;
-    final dataOnly = argResults?['data-only'] as bool? ?? false;
-    final service = argResults?['service'] as String?;
-    final domain = argResults?['domain'] as String?;
-    final params = argResults?['params'] as String?;
-    final returns = argResults?['returns'] as String?;
-
-    if (useJson) {
-      final jsonCaps = plugin.capabilities.whereType<JsonMockCapability>();
-      if (jsonCaps.isEmpty) {
-        print('Failed to find JSON mock capability');
-        return;
-      }
-      final capability = jsonCaps.first;
-
-      final result = await capability.execute({
-        'name': entityName,
-        'domain': domain,
-        'dryRun': isDryRun,
-        'force': isForce,
-        'verbose': isVerbose,
-      });
-
-      if (result.success) {
-        final files =
-            result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
-        logSummary(files);
-      } else {
-        print('Failed to generate JSON mock');
-      }
-      return;
-    }
-
-    final capability =
-        plugin.capabilities.firstWhere((c) => c is CreateMockCapability)
-            as CreateMockCapability;
-
-    final result = await capability.execute({
-      'name': entityName,
-      'dataOnly': dataOnly,
-      'service': service,
-      'domain': domain,
-      'params': params,
-      'returns': returns,
-      'dryRun': isDryRun,
-      'force': isForce,
-      'verbose': isVerbose,
-      'outputDir': outputDir,
-    });
-
-    if (result.success) {
-      final files =
-          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
-      logSummary(files);
-    } else {
-      print('Failed to generate mock');
-    }
+    // Bug #856: the positional grammar this command's usage strings
+    // advertised (`zfa mock <EntityName>`) is unreachable through the CLI —
+    // package:args rejects a bare entity name as a subcommand attempt
+    // before run() ever executes. The subcommand grammar is the only live
+    // contract (`zfa manifest`): `zfa mock create|data|json|inject`.
+    reportSubcommandUsage();
   }
 }
 

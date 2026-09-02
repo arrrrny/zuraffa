@@ -1,7 +1,5 @@
-import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/repository/repository_plugin.dart';
-import '../plugins/repository/capabilities/create_repository_capability.dart';
 
 class RepositoryCommand extends PluginCommand {
   @override
@@ -42,39 +40,11 @@ class RepositoryCommand extends PluginCommand {
 
   @override
   Future<void> run() async {
-    if (argResults?.rest.isEmpty ?? true) {
-      print('❌ Usage: zfa repository <EntityName> [options]');
-      return;
-    }
-
-    final entityName = argResults!.rest.first;
-    final methods =
-        (argResults?['methods'] as String?)?.split(',') ?? ['get', 'update'];
-    final generateData = argResults?['data'] as bool? ?? true;
-    final generateDataSource = argResults?['datasource'] as bool? ?? true;
-
-    final capability =
-        plugin.capabilities.firstWhere((c) => c is CreateRepositoryCapability)
-            as CreateRepositoryCapability;
-
-    final result = await capability.execute({
-      'name': entityName,
-      'methods': methods,
-      'data': generateData,
-      'datasource': generateDataSource,
-      'init': argResults?['init'] == true,
-      'dryRun': isDryRun,
-      'force': isForce,
-      'verbose': isVerbose,
-      'outputDir': outputDir,
-    });
-
-    if (result.success) {
-      final files =
-          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
-      logSummary(files);
-    } else {
-      print('Failed to generate repository');
-    }
+    // Bug #856: the positional grammar this command's usage strings
+    // advertised (`zfa repository <EntityName>`) is unreachable through the
+    // CLI — package:args rejects a bare entity name as a subcommand attempt
+    // before run() ever executes. The subcommand grammar is the only live
+    // contract (`zfa manifest`): `zfa repository create --name <Entity>`.
+    reportSubcommandUsage();
   }
 }

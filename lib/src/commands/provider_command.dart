@@ -1,7 +1,5 @@
-import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/provider/provider_plugin.dart';
-import '../plugins/provider/capabilities/create_provider_capability.dart';
 
 class ProviderCommand extends PluginCommand {
   @override
@@ -58,43 +56,11 @@ class ProviderCommand extends PluginCommand {
       return super.run();
     }
 
-    if (argResults?.rest.isEmpty ?? true) {
-      print('❌ Usage: zfa provider <EntityName> [options]');
-      return;
-    }
-
-    final entityName = argResults!.rest.first;
-    final generateData = argResults?['data'] as bool? ?? true;
-    final domain = argResults?['domain'];
-    final params = argResults?['params'];
-    final returns = argResults?['returns'];
-    final type = argResults?['type'];
-
-    final capability =
-        plugin.capabilities.firstWhere((c) => c is CreateProviderCapability)
-            as CreateProviderCapability;
-
-    final result = await capability.execute({
-      'name': entityName,
-      'data': generateData,
-      'domain': domain,
-      'params': params,
-      'returns': returns,
-      'type': type,
-      'init': argResults?['init'] == true,
-      'dryRun': isDryRun,
-      'force': isForce,
-      'verbose': isVerbose,
-      'outputDir': outputDir,
-    });
-
-    if (result.success) {
-      final files =
-          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
-      logSummary(files);
-    } else {
-      // Handle error
-      print('Failed to generate provider');
-    }
+    // Bug #856: the positional grammar this command's usage strings
+    // advertised (`zfa provider <EntityName>`) is unreachable through the
+    // CLI — package:args rejects a bare entity name as a subcommand attempt
+    // before run() ever executes. The subcommand grammar is the only live
+    // contract (`zfa manifest`): `zfa provider create --name <Entity>`.
+    reportSubcommandUsage();
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
 import '../core/plugin_system/plugin_interface.dart';
@@ -101,6 +103,25 @@ abstract class PluginCommand extends Command<void> {
   /// Returns the resolved output directory.
   @protected
   String get outputDir => fixedOutputDir;
+
+  /// Prints the live subcommand grammar and signals a usage error (bug
+  /// #856).
+  ///
+  /// The positional grammars these commands' usage strings advertised
+  /// (`zfa repository <EntityName>`) are unreachable through the CLI:
+  /// [PluginCommand] auto-registers every capability as a subcommand, so
+  /// package:args rejects a bare entity name — and any
+  /// flags-then-positional shape — with "Could not find a subcommand"
+  /// before run() ever executes. run() is only reachable through direct
+  /// (programmatic) invocation; it must therefore tell the truth about
+  /// the grammar, never generate, and exit non-zero instead of looking
+  /// like a success.
+  @protected
+  void reportSubcommandUsage() {
+    print('❌ Usage: zfa $name <subcommand> [arguments]');
+    print('   Run `zfa $name --help` to list subcommands.');
+    exitCode = 64;
+  }
 
   /// Prints a summary of generated files.
   @protected

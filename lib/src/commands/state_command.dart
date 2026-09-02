@@ -1,7 +1,5 @@
-import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/state/state_plugin.dart';
-import '../plugins/state/capabilities/create_state_capability.dart';
 
 class StateCommand extends PluginCommand {
   @override
@@ -25,34 +23,11 @@ class StateCommand extends PluginCommand {
 
   @override
   Future<void> run() async {
-    if (argResults?.rest.isEmpty ?? true) {
-      print('❌ Usage: zfa state <EntityName> [options]');
-      return;
-    }
-
-    final entityName = argResults!.rest.first;
-    final methods =
-        (argResults?['methods'] as String?)?.split(',') ?? ['get', 'update'];
-
-    final capability =
-        plugin.capabilities.firstWhere((c) => c is CreateStateCapability)
-            as CreateStateCapability;
-
-    final result = await capability.execute({
-      'name': entityName,
-      'methods': methods,
-      'dryRun': isDryRun,
-      'force': isForce,
-      'verbose': isVerbose,
-      'outputDir': outputDir,
-    });
-
-    if (result.success) {
-      final files =
-          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
-      logSummary(files);
-    } else {
-      print('Failed to generate state');
-    }
+    // Bug #856: the positional grammar this command's usage strings
+    // advertised (`zfa state <EntityName>`) is unreachable through the
+    // CLI — package:args rejects a bare entity name as a subcommand attempt
+    // before run() ever executes. The subcommand grammar is the only live
+    // contract (`zfa manifest`): `zfa state create --name <Entity>`.
+    reportSubcommandUsage();
   }
 }
