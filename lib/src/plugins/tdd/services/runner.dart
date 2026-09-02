@@ -396,15 +396,23 @@ class SingleTestRunner {
   /// Splitting happens BEFORE substitution so a test name containing
   /// spaces stays one argument; quote pairs wrapping a substituted token
   /// are stripped (they were the template's shell quoting, not data).
-  /// Regex metacharacters in the test name are escaped so the single
-  /// test runner's `-n` regex matches the name literally (issue #760).
+  ///
+  /// Bug #760: the name lands in a regex-flavored filter (`dart test -n` /
+  /// `--name`) unless the template opts into the literal matcher
+  /// `--plain-name` (issue #756). Regex metacharacters in the name —
+  /// `(sticky)`, `(FR-XXX)`, dots, brackets — would change the matching
+  /// semantics ("No tests match regular expression", exit 79, classified
+  /// as runner-error), so the substituted name is escaped UNLESS the
+  /// template carries `--plain-name`, where escaping would corrupt the
+  /// literal match. `{file}` is NOT escaped: it lands in a positional
+  /// path argument, which `dart test` matches as a path, not a pattern.
   List<String> _tokenize(String template, String file, String name) {
-    final escapedName = _escapeRegExp(name);
+    final escapeName = !template.contains('--plain-name');
     final rawTokens = template.trim().split(RegExp(r'\s+'));
     return rawTokens.map((token) {
       var out = token
           .replaceAll('{file}', file)
-          .replaceAll('{name}', escapedName);
+          .replaceAll('{name}', escapeName ? _escapeRegExp(name) : name);
       if (out.length >= 2 && out.startsWith('"') && out.endsWith('"')) {
         out = out.substring(1, out.length - 1);
       } else if (out.length >= 2 && out.startsWith("'") && out.endsWith("'")) {
@@ -412,5 +420,12 @@ class SingleTestRunner {
       }
       return out;
     }).toList();
+  }
+
+  /// Escape regex metacharacters so a string is matched literally by a
+  /// regex-flavored filter (bug #760): escapes `\.^$*+?()[]{}|`.
+  String _escapeRegExp(String s) {
+    final special = RegExp(r'[\.\\^$*+?()\[\]{}|]');
+    return s.replaceAllMapped(special, (m) => '\\${m.group(0)}');
   }
 }
