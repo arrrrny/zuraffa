@@ -1,3 +1,7 @@
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+
 import '../../../core/plugin_system/capability.dart';
 import '../provider_plugin.dart';
 import '../../../models/generator_config.dart';
@@ -36,10 +40,15 @@ class CreateProviderCapability implements ZuraffaCapability {
         'type': 'string',
         'description': 'Provider method type (sync, stream, completable)',
       },
+      // Issue #768: MUST match the positional `zfa provider <Entity>` CLI
+      // path (ProviderCommand defaults `data` to true). The previous schema
+      // default (`false`) made the documented minimal invocation
+      // `zfa provider create --name X` a silent no-op: the provider plugin's
+      // gate returned zero files while the command reported success.
       'data': {
         'type': 'boolean',
         'description': 'Generate data layer dependencies',
-        'default': false,
+        'default': true,
       },
       'dryRun': {
         'type': 'boolean',
@@ -107,7 +116,10 @@ class CreateProviderCapability implements ZuraffaCapability {
     final paramsType = args['params'];
     final returnsType = args['returns'];
     final useCaseType = args['type'] ?? 'usecase';
-    final generateData = args['data'] ?? false;
+    // Issue #768: semantic default for direct execute() callers that omit
+    // the key — same contract as the schema default and the positional CLI
+    // path. Explicit values, including `false`, are always honored.
+    final generateData = args['data'] ?? true;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 
@@ -126,6 +138,36 @@ class CreateProviderCapability implements ZuraffaCapability {
       force: force,
       verbose: verbose,
     );
+
+    // Issue #768: a provider implements a service interface — the builder
+    // imports `domain/services/<service>_service.dart` for this capability's
+    // non-entity-based config (methods: []). Generating without that
+    // interface produces a file that cannot compile; generating nothing
+    // silently is the #769 family of false success. Validate up front and
+    // fail with an actionable message instead.
+    if (generateData) {
+      final serviceSnake = config.serviceSnake;
+      if (serviceSnake != null) {
+        final serviceFile = p.join(
+          outputDir,
+          'domain',
+          'services',
+          '${serviceSnake}_service.dart',
+        );
+        if (!File(serviceFile).existsSync()) {
+          throw StateError(
+            'No service interface found for `${config.effectiveService}`.\n'
+            'Expected: $serviceFile\n'
+            'A provider implements a service interface, so it cannot be '
+            'generated before the service exists. Create the service first:\n'
+            '  zfa service create --name ${args['name']}\n'
+            'or run the full-stack flow (which generates provider + service '
+            'together):\n'
+            '  zfa make ${args['name']}',
+          );
+        }
+      }
+    }
 
     return await plugin.generate(config);
   }
