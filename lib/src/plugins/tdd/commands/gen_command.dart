@@ -65,6 +65,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -72,6 +73,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
 import '../services/behavior_test_writer.dart';
+import '../services/generated_shape.dart';
 import '../services/subject_writer.dart';
 import '../services/test_list_reader.dart';
 import '../tdd_plugin.dart';
@@ -84,6 +86,18 @@ class GenCommand extends Command<void> {
       'dry-run',
       abbr: 'n',
       help: 'Plan the test+subject pair without writing anything (FR-009).',
+      defaultsTo: false,
+      negatable: false,
+    );
+    argParser.addFlag(
+      'adopt',
+      help:
+          'Recovery mode (bug #840): when files exist on disk unowned by the '
+          'registry (post-crash, post-merge), verify their content matches '
+          'the generated artifact shape (provenance header + behavior id), '
+          'then register ownership and audit-log the adoption instead of '
+          'refusing. Files that do not match the shape are never adopted; '
+          'missing halves are generated.',
       defaultsTo: false,
       negatable: false,
     );
@@ -148,6 +162,7 @@ class GenCommand extends Command<void> {
     }
     final behaviorId = rest.first;
     final dryRun = argResults!['dry-run'] as bool;
+    final adopt = argResults!['adopt'] as bool;
     final featureFlag = argResults!['feature'] as String?;
     // Prefer an explicit --project root so the command never depends on the
     // process-global Directory.current. Falls back to CWD for real CLI use.
@@ -179,6 +194,7 @@ class GenCommand extends Command<void> {
       await _generate(
         behaviorId,
         dryRun: dryRun,
+        adopt: adopt,
         featureFlag: featureFlag,
         cwd: cwd,
         deadline: deadline,
@@ -208,6 +224,7 @@ class GenCommand extends Command<void> {
   Future<void> _generate(
     String behaviorId, {
     required bool dryRun,
+    required bool adopt,
     required String? featureFlag,
     required String cwd,
     required _FlowDeadline deadline,
@@ -290,34 +307,110 @@ class GenCommand extends Command<void> {
       createdAt: DateTime.now().toUtc().toIso8601String(),
     );
 
+    // Bug #840: adopt mode tracks which unowned files were verified and
+    // kept, and which halves this invocation created — the transactional
+    // cleanup must NEVER delete an adopted file (gen did not create it).
+    final adoptedPaths = <String>[];
+    final createdPaths = <String>[];
+
+    var adoptConflict = false;
     try {
       record = await bounded(
         registry.preflight(record, dryRun: dryRun),
         'ownership preflight',
       );
     } on OwnershipConflict catch (e) {
-      stderr.writeln('zfa tdd gen: ownership conflict — $e');
-      throw StateError('zfa tdd gen: ownership conflict — $e');
+      if (!adopt || dryRun) {
+        _printVerdict(
+          behaviorId: behavior.id,
+          verdict: 'refused',
+          reason: 'ownership conflict: ${e.toString()}',
+        );
+        exitCode = 1;
+        stderr.writeln('zfa tdd gen: ownership conflict — $e');
+        throw StateError('zfa tdd gen: ownership conflict — $e');
+      }
+      adoptConflict = true;
+    }
+
+    if (adoptConflict) {
+      // Bug #840 adoption: verify every existing unowned file against the
+      // generated shape before registering anything. A prior registry
+      // record means the conflict is a registry/paths disagreement, not
+      // unowned files — there is nothing to adopt.
+      final prior = await bounded(
+        registry.findRecord(behavior.id),
+        'adopt: registry lookup',
+      );
+      if (prior != null) {
+        _printVerdict(
+          behaviorId: behavior.id,
+          verdict: 'refused',
+          reason:
+              'a registry record for "${behavior.id}" already exists — '
+              'nothing unowned to adopt',
+        );
+        exitCode = 1;
+        throw StateError(
+          'zfa tdd gen: --adopt refused — a registry record for '
+          '"${behavior.id}" already exists',
+        );
+      }
+      for (final (role, path, shaped) in [
+        ('test', testPath, matchesGeneratedTestShape),
+        ('subject', subjectPath, matchesGeneratedSubjectShape),
+      ]) {
+        final file = File(path);
+        if (!await bounded(file.exists(), 'adopt: stat $role')) continue;
+        final content = await bounded(file.readAsString(), 'adopt: read $role');
+        if (!shaped(content, behavior.id)) {
+          _printVerdict(
+            behaviorId: behavior.id,
+            verdict: 'refused',
+            reason:
+                '$role file "$path" exists unowned but does not match the '
+                'generated $role shape (provenance header + behavior_id)',
+          );
+          // House pattern (spec 048): signal through exitCode and return,
+          // so the JSON verdict stays the final stdout line (bug #840).
+          exitCode = 1;
+          return;
+        }
+        adoptedPaths.add(path);
+      }
+      print(
+        'note: adopting ${adoptedPaths.length} unowned file(s) for '
+        '"${behavior.id}" (bug #840)',
+      );
     }
 
     // Write a new pair transactionally from the command's perspective. Any
-    // writer or registry failure removes artifacts created by this attempt.
+    // writer or registry failure removes artifacts created by this attempt
+    // (never the adopted files — bug #840).
     if (record.testOwnership != Ownership.reused && !dryRun) {
+      final adoptTest = adoptedPaths.contains(testPath);
+      final adoptSubject = adoptedPaths.contains(subjectPath);
       try {
-        final testWriter = const BehaviorTestWriter();
-        await bounded(
-          testWriter.write(
-            behavior: behavior,
-            testPath: testPath,
-            subjectPath: subjectPath,
-          ),
-          'write test file',
-        );
-        final subjectWriter = const SubjectWriter();
-        await bounded(
-          subjectWriter.write(behavior: behavior, subjectPath: subjectPath),
-          'write subject file',
-        );
+        if (!adoptTest) {
+          final testWriter = const BehaviorTestWriter();
+          await bounded(
+            testWriter.write(
+              behavior: behavior,
+              testPath: testPath,
+              subjectPath: subjectPath,
+            ),
+            'write test file',
+          );
+          createdPaths.add(testPath);
+        }
+        if (!adoptSubject) {
+          final subjectWriter = const SubjectWriter();
+          await bounded(
+            subjectWriter.write(behavior: behavior, subjectPath: subjectPath),
+            'write subject file',
+          );
+          createdPaths.add(subjectPath);
+        }
         record = await bounded(registry.append(record), 'registry append');
       } catch (error, stackTrace) {
         // Transactional cleanup: remove what THIS attempt created. The
@@ -326,8 +419,9 @@ class GenCommand extends Command<void> {
         // other failure (the pre-hardening #748 wrapper-level .timeout()
         // bypassed this catch entirely and could leave an orphan file
         // that poisons the next run with an FR-008 ownership conflict).
-        await _deleteIfCreated(testPath);
-        await _deleteIfCreated(subjectPath);
+        for (final path in createdPaths) {
+          await _deleteIfCreated(path);
+        }
         if (error is _GenFlowTimeout) {
           // The timed-out stage's underlying I/O cannot be cancelled and
           // may complete shortly after the deadline fired, re-creating an
@@ -339,10 +433,17 @@ class GenCommand extends Command<void> {
           // strictly narrower than pre-hardening, which had no cleanup
           // at all.
           await Future<void>.delayed(const Duration(milliseconds: 100));
-          await _deleteIfCreated(testPath);
-          await _deleteIfCreated(subjectPath);
+          for (final path in createdPaths) {
+            await _deleteIfCreated(path);
+          }
         }
         Error.throwWithStackTrace(error, stackTrace);
+      }
+      if (adoptedPaths.isNotEmpty) {
+        await bounded(
+          _auditAdopt(featureDir, featureName, behavior.id, adoptedPaths),
+          'adopt: audit log',
+        );
       }
     }
 
@@ -381,6 +482,69 @@ class GenCommand extends Command<void> {
       'runnable_test_name: ${record.runnableTestName}\n'
       'ownership: ${record.testOwnership.name}/${record.subjectOwnership.name}',
     );
+    // Bug #840: the machine-readable JSON verdict — the final stdout line
+    // on every gen path.
+    _printVerdict(
+      behaviorId: record.behaviorId,
+      verdict: adoptedPaths.isNotEmpty
+          ? 'adopted'
+          : dryRun
+          ? 'planned'
+          : record.testOwnership == Ownership.reused
+          ? 'reused'
+          : 'created',
+      adopted: adoptedPaths,
+      created: createdPaths,
+      featureName: featureName,
+    );
+  }
+
+  /// Emit the machine-readable JSON verdict (bug #840): the LAST stdout
+  /// line, parseable by the recovery tooling, with the adopted/created
+  /// split and the audit-log location for adopt runs.
+  void _printVerdict({
+    required String behaviorId,
+    required String verdict,
+    String? reason,
+    List<String> adopted = const [],
+    List<String> created = const [],
+    String? featureName,
+  }) {
+    print(
+      jsonEncode({
+        'command': 'gen',
+        'behavior': behaviorId,
+        'verdict': verdict,
+        'reason': ?reason,
+        if (adopted.isNotEmpty) 'adopted': adopted,
+        if (created.isNotEmpty) 'created': created,
+        if (adopted.isNotEmpty && featureName != null)
+          'audit_log': p.join('specs', featureName, 'tdd', 'audit.log'),
+      }),
+    );
+  }
+
+  /// Append the adoption audit record (bug #840): one JSONL line per
+  /// adoption in `specs/<feature>/tdd/audit.log`.
+  Future<void> _auditAdopt(
+    String featureDir,
+    String featureName,
+    String behaviorId,
+    List<String> adoptedPaths,
+  ) async {
+    final auditFile = File(p.join(featureDir, 'tdd', 'audit.log'));
+    await auditFile.parent.create(recursive: true);
+    final line = jsonEncode({
+      'at': DateTime.now().toUtc().toIso8601String(),
+      'action': 'adopt',
+      'feature': featureName,
+      'behavior': behaviorId,
+      'paths': adoptedPaths,
+    });
+    final sink = auditFile.openWrite(mode: FileMode.append);
+    sink.writeln(line);
+    await sink.flush();
+    await sink.close();
   }
 
   /// Detect a stub written by an OLDER binary (bug #683) and regenerate
