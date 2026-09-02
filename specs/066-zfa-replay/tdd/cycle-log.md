@@ -1600,3 +1600,192 @@ Append only. Newest last. Every entry's `red` block is the evidence that the tes
 - prev-hash: 8815da25c83fcbb6d2a10a054f1e366a676e948339bbe113e0947c18ff52ec8a
 - hash: b0237d4c7a92903109edae1d95c83db5edd1f7179abdb2c9d4c7ebe2e313fe73
 
+## Cycle: 066-replay-A1 (green)
+
+- behavior: 066-replay-A1
+- kind: green
+- criterion: SC1
+- test: test/plugins/tdd/commands/replay_command_test.dart::A1
+- command: `dart test test/plugins/tdd/scenarios/sc_022_replay_full_history_test.dart --preset=integration`
+- exit: 0
+- at: 2026-09-02T22:16:31.623295Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/scenarios/sc_022_replay_full_history_test.dart
+00:00 +0: SC-022: the full recorded history replays clean
+00:00 +1: SC-022: a history tamper is caught with the entry named
+00:00 +2: SC-022: artifact drift is caught with the path named
+00:00 +3: SC-022: a verify divergence is caught with the exits named
+00:00 +4: SC-022: replay regains context for a stateless agent
+00:00 +5: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: 2166642d9e825b52ed9118f9eea65070ffbd837d329e00b03d5e793a574bf4d3
+- hash: 94ad7e99b7a9959661cf1e5e743be8b98bb3daee71200189e9807e5f7693e60f
+
+## Cycle: 066-replay-A2 (green)
+
+- behavior: 066-replay-A2
+- kind: green
+- criterion: SC2
+- test: test/plugins/tdd/commands/replay_command_test.dart::A2
+- command: `dart test test/plugins/tdd/scenarios/sc_022_replay_full_history_test.dart --preset=integration`
+- exit: 0
+- at: 2026-09-02T22:16:31.657582Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/scenarios/sc_022_replay_full_history_test.dart
+00:00 +0: SC-022: the full recorded history replays clean
+00:00 +1: SC-022: a history tamper is caught with the entry named
+00:00 +2: SC-022: artifact drift is caught with the path named
+00:00 +3: SC-022: a verify divergence is caught with the exits named
+00:00 +4: SC-022: replay regains context for a stateless agent
+00:00 +5: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: 1b1078ac37d2150b54e584b481a75f237c1352d67b959138d819740267eef009
+- hash: 4da298c804bca5b23561ae04845a8524a290acb0f829b89924a4858106d4ae2c
+
+## Cycle: 066-replay-A3 (green)
+
+- behavior: 066-replay-A3
+- kind: green
+- criterion: SC3
+- test: test/plugins/tdd/commands/replay_command_test.dart::A3
+- command: `dart test test/plugins/tdd/scenarios/sc_022_replay_full_history_test.dart --preset=integration`
+- exit: 0
+- at: 2026-09-02T22:16:31.660686Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/scenarios/sc_022_replay_full_history_test.dart
+00:00 +0: SC-022: the full recorded history replays clean
+00:00 +1: SC-022: a history tamper is caught with the entry named
+00:00 +2: SC-022: artifact drift is caught with the path named
+00:00 +3: SC-022: a verify divergence is caught with the exits named
+00:00 +4: SC-022: replay regains context for a stateless agent
+00:00 +5: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: 17d9323ef8fcb197eb27f0e89cb5bca7fc404b3ccebd58369c85ba6736765e24
+- hash: 1787d40c0099fb14d6ee3db61fe6fd9699c0be62484fd8d48def17e0a19b76cb
+
+## Cycle: 066-replay-A4 (green)
+
+- behavior: 066-replay-A4
+- kind: green
+- criterion: SC4
+- test: test/plugins/tdd/commands/replay_command_test.dart::A4
+- command: `dart test test/plugins/tdd/scenarios/sc_022_replay_full_history_test.dart --preset=integration`
+- exit: 0
+- at: 2026-09-02T22:16:31.663327Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/scenarios/sc_022_replay_full_history_test.dart
+00:00 +0: SC-022: the full recorded history replays clean
+00:00 +1: SC-022: a history tamper is caught with the entry named
+00:00 +2: SC-022: artifact drift is caught with the path named
+00:00 +3: SC-022: a verify divergence is caught with the exits named
+00:00 +4: SC-022: replay regains context for a stateless agent
+00:00 +5: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: b2795bb9e2072443e4541d501c31ec63bbacd2473cb32f46c6db71209f5fcf7e
+- hash: 330b242a716dd5da1cde9630270879174262200ca6ba15fd4ea328f8e93a5ad1
+
+## Cycle: 066-replay-A5 (green)
+
+- behavior: 066-replay-A5
+- kind: green
+- criterion: SC5
+- test: test/plugins/tdd/commands/replay_command_test.dart::A5
+- command: `dart test test/plugins/tdd/scenarios/sc_022_replay_full_history_test.dart --preset=integration`
+- exit: 0
+- at: 2026-09-02T22:16:31.666379Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/scenarios/sc_022_replay_full_history_test.dart
+00:00 +0: SC-022: the full recorded history replays clean
+00:00 +1: SC-022: a history tamper is caught with the entry named
+00:00 +2: SC-022: artifact drift is caught with the path named
+00:00 +3: SC-022: a verify divergence is caught with the exits named
+00:00 +4: SC-022: replay regains context for a stateless agent
+00:00 +5: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: cc40f1ce2180fe1d8d1f34487852448ea6d559096a2478a382c9b518bfd2641a
+- hash: 931b2d5702a08a3555bab7d4e29410eba09cc209a40e1e333ab251cedb361ba1
+
+## Cycle: 066-replay-A6 (green)
+
+- behavior: 066-replay-A6
+- kind: green
+- criterion: SC6
+- test: test/plugins/tdd/commands/replay_command_test.dart::A6
+- command: `dart test test/plugins/tdd/scenarios/sc_022_replay_full_history_test.dart --preset=integration`
+- exit: 0
+- at: 2026-09-02T22:16:31.669085Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/scenarios/sc_022_replay_full_history_test.dart
+00:00 +0: SC-022: the full recorded history replays clean
+00:00 +1: SC-022: a history tamper is caught with the entry named
+00:00 +2: SC-022: artifact drift is caught with the path named
+00:00 +3: SC-022: a verify divergence is caught with the exits named
+00:00 +4: SC-022: replay regains context for a stateless agent
+00:00 +5: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: a1f02dd2f16662276964beb3d2f1a687040015d120699d5608410f1b27edc288
+- hash: 29e2b9ba50dc74364f424c8d214e94ed877bd7b9da1aceac6ab726505d180145
+
+## Cycle: 066-replay-A7 (green)
+
+- behavior: 066-replay-A7
+- kind: green
+- criterion: SC7
+- test: test/plugins/tdd/commands/replay_command_test.dart::A7
+- command: `dart test test/plugins/tdd/scenarios/sc_022_replay_full_history_test.dart --preset=integration`
+- exit: 0
+- at: 2026-09-02T22:16:31.674478Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/scenarios/sc_022_replay_full_history_test.dart
+00:00 +0: SC-022: the full recorded history replays clean
+00:00 +1: SC-022: a history tamper is caught with the entry named
+00:00 +2: SC-022: artifact drift is caught with the path named
+00:00 +3: SC-022: a verify divergence is caught with the exits named
+00:00 +4: SC-022: replay regains context for a stateless agent
+00:00 +5: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: c520b3a6659031b8797d39a06a7dfacde89d233ae212b0f40a0120e6b4d344d3
+- hash: b92d9132681823ce170ce7cde36f5b6e630dd4a8d6946f22e93a566bbb20f8bc
+
