@@ -32,6 +32,8 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 
+import 'string_utils.dart';
+
 /// The semantic kind of a Zorphy class, read from its annotation.
 ///
 /// Mirrors `ZorphyKind` from the annotation package using source-text
@@ -325,24 +327,23 @@ class EntityFieldResolver {
     'default',
   };
 
-  /// Converts a PascalCase / camelCase name to snake_case (matches the
-  /// `EntityConfig.snakeName` logic in zorphy so the file path lookup
-  /// is consistent with what `zfa entity create` actually writes).
+  /// Converts a PascalCase / camelCase name to snake_case — DELEGATED to
+  /// [StringUtils.camelToSnake], the exact function `zfa entity create`
+  /// uses for its output path, so the lookup is consistent with what the
+  /// writer lays down for EVERY accepted name (issue #872).
+  ///
+  /// Bug #872: the previous hand-rolled loop underscored before ANY
+  /// uppercase-equal char — including digits — so it produced `a_1` for
+  /// `A1` while `entity create` wrote `a1/a1.dart`, and `zfa make` failed
+  /// fast with "no entity source file was found" for an entity that
+  /// existed on disk. Delegating to the writer's own function makes the
+  /// two surfaces structurally unable to drift again.
   static String _toSnake(String input) {
-    if (input.isEmpty) return '';
     // Strip a leading `$` (Zorphy prefix for abstract entity classes).
     var s = input;
     while (s.startsWith(r'$')) {
       s = s.substring(1);
     }
-    final result = <String>[];
-    for (var i = 0; i < s.length; i += 1) {
-      final char = s[i];
-      if (i > 0 && char.toUpperCase() == char && char != '_') {
-        result.add('_');
-      }
-      result.add(char.toLowerCase());
-    }
-    return result.join();
+    return StringUtils.camelToSnake(s);
   }
 }

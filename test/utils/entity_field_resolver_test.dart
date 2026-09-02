@@ -21,6 +21,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/utils/entity_field_resolver.dart';
+import 'package:zuraffa/src/utils/string_utils.dart';
 
 void main() {
   late Directory tempRoot;
@@ -407,6 +408,61 @@ abstract class \$Order {
   // query/filter key. It must be a representative REAL field — never an
   // enum-typed field (the pre-#307 first-field fallback bug), never a
   // synthetic id.
+  group('issue #872 — resolver/writer snake_case conformance', () {
+    // `zfa entity create -n <N>` lays the entity out at
+    // `<entitiesDir>/<StringUtils.camelToSnake(N)>/<snake>.dart` (the
+    // writer's naming). The resolver must find EXACTLY that layout for
+    // every name the writer accepts — otherwise `zfa make <N>` fail-fasts
+    // with #496 for an entity that exists on disk (bug #872, the
+    // digit-after-capital family: A1 → a_1 vs a1).
+    const names = ['Todo', 'TodoItem', 'A1', 'Node2', 'TodoItem2', 'SHA256'];
+
+    for (final name in names) {
+      test('entityFileExists finds what `entity create -n $name` writes',
+          () async {
+        // Lay the file down with the WRITER's own naming function — the
+        // same one `zfa entity create` uses for its output path.
+        final snake = StringUtils.camelToSnake(name);
+        final dir = Directory(p.join(entitiesDir, snake));
+        await dir.create(recursive: true);
+        await File(
+          p.join(dir.path, '$snake.dart'),
+        ).writeAsString('abstract class \$$name {\n  String get id;\n}\n');
+
+        final exists = EntityFieldResolver.entityFileExists(
+          entityName: name,
+          projectRoot: tempRoot.path,
+        );
+        expect(
+          exists,
+          isTrue,
+          reason:
+              'writer wrote "$snake/$snake.dart" but the resolver '
+              'did not find it — its snake_case diverges '
+              '(expected "$snake", got the old digit-underscored shape?)',
+        );
+      });
+    }
+
+    test('resolveIdField reads the digit-bearing entity the writer wrote',
+        () async {
+      final snake = StringUtils.camelToSnake('Node2');
+      final dir = Directory(p.join(entitiesDir, snake));
+      await dir.create(recursive: true);
+      await File(
+        p.join(dir.path, '$snake.dart'),
+      ).writeAsString('abstract class \$Node2 {\n  String get id;\n}\n');
+
+      final resolved = EntityFieldResolver.resolveIdField(
+        entityName: 'Node2',
+        projectRoot: tempRoot.path,
+      );
+      expect(resolved, isNotNull);
+      expect(resolved!.idField, isNotNull);
+      expect(resolved.idField!.name, 'id');
+    });
+  });
+
   group('resolveRepresentativeField (#508)', () {
     test(
       'skips an enum-typed first field and picks the first String',
@@ -539,19 +595,7 @@ abstract class \$Signal {
   });
 }
 
-String _toSnake(String input) {
-  if (input.isEmpty) return '';
-  var s = input;
-  while (s.startsWith(r'$')) {
-    s = s.substring(1);
-  }
-  final result = <String>[];
-  for (var i = 0; i < s.length; i += 1) {
-    final char = s[i];
-    if (i > 0 && char.toUpperCase() == char && char != '_') {
-      result.add('_');
-    }
-    result.add(char.toLowerCase());
-  }
-  return result.join('');
-}
+// The fixture helper mirrors what `zfa entity create` actually writes:
+// the writer's naming is StringUtils.camelToSnake (issue #872 conformance
+// ground truth — NOT the resolver's old underscore-before-digit shape).
+String _toSnake(String input) => StringUtils.camelToSnake(input);
