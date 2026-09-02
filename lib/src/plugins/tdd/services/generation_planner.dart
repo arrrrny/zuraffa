@@ -265,8 +265,7 @@ class GenerationPlanner {
         feature: summary.feature,
         sourceCriterion: summary.sourceCriterion,
         steps: [
-          if (isAcceptanceBehaviorId(summary.behaviorId) &&
-              derivedName != null)
+          if (isAcceptanceBehaviorId(summary.behaviorId) && derivedName != null)
             GenerationStepSpec(
               // Issue #758: the real `zfa make` fail-fasts on a missing
               // entity source file (#496), so the entity must exist before
@@ -286,8 +285,7 @@ class GenerationPlanner {
                 'generate use-case/repository scaffolds for $slug '
                 '(behavior ${summary.behaviorId})',
           ),
-          if (isAcceptanceBehaviorId(summary.behaviorId) &&
-              derivedName != null)
+          if (isAcceptanceBehaviorId(summary.behaviorId) && derivedName != null)
             GenerationStepSpec(
               // Issue #758: implement the acceptance subject against the
               // scaffolds `make` just generated (the #610 wire contract).
@@ -361,8 +359,22 @@ class GenerationPlanner {
   }
 
   static const _capitalizedTraceStopwords = {
-    'The', 'A', 'An', 'This', 'That', 'These', 'Those', 'It', 'Its',
-    'Crud', 'CRUD', 'Repository', 'Service', 'Use', 'Case', 'Entity',
+    'The',
+    'A',
+    'An',
+    'This',
+    'That',
+    'These',
+    'Those',
+    'It',
+    'Its',
+    'Crud',
+    'CRUD',
+    'Repository',
+    'Service',
+    'Use',
+    'Case',
+    'Entity',
   };
 
   /// Issue #758: acceptance prose often introduces the entity as a

@@ -22,14 +22,16 @@ class DoctorCommand extends Command<void> {
     argParser.addFlag(
       'fix',
       negatable: false,
-      help: 'Automatically fix detected v5 patterns and heal environment '
+      help:
+          'Automatically fix detected v5 patterns and heal environment '
           'checks where possible (deps, artifacts, baseline cache, profile)',
     );
     argParser.addOption(
       'format',
       allowed: ['text', 'json'],
       defaultsTo: 'text',
-      help: 'Output format. json emits a single doctor.v1 verdict object for '
+      help:
+          'Output format. json emits a single doctor.v1 verdict object for '
           'the named environment checks and sets the exit code (CI-able).',
     );
     argParser.addFlag(
@@ -79,7 +81,10 @@ class DoctorCommand extends Command<void> {
 
   /// Named environment checks (issue #793): per-check ✓/✗ lines, exact fix
   /// commands, and a protocol exit code — 0 iff every check is ok.
-  Future<void> _runNamedChecks({required bool fix, required bool dryRun}) async {
+  Future<void> _runNamedChecks({
+    required bool fix,
+    required bool dryRun,
+  }) async {
     _print('Environment Checks');
     _print('==================');
 
@@ -114,8 +119,9 @@ class DoctorCommand extends Command<void> {
       _print('All environment checks passed.');
     } else {
       _print(
-          'Some environment checks failed. Run `zfa doctor --fix` to auto-heal '
-          'the mechanical ones.');
+        'Some environment checks failed. Run `zfa doctor --fix` to auto-heal '
+        'the mechanical ones.',
+      );
     }
     // Issue #793 exit contract: non-zero iff any check remains failed after
     // the (optional) fix pass. Migration findings do not affect this.

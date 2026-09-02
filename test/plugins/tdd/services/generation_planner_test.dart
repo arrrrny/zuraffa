@@ -475,7 +475,8 @@ void main() {
           ['tdd', 'wire', 'A1', '--entity', 'Todo'],
           ['build'],
         ],
-        reason: 'the subject-implementation step must follow the scaffold '
+        reason:
+            'the subject-implementation step must follow the scaffold '
             'generation and precede the build',
       );
     });
@@ -493,10 +494,16 @@ void main() {
       );
       expect(plan.isExpressible, isFalse);
       expect(plan.unexpressibleReason, contains('A2'));
-      expect(plan.unexpressibleReason, contains('entity'),
-          reason: 'the reason must name the missing anchor');
-      expect(plan.unexpressibleReason, contains('--entity'),
-          reason: 'the reason must be actionable');
+      expect(
+        plan.unexpressibleReason,
+        contains('entity'),
+        reason: 'the reason must name the missing anchor',
+      );
+      expect(
+        plan.unexpressibleReason,
+        contains('--entity'),
+        reason: 'the reason must be actionable',
+      );
     });
 
     test('A-758c: an acceptance behavior with entity prose keeps the entity '
@@ -530,10 +537,7 @@ void main() {
       );
       expect(plan.isExpressible, isTrue);
       expect(plan.steps.first.args, ['make', 'User']);
-      expect(
-        plan.steps.where((s) => s.args.first == 'wire'),
-        isEmpty,
-      );
+      expect(plan.steps.where((s) => s.args.first == 'wire'), isEmpty);
     });
 
     test('A-758e: an explicit target wins over the description trace and '
@@ -548,15 +552,12 @@ void main() {
         ),
       );
       expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
-      expect(
-        plan.steps.map((s) => s.args),
-        [
-          ['entity', 'create', '-n', 'Invoice'],
-          ['make', 'Invoice'],
-          ['tdd', 'wire', 'A4', '--entity', 'Invoice'],
-          ['build'],
-        ],
-      );
+      expect(plan.steps.map((s) => s.args), [
+        ['entity', 'create', '-n', 'Invoice'],
+        ['make', 'Invoice'],
+        ['tdd', 'wire', 'A4', '--entity', 'Invoice'],
+        ['build'],
+      ]);
     });
   });
 }

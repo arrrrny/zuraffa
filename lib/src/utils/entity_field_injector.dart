@@ -25,10 +25,9 @@ class EntityFieldInjector {
   /// class, or immediately after the opening brace when the body is empty.
   /// Returns -1 when the class declaration cannot be found.
   static int findInsertPosition(String content, String className) {
-    final classMatch =
-        RegExp(r'abstract class \$+' + className + r'\s*\{').firstMatch(
-      content,
-    );
+    final classMatch = RegExp(
+      r'abstract class \$+' + className + r'\s*\{',
+    ).firstMatch(content);
     if (classMatch == null) return -1;
 
     final bodyOpen = classMatch.end - 1; // the consumed `{`
@@ -36,8 +35,9 @@ class EntityFieldInjector {
     final bodyEnd = bodyClose == -1 ? content.length : bodyClose;
 
     final getterPattern = RegExp(r'^\s*\S+\s+get\s+\w+;', multiLine: true);
-    final getters =
-        getterPattern.allMatches(content.substring(classMatch.end, bodyEnd));
+    final getters = getterPattern.allMatches(
+      content.substring(classMatch.end, bodyEnd),
+    );
     if (getters.isEmpty) {
       return classMatch.end;
     }

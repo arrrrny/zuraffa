@@ -28,9 +28,7 @@ void main() {
 
   void writeServiceInterface(String entity) {
     final snake = entity.toLowerCase();
-    final file = File(
-      '$outputDir/domain/services/${snake}_service.dart',
-    );
+    final file = File('$outputDir/domain/services/${snake}_service.dart');
     file.createSync(recursive: true);
     file.writeAsStringSync('''
 import 'package:zuraffa/zuraffa.dart';
@@ -63,58 +61,58 @@ abstract class ${entity}Service {
       );
     });
 
-    test('minimal invocation generates the provider when the service exists',
-        () async {
-      writeServiceInterface('Cart');
+    test(
+      'minimal invocation generates the provider when the service exists',
+      () async {
+        writeServiceInterface('Cart');
 
-      final result = await capability.execute({'name': 'Cart'});
+        final result = await capability.execute({'name': 'Cart'});
 
-      expect(result.success, isTrue);
-      expect(
-        result.files
-            .where((p) => p.endsWith('data/providers/cart/cart_provider.dart')),
-        hasLength(1),
-      );
-      final generated =
-          result.data?['generatedFiles'] as List<dynamic>;
-      final provider = generated.first as dynamic;
-      expect(provider.content, contains('class CartProvider'));
-      expect(provider.content, contains('implements CartService'));
-      expect(
-        provider.content,
-        contains('../../domain/services/cart_service.dart'),
-        reason: 'the provider imports the service interface it implements',
-      );
-      expect(File(provider.path).existsSync(), isTrue);
-    });
+        expect(result.success, isTrue);
+        expect(
+          result.files.where(
+            (p) => p.endsWith('data/providers/cart/cart_provider.dart'),
+          ),
+          hasLength(1),
+        );
+        final generated = result.data?['generatedFiles'] as List<dynamic>;
+        final provider = generated.first as dynamic;
+        expect(provider.content, contains('class CartProvider'));
+        expect(provider.content, contains('implements CartService'));
+        expect(
+          provider.content,
+          contains('../../domain/services/cart_service.dart'),
+          reason: 'the provider imports the service interface it implements',
+        );
+        expect(File(provider.path).existsSync(), isTrue);
+      },
+    );
 
     test(
-        'minimal invocation without a service interface fails with an actionable message',
-        () async {
-      expect(
-        () => capability.execute({'name': 'Cart'}),
-        throwsA(
-          isA<StateError>().having(
-            (e) => e.message,
-            'message',
-            allOf(
-              contains('CartService'),
-              contains('domain/services/cart_service.dart'),
-              contains('zfa service create --name Cart'),
+      'minimal invocation without a service interface fails with an actionable message',
+      () async {
+        expect(
+          () => capability.execute({'name': 'Cart'}),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              allOf(
+                contains('CartService'),
+                contains('domain/services/cart_service.dart'),
+                contains('zfa service create --name Cart'),
+              ),
             ),
           ),
-        ),
-        reason: 'the error must say what is missing and how to fix it',
-      );
-    });
+          reason: 'the error must say what is missing and how to fix it',
+        );
+      },
+    );
 
     test('explicit opt-out (--no-data) is still honored', () async {
       writeServiceInterface('Cart');
 
-      final result = await capability.execute({
-        'name': 'Cart',
-        'data': false,
-      });
+      final result = await capability.execute({'name': 'Cart', 'data': false});
 
       expect(result.files, isEmpty);
     });

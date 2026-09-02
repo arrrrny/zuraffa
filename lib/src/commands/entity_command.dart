@@ -461,8 +461,9 @@ ${missing.map((d) => '   • $d').join('\n')}
     final snake = NamingUtils.toSnakeCase(name);
     final expectedPath = '$fixedEntityOutput/$snake/$snake.dart';
     final entityFileBefore = File(expectedPath);
-    final originalContent =
-        entityFileBefore.existsSync() ? entityFileBefore.readAsStringSync() : null;
+    final originalContent = entityFileBefore.existsSync()
+        ? entityFileBefore.readAsStringSync()
+        : null;
 
     final creator = EntityCreator(baseOutputDir: fixedEntityOutput);
     final result = await creator.addFields(

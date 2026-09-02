@@ -384,13 +384,6 @@ class SingleTestRunner {
   String _substitute(String template, String file, String name) =>
       template.replaceAll('{file}', file).replaceAll('{name}', name);
 
-  /// Escape regex metacharacters so a test name containing `(...)`,
-  /// `[...]`, etc. matches literally under `dart test -n` (issue #760).
-  String _escapeRegExp(String s) {
-    final special = RegExp(r'[\\^$.*+?()\[\]{}|]');
-    return s.replaceAllMapped(special, (m) => '\\${m.group(0)}');
-  }
-
   /// Tokenize the template into an executable + argument list.
   ///
   /// Splitting happens BEFORE substitution so a test name containing

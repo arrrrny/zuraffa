@@ -64,12 +64,12 @@ class DoctorCheckResult {
   bool get ok => status != DoctorCheckStatus.fail;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'status': status.name,
-        'detail': detail,
-        if (suggestedFix != null) 'suggested_fix': suggestedFix,
-        'fixed_items': fixedItems,
-      };
+    'id': id,
+    'status': status.name,
+    'detail': detail,
+    if (suggestedFix != null) 'suggested_fix': suggestedFix,
+    'fixed_items': fixedItems,
+  };
 
   @override
   String toString() => 'DoctorCheckResult(${toJson()})';
@@ -77,14 +77,14 @@ class DoctorCheckResult {
 
 /// Signature for the process spawner used by the mechanical fixes.
 /// Injectable so tests can record invocations without side effects.
-typedef ZfaProcessRunner = Future<ProcessResult> Function(
-    String executable, List<String> args);
+typedef ZfaProcessRunner =
+    Future<ProcessResult> Function(String executable, List<String> args);
 
 /// Runs the five named environment checks against a project root.
 class DoctorChecksRunner {
   DoctorChecksRunner({ZfaProcessRunner? processRunner, String? projectDir})
-      : _processRunner = processRunner ?? _defaultProcessRunner,
-        _projectDir = projectDir;
+    : _processRunner = processRunner ?? _defaultProcessRunner,
+      _projectDir = projectDir;
 
   final ZfaProcessRunner _processRunner;
   final String? _projectDir;
@@ -94,9 +94,10 @@ class DoctorChecksRunner {
 
   /// Fallback spawner with a generous timeout for build_runner.
   static Future<ProcessResult> _defaultProcessRunner(
-      String executable, List<String> args) async {
-    return Process.run(executable, args)
-        .timeout(const Duration(minutes: 10));
+    String executable,
+    List<String> args,
+  ) async {
+    return Process.run(executable, args).timeout(const Duration(minutes: 10));
   }
 
   String get _root => _projectDir ?? Directory.current.path;
@@ -105,22 +106,23 @@ class DoctorChecksRunner {
   /// failures are healed in place; the returned verdicts reflect the state
   /// AFTER healing (fixed or honestly still failing).
   Future<List<DoctorCheckResult>> runAll({required bool fix}) async => [
-        await _checkDeps(fix: fix),
-        await _checkArtifacts(fix: fix),
-        await _checkBaselineCache(fix: fix),
-        await _checkConfig(fix: fix),
-        await _checkProfile(fix: fix),
-      ];
+    await _checkDeps(fix: fix),
+    await _checkArtifacts(fix: fix),
+    await _checkBaselineCache(fix: fix),
+    await _checkConfig(fix: fix),
+    await _checkProfile(fix: fix),
+  ];
 
-  DoctorCheckResult _pass(String id, String detail) => DoctorCheckResult(
-      id: id, status: DoctorCheckStatus.pass, detail: detail);
+  DoctorCheckResult _pass(String id, String detail) =>
+      DoctorCheckResult(id: id, status: DoctorCheckStatus.pass, detail: detail);
 
   DoctorCheckResult _fail(String id, String detail, String? suggestedFix) =>
       DoctorCheckResult(
-          id: id,
-          status: DoctorCheckStatus.fail,
-          detail: detail,
-          suggestedFix: suggestedFix);
+        id: id,
+        status: DoctorCheckStatus.fail,
+        detail: detail,
+        suggestedFix: suggestedFix,
+      );
 
   // ---------------------------------------------------------------------------
   // deps
@@ -131,16 +133,21 @@ class DoctorChecksRunner {
     final pubspecFile = File(p.join(_root, 'pubspec.yaml'));
     if (!pubspecFile.existsSync()) {
       return DoctorCheckResult(
-          id: id,
-          status: DoctorCheckStatus.skipped,
-          detail: 'no pubspec.yaml (not a Dart project)');
+        id: id,
+        status: DoctorCheckStatus.skipped,
+        detail: 'no pubspec.yaml (not a Dart project)',
+      );
     }
 
     YamlMap doc;
     try {
       doc = loadYaml(pubspecFile.readAsStringSync()) as YamlMap;
     } catch (e) {
-      return _fail(id, 'pubspec.yaml unreadable: $e', 'fix pubspec.yaml syntax');
+      return _fail(
+        id,
+        'pubspec.yaml unreadable: $e',
+        'fix pubspec.yaml syntax',
+      );
     }
     final devDeps = (doc['dev_dependencies'] as YamlMap?) ?? YamlMap();
     final present = devDeps.keys.map((k) => k.toString()).toSet();
@@ -150,14 +157,17 @@ class DoctorChecksRunner {
     String? pinWarn;
     final pin = (doc['dependencies'] as YamlMap?)?['zuraffa'];
     if (pin is String) {
-      final pinnedMajor = int.tryParse(RegExp(r'\d+').firstMatch(pin)?.group(0) ?? '');
+      final pinnedMajor = int.tryParse(
+        RegExp(r'\d+').firstMatch(pin)?.group(0) ?? '',
+      );
       final cliMajor = int.tryParse(version.split('.').first);
       if (pinnedMajor != null && cliMajor != null && pinnedMajor < cliMajor) {
         pinWarn = 'zuraffa pin $pin is behind CLI v$version';
       }
     }
 
-    final isTddProject = Directory(p.join(_root, 'specs')).existsSync() ||
+    final isTddProject =
+        Directory(p.join(_root, 'specs')).existsSync() ||
         Directory(p.join(_root, '.specify')).existsSync();
 
     if (!isTddProject && missing.isEmpty) {
@@ -165,26 +175,36 @@ class DoctorChecksRunner {
           ? DoctorCheckResult(
               id: id,
               status: DoctorCheckStatus.skipped,
-              detail: 'not a TDD project — dev-deps check not applicable')
+              detail: 'not a TDD project — dev-deps check not applicable',
+            )
           : DoctorCheckResult(
-              id: id, status: DoctorCheckStatus.warn, detail: pinWarn);
+              id: id,
+              status: DoctorCheckStatus.warn,
+              detail: pinWarn,
+            );
     }
 
     if (missing.isEmpty) {
       return pinWarn == null
           ? _pass(id, 'TDD dev-deps present')
           : DoctorCheckResult(
-              id: id, status: DoctorCheckStatus.warn, detail: pinWarn);
+              id: id,
+              status: DoctorCheckStatus.warn,
+              detail: pinWarn,
+            );
     }
 
-    final detail = 'missing dev-deps: ${missing.join(', ')}'
+    final detail =
+        'missing dev-deps: ${missing.join(', ')}'
         '${pinWarn == null ? '' : '; $pinWarn'}';
-    final suggested =
-        'dart pub add ${missing.map((d) => 'dev:$d').join(' ')}';
+    final suggested = 'dart pub add ${missing.map((d) => 'dev:$d').join(' ')}';
 
     if (fix) {
-      final result =
-          await _processRunner('dart', ['pub', 'add', ...missing.map((d) => 'dev:$d')]);
+      final result = await _processRunner('dart', [
+        'pub',
+        'add',
+        ...missing.map((d) => 'dev:$d'),
+      ]);
       if (result.exitCode == 0) {
         return DoctorCheckResult(
           id: id,
@@ -195,7 +215,10 @@ class DoctorChecksRunner {
         );
       }
       return _fail(
-          id, '$detail (pub add failed with exit ${result.exitCode})', suggested);
+        id,
+        '$detail (pub add failed with exit ${result.exitCode})',
+        suggested,
+      );
     }
     return _fail(id, detail, suggested);
   }
@@ -212,7 +235,10 @@ class DoctorChecksRunner {
     String? findings;
     for (final entity in _entitySources(entitiesDir)) {
       final missing = <String>[];
-      final stem = entity.path.substring(0, entity.path.length - '.dart'.length);
+      final stem = entity.path.substring(
+        0,
+        entity.path.length - '.dart'.length,
+      );
       if (!File('$stem.g.dart').existsSync()) missing.add('.g.dart');
       if (!File('$stem.zorphy.dart').existsSync()) missing.add('.zorphy.dart');
       if (missing.isEmpty) continue;
@@ -234,8 +260,10 @@ class DoctorChecksRunner {
         '--delete-conflicting-outputs',
       ]);
       final stillMissing = _entitySources(entitiesDir).any((entity) {
-        final stem =
-            entity.path.substring(0, entity.path.length - '.dart'.length);
+        final stem = entity.path.substring(
+          0,
+          entity.path.length - '.dart'.length,
+        );
         return !File('$stem.g.dart').existsSync() ||
             !File('$stem.zorphy.dart').existsSync();
       });
@@ -248,8 +276,11 @@ class DoctorChecksRunner {
           fixedItems: [suggested],
         );
       }
-      return _fail(id,
-          '$findings (build_runner exited ${result.exitCode})', suggested);
+      return _fail(
+        id,
+        '$findings (build_runner exited ${result.exitCode})',
+        suggested,
+      );
     }
     return _fail(id, findings, suggested);
   }
@@ -260,8 +291,9 @@ class DoctorChecksRunner {
         .listSync(recursive: true, followLinks: false)
         .whereType<File>()
         .where((f) => f.path.endsWith('.dart'))
-        .where((f) =>
-            !generatedSuffixes.any((s) => p.basename(f.path).endsWith(s)))
+        .where(
+          (f) => !generatedSuffixes.any((s) => p.basename(f.path).endsWith(s)),
+        )
         .toList()
       ..sort((a, b) => a.path.compareTo(b.path));
   }
@@ -279,11 +311,11 @@ class DoctorChecksRunner {
 
     final problems = <String>[];
     final victims = <String>[];
-    for (final featureDir in specsDir
-        .listSync(followLinks: false)
-        .whereType<Directory>()) {
-      final cacheFile =
-          File(p.join(featureDir.path, 'tdd', 'run-baseline.json'));
+    for (final featureDir
+        in specsDir.listSync(followLinks: false).whereType<Directory>()) {
+      final cacheFile = File(
+        p.join(featureDir.path, 'tdd', 'run-baseline.json'),
+      );
       if (!cacheFile.existsSync()) continue;
       final why = _diagnoseBaselineCache(cacheFile);
       if (why != null) {
@@ -293,9 +325,12 @@ class DoctorChecksRunner {
     }
 
     if (problems.isEmpty) {
-      return _pass(id, victims.isEmpty
-          ? 'no cached baselines present'
-          : 'baseline caches readable and fresh');
+      return _pass(
+        id,
+        victims.isEmpty
+            ? 'no cached baselines present'
+            : 'baseline caches readable and fresh',
+      );
     }
 
     final detail = problems.join('; ');
@@ -312,7 +347,8 @@ class DoctorChecksRunner {
       return DoctorCheckResult(
         id: id,
         status: DoctorCheckStatus.fixed,
-        detail: 'invalidated ${victims.length} corrupt/stale baseline cache(s) '
+        detail:
+            'invalidated ${victims.length} corrupt/stale baseline cache(s) '
             '(next tdd run re-captures live)',
         suggestedFix: suggested,
         fixedItems: victims,
@@ -357,8 +393,10 @@ class DoctorChecksRunner {
     final testDir = Directory(p.join(_root, 'test'));
     if (testDir.existsSync()) {
       DateTime? newest;
-      for (final entity
-          in testDir.listSync(recursive: true, followLinks: false)) {
+      for (final entity in testDir.listSync(
+        recursive: true,
+        followLinks: false,
+      )) {
         if (entity is! File) continue;
         final modified = entity.lastModifiedSync();
         if (newest == null || modified.isAfter(newest)) newest = modified;
@@ -387,18 +425,24 @@ class DoctorChecksRunner {
       return _fail(id, 'malformed JSON in .zfa.json', 'zfa config init');
     }
     if (json is! Map) {
-      return _fail(id, '.zfa.json must contain a JSON object',
-          'zfa config init');
+      return _fail(
+        id,
+        '.zfa.json must contain a JSON object',
+        'zfa config init',
+      );
     }
 
     final plugins = json['plugins'];
     if (plugins is Map) {
-      final unknown = plugins.keys
-          .map((k) => k.toString())
-          .where((k) =>
-              k != 'defaults' && !ZfaConfig.builtinPluginIds.contains(k))
-          .toList()
-        ..sort();
+      final unknown =
+          plugins.keys
+              .map((k) => k.toString())
+              .where(
+                (k) =>
+                    k != 'defaults' && !ZfaConfig.builtinPluginIds.contains(k),
+              )
+              .toList()
+            ..sort();
       if (unknown.isNotEmpty) {
         return DoctorCheckResult(
           id: id,
@@ -419,8 +463,9 @@ class DoctorChecksRunner {
     if (!Directory(p.join(_root, 'specs')).existsSync()) {
       return _pass(id, 'not a TDD project');
     }
-    final profileFile =
-        File(p.join(_root, '.specify', 'memory', 'tdd-profile.md'));
+    final profileFile = File(
+      p.join(_root, '.specify', 'memory', 'tdd-profile.md'),
+    );
     if (profileFile.existsSync()) return _pass(id, 'tdd profile present');
 
     const suggested = 'zfa tdd init';
@@ -431,8 +476,10 @@ class DoctorChecksRunner {
         await healer.run(['tdd', 'init', '--project', _root]);
       } catch (e) {
         return _fail(
-            id, 'missing .specify/memory/tdd-profile.md (tdd init failed: $e)',
-            suggested);
+          id,
+          'missing .specify/memory/tdd-profile.md (tdd init failed: $e)',
+          suggested,
+        );
       }
       if (profileFile.existsSync()) {
         return DoctorCheckResult(
@@ -443,18 +490,21 @@ class DoctorChecksRunner {
           fixedItems: ['.specify/memory/tdd-profile.md'],
         );
       }
-      return _fail(id, 'missing .specify/memory/tdd-profile.md '
-          '(tdd init did not create it)', suggested);
+      return _fail(
+        id,
+        'missing .specify/memory/tdd-profile.md '
+        '(tdd init did not create it)',
+        suggested,
+      );
     }
-    return _fail(
-        id, 'missing .specify/memory/tdd-profile.md', suggested);
+    return _fail(id, 'missing .specify/memory/tdd-profile.md', suggested);
   }
 }
 
 /// The `--format json` verdict object for the named environment checks:
 /// `{"schema":"doctor.v1","checks":[...],"ok":<bool>}` (issue #793, per #778).
 Map<String, dynamic> doctorChecksJson(List<DoctorCheckResult> results) => {
-      'schema': 'doctor.v1',
-      'checks': results.map((r) => r.toJson()).toList(),
-      'ok': results.every((r) => r.ok),
-    };
+  'schema': 'doctor.v1',
+  'checks': results.map((r) => r.toJson()).toList(),
+  'ok': results.every((r) => r.ok),
+};

@@ -70,23 +70,25 @@ abstract class \$Todo {
     });
 
     test(
-        'getters in OTHER classes below are not stolen as insertion anchors',
-        () {
-      final content = '''
+      'getters in OTHER classes below are not stolen as insertion anchors',
+      () {
+        final content = '''
 abstract class \$Todo {}
 
 abstract class \$Other {
   String get name;
 }
 ''';
-      final pos = EntityFieldInjector.findInsertPosition(content, 'Todo');
-      expect(
-        pos,
-        equals(content.indexOf('{}') + 1),
-        reason: 'the insertion must land inside the Todo body, not after '
-            'the last getter of a later class',
-      );
-    });
+        final pos = EntityFieldInjector.findInsertPosition(content, 'Todo');
+        expect(
+          pos,
+          equals(content.indexOf('{}') + 1),
+          reason:
+              'the insertion must land inside the Todo body, not after '
+              'the last getter of a later class',
+        );
+      },
+    );
   });
 
   // Issue #759: zorphy 2.3.1's EntityCreator._insertFields computes the
@@ -96,56 +98,59 @@ abstract class \$Other {
   // is no second brace: indexOf returns -1, insertPosition becomes 0, and
   // the field getters are prepended ABOVE the file header and class
   // declaration, producing invalid Dart that breaks build_runner.
-  group('issue #759 — add-field on an empty-body entity stays valid Dart',
-      () {
+  group('issue #759 — add-field on an empty-body entity stays valid Dart', () {
     test(
-        'end-to-end: zorphy addFields corruption is detected and repaired on disk',
-        () async {
-      final filePath = writeEmptyBodyEntity('Todo');
-      final original = await File(filePath).readAsString();
+      'end-to-end: zorphy addFields corruption is detected and repaired on disk',
+      () async {
+        final filePath = writeEmptyBodyEntity('Todo');
+        final original = await File(filePath).readAsString();
 
-      final creator = EntityCreator(baseOutputDir: outputDir);
-      final result = await creator.addFields(
-        'Todo',
-        [FieldDefinition.parse('title:String')],
-        outputDir: outputDir,
-      );
-      expect(result.isSuccess, isTrue);
+        final creator = EntityCreator(baseOutputDir: outputDir);
+        final result = await creator.addFields('Todo', [
+          FieldDefinition.parse('title:String'),
+        ], outputDir: outputDir);
+        expect(result.isSuccess, isTrue);
 
-      final corrupted = await File(filePath).readAsString();
-      // Precondition: the dependency corruption is present (fields above
-      // the header). If zorphy ever fixes this upstream, the precondition
-      // relaxes and the repair becomes a no-op.
-      expect(
-        corrupted.startsWith('\n  String get title;'),
-        isTrue,
-        reason: 'reproduces the #759 corruption shape',
-      );
+        final corrupted = await File(filePath).readAsString();
+        // Precondition: the dependency corruption is present (fields above
+        // the header). If zorphy ever fixes this upstream, the precondition
+        // relaxes and the repair becomes a no-op.
+        expect(
+          corrupted.startsWith('\n  String get title;'),
+          isTrue,
+          reason: 'reproduces the #759 corruption shape',
+        );
 
-      final repaired = EntityFieldInjector.repairPrepended(
-        original: original,
-        updated: corrupted,
-        className: result.className,
-      );
-      expect(repaired, isNotNull,
-          reason: 'the prepended block must be recognized');
+        final repaired = EntityFieldInjector.repairPrepended(
+          original: original,
+          updated: corrupted,
+          className: result.className,
+        );
+        expect(
+          repaired,
+          isNotNull,
+          reason: 'the prepended block must be recognized',
+        );
 
-      await File(filePath).writeAsString(repaired!);
+        await File(filePath).writeAsString(repaired!);
 
-      final fixed = await File(filePath).readAsString();
-      // The file must start with its original header again…
-      expect(fixed.startsWith(original.split('\n').first), isTrue);
-      // …and the field getter must now live INSIDE the class body.
-      final classIdx = fixed.indexOf('abstract class \$Todo');
-      final bodyOpen = fixed.indexOf('{', classIdx);
-      final getterIdx = fixed.indexOf('String get title;');
-      expect(getterIdx, greaterThan(bodyOpen),
-          reason: 'the getter belongs inside the class body');
-      expect(fixed.indexOf('}', bodyOpen), greaterThan(getterIdx));
-    });
+        final fixed = await File(filePath).readAsString();
+        // The file must start with its original header again…
+        expect(fixed.startsWith(original.split('\n').first), isTrue);
+        // …and the field getter must now live INSIDE the class body.
+        final classIdx = fixed.indexOf('abstract class \$Todo');
+        final bodyOpen = fixed.indexOf('{', classIdx);
+        final getterIdx = fixed.indexOf('String get title;');
+        expect(
+          getterIdx,
+          greaterThan(bodyOpen),
+          reason: 'the getter belongs inside the class body',
+        );
+        expect(fixed.indexOf('}', bodyOpen), greaterThan(getterIdx));
+      },
+    );
 
-    test('repairPrepended returns null when the file was not corrupted',
-        () {
+    test('repairPrepended returns null when the file was not corrupted', () {
       final original = 'abstract class \$Todo {\n  String get id;\n}\n';
       final correctlyUpdated =
           'abstract class \$Todo {\n  String get id;\n\n  String get title;\n}\n';
@@ -160,22 +165,29 @@ abstract class \$Other {
     });
 
     test(
-        'inject produces a compiling shape for the tdd-cycle default entity',
-        () {
-      final content = writeEmptyBodyEntity('Cart');
-      final original = File(content).readAsStringSync();
+      'inject produces a compiling shape for the tdd-cycle default entity',
+      () {
+        final content = writeEmptyBodyEntity('Cart');
+        final original = File(content).readAsStringSync();
 
-      final injected = EntityFieldInjector.inject(
-        original,
-        'Cart',
-        '\n  int get quantity;\n',
-      );
+        final injected = EntityFieldInjector.inject(
+          original,
+          'Cart',
+          '\n  int get quantity;\n',
+        );
 
-      expect(injected.startsWith('// GENERATED'), isTrue,
-          reason: 'the header stays at the top of the file');
-      final bodyOpen = injected.indexOf('{', injected.indexOf('abstract class'));
-      final getterIdx = injected.indexOf('int get quantity;');
-      expect(getterIdx, greaterThan(bodyOpen));
-    });
+        expect(
+          injected.startsWith('// GENERATED'),
+          isTrue,
+          reason: 'the header stays at the top of the file',
+        );
+        final bodyOpen = injected.indexOf(
+          '{',
+          injected.indexOf('abstract class'),
+        );
+        final getterIdx = injected.indexOf('int get quantity;');
+        expect(getterIdx, greaterThan(bodyOpen));
+      },
+    );
   });
 }
