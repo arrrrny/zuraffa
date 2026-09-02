@@ -1,0 +1,35 @@
+{
+  "family": "vendure",
+  "goldenQueries": {
+    "product": {
+      "data": {
+        "product": {
+          "id": "1",
+          "name": "Kayak",
+          "description": "Certified golden product record"
+        }
+      },
+      "errors": null
+    }
+  },
+  "goldenMutations": {
+    "addItemToOrder": {
+      "data": {
+        "addItemToOrder": {
+          "id": "9",
+          "quantity": 1
+        }
+      },
+      "errors": null
+    }
+  },
+  "scriptedErrors": {
+    "search": [
+      {
+        "message": "Insufficient stock",
+        "code": "STOCK_ERROR"
+      }
+    ]
+  },
+  "latencyMs": 0
+}

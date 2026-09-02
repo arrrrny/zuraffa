@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "bug": 832,
+  "families": [
+    "otel"
+  ],
+  "files": {
+    "otel-world.json": {
+      "sha256": "e372cb31ae5acf3ad3ccf734f74af303cb5739b9c158e0830b541b3b80a11da2",
+      "bytes": 109
+    }
+  },
+  "digest": "ab948447a85f60b9b62947f6181b48b696ea1aa76f16e53e44883085c0b66ef4"
+}

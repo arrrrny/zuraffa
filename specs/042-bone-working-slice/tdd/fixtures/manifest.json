@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "bug": 832,
+  "families": [
+    "firebase-auth"
+  ],
+  "files": {
+    "auth-world.json": {
+      "sha256": "2faa624e6fa82d4b2e712fb7d9d290fa7fb656fdc7fd845173cfda7a30caec72",
+      "bytes": 376
+    }
+  },
+  "digest": "d08179e0d02e0d78aef9a93fd1c43951783b545a6dcf337791919d066b3975d6"
+}

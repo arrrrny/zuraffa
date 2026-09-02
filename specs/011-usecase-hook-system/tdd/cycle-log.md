@@ -106,3 +106,16 @@ ZikZak remained unavailable as a separate codebase, so the recorded remediation
 - The Zuraffa framework hook system (US1 + US2) is **complete and tested**.
 - US3 requires the ZikZak app which is a separate codebase. This cycle log tracks progress there separately.
 - No bugs found in the Zuraffa hook implementation during baseline testing.
+
+## 2026-09-02T19:11:27.681033Z: certified simulation fixtures (bug #832)
+- behavior: 011-usecase-hook-system-fixtures
+- kind: fixtures
+- at: 2026-09-02T19:11:27.681033Z
+- exit: 0
+- criterion: certified fixture world committed under tdd/fixtures/ and hashed into the manifest digest
+- command: `zfa simulate --scaffold specs/011-usecase-hook-system --family otel`
+- schema: 1
+- prev-hash: genesis
+- hash: ab948447a85f60b9b62947f6181b48b696ea1aa76f16e53e44883085c0b66ef4
+- families: otel
+- fixtures: otel-world.json=e372cb31ae5acf3ad3ccf734f74af303cb5739b9c158e0830b541b3b80a11da2

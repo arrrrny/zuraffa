@@ -1,0 +1,7 @@
+{
+  "family": "otel",
+  "service": "zuraffa-simulation",
+  "expectedSpans": [
+    "usecase.PlaceOrder"
+  ]
+}
