@@ -1,0 +1,58 @@
+# Generator behavioral differential gate (bug #805 — vision slice v0).
+#
+# Runs the shipped regression corpus against the PR base and the PR
+# head and fails when the generator's BEHAVIOR diverged: exit codes,
+# outcome classes (complete/failed/hang), machine tokens, dart-test
+# pass/fail counts, or the artifact inventory. Behavior, never bytes —
+# formatting drift never masks a real regression and a real one can
+# never hide behind byte-identity.
+#
+# Budget: the whole job is capped at 20 minutes (issue #805's
+# done-when: the gate completes in under 20 minutes on the shipped
+# corpus).
+name: Generator Differential
+
+on:
+  pull_request:
+    paths:
+      - 'lib/**'
+      - 'bin/**'
+      - 'corpus/**'
+      - '.github/workflows/generator-differential.yml'
+  workflow_dispatch:
+
+jobs:
+  differential:
+    name: corpus differential (base vs head)
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the base ref resolves and its worktree can
+          # be materialized.
+          fetch-depth: 0
+
+      - name: Configuring Dart environment
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: "3.13.1"
+
+      - name: "Get dependencies (head)"
+        run: dart pub get --no-example
+
+      - name: "Generator differential: origin/base vs HEAD"
+        run: |
+          dart run bin/zfa.dart tdd corpus differential \
+            --from "origin/${{ github.base_ref }}" \
+            --to HEAD \
+            --budget 240
+
+      - name: "Upload divergence report on failure"
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: differential-report
+          path: |
+            **/zfa-differential-*/
+          if-no-files-found: ignore

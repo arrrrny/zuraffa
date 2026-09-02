@@ -1,0 +1,11 @@
+name: u2_flow
+description: Regression corpus scaffold for bug #805 (u2-flow).
+publish_to: none
+environment:
+  sdk: ^3.0.0
+dev_dependencies:
+  test: ^1.25.0
+  build_runner: ^2.4.0
+  json_serializable: ^6.7.0
+  coverage: ^1.15.1
+  mutation_test: ^1.8.0
