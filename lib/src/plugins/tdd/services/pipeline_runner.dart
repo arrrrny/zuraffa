@@ -64,6 +64,43 @@ class PipelineResult {
 class PipelineRunner {
   const PipelineRunner();
 
+  /// The default per-step address-space ceiling (bug #826): 2 GiB in KB —
+  /// measured generous enough for the analyzer/build pipeline a real
+  /// `zfa make`/`zfa build` child loads (a 1 GiB ceiling makes the child
+  /// abort deterministically on a plain hello-world-grade CLI start;
+  /// 2 GiB lets legitimate generation complete) while staying under
+  /// typical CI machine ceilings so an allocation failure lands INSIDE
+  /// the child — deterministic, classified — instead of the OS OOM
+  /// killer firing mid-loop (nondeterministic SIGKILL, the bug #826
+  /// signature).
+  static const defaultStepMemoryKb = 2 * 1024 * 1024;
+
+  /// The environment variable overriding [defaultStepMemoryKb] (bug #826).
+  /// A value of `0` opts out of the bound entirely (unbounded child);
+  /// garbage falls back to the default instead of guessing.
+  static const stepMemoryEnv = 'ZFA_TDD_STEP_MEMORY_KB';
+
+  /// Resolve the per-step address-space ceiling in KB, or null when no
+  /// bound applies: Windows (no ulimit equivalent — the deadline and the
+  /// kill classification still apply), or an explicit `0` override.
+  ///
+  /// [isWindows] is injectable for tests; it defaults to the real
+  /// platform check.
+  static int? resolveStepMemoryLimitKb(
+    Map<String, String> environment, {
+    bool? isWindows,
+  }) {
+    if (isWindows ?? Platform.isWindows) return null;
+    final raw = environment[stepMemoryEnv];
+    if (raw == null || raw.trim().isEmpty) return defaultStepMemoryKb;
+    final parsed = int.tryParse(raw.trim());
+    // Garbage (unparseable, negative) falls back to the default bound —
+    // the safe reading — while an explicit `0` opts out entirely.
+    if (parsed == null || parsed < 0) return defaultStepMemoryKb;
+    if (parsed == 0) return null;
+    return parsed;
+  }
+
   /// Execute [plan] in [workingDirectory]. Returns the captured
   /// steps and completion status.
   ///
@@ -74,6 +111,15 @@ class PipelineRunner {
   /// child is killed and captured as a [GenerationStep] with `timedOut:
   /// true`, the plan stops there (misfire-stop), and never hangs. Defaults
   /// to [TddTimeouts.defaultPipelineStep].
+  ///
+  /// Bug #826: every step child also spawns under a bounded address-space
+  /// ceiling [resolveStepMemoryLimitKb] — 2 GiB by default, `--no-bound` via
+  /// `ZFA_TDD_STEP_MEMORY_KB=0`), so a runaway analyzer/build pipeline
+  /// dies deterministically inside the child instead of the OS OOM killer
+  /// SIGKILLing it mid-loop. A killed step is captured with a CLASSIFIED
+  /// verdict — `resource-limit` (signal death, the OOM class) or
+  /// `timeout` (our deadline) — plus resource telemetry (RSS before/after,
+  /// wall clock); it is never graded as a bare generation failure.
   Future<PipelineResult> runPlan({
     required GenerationPlan plan,
     required String workingDirectory,
@@ -95,12 +141,16 @@ class PipelineRunner {
       feature: feature,
     );
 
+    final memoryLimitKb = resolveStepMemoryLimitKb(Platform.environment);
+
     final captured = <GenerationStep>[];
     var firstFailure = -1;
     for (var i = 0; i < plan.steps.length; i++) {
       final spec = plan.steps[i];
       final args = [...entrypoint.arguments, ...spec.args];
       final fullCmd = '${entrypoint.displayCommand} ${spec.args.join(' ')}';
+      final clock = Stopwatch()..start();
+      final rssBeforeKb = ProcessInfo.currentRss ~/ 1024;
       try {
         final result = await runTimed(
           entrypoint.executable,
@@ -108,14 +158,25 @@ class PipelineRunner {
           workingDirectory: workingDirectory,
           runInShell: false,
           timeout: timeout ?? TddTimeouts.defaultPipelineStep,
+          memoryLimitKb: memoryLimitKb,
         );
+        final telemetry = _telemetry(clock, rssBeforeKb);
         final output = '${result.stdout}${result.stderr}';
+        // Bug #826: Dart reports a signal-killed child as a NEGATIVE exit
+        // code (SIGKILL is -9). That death is the OOM/resource-pressure
+        // class — classify it; every ordinary exit (zero or not) stays
+        // unclassified.
+        final killClass = result.exitCode < 0
+            ? GenerationKillClass.resourceLimit
+            : GenerationKillClass.none;
         captured.add(
           GenerationStep(
             command: fullCmd,
             exitCode: result.exitCode,
             output: output,
             purpose: spec.purpose,
+            killClass: killClass,
+            telemetry: telemetry,
           ),
         );
         if (result.exitCode != 0) {
@@ -124,7 +185,9 @@ class PipelineRunner {
         }
       } on ProcessTimeoutException catch (e) {
         // Bug #742: a step that outlived the deadline was killed — capture
-        // the timeout honestly and stop the plan (misfire-stop).
+        // the timeout honestly and stop the plan (misfire-stop). Bug #826:
+        // the capture now carries the classified `timeout` verdict and the
+        // resource telemetry instead of a bare failure.
         captured.add(
           GenerationStep(
             command: fullCmd,
@@ -132,6 +195,8 @@ class PipelineRunner {
             output: e.toString(),
             purpose: spec.purpose,
             timedOut: true,
+            killClass: GenerationKillClass.timeout,
+            telemetry: _telemetry(clock, rssBeforeKb),
           ),
         );
         firstFailure = i;
@@ -143,6 +208,7 @@ class PipelineRunner {
             exitCode: -1,
             output: 'Failed to start "${entrypoint.displayCommand}": $e',
             purpose: spec.purpose,
+            telemetry: _telemetry(clock, rssBeforeKb),
           ),
         );
         firstFailure = i;
@@ -156,6 +222,15 @@ class PipelineRunner {
       entrypoint: entrypoint.displayCommand,
     );
   }
+
+  /// The resource telemetry captured around one step's subprocess (bug
+  /// #826): the spawning process's RSS before/after and the child's wall
+  /// clock. Observability only — never used in decisions.
+  StepTelemetry _telemetry(Stopwatch clock, int rssBeforeKb) => StepTelemetry(
+    rssBeforeKb: rssBeforeKb,
+    rssAfterKb: ProcessInfo.currentRss ~/ 1024,
+    wallClockMs: clock.elapsedMilliseconds,
+  );
 
   /// Resolve the zfa entrypoint (FR-004 / U11, U12).
   ///

@@ -184,7 +184,8 @@ String formatTddTimeout(Duration d) {
   return '${d.inMinutes}m${seconds}s';
 }
 
-/// Runs [executable] with [arguments] under a hard [timeout] (bug #742).
+/// Runs [executable] with [arguments] under a hard [timeout] (bug #742)
+/// and — on POSIX — an optional address-space ceiling (bug #826).
 ///
 /// Drop-in replacement for `Process.run` at every TDD spawn site:
 ///
@@ -195,16 +196,46 @@ String formatTddTimeout(Duration d) {
 ///   * a child that outlives [timeout] is KILLED (SIGKILL), reaped, and a
 ///     [ProcessTimeoutException] carrying the output captured so far is
 ///     thrown — no TDD subprocess may await a child indefinitely.
+///
+/// Bug #826: when [memoryLimitKb] is set and the platform is not Windows,
+/// the child spawns through `sh -c 'ulimit -v <kb>; exec "$0" "$@"'` so
+/// the ceiling is enforced by the kernel INSIDE the child while the spawn
+/// argv (and every captured/displayed command line) stays the original
+/// one. `exec` replaces the shell, so the PID [runTimed] later kills at
+/// the deadline is the real child, and the child's exit is the child's
+/// own — a runaway allocation becomes a deterministic in-child abort
+/// (classified `resource-limit` by the caller) instead of a
+/// nondeterministic OS OOM kill of whatever process happens to be in
+/// memory pressure at the time. macOS notes: `ulimit -v` is accepted by
+/// the shell but not kernel-enforced there, so the bound is best-effort —
+/// the deadline and the classified-verdict contract still hold. Windows
+/// has no ulimit equivalent; [memoryLimitKb] is ignored there.
 Future<ProcessResult> runTimed(
   String executable,
   List<String> arguments, {
   String? workingDirectory,
   bool runInShell = false,
   required Duration timeout,
+  int? memoryLimitKb,
 }) async {
+  // Bug #826: wrap the spawn under a kernel-enforced address-space
+  // ceiling. Shell-wrapper mode requires direct execution (no shell of
+  // our own) and a POSIX sh; anything else spawns unbounded.
+  var spawnExecutable = executable;
+  var spawnArguments = arguments;
+  final bounded = memoryLimitKb != null && !Platform.isWindows && !runInShell;
+  if (bounded) {
+    spawnExecutable = 'sh';
+    spawnArguments = [
+      '-c',
+      'ulimit -v $memoryLimitKb 2>/dev/null; exec "\$0" "\$@"',
+      executable,
+      ...arguments,
+    ];
+  }
   final process = await Process.start(
-    executable,
-    arguments,
+    spawnExecutable,
+    spawnArguments,
     workingDirectory: workingDirectory,
     runInShell: runInShell,
   );
@@ -217,6 +248,8 @@ Future<ProcessResult> runTimed(
   } on TimeoutException {
     killed = true;
     // Kill (SIGKILL on POSIX) and reap so no zombie survives the deadline.
+    // After `exec` the shell PID IS the child PID, so the kill lands on
+    // the real subprocess in the bounded path too.
     process.kill(ProcessSignal.sigkill);
     exitCode = await process.exitCode;
   }

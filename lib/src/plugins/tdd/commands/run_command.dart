@@ -875,9 +875,18 @@ class RunCommand extends Command<void> {
         // whole feature before its later behaviors ever ran is the
         // deadlock. The behavior stays RED (its last completed state,
         // FR-007 semantics), and phase 2 re-attempts the make.
+        //
+        // Bug #826: `no-op` joins the deferral set — make reports it when
+        // the behavior's inner `zfa make` plan resolves to ZERO active
+        // plugins ("No active plugins to run."), i.e. there is nothing
+        // the generation pipeline can do for this behavior yet. Exactly
+        // like `unexpressible`, that is a "the capability is not here
+        // today" state, not a crash, and stopping the feature on it is
+        // the same deadlock; phase 2 re-attempts once plugins (maybe)
+        // landed.
         if (deferralAllowed &&
             step == 'make' &&
-            result.outcome == 'unexpressible') {
+            (result.outcome == 'unexpressible' || result.outcome == 'no-op')) {
           updated = updated.advance(row.id, state);
           await store.save(updated, activeBehaviorIds: activeIds);
           print('[run] ${row.id} make -> deferred (phase 2)');
