@@ -349,22 +349,4 @@ $goldenBlock    });
 }
 ''';
   }
-
-  /// The same snake-case convention `zfa tdd gen` uses for artifact
-  /// paths (mirrored locally so the writer stays dependency-free).
-  static String _toSnakeCase(String s) {
-    final out = StringBuffer();
-    for (var i = 0; i < s.length; i++) {
-      final c = s[i];
-      if (c == '-' || c == ' ' || c == '_') {
-        out.write('_');
-      } else if (c.toUpperCase() == c && c.toLowerCase() != c && i > 0) {
-        out.write('_');
-        out.write(c.toLowerCase());
-      } else {
-        out.write(c.toLowerCase());
-      }
-    }
-    return out.toString();
-  }
 }
