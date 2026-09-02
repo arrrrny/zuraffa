@@ -27,7 +27,6 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import 'package:zuraffa/src/cli/cli_runner.dart';
-import 'package:zuraffa/src/plugins/tdd/services/replay_history.dart';
 import 'package:zuraffa/src/plugins/tdd/services/tree_snapshot.dart';
 
 import '../helpers/replay_fixture.dart';
@@ -96,8 +95,11 @@ void main() {
       'replayed=3 skipped=0 diverged=0',
     );
     final after = await TreeSnapshot.capture(fx.root.path);
-    expect(before.changedPaths(after), isEmpty,
-        reason: 'replay is read-only against the real project');
+    expect(
+      before.changedPaths(after),
+      isEmpty,
+      reason: 'replay is read-only against the real project',
+    );
   });
 
   test('SC-022: a history tamper is caught with the entry named', () async {
@@ -112,10 +114,7 @@ void main() {
     // Injected mutation: rewrite a certified fact in the green entry.
     final log = File(fx.cycleLogPath);
     await log.writeAsString(
-      (await log.readAsString()).replaceFirst(
-        '- exit: 0\n',
-        '- exit: 1\n',
-      ),
+      (await log.readAsString()).replaceFirst('- exit: 0\n', '- exit: 1\n'),
     );
 
     final out = await drive(fx);
@@ -123,8 +122,10 @@ void main() {
     expect(exitCode, 1, reason: out);
     expect(
       out,
-      contains('[replay] 066-scaffold-entity integrity -> diverged '
-          '(chain mismatch: green)'),
+      contains(
+        '[replay] 066-scaffold-entity integrity -> diverged '
+        '(chain mismatch: green)',
+      ),
     );
     // The tampered history's commands never execute.
     final fakeLog = await File(fx.fakeZfaLogPath).readAsString();
@@ -152,13 +153,14 @@ void main() {
     expect(exitCode, 1, reason: out);
     expect(
       out,
-      contains('[replay] 066-scaffold-entity gen -> drift '
-          '(1 path: lib/066_scaffold_entity_subject.dart modified)'),
+      contains(
+        '[replay] 066-scaffold-entity gen -> drift '
+        '(1 path: lib/066_scaffold_entity_subject.dart modified)',
+      ),
     );
   });
 
-  test('SC-022: a verify divergence is caught with the exits named',
-      () async {
+  test('SC-022: a verify divergence is caught with the exits named', () async {
     final fx = await ReplayFixture.create();
     addTearDown(() => fx.root.delete(recursive: true));
     await fx.writeFakeZfa();
@@ -175,8 +177,10 @@ void main() {
     expect(exitCode, 1, reason: out);
     expect(
       out,
-      contains('[replay] 066-scaffold-entity verify -> diverged '
-          '(exit expected 0, actual 1)'),
+      contains(
+        '[replay] 066-scaffold-entity verify -> diverged '
+        '(exit expected 0, actual 1)',
+      ),
     );
   });
 
@@ -200,8 +204,10 @@ void main() {
     expect(exitCode, 0, reason: out);
     expect(
       out,
-      contains('[replay] 066-scaffold-di gen -> skipped '
-          '(no generation block)'),
+      contains(
+        '[replay] 066-scaffold-di gen -> skipped '
+        '(no generation block)',
+      ),
     );
     expect(
       lastLine(out),
@@ -213,8 +219,10 @@ void main() {
     expect(eventsText, contains('"event":"replay.start"'));
     expect(
       eventsText,
-      contains('"event":"replay.end","result":"clean","replayed":1,'
-          '"skipped":1,"diverged":0,"exit":0'),
+      contains(
+        '"event":"replay.end","result":"clean","replayed":1,'
+        '"skipped":1,"diverged":0,"exit":0',
+      ),
     );
   });
 }

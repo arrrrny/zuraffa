@@ -14,7 +14,6 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import 'package:zuraffa/src/cli/cli_runner.dart';
-import 'package:zuraffa/src/plugins/tdd/services/replay_history.dart';
 import 'package:zuraffa/src/plugins/tdd/services/tree_snapshot.dart';
 
 import '../helpers/replay_fixture.dart';
@@ -115,8 +114,10 @@ void main() {
       expect(exitCode, 1, reason: out);
       expect(
         out,
-        contains('[replay] 066-b1 integrity -> diverged '
-            '(chain mismatch: green)'),
+        contains(
+          '[replay] 066-b1 integrity -> diverged '
+          '(chain mismatch: green)',
+        ),
       );
       // A tampered history's commands are never executed (FR-004).
       final fakeLog = await File(fx.fakeZfaLogPath).readAsString();
@@ -150,8 +151,10 @@ void main() {
       expect(exitCode, 1, reason: out);
       expect(
         out,
-        contains('[replay] 066-b1 gen -> drift '
-            '(1 path: test/066_b1_test.dart modified)'),
+        contains(
+          '[replay] 066-b1 gen -> drift '
+          '(1 path: test/066_b1_test.dart modified)',
+        ),
       );
       expect(
         lastLine(out),
@@ -179,8 +182,10 @@ void main() {
       expect(out, contains('[replay] 066-b1 gen -> identical (0 paths)'));
       expect(
         out,
-        contains('[replay] 066-b1 verify -> diverged '
-            '(exit expected 0, actual 1)'),
+        contains(
+          '[replay] 066-b1 verify -> diverged '
+          '(exit expected 0, actual 1)',
+        ),
       );
       expect(
         lastLine(out),
@@ -189,8 +194,7 @@ void main() {
       );
     });
 
-    test('A5: full-history aggregation, partial, and missing-log',
-        () async {
+    test('A5: full-history aggregation, partial, and missing-log', () async {
       // -- three behaviors: two replayable, one only-red --
       final fx = await ReplayFixture.create();
       addTearDown(() => fx.root.delete(recursive: true));
@@ -210,10 +214,20 @@ void main() {
       final out = await drive(fx);
 
       expect(exitCode, 0, reason: out);
-      expect(out, contains('[replay] 066-b3 gen -> skipped '
-          '(no generation block)'));
-      expect(out, contains('[replay] 066-b3 verify -> skipped '
-          '(no green command)'));
+      expect(
+        out,
+        contains(
+          '[replay] 066-b3 gen -> skipped '
+          '(no generation block)',
+        ),
+      );
+      expect(
+        out,
+        contains(
+          '[replay] 066-b3 verify -> skipped '
+          '(no green command)',
+        ),
+      );
       expect(
         lastLine(out),
         'replay: feature=066-replay-fixture result=clean '
@@ -313,8 +327,7 @@ void main() {
       expect(ndjsonFiles, isEmpty);
     });
 
-    test('A7: the dream surface delegates; unknown ids fail named',
-        () async {
+    test('A7: the dream surface delegates; unknown ids fail named', () async {
       final fx = await ReplayFixture.create();
       addTearDown(() => fx.root.delete(recursive: true));
       await fx.writeFakeZfa();

@@ -49,19 +49,19 @@ environment:
     if (withPackageConfig) {
       final dartTool = Directory(p.join(root.path, '.dart_tool'));
       await dartTool.create(recursive: true);
-      await File(
-        p.join(dartTool.path, 'package_config.json'),
-      ).writeAsString(jsonEncode({
-        'configVersion': 2,
-        'packages': [
-          {
-            'name': 'replay_fixture',
-            'rootUri': '../..',
-            'packageUri': 'lib/',
-            'languageVersion': '3.11',
-          },
-        ],
-      }));
+      await File(p.join(dartTool.path, 'package_config.json')).writeAsString(
+        jsonEncode({
+          'configVersion': 2,
+          'packages': [
+            {
+              'name': 'replay_fixture',
+              'rootUri': '../..',
+              'packageUri': 'lib/',
+              'languageVersion': '3.11',
+            },
+          ],
+        }),
+      );
     }
     await Directory(p.join(fx.featureDir, 'tdd')).create(recursive: true);
     return fx;
@@ -107,12 +107,12 @@ environment:
     final dir = Directory(p.join(root.path, '.specify'));
     await dir.create(recursive: true);
     final scriptPath = p.join(dir.path, 'check_${_snake(id)}.sh');
-    await File(
-      scriptPath,
-    ).writeAsString('#!/bin/sh\n'
-        'grep -q "marker: $marker" "\$1" 2>/dev/null && exit 0\n'
-        'echo "marker \$2 missing" >&2\n'
-        'exit 1\n');
+    await File(scriptPath).writeAsString(
+      '#!/bin/sh\n'
+      'grep -q "marker: $marker" "\$1" 2>/dev/null && exit 0\n'
+      'echo "marker \$2 missing" >&2\n'
+      'exit 1\n',
+    );
     await Process.run('chmod', ['+x', scriptPath]);
   }
 
@@ -198,7 +198,8 @@ environment:
     await Directory(p.join(binDir.path, 'config')).create();
     await File(fakeZfaLogPath).writeAsString('');
     final cfgDir = p.join(binDir.path, 'config');
-    final script = r'''#!/bin/sh
+    final script =
+        r'''#!/bin/sh
 # fake zfa for replay tests. argv: tdd gen <id> --feature <f>
 echo "$@" >> "@@LOG@@"
 ID="$3"
@@ -210,8 +211,8 @@ if [ -f "$CFG" ]; then
 fi
 exit 0
 '''
-        .replaceAll('@@LOG@@', fakeZfaLogPath)
-        .replaceAll('@@CFG@@', cfgDir);
+            .replaceAll('@@LOG@@', fakeZfaLogPath)
+            .replaceAll('@@CFG@@', cfgDir);
     await File(fakeZfaPath).writeAsString(script);
     await Process.run('chmod', ['+x', fakeZfaPath]);
   }
@@ -231,10 +232,13 @@ exit 0
 }
 
 /// A `GenerationStep` for seeding green entries.
-GenerationStep genStep(String command, {int exit = 0, String purpose = 'gen'}) =>
-    GenerationStep(
-      command: command,
-      exitCode: exit,
-      output: '',
-      purpose: purpose,
-    );
+GenerationStep genStep(
+  String command, {
+  int exit = 0,
+  String purpose = 'gen',
+}) => GenerationStep(
+  command: command,
+  exitCode: exit,
+  output: '',
+  purpose: purpose,
+);

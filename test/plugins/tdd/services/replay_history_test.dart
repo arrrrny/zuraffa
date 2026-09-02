@@ -107,8 +107,10 @@ void main() {
       await fx.appendCycle('066-b1', marker: 'm1');
       // Injected mutation: flip the green entry's recorded exit 0 -> 1.
       final log = File(fx.cycleLogPath);
-      final tampered = (await log.readAsString())
-          .replaceFirst('- exit: 0\n', '- exit: 1\n');
+      final tampered = (await log.readAsString()).replaceFirst(
+        '- exit: 0\n',
+        '- exit: 1\n',
+      );
       await log.writeAsString(tampered);
 
       final b = (await ReplayHistory.load(fx.featureDir)).single;
@@ -122,8 +124,7 @@ void main() {
       expect(out.reason, contains('chain mismatch'));
     });
 
-    test('U3: a spliced prev-hash breaks with a linkage divergence',
-        () async {
+    test('U3: a spliced prev-hash breaks with a linkage divergence', () async {
       final fx = await ReplayFixture.create();
       addTearDown(() => fx.root.delete(recursive: true));
       await fx.appendCycle('066-b1', marker: 'm1');
@@ -146,8 +147,7 @@ void main() {
       final raw = await log.readAsString();
       // The writer renders `- prev-hash:` then `- hash:` per entry; the
       // red entry's hash is the first, the green's the second.
-      final hashes =
-          RegExp(r'- hash: ([0-9a-f]{64})').allMatches(raw).toList();
+      final hashes = RegExp(r'- hash: ([0-9a-f]{64})').allMatches(raw).toList();
       final redHash = hashes[0].group(1)!;
       final greenHash = hashes[1].group(1)!;
       final spliced = raw
@@ -165,31 +165,33 @@ void main() {
       expect(out.reason, contains('linkage'));
     });
 
-    test('U3: hash-less schema-0 entries are unverified, never failed',
-        () async {
-      final fx = await ReplayFixture.create();
-      addTearDown(() => fx.root.delete(recursive: true));
-      await fx.appendCycle('066-b1', marker: 'm1');
-      // A legacy hand-appended section with no hash lines.
-      await File(fx.cycleLogPath).writeAsString(
-        '\n## Cycle: 066-legacy (red)\n\n- behavior: 066-legacy\n'
-        '- kind: red\n- classification: assertionFailure\n'
-        '- criterion: FR-001\n- test: ${fx.testPathOf('066-b1')}\n'
-        '- command: `dart test`\n- exit: 1\n- at: 2026-08-01T00:00:00.000Z\n'
-        '- output:\n```\nold failure\n```\n\n',
-        mode: FileMode.append,
-      );
+    test(
+      'U3: hash-less schema-0 entries are unverified, never failed',
+      () async {
+        final fx = await ReplayFixture.create();
+        addTearDown(() => fx.root.delete(recursive: true));
+        await fx.appendCycle('066-b1', marker: 'm1');
+        // A legacy hand-appended section with no hash lines.
+        await File(fx.cycleLogPath).writeAsString(
+          '\n## Cycle: 066-legacy (red)\n\n- behavior: 066-legacy\n'
+          '- kind: red\n- classification: assertionFailure\n'
+          '- criterion: FR-001\n- test: ${fx.testPathOf('066-b1')}\n'
+          '- command: `dart test`\n- exit: 1\n- at: 2026-08-01T00:00:00.000Z\n'
+          '- output:\n```\nold failure\n```\n\n',
+          mode: FileMode.append,
+        );
 
-      final behaviors = await ReplayHistory.load(fx.featureDir);
-      final legacy = behaviors.firstWhere((b) => b.id == '066-legacy');
-      final out = await ReplayHistory.verifyIntegrity(
-        legacy,
-        projectRoot: fx.root.path,
-      );
+        final behaviors = await ReplayHistory.load(fx.featureDir);
+        final legacy = behaviors.firstWhere((b) => b.id == '066-legacy');
+        final out = await ReplayHistory.verifyIntegrity(
+          legacy,
+          projectRoot: fx.root.path,
+        );
 
-      expect(out.ok, isTrue, reason: out.reason);
-      expect(out.unverifiedKinds, ['red']);
-    });
+        expect(out.ok, isTrue, reason: out.reason);
+        expect(out.unverifiedKinds, ['red']);
+      },
+    );
 
     test('U4: a red test path missing from the tree diverges', () async {
       final fx = await ReplayFixture.create();

@@ -28,10 +28,7 @@ class ReplayEvents {
     return ReplayEvents._(sink);
   }
 
-  void runStart({
-    required String feature,
-    required List<String> behaviors,
-  }) {
+  void runStart({required String feature, required List<String> behaviors}) {
     _emit({
       'event': 'replay.start',
       'feature': feature,

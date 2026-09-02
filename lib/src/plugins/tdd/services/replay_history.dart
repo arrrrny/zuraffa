@@ -103,7 +103,7 @@ class IntegrityOutcome {
   );
 
   const IntegrityOutcome.passed({List<String> unverifiedKinds = const []})
-      : this._(true, null, null, unverifiedKinds);
+    : this._(true, null, null, unverifiedKinds);
 
   const IntegrityOutcome.broken({
     required String reason,
@@ -136,10 +136,10 @@ class ReplayHistory {
       if (parsed.isEmpty) continue;
       final entry = parsed.first;
       final kind = entry.kind;
-      final classification =
-          RegExp(r'^- classification: (\S+)', multiLine: true)
-              .firstMatch(section)
-              ?.group(1);
+      final classification = RegExp(
+        r'^- classification: (\S+)',
+        multiLine: true,
+      ).firstMatch(section)?.group(1);
       final genSteps = kind == 'green'
           ? _parseGenerationSteps(section)
           : const <ReplayGenerationStep>[];
@@ -264,11 +264,7 @@ class ReplayHistory {
       final cmd = command;
       if (cmd != null) {
         steps.add(
-          ReplayGenerationStep(
-            command: cmd,
-            exitCode: exit,
-            purpose: purpose,
-          ),
+          ReplayGenerationStep(command: cmd, exitCode: exit, purpose: purpose),
         );
       }
       command = null;

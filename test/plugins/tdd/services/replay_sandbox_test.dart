@@ -43,9 +43,7 @@ void main() {
         isTrue,
       );
       expect(
-        await File(
-          p.join(sandbox.path, 'analysis_options.yaml'),
-        ).exists(),
+        await File(p.join(sandbox.path, 'analysis_options.yaml')).exists(),
         isTrue,
       );
       expect(
@@ -61,8 +59,9 @@ void main() {
       );
       // lib/ and test/ trees copy with their content.
       expect(
-        await File(p.join(sandbox.path, 'lib', '066_b1_subject.dart'))
-            .readAsString(),
+        await File(
+          p.join(sandbox.path, 'lib', '066_b1_subject.dart'),
+        ).readAsString(),
         await File(fx.subjectPathOf('066-b1')).readAsString(),
       );
       expect(
@@ -114,10 +113,7 @@ void main() {
       addTearDown(sandbox.delete);
 
       expect(await Directory(p.join(sandbox.path, '.git')).exists(), isFalse);
-      expect(
-        await Directory(p.join(sandbox.path, 'build')).exists(),
-        isFalse,
-      );
+      expect(await Directory(p.join(sandbox.path, 'build')).exists(), isFalse);
       expect(
         await Directory(p.join(sandbox.path, '.dart_tool', 'test')).exists(),
         isFalse,

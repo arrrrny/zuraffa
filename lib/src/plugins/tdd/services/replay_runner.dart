@@ -114,19 +114,13 @@ class ReplayReport {
   static ReplayReport build({
     required String feature,
     required Map<String, List<ReplayStepResult>> steps,
-  }) =>
-      ReplayReport(feature: feature, steps: steps);
+  }) => ReplayReport(feature: feature, steps: steps);
 
-  int get diverged =>
-      steps.values.where((s) => s.any((r) => !r.ok)).length;
+  int get diverged => steps.values.where((s) => s.any((r) => !r.ok)).length;
 
   int get replayed => steps.values
-      .where(
-        (s) => s.any((r) => r.executed),
-      )
-      .where(
-        (s) => !s.any((r) => !r.ok),
-      )
+      .where((s) => s.any((r) => r.executed))
+      .where((s) => !s.any((r) => !r.ok))
       .length;
 
   int get skipped {
@@ -138,14 +132,14 @@ class ReplayReport {
   String get result => diverged > 0
       ? 'divergent'
       : replayed == 0
-          ? 'partial'
-          : 'clean';
+      ? 'partial'
+      : 'clean';
 
   int get exit => diverged > 0
       ? 1
       : replayed == 0
-          ? 2
-          : 0;
+      ? 2
+      : 0;
 
   /// The machine summary line — the final stdout line on every code path.
   String get summaryLine =>
@@ -211,8 +205,7 @@ class ReplayRunner {
           behavior: behavior.id,
           stage: ReplayStage.gen,
           status: ReplayStepStatus.diverged,
-          reason:
-              'runner-error: recorded gen step timed out: ${step.command}',
+          reason: 'runner-error: recorded gen step timed out: ${step.command}',
         );
       }
     }
@@ -257,8 +250,9 @@ class ReplayRunner {
     // with a pubspec but no package config cannot run recorded test
     // commands — skip verify, gen replay still ran.
     final pubspec = File(p.join(projectRoot, 'pubspec.yaml'));
-    final packageConfig =
-        File(p.join(projectRoot, '.dart_tool', 'package_config.json'));
+    final packageConfig = File(
+      p.join(projectRoot, '.dart_tool', 'package_config.json'),
+    );
     if (await pubspec.exists() && !await packageConfig.exists()) {
       return ReplayStepResult(
         behavior: behavior.id,
@@ -321,11 +315,13 @@ class ReplayRunner {
     TreeSnapshot real,
     TreeSnapshot sandbox,
   ) {
-    final classified = paths.map((path) {
-      if (!real.entries.containsKey(path)) return '$path added';
-      if (!sandbox.entries.containsKey(path)) return '$path missing';
-      return '$path modified';
-    }).join('; ');
+    final classified = paths
+        .map((path) {
+          if (!real.entries.containsKey(path)) return '$path added';
+          if (!sandbox.entries.containsKey(path)) return '$path missing';
+          return '$path modified';
+        })
+        .join('; ');
     final noun = paths.length == 1 ? 'path' : 'paths';
     return '${paths.length} $noun: $classified';
   }
@@ -393,9 +389,10 @@ class ReplayRunner {
         return 1;
       }
       final behaviors = await ReplayHistory.load(featureDir);
-      events?.runStart(feature: feature, behaviors: [
-        for (final b in behaviors) b.id,
-      ]);
+      events?.runStart(
+        feature: feature,
+        behaviors: [for (final b in behaviors) b.id],
+      );
 
       if (behaviors.isEmpty) {
         emit(
@@ -434,10 +431,7 @@ class ReplayRunner {
         final results = <ReplayStepResult>[];
 
         // ---- integrity stage (FR-004/FR-005) ----------------------
-        events?.stepStart(
-          behavior: behavior.id,
-          step: ReplayStage.integrity,
-        );
+        events?.stepStart(behavior: behavior.id, step: ReplayStage.integrity);
         final integrity = await ReplayHistory.verifyIntegrity(
           behavior,
           projectRoot: projectRoot,
@@ -509,10 +503,7 @@ class ReplayRunner {
         emit('[replay] ${behavior.id} gen -> ${_stageLine(gen)}');
 
         // ---- verify stage (FR-010/FR-011) -------------------------
-        events?.stepStart(
-          behavior: behavior.id,
-          step: ReplayStage.verify,
-        );
+        events?.stepStart(behavior: behavior.id, step: ReplayStage.verify);
         final verify = await ReplayRunner.runVerify(
           behavior,
           sandboxPath: sandbox.path,
@@ -540,7 +531,10 @@ class ReplayRunner {
       if (!keepSandbox) {
         await sandbox?.delete();
       }
-      final report = ReplayReport.build(feature: feature ?? featureArg, steps: steps);
+      final report = ReplayReport.build(
+        feature: feature ?? featureArg,
+        steps: steps,
+      );
       final exit = infraFailure ? 1 : report.exit;
       final result = infraFailure ? 'divergent' : report.result;
       await events?.runEnd(
@@ -550,8 +544,9 @@ class ReplayRunner {
         diverged: report.diverged,
         exit: exit,
       );
-      final sandboxSuffix =
-          keepSandbox && sandbox != null ? ' sandbox=${sandbox.path}' : '';
+      final sandboxSuffix = keepSandbox && sandbox != null
+          ? ' sandbox=${sandbox.path}'
+          : '';
       emit(
         'replay: feature=${feature ?? featureArg} result=$result '
         'replayed=${infraFailure ? 0 : report.replayed} '
@@ -579,7 +574,7 @@ class ReplayRunner {
       if (p.basename(tddDir) != 'tdd') {
         throw UsageException(
           'invalid cycle-log path "$featureArg": expected '
-          '<project>/specs/<feature>/tdd/cycle-log.md',
+              '<project>/specs/<feature>/tdd/cycle-log.md',
           'zfa replay <feature|path/to/tdd/cycle-log.md>',
         );
       }

@@ -49,8 +49,7 @@ void main() {
       expect(log, contains('tdd gen 066-b1'));
     });
 
-    test('U7: drift is reported path-stably with classifications',
-        () async {
+    test('U7: drift is reported path-stably with classifications', () async {
       final fx = await ReplayFixture.create();
       addTearDown(() => fx.root.delete(recursive: true));
       await fx.writeFakeZfa();
@@ -153,27 +152,29 @@ void main() {
   });
 
   group('ReplayRunner verify stage (U8)', () {
-    test('U8: a passing recorded command is green in the sandbox cwd',
-        () async {
-      final fx = await ReplayFixture.create();
-      addTearDown(() => fx.root.delete(recursive: true));
-      await fx.appendCycle('066-b1', marker: 'OK-marker');
-      final sandbox = await ReplaySandbox.create(
-        projectRoot: fx.root.path,
-        feature: fx.featureName,
-      );
-      addTearDown(sandbox.delete);
+    test(
+      'U8: a passing recorded command is green in the sandbox cwd',
+      () async {
+        final fx = await ReplayFixture.create();
+        addTearDown(() => fx.root.delete(recursive: true));
+        await fx.appendCycle('066-b1', marker: 'OK-marker');
+        final sandbox = await ReplaySandbox.create(
+          projectRoot: fx.root.path,
+          feature: fx.featureName,
+        );
+        addTearDown(sandbox.delete);
 
-      final b = (await ReplayHistory.load(fx.featureDir)).single;
-      final result = await ReplayRunner.runVerify(
-        b,
-        sandboxPath: sandbox.path,
-        projectRoot: fx.root.path,
-      );
+        final b = (await ReplayHistory.load(fx.featureDir)).single;
+        final result = await ReplayRunner.runVerify(
+          b,
+          sandboxPath: sandbox.path,
+          projectRoot: fx.root.path,
+        );
 
-      expect(result.status, ReplayStepStatus.green);
-      expect(result.ok, isTrue);
-    });
+        expect(result.status, ReplayStepStatus.green);
+        expect(result.ok, isTrue);
+      },
+    );
 
     test('U8: a broken subject diverges with expected/actual', () async {
       final fx = await ReplayFixture.create();
@@ -202,8 +203,7 @@ void main() {
       expect(result.reason, contains('verify-exit-mismatch'));
     });
 
-    test('U8: an unspawnable recorded command is a runner error',
-        () async {
+    test('U8: an unspawnable recorded command is a runner error', () async {
       final fx = await ReplayFixture.create();
       addTearDown(() => fx.root.delete(recursive: true));
       await fx.appendCycle(
@@ -414,13 +414,15 @@ void main() {
           .split('\n')
           .where((line) => line.trim().isNotEmpty)
           .toList();
-      final decoded =
-          lines.map((line) => jsonDecode(line) as Map<String, dynamic>).toList();
+      final decoded = lines
+          .map((line) => jsonDecode(line) as Map<String, dynamic>)
+          .toList();
       expect(decoded.first['event'], 'replay.start');
       expect(decoded.first['feature'], '066-f');
       expect(decoded[1]['event'], 'step.start');
-      final genEnd = decoded
-          .firstWhere((e) => e['event'] == 'step.end' && e['step'] == 'gen');
+      final genEnd = decoded.firstWhere(
+        (e) => e['event'] == 'step.end' && e['step'] == 'gen',
+      );
       expect(genEnd['status'], 'identical');
       final verifyEnd = decoded.lastWhere(
         (e) => e['event'] == 'step.end' && e['step'] == 'verify',
