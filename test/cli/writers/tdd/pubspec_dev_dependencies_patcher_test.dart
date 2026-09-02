@@ -26,10 +26,9 @@ void main() {
     await file.writeAsString(content);
   }
 
-  test(
-    'adds all seven missing dev_dependencies (bug #716 added `test`)',
-    () async {
-      await writePubspec('''
+  test('adds all six missing dev_dependencies '
+      '(bug #716 added `test`; bug #755 dropped unused `mocktail`)', () async {
+    await writePubspec('''
 name: myapp
 environment:
   sdk: ^3.11.0
@@ -38,35 +37,36 @@ dependencies: {}
 
 dev_dependencies: {}
 ''');
-      final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
-      final added = await patcher.ensure(tmpDir.path);
-      expect(added.length, 7);
-      expect(added.any((e) => e.startsWith('flutter_test')), isTrue);
-      expect(added.any((e) => e.startsWith('test')), isTrue);
-      expect(added.any((e) => e.startsWith('mocktail')), isTrue);
-      expect(added.any((e) => e.startsWith('build_runner')), isTrue);
-      expect(added.any((e) => e.startsWith('json_serializable')), isTrue);
-      expect(added.any((e) => e.startsWith('coverage')), isTrue);
-      expect(added.any((e) => e.startsWith('mutation_test')), isTrue);
-      final raw = await File(
-        p.join(tmpDir.path, 'pubspec.yaml'),
-      ).readAsString();
-      final doc = loadYaml(raw) as YamlMap;
-      final devDeps = doc['dev_dependencies'] as YamlMap;
-      expect(
-        devDeps.keys,
-        containsAll([
-          'flutter_test',
-          'test',
-          'mocktail',
-          'build_runner',
-          'json_serializable',
-          'coverage',
-          'mutation_test',
-        ]),
-      );
-    },
-  );
+    final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
+    final added = await patcher.ensure(tmpDir.path);
+    expect(added.length, 6);
+    expect(added.any((e) => e.startsWith('flutter_test')), isTrue);
+    expect(added.any((e) => e.startsWith('test')), isTrue);
+    expect(
+      added.any((e) => e.startsWith('mocktail')),
+      isFalse,
+      reason: 'bug #755: mocktail is no longer written into generated pubspecs',
+    );
+    expect(added.any((e) => e.startsWith('build_runner')), isTrue);
+    expect(added.any((e) => e.startsWith('json_serializable')), isTrue);
+    expect(added.any((e) => e.startsWith('coverage')), isTrue);
+    expect(added.any((e) => e.startsWith('mutation_test')), isTrue);
+    final raw = await File(p.join(tmpDir.path, 'pubspec.yaml')).readAsString();
+    final doc = loadYaml(raw) as YamlMap;
+    final devDeps = doc['dev_dependencies'] as YamlMap;
+    expect(
+      devDeps.keys,
+      containsAll([
+        'flutter_test',
+        'test',
+        'build_runner',
+        'json_serializable',
+        'coverage',
+        'mutation_test',
+      ]),
+    );
+    expect(devDeps.containsKey('mocktail'), isFalse);
+  });
 
   test('does not duplicate existing entries', () async {
     await writePubspec('''
@@ -79,13 +79,15 @@ dependencies: {}
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  mocktail: ^1.0.0
+  build_runner: ^2.4.0
 ''');
     final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
     final added = await patcher.ensure(tmpDir.path);
-    expect(added.length, 5);
+    // flutter_test and build_runner are pre-declared; the patcher should
+    // add the remaining 4 (test, json_serializable, coverage, mutation_test).
+    expect(added.length, 4);
     expect(added.any((e) => e.startsWith('flutter_test')), isFalse);
-    expect(added.any((e) => e.startsWith('mocktail')), isFalse);
+    expect(added.any((e) => e.startsWith('build_runner')), isFalse);
     final raw = await File(p.join(tmpDir.path, 'pubspec.yaml')).readAsString();
     final flutterTestCount = RegExp(
       r'^\s*flutter_test:',
@@ -117,7 +119,8 @@ dependencies: {}
 ''');
     final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
     final added = await patcher.ensure(tmpDir.path);
-    expect(added.length, 7);
+    // bug #755 dropped mocktail from the flutter map: 7 -> 6.
+    expect(added.length, 6);
     final raw = await File(p.join(tmpDir.path, 'pubspec.yaml')).readAsString();
     expect(raw, contains('dev_dependencies:'));
     expect(raw, contains('flutter_test:'));
@@ -229,4 +232,137 @@ dev_dependencies:
       );
     },
   );
+
+  // Bug #755: `zfa tdd init` pinned `mutation_test: ^1.0.0` but the
+  // toolchain's MutationVerifier (lib/src/plugins/tdd/services/
+  // mutation_verifier.dart:235,255) parses v1.8.0+ reports. The
+  // generated baseline was internally inconsistent out of the box.
+  //
+  // Remediation: bump both maps to `^1.8.0`, update `coverage` to the
+  // current latest (`^1.15.1`), and drop the unused `mocktail` dev
+  // dependency — the generated test templates use zuraffa's native
+  // mocks (`lib/src/mock/mock.dart`, `test_builder_entity.dart:6`)
+  // and never import `package:mocktail`.
+  group('bug #755 — pins match MutationVerifier v1.8.0+ format', () {
+    test(
+      'flutterDevDependencies pins mutation_test at ^1.8.0 (matches verifier)',
+      () {
+        expect(
+          PubspecDevDependenciesPatcher.flutterDevDependencies['mutation_test'],
+          '^1.8.0',
+          reason:
+              'MutationVerifier parses v1.8.0+ reports; the generated pin '
+              'must agree so freshly initialized projects are not internally '
+              'inconsistent out of the box.',
+        );
+      },
+    );
+
+    test(
+      'dartDevDependencies pins mutation_test at ^1.8.0 (matches verifier)',
+      () {
+        expect(
+          PubspecDevDependenciesPatcher.dartDevDependencies['mutation_test'],
+          '^1.8.0',
+        );
+      },
+    );
+
+    test(
+      'flutterDevDependencies pins coverage at ^1.15.1 (current latest)',
+      () {
+        expect(
+          PubspecDevDependenciesPatcher.flutterDevDependencies['coverage'],
+          '^1.15.1',
+          reason:
+              'Bug #755 asks for the latest coverage pin at merge time. '
+              'pub.dev reports 1.15.1 as the current latest stable release.',
+        );
+      },
+    );
+
+    test('dartDevDependencies pins coverage at ^1.15.1 (current latest)', () {
+      expect(
+        PubspecDevDependenciesPatcher.dartDevDependencies['coverage'],
+        '^1.15.1',
+      );
+    });
+
+    test('flutterDevDependencies does NOT include mocktail '
+        '(unused by generated test templates)', () {
+      expect(
+        PubspecDevDependenciesPatcher.flutterDevDependencies.containsKey(
+          'mocktail',
+        ),
+        isFalse,
+        reason:
+            'Generated tests use zuraffa native mocks '
+            '(lib/src/mock/mock.dart, test_builder_entity.dart:6); '
+            'mocktail was an unused dev dep that just bloats the '
+            'generated baseline.',
+      );
+    });
+
+    test('dartDevDependencies does NOT include mocktail '
+        '(unused by generated test templates)', () {
+      expect(
+        PubspecDevDependenciesPatcher.dartDevDependencies.containsKey(
+          'mocktail',
+        ),
+        isFalse,
+      );
+    });
+
+    test(
+      'flutter-mode ensure writes mutation_test: ^1.8.0 into pubspec.yaml',
+      () async {
+        await writePubspec('''
+name: myapp
+environment:
+  sdk: ^3.11.0
+
+dependencies: {}
+
+dev_dependencies: {}
+''');
+        final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
+        await patcher.ensure(tmpDir.path);
+        final raw = await File(
+          p.join(tmpDir.path, 'pubspec.yaml'),
+        ).readAsString();
+        final doc = loadYaml(raw) as YamlMap;
+        final devDeps = doc['dev_dependencies'] as YamlMap;
+        expect(devDeps['mutation_test'], '^1.8.0');
+        expect(devDeps['coverage'], '^1.15.1');
+        expect(
+          devDeps.containsKey('mocktail'),
+          isFalse,
+          reason: 'mocktail must not be written into generated pubspecs',
+        );
+      },
+    );
+
+    test(
+      'dart-mode ensure writes mutation_test: ^1.8.0 into pubspec.yaml',
+      () async {
+        await writePubspec('''
+name: myapp
+environment:
+  sdk: ^3.11.0
+
+dev_dependencies: {}
+''');
+        final patcher = const PubspecDevDependenciesPatcher(isFlutter: false);
+        await patcher.ensure(tmpDir.path);
+        final raw = await File(
+          p.join(tmpDir.path, 'pubspec.yaml'),
+        ).readAsString();
+        final doc = loadYaml(raw) as YamlMap;
+        final devDeps = doc['dev_dependencies'] as YamlMap;
+        expect(devDeps['mutation_test'], '^1.8.0');
+        expect(devDeps['coverage'], '^1.15.1');
+        expect(devDeps.containsKey('mocktail'), isFalse);
+      },
+    );
+  });
 }
