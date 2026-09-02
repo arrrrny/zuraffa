@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:args/command_runner.dart';
 import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
+import 'capability_command.dart';
 import '../plugins/mock/mock_plugin.dart';
 import '../plugins/mock/capabilities/create_mock_capability.dart';
 import '../plugins/mock/capabilities/json_mock_capability.dart';
@@ -9,13 +11,18 @@ class MockCommand extends PluginCommand {
   @override
   final MockPlugin plugin;
 
-  MockCommand(this.plugin) : super(plugin) {
+  MockCommand(this.plugin) : super(plugin, registerSubcommands: false) {
     addSubcommand(DataMockCommand(plugin));
-    try {
-      addSubcommand(JsonMockCommand(plugin));
-    } catch (_) {
-      // JsonMockCommand may already be registered if MockCommand is
-      // instantiated multiple times during test setup.
+    // The dedicated JsonMockCommand owns the `json` subcommand (richer
+    // output than the generic CapabilityCommand). Register it BEFORE the
+    // capability loop and skip the json capability there — registering both
+    // would make args' addSubcommand throw on the duplicate argParser
+    // command name, leaving JsonMockCommand with a broken parent chain that
+    // crashes `--help` (null `runner` in the usage printer).
+    addSubcommand(JsonMockCommand(plugin));
+    for (final capability in plugin.capabilities) {
+      if (capability is JsonMockCapability) continue;
+      addSubcommand(CapabilityCommand(capability));
     }
     argParser.addFlag(
       'data-only',
@@ -50,7 +57,7 @@ class MockCommand extends PluginCommand {
       print('❌ Usage: zfa mock <EntityName> [options]');
       print('   Or: zfa mock data <EntityName> [options]');
       print('   Or: zfa mock json <EntityName> [options]');
-      return;
+      exit(64);
     }
 
     final entityName = argResults!.rest.first;
@@ -193,6 +200,10 @@ class JsonMockCommand extends Command<void> {
 
   JsonMockCommand(this.plugin) {
     argParser.addOption(
+      'name',
+      help: 'Entity name (alternative to the positional argument)',
+    );
+    argParser.addOption(
       'domain',
       abbr: 'd',
       help: 'Domain folder for grouping JSON files',
@@ -226,12 +237,14 @@ class JsonMockCommand extends Command<void> {
   @override
   Future<void> run() async {
     final results = argResults;
-    if (results == null || results.rest.isEmpty) {
+    if (results == null ||
+        (results.rest.isEmpty && results['name'] == null)) {
       print('❌ Usage: zfa mock json <EntityName> [options]');
-      return;
+      exit(64);
     }
 
-    final entityName = results.rest.first;
+    final entityName =
+        results.rest.isNotEmpty ? results.rest.first : results['name'] as String;
     final capability =
         plugin.capabilities.firstWhere((c) => c is JsonMockCapability)
             as JsonMockCapability;

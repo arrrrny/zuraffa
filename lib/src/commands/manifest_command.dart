@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:args/command_runner.dart';
+import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
 
 /// Command to list all available capabilities in JSON format.
@@ -33,6 +34,7 @@ class ManifestCommand extends Command<void> {
       // Format as MCP tools definition
       final tools = <Map<String, dynamic>>[];
       for (final plugin in registry.plugins) {
+        if (plugin is! CliAwarePlugin) continue;
         for (final capability in plugin.capabilities) {
           tools.add({
             'name': 'zfa_${plugin.id}_${capability.name}',
@@ -44,8 +46,14 @@ class ManifestCommand extends Command<void> {
       print(jsonEncode({'tools': tools}));
     } else {
       // Default JSON format with full details
+      //
+      // Only capabilities of CLI-aware plugins are advertised: the manifest
+      // is a command-invocation contract, and capabilities of plugins without
+      // a registered command (internal orchestrators) are unreachable from
+      // the CLI.
       final output = <Map<String, dynamic>>[];
       for (final plugin in registry.plugins) {
+        if (plugin is! CliAwarePlugin) continue;
         for (final capability in plugin.capabilities) {
           output.add({
             'plugin': plugin.id,

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:args/command_runner.dart';
 import '../models/generated_file.dart';
 import '../core/plugin_system/capability.dart';
@@ -164,6 +165,20 @@ class CapabilityCommand extends Command<void> {
       args['revert'] = true;
     }
 
+    // Coerce schema-declared integer properties (CLI options arrive as
+    // strings, but capabilities expect typed values, e.g. sync batchSize).
+    final allProps = schema['properties'];
+    if (allProps is Map) {
+      allProps.forEach((key, prop) {
+        if (prop is Map &&
+            prop['type'] == 'integer' &&
+            args[key] is String) {
+          final parsed = int.tryParse(args[key] as String);
+          if (parsed != null) args[key] = parsed;
+        }
+      });
+    }
+
     // Validate required fields
     final required = schema['required'] as List?;
     if (required != null) {
@@ -175,7 +190,7 @@ class CapabilityCommand extends Command<void> {
       }
       if (missing.isNotEmpty) {
         print('❌ Error: Missing required arguments: ${missing.join(', ')}');
-        return;
+        exit(64);
       }
     }
 
@@ -197,6 +212,11 @@ class CapabilityCommand extends Command<void> {
             result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
         if (files.isEmpty) {
           print('✅ Success! (No changes required)');
+          print(
+            '⚠️ No files were generated. Some commands gate all output '
+            'behind variant flags (e.g. --data, --methods, --fields); '
+            're-run with --verbose to inspect the resolved arguments.',
+          );
           return;
         }
 

@@ -26,6 +26,7 @@ import 'package:args/command_runner.dart';
 import '../../../core/benchmark/baseline_store.dart';
 import '../../../core/benchmark/isolate_benchmark_runner.dart';
 import '../benchmark_plugin.dart';
+import '../capabilities/register_benchmark_capability.dart';
 
 /// The `zfa benchmark` command (FR-011).
 class BenchmarkCommand extends Command<void> {
@@ -56,6 +57,7 @@ usage: zfa benchmark SUBCOMMAND [options]
 subcommands:
   run [options]                 Run registered benchmark scenarios
   list [--json]                 List registered benchmark scenarios
+  register [--discover]         Register scenarios from providers
   baseline save <id> --label L  Save a baseline from a fresh run
   baseline load <id>            Load the latest (or --label) baseline
   baseline compare <id>         Compare a fresh run against a baseline
@@ -94,10 +96,52 @@ run options:
         await _baseline(rest);
       case 'report':
         await _report(rest);
+      case 'register':
+      case 'benchmark.register':
+        await _register(rest);
+      case 'benchmark.run':
+        await _run(rest);
+      case 'benchmark.list':
+        await _list(rest);
       default:
-        print('Unknown benchmark subcommand: \$subcommand');
+        print('Unknown benchmark subcommand: $subcommand');
         print(_usage);
-        exitCode = 64;
+        exit(64);
+    }
+  }
+
+  // --- register ---
+
+  Future<void> _register(List<String> rest) async {
+    final parser = ArgParser()
+      ..addFlag(
+        'discover',
+        defaultsTo: true,
+        help: 'Pull scenarios from registered providers',
+      );
+    final results = _parseOrUsage(parser, rest);
+    if (results == null) return;
+
+    final registerCaps = plugin.capabilities
+        .whereType<RegisterBenchmarkCapability>()
+        .toList();
+    if (registerCaps.isEmpty) {
+      print('❌ RegisterBenchmarkCapability not available');
+      exit(1);
+    }
+
+    final result = await registerCaps.first.execute({
+      'discover': results['discover'],
+    });
+    if (!result.success) {
+      print('❌ Failed to register benchmark scenarios: ${result.message}');
+      exit(1);
+    }
+
+    final scenarios = await plugin.registry.getAll();
+    print('✅ Registered benchmark scenarios: ${scenarios.length}');
+    for (final scenario in scenarios) {
+      print('  • ${scenario.id} — ${scenario.description}');
     }
   }
 

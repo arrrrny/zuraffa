@@ -177,8 +177,23 @@ example:
       return;
     }
 
-    final subcommand = args.first;
+    final rawSubcommand = args.first;
     final rest = args.sublist(1);
+
+    // Manifest alias: the manifest advertises dotted/underscored capability
+    // names (cut_slice, merge_slice, verify_slice, export_slice); accept them
+    // as aliases of the canonical subcommands.
+    const manifestAliases = <String, String>{
+      'cut_slice': 'cut',
+      'merge_slice': 'merge',
+      'verify_slice': 'verify',
+      'export_slice': 'export',
+      'slice.cut': 'cut',
+      'slice.merge': 'merge',
+      'slice.verify': 'verify',
+      'slice.export': 'export',
+    };
+    final subcommand = manifestAliases[rawSubcommand] ?? rawSubcommand;
 
     // T072: focused help per subcommand.
     if (rest.contains('--help') || rest.contains('-h')) {
@@ -204,9 +219,9 @@ example:
       case 'import':
         await _import(rest);
       default:
-        print('Unknown slice subcommand: $subcommand');
+        print('Unknown slice subcommand: $rawSubcommand');
         print(_usage);
-        exitCode = 64;
+        exit(64);
     }
   }
 
@@ -233,7 +248,11 @@ example:
         'verify',
         help: 'Verify the slice after cutting; fail if incomplete',
       )
-      ..addFlag('verbose', help: 'Print per-file and boundary diagnostics');
+      ..addFlag('verbose', help: 'Print per-file and boundary diagnostics')
+      ..addOption(
+        'name',
+        help: 'Slice name (alternative to the positional argument)',
+      );
 
     final ArgResults results;
     try {
@@ -252,12 +271,14 @@ example:
       return;
     }
 
-    if (results.rest.isEmpty) {
+    if (results.rest.isEmpty && results['name'] == null) {
       _usageError('Missing slice name: zfa slice cut <name> --entry <point>');
       return;
     }
 
-    final sliceName = results.rest.first;
+    final sliceName = results.rest.isNotEmpty
+        ? results.rest.first
+        : results['name'] as String;
     final reporter = CliProgressReporter();
     reporter.started('Cutting slice "$sliceName"', 4);
     final capability = CutSliceCapability();
