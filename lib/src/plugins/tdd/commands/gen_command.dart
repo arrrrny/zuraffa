@@ -82,6 +82,8 @@ import '../services/behavior_test_writer.dart';
 import '../services/generated_shape.dart';
 import '../services/subject_writer.dart';
 import '../services/test_list_reader.dart';
+import '../services/theme_harness_subject_writer.dart';
+import '../services/theme_harness_test_writer.dart';
 import '../tdd_plugin.dart';
 import '../services/tdd_timeout.dart';
 import '../../../core/project/project_root.dart';
@@ -460,15 +462,19 @@ class GenCommand extends Command<void> {
     // Write a new pair transactionally from the command's perspective. Any
     // writer or registry failure removes artifacts created by this attempt
     // (never the adopted files — bug #840).
+    //
+    // Writer dispatch (issue #841): theme-kind behaviors get the
+    // theme-harness pair (four-proof widget test + subject contract);
+    // every other kind gets the plain-function pair (spec 044).
     if (record.testOwnership != Ownership.reused && !dryRun) {
       final adoptTest = adoptedPaths.contains(testPath);
       final adoptSubject = adoptedPaths.contains(subjectPath);
+      final writers = _writersFor(behavior);
       try {
         if (!adoptTest) {
-          final testWriter = const BehaviorTestWriter();
           await bounded(
-            testWriter.write(
-              behavior: effectiveBehavior,
+            writers.writeTest(
+              behavior: behavior,
               testPath: testPath,
               subjectPath: subjectPath,
               golden: golden,
@@ -478,12 +484,8 @@ class GenCommand extends Command<void> {
           createdPaths.add(testPath);
         }
         if (!adoptSubject) {
-          final subjectWriter = const SubjectWriter();
           await bounded(
-            subjectWriter.write(
-              behavior: effectiveBehavior,
-              subjectPath: subjectPath,
-            ),
+            writers.writeSubject(behavior: behavior, subjectPath: subjectPath),
             'write subject file',
           );
           createdPaths.add(subjectPath);
@@ -612,6 +614,27 @@ class GenCommand extends Command<void> {
     );
   }
 
+  /// Writer selection by behavior kind (issue #841): theme-kind behaviors
+  /// get the theme-harness pair (`ThemeHarnessTestWriter` emitting the
+  /// four-proof widget test — ShadTheme assertions under both ThemeModes,
+  /// hardcoded-color audit, golden baselines, switch latency — and
+  /// `ThemeHarnessSubjectWriter` emitting the subject contract); every
+  /// other kind gets the plain-function pair (spec 044). Both pairs share
+  /// the same `write` signatures so the transactional flow and the
+  /// staleness re-render treat them identically.
+  static _GenWriterPair _writersFor(Behavior behavior) {
+    if (behavior.kind == BehaviorKind.theme) {
+      return (
+        writeTest: const ThemeHarnessTestWriter().write,
+        writeSubject: const ThemeHarnessSubjectWriter().write,
+      );
+    }
+    return (
+      writeTest: const BehaviorTestWriter().write,
+      writeSubject: const SubjectWriter().write,
+    );
+  }
+
   /// Append the adoption audit record (bug #840): one JSONL line per
   /// adoption in `specs/<feature>/tdd/audit.log`.
   Future<void> _auditAdopt(
@@ -685,8 +708,12 @@ class GenCommand extends Command<void> {
     // from the two paths, and a depth mismatch would make the byte
     // comparison report a false staleness (or mask a real one) for every
     // namespaced artifact.
+    //
+    // Writer dispatch by kind (issue #841): the mirror must render what
+    // THIS binary would really write for the behavior's kind.
     final mirror = await Directory.systemTemp.createTemp('zfa_gen_stale_');
     try {
+      final writers = _writersFor(behavior);
       final mirroredTest = p.join(
         mirror.path,
         'test',
@@ -702,7 +729,7 @@ class GenCommand extends Command<void> {
         p.basename(subjectPath),
       );
       await bounded(
-        const BehaviorTestWriter().write(
+        writers.writeTest(
           behavior: behavior,
           testPath: mirroredTest,
           subjectPath: mirroredSubject,
@@ -710,10 +737,7 @@ class GenCommand extends Command<void> {
         'staleness: render current pair (test)',
       );
       await bounded(
-        const SubjectWriter().write(
-          behavior: behavior,
-          subjectPath: mirroredSubject,
-        ),
+        writers.writeSubject(behavior: behavior, subjectPath: mirroredSubject),
         'staleness: render current pair (subject)',
       );
       final expectedTest = await bounded(
@@ -938,3 +962,21 @@ class _GenFlowTimeout implements Exception {
   @override
   String toString() => 'gen flow timed out at the "$stage" stage';
 }
+
+/// The kind-selected writer pair for one gen flow (issue #841): the two
+/// writer tear-offs, so the write path and the staleness re-render share
+/// one dispatch decision. Both theme-harness writers expose the same
+/// `write` signatures as the plain-function pair.
+typedef _GenWriterPair = ({
+  Future<void> Function({
+    required Behavior behavior,
+    required String testPath,
+    required String subjectPath,
+  })
+  writeTest,
+  Future<void> Function({
+    required Behavior behavior,
+    required String subjectPath,
+  })
+  writeSubject,
+});

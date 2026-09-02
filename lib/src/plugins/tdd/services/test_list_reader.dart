@@ -38,6 +38,14 @@
 /// (bug #649 — never `zfa tdd plan`, which writes spec.md, not the test
 /// list); the extension's own shape is spec-sanctioned (spec 050 FR-007)
 /// and reads silently.
+///
+/// THEME KIND EXTENSION (issue #841): a `## Theme harness` section header
+/// sets the theme kind for its rows (and the gen-legacy 6-column kind cell
+/// accepts `theme`). Theme rows are HAND-MAINTAINED — `zfa tdd plan`
+/// derives behaviors from spec.md Given/Then blocks only and must not be
+/// re-run on a theme feature (it would drop hand-written theme rows), and
+/// `zfa tdd make`/`run` stop honestly on theme ids (the planner does not
+/// express them yet).
 library;
 
 import 'dart:io';
@@ -118,6 +126,10 @@ class TestListReader {
               : BehaviorKind.acceptance;
         } else if (header.startsWith('inner loop')) {
           kind = BehaviorKind.unit;
+        } else if (header.startsWith('theme harness')) {
+          // Theme-harness section (issue #841): theme-kind behaviors whose
+          // gen pair is the theme-harness widget test + subject contract.
+          kind = BehaviorKind.theme;
         } else {
           kind = null;
         }
@@ -273,6 +285,10 @@ class TestListReader {
     // Bug #830: the widget subject kind — an outer-loop behavior whose
     // paired artifacts are a view-builder stub + a testWidgets test.
     if (kindStr.contains('widget')) return BehaviorKind.widget;
+    // Theme-harness kind cell (issue #841). Checked after the loop kinds:
+    // 'theme' contains neither 'acceptance' nor 'unit', so the order is
+    // only about readability.
+    if (kindStr.contains('theme')) return BehaviorKind.theme;
     return null;
   }
 
