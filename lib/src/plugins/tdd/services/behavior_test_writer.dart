@@ -31,15 +31,23 @@ class BehaviorTestWriter {
 
   /// Write the test file at [testPath] that imports the subject at
   /// [subjectPath] and asserts the behavior's observable behavior.
+  ///
+  /// [golden] (bug #830, widget kind only) appends a `matchesGoldenFile`
+  /// baseline hook whose PNG is committed per platform under
+  /// `test/tdd/goldens/` and refreshed with
+  /// `flutter test --update-goldens <file>`.
   Future<void> write({
     required Behavior behavior,
     required String testPath,
     required String subjectPath,
+    bool golden = false,
   }) async {
     final testFile = File(testPath);
     await testFile.parent.create(recursive: true);
     final relativeSubjectPath = _relativeSubjectPath(testPath, subjectPath);
-    final content = _renderTest(behavior, relativeSubjectPath);
+    final content = behavior.kind == BehaviorKind.widget
+        ? _renderWidgetTest(behavior, relativeSubjectPath, golden)
+        : _renderTest(behavior, relativeSubjectPath);
     await testFile.writeAsString(content);
   }
 
@@ -163,5 +171,110 @@ void main() {
     }
     // Otherwise, just return the subject path as-is.
     return subjectPath;
+  }
+
+  /// Render the WIDGET test (bug #830): a `testWidgets` pair that boots
+  /// the feature view through the subject's view-builder contract, pumps
+  /// it inside a MaterialApp shell, and asserts the acceptance scenario.
+  ///
+  /// Honest red (FR-010): the stub's `UnimplementedError` is captured by
+  /// calling the view-builder BEFORE the pump and asserted with
+  /// `isNot(isA<UnimplementedError>())` — so the first execution fails
+  /// through an ASSERTION, never an exception escaping pump (which the
+  /// red classifier routes to runner-error, not honest red, per issue
+  /// #830's widget failure taxonomy).
+  String _renderWidgetTest(
+    Behavior b,
+    String relativeSubjectPath,
+    bool golden,
+  ) {
+    final description = b.description;
+    final escapedDescription = description.replaceAll("'", "\\'");
+    final escapedGroupDescription = '${b.id} (${b.sourceCriterion})'.replaceAll(
+      "'",
+      "\\'",
+    );
+    final target = b.target.isEmpty ? 'subjectUnderTest' : b.target;
+    final snakeId = _toSnakeCase(b.id);
+    final goldenBlock = golden
+        ? '''
+      // Golden baseline (bug #830): commit one PNG per platform under
+      // test/tdd/goldens/ (VISION §6 institutional memory). Refresh with:
+      //   flutter test --update-goldens test/tdd/${snakeId}_test.dart
+      await expectLater(
+        find.byWidget(view),
+        matchesGoldenFile('goldens/$snakeId.png'),
+      );
+'''
+        : '';
+    return '''
+// GENERATED TEST — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
+//
+// behavior_id: ${b.id}
+// source_criterion: ${b.sourceCriterion}
+// kind: widget
+// description: $description
+//
+// This is a WIDGET test (bug #830): it boots the feature view through
+// the subject's view-builder contract, pumps it inside a MaterialApp
+// shell, and asserts the acceptance scenario (theme.of colors, presence
+// of expected widgets, navigation outcomes). The stub's
+// UnimplementedError is captured BEFORE the pump, so the first
+// execution fails through the assertion below (honest red), never an
+// exception escaping pump (classified runner/compile, not red).
+// Widget tests run on the flutter profile's slower tier; golden
+// baselines are committed per platform under test/tdd/goldens/.
+library;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import '$relativeSubjectPath' as subject;
+
+void main() {
+  group('$escapedGroupDescription', () {
+    testWidgets('${b.id} \u2014 $escapedDescription', (tester) async {
+      // Honest-red capture: call the view-builder OUTSIDE pumpWidget so
+      // the stub's UnimplementedError lands in the expect below (an
+      // assertion failure) instead of escaping the pump as a runner
+      // error (issue #830 widget failure taxonomy).
+      final Object? built = (() {
+        try {
+          return subject.$target();
+        } on UnimplementedError catch (error) {
+          return error;
+        }
+      })();
+      expect(built, isNot(isA<UnimplementedError>()));
+      final view = built! as Widget;
+      // Boot the view inside an app shell so Theme.of / Navigator /
+      // MediaQuery lookups resolve (issue #830 remediation 2).
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: view)));
+      await tester.pumpAndSettle();
+      // Acceptance scenario: the subject view is mounted in the tree.
+      // Extend here with the scenario's concrete finders (theme colors,
+      // expected widgets, navigation outcomes).
+      expect(find.byWidget(view), findsOneWidget);
+$goldenBlock    });
+  });
+}
+''';
+  }
+
+  /// The same snake-case convention `zfa tdd gen` uses for artifact
+  /// paths (mirrored locally so the writer stays dependency-free).
+  static String _toSnakeCase(String s) {
+    final out = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      final c = s[i];
+      if (c == '-' || c == ' ' || c == '_') {
+        out.write('_');
+      } else if (c.toUpperCase() == c && c.toLowerCase() != c && i > 0) {
+        out.write('_');
+        out.write(c.toLowerCase());
+      } else {
+        out.write(c.toLowerCase());
+      }
+    }
+    return out.toString();
   }
 }

@@ -1,7 +1,14 @@
 /// Behavior entity for the `zfa tdd` plugin.
 library;
 
-enum BehaviorKind { acceptance, unit }
+/// The subject kind a behavior's paired test + subject express.
+///
+/// `widget` (bug #830): the behavior's acceptance scenario is UI-observable
+/// ("renders the brand theme", "sidebar on macOS") and cannot be expressed
+/// by a plain-function subject. Its pair is a view-builder subject stub +
+/// a `testWidgets` test that pumps the view and asserts the scenario —
+/// the only shape whose green measures the UI.
+enum BehaviorKind { acceptance, unit, widget }
 
 enum BehaviorState { pending, red, green, done }
 

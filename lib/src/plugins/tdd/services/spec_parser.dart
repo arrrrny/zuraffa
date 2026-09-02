@@ -6,6 +6,29 @@ import '../models/behavior.dart';
 class SpecParser {
   const SpecParser();
 
+  /// The UI-intent signature (bug #830): acceptance prose that names a
+  /// UI-observable outcome — rendered surfaces, layout regions, navigation
+  /// outcomes, the app shell — cannot be expressed by a plain-function
+  /// subject, so such scenarios are marked [BehaviorKind.widget] and their
+  /// gen pair is a view-builder stub + a `testWidgets` test. The signature
+  /// is deliberately tight and pinned to the issue's named acceptance
+  /// prose ("renders brand theme", "sidebar on macOS", "bottom nav on
+  /// iOS") plus unambiguous widget nouns — deliberately NOT generic
+  /// display verbs/nouns ("shows", "displays", "screen") that CLI and
+  /// pipeline specs carry without being UI behaviors (e.g. "they see the
+  /// home screen" is an ordinary acceptance scenario, spec 041). The
+  /// explicit `zfa tdd gen <id> --kind widget` override covers anything
+  /// the prose misses.
+  static final RegExp uiAcceptanceIntent = RegExp(
+    r'\b(renders?|sidebar|bottom nav|tab bar|app bar|app shell|themes?|'
+    r'widgets?|navigat(?:es|ion|ing))\b',
+    caseSensitive: false,
+  );
+
+  /// Whether an acceptance scenario's prose carries UI intent (bug #830).
+  static bool isUiAcceptance(String description) =>
+      uiAcceptanceIntent.hasMatch(description);
+
   List<Behavior> parse(String feature, String specMd) {
     final acceptance = _extractAcceptance(feature, specMd);
     if (acceptance.isEmpty) {
@@ -35,11 +58,18 @@ class SpecParser {
         return null;
       }
       aIdx += 1;
+      final description = _extractScenarioText(scenarioBuffer.join('\n'));
       final behavior = Behavior(
         id: 'A$aIdx',
         feature: feature,
-        kind: BehaviorKind.acceptance,
-        description: _extractScenarioText(scenarioBuffer.join('\n')),
+        // Bug #830: spec-driven widget marking — an acceptance scenario
+        // whose prose is UI-observable gets the widget subject kind so
+        // plan writes it into the widget section and gen emits a
+        // testWidgets pair instead of a smoke-shaped plain-function stub.
+        kind: isUiAcceptance(description)
+            ? BehaviorKind.widget
+            : BehaviorKind.acceptance,
+        description: description,
         sourceCriterion: 'AC-${header.group(1)}',
         target: '',
       );

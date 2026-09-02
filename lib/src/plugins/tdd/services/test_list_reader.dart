@@ -110,7 +110,12 @@ class TestListReader {
       if (trimmed.startsWith('## ')) {
         final header = trimmed.substring(3).toLowerCase();
         if (header.startsWith('outer loop')) {
-          kind = BehaviorKind.acceptance;
+          // Bug #830: `## Outer loop: widget behaviors` marks the UI
+          // acceptance section — its rows are widget kind, still outer-loop
+          // (acceptance-level) but asserted through a testWidgets pair.
+          kind = header.contains('widget')
+              ? BehaviorKind.widget
+              : BehaviorKind.acceptance;
         } else if (header.startsWith('inner loop')) {
           kind = BehaviorKind.unit;
         } else {
@@ -265,6 +270,9 @@ class TestListReader {
     final kindStr = cell.toLowerCase();
     if (kindStr.contains('acceptance')) return BehaviorKind.acceptance;
     if (kindStr.contains('unit')) return BehaviorKind.unit;
+    // Bug #830: the widget subject kind — an outer-loop behavior whose
+    // paired artifacts are a view-builder stub + a testWidgets test.
+    if (kindStr.contains('widget')) return BehaviorKind.widget;
     return null;
   }
 

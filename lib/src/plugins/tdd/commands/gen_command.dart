@@ -95,6 +95,26 @@ class GenCommand extends Command<void> {
       defaultsTo: false,
       negatable: false,
     );
+    argParser.addOption(
+      'kind',
+      allowed: ['acceptance', 'unit', 'widget'],
+      help:
+          'Override the subject kind taken from the test-list row (bug '
+          '#830). `widget` emits a testWidgets pair: a view-builder subject '
+          'stub plus a widget test that pumps the view inside an app shell '
+          'and asserts the acceptance scenario. Unknown values are a usage '
+          'error.',
+    );
+    argParser.addFlag(
+      'golden',
+      help:
+          'Widget kind only (bug #830): append a matchesGoldenFile baseline '
+          'hook to the generated widget test. Baselines are committed per '
+          'platform under test/tdd/goldens/ and refreshed with `flutter test '
+          '--update-goldens`.',
+      defaultsTo: false,
+      negatable: false,
+    );
     argParser.addFlag(
       'adopt',
       help:
@@ -146,7 +166,8 @@ class GenCommand extends Command<void> {
       '(spec 044-test-tdd-generation, FR-001..011).';
 
   @override
-  String get invocation => 'zfa tdd gen <behavior-id> [--dry-run]';
+  String get invocation =>
+      'zfa tdd gen <behavior-id> [--dry-run] [--kind widget] [--golden]';
 
   /// The default wall-clock budget for the whole gen flow: 0.5 minutes =
   /// 30 seconds (bug #744 — the same acceptance budget the bug records
@@ -169,6 +190,20 @@ class GenCommand extends Command<void> {
     final behaviorId = rest.first;
     final dryRun = argResults!['dry-run'] as bool;
     final adopt = argResults!['adopt'] as bool;
+    // Bug #830: explicit subject-kind override and the widget-only golden
+    // baseline hook. The override is validated by args' `allowed` list;
+    // the golden flag is validated against the EFFECTIVE kind below
+    // (widget-only — a golden hook in a plain-function test is nonsense).
+    final kindOverrideName = argResults!['kind'] as String?;
+    final golden = argResults!['golden'] as bool;
+    final BehaviorKind? kindOverride;
+    if (kindOverrideName == null) {
+      kindOverride = null;
+    } else {
+      kindOverride = BehaviorKind.values.firstWhere(
+        (k) => k.name == kindOverrideName,
+      );
+    }
     final featureFlag = argResults!['feature'] as String?;
     // Prefer an explicit --project root so the command never depends on the
     // process-global Directory.current. Falls back to CWD for real CLI use.
@@ -201,6 +236,8 @@ class GenCommand extends Command<void> {
         behaviorId,
         dryRun: dryRun,
         adopt: adopt,
+        kindOverride: kindOverride,
+        golden: golden,
         featureFlag: featureFlag,
         cwd: cwd,
         deadline: deadline,
@@ -231,6 +268,8 @@ class GenCommand extends Command<void> {
     String behaviorId, {
     required bool dryRun,
     required bool adopt,
+    required BehaviorKind? kindOverride,
+    required bool golden,
     required String? featureFlag,
     required String cwd,
     required _FlowDeadline deadline,
@@ -276,6 +315,30 @@ class GenCommand extends Command<void> {
       );
       throw StateError('zfa tdd gen: unknown behavior id "$behaviorId"');
     }
+
+    // Bug #830: effective subject kind — the --kind override wins over
+    // the test-list row's kind. --golden is widget-only: a golden hook
+    // in a plain-function/scenario-runner test is meaningless, so it is
+    // a usage error (fail fast before ANY file is written, FR-002).
+    final effectiveKind = kindOverride ?? behavior.kind;
+    if (golden && effectiveKind != BehaviorKind.widget) {
+      usageException(
+        'zfa tdd gen: --golden requires a widget-kind behavior '
+        '(use --kind widget or mark the test-list row widget).',
+      );
+    }
+    final effectiveBehavior =
+        identical(kindOverride, null) || kindOverride == behavior.kind
+        ? behavior
+        : Behavior(
+            id: behavior.id,
+            feature: behavior.feature,
+            kind: effectiveKind,
+            description: behavior.description,
+            sourceCriterion: behavior.sourceCriterion,
+            target: behavior.target,
+            state: behavior.state,
+          );
 
     // Validate required fields up front (FR-002).
     final missingFields = _missingRequiredFields(behavior);
@@ -405,9 +468,10 @@ class GenCommand extends Command<void> {
           final testWriter = const BehaviorTestWriter();
           await bounded(
             testWriter.write(
-              behavior: behavior,
+              behavior: effectiveBehavior,
               testPath: testPath,
               subjectPath: subjectPath,
+              golden: golden,
             ),
             'write test file',
           );
@@ -416,7 +480,10 @@ class GenCommand extends Command<void> {
         if (!adoptSubject) {
           final subjectWriter = const SubjectWriter();
           await bounded(
-            subjectWriter.write(behavior: behavior, subjectPath: subjectPath),
+            subjectWriter.write(
+              behavior: effectiveBehavior,
+              subjectPath: subjectPath,
+            ),
             'write subject file',
           );
           createdPaths.add(subjectPath);
@@ -472,7 +539,7 @@ class GenCommand extends Command<void> {
         record.subjectOwnership == Ownership.reused &&
         !dryRun) {
       regeneratedNote = await _regenerateStaleStub(
-        behavior: behavior,
+        behavior: effectiveBehavior,
         featureName: featureName,
         testPath: testPath,
         subjectPath: subjectPath,
@@ -488,6 +555,7 @@ class GenCommand extends Command<void> {
     print(
       'behavior_id: ${record.behaviorId}\n'
       'source_criterion: ${record.sourceCriterion}\n'
+      'kind: ${effectiveBehavior.kind.name}\n'
       'test_path: ${record.testPath}\n'
       'subject_path: ${record.subjectPath}\n'
       'runnable_test_name: ${record.runnableTestName}\n'
@@ -497,6 +565,8 @@ class GenCommand extends Command<void> {
     // on every gen path.
     _printVerdict(
       behaviorId: record.behaviorId,
+      kind: effectiveBehavior.kind.name,
+      golden: golden,
       verdict: adoptedPaths.isNotEmpty
           ? 'adopted'
           : dryRun
@@ -520,6 +590,11 @@ class GenCommand extends Command<void> {
     List<String> adopted = const [],
     List<String> created = const [],
     String? featureName,
+    // Bug #830: the effective subject kind and whether a golden baseline
+    // hook was requested — additive fields, the recovery tooling parses
+    // only the keys it knows.
+    String? kind,
+    bool golden = false,
   }) {
     print(
       jsonEncode({
@@ -527,6 +602,8 @@ class GenCommand extends Command<void> {
         'behavior': behaviorId,
         'verdict': verdict,
         'reason': ?reason,
+        'kind': ?kind,
+        if (golden) 'golden': true,
         if (adopted.isNotEmpty) 'adopted': adopted,
         if (created.isNotEmpty) 'created': created,
         if (adopted.isNotEmpty && featureName != null)

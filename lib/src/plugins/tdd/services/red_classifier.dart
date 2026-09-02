@@ -67,9 +67,25 @@ RedClassification classify(RunRecord record) {
   }
 
   // 7/8. Red side: only an assertion signature makes the red honest.
-  return _hasAssertionSignature(output)
-      ? RedClassification.assertion
-      : RedClassification.runnerError;
+  //      Assertion first (bug #830 widget failure taxonomy, corrected by
+  //      the e2e capture in bug_830_widget_subject_kind_test.dart): real
+  //      flutter_test wraps EVERY test failure — assertion mismatches
+  //      included — in the "EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK"
+  //      banner and rethrows it as "The following TestFailure was thrown
+  //      running a test". An assertion mismatch that coexists with any
+  //      exception text therefore stays honest red: the assertion
+  //      demonstrably fired. What remains is the pump/build crash with NO
+  //      assertion signature — the WIDGETS/RENDERING framework banners, a
+  //      non-TestFailure throw dump, or a pumpAndSettle timeout — which
+  //      is a runner-tier failure, NEVER a certified red (issue #830:
+  //      exception in pump = compile/runner).
+  if (_hasAssertionSignature(output)) {
+    return RedClassification.assertion;
+  }
+  if (_hasWidgetPumpException(output)) {
+    return RedClassification.runnerError;
+  }
+  return RedClassification.runnerError;
 }
 
 // ---------------------------------------------------------------------
@@ -112,6 +128,26 @@ bool _hasSkipMarkers(String output) =>
 
 bool _hasAssertionSignature(String output) =>
     _assertionSignature.hasMatch(output);
+
+/// Widget pump/build exceptions (bug #830): the flutter framework's
+/// crash banners and dump phrasing, plus pumpAndSettle timeouts. A red
+/// whose transcript carries one of these WITHOUT an assertion signature
+/// crashed before/around the assertions, so the behavior was never
+/// honestly observed — runner-tier, never a certified red. The FLUTTER
+/// TEST FRAMEWORK banner is deliberately matched too: it appears on
+/// every flutter test failure, but only AFTER the assertion check has
+/// had its chance, so it only fires for assertion-less crashes. Pure-
+/// `dart test` transcripts never carry these signatures (the phrasing
+/// is flutter-framework-specific), so existing classifications are
+/// unchanged.
+final RegExp _widgetPumpException = RegExp(
+  r'EXCEPTION CAUGHT BY (WIDGETS|RENDERING|FLUTTER TEST FRAMEWORK) LIBRARY|'
+  r'The following (?!TestFailure)\S+ was thrown|'
+  r'pumpAndSettle timed out',
+);
+
+bool _hasWidgetPumpException(String output) =>
+    _widgetPumpException.hasMatch(output);
 
 // ---------------------------------------------------------------------
 // Executed-test counting

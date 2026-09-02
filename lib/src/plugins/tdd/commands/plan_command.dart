@@ -115,16 +115,25 @@ class PlanCommand extends Command<void> {
     final aCount = reconciled
         .where((b) => b.kind == BehaviorKind.acceptance)
         .length;
+    final wCount = reconciled
+        .where((b) => b.kind == BehaviorKind.widget)
+        .length;
     final uCount = reconciled.where((b) => b.kind == BehaviorKind.unit).length;
     stdout.writeln(
-      'zfa tdd plan: wrote $outFile with $aCount acceptance + $uCount unit '
-      'behaviors (${reconciled.length} total).',
+      'zfa tdd plan: wrote $outFile with $aCount acceptance + $wCount widget '
+      '+ $uCount unit behaviors (${reconciled.length} total).',
     );
   }
 
   String _render(String feature, List<Behavior> behaviors) {
     final acceptance = behaviors
         .where((b) => b.kind == BehaviorKind.acceptance)
+        .toList();
+    // Bug #830: widget-kind acceptance scenarios (UI-observable prose)
+    // get their own outer-loop section so gen resolves their rows as
+    // widget kind and emits the testWidgets pair.
+    final widget = behaviors
+        .where((b) => b.kind == BehaviorKind.widget)
         .toList();
     final unit = behaviors.where((b) => b.kind == BehaviorKind.unit).toList();
 
@@ -138,6 +147,23 @@ class PlanCommand extends Command<void> {
       ..writeln('| id | behavior | traces | state |')
       ..writeln('| -- | -------- | ------ | ----- |');
     for (final b in acceptance) {
+      buf.writeln(
+        '| ${b.id} | ${b.description} | ${b.sourceCriterion} | PENDING |',
+      );
+    }
+    buf
+      ..writeln()
+      ..writeln('## Outer loop: widget behaviors')
+      ..writeln()
+      ..writeln(
+        'UI acceptance scenarios (bug #830): asserted through a testWidgets '
+        'pair — a view-builder subject stub plus a widget test that pumps '
+        'the view and asserts the scenario.',
+      )
+      ..writeln()
+      ..writeln('| id | behavior | traces | state |')
+      ..writeln('| -- | -------- | ------ | ----- |');
+    for (final b in widget) {
       buf.writeln(
         '| ${b.id} | ${b.description} | ${b.sourceCriterion} | PENDING |',
       );

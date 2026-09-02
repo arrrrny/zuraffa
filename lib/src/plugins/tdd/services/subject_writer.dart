@@ -11,6 +11,13 @@
 ///   - For `acceptance` classification: a behavior-level "scenario runner"
 ///     that throws `UnimplementedError()`. The acceptance subject does NOT
 ///     reference any entity/use case/repository — it stands alone (FR-004).
+///   - For `widget` classification (bug #830): a view-builder / page
+///     contract — a no-argument function returning the feature `Widget` —
+///     that the paired widget test pumps inside an app shell. The
+///     composition with the entity pipeline (`zfa make --with=vpc` view
+///     generation + wire) is the entity-orchestration surface (issue
+///     #829); the stub itself stands alone and compiles in any Flutter
+///     project.
 library;
 
 import 'dart:io';
@@ -63,6 +70,35 @@ library;
 ///
 /// Throws [UnimplementedError] until the real implementation lands.
 int $target() => throw UnimplementedError('$target not implemented');
+''';
+    }
+    // Widget (bug #830): a view-builder / page contract. Returns the
+    // feature Widget the paired testWidgets test pumps; throws
+    // UnimplementedError until the real view lands (honest red).
+    if (kind == BehaviorKind.widget) {
+      return '''
+// GENERATED STUB — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
+//
+// behavior_id: ${b.id}
+// source_criterion: ${b.sourceCriterion}
+// kind: widget
+// description: ${b.description}
+//
+// This is a MINIMAL COMPILABLE view-builder stub for a UI behavior (bug
+// #830): a page contract the entity pipeline composes (issue #829). It
+// compiles cleanly (FR-011) but does NOT satisfy the behavior described
+// above — the paired widget test fails on first execution through an
+// assertion (honest red), because the UnimplementedError is captured
+// BEFORE the pump. Replace this stub body with the real view builder.
+library;
+
+import 'package:flutter/material.dart';
+
+/// View-builder subject for behavior ${b.id}.
+///
+/// Returns the feature view this behavior's acceptance scenario asserts
+/// against. Throws [UnimplementedError] until the real implementation lands.
+Widget $target() => throw UnimplementedError('$target not implemented');
 ''';
     }
     // Acceptance: emit a "scenario runner" that throws UnimplementedError.
