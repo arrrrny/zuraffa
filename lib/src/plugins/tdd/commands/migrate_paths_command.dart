@@ -15,7 +15,9 @@
 ///   file is nobody's contract — the registry is the source of truth
 ///   (bug #720) — so it is left untouched.
 /// - **Pair-atomic**: a record's test and subject move together. If either
-///   move fails, the other is rolled back so the pair is never split.
+///   move fails — or the moved test's relative subject import / the cycle
+///   log's recorded paths cannot be rewritten — everything rolls back so
+///   the pair is never split and never left un-compilable.
 /// - **Ownership-preserving**: a move onto an existing namespaced target is
 ///   REFUSED (reported, counted, exit 1) — the guardrail that refuses to
 ///   overwrite non-owned content (044 FR-008) applies to the migration
@@ -178,6 +180,37 @@ class MigratePathsCommand extends Command<void> {
               File(testTo).renameSync(testFrom);
               rethrow;
             }
+            // Review fix: the moved test's relative subject import and the
+            // cycle log's recorded paths still name the FLAT layout.
+            // `../../lib/tdd/<id>_subject.dart` from inside
+            // `test/tdd/<feature>/` resolves to `test/lib/tdd/...` — a
+            // compile error that reds the whole migrated suite (issue
+            // #827 requirement 4: the multi-feature green suite is the
+            // norm). Rewrite both; a pair whose references cannot be
+            // rewritten is a pair that no longer compiles, so the move
+            // rolls back and refuses rather than shipping a broken suite.
+            try {
+              _rewriteMovedTestImport(
+                testFrom: testFrom,
+                testTo: testTo,
+                subjectFrom: subjectFrom,
+                subjectTo: subjectTo,
+              );
+              await _rewriteCycleLogPaths(
+                featureDir: entry.featureDir,
+                cwd: cwd,
+                record: record,
+                plan: plan,
+                testFrom: testFrom,
+                testTo: testTo,
+                subjectFrom: subjectFrom,
+                subjectTo: subjectTo,
+              );
+            } catch (_) {
+              File(subjectTo).renameSync(subjectFrom);
+              File(testTo).renameSync(testFrom);
+              rethrow;
+            }
           } on FileSystemException catch (e) {
             refused++;
             print(
@@ -318,6 +351,57 @@ class MigratePathsCommand extends Command<void> {
       }
     }
   }
+
+  /// Rewrite the moved test's relative subject import to the namespaced
+  /// depth. The generated test imports its subject through a path relative
+  /// to the test file's directory; the move changed that directory, so the
+  /// old relative path dangles. Content that does not carry the old
+  /// relative path (a hand-edited or custom test) is left verbatim.
+  void _rewriteMovedTestImport({
+    required String testFrom,
+    required String testTo,
+    required String subjectFrom,
+    required String subjectTo,
+  }) {
+    final oldRelative = _posix(
+      p.relative(subjectFrom, from: p.dirname(testFrom)),
+    );
+    final newRelative = _posix(
+      p.relative(subjectTo, from: p.dirname(testTo)),
+    );
+    if (oldRelative == newRelative) return;
+    final file = File(testTo);
+    final raw = file.readAsStringSync();
+    if (!raw.contains(oldRelative)) return;
+    file.writeAsStringSync(raw.replaceAll(oldRelative, newRelative));
+  }
+
+  /// Rewrite the feature's cycle-log evidence lines that name the moved
+  /// paths (`- test:` and `- command:` entries), so certified evidence
+  /// keeps pointing at files that exist. Both the recorded form and its
+  /// resolved absolute form may appear; both are replaced.
+  Future<void> _rewriteCycleLogPaths({
+    required String featureDir,
+    required String cwd,
+    required ArtifactRecord record,
+    required _MigrationPlan plan,
+    required String testFrom,
+    required String testTo,
+    required String subjectFrom,
+    required String subjectTo,
+  }) async {
+    final file = File(p.join(featureDir, 'tdd', 'cycle-log.md'));
+    if (!await file.exists()) return;
+    var raw = await file.readAsString();
+    raw = raw
+        .replaceAll(record.testPath, plan.testPath)
+        .replaceAll(record.subjectPath, plan.subjectPath)
+        .replaceAll(testFrom, testTo)
+        .replaceAll(subjectFrom, subjectTo);
+    await file.writeAsString(raw);
+  }
+
+  String _posix(String path) => path.replaceAll(r'\', '/');
 
   Future<void> _writeRecords(
     ArtifactRegistry registry,
