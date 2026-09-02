@@ -30,15 +30,22 @@
 ///   `UnimplementedError` (bug #734: a run that stopped early leaves
 ///   U3+ pending, and the full suite refuses every refactor for the
 ///   already-green behaviors) — ANY behavior whose `refactor` comes due
-///   while ANY behavior sits RED or PENDING with gen artifacts defers
-///   too: `[run] U1 refactor -> deferred (phase 2)` (bugs #635, #734;
+///   while ANY behavior sits RED or PENDING with gen artifacts (in the
+///   registry OR on disk — bug #734 v2: a stub without a registry
+///   record reds the suite exactly the same) defers too:
+///   `[run] U1 refactor -> deferred (phase 2)` (bugs #635, #734;
 ///   the deferral concept is applied to both steps, not half-applied to
 ///   `make` alone). Deferred behaviors stay at their last completed
-///   state (RED / GREEN) while the rest of phase 1 proceeds. Any other
-///   step failure still stops the run honestly (FR-007), and a behavior
-///   whose make IS expressible completes its whole cycle exactly as
-///   before — by the time its refactor runs, no behavior is RED and no
-///   pending stub sits un-driven.
+///   state (RED / GREEN) while the rest of phase 1 proceeds. And when
+///   a refactor IS spawned and its preflight still refuses (redness
+///   the row model cannot see — a failure outside the feature's rows,
+///   a #741-baseline-tolerated failure, a stub at a non-default path;
+///   bug #734 v2), the side-effect-free refusal DEFERS the behavior
+///   instead of stopping the run. Any other step failure still stops
+///   the run honestly (FR-007), and a behavior whose make IS
+///   expressible completes its whole cycle exactly as before — by the
+///   time its refactor runs, no behavior is RED and no pending stub
+///   sits un-driven.
 /// - **Phase 2** — the deferred work finishes on the now-fully-green
 ///   suite, in two stages. First every deferred behavior re-attempts
 ///   `make` in list order (bug #625; generalized to unit behaviors by
@@ -50,8 +57,12 @@
 ///   bug #734) rather than on the whole suite — and marks each DONE
 ///   (bug #635). A behavior whose own test is not certified green is
 ///   skipped with a recorded reason instead of dying mid-pass at the
-///   evidence misfire; the spawned `refactor`'s own full-suite preflight
-///   (spec 048 FR-001) remains the absolute authority either way.
+///   evidence misfire; so is a behavior whose spawned `refactor`'s real
+///   preflight refuses (bug #734 v2: the suite is red from a source the
+///   row model cannot see — skip with a recorded reason, stay GREEN,
+///   never a fake DONE). The spawned `refactor`'s own full-suite
+///   preflight (spec 048 FR-001) remains the absolute authority either
+///   way.
 ///
 /// Run-state semantics are unchanged: deferred behaviors sit RED
 /// between the phases (their unit siblings sit GREEN with the refactor
@@ -368,10 +379,15 @@ class RunCommand extends Command<void> {
     // come due while ANY behavior sits RED defer too (bug #635, so a
     // deferred unit make leaves the suite knowingly red exactly like a
     // deferred acceptance make) — as does a refactor that comes due
-    // while any behavior sits PENDING with gen artifacts (bug #734: a
-    // run that stopped early leaves later behaviors' generated stubs
-    // red on disk; the spawned refactor's full-suite preflight would
-    // refuse for the already-green behaviors and deadlock the feature).
+    // while any behavior sits PENDING with gen artifacts, in the
+    // registry OR on disk (bug #734: a run that stopped early leaves
+    // later behaviors' generated stubs red on disk; the spawned
+    // refactor's full-suite preflight would refuse for the
+    // already-green behaviors and deadlock the feature). A spawned
+    // refactor whose preflight STILL refuses (redness the row model
+    // cannot see — bug #734 v2) defers post-spawn instead of stopping
+    // the run: the refusal is side-effect-free and the pending rows are
+    // driven next.
     final registry = ArtifactRegistry(featureDir: featureDir);
     for (final row in rows) {
       final state = current.behaviorStates[row.id] ?? BehaviorState.pending;
@@ -458,12 +474,16 @@ class RunCommand extends Command<void> {
     // state or a lost cycle-log — the bug #682 reconciliation keeps
     // such claims) is skipped with a recorded reason instead of riding
     // into refactor and dying at the post-spawn evidence misfire,
-    // which would stop the pass for every other behavior. Behaviors
-    // whose own test IS certified green refactor as before; the
-    // spawned command's full-suite preflight (spec 048 FR-001) remains
-    // the absolute authority either way.
+    // which would stop the pass for every other behavior. And — bug
+    // #734 v2 (reopened) — a spawned refactor whose real preflight
+    // REFUSES (outcome=not-green: the suite is red from a source the
+    // row model cannot see) is skipped the same way instead of
+    // stopping the pass for everyone. Behaviors whose own test IS
+    // certified green refactor as before; the spawned command's
+    // full-suite preflight (spec 048 FR-001) remains the absolute
+    // authority either way.
     final certifiedGreen = await evidence.greenEvidence();
-    final skippedRefactors = <String>[];
+    final skippedRefactors = <String, String>{};
     for (final row in rows) {
       final state = current.behaviorStates[row.id] ?? BehaviorState.pending;
       if (state != BehaviorState.green) continue;
@@ -476,7 +496,7 @@ class RunCommand extends Command<void> {
       // FR-007 semantics) and the pass moves on; the run reports them
       // honestly at the end instead of faking DONE (FR-008).
       if (!certifiedGreen.contains(row.id)) {
-        skippedRefactors.add(row.id);
+        skippedRefactors[row.id] = 'own test not green';
         print('[run] ${row.id} refactor -> skipped (own test not green)');
         print(
           '   no green evidence entry for "${row.id}" in tdd/cycle-log.md '
@@ -508,6 +528,15 @@ class RunCommand extends Command<void> {
         applyStop(result.stop!, result.state);
         return;
       }
+      // Bug #734 v2: the spawned refactor's preflight refused
+      // (side-effect-free) — skip the behavior with a recorded reason
+      // (stays GREEN, FR-007/FR-008) and let the pass continue for
+      // everyone else.
+      if (result.refactorBlocked) {
+        skippedRefactors[row.id] = 'suite not green';
+        current = result.state;
+        continue;
+      }
       current = result.state;
     }
 
@@ -518,25 +547,27 @@ class RunCommand extends Command<void> {
       (r) => current.behaviorStates[r.id] == BehaviorState.done,
     );
     if (!allDone && skippedRefactors.isNotEmpty) {
-      // Bug #734 per-behavior gate: the pass completed for every
-      // behavior whose own test is certified green; the rest stay GREEN
-      // with their refactor outstanding — bounded, resumable progress
-      // (FR-007), never a fake DONE (FR-008). The run stops honestly,
-      // naming the skips and the resume path.
+      // Bug #734 per-behavior gate (+ v2 refusal skips): the pass
+      // completed for every behavior that could refactor; the rest stay
+      // GREEN with their refactor outstanding — bounded, resumable
+      // progress (FR-007), never a fake DONE (FR-008). The run stops
+      // honestly, naming the skips, their reasons, and the resume path.
       print(
-        'zfa tdd run: refactor skipped for ${skippedRefactors.join(', ')} '
-        '— own test not green',
+        'zfa tdd run: refactor skipped for '
+        '${skippedRefactors.keys.join(', ')} — '
+        '${skippedRefactors.values.toSet().join(' / ')}',
       );
       print(
-        '   resume: re-run make for the skipped behaviors to restore '
-        'green, then re-run `zfa tdd run $feature`',
+        '   resume: restore the suite green (re-run make for behaviors '
+        'whose own test is red; fix the failing tests the preflight '
+        'named otherwise), then re-run `zfa tdd run $feature`',
       );
       _printSummary(
         feature,
         'stopped',
         rows,
         current,
-        stoppedAt: '${skippedRefactors.first}:refactor',
+        stoppedAt: '${skippedRefactors.keys.first}:refactor',
       );
       exitCode = _exitStopped;
       return;
@@ -765,11 +796,16 @@ class RunCommand extends Command<void> {
       if (deferralAllowed &&
           step == 'refactor' &&
           (_hasRedBehavior(rows, updated) ||
-              await _hasPendingWithArtifacts(rows, updated, registry))) {
+              await _hasPendingWithArtifacts(
+                rows,
+                updated,
+                registry,
+                projectRoot: projectRoot,
+              ))) {
         updated = updated.advance(row.id, state);
         await store.save(updated, activeBehaviorIds: activeIds);
         print('[run] ${row.id} refactor -> deferred (phase 2)');
-        return (state: updated, stop: null);
+        return (state: updated, stop: null, refactorBlocked: false);
       }
       // mark -> save -> spawn -> advance -> save: an interruption loses
       // at most the in-flight step (FR-004).
@@ -791,6 +827,7 @@ class RunCommand extends Command<void> {
             exitCode: _exitConcurrentRun,
             message: liveRefusal,
           ),
+          refactorBlocked: false,
         );
       }
 
@@ -821,6 +858,7 @@ class RunCommand extends Command<void> {
             exitCode: _exitRunnerError,
             message: null,
           ),
+          refactorBlocked: false,
         );
       }
 
@@ -843,7 +881,7 @@ class RunCommand extends Command<void> {
           updated = updated.advance(row.id, state);
           await store.save(updated, activeBehaviorIds: activeIds);
           print('[run] ${row.id} make -> deferred (phase 2)');
-          return (state: updated, stop: null);
+          return (state: updated, stop: null, refactorBlocked: false);
         }
         // Bug #691: `unexpected-green` — verify-red on a target test that
         // ALREADY passes — means the behavior is complete from prior
@@ -857,6 +895,43 @@ class RunCommand extends Command<void> {
           await store.save(updated, activeBehaviorIds: activeIds);
           print('[run] ${row.id} verify-red -> skipped (already green)');
           continue;
+        }
+        // Bug #734 (v2, reopened): a spawned refactor whose absolute-green
+        // preflight (spec 048 FR-001) REFUSED — outcome=not-green — is
+        // per-behavior information, not a pass-fatal step failure. The
+        // refusal is side-effect-free (refactor refuses BEFORE any pass,
+        // modifying zero files), and the pre-spawn deferral above can only
+        // model redness the driver's row states + registry can SEE — the
+        // reopen proved stubs on disk WITHOUT registry records, failures
+        // outside the feature's rows, and #741-baseline-tolerated failures
+        // all reach the spawn. So:
+        //
+        // - phase 1: DEFER the behavior (stays GREEN, FR-007 semantics).
+        //   The suite may still flip green this run — the pending rows are
+        //   driven next — and the deferred refactor re-spawns in the
+        //   phase-2b pass.
+        // - phase 2b: report the refusal back to the pass, which SKIPS the
+        //   behavior with a recorded reason (stays GREEN, never a fake
+        //   DONE, FR-008) and completes for everyone else; the honest
+        //   end-of-run stop names the skips and the resume path.
+        //
+        // A regression (re-proof failure), runner-error, or missing-summary
+        // keeps the honest stop below — those are NOT safe to continue
+        // past (the passes already ran / the spawn misfired).
+        if (step == 'refactor' && result.outcome == 'not-green') {
+          updated = updated.advance(row.id, state);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          if (deferralAllowed) {
+            print('[run] ${row.id} refactor -> deferred (phase 2)');
+            print(
+              '   preflight refused (suite not green) — the deferred '
+              'refactor re-runs in the phase-2 refactor pass',
+            );
+            return (state: updated, stop: null, refactorBlocked: false);
+          }
+          print('[run] ${row.id} refactor -> skipped (suite not green)');
+          _printOutputExcerpt(result.output);
+          return (state: updated, stop: null, refactorBlocked: true);
         }
         // Honest stop (FR-007): leave the behavior at its last completed
         // state, name what failed, never start later behaviors. A
@@ -882,6 +957,7 @@ class RunCommand extends Command<void> {
             exitCode: isRunnerError ? _exitRunnerError : _exitStopped,
             message: null,
           ),
+          refactorBlocked: false,
         );
       }
 
@@ -908,6 +984,7 @@ class RunCommand extends Command<void> {
             exitCode: _exitRunnerError,
             message: null,
           ),
+          refactorBlocked: false,
         );
       }
 
@@ -916,7 +993,7 @@ class RunCommand extends Command<void> {
       await store.save(updated, activeBehaviorIds: activeIds);
       state = next;
     }
-    return (state: updated, stop: null);
+    return (state: updated, stop: null, refactorBlocked: false);
   }
 
   /// The state a successful [step] certifies for a behavior.
@@ -943,20 +1020,36 @@ class RunCommand extends Command<void> {
     return false;
   }
 
-  /// Whether any behavior in [rows] sits PENDING with gen artifacts in
-  /// the registry (bug #734): a run that stopped early in phase 1 (e.g.
-  /// the #731 false-positive family) leaves later behaviors' generated
-  /// stubs on disk — their tests throw `UnimplementedError`, the full
-  /// suite is red, and refactor's absolute-green preflight (spec 048
-  /// FR-001) would refuse for the ALREADY-GREEN behaviors, deadlocking
-  /// the feature at its first refactor. The registry is the source of
-  /// truth for artifact existence (bug #720), so a pending row without
-  /// a record contributes no red risk and never defers.
+  /// Whether any behavior in [rows] sits PENDING with gen artifacts —
+  /// in the registry OR on disk (bug #734, v2 reopened): a run that
+  /// stopped early in phase 1 (e.g. the #731 false-positive family)
+  /// leaves later behaviors' generated stubs on disk — their tests
+  /// throw `UnimplementedError`, the full suite is red, and refactor's
+  /// absolute-green preflight (spec 048 FR-001) would refuse for the
+  /// ALREADY-GREEN behaviors, deadlocking the feature at its first
+  /// refactor.
+  ///
+  /// The original fix consulted the REGISTRY only ("the registry is
+  /// the artifact source of truth", bug #720), assuming artifact-less
+  /// pending rows contribute no red risk. The reopen proved that
+  /// assumption false: a stub can exist on disk WITHOUT a record (an
+  /// interrupted gen between the file write and the registry flush, a
+  /// wiped or never-written artifacts.json, or gen outside the driver)
+  /// — the issue's own state is "U3-U44 pending (not generated)" while
+  /// their stubs throw `UnimplementedError`. The suite compiles and
+  /// runs from DISK, so the disk check (the gen default layout,
+  /// `test/tdd/<snake_id>_test.dart`) closes the gap; a pending row
+  /// with neither a record nor a stub file contributes no red risk and
+  /// never defers (the fresh-run ordering is preserved). A residual
+  /// mismatch (a stub at a non-default path, a failure outside the
+  /// feature's rows) is handled by the post-spawn refusal skip instead
+  /// of a pass-fatal stop.
   Future<bool> _hasPendingWithArtifacts(
     List<BehaviorRow> rows,
     RunState state,
-    ArtifactRegistry registry,
-  ) async {
+    ArtifactRegistry registry, {
+    required String projectRoot,
+  }) async {
     for (final row in rows) {
       if ((state.behaviorStates[row.id] ?? BehaviorState.pending) !=
           BehaviorState.pending) {
@@ -965,9 +1058,27 @@ class RunCommand extends Command<void> {
       if (await registry.findRecord(row.id) != null) {
         return true;
       }
+      // Bug #734 v2: the registry is not the only redness source — a
+      // generated stub on disk without a record reds the suite exactly
+      // the same. Check the gen default layout before declaring the
+      // row artifact-less.
+      final defaultTestPath = p.join(
+        projectRoot,
+        'test',
+        'tdd',
+        '${_snakeCase(row.id)}_test.dart',
+      );
+      if (File(defaultTestPath).existsSync()) {
+        return true;
+      }
     }
     return false;
   }
+
+  /// The snake_case form [gen_command.dart] derives file names from
+  /// (lowercase, non-alphanumeric runs folded to `_`).
+  String _snakeCase(String id) =>
+      id.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
 
   BehaviorState _maxState(BehaviorState a, BehaviorState b) =>
       a.index >= b.index ? a : b;
@@ -1077,7 +1188,7 @@ typedef _Stop = ({
 
 /// The outcome of driving one behavior through its step window: the
 /// updated run state plus, when the run must stop, the [_Stop] report.
-typedef _DriveResult = ({RunState state, _Stop? stop});
+typedef _DriveResult = ({RunState state, _Stop? stop, bool refactorBlocked});
 
 /// Strip a leading `specs/` prefix from a user-supplied feature
 /// reference. Lets users paste the path format shown throughout
