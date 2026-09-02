@@ -1,0 +1,65 @@
+{
+  "mocking": {
+    "library": "zuraffa-native",
+    "import": "package:zuraffa/mock.dart",
+    "marker": "zuraffaMockLibrary",
+    "mockSources": [
+      "mockDataSource",
+      "mockData",
+      "mockProvider",
+      "throwingDataSource"
+    ]
+  },
+  "plugins": {
+    "defaults": {
+      "agent": false,
+      "cache": false,
+      "controller": false,
+      "datasource": false,
+      "di": false,
+      "feature": false,
+      "gql": false,
+      "graphql": false,
+      "gym": false,
+      "method_append": false,
+      "mock": false,
+      "observer": false,
+      "presenter": false,
+      "provider": false,
+      "repository": false,
+      "route": false,
+      "service": false,
+      "shadcn": false,
+      "sqlite": false,
+      "state": false,
+      "test": false,
+      "usecase": false,
+      "view": false,
+      "xray": false
+    },
+    "disabled": []
+  },
+  "planning": {
+    "presets": {},
+    "aliases": {}
+  },
+  "ui": {
+    "adaptiveLayouts": false,
+    "platformShells": false,
+    "layoutTargets": [
+      "mobile",
+      "tablet",
+      "desktop",
+      "macos"
+    ],
+    "adaptivePreset": "adaptive-feature"
+  },
+  "entity": {
+    "entityFirst": true,
+    "jsonByDefault": true,
+    "compareByDefault": true,
+    "filterByDefault": false
+  },
+  "buildByDefault": false,
+  "formatByDefault": false
+}

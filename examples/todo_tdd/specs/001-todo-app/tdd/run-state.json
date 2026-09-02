@@ -1,0 +1,15 @@
+{
+  "feature": "001-todo-app",
+  "behavior_states": {
+    "A1": "done",
+    "A2": "done",
+    "A3": "done",
+    "U1": "done",
+    "U2": "done",
+    "U3": "done",
+    "U4": "done",
+    "U5": "done",
+    "U6": "done"
+  },
+  "dropped": []
+}
