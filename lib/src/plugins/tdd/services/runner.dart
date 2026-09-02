@@ -381,8 +381,34 @@ class SingleTestRunner {
   }
 
   /// Substitute placeholders for display/evidence (keeps quoting).
+  ///
+  /// Issue #760: the name is escaped when the template's matcher is a
+  /// regex flag so the recorded evidence reflects the argv actually
+  /// executed (see [_nameForProcess]).
   String _substitute(String template, String file, String name) =>
-      template.replaceAll('{file}', file).replaceAll('{name}', name);
+      template
+          .replaceAll('{file}', file)
+          .replaceAll('{name}', _nameForProcess(template, name));
+
+  /// The `{name}` value as the test process must receive it.
+  ///
+  /// Issue #760: `dart test -n/--name` interprets its value as a regular
+  /// expression, so a behavior name containing parens/brackets/dots
+  /// (e.g. "U3 (FR-005) ... (sticky)") matched nothing (exit 79) or the
+  /// wrong subset. When the template's name matcher is a regex flag
+  /// (`--name`/`-n`), escape the metacharacters so the name matches
+  /// literally. Templates using the literal substring matcher
+  /// (`--plain-name`) — and templates with no recognizable matcher flag —
+  /// keep the raw name: escaping would corrupt literal matching, and an
+  /// unknown matcher must never be mutated on a guess.
+  String _nameForProcess(String template, String name) {
+    if (template.contains('--plain-name')) return name;
+    if (template.contains('--name')) return RegExp.escape(name);
+    if (RegExp(r'(?:^|\s)-n(?:\s|$)').hasMatch(template)) {
+      return RegExp.escape(name);
+    }
+    return name;
+  }
 
   /// Tokenize the template into an executable + argument list.
   ///
@@ -390,9 +416,12 @@ class SingleTestRunner {
   /// spaces stays one argument; quote pairs wrapping a substituted token
   /// are stripped (they were the template's shell quoting, not data).
   List<String> _tokenize(String template, String file, String name) {
+    final resolvedName = _nameForProcess(template, name);
     final rawTokens = template.trim().split(RegExp(r'\s+'));
     return rawTokens.map((token) {
-      var out = token.replaceAll('{file}', file).replaceAll('{name}', name);
+      var out = token
+          .replaceAll('{file}', file)
+          .replaceAll('{name}', resolvedName);
       if (out.length >= 2 && out.startsWith('"') && out.endsWith('"')) {
         out = out.substring(1, out.length - 1);
       } else if (out.length >= 2 && out.startsWith("'") && out.endsWith("'")) {

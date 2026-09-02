@@ -454,6 +454,113 @@ stacks:
       expect(record.output, contains('Dart SDK version: '));
     });
   });
+
+  // ------------------------------------------------------------------
+  // Issue #760 — `dart test -n/--name` interprets the name value as a
+  // REGULAR EXPRESSION, so a behavior name containing parens/brackets/
+  // dots (e.g. "U3 (FR-005, FR-006) ... (sticky)") matched nothing
+  // (exit 79) or the wrong subset, and verify-red/make misclassified
+  // the outcome as runner-error. Executable spec (echo-based: the
+  // spawned process prints back the argv it received, so the tests
+  // assert the REAL argv contract):
+  //
+  //   FR-1: when the template's name matcher is a regex flag
+  //         (`--name` or `-n`), the substituted name arrives at the
+  //         process with regex metacharacters escaped — matching the
+  //         behavior name literally.
+  //   FR-2: when the template uses the literal matcher (`--plain-name`),
+  //         the name arrives RAW — escaping would corrupt literal
+  //         substring matching.
+  //   FR-3: `{file}` substitution is never escaped (paths are not
+  //         regexes; escaping would corrupt them).
+  //   FR-4: the recorded command evidence reflects the argv actually
+  //         executed (escaped under a regex matcher).
+  //   FR-5: templates with no recognizable matcher flag stay raw
+  //         (conservative default: never corrupt an unknown matcher).
+  // ------------------------------------------------------------------
+  group('issue #760 — name values match literally, not as regex', () {
+    const testName = 'U3 (FR-005) request (sticky)';
+    // RegExp.escape escapes regex metacharacters (parens here); spaces and
+    // backticks are not metacharacters and the name travels as ONE argv
+    // token, so only the parens carry backslashes.
+    const escapedName = r'U3 \(FR-005\) request \(sticky\)';
+
+    test('FR-1: --name template escapes regex metacharacters in the name',
+        () async {
+      final record = await runner.runSingle(
+        singleTemplate: 'echo {file} --name "{name}"',
+        testPath: 'test/foo_test.dart',
+        testName: testName,
+        workingDirectory: tmp.path,
+      );
+      expect(record.startedProcess, isTrue);
+      expect(record.exitCode, 0, reason: record.output);
+      expect(record.output, contains(escapedName),
+          reason: 'the argv must carry the escaped name so `dart test '
+              '--name` cannot parse (FR-005) as a regex group');
+    });
+
+    test('FR-1b: -n template escapes too', () async {
+      final record = await runner.runSingle(
+        singleTemplate: 'echo {file} -n "{name}"',
+        testPath: 'test/foo_test.dart',
+        testName: testName,
+        workingDirectory: tmp.path,
+      );
+      expect(record.exitCode, 0, reason: record.output);
+      expect(record.output, contains(escapedName));
+    });
+
+    test('FR-2: --plain-name template keeps the name raw', () async {
+      final record = await runner.runSingle(
+        singleTemplate: 'echo {file} --plain-name "{name}"',
+        testPath: 'test/foo_test.dart',
+        testName: testName,
+        workingDirectory: tmp.path,
+      );
+      expect(record.exitCode, 0, reason: record.output);
+      expect(record.output, contains(testName),
+          reason: 'a literal substring matcher must receive the raw name — '
+              'an escaped one would never match');
+      expect(record.output, isNot(contains(r'\(')));
+    });
+
+    test('FR-3: the file path is never escaped', () async {
+      final record = await runner.runSingle(
+        singleTemplate: 'echo {file} --name "{name}"',
+        testPath: 'test/foo_test.dart',
+        testName: testName,
+        workingDirectory: tmp.path,
+      );
+      expect(record.output, contains('test/foo_test.dart'));
+      expect(record.output, isNot(contains('test/foo_test\\.dart')));
+    });
+
+    test('FR-4: the recorded command evidence shows the executed argv',
+        () async {
+      final record = await runner.runSingle(
+        singleTemplate: 'echo {file} --name "{name}"',
+        testPath: 'test/foo_test.dart',
+        testName: testName,
+        workingDirectory: tmp.path,
+      );
+      expect(record.command, contains(escapedName),
+          reason: 'cycle-log evidence must not claim a command that would '
+              'still be regex-parsed');
+    });
+
+    test('FR-5: a template with no recognizable matcher flag stays raw',
+        () async {
+      final record = await runner.runSingle(
+        singleTemplate: 'echo {file} "{name}"',
+        testPath: 'test/foo_test.dart',
+        testName: testName,
+        workingDirectory: tmp.path,
+      );
+      expect(record.exitCode, 0, reason: record.output);
+      expect(record.output, contains(testName));
+    });
+  });
 }
 
 Future<void> _writeProfile(String projectRoot, String content) async {
