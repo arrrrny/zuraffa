@@ -82,6 +82,96 @@ void main() {
   );
 
   // ------------------------------------------------------------------
+  // Issue #756 — the Commands bullets must NOT carry a stray `'` after
+  // the closing backtick. The shared render template appended a literal
+  // apostrophe outside the inline-code span on every bullet, so every
+  // generated project got e.g. `--name "{name}"'$` (quote after the
+  // closing backtick) in the human-readable Commands section — the block
+  // agents/humans copy commands from. Both flavors were affected because
+  // both render through the same template.
+  // ------------------------------------------------------------------
+  group('issue #756 — Commands bullets carry no stray trailing quote', () {
+    /// Extract the four Commands bullets (label → raw rendered value,
+    /// including the surrounding backticks) from a rendered profile.
+    Map<String, String> commandBullets(String content) {
+      final bullets = <String, String>{};
+      for (final line in content.split('\n')) {
+        final m = RegExp(
+          r'^- (Single test|Whole file|Full suite|Coverage): (.*)$',
+        ).firstMatch(line);
+        if (m != null) bullets[m.group(1)!] = m.group(2)!;
+      }
+      return bullets;
+    }
+
+    Future<String> renderProfile(TddProfile profile) async {
+      final writer = TddProfileWriter(profile: profile);
+      final path = await writer.write(tmpDir.path);
+      expect(path, isNotNull);
+      return File(
+        p.join(tmpDir.path, '.specify/memory/tdd-profile.md'),
+      ).readAsStringSync();
+    }
+
+    void expectCleanBullets(TddProfile profile, String content) {
+      final bullets = commandBullets(content);
+      expect(
+        bullets.keys,
+        containsAll(['Single test', 'Whole file', 'Full suite', 'Coverage']),
+        reason: 'all four Commands bullets must be rendered',
+      );
+      for (final entry in bullets.entries) {
+        final rendered = entry.value.trim();
+        expect(
+          rendered.endsWith('`'),
+          isTrue,
+          reason:
+              '[${profile.runner}] "${entry.key}" bullet must end with '
+              'the closing backtick, got: "$rendered"',
+        );
+        expect(
+          rendered.contains("`'"),
+          isFalse,
+          reason:
+              '[${profile.runner}] "${entry.key}" bullet must not emit '
+              "a stray ' after the closing backtick (issue #756), got: "
+              '"$rendered"',
+        );
+      }
+    }
+
+    test('flutter profile: bullets end at the closing backtick', () async {
+      final content = await renderProfile(TddProfile.flutter);
+      expectCleanBullets(TddProfile.flutter, content);
+    });
+
+    test('dart profile: bullets end at the closing backtick', () async {
+      final content = await renderProfile(TddProfile.dart);
+      expectCleanBullets(TddProfile.dart, content);
+    });
+
+    test(
+      'Commands bullets are byte-identical to the profile command templates',
+      () async {
+        final content = await renderProfile(TddProfile.flutter);
+        final bullets = commandBullets(content);
+        // Each backticked command must equal the corresponding template —
+        // resolveSingle with placeholder literals reproduces `single` byte
+        // for byte, so this pins Commands to the machine-readable Keys.
+        expect(
+          bullets['Single test'],
+          equals(
+            '`${TddProfile.flutter.resolveSingle(file: '{file}', name: '{name}')}`',
+          ),
+        );
+        expect(bullets['Whole file'], equals('`${TddProfile.flutter.file}`'));
+        expect(bullets['Full suite'], equals('`${TddProfile.flutter.suite}`'));
+        expect(bullets['Coverage'], equals('`${TddProfile.flutter.coverage}`'));
+      },
+    );
+  });
+
+  // ------------------------------------------------------------------
   // Issue #680 — the overwrite guard is a RUNNER-FAMILY check, not an
   // exact-content byte comparison. A valid non-Flutter (Dart) profile is
   // accepted as-is when targeting Dart; the only hard conflict is a
