@@ -509,6 +509,7 @@ void main() {
     const script = r'''#!/bin/sh
 # Fake zfa CLI for `zfa tdd run` driver tests (spec 049-tdd-run).
 # argv: tdd <step> <behavior-id> --feature <f> --project <dir>
+echo "$@" >> "__ARGVLOG__"
 STEP="$2"
 ID="$3"
 FEATURE=""
@@ -609,7 +610,10 @@ case "$STEP" in
 esac
 ''';
     await File(fakeZfaBin).writeAsString(
-      script.replaceAll('__LOG__', logPath).replaceAll('__CFG__', configDir),
+      script
+          .replaceAll('__LOG__', logPath)
+          .replaceAll('__ARGVLOG__', fakeZfaArgvLogPath)
+          .replaceAll('__CFG__', configDir),
     );
     Process.runSync('chmod', ['+x', fakeZfaBin]);
   }
@@ -642,6 +646,128 @@ esac
   /// Truncate the fake's invocation log (between runs in a test).
   void clearStepInvocations() {
     File(p.join(fakeZfaDir, 'log')).writeAsStringSync('');
+  }
+
+  /// The scripted fake's raw argv log (one full argv line per spawn).
+  /// Additive to [stepInvocations] so existing log-shape assertions stay
+  /// untouched (issue #741: the driver's `--suite-baseline` flag lands
+  /// in the make steps' argv here).
+  String get fakeZfaArgvLogPath => p.join(fakeZfaDir, 'argv.log');
+
+  /// The fake's raw argv log lines (one `tdd <step> ...` line per spawn).
+  List<String> stepArgvLog() {
+    final file = File(fakeZfaArgvLogPath);
+    if (!file.existsSync()) return const [];
+    return file
+        .readAsLinesSync()
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+  }
+
+  // -------------------------------------------------------------------
+  // Issue #741: spy runner scripts + baseline-cache helpers.
+  // -------------------------------------------------------------------
+
+  /// Directory holding the spy runner scripts and their invocation logs.
+  String get spyDir => p.join(root.path, '.tdd-spy');
+
+  /// Absolute path of the run driver's cached suite-baseline snapshot
+  /// (`specs/<feature>/tdd/run-baseline.json`).
+  String get runBaselinePath => p.join(featureDir, 'tdd', 'run-baseline.json');
+
+  /// A green package:test transcript the suite spy emits (parseable by
+  /// [SuiteGuard], zero failures).
+  static const greenSuiteTranscript =
+      '00:00 +1: test/baseline_test.dart: baseline green\n'
+      '00:00 +1: All tests passed!';
+
+  /// A suite transcript with ONE pre-existing failure in another
+  /// behavior's file (parseable, exit 1 — the #731 tolerated-red shape).
+  static const oneRedSuiteTranscript =
+      '00:00 +0 -1: test/other_test.dart: other behavior red [E]\n'
+      '00:00 +0 -1: Some tests failed.';
+
+  /// Write an executable spy script that logs one `argv` line per
+  /// invocation to `<spyDir>/<name>.log`, prints [output], and exits
+  /// [exitCode]. Returns the absolute script path (usable directly as a
+  /// profile template's runner command).
+  Future<String> writeSpyScript(
+    String name, {
+    required String output,
+    String exit = '0',
+    String? logFilter,
+  }) async {
+    await Directory(spyDir).create(recursive: true);
+    final logPath = p.join(spyDir, '$name.log');
+    final scriptPath = p.join(spyDir, name);
+    final filter = logFilter ?? r'$@';
+    await File(scriptPath).writeAsString(
+      '#!/bin/sh\necho "invoke $filter" >> "$logPath"\n'
+      'cat <<\'SPY_EOF\'\n$output\nSPY_EOF\nexit $exit\n',
+    );
+    Process.runSync('chmod', ['+x', scriptPath]);
+    return scriptPath;
+  }
+
+  /// The spy's invocation log lines (one per runner invocation).
+  List<String> spyLog(String name) {
+    final file = File(p.join(spyDir, '$name.log'));
+    if (!file.existsSync()) return const [];
+    return file
+        .readAsLinesSync()
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+  }
+
+  /// A single-test spy that emits a PASSING package:test transcript once
+  /// [marker] exists and a FAILING one before it — scripting the
+  /// red → green flip the fake pipeline's side effect causes.
+  Future<String> writeGatedSingleSpy({required String marker}) async {
+    await Directory(spyDir).create(recursive: true);
+    final logPath = p.join(spyDir, 'single.log');
+    final scriptPath = p.join(spyDir, 'single');
+    await File(scriptPath).writeAsString(
+      '#!/bin/sh\necho "\$@" >> "$logPath"\n'
+      'if [ -f "$marker" ]; then\n'
+      '  printf \'00:00 +1: %s: %s\\n00:00 +1: All tests passed!\\n\' "\$1" "\$2"\n'
+      '  exit 0\n'
+      'else\n'
+      '  printf \'00:00 +0 -1: %s: %s [E]\\n00:00 +0 -1: Some tests failed.\\n\' "\$1" "\$2"\n'
+      '  exit 1\n'
+      'fi\n',
+    );
+    Process.runSync('chmod', ['+x', scriptPath]);
+    return scriptPath;
+  }
+
+  /// Overwrite the fixture's TDD profile with custom runner templates
+  /// (the spy scripts' paths). Shape-identical to [_writeProfile].
+  Future<void> rewriteProfile({
+    required String singleTemplate,
+    required String suiteTemplate,
+  }) async {
+    final dir = Directory(p.join(root.path, '.specify', 'memory'));
+    await dir.create(recursive: true);
+    await File(p.join(dir.path, 'tdd-profile.md')).writeAsString('''
+# TDD Profile — fixture
+
+## Commands
+
+- Single test: `$singleTemplate`
+- Full suite: `$suiteTemplate`
+
+## Keys (machine-readable)
+
+```yaml
+runner: dart
+single: '$singleTemplate'
+suite: '$suiteTemplate'
+file: 'dart test {file}'
+coverage: 'dart test --coverage'
+```
+''');
   }
 
   /// Dispose the temp project.

@@ -211,11 +211,17 @@ class StepRunner {
   /// Run one step for [behaviorId] and map the sub-process result onto the
   /// step's contract. A spawn failure yields a `runner-error` StepResult,
   /// never a crash (U17).
+  ///
+  /// When [suiteBaselinePath] is given (issue #741), make steps receive
+  /// `--suite-baseline <path>` so they reuse the run's cached full-suite
+  /// baseline instead of running the suite per behavior. Every other step
+  /// ignores it.
   Future<StepResult> run({
     required String step,
     required String behaviorId,
     required String feature,
     required String projectRoot,
+    String? suiteBaselinePath,
   }) async {
     if (!stepOrder.contains(step)) {
       throw ArgumentError.value(step, 'step', 'unknown TDD step');
@@ -230,6 +236,13 @@ class StepRunner {
       '--project',
       projectRoot,
     ];
+    // Issue #741: hand the run's cached suite baseline to make steps so
+    // the full suite runs once per run, not once per behavior.
+    if (step == 'make' &&
+        suiteBaselinePath != null &&
+        suiteBaselinePath.isNotEmpty) {
+      argv.addAll(['--suite-baseline', suiteBaselinePath]);
+    }
     final command = entry.endsWith('.dart')
         ? ['dart', entry, ...argv]
         : [entry, ...argv];
