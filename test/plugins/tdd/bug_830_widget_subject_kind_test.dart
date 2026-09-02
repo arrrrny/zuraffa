@@ -249,7 +249,13 @@ void main() {
         expect(out, contains('behavior_id: B-003'));
 
         final testFile = File(
-          p.join(tmpDir.path, 'test', 'tdd', 'b_003_test.dart'),
+          p.join(
+            tmpDir.path,
+            'test',
+            'tdd',
+            '044-test-tdd-generation',
+            'b_003_test.dart',
+          ),
         );
         expect(testFile.existsSync(), isTrue);
         final testContent = await testFile.readAsString();
@@ -267,7 +273,13 @@ void main() {
         expect(testContent, contains('isNot(isA<UnimplementedError>())'));
 
         final subjectFile = File(
-          p.join(tmpDir.path, 'lib', 'tdd', 'b_003_subject.dart'),
+          p.join(
+            tmpDir.path,
+            'lib',
+            'tdd',
+            '044-test-tdd-generation',
+            'b_003_subject.dart',
+          ),
         );
         expect(subjectFile.existsSync(), isTrue);
         final subjectContent = await subjectFile.readAsString();
@@ -290,11 +302,23 @@ void main() {
         final out = await runner.runCapturing(genArgs('B-003'));
         expect(out, contains('behavior_id: B-003'));
         final testContent = await File(
-          p.join(tmpDir.path, 'test', 'tdd', 'b_003_test.dart'),
+          p.join(
+            tmpDir.path,
+            'test',
+            'tdd',
+            '044-test-tdd-generation',
+            'b_003_test.dart',
+          ),
         ).readAsString();
         expect(testContent, contains('testWidgets('));
         final subjectContent = await File(
-          p.join(tmpDir.path, 'lib', 'tdd', 'b_003_subject.dart'),
+          p.join(
+            tmpDir.path,
+            'lib',
+            'tdd',
+            '044-test-tdd-generation',
+            'b_003_subject.dart',
+          ),
         ).readAsString();
         expect(subjectContent, contains('Widget subject_b003()'));
       },
@@ -308,7 +332,13 @@ void main() {
       );
       expect(out, contains('behavior_id: B-003'));
       final testContent = await File(
-        p.join(tmpDir.path, 'test', 'tdd', 'b_003_test.dart'),
+        p.join(
+          tmpDir.path,
+          'test',
+          'tdd',
+          '044-test-tdd-generation',
+          'b_003_test.dart',
+        ),
       ).readAsString();
       expect(testContent, contains('matchesGoldenFile('));
       expect(testContent, contains('goldens/'));

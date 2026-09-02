@@ -474,7 +474,7 @@ class GenCommand extends Command<void> {
         if (!adoptTest) {
           await bounded(
             writers.writeTest(
-              behavior: behavior,
+              behavior: effectiveBehavior,
               testPath: testPath,
               subjectPath: subjectPath,
               golden: golden,
@@ -485,7 +485,10 @@ class GenCommand extends Command<void> {
         }
         if (!adoptSubject) {
           await bounded(
-            writers.writeSubject(behavior: behavior, subjectPath: subjectPath),
+            writers.writeSubject(
+              behavior: effectiveBehavior,
+              subjectPath: subjectPath,
+            ),
             'write subject file',
           );
           createdPaths.add(subjectPath);
