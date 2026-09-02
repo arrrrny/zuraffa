@@ -92,7 +92,10 @@ void main() {
         outputDir: outputDir,
       ),
     );
-    expect(files.length, equals(3)); // app_routes, entity_routes, index.dart
+    expect(
+      files.length,
+      equals(4),
+    ); // app_routes, entity_routes, index.dart, route_table_test (#842)
     final entityFile = files.firstWhere(
       (f) => f.path.endsWith('order_routes.dart'),
     );

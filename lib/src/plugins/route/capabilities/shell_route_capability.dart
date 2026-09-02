@@ -6,6 +6,7 @@ import '../../../models/generated_file.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../builders/route_builder.dart';
+import '../builders/route_table_test_builder.dart';
 import '../builders/shell_routes_builder.dart';
 import '../route_plugin.dart';
 
@@ -187,6 +188,20 @@ class ShellRouteCapability implements ZuraffaCapability {
     );
     final indexFile = await indexBuilder.regenerateIndex();
 
-    return [routeFile, ?indexFile];
+    // #842: the adaptive shell must have its platform divergence asserted —
+    // emit the layout matrix test (adaptive layout manifest as data +
+    // widget-level presence checks) alongside the shell module.
+    final layoutTest = adaptive
+        ? await RouteTableTestBuilder(
+            fileSystem: plugin.fileSystem,
+          ).emitShellLayoutTest(
+            outputDir: plugin.outputDir,
+            namePascal: name,
+            dryRun: dryRun,
+            verbose: verbose,
+          )
+        : null;
+
+    return [routeFile, ?indexFile, ?layoutTest];
   }
 }

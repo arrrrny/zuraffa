@@ -17,6 +17,7 @@ import '../../../utils/string_utils.dart';
 import 'app_routes_builder.dart';
 import 'entity_routes_builder.dart';
 import 'extension_builder.dart';
+import 'route_table_test_builder.dart';
 
 /// Generates application routes and entity route definitions.
 class RouteBuilder {
@@ -92,7 +93,29 @@ class RouteBuilder {
       files.add(indexFile);
     }
 
+    // #842: route generation must leave a TDD surface behind — emit the
+    // route-table test alongside the route modules so "generated routes are
+    // proven by generated tests" (every declared route resolves to a
+    // builder, unknown paths hit 404, deep-link patterns parse typed
+    // params). The manifest is refreshed on every route run.
+    final routeTableTest = await _generateRouteTableTest(config);
+    if (routeTableTest != null) {
+      files.add(routeTableTest);
+    }
+
     return files;
+  }
+
+  /// #842: regenerates `test/routing/route_table_test.dart` from the
+  /// routing directory's manifest. Returns `null` when there is nothing to
+  /// prove (empty routing dir) or on a dry run (no writes).
+  Future<GeneratedFile?> _generateRouteTableTest(GeneratorConfig config) async {
+    if (config.revert) return null;
+    return RouteTableTestBuilder(fileSystem: fileSystem).emitRouteTableTest(
+      outputDir: outputDir,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+    );
   }
 
   /// Whether the entity backing [config] is a Zorphy value object
@@ -193,6 +216,18 @@ class RouteBuilder {
     final indexFile = await _regenerateIndexFile(pendingFiles: files);
     if (indexFile != null) {
       files.add(indexFile);
+    }
+
+    // #842: keep the route-table manifest truthful after cleanup — the
+    // removed routes must leave the embedded manifest on the next run.
+    final routeTableTest = await RouteTableTestBuilder(fileSystem: fileSystem)
+        .emitRouteTableTest(
+          outputDir: outputDir,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+        );
+    if (routeTableTest != null) {
+      files.add(routeTableTest);
     }
     return files;
   }

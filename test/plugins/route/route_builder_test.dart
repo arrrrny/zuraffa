@@ -40,7 +40,10 @@ void main() {
       ),
     );
 
-    expect(files.length, equals(3));
+    expect(
+      files.length,
+      equals(4),
+    ); // app_routes, entity_routes, index.dart, route_table_test (#842)
     final appRoutes = File('$outputDir/routing/app_routes.dart');
     final entityRoutes = File('$outputDir/routing/product_routes.dart');
     expect(appRoutes.existsSync(), isTrue);
@@ -76,7 +79,10 @@ void main() {
       ),
     );
 
-    expect(files.length, equals(3));
+    expect(
+      files.length,
+      equals(4),
+    ); // app_routes, entity_routes, index.dart, route_table_test (#842)
     final entityRoutes = File('$outputDir/routing/listing_routes.dart');
     expect(entityRoutes.existsSync(), isTrue);
     final content = entityRoutes.readAsStringSync();
@@ -122,7 +128,10 @@ void main() {
       ),
     );
 
-    expect(files.length, equals(3));
+    expect(
+      files.length,
+      equals(4),
+    ); // app_routes, entity_routes, index.dart, route_table_test (#842)
     final entityRoutes = File('$outputDir/routing/general_routes.dart');
     expect(entityRoutes.existsSync(), isTrue);
     final content = entityRoutes.readAsStringSync();

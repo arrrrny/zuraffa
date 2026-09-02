@@ -10,6 +10,7 @@ import '../../../utils/manifest_writer.dart';
 import '../../../utils/string_utils.dart';
 import '../builders/deep_link_routes_builder.dart';
 import '../builders/route_builder.dart';
+import '../builders/route_table_test_builder.dart';
 import '../route_plugin.dart';
 
 /// `zfa route deep-link <Name> --path <path> --scheme <scheme> [--host <host>]`
@@ -201,6 +202,21 @@ class DeepLinkRouteCapability implements ZuraffaCapability {
     );
     final indexFile = await indexBuilder.regenerateIndex();
 
+    // #842: deep-link behaviors (057/058) must be proven by generated tests
+    // driving go_router's routeInformationProvider with URI fixtures
+    // (barcode path, URL-encoded query) — deterministic, no platform
+    // channel.
+    final deepLinkTest =
+        await RouteTableTestBuilder(
+          fileSystem: plugin.fileSystem,
+        ).emitDeepLinkTest(
+          outputDir: plugin.outputDir,
+          namePascal: namePascal,
+          routePath: routePath,
+          dryRun: dryRun,
+          verbose: verbose,
+        );
+
     // Platform manifest updates — best-effort, never block on missing
     // platform files (the route file is the primary deliverable).
     final manifestWriter = ManifestWriter(fileSystem: plugin.fileSystem);
@@ -226,7 +242,7 @@ class DeepLinkRouteCapability implements ZuraffaCapability {
       verbose: verbose,
     );
 
-    return [routeFile, ?indexFile, ?androidFile, ?iosFile];
+    return [routeFile, ?indexFile, ?deepLinkTest, ?androidFile, ?iosFile];
   }
 
   /// Ensures [dirPath] exists on the file system. Uses dart:io directly
