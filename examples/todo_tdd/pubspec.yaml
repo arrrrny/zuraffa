@@ -1,0 +1,27 @@
+name: todo_tdd
+description: A starting point for Dart libraries or applications.
+version: 1.0.0
+# repository: https://github.com/my_org/my_repo
+
+environment:
+  sdk: ^3.13.3
+
+# Add regular dependencies here.
+dependencies:
+  json_annotation: ^4.12.0
+  zorphy_annotation: ^2.3.1
+  zuraffa: ^6.1.0
+  # path: ^1.9.0
+
+dev_dependencies:
+  build_runner: ^2.16.0
+  json_serializable: ^6.14.1
+  lints: ^6.0.0
+  test: ^1.25.6
+
+  mocktail: ^1.0.0
+  coverage: ^1.6.0
+  mutation_test: ^1.0.0
+dependency_overrides:
+  analyzer: 14.1.0
+
