@@ -284,7 +284,10 @@ class CapabilityCommand extends Command<void> {
         }
       } else {
         print('❌ Failed: ${result.message}');
-        // exit(1);
+        // Issue #767: a failed capability execution must not report success
+        // to automation. Exit 1 — a runtime/generation failure, distinct
+        // from the usage-error family (64) used for missing arguments.
+        exitCode = 1;
       }
     }
   }

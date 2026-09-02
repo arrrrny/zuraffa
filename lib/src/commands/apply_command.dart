@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:args/command_runner.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plan_store.dart';
@@ -26,20 +28,27 @@ class ApplyCommand extends Command<void> {
     final store = PlanStore.instance;
     final plan = await store.loadPlan(planId);
 
+    // Issue #767: every failure path below exits non-zero — this command is
+    // the tail of the dry-run → plan → apply pipeline the manifest
+    // advertises to automation (an agent previews, stores, applies later).
+    // Exit-code protocol: 64 = bad request (addressing/validity),
+    // 1 = runtime failure, mirroring the shared CapabilityCommand runner.
     if (plan == null) {
       print('❌ Plan not found: $planId');
-      // exit(1);
+      exitCode = 64;
       return;
     }
 
     if (!plan.isValid) {
       print('❌ Plan is invalid: ${plan.message}');
+      exitCode = 64;
       return;
     }
 
     final plugin = registry.getById(plan.pluginId);
     if (plugin == null) {
       print('❌ Plugin not found: ${plan.pluginId}');
+      exitCode = 64;
       return;
     }
 
@@ -62,6 +71,9 @@ class ApplyCommand extends Command<void> {
       await store.deletePlan(planId);
     } else {
       print('❌ Failed: ${result.message}');
+      // Issue #767: same contract as CapabilityCommand — a failed
+      // application reports failure to automation (exit 1).
+      exitCode = 1;
     }
   }
 }
