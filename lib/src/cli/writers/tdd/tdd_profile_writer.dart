@@ -165,10 +165,10 @@ This profile is read by the `tdd` spec-kit extension.
 
 ## Commands
 
-- Single test: `${p.resolveSingle(file: '{file}', name: '{name}')}'
-- Whole file: `${p.resolveFile('{file}')}'
-- Full suite: `${p.resolveSuite()}'
-- Coverage: `${p.resolveCoverage()}'
+- Single test: `${p.resolveSingle(file: '{file}', name: '{name}')}`
+- Whole file: `${p.resolveFile('{file}')}`
+- Full suite: `${p.resolveSuite()}`
+- Coverage: `${p.resolveCoverage()}`
 
 ## Keys (machine-readable)
 
