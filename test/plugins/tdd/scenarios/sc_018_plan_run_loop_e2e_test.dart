@@ -212,7 +212,7 @@ dev_dependencies:
     // The real pipeline wired both subjects (green is real, not faked).
     for (final snake in ['a1', 'u1']) {
       final subject = File(
-        p.join(fx.root.path, 'lib', 'tdd', '${snake}_subject.dart'),
+        p.join(fx.root.path, 'lib', 'tdd', feature, '${snake}_subject.dart'),
       ).readAsStringSync();
       // Bug #718: unit behaviors route to the `tdd func` surface, whose
       // documented contract replaces ONLY the stub declaration — the

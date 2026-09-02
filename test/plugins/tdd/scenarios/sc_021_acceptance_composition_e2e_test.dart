@@ -180,12 +180,15 @@ dev_dependencies:
     // The acceptance subject was COMPOSED: the stub is gone and the
     // green unit subject is the implementation anchor.
     final a1Subject = File(
-      p.join(fx.root.path, 'lib', 'tdd', 'a1_subject.dart'),
+      p.join(fx.root.path, 'lib', 'tdd', feature, 'a1_subject.dart'),
     ).readAsStringSync();
     expect(a1Subject, isNot(contains('UnimplementedError')));
     expect(a1Subject, contains('GENERATED IMPLEMENTATION'));
     expect(a1Subject, contains('zfa tdd compose A1'));
-    expect(a1Subject, contains('package:tdd_fixture/tdd/u1_subject.dart'));
+    expect(
+      a1Subject,
+      contains('package:tdd_fixture/tdd/001-compose-demo/u1_subject.dart'),
+    );
     expect(a1Subject, contains('subject_u1'));
   }, timeout: const Timeout(Duration(minutes: 25)));
 
