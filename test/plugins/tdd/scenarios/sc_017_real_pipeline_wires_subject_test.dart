@@ -174,7 +174,7 @@ feature: ${fx.featureName}
     // The gen'd subject is no longer an UnimplementedError stub: it is
     // wired to the generated entity by the pipeline.
     final subjectFile = File(
-      p.join(fx.root.path, 'lib', 'tdd', 'b_001_subject.dart'),
+      p.join(fx.root.path, 'lib', 'tdd', fx.featureName, 'b_001_subject.dart'),
     );
     expect(subjectFile.existsSync(), isTrue);
     final subject = subjectFile.readAsStringSync();

@@ -914,6 +914,7 @@ class RunCommand extends Command<void> {
                 updated,
                 registry,
                 projectRoot: projectRoot,
+                feature: feature,
               ))) {
         updated = updated.advance(row.id, state);
         await store.save(updated, activeBehaviorIds: activeIds);
@@ -1180,11 +1181,19 @@ class RunCommand extends Command<void> {
   /// mismatch (a stub at a non-default path, a failure outside the
   /// feature's rows) is handled by the post-spawn refusal skip instead
   /// of a pass-fatal stop.
+  ///
+  /// Bug #827: the gen default layout is now NAMESPACED by feature-slug
+  /// (`test/tdd/<feature>/<snake_id>_test.dart`), so the disk check looks
+  /// there first; the legacy flat path (`test/tdd/<snake_id>_test.dart`)
+  /// is still checked so an un-migrated project keeps its deferral
+  /// semantics — the migration must not break existing flat-layout
+  /// projects.
   Future<bool> _hasPendingWithArtifacts(
     List<BehaviorRow> rows,
     RunState state,
     ArtifactRegistry registry, {
     required String projectRoot,
+    required String feature,
   }) async {
     for (final row in rows) {
       if ((state.behaviorStates[row.id] ?? BehaviorState.pending) !=
@@ -1198,11 +1207,23 @@ class RunCommand extends Command<void> {
       // generated stub on disk without a record reds the suite exactly
       // the same. Check the gen default layout before declaring the
       // row artifact-less.
+      final snakeId = _snakeCase(row.id);
+      final namespacedTestPath = p.join(
+        projectRoot,
+        'test',
+        'tdd',
+        feature,
+        '${snakeId}_test.dart',
+      );
+      if (File(namespacedTestPath).existsSync()) {
+        return true;
+      }
+      // Legacy flat layout (pre-#827) fallback.
       final defaultTestPath = p.join(
         projectRoot,
         'test',
         'tdd',
-        '${_snakeCase(row.id)}_test.dart',
+        '${snakeId}_test.dart',
       );
       if (File(defaultTestPath).existsSync()) {
         return true;

@@ -88,11 +88,15 @@ void main() {
       expect(out, contains('behavior_id: A1'), reason: 'out:\n$out');
       expect(out, contains('source_criterion: AC-1'));
       expect(
-        File(p.join(tmpDir.path, 'test', 'tdd', 'a1_test.dart')).existsSync(),
+        File(
+          p.join(tmpDir.path, 'test', 'tdd', featureName, 'a1_test.dart'),
+        ).existsSync(),
         isTrue,
       );
       expect(
-        File(p.join(tmpDir.path, 'lib', 'tdd', 'a1_subject.dart')).existsSync(),
+        File(
+          p.join(tmpDir.path, 'lib', 'tdd', featureName, 'a1_subject.dart'),
+        ).existsSync(),
         isTrue,
       );
       final regFile = File(p.join(featureDir, 'tdd', 'artifacts.json'));
@@ -107,11 +111,15 @@ void main() {
     expect(out, contains('behavior_id: U1'), reason: 'out:\n$out');
     expect(out, contains('source_criterion: FR-001'));
     expect(
-      File(p.join(tmpDir.path, 'test', 'tdd', 'u1_test.dart')).existsSync(),
+      File(
+        p.join(tmpDir.path, 'test', 'tdd', featureName, 'u1_test.dart'),
+      ).existsSync(),
       isTrue,
     );
     expect(
-      File(p.join(tmpDir.path, 'lib', 'tdd', 'u1_subject.dart')).existsSync(),
+      File(
+        p.join(tmpDir.path, 'lib', 'tdd', featureName, 'u1_subject.dart'),
+      ).existsSync(),
       isTrue,
     );
   });
@@ -122,11 +130,11 @@ void main() {
     await runGen('U1');
 
     final acceptanceTest = File(
-      p.join(tmpDir.path, 'test', 'tdd', 'a1_test.dart'),
+      p.join(tmpDir.path, 'test', 'tdd', featureName, 'a1_test.dart'),
     ).readAsStringSync();
     expect(acceptanceTest, contains('// kind: acceptance'));
     final unitTest = File(
-      p.join(tmpDir.path, 'test', 'tdd', 'u1_test.dart'),
+      p.join(tmpDir.path, 'test', 'tdd', featureName, 'u1_test.dart'),
     ).readAsStringSync();
     expect(unitTest, contains('// kind: unit'));
   });
@@ -140,11 +148,11 @@ void main() {
     // reader: a row with no target cell resolves to `subject_<snake-id>`,
     // and the subject stub renders that function name.
     final acceptanceSubject = File(
-      p.join(tmpDir.path, 'lib', 'tdd', 'a1_subject.dart'),
+      p.join(tmpDir.path, 'lib', 'tdd', featureName, 'a1_subject.dart'),
     ).readAsStringSync();
     expect(acceptanceSubject, contains('subject_a1'));
     final unitSubject = File(
-      p.join(tmpDir.path, 'lib', 'tdd', 'u1_subject.dart'),
+      p.join(tmpDir.path, 'lib', 'tdd', featureName, 'u1_subject.dart'),
     ).readAsStringSync();
     expect(unitSubject, contains('subject_u1'));
   });
@@ -156,7 +164,7 @@ void main() {
       await runGen('U1');
 
       final unitTest = File(
-        p.join(tmpDir.path, 'test', 'tdd', 'u1_test.dart'),
+        p.join(tmpDir.path, 'test', 'tdd', featureName, 'u1_test.dart'),
       ).readAsStringSync();
       // The behavior description "returns 42 when invoked with no args" is
       // carried into the test's assertion — proof the description column
@@ -208,13 +216,15 @@ void main() {
     expect(out, contains('source_criterion: US1.AC1'));
     expect(out, contains('ownership: created/created'));
     expect(
-      File(p.join(tmpDir.path, 'test', 'tdd', 'a1_test.dart')).existsSync(),
+      File(
+        p.join(tmpDir.path, 'test', 'tdd', '050-legacy', 'a1_test.dart'),
+      ).existsSync(),
       isTrue,
     );
     // The test-reference cell is path-like -> the default target
     // (FR-003), rendered in the subject stub.
     final subject = File(
-      p.join(tmpDir.path, 'lib', 'tdd', 'a1_subject.dart'),
+      p.join(tmpDir.path, 'lib', 'tdd', '050-legacy', 'a1_subject.dart'),
     ).readAsStringSync();
     expect(subject, contains('subject_a1'));
   });

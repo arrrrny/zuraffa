@@ -123,7 +123,8 @@ class ArtifactRegistry {
           'test',
           reason:
               'the registry test path "${prior.testPath}" does not match '
-              '"${record.testPath}"',
+              '"${record.testPath}"'
+              '${_legacyHint(prior.testPath, record.testPath)}',
         );
       }
       if (!_samePath(prior.subjectPath, record.subjectPath)) {
@@ -132,7 +133,8 @@ class ArtifactRegistry {
           'subject',
           reason:
               'the registry subject path "${prior.subjectPath}" does not '
-              'match "${record.subjectPath}"',
+              'match "${record.subjectPath}"'
+              '${_legacyHint(prior.subjectPath, record.subjectPath)}',
         );
       }
       if (!await File(record.testPath).exists()) {
@@ -264,4 +266,29 @@ class ArtifactRegistry {
 
   bool _samePath(String left, String right) =>
       p.equals(p.normalize(left), p.normalize(right));
+
+  /// Bug #827 migration hint: when one of the two mismatched paths is the
+  /// legacy flat gen layout (`test/tdd/<file>` / `lib/tdd/<file>`) and the
+  /// other is its namespaced successor, name the migration command instead
+  /// of leaving the conflict unexplained.
+  static String _legacyHint(String priorPath, String recordPath) {
+    const legacyRoots = {'test/tdd', 'lib/tdd'};
+    bool isLegacyFlat(String path) {
+      final normalized = p.normalize(path).replaceAll(r'\', '/');
+      final dir = p.dirname(normalized);
+      return legacyRoots.contains(dir) ||
+          dir.endsWith('/test/tdd') ||
+          dir.endsWith('/lib/tdd');
+    }
+
+    final sameFile = p.basename(priorPath) == p.basename(recordPath);
+    if (sameFile &&
+        (isLegacyFlat(priorPath) || isLegacyFlat(recordPath)) &&
+        isLegacyFlat(priorPath) != isLegacyFlat(recordPath)) {
+      return ' (legacy flat layout detected — run `zfa tdd migrate-paths` '
+          'to move this feature\'s artifacts to the per-feature namespaced '
+          'layout)';
+    }
+    return '';
+  }
 }

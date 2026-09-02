@@ -12,8 +12,14 @@
 ///      or the row is malformed, exits non-zero BEFORE any file is
 ///      written (FR-002).
 ///   2. Computes the test path + subject path + runnable test name for the
-///      behavior. Path convention: `test/tdd/<snake-id>_test.dart` and
-///      `lib/tdd/<snake-id>_subject.dart`.
+///      behavior. Path convention (bug #827): the artifacts are namespaced
+///      by feature-slug — `test/tdd/<feature-slug>/<snake-id>_test.dart` and
+///      `lib/tdd/<feature-slug>/<snake-id>_subject.dart` — so two features
+///      that plan the same behavior id never map to the same file (the flat
+///      pre-#827 layout made feature N+1 unstartable while feature N's
+///      artifacts existed; registries are per-feature, so the second
+///      feature's gen was refused by the FR-008 guardrail for a file it did
+///      not own). Legacy flat projects migrate via `zfa tdd migrate-paths`.
 ///   3. Delegates test file writing to [BehaviorTestWriter] and subject
 ///      file writing to [SubjectWriter].
 ///   4. Persists an [ArtifactRecord] via [ArtifactRegistry] (FR-007).
@@ -284,10 +290,14 @@ class GenCommand extends Command<void> {
       );
     }
 
-    // Compute paths.
+    // Compute paths. Bug #827: the artifacts are namespaced by feature-slug
+    // so two features planning the same behavior id never collide on one
+    // flat file (the registry is per-feature; the flat layout made feature
+    // N+1's gen an FR-008 refusal against feature N's artifacts).
     final snakeId = _toSnakeCase(behavior.id);
-    final testPath = '$cwd/test/tdd/${snakeId}_test.dart';
-    final subjectPath = '$cwd/lib/tdd/${snakeId}_subject.dart';
+    _validateFeatureSegment(featureName);
+    final testPath = '$cwd/test/tdd/$featureName/${snakeId}_test.dart';
+    final subjectPath = '$cwd/lib/tdd/$featureName/${snakeId}_subject.dart';
     final runnableTestName =
         '$testPath::${behavior.id}::${behavior.id} \u2014 ${behavior.description}';
 
@@ -463,6 +473,7 @@ class GenCommand extends Command<void> {
         !dryRun) {
       regeneratedNote = await _regenerateStaleStub(
         behavior: behavior,
+        featureName: featureName,
         testPath: testPath,
         subjectPath: subjectPath,
         bounded: bounded,
@@ -567,13 +578,16 @@ class GenCommand extends Command<void> {
   /// Byte-comparison covers BOTH test and subject files (the writers are
   /// both a function of the generating binary — bug #683 covers a test
   /// half drift too). The current render is produced into a temp mirror
-  /// under `<tmp>/test/tdd` + `<tmp>/lib/tdd` so the test's relative
-  /// subject import resolves to a sibling on disk, byte-identical to a
-  /// real `gen`. If the partial rewrite fails after touching one file,
-  /// both files are restored to their pre-attempt bytes so a failed
+  /// under `<tmp>/test/tdd/<feature-slug>` + `<tmp>/lib/tdd/<feature-slug>`
+  /// (the same namespaced structure as the real pair, bug #827) so the
+  /// test's relative subject import resolves to a sibling on disk,
+  /// byte-identical to a real `gen`. If the partial rewrite fails after
+  /// touching one file, both files are restored to their pre-attempt bytes
+  /// so a failed
   /// regeneration never leaves less on disk than before.
   Future<bool> _regenerateStaleStub({
     required Behavior behavior,
+    required String featureName,
     required String testPath,
     required String subjectPath,
     required Future<T> Function<T>(Future<T> stage, String stageName) bounded,
@@ -588,18 +602,26 @@ class GenCommand extends Command<void> {
     if (!onDiskSubject.contains('UnimplementedError')) return false;
 
     // Render the expected pair into a temp mirror (no real paths touched).
+    // Bug #827: the mirror must reproduce the REAL relative test→subject
+    // structure, not a hardcoded flat `test/tdd` + `lib/tdd` layout — the
+    // rendered test imports its subject through a relative path computed
+    // from the two paths, and a depth mismatch would make the byte
+    // comparison report a false staleness (or mask a real one) for every
+    // namespaced artifact.
     final mirror = await Directory.systemTemp.createTemp('zfa_gen_stale_');
     try {
       final mirroredTest = p.join(
         mirror.path,
         'test',
         'tdd',
+        featureName,
         p.basename(testPath),
       );
       final mirroredSubject = p.join(
         mirror.path,
         'lib',
         'tdd',
+        featureName,
         p.basename(subjectPath),
       );
       await bounded(
@@ -781,6 +803,23 @@ class GenCommand extends Command<void> {
       }
     }
     return out.toString();
+  }
+
+  /// The feature name lands inside the artifact path (bug #827): keep it a
+  /// single plain directory segment (mirrors compose/make/verify-red's
+  /// `--feature` validation) so a hostile or malformed feature name cannot
+  /// escape the `test/tdd/<feature-slug>/` namespace.
+  void _validateFeatureSegment(String feature) {
+    if (feature.contains('/') ||
+        feature.contains(r'\') ||
+        feature == '.' ||
+        feature == '..' ||
+        feature.isEmpty) {
+      throw StateError(
+        'zfa tdd gen: invalid feature "$feature": expected a single spec '
+        'directory name such as 044-test-tdd-generation, not a path.',
+      );
+    }
   }
 }
 

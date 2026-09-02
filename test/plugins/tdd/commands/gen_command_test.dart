@@ -306,6 +306,7 @@ dependencies:
           tmpDir.path,
           'lib',
           'tdd',
+          featureName,
           'b_003_subject.dart',
         );
         final v1 = await File(subjectPath).readAsString();
@@ -349,6 +350,7 @@ dependencies:
         tmpDir.path,
         'lib',
         'tdd',
+        featureName,
         'b_003_subject.dart',
       );
       final before = await File(subjectPath).readAsString();
@@ -371,6 +373,7 @@ dependencies:
         tmpDir.path,
         'lib',
         'tdd',
+        featureName,
         'b_003_subject.dart',
       );
       // Simulate `zfa tdd func` scaffolding: UnimplementedError replaced
@@ -405,11 +408,18 @@ int sampleSubject() {
       final runner = CliRunner(exitOnCompletion: false);
       await runner.runCapturing(genArgs('B-003'));
 
-      final testPath = p.join(tmpDir.path, 'test', 'tdd', 'b_003_test.dart');
+      final testPath = p.join(
+        tmpDir.path,
+        'test',
+        'tdd',
+        featureName,
+        'b_003_test.dart',
+      );
       final subjectPath = p.join(
         tmpDir.path,
         'lib',
         'tdd',
+        featureName,
         'b_003_subject.dart',
       );
       final originalTest = await File(testPath).readAsString();
@@ -442,11 +452,13 @@ int sampleSubject() {
         await seedSpecAndTestList();
         // Hand-write the test file before `gen` runs.
         // Determine what path gen would write to (based on convention:
-        // test/tdd/<snake-id>_test.dart).
+        // test/tdd/<feature-slug>/<snake-id>_test.dart — bug #827
+        // namespacing).
         final expectedTestPath = p.join(
           tmpDir.path,
           'test',
           'tdd',
+          featureName,
           'b_003_test.dart',
         );
         await File(expectedTestPath).parent.create(recursive: true);
@@ -481,6 +493,7 @@ int sampleSubject() {
           tmpDir.path,
           'lib',
           'tdd',
+          featureName,
           'b_003_subject.dart',
         );
         await Directory(subjectPath).create(recursive: true);
@@ -491,7 +504,7 @@ int sampleSubject() {
         expect(output, contains('Error:'));
         expect(
           File(
-            p.join(tmpDir.path, 'test', 'tdd', 'b_003_test.dart'),
+            p.join(tmpDir.path, 'test', 'tdd', featureName, 'b_003_test.dart'),
           ).existsSync(),
           isFalse,
         );
@@ -654,7 +667,7 @@ int sampleSubject() {
           expect(sw.elapsed, lessThan(const Duration(seconds: 30)));
           expect(
             File(
-              p.join(tmpDir.path, 'lib', 'tdd', 'a1_subject.dart'),
+              p.join(tmpDir.path, 'lib', 'tdd', featureName, 'a1_subject.dart'),
             ).existsSync(),
             isTrue,
             reason: 'the deferred predecessor artifacts must be untouched',
@@ -689,6 +702,7 @@ int sampleSubject() {
             tmpDir.path,
             'lib',
             'tdd',
+            featureName,
             'a1_subject.dart',
           );
           await File(subjectPath).delete();
@@ -715,7 +729,7 @@ int sampleSubject() {
           expect(File(subjectPath).existsSync(), isTrue);
           expect(
             File(
-              p.join(tmpDir.path, 'test', 'tdd', 'a1_test.dart'),
+              p.join(tmpDir.path, 'test', 'tdd', featureName, 'a1_test.dart'),
             ).existsSync(),
             isTrue,
           );
