@@ -234,6 +234,7 @@ class StepRunner {
     required String behaviorId,
     required String feature,
     required String projectRoot,
+    String? suiteBaselinePath,
   }) async {
     if (!stepOrder.contains(step)) {
       throw ArgumentError.value(step, 'step', 'unknown TDD step');
@@ -248,6 +249,13 @@ class StepRunner {
       '--project',
       projectRoot,
     ];
+    // Issue #741: hand the run's cached suite baseline to make steps so
+    // the full suite runs once per run, not once per behavior.
+    if (step == 'make' &&
+        suiteBaselinePath != null &&
+        suiteBaselinePath.isNotEmpty) {
+      argv.addAll(['--suite-baseline', suiteBaselinePath]);
+    }
     final command = entry.endsWith('.dart')
         ? ['dart', entry, ...argv]
         : [entry, ...argv];

@@ -95,8 +95,11 @@ import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
 import '../services/cycle_evidence.dart';
+import '../services/run_baseline_cache.dart';
 import '../services/run_state_store.dart';
+import '../services/runner.dart';
 import '../services/step_runner.dart';
+import '../services/suite_guard.dart';
 import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
 import '../tdd_plugin.dart';
@@ -309,6 +312,44 @@ class RunCommand extends Command<void> {
     // child is killed and surfaces as a runner-error step result.
     final runner = StepRunner(zfaBin: zfaBin, timeout: timeoutOverride);
 
+    // ---------------------------------------------------------------
+    // 6b. Cache the full-suite baseline ONCE per run (issue #741).
+    // ---------------------------------------------------------------
+    String? suiteBaselinePath;
+    final anyMakeOutstanding = rows.any(
+      (r) => current.behaviorStates[r.id] != BehaviorState.done,
+    );
+    if (anyMakeOutstanding) {
+      try {
+        final suiteTemplate = await const SingleTestRunner().loadSuiteTemplate(
+          workingDirectory: projectRoot,
+        );
+        print('   suite baseline: $suiteTemplate (once per run — issue #741)');
+        final baselineRecord = await const SingleTestRunner().runSuite(
+          suiteTemplate: suiteTemplate,
+          workingDirectory: projectRoot,
+        );
+        final snapshot = const SuiteGuard().fromRunRecord(
+          record: baselineRecord,
+          capturedAt: DateTime.now().toUtc().toIso8601String(),
+        );
+        if (snapshot.parseable) {
+          suiteBaselinePath = await const RunBaselineCache().write(
+            featureDir: featureDir,
+            snapshot: snapshot,
+          );
+          print(
+            '   baseline cached for this run: '
+            '${p.relative(suiteBaselinePath, from: projectRoot)} '
+            '(${snapshot.failedTests.length} pre-existing failure(s)); '
+            'make steps reuse it instead of re-running the suite',
+          );
+        }
+      } on StateError {
+        // No profile / no suite template
+      }
+    }
+
     void applyStop(_Stop stop, RunState state) {
       if (stop.message != null) print('zfa tdd run: ${stop.message}');
       _printSummary(
@@ -358,6 +399,7 @@ class RunCommand extends Command<void> {
         evidence: evidence,
         runner: runner,
         registry: registry,
+        suiteBaselinePath: suiteBaselinePath,
       );
       if (result.stop != null) {
         applyStop(result.stop!, result.state);
@@ -396,6 +438,7 @@ class RunCommand extends Command<void> {
         evidence: evidence,
         runner: runner,
         registry: registry,
+        suiteBaselinePath: suiteBaselinePath,
       );
       if (result.stop != null) {
         applyStop(result.stop!, result.state);
@@ -459,6 +502,7 @@ class RunCommand extends Command<void> {
         evidence: evidence,
         runner: runner,
         registry: registry,
+        suiteBaselinePath: suiteBaselinePath,
       );
       if (result.stop != null) {
         applyStop(result.stop!, result.state);
@@ -700,6 +744,7 @@ class RunCommand extends Command<void> {
     required CycleEvidence evidence,
     required StepRunner runner,
     required ArtifactRegistry registry,
+    String? suiteBaselinePath,
   }) async {
     final feature = current.feature;
     var updated = current;
@@ -756,6 +801,7 @@ class RunCommand extends Command<void> {
           behaviorId: row.id,
           feature: feature,
           projectRoot: projectRoot,
+          suiteBaselinePath: suiteBaselinePath,
         );
       } on StateError catch (e) {
         // Entrypoint resolution failed before any spawn: runner-error.
