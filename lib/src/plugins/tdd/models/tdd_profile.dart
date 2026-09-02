@@ -27,7 +27,9 @@ class TddProfile {
 
   static const TddProfile dart = TddProfile(
     runner: 'dart',
-    single: 'dart test {file} --name "{name}"',
+    // --plain-name (literal substring) keeps behavior ids containing regex
+    // metacharacters matchable, and matches the flutter profile (issue #756).
+    single: 'dart test {file} --plain-name "{name}"',
     file: 'dart test {file}',
     suite: 'dart test',
     coverage: 'dart test --coverage',

@@ -41,8 +41,23 @@ void main() {
     test('dart profile resolves single with -P filter', () {
       const p = TddProfile.dart;
       final resolved = p.resolveSingle(file: 'test/foo_test.dart', name: 'foo');
-      expect(resolved, contains('--name "foo"'));
+      expect(resolved, contains('--plain-name "foo"'));
       expect(resolved, contains('test/foo_test.dart'));
+    });
+
+    // Issue #756 (FR-3): the dart profile must use --plain-name (the
+    // literal substring matcher), matching the flutter profile, so regex
+    // metacharacters inside behavior ids cannot break single-test
+    // matching. (The runner-side sibling of this class of bug is #760.)
+    test('dart single uses --plain-name (parity with flutter profile)', () {
+      const p = TddProfile.dart;
+      expect(p.single, contains('--plain-name'));
+      expect(p.single, isNot(contains('--name ')),
+          reason: '--name is a regex matcher; behavior ids containing '
+              'regex metacharacters (e.g. parens from Given/When/Then) '
+              'would break matching');
+      expect(TddProfile.flutter.single, contains('--plain-name'),
+          reason: 'both flavors must agree on the matcher flag');
     });
   });
 }
