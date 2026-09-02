@@ -12,6 +12,7 @@
 library;
 
 import 'package:test/test.dart';
+import 'package:zuraffa/src/plugins/tdd/models/generation_plan.dart';
 import 'package:zuraffa/src/plugins/tdd/services/generation_planner.dart';
 
 void main() {
@@ -712,4 +713,119 @@ void main() {
       ]);
     });
   });
+
+  group('GenerationPlanner — issue 873: the behavior-id test-name prefix '
+      'never becomes the CRUD entity name', () {
+    // Issue #873: the gen composite's description segment is the
+    // GENERATED TEST NAME — `<id> — <description>`
+    // (behavior_test_writer.dart) — not the bare behavior description.
+    // The #758 acceptance extraction (`_extractCapitalizedTrace`) scans
+    // capitalized tokens, so the LEADING behavior id ("A3 — all use
+    // cases are registered as factories") was returned as the "named
+    // entity": the plan skipped the #758 unexpressible guard and
+    // dispatched `zfa make A3` — the #696/#718 family resurfacing on
+    // the acceptance path, this time WITHOUT `--no-entity` (a non-null
+    // derived name drops the flag), dead-ending in the issue's
+    // index-1 generation-error ("no entity source file was found").
+    // Expected per #829: an acceptance behavior either composes (phase
+    // 2, via make's #642 fallback after this refusal) or is driven by
+    // a REAL entity from the spec's Key Entities — never
+    // `zfa make <BehaviorId>`.
+    test('U-873a: the issue #873 repro — the id-prefixed composite '
+        'description is refused as unexpressible, never routed to '
+        '`zfa make <id>`', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'A3',
+          feature: '004-dependency-injection',
+          sourceCriterion: 'AC-3',
+          // The EXACT description segment the real gen composite
+          // carries: `<id> — <prose>` (em dash, single spaces).
+          description: 'A3 \u2014 all use cases are registered as factories',
+        ),
+      );
+      // The leading "A3" is the behavior's own id — a test-name prefix,
+      // not an entity named in the prose. The plan must refuse (the
+      // #758 option-(b) stop) so make's composition fallback (#642)
+      // can engage, exactly as it does for A1/A2 in the issue.
+      expect(plan.isExpressible, isFalse, reason: _planDetail(plan));
+      for (final step in plan.steps) {
+        expect(
+          step.args.join(' '),
+          isNot(contains('make A3')),
+          reason:
+              'the behavior id must never be dispatched as a make '
+              'entity name (issue #873)',
+        );
+        expect(
+          step.args.join(' '),
+          isNot(contains('-n A3')),
+          reason:
+              'the behavior id must never be created as an entity '
+              '(issue #873)',
+        );
+      }
+    });
+
+    test('U-873b: a REAL capitalized entity behind the id prefix is '
+        'still extracted — the guard is narrow, #758 keeps its wire '
+        'contract', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'A1',
+          feature: '001-crud-probe',
+          sourceCriterion: 'AC-1',
+          description:
+              'A1 \u2014 the Todo repository service persists a '
+              'todo item.',
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      expect(
+        plan.steps.map((s) => s.args),
+        [
+          ['entity', 'create', '-n', 'Todo'],
+          ['make', 'Todo'],
+          ['tdd', 'wire', 'A1', '--entity', 'Todo'],
+          ['build'],
+        ],
+        reason:
+            'the extraction must skip ONLY the behavior-id prefix '
+            'token, not the whole trace',
+      );
+    });
+
+    test('U-873c: a mid-sentence id token is also never an entity name — '
+        'only real prose names route', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'A12',
+          feature: '004-dependency-injection',
+          sourceCriterion: 'AC-12',
+          // Prose mentioning the behavior id mid-sentence (the composite
+          // prefix token is the common case; a mention in the prose is
+          // the same lie — the id is not an entity).
+          description:
+              'A12 \u2014 A12: all use cases are registered as '
+              'factories',
+        ),
+      );
+      expect(plan.isExpressible, isFalse, reason: _planDetail(plan));
+      for (final step in plan.steps) {
+        expect(
+          step.args.join(' '),
+          isNot(contains(' A12')),
+          reason:
+              'the behavior id must never surface as a generation '
+              'target (issue #873)',
+        );
+      }
+    });
+  });
 }
+
+/// Render a plan's steps (or refusal reason) for failure diagnostics —
+/// the RED evidence for #873 must show the offending dispatch verbatim.
+String _planDetail(GenerationPlan plan) => plan.isExpressible
+    ? plan.steps.map((s) => 'zfa ${s.args.join(' ')}').join(' | ')
+    : 'unexpressible: ${plan.unexpressibleReason}';

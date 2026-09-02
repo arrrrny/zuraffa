@@ -1556,4 +1556,96 @@ stacks:
       expect(log.where((l) => l.startsWith('make ')), isEmpty);
     });
   });
+
+  group('bug 873 — the behavior id never reaches `zfa make` from the '
+      'acceptance path', () {
+    test('the issue #873 repro (A3, real gen composite) honest-stops '
+        'unexpressible — no `zfa make A3` / `entity create -n A3` '
+        'dispatch', () async {
+      // Issue #873 repro shape: spec 004-dependency-injection, A3
+      // "all use cases are registered as factories". The REAL gen
+      // composite embeds the generated TEST NAME as the registry's
+      // description segment — `<id> — <description>`
+      // (behavior_test_writer.dart) — so the planner saw the leading
+      // behavior id as a capitalized "named entity", skipped the #758
+      // unexpressible guard, and dispatched the issue's 4-step plan
+      // whose index-1 step `zfa make A3` fail-fasts with "no entity
+      // source file was found". seedCertifiedRed writes the
+      // description into that segment verbatim, so passing the
+      // prefixed text reproduces the real registry record byte for
+      // byte.
+      const description = 'A3 \u2014 all use cases are registered as factories';
+      await fx.seedTestList([
+        (
+          id: 'A3',
+          description: 'all use cases are registered as factories',
+          traces: 'AC-3',
+          state: 'PENDING',
+          kind: 'acceptance',
+        ),
+      ]);
+      await fx.seedCertifiedRed(
+        id: 'A3',
+        description: description,
+        testContent: TddFixture.subjectDrivenTest('A3', description),
+      );
+      // The real `zfa make A3` fail-fast (#496): exit 1 "no entity
+      // source file was found" — the issue's index-1 step failure.
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        exitByArgv: {'make A3': 1},
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'A3', zfaBin: zfaBin),
+      );
+
+      // Post-fix: the planner refuses the prose (the leading "A3" is a
+      // test-name prefix, not an entity named in the description), the
+      // composition fallback finds zero green unit anchors in this
+      // feature, and the make honest-stops unexpressible — the SAME
+      // deferral A1 ("all data sources ...") and A2 ("all repositories
+      // ...") already got in the issue's run log.
+      expect(exitCode, isNot(0), reason: out);
+      expect(
+        out,
+        contains(
+          'make: behavior=A3 outcome=unexpressible '
+          'feature=${fx.featureName}',
+        ),
+        reason: out,
+      );
+      // The #696-family signature is unreachable: the behavior id is
+      // NEVER dispatched as an entity name — no `make A3`, no
+      // `entity create -n A3`.
+      final log = await fx.readFakeZfaLog();
+      expect(
+        log.where((l) => l.contains('make A3')),
+        isEmpty,
+        reason:
+            'issue #873: the behavior id must never be dispatched as a '
+            'make entity name. Dispatched: ${log.join(' | ')}',
+      );
+      expect(
+        log.where((l) => l.contains('-n A3')),
+        isEmpty,
+        reason:
+            'issue #873: the behavior id must never be created as an '
+            'entity. Dispatched: ${log.join(' | ')}',
+      );
+      expect(
+        log,
+        isEmpty,
+        reason:
+            'the fallback disengaged before any spawn — the pipeline '
+            'never ran. Dispatched: ${log.join(' | ')}',
+      );
+      // No green evidence — nothing was generated.
+      expect(
+        await File(fx.cycleLogPath).readAsString(),
+        isNot(contains('## Cycle: A3 (green)')),
+      );
+    });
+  });
 }
