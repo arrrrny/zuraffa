@@ -181,10 +181,18 @@ Canonical memory layout:
 ├── blueprints/
 ├── decisions/
 ├── manifests/
+├── receipts/
 └── context.json
 ```
 
 During the migration period, some internals may still use older storage paths. Use `.zfa/` as the public-facing docs contract and `.zfa.json` as the active config file.
+
+**Receipts (issue #807, proof-carrying generation):** `entity create`,
+`entity add-field` and `make` append a `proof.v1` receipt to
+`.zfa/receipts/` per run; `zfa proof check [paths]` verifies the digests
+against the current tree (exit 1 on drift, `--format=json` for CI). Agents
+should run it before committing regenerated code instead of guessing what
+they clobbered.
 
 ## Search guidance
 

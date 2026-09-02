@@ -38,6 +38,24 @@ jobs:
         # true pure-Dart suite that runs on the Dart SDK only.
         run: dart test test --exclude-tags flutter
 
+  proof_smoke:
+    # Issue #807 (proof-carrying generation): generate a sandbox project,
+    # then fail on unprovenanced or tampered generated-code paths.
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configuring Dart environment
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: "3.13.1"
+      - name: "Get dependencies"
+        run: dart pub get --no-example
+      - name: "Proof smoke (receipts + proof check gate)"
+        run: bash tools/proof_smoke.sh
+
   analyze:
     timeout-minutes: 15
     runs-on: ubuntu-latest

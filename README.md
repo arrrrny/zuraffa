@@ -180,10 +180,42 @@ A useful mental model for humans and AI agents is:
 ├── blueprints/
 ├── decisions/
 ├── manifests/
+├── receipts/
 └── context.json
 ```
 
 During the v5 migration, some internal surfaces may still reference older storage paths. Treat the structure above as the public documentation contract going forward.
+
+---
+
+## Proof-carrying generation (v0)
+
+Every artifact `zfa entity create`, `zfa entity add-field` and `zfa make`
+writes ships with a **generation receipt** in `.zfa/receipts/` — a JSON
+record (schema `proof.v1`) binding it to the command that produced it, the
+generator version, the input context, the entity spec it was generated
+from, and the SHA-256 digest of the exact bytes that landed on disk.
+
+`zfa proof check` re-derives every digest and fails on any artifact that
+cannot prove where it came from:
+
+- **Editing or deleting a generated file** flips the check red with a
+  precise line diff (small files keep a snapshot in the receipt).
+- **A stale-spec artifact** (the entity drifted after generation) is
+  flagged and the receipt names the exact spec delta.
+- Pass coverage roots to **fail on unprovenanced generated-code paths**:
+
+```bash
+zfa proof check lib/src                  # text verdict, exit 1 on drift
+zfa proof check lib/src --format=json    # proof.v1 envelope for CI (#778)
+```
+
+CI recipe (fail on unprovenanced or tampered generated code) — a runnable
+version lives in `tools/proof_smoke.sh`:
+
+```yaml
+- run: dart run bin/zfa.dart proof check lib/src --format=json
+```
 
 ---
 

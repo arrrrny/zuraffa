@@ -1,12 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 import 'package:zorphy/zorphy.dart';
 import '../config/zfa_config.dart';
+import '../core/project/receipt_store.dart';
 import '../utils/entity_field_injector.dart';
 import '../utils/entity_type_validator.dart';
 import '../utils/entity_utils.dart';
 import '../utils/string_utils.dart';
+import '../version.dart';
 
 class EntityCommand {
   static const String fixedEntityOutput = ZfaConfig.fixedEntityOutput;
@@ -291,6 +294,21 @@ ${missing.map((d) => '   • $d').join('\n')}
         );
       }
 
+      // Issue #807: ship the proof with the artifact — a receipt binding
+      // the final bytes (after import fixes/patches) to this run.
+      await _emitReceipt(
+        command: 'entity create',
+        target: result.className,
+        repro: 'zfa entity create ${args.join(' ')}',
+        input: {
+          'fields': fields.map(_formatFieldDisplay).toList(),
+          if (parsed['kind'] != null) 'kind': parsed['kind'],
+          if (entityConfig.autoId) 'autoId': true,
+          if (entityConfig.generateSubtypes) 'generateSubtypes': true,
+        },
+        filePaths: [result.filePath],
+      );
+
       print('✓ Created entity: ${result.filePath}');
       print('\n📋 Next steps:');
       print('  1. Run: zfa build');
@@ -326,6 +344,61 @@ ${missing.map((d) => '   • $d').join('\n')}
     } catch (_) {
       // Best-effort hint only.
     }
+  }
+
+  /// Issue #807: emit a proof.v1 generation receipt for the files this
+  /// entity run wrote, digesting the FINAL on-disk bytes (post-patches).
+  ///
+  /// Best-effort by design: the artifacts already exist, so a receipt
+  /// write failure degrades to a warning instead of failing the run.
+  Future<void> _emitReceipt({
+    required String command,
+    required String target,
+    required String repro,
+    required Map<String, dynamic> input,
+    required List<String> filePaths,
+  }) async {
+    try {
+      final files = <GenerationReceiptFile>[];
+      for (final filePath in filePaths) {
+        final file = File(filePath);
+        if (!file.existsSync()) continue;
+        final bytes = file.readAsBytesSync();
+        final keepSnapshot = bytes.length <= ReceiptStore.maxSnapshotBytes;
+        files.add(
+          GenerationReceiptFile(
+            path: _projectRelativePosix(filePath),
+            action: command == 'entity create' ? 'create' : 'modify',
+            sha256: crypto.sha256.convert(bytes).toString(),
+            bytes: bytes.length,
+            snapshot: keepSnapshot ? file.readAsStringSync() : null,
+          ),
+        );
+      }
+      if (files.isEmpty) return;
+      await ReceiptStore(projectRoot: Directory.current.path).save(
+        GenerationReceipt(
+          command: command,
+          target: target,
+          repro: repro,
+          at: DateTime.now().toUtc(),
+          generatorVersion: version,
+          input: input,
+          files: files,
+        ),
+      );
+    } catch (e) {
+      print('⚠️  Generation receipt not written: $e');
+    }
+  }
+
+  /// Normalizes a possibly-relative file path to a project-relative POSIX
+  /// path so receipts stay portable across machines.
+  String _projectRelativePosix(String filePath) {
+    final rel = p.isAbsolute(filePath)
+        ? p.relative(filePath, from: Directory.current.path)
+        : filePath;
+    return p.normalize(rel).replaceAll('\\', '/');
   }
 
   /// Parses the `--kind` flag: `entity` (default) or
@@ -484,6 +557,20 @@ ${missing.map((d) => '   • $d').join('\n')}
         );
       }
       await _fixEntityImports(result.filePath, fields, fixedEntityOutput);
+
+      // Issue #807: an add-field run rewrites the entity, so it must ship
+      // a NEWER receipt — otherwise the create receipt goes stale-red on a
+      // legitimate mutation.
+      if (!dryRun) {
+        await _emitReceipt(
+          command: 'entity add-field',
+          target: result.className,
+          repro: 'zfa entity add-field ${args.join(' ')}',
+          input: {'fields': fieldStrings},
+          filePaths: [result.filePath],
+        );
+      }
+
       print('✓ Added ${fields.length} field(s) to ${result.className}');
       for (final field in fields) {
         print('  + ${_formatFieldDisplay(field)}');

@@ -1,13 +1,20 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:args/args.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as path;
 import '../../config/zfa_config.dart';
 import '../../utils/string_utils.dart';
 import '../../cli/plugin_loader.dart';
 import '../../package/package_mode.dart';
+import '../../version.dart';
 import '../context/file_system.dart';
 import '../context/progress_reporter.dart';
 import '../transaction/transactional_file_system.dart';
+import '../transaction/file_operation.dart';
 import '../project/project_root.dart';
+import '../project/receipt_store.dart';
 import '../project/run_store.dart';
 import '../project/project_context_store.dart';
 import 'plugin_interface.dart';
@@ -773,6 +780,105 @@ class PluginManager {
     // Save project context
     final contextStore = ProjectContextStore(projectRoot: projectRoot);
     await contextStore.save(ProjectContextStore.defaultContext());
+
+    // Issue #807: ship the proof with the artifacts — one receipt binding
+    // every file this run committed (final on-disk bytes) plus the entity
+    // spec it was generated from.
+    await _persistGenerationReceipt(
+      context: context,
+      transaction: transaction,
+      normalizedArgs: normalizedArgs,
+    );
+  }
+
+  /// Issue #807: writes the `proof.v1` generation receipt for a committed
+  /// make run. Best-effort by design — the artifacts already exist, so a
+  /// receipt failure degrades to a warning instead of failing the run.
+  Future<void> _persistGenerationReceipt({
+    required PluginContext context,
+    required GenerationTransaction transaction,
+    required Map<String, dynamic> normalizedArgs,
+  }) async {
+    try {
+      // Last write wins per path; delete operations have no final bytes
+      // and are skipped by the existsSync guard below.
+      final committed = <String, FileOperation>{};
+      for (final operation in transaction.operations) {
+        committed[operation.path] = operation;
+      }
+
+      final files = <GenerationReceiptFile>[];
+      for (final operation in committed.values) {
+        final absolute = path.isAbsolute(operation.path)
+            ? operation.path
+            : path.join(projectRoot, operation.path);
+        final file = File(absolute);
+        if (!file.existsSync()) continue;
+        final bytes = file.readAsBytesSync();
+        final keepSnapshot = bytes.length <= ReceiptStore.maxSnapshotBytes;
+        files.add(
+          GenerationReceiptFile(
+            path: _normalizeProjectPath(operation.path).replaceAll('\\', '/'),
+            action: operation.type.name,
+            sha256: crypto.sha256.convert(bytes).toString(),
+            bytes: bytes.length,
+            snapshot: keepSnapshot && !_isLikelyBinary(bytes)
+                ? file.readAsStringSync()
+                : null,
+          ),
+        );
+      }
+      if (files.isEmpty) return;
+      files.sort((a, b) => a.path.compareTo(b.path));
+
+      await ReceiptStore(projectRoot: projectRoot).save(
+        GenerationReceipt(
+          command: 'make',
+          target: context.core.name,
+          repro: 'zfa make ${context.core.name}',
+          at: DateTime.now().toUtc(),
+          generatorVersion: version,
+          input: normalizedArgs,
+          spec: _entitySpecReceipt(context.core.name),
+          files: files,
+        ),
+      );
+    } catch (e) {
+      print('⚠️  Generation receipt not written: $e');
+    }
+  }
+
+  /// Binds the receipt to the entity source the run consumed, when it
+  /// exists — the spec whose drift makes downstream artifacts stale.
+  GenerationReceiptSpec? _entitySpecReceipt(String entityName) {
+    final snake = StringUtils.camelToSnake(entityName);
+    final specPath = 'lib/src/domain/entities/$snake/$snake.dart';
+    final specFile = File(
+      path.isAbsolute(specPath) ? specPath : path.join(projectRoot, specPath),
+    );
+    if (!specFile.existsSync()) return null;
+    final bytes = specFile.readAsBytesSync();
+    return GenerationReceiptSpec(
+      path: specPath,
+      sha256: crypto.sha256.convert(bytes).toString(),
+      snapshot:
+          bytes.length <= ReceiptStore.maxSnapshotBytes &&
+              !_isLikelyBinary(bytes)
+          ? specFile.readAsStringSync()
+          : null,
+    );
+  }
+
+  /// Snapshots are diffed as text; refuse to store bytes that are not
+  /// valid UTF-8 text (defensive — generated outputs are text).
+  bool _isLikelyBinary(List<int> bytes) {
+    final probe = bytes.length > 1024 ? bytes.sublist(0, 1024) : bytes;
+    try {
+      utf8.decode(probe);
+      return false;
+    } on FormatException {
+      return true;
+    }
   }
 
   String _normalizeProjectPath(String value) {

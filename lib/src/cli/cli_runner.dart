@@ -15,6 +15,7 @@ import '../commands/entity_command.dart';
 import '../commands/plugin_command.dart' as plugincmd;
 import '../commands/make_command.dart';
 import '../commands/doctor_command.dart';
+import '../commands/proof_command.dart';
 import '../commands/migrate_command.dart';
 import '../commands/update_command.dart';
 import '../commands/build_command.dart';
@@ -101,7 +102,7 @@ class CliRunner {
   /// per-test timeout on the `xray` integration tests (issue #531). We skip
   /// the heavy plugin boot for them; the core commands below are always
   /// registered regardless.
-  static const Set<String> _noPluginCommands = {'xray'};
+  static const Set<String> _noPluginCommands = {'xray', 'proof'};
 
   void _ensureInitialized(List<String> args, {required String? directory}) {
     // If the active project directory changed since the last initialization
@@ -163,6 +164,7 @@ class CliRunner {
     _runner.addCommand(_PluginCommand());
     _runner.addCommand(MakeCommand(registry));
     _runner.addCommand(DoctorCommand());
+    _runner.addCommand(ProofCommand());
     _runner.addCommand(MigrateCommand());
     _runner.addCommand(BuildCommand());
     _runner.addCommand(ManifestCommand(registry));
