@@ -414,6 +414,152 @@ void main() {
     });
   });
 
+  group('bug 737 — the make plan\'s terminal build step is guarded '
+      'per-behavior', () {
+    test(
+      'a unit behavior reports skipped (not generation-error) when the '
+      'plan\'s terminal build step fails against a pre-existing red suite '
+      'while the behavior\'s own test passes after the func scaffold',
+      () async {
+        // Issue #737 state: U3 fresh stub (certified red), a sibling U4
+        // also still red (pending stub). The make plan for U3 is
+        // [tdd func U3, build]; the func scaffold flips U3's test green,
+        // but the terminal `build` step exits non-zero — the project's
+        // build/suite state, not this behavior's generation. Pre-fix, the
+        // pipeline treats the non-zero build exit as a plan failure and
+        // the make reports outcome=generation-error, stopping
+        // `zfa tdd run` on a healthy behavior (the false negative).
+        const description = 'returns 42 when invoked with no args';
+        await fx.seedCertifiedRed(
+          id: 'U3',
+          description: description,
+          testContent: TddFixture.subjectDrivenTest('U3', description),
+        );
+        // The pre-existing red sibling: still red at baseline AND at guard
+        // time (its own pending stub) — never this make's responsibility.
+        await fx.seedCertifiedRed(
+          id: 'U4',
+          description: 'returns 43 when invoked with no args',
+          testContent: TddFixture.subjectDrivenTest(
+            'U4',
+            'returns 43 when invoked with no args',
+          ),
+        );
+        final zfaBin = await fx.writeFakeZfaBin(
+          logPath: fx.fakeZfaLogPath,
+          // The func step scaffolds the subject — U3's own test passes
+          // afterwards.
+          sideEffectByArgv: {
+            'tdd func': fx.overwriteSubjectCommands(
+              'U3',
+              TddFixture.subjectReturning('U3', 42),
+            ),
+          },
+          // The terminal build step fails (exit 1) the way a real
+          // project's build/suite guard fails on pre-existing red state.
+          exitByArgv: {'build': 1},
+        );
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing(
+          makeArgs(fx, id: 'U3', zfaBin: zfaBin),
+        );
+
+        // Pre-fix: exit 1 with outcome=generation-error.
+        expect(exitCode, 0, reason: 'out:\n$out');
+        expect(
+          out,
+          contains(
+            'make: behavior=U3 outcome=skipped feature=${fx.featureName}',
+          ),
+          reason: 'out:\n$out',
+        );
+        // The plan executed end to end: the func step ran (scaffolded) and
+        // the build step ran (and failed — the failure is what the
+        // per-behavior guard tolerates).
+        final log = await fx.readFakeZfaLog();
+        expect(
+          log.where((l) => l.contains('tdd func')),
+          isNotEmpty,
+          reason: 'the func scaffold must have run: ${log.join('\n')}',
+        );
+        expect(
+          log.where((l) => l.contains('build')),
+          isNotEmpty,
+          reason: 'the build step must have run: ${log.join('\n')}',
+        );
+        // Green evidence appended for U3 (the #694 skip-transition shape:
+        // exit 0, run loop proceeds).
+        final cycleLog = await File(fx.cycleLogPath).readAsString();
+        expect(cycleLog, contains('## Cycle: U3 (green)'));
+      },
+    );
+
+    test('the tolerance never masks a genuinely failed generation: a red '
+        'target test after the failed build still stops with '
+        'generation-error', () async {
+      // Same failed terminal build step — but the func step leaves the
+      // stub unimplemented, so the behavior's own test is still red. The
+      // per-behavior guard must refuse to tolerate and keep the honest
+      // generation-error (safe-failure, never a silent pass).
+      const description = 'returns 42 when invoked with no args';
+      await fx.seedCertifiedRed(
+        id: 'U3',
+        description: description,
+        testContent: TddFixture.subjectDrivenTest('U3', description),
+      );
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        exitByArgv: {'build': 1},
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'U3', zfaBin: zfaBin),
+      );
+
+      expect(exitCode, isNot(0), reason: 'out:\n$out');
+      expect(
+        out,
+        contains('make: behavior=U3 outcome=generation-error'),
+        reason: 'out:\n$out',
+      );
+      final cycleLog = await File(fx.cycleLogPath).readAsString();
+      expect(cycleLog, isNot(contains('## Cycle: U3 (green)')));
+    });
+
+    test('only the terminal build step qualifies: a failed scaffold step '
+        'keeps the honest generation-error', () async {
+      // The func step itself fails — real generation work never ran, so
+      // the per-behavior build tolerance must not engage (the fix is
+      // scoped to the make plan's build/guard logic, issue #737).
+      const description = 'returns 42 when invoked with no args';
+      await fx.seedCertifiedRed(
+        id: 'U3',
+        description: description,
+        testContent: TddFixture.subjectDrivenTest('U3', description),
+      );
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        exitByArgv: {'tdd func': 3},
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'U3', zfaBin: zfaBin),
+      );
+
+      expect(exitCode, isNot(0), reason: 'out:\n$out');
+      expect(
+        out,
+        contains('make: behavior=U3 outcome=generation-error'),
+        reason: 'out:\n$out',
+      );
+      final cycleLog = await File(fx.cycleLogPath).readAsString();
+      expect(cycleLog, isNot(contains('## Cycle: U3 (green)')));
+    });
+  });
+
   group('US3 — regression guard via the full suite', () {
     test('U15/U17/A7: clean guard → green entry records both target-test '
         'pass and full-suite pass', () async {
@@ -1113,8 +1259,18 @@ void main() {
       );
     });
 
-    test('A15: a failed build after a successful compose → '
-        'generation-error, no green entry', () async {
+    test('A15 (amended by issue #737): a failed terminal build after a '
+        'successful compose takes the per-behavior skip transition when the '
+        'behavior\'s own test passes — outcome=skipped, green entry', () async {
+      // Issue #737 amended the terminal-build contract for EVERY make
+      // plan shape (the composition plan included — the composition
+      // path hits the same pre-existing-red suite in phase 2): a
+      // non-zero terminal `build` step is only fatal when the
+      // behavior's own test fails. The compose step succeeded and the
+      // acceptance subject's test passes, so the build failure —
+      // unattributable to this make — is tolerated and the make takes
+      // the #694 skip transition instead of the #737 false-negative
+      // `generation-error` stop.
       await seedAcceptanceWithGreenUnit(fx);
       final zfaBin = await fx.writeFakeZfaBin(
         logPath: fx.fakeZfaLogPath,
@@ -1132,11 +1288,18 @@ void main() {
         makeArgs(fx, id: 'A-100', zfaBin: zfaBin),
       );
 
-      expect(exitCode, isNot(0), reason: out);
-      expect(out, contains('generation-error'));
+      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(
+        out,
+        contains(
+          'make: behavior=A-100 outcome=skipped feature=${fx.featureName}',
+        ),
+        reason: 'out:\n$out',
+      );
+      expect(out, contains('issue #737'));
       expect(
         await File(fx.cycleLogPath).readAsString(),
-        isNot(contains('## Cycle: A-100 (green)')),
+        contains('## Cycle: A-100 (green)'),
       );
     });
   });

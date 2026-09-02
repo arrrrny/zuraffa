@@ -23,7 +23,15 @@
 ///   5. Executes the plan via [PipelineRunner], capturing every
 ///      invocation as a [GenerationStep] (FR-006). Misfire-stop on
 ///      unexpressible behaviors (US4) or failing generation steps
-///      (US4.AC2).
+///      (US4.AC2) — with one per-behavior guard (issue #737): a
+///      failure of the plan's TERMINAL `build` step is tolerated when
+///      the CURRENT behavior's own test passes (the profile `single`
+///      command) after the generation steps ran. The build step
+///      validates the whole project, so it can fail on pre-existing
+///      red suite state the make is not responsible for; grading the
+///      behavior per-behavior (the #694 skip transition,
+///      `outcome=skipped`) instead of `generation-error` keeps
+///      `zfa tdd run` off a false negative.
 ///   6. Runs the target test via the profile `single` command and
 ///      requires a PASS (FR-007). Then runs the full suite via the
 ///      profile `suite` command and requires no NEW failures that are
@@ -60,6 +68,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/generation_plan.dart';
+import '../models/red_classification.dart';
 import '../services/artifact_registry.dart';
 import '../services/composition_planner.dart';
 import '../services/composition_targets.dart';
@@ -287,6 +296,10 @@ class MakeCommand extends Command<void> {
     // ---------------------------------------------------------------
     PipelineResult? pipelineResult;
     var postRun = driftRun;
+    // Issue #737: set when the plan's terminal `build` step failed but
+    // the per-behavior guard tolerated it (the behavior's own test
+    // passes) — the make then takes the #694 skip transition.
+    var buildStepTolerated = false;
     if (!alreadyGreen) {
       // 6. Plan the minimal generation (FR-005).
       final summary = BehaviorSummary.fromRecord(
@@ -360,54 +373,97 @@ class MakeCommand extends Command<void> {
         return;
       }
 
-      // Misfire-stop on generation failure (FR-004, US4.AC2).
+      // Misfire-stop on generation failure (FR-004, US4.AC2) — with the
+      // issue #737 per-behavior guard for the plan's terminal build
+      // step.
       if (!pipelineResult.completed) {
         final idx = pipelineResult.firstFailureIndex;
         final failed = idx >= 0 && idx < pipelineResult.steps.length
             ? pipelineResult.steps[idx]
             : null;
-        print(
-          'zfa tdd make: generation step failed at index $idx'
-          '${failed != null ? ' (${failed.purpose})' : ''}:',
+        // Issue #737: the plan's terminal `build` step validates the
+        // WHOLE project (build_runner + analyze over the full tree), so
+        // it can exit non-zero for reasons this behavior's generation
+        // is not responsible for — e.g. a pre-existing red suite (the
+        // pending U* stubs) or build-config noise. The pipeline
+        // (FR-006) treats any non-zero exit as a plan failure; grading
+        // that failure as `generation-error` is a false negative when
+        // the generation steps themselves succeeded and the CURRENT
+        // behavior's test passes. The guard is per-behavior BY
+        // CONSTRUCTION: only the terminal `build` step qualifies (an
+        // earlier failure means real generation work never ran), and
+        // the behavior's own test must pass right now. Anything else
+        // keeps the honest `generation-error` stop (safe-failure,
+        // never a silent pass).
+        final toleratedRun = await _toleratedTerminalBuildFailure(
+          runner: runner,
+          plan: effectivePlan,
+          result: pipelineResult,
+          singleTemplate: singleTemplate,
+          testPath: testPath,
+          testName: testName,
+          workingDirectory: cwd,
         );
-        if (failed != null) {
-          print('   command: `${failed.command}`');
-          print('   exit: ${failed.exitCode}');
-          print('   output (tail):');
-          final tail = failed.output.length > 800
-              ? failed.output.substring(failed.output.length - 800)
-              : failed.output;
-          print(tail.split('\n').take(20).join('\n'));
+        if (toleratedRun != null) {
+          print(
+            '   terminal build step failed: `${failed!.command}` '
+            '(exit ${failed.exitCode}).',
+          );
+          print(
+            "   per-behavior check: the behavior's own test passes — the "
+            'build failure is not attributable to this make (issue #737 '
+            'per-behavior guard); taking the #694 skip transition.',
+          );
+          postRun = toleratedRun;
+          buildStepTolerated = true;
+        } else {
+          print(
+            'zfa tdd make: generation step failed at index $idx'
+            '${failed != null ? ' (${failed.purpose})' : ''}:',
+          );
+          if (failed != null) {
+            print('   command: `${failed.command}`');
+            print('   exit: ${failed.exitCode}');
+            print('   output (tail):');
+            final tail = failed.output.length > 800
+                ? failed.output.substring(failed.output.length - 800)
+                : failed.output;
+            print(tail.split('\n').take(20).join('\n'));
+          }
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: MakeOutcome.generationError,
+            feature: target.featureName,
+          );
+          exitCode = 1;
+          return;
         }
-        _printSummary(
-          behavior: record.behaviorId,
-          outcome: MakeOutcome.generationError,
-          feature: target.featureName,
-        );
-        exitCode = 1;
-        return;
       }
 
-      // 8. Target test post-generation (FR-007).
-      postRun = await runner.runSingle(
-        singleTemplate: singleTemplate,
-        testPath: testPath,
-        testName: testName,
-        workingDirectory: cwd,
-      );
-      print('   target test exit: ${postRun.exitCode}');
-      if (postRun.exitCode != 0) {
-        print(
-          'zfa tdd make: target test still fails after generation '
-          '(exit ${postRun.exitCode}).',
+      // 8. Target test post-generation (FR-007). When the terminal
+      //    build step was tolerated (issue #737) the per-behavior
+      //    guard's passing run IS the post-generation target run.
+      if (!buildStepTolerated) {
+        postRun = await runner.runSingle(
+          singleTemplate: singleTemplate,
+          testPath: testPath,
+          testName: testName,
+          workingDirectory: cwd,
         );
-        _printSummary(
-          behavior: record.behaviorId,
-          outcome: MakeOutcome.generationError,
-          feature: target.featureName,
-        );
-        exitCode = 1;
-        return;
+        print('   target test exit: ${postRun.exitCode}');
+        if (postRun.exitCode != 0) {
+          print(
+            'zfa tdd make: target test still fails after generation '
+            '(exit ${postRun.exitCode}).',
+          );
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: MakeOutcome.generationError,
+            feature: target.featureName,
+          );
+          exitCode = 1;
+          return;
+        }
       }
     }
 
@@ -512,7 +568,9 @@ class MakeCommand extends Command<void> {
     );
     _printSummary(
       behavior: record.behaviorId,
-      outcome: alreadyGreen ? MakeOutcome.skipped : MakeOutcome.green,
+      outcome: alreadyGreen || buildStepTolerated
+          ? MakeOutcome.skipped
+          : MakeOutcome.green,
       feature: target.featureName,
     );
     exitCode = 0;
@@ -559,6 +617,56 @@ class MakeCommand extends Command<void> {
       '(${anchors.map((a) => a.behaviorId).join(', ')})',
     );
     return const CompositionPlanner().plan(summary, anchors);
+  }
+
+  // -------------------------------------------------------------------
+  // Per-behavior guard for the make plan's terminal build step
+  // (issue #737).
+  // -------------------------------------------------------------------
+
+  /// The per-behavior guard for the make plan's terminal `build` step
+  /// (issue #737). Returns the passing target-test [RunRecord] when the
+  /// tolerance engages, null otherwise (the honest `generation-error`
+  /// stop stands).
+  ///
+  /// The plan's terminal `build` step validates the WHOLE project, so
+  /// its non-zero exit can reflect pre-existing red suite state or
+  /// build-config noise rather than this behavior's generation. The
+  /// tolerance engages only when ALL of the following hold:
+  ///
+  ///   - the pipeline failed at the plan's TERMINAL step (an earlier
+  ///     failure means real generation work never ran — no tolerance);
+  ///   - that step is a `build` step (the #737 scope: the make plan's
+  ///     build/guard logic only);
+  ///   - the CURRENT behavior's own test — the profile `single`
+  ///     command, e.g. `dart test test/tdd/u3_test.dart` — runs and
+  ///     passes right now (the same per-behavior check the TDD loop is
+  ///     built on; it also compiles the scaffolded subject, so broken
+  ///     generated code still fails here).
+  ///
+  /// Anything else (launch failure, red target test, non-build step)
+  /// returns null: safe-failure, never a silent pass.
+  Future<RunRecord?> _toleratedTerminalBuildFailure({
+    required SingleTestRunner runner,
+    required GenerationPlan plan,
+    required PipelineResult result,
+    required String singleTemplate,
+    required String testPath,
+    required String testName,
+    required String workingDirectory,
+  }) async {
+    final idx = result.firstFailureIndex;
+    if (idx < 0 || idx != plan.steps.length - 1) return null;
+    final args = plan.steps[idx].args;
+    if (args.isEmpty || args.first != 'build') return null;
+    final run = await runner.runSingle(
+      singleTemplate: singleTemplate,
+      testPath: testPath,
+      testName: testName,
+      workingDirectory: workingDirectory,
+    );
+    if (!run.startedProcess || run.exitCode != 0) return null;
+    return run;
   }
 
   /// The behavior description the planner will see. The fixture's
