@@ -175,22 +175,18 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         ? MockBuilder(outputDir: outputDir, options: options, fileSystem: fs)
         : mockBuilder;
 
-    // If mocks were explicitly requested, always generate/append
+    // If mocks were explicitly requested, always generate/append.
+    //
+    // Issue #770: an explicit mock request must never be a silent no-op.
+    // The stale presentation-only gate here returned [] when no data-layer
+    // plugin was active — even though the user explicitly asked for mocks —
+    // which made `zfa mock create --name X` (and the positional
+    // `zfa mock X`) generate zero files while reporting success. The builder
+    // itself is standalone-safe: #417 already made the mock-datasource path
+    // emit the datasource interface it needs, and the data-only path has
+    // always generated.
     if (config.generateMock || config.generateMockDataOnly) {
-      // For standalone mock data generation, we can proceed without other layers.
-      if (config.generateMockDataOnly) {
-        return builder.generate(config);
-      }
-
-      // For presentation-only workflows, we only generate mocks if we are also
-      // generating the data layer OR if we are in append mode (which implies existence).
-      if (config.generateData ||
-          config.generateDataSource ||
-          config.generateRepository ||
-          config.appendToExisting) {
-        return builder.generate(config);
-      }
-      return [];
+      return builder.generate(config);
     }
 
     // If not explicitly requested, only run if we are appending to existing mocks

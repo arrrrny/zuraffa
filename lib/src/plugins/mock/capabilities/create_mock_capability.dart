@@ -19,6 +19,19 @@ class CreateMockCapability implements ZuraffaCapability {
     'type': 'object',
     'properties': {
       'name': {'type': 'string', 'description': 'Name of the mock target'},
+      // Issue #770: default to the canonical CRUD method set used by the
+      // di/usecase/test/state/controller/datasource/repository plugins and
+      // by MockPlugin.generateWithContext (#294). With an empty method set
+      // the generated mock datasource implements the datasource interface
+      // without any members and fails analyze with
+      // non_abstract_class_inherits_abstract_member.
+      'methods': {
+        'type': 'array',
+        'items': {'type': 'string'},
+        'default': ['get', 'update', 'toggle'],
+        'description':
+            'List of methods for the mock datasource (get,create,update,delete,list,watch,getList,watchList,toggle)',
+      },
       'dataOnly': {
         'type': 'boolean',
         'description': 'Generate mock data only',
@@ -109,6 +122,11 @@ class CreateMockCapability implements ZuraffaCapability {
     final domain = args['domain'];
     final params = args['params'];
     final returns = args['returns'];
+    // Issue #770: semantic default for direct execute() callers that omit
+    // the key — same canonical set as the schema default and
+    // MockPlugin.generateWithContext (#294). Explicit values are honored.
+    final methods = (args['methods'] as List?)?.cast<String>() ??
+        const ['get', 'update', 'toggle'];
 
     final config = GeneratorConfig(
       name: name,
@@ -117,6 +135,7 @@ class CreateMockCapability implements ZuraffaCapability {
       domain: domain,
       paramsType: params,
       returnsType: returns,
+      methods: methods,
       generateMock: !dataOnly,
       generateMockDataOnly: dataOnly,
       dryRun: dryRun,
