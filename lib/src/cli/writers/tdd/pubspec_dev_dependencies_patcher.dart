@@ -16,23 +16,31 @@ class PubspecDevDependenciesPatcher {
   // does NOT provide — `flutter_test` wraps test_api/matcher, not the
   // `test` runner package. Without an explicit `test` dependency, fresh
   // Flutter projects could not compile their generated tests.
+  //
+  // Bug #755: `mutation_test` was pinned at `^1.0.0`, but the toolchain's
+  // own MutationVerifier (lib/src/plugins/tdd/services/mutation_verifier
+  // .dart:235,255) parses v1.8.0+ reports — the generated baseline was
+  // internally inconsistent out of the box. Bumped to `^1.8.0` so the
+  // pin matches the verifier. `coverage` bumped to `^1.15.1` (current
+  // latest per pub.dev at merge time). `mocktail` dropped: generated
+  // test templates use zuraffa's native mocks (lib/src/mock/mock.dart,
+  // test_builder_entity.dart:6) and never import `package:mocktail`,
+  // so the dev dep was unused bloat.
   static const Map<String, String> flutterDevDependencies = {
     'flutter_test': 'sdk: flutter',
     'test': '^1.0.0',
-    'mocktail': '^1.0.0',
     'build_runner': '^2.4.0',
     'json_serializable': '^6.7.0',
-    'coverage': '^1.6.0',
-    'mutation_test': '^1.0.0',
+    'coverage': '^1.15.1',
+    'mutation_test': '^1.8.0',
   };
 
   static const Map<String, String> dartDevDependencies = {
     'test': '^1.25.0',
-    'mocktail': '^1.0.0',
     'build_runner': '^2.4.0',
     'json_serializable': '^6.7.0',
-    'coverage': '^1.6.0',
-    'mutation_test': '^1.0.0',
+    'coverage': '^1.15.1',
+    'mutation_test': '^1.8.0',
   };
 
   String _renderEntry(String name, String value) {
