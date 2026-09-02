@@ -88,7 +88,15 @@ void main() {
       expect(plan.steps, hasLength(3));
       // The wire step carries the behavior id and the entity name so
       // `zfa tdd wire` can resolve both artifacts.
-      expect(plan.steps[1].args, ['tdd', 'wire', 'B-003', '--entity', 'User']);
+      expect(plan.steps[1].args, [
+        'tdd',
+        'wire',
+        'B-003',
+        '--entity',
+        'User',
+        '--feature',
+        '047-tdd-make',
+      ]);
     });
 
     test('U7: an unmappable behavior yields an unexpressibleReason naming '
@@ -162,7 +170,13 @@ void main() {
         ),
       );
       expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
-      expect(plan.steps.first.args, ['tdd', 'func', 'U1']);
+      expect(plan.steps.first.args, [
+        'tdd',
+        'func',
+        'U1',
+        '--feature',
+        '004-cloud-agent-task-dispatch',
+      ]);
       // Every expressible plan still terminates in a `build` step (U5).
       expect(plan.steps.last.args, contains('build'));
       expect(plan.unexpressibleReason, isNull);
@@ -187,7 +201,13 @@ void main() {
           ),
         );
         expect(plan.isExpressible, isTrue, reason: desc);
-        expect(plan.steps.first.args, ['tdd', 'func', 'B-fn'], reason: desc);
+        expect(plan.steps.first.args, [
+          'tdd',
+          'func',
+          'B-fn',
+          '--feature',
+          'f',
+        ], reason: desc);
       }
     });
 
@@ -335,7 +355,13 @@ void main() {
       expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
       // Pre-fix this was `['make', 'u5', '--no-entity']` — the exact
       // issue #718 dispatch (behavior id as entity name).
-      expect(plan.steps.first.args, ['tdd', 'func', 'U5']);
+      expect(plan.steps.first.args, [
+        'tdd',
+        'func',
+        'U5',
+        '--feature',
+        '001-app-bootstrap',
+      ]);
       expect(plan.steps.last.args, contains('build'));
       expect(plan.unexpressibleReason, isNull);
     });
@@ -352,7 +378,13 @@ void main() {
       );
       expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
       expect(plan.steps, hasLength(2));
-      expect(plan.steps.first.args, ['tdd', 'func', 'U6']);
+      expect(plan.steps.first.args, [
+        'tdd',
+        'func',
+        'U6',
+        '--feature',
+        '001-app-bootstrap',
+      ]);
       expect(plan.steps.last.args, contains('build'));
     });
 
@@ -368,7 +400,13 @@ void main() {
         ),
       );
       expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
-      expect(plan.steps.first.args, ['tdd', 'func', 'U7']);
+      expect(plan.steps.first.args, [
+        'tdd',
+        'func',
+        'U7',
+        '--feature',
+        '001-app-bootstrap',
+      ]);
     });
 
     test('U-718d: a unit behavior keeps its function-intent verb in the '
@@ -382,7 +420,13 @@ void main() {
         ),
       );
       expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
-      expect(plan.steps.first.args, ['tdd', 'func', 'U8']);
+      expect(plan.steps.first.args, [
+        'tdd',
+        'func',
+        'U8',
+        '--feature',
+        '001-app-bootstrap',
+      ]);
       expect(plan.steps.first.purpose, contains('render'));
     });
 
@@ -472,7 +516,15 @@ void main() {
         [
           ['entity', 'create', '-n', 'Todo'],
           ['make', 'Todo'],
-          ['tdd', 'wire', 'A1', '--entity', 'Todo'],
+          [
+            'tdd',
+            'wire',
+            'A1',
+            '--entity',
+            'Todo',
+            '--feature',
+            '001-crud-probe',
+          ],
           ['build'],
         ],
         reason:
@@ -552,10 +604,18 @@ void main() {
         ),
       );
       expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
-      expect(plan.steps.map((s) => s.args), [
+      expect(plan.steps.map((s) => s.args).toList(), [
         ['entity', 'create', '-n', 'Invoice'],
         ['make', 'Invoice'],
-        ['tdd', 'wire', 'A4', '--entity', 'Invoice'],
+        [
+          'tdd',
+          'wire',
+          'A4',
+          '--entity',
+          'Invoice',
+          '--feature',
+          '001-crud-probe',
+        ],
         ['build'],
       ]);
     });
@@ -576,10 +636,18 @@ void main() {
         ),
       );
       expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
-      expect(plan.steps.map((s) => s.args), [
+      expect(plan.steps.map((s) => s.args).toList(), [
         ['entity', 'create', '-n', 'User'],
         ['make', 'User'],
-        ['tdd', 'wire', 'U1', '--entity', 'User'],
+        [
+          'tdd',
+          'wire',
+          'U1',
+          '--entity',
+          'User',
+          '--feature',
+          '090-entity-orch',
+        ],
         ['build'],
       ]);
     });
@@ -596,8 +664,8 @@ void main() {
         ),
       );
       expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
-      expect(plan.steps.map((s) => s.args), [
-        ['tdd', 'func', 'U3'],
+      expect(plan.steps.map((s) => s.args).toList(), [
+        ['tdd', 'func', 'U3', '--feature', '090-entity-orch'],
         ['build'],
       ]);
     });

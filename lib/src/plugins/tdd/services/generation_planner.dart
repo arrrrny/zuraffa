@@ -183,7 +183,17 @@ class GenerationPlanner {
                   '$traced (behavior ${summary.behaviorId})',
             ),
             GenerationStepSpec(
-              args: ['tdd', 'wire', summary.behaviorId, '--entity', traced],
+              // Bug #877: propagate --feature (same ambiguity class as
+              // the func/entity wire spawns).
+              args: [
+                'tdd',
+                'wire',
+                summary.behaviorId,
+                '--entity',
+                traced,
+                '--feature',
+                summary.feature,
+              ],
               purpose:
                   'wire subject of behavior ${summary.behaviorId} to '
                   'entity $traced',
