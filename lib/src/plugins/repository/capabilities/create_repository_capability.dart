@@ -23,19 +23,27 @@ class CreateRepositoryCapability implements ZuraffaCapability {
         'description': 'Name of the entity (e.g. User)',
       },
 
+      // Issue #766: the defaults below MUST match the positional
+      // `zfa repository <Entity>` CLI path (RepositoryCommand: data true,
+      // datasource true, methods get,update). The previous schema defaults
+      // (`data: false`, `datasource: false`, no methods default) made the
+      // documented minimal invocation `zfa repository create --name X` a
+      // silent no-op: `isEntityBased` was false and the plugin generated
+      // zero files while reporting success.
       'data': {
         'type': 'boolean',
         'description': 'Generate repository implementation',
-        'default': false,
+        'default': true,
       },
       'datasource': {
         'type': 'boolean',
         'description': 'Generate data sources along with repository',
-        'default': false,
+        'default': true,
       },
       'methods': {
         'type': 'array',
         'items': {'type': 'string'},
+        'default': ['get', 'update'],
         'description':
             'List of methods (get,create,update,delete,list,watch,getList,watchList)',
       },
@@ -101,9 +109,14 @@ class CreateRepositoryCapability implements ZuraffaCapability {
   }) async {
     final name = args['name'];
     final outputDir = plugin.outputDir;
-    final generateData = args['data'] ?? false;
-    final generateDataSource = args['datasource'] ?? false;
-    final methods = (args['methods'] as List?)?.cast<String>() ?? [];
+    // Issue #766: semantic defaults for direct execute() callers (MCP, API
+    // consumers) that omit the keys entirely — same contract as the schema
+    // defaults and the positional CLI path. Explicit values, including
+    // `false` / an empty method list, are always honored.
+    final generateData = args['data'] ?? true;
+    final generateDataSource = args['datasource'] ?? true;
+    final methods = (args['methods'] as List?)?.cast<String>() ??
+        const ['get', 'update'];
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 
