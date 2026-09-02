@@ -7,9 +7,10 @@
 /// `corpus: features=<n> done=<n> waived=<n> stopped=<n> not_ready=<n>
 /// pending=<n> dropped=<n> gaps=<n> result=<complete|incomplete|
 /// corrupt-state|no-manifest>[ resume_at=<feature>]`. Exit 0 exactly
-/// when every manifest feature is done or waived (not-ready features
-/// block completion — reported, never silently absorbed); 1 incomplete;
-/// 2 no-manifest (usage-level runner error); 3 corrupt-state.
+/// when every manifest feature is done or waived AND the ledger holds
+/// no open gaps (bug #846: open gaps refuse a `complete` verdict);
+/// 1 incomplete; 2 no-manifest (usage-level runner error); 3
+/// corrupt-state.
 library;
 
 import 'dart:io';
@@ -200,11 +201,42 @@ class CorpusStatusCommand extends Command<void> {
     for (final gap in totals.blocking) {
       print('   blocking: ${gap.id} ${gap.feature} ${gap.step} ${gap.outcome}');
     }
+
+    // Per-feature coverage (bug #846): complete/total from the plan's
+    // traceability artifact, when the feature was planned through the
+    // coverage gate. Features planned before the gate simply have no
+    // line — reported, never invented.
+    for (final feature in manifest.features) {
+      final coverage = _traceabilityCoverage(projectRoot, feature.name);
+      if (coverage != null) {
+        print(
+          '   coverage: ${feature.name} '
+          '${coverage.complete}/${coverage.total} '
+          '(manual: ${coverage.manual})',
+        );
+      }
+    }
+
+    final openGapRefusal = totals.open.isNotEmpty;
+    if (openGapRefusal) {
+      // Bug #846: open gaps refuse a `complete` verdict even when every
+      // feature is done/waived — reported, never silently absorbed.
+      print(
+        '   open gaps: ${totals.open.length} — corpus refuses '
+        '`complete` while gaps are open:',
+      );
+      for (final gap in totals.open) {
+        print(
+          '   open gap: ${gap.id} ${gap.feature} ${gap.step} ${gap.outcome}',
+        );
+      }
+    }
     final complete =
         notReady == 0 &&
         pending == 0 &&
         stopped == 0 &&
-        done + waived == manifest.features.length;
+        done + waived == manifest.features.length &&
+        !openGapRefusal;
 
     _printSummary(
       features: manifest.features.length,
@@ -259,4 +291,41 @@ class CorpusStatusCommand extends Command<void> {
       '${resumeAt != null ? ' resume_at=$resumeAt' : ''}',
     );
   }
+
+  /// Per-feature coverage counts from the plan's traceability artifact
+  /// (`specs/<feature>/tdd/traceability.md`), or null when the feature
+  /// has no traceability plan (pre-gate features are reported as such —
+  /// never invented).
+  static _FeatureCoverage? _traceabilityCoverage(
+    String projectRoot,
+    String feature,
+  ) {
+    final file = File(
+      p.join(projectRoot, 'specs', feature, 'tdd', 'traceability.md'),
+    );
+    if (!file.existsSync()) return null;
+    final content = file.readAsStringSync();
+    final match = RegExp(r'statements:\s*(\d+)').firstMatch(content);
+    final manual = RegExp(r'manual:\s*(\d+)').firstMatch(content);
+    if (match == null || manual == null) return null;
+    final total = int.parse(match.group(1)!);
+    final manualCount = int.parse(manual.group(1)!);
+    return _FeatureCoverage(
+      total: total,
+      complete: total - manualCount,
+      manual: manualCount,
+    );
+  }
+}
+
+class _FeatureCoverage {
+  const _FeatureCoverage({
+    required this.total,
+    required this.complete,
+    required this.manual,
+  });
+
+  final int total;
+  final int complete;
+  final int manual;
 }

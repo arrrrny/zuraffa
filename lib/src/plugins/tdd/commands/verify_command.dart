@@ -28,6 +28,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/mutation_auditor.dart';
+import '../services/requirement_scan.dart';
 import '../services/tdd_timeout.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
@@ -113,6 +114,26 @@ class VerifyCommand extends Command<void> {
     }
     final featureDir = p.join(cwd, 'specs', featureName);
 
+    // Drift gate (bug #846): when the plan artifact carries a
+    // traceability hash, the spec contract must be unchanged — a spec
+    // edited after plan means the behaviors no longer prove the
+    // contract. Drift = exit 3, re-plan required (checked BEFORE the
+    // audit: auditing against a stale contract proves nothing).
+    final drift = await _traceabilityDrift(featureDir);
+    if (drift != null) {
+      // print() — the machine channel tests/corpus parse (stdout.writeln
+      // is invisible to CliRunner's capture zone).
+      print('   drift: ${drift.reason}');
+      print(
+        'zfa tdd verify: DRIFT — ${drift.reason}\n'
+        '   re-plan required: re-run `zfa tdd plan $featureName '
+        '--project <dir>` to refresh the traceability matrix, then '
+        're-verify.',
+      );
+      exitCode = 3;
+      return;
+    }
+
     stdout.writeln('zfa tdd verify: running mutation audit...');
     stdout.writeln('   feature: $featureName');
     stdout.writeln('   feature_dir: $featureDir');
@@ -157,6 +178,36 @@ class VerifyCommand extends Command<void> {
       );
     }
   }
+}
+
+/// The traceability drift between the plan artifact and the current
+/// spec contract, or null when verify may proceed (no plan artifact —
+/// legacy features keep working — or the hash still matches).
+Future<_TraceabilityDrift?> _traceabilityDrift(String featureDir) async {
+  final traceFile = File(p.join(featureDir, 'tdd', 'traceability.md'));
+  final specFile = File(p.join(featureDir, 'spec.md'));
+  if (!await traceFile.exists() || !await specFile.exists()) return null;
+
+  final stored = TraceabilityMatrix.extractSpecHash(
+    await traceFile.readAsString(),
+  );
+  if (stored == null) return null; // no machine block — nothing to check.
+
+  final specMd = await specFile.readAsString();
+  final scan = const RequirementScanner().scan(specMd);
+  final current = SpecContractHash.compute(scan);
+  if (current == stored) return null;
+  return _TraceabilityDrift(
+    reason:
+        'spec.md changed after plan '
+        '(traceability hash $stored -> $current)',
+  );
+}
+
+class _TraceabilityDrift {
+  const _TraceabilityDrift({required this.reason});
+
+  final String reason;
 }
 
 /// `--feature` lands in a filesystem path, so it must stay a single plain

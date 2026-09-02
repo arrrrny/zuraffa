@@ -332,11 +332,27 @@ class CorpusRunCommand extends Command<void> {
       );
 
       _printReport(manifest: manifest, progress: progress, totals: totals);
+      final openGapRefusal = totals.open.isNotEmpty;
       final result = stoppedAtFeature != null
           ? 'stopped'
-          : _complete(manifest, progress)
+          : _complete(manifest, progress) && !openGapRefusal
           ? 'complete'
           : 'incomplete';
+      if (_complete(manifest, progress) && openGapRefusal) {
+        // Bug #846: every feature done/waived is NOT enough — the corpus
+        // refuses a `complete` verdict while open gaps exist in the
+        // ledger (a done feature's gap is reported, never absorbed).
+        print(
+          '   open gaps: ${totals.open.length} — corpus refuses '
+          '`complete` while gaps are open:',
+        );
+        for (final gap in totals.open) {
+          print(
+            '   open gap: ${gap.id} ${gap.feature} ${gap.step} '
+            '${gap.outcome}',
+          );
+        }
+      }
       _printSummary(
         features: manifest.features.length,
         result: result,
@@ -360,7 +376,9 @@ class CorpusRunCommand extends Command<void> {
   }
 
   /// Every manifest feature is done or waived (not-ready features block
-  /// completion — they are reported, never silently absorbed).
+  /// completion — they are reported, never silently absorbed). The open
+  /// ledger gap refusal (bug #846) is applied by the caller on top of
+  /// this check.
   static bool _complete(CorpusManifest manifest, CorpusProgress progress) {
     for (final feature in manifest.features) {
       if (!feature.ready) return false;

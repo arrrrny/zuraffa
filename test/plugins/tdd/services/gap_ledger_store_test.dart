@@ -224,6 +224,74 @@ void main() {
       expect(!stamped.isAfter(after), isTrue);
     });
   });
+
+  group('GapLedgerTotals.open (bug #846)', () {
+    test('open counts unresolved gaps regardless of feature state', () {
+      final entries = [
+        const GapLedgerEntry.gap(
+          id: 'gap-001',
+          at: '2026-09-01T00:00:00Z',
+          feature: 'f-done',
+          step: 'verify',
+          outcome: 'fail_survived',
+          expectedResult: 'pass',
+        ),
+        const GapLedgerEntry.gap(
+          id: 'gap-002',
+          at: '2026-09-01T00:01:00Z',
+          feature: 'f-pending',
+          step: 'run',
+          outcome: 'stopped',
+          expectedResult: 'complete',
+          status: 'filed',
+        ),
+        const GapLedgerEntry.resolution(
+          id: 'res-001',
+          at: '2026-09-01T00:02:00Z',
+          feature: 'f-done',
+          resolves: 'gap-003',
+        ),
+        const GapLedgerEntry.gap(
+          id: 'gap-003',
+          at: '2026-09-01T00:03:00Z',
+          feature: 'f-done',
+          step: 'run',
+          outcome: 'stopped',
+          expectedResult: 'complete',
+        ),
+      ];
+      final totals = GapLedgerTotals.fromEntries(
+        entries,
+        doneFeatures: {'f-done'},
+      );
+      // gap-001 sits on a DONE feature: not blocking (pre-#846
+      // semantics) but still OPEN — the corpus must refuse `complete`
+      // while it exists.
+      expect(totals.blocking.map((g) => g.id), ['gap-002']);
+      expect(totals.open.map((g) => g.id), ['gap-001', 'gap-002']);
+      // gap-003 is resolved by res-001: open nowhere, blocking nowhere.
+    });
+
+    test('resolved gaps are neither open nor blocking', () {
+      final entries = [
+        const GapLedgerEntry.gap(
+          id: 'gap-001',
+          at: '2026-09-01T00:00:00Z',
+          feature: 'f1',
+          step: 'verify',
+          outcome: 'fail_survived',
+          expectedResult: 'pass',
+          status: 'resolved',
+        ),
+      ];
+      final totals = GapLedgerTotals.fromEntries(
+        entries,
+        doneFeatures: const <String>{},
+      );
+      expect(totals.open, isEmpty);
+      expect(totals.blocking, isEmpty);
+    });
+  });
 }
 
 /// The serialized block of the first ledger entry (between the first `{`

@@ -159,13 +159,18 @@ class GapLedgerEntry {
   }
 }
 
-/// FR-008 ledger totals: found / filed / merged / blocking.
+/// FR-008 ledger totals: found / filed / merged / blocking + open (bug
+/// #846: `open` counts every unresolved gap regardless of feature state
+/// — a done feature's open gap still refuses a `complete` corpus
+/// verdict; the per-feature coverage numbers live in the plan's
+/// traceability artifact).
 class GapLedgerTotals {
   const GapLedgerTotals({
     required this.found,
     required this.filed,
     required this.merged,
     required this.blocking,
+    required this.open,
   });
 
   /// Gap entries recorded (resolutions excluded).
@@ -180,6 +185,10 @@ class GapLedgerTotals {
   /// Unresolved gaps whose feature is not done/waived — the ones blocking
   /// corpus completion (named in the final report).
   final List<GapLedgerEntry> blocking;
+
+  /// Every unresolved gap, regardless of feature state (bug #846: the
+  /// corpus refuses a `complete` verdict while ANY of these is open).
+  final List<GapLedgerEntry> open;
 
   /// Compute totals from [entries]; [doneFeatures] are the features whose
   /// corpus state is done or waived. A gap is resolved when its status is
@@ -200,8 +209,9 @@ class GapLedgerTotals {
         gap.status == 'merged' ||
         resolvedIds.contains(gap.id);
 
-    final blocking = gaps
-        .where((gap) => !isResolved(gap) && !doneFeatures.contains(gap.feature))
+    final open = gaps.where((gap) => !isResolved(gap)).toList();
+    final blocking = open
+        .where((gap) => !doneFeatures.contains(gap.feature))
         .toList();
 
     return GapLedgerTotals(
@@ -209,6 +219,7 @@ class GapLedgerTotals {
       filed: gaps.where((g) => g.issueLink != null).length,
       merged: gaps.where((g) => g.status == 'merged').length,
       blocking: blocking,
+      open: open,
     );
   }
 }

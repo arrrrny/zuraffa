@@ -1,4 +1,14 @@
 /// `zfa tdd plan <feature>` — read `spec.md`, emit `tdd/test-list.md`.
+///
+/// Bug #846 (coverage gate): plan PROVES every FR/AC requirement
+/// statement maps to a behavior row (or to an explicit `(manual:
+/// owner)` declaration) before anything is written. A requirement that
+/// produces no behavior row = exit 2 with the offending spec line and a
+/// fix instruction — and NO artifacts (an incomplete plan never emits a
+/// test list that would silently claim completeness). On success the
+/// plan artifact carries the traceability matrix plus the spec-contract
+/// hash (`tdd/traceability.md`); verify/corpus re-check that hash and
+/// report drift (exit 3) when the spec is edited after planning.
 library;
 
 import 'dart:io';
@@ -6,6 +16,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../services/requirement_scan.dart';
 import '../services/spec_parser.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
@@ -64,6 +75,31 @@ class PlanCommand extends Command<void> {
       throw StateError('zfa tdd plan: cannot derive behaviors');
     }
 
+    // Coverage gate (bug #846): every FR/AC requirement statement must
+    // map to a behavior row or to a valid `(manual: owner)` declaration.
+    // Any gap = exit 2, no artifacts, offending line + fix instruction.
+    final scan = const RequirementScanner().scan(specMd);
+    final gaps = const CoverageGate().evaluate(scan, behaviors);
+    if (gaps.isNotEmpty) {
+      // The gate decision goes through print() — the machine-readable
+      // channel corpus/CI parse (same convention as the corpus
+      // commands' summary lines).
+      print(
+        'zfa tdd plan: coverage gate FAILED — ${gaps.length} requirement '
+        'statement(s) produce no behavior row (spec: $specPath). No test '
+        'list was written; fix the spec and re-run `zfa tdd plan`.',
+      );
+      for (final gap in gaps) {
+        print(
+          '  ${gap.statement.id} (line ${gap.statement.lineNo}): '
+          '${gap.statement.line}',
+        );
+        print('    ${gap.fix}');
+      }
+      exitCode = 2;
+      return;
+    }
+
     final outDir = Directory('$repoRoot/specs/$feature/tdd');
     final outFile = File('${outDir.path}/test-list.md');
     final existing = <String, Behavior>{};
@@ -111,6 +147,15 @@ class PlanCommand extends Command<void> {
 
     await outDir.create(recursive: true);
     await outFile.writeAsString(_render(feature, reconciled));
+
+    // The completeness proof (bug #846): behavior <-> FR/AC matrix with
+    // the spec-contract hash, re-checked by verify/corpus for drift.
+    final matrix = const TraceabilityMatrix().render(
+      feature: feature,
+      scan: scan,
+      behaviors: reconciled,
+    );
+    await File(p.join(outDir.path, 'traceability.md')).writeAsString(matrix);
 
     final aCount = reconciled
         .where((b) => b.kind == BehaviorKind.acceptance)

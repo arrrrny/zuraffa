@@ -1,4 +1,11 @@
 /// `SpecParser` — reads a `spec.md` and emits a list of behaviors.
+///
+/// Bug #846: acceptance ids are document-wide sequential (AC-1, AC-2, …
+/// across user stories — the literal scenario number restarts per story
+/// and duplicate criterion ids made traceability ambiguous), and a
+/// scenario whose header line carries `(manual: <owner>)` is an explicit
+/// non-automatable declaration: it is excluded from the automated loop
+/// (no behavior row) and shows up in the traceability matrix as manual.
 library;
 
 import '../models/behavior.dart';
@@ -29,6 +36,12 @@ class SpecParser {
   static bool isUiAcceptance(String description) =>
       uiAcceptanceIntent.hasMatch(description);
 
+  /// The inline non-automatable declaration on a scenario header line
+  /// (bug #846): a manual scenario consumes an AC number but emits no
+  /// row, so the id alignment is preserved even when scenarios are
+  /// human-executed.
+  static final RegExp manualScenarioMarker = RegExp(r'\(manual:\s*[^)]*\)');
+
   List<Behavior> parse(String feature, String specMd) {
     final acceptance = _extractAcceptance(feature, specMd);
     if (acceptance.isEmpty) {
@@ -57,8 +70,18 @@ class SpecParser {
         scenarioBuffer = <String>[];
         return null;
       }
+      // Document-wide id (bug #846): every strict scenario consumes one
+      // AC number, manual ones included, so the ids stay aligned with
+      // the requirement scan even when a manual scenario emits no row.
       aIdx += 1;
       final description = _extractScenarioText(scenarioBuffer.join('\n'));
+      // Bug #846: a manual scenario consumes the AC number but emits no
+      // row — the id stays aligned with the requirement scan, the
+      // evidence simply isn't automated.
+      if (manualScenarioMarker.hasMatch(scenarioBuffer.first)) {
+        scenarioBuffer = <String>[];
+        return null;
+      }
       final behavior = Behavior(
         id: 'A$aIdx',
         feature: feature,
@@ -70,7 +93,9 @@ class SpecParser {
             ? BehaviorKind.widget
             : BehaviorKind.acceptance,
         description: description,
-        sourceCriterion: 'AC-${header.group(1)}',
+        // Bug #846: AC source criterion aligned to the document-wide AC
+        // number consumed above (id alignment with the requirement scan).
+        sourceCriterion: 'AC-$aIdx',
         target: '',
       );
       scenarioBuffer = <String>[];
