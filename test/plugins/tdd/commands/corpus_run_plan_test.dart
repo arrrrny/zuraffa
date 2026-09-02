@@ -300,7 +300,7 @@ void main() {
           '- f1-base: FR-1, FR-2\n',
         );
         final out = await drive(plan: plan);
-        expect(exitCode, 0, reason: out); // gaps do not stop the run
+        expect(exitCode, 1, reason: out); // incomplete: open gaps
         final ledger = await fx.readLedger();
         final planGaps = ledger
             .whereType<Map<String, dynamic>>()
@@ -342,7 +342,7 @@ void main() {
       );
       await drive(plan: plan);
       final second = await drive(plan: plan);
-      expect(exitCode, 0, reason: second);
+      expect(exitCode, 1, reason: second); // incomplete: open gaps persist
       final ledger = await fx.readLedger();
       final planGaps = ledger
           .whereType<Map<String, dynamic>>()
