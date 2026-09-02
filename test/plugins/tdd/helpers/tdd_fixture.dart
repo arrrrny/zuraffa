@@ -881,6 +881,10 @@ int ${symbol}_value() => $value;
     return path;
   }
 
+  /// Directory the fake bins live in (usable as a PATH override for
+  /// entrypoint-resolution tests).
+  String get fakeBinDirPath => p.join(root.path, 'fake_bin');
+
   /// Write a fake `zfa` shell script to a directory under the fixture
   /// root and return its path. Tests pass this via `--zfa-bin` to
   /// drive the pipeline runner against a deterministic stub.
@@ -892,14 +896,17 @@ int ${symbol}_value() => $value;
   /// [sideEffectByArgv] lets the script create / write files for
   /// tests that need the pipeline to actually mutate the project
   /// (e.g. turn the target test green by overwriting the subject).
+  /// [name] lets a test install several distinct fakes (e.g. a `zfa`
+  /// on PATH plus a `dart-vm` stand-in).
   Future<String> writeFakeZfaBin({
     required String logPath,
+    String name = 'zfa',
     Map<String, int> exitByArgv = const {},
     Map<String, List<String>> sideEffectByArgv = const {},
   }) async {
-    final binDir = Directory(p.join(root.path, 'fake_bin'));
+    final binDir = Directory(fakeBinDirPath);
     await binDir.create(recursive: true);
-    final scriptPath = p.join(binDir.path, 'zfa');
+    final scriptPath = p.join(binDir.path, name);
 
     // Build a shell script. The log captures argv joined with a
     // separator so each invocation is one line. Side effects and

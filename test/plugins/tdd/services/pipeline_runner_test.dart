@@ -439,4 +439,132 @@ esac
       },
     );
   });
+
+  // -------------------------------------------------------------------------
+  // Entrypoint auto-resolution contract (bug #864).
+  //
+  // Tiers 2-4 were previously unobservable from tests (only the
+  // `--zfa-bin` override was exercised), which is how the AOT native
+  // executable doubling slipped through: for a `dart compile exe`
+  // binary, `Platform.script` IS the executable, so the tier-4 fallback
+  // spawned `<exe> <exe> <args>` and every generation step printed
+  // usage and exited 64. These tests inject the platform facts
+  // (`Platform.script` path, `Platform.resolvedExecutable`, `PATH`) so
+  // every tier is pinned without spawning a real Dart VM.
+  // -------------------------------------------------------------------------
+  group('entrypoint auto-resolution (bug #864)', () {
+    Future<GenerationPlan> singleStepPlan(TddFixture fx) async {
+      return GenerationPlan(
+        behaviorId: 'B-001',
+        feature: fx.featureName,
+        sourceCriterion: 'FR-006',
+        steps: [
+          GenerationStepSpec(args: ['make', 'Todo'], purpose: 'p1'),
+        ],
+      );
+    }
+
+    test(
+      'U14: native AOT executable resolves to itself — the binary path is never doubled',
+      () async {
+        final logPath = fx.fakeZfaLogPath;
+        // AOT shape: no source script, no snapshot — Platform.script IS
+        // the executable. The fake bin doubles as the "compiled" binary.
+        final fakeExe = await fx.writeFakeZfaBin(logPath: logPath);
+
+        const runner = PipelineRunner();
+        final result = await runner.runPlan(
+          plan: await singleStepPlan(fx),
+          workingDirectory: fx.root.path,
+          scriptPathOverride: fakeExe,
+          resolvedExecutableOverride: fakeExe,
+          pathEnvOverride: '/nonexistent-zfa-path-dir',
+        );
+
+        expect(result.completed, isTrue);
+        expect(result.entrypoint, fakeExe);
+        final log = await fx.readFakeZfaLog();
+        expect(log, hasLength(1));
+        // The child saw `make Todo` — NOT `<exe> <exe> make Todo`.
+        expect(log.single, 'make Todo');
+      },
+    );
+
+    test('U15: tier 2 — running from source keeps dart <bin/zfa.dart>', () async {
+      final logPath = fx.fakeZfaLogPath;
+      final fakeDart = await fx.writeFakeZfaBin(logPath: logPath, name: 'dart-vm');
+      final sourceScript = p.join(fx.root.path, 'bin', 'zfa.dart');
+      await File(sourceScript).create(recursive: true);
+
+      const runner = PipelineRunner();
+      final result = await runner.runPlan(
+        plan: await singleStepPlan(fx),
+        workingDirectory: fx.root.path,
+        scriptPathOverride: sourceScript,
+        resolvedExecutableOverride: fakeDart,
+        pathEnvOverride: '/nonexistent-zfa-path-dir',
+      );
+
+      expect(result.completed, isTrue);
+      expect(result.entrypoint, '$fakeDart $sourceScript');
+      final log = await fx.readFakeZfaLog();
+      expect(log, hasLength(1));
+      // The fake VM received the source script as its first argument.
+      expect(log.single, '$sourceScript make Todo');
+    });
+
+    test('U16: tier 3 — zfa on PATH wins over the snapshot fallback', () async {
+      final logPath = fx.fakeZfaLogPath;
+      final fakeZfa = await fx.writeFakeZfaBin(logPath: logPath);
+      final fakeDart = await fx.writeFakeZfaBin(logPath: logPath, name: 'dart-vm');
+      // Snapshot-shaped script path (a tier-2 miss) while PATH holds zfa.
+      final snapshotPath = p.join(fx.root.path, 'snapshots', 'zfa.dart.snapshot');
+      await File(snapshotPath).create(recursive: true);
+
+      const runner = PipelineRunner();
+      final result = await runner.runPlan(
+        plan: await singleStepPlan(fx),
+        workingDirectory: fx.root.path,
+        scriptPathOverride: snapshotPath,
+        resolvedExecutableOverride: fakeDart,
+        pathEnvOverride: fx.fakeBinDirPath,
+      );
+
+      expect(result.completed, isTrue);
+      expect(result.entrypoint, fakeZfa);
+      final log = await fx.readFakeZfaLog();
+      expect(log, hasLength(1));
+      expect(log.single, 'make Todo');
+    });
+
+    test(
+      'U17: tier 4 — compiled snapshot keeps the dart <snapshot> shape',
+      () async {
+        final logPath = fx.fakeZfaLogPath;
+        final fakeDart =
+            await fx.writeFakeZfaBin(logPath: logPath, name: 'dart-vm');
+        final snapshotPath =
+            p.join(fx.root.path, 'snapshots', 'zfa.dart.snapshot');
+        await File(snapshotPath).create(recursive: true);
+
+        const runner = PipelineRunner();
+        final result = await runner.runPlan(
+          plan: await singleStepPlan(fx),
+          workingDirectory: fx.root.path,
+          scriptPathOverride: snapshotPath,
+          resolvedExecutableOverride: fakeDart,
+          pathEnvOverride: '/nonexistent-zfa-path-dir',
+        );
+
+        expect(result.completed, isTrue);
+        expect(result.entrypoint, '$fakeDart $snapshotPath');
+        final log = await fx.readFakeZfaLog();
+        expect(log, hasLength(1));
+        // The fake VM received the snapshot as its first argument — the
+        // global-activate shape is preserved (never collapsed to the
+        // bare executable just because the basename is not zfa.dart).
+        expect(log.single, '$snapshotPath make Todo');
+      },
+    );
+  });
 }

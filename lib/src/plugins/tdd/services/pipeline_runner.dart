@@ -8,8 +8,9 @@
 ///      URL ending in `/bin/zfa.dart` or `/bin/zuraffa.dart`) → `zfa`
 ///      on PATH → fallback to `Platform.resolvedExecutable` with
 ///      `Platform.script` path (handles compiled-snapshot / global-activate
-///      case) (FR-004 / U11). An unresolvable entrypoint misfire-
-///      stops before any step executes (U12).
+///      case; a native AOT executable resolves to itself alone — bug
+///      #864 — the binary path is never doubled). An unresolvable
+///      entrypoint misfire-stops before any step executes (U12).
 ///   2. For each [GenerationStepSpec], run `zfa <args...>` via
 ///      `Process.run` in the target project's working directory
 ///      (FR-004 / U13). Capture the full resolved command line, the
@@ -120,12 +121,23 @@ class PipelineRunner {
   /// verdict — `resource-limit` (signal death, the OOM class) or
   /// `timeout` (our deadline) — plus resource telemetry (RSS before/after,
   /// wall clock); it is never graded as a bare generation failure.
+  ///
+  /// [scriptPathOverride], [resolvedExecutableOverride] and
+  /// [pathEnvOverride] are platform-fact seams (bug #864): they replace
+  /// `Platform.script.toFilePath()`, `Platform.resolvedExecutable` and
+  /// `Platform.environment['PATH']` during entrypoint resolution so
+  /// tests can pin every tier (source, PATH, compiled snapshot, native
+  /// executable) without spawning a real VM. Production callers omit
+  /// them and get the real platform values.
   Future<PipelineResult> runPlan({
     required GenerationPlan plan,
     required String workingDirectory,
     String? zfaBinOverride,
     String? feature,
     Duration? timeout,
+    String? scriptPathOverride,
+    String? resolvedExecutableOverride,
+    String? pathEnvOverride,
   }) async {
     if (!plan.isExpressible) {
       return PipelineResult(
@@ -139,6 +151,9 @@ class PipelineRunner {
       zfaBinOverride: zfaBinOverride,
       workingDirectory: workingDirectory,
       feature: feature,
+      scriptPathOverride: scriptPathOverride,
+      resolvedExecutableOverride: resolvedExecutableOverride,
+      pathEnvOverride: pathEnvOverride,
     );
 
     final memoryLimitKb = resolveStepMemoryLimitKb(Platform.environment);
@@ -243,15 +258,25 @@ class PipelineRunner {
   ///   3. `zfa` on PATH — verified to be on PATH via
   ///      a direct lookup of the executable in `PATH`.
   ///   4. Fallback: `Platform.script` is a `file://` URL but the basename
-  ///      is not `zfa.dart`/`zuraffa.dart` (compiled snapshot or global
-  ///      activate). Use `dart <Platform.script.toFilePath()>`.
+  ///      is not `zfa.dart`/`zuraffa.dart`.
+  ///      - Native AOT executable (bug #864): `Platform.script` IS
+  ///        `Platform.resolvedExecutable` — the entrypoint is the
+  ///        executable alone (no doubled binary path).
+  ///      - Otherwise (compiled snapshot / global activate): use
+  ///        `dart <Platform.script.toFilePath()>`.
   ///
   /// Misfire-stop (U12): throws [PipelineResolutionError] when nothing
   /// resolves.
+  ///
+  /// The `*Override` parameters are platform-fact test seams (bug #864);
+  /// see [runPlan].
   Future<_ResolvedEntrypoint> _resolveEntrypoint({
     required String? zfaBinOverride,
     required String workingDirectory,
     String? feature,
+    String? scriptPathOverride,
+    String? resolvedExecutableOverride,
+    String? pathEnvOverride,
   }) async {
     // 1. Explicit override.
     if (zfaBinOverride != null && zfaBinOverride.isNotEmpty) {
@@ -270,16 +295,17 @@ class PipelineRunner {
     }
 
     // 2. Running CLI from source (Platform.script).
-    final script = Platform.script;
-    if (script.scheme == 'file') {
-      final scriptPath = script.toFilePath();
+    final resolvedExecutable =
+        resolvedExecutableOverride ?? Platform.resolvedExecutable;
+    final String? scriptPath = scriptPathOverride ?? _platformScriptPath();
+    if (scriptPath != null) {
       final base = p.basename(scriptPath);
       // bin/zfa.dart or bin/zuraffa.dart — invoke via the dart binary.
       if (base == 'zfa.dart' || base == 'zuraffa.dart') {
         return _ResolvedEntrypoint(
-          executable: Platform.resolvedExecutable,
+          executable: resolvedExecutable,
           arguments: [scriptPath],
-          displayCommand: '${Platform.resolvedExecutable} $scriptPath',
+          displayCommand: '$resolvedExecutable $scriptPath',
         );
       }
       // Non-standard basename: fall through to PATH lookup (tier 3),
@@ -287,7 +313,7 @@ class PipelineRunner {
     }
 
     // 3. Resolve the concrete `zfa` executable from PATH without a shell.
-    final pathEntrypoint = _findExecutableOnPath('zfa');
+    final pathEntrypoint = _findExecutableOnPath('zfa', pathEnv: pathEnvOverride);
     if (pathEntrypoint != null) {
       return _ResolvedEntrypoint(
         executable: pathEntrypoint,
@@ -295,15 +321,26 @@ class PipelineRunner {
       );
     }
 
-    // 4. Final fallback: Platform.resolvedExecutable + Platform.script.
+    // 4. Final fallback: resolvedExecutable + Platform.script.
     //    Catches compiled-snapshot and global-activate scenarios where
     //    Platform.script basename is not zfa.dart/zuraffa.dart.
-    if (script.scheme == 'file') {
-      final scriptPath = script.toFilePath();
+    if (scriptPath != null) {
+      // Bug #864: a native AOT executable (`dart compile exe`) has no
+      // source script and no snapshot — `Platform.script` IS the
+      // executable itself. The old unconditional `<dart> <scriptPath>`
+      // shape doubled the binary path: the child received the exe path
+      // as its first argument, printed usage, and every generation step
+      // failed with exit 64. Invoke the executable alone. The
+      // `<resolvedExecutable> <scriptPath>` shape stays for real
+      // script/snapshot cases (source, JIT snapshot, global activate),
+      // which is why the equality check — not the basename — decides.
+      final isNativeExecutable = p.equals(scriptPath, resolvedExecutable);
       return _ResolvedEntrypoint(
-        executable: Platform.resolvedExecutable,
-        arguments: [scriptPath],
-        displayCommand: '${Platform.resolvedExecutable} $scriptPath',
+        executable: resolvedExecutable,
+        arguments: isNativeExecutable ? const [] : [scriptPath],
+        displayCommand: isNativeExecutable
+            ? resolvedExecutable
+            : '$resolvedExecutable $scriptPath',
       );
     }
 
@@ -317,8 +354,15 @@ class PipelineRunner {
     );
   }
 
-  String? _findExecutableOnPath(String name) {
-    final path = Platform.environment['PATH'];
+  /// The file path behind `Platform.script`, or null when the running
+  /// script is not a `file://` URL.
+  String? _platformScriptPath() {
+    final script = Platform.script;
+    return script.scheme == 'file' ? script.toFilePath() : null;
+  }
+
+  String? _findExecutableOnPath(String name, {String? pathEnv}) {
+    final path = pathEnv ?? Platform.environment['PATH'];
     if (path == null || path.isEmpty) return null;
     final extensions = Platform.isWindows
         ? (Platform.environment['PATHEXT'] ?? '.EXE;.BAT;.CMD')
