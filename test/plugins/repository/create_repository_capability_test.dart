@@ -35,31 +35,37 @@ void main() {
   // command still reported success. The `create` subcommand must produce the
   // same compilable trio as the positional path by default.
   group('issue #766 — repository create default flags', () {
-    test('minimal invocation generates interface, implementation and datasource',
-        () async {
-      final result = await capability.execute({'name': 'Widget'});
+    test(
+      'minimal invocation generates interface, implementation and datasource',
+      () async {
+        final result = await capability.execute({'name': 'Widget'});
 
-      expect(result.success, isTrue);
-      final paths = result.files;
-      expect(
-        paths.where((p) => p.endsWith('domain/repositories/widget_repository.dart')),
-        hasLength(1),
-        reason: 'the abstract repository interface must be generated',
-      );
-      expect(
-        paths.where(
-            (p) => p.endsWith('data/repositories/data_widget_repository.dart')),
-        hasLength(1),
-        reason: 'the data repository implementation must be generated',
-      );
-      expect(
-        paths.where(
-            (p) => p.endsWith('data/datasources/widget/widget_datasource.dart')),
-        hasLength(1),
-        reason:
-            'the datasource interface imported by the implementation must be generated',
-      );
-    });
+        expect(result.success, isTrue);
+        final paths = result.files;
+        expect(
+          paths.where(
+            (p) => p.endsWith('domain/repositories/widget_repository.dart'),
+          ),
+          hasLength(1),
+          reason: 'the abstract repository interface must be generated',
+        );
+        expect(
+          paths.where(
+            (p) => p.endsWith('data/repositories/data_widget_repository.dart'),
+          ),
+          hasLength(1),
+          reason: 'the data repository implementation must be generated',
+        );
+        expect(
+          paths.where(
+            (p) => p.endsWith('data/datasources/widget/widget_datasource.dart'),
+          ),
+          hasLength(1),
+          reason:
+              'the datasource interface imported by the implementation must be generated',
+        );
+      },
+    );
 
     test('generated trio is internally consistent (imports resolve)', () async {
       final result = await capability.execute({'name': 'Widget'});
@@ -72,7 +78,8 @@ void main() {
         (f) => f.path.endsWith('data/repositories/data_widget_repository.dart'),
       );
       final datasource = generated.firstWhere(
-        (f) => f.path.endsWith('data/datasources/widget/widget_datasource.dart'),
+        (f) =>
+            f.path.endsWith('data/datasources/widget/widget_datasource.dart'),
       );
 
       expect(interface.content, contains('abstract class WidgetRepository'));
@@ -120,17 +127,20 @@ void main() {
       );
     });
 
-    test('explicit opt-out (data:false, methods:[]) is still honored', () async {
-      final result = await capability.execute({
-        'name': 'Widget',
-        'data': false,
-        'datasource': false,
-        'methods': <String>[],
-      });
+    test(
+      'explicit opt-out (data:false, methods:[]) is still honored',
+      () async {
+        final result = await capability.execute({
+          'name': 'Widget',
+          'data': false,
+          'datasource': false,
+          'methods': <String>[],
+        });
 
-      // Custom-usecase request with nothing to generate: zero files. The
-      // CLI-level zero-file guard (issue #769) reports this honestly.
-      expect(result.files, isEmpty);
-    });
+        // Custom-usecase request with nothing to generate: zero files. The
+        // CLI-level zero-file guard (issue #769) reports this honestly.
+        expect(result.files, isEmpty);
+      },
+    );
   });
 }

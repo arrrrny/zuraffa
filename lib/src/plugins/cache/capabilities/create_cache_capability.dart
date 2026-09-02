@@ -85,8 +85,7 @@ class CreateCacheCapability implements ZuraffaCapability {
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
     try {
-      final files =
-          await _generateFiles(args, dryRun: args['dryRun'] ?? false);
+      final files = await _generateFiles(args, dryRun: args['dryRun'] ?? false);
 
       return ExecutionResult(
         success: true,

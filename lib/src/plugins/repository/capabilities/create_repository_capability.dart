@@ -115,8 +115,8 @@ class CreateRepositoryCapability implements ZuraffaCapability {
     // `false` / an empty method list, are always honored.
     final generateData = args['data'] ?? true;
     final generateDataSource = args['datasource'] ?? true;
-    final methods = (args['methods'] as List?)?.cast<String>() ??
-        const ['get', 'update'];
+    final methods =
+        (args['methods'] as List?)?.cast<String>() ?? const ['get', 'update'];
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 
