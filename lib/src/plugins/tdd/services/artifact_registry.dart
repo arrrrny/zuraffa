@@ -19,6 +19,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/artifact_record.dart';
 import '../models/ownership.dart';
+import 'run_state_store.dart';
 
 /// Thrown when a file exists on disk but the registry has no record for it
 /// (FR-008). The caller must leave the file untouched.
@@ -242,10 +243,13 @@ class ArtifactRegistry {
       'feature': p.basename(featureDir),
       'records': records.map((r) => r.toJson()).toList(),
     });
-    // Use a write-and-rename to avoid partial writes.
+    // Use a write-and-rename to avoid partial writes. Bug #828: the tmp
+    // file is fsync'd before the rename so a registered artifact pair
+    // survives the crash that interrupts the run.
     final tmpFile = File('${file.path}.tmp');
     try {
       await tmpFile.writeAsString(raw);
+      await flushToDisk(tmpFile);
       await tmpFile.rename(file.path);
     } catch (_) {
       if (await tmpFile.exists()) await tmpFile.delete();

@@ -883,19 +883,25 @@ void main() {
     },
   );
 
-  test('bug 734: phase-2b refactor gates per behavior on that behavior\'s '
-      'own test being green — a behavior without green evidence is skipped '
-      'with a recorded reason while the rest of the pass completes', () async {
-    // The phase-2 refactor pass used to spawn refactor for EVERY green
-    // behavior unconditionally. A green claim whose own test is not
-    // certified green (a brownfield/seeded state or a lost cycle-log —
-    // the bug #682 reconciliation keeps green claims that lack green
-    // evidence) would ride into refactor and die at the post-spawn
-    // evidence misfire (runner-error), stopping the pass for every
-    // other behavior. The per-behavior gate skips it BEFORE the spawn
-    // with a recorded reason (the behavior is not yet green) and the
-    // rest of the pass completes; the skipped behavior stays GREEN and
-    // resumable — never a fake DONE (FR-008).
+  test('bug 734 + bug 828: an evidence-less green claim is re-driven from '
+      'make (the earliest incomplete step) instead of riding into refactor; '
+      'the phase-2b per-behavior gate stays as the defensive net', () async {
+    // Bug #734 built a pre-spawn skip gate: a green claim whose own test
+    // is not certified green (a brownfield/seeded state or a lost
+    // cycle-log) used to ride into refactor and die at the post-spawn
+    // evidence misfire (runner-error), stopping the pass for every other
+    // behavior — so the gate skipped it BEFORE the spawn with a recorded
+    // reason and the honest stop named it.
+    //
+    // Bug #828 supersedes that band-aid with real resume reconciliation:
+    // a green claim WITHOUT green evidence no longer survives the merge —
+    // it demotes to the highest state the evidence backs (red, when a red
+    // entry exists) and the resume re-drives make, which re-certifies the
+    // behavior's own test green honestly. The re-certified behavior then
+    // refactors in the phase-2b pass like any other green behavior. The
+    // per-behavior gate remains in the driver as a defensive net (the
+    // #682 bootstrap promotion can still present a green state whose red
+    // half is missing, which misfires at the evidence gate honestly).
     await fx.seedTestList([
       (
         id: 'A1',
@@ -922,7 +928,7 @@ void main() {
     // U2 sits pending WITH gen artifacts so the greens' phase-1
     // refactors defer (bug #734) and actually reach the phase-2b pass.
     // The green claims carry gen artifacts too (bug #720 keeps their
-    // state-implied refactor re-entry) — registry records only.
+    // state-implied re-entries) — registry records only.
     await fx.registerBehavior(
       id: 'A1',
       description: 'the entity exists and is buildable.',
@@ -934,8 +940,9 @@ void main() {
       writeTestFile: false,
     );
     await fx.registerBehavior(id: 'U2', description: 'pending stub behavior');
-    // A1: a green claim WITHOUT green evidence — its own test is not
-    // certified green. U1: a green claim WITH complete evidence.
+    // A1: a green claim WITHOUT green evidence — bug #828 reconciles it
+    // to red (its red evidence stands) and the resume re-drives make.
+    // U1: a green claim WITH complete evidence keeps its resume semantics.
     await fx.seedRedEvidence('A1');
     await fx.seedRedEvidence('U1');
     await fx.seedGreenEvidence('U1');
@@ -945,42 +952,37 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, 1, reason: out);
-    // The gate skipped A1's refactor before any spawn; U2 was driven to
-    // green and refactored, and U1's refactor completed the pass.
+    expect(exitCode, 0, reason: out);
+    // A1 re-enters at make (re-certification), its phase-1 refactor
+    // defers while U2 sits pending with artifacts (bug #734), and the
+    // re-certified refactor completes in the phase-2b pass.
     expect(fx.stepInvocations(), [
+      'make A1',
       'gen U2',
       'verify-red U2',
       'make U2',
       'refactor U2',
+      'refactor A1',
       'refactor U1',
     ]);
+    expect(out, contains('[run] A1 make -> green'));
     expect(out, contains('[run] A1 refactor -> deferred (phase 2)'));
     expect(out, contains('[run] U1 refactor -> deferred (phase 2)'));
-    expect(out, contains('[run] A1 refactor -> skipped (own test not green)'));
-    expect(
-      out,
-      contains(
-        'no green evidence entry for "A1" in tdd/cycle-log.md — make must '
-        'certify the behavior\'s own test green before refactor',
-      ),
-    );
-    expect(out, isNot(contains('[run] A1 refactor -> clean')));
+    expect(out, isNot(contains('[run] A1 refactor -> skipped')));
+    expect(out, contains('[run] A1 refactor -> clean (phase 2)'));
     expect(out, contains('[run] U1 refactor -> clean (phase 2)'));
-    // The run stops honestly with the skipped behavior still GREEN and
-    // the resume path named (FR-007) — bounded, resumable progress.
-    expect(out, contains('refactor skipped for A1'));
+    // The whole feature completes: every behavior re-certified honestly.
     expect(
       out,
       contains(
-        'run: feature=$feature result=stopped pending=0 red=0 green=1 '
-        'done=2 stopped_at=A1:refactor',
+        'run: feature=$feature result=complete pending=0 red=0 green=0 '
+        'done=3',
       ),
       reason: out,
     );
     final state = await readState();
     expect(state['behavior_states'] as Map<String, dynamic>, {
-      'A1': 'green',
+      'A1': 'done',
       'U1': 'done',
       'U2': 'done',
     });
