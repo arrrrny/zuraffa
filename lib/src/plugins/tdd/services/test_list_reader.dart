@@ -162,6 +162,22 @@ class TestListReadException implements Exception {
   String toString() => message;
 }
 
+/// One entity row of the test list's `## Key entities` section (bug
+/// #829): the entity name plus the spec-carried `name: Type` fields plan
+/// extracted from the spec's Key Entities prose (empty when none).
+class DeclaredEntity {
+  const DeclaredEntity({required this.name, this.fields = const []});
+
+  final String name;
+
+  /// `name:Type` field strings exactly as plan rendered them (e.g.
+  /// `name:String`), ready for `zfa entity create --field <f>`.
+  final List<String> fields;
+
+  @override
+  String toString() => 'DeclaredEntity(name: $name, fields: $fields)';
+}
+
 class TestListReader {
   const TestListReader(this.featureDir);
 
@@ -179,6 +195,7 @@ class TestListReader {
     final lines = (await file.readAsString()).split('\n');
     final rows = <BehaviorRow>[];
     BehaviorKind? kind;
+    var inEntitySection = false;
     var deprecatedDialectWarned = false;
     for (var i = 0; i < lines.length; i++) {
       final raw = lines[i];
@@ -201,8 +218,14 @@ class TestListReader {
         } else {
           kind = null;
         }
+        // Bug #829: the Key entities section carries ENTITY rows, not
+        // behavior rows — skip them instead of rejecting them as
+        // malformed (plan writes the section; the reader is the single
+        // format contract and must speak every shape plan writes).
+        inEntitySection = header.startsWith('key entities');
         continue;
       }
+      if (inEntitySection) continue;
       if (!trimmed.startsWith('|')) continue;
       final cells = _splitRow(trimmed).map((c) => c.trim()).toList();
       if (cells.length > 1 && cells.last.isEmpty) cells.removeLast();
@@ -236,6 +259,55 @@ class TestListReader {
       }
     }
     return rows;
+  }
+
+  /// Parse the `## Key entities` section plan writes (bug #829). Lenient
+  /// by design: a list without the section yields an empty list (every
+  /// pre-829 artifact), and rows that do not carry a name cell are
+  /// skipped rather than rejected — the section is an extraction aid,
+  /// not a behavior contract.
+  Future<List<DeclaredEntity>> readEntities() async {
+    final file = File(p.join(featureDir, 'tdd', 'test-list.md'));
+    if (!await file.exists()) return const [];
+    final lines = (await file.readAsString()).split('\n');
+    final entities = <DeclaredEntity>[];
+    var inEntitySection = false;
+    for (final raw in lines) {
+      final trimmed = raw.trim();
+      if (trimmed.startsWith('## ')) {
+        inEntitySection = trimmed
+            .substring(3)
+            .toLowerCase()
+            .startsWith('key entities');
+        continue;
+      }
+      if (!inEntitySection) continue;
+      if (!trimmed.startsWith('|')) continue;
+      final cells = _splitRow(trimmed).map((c) => c.trim()).toList();
+      if (cells.length < 3) continue; // needs a leading empty + 2 cells
+      final first = cells[1];
+      // Separator and header rows.
+      if (first.isEmpty || RegExp(r'^-+$').hasMatch(first)) continue;
+      if (first.toLowerCase() == 'entity') continue;
+      final fields = cells.length > 2 && cells[2].isNotEmpty
+          ? cells[2]
+                .split(',')
+                .map(
+                  // Normalize `name: Type` to `name:Type` — the argv
+                  // shape `zfa entity create --field` parses.
+                  (f) {
+                    final idx = f.indexOf(':');
+                    if (idx < 0) return f.trim();
+                    return '${f.substring(0, idx).trim()}:'
+                        '${f.substring(idx + 1).trim()}';
+                  },
+                )
+                .where((f) => f.isNotEmpty)
+                .toList()
+          : const <String>[];
+      entities.add(DeclaredEntity(name: first, fields: fields));
+    }
+    return entities;
   }
 
   /// Parse one data row. Returns the row (null when the line is a row

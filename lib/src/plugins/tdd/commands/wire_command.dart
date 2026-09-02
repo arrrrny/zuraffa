@@ -42,6 +42,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
+import '../services/entity_lookup.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -215,7 +216,7 @@ class WireCommand extends Command<void> {
     //    step ran first — plan order guarantees it; a manual run that
     //    skipped it is misfire-stopped here, not papered over).
     // -------------------------------------------------------------
-    final entityFile = await _locateEntityFile(cwd, entityName);
+    final entityFile = await locateEntityFile(cwd, entityName);
     if (entityFile == null) {
       print(
         'zfa tdd wire: no generated entity "$entityName" found under '
@@ -238,7 +239,16 @@ class WireCommand extends Command<void> {
     final raw = await subjectFile.readAsString();
     final stub = _stubSignature.firstMatch(raw);
     if (stub == null) {
-      if (raw.contains('UnimplementedError')) {
+      // Bug #829: classify by EXECUTABLE code, not raw text. The gen'd
+      // stub header carries "Throws [UnimplementedError] until the real
+      // implementation lands" — a doc comment `tdd func`'s scaffold
+      // preserves — so a raw contains() misclassified every
+      // pipeline-generated subject as "an unrecognized shape" and
+      // refused it. Only an UnimplementedError thrown in CODE (a shape
+      // this command did not generate — U-W5's hand-written class, for
+      // example) is refused; a mention confined to comments means the
+      // subject was already implemented by a pipeline step.
+      if (_hasExecutableUnimplementedError(raw)) {
         print(
           'zfa tdd wire: subject at "$recordedSubject" carries an '
           'UnimplementedError in an unrecognized shape — refusing to '
@@ -257,7 +267,7 @@ class WireCommand extends Command<void> {
         );
         exitCode = 0;
       }
-      if (raw.contains('UnimplementedError')) {
+      if (_hasExecutableUnimplementedError(raw)) {
         exitCode = 1;
       }
       return;
@@ -297,6 +307,18 @@ class WireCommand extends Command<void> {
     r'throw UnimplementedError\(',
     multiLine: true,
   );
+
+  /// Whether [raw] carries an `UnimplementedError` in EXECUTABLE code —
+  /// any line whose `//` comment suffix is stripped first (bug #829:
+  /// doc-comment mentions are gen-stub residue, not a stub body).
+  static bool _hasExecutableUnimplementedError(String raw) {
+    for (final line in raw.split('\n')) {
+      final commentIdx = line.indexOf('//');
+      final code = commentIdx >= 0 ? line.substring(0, commentIdx) : line;
+      if (code.contains('UnimplementedError')) return true;
+    }
+    return false;
+  }
 
   /// The behavior description the record carries — the record's own
   /// parsing contract ([ArtifactRecord.descriptionSegment]), shared with
@@ -363,42 +385,6 @@ $returnType $functionName() {$body}
     }
     final rel = p.relative(entityFile, from: p.join(cwd, 'lib'));
     return 'package:$pkg/$rel';
-  }
-
-  /// Locate the generated entity file for [entityName]: the canonical
-  /// `<entities>/<snake>/<snake>.dart` path first, then a recursive
-  /// search fallback (config can move the output dir).
-  Future<String?> _locateEntityFile(String cwd, String entityName) async {
-    final snake = _toSnakeCase(entityName);
-    final entitiesRoot = Directory(
-      p.join(cwd, 'lib', 'src', 'domain', 'entities'),
-    );
-    final canonical = File(p.join(entitiesRoot.path, snake, '$snake.dart'));
-    if (await canonical.exists()) return canonical.path;
-    if (!await entitiesRoot.exists()) return null;
-    final target = '$snake.dart';
-    await for (final f in entitiesRoot.list(recursive: true)) {
-      if (f is File && p.basename(f.path) == target) return f.path;
-    }
-    return null;
-  }
-
-  /// Mirror of gen_command's `_toSnakeCase` (CamelCase / dashes →
-  /// snake_case), kept local so wire never imports a command.
-  String _toSnakeCase(String s) {
-    final out = StringBuffer();
-    for (var i = 0; i < s.length; i++) {
-      final c = s[i];
-      if (c == '-' || c == ' ' || c == '_') {
-        out.write('_');
-      } else if (c.toUpperCase() == c && c.toLowerCase() != c && i > 0) {
-        out.write('_');
-        out.write(c.toLowerCase());
-      } else {
-        out.write(c.toLowerCase());
-      }
-    }
-    return out.toString();
   }
 
   Future<_Resolved?> _resolve(

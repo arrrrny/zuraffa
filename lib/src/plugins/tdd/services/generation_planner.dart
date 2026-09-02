@@ -71,12 +71,22 @@ class BehaviorSummary {
   /// (used as the entity slug or preset target).
   final String? target;
 
+  /// Bug #829: the spec Key Entity this behavior's FR traces to (the
+  /// declared entity named in the behavior's description), resolved by
+  /// the make command against the test list's Key entities section.
+  /// Non-null routes a UNIT behavior to the entity pipeline
+  /// (entity create -> make <Entity> -> wire -> build) instead of the
+  /// plain-function surface, so the domain layer is generated instead
+  /// of an empty subject that sidesteps the architecture.
+  final String? entityTraced;
+
   const BehaviorSummary({
     required this.behaviorId,
     required this.feature,
     required this.sourceCriterion,
     required this.description,
     this.target,
+    this.entityTraced,
   });
 
   /// Construct a summary from a registry record.
@@ -84,6 +94,7 @@ class BehaviorSummary {
     ArtifactRecord record, {
     String? description,
     String? target,
+    String? entityTraced,
   }) {
     return BehaviorSummary(
       behaviorId: record.behaviorId,
@@ -91,6 +102,7 @@ class BehaviorSummary {
       sourceCriterion: record.sourceCriterion,
       description: description ?? record.behaviorId,
       target: target,
+      entityTraced: entityTraced,
     );
   }
 }
@@ -143,6 +155,47 @@ class GenerationPlanner {
     //    dashed ids (`U-6`) and acceptance ids keep their existing
     //    routing.
     if (isUnitBehaviorId(summary.behaviorId)) {
+      // Bug #829: a unit behavior whose FR traces to a spec Key Entity
+      // routes to the ENTITY pipeline — the same #609/#610 contract the
+      // acceptance CRUD branch uses, plus the `make <Entity>` step the
+      // issue names (usecases/repos/di — the domain layer the loop must
+      // generate instead of an empty func subject). The `entity create`
+      // step is realized idempotently by make (an existing entity is
+      // reused, never regenerated).
+      final traced = summary.entityTraced;
+      if (traced != null && traced.isNotEmpty) {
+        return GenerationPlan(
+          behaviorId: summary.behaviorId,
+          feature: summary.feature,
+          sourceCriterion: summary.sourceCriterion,
+          steps: [
+            GenerationStepSpec(
+              args: ['entity', 'create', '-n', traced],
+              purpose:
+                  'ensure entity $traced exists for behavior '
+                  '${summary.behaviorId} (idempotent — an existing '
+                  'entity is reused, never overwritten)',
+            ),
+            GenerationStepSpec(
+              args: ['make', traced],
+              purpose:
+                  'generate the use-cases/repositories/DI for entity '
+                  '$traced (behavior ${summary.behaviorId})',
+            ),
+            GenerationStepSpec(
+              args: ['tdd', 'wire', summary.behaviorId, '--entity', traced],
+              purpose:
+                  'wire subject of behavior ${summary.behaviorId} to '
+                  'entity $traced',
+            ),
+            GenerationStepSpec(
+              args: ['build'],
+              purpose:
+                  'build generated code for behavior ${summary.behaviorId}',
+            ),
+          ],
+        );
+      }
       return _functionSurfacePlan(
         summary,
         functionIntentVerb(desc) ?? 'plain-function',

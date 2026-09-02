@@ -106,6 +106,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
 import '../services/cycle_evidence.dart';
+import '../services/entity_lookup.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/run_state_store.dart';
 import '../services/runner.dart';
@@ -340,13 +341,52 @@ class RunCommand extends Command<void> {
     // child is killed and surfaces as a runner-error step result.
     final runner = StepRunner(zfaBin: zfaBin, timeout: timeoutOverride);
 
-    // ---------------------------------------------------------------
-    // 6b. Cache the full-suite baseline ONCE per run (issue #741).
-    // ---------------------------------------------------------------
     String? suiteBaselinePath;
     final anyMakeOutstanding = rows.any(
       (r) => current.behaviorStates[r.id] != BehaviorState.done,
     );
+
+    void applyStop(_Stop stop, RunState state) {
+      if (stop.message != null) print('zfa tdd run: ${stop.message}');
+      _printSummary(
+        feature,
+        stop.result,
+        rows,
+        state,
+        stoppedAt: stop.stoppedAt,
+      );
+      exitCode = stop.exitCode;
+    }
+
+    // ---------------------------------------------------------------
+    // 6a. Phase 0 — spec Key Entities orchestration (bug #829). When
+    //     the test list declares entities (plan extracted them from the
+    //     spec), the driver creates every entity that does not exist
+    //     yet — idempotently: an existing entity file is REUSED, never
+    //     regenerated over hand-tuned fields — and runs `zfa build`
+    //     ONCE, BEFORE any behavior is driven. A feature without
+    //     declared entities runs no phase-0 spawn at all (every pre-829
+    //     run is unchanged).
+    // ---------------------------------------------------------------
+    if (anyMakeOutstanding) {
+      final declaredEntities = await TestListReader(featureDir).readEntities();
+      if (declaredEntities.isNotEmpty) {
+        final stop = await _runEntityPhaseZero(
+          projectRoot: projectRoot,
+          entities: declaredEntities,
+          zfaBin: zfaBin,
+          timeout: timeoutOverride,
+        );
+        if (stop != null) {
+          applyStop(stop, current);
+          return;
+        }
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // 6b. Cache the full-suite baseline ONCE per run (issue #741).
+    // ---------------------------------------------------------------
     if (anyMakeOutstanding) {
       try {
         final suiteTemplate = await const SingleTestRunner().loadSuiteTemplate(
@@ -376,18 +416,6 @@ class RunCommand extends Command<void> {
       } on StateError {
         // No profile / no suite template
       }
-    }
-
-    void applyStop(_Stop stop, RunState state) {
-      if (stop.message != null) print('zfa tdd run: ${stop.message}');
-      _printSummary(
-        feature,
-        stop.result,
-        rows,
-        state,
-        stoppedAt: stop.stoppedAt,
-      );
-      exitCode = stop.exitCode;
     }
 
     // --- Phase 1: the uniform cycle in list order; a make that reports
@@ -1281,6 +1309,134 @@ class RunCommand extends Command<void> {
   // -------------------------------------------------------------------
   // Reporting (FR-009, FR-010).
   // -------------------------------------------------------------------
+
+  /// Bug #829 phase 0 — create every declared entity that does not
+  /// exist yet (idempotent reuse: an existing entity file is never
+  /// regenerated over hand-tuned fields), then run `zfa build` ONCE
+  /// when at least one entity was created. Returns the honest [_Stop]
+  /// when a spawn fails or hangs; null when phase 0 completed (or had
+  /// nothing to do).
+  Future<_Stop?> _runEntityPhaseZero({
+    required String projectRoot,
+    required List<DeclaredEntity> entities,
+    required String? zfaBin,
+    required Duration? timeout,
+  }) async {
+    final entry = zfaBin ?? await StepRunner.defaultZfaBin();
+    final deadline = timeout ?? TddTimeouts.defaultPipelineStep;
+
+    Future<ProcessResult> spawn(List<String> args) {
+      final command = entry.endsWith('.dart')
+          ? ['dart', entry, ...args]
+          : [entry, ...args];
+      return runTimed(
+        command.first,
+        command.sublist(1),
+        workingDirectory: projectRoot,
+        timeout: deadline,
+      );
+    }
+
+    _Stop failedSpawn({required String what, required ProcessResult r}) {
+      _printOutputExcerpt((r.stderr.isEmpty ? r.stdout : r.stderr).toString());
+      return (
+        result: 'runner-error',
+        stoppedAt: 'phase-0:$what',
+        exitCode: _exitRunnerError,
+        message:
+            'phase-0 $what failed (exit ${r.exitCode}) — the run '
+            'stops before any behavior is driven (bug #829).',
+      );
+    }
+
+    var created = 0;
+    for (final entity in entities) {
+      if (await locateEntityFile(projectRoot, entity.name) != null) {
+        print('[run] phase-0 entity ${entity.name} -> reused');
+        continue;
+      }
+      final args = [
+        'entity',
+        'create',
+        '-n',
+        entity.name,
+        for (final field in entity.fields) ...['--field', field],
+      ];
+      ProcessResult result;
+      try {
+        result = await spawn(args);
+      } on ProcessTimeoutException {
+        print(
+          '[run] phase-0 entity ${entity.name} -> failed (timed out after '
+          '${deadline.inSeconds}s)',
+        );
+        return (
+          result: 'runner-error',
+          stoppedAt: 'phase-0:entity',
+          exitCode: _exitRunnerError,
+          message:
+              'phase-0 `entity create -n ${entity.name}` exceeded the '
+              'step deadline — the run stops before any behavior is '
+              'driven (bug #829).',
+        );
+      } on ProcessException catch (e) {
+        print('[run] phase-0 entity ${entity.name} -> failed (spawn)');
+        return (
+          result: 'runner-error',
+          stoppedAt: 'phase-0:entity',
+          exitCode: _exitRunnerError,
+          message:
+              'phase-0 spawn failed for the zfa entrypoint: '
+              '${e.message} (bug #829).',
+        );
+      }
+      if (result.exitCode != 0) {
+        print('[run] phase-0 entity ${entity.name} -> failed');
+        return failedSpawn(what: 'entity', r: result);
+      }
+      created++;
+      print('[run] phase-0 entity ${entity.name} -> created');
+    }
+
+    if (created == 0) {
+      // Nothing new on disk — no build needed (idempotent resume).
+      print('[run] phase-0 build -> skipped');
+      return null;
+    }
+    ProcessResult build;
+    try {
+      build = await spawn(const ['build']);
+    } on ProcessTimeoutException {
+      print(
+        '[run] phase-0 build -> failed (timed out after '
+        '${deadline.inSeconds}s)',
+      );
+      return (
+        result: 'runner-error',
+        stoppedAt: 'phase-0:build',
+        exitCode: _exitRunnerError,
+        message:
+            'phase-0 `zfa build` exceeded the step deadline — the run '
+            'stops before any behavior is driven (bug #829).',
+      );
+    } on ProcessException catch (e) {
+      print('[run] phase-0 build -> failed (spawn)');
+      return (
+        result: 'runner-error',
+        stoppedAt: 'phase-0:build',
+        exitCode: _exitRunnerError,
+        message:
+            'phase-0 spawn failed for the zfa entrypoint: '
+            '${e.message} (bug #829).',
+      );
+    }
+    if (build.exitCode != 0) {
+      print('[run] phase-0 build -> failed');
+      return failedSpawn(what: 'build', r: build);
+    }
+    print('[run] phase-0 build -> ok');
+    return null;
+  }
 
   void _printSummary(
     String feature,

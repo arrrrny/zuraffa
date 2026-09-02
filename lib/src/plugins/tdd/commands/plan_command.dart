@@ -76,15 +76,17 @@ class PlanCommand extends Command<void> {
       throw StateError('zfa tdd plan: cannot derive behaviors');
     }
 
+    // Bug #829: extract the spec's Key Entities so the loop can create
+    // and wire them (run phase 0 + the entity pipeline routing read
+    // this section back through TestListReader.readEntities).
+    final entities = const SpecParser().parseKeyEntities(specMd);
+
     // Coverage gate (bug #846): every FR/AC requirement statement must
     // map to a behavior row or to a valid `(manual: owner)` declaration.
     // Any gap = exit 2, no artifacts, offending line + fix instruction.
     final scan = const RequirementScanner().scan(specMd);
     final gaps = const CoverageGate().evaluate(scan, behaviors);
     if (gaps.isNotEmpty) {
-      // The gate decision goes through print() — the machine-readable
-      // channel corpus/CI parse (same convention as the corpus
-      // commands' summary lines).
       print(
         'zfa tdd plan: coverage gate FAILED — ${gaps.length} requirement '
         'statement(s) produce no behavior row (spec: $specPath). No test '
@@ -147,7 +149,7 @@ class PlanCommand extends Command<void> {
     }
 
     await outDir.create(recursive: true);
-    await outFile.writeAsString(_render(feature, reconciled));
+    await outFile.writeAsString(_render(feature, reconciled, entities));
 
     // The completeness proof (bug #846): behavior <-> FR/AC matrix with
     // the spec-contract hash, re-checked by verify/corpus for drift.
@@ -169,9 +171,19 @@ class PlanCommand extends Command<void> {
       'zfa tdd plan: wrote $outFile with $aCount acceptance + $wCount widget '
       '+ $uCount unit behaviors (${reconciled.length} total).',
     );
+    if (entities.isNotEmpty) {
+      stdout.writeln(
+        'zfa tdd plan: extracted ${entities.length} Key Entity('
+        'ies): ${entities.map((e) => e.name).join(', ')}.',
+      );
+    }
   }
 
-  String _render(String feature, List<Behavior> behaviors) {
+  String _render(
+    String feature,
+    List<Behavior> behaviors,
+    List<SpecEntity> entities,
+  ) {
     final acceptance = behaviors
         .where((b) => b.kind == BehaviorKind.acceptance)
         .toList();
@@ -226,6 +238,23 @@ class PlanCommand extends Command<void> {
       buf.writeln(
         '| ${b.id} | ${_marked(b)} | ${b.sourceCriterion} | PENDING |',
       );
+    }
+    // Bug #829: the spec's Key Entities, extracted for the loop's
+    // entity orchestration (run phase 0 + the make entity pipeline).
+    // The reader skips this section when resolving behavior rows.
+    if (entities.isNotEmpty) {
+      buf
+        ..writeln()
+        ..writeln('## Key entities')
+        ..writeln()
+        ..writeln('| entity | fields |')
+        ..writeln('| ------ | ------ |');
+      for (final e in entities) {
+        buf.writeln(
+          '| ${e.name} | '
+          '${e.fields.map((f) => '${f.name}: ${f.type}').join(', ')} |',
+        );
+      }
     }
     buf.writeln();
     return buf.toString();

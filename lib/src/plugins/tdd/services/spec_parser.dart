@@ -10,6 +10,32 @@ library;
 
 import '../models/behavior.dart';
 
+/// One declared field of a [SpecEntity], parsed from a backticked
+/// `` `name: Type` `` pair in the spec's Key Entities prose.
+class EntityField {
+  const EntityField({required this.name, required this.type});
+
+  final String name;
+  final String type;
+
+  @override
+  String toString() => '$name:$type';
+}
+
+/// One entity declared by the spec's `Key Entities` section (bug #829):
+/// the name is the bullet's bold head (generic suffixes stripped to a
+/// valid Dart identifier), the fields are the backticked `name: Type`
+/// pairs the spec carries (empty when the prose declares none).
+class SpecEntity {
+  const SpecEntity({required this.name, this.fields = const []});
+
+  final String name;
+  final List<EntityField> fields;
+
+  @override
+  String toString() => 'SpecEntity(name: $name, fields: $fields)';
+}
+
 class SpecParser {
   const SpecParser();
 
@@ -17,15 +43,7 @@ class SpecParser {
   /// UI-observable outcome — rendered surfaces, layout regions, navigation
   /// outcomes, the app shell — cannot be expressed by a plain-function
   /// subject, so such scenarios are marked [BehaviorKind.widget] and their
-  /// gen pair is a view-builder stub + a `testWidgets` test. The signature
-  /// is deliberately tight and pinned to the issue's named acceptance
-  /// prose ("renders brand theme", "sidebar on macOS", "bottom nav on
-  /// iOS") plus unambiguous widget nouns — deliberately NOT generic
-  /// display verbs/nouns ("shows", "displays", "screen") that CLI and
-  /// pipeline specs carry without being UI behaviors (e.g. "they see the
-  /// home screen" is an ordinary acceptance scenario, spec 041). The
-  /// explicit `zfa tdd gen <id> --kind widget` override covers anything
-  /// the prose misses.
+  /// gen pair is a view-builder stub + a `testWidgets` test.
   static final RegExp uiAcceptanceIntent = RegExp(
     r'\b(renders?|sidebar|bottom nav|tab bar|app bar|app shell|themes?|'
     r'widgets?|navigat(?:es|ion|ing))\b',
@@ -41,6 +59,60 @@ class SpecParser {
   /// row, so the id alignment is preserved even when scenarios are
   /// human-executed.
   static final RegExp manualScenarioMarker = RegExp(r'\(manual:\s*[^)]*\)');
+
+  /// The heading that opens a Key Entities section (corpus format:
+  /// `### Key Entities`; any heading level 1-6 is accepted, matched
+  /// case-insensitively).
+  static final RegExp _keyEntitiesHeading = RegExp(
+    r'^#{1,6}\s+key\s+entities\s*$',
+    caseSensitive: false,
+  );
+
+  /// A Key Entities bullet: `- **Name**: prose ...` (the name may carry
+  /// a generic suffix such as `ToggleParams<I, F>`).
+  static final RegExp _entityBullet = RegExp(
+    r'^\s*[-*]\s+\*\*(.+?)\*\*\s*:\s*(.*)$',
+  );
+
+  /// A backticked `` `name: Type` `` field pair in the bullet prose.
+  static final RegExp _fieldPair = RegExp(
+    r'`([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^`]+)`',
+  );
+
+  static final RegExp _dartIdentifier = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
+
+  /// Extract the entities the spec declares under `Key Entities` (bug
+  /// #829 remediation 1: plan must surface them so the loop can create
+  /// and wire them).
+  List<SpecEntity> parseKeyEntities(String specMd) {
+    final entities = <SpecEntity>[];
+    var inSection = false;
+    for (final line in specMd.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('#')) {
+        inSection = _keyEntitiesHeading.hasMatch(trimmed);
+        continue;
+      }
+      if (!inSection) continue;
+      if (trimmed.isEmpty) continue;
+      final m = _entityBullet.firstMatch(trimmed);
+      if (m == null) {
+        inSection = false;
+        continue;
+      }
+      var name = m.group(1)!.trim();
+      final genericStart = name.indexOf('<');
+      if (genericStart > 0) name = name.substring(0, genericStart).trim();
+      if (!_dartIdentifier.hasMatch(name)) continue;
+      final prose = m.group(2) ?? '';
+      final fields = _fieldPair
+          .allMatches(prose)
+          .map((f) => EntityField(name: f.group(1)!, type: f.group(2)!.trim()))
+          .toList();
+      entities.add(SpecEntity(name: name, fields: fields));
+    }
+    return entities;
+  }
 
   List<Behavior> parse(String feature, String specMd) {
     final acceptance = _extractAcceptance(feature, specMd);

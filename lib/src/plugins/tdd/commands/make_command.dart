@@ -78,11 +78,13 @@ import '../services/artifact_registry.dart';
 import '../services/composition_planner.dart';
 import '../services/composition_targets.dart';
 import '../services/cycle_log.dart';
+import '../services/entity_lookup.dart';
 import '../services/generation_planner.dart';
 import '../services/pipeline_runner.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/runner.dart';
 import '../services/suite_guard.dart';
+import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
 import '../tdd_plugin.dart';
 import '../../../cli/plugin_loader.dart';
@@ -413,12 +415,19 @@ class MakeCommand extends Command<void> {
         record,
         description: _descriptionFor(record),
         target: _targetFor(record),
+        entityTraced: await _tracedEntityFor(
+          record: record,
+          featureDir: target.featureDir,
+        ),
       );
       final plan = planner.plan(summary);
       GenerationPlan effectivePlan;
       if (plan.isExpressible) {
-        effectivePlan = plan;
-        print('   plan: ${plan.steps.length} step(s)');
+        effectivePlan = await _gateExistingEntityCreateSteps(
+          plan,
+          workingDirectory: cwd,
+        );
+        print('   plan: ${effectivePlan.steps.length} step(s)');
       } else {
         // ---------------------------------------------------------
         // Composition fallback (issue #642, spec 052): the planner is
@@ -904,11 +913,96 @@ class MakeCommand extends Command<void> {
     return null;
   }
 
+<<<<<<< HEAD
   /// The runnable test name for `--plain-name` matching — the record's
   /// own contract ([ArtifactRecord.plainTestName]): the last segment with
   /// any legacy `<id> — ` echo stripped (bug #871), so both the legacy
   /// and the re-rendered test-file shapes substring-match.
   String _runnableNameOf(ArtifactRecord record) => record.plainTestName;
+=======
+  /// Bug #829: the spec Key Entity this UNIT behavior's FR traces to —
+  /// the first declared entity (from the test list's Key entities
+  /// section, which plan extracted from the spec) named in the
+  /// behavior's description. Null for non-unit behaviors and when
+  /// nothing traces (no declared entities / no name match): those keep
+  /// their existing routing unchanged.
+  Future<String?> _tracedEntityFor({
+    required ArtifactRecord record,
+    required String featureDir,
+  }) async {
+    if (!GenerationPlanner.isUnitBehaviorId(record.behaviorId)) return null;
+    final List<DeclaredEntity> declared;
+    try {
+      declared = await TestListReader(featureDir).readEntities();
+    } on TestListReadException {
+      return null;
+    }
+    if (declared.isEmpty) return null;
+    final desc = _descriptionFor(record);
+    for (final entity in declared) {
+      final m = RegExp('\\b${RegExp.escape(entity.name)}\\b').firstMatch(desc);
+      if (m != null) return entity.name;
+    }
+    return null;
+  }
+
+  /// Bug #829: realize `entity create` steps idempotently. The core
+  /// command regenerates the entity file unconditionally, so re-running
+  /// it over an existing entity would silently destroy hand-tuned
+  /// fields. Any `entity create -n <Name>` step whose entity file
+  /// already exists is dropped from the effective plan (printed, never
+  /// silent); the rest of the pipeline generates against the existing
+  /// entity. Applies to every branch that emits the step (the bug-829
+  /// unit entity pipeline and the issue-#758 acceptance branch alike).
+  Future<GenerationPlan> _gateExistingEntityCreateSteps(
+    GenerationPlan plan, {
+    required String workingDirectory,
+  }) async {
+    final kept = <GenerationStepSpec>[];
+    var gated = false;
+    for (final step in plan.steps) {
+      final name = _entityCreateStepName(step.args);
+      if (name != null &&
+          await locateEntityFile(workingDirectory, name) != null) {
+        print(
+          '   entity $name already exists — reuse (never overwrite '
+          'hand-tuned fields)',
+        );
+        gated = true;
+        continue;
+      }
+      kept.add(step);
+    }
+    if (!gated) return plan;
+    return GenerationPlan(
+      behaviorId: plan.behaviorId,
+      feature: plan.feature,
+      sourceCriterion: plan.sourceCriterion,
+      steps: kept,
+      unexpressibleReason: plan.unexpressibleReason,
+    );
+  }
+
+  /// The `-n <Name>` of an `entity create` step's args, or null when the
+  /// step creates no entity (or carries an unexpected argv shape — left
+  /// untouched, fail-open to the un-gated step).
+  String? _entityCreateStepName(List<String> args) {
+    if (args.length < 4) return null;
+    if (args[0] != 'entity' || args[1] != 'create') return null;
+    final idx = args.indexOf('-n');
+    if (idx < 0 || idx + 1 >= args.length) return null;
+    return args[idx + 1];
+  }
+
+  /// The runnable test name: the last `::`-separated segment of the
+  /// registry's composite `file::group::test` name.
+  String _runnableNameOf(ArtifactRecord record) {
+    final segments = record.runnableTestName.split('::');
+    return segments.isEmpty || segments.last.isEmpty
+        ? record.runnableTestName
+        : segments.last;
+  }
+>>>>>>> 60c87542 (fix(829): TDD loop orchestrates entities from spec Key Entities)
 
   // -----------------------------------------------------------------
   // Suite-guard regression scoping (issue #731).
