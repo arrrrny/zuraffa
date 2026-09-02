@@ -1333,4 +1333,307 @@ One per functional requirement in `spec.md`.
     expect(fx.stepInvocations().first, 'make B-001');
     expect(fx.stepInvocations().where((l) => l == 'gen B-001'), isEmpty);
   });
+
+  test('bug 734 v2: refactor defers while a pending behavior has a red stub on '
+      'disk WITHOUT a registry record — the preflight refusal must not spawn '
+      'into the knowingly-red suite', () async {
+    // The REOPENED #734 state: the original fix's deferral trusts the
+    // registry ("artifact-less pending rows contribute no red risk"),
+    // but the issue's own state is "U3-U44 pending (not generated)"
+    // while their stubs throw UnimplementedError — stubs ON DISK
+    // WITHOUT records (an interrupted gen, a wiped artifacts.json, or
+    // gen outside the driver). For such a row the pre-spawn deferral
+    // does not engage, the already-green behavior's refactor spawns
+    // into the knowingly-red suite, the full-suite preflight (spec 048
+    // FR-001) refuses, and the run dies at <id>:refactor — the #734
+    // deadlock, back.
+    //
+    // Seeded resume state: A1 GREEN with complete evidence and its
+    // refactor outstanding; U1 PENDING with a red stub at the gen
+    // default layout (test/tdd/u1_test.dart) but NO registry record.
+    await fx.seedTestList([
+      (
+        id: 'A1',
+        description: 'the entity exists and is buildable.',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'acceptance',
+      ),
+      (
+        id: 'U1',
+        description: 'unit behavior backing A1',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+    ]);
+    await fx.registerBehavior(
+      id: 'A1',
+      description: 'the entity exists and is buildable.',
+      writeTestFile: false,
+    );
+    // U1: the stub file exists on disk (red UnimplementedError stub, the
+    // gen default layout) but the registry has NO record for it.
+    final stubDir = Directory(p.join(fx.root.path, 'test', 'tdd'));
+    await stubDir.create(recursive: true);
+    await File(
+      p.join(stubDir.path, 'u1_test.dart'),
+    ).writeAsString(TddFixture.redTest('unit behavior backing A1'));
+    await fx.seedRedEvidence('A1');
+    await fx.seedGreenEvidence('A1');
+    await fx.seedRunState(states: {'A1': 'green', 'U1': 'pending'});
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    // The pre-spawn deferral must engage on the disk stub: A1's refactor
+    // defers BEFORE any spawn, U1 is driven to green first, and only
+    // then do the refactors run (U1 inline, A1 in the phase-2b pass).
+    // Pre-fix the first invocation is `refactor A1` — a spawn into the
+    // knowingly-red suite.
+    expect(fx.stepInvocations(), [
+      'gen U1',
+      'verify-red U1',
+      'make U1',
+      'refactor U1',
+      'refactor A1',
+    ]);
+    expect(out, contains('[run] A1 refactor -> deferred (phase 2)'));
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 green=0 done=2',
+      ),
+      reason: out,
+    );
+    final state = await readState();
+    expect(state['behavior_states'] as Map<String, dynamic>, {
+      'A1': 'done',
+      'U1': 'done',
+    });
+  });
+
+  test('bug 734 v2: a phase-1 refactor whose preflight refuses (not-green) '
+      'defers instead of stopping the run — the pending row is still driven '
+      'and the deferred refactor completes in phase 2b', () async {
+    // The safety net for redness the pre-spawn model cannot see (an
+    // outside failure, a #741-baseline-tolerated failure, a stub at a
+    // non-default path): the spawned refactor's preflight refuses, the
+    // refusal is side-effect-free (refactor modifies zero files when it
+    // refuses), so the driver DEFERS the behavior (stays GREEN) instead
+    // of pass-fatally stopping — the pending row is still driven (which
+    // may flip the suite green), and the deferred refactor re-spawns in
+    // the phase-2b pass. Pre-fix the refusal took the honest-stop path:
+    // the run died at A1:refactor with U1 never driven — the reopened
+    // deadlock.
+    await fx.seedTestList([
+      (
+        id: 'A1',
+        description: 'the entity exists and is buildable.',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'acceptance',
+      ),
+      (
+        id: 'U1',
+        description: 'unit behavior backing A1',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+    ]);
+    await fx.registerBehavior(
+      id: 'A1',
+      description: 'the entity exists and is buildable.',
+      writeTestFile: false,
+    );
+    // U1 is pending with NO registry record and NO stub file — the
+    // pre-spawn deferral (red rows / pending-with-artifacts) must NOT
+    // engage, so A1's refactor actually spawns and the post-spawn
+    // refusal path is exercised. The fake step binary certifies U1's
+    // gen/verify-red/make and writes its red+green evidence.
+    await fx.seedRedEvidence('A1');
+    await fx.seedGreenEvidence('A1');
+    await fx.seedRunState(states: {'A1': 'green', 'U1': 'pending'});
+    // The spawned refactor's preflight refuses on the first spawn
+    // (phase 1 — the suite is red from a source the driver's row model
+    // cannot see); by the later re-spawns the suite is green (U1 was
+    // driven) and the refactor completes.
+    await fx.setStepOutcome('refactor', 'A1', 'not-green\nok');
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    expect(fx.stepInvocations(), [
+      'refactor A1', // phase 1: spawned, preflight refused (not-green)
+      'gen U1', // the pending row is still driven
+      'verify-red U1',
+      'make U1',
+      'refactor U1', // U1's own refactor completes inline
+      'refactor A1', // phase 2b: the deferred refactor completes
+    ]);
+    expect(out, contains('[run] A1 refactor -> not-green'));
+    expect(out, contains('[run] A1 refactor -> deferred (phase 2)'));
+    expect(out, isNot(contains('step failed — behavior=A1 step=refactor')));
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 green=0 done=2',
+      ),
+      reason: out,
+    );
+    final state = await readState();
+    expect(state['behavior_states'] as Map<String, dynamic>, {
+      'A1': 'done',
+      'U1': 'done',
+    });
+  });
+
+  test('bug 734 v2: a phase-2b refactor whose preflight refuses is skipped '
+      'with a recorded reason while the rest of the pass completes', () async {
+    // The phase-2b twin of the safety net: when the spawned refactor's
+    // preflight refuses in the REFACTOR PASS itself (the suite is still
+    // red from a source the row model cannot see — the refusal will not
+    // clear within this run), the behavior is SKIPPED with a recorded
+    // reason (stays GREEN, never a fake DONE) and the pass continues
+    // for every other behavior; the run ends honestly naming the skips
+    // and the resume path. Pre-fix the refusal stopped the pass for
+    // everyone: U1's phase-2b refactor never spawned.
+    await fx.seedTestList([
+      (
+        id: 'A1',
+        description: 'the entity exists and is buildable.',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'acceptance',
+      ),
+      (
+        id: 'U1',
+        description: 'unit behavior backing A1',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+      (
+        id: 'U2',
+        description: 'pending stub behavior',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+    ]);
+    await fx.registerBehavior(
+      id: 'A1',
+      description: 'the entity exists and is buildable.',
+      writeTestFile: false,
+    );
+    await fx.registerBehavior(
+      id: 'U1',
+      description: 'unit behavior backing A1',
+      writeTestFile: false,
+    );
+    // U2 sits pending WITH a registry record so the greens' phase-1
+    // refactors defer pre-spawn (the original #734 deferral) and
+    // actually reach the phase-2b pass.
+    await fx.registerBehavior(id: 'U2', description: 'pending stub behavior');
+    await fx.seedRedEvidence('A1');
+    await fx.seedGreenEvidence('A1');
+    await fx.seedRedEvidence('U1');
+    await fx.seedGreenEvidence('U1');
+    await fx.seedRunState(
+      states: {'A1': 'green', 'U1': 'green', 'U2': 'pending'},
+    );
+    // A1's refactor refuses on EVERY spawn (the redness never clears
+    // within this run); U1's refactors succeed.
+    await fx.setStepOutcome('refactor', 'A1', 'not-green');
+
+    final out = await drive();
+
+    expect(exitCode, 1, reason: out);
+    // The phase-1 deferrals (A1, U1) are pre-spawn and log no
+    // invocations; U2 is driven and refactored inline; in phase 2b the
+    // spawned refactor A1 refuses and — post-fix — the pass continues
+    // to U1. Pre-fix the pass dies AT `refactor A1`.
+    expect(fx.stepInvocations(), [
+      'gen U2',
+      'verify-red U2',
+      'make U2',
+      'refactor U2', // U2 completes inline (nothing pending anymore)
+      'refactor A1', // phase 2b: spawned, preflight refused -> SKIPPED
+      'refactor U1', // phase 2b: the pass continues past the refusal
+    ]);
+    expect(out, contains('[run] A1 refactor -> not-green'));
+    expect(out, contains('[run] A1 refactor -> skipped (suite not green)'));
+    expect(out, contains('[run] U1 refactor -> clean (phase 2)'));
+    expect(out, isNot(contains('step failed — behavior=A1 step=refactor')));
+    // The honest end-of-run stop names the refusal skip and the resume
+    // path; A1 stays GREEN (resumable), never a fake DONE.
+    expect(out, contains('refactor skipped for A1'));
+    expect(out, contains('suite not green'));
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=stopped pending=0 red=0 green=1 '
+        'done=2 stopped_at=A1:refactor',
+      ),
+      reason: out,
+    );
+    final state = await readState();
+    expect(state['behavior_states'] as Map<String, dynamic>, {
+      'A1': 'green',
+      'U1': 'done',
+      'U2': 'done',
+    });
+  });
+
+  test(
+    'bug 734 v2: a refactor regression (re-proof failure) still stops the '
+    'run honestly — the refusal safety net does not capture real failures',
+    () async {
+      // The safety net is scoped to the preflight REFUSAL (outcome=not-
+      // green, side-effect-free). A refactor whose re-proof suite fails
+      // (outcome=regression) has already applied its passes — a REAL
+      // failure the run must stop for, exactly as before.
+      await fx.seedTestList([
+        (
+          id: 'A1',
+          description: 'the entity exists and is buildable.',
+          traces: 'FR-001',
+          state: 'PENDING',
+          kind: 'acceptance',
+        ),
+      ]);
+      await fx.registerBehavior(
+        id: 'A1',
+        description: 'the entity exists and is buildable.',
+        writeTestFile: false,
+      );
+      await fx.seedRedEvidence('A1');
+      await fx.seedGreenEvidence('A1');
+      await fx.seedRunState(states: {'A1': 'green'});
+      await fx.setStepOutcome('refactor', 'A1', 'regression');
+
+      final out = await drive();
+
+      expect(exitCode, 1, reason: out);
+      expect(out, contains('[run] A1 refactor -> regression'));
+      expect(
+        out,
+        contains('step failed — behavior=A1 step=refactor outcome=regression'),
+      );
+      expect(
+        out,
+        isNot(contains('deferred (phase 2)')),
+        reason: 'a regression is not a deferral',
+      );
+      expect(
+        out,
+        contains(
+          'run: feature=$feature result=stopped pending=0 red=0 green=1 '
+          'done=0 stopped_at=A1:refactor',
+        ),
+        reason: out,
+      );
+    },
+  );
 }
