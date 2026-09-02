@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+
 import 'package:args/command_runner.dart';
 import '../models/generated_file.dart';
 import '../core/plugin_system/capability.dart';
@@ -196,7 +198,20 @@ class CapabilityCommand extends Command<void> {
         final files =
             result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
         if (files.isEmpty) {
-          print('✅ Success! (No changes required)');
+          // Issue #769: zero files means the request produced nothing —
+          // e.g. a pure-Dart guard skipped presenter/controller/view
+          // generation. That is not a success: claiming "✅ Success!"
+          // (and exiting 0) misleads automation into reading a declined
+          // generation as a win. The generator's own skip note above
+          // explains WHY nothing was emitted; here we only refuse to
+          // dress the outcome up as success and set a failure exit code.
+          print(
+            '⚠️ No files were generated (nothing changed). If the '
+            'generator printed a skip note above, re-run inside a '
+            'project that satisfies its guard; otherwise re-run with '
+            '--verbose to inspect the resolved arguments.',
+          );
+          exitCode = 1;
           return;
         }
 
