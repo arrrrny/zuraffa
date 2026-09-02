@@ -20,24 +20,28 @@ void main() {
     NetworkIsolationGuard.uninstall();
   });
 
-  test('install() makes outbound Socket.connect fail without dialing',
-      () async {
-    NetworkIsolationGuard.install();
-    expect(NetworkIsolationGuard.isActive, isTrue);
-    await expectLater(
-      Socket.connect('simulation-blocked.invalid', 80),
-      throwsA(isA<NetworkIsolationViolation>()),
-    );
-  });
+  test(
+    'install() makes outbound Socket.connect fail without dialing',
+    () async {
+      NetworkIsolationGuard.install();
+      expect(NetworkIsolationGuard.isActive, isTrue);
+      await expectLater(
+        Socket.connect('simulation-blocked.invalid', 80),
+        throwsA(isA<NetworkIsolationViolation>()),
+      );
+    },
+  );
 
-  test('loopback connects are blocked too (any real socket is a violation)',
-      () async {
-    NetworkIsolationGuard.install();
-    await expectLater(
-      Socket.connect(InternetAddress.loopbackIPv4.address, 59999),
-      throwsA(isA<NetworkIsolationViolation>()),
-    );
-  });
+  test(
+    'loopback connects are blocked too (any real socket is a violation)',
+    () async {
+      NetworkIsolationGuard.install();
+      await expectLater(
+        Socket.connect(InternetAddress.loopbackIPv4.address, 59999),
+        throwsA(isA<NetworkIsolationViolation>()),
+      );
+    },
+  );
 
   test('HttpClient traffic fails under the guard', () async {
     NetworkIsolationGuard.install();
@@ -50,8 +54,7 @@ void main() {
     );
   });
 
-  test('no false positives: file I/O and pure compute keep working',
-      () async {
+  test('no false positives: file I/O and pure compute keep working', () async {
     NetworkIsolationGuard.install();
     final dir = await Directory.systemTemp.createTemp('zfa-guard-check');
     addTearDown(() => dir.delete(recursive: true));
@@ -62,22 +65,24 @@ void main() {
     expect(List<int>.generate(100, (i) => i * 2).length, 100);
   });
 
-  test('install() is idempotent and uninstall() restores the socket path',
-      () async {
-    NetworkIsolationGuard.install();
-    NetworkIsolationGuard.install(); // second install is a no-op
-    expect(NetworkIsolationGuard.isActive, isTrue);
+  test(
+    'install() is idempotent and uninstall() restores the socket path',
+    () async {
+      NetworkIsolationGuard.install();
+      NetworkIsolationGuard.install(); // second install is a no-op
+      expect(NetworkIsolationGuard.isActive, isTrue);
 
-    NetworkIsolationGuard.uninstall();
-    expect(NetworkIsolationGuard.isActive, isFalse);
+      NetworkIsolationGuard.uninstall();
+      expect(NetworkIsolationGuard.isActive, isFalse);
 
-    // The real socket path is restored: a loopback connect now surfaces a
-    // genuine SocketException (connection refused), NOT a guard violation.
-    await expectLater(
-      Socket.connect(InternetAddress.loopbackIPv4.address, 1),
-      throwsA(isA<SocketException>()),
-    );
-  });
+      // The real socket path is restored: a loopback connect now surfaces a
+      // genuine SocketException (connection refused), NOT a guard violation.
+      await expectLater(
+        Socket.connect(InternetAddress.loopbackIPv4.address, 1),
+        throwsA(isA<SocketException>()),
+      );
+    },
+  );
 
   test('uninstall() without install() is a safe no-op', () {
     expect(NetworkIsolationGuard.isActive, isFalse);

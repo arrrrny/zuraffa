@@ -96,13 +96,13 @@ abstract interface class RestContract {
 /// `"<METHOD> <path>"`, scripted faults, deterministic latency.
 final class RestAdapter implements RestContract {
   RestAdapter({required Map<String, dynamic> world})
-      : _fixtures = (world['fixtures'] as Map<String, dynamic>? ?? const {})
-            .cast<String, dynamic>(),
-        _faults = (world['scriptedFaults'] as Map<String, dynamic>? ?? const {})
-            .cast<String, dynamic>(),
-        _latency = Duration(
-          milliseconds: (world['latencyMs'] as num?)?.toInt() ?? 0,
-        );
+    : _fixtures = (world['fixtures'] as Map<String, dynamic>? ?? const {})
+          .cast<String, dynamic>(),
+      _faults = (world['scriptedFaults'] as Map<String, dynamic>? ?? const {})
+          .cast<String, dynamic>(),
+      _latency = Duration(
+        milliseconds: (world['latencyMs'] as num?)?.toInt() ?? 0,
+      );
 
   final Map<String, dynamic> _fixtures;
   final Map<String, dynamic> _faults;
@@ -111,8 +111,11 @@ final class RestAdapter implements RestContract {
   static String _full(String path, Map<String, dynamic>? query) {
     if (query == null || query.isEmpty) return path;
     final encoded = query.entries
-        .map((e) => '${Uri.encodeQueryComponent(e.key)}='
-            '${Uri.encodeQueryComponent('${e.value}')}')
+        .map(
+          (e) =>
+              '${Uri.encodeQueryComponent(e.key)}='
+              '${Uri.encodeQueryComponent('${e.value}')}',
+        )
         .join('&');
     return '$path?$encoded';
   }
@@ -156,7 +159,9 @@ final class RestAdapter implements RestContract {
       final space = key.indexOf(' ');
       if (space <= 0) continue;
       final recordedPath = key.substring(space + 1);
-      if (recordedPath == full || recordedPath == base || recordedPath == path) {
+      if (recordedPath == full ||
+          recordedPath == base ||
+          recordedPath == path) {
         return key;
       }
     }
@@ -172,7 +177,7 @@ final class RestAdapter implements RestContract {
     final candidates = _candidates(method, path, _full(path, query));
     final fixtureKey =
         _resolveKey(_fixtures, candidates) ??
-            _anyMethodKey(_fixtures, method, path, _full(path, query));
+        _anyMethodKey(_fixtures, method, path, _full(path, query));
     if (fixtureKey != null) {
       final fixture = _fixtures[fixtureKey] as Map<String, dynamic>;
       final status = (fixture['status'] as num?)?.toInt() ?? 200;
@@ -189,7 +194,7 @@ final class RestAdapter implements RestContract {
     }
     final faultKey =
         _resolveKey(_faults, candidates) ??
-            _anyMethodKey(_faults, method, path, _full(path, query));
+        _anyMethodKey(_faults, method, path, _full(path, query));
     if (faultKey != null) {
       throw SimulatedHttpException(
         (_faults[faultKey] as num).toInt(),
@@ -211,21 +216,16 @@ final class RestAdapter implements RestContract {
   Future<Map<String, dynamic>> get(
     String path, {
     Map<String, dynamic>? query,
-  }) =>
-      _dispatch('GET', path, query);
+  }) => _dispatch('GET', path, query);
 
   @override
   Future<Map<String, dynamic>> post(
     String path, {
     Map<String, dynamic>? body,
-  }) =>
-      _dispatch('POST', path, body);
+  }) => _dispatch('POST', path, body);
 
   @override
-  Future<Map<String, dynamic>> put(
-    String path, {
-    Map<String, dynamic>? body,
-  }) =>
+  Future<Map<String, dynamic>> put(String path, {Map<String, dynamic>? body}) =>
       _dispatch('PUT', path, body);
 
   @override
@@ -255,16 +255,16 @@ abstract interface class VendureContract {
 /// name, recorded error surfaces, deterministic latency.
 final class VendureAdapter implements VendureContract {
   VendureAdapter({required Map<String, dynamic> world})
-      : _queries = (world['goldenQueries'] as Map<String, dynamic>? ?? const {})
-            .cast<String, dynamic>(),
-        _mutations =
-            (world['goldenMutations'] as Map<String, dynamic>? ?? const {})
-                .cast<String, dynamic>(),
-        _errors = (world['scriptedErrors'] as Map<String, dynamic>? ?? const {})
-            .cast<String, dynamic>(),
-        _latency = Duration(
-          milliseconds: (world['latencyMs'] as num?)?.toInt() ?? 0,
-        );
+    : _queries = (world['goldenQueries'] as Map<String, dynamic>? ?? const {})
+          .cast<String, dynamic>(),
+      _mutations =
+          (world['goldenMutations'] as Map<String, dynamic>? ?? const {})
+              .cast<String, dynamic>(),
+      _errors = (world['scriptedErrors'] as Map<String, dynamic>? ?? const {})
+          .cast<String, dynamic>(),
+      _latency = Duration(
+        milliseconds: (world['latencyMs'] as num?)?.toInt() ?? 0,
+      );
 
   final Map<String, dynamic> _queries;
   final Map<String, dynamic> _mutations;
@@ -279,9 +279,9 @@ final class VendureAdapter implements VendureContract {
       r'\b(?:query|mutation)\s+([A-Za-z_][A-Za-z0-9_]*)',
     ).firstMatch(document);
     if (named != null) return named.group(1);
-    return RegExp(r'\{\s*([A-Za-z_][A-Za-z0-9_]*)')
-        .firstMatch(document)
-        ?.group(1);
+    return RegExp(
+      r'\{\s*([A-Za-z_][A-Za-z0-9_]*)',
+    ).firstMatch(document)?.group(1);
   }
 
   Future<Map<String, dynamic>> _execute(
@@ -316,15 +316,13 @@ final class VendureAdapter implements VendureContract {
   Future<Map<String, dynamic>> query(
     String document, {
     Map<String, dynamic>? variables,
-  }) =>
-      _execute('query', _queries, document);
+  }) => _execute('query', _queries, document);
 
   @override
   Future<Map<String, dynamic>> mutation(
     String document, {
     Map<String, dynamic>? variables,
-  }) =>
-      _execute('mutation', _mutations, document);
+  }) => _execute('mutation', _mutations, document);
 }
 
 // ---------------------------------------------------------------------------
@@ -333,21 +331,17 @@ final class VendureAdapter implements VendureContract {
 
 /// The certified simulated auth user.
 final class SimulatedAuthUser {
-  const SimulatedAuthUser({
-    required this.uid,
-    this.email,
-    this.displayName,
-  });
+  const SimulatedAuthUser({required this.uid, this.email, this.displayName});
 
   final String uid;
   final String? email;
   final String? displayName;
 
   Map<String, dynamic> toJson() => {
-        'uid': uid,
-        if (email != null) 'email': email,
-        if (displayName != null) 'displayName': displayName,
-      };
+    'uid': uid,
+    if (email != null) 'email': email,
+    if (displayName != null) 'displayName': displayName,
+  };
 }
 
 /// The production auth contract (Firebase Auth-shaped). A live binding
@@ -381,21 +375,23 @@ abstract interface class AuthContract {
 /// ```
 final class FirebaseAuthAdapter implements AuthContract {
   FirebaseAuthAdapter({required Map<String, dynamic> world})
-      : _users = [
-          for (final u in (world['users'] as List? ?? const [])
-              .cast<Map<String, dynamic>>())
-            Map<String, dynamic>.of(u),
-        ],
-        _scriptedErrors = {
-          for (final e in (world['scriptedErrors'] as List? ?? const [])
-              .cast<Map<String, dynamic>>())
-            (e['email'] as String): (e['code'] as String),
-        },
-        _deletionRequiresRecentLogin =
-            (world['deletionRequiresRecentLogin'] as bool?) ?? false,
-        _latency = Duration(
-          milliseconds: (world['latencyMs'] as num?)?.toInt() ?? 0,
-        ) {
+    : _users = [
+        for (final u
+            in (world['users'] as List? ?? const [])
+                .cast<Map<String, dynamic>>())
+          Map<String, dynamic>.of(u),
+      ],
+      _scriptedErrors = {
+        for (final e
+            in (world['scriptedErrors'] as List? ?? const [])
+                .cast<Map<String, dynamic>>())
+          (e['email'] as String): (e['code'] as String),
+      },
+      _deletionRequiresRecentLogin =
+          (world['deletionRequiresRecentLogin'] as bool?) ?? false,
+      _latency = Duration(
+        milliseconds: (world['latencyMs'] as num?)?.toInt() ?? 0,
+      ) {
     final initial = world['initialUser'] as Map<String, dynamic>?;
     if (initial != null) {
       _currentUser = SimulatedAuthUser(
@@ -422,12 +418,11 @@ final class FirebaseAuthAdapter implements AuthContract {
       'u-${email.toLowerCase().replaceAll(RegExp('[^a-z0-9]+'), '-')}'
           .replaceAll(RegExp(r'-+$'), '');
 
-  SimulatedAuthUser _userOf(Map<String, dynamic> record) =>
-      SimulatedAuthUser(
-        uid: record['uid'] as String,
-        email: record['email'] as String?,
-        displayName: record['displayName'] as String?,
-      );
+  SimulatedAuthUser _userOf(Map<String, dynamic> record) => SimulatedAuthUser(
+    uid: record['uid'] as String,
+    email: record['email'] as String?,
+    displayName: record['displayName'] as String?,
+  );
 
   Map<String, dynamic>? _find(String email) {
     for (final u in _users) {
@@ -456,11 +451,15 @@ final class FirebaseAuthAdapter implements AuthContract {
     final record = _find(email);
     if (record == null) {
       throw SimulatedAuthException(
-          'user-not-found', 'no certified user for $email');
+        'user-not-found',
+        'no certified user for $email',
+      );
     }
     if (record['password'] != password) {
       throw SimulatedAuthException(
-          'wrong-password', 'scripted credential mismatch for $email');
+        'wrong-password',
+        'scripted credential mismatch for $email',
+      );
     }
     return _settle(record);
   }
@@ -478,7 +477,9 @@ final class FirebaseAuthAdapter implements AuthContract {
     }
     if (_find(email) != null) {
       throw SimulatedAuthException(
-          'email-already-in-use', '$email already registered');
+        'email-already-in-use',
+        '$email already registered',
+      );
     }
     final record = {
       'email': email,
@@ -502,7 +503,9 @@ final class FirebaseAuthAdapter implements AuthContract {
     final user = _currentUser;
     if (user == null) {
       throw const SimulatedAuthException(
-          'no-current-user', 'deletion requires a signed-in user');
+        'no-current-user',
+        'deletion requires a signed-in user',
+      );
     }
     if (_deletionRequiresRecentLogin) {
       throw const SimulatedAuthException(
@@ -550,11 +553,11 @@ abstract interface class AdContract {
 /// `scriptShowFailure` / `clearScripts`).
 final class AdMobAdapter implements AdContract {
   AdMobAdapter({required Map<String, dynamic> world})
-      : _scriptedLoadFailure = world['scriptedLoadFailure'] as String?,
-        _scriptedShowFailure = world['scriptedShowFailure'] as String?,
-        _latency = Duration(
-          milliseconds: (world['latencyMs'] as num?)?.toInt() ?? 0,
-        );
+    : _scriptedLoadFailure = world['scriptedLoadFailure'] as String?,
+      _scriptedShowFailure = world['scriptedShowFailure'] as String?,
+      _latency = Duration(
+        milliseconds: (world['latencyMs'] as num?)?.toInt() ?? 0,
+      );
 
   final String? _scriptedLoadFailure;
   final String? _scriptedShowFailure;
@@ -645,9 +648,7 @@ final class OtelAdapter implements otel_sdk.SpanExporter {
   List<SpanRecord> get captured => List.unmodifiable(_captured);
 
   /// Names of every captured span, in export order.
-  List<String> get spanNames => List.unmodifiable(
-        _captured.map((r) => r.name),
-      );
+  List<String> get spanNames => List.unmodifiable(_captured.map((r) => r.name));
 
   /// The first captured record named [name], or `null`.
   SpanRecord? byName(String name) {

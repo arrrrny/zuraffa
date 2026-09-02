@@ -131,7 +131,7 @@ final class SimulationWorld {
     final dir = featureDir != null
         ? p.join(featureDir, 'tdd', 'fixtures')
         : (fixturesDir ??
-            (throw ArgumentError('boot requires featureDir or fixturesDir')));
+              (throw ArgumentError('boot requires featureDir or fixturesDir')));
     final world = await load(dir);
     NetworkIsolationGuard.install();
     world._guardInstalled = true;
@@ -186,19 +186,23 @@ final class SimulationWorld {
           try {
             final body = await rest.get(path);
             final expected = (entry.value as Map<String, dynamic>)['body'];
-            results.add(PlayResult(
-              family: 'rest',
-              name: key,
-              passed: jsonEncode(body) == jsonEncode(expected),
-              detail: 'replayed body vs golden',
-            ));
+            results.add(
+              PlayResult(
+                family: 'rest',
+                name: key,
+                passed: jsonEncode(body) == jsonEncode(expected),
+                detail: 'replayed body vs golden',
+              ),
+            );
           } on SimulatedHttpException catch (e) {
-            results.add(PlayResult(
-              family: 'rest',
-              name: key,
-              passed: false,
-              detail: 'unexpected HTTP failure: $e',
-            ));
+            results.add(
+              PlayResult(
+                family: 'rest',
+                name: key,
+                passed: false,
+                detail: 'unexpected HTTP failure: $e',
+              ),
+            );
           }
         }
         for (final entry in faults.entries) {
@@ -207,19 +211,23 @@ final class SimulationWorld {
           final path = key.substring(4);
           try {
             await rest.get(path);
-            results.add(PlayResult(
-              family: 'rest',
-              name: key,
-              passed: false,
-              detail: 'expected scripted ${entry.value} failure, got success',
-            ));
+            results.add(
+              PlayResult(
+                family: 'rest',
+                name: key,
+                passed: false,
+                detail: 'expected scripted ${entry.value} failure, got success',
+              ),
+            );
           } on SimulatedHttpException catch (e) {
-            results.add(PlayResult(
-              family: 'rest',
-              name: key,
-              passed: e.statusCode == (entry.value as num).toInt(),
-              detail: 'scripted fault replayed (${e.statusCode})',
-            ));
+            results.add(
+              PlayResult(
+                family: 'rest',
+                name: key,
+                passed: e.statusCode == (entry.value as num).toInt(),
+                detail: 'scripted fault replayed (${e.statusCode})',
+              ),
+            );
           }
         }
       }
@@ -234,36 +242,48 @@ final class SimulationWorld {
             (vendureWorld['goldenQueries'] as Map<String, dynamic>? ?? const {})
                 .cast<String, dynamic>();
         final goldenMutations =
-            (vendureWorld['goldenMutations'] as Map<String, dynamic>? ?? const {})
+            (vendureWorld['goldenMutations'] as Map<String, dynamic>? ??
+                    const {})
                 .cast<String, dynamic>();
         final scripted =
-            (vendureWorld['scriptedErrors'] as Map<String, dynamic>? ?? const {})
+            (vendureWorld['scriptedErrors'] as Map<String, dynamic>? ??
+                    const {})
                 .cast<String, dynamic>();
         for (final operation in goldenQueries.keys) {
-          results.add(await _playVendure(
-            'vendure',
-            'query $operation',
-            () => vendure.query('query $operation { $operation { __typename } }'),
-            goldenQueries[operation],
-          ));
+          results.add(
+            await _playVendure(
+              'vendure',
+              'query $operation',
+              () => vendure.query(
+                'query $operation { $operation { __typename } }',
+              ),
+              goldenQueries[operation],
+            ),
+          );
         }
         for (final operation in goldenMutations.keys) {
-          results.add(await _playVendure(
-            'vendure',
-            'mutation $operation',
-            () => vendure.mutation(
-              'mutation $operation { $operation { __typename } }',
+          results.add(
+            await _playVendure(
+              'vendure',
+              'mutation $operation',
+              () => vendure.mutation(
+                'mutation $operation { $operation { __typename } }',
+              ),
+              goldenMutations[operation],
             ),
-            goldenMutations[operation],
-          ));
+          );
         }
         for (final operation in scripted.keys) {
-          results.add(await _playVendureError(
-            'vendure',
-            'error $operation',
-            () => vendure.query('query $operation { $operation { __typename } }'),
-            scripted[operation] as List,
-          ));
+          results.add(
+            await _playVendureError(
+              'vendure',
+              'error $operation',
+              () => vendure.query(
+                'query $operation { $operation { __typename } }',
+              ),
+              scripted[operation] as List,
+            ),
+          );
         }
       }
     }
@@ -274,8 +294,9 @@ final class SimulationWorld {
           : null;
       if (authWorld != null) {
         final scriptedErrors = {
-          for (final e in (authWorld['scriptedErrors'] as List? ?? const [])
-              .cast<Map<String, dynamic>>())
+          for (final e
+              in (authWorld['scriptedErrors'] as List? ?? const [])
+                  .cast<Map<String, dynamic>>())
             e['email'] as String: e['code'] as String,
         };
         for (final user
@@ -288,20 +309,24 @@ final class SimulationWorld {
                 email: email,
                 password: user['password'] as String,
               );
-              results.add(PlayResult(
-                family: 'firebase-auth',
-                name: 'scripted $email',
-                passed: false,
-                detail:
-                    'expected scripted ${scriptedErrors[email]}, got sign-in',
-              ));
+              results.add(
+                PlayResult(
+                  family: 'firebase-auth',
+                  name: 'scripted $email',
+                  passed: false,
+                  detail:
+                      'expected scripted ${scriptedErrors[email]}, got sign-in',
+                ),
+              );
             } on SimulatedAuthException catch (e) {
-              results.add(PlayResult(
-                family: 'firebase-auth',
-                name: 'scripted $email',
-                passed: e.code == scriptedErrors[email],
-                detail: 'scripted ${e.code} replayed',
-              ));
+              results.add(
+                PlayResult(
+                  family: 'firebase-auth',
+                  name: 'scripted $email',
+                  passed: e.code == scriptedErrors[email],
+                  detail: 'scripted ${e.code} replayed',
+                ),
+              );
             }
             continue;
           }
@@ -312,25 +337,31 @@ final class SimulationWorld {
             );
             final ok = signedIn.uid == user['uid'] && auth.isSignedIn;
             await auth.signOut();
-            results.add(PlayResult(
-              family: 'firebase-auth',
-              name: 'sign-in $email',
-              passed: ok && !auth.isSignedIn,
-              detail: 'certified credential path replayed',
-            ));
+            results.add(
+              PlayResult(
+                family: 'firebase-auth',
+                name: 'sign-in $email',
+                passed: ok && !auth.isSignedIn,
+                detail: 'certified credential path replayed',
+              ),
+            );
           } on SimulatedAuthException catch (e) {
-            results.add(PlayResult(
-              family: 'firebase-auth',
-              name: 'sign-in $email',
-              passed: false,
-              detail: 'unexpected auth failure: ${e.code}',
-            ));
+            results.add(
+              PlayResult(
+                family: 'firebase-auth',
+                name: 'sign-in $email',
+                passed: false,
+                detail: 'unexpected auth failure: ${e.code}',
+              ),
+            );
           }
         }
       }
     }
 
-    if (wants('admob') && admob != null && manifest['families'].contains('admob')) {
+    if (wants('admob') &&
+        admob != null &&
+        manifest['families'].contains('admob')) {
       final events = <String>[];
       await admob.load(
         callbacks: AdCallbacks(
@@ -346,15 +377,19 @@ final class SimulationWorld {
         ),
       );
       admob.clearScripts();
-      results.add(PlayResult(
-        family: 'admob',
-        name: 'load/show happy path',
-        passed: events.join(',') == 'loaded,shown,dismissed',
-        detail: events.join(','),
-      ));
+      results.add(
+        PlayResult(
+          family: 'admob',
+          name: 'load/show happy path',
+          passed: events.join(',') == 'loaded,shown,dismissed',
+          detail: events.join(','),
+        ),
+      );
     }
 
-    if (wants('otel') && otel != null && manifest['families'].contains('otel')) {
+    if (wants('otel') &&
+        otel != null &&
+        manifest['families'].contains('otel')) {
       final otelWorld = await _readWorld('otel-world.json');
       final expected = (otelWorld?['expectedSpans'] as List? ?? const [])
           .cast<String>();
@@ -365,15 +400,17 @@ final class SimulationWorld {
       final capturedSomething = otel.captured.isNotEmpty;
       final allExpectedPresent =
           expected.every(otel.hasSpan) || !capturedSomething;
-      results.add(PlayResult(
-        family: 'otel',
-        name: 'capture-and-assert exporter',
-        passed: armed && allExpectedPresent,
-        detail: !capturedSomething
-            ? 'exporter armed; no spans produced in this process yet'
-            : 'captured ${otel.captured.length} spans; expected spans all '
-                'present',
-      ));
+      results.add(
+        PlayResult(
+          family: 'otel',
+          name: 'capture-and-assert exporter',
+          passed: armed && allExpectedPresent,
+          detail: !capturedSomething
+              ? 'exporter armed; no spans produced in this process yet'
+              : 'captured ${otel.captured.length} spans; expected spans all '
+                    'present',
+        ),
+      );
     }
 
     return results;

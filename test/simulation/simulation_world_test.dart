@@ -42,13 +42,7 @@ void main() {
     fixturesDir = '${workspace.path}/tdd/fixtures';
     await SimulationFixtures.scaffold(
       fixturesDir,
-      families: const [
-        'firebase-auth',
-        'vendure',
-        'rest',
-        'admob',
-        'otel',
-      ],
+      families: const ['firebase-auth', 'vendure', 'rest', 'admob', 'otel'],
     );
   });
 
@@ -58,53 +52,57 @@ void main() {
   });
 
   group('fixture commitment', () {
-    test('scaffold writes per-family fixture files plus a hashed manifest',
-        () async {
-      final manifestFile = File('$fixturesDir/manifest.json');
-      expect(manifestFile.existsSync(), isTrue);
-      final manifest =
-          jsonDecode(manifestFile.readAsStringSync()) as Map<String, dynamic>;
-      expect(manifest['schema'], 1);
-      expect(
-        (manifest['families'] as List).toSet(),
-        {'firebase-auth', 'vendure', 'rest', 'admob', 'otel'},
-      );
-      final files = manifest['files'] as Map<String, dynamic>;
-      expect(files.keys, containsAll(<String>[
-        'auth-world.json',
-        'vendure-golden.json',
-        'rest-world.json',
-        'admob-world.json',
-        'otel-world.json',
-      ]));
-      // Every recorded hash is a real sha256 of the file bytes.
-      for (final entry in files.entries) {
-        final bytes =
-            File('$fixturesDir/${entry.key}').readAsBytesSync();
+    test(
+      'scaffold writes per-family fixture files plus a hashed manifest',
+      () async {
+        final manifestFile = File('$fixturesDir/manifest.json');
+        expect(manifestFile.existsSync(), isTrue);
+        final manifest =
+            jsonDecode(manifestFile.readAsStringSync()) as Map<String, dynamic>;
+        expect(manifest['schema'], 1);
+        expect((manifest['families'] as List).toSet(), {
+          'firebase-auth',
+          'vendure',
+          'rest',
+          'admob',
+          'otel',
+        });
+        final files = manifest['files'] as Map<String, dynamic>;
         expect(
-          FixtureRegistry.sha256Hex(bytes),
-          (entry.value as Map<String, dynamic>)['sha256'],
-          reason: 'fixture ${entry.key} must hash to its manifest sha256',
+          files.keys,
+          containsAll(<String>[
+            'auth-world.json',
+            'vendure-golden.json',
+            'rest-world.json',
+            'admob-world.json',
+            'otel-world.json',
+          ]),
         );
-      }
-      expect(manifest['digest'], hasLength(64));
-    });
+        // Every recorded hash is a real sha256 of the file bytes.
+        for (final entry in files.entries) {
+          final bytes = File('$fixturesDir/${entry.key}').readAsBytesSync();
+          expect(
+            FixtureRegistry.sha256Hex(bytes),
+            (entry.value as Map<String, dynamic>)['sha256'],
+            reason: 'fixture ${entry.key} must hash to its manifest sha256',
+          );
+        }
+        expect(manifest['digest'], hasLength(64));
+      },
+    );
 
-    test('scaffold is deterministic: identical worlds hash identically',
-        () async {
-      final other = '${workspace.path}/other/tdd/fixtures';
-      await SimulationFixtures.scaffold(
-        other,
-        families: const ['rest'],
-      );
-      final a = jsonDecode(
-        File('$fixturesDir/rest-world.json').readAsStringSync(),
-      );
-      final b = jsonDecode(
-        File('$other/rest-world.json').readAsStringSync(),
-      );
-      expect(jsonEncode(a), jsonEncode(b));
-    });
+    test(
+      'scaffold is deterministic: identical worlds hash identically',
+      () async {
+        final other = '${workspace.path}/other/tdd/fixtures';
+        await SimulationFixtures.scaffold(other, families: const ['rest']);
+        final a = jsonDecode(
+          File('$fixturesDir/rest-world.json').readAsStringSync(),
+        );
+        final b = jsonDecode(File('$other/rest-world.json').readAsStringSync());
+        expect(jsonEncode(a), jsonEncode(b));
+      },
+    );
   });
 
   group('SimulationWorld.load', () {
@@ -144,38 +142,41 @@ void main() {
   });
 
   group('DI binding (same production interface, certified binding)', () {
-    test('bindTo registers the certified adapters under the contracts',
-        () async {
-      final world = await SimulationWorld.boot(fixturesDir: fixturesDir);
-      final container = ZuraffaContainer.instance;
-      container.reset();
-      world.bindTo(container);
+    test(
+      'bindTo registers the certified adapters under the contracts',
+      () async {
+        final world = await SimulationWorld.boot(fixturesDir: fixturesDir);
+        final container = ZuraffaContainer.instance;
+        container.reset();
+        world.bindTo(container);
 
-      final resolvedRest = container.resolve<RestContract>();
-      expect(identical(resolvedRest, world.rest), isTrue);
-      expect(container.resolve<AuthContract>(), same(world.auth));
-      expect(container.resolve<VendureContract>(), same(world.vendure));
-      expect(container.resolve<AdContract>(), same(world.admob));
-      world.dispose();
-    });
+        final resolvedRest = container.resolve<RestContract>();
+        expect(identical(resolvedRest, world.rest), isTrue);
+        expect(container.resolve<AuthContract>(), same(world.auth));
+        expect(container.resolve<VendureContract>(), same(world.vendure));
+        expect(container.resolve<AdContract>(), same(world.admob));
+        world.dispose();
+      },
+    );
 
-    test('a generated-style data source runs GREEN through DI — no network',
-        () async {
-      final world = await SimulationWorld.boot(fixturesDir: fixturesDir);
-      final container = ZuraffaContainer.instance;
-      container.reset();
-      world.bindTo(container);
+    test(
+      'a generated-style data source runs GREEN through DI — no network',
+      () async {
+        final world = await SimulationWorld.boot(fixturesDir: fixturesDir);
+        final container = ZuraffaContainer.instance;
+        container.reset();
+        world.bindTo(container);
 
-      // The data source is constructed with whatever the container binds.
-      final dataSource =
-          PriceDataSource(container.resolve<RestContract>());
-      final quote = await dataSource.fetchQuote('USD-TRY');
-      expect(quote['symbol'], 'USD-TRY');
-      // Deterministic: same answer twice.
-      final again = await dataSource.fetchQuote('USD-TRY');
-      expect(jsonEncode(again), jsonEncode(quote));
-      world.dispose();
-    });
+        // The data source is constructed with whatever the container binds.
+        final dataSource = PriceDataSource(container.resolve<RestContract>());
+        final quote = await dataSource.fetchQuote('USD-TRY');
+        expect(quote['symbol'], 'USD-TRY');
+        // Deterministic: same answer twice.
+        final again = await dataSource.fetchQuote('USD-TRY');
+        expect(jsonEncode(again), jsonEncode(quote));
+        world.dispose();
+      },
+    );
   });
 
   group('golden replay', () {

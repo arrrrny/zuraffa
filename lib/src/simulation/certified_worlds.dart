@@ -92,11 +92,7 @@ const certifiedRestWorld = <String, dynamic>{
   'fixtures': {
     'GET /v1/quote/USD-TRY': {
       'status': 200,
-      'body': {
-        'symbol': 'USD-TRY',
-        'price': 41.2,
-        'change': -0.15,
-      },
+      'body': {'symbol': 'USD-TRY', 'price': 41.2, 'change': -0.15},
     },
     'GET /v1/search?q=kayak': {
       'status': 200,
@@ -112,9 +108,7 @@ const certifiedRestWorld = <String, dynamic>{
       'body': {'id': 'list-1'},
     },
   },
-  'scriptedFaults': {
-    'GET /v1/unstable': 500,
-  },
+  'scriptedFaults': {'GET /v1/unstable': 500},
   'latencyMs': 0,
 };
 
@@ -138,10 +132,10 @@ const certifiedOtelWorld = <String, dynamic>{
 
 /// The certified world for [family], or `null` for an unknown family.
 Map<String, dynamic>? certifiedWorldFor(String family) => switch (family) {
-      'firebase-auth' => certifiedAuthWorld,
-      'vendure' => certifiedVendureWorld,
-      'rest' => certifiedRestWorld,
-      'admob' => certifiedAdmobWorld,
-      'otel' => certifiedOtelWorld,
-      _ => null,
-    };
+  'firebase-auth' => certifiedAuthWorld,
+  'vendure' => certifiedVendureWorld,
+  'rest' => certifiedRestWorld,
+  'admob' => certifiedAdmobWorld,
+  'otel' => certifiedOtelWorld,
+  _ => null,
+};

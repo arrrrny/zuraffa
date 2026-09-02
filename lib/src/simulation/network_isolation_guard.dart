@@ -112,8 +112,7 @@ final class _GuardedIOOverrides extends IOOverrides {
     sourceAddress,
     int sourcePort = 0,
     Duration? timeout,
-  }) async =>
-      throw NetworkIsolationViolation('Socket.connect', '$host', port);
+  }) async => throw NetworkIsolationViolation('Socket.connect', '$host', port);
 
   @override
   Future<ConnectionTask<Socket>> socketStartConnect(
@@ -132,16 +131,13 @@ final class _GuardedHttpOverrides extends HttpOverrides {
     // Build the raw client via super — `new HttpClient()` would consult
     // HttpOverrides.current again and recurse until the stack overflows.
     final client = super.createHttpClient(context)
-      ..connectionFactory = (
-        Uri uri,
-        String? proxyHost,
-        int? proxyPort,
-      ) async =>
-          throw NetworkIsolationViolation(
-            'HttpClient.connect',
-            proxyHost ?? uri.host,
-            proxyPort ?? uri.port,
-          );
+      ..connectionFactory =
+          (Uri uri, String? proxyHost, int? proxyPort) async =>
+              throw NetworkIsolationViolation(
+                'HttpClient.connect',
+                proxyHost ?? uri.host,
+                proxyPort ?? uri.port,
+              );
     return client;
   }
 }

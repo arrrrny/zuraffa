@@ -29,55 +29,61 @@ void main() {
   });
 
   group('FirebaseAuthAdapter (scriptable auth states)', () {
-    test('signIn with certified credentials flips signed-out to signed-in',
-        () async {
-      final auth = FirebaseAuthAdapter(world: const {
-        'initialUser': null,
-        'users': [
-          {
-            'email': 'ada@example.com',
-            'password': 's3cret!',
-            'uid': 'u-ada-001',
-            'displayName': 'Ada',
+    test(
+      'signIn with certified credentials flips signed-out to signed-in',
+      () async {
+        final auth = FirebaseAuthAdapter(
+          world: const {
+            'initialUser': null,
+            'users': [
+              {
+                'email': 'ada@example.com',
+                'password': 's3cret!',
+                'uid': 'u-ada-001',
+                'displayName': 'Ada',
+              },
+            ],
+            'scriptedErrors': <Map<String, dynamic>>[],
+            'deletionRequiresRecentLogin': false,
           },
-        ],
-        'scriptedErrors': <Map<String, dynamic>>[],
-        'deletionRequiresRecentLogin': false,
-      });
-      expect(auth.isSignedIn, isFalse);
-      expect(auth.currentUser, isNull);
-      final user = await auth.signIn(
-        email: 'ada@example.com',
-        password: 's3cret!',
-      );
-      expect(user.uid, 'u-ada-001');
-      expect(user.email, 'ada@example.com');
-      expect(auth.isSignedIn, isTrue);
-      expect(auth.currentUser!.uid, 'u-ada-001');
-    });
+        );
+        expect(auth.isSignedIn, isFalse);
+        expect(auth.currentUser, isNull);
+        final user = await auth.signIn(
+          email: 'ada@example.com',
+          password: 's3cret!',
+        );
+        expect(user.uid, 'u-ada-001');
+        expect(user.email, 'ada@example.com');
+        expect(auth.isSignedIn, isTrue);
+        expect(auth.currentUser!.uid, 'u-ada-001');
+      },
+    );
 
     test('scripted credential errors surface deterministic codes', () async {
-      final auth = FirebaseAuthAdapter(world: const {
-        'initialUser': null,
-        'users': [
-          {
-            'email': 'ada@example.com',
-            'password': 's3cret!',
-            'uid': 'u-ada-001',
-            'displayName': 'Ada',
-          },
-          {
-            'email': 'disabled@example.com',
-            'password': 'whatever',
-            'uid': 'u-disabled-001',
-            'displayName': 'Locked',
-          },
-        ],
-        'scriptedErrors': [
-          {'email': 'disabled@example.com', 'code': 'user-disabled'},
-        ],
-        'deletionRequiresRecentLogin': false,
-      });
+      final auth = FirebaseAuthAdapter(
+        world: const {
+          'initialUser': null,
+          'users': [
+            {
+              'email': 'ada@example.com',
+              'password': 's3cret!',
+              'uid': 'u-ada-001',
+              'displayName': 'Ada',
+            },
+            {
+              'email': 'disabled@example.com',
+              'password': 'whatever',
+              'uid': 'u-disabled-001',
+              'displayName': 'Locked',
+            },
+          ],
+          'scriptedErrors': [
+            {'email': 'disabled@example.com', 'code': 'user-disabled'},
+          ],
+          'deletionRequiresRecentLogin': false,
+        },
+      );
 
       // Unknown email -> user-not-found.
       await expectLater(
@@ -117,19 +123,21 @@ void main() {
     });
 
     test('register, duplicate register, signOut and deletion flows', () async {
-      final auth = FirebaseAuthAdapter(world: const {
-        'initialUser': null,
-        'users': [
-          {
-            'email': 'ada@example.com',
-            'password': 's3cret!',
-            'uid': 'u-ada-001',
-            'displayName': 'Ada',
-          },
-        ],
-        'scriptedErrors': <Map<String, dynamic>>[],
-        'deletionRequiresRecentLogin': false,
-      });
+      final auth = FirebaseAuthAdapter(
+        world: const {
+          'initialUser': null,
+          'users': [
+            {
+              'email': 'ada@example.com',
+              'password': 's3cret!',
+              'uid': 'u-ada-001',
+              'displayName': 'Ada',
+            },
+          ],
+          'scriptedErrors': <Map<String, dynamic>>[],
+          'deletionRequiresRecentLogin': false,
+        },
+      );
 
       await auth.register(email: 'new@example.com', password: 'fresh-1');
       expect(auth.isSignedIn, isTrue);
@@ -163,19 +171,21 @@ void main() {
     });
 
     test('scriptable requires-recent-login deletion guard', () async {
-      final auth = FirebaseAuthAdapter(world: const {
-        'initialUser': null,
-        'users': [
-          {
-            'email': 'ada@example.com',
-            'password': 's3cret!',
-            'uid': 'u-ada-001',
-            'displayName': 'Ada',
-          },
-        ],
-        'scriptedErrors': <Map<String, dynamic>>[],
-        'deletionRequiresRecentLogin': true,
-      });
+      final auth = FirebaseAuthAdapter(
+        world: const {
+          'initialUser': null,
+          'users': [
+            {
+              'email': 'ada@example.com',
+              'password': 's3cret!',
+              'uid': 'u-ada-001',
+              'displayName': 'Ada',
+            },
+          ],
+          'scriptedErrors': <Map<String, dynamic>>[],
+          'deletionRequiresRecentLogin': true,
+        },
+      );
       await auth.signIn(email: 'ada@example.com', password: 's3cret!');
       await expectLater(
         auth.deleteAccount(),
@@ -245,14 +255,16 @@ void main() {
       expect(response['data']['addItemToOrder']['id'], '9');
     });
 
-    test('unknown operations refuse with a deterministic error surface',
-        () async {
-      final vendure = VendureAdapter(world: world);
-      await expectLater(
-        vendure.query('query notRecorded { notRecorded { id } }'),
-        throwsA(isA<SimulatedGraphQLError>()),
-      );
-    });
+    test(
+      'unknown operations refuse with a deterministic error surface',
+      () async {
+        final vendure = VendureAdapter(world: world);
+        await expectLater(
+          vendure.query('query notRecorded { notRecorded { id } }'),
+          throwsA(isA<SimulatedGraphQLError>()),
+        );
+      },
+    );
 
     test('scripted GraphQL errors replay the recorded payload', () async {
       final vendure = VendureAdapter(world: world);
@@ -278,16 +290,16 @@ void main() {
         },
         'GET /v1/search?q=kayak': {
           'status': 200,
-          'body': {'results': ['Kayak 1']},
+          'body': {
+            'results': ['Kayak 1'],
+          },
         },
         'POST /v1/lists': {
           'status': 201,
           'body': {'id': 'list-1'},
         },
       },
-      'scriptedFaults': {
-        'GET /v1/unstable': 500,
-      },
+      'scriptedFaults': {'GET /v1/unstable': 500},
       'latencyMs': 0,
     };
 
@@ -308,10 +320,7 @@ void main() {
       final rest = RestAdapter(world: world);
       final created = await rest.post('/v1/lists', body: {'name': 'x'});
       expect(created['id'], 'list-1');
-      expect(
-        await rest.put('/v1/lists', body: {'name': 'y'}),
-        created,
-      );
+      expect(await rest.put('/v1/lists', body: {'name': 'y'}), created);
       expect(await rest.delete('/v1/lists'), created);
     });
 
@@ -344,16 +353,18 @@ void main() {
     });
 
     test('latency injection delays responses without jitter', () async {
-      final rest = RestAdapter(world: const {
-        'fixtures': {
-          'GET /v1/quote/USD-TRY': {
-            'status': 200,
-            'body': {'price': 41.2},
+      final rest = RestAdapter(
+        world: const {
+          'fixtures': {
+            'GET /v1/quote/USD-TRY': {
+              'status': 200,
+              'body': {'price': 41.2},
+            },
           },
+          'scriptedFaults': <String, int>{},
+          'latencyMs': 15,
         },
-        'scriptedFaults': <String, int>{},
-        'latencyMs': 15,
-      });
+      );
       final sw = Stopwatch()..start();
       await rest.get('/v1/quote/USD-TRY');
       sw.stop();
@@ -364,11 +375,13 @@ void main() {
 
   group('AdMobAdapter (load/show/fail callbacks)', () {
     test('load fires onAdLoaded and show fires shown/dismissed', () async {
-      final admob = AdMobAdapter(world: const {
-        'scriptedLoadFailure': null,
-        'scriptedShowFailure': null,
-        'latencyMs': 0,
-      });
+      final admob = AdMobAdapter(
+        world: const {
+          'scriptedLoadFailure': null,
+          'scriptedShowFailure': null,
+          'latencyMs': 0,
+        },
+      );
       final events = <String>[];
       await admob.load(
         callbacks: AdCallbacks(onAdLoaded: () => events.add('loaded')),
@@ -384,37 +397,41 @@ void main() {
       expect(admob.state, AdLoadState.dismissed);
     });
 
-    test('scripted failures route to onAdFailed with the scripted code',
-        () async {
-      final admob = AdMobAdapter(world: const {
-        'scriptedLoadFailure': null,
-        'scriptedShowFailure': null,
-        'latencyMs': 0,
-      });
-      admob.scriptLoadFailure('no-fill');
-      final events = <String>[];
-      await admob.load(
-        callbacks: AdCallbacks(
-          onAdLoaded: () => events.add('loaded'),
-          onAdFailed: (code) => events.add('failed:$code'),
-        ),
-      );
-      expect(events, ['failed:no-fill']);
-      expect(admob.state, AdLoadState.failed);
+    test(
+      'scripted failures route to onAdFailed with the scripted code',
+      () async {
+        final admob = AdMobAdapter(
+          world: const {
+            'scriptedLoadFailure': null,
+            'scriptedShowFailure': null,
+            'latencyMs': 0,
+          },
+        );
+        admob.scriptLoadFailure('no-fill');
+        final events = <String>[];
+        await admob.load(
+          callbacks: AdCallbacks(
+            onAdLoaded: () => events.add('loaded'),
+            onAdFailed: (code) => events.add('failed:$code'),
+          ),
+        );
+        expect(events, ['failed:no-fill']);
+        expect(admob.state, AdLoadState.failed);
 
-      admob.clearScripts();
-      admob.scriptShowFailure('ad-not-ready');
-      await admob.load(
-        callbacks: AdCallbacks(onAdLoaded: () => events.add('loaded')),
-      );
-      expect(events.last, 'loaded');
-      await admob.show(
-        callbacks: AdCallbacks(
-          onAdFailed: (code) => events.add('show-failed:$code'),
-        ),
-      );
-      expect(events.last, 'show-failed:ad-not-ready');
-    });
+        admob.clearScripts();
+        admob.scriptShowFailure('ad-not-ready');
+        await admob.load(
+          callbacks: AdCallbacks(onAdLoaded: () => events.add('loaded')),
+        );
+        expect(events.last, 'loaded');
+        await admob.show(
+          callbacks: AdCallbacks(
+            onAdFailed: (code) => events.add('show-failed:$code'),
+          ),
+        );
+        expect(events.last, 'show-failed:ad-not-ready');
+      },
+    );
   });
 
   group('OtelAdapter (capture-and-assert exporter)', () {
@@ -426,9 +443,7 @@ void main() {
       final tracer = provider.getTracer('simulation-test');
       final span = tracer.startSpan(
         'usecase.PlaceOrder',
-        attributes: [
-          otel_api.Attribute.fromString('order.id', 'o-42'),
-        ],
+        attributes: [otel_api.Attribute.fromString('order.id', 'o-42')],
       );
       span.end();
 

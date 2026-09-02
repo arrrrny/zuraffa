@@ -54,19 +54,17 @@ class FixtureRegistry {
       throw FixtureMismatch(fixturesDir, 'fixtures directory does not exist');
     }
     final hashes = <String, Map<String, dynamic>>{};
-    final files = dir
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => p.basename(f.path) != manifestFileName)
-        .toList()
-      ..sort((a, b) => a.path.compareTo(b.path));
+    final files =
+        dir
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((f) => p.basename(f.path) != manifestFileName)
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
     for (final file in files) {
       final relative = p.relative(file.path, from: fixturesDir);
       final bytes = file.readAsBytesSync();
-      hashes[relative] = {
-        'sha256': sha256Hex(bytes),
-        'bytes': bytes.length,
-      };
+      hashes[relative] = {'sha256': sha256Hex(bytes), 'bytes': bytes.length};
     }
     return hashes;
   }
@@ -74,10 +72,9 @@ class FixtureRegistry {
   /// The combined world digest: SHA-256 over the sorted
   /// `"<relative-path>:<sha256>\n"` lines.
   String digestOf(Map<String, Map<String, dynamic>> hashes) {
-    final lines = hashes.entries
-        .map((e) => '${e.key}:${e.value['sha256']}\n')
-        .toList()
-      ..sort();
+    final lines =
+        hashes.entries.map((e) => '${e.key}:${e.value['sha256']}\n').toList()
+          ..sort();
     return sha256Hex(ascii.encode(lines.join()));
   }
 
@@ -97,9 +94,9 @@ class FixtureRegistry {
       'files': hashes,
       'digest': digestOf(hashes),
     };
-    File(p.join(fixturesDir, manifestFileName)).writeAsStringSync(
-      const JsonEncoder.withIndent('  ').convert(manifest),
-    );
+    File(
+      p.join(fixturesDir, manifestFileName),
+    ).writeAsStringSync(const JsonEncoder.withIndent('  ').convert(manifest));
     return manifest;
   }
 
@@ -229,7 +226,9 @@ final class SimulationFixtures {
         throw FixtureMismatch(family, 'unknown simulation family');
       }
     }
-    final manifestFile = File(p.join(fixturesDir, FixtureRegistry.manifestFileName));
+    final manifestFile = File(
+      p.join(fixturesDir, FixtureRegistry.manifestFileName),
+    );
     if (manifestFile.existsSync() && !force) {
       throw FixtureMismatch(
         manifestFile.path,

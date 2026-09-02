@@ -46,79 +46,82 @@ void main() {
   });
 
   group('--scaffold (automated fixture commitment)', () {
-    test('materializes certified fixtures + manifest + cycle-log evidence',
-        () async {
-      final featureDir = '${workspace.path}/specs/058-zuraffa-auth-migration';
-      final (code, output) = await runZfa([
-        'simulate',
-        '--scaffold',
-        featureDir,
-        '--family',
-        'firebase-auth',
-      ]);
-      expect(code, 0, reason: output);
+    test(
+      'materializes certified fixtures + manifest + cycle-log evidence',
+      () async {
+        final featureDir = '${workspace.path}/specs/058-zuraffa-auth-migration';
+        final (code, output) = await runZfa([
+          'simulate',
+          '--scaffold',
+          featureDir,
+          '--family',
+          'firebase-auth',
+        ]);
+        expect(code, 0, reason: output);
 
-      final fixturesDir = '$featureDir/tdd/fixtures';
-      expect(File('$fixturesDir/auth-world.json').existsSync(), isTrue);
-      expect(File('$fixturesDir/manifest.json').existsSync(), isTrue);
+        final fixturesDir = '$featureDir/tdd/fixtures';
+        expect(File('$fixturesDir/auth-world.json').existsSync(), isTrue);
+        expect(File('$fixturesDir/manifest.json').existsSync(), isTrue);
 
-      // Fixture hashes are recorded in the feature's cycle-log evidence.
-      final cycleLog = File('$featureDir/tdd/cycle-log.md');
-      expect(cycleLog.existsSync(), isTrue);
-      final log = cycleLog.readAsStringSync();
-      expect(log, contains('- behavior: 058-zuraffa-auth-migration-fixtures'));
-      expect(log, contains('- kind: fixtures'));
-      expect(log, contains(RegExp(r'- hash: [0-9a-f]{64}')));
-      expect(
-        log,
-        contains(
-          'zfa simulate --scaffold $featureDir --family firebase-auth',
-        ),
-      );
-    });
+        // Fixture hashes are recorded in the feature's cycle-log evidence.
+        final cycleLog = File('$featureDir/tdd/cycle-log.md');
+        expect(cycleLog.existsSync(), isTrue);
+        final log = cycleLog.readAsStringSync();
+        expect(
+          log,
+          contains('- behavior: 058-zuraffa-auth-migration-fixtures'),
+        );
+        expect(log, contains('- kind: fixtures'));
+        expect(log, contains(RegExp(r'- hash: [0-9a-f]{64}')));
+        expect(
+          log,
+          contains(
+            'zfa simulate --scaffold $featureDir --family firebase-auth',
+          ),
+        );
+      },
+    );
 
-    test('scaffolds every family by default and is re-runnable with --force',
-        () async {
-      final featureDir = '${workspace.path}/specs/011-usecase-hook-system';
-      final (_, first) = await runZfa([
-        'simulate',
-        '--scaffold',
-        featureDir,
-      ]);
-      expect(exitCode, 0, reason: first);
+    test(
+      'scaffolds every family by default and is re-runnable with --force',
+      () async {
+        final featureDir = '${workspace.path}/specs/011-usecase-hook-system';
+        final (_, first) = await runZfa(['simulate', '--scaffold', featureDir]);
+        expect(exitCode, 0, reason: first);
 
-      final fixturesDir = '$featureDir/tdd/fixtures';
-      expect(File('$fixturesDir/auth-world.json').existsSync(), isTrue);
-      expect(File('$fixturesDir/vendure-golden.json').existsSync(), isTrue);
-      expect(File('$fixturesDir/rest-world.json').existsSync(), isTrue);
-      expect(File('$fixturesDir/admob-world.json').existsSync(), isTrue);
-      expect(File('$fixturesDir/otel-world.json').existsSync(), isTrue);
+        final fixturesDir = '$featureDir/tdd/fixtures';
+        expect(File('$fixturesDir/auth-world.json').existsSync(), isTrue);
+        expect(File('$fixturesDir/vendure-golden.json').existsSync(), isTrue);
+        expect(File('$fixturesDir/rest-world.json').existsSync(), isTrue);
+        expect(File('$fixturesDir/admob-world.json').existsSync(), isTrue);
+        expect(File('$fixturesDir/otel-world.json').existsSync(), isTrue);
 
-      // Re-run without --force refuses (evidence must not be clobbered).
-      final (codeNoForce, _) = await runZfa([
-        'simulate',
-        '--scaffold',
-        featureDir,
-      ]);
-      expect(codeNoForce, isNot(0));
+        // Re-run without --force refuses (evidence must not be clobbered).
+        final (codeNoForce, _) = await runZfa([
+          'simulate',
+          '--scaffold',
+          featureDir,
+        ]);
+        expect(codeNoForce, isNot(0));
 
-      // With --force the world re-certifies and the manifest stays valid.
-      final (codeForce, _) = await runZfa([
-        'simulate',
-        '--scaffold',
-        featureDir,
-        '--force',
-      ]);
-      expect(codeForce, 0);
-      final manifest =
-          File('$fixturesDir/manifest.json').readAsStringSync();
-      expect(manifest, contains('"digest"'));
-    });
+        // With --force the world re-certifies and the manifest stays valid.
+        final (codeForce, _) = await runZfa([
+          'simulate',
+          '--scaffold',
+          featureDir,
+          '--force',
+        ]);
+        expect(codeForce, 0);
+        final manifest = File('$fixturesDir/manifest.json').readAsStringSync();
+        expect(manifest, contains('"digest"'));
+      },
+    );
   });
 
   group('--scenario (deterministic golden replay)', () {
     test('replays the world GREEN and reports a machine verdict', () async {
-      final featureDir = '${workspace.path}/specs/065-vendure-zuraffa-migration';
+      final featureDir =
+          '${workspace.path}/specs/065-vendure-zuraffa-migration';
       final (scaffoldCode, scaffoldOut) = await runZfa([
         'simulate',
         '--scaffold',
@@ -157,10 +160,7 @@ void main() {
 
   group('--verify-guard (certify the isolation)', () {
     test('the guard self-test proves sockets are blocked', () async {
-      final (code, output) = await runZfa([
-        'simulate',
-        '--verify-guard',
-      ]);
+      final (code, output) = await runZfa(['simulate', '--verify-guard']);
       expect(code, 0, reason: output);
       expect(output, contains('guard ok'));
     });

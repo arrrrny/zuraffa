@@ -52,13 +52,15 @@ class SimulateCommand extends Command<void> {
     argParser.addOption(
       'fixtures',
       valueHelp: 'dir',
-      help: 'Load the committed world from an explicit fixtures directory '
+      help:
+          'Load the committed world from an explicit fixtures directory '
           '(overrides --feature).',
     );
     argParser.addOption(
       'scenario',
       defaultsTo: 'golden',
-      help: 'Golden replay to run: "golden" (every fixture) or one family '
+      help:
+          'Golden replay to run: "golden" (every fixture) or one family '
           'name.',
     );
     argParser.addFlag(
@@ -99,7 +101,8 @@ class SimulateCommand extends Command<void> {
         exitCode = await _scaffold(scaffoldDir);
         return;
       }
-      final fixturesDir = (argResults!['fixtures'] as String?) ??
+      final fixturesDir =
+          (argResults!['fixtures'] as String?) ??
           (argResults!['feature'] as String?);
       if (fixturesDir != null) {
         exitCode = await _replay(fixturesDir);
@@ -127,9 +130,7 @@ class SimulateCommand extends Command<void> {
     try {
       try {
         await Socket.connect('simulation-guard-probe.invalid', 80);
-        print(
-          'SIMULATE guard FAILED — Socket.connect dialed a real socket',
-        );
+        print('SIMULATE guard FAILED — Socket.connect dialed a real socket');
         return 1;
       } on NetworkIsolationViolation catch (e) {
         print('SIMULATE guard ok — socket blocked: ${e.toString()}');
@@ -142,17 +143,15 @@ class SimulateCommand extends Command<void> {
 
   Future<int> _scaffold(String featureDir) async {
     final families = argResults!['family'] as List<String>;
-    final fixturesDir =
-        Directory(featureDir).path.endsWith('/tdd/fixtures')
-            ? Directory(featureDir).path
-            : '${Directory(featureDir).path}/tdd/fixtures';
+    final fixturesDir = Directory(featureDir).path.endsWith('/tdd/fixtures')
+        ? Directory(featureDir).path
+        : '${Directory(featureDir).path}/tdd/fixtures';
     final manifest = await SimulationFixtures.scaffold(
       fixturesDir,
       families: families,
       force: argResults!['force'] as bool,
     );
-    final selected =
-        (manifest['families'] as List).cast<String>().toList();
+    final selected = (manifest['families'] as List).cast<String>().toList();
     final commandLine = StringBuffer('zfa simulate --scaffold $featureDir');
     for (final family in selected) {
       commandLine.write(' --family $family');
@@ -186,18 +185,18 @@ class SimulateCommand extends Command<void> {
         );
         return 1;
       }
-      final failures =
-          results.where((r) => !r.passed).toList(growable: false);
-      final verdict =
-          failures.isEmpty ? 'GREEN' : 'RED';
+      final failures = results.where((r) => !r.passed).toList(growable: false);
+      final verdict = failures.isEmpty ? 'GREEN' : 'RED';
       print(
         'SIMULATE ${scenario ?? 'golden'} -> $verdict '
         '(${results.length - failures.length}/${results.length} plays, '
         'guard=active, digest=${world.manifest['digest']})',
       );
       for (final result in failures) {
-        print('  FAIL ${result.family}/${result.name}: '
-            '${result.detail}');
+        print(
+          '  FAIL ${result.family}/${result.name}: '
+          '${result.detail}',
+        );
       }
       return failures.isEmpty ? 0 : 1;
     } finally {
