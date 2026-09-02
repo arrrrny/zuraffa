@@ -22,6 +22,16 @@ class EntityCommand {
 
     final subCommand = args[0];
 
+    // `--help`/`-h` must be reachable from any directory (issue #764): the
+    // pubspec dependency guard below runs before the subcommand switch and
+    // exits 1 outside a project root, which previously made usage
+    // unreachable. Handle help explicitly, mirroring the empty-args path.
+    if (subCommand == '--help' || subCommand == '-h') {
+      _printHelp();
+      if (exitOnCompletion) exit(0);
+      return;
+    }
+
     final shouldBuild = args.contains('--build');
     final shouldFormat = args.contains('--dart-format');
     final subArgs = args
