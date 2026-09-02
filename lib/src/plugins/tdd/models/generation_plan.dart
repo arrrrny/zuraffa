@@ -39,6 +39,25 @@ enum MakeOutcome {
   /// Non-zero exit, no green entry.
   generationError('generation-error'),
 
+  /// The generation subprocess was killed by resource pressure — a
+  /// signal death (OS OOM killer SIGKILL, or the bounded ceiling turning
+  /// runaway allocation into a deterministic in-child abort), classified
+  /// per the bug #826 remediation. Transient by nature: a direct re-run
+  /// succeeds, no state changed. Non-zero exit, no green entry.
+  resourceLimit('resource-limit'),
+
+  /// The generation subprocess outlived its hard deadline and was killed
+  /// (bug #742 deadline, classified per bug #826). Non-zero exit, no
+  /// green entry.
+  timeout('timeout'),
+
+  /// The behavior's generation plan resolves to an empty inner
+  /// `zfa make` plan ("No active plugins to run.") — there is nothing to
+  /// generate, so the make records a no-op WITHOUT attempting the
+  /// subprocess (bug #826 remediation). The run loop defers it to phase 2
+  /// exactly like `unexpressible`. Non-zero exit, no green entry.
+  noOp('no-op'),
+
   /// Suite guard found NEW failures.
   /// Non-zero exit, no green entry.
   regression('regression'),
@@ -90,16 +109,101 @@ class GenerationStep {
   /// not a generation failure.
   final bool timedOut;
 
+  /// Why the step's process died, when it died by kill rather than by its
+  /// own exit (bug #826): [GenerationKillClass.timeout] when our deadline
+  /// fired, [GenerationKillClass.resourceLimit] when the OS or the bounded
+  /// ceiling killed it (the SIGKILL/OOM class — Dart reports a
+  /// signal-killed child as a negative exit code). [GenerationKillClass.none]
+  /// for every ordinary exit, including ordinary failures.
+  final GenerationKillClass killClass;
+
+  /// Resource telemetry around the step's subprocess (bug #826): the
+  /// spawning process's RSS just before/after the child ran and the
+  /// child's wall-clock duration. Surface in the verdict JSON for
+  /// observability; never used in decisions.
+  final StepTelemetry? telemetry;
+
   const GenerationStep({
     required this.command,
     required this.exitCode,
     required this.output,
     required this.purpose,
     this.timedOut = false,
+    this.killClass = GenerationKillClass.none,
+    this.telemetry,
   });
 
+  /// The machine-parseable verdict class for a killed step
+  /// (`resource-limit` or `timeout`), null for every ordinary exit —
+  /// a killed step is never graded as a bare `generation-error` (bug #826).
+  String? get verdictLabel => switch (killClass) {
+    GenerationKillClass.none => null,
+    GenerationKillClass.timeout => 'timeout',
+    GenerationKillClass.resourceLimit => 'resource-limit',
+  };
+
+  /// The JSON verdict for a killed step: the classification, the exact
+  /// exit code, and the resource telemetry (bug #826 remediation 4).
+  /// Empty for ordinary exits (they keep their honest failure records).
+  Map<String, dynamic> verdictJson() => {
+    if (verdictLabel != null) 'verdict': verdictLabel,
+    'exitCode': exitCode,
+    'timedOut': timedOut,
+    'rssBeforeKb': telemetry?.rssBeforeKb,
+    'rssAfterKb': telemetry?.rssAfterKb,
+    'wallClockMs': telemetry?.wallClockMs,
+    'command': command,
+  };
+
   @override
-  String toString() => 'GenerationStep($purpose: exit=$exitCode cmd=$command)';
+  String toString() =>
+      'GenerationStep($purpose: exit=$exitCode cmd=$command'
+      '${verdictLabel == null ? '' : ' verdict=$verdictLabel'})';
+}
+
+/// Why a killed generation step died (bug #826). Only kills are
+/// classified; an ordinary non-zero exit stays an unclassified, honest
+/// generation failure.
+enum GenerationKillClass {
+  /// The process exited by itself (exit code — zero or not).
+  none,
+
+  /// Our per-step deadline fired and we killed the child (bug #742 path).
+  timeout,
+
+  /// The child died by signal — the OS OOM killer (SIGKILL, exit -9 on
+  /// POSIX) or the bounded ceiling turning runaway allocation into a
+  /// deterministic in-child abort. The transient, re-runnable class.
+  resourceLimit,
+}
+
+/// Resource telemetry around one generation step's subprocess (bug #826).
+class StepTelemetry {
+  /// The spawning process's RSS (KB) just before the child spawned.
+  final int rssBeforeKb;
+
+  /// The spawning process's RSS (KB) just after the child completed.
+  final int rssAfterKb;
+
+  /// The child's wall-clock duration in milliseconds.
+  final int wallClockMs;
+
+  const StepTelemetry({
+    required this.rssBeforeKb,
+    required this.rssAfterKb,
+    required this.wallClockMs,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'rssBeforeKb': rssBeforeKb,
+    'rssAfterKb': rssAfterKb,
+    'wallClockMs': wallClockMs,
+  };
+
+  @override
+  String toString() =>
+      'StepTelemetry(rss: ${rssBeforeKb}KB -> ${rssAfterKb}KB, '
+      'wall: ${wallClockMs}ms)';
 }
 
 /// A behavior → pipeline mapping. Either expressible (steps non-empty,

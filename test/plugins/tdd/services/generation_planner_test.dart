@@ -437,4 +437,127 @@ void main() {
       }
     });
   });
+
+  group('GenerationPlanner — issue 758: CRUD-routed acceptance behaviors '
+      'implement the subject', () {
+    // Issue #758: an acceptance behavior whose prose carries CRUD keywords
+    // ("the Todo repository service persists a todo item") routes to the
+    // CRUD branch, but that branch's plan (`make <slug>` + `build`) never
+    // implemented the gen'd acceptance subject — `lib/tdd/<id>_subject.dart`
+    // stayed an `UnimplementedError` stub, the post-build target run stayed
+    // red, and `make` honestly stopped with `generation-error`. The loop was
+    // blocked for a natural spec phrasing.
+    //
+    // Fix (the issue's option (a), mirroring the entity branch's #610
+    // contract): when the description names an entity, append the
+    // subject-implementation step (`tdd wire <id> --entity <Name>`) between
+    // `make` and `build` — by wire time `make` has generated the entity, so
+    // the wire command's entity-exists precondition holds. When no entity is
+    // named, option (b): fail fast at plan time as unexpressible, which also
+    // lets make's composition fallback (#642) engage for features that hold
+    // composable green unit subjects.
+    test('A-758a: an acceptance CRUD behavior naming an entity gets a wire '
+        'step between make and build', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'A1',
+          feature: '001-crud-probe',
+          sourceCriterion: 'AC-1',
+          description: 'the Todo repository service persists a todo item.',
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      expect(
+        plan.steps.map((s) => s.args),
+        [
+          ['entity', 'create', '-n', 'Todo'],
+          ['make', 'Todo'],
+          ['tdd', 'wire', 'A1', '--entity', 'Todo'],
+          ['build'],
+        ],
+        reason:
+            'the subject-implementation step must follow the scaffold '
+            'generation and precede the build',
+      );
+    });
+
+    test('A-758b: an acceptance CRUD behavior naming no entity is '
+        'unexpressible at plan time (fail fast, composition fallback can '
+        'engage)', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'A2',
+          feature: '001-crud-probe',
+          sourceCriterion: 'AC-2',
+          description: 'the repository service persists the item.',
+        ),
+      );
+      expect(plan.isExpressible, isFalse);
+      expect(plan.unexpressibleReason, contains('A2'));
+      expect(
+        plan.unexpressibleReason,
+        contains('entity'),
+        reason: 'the reason must name the missing anchor',
+      );
+      expect(
+        plan.unexpressibleReason,
+        contains('--entity'),
+        reason: 'the reason must be actionable',
+      );
+    });
+
+    test('A-758c: an acceptance behavior with entity prose keeps the entity '
+        'branch (unchanged)', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'A3',
+          feature: '001-crud-probe',
+          sourceCriterion: 'AC-3',
+          description: 'create entity User with email',
+        ),
+      );
+      expect(plan.isExpressible, isTrue);
+      expect(plan.steps.first.args, ['entity', 'create', '-n', 'User']);
+      expect(
+        plan.steps.where((s) => s.args.first == 'wire'),
+        isEmpty,
+        reason: 'the entity branch already carries its own wire step',
+      );
+    });
+
+    test('A-758d: legacy dashed ids keep the plain CRUD contract (no wire '
+        'step added by this fix)', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'B-005',
+          feature: '001-app-bootstrap',
+          sourceCriterion: 'FR-005',
+          description: 'create User use case returns the saved entity',
+        ),
+      );
+      expect(plan.isExpressible, isTrue);
+      expect(plan.steps.first.args, ['make', 'User']);
+      expect(plan.steps.where((s) => s.args.first == 'wire'), isEmpty);
+    });
+
+    test('A-758e: an explicit target wins over the description trace and '
+        'drives the wire entity too', () {
+      final plan = planner.plan(
+        const BehaviorSummary(
+          behaviorId: 'A4',
+          feature: '001-crud-probe',
+          sourceCriterion: 'AC-4',
+          description: 'the Invoice repository service persists an invoice.',
+          target: 'Invoice',
+        ),
+      );
+      expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
+      expect(plan.steps.map((s) => s.args), [
+        ['entity', 'create', '-n', 'Invoice'],
+        ['make', 'Invoice'],
+        ['tdd', 'wire', 'A4', '--entity', 'Invoice'],
+        ['build'],
+      ]);
+    });
+  });
 }

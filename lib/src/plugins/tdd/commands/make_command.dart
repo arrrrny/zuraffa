@@ -66,6 +66,7 @@
 /// line stays the final stdout line.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -84,6 +85,10 @@ import '../services/runner.dart';
 import '../services/suite_guard.dart';
 import '../services/tdd_timeout.dart';
 import '../tdd_plugin.dart';
+import '../../../cli/plugin_loader.dart';
+import '../../../config/zfa_config.dart';
+import '../../../core/plugin_system/plugin_manager.dart';
+import '../../../core/plugin_system/plugin_registry.dart';
 import '../../../core/project/project_root.dart';
 
 /// Resolution-stage failure: message, outcome, and feature context if known.
@@ -456,6 +461,37 @@ class MakeCommand extends Command<void> {
         );
       }
 
+      // Bug #826 remediation (3): an inner `zfa make <name>` whose own
+      // plan resolves to ZERO active plugins ("❌ No active plugins to
+      // run.") is a no-op, not a generation. Resolve the child's plan
+      // in-process — the same cheap PlanResolver the real `zfa make` runs
+      // before any analyzer load — and record the no-op WITHOUT spawning
+      // the heavy subprocess at all. Fail-open: when the plan shape is not
+      // the default make invocation, or the in-process resolution errors,
+      // the subprocess path runs exactly as before.
+      if (zfaBinFlag == null || zfaBinFlag.isEmpty) {
+        final makeName = _bareMakeName(effectivePlan);
+        if (makeName != null && _innerMakePlanIsEmpty(cwd, makeName)) {
+          print(
+            '   plan: `zfa make $makeName` resolves to no active plugins '
+            '— nothing to generate (bug #826).',
+          );
+          print('   verdict: no-op');
+          print(
+            '--> fix: enable generator plugins for this project in '
+            '.zfa.json (e.g. "usecase": true) or implement the subject '
+            'manually, then re-run; no subprocess was attempted.',
+          );
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: MakeOutcome.noOp,
+            feature: target.featureName,
+          );
+          exitCode = 1;
+          return;
+        }
+      }
+
       // 7. Execute the plan via the pipeline (FR-006, US1 / U8-U13).
       try {
         pipelineResult = await pipelineRunner.runPlan(
@@ -484,6 +520,45 @@ class MakeCommand extends Command<void> {
         final failed = idx >= 0 && idx < pipelineResult.steps.length
             ? pipelineResult.steps[idx]
             : null;
+        // Bug #826: a step that died by KILL is not a generation failure.
+        // The subprocess was killed — by the OS under memory pressure
+        // (the SIGKILL/OOM class, exit < 0) or by our own deadline
+        // (timeout, bug #742 path). Grading either as a bare
+        // `generation-error` is what made the run loop's stop
+        // indistinguishable from a genuine red. Emit the classified
+        // verdict — class + exit code + `--> fix:` line + the telemetry
+        // JSON — and surface it in the summary's outcome token so corpus
+        // drivers can tell a transient, re-runnable kill from a real red.
+        final killOutcome = switch (failed?.killClass) {
+          GenerationKillClass.resourceLimit => MakeOutcome.resourceLimit,
+          GenerationKillClass.timeout => MakeOutcome.timeout,
+          _ => null,
+        };
+        if (killOutcome != null && failed != null) {
+          print(
+            'zfa tdd make: generation step killed at index $idx '
+            '(${failed.purpose}):',
+          );
+          print('   command: `${failed.command}`');
+          print('   verdict: ${failed.verdictLabel} (exit ${failed.exitCode})');
+          print(
+            failed.killClass == GenerationKillClass.timeout
+                ? '--> fix: the step outlived its deadline — raise '
+                      '--timeout (minutes) on slower machines, or investigate '
+                      'the step for a hang.'
+                : '--> fix: transient resource kill (SIGKILL/OOM class) — '
+                      'free memory or raise ZFA_TDD_STEP_MEMORY_KB headroom, '
+                      'then re-run this step; no state changed.',
+          );
+          print('   telemetry json: ${jsonEncode(failed.verdictJson())}');
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: killOutcome,
+            feature: target.featureName,
+          );
+          exitCode = 1;
+          return;
+        }
         // Issue #737: the plan's terminal `build` step validates the
         // WHOLE project (build_runner + analyze over the full tree), so
         // it can exit non-zero for reasons this behavior's generation
@@ -1119,6 +1194,50 @@ class MakeCommand extends Command<void> {
       }
     }
     return null;
+  }
+
+  // -------------------------------------------------------------------
+  // Bug #826 — empty inner make plan pre-flight.
+  // -------------------------------------------------------------------
+
+  /// The entity/slug name when [plan]'s FIRST step is a bare
+  /// `zfa make <name>` invocation — no explicit plugin ids after the name
+  /// — i.e. the default-resolution shape whose active-plugin set the
+  /// empty-plan pre-flight can mirror in-process. Null for every other
+  /// plan shape (entity create, tdd func, tdd wire, composition, or a
+  /// make step with explicit plugin ids), so the pre-flight never
+  /// short-circuits a plan it cannot model.
+  String? _bareMakeName(GenerationPlan plan) {
+    if (plan.steps.isEmpty) return null;
+    final first = plan.steps.first.args;
+    if (first.length < 2 || first.first != 'make') return null;
+    // Anything positional after the name is an explicit plugin id — the
+    // child plan would not be the default-resolution shape.
+    final explicitIds = first
+        .skip(2)
+        .where((a) => !a.startsWith('-'))
+        .toList(growable: false);
+    if (explicitIds.isNotEmpty) return null;
+    return first[1];
+  }
+
+  /// Whether a real `zfa make <name>` child in [projectRoot] would resolve
+  /// to zero active plugins — the "❌ No active plugins to run." branch of
+  /// the make command. Mirrors the child's own resolution: same process
+  /// registry, same project config, no explicit plugin ids, no preset.
+  /// Any resolution error fails OPEN (the subprocess path runs as before).
+  bool _innerMakePlanIsEmpty(String projectRoot, String name) {
+    try {
+      final manager = PluginManager(
+        registry: PluginRegistry.instance,
+        config: ZfaConfig.load(projectRoot: projectRoot),
+        pluginConfig: PluginConfig.load(projectRoot: projectRoot),
+        projectRoot: projectRoot,
+      );
+      return manager.resolvePlan(name: name).activePlugins.isEmpty;
+    } catch (_) {
+      return false;
+    }
   }
 
   void _printSummary({

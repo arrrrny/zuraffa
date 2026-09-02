@@ -115,6 +115,11 @@ class RunStateStore {
   /// Atomically persist [state]. When [activeBehaviorIds] is given, ids in
   /// the state that are not in it are recorded under a `dropped` marker
   /// (audit trail; they stay in `behavior_states`).
+  ///
+  /// Bug #828: the write is fsync'd before the rename, so a committed
+  /// state transition survives the power loss that interrupts the run —
+  /// the write-ahead journal (see `TddTransaction`) only replays against
+  /// state that actually reached the disk.
   Future<void> save(RunState state, {Set<String>? activeBehaviorIds}) async {
     final states = <String, String>{};
     state.behaviorStates.forEach((k, v) => states[k] = v.name);
@@ -133,6 +138,7 @@ class RunStateStore {
     await Directory(p.dirname(path)).create(recursive: true);
     final tmp = File('$path.tmp');
     await tmp.writeAsString(const JsonEncoder.withIndent('  ').convert(map));
+    await flushToDisk(tmp);
     await tmp.rename(path);
   }
 
@@ -148,6 +154,18 @@ class RunStateStore {
       // refusal errs on the side of state integrity.
       return true;
     }
+  }
+}
+
+/// Flush [file]'s contents to stable storage (fsync) — bug #828: a
+/// committed TDD store write must survive the crash that interrupts the
+/// run. `RandomAccessFile.flush()` performs the fsync on POSIX targets.
+Future<void> flushToDisk(File file) async {
+  final raf = await file.open(mode: FileMode.append);
+  try {
+    await raf.flush();
+  } finally {
+    await raf.close();
   }
 }
 

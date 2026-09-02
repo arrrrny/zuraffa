@@ -103,12 +103,22 @@ class GenerationPlanner {
   /// keys on (bug #718).
   static final RegExp _unitBehaviorId = RegExp(r'^U\d+$');
 
+  /// The acceptance-behavior id encoding (`A<n>`) SpecParser emits for
+  /// acceptance scenarios (issue #758: the kind discriminator for the
+  /// CRUD-branch subject-wiring rule).
+  static final RegExp _acceptanceBehaviorId = RegExp(r'^A\d+$');
+
   /// Whether [behaviorId] is a unit-kind behavior id (the `U<n>`
   /// encoding SpecParser emits for FR-derived unit behaviors; `A<n>` is
   /// the acceptance encoding and dashed ids like `U-6` are legacy
   /// dialects that keep description-keyed routing).
   static bool isUnitBehaviorId(String behaviorId) =>
       _unitBehaviorId.hasMatch(behaviorId);
+
+  /// Whether [behaviorId] is an acceptance-kind behavior id (the `A<n>`
+  /// encoding SpecParser emits for acceptance scenarios).
+  static bool isAcceptanceBehaviorId(String behaviorId) =>
+      _acceptanceBehaviorId.hasMatch(behaviorId);
 
   /// Plan the minimal generation for [summary].
   ///
@@ -197,6 +207,23 @@ class GenerationPlanner {
     //    description — and ONLY when the description names no entity at
     //    all does the plan fall back to the slugified id, passing
     //    `--no-entity` so the real CLI accepts it.
+    //
+    //    Issue #758: for ACCEPTANCE-kind rows (`A<n>`) the plain
+    //    `make` + `build` plan can never flip the target green — CRUD
+    //    scaffolds alone never implement the gen'd acceptance subject,
+    //    so `make` ended with a mid-run `generation-error` after RED
+    //    had already been verified. When the description names an
+    //    entity, the plan follows the entity branch's #609/#610
+    //    contract: `entity create -n <Name>` first (idempotent — safe
+    //    when the entity already exists, and required because the real
+    //    `zfa make` fail-fasts on a missing entity source file), then
+    //    `make`, then the subject-implementation step (`tdd wire <id>
+    //    --entity <Name>`), then `build`. When no entity is
+    //    named, the plan fails fast as unexpressible (option (b) of
+    //    the issue) with an actionable reason — which also lets
+    //    `make`'s composition fallback (#642) engage for features
+    //    holding composable green unit subjects. Legacy dashed ids
+    //    keep the plain CRUD contract untouched.
     if (desc.contains('crud') ||
         desc.contains('use case') ||
         desc.contains('use-case') ||
@@ -204,16 +231,52 @@ class GenerationPlanner {
         desc.contains('repository') ||
         desc.contains('service')) {
       final derivedName =
-          summary.target ?? _extractEntityName(summary.description);
+          summary.target ??
+          _extractEntityName(summary.description) ??
+          (isAcceptanceBehaviorId(summary.behaviorId)
+              ? _extractCapitalizedTrace(summary.description)
+              : null);
       final slug =
           derivedName ??
           _slugify(summary.behaviorId) ??
           'feature_${summary.behaviorId}';
+
+      if (isAcceptanceBehaviorId(summary.behaviorId) && derivedName == null) {
+        return GenerationPlan(
+          behaviorId: summary.behaviorId,
+          feature: summary.feature,
+          sourceCriterion: summary.sourceCriterion,
+          steps: const [],
+          unexpressibleReason:
+              'acceptance behavior "${summary.behaviorId}" routes to the '
+              'CRUD/use-case surface ("${summary.description}") but names '
+              'no entity: CRUD scaffolds alone cannot implement the '
+              'acceptance subject, so the run would dead-end in a '
+              'generation-error. Name the entity in the description '
+              '(e.g. "the <Entity> repository service ...") so the plan '
+              'can wire the subject with `tdd wire '
+              '${summary.behaviorId} --entity <Name>`, or add a green '
+              'unit behavior for the composition fallback to compose.',
+        );
+      }
+
       return GenerationPlan(
         behaviorId: summary.behaviorId,
         feature: summary.feature,
         sourceCriterion: summary.sourceCriterion,
         steps: [
+          if (isAcceptanceBehaviorId(summary.behaviorId) && derivedName != null)
+            GenerationStepSpec(
+              // Issue #758: the real `zfa make` fail-fasts on a missing
+              // entity source file (#496), so the entity must exist before
+              // the CRUD scaffolds are generated. `entity create` is
+              // idempotent, so this is safe whether or not the entity
+              // already exists (bug #609: the real CLI requires `-n`).
+              args: ['entity', 'create', '-n', slug],
+              purpose:
+                  'ensure entity $slug exists for behavior '
+                  '${summary.behaviorId}',
+            ),
           GenerationStepSpec(
             args: derivedName != null
                 ? ['make', slug]
@@ -222,6 +285,15 @@ class GenerationPlanner {
                 'generate use-case/repository scaffolds for $slug '
                 '(behavior ${summary.behaviorId})',
           ),
+          if (isAcceptanceBehaviorId(summary.behaviorId) && derivedName != null)
+            GenerationStepSpec(
+              // Issue #758: implement the acceptance subject against the
+              // scaffolds `make` just generated (the #610 wire contract).
+              args: ['tdd', 'wire', summary.behaviorId, '--entity', slug],
+              purpose:
+                  'wire subject of behavior ${summary.behaviorId} to '
+                  'entity $slug',
+            ),
           GenerationStepSpec(
             args: ['build'],
             purpose: 'build generated code for behavior ${summary.behaviorId}',
@@ -284,6 +356,45 @@ class GenerationPlanner {
     if (m != null) return m.group(1);
     final m2 = RegExp(r'create\s+([A-Z][A-Za-z0-9_]*)').firstMatch(description);
     return m2?.group(1);
+  }
+
+  static const _capitalizedTraceStopwords = {
+    'The',
+    'A',
+    'An',
+    'This',
+    'That',
+    'These',
+    'Those',
+    'It',
+    'Its',
+    'Crud',
+    'CRUD',
+    'Repository',
+    'Service',
+    'Use',
+    'Case',
+    'Entity',
+  };
+
+  /// Issue #758: acceptance prose often introduces the entity as a
+  /// capitalized proper noun mid-sentence — "the Todo repository service
+  /// persists a todo item" — where the #696 patterns (`entity <Name>`,
+  /// `create <Name>`) cannot match. Return the first such capitalized
+  /// word, ignoring articles/demonstratives and the CRUD keywords
+  /// themselves. Sentence-initial entity names still resolve (they are
+  /// not stoplisted); a capitalized acronym (e.g. "API") can be
+  /// extracted, which is benign — the wire step misfire-stops with an
+  /// actionable message when no such entity file exists.
+  String? _extractCapitalizedTrace(String description) {
+    final words = description.split(RegExp(r'[^A-Za-z0-9_]'));
+    for (final word in words) {
+      if (word.isEmpty) continue;
+      if (!RegExp(r'^[A-Z][A-Za-z0-9_]*$').hasMatch(word)) continue;
+      if (_capitalizedTraceStopwords.contains(word)) continue;
+      return word;
+    }
+    return null;
   }
 
   /// Slugify a behavior id (e.g. "B-001" → "b_001").

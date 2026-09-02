@@ -113,6 +113,7 @@ import '../services/step_runner.dart';
 import '../services/suite_guard.dart';
 import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
+import '../services/tdd_transaction.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -266,6 +267,22 @@ class RunCommand extends Command<void> {
     // 5. Reconcile state with evidence: evidence beats state (FR-003).
     // -----------------------------------------------------------------
     final evidence = CycleEvidence(featureDir);
+
+    // -----------------------------------------------------------------
+    // 4b. Bug #828: replay the write-ahead journal BEFORE reconciling.
+    // A surviving pending record marks the step the previous run died
+    // inside; when its evidence landed, the state advance is applied
+    // here (the transaction completes), otherwise the journal is
+    // discarded and the in-flight marker re-drives the step. Either way
+    // run-state converges with the cycle-log before any claim is
+    // reconciled against it.
+    // -----------------------------------------------------------------
+    final tx = TddTransaction(featureDir);
+    final journal = await tx.pending();
+    if (journal != null) {
+      loaded = await _replayJournal(tx, loaded, evidence, journal);
+    }
+
     var current = _reconcile(
       loaded ?? RunState.empty(feature),
       rows,
@@ -591,21 +608,98 @@ class RunCommand extends Command<void> {
   // Reconciliation (FR-003: evidence beats state).
   // -------------------------------------------------------------------
 
+  /// Complete a write-ahead transaction the previous run died inside
+  /// (bug #828). The journal records the intended (behavior, step) before
+  /// the spawn; on resume:
+  ///
+  /// - evidence for the recorded step (red for verify-red, green for
+  ///   make, a refactor-kind entry at/after the journal timestamp for
+  ///   refactor) means the child finished but the driver died before the
+  ///   state commit — the advance is applied here, without re-spawning
+  ///   the step;
+  /// - no evidence means the step never completed — the journal is
+  ///   discarded (it was intent, never a claim) and the in-flight marker
+  ///   re-drives the step honestly;
+  /// - `gen` carries no cycle-log evidence by contract, so its journal
+  ///   is always discarded (a re-spawned gen is an idempotent reuse).
+  ///
+  /// A null [state] (no run-state.json) has nothing to advance — the
+  /// journal is discarded and evidence-based bootstrap reconciles.
+  Future<RunState?> _replayJournal(
+    TddTransaction tx,
+    RunState? state,
+    CycleEvidence evidence,
+    Map<String, dynamic> journal,
+  ) async {
+    final behavior = journal['behavior'] as String?;
+    final step = journal['step'] as String?;
+    await tx.clear();
+    if (state == null || behavior == null || step == null) return state;
+    if (!StepRunner.stepOrder.contains(step)) return state;
+    final claimed = state.behaviorStates[behavior] ?? BehaviorState.pending;
+    final target = _targetStateFor(step);
+    if (claimed.index >= target.index) return state;
+    final landed = await _stepEvidenceLanded(evidence, step, journal);
+    if (!landed) return state;
+    print('[run] $behavior $step -> replayed (write-ahead journal, bug #828)');
+    return state.advance(behavior, target);
+  }
+
+  /// Whether the evidence contract of an interrupted [step] is satisfied
+  /// in the cycle-log: verify-red requires the behavior's red entry, make
+  /// its green entry, refactor a refactor-kind entry stamped at/after the
+  /// journal's write-ahead moment. `gen` has no evidence contract.
+  Future<bool> _stepEvidenceLanded(
+    CycleEvidence evidence,
+    String step,
+    Map<String, dynamic> journal,
+  ) async {
+    final behavior = journal['behavior'] as String?;
+    switch (step) {
+      case 'verify-red':
+        return behavior != null &&
+            (await evidence.redEvidence()).contains(behavior);
+      case 'make':
+        return behavior != null &&
+            (await evidence.greenEvidence()).contains(behavior);
+      case 'refactor':
+        final at = DateTime.tryParse(journal['at']?.toString() ?? '');
+        if (at == null) return false;
+        for (final entry in await evidence.entries()) {
+          if (entry.kind != 'refactor') continue;
+          final stamped = DateTime.tryParse(entry.at ?? '');
+          if (stamped != null && !stamped.isBefore(at)) return true;
+        }
+        return false;
+      default:
+        return false; // gen (and any unknown step) re-drives
+    }
+  }
+
   /// Merge loaded state with the current test list: new rows enter as
-  /// PENDING, removed rows are retained (dropped), DONE claims without
-  /// complete evidence demote, and — when the state file carries no
-  /// in-flight marker — PENDING claims (including the missing-row default
-  /// from `RunState.empty()`) with evidence promote to the evidence-backed
-  /// state (red+green -> DONE, green -> GREEN, red -> RED, none ->
-  /// PENDING). That promotion is the bug #682 bootstrap: a brownfield
-  /// feature with complete `tdd/cycle-log.md` evidence but no (or an
-  /// all-pending) `run-state.json` is recognized as certified instead of
-  /// being re-driven from gen. A marked file describes an interrupted run
-  /// instead — it resumes by its claims (U23), so promotion is gated off
-  /// there. RED and GREEN claims keep their resume semantics (re-enter at
-  /// make / refactor) either way. In-flight markers survive the merge. A
-  /// re-prove of a certified behavior clears its cycle-log evidence (the
-  /// certification source), not the state file.
+  /// PENDING, removed rows are retained (dropped), and every claim stands
+  /// only on the evidence that backs it (FR-003):
+  /// - DONE claims without their red+green backing demote to the
+  ///   evidence-backed state (U21);
+  /// - bug #828: GREEN claims without a green entry demote the same way —
+  ///   the interrupted-run state "run-state says green, cycle-log has no
+  ///   evidence" re-drives from the earliest incomplete step instead of
+  ///   dead-ending at the refactor misfire on every resume;
+  /// - when the state file carries no in-flight marker, PENDING claims
+  ///   (including the missing-row default from `RunState.empty()`) with
+  ///   evidence promote to the evidence-backed state (red+green -> DONE,
+  ///   green -> GREEN, red -> RED, none -> PENDING). That promotion is
+  ///   the bug #682 bootstrap: a brownfield feature with complete
+  ///   `tdd/cycle-log.md` evidence but no (or an all-pending)
+  ///   `run-state.json` is recognized as certified instead of being
+  ///   re-driven from gen. A marked file describes an interrupted run
+  ///   instead — it resumes by its claims (U23), so promotion is gated
+  ///   off there. RED claims keep their resume semantics (re-enter at
+  ///   make) either way — the red half cannot be fabricated, and the
+  ///   refactor misfire gate names it honestly (the bug #682 contract).
+  /// In-flight markers survive the merge. A re-prove of a certified
+  /// behavior clears its cycle-log evidence (the certification source),
+  /// not the state file.
   RunState _reconcile(
     RunState state,
     List<BehaviorRow> rows,
@@ -617,19 +711,34 @@ class RunCommand extends Command<void> {
     for (final row in rows) {
       final claimed = states[row.id] ?? BehaviorState.pending;
       var effective = claimed;
-      if (claimed == BehaviorState.done ||
-          (bootstrappable && claimed == BehaviorState.pending)) {
-        final hasRed = red.contains(row.id);
-        final hasGreen = green.contains(row.id);
-        if (hasRed && hasGreen) {
-          effective = BehaviorState.done;
-        } else if (hasGreen) {
-          effective = BehaviorState.green;
-        } else if (hasRed) {
-          effective = BehaviorState.red;
-        } else {
-          effective = BehaviorState.pending;
-        }
+      final hasRed = red.contains(row.id);
+      final hasGreen = green.contains(row.id);
+      if (claimed == BehaviorState.done) {
+        // U21: a done claim stands only on complete red+green evidence.
+        effective = hasRed && hasGreen
+            ? BehaviorState.done
+            : hasGreen
+            ? BehaviorState.green
+            : hasRed
+            ? BehaviorState.red
+            : BehaviorState.pending;
+      } else if (claimed == BehaviorState.green) {
+        // Bug #828: a green claim stands only on its green evidence.
+        effective = hasGreen
+            ? BehaviorState.green
+            : hasRed
+            ? BehaviorState.red
+            : BehaviorState.pending;
+      } else if (bootstrappable && claimed == BehaviorState.pending) {
+        // Bug #682 bootstrap (unchanged): evidence promotes a pending
+        // claim of an unmarked state file.
+        effective = hasRed && hasGreen
+            ? BehaviorState.done
+            : hasGreen
+            ? BehaviorState.green
+            : hasRed
+            ? BehaviorState.red
+            : BehaviorState.pending;
       }
       states[row.id] = effective;
     }
@@ -780,6 +889,10 @@ class RunCommand extends Command<void> {
     final feature = current.feature;
     var updated = current;
     var state = updated.behaviorStates[row.id] ?? BehaviorState.pending;
+    // Bug #828: the write-ahead journal for this feature. Every spawn is
+    // wrapped begin -> spawn -> commit/clear so an interrupted step
+    // converges on resume instead of leaving the stores disagreeing.
+    final tx = TddTransaction(p.join(projectRoot, 'specs', feature));
     for (final step in steps) {
       // Bug #635/#734 deferral (decided BEFORE the spawn): refactor's
       // contract (spec 048 FR-001) is an absolutely green suite. While
@@ -832,6 +945,11 @@ class RunCommand extends Command<void> {
         );
       }
 
+      // Bug #828: write-ahead the intended transition BEFORE the spawn.
+      // A journal that survives this step marks the exact (behavior,
+      // step) the run died inside; the next resume replays or discards it.
+      await tx.begin(behavior: row.id, step: step);
+
       StepResult result;
       try {
         result = await runner.run(
@@ -845,6 +963,7 @@ class RunCommand extends Command<void> {
         // Entrypoint resolution failed before any spawn: runner-error.
         updated = updated.advance(row.id, state);
         await store.save(updated, activeBehaviorIds: activeIds);
+        await tx.clear();
         print(
           'zfa tdd run: step failed — behavior=${row.id} step=$step '
           'outcome=runner-error',
@@ -876,11 +995,21 @@ class RunCommand extends Command<void> {
         // whole feature before its later behaviors ever ran is the
         // deadlock. The behavior stays RED (its last completed state,
         // FR-007 semantics), and phase 2 re-attempts the make.
+        //
+        // Bug #826: `no-op` joins the deferral set — make reports it when
+        // the behavior's inner `zfa make` plan resolves to ZERO active
+        // plugins ("No active plugins to run."), i.e. there is nothing
+        // the generation pipeline can do for this behavior yet. Exactly
+        // like `unexpressible`, that is a "the capability is not here
+        // today" state, not a crash, and stopping the feature on it is
+        // the same deadlock; phase 2 re-attempts once plugins (maybe)
+        // landed.
         if (deferralAllowed &&
             step == 'make' &&
-            result.outcome == 'unexpressible') {
+            (result.outcome == 'unexpressible' || result.outcome == 'no-op')) {
           updated = updated.advance(row.id, state);
           await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
           print('[run] ${row.id} make -> deferred (phase 2)');
           return (state: updated, stop: null, refactorBlocked: false);
         }
@@ -894,6 +1023,7 @@ class RunCommand extends Command<void> {
         if (step == 'verify-red' && result.outcome == 'unexpected-green') {
           updated = updated.advance(row.id, state);
           await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
           print('[run] ${row.id} verify-red -> skipped (already green)');
           continue;
         }
@@ -922,6 +1052,7 @@ class RunCommand extends Command<void> {
         if (step == 'refactor' && result.outcome == 'not-green') {
           updated = updated.advance(row.id, state);
           await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
           if (deferralAllowed) {
             print('[run] ${row.id} refactor -> deferred (phase 2)');
             print(
@@ -941,6 +1072,7 @@ class RunCommand extends Command<void> {
         final isRunnerError = result.outcome == 'runner-error';
         updated = updated.advance(row.id, state);
         await store.save(updated, activeBehaviorIds: activeIds);
+        await tx.clear();
         print(
           'zfa tdd run: step failed — behavior=${row.id} step=$step '
           'outcome=${result.outcome}',
@@ -968,6 +1100,7 @@ class RunCommand extends Command<void> {
       if (misfire != null) {
         updated = updated.advance(row.id, state);
         await store.save(updated, activeBehaviorIds: activeIds);
+        await tx.clear();
         print(
           'zfa tdd run: step failed — behavior=${row.id} step=$step '
           'outcome=runner-error',
@@ -992,6 +1125,9 @@ class RunCommand extends Command<void> {
       final next = _maxState(state, _targetStateFor(step));
       updated = updated.advance(row.id, next);
       await store.save(updated, activeBehaviorIds: activeIds);
+      // Bug #828: the transaction is complete — evidence landed and the
+      // state advance reached the disk. Clear the journal.
+      await tx.clear();
       state = next;
     }
     return (state: updated, stop: null, refactorBlocked: false);

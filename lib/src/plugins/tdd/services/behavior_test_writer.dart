@@ -72,7 +72,7 @@ import '$relativeSubjectPath' as subject;
 
 void main() {
   group('$escapedGroupDescription', () {
-    test('$escapedDescription', () {
+    test('${b.id} \u2014 $escapedDescription', () {
       $assertion
     });
   });
