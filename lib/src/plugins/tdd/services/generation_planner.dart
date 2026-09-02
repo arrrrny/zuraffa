@@ -182,7 +182,22 @@ class GenerationPlanner {
             // generated entity (design decision: `zfa tdd wire` — see
             // the command's doc comment and the epic 045 harness spec,
             // precondition 5).
-            args: ['tdd', 'wire', summary.behaviorId, '--entity', name],
+            // Bug #877: the behavior-id-resolving spawns carry
+            // `--feature` — in a multi-feature project a bare id like
+            // `U1` is ambiguous (registered in several features) and
+            // `zfa tdd func`/`tdd wire` exit 1, killing the make. The
+            // plan's `summary.feature` is the canonical feature the
+            // record was generated under (gen stamps `ArtifactRecord
+            // .feature`), so propagation is always exact.
+            args: [
+              'tdd',
+              'wire',
+              summary.behaviorId,
+              '--entity',
+              name,
+              '--feature',
+              summary.feature,
+            ],
             purpose:
                 'wire subject of behavior ${summary.behaviorId} to '
                 'entity $name',
@@ -289,7 +304,17 @@ class GenerationPlanner {
             GenerationStepSpec(
               // Issue #758: implement the acceptance subject against the
               // scaffolds `make` just generated (the #610 wire contract).
-              args: ['tdd', 'wire', summary.behaviorId, '--entity', slug],
+              // Bug #877: propagate --feature (see the wire spawn note
+              // above) — the same ambiguity class.
+              args: [
+                'tdd',
+                'wire',
+                summary.behaviorId,
+                '--entity',
+                slug,
+                '--feature',
+                summary.feature,
+              ],
               purpose:
                   'wire subject of behavior ${summary.behaviorId} to '
                   'entity $slug',
@@ -336,7 +361,17 @@ class GenerationPlanner {
       sourceCriterion: summary.sourceCriterion,
       steps: [
         GenerationStepSpec(
-          args: ['tdd', 'func', summary.behaviorId],
+          // Bug #877: the spawn carries `--feature <summary.feature>` —
+          // a bare behavior id is ambiguous in multi-feature projects
+          // (U1 registered in both 001 and 004 exits 1) and make owns
+          // the disambiguated feature.
+          args: [
+            'tdd',
+            'func',
+            summary.behaviorId,
+            '--feature',
+            summary.feature,
+          ],
           purpose:
               'scaffold the $verb function for behavior '
               '${summary.behaviorId} from its description',
