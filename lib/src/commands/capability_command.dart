@@ -70,6 +70,25 @@ class CapabilityCommand extends Command<void> {
     }
   }
 
+  /// Coerces a String value to the JSON-Schema-declared type. Non-String
+  /// values (bools from flags, ints from JSON payloads) pass through
+  /// untouched, as does input that cannot be parsed for the declared type.
+  static Object? _coerceToSchemaType(Object? value, String? type) {
+    if (value is! String) return value;
+    switch (type) {
+      case 'integer':
+        return int.tryParse(value) ?? value;
+      case 'number':
+        return double.tryParse(value) ?? value;
+      case 'boolean':
+        if (value == 'true') return true;
+        if (value == 'false') return false;
+        return value;
+      default:
+        return value;
+    }
+  }
+
   @override
   String get name {
     // Derive subcommand name from capability name
@@ -156,6 +175,26 @@ class CapabilityCommand extends Command<void> {
             }
           }
         }
+      }
+    }
+
+    // Normalize values to the schema-declared types (issue #773): CLI
+    // options always arrive as Strings — including `def?.toString()`
+    // defaults, which is why `zfa sync enable` with zero flags leaked a
+    // String '50' into an `integer` property and crashed on
+    // GeneratorConfig(syncBatchSize: ...) — but capabilities declare
+    // `integer`/`number` properties and reasonably expect typed values.
+    // Unparseable input passes through unchanged; capabilities keep
+    // owning their validation and error UX.
+    final propsForCoercion = schema['properties'];
+    if (propsForCoercion is Map) {
+      for (final entry in propsForCoercion.entries) {
+        final key = entry.key as String;
+        if (!args.containsKey(key)) continue;
+        args[key] = _coerceToSchemaType(
+          args[key],
+          (entry.value as Map?)?['type'] as String?,
+        );
       }
     }
 
