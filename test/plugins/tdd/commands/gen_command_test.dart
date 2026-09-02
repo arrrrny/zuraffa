@@ -9,6 +9,7 @@
 // the process-global Directory.current.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -73,6 +74,52 @@ void main() {
   }
 
   group('GenCommand — happy path (US1.AC1 / FR-001, FR-005)', () {
+    test('the registry composite third segment is the PURE description — '
+        'no behavior-id echo (bug #871)', () async {
+      await seedSpecAndTestList();
+      final runner = CliRunner(exitOnCompletion: false);
+      await runner.runCapturing(genArgs('B-003'));
+
+      final regFile = File(p.join(featureDir, 'tdd', 'artifacts.json'));
+      expect(regFile.existsSync(), isTrue);
+      final reg =
+          jsonDecode(await regFile.readAsString()) as Map<String, dynamic>;
+      final records = reg['records'] as List<dynamic>;
+      expect(records, hasLength(1));
+      final composite =
+          (records.first as Map<String, dynamic>)['runnable_test_name']
+              as String;
+
+      // The composite must be `file::id::description` with the third
+      // segment equal to the pure behavior description. The old
+      // double-embed (`file::id::id — description`) leaked the id into
+      // every consumer that "extracts the description segment" — most
+      // damagingly the tdd planner, whose capitalized-trace fallback
+      // then captured the id as the entity name (plan: `make A1`
+      // instead of `make Todo`).
+      final segments = composite.split('::');
+      expect(segments, hasLength(3));
+      expect(
+        segments[2],
+        'returns 42 when invoked with no args',
+        reason: 'composite: $composite',
+      );
+      expect(segments[2], isNot(contains('B-003')));
+
+      // The generated test FILE carries the same pure name — the
+      // composite feeds `--plain-name` matching, so writer and
+      // registry must agree.
+      final testFiles = await _findGeneratedFiles(
+        '${tmpDir.path}/test',
+        '_test.dart',
+      );
+      final testContent = await File(testFiles.first).readAsString();
+      expect(
+        testContent,
+        contains("test('returns 42 when invoked with no args'"),
+      );
+      expect(testContent, isNot(contains("test('B-003 — ")));
+    });
     test(
       'happy path writes one test + one subject and exits 0 with the six required result fields',
       () async {

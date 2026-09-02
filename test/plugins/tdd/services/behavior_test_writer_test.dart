@@ -96,6 +96,41 @@ void main() {
       },
     );
 
+    test('test name is the PURE description — the behavior id is not echoed '
+        '(bug #871)', () async {
+      final writer = BehaviorTestWriter();
+      final behavior = Behavior(
+        id: 'A1',
+        feature: '001-crud-e2e',
+        kind: BehaviorKind.acceptance,
+        description: 'the Todo repository service persists a todo item.',
+        sourceCriterion: 'AC-1',
+        target: 'subjectUnderTest',
+      );
+      final testPath = p.join(tmpDir.path, 'a1_test.dart');
+      final subjectPath = p.join(tmpDir.path, 'a1_subject.dart');
+      await writer.write(
+        behavior: behavior,
+        testPath: testPath,
+        subjectPath: subjectPath,
+      );
+      final content = await File(testPath).readAsString();
+      // The registry's composite third segment is matched with
+      // `--plain-name` against the generated test's name. gen composes
+      // that segment from the description ONLY (bug #871 — the old
+      // `'$id — $description'` echo double-embedded the id and made the
+      // tdd planner capture the id as the entity name). The generated
+      // test name must equal the pure description; the id stays in the
+      // GROUP name (FR-018 traceability) and the doc comment.
+      expect(
+        content,
+        contains("test('the Todo repository service persists a todo item."),
+      );
+      expect(content, isNot(contains("test('A1 — ")));
+      // Traceability still holds outside the test name.
+      expect(content, contains("group('A1 (AC-1)'"));
+    });
+
     test(
       'group name carries behavior id + source criterion (FR-018)',
       () async {

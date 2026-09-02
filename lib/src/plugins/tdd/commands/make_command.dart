@@ -886,13 +886,11 @@ class MakeCommand extends Command<void> {
     return run;
   }
 
-  /// The behavior description the planner will see. The fixture's
-  /// registry record carries only the runnable test name composite
-  /// (`file::id::description`) — extract the description segment.
-  String _descriptionFor(ArtifactRecord record) {
-    final parts = record.runnableTestName.split('::');
-    return parts.length >= 3 ? parts[2] : record.behaviorId;
-  }
+  /// The behavior description the planner will see — the record's own
+  /// parsing contract ([ArtifactRecord.descriptionSegment]): the
+  /// description segment with any legacy `<id> — ` echo stripped
+  /// (bug #871).
+  String _descriptionFor(ArtifactRecord record) => record.descriptionSegment;
 
   /// The target name parsed from the runnable name's description
   /// segment. For entity-bearing descriptions like "create entity
@@ -906,14 +904,11 @@ class MakeCommand extends Command<void> {
     return null;
   }
 
-  /// The runnable test name: the last `::`-separated segment of the
-  /// registry's composite `file::group::test` name.
-  String _runnableNameOf(ArtifactRecord record) {
-    final segments = record.runnableTestName.split('::');
-    return segments.isEmpty || segments.last.isEmpty
-        ? record.runnableTestName
-        : segments.last;
-  }
+  /// The runnable test name for `--plain-name` matching — the record's
+  /// own contract ([ArtifactRecord.plainTestName]): the last segment with
+  /// any legacy `<id> — ` echo stripped (bug #871), so both the legacy
+  /// and the re-rendered test-file shapes substring-match.
+  String _runnableNameOf(ArtifactRecord record) => record.plainTestName;
 
   // -----------------------------------------------------------------
   // Suite-guard regression scoping (issue #731).

@@ -298,13 +298,11 @@ class WireCommand extends Command<void> {
     multiLine: true,
   );
 
-  /// The behavior description the record carries in its composite
-  /// runnable name (`file::id::description`) — mirrors make's
-  /// `_descriptionFor`.
-  static String _descriptionFor(ArtifactRecord record) {
-    final parts = record.runnableTestName.split('::');
-    return parts.length >= 3 ? parts[2] : record.behaviorId;
-  }
+  /// The behavior description the record carries — the record's own
+  /// parsing contract ([ArtifactRecord.descriptionSegment]), shared with
+  /// make/func/compose (bug #871: legacy `<id> — ` echoes stripped).
+  static String _descriptionFor(ArtifactRecord record) =>
+      record.descriptionSegment;
 
   String _renderWired({
     required ArtifactRecord record,

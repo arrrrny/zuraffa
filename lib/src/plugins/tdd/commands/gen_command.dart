@@ -363,8 +363,16 @@ class GenCommand extends Command<void> {
     _validateFeatureSegment(featureName);
     final testPath = '$cwd/test/tdd/$featureName/${snakeId}_test.dart';
     final subjectPath = '$cwd/lib/tdd/$featureName/${snakeId}_subject.dart';
+    // Bug #871: the composite third segment is the PURE description —
+    // the id is embedded exactly once (segment 2). The old
+    // `'$testPath::$id::$id — $description'` double-embed leaked an
+    // `<id> — ` prefix into every consumer that extracts the description
+    // segment, and the tdd planner's capitalized-trace fallback then
+    // captured the id as the entity name (`make A1` instead of
+    // `make Todo`). The generated test's name (BehaviorTestWriter) is
+    // the same pure description, so `--plain-name` matching agrees.
     final runnableTestName =
-        '$testPath::${behavior.id}::${behavior.id} \u2014 ${behavior.description}';
+        '$testPath::${behavior.id}::${behavior.description}';
 
     final registry = ArtifactRegistry(featureDir: featureDir);
 

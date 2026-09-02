@@ -80,7 +80,15 @@ import '$relativeSubjectPath' as subject;
 
 void main() {
   group('$escapedGroupDescription', () {
-    test('${b.id} \u2014 $escapedDescription', () {
+    // Bug #871: the test name is the PURE description — no `<id> — `
+    // echo. gen composes the registry's runnable-name third segment from
+    // the description only, and that segment feeds `--plain-name`
+    // matching, so writer and registry must agree exactly. An id echo
+    // here also leaked the id into every description-segment consumer —
+    // most damagingly the tdd planner's capitalized-trace fallback,
+    // which captured the id as the entity name. The behavior id stays
+    // traceable via the group name (FR-018) and the doc comment.
+    test('$escapedDescription', () {
       $assertion
     });
   });

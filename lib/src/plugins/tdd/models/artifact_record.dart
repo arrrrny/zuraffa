@@ -32,7 +32,53 @@ class ArtifactRecord {
 
   /// The runnable test name in `file::group::test` form, suitable for
   /// `dart test --plain-name "<test-name>"`.
+  ///
+  /// The third segment is the behavior's PURE description (bug #871): gen
+  /// used to double-embed the behavior id here (`file::id::id — desc`),
+  /// leaking an `<id> — ` prefix into every consumer that extracts the
+  /// description segment. Records written by older binaries may still
+  /// carry the echo; [descriptionSegment] and [plainTestName] strip it so
+  /// legacy and clean registries parse identically.
   final String runnableTestName;
+
+  /// The description segment of the composite [runnableTestName]
+  /// (`file::id::description`), with the record's OWN `<behaviorId> — `
+  /// echo prefix removed when present (bug #871).
+  ///
+  /// Falls back to [behaviorId] when the composite carries no description
+  /// segment (fewer than three `::`-separated parts) — the pre-#871
+  /// contract of the command-side `_descriptionFor` helpers this getter
+  /// replaces. A description that merely CONTAINS another id-shaped token
+  /// is never rewritten: only the exact own-id prefix is stripped, once.
+  String get descriptionSegment {
+    final parts = runnableTestName.split('::');
+    var desc = parts.length >= 3 ? parts[2] : behaviorId;
+    final echo = '$behaviorId \u2014 ';
+    if (desc != behaviorId && desc.startsWith(echo)) {
+      desc = desc.substring(echo.length);
+    }
+    return desc;
+  }
+
+  /// The runnable plain-name for `--plain-name` matching: the LAST
+  /// `::`-segment of [runnableTestName], with the record's OWN
+  /// `<behaviorId> — ` echo prefix removed when present (bug #871).
+  ///
+  /// `--plain-name` is a literal SUBSTRING matcher, so the stripped name
+  /// matches both pair shapes a #871 transition can produce: a legacy
+  /// on-disk test named `<id> — desc` (echo ⊃ name) and a re-rendered
+  /// test named `desc` (equal).
+  String get plainTestName {
+    final segments = runnableTestName.split('::');
+    final last = segments.isEmpty || segments.last.isEmpty
+        ? runnableTestName
+        : segments.last;
+    final echo = '$behaviorId \u2014 ';
+    if (last != behaviorId && last.startsWith(echo)) {
+      return last.substring(echo.length);
+    }
+    return last;
+  }
 
   /// Ownership status of the test file when this record was created/updated.
   final Ownership testOwnership;

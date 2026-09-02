@@ -354,13 +354,11 @@ class ComposeCommand extends Command<void> {
   // Resolution + rendering helpers.
   // -------------------------------------------------------------------
 
-  /// The behavior description the record carries in its composite
-  /// runnable name (`file::id::description`) — mirrors make's
-  /// `_descriptionFor`.
-  static String _descriptionFor(ArtifactRecord record) {
-    final parts = record.runnableTestName.split('::');
-    return parts.length >= 3 ? parts[2] : record.behaviorId;
-  }
+  /// The behavior description the record carries — the record's own
+  /// parsing contract ([ArtifactRecord.descriptionSegment]), shared with
+  /// make/wire/func (bug #871: legacy `<id> — ` echoes stripped).
+  static String _descriptionFor(ArtifactRecord record) =>
+      record.descriptionSegment;
 
   String _renderComposed({
     required ArtifactRecord record,

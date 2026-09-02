@@ -478,14 +478,10 @@ class VerifyRedCommand extends Command<void> {
     return null;
   }
 
-  /// The runnable test name: the last `::`-separated segment of the
-  /// registry's composite `file::group::test` name.
-  String _runnableNameOf(ArtifactRecord record) {
-    final segments = record.runnableTestName.split('::');
-    return segments.isEmpty || segments.last.isEmpty
-        ? record.runnableTestName
-        : segments.last;
-  }
+  /// The runnable test name for `--plain-name` matching — the record's
+  /// own contract ([ArtifactRecord.plainTestName]): the last segment with
+  /// any legacy `<id> — ` echo stripped (bug #871).
+  String _runnableNameOf(ArtifactRecord record) => record.plainTestName;
 
   void _printSummary({
     required String behavior,
