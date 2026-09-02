@@ -84,6 +84,7 @@ bug_keywords:
   - regression
   - fails
   - bug
+  - defect
   - stack trace
   - leak
   - hang

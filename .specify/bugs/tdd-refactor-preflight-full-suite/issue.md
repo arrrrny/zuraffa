@@ -1,59 +1,62 @@
-# Bug Issue: fix(tdd): refactor preflight is full dart test — fails when U3+ are still red
+# Bug Issue: fix(tdd): #734/#743 partial fix — refactor preflight still calls runSuite (full dart test)
 
 - **Slug**: tdd-refactor-preflight-full-suite
 - **Fetched**: 2026-09-02
-- **Issue**: 734
-- **URL**: https://github.com/arrrrny/zuraffa/issues/734
+- **Issue**: 754
+- **URL**: https://github.com/arrrrny/zuraffa/issues/754
 - **State**: open
 - **Severity**: unknown
 - **Author**: arrrrny (Ahmet TOK)
-- **Labels**: (none)
+- **Labels**: bug
 
 ## Body
 
-## Summary
-
-`zfa tdd refactor` runs a preflight `dart test` (full suite) and refuses to proceed if any test is red. When earlier-phase 1 has pending U* behaviors (U3-U44), the suite has 3+ red tests, and the preflight fails for every behavior. This blocks phase 2b refactor for ALL green behaviors, not just the ones whose own test passes.
+Issue #734 (refactor preflight full-suite false negative) was reportedly fixed via #743 (commit `13172c00`), but the fix did NOT change `refactor_command.dart` line 181 — the preflight still calls `runner.runSuite()` which runs `dart test` for the whole project. When U* behaviors are still red, the full suite fails and `outcome=not-green` is reported, even though the current behavior's test passes.
 
 ## Reproduction
 
 ```bash
-# State: A1-A5 all green (composed), U1-U2 green, U3-U44 pending (not generated)
-# Run zfa tdd run — phase 2b refactor pass
-# Output:
-# [run] A5 refactor -> not-green
+# State: 12 done, U8 green (test passes), 36 pending (U9+ not yet generated)
+zfa tdd run 004-cloud-agent-task-dispatch
+# [run] U8 make -> green
+# [run] U8 refactor -> not-green
 # zfa tdd refactor: preflight suite
 #    command: dart test
 #    preflight exit: 1
-# zfa tdd run: step failed — behavior=A5 step=refactor outcome=not-green
 ```
 
-The "not-green" verdict comes from the full `dart test` having any failure — even failures in behaviors they run hasn't reached yet (U3-U44).
+The make step correctly classified U8 as green (per #731, #737, #751 fixes). The refactor step's preflight then ran `dart test` for the whole project, which has 36+ red tests (un-stubbed U9+), so the preflight fails.
 
 ## Root cause
 
-In `lib/src/plugins/tdd/commands/refactor_command.dart` (presumed), the preflight runs `dart test` for the whole repo. Any pre-existing red behavior (U3-U44 that haven't been processed) causes the preflight to fail.
+`#743` (commit `13172c00`) was claimed to fix this but the refactor command was not actually updated. Looking at `lib/src/plugins/tdd/commands/refactor_command.dart`:
+- Line 181: `final preflight = await runner.runSuite(...)` — still calls full suite
+- Line 85: explicit comment "there is INTENTIONALLY no --skip-preflight option"
 
-The phase 2b refactor contract (per the comment in run_command.dart:354-360) says: "every behavior still short of DONE now sits GREEN — the units whose refactor deferred in phase 1 plus the acceptance behaviors phase 2a just flipped — and every make in the feature is certified green, so the suite is fully green. Run refactor per behavior, in list order."
-
-But that comment assumes the run gets to U3-U44 in phase 1 first. If the run stops at U2 (e.g., due to #731 false-positive), U3-U44 are still pending and their generated stubs throw UnimplementedError — which causes the suite to fail.
+The fix that landed for #734 was either in a different file (run driver?) or the per-behavior logic exists but isn't reached when the run driver is in the "make succeeded, now refactor" path.
 
 ## Expected
 
-The refactor preflight should be per-behavior, not full-suite. If `dart test test/tdd/<behavior>_test.dart` passes for the current behavior, refactor should proceed (the per-behavior absolute-green contract per spec 048 FR-001).
+The refactor preflight should verify the CURRENT behavior's test passes, not the full suite. Either:
+- Pass the test path to a per-behavior test runner instead of `runSuite`
+- Use a `--preflight-scope=current-behavior` flag (default) that takes the per-behavior test path
+- The run driver should skip the refactor step entirely if make already returned green, deferring refactor to phase 2b only when ALL behaviors are green
 
 ## Actual
 
-Refactor preflight runs full `dart test` and fails if ANY test fails, even unrelated behaviors.
+Refactor preflight always runs `dart test` (full suite), fails when any test is red.
 
 ## Verification
 
-- A run that processes A1-A5 + U1-U2 then stops (any reason) should still be able to refactor those 7 behaviors
-- Refactor for A5 should pass if `dart test test/tdd/a5_test.dart` exits 0, even if `dart test` (full) fails due to U3+
+- A run where U8 is green and 36 others are pending should let U8:refactor pass (or skip cleanly)
+- Direct `zfa tdd refactor U8` should succeed when `dart test test/tdd/u8_test.dart` passes
+- The full suite should only be required at the very end (phase 2b absolute green) per the run_command.dart comment
 
 ## Context
 
-Discovered on 2026-09-01 running `zfa tdd run` on forklift spec 004. A1-A5 reached green via compose, then A5:refactor hit `not-green` because the full suite has U3+ stubs throwing UnimplementedError.
+Discovered 2026-09-02 running `zfa tdd run` on forklift spec 004 with all 9 prior fixes merged. U8:make is green (per #657, #731, #737, #751, #752), but U8:refactor fails the full-suite preflight because 36 U* stubs are still UnimplementedError.
+
+This is the 5th fix-incomplete in this session. Pattern: the fix gets merged but the code path that the run actually exercises is unchanged.
 
 Following STOP-ON-ROADBLOCK from zuraffa/AGENTS.md.
 
