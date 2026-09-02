@@ -48,6 +48,12 @@ class ZfaConfig {
     'agent': false,
   };
 
+  /// Plugin ids accepted in `.zfa.json` `plugins` registrations. Exposed for
+  /// `zfa doctor`'s config check (issue #793) so staleness detection cannot
+  /// drift from this source of truth.
+  static final Set<String> builtinPluginIds = _builtinPluginDefaults.keys
+      .toSet();
+
   final Map<String, bool> pluginDefaults;
   final Set<String> disabledPlugins;
   final Map<String, List<String>> customPresets;

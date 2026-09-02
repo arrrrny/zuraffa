@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../migration/migration.dart';
 import '../version.dart';
 import '../core/project/project_root.dart';
+import 'doctor_checks.dart';
 
 class DoctorCommand extends Command<void> {
   @override
@@ -20,7 +22,15 @@ class DoctorCommand extends Command<void> {
     argParser.addFlag(
       'fix',
       negatable: false,
-      help: 'Automatically fix detected v5 patterns where possible',
+      help: 'Automatically fix detected v5 patterns and heal environment '
+          'checks where possible (deps, artifacts, baseline cache, profile)',
+    );
+    argParser.addOption(
+      'format',
+      allowed: ['text', 'json'],
+      defaultsTo: 'text',
+      help: 'Output format. json emits a single doctor.v1 verdict object for '
+          'the named environment checks and sets the exit code (CI-able).',
     );
     argParser.addFlag(
       'dry-run',
@@ -44,13 +54,72 @@ class DoctorCommand extends Command<void> {
         argResults!['fix'] == true || argResults!['dry-run'] == true;
     final dryRun = argResults!['dry-run'] == true;
     final migrationOnly = argResults!['migration-only'] == true;
+    final jsonMode = (argResults!['format'] as String? ?? 'text') == 'json';
+
+    if (jsonMode) {
+      // Single parseable verdict object for the named environment checks
+      // (issue #793, format per #778). Prose sections are suppressed so
+      // agents/CI can consume stdout directly.
+      final results = migrationOnly
+          ? const <DoctorCheckResult>[]
+          : await DoctorChecksRunner().runAll(fix: shouldFix && !dryRun);
+      _print(jsonEncode(doctorChecksJson(results)));
+      exitCode = results.every((r) => r.ok) ? 0 : 1;
+      return;
+    }
 
     if (!migrationOnly) {
       await _runToolingChecks();
+      await _runNamedChecks(fix: shouldFix && !dryRun, dryRun: dryRun);
     }
 
     _print('');
     await _runMigrationChecks(shouldFix: shouldFix, dryRun: dryRun);
+  }
+
+  /// Named environment checks (issue #793): per-check ✓/✗ lines, exact fix
+  /// commands, and a protocol exit code — 0 iff every check is ok.
+  Future<void> _runNamedChecks({required bool fix, required bool dryRun}) async {
+    _print('Environment Checks');
+    _print('==================');
+
+    final results = await DoctorChecksRunner().runAll(fix: fix);
+    for (final r in results) {
+      final tag = switch (r.status) {
+        DoctorCheckStatus.pass => 'PASS',
+        DoctorCheckStatus.fail => 'FAIL',
+        DoctorCheckStatus.fixed => 'FIXED',
+        DoctorCheckStatus.warn => 'WARN',
+        DoctorCheckStatus.skipped => 'SKIP',
+      };
+      _print('  [$tag] ${r.id} - ${r.detail}');
+      if (r.suggestedFix != null &&
+          (r.status == DoctorCheckStatus.fail ||
+              r.status == DoctorCheckStatus.warn)) {
+        _print('    fix: ${r.suggestedFix}');
+      }
+      for (final item in r.fixedItems) {
+        _print('    fixed: $item');
+      }
+      if (dryRun &&
+          r.status == DoctorCheckStatus.fail &&
+          r.suggestedFix != null) {
+        _print('    [DRY-RUN] would fix: ${r.suggestedFix}');
+      }
+    }
+
+    final ok = results.every((r) => r.ok);
+    _print('');
+    if (ok) {
+      _print('All environment checks passed.');
+    } else {
+      _print(
+          'Some environment checks failed. Run `zfa doctor --fix` to auto-heal '
+          'the mechanical ones.');
+    }
+    // Issue #793 exit contract: non-zero iff any check remains failed after
+    // the (optional) fix pass. Migration findings do not affect this.
+    exitCode = ok ? 0 : 1;
   }
 
   Future<void> _runToolingChecks() async {
