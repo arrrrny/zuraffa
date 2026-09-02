@@ -25,6 +25,7 @@ import '../commands/apply_command.dart';
 import '../commands/module_command.dart';
 import '../commands/xray_command.dart';
 import '../commands/setup_command.dart';
+import '../commands/replay_command.dart';
 import '../commands/tdd_command.dart';
 import '../commands/app_shell_command.dart';
 import '../commands/package_command.dart';
@@ -176,6 +177,7 @@ class CliRunner {
     _runner.addCommand(SetupCommand());
     _runner.addCommand(CorpusCommand());
     _runner.addCommand(TddCommand(TddPlugin()));
+    _runner.addCommand(ReplayCommand());
     _runner.addCommand(AppCommand());
     _runner.addCommand(UiCommand());
     _runner.addCommand(PackageCommand());

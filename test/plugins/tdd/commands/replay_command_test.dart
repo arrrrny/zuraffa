@@ -1,0 +1,356 @@
+/// Acceptance behaviors A1–A7 for spec 066-zfa-replay (tdd/test-list.md).
+///
+/// Drives the real CLI entry point in-process (`CliRunner.runCapturing`,
+/// the sc_001–sc_012 pattern). Fixture histories are seeded through the
+/// REAL `CycleLog.append` writer; recorded gen steps target the scripted
+/// fake zfa binary; recorded green commands target shell check scripts.
+/// No `dart test` is spawned inside fixtures (kernel-cache safe).
+library;
+
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+import 'package:test/test.dart';
+
+import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/plugins/tdd/services/replay_history.dart';
+import 'package:zuraffa/src/plugins/tdd/services/tree_snapshot.dart';
+
+import '../helpers/replay_fixture.dart';
+
+void main() {
+  late CliRunner runner;
+
+  setUp(() {
+    runner = CliRunner(exitOnCompletion: false);
+  });
+
+  tearDown(() {
+    exitCode = 0;
+  });
+
+  /// Run the tdd replay subcommand against a fixture.
+  Future<String> drive(
+    ReplayFixture fx, {
+    List<String> extra = const [],
+    bool topLevel = false,
+    Object? positional,
+  }) {
+    final args = <String>[
+      if (topLevel) 'replay' else 'tdd',
+      if (!topLevel) 'replay',
+      positional as String? ?? fx.featureName,
+      '--project',
+      fx.root.path,
+      '--zfa-bin',
+      fx.fakeZfaPath,
+      ...extra,
+    ];
+    return runner.runCapturing(args);
+  }
+
+  String lastLine(String out) =>
+      out.trim().split('\n').where((l) => l.trim().isNotEmpty).last;
+
+  group('zfa tdd replay', () {
+    test('A1: a full recorded cycle replays clean', () async {
+      final fx = await ReplayFixture.create();
+      addTearDown(() => fx.root.delete(recursive: true));
+      await fx.writeFakeZfa();
+      await fx.appendCycle(
+        '066-b1',
+        marker: 'OK-1',
+        genSteps: [genStep(fx.genCommandOf('066-b1'))],
+      );
+      await fx.appendCycle(
+        '066-b2',
+        marker: 'OK-2',
+        genSteps: [genStep(fx.genCommandOf('066-b2'))],
+      );
+      final before = await TreeSnapshot.capture(fx.root.path);
+      final logBefore = await File(fx.cycleLogPath).readAsBytes();
+
+      final out = await drive(fx);
+
+      expect(exitCode, 0, reason: out);
+      expect(out, contains('[replay] feature=066-replay-fixture'));
+      expect(out, contains('[replay] 066-b1 integrity -> verified'));
+      expect(out, contains('[replay] 066-b1 gen -> identical (0 paths)'));
+      expect(out, contains('[replay] 066-b1 verify -> green (exit 0)'));
+      expect(out, contains('[replay] 066-b2 gen -> identical (0 paths)'));
+      expect(
+        lastLine(out),
+        'replay: feature=066-replay-fixture result=clean '
+        'replayed=2 skipped=0 diverged=0',
+      );
+      // Read-only contract: the real project's trees and its cycle log
+      // are byte-identical before/after the run.
+      final after = await TreeSnapshot.capture(fx.root.path);
+      expect(before.changedPaths(after), isEmpty);
+      expect(await File(fx.cycleLogPath).readAsBytes(), logBefore);
+    });
+
+    test('A2: a tampered cycle-log entry is caught, entry named', () async {
+      final fx = await ReplayFixture.create();
+      addTearDown(() => fx.root.delete(recursive: true));
+      await fx.writeFakeZfa();
+      await fx.appendCycle(
+        '066-b1',
+        marker: 'OK-1',
+        genSteps: [genStep(fx.genCommandOf('066-b1'))],
+      );
+      await fx.appendCycle(
+        '066-b2',
+        marker: 'OK-2',
+        genSteps: [genStep(fx.genCommandOf('066-b2'))],
+      );
+      // Injected mutation: flip the b1 green entry's recorded exit.
+      final log = File(fx.cycleLogPath);
+      final raw = await log.readAsString();
+      await log.writeAsString(raw.replaceFirst('- exit: 0\n', '- exit: 1\n'));
+
+      final out = await drive(fx);
+
+      expect(exitCode, 1, reason: out);
+      expect(
+        out,
+        contains('[replay] 066-b1 integrity -> diverged '
+            '(chain mismatch: green)'),
+      );
+      // A tampered history's commands are never executed (FR-004).
+      final fakeLog = await File(fx.fakeZfaLogPath).readAsString();
+      expect(fakeLog, isNot(contains('066-b1')));
+      expect(out, contains('[replay] 066-b1 gen -> skipped'));
+      expect(
+        lastLine(out),
+        'replay: feature=066-replay-fixture result=divergent '
+        'replayed=1 skipped=0 diverged=1',
+      );
+    });
+
+    test('A3: artifact drift is caught with the path named', () async {
+      final fx = await ReplayFixture.create();
+      addTearDown(() => fx.root.delete(recursive: true));
+      await fx.writeFakeZfa();
+      await fx.appendCycle(
+        '066-b1',
+        marker: 'OK-1',
+        genSteps: [genStep(fx.genCommandOf('066-b1'))],
+      );
+      // The generator drifted: regenerating produces a different body.
+      await fx.writeDriftConfig(
+        '066-b1',
+        'test/066_b1_test.dart',
+        '// test for 066-b1 — regenerated by a newer template\n',
+      );
+
+      final out = await drive(fx);
+
+      expect(exitCode, 1, reason: out);
+      expect(
+        out,
+        contains('[replay] 066-b1 gen -> drift '
+            '(1 path: test/066_b1_test.dart modified)'),
+      );
+      expect(
+        lastLine(out),
+        'replay: feature=066-replay-fixture result=divergent '
+        'replayed=0 skipped=0 diverged=1',
+      );
+    });
+
+    test('A4: a verify divergence names behavior + exits', () async {
+      final fx = await ReplayFixture.create();
+      addTearDown(() => fx.root.delete(recursive: true));
+      await fx.writeFakeZfa();
+      await fx.appendCycle(
+        '066-b1',
+        marker: 'OK-1',
+        genSteps: [genStep(fx.genCommandOf('066-b1'))],
+      );
+      // Broke between Tuesday and Wednesday: the subject no longer
+      // satisfies what the recorded green command checked.
+      await fx.writeSubject('066-b1', 'BROKEN');
+
+      final out = await drive(fx);
+
+      expect(exitCode, 1, reason: out);
+      expect(out, contains('[replay] 066-b1 gen -> identical (0 paths)'));
+      expect(
+        out,
+        contains('[replay] 066-b1 verify -> diverged '
+            '(exit expected 0, actual 1)'),
+      );
+      expect(
+        lastLine(out),
+        'replay: feature=066-replay-fixture result=divergent '
+        'replayed=0 skipped=0 diverged=1',
+      );
+    });
+
+    test('A5: full-history aggregation, partial, and missing-log',
+        () async {
+      // -- three behaviors: two replayable, one only-red --
+      final fx = await ReplayFixture.create();
+      addTearDown(() => fx.root.delete(recursive: true));
+      await fx.writeFakeZfa();
+      await fx.appendCycle(
+        '066-b1',
+        marker: 'OK-1',
+        genSteps: [genStep(fx.genCommandOf('066-b1'))],
+      );
+      await fx.appendCycle(
+        '066-b2',
+        marker: 'OK-2',
+        genSteps: [genStep(fx.genCommandOf('066-b2'))],
+      );
+      await fx.appendRedOnly('066-b3');
+
+      final out = await drive(fx);
+
+      expect(exitCode, 0, reason: out);
+      expect(out, contains('[replay] 066-b3 gen -> skipped '
+          '(no generation block)'));
+      expect(out, contains('[replay] 066-b3 verify -> skipped '
+          '(no green command)'));
+      expect(
+        lastLine(out),
+        'replay: feature=066-replay-fixture result=clean '
+        'replayed=2 skipped=1 diverged=0',
+      );
+
+      // -- narrative-only log: nothing replayable, partial/2 --
+      final narrative = await ReplayFixture.create();
+      addTearDown(() => narrative.root.delete(recursive: true));
+      await narrative.writeFakeZfa();
+      await File(narrative.cycleLogPath).writeAsString(
+        '# Cycle Log\n\n## Cycle 1: prose only\n\n- red: something failed '
+        'before the implementation\n- green: it passes now\n',
+      );
+      final outNarrative = await drive(narrative);
+      expect(exitCode, 2, reason: outNarrative);
+      expect(
+        lastLine(outNarrative),
+        'replay: feature=066-replay-fixture result=partial '
+        'replayed=0 skipped=0 diverged=0',
+      );
+
+      // -- missing cycle-log: runtime failure, exit 1 --
+      final ghost = await ReplayFixture.create(featureName: '066-ghost');
+      addTearDown(() => ghost.root.delete(recursive: true));
+      await ghost.writeFakeZfa();
+      final outMissing = await drive(ghost);
+      expect(exitCode, 1, reason: outMissing);
+      expect(outMissing, contains('no recorded history'));
+    });
+
+    test('A6: the NDJSON event log mirrors the run', () async {
+      final fx = await ReplayFixture.create();
+      addTearDown(() => fx.root.delete(recursive: true));
+      await fx.writeFakeZfa();
+      await fx.appendCycle(
+        '066-b1',
+        marker: 'OK-1',
+        genSteps: [genStep(fx.genCommandOf('066-b1'))],
+      );
+      final eventsPath = p.join(fx.root.path, 'replay-events.ndjson');
+
+      final out = await drive(fx, extra: ['--events', eventsPath]);
+
+      expect(exitCode, 0, reason: out);
+      final lines = (await File(eventsPath).readAsString())
+          .split('\n')
+          .where((line) => line.trim().isNotEmpty)
+          .toList();
+      final decoded = lines
+          .map((line) => jsonDecode(line) as Map<String, dynamic>)
+          .toList();
+      expect(decoded.first['event'], 'replay.start');
+      expect(decoded.first['feature'], '066-replay-fixture');
+      final end = decoded.last;
+      expect(end['event'], 'replay.end');
+      expect(end['exit'], 0);
+      expect(end['result'], 'clean');
+
+      // Divergent run: the event log carries the divergence and exit 1.
+      final divergent = await ReplayFixture.create();
+      addTearDown(() => divergent.root.delete(recursive: true));
+      await divergent.writeFakeZfa();
+      await divergent.appendCycle('066-b1', marker: 'OK-1');
+      await divergent.writeSubject('066-b1', 'BROKEN');
+      final divergentEvents = p.join(divergent.root.path, 'events.ndjson');
+      await drive(divergent, extra: ['--events', divergentEvents]);
+      expect(exitCode, 1);
+      final divergentDecoded = (await File(divergentEvents).readAsString())
+          .split('\n')
+          .where((line) => line.trim().isNotEmpty)
+          .map((line) => jsonDecode(line) as Map<String, dynamic>)
+          .toList();
+      final verifyEnd = divergentDecoded.lastWhere(
+        (e) => e['event'] == 'step.end' && e['step'] == 'verify',
+      );
+      expect(verifyEnd['status'], 'diverged');
+      expect(divergentDecoded.last['exit'], 1);
+
+      // Without --events no event file is created anywhere (fresh fixture
+      // so the earlier --events file cannot leak into the scan).
+      final quiet = await ReplayFixture.create();
+      addTearDown(() => quiet.root.delete(recursive: true));
+      await quiet.writeFakeZfa();
+      await quiet.appendCycle(
+        '066-b1',
+        marker: 'OK-1',
+        genSteps: [genStep(quiet.genCommandOf('066-b1'))],
+      );
+      await drive(quiet);
+      expect(exitCode, 0);
+      final ndjsonFiles = Directory(quiet.root.path)
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.ndjson'))
+          .toList();
+      expect(ndjsonFiles, isEmpty);
+    });
+
+    test('A7: the dream surface delegates; unknown ids fail named',
+        () async {
+      final fx = await ReplayFixture.create();
+      addTearDown(() => fx.root.delete(recursive: true));
+      await fx.writeFakeZfa();
+      await fx.appendCycle(
+        '066-b1',
+        marker: 'OK-1',
+        genSteps: [genStep(fx.genCommandOf('066-b1'))],
+      );
+
+      // Top-level feature form.
+      final outTop = await drive(fx, topLevel: true);
+      expect(exitCode, 0, reason: outTop);
+      expect(
+        lastLine(outTop),
+        'replay: feature=066-replay-fixture result=clean '
+        'replayed=1 skipped=0 diverged=0',
+      );
+
+      // Top-level cycle-log path form.
+      final outPath = await drive(
+        fx,
+        topLevel: true,
+        positional: fx.cycleLogPath,
+      );
+      expect(exitCode, 0, reason: outPath);
+      expect(
+        lastLine(outPath),
+        'replay: feature=066-replay-fixture result=clean '
+        'replayed=1 skipped=0 diverged=0',
+      );
+
+      // Unknown --behavior id: exit 1, named, recorded behaviors listed.
+      final outUnknown = await drive(fx, extra: ['--behavior', '066-nope']);
+      expect(exitCode, 1, reason: outUnknown);
+      expect(outUnknown, contains('unknown behavior 066-nope'));
+      expect(outUnknown, contains('066-b1'));
+    });
+  });
+}

@@ -36,6 +36,19 @@ void main() {
     }
   });
 
+  test('zfa tdd --help lists the replay subcommand (066, T001)', () async {
+    final runner = CliRunner(exitOnCompletion: false);
+    final out = await runner.runCapturing(['tdd', '--help']);
+    final replayLine = out
+        .split('\n')
+        .firstWhere(
+          (line) => line.trimLeft().startsWith('replay '),
+          orElse: () => '',
+        );
+    expect(replayLine, isNotEmpty, reason: 'replay subcommand must be listed');
+    expect(replayLine.toLowerCase(), contains('replay'));
+  });
+
   test('zfa tdd --help lists the corpus family (051, T001)', () async {
     final runner = CliRunner(exitOnCompletion: false);
     final out = await runner.runCapturing(['tdd', '--help']);
