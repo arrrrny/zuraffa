@@ -32,12 +32,11 @@ const _tddDevDeps = {'mocktail', 'coverage', 'mutation_test'};
 /// Records spawned fix commands instead of running them (hermetic tests).
 class _RecordingRunner {
   final List<String> invocations = [];
-  final int exitCode;
-  _RecordingRunner({this.exitCode = 0});
+  _RecordingRunner();
 
   Future<ProcessResult> call(String executable, List<String> args) async {
     invocations.add('$executable ${args.join(' ')}');
-    return ProcessResult(0, exitCode, '', '');
+    return ProcessResult(0, 0, '', '');
   }
 }
 
