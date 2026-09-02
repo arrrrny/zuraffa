@@ -12,11 +12,11 @@
 ///   3. Re-runs the target test before generating and confirms it
 ///      STILL fails (FR-003). An already-green test takes the SKIP
 ///      transition (issue #694, amending US2.AC3): generation is
-///      skipped entirely, the full suite is re-certified with no NEW
-///      failures, a green evidence entry with an explicitly empty
-///      generation block is appended, and the command exits 0 with
-///      `outcome=skipped` so the run loop proceeds past completed
-///      behaviors instead of deadlocking on re-runs.
+///      skipped entirely, NO suite run happens — the scoped single-test
+///      re-run is the evidence run (issue #741), a green evidence entry
+///      with an explicitly empty generation block is appended, and the
+///      command exits 0 with `outcome=skipped` so the run loop proceeds
+///      past completed behaviors instead of deadlocking on re-runs.
 ///   4. Plans the minimal generation through the zuraffa pipeline
 ///      (FR-005): `entity create` / `make` / `build` (never hand-
 ///      writes source, never edits tests — FR-004).
@@ -33,16 +33,20 @@
 ///      `outcome=skipped`) instead of `generation-error` keeps
 ///      `zfa tdd run` off a false negative.
 ///   6. Runs the target test via the profile `single` command and
-///      requires a PASS (FR-007). Then runs the full suite via the
-///      profile `suite` command and requires no NEW failures that are
-///      attributable to this make, relative to a pre-run baseline
-///      (US3; issue #731): a failure counts against the make only
-///      when it lives in the current behavior's own test file or in a
-///      file that was fully green at baseline. Failures confined to
-///      files that were ALREADY red at baseline are pre-existing red
+///      requires a PASS (FR-007). Then requires no NEW suite failures
+///      that are attributable to this make, relative to a pre-run
+///      baseline (US3; issue #731): a failure counts against the make
+///      only when it lives in the current behavior's own test file or
+///      in a file that was fully green at baseline. Failures confined
+///      to files that were ALREADY red at baseline are pre-existing red
 ///      behaviors (e.g. deferred acceptance tests) and never block
 ///      the make — their failing-test identifiers may even vary
-///      between the two suite runs.
+///      between the two suite runs. Issue #741: the baseline may come
+///      from the run's cached snapshot (`--suite-baseline`, written
+///      once per `zfa tdd run`) and the guard may be the scoped
+///      single-test result; the live full suite runs only for a
+///      standalone make or when the cache/scoped transcript is
+///      unusable (safe fallback).
 ///   7. On success, appends a green-evidence entry to
 ///      `specs/<feature>/tdd/cycle-log.md` (FR-008) containing the
 ///      generation commands, runner command, runner exit code,
@@ -75,6 +79,7 @@ import '../services/composition_targets.dart';
 import '../services/cycle_log.dart';
 import '../services/generation_planner.dart';
 import '../services/pipeline_runner.dart';
+import '../services/run_baseline_cache.dart';
 import '../services/runner.dart';
 import '../services/suite_guard.dart';
 import '../tdd_plugin.dart';
@@ -118,6 +123,16 @@ class MakeCommand extends Command<void> {
           'this to point at a fake zfa script; production runs auto-resolve '
           'via Platform.script or `zfa` on PATH.',
     );
+    argParser.addOption(
+      'suite-baseline',
+      help:
+          'Path to a cached full-suite baseline snapshot (run-baseline.json) '
+          'written once per run by `zfa tdd run` (issue #741). When given and '
+          'readable, make reuses the cached pre-run failure set instead of '
+          'running the full suite, and certifies the post-generation guard '
+          'from the scoped single-test result — falling back to the live '
+          'suite when the cache is missing, corrupt, or unparseable.',
+    );
   }
 
   final TddPlugin plugin;
@@ -160,6 +175,11 @@ class MakeCommand extends Command<void> {
         ? p.absolute(projectFlag)
         : ProjectRoot.find();
     final zfaBinFlag = argResults?['zfa-bin'] as String?;
+    final suiteBaselineFlag = argResults?['suite-baseline'] as String?;
+    final suiteBaselinePath =
+        suiteBaselineFlag != null && suiteBaselineFlag.isNotEmpty
+        ? suiteBaselineFlag
+        : null;
 
     final runner = const SingleTestRunner();
     final planner = const GenerationPlanner();
@@ -253,39 +273,70 @@ class MakeCommand extends Command<void> {
     if (alreadyGreen) {
       print(
         '   target test already passes — skipping generation (issue #694 '
-        'skip transition); re-certifying with the suite guard',
+        'skip transition); the suite is not re-run (issue #741)',
       );
     }
 
     // ---------------------------------------------------------------
-    // 5. Pre-run suite baseline (FR-007 / US3.AC3).
+    // 5. Pre-run suite baseline (FR-007 / US3.AC3). Issue #741: the
+    //    already-green skip transition runs no suite at all, and a
+    //    run-cached baseline (`--suite-baseline`, written once per
+    //    `tdd run` by the driver) replaces the per-behavior suite run.
+    //    The live suite runs only for a standalone make (no flag) or
+    //    when the cache is missing/corrupt/unparseable — the same
+    //    safe fallback as before this fix.
     // ---------------------------------------------------------------
-    print('   suite baseline: $suiteTemplate');
-    final baselineRun = await runner.runSuite(
-      suiteTemplate: suiteTemplate,
-      workingDirectory: cwd,
-    );
-    final baseline = guard.fromRunRecord(
-      record: baselineRun,
-      capturedAt: DateTime.now().toUtc().toIso8601String(),
-    );
-    print(
-      '   baseline exit: ${baseline.exitCode}, failed: ${baseline.failedTests.length}',
-    );
-    if (!baselineRun.startedProcess ||
-        !baseline.parseable ||
-        baseline.exitCode != 0 && baseline.failedTests.isEmpty) {
-      print(
-        'zfa tdd make: the suite baseline did not produce a usable snapshot. '
-        'Refusing to generate without a trustworthy pre-run failure set.',
-      );
-      _printSummary(
-        behavior: record.behaviorId,
-        outcome: MakeOutcome.runnerError,
-        feature: target.featureName,
-      );
-      exitCode = 1;
-      return;
+    SuiteSnapshot? baseline;
+    var baselineFromCache = false;
+    if (!alreadyGreen) {
+      SuiteSnapshot? cached;
+      if (suiteBaselinePath != null) {
+        cached = await const RunBaselineCache().read(suiteBaselinePath);
+        if (cached == null || !cached.parseable) {
+          print(
+            '   suite baseline cache unreadable — falling back to the '
+            'live suite',
+          );
+        }
+      }
+      if (cached != null && cached.parseable) {
+        baseline = cached;
+        baselineFromCache = true;
+        print(
+          '   suite baseline: cached (${baseline.capturedAt}) — '
+          '${baseline.failedTests.length} pre-existing failure(s) '
+          '(issue #741)',
+        );
+      } else {
+        print('   suite baseline: $suiteTemplate');
+        final baselineRun = await runner.runSuite(
+          suiteTemplate: suiteTemplate,
+          workingDirectory: cwd,
+        );
+        final live = guard.fromRunRecord(
+          record: baselineRun,
+          capturedAt: DateTime.now().toUtc().toIso8601String(),
+        );
+        print(
+          '   baseline exit: ${live.exitCode}, failed: ${live.failedTests.length}',
+        );
+        if (!baselineRun.startedProcess ||
+            !live.parseable ||
+            live.exitCode != 0 && live.failedTests.isEmpty) {
+          print(
+            'zfa tdd make: the suite baseline did not produce a usable snapshot. '
+            'Refusing to generate without a trustworthy pre-run failure set.',
+          );
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: MakeOutcome.runnerError,
+            feature: target.featureName,
+          );
+          exitCode = 1;
+          return;
+        }
+        baseline = live;
+      }
     }
 
     // ---------------------------------------------------------------
@@ -468,82 +519,119 @@ class MakeCommand extends Command<void> {
     }
 
     // ---------------------------------------------------------------
-    // 9. Suite guard (FR-007, US3).
+    // 9. Suite guard (FR-007, US3). Issue #741: the skip transition
+    //    runs no guard (nothing was generated, so no NEW failure is
+    //    attributable to this make); with a run-cached baseline the
+    //    guard is certified from the scoped single-test result, falling
+    //    back to the live full-suite guard only when that transcript is
+    //    unusable (safe failure — never a silent pass).
     // ---------------------------------------------------------------
-    final guardRun = await runner.runSuite(
-      suiteTemplate: suiteTemplate,
-      workingDirectory: cwd,
-    );
-    final guardSnap = guard.fromRunRecord(
-      record: guardRun,
-      capturedAt: DateTime.now().toUtc().toIso8601String(),
-    );
-    final diff = guard.diff(baseline: baseline, guard: guardSnap);
-    // Issue #731: scope the regression verdict to failures THIS make
-    // could have caused. The name-diff alone false-positives when the
-    // suite already carries pre-existing red behaviors (e.g. deferred
-    // acceptance tests): a red test's failing-test IDENTIFIER may vary
-    // between the baseline and guard runs (dynamic test names), so the
-    // guard sees a "new" failure that is really the same pre-existing
-    // red behavior — and an already-green target's make reported
-    // `regression` instead of `skipped`, deadlocking `tdd run`.
-    final regressed = _regressionsAttributableToThisMake(
-      baseline: baseline,
-      newFailures: diff.newFailures,
-      testPath: testPath,
-    );
-    if (regressed.length < diff.newFailures.length) {
-      final tolerated = diff.newFailures
-          .where((id) => !regressed.contains(id))
-          .toList();
-      print(
-        '   suite guard: ${tolerated.length} failing id(s) belong to files '
-        'already red at baseline — pre-existing red behaviors, tolerated '
-        '(issue #731):',
-      );
-      for (final id in tolerated) {
-        print('   - $id');
+    SuiteSnapshot? guardSnap;
+    var regressed = const <String>[];
+    if (!alreadyGreen) {
+      if (baselineFromCache) {
+        final scopedGuard = guard.parse(
+          command: postRun.command,
+          exitCode: postRun.exitCode,
+          output: postRun.output,
+          capturedAt: DateTime.now().toUtc().toIso8601String(),
+        );
+        if (scopedGuard.parseable) {
+          print(
+            '   suite guard: scoped single-test result (issue #741 '
+            'baseline cache)',
+          );
+          guardSnap = scopedGuard;
+        } else {
+          print(
+            '   scoped guard transcript unusable — falling back to the '
+            'live suite',
+          );
+        }
       }
-    }
-    if (!guardRun.startedProcess ||
-        !guardSnap.parseable ||
-        guardSnap.exitCode != 0 && guardSnap.failedTests.isEmpty) {
-      print(
-        'zfa tdd make: cannot parse the suite output to identify failing '
-        'tests. Refusing to certify — the suite guard is a safe-failure '
-        '(never a silent pass).',
-      );
-      _printSummary(
-        behavior: record.behaviorId,
-        outcome: MakeOutcome.runnerError,
-        feature: target.featureName,
-      );
-      exitCode = 1;
-      return;
-    }
-    if (regressed.isNotEmpty) {
-      print(
-        'zfa tdd make: regression detected — ${regressed.length} '
-        'NEW failure(s) introduced by the generation:',
-      );
-      for (final id in regressed) {
-        print('   - $id');
+      if (guardSnap == null) {
+        final guardRun = await runner.runSuite(
+          suiteTemplate: suiteTemplate,
+          workingDirectory: cwd,
+        );
+        final liveGuard = guard.fromRunRecord(
+          record: guardRun,
+          capturedAt: DateTime.now().toUtc().toIso8601String(),
+        );
+        if (!guardRun.startedProcess ||
+            !liveGuard.parseable ||
+            liveGuard.exitCode != 0 && liveGuard.failedTests.isEmpty) {
+          print(
+            'zfa tdd make: cannot parse the suite output to identify failing '
+            'tests. Refusing to certify — the suite guard is a safe-failure '
+            '(never a silent pass).',
+          );
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: MakeOutcome.runnerError,
+            feature: target.featureName,
+          );
+          exitCode = 1;
+          return;
+        }
+        guardSnap = liveGuard;
       }
-      print('   generated source left in place for inspection.');
-      _printSummary(
-        behavior: record.behaviorId,
-        outcome: MakeOutcome.regression,
-        feature: target.featureName,
+      final baselineSnapshot = baseline!;
+      final diff = guard.diff(baseline: baselineSnapshot, guard: guardSnap);
+      // Issue #731: scope the regression verdict to failures THIS make
+      // could have caused. The name-diff alone false-positives when the
+      // suite already carries pre-existing red behaviors (e.g. deferred
+      // acceptance tests): a red test's failing-test IDENTIFIER may vary
+      // between the baseline and guard runs (dynamic test names), so the
+      // guard sees a "new" failure that is really the same pre-existing
+      // red behavior — and an already-green target's make reported
+      // `regression` instead of `skipped`, deadlocking `tdd run`.
+      regressed = _regressionsAttributableToThisMake(
+        baseline: baselineSnapshot,
+        newFailures: diff.newFailures,
+        testPath: testPath,
       );
-      exitCode = 1;
-      return;
+      if (regressed.length < diff.newFailures.length) {
+        final tolerated = diff.newFailures
+            .where((id) => !regressed.contains(id))
+            .toList();
+        print(
+          '   suite guard: ${tolerated.length} failing id(s) belong to files '
+          'already red at baseline — pre-existing red behaviors, tolerated '
+          '(issue #731):',
+        );
+        for (final id in tolerated) {
+          print('   - $id');
+        }
+      }
+      if (regressed.isNotEmpty) {
+        print(
+          'zfa tdd make: regression detected — ${regressed.length} '
+          'NEW failure(s) introduced by the generation:',
+        );
+        for (final id in regressed) {
+          print('   - $id');
+        }
+        print('   generated source left in place for inspection.');
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.regression,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
     }
 
     // ---------------------------------------------------------------
     // 10. Green evidence append (FR-008). For the issue #694 skip
     //     transition the generation block is explicitly empty and the
-    //     evidence command is the drift re-run; the suite baseline /
-    //     guard numbers are real either way.
+    //     evidence command is the drift re-run. Issue #741: on the skip
+    //     transition no suite ran, so the suite numbers record the
+    //     honest zeros (nothing generated → no suite risk taken); with
+    //     a run-cached baseline the baseline number is the cached
+    //     snapshot's and the guard number is the scoped single-test
+    //     result's. Every number is real, from the run that produced it.
     // ---------------------------------------------------------------
     final log = CycleLog(target.featureDir);
     await log.append(
@@ -557,8 +645,8 @@ class MakeCommand extends Command<void> {
         testPath: record.testPath,
         timestamp: DateTime.now().toUtc().toIso8601String(),
         generationSteps: pipelineResult?.steps ?? const [],
-        suiteBaselineFailures: baseline.failedTests.length,
-        suiteGuardFailures: guardSnap.failedTests.length,
+        suiteBaselineFailures: baseline?.failedTests.length ?? 0,
+        suiteGuardFailures: guardSnap?.failedTests.length ?? 0,
         suiteNewFailures: regressed,
       ),
     );

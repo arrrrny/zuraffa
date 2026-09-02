@@ -63,10 +63,15 @@ class CycleLogEntry {
   /// in execution order (spec 047 FR-006 / FR-008).
   final List<GenerationStep> generationSteps;
 
-  /// Suite baseline failure count captured before generation (green entries).
+  /// Suite baseline failure count captured before generation (green
+  /// entries). With a run-cached baseline (issue #741) this is the
+  /// cached snapshot's count; 0 when no suite ran (the issue #694
+  /// already-green skip transition runs no suite per issue #741).
   final int suiteBaselineFailures;
 
   /// Suite guard failure count from the pre-run baseline snapshot.
+  /// With a run-cached baseline (issue #741) this is the scoped
+  /// single-test result's count; 0 when no suite ran (skip transition).
   final int suiteGuardFailures;
 
   /// New failures introduced by the generation, if any (green entries).
