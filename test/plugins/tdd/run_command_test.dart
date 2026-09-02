@@ -529,6 +529,54 @@ void main() {
     });
   });
 
+  test('bug 826: a make reporting outcome=no-op (empty plan — no active '
+      'plugins) defers to phase 2 exactly like unexpressible — the loop '
+      'is not stopped by a nothing-to-generate behavior', () async {
+    // A1's make resolves to an EMPTY inner `zfa make` plan ("No active
+    // plugins to run.") — the bug #826 empty-plan shape. The real make
+    // records `outcome=no-op` without spawning the analyzer-heavy
+    // subprocess; the driver must defer the behavior to phase 2 rather
+    // than stopping the feature, so a corpus run is unblocked by
+    // nothing-to-generate behaviors.
+    await fx.seedTestList([
+      (
+        id: 'A1',
+        description: 'crud repository for order line 1.',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'acceptance',
+      ),
+    ]);
+    // Attempt 1 (phase 1): no-op. Attempt 2 (phase 2): green — plugins
+    // landed between phases in this scripted scenario.
+    await fx.setStepOutcome('make', 'A1', 'no-op\nok');
+    await fx.setStepOutcome('refactor', 'A1', 'ok');
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    expect(fx.stepInvocations(), [
+      'gen A1',
+      'verify-red A1',
+      'make A1',
+      'make A1',
+      'refactor A1',
+    ]);
+    expect(out, contains('[run] A1 make -> no-op'));
+    expect(out, contains('[run] A1 make -> deferred (phase 2)'));
+    expect(out, contains('[run] A1 make -> green (phase 2)'));
+    expect(out, contains('[run] A1 refactor -> clean (phase 2)'));
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 green=0 done=1',
+      ),
+      reason: out,
+    );
+    final state = await readState();
+    expect(state['behavior_states'] as Map<String, dynamic>, {'A1': 'done'});
+  });
+
   test('bug 635: unit refactor defers while the acceptance sits red — '
       'phase 2 makes every acceptance green, then refactors on the '
       'fully-green suite', () async {
