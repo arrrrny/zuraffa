@@ -70,6 +70,7 @@ class RefactorAction {
     required this.exitCode,
     required this.filesChanged,
     required this.output,
+    this.timedOut = false,
   });
 
   /// Pass name: `build`, `format`, or `fix`.
@@ -88,6 +89,10 @@ class RefactorAction {
 
   /// Captured tool output (stdout + stderr), trimmed.
   final String output;
+
+  /// True when the pass was killed by the per-command timeout (bug #742):
+  /// the pass launched but outlived the deadline (tooling failure).
+  final bool timedOut;
 
   @override
   String toString() =>

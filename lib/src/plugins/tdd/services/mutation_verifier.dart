@@ -21,6 +21,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'tdd_timeout.dart';
+
 /// The outcome of a single `zfa tdd verify` run.
 class MutationResult {
   MutationResult({
@@ -104,7 +106,8 @@ class MutationVerifier {
     this.outputDir = 'mutation-test-report',
     this.reportFormat = 'md',
     this.workingDirectory,
-  });
+    Duration? timeout,
+  }) : timeout = timeout ?? TddTimeouts.defaultMutationRun;
 
   /// Path to the `mutation-test.xml` config relative to [workingDirectory]
   /// (or absolute). Defaults to `mutation-test.xml` at the repo root.
@@ -122,6 +125,12 @@ class MutationVerifier {
   /// Working directory for the subprocess. Defaults to
   /// `Directory.current.path`.
   final String? workingDirectory;
+
+  /// Hard deadline for the mutation run (bug #742): the child is killed
+  /// (SIGKILL) at the deadline and a [ProcessTimeoutException] is thrown —
+  /// the audit hangs never. Generous by design: the mutation run is the
+  /// slowest TDD child (one test execution per mutant).
+  final Duration timeout;
 
   /// Run the mutation audit. Returns a [MutationResult] with the parsed
   /// score. Throws [MutationToolUnavailable] if `dart` is not on PATH or
@@ -159,10 +168,14 @@ class MutationVerifier {
     ];
 
     final stopwatch = Stopwatch()..start();
-    final result = await Process.run(
+    // Bug #742: the mutation run is under a hard deadline — the child is
+    // killed at the deadline and a ProcessTimeoutException propagates to
+    // the auditor, which maps it to NOT_ASSESSED.
+    final result = await runTimed(
       dartBin,
       args,
       workingDirectory: cwd,
+      timeout: timeout,
       // Deliberately NOT runInShell: on POSIX that wraps the invocation in
       // `sh -c` with the arguments joined, so a config path containing a
       // space or shell metacharacter would be re-split or interpreted.
@@ -202,12 +215,18 @@ class MutationVerifier {
   Future<String?> _resolveDartBinary() async {
     // PATH lookup via which/where. We can't use Process.run('which')
     // directly because some platforms lack `which`; use `dart --version`
-    // with a fallback.
+    // with a fallback. The probe itself is under a short deadline (bug
+    // #742): a hanging `dart` binary is treated as unavailable.
     try {
-      final r = await Process.run('dart', ['--version']);
+      final r = await runTimed('dart', const [
+        '--version',
+      ], timeout: TddTimeouts.defaultProbe);
       if (r.exitCode == 0) return 'dart';
     } on ProcessException {
       // ignored — fall through to null
+    } on ProcessTimeoutException {
+      // A `dart --version` that never returns is an unusable toolchain.
+      return null;
     }
     return null;
   }

@@ -34,6 +34,7 @@ import 'dart:io';
 
 import '../models/refactor_action.dart';
 import 'step_runner.dart';
+import 'tdd_timeout.dart';
 import 'tree_snapshot.dart';
 
 /// One invocation the registry asks the executor to run.
@@ -64,24 +65,35 @@ class ProcessRunOutcome {
     required this.exitCode,
     required this.output,
     required this.startedProcess,
+    this.timedOut = false,
   });
 
   final String command;
   final int exitCode;
   final String output;
   final bool startedProcess;
+
+  /// True when the pass process was killed by the per-command timeout
+  /// (bug #742): the process launched but outlived the deadline.
+  final bool timedOut;
 }
 
-/// Injectable process executor. The default implementation uses
-/// [Process.run]; tests pass a fake that records invocations and returns
-/// programmed outcomes.
+/// Injectable process executor. The default implementation runs each pass
+/// under a hard deadline ([DefaultProcessExecutor], bug #742); tests pass a
+/// fake that records invocations and returns programmed outcomes.
 abstract interface class ProcessExecutor {
   Future<ProcessRunOutcome> run(RefactorPassInvocation invocation);
 }
 
-/// The default [ProcessExecutor] — runs the command via [Process.run].
+/// The default [ProcessExecutor] — runs the command under a hard deadline
+/// (bug #742): a pass that outlives [timeout] is killed (SIGKILL) and
+/// recorded as a timed-out failure so the registry misfire-stops instead of
+/// hanging forever. Defaults to [TddTimeouts.defaultRefactorPass].
 class DefaultProcessExecutor implements ProcessExecutor {
-  const DefaultProcessExecutor();
+  const DefaultProcessExecutor({this.timeout});
+
+  /// The per-pass deadline; `null` uses [TddTimeouts.defaultRefactorPass].
+  final Duration? timeout;
 
   @override
   Future<ProcessRunOutcome> run(RefactorPassInvocation inv) async {
@@ -97,16 +109,25 @@ class DefaultProcessExecutor implements ProcessExecutor {
     final executable = tokens.first;
     final args = tokens.skip(1).toList();
     try {
-      final result = await Process.run(
+      final result = await runTimed(
         executable,
         args,
         workingDirectory: inv.workingDirectory,
+        timeout: timeout ?? TddTimeouts.defaultRefactorPass,
       );
       return ProcessRunOutcome(
         command: inv.command,
         exitCode: result.exitCode,
         output: '${result.stdout}${result.stderr}'.trim(),
         startedProcess: true,
+      );
+    } on ProcessTimeoutException catch (e) {
+      return ProcessRunOutcome(
+        command: inv.command,
+        exitCode: -1,
+        output: e.toString(),
+        startedProcess: true,
+        timedOut: true,
       );
     } on ProcessException catch (e) {
       return ProcessRunOutcome(
@@ -200,7 +221,8 @@ class RefactorPasses {
     Future<List<RefactorPassSpec>>? passSpecs,
     String? zfaBinOverride,
     Map<String, String>? environment,
-  }) : _executor = executor ?? const DefaultProcessExecutor(),
+    Duration? passTimeout,
+  }) : _executor = executor ?? DefaultProcessExecutor(timeout: passTimeout),
        _passSpecsFuture =
            passSpecs ??
            defaultPassSpecs(
@@ -291,6 +313,7 @@ class RefactorPasses {
           exitCode: outcome.exitCode,
           filesChanged: filesChanged,
           output: outcome.output,
+          timedOut: outcome.timedOut,
         ),
       );
       // Misfire-stop (FR-010): non-zero exit OR process did not start.

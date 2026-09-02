@@ -25,6 +25,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../models/generation_plan.dart';
+import 'tdd_timeout.dart';
 
 /// Resolution-stage failure: the zfa entrypoint could not be resolved
 /// or is missing on disk. Carries the feature context if known.
@@ -68,11 +69,17 @@ class PipelineRunner {
   ///
   /// [zfaBinOverride] (when set) replaces the entrypoint auto-resolution
   /// (U11); useful in tests to point at a fake zfa script.
+  ///
+  /// [timeout] is the per-step hard deadline (bug #742): a hanging step
+  /// child is killed and captured as a [GenerationStep] with `timedOut:
+  /// true`, the plan stops there (misfire-stop), and never hangs. Defaults
+  /// to [TddTimeouts.defaultPipelineStep].
   Future<PipelineResult> runPlan({
     required GenerationPlan plan,
     required String workingDirectory,
     String? zfaBinOverride,
     String? feature,
+    Duration? timeout,
   }) async {
     if (!plan.isExpressible) {
       return PipelineResult(
@@ -95,11 +102,12 @@ class PipelineRunner {
       final args = [...entrypoint.arguments, ...spec.args];
       final fullCmd = '${entrypoint.displayCommand} ${spec.args.join(' ')}';
       try {
-        final result = await Process.run(
+        final result = await runTimed(
           entrypoint.executable,
           args,
           workingDirectory: workingDirectory,
           runInShell: false,
+          timeout: timeout ?? TddTimeouts.defaultPipelineStep,
         );
         final output = '${result.stdout}${result.stderr}';
         captured.add(
@@ -114,6 +122,20 @@ class PipelineRunner {
           firstFailure = i;
           break;
         }
+      } on ProcessTimeoutException catch (e) {
+        // Bug #742: a step that outlived the deadline was killed — capture
+        // the timeout honestly and stop the plan (misfire-stop).
+        captured.add(
+          GenerationStep(
+            command: fullCmd,
+            exitCode: -1,
+            output: e.toString(),
+            purpose: spec.purpose,
+            timedOut: true,
+          ),
+        );
+        firstFailure = i;
+        break;
       } on ProcessException catch (e) {
         captured.add(
           GenerationStep(

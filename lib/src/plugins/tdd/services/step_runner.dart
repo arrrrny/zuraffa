@@ -33,6 +33,8 @@ import 'dart:isolate';
 
 import 'package:path/path.dart' as p;
 
+import 'tdd_timeout.dart';
+
 /// Spawn hook so fast-tier tests can drive the parser without real
 /// processes (the slow tier exercises the real spawn path with the
 /// fixture's fake zfa binary).
@@ -74,12 +76,28 @@ class StepResult {
 }
 
 class StepRunner {
-  StepRunner({this.zfaBin, StepSpawner? spawner})
-    : _spawner = spawner ?? _defaultSpawner;
+  /// [timeout] is the per-step deadline for the DEFAULT spawn path (bug
+  /// #742): a hanging step child is killed and mapped to a `runner-error`
+  /// [StepResult] instead of hanging the driver forever. Defaults to
+  /// [TddTimeouts.defaultStepProcess]. Injected [spawner] fakes are the
+  /// caller's responsibility (fast-tier tests), as before.
+  StepRunner({this.zfaBin, StepSpawner? spawner, Duration? timeout})
+    : timeout = timeout ?? TddTimeouts.defaultStepProcess,
+      _spawner =
+          spawner ??
+          ((List<String> command, String workingDirectory) =>
+              _timedDefaultSpawner(
+                command,
+                workingDirectory,
+                timeout ?? TddTimeouts.defaultStepProcess,
+              ));
 
   /// Explicit entrypoint override (`--zfa-bin`). When null the package
   /// root's `bin/zfa.dart` is resolved.
   final String? zfaBin;
+
+  /// The effective per-step deadline (bug #742).
+  final Duration timeout;
 
   final StepSpawner _spawner;
 
@@ -211,17 +229,11 @@ class StepRunner {
   /// Run one step for [behaviorId] and map the sub-process result onto the
   /// step's contract. A spawn failure yields a `runner-error` StepResult,
   /// never a crash (U17).
-  ///
-  /// When [suiteBaselinePath] is given (issue #741), make steps receive
-  /// `--suite-baseline <path>` so they reuse the run's cached full-suite
-  /// baseline instead of running the suite per behavior. Every other step
-  /// ignores it.
   Future<StepResult> run({
     required String step,
     required String behaviorId,
     required String feature,
     required String projectRoot,
-    String? suiteBaselinePath,
   }) async {
     if (!stepOrder.contains(step)) {
       throw ArgumentError.value(step, 'step', 'unknown TDD step');
@@ -236,13 +248,6 @@ class StepRunner {
       '--project',
       projectRoot,
     ];
-    // Issue #741: hand the run's cached suite baseline to make steps so
-    // the full suite runs once per run, not once per behavior.
-    if (step == 'make' &&
-        suiteBaselinePath != null &&
-        suiteBaselinePath.isNotEmpty) {
-      argv.addAll(['--suite-baseline', suiteBaselinePath]);
-    }
     final command = entry.endsWith('.dart')
         ? ['dart', entry, ...argv]
         : [entry, ...argv];
@@ -250,6 +255,17 @@ class StepRunner {
     final ProcessResult process;
     try {
       process = await _spawner(command, projectRoot);
+    } on ProcessTimeoutException catch (e) {
+      // Bug #742: the step child outlived the deadline and was killed.
+      // runner-error, never a hang, never a silent success.
+      return StepResult(
+        step: step,
+        behaviorId: behaviorId,
+        exitCode: -1,
+        outcome: 'runner-error',
+        success: false,
+        output: e.toString(),
+      );
     } on ProcessException catch (e) {
       return StepResult(
         step: step,
@@ -344,14 +360,19 @@ class StepRunner {
     return last;
   }
 
-  static Future<ProcessResult> _defaultSpawner(
+  /// The default spawn path with a hard deadline (bug #742): the child is
+  /// killed at [timeout] and a [ProcessTimeoutException] propagates to
+  /// [run], which maps it to a `runner-error` StepResult.
+  static Future<ProcessResult> _timedDefaultSpawner(
     List<String> command,
     String workingDirectory,
+    Duration timeout,
   ) {
-    return Process.run(
+    return runTimed(
       command.first,
       command.sublist(1),
       workingDirectory: workingDirectory,
+      timeout: timeout,
     );
   }
 }

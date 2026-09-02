@@ -41,6 +41,7 @@ import '../services/corpus_manifest_store.dart';
 import '../services/corpus_progress_store.dart';
 import '../services/corpus_step_runner.dart';
 import '../services/gap_ledger_store.dart';
+import '../services/tdd_timeout.dart';
 import '../../../core/project/project_root.dart';
 
 class CorpusRunCommand extends Command<void> {
@@ -60,6 +61,14 @@ class CorpusRunCommand extends Command<void> {
           '`tdd run` / `tdd verify` commands (defaults to this package\'s '
           'bin/zfa.dart). Point this at a scripted fake to drive the corpus '
           'against stubbed features.',
+    );
+    argParser.addOption(
+      'timeout',
+      valueHelp: 'minutes',
+      help:
+          'Hard deadline in minutes for each spawned per-feature command '
+          '(bug #742; default 10). Fractions are allowed. On timeout the '
+          'child is killed and the corpus stops with a runner-error.',
     );
   }
 
@@ -92,6 +101,19 @@ class CorpusRunCommand extends Command<void> {
         ? p.absolute(projectFlag)
         : ProjectRoot.find();
     final zfaBin = argResults?['zfa-bin'] as String?;
+
+    // Bug #742: the --timeout override for each spawned per-feature command.
+    final Duration? timeoutOverride;
+    try {
+      timeoutOverride = parseTddTimeoutMinutes(
+        argResults?['timeout'] as String?,
+      );
+    } on TddTimeoutFormatException catch (e) {
+      print('zfa tdd corpus run: ${e.message}');
+      _printSummary(features: 0, result: 'runner-error');
+      exitCode = _exitRunnerError;
+      return;
+    }
 
     final manifestStore = CorpusManifestStore(projectRoot);
     final progressStore = CorpusProgressStore(projectRoot);
@@ -171,7 +193,7 @@ class CorpusRunCommand extends Command<void> {
       // -----------------------------------------------------------------
       // 3. Drive in manifest order (FR-001); STOP-ON-ROADBLOCK (FR-002).
       // -----------------------------------------------------------------
-      final runner = CorpusStepRunner(zfaBin: zfaBin);
+      final runner = CorpusStepRunner(zfaBin: zfaBin, timeout: timeoutOverride);
       String? stoppedAtFeature;
 
       Future<void> persist() =>

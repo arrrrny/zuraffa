@@ -43,6 +43,7 @@ import '../services/artifact_registry.dart';
 import '../services/cycle_log.dart';
 import '../services/red_classifier.dart';
 import '../services/runner.dart';
+import '../services/tdd_timeout.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -75,6 +76,15 @@ class VerifyRedCommand extends Command<void> {
           'used. Tests pass the temp fixture root here instead of mutating '
           'Directory.current, which is process-global and unsafe under '
           'concurrent test execution.',
+    );
+    argParser.addOption(
+      'timeout',
+      valueHelp: 'minutes',
+      help:
+          'Hard deadline in minutes for the spawned target-test process (bug '
+          '#742; default 2). Fractions are allowed (0.5 = 30 seconds). On '
+          'timeout the child is killed and the command stops non-zero with '
+          'classification runner-error.',
     );
   }
 
@@ -112,6 +122,24 @@ class VerifyRedCommand extends Command<void> {
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find();
+
+    // Bug #742: the --timeout override for the spawned target-test process.
+    Duration? timeoutOverride;
+    try {
+      timeoutOverride = parseTddTimeoutMinutes(
+        argResults?['timeout'] as String?,
+      );
+    } on TddTimeoutFormatException catch (e) {
+      print('zfa tdd verify-red: ${e.message}');
+      _printSummary(
+        behavior: behaviorId ?? '-',
+        classification: 'unresolved',
+        certified: false,
+        feature: featureFlag ?? 'unknown',
+      );
+      exitCode = 1;
+      return;
+    }
 
     // ---------------------------------------------------------------
     // 1. Resolve the target from the registry (FR-001, FR-002).
@@ -181,8 +209,21 @@ class VerifyRedCommand extends Command<void> {
       testPath: testPath,
       testName: testName,
       workingDirectory: cwd,
+      timeout: timeoutOverride,
     );
     print('   runner exit: ${run.exitCode}');
+    if (run.timedOut) {
+      // Bug #742: name the behavior, the step, and the command, then stop
+      // non-zero — the classification below is runner-error either way.
+      print(
+        'zfa tdd verify-red: behavior "${record.behaviorId}" — target test '
+        'timed out: ${run.output}',
+      );
+      print(
+        '   re-run with a larger --timeout <minutes> if the test '
+        'legitimately needs longer.',
+      );
+    }
 
     List<String> changedPaths;
     try {

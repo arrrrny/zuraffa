@@ -39,6 +39,7 @@ import 'package:path/path.dart' as p;
 import '../services/cycle_log.dart';
 import '../services/refactor_passes.dart';
 import '../services/runner.dart';
+import '../services/tdd_timeout.dart';
 import '../services/tree_snapshot.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
@@ -71,6 +72,15 @@ class RefactorCommand extends Command<void> {
           'resolve it: the running CLI from source, then the system zfa on '
           'PATH, then the dart+script fallback — never a hardcoded '
           'bin/zfa.dart, which zfa setup does not create.',
+    );
+    argParser.addOption(
+      'timeout',
+      valueHelp: 'minutes',
+      help:
+          'Hard deadline in minutes for the preflight/re-proof suite and each '
+          'pass process (bug #742; default 10). Fractions are allowed. On '
+          'timeout the child is killed and the command stops non-zero as '
+          'runner-error.',
     );
     // Note (FR-002): there is INTENTIONALLY no --skip-preflight option.
     // The preflight is the entire discipline of the refactor step; skipping
@@ -106,7 +116,29 @@ class RefactorCommand extends Command<void> {
         : ProjectRoot.find();
     final zfaBinFlag = argResults?['zfa-bin'] as String?;
 
-    await _run(cwd: cwd, featureFlag: featureFlag, zfaBin: zfaBinFlag);
+    // Bug #742: the --timeout override for the suite runs and every pass.
+    Duration? timeoutOverride;
+    try {
+      timeoutOverride = parseTddTimeoutMinutes(
+        argResults?['timeout'] as String?,
+      );
+    } on TddTimeoutFormatException catch (e) {
+      print('zfa tdd refactor: ${e.message}');
+      _printSummary(
+        feature: featureFlag ?? 'unknown',
+        outcome: RefactorOutcome.runnerError,
+        applied: 0,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    await _run(
+      cwd: cwd,
+      featureFlag: featureFlag,
+      zfaBin: zfaBinFlag,
+      timeout: timeoutOverride,
+    );
   }
 
   /// The body of the command, extracted so it can return a typed outcome
@@ -116,6 +148,7 @@ class RefactorCommand extends Command<void> {
     required String cwd,
     String? featureFlag,
     String? zfaBin,
+    Duration? timeout,
   }) async {
     RefactorOutcome outcome;
     int applied = 0;
@@ -148,8 +181,25 @@ class RefactorCommand extends Command<void> {
       final preflight = await runner.runSuite(
         suiteTemplate: suiteTemplate,
         workingDirectory: cwd,
+        timeout: timeout,
       );
       print('   preflight exit: ${preflight.exitCode}');
+      if (preflight.timedOut) {
+        // Bug #742: the preflight child outlived the deadline and was
+        // killed — an infrastructure failure, never `not-green` (that
+        // would claim an observed red).
+        print(
+          'zfa tdd refactor: preflight suite timed out: ${preflight.output}',
+        );
+        print(
+          '   re-run with a larger --timeout <minutes> if the suite '
+          'legitimately needs longer.',
+        );
+        outcome = RefactorOutcome.runnerError;
+        _printSummary(feature: featureName, outcome: outcome, applied: 0);
+        exitCode = 1;
+        return;
+      }
 
       if (!preflight.startedProcess) {
         // Runner could not launch → runner-error (U15 / A3).
@@ -194,6 +244,7 @@ class RefactorCommand extends Command<void> {
       final passes = RefactorPasses(
         cwd,
         zfaBinOverride: (zfaBin != null && zfaBin.isNotEmpty) ? zfaBin : null,
+        passTimeout: timeout,
       );
       final passResult = await passes.run();
       for (final action in passResult.actions) {
@@ -210,6 +261,18 @@ class RefactorCommand extends Command<void> {
         // Misfire-stop (FR-010) — a pass failed. Re-run the suite to
         // determine the resulting safety state.
         print('   pass "${passResult.failedPass}" failed — misfire-stop.');
+        final failedAction = passResult.actions
+            .where((a) => a.name == passResult.failedPass)
+            .toList();
+        if (failedAction.isNotEmpty && failedAction.single.timedOut) {
+          // Bug #742: the pass was killed at the deadline — surface the
+          // timeout message (behavior/feature context: pass + command).
+          print('   timed out: ${failedAction.single.output}');
+          print(
+            '   re-run with a larger --timeout <minutes> if this pass '
+            'legitimately needs longer.',
+          );
+        }
       }
       applied = passResult.actions
           .where((a) => a.filesChanged.isNotEmpty)
@@ -257,8 +320,22 @@ class RefactorCommand extends Command<void> {
       final reproof = await runner.runSuite(
         suiteTemplate: suiteTemplate,
         workingDirectory: cwd,
+        timeout: timeout,
       );
       print('   re-proof exit: ${reproof.exitCode}');
+      if (reproof.timedOut) {
+        // Bug #742: the re-proof child outlived the deadline and was
+        // killed — the suite safety state cannot be certified.
+        print('zfa tdd refactor: re-proof suite timed out: ${reproof.output}');
+        print(
+          '   re-run with a larger --timeout <minutes> if the suite '
+          'legitimately needs longer.',
+        );
+        outcome = RefactorOutcome.runnerError;
+        _printSummary(feature: featureName, outcome: outcome, applied: applied);
+        exitCode = 1;
+        return;
+      }
 
       if (!reproof.startedProcess || reproof.exitCode != 0) {
         final regressedTests = _extractFailingTestNames(reproof.output);
