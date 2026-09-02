@@ -209,9 +209,11 @@ process exit code.
   (`Directory.systemTemp.createTemp('zfa_replay_')`) seeded by copying from the real
   project: `pubspec.yaml`, `pubspec.lock` (if present), `analysis_options.yaml` (if
   present), `.zfa.json` (if present), the `lib/` and `test/` trees, the feature's
-  `specs/<feature>/` directory, and `.specify/` (memory/config the commands read).
-  The copy MUST exclude `.git`, `build/`, and the dart test kernel caches under
-  `.dart_tool/test/`. Absent sources are skipped silently; the sandbox path is
+  `specs/<feature>/` directory, `.specify/` (memory/config the commands read), and
+  `.dart_tool/package_config.json` (if present — its relative `rootUri`s resolve
+  inside the copied tree, giving the sandbox working package resolution without a
+  pub get). The copy MUST exclude `.git`, `build/`, and the dart test kernel caches
+  under `.dart_tool/test/`. Absent sources are skipped silently; the sandbox path is
   printed in the header line.
 - **FR-007**: The sandbox MUST be deleted in a `finally` block unless
   `--keep-sandbox` is given; with the flag the path MUST be printed in the summary
@@ -239,10 +241,12 @@ process exit code.
   non-zero (or unspawnable) outcome is a verify divergence naming the behavior,
   expected and actual exits. A green entry with no recorded command MUST skip
   verify with a warning.
-- **FR-011**: If the sandbox cannot provide a working package resolution for the
-  recorded command, verify MUST be skipped with a warning rather than reported as a
-  divergence (the divergence vocabulary is for *reproduction* failures, not
-  environment gaps).
+- **FR-011**: If the real project carries a `pubspec.yaml` but no
+  `.dart_tool/package_config.json` (never resolved), verify MUST be skipped with a
+  `no package resolution` warning rather than reported as a divergence (the
+  divergence vocabulary is for *reproduction* failures, not environment gaps); gen
+  replay still runs. A present package config is mirrored into the sandbox (FR-006)
+  and verify proceeds.
 
 **Aggregation, contract, events**
 

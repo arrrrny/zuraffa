@@ -85,10 +85,10 @@ implementation.
 - [ ] T006 [P] [U6] Write the failing sandbox tests FIRST in
   `test/plugins/tdd/services/replay_sandbox_test.dart`: seeding copies
   pubspec.yaml/pubspec.lock/analysis_options.yaml/.zfa.json/lib//test//
-  specs/<feature>//.specify/ from the real project; excludes .git, build/,
-  .dart_tool/test/**; absent sources skipped silently; cleanup deletes the
-  sandbox (kept only with keep); seeded files are byte-identical copies —
-  observe red
+  specs/<feature>//.specify//.dart_tool/package_config.json from the real project;
+  excludes .git, build/, .dart_tool/test/**; absent sources skipped silently;
+  cleanup deletes the sandbox (kept only with keep); seeded files are byte-identical
+  copies — observe red
 - [ ] T007 [P] Implement `ReplaySandbox` in
   `lib/src/plugins/tdd/services/replay_sandbox.dart`:
   `Directory.systemTemp.createTemp('zfa_replay_')` + copy/exclusion rules +
@@ -117,7 +117,9 @@ with recorded-exit assertion — and shape the report. Test-first.
   green command runs in the sandbox (cwd asserted), exit equal → `green`;
   recorded 0 vs actual 1 → `verify-exit-mismatch` divergence carrying
   expected/actual; unspawnable command → `runner-error` divergence; command
-  absent → verify skipped — observe red
+  absent → verify skipped; a project with pubspec.yaml but no
+  `.dart_tool/package_config.json` → verify skipped with the `no package
+  resolution` warning (FR-011) — observe red
 - [ ] T011 [P] Implement the verify stage in `replay_runner.dart` (shell-run
   the recorded green command under the timeout budget; compare exits; typed
   divergences; depends on T010 red)
@@ -188,7 +190,7 @@ summary/exit contract, cleanup. Test-first via `CliRunner.runCapturing`.
 **Purpose**: full-suite proof, format gate, hygiene
 
 - [ ] T020 [A1] [A5] [A6] [A7] Write the slow-tier scenario
-  `test/plugins/tdd/scenarios/sc_018_replay_full_history_test.dart` (tagged
+  `test/plugins/tdd/scenarios/sc_022_replay_full_history_test.dart` (tagged
   `slow`): the SC1 fixture replays clean end-to-end, then each SC2–SC7
   mutation catch replays divergent with the step named — the issue's
   Done-when pair as one executable scenario

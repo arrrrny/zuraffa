@@ -62,10 +62,11 @@ replay (read-only contract, SC1); sandbox always cleaned up unless `--keep-sandb
 **Scale/Scope**: One new tdd subcommand (`replay_command.dart`), one thin top-level
 command (`replay_command.dart` under `lib/src/commands/`), three new pure services
 (`replay_history.dart`, `replay_sandbox.dart`, `replay_runner.dart`), one parser
-extension (generation-block steps on green entries), registration edits in
-`tdd_command.dart` + `cli_runner.dart`, fast tests + one slow scenario test + spec
-artifacts. No changes to `run_command.dart`, `cycle_log.dart`, `cycle_evidence.dart`
-(parser gains a field, rendering untouched), or any pipeline step.
+extension (generation-block steps extracted from green entry sections),
+registration edits in `tdd_command.dart` + `cli_runner.dart`, fast tests + one slow
+scenario test + spec artifacts. No changes to `run_command.dart`,
+`cycle_log.dart`, `cycle_evidence.dart` (replay splits sections itself and reuses
+`parseEntries` as-is), or any pipeline step.
 
 ## Constitution Check
 
@@ -129,7 +130,7 @@ test/plugins/tdd/
 ├── commands/
 │   └── replay_command_test.dart   # NEW: fast-tier end-to-end via CliRunner.runCapturing
 └── scenarios/
-    └── sc_018_replay_full_history_test.dart  # NEW (slow): full-history clean replay
+    └── sc_022_replay_full_history_test.dart  # NEW (slow): full-history clean replay
                                                #   + mutation catches (SC1–SC7)
 ```
 
@@ -154,9 +155,11 @@ No changes to `run_command.dart`, `cycle_log.dart`'s writer, `tree_snapshot.dart
    neutral: it contributes no link, exactly as the writer treats it.
 4. **Generation-step parsing extends the reader, not the format.** Green entries
    render `- generation:` / `  - step: <cmd>` blocks (cycle_entry.dart); parseEntries
-   ignores them today. Replay adds a section-scoped regex extraction (`- step:` /
-   `    exit:` / `    purpose:` lines) as a `ParsedGenerationStep` list on a wrapper
-   type — the writer's rendering and `ParsedCycleEntry` stay untouched.
+   ignores them today. `ReplayHistory` re-splits the raw log into sections (the same
+   `'\n## '` rule) and regex-extracts the `- step:` / `    exit:` / `    purpose:`
+   lines into `ReplayGenerationStep`s, pairing them with `parseEntries`' output for
+   the same section — the writer's rendering and `cycle_evidence.dart` stay
+   untouched.
 5. **Artifact compare = after-gen sandbox trees vs real project trees.** The sandbox
    is seeded FROM the real project, so a deterministic generator leaves
    `changedPaths` empty; any hand-edit of a generated file, or generator drift after
