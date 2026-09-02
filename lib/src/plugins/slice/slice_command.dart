@@ -253,6 +253,13 @@ example:
         'entry',
         help: 'Entry point: page name (e.g. product) or file path',
       )
+      // Issue #771: the manifest inputSchema names this required property
+      // `entries` — accept it as an alias so manifest-driven callers and
+      // the canonical `--entry` form both work.
+      ..addMultiOption(
+        'entries',
+        help: 'Alias of --entry (manifest schema name)',
+      )
       ..addOption(
         'depth',
         allowed: ['view', 'presentation', 'feature', 'full'],
@@ -277,7 +284,10 @@ example:
       return;
     }
 
-    final entries = results['entry'] as List<String>;
+    final entries = [
+      ...results['entry'] as List<String>,
+      ...results['entries'] as List<String>,
+    ];
     if (entries.isEmpty) {
       _usageError(
         'Missing --entry: cut requires at least one entry point '
@@ -373,7 +383,11 @@ example:
   Future<void> _merge(List<String> rest) async {
     final parser = ArgParser()
       ..addFlag('yes', help: 'Confirm shared writes')
-      ..addFlag('verbose', help: 'Print per-file merge decisions');
+      ..addFlag('verbose', help: 'Print per-file merge decisions')
+      ..addOption(
+        'name',
+        help: 'Slice name (alternative to the positional argument)',
+      );
 
     final ArgResults results;
     try {
@@ -383,7 +397,9 @@ example:
       return;
     }
 
-    if (results.rest.isEmpty) {
+    // Issue #771: the manifest schema declares `name` as required — accept
+    // the flag form; the positional argument keeps precedence.
+    if (results.rest.isEmpty && results['name'] == null) {
       _usageError('Missing slice name: zfa slice merge <name>');
       return;
     }
@@ -403,7 +419,9 @@ example:
       );
     }
 
-    final sliceName = results.rest.first;
+    final sliceName = results.rest.isNotEmpty
+        ? results.rest.first
+        : results['name'] as String;
     final reporter = CliProgressReporter();
     reporter.started('Merging slice "$sliceName"', 3);
     final capability = MergeSliceCapability();
@@ -585,7 +603,12 @@ example:
   }
 
   Future<void> _verify(List<String> rest) async {
-    final parser = ArgParser()..addFlag('analyze', help: 'Run dart analyze');
+    final parser = ArgParser()
+      ..addFlag('analyze', help: 'Run dart analyze')
+      ..addOption(
+        'name',
+        help: 'Slice name (alternative to the positional argument)',
+      );
 
     final ArgResults results;
     try {
@@ -595,14 +618,18 @@ example:
       return;
     }
 
-    if (results.rest.isEmpty) {
+    // Issue #771: the manifest schema declares `name` as required — accept
+    // the flag form; the positional argument keeps precedence.
+    if (results.rest.isEmpty && results['name'] == null) {
       _usageError('Missing slice name: zfa slice verify <name>');
       return;
     }
 
     final capability = VerifySliceCapability();
     final result = await capability.execute({
-      'name': results.rest.first,
+      'name': results.rest.isNotEmpty
+          ? results.rest.first
+          : results['name'] as String,
       'projectRoot': projectRoot,
       'analyze': results['analyze'] as bool,
       'analyzeLauncher': analyzeLauncher,
@@ -662,7 +689,11 @@ example:
         allowed: ['tar.gz', 'github'],
         help: 'Export format',
       )
-      ..addOption('repo', help: 'Target repo (github format)');
+      ..addOption('repo', help: 'Target repo (github format)')
+      ..addOption(
+        'name',
+        help: 'Slice name (alternative to the positional argument)',
+      );
 
     final ArgResults results;
     try {
@@ -680,12 +711,16 @@ example:
       return;
     }
 
-    if (results.rest.isEmpty) {
+    // Issue #771: the manifest schema declares `name` as required — accept
+    // the flag form; the positional argument keeps precedence.
+    if (results.rest.isEmpty && results['name'] == null) {
       _usageError('Missing slice name: zfa slice export <name> --format <fmt>');
       return;
     }
 
-    final sliceName = results.rest.first;
+    final sliceName = results.rest.isNotEmpty
+        ? results.rest.first
+        : results['name'] as String;
     final repo = results['repo'] as String?;
     final reporter = CliProgressReporter();
     reporter.started('Exporting slice "$sliceName"', 3);

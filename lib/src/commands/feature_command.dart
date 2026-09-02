@@ -12,6 +12,10 @@ class FeatureCommand extends Command<void> {
 
   FeatureCommand(FeaturePlugin plugin) {
     argParser.addOption(
+      'name',
+      help: 'Feature name (alternative to the positional argument)',
+    );
+    argParser.addOption(
       'output',
       abbr: 'o',
       help:
@@ -193,13 +197,19 @@ class FeatureCommand extends Command<void> {
       nameIndex = 1;
     }
 
-    if (rest.length <= nameIndex) {
+    // Issue #771: the manifest inputSchema declares `name` as a required
+    // property for every feature capability — a manifest-driven client
+    // sends `--name <value>` and the CLI must accept it (or the schema
+    // should describe a positional arg; the flag keeps both callers
+    // working). The positional argument keeps precedence.
+    final flagName = argResults?['name'] as String?;
+    if (rest.length <= nameIndex && (flagName == null || flagName.isEmpty)) {
       print('❌ Missing feature name.');
       printUsage();
       return;
     }
 
-    final featureName = rest[nameIndex];
+    final featureName = rest.length > nameIndex ? rest[nameIndex] : flagName!;
     final translatedArgs = _buildMakeArgs(featureName, mode: mode);
 
     final runner = CommandRunner<void>('zfa', 'Zuraffa Code Generator')
