@@ -306,7 +306,7 @@ class MakeCommand extends Command<void> {
       print(
         'zfa tdd make: behavior "${record.behaviorId}" — drift check '
         '(target test re-run before generation) timed out: '
-        '\${driftRun.output}',
+        '${driftRun.output}',
       );
       print(
         '   re-run with a larger --timeout <minutes> if this step '
