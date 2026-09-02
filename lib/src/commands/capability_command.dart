@@ -166,14 +166,35 @@ class CapabilityCommand extends Command<void> {
       args['revert'] = true;
     }
 
-    // Coerce schema-declared integer properties (CLI options arrive as
-    // strings, but capabilities expect typed values, e.g. sync batchSize).
+    // Coerce schema-declared properties to the declared type (CLI options
+    // arrive as Strings — including `def?.toString()` defaults, which is
+    // why `zfa sync enable` with zero flags leaked a String '50' into an
+    // `integer` property and crashed on `GeneratorConfig(syncBatchSize:
+    // ...)`). Non-String values (bools from flags, ints from JSON
+    // payloads) pass through untouched, and unparseable input passes
+    // through unchanged so capabilities keep owning their validation and
+    // error UX. Issue #773.
     final allProps = schema['properties'];
     if (allProps is Map) {
       allProps.forEach((key, prop) {
-        if (prop is Map && prop['type'] == 'integer' && args[key] is String) {
-          final parsed = int.tryParse(args[key] as String);
-          if (parsed != null) args[key] = parsed;
+        if (prop is! Map) return;
+        final type = prop['type'];
+        if (type is! String) return;
+        final value = args[key];
+        if (value is! String) return;
+        switch (type) {
+          case 'integer':
+            final parsed = int.tryParse(value);
+            if (parsed != null) args[key] = parsed;
+          case 'number':
+            final parsed = double.tryParse(value);
+            if (parsed != null) args[key] = parsed;
+          case 'boolean':
+            if (value == 'true') args[key] = true;
+            if (value == 'false') args[key] = false;
+          default:
+            // string / array / object / null — keep as-is.
+            break;
         }
       });
     }
