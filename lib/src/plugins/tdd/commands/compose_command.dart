@@ -130,7 +130,7 @@ class ComposeCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : ProjectRoot.find();
+        : ProjectRoot.find(anchorDir: 'specs');
 
     // -------------------------------------------------------------
     // 1. Resolve the behavior's registry record (FR-001).

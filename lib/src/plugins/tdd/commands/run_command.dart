@@ -183,7 +183,7 @@ class RunCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : ProjectRoot.find();
+        : ProjectRoot.find(anchorDir: 'specs');
     final zfaBin = argResults?['zfa-bin'] as String?;
 
     // Bug #742: the --timeout override for each spawned step command.

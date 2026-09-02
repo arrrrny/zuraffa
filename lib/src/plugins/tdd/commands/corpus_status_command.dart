@@ -62,7 +62,7 @@ class CorpusStatusCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : ProjectRoot.find();
+        : ProjectRoot.find(anchorDir: 'specs');
 
     final manifestStore = CorpusManifestStore(projectRoot);
     final progressStore = CorpusProgressStore(projectRoot);

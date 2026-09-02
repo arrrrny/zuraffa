@@ -59,7 +59,7 @@ class PlanCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final repoRoot = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : ProjectRoot.find();
+        : ProjectRoot.find(anchorDir: 'specs');
     final specPath = '$repoRoot/specs/$feature/spec.md';
     final specFile = File(specPath);
     if (!await specFile.exists()) {

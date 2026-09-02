@@ -58,7 +58,7 @@ class InitCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : ProjectRoot.find();
+        : ProjectRoot.find(anchorDir: 'specs');
     final isFlutter = await _isFlutterProject(cwd);
     final force = argResults?['force'] == true;
 

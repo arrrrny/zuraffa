@@ -97,7 +97,7 @@ class MigratePathsCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.normalize(p.absolute(projectFlag))
-        : ProjectRoot.find();
+        : ProjectRoot.find(anchorDir: 'specs');
 
     var migrated = 0;
     var refused = 0;

@@ -58,7 +58,7 @@ class CorpusAuditCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : ProjectRoot.find();
+        : ProjectRoot.find(anchorDir: 'specs');
 
     print('zfa tdd corpus audit: scanning lib/ provenance...');
     print('   project: $projectRoot');

@@ -87,7 +87,7 @@ class VerifyCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : ProjectRoot.find();
+        : ProjectRoot.find(anchorDir: 'specs');
 
     // Bug #742: the --timeout override for the preflight and the mutation
     // run (one uniform deadline for both when given).

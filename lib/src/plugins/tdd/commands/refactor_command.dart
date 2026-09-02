@@ -113,7 +113,7 @@ class RefactorCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : ProjectRoot.find();
+        : ProjectRoot.find(anchorDir: 'specs');
     final zfaBinFlag = argResults?['zfa-bin'] as String?;
 
     // Bug #742: the --timeout override for the suite runs and every pass.

@@ -213,7 +213,7 @@ class GenCommand extends Command<void> {
     final projectFlag = argResults!['project'] as String?;
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : ProjectRoot.find();
+        : ProjectRoot.find(anchorDir: 'specs');
     // Bug #742 unit contract: one shared parser for every TDD --timeout
     // (minutes, fractions allowed). A bad value is a usage error, exactly
     // like the other flags.
@@ -311,6 +311,20 @@ class GenCommand extends Command<void> {
     }
     final (behavior, featureDir, featureName) = resolved;
     if (behavior == null) {
+      // Issue #890 diagnosability: a wrong project root (no specs/ at all)
+      // used to surface as a bare `unknown behavior id`, which reads like a
+      // missing row and hides the real problem. Name the scanned root so a
+      // mis-resolution is visible on the spot.
+      if (!await Directory('$cwd/specs').exists()) {
+        stderr.writeln(
+          'zfa tdd gen: no specs/ directory under the resolved project '
+          'root: $cwd',
+        );
+        stderr.writeln(
+          '   the project root may have been mis-resolved — pass '
+          '--project <root> to pin it explicitly.',
+        );
+      }
       stderr.writeln(
         'zfa tdd gen: unknown behavior id "$behaviorId". '
         'No matching row found in any specs/<feature>/tdd/test-list.md'

@@ -82,7 +82,7 @@ class DoctorCommand extends Command<void> {
     final projectFlag = argResults?['project'] as String?;
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
-        : ProjectRoot.find();
+        : ProjectRoot.find(anchorDir: 'specs');
     final featureDir = p.join(cwd, 'specs', feature);
 
     if (!await Directory(featureDir).exists()) {
