@@ -59,6 +59,14 @@ class BehaviorTestWriter {
       "\\'",
     );
     final assertion = _deriveAssertion(b);
+    if (b.persistence) {
+      return _renderPersistenceTest(
+        b,
+        relativeSubjectPath,
+        escapedGroupDescription,
+        escapedDescription,
+      );
+    }
     return '''
 // GENERATED TEST — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
 //
@@ -95,6 +103,80 @@ void main() {
 }
 ''';
   }
+
+  /// The persistence-kind test shape (bug #833): the persistence harness is
+  /// wired in — a fresh temp-directory Hive box set bootstrapped per test
+  /// and torn down per test, plus the injected test clock so TTL
+  /// assertions advance virtually instead of sleeping for real.
+  String _renderPersistenceTest(
+    Behavior b,
+    String relativeSubjectPath,
+    String escapedGroupDescription,
+    String escapedDescription,
+  ) {
+    final assertion = _deriveAssertion(b);
+    final boxName = 'tdd_${_toSnakeCase(b.id)}';
+    return '''
+// GENERATED TEST — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation;
+// bug #833 persistence test harness).
+//
+// behavior_id: ${b.id}
+// source_criterion: ${b.sourceCriterion}
+// kind: ${b.kind.name}
+// persistence: true
+// description: ${b.description}
+//
+// Persistence-kind behavior — the persistence harness is wired in:
+//   1. a fresh temp-directory Hive box set is bootstrapped PER TEST and
+//      torn down PER TEST (never shared across tests);
+//   2. TTL assertions use the injected test clock (advanceTime) — no
+//      real sleeps in the suite;
+//   3. corruption drills: `harness.seedCorruptedBox('$boxName')` +
+//      `harness.openWithRecovery('$boxName')` drive the clear + re-fetch
+//      recovery path against a pre-corrupted fixture;
+//   4. registrar gate: pass `registerAdapters` + `expectedTypeIds` to
+//      the harness below so init-time registration failures surface as
+//      `RegistrarGateError` — a deterministic red at init, not a runtime
+//      read crash.
+//
+// This test is still "honest red" on first execution: the paired subject
+// at `$relativeSubjectPath` is unimplemented, so the test fails through
+// an assertion. Wire the subject to the harness box set to make it pass.
+library;
+
+import 'package:test/test.dart';
+import 'package:zuraffa/zuraffa.dart';
+import '$relativeSubjectPath' as subject;
+
+void main() {
+  group('$escapedGroupDescription', () {
+    final harness = PersistenceTestHarness(boxNames: ['$boxName']);
+    final clock = TestClock();
+
+    setUp(() async {
+      // Fresh temp-directory box set for THIS test (bug #833 #1).
+      await harness.bootstrap();
+    });
+
+    tearDown(() async {
+      // The box set is torn down per test, never shared.
+      await harness.teardown();
+    });
+
+    test('${b.id} \u2014 $escapedDescription', () {
+      // Advance the clock virtually for TTL assertions — never sleep
+      // for real in the suite (bug #833 #2).
+      clock.advanceTime(const Duration(minutes: 1));
+      $assertion
+    });
+  });
+}
+''';
+  }
+
+  /// snake_case for the generated per-test box name.
+  String _toSnakeCase(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
 
   /// Derive the test's assertion from the behavior description. The
   /// assertion must NOT be a placeholder `expect(true, isFalse)` — it must

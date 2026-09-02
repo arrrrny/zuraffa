@@ -18,6 +18,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/requirement_scan.dart';
 import '../services/spec_parser.dart';
+import '../services/test_list_reader.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -193,7 +194,7 @@ class PlanCommand extends Command<void> {
       ..writeln('| -- | -------- | ------ | ----- |');
     for (final b in acceptance) {
       buf.writeln(
-        '| ${b.id} | ${b.description} | ${b.sourceCriterion} | PENDING |',
+        '| ${b.id} | ${_marked(b)} | ${b.sourceCriterion} | PENDING |',
       );
     }
     buf
@@ -223,10 +224,18 @@ class PlanCommand extends Command<void> {
       ..writeln('| -- | -------- | ------ | ----- |');
     for (final b in unit) {
       buf.writeln(
-        '| ${b.id} | ${b.description} | ${b.sourceCriterion} | PENDING |',
+        '| ${b.id} | ${_marked(b)} | ${b.sourceCriterion} | PENDING |',
       );
     }
     buf.writeln();
     return buf.toString();
   }
+
+  /// Bug #833: the plan MARKS the behavior persistence-kind — a behavior
+  /// whose prose names a persistence concern (Hive, cache, TTL, offline,
+  /// corruption, registrar, persistence) gets the ` [persistence]` tag, and
+  /// `zfa tdd gen` generates the harness-backed test for it. Idempotent.
+  String _marked(Behavior b) => PersistenceMarker.matchesKeywords(b.description)
+      ? PersistenceMarker.mark(b.description)
+      : b.description;
 }

@@ -886,6 +886,7 @@ class GenCommand extends Command<void> {
         description: row.description,
         sourceCriterion: row.traces,
         target: row.target,
+        persistence: row.persistence,
       );
     }
     return null;

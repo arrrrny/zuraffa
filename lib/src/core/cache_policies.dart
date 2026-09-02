@@ -110,12 +110,17 @@ class AppRestartCachePolicy implements CachePolicy {
 ///   clearAll: () async => prefs.clear(),
 /// );
 /// ```
+///
+/// Pass `clock` to make the policy testable without real sleeps (bug #833,
+/// remediation 2): a zfa `TestClock` with `advanceTime` drives the TTL
+/// virtually in tests. Defaults to the real `DateTime.now` in production.
 class TtlCachePolicy implements CachePolicy {
   final Duration ttl;
   final Future<Map<String, int>> Function() _getTimestamps;
   final Future<void> Function(String key, int timestamp) _setTimestamp;
   final Future<void> Function(String key) _removeTimestamp;
   final Future<void> Function() _clearAll;
+  final DateTime Function() _clock;
 
   TtlCachePolicy({
     required this.ttl,
@@ -123,10 +128,12 @@ class TtlCachePolicy implements CachePolicy {
     required Future<void> Function(String key, int timestamp) setTimestamp,
     required Future<void> Function(String key) removeTimestamp,
     required Future<void> Function() clearAll,
+    DateTime Function()? clock,
   }) : _getTimestamps = getTimestamps,
        _setTimestamp = setTimestamp,
        _removeTimestamp = removeTimestamp,
-       _clearAll = clearAll;
+       _clearAll = clearAll,
+       _clock = clock ?? DateTime.now;
 
   @override
   Future<bool> isValid(String key) async {
@@ -135,13 +142,13 @@ class TtlCachePolicy implements CachePolicy {
     if (timestamp == null) return false;
 
     final cached = DateTime.fromMillisecondsSinceEpoch(timestamp);
-    final now = DateTime.now();
+    final now = _clock();
     return now.difference(cached) < ttl;
   }
 
   @override
   Future<void> markFresh(String key) async {
-    await _setTimestamp('cache_$key', DateTime.now().millisecondsSinceEpoch);
+    await _setTimestamp('cache_$key', _clock().millisecondsSinceEpoch);
   }
 
   @override

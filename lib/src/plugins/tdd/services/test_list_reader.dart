@@ -63,6 +63,7 @@ class BehaviorRow {
     required this.state,
     required this.kind,
     required this.target,
+    this.persistence = false,
   });
 
   final String id;
@@ -70,6 +71,11 @@ class BehaviorRow {
   final String traces;
   final BehaviorState state;
   final BehaviorKind kind;
+
+  /// Whether the plan marked the behavior persistence-kind with the
+  /// ` [persistence]` tag (bug #833). The tag is stripped from
+  /// [description] so generated assertion prose never leaks it.
+  final bool persistence;
 
   /// The subject function this behavior targets. Never empty: rows
   /// without an explicit target resolve to `subject_<snake-id>`
@@ -79,7 +85,69 @@ class BehaviorRow {
   @override
   String toString() =>
       'BehaviorRow(id: $id, kind: ${kind.name}, state: ${state.name}, '
-      'traces: $traces)';
+      'persistence: $persistence, traces: $traces)';
+}
+
+/// The `[persistence]` marker contract (bug #833).
+///
+/// The plan marks a behavior persistence-kind by appending ` [persistence]`
+/// to the behavior cell; the shared reader parses the mark into
+/// [BehaviorRow.persistence] and strips it from the description prose. The
+/// marker lives here — the SINGLE format contract — so plan (mark), reader
+/// (parse) and any tooling agree on the exact tag shape.
+class PersistenceMarker {
+  const PersistenceMarker._();
+
+  /// The exact tag appended by plan and parsed by the reader.
+  static const String tag = '[persistence]';
+
+  /// The word list plan uses to decide which behaviors are
+  /// persistence-kind: a behavior description naming any of these gets the
+  /// tag. Tight by design — false positives only change the generated test
+  /// shape, never correctness.
+  static const Set<String> keywords = {
+    'hive',
+    'cache',
+    'ttl',
+    'persist',
+    'offline',
+    'corrupt',
+    'registrar',
+  };
+
+  /// Whether [description] carries the marker.
+  static bool isMarked(String description) =>
+      description.toLowerCase().contains(tag);
+
+  /// Whether [description] names a persistence keyword (the plan's marking
+  /// rule).
+  static bool matchesKeywords(String description) {
+    final lower = description.toLowerCase();
+    return keywords.any(lower.contains);
+  }
+
+  /// Append the tag to [description]; idempotent — an already-marked
+  /// description is returned unchanged.
+  static String mark(String description) {
+    final trimmed = description.trim();
+    if (isMarked(trimmed)) return trimmed;
+    return '$trimmed $tag';
+  }
+
+  /// Split a behavior cell into (description, persistence): the tag is
+  /// removed wherever it sits, everything else is kept verbatim.
+  static (String, bool) extract(String cell) {
+    var text = cell;
+    var marked = false;
+    while (true) {
+      final idx = text.toLowerCase().indexOf(tag);
+      if (idx < 0) break;
+      marked = true;
+      text = text.substring(0, idx) + text.substring(idx + tag.length);
+    }
+    if (!marked) return (cell, false);
+    return (text.replaceAll(RegExp(r'\s+'), ' ').trim(), true);
+  }
 }
 
 /// Raised when the test list cannot be read or a row is malformed. The
@@ -194,14 +262,16 @@ class TestListReader {
       if (id.isEmpty) malformed('empty behavior id');
       final state = _parseState(cells[4]);
       if (state == null) malformed('unknown state "${cells[4]}"');
+      final (description, persistence) = PersistenceMarker.extract(cells[2]);
       return (
         row: BehaviorRow(
           id: id,
-          description: cells[2],
+          description: description,
           traces: cells[3],
           state: state,
           kind: kind,
           target: resolveDefaultTarget(id),
+          persistence: persistence,
         ),
         dialect: _DeprecatedDialect.none,
       );
@@ -218,14 +288,16 @@ class TestListReader {
         if (id.isEmpty) malformed('empty behavior id');
         final state = _parseState(cells[5]);
         if (state == null) malformed('unknown state "${cells[5]}"');
+        final (description, persistence) = PersistenceMarker.extract(cells[2]);
         return (
           row: BehaviorRow(
             id: id,
-            description: cells[2],
+            description: description,
             traces: cells[3],
             state: state,
             kind: kindFromCell,
             target: resolveDefaultTarget(id, cell: cells[6]),
+            persistence: persistence,
           ),
           dialect: _DeprecatedDialect.genLegacy,
         );
@@ -245,14 +317,16 @@ class TestListReader {
         if (id.isEmpty) malformed('empty behavior id');
         final state = _parseState(cells[5]);
         if (state == null) malformed('unknown state "${cells[5]}"');
+        final (description, persistence) = PersistenceMarker.extract(cells[2]);
         return (
           row: BehaviorRow(
             id: id,
-            description: cells[2],
+            description: description,
             traces: cells[3],
             state: state,
             kind: kind,
             target: resolveDefaultTarget(id, cell: cells[6]),
+            persistence: persistence,
           ),
           dialect: _DeprecatedDialect.extensionShape,
         );

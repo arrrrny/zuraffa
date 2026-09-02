@@ -26,6 +26,13 @@ class Behavior {
   final String target;
   BehaviorState state;
 
+  /// Whether the behavior touches Hive-backed persistence (bug #833). The
+  /// plan marks the behavior with the ` [persistence]` tag in the test
+  /// list; `zfa tdd gen` turns the mark into a harness-backed test (fresh
+  /// temp-directory box set per test, injected test clock, corruption
+  /// drill + registrar gate surfaces).
+  final bool persistence;
+
   Behavior({
     required this.id,
     required this.feature,
@@ -33,6 +40,7 @@ class Behavior {
     required this.description,
     required this.sourceCriterion,
     required this.target,
+    this.persistence = false,
     this.state = BehaviorState.pending,
   });
 
@@ -45,5 +53,6 @@ class Behavior {
 
   @override
   String toString() =>
-      'Behavior(id: $id, kind: $kind, state: $state, traces: $sourceCriterion)';
+      'Behavior(id: $id, kind: $kind, state: $state, persistence: '
+      '$persistence, traces: $sourceCriterion)';
 }

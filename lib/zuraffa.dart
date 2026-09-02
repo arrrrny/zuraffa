@@ -175,6 +175,11 @@ export 'src/core/cache_policy.dart';
 /// Concrete cache policy implementations (Daily, AppRestart, TTL)
 export 'src/core/cache_policies.dart';
 
+/// Persistence test harness — Hive CE temp-box lifecycle, test clock
+/// (advanceTime), corruption drills and the registrar gate for tests of
+/// Hive-backed behaviors (bug #833).
+export 'src/testing/persistence_test_harness.dart';
+
 /// FetchStrategy abstraction for pluggable data-fetching pipelines
 export 'src/core/fetch_strategy.dart';
 
