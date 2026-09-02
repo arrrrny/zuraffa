@@ -420,14 +420,47 @@ void main() {
       );
       await taken.parent.create(recursive: true);
       await taken.writeAsString('// already-owned content');
+      File(
+          p.join(
+            tmpDir.path,
+            'specs',
+            '100-feature-one',
+            'tdd',
+            'artifacts.json',
+          ),
+        )
+        ..parent.create(recursive: true)
+        ..writeAsStringSync('''
+{
+  "feature": "100-feature-one",
+  "records": [
+    {
+      "behavior_id": "A1",
+      "feature": "100-feature-one",
+      "source_criterion": "FR-007",
+      "test_path": "test/tdd/a1_test.dart",
+      "subject_path": "lib/tdd/a1_subject.dart",
+      "runnable_test_name": "test/tdd/a1_test.dart::A1::returns 42 when invoked with no args",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-01T00:00:00.000Z"
+    }
+  ]
+}
+''');
 
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(migrateArgs());
       expect(
-        out.toLowerCase(),
-        contains('refused'),
-        reason: 'the refusal must be reported, never silently skipped',
+        out,
+        contains('REFUSED for behavior "A1"'),
+        reason:
+            'the refusal must be reported per-record, never silently '
+            'skipped (a bare "refused=" summary token would match even a '
+            'zero-refusal run)',
       );
+      expect(out, contains('refused=1'));
+      expect(out, contains('migrated=0'));
       expect(flatTest.readAsStringSync(), '// legacy flat test');
       expect(taken.readAsStringSync(), '// already-owned content');
       // The subject half must NOT have been moved either: the pair moves
@@ -471,7 +504,8 @@ void main() {
 
         final runner = CliRunner(exitOnCompletion: false);
         final out = await runner.runCapturing(migrateArgs());
-        expect(out, contains('missing'));
+        expect(out, contains('missing=1'));
+        expect(out, contains('migrated=0'));
         final raw = File(
           p.join(
             tmpDir.path,
@@ -530,7 +564,7 @@ void main() {
 
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(migrateArgs(['--dry-run']));
-      expect(out, contains('dry-run'));
+      expect(out, contains('dry-run — no changes were written'));
       expect(out, contains('migrated=1'));
       // Nothing moved, nothing rewritten.
       expect(testFile.existsSync(), isTrue);
