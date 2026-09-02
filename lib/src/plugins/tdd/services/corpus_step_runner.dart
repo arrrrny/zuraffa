@@ -22,6 +22,7 @@ library;
 import 'dart:io';
 
 import 'step_runner.dart';
+import 'tdd_timeout.dart';
 
 /// Which per-feature step the runner spawns.
 enum CorpusStep { run, verify }
@@ -69,16 +70,32 @@ class CorpusStepResult {
 }
 
 class CorpusStepRunner {
+  /// [timeout] is the per-step deadline for the DEFAULT spawn path (bug
+  /// #742): a hanging `zfa tdd run` / `zfa tdd verify` child is killed and
+  /// mapped to a `runner-error` outcome instead of hanging the corpus
+  /// harness forever. Defaults to [TddTimeouts.defaultStepProcess].
   CorpusStepRunner({
     this.zfaBin,
     CorpusSpawner? spawner,
     Future<String> Function()? entryResolver,
-  }) : _spawner = spawner ?? _defaultSpawner,
+    Duration? timeout,
+  }) : timeout = timeout ?? TddTimeouts.defaultStepProcess,
+       _spawner =
+           spawner ??
+           ((List<String> command, String workingDirectory) =>
+               _timedDefaultSpawner(
+                 command,
+                 workingDirectory,
+                 timeout ?? TddTimeouts.defaultStepProcess,
+               )),
        _entryResolver = entryResolver ?? StepRunner.defaultZfaBin;
 
   /// Explicit entrypoint override (`--zfa-bin`); null resolves the
   /// package's `bin/zfa.dart` via [StepRunner.defaultZfaBin].
   final String? zfaBin;
+
+  /// The effective per-step deadline (bug #742).
+  final Duration timeout;
 
   final CorpusSpawner _spawner;
   final Future<String> Function() _entryResolver;
@@ -148,6 +165,9 @@ class CorpusStepRunner {
     final ProcessResult process;
     try {
       process = await _spawner(command, projectRoot);
+    } on ProcessTimeoutException catch (e) {
+      // Bug #742: the step child outlived the deadline and was killed.
+      return _runnerError(step, e.toString());
     } on ProcessException catch (e) {
       return _runnerError(
         step,
@@ -215,14 +235,19 @@ class CorpusStepRunner {
     return last;
   }
 
-  static Future<ProcessResult> _defaultSpawner(
+  /// The default spawn path with a hard deadline (bug #742): the child is
+  /// killed at [timeout] and a [ProcessTimeoutException] propagates to
+  /// [_spawn], which maps it to a `runner-error` outcome.
+  static Future<ProcessResult> _timedDefaultSpawner(
     List<String> command,
     String workingDirectory,
+    Duration timeout,
   ) {
-    return Process.run(
+    return runTimed(
       command.first,
       command.sublist(1),
       workingDirectory: workingDirectory,
+      timeout: timeout,
     );
   }
 }

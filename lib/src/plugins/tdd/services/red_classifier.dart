@@ -27,6 +27,13 @@ RedClassification classify(RunRecord record) {
     return RedClassification.runnerError;
   }
 
+  // 1b. The runner was killed by the per-command timeout (bug #742): the
+  //     target test never finished, so nothing about the behavior was
+  //     observed — infrastructure failure, never a certified red.
+  if (record.timedOut) {
+    return RedClassification.runnerError;
+  }
+
   final output = record.output;
 
   // 2. Load failure: the test file (or an import) could not be READ.

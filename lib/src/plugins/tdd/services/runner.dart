@@ -32,6 +32,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/red_classification.dart';
 import 'red_classifier.dart';
+import 'tdd_timeout.dart';
 
 /// Captured result of a `suite` command invocation. The full
 /// transcript is returned verbatim so the [SuiteGuard] can parse
@@ -50,11 +51,16 @@ class SuiteRunRecord {
   /// `false` when the executable failed to launch at all.
   final bool startedProcess;
 
+  /// True when the suite process was killed by the per-command timeout
+  /// (bug #742): the process launched but outlived the deadline.
+  final bool timedOut;
+
   const SuiteRunRecord({
     required this.command,
     required this.exitCode,
     required this.output,
     required this.startedProcess,
+    this.timedOut = false,
   });
 
   @override
@@ -272,11 +278,17 @@ class SingleTestRunner {
   ///
   /// [singleTemplate] is the profile template (with `{file}`/`{name}`
   /// placeholders); [testPath] and [testName] are substituted in.
+  ///
+  /// [timeout] is the hard deadline for the spawned test process (bug
+  /// #742): a hanging child is killed and the returned [RunRecord] carries
+  /// `timedOut: true` with the timeout message as its output — never a
+  /// hang, never a certified red. Defaults to [TddTimeouts.defaultSingleTest].
   Future<RunRecord> runSingle({
     required String singleTemplate,
     required String testPath,
     required String testName,
     required String workingDirectory,
+    Duration? timeout,
   }) async {
     final display = _substitute(singleTemplate, testPath, testName);
     final tokens = _tokenize(singleTemplate, testPath, testName);
@@ -284,10 +296,11 @@ class SingleTestRunner {
     final args = tokens.skip(1).toList();
 
     try {
-      final result = await Process.run(
+      final result = await runTimed(
         executable,
         args,
         workingDirectory: workingDirectory,
+        timeout: timeout ?? TddTimeouts.defaultSingleTest,
       );
       final output = '${result.stdout}${result.stderr}';
       return RunRecord(
@@ -296,6 +309,14 @@ class SingleTestRunner {
         output: output,
         startedProcess: true,
         testCount: parseExecutedTestCount(output),
+      );
+    } on ProcessTimeoutException catch (e) {
+      return RunRecord(
+        command: display,
+        exitCode: -1,
+        output: e.toString(),
+        startedProcess: true,
+        timedOut: true,
       );
     } on ProcessException catch (e) {
       return RunRecord(
@@ -313,9 +334,14 @@ class SingleTestRunner {
   ///
   /// [suiteTemplate] is the profile template (no placeholders). The
   /// command is split on whitespace into an executable + args list.
+  ///
+  /// [timeout] is the hard deadline for the spawned suite process (bug
+  /// #742): a hanging child is killed and the returned [SuiteRunRecord]
+  /// carries `timedOut: true`. Defaults to [TddTimeouts.defaultSuite].
   Future<SuiteRunRecord> runSuite({
     required String suiteTemplate,
     required String workingDirectory,
+    Duration? timeout,
   }) async {
     final command = suiteTemplate.trim();
     final tokens = command.split(RegExp(r'\s+'));
@@ -323,10 +349,11 @@ class SingleTestRunner {
     final args = tokens.skip(1).toList();
 
     try {
-      final result = await Process.run(
+      final result = await runTimed(
         executable,
         args,
         workingDirectory: workingDirectory,
+        timeout: timeout ?? TddTimeouts.defaultSuite,
       );
       final output = '${result.stdout}${result.stderr}';
       return SuiteRunRecord(
@@ -334,6 +361,14 @@ class SingleTestRunner {
         exitCode: result.exitCode,
         output: output,
         startedProcess: true,
+      );
+    } on ProcessTimeoutException catch (e) {
+      return SuiteRunRecord(
+        command: command,
+        exitCode: -1,
+        output: e.toString(),
+        startedProcess: true,
+        timedOut: true,
       );
     } on ProcessException catch (e) {
       return SuiteRunRecord(

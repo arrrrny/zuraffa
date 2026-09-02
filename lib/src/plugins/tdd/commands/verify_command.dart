@@ -28,6 +28,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/mutation_auditor.dart';
+import '../services/tdd_timeout.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -47,6 +48,15 @@ class VerifyCommand extends Command<void> {
           'Project root containing specs/, test/, and lib/. When omitted, the '
           'current working directory is used. Tests pass the temp fixture '
           'root here instead of mutating Directory.current.',
+    );
+    argParser.addOption(
+      'timeout',
+      valueHelp: 'minutes',
+      help:
+          'Hard deadline in minutes for the preflight suite (default 10) and '
+          'the mutation run (default 30). Fractions are allowed. On timeout '
+          'the child is killed and the audit reports NOT_ASSESSED (bug '
+          '#742).',
     );
   }
 
@@ -77,6 +87,19 @@ class VerifyCommand extends Command<void> {
         ? p.absolute(projectFlag)
         : ProjectRoot.find();
 
+    // Bug #742: the --timeout override for the preflight and the mutation
+    // run (one uniform deadline for both when given).
+    Duration? timeoutOverride;
+    try {
+      timeoutOverride = parseTddTimeoutMinutes(
+        argResults?['timeout'] as String?,
+      );
+    } on TddTimeoutFormatException catch (e) {
+      stderr.writeln('zfa tdd verify: ${e.message}');
+      exitCode = 1;
+      return;
+    }
+
     // Resolve the feature directory. Treat empty string as absent.
     final featureName = (feature != null && feature.isNotEmpty)
         ? feature
@@ -97,6 +120,8 @@ class VerifyCommand extends Command<void> {
     final auditor = MutationAuditor(
       featureDir: featureDir,
       workingDirectory: cwd,
+      preflightTimeout: timeoutOverride,
+      mutationTimeout: timeoutOverride,
     );
     final report = await auditor.run();
 

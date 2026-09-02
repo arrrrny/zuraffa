@@ -28,16 +28,26 @@ import '../models/mutation_outcome.dart';
 import 'mutation_scope.dart';
 import 'mutation_verifier.dart';
 import 'source_restorer.dart';
+import 'tdd_timeout.dart';
 
 /// The result of a green-suite preflight.
 class PreflightResult {
-  PreflightResult({required this.exitCode, required this.output});
+  PreflightResult({
+    required this.exitCode,
+    required this.output,
+    this.timedOut = false,
+  });
 
   /// 0 = green, non-zero = red.
   final int exitCode;
 
   /// Captured stdout from the preflight run.
   final String output;
+
+  /// True when the preflight process was killed by the per-command timeout
+  /// (bug #742): an infrastructure failure — the tests never finished, so
+  /// the audit is NOT_ASSESSED, never `preflight_red`.
+  final bool timedOut;
 
   bool get isGreen => exitCode == 0;
 
@@ -199,14 +209,22 @@ class MutationAuditor {
     required this.workingDirectory,
     Future<PreflightResult> Function(List<String> scopePaths)? runPreflight,
     Future<MutationResult> Function()? runMutation,
+    Duration? preflightTimeout,
+    Duration? mutationTimeout,
   }) : _runPreflightOverride = runPreflight,
-       _runMutationOverride = runMutation;
+       _runMutationOverride = runMutation,
+       _preflightTimeout = preflightTimeout,
+       _mutationTimeout = mutationTimeout;
 
   final String featureDir;
   final String workingDirectory;
   final Future<PreflightResult> Function(List<String> scopePaths)?
   _runPreflightOverride;
   final Future<MutationResult> Function()? _runMutationOverride;
+
+  /// Per-command deadlines (bug #742); `null` uses the shared defaults.
+  final Duration? _preflightTimeout;
+  final Duration? _mutationTimeout;
 
   /// Run the audit. Returns a [MutationAuditReport].
   Future<MutationAuditReport> run() async {
@@ -235,6 +253,26 @@ class MutationAuditor {
     final preflight = await (_runPreflightOverride ?? _defaultPreflight)(
       scope.testPaths,
     );
+    if (preflight.timedOut) {
+      // Bug #742: the preflight child outlived the deadline and was killed.
+      // The tests never finished, so this is NOT_ASSESSED (infrastructure
+      // failure) — never `preflight_red`, which would claim an honest red.
+      return MutationAuditReport(
+        feature: p.basename(featureDir),
+        gate: MutationGateDecision.notAssessed,
+        killedCount: 0,
+        survivedCount: 0,
+        timedOutCount: 0,
+        behaviorIds: scope.behaviorIds,
+        sourceCriteriaByBehavior: scope.sourceCriteriaByBehavior,
+        mutationWasRun: false,
+        restorationVerified: true,
+        restorationScope: const [],
+        notAssessedReason: 'preflight timed out: ${preflight.output}',
+        runnerCommand: 'dart test ${scope.testPaths.join(' ')}',
+        preflightOutput: preflight.output,
+      );
+    }
     if (!preflight.isGreen) {
       return MutationAuditReport(
         feature: p.basename(featureDir),
@@ -283,6 +321,9 @@ class MutationAuditor {
       notAssessedReason = 'mutation tool unavailable: $e';
     } on MutationConfigError catch (e) {
       notAssessedReason = 'mutation config error: $e';
+    } on ProcessTimeoutException catch (e) {
+      // Bug #742: the mutation run outlived its deadline and was killed.
+      notAssessedReason = 'mutation run timed out: $e';
     } catch (e) {
       notAssessedReason = 'mutation audit failed: $e';
     } finally {
@@ -358,28 +399,42 @@ class MutationAuditor {
   }
 
   Future<PreflightResult> _defaultPreflight(List<String> scopePaths) async {
-    // Run `dart test <scope>` and capture the exit code + output.
+    // Run `dart test <scope>` under a hard deadline (bug #742) and capture
+    // the exit code + output.
     if (scopePaths.isEmpty) {
       return PreflightResult.green(exitCode: 0, output: '(no scope)');
     }
-    final result = await Process.run('dart', [
-      'test',
-      ...scopePaths,
-    ], workingDirectory: workingDirectory);
-    if (result.exitCode == 0) {
-      return PreflightResult.green(
-        exitCode: 0,
-        output: result.stdout.toString(),
+    try {
+      final result = await runTimed(
+        'dart',
+        ['test', ...scopePaths],
+        workingDirectory: workingDirectory,
+        timeout: _preflightTimeout ?? TddTimeouts.defaultMutationPreflight,
+      );
+      if (result.exitCode == 0) {
+        return PreflightResult.green(
+          exitCode: 0,
+          output: result.stdout.toString(),
+        );
+      }
+      return PreflightResult.red(
+        exitCode: result.exitCode,
+        output: '${result.stdout}\n${result.stderr}',
+      );
+    } on ProcessTimeoutException catch (e) {
+      return PreflightResult(
+        exitCode: -1,
+        output: e.toString(),
+        timedOut: true,
       );
     }
-    return PreflightResult.red(
-      exitCode: result.exitCode,
-      output: '${result.stdout}\n${result.stderr}',
-    );
   }
 
   Future<MutationResult> _defaultMutation() async {
-    final verifier = MutationVerifier(workingDirectory: workingDirectory);
+    final verifier = MutationVerifier(
+      workingDirectory: workingDirectory,
+      timeout: _mutationTimeout,
+    );
     return verifier.run();
   }
 }

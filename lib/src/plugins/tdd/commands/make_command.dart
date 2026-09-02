@@ -82,6 +82,7 @@ import '../services/pipeline_runner.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/runner.dart';
 import '../services/suite_guard.dart';
+import '../services/tdd_timeout.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -122,6 +123,17 @@ class MakeCommand extends Command<void> {
           'Override the zfa entrypoint for pipeline sub-processes. Tests use '
           'this to point at a fake zfa script; production runs auto-resolve '
           'via Platform.script or `zfa` on PATH.',
+    );
+    argParser.addOption(
+      'timeout',
+      valueHelp: 'minutes',
+      help:
+          'Hard deadline in minutes for every process this command spawns — '
+          'the target test (default 2 min), the full suite baseline/guard and '
+          'each generation pipeline step (default 10 min each). Fractions are '
+          'allowed (0.5 = 30 seconds). On timeout the child is killed '
+          '(SIGKILL) and the command stops non-zero as runner-error (bug '
+          '#742).',
     );
     argParser.addOption(
       'suite-baseline',
@@ -180,6 +192,24 @@ class MakeCommand extends Command<void> {
         suiteBaselineFlag != null && suiteBaselineFlag.isNotEmpty
         ? suiteBaselineFlag
         : null;
+
+    // Bug #742: the --timeout override — one uniform deadline for every
+    // subprocess this command spawns (single test, suite, pipeline steps).
+    Duration? timeoutOverride;
+    try {
+      timeoutOverride = parseTddTimeoutMinutes(
+        argResults?['timeout'] as String?,
+      );
+    } on TddTimeoutFormatException catch (e) {
+      print('zfa tdd make: ${e.message}');
+      _printSummary(
+        behavior: behaviorId ?? '-',
+        outcome: MakeOutcome.runnerError,
+        feature: featureFlag ?? 'unknown',
+      );
+      exitCode = 1;
+      return;
+    }
 
     final runner = const SingleTestRunner();
     final planner = const GenerationPlanner();
@@ -268,7 +298,28 @@ class MakeCommand extends Command<void> {
       testPath: testPath,
       testName: testName,
       workingDirectory: cwd,
+      timeout: timeoutOverride,
     );
+    if (driftRun.timedOut) {
+      // Bug #742: the drift-check child outlived the deadline and was
+      // killed — misfire-stop naming behavior, step, and command.
+      print(
+        'zfa tdd make: behavior "${record.behaviorId}" — drift check '
+        '(target test re-run before generation) timed out: '
+        '\${driftRun.output}',
+      );
+      print(
+        '   re-run with a larger --timeout <minutes> if this step '
+        'legitimately needs longer.',
+      );
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: MakeOutcome.runnerError,
+        feature: target.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
     final alreadyGreen = driftRun.exitCode == 0 && driftRun.startedProcess;
     if (alreadyGreen) {
       print(
@@ -412,6 +463,7 @@ class MakeCommand extends Command<void> {
           workingDirectory: cwd,
           zfaBinOverride: zfaBinFlag,
           feature: target.featureName,
+          timeout: timeoutOverride,
         );
       } on PipelineResolutionError catch (e) {
         print('zfa tdd make: ${e.message}');
@@ -500,6 +552,7 @@ class MakeCommand extends Command<void> {
           testPath: testPath,
           testName: testName,
           workingDirectory: cwd,
+          timeout: timeoutOverride,
         );
         print('   target test exit: ${postRun.exitCode}');
         if (postRun.exitCode != 0) {
@@ -553,6 +606,7 @@ class MakeCommand extends Command<void> {
         final guardRun = await runner.runSuite(
           suiteTemplate: suiteTemplate,
           workingDirectory: cwd,
+          timeout: timeoutOverride,
         );
         final liveGuard = guard.fromRunRecord(
           record: guardRun,

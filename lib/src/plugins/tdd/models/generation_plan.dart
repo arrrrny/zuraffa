@@ -85,11 +85,17 @@ class GenerationStep {
   /// The purpose inherited from the spec.
   final String purpose;
 
+  /// True when the step was killed by the per-command timeout (bug #742).
+  /// The process launched but outlived the deadline — a tooling failure,
+  /// not a generation failure.
+  final bool timedOut;
+
   const GenerationStep({
     required this.command,
     required this.exitCode,
     required this.output,
     required this.purpose,
+    this.timedOut = false,
   });
 
   @override

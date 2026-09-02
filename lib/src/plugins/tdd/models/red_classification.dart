@@ -76,12 +76,19 @@ class RunRecord {
   /// `null` when the transcript cannot be parsed.
   final int? testCount;
 
+  /// True when the runner was killed by the per-command timeout (bug #742).
+  /// The process DID launch; it outlived the deadline and was killed
+  /// (SIGKILL). Classified as [RedClassification.runnerError] — a timeout is
+  /// an infrastructure failure, never a certified red.
+  final bool timedOut;
+
   const RunRecord({
     required this.command,
     required this.exitCode,
     required this.output,
     required this.startedProcess,
     this.testCount,
+    this.timedOut = false,
   });
 
   @override
