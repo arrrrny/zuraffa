@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:zorphy/zorphy.dart';
 import '../config/zfa_config.dart';
+import '../utils/entity_field_injector.dart';
 import '../utils/entity_type_validator.dart';
 import '../utils/entity_utils.dart';
 import '../utils/string_utils.dart';
@@ -451,15 +452,36 @@ ${missing.map((d) => '   • $d').join('\n')}
       exit(1);
     }
 
+    final dryRun = parsed['dry_run'] as bool? ?? false;
+    // Issue #759: capture the pre-addFields content so the corruption
+    // introduced by zorphy 2.3.1 for empty class bodies can be detected and
+    // repaired afterwards (see _repairPrependedFields). The path is computed
+    // with NamingUtils, which mirrors EntityCreator's naming; the repair is
+    // skipped conservatively if the paths ever diverge.
+    final snake = NamingUtils.toSnakeCase(name);
+    final expectedPath = '$fixedEntityOutput/$snake/$snake.dart';
+    final entityFileBefore = File(expectedPath);
+    final originalContent =
+        entityFileBefore.existsSync() ? entityFileBefore.readAsStringSync() : null;
+
     final creator = EntityCreator(baseOutputDir: fixedEntityOutput);
     final result = await creator.addFields(
       name,
       fields,
       outputDir: fixedEntityOutput,
-      dryRun: parsed['dry_run'] as bool? ?? false,
+      dryRun: dryRun,
     );
 
     if (result.isSuccess) {
+      if (!dryRun &&
+          originalContent != null &&
+          result.filePath == expectedPath) {
+        _repairPrependedFields(
+          filePath: result.filePath,
+          original: originalContent,
+          className: result.className,
+        );
+      }
       await _fixEntityImports(result.filePath, fields, fixedEntityOutput);
       print('✓ Added ${fields.length} field(s) to ${result.className}');
       for (final field in fields) {
@@ -468,6 +490,33 @@ ${missing.map((d) => '   • $d').join('\n')}
     } else {
       print('❌ ${result.error}');
       exit(1);
+    }
+  }
+
+  /// Issue #759: zorphy 2.3.1's `EntityCreator._insertFields` computes the
+  /// insertion point with `content.indexOf('{', classMatch.end)` — but its
+  /// class regex already consumed the opening brace, so an EMPTY class body
+  /// (the tdd cycle's default field-less entity) yields `insertPosition = 0`
+  /// and the new getters are prepended ABOVE the file header and class
+  /// declaration — invalid Dart that breaks build_runner. The corruption has
+  /// an exact signature (`updated == <prepended members> + <original>`), so
+  /// it can be detected safely and the prepended block re-inserted inside
+  /// the class body. Files that were inserted correctly are left untouched.
+  void _repairPrependedFields({
+    required String filePath,
+    required String original,
+    required String className,
+  }) {
+    final file = File(filePath);
+    if (!file.existsSync()) return;
+    final updated = file.readAsStringSync();
+    final repaired = EntityFieldInjector.repairPrepended(
+      original: original,
+      updated: updated,
+      className: className,
+    );
+    if (repaired != null) {
+      file.writeAsStringSync(repaired);
     }
   }
 
