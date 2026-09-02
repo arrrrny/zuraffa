@@ -234,8 +234,7 @@ class JsonMockCommand extends Command<void> {
   @override
   Future<void> run() async {
     final results = argResults;
-    if (results == null ||
-        (results.rest.isEmpty && results['name'] == null)) {
+    if (results == null || (results.rest.isEmpty && results['name'] == null)) {
       print('❌ Usage: zfa mock json <EntityName> [options]');
       exit(64);
     }

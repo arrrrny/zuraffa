@@ -553,15 +553,38 @@ int sampleSubject() {
           final out = await runner.runCapturing(genArgs('A1'));
           sw.stop();
 
-          // The flow stopped honestly at its budget: classification names
-          // the behavior, step, and outcome, and the runner classified the
-          // stop as an error (non-zero exit).
+          // The flow stopped honestly at its deadline: the classification
+          // names the behavior, the exact stalled step, and the outcome,
+          // and the command exited non-zero (#742 house pattern: printed
+          // once through stdout — no duplicated stderr channel, no
+          // "Bad state:" exception noise from the runner's handler).
           expect(out, contains('outcome=timeout'));
           expect(out, contains('behavior=A1'));
-          expect(out, contains('step=gen'));
-          expect(out, contains('Error:'));
+          expect(out, contains('step=resolve test list'));
+          expect(out, isNot(contains('Bad state')));
+          expect(exitCode, 1);
           // Bounded: returned at the 30s budget, well inside the watchdog.
           expect(sw.elapsed, lessThan(const Duration(seconds: 45)));
+          // No partial artifacts from the aborted attempt: the flow never
+          // reached the write phase, and the in-flow deadline guarantees
+          // nothing created by this attempt survives a timeout (an orphan
+          // pair file with no registry record would poison the next gen
+          // with an FR-008 ownership conflict).
+          expect(
+            Directory(p.join(tmpDir.path, 'test', 'tdd')).existsSync(),
+            isFalse,
+            reason: 'no test artifact may survive the timed-out attempt',
+          );
+          expect(
+            Directory(p.join(tmpDir.path, 'lib', 'tdd')).existsSync(),
+            isFalse,
+            reason: 'no subject artifact may survive the timed-out attempt',
+          );
+          expect(
+            File(p.join(featureDir, 'tdd', 'artifacts.json')).existsSync(),
+            isFalse,
+            reason: 'the registry must not record a timed-out attempt',
+          );
         },
         timeout: const Timeout(Duration(seconds: 60)),
       );
@@ -578,15 +601,20 @@ int sampleSubject() {
 
           final runner = CliRunner(exitOnCompletion: false);
           final sw = Stopwatch()..start();
+          // 0.05 minutes = 3 seconds — the shared #742 --timeout format
+          // (minutes, fractions allowed), replacing #748's seconds-only
+          // integer flag that diverged from every other TDD command.
           final out = await runner.runCapturing([
             ...genArgs('A1'),
             '--timeout',
-            '3',
+            '0.05',
           ]);
           sw.stop();
 
           expect(out, contains('outcome=timeout'));
           expect(out, contains('behavior=A1'));
+          expect(out, contains('timeout after 3s'));
+          expect(exitCode, 1);
           expect(sw.elapsed, lessThan(const Duration(seconds: 25)));
         },
         timeout: const Timeout(Duration(seconds: 30)),
@@ -637,6 +665,66 @@ int sampleSubject() {
           );
         },
         timeout: const Timeout(Duration(seconds: 45)),
+      );
+
+      test(
+        'a stalled staleness re-render on a repeat gen cannot hang past the '
+        'budget — and the pre-existing pair is NOT deleted by the stop',
+        () async {
+          await seedSpecAndTestList(behaviorId: 'A1');
+          if (Platform.isWindows) return;
+          final runner = CliRunner(exitOnCompletion: false);
+          final outA1 = await runner.runCapturing(genArgs('A1'));
+          expect(outA1, contains('behavior_id: A1'));
+
+          // Replace the owned subject with a FIFO no one ever opens: the
+          // repeat gen takes the reused/reused path, and its staleness
+          // re-render must READ the on-disk subject — which blocks
+          // forever on a FIFO. This is the awaited stage the merged #748
+          // left bounded only from the outside (wrapper-level .timeout),
+          // where a fired budget bypassed the transactional cleanup and
+          // an abandoned continuation could complete the registry append
+          // after the timeout was already reported.
+          final subjectPath = p.join(
+            tmpDir.path,
+            'lib',
+            'tdd',
+            'a1_subject.dart',
+          );
+          await File(subjectPath).delete();
+          final mk = await Process.run('mkfifo', [subjectPath]);
+          expect(mk.exitCode, 0, reason: 'mkfifo failed: ${mk.stderr}');
+
+          final sw = Stopwatch()..start();
+          final out = await runner.runCapturing([
+            ...genArgs('A1'),
+            '--timeout',
+            '0.05',
+          ]);
+          sw.stop();
+
+          // Bounded, honest, non-zero — naming the exact stalled step.
+          expect(out, contains('outcome=timeout'));
+          expect(out, contains('behavior=A1'));
+          expect(out, contains('step=staleness'));
+          expect(exitCode, 1);
+          expect(sw.elapsed, lessThan(const Duration(seconds: 25)));
+          // The stop is transactional: cleanup removes only what the
+          // timed-out ATTEMPT created — the pre-existing owned pair and
+          // the registry record stay untouched.
+          expect(File(subjectPath).existsSync(), isTrue);
+          expect(
+            File(
+              p.join(tmpDir.path, 'test', 'tdd', 'a1_test.dart'),
+            ).existsSync(),
+            isTrue,
+          );
+          expect(
+            File(p.join(featureDir, 'tdd', 'artifacts.json')).readAsString(),
+            completion(contains('"A1"')),
+          );
+        },
+        timeout: const Timeout(Duration(seconds: 40)),
       );
     },
   );

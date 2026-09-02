@@ -18,16 +18,19 @@ import '../../lib/tdd/a1_subject.dart' as subject;
 
 void main() {
   group('A1 (AC-1)', () {
-    test('create entity Todo with id, title, description, isCompleted, priority, tags, createdAt, completedAt.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a1();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'create entity Todo with id, title, description, isCompleted, priority, tags, createdAt, completedAt.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a1();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

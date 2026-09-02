@@ -170,16 +170,14 @@ suite: 'dart test'
       final writer = const TddProfileWriter();
       final result = await writer.write(into);
       expect(result, isNotNull, reason: 'first write must succeed');
-      final content =
-          File(p.join(into, '.specify/memory/tdd-profile.md'))
-              .readAsStringSync();
+      final content = File(
+        p.join(into, '.specify/memory/tdd-profile.md'),
+      ).readAsStringSync();
       return content.split('## Commands\n').last.split('## Keys').first;
     }
 
-    List<String> commandBullets(String commandsSection) => commandsSection
-        .split('\n')
-        .where((l) => l.startsWith('- '))
-        .toList();
+    List<String> commandBullets(String commandsSection) =>
+        commandsSection.split('\n').where((l) => l.startsWith('- ')).toList();
 
     test('flutter profile: every Commands bullet ends with a closing '
         'backtick, not a stray quote', () async {
@@ -187,12 +185,21 @@ suite: 'dart test'
       final bullets = commandBullets(commands);
       expect(bullets, hasLength(4), reason: 'single/file/suite/coverage');
       for (final b in bullets) {
-        expect(b.endsWith('`'), isTrue,
-            reason: 'bullet must end with a backtick: "$b"');
-        expect(b.endsWith("'"), isFalse,
-            reason: 'no stray trailing quote: "$b"');
-        expect(b.contains('`\''), isFalse,
-            reason: 'no quote directly after a closing backtick: "$b"');
+        expect(
+          b.endsWith('`'),
+          isTrue,
+          reason: 'bullet must end with a backtick: "$b"',
+        );
+        expect(
+          b.endsWith("'"),
+          isFalse,
+          reason: 'no stray trailing quote: "$b"',
+        );
+        expect(
+          b.contains('`\''),
+          isFalse,
+          reason: 'no quote directly after a closing backtick: "$b"',
+        );
       }
     });
 
@@ -202,17 +209,24 @@ suite: 'dart test'
       final writer = const TddProfileWriter(profile: TddProfile.dart);
       final result = await writer.write(dir.path);
       expect(result, isNotNull);
-      final content =
-          File(p.join(dir.path, '.specify/memory/tdd-profile.md'))
-              .readAsStringSync();
+      final content = File(
+        p.join(dir.path, '.specify/memory/tdd-profile.md'),
+      ).readAsStringSync();
       final bullets = commandBullets(
-          content.split('## Commands\n').last.split('## Keys').first);
+        content.split('## Commands\n').last.split('## Keys').first,
+      );
       expect(bullets, hasLength(4));
       for (final b in bullets) {
-        expect(b.endsWith('`'), isTrue,
-            reason: 'bullet must end with a backtick: "$b"');
-        expect(b.endsWith("'"), isFalse,
-            reason: 'no stray trailing quote: "$b"');
+        expect(
+          b.endsWith('`'),
+          isTrue,
+          reason: 'bullet must end with a backtick: "$b"',
+        );
+        expect(
+          b.endsWith("'"),
+          isFalse,
+          reason: 'no stray trailing quote: "$b"',
+        );
       }
     });
 
@@ -220,9 +234,9 @@ suite: 'dart test'
         'unaffected by the fix)', () async {
       final writer = const TddProfileWriter();
       await writer.write(tmpDir.path);
-      final content =
-          File(p.join(tmpDir.path, '.specify/memory/tdd-profile.md'))
-              .readAsStringSync();
+      final content = File(
+        p.join(tmpDir.path, '.specify/memory/tdd-profile.md'),
+      ).readAsStringSync();
       final keys = content.split('## Keys').last;
       expect(keys, contains("single: '"));
       expect(keys, contains("suite: '"));

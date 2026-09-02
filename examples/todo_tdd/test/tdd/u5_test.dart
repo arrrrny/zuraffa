@@ -18,15 +18,18 @@ import '../../lib/tdd/u5_subject.dart' as subject;
 
 void main() {
   group('U5 (FR-005)', () {
-    test('The completion ratio compute returns 0 when the todo list is empty.', () {
-      final Object? result = (() {
-        try {
-          return subject.subject_u5();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, equals(0));
-    });
+    test(
+      'The completion ratio compute returns 0 when the todo list is empty.',
+      () {
+        final Object? result = (() {
+          try {
+            return subject.subject_u5();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, equals(0));
+      },
+    );
   });
 }

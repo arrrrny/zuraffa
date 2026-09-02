@@ -9,7 +9,6 @@ part 'todo.g.dart';
 /// Todo entity
 @Zorphy(generateJson: true, generateCompareTo: true)
 abstract class $Todo {
-
   String get id;
   String get title;
   String get description;
@@ -19,4 +18,3 @@ abstract class $Todo {
   DateTime get createdAt;
   DateTime get completedAt;
 }
-

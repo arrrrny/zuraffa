@@ -45,8 +45,8 @@ class ApiCommand extends PluginCommand {
     }
 
     // The manifest advertises this capability as `api create-api-bridge`;
-// treat that name as an optional alias so manifest-driven invocations
-// and the plain positional form both work.
+    // treat that name as an optional alias so manifest-driven invocations
+    // and the plain positional form both work.
     final positional = argResults!.rest
         .where((r) => r != 'create-api-bridge')
         .toList();

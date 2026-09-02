@@ -9,9 +9,7 @@ part 'todo_stats.g.dart';
 /// TodoStats entity
 @Zorphy(generateJson: true, generateCompareTo: true)
 abstract class $TodoStats {
-
   int get total;
   int get active;
   int get completed;
 }
-

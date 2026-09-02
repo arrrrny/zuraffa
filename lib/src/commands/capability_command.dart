@@ -171,9 +171,7 @@ class CapabilityCommand extends Command<void> {
     final allProps = schema['properties'];
     if (allProps is Map) {
       allProps.forEach((key, prop) {
-        if (prop is Map &&
-            prop['type'] == 'integer' &&
-            args[key] is String) {
+        if (prop is Map && prop['type'] == 'integer' && args[key] is String) {
           final parsed = int.tryParse(args[key] as String);
           if (parsed != null) args[key] = parsed;
         }

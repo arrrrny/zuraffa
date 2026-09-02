@@ -37,21 +37,31 @@
 ///
 /// Bounded flow (bug #744): every awaited stage of the flow — behavior
 /// resolution, ownership preflight, the two writer writes, the registry
-/// append, and the staleness re-render — runs under ONE wall-clock budget
-/// (`--timeout`, default 30s; the same acceptance budget the #744 records
-/// name). This applies the #742 timeout pattern to the gen step as a
-/// safety net regardless of the exact stall trigger: a stage that waits
-/// indefinitely (the recorded "hangs until SIGKILL" failure mode) now
-/// stops the command at the budget with a classification naming the
-/// behavior, step, and `outcome=timeout`, and a non-zero exit — never a
-/// silent infinite hang. The flow spawns NO subprocess of its own (test
-/// execution is verify-red/make's contract, not gen's), so the budget
-/// needs no process-kill side effects. The flow also depends only on the
-/// test-list row, the registry, and the pair on disk — never on run-state
-/// or suite health — so a DEFERRED/unexpressible predecessor (A1 red at
-/// its phase-2 make, bug #625/#657) cannot block a later gen (A2): the
-/// #738-era deadlock inspection found no cross-behavior wait in this
-/// flow, and the budget caps whatever could stall.
+/// append, and the staleness re-render — runs under ONE wall-clock
+/// deadline (`--timeout`, minutes with fractions allowed, default
+/// 0.5 = 30s: the same acceptance budget the #744 records name, and the
+/// same unit/format as every other TDD command's `--timeout` per #742).
+/// The deadline is enforced INSIDE the flow — hardening over the merged
+/// #748 wrapper-level budget: a fired deadline surfaces from the flow
+/// body itself, so the transactional cleanup removes whatever THIS
+/// attempt created before the misfire-stop classification prints (a
+/// timed-out gen can no longer leave an orphan pair file with no
+/// registry record, which preflight reports as an FR-008 ownership
+/// conflict and which would poison the next run). Because Dart futures
+/// cannot be cancelled, every stage re-checks the expired deadline
+/// BEFORE it starts, so an abandoned continuation aborts at its next
+/// stage boundary instead of silently completing writes or the registry
+/// append after the command has already reported the timeout. The
+/// misfire-stop follows the #742 house pattern: one classification line
+/// naming behavior, step, and `outcome=timeout`, exit 1 — no exception
+/// noise. The flow spawns NO subprocess of its own (test execution is
+/// verify-red/make's contract, not gen's), so the deadline needs no
+/// process-kill side effects. The flow also depends only on the
+/// test-list row, the registry, and the pair on disk — never on
+/// run-state or suite health — so a DEFERRED/unexpressible predecessor
+/// (A1 red at its phase-2 make, bug #625/#657) cannot block a later gen
+/// (A2): the #738-era deadlock inspection found no cross-behavior wait
+/// in this flow, and the deadline caps whatever could stall.
 library;
 
 import 'dart:async';
@@ -65,6 +75,7 @@ import '../services/behavior_test_writer.dart';
 import '../services/subject_writer.dart';
 import '../services/test_list_reader.dart';
 import '../tdd_plugin.dart';
+import '../services/tdd_timeout.dart';
 import '../../../core/project/project_root.dart';
 
 class GenCommand extends Command<void> {
@@ -95,11 +106,12 @@ class GenCommand extends Command<void> {
     argParser.addOption(
       'timeout',
       help:
-          'Wall-clock budget for the whole gen flow, in seconds (bug #744: '
-          'the #742 timeout pattern applied to gen as a safety net). On '
-          'expiry the command stops with outcome=timeout and a non-zero '
-          'exit instead of hanging indefinitely.',
-      defaultsTo: '$defaultTimeoutSeconds',
+          'Wall-clock budget for the whole gen flow, in MINUTES — fractions '
+          'allowed (0.5 = 30 seconds, the default), the same unit and '
+          'format as every other TDD command\'s --timeout (bug #742). On '
+          'expiry the flow stops with outcome=timeout and a non-zero exit '
+          'instead of hanging indefinitely (bug #744).',
+      defaultsTo: '$defaultTimeoutMinutes',
     );
   }
 
@@ -116,10 +128,17 @@ class GenCommand extends Command<void> {
   @override
   String get invocation => 'zfa tdd gen <behavior-id> [--dry-run]';
 
-  /// The default wall-clock budget for the whole gen flow, in seconds
-  /// (bug #744 — the same acceptance budget the bug records name:
-  /// "A2 completes within 30s").
-  static const int defaultTimeoutSeconds = 30;
+  /// The default wall-clock budget for the whole gen flow: 0.5 minutes =
+  /// 30 seconds (bug #744 — the same acceptance budget the bug records
+  /// name: "A2 completes within 30s"). Minutes, so `--timeout` shares
+  /// the #742 unit across the TDD subsystem.
+  static const double defaultTimeoutMinutes = 0.5;
+
+  /// The default budget as a [Duration].
+  static final Duration defaultBudget = Duration(
+    microseconds: (defaultTimeoutMinutes * Duration.microsecondsPerMinute)
+        .round(),
+  );
 
   @override
   Future<void> run() async {
@@ -136,57 +155,91 @@ class GenCommand extends Command<void> {
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find();
-    final timeoutSeconds = _parseTimeoutSeconds();
-    final budget = Duration(seconds: timeoutSeconds);
+    // Bug #742 unit contract: one shared parser for every TDD --timeout
+    // (minutes, fractions allowed). A bad value is a usage error, exactly
+    // like the other flags.
+    final Duration budget;
+    try {
+      budget =
+          parseTddTimeoutMinutes(argResults!['timeout'] as String?) ??
+          defaultBudget;
+    } on TddTimeoutFormatException catch (e) {
+      usageException('zfa tdd gen: ${e.message}');
+    }
 
-    // Bug #744: the WHOLE flow runs under one wall-clock budget. A stage
-    // that waits indefinitely — the recorded failure mode (the command
-    // hung until SIGKILL) — stops here at the budget with an honest
-    // misfire-stop classification (#742 pattern applied to gen) instead
-    // of hanging. gen spawns no subprocess of its own, so no process-kill
-    // side effects are needed: a timed-out stage's pending I/O is simply
-    // abandoned as the process exits.
+    // Bug #744: the WHOLE flow runs under one wall-clock deadline. Unlike
+    // a wrapper-level Future.timeout, the deadline is enforced INSIDE the
+    // flow: a fired deadline surfaces from the flow body itself — after
+    // the transactional cleanup removed whatever this attempt created —
+    // and an abandoned continuation (Dart futures cannot be cancelled)
+    // aborts at its next stage boundary instead of silently completing
+    // writes or the registry append after the timeout was reported.
+    final deadline = _FlowDeadline(budget);
     try {
       await _generate(
         behaviorId,
         dryRun: dryRun,
         featureFlag: featureFlag,
         cwd: cwd,
-      ).timeout(budget);
-    } on TimeoutException {
-      stderr.writeln(
-        'zfa tdd gen: timeout after ${timeoutSeconds}s — behavior='
-        '$behaviorId step=gen outcome=timeout',
+        deadline: deadline,
       );
-      stderr.writeln(
-        '   a gen stage exceeded its wall-clock budget and was stopped '
+    } on _GenFlowTimeout catch (e) {
+      // Misfire-stop, #742 house pattern (make_command): the
+      // classification is printed ONCE through the capturable stdout
+      // channel and the command exits 1 — no stderr duplication and no
+      // "Bad state:" exception noise from the runner's generic handler.
+      print(
+        'zfa tdd gen: timeout after ${formatTddTimeout(budget)} — '
+        'behavior=$behaviorId step=${e.stage} outcome=timeout',
+      );
+      print(
+        '   a gen stage exceeded its wall-clock deadline and was stopped '
         'before it could hang (bug #742/#744 safety net). Re-run with '
-        '--timeout <seconds> to raise the budget.',
+        '--timeout <minutes> to raise the budget.',
       );
-      throw StateError(
-        'zfa tdd gen: timeout after ${timeoutSeconds}s — behavior='
-        '$behaviorId step=gen outcome=timeout',
-      );
+      exitCode = 1;
+      return;
     }
   }
 
-  /// The unbounded-shaped flow body, verbatim the pre-#744 contract:
+  /// The deadline-bounded flow body, verbatim the pre-#744 contract:
   /// resolve → preflight → write → register → (staleness check) → print.
-  /// Bounded by [run]'s budget.
+  /// Every awaited stage is bounded by [run]'s shared deadline.
   Future<void> _generate(
     String behaviorId, {
     required bool dryRun,
     required String? featureFlag,
     required String cwd,
+    required _FlowDeadline deadline,
   }) async {
+    // Every awaited stage runs under the shared deadline (bug #744). A
+    // fired deadline throws _GenFlowTimeout from INSIDE the flow so the
+    // transactional cleanup below runs before the classification
+    // surfaces; an already-expired deadline aborts a stage BEFORE it
+    // starts, which is what stops an abandoned continuation (the
+    // underlying stage's I/O cannot be cancelled) from completing later
+    // stages — notably the registry append — after the timeout was
+    // reported.
+    Future<T> bounded<T>(Future<T> stage, String stageName) async {
+      if (deadline.expired) throw _GenFlowTimeout(stageName);
+      try {
+        return await stage.timeout(deadline.remaining());
+      } on TimeoutException {
+        throw _GenFlowTimeout(stageName);
+      }
+    }
+
     // Resolve the behavior. If --feature is set, only scan that one
     // feature's test-list. Otherwise, scan all features and prefer
     // `044-test-tdd-generation` (the feature this command lives under).
     // A malformed test list stops honestly naming the line (FR-011) —
     // never silently skipped (the anti-pattern behind bug #617).
-    final (Behavior?, String, String)? resolved;
+    final (Behavior?, String, String) resolved;
     try {
-      resolved = await _resolveBehavior(cwd, behaviorId, featureFlag);
+      resolved = await bounded(
+        _resolveBehavior(cwd, behaviorId, featureFlag),
+        'resolve test list',
+      );
     } on TestListReadException catch (e) {
       stderr.writeln('zfa tdd gen: ${e.message}');
       throw StateError('zfa tdd gen: malformed test list — ${e.message}');
@@ -238,7 +291,10 @@ class GenCommand extends Command<void> {
     );
 
     try {
-      record = await registry.preflight(record, dryRun: dryRun);
+      record = await bounded(
+        registry.preflight(record, dryRun: dryRun),
+        'ownership preflight',
+      );
     } on OwnershipConflict catch (e) {
       stderr.writeln('zfa tdd gen: ownership conflict — $e');
       throw StateError('zfa tdd gen: ownership conflict — $e');
@@ -249,17 +305,43 @@ class GenCommand extends Command<void> {
     if (record.testOwnership != Ownership.reused && !dryRun) {
       try {
         final testWriter = const BehaviorTestWriter();
-        await testWriter.write(
-          behavior: behavior,
-          testPath: testPath,
-          subjectPath: subjectPath,
+        await bounded(
+          testWriter.write(
+            behavior: behavior,
+            testPath: testPath,
+            subjectPath: subjectPath,
+          ),
+          'write test file',
         );
         final subjectWriter = const SubjectWriter();
-        await subjectWriter.write(behavior: behavior, subjectPath: subjectPath);
-        record = await registry.append(record);
+        await bounded(
+          subjectWriter.write(behavior: behavior, subjectPath: subjectPath),
+          'write subject file',
+        );
+        record = await bounded(registry.append(record), 'registry append');
       } catch (error, stackTrace) {
+        // Transactional cleanup: remove what THIS attempt created. The
+        // timeout path is included by construction — the deadline fires
+        // inside the flow, so _GenFlowTimeout is caught here like any
+        // other failure (the pre-hardening #748 wrapper-level .timeout()
+        // bypassed this catch entirely and could leave an orphan file
+        // that poisons the next run with an FR-008 ownership conflict).
         await _deleteIfCreated(testPath);
         await _deleteIfCreated(subjectPath);
+        if (error is _GenFlowTimeout) {
+          // The timed-out stage's underlying I/O cannot be cancelled and
+          // may complete shortly after the deadline fired, re-creating an
+          // orphan file AFTER the cleanup above. One grace pass
+          // re-deletes; the abandoned continuation cannot reach the
+          // registry append because every subsequent stage re-checks the
+          // expired deadline and aborts before starting. Residual
+          // window: an I/O completing after this pass — accepted, and
+          // strictly narrower than pre-hardening, which had no cleanup
+          // at all.
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+          await _deleteIfCreated(testPath);
+          await _deleteIfCreated(subjectPath);
+        }
         Error.throwWithStackTrace(error, stackTrace);
       }
     }
@@ -282,6 +364,7 @@ class GenCommand extends Command<void> {
         behavior: behavior,
         testPath: testPath,
         subjectPath: subjectPath,
+        bounded: bounded,
       );
     }
 
@@ -300,25 +383,11 @@ class GenCommand extends Command<void> {
     );
   }
 
-  /// Parse the `--timeout` value (seconds). A non-integer or a value
-  /// that is not positive is a usage error.
-  int _parseTimeoutSeconds() {
-    final raw = argResults!['timeout'] as String?;
-    if (raw == null || raw.trim().isEmpty) {
-      return defaultTimeoutSeconds;
-    }
-    final parsed = int.tryParse(raw.trim());
-    if (parsed == null || parsed <= 0) {
-      usageException(
-        'zfa tdd gen: --timeout must be a positive integer (seconds), '
-        'got "$raw".',
-      );
-    }
-    return parsed;
-  }
-
   /// Detect a stub written by an OLDER binary (bug #683) and regenerate
   /// the pair when the current binary would render different content.
+  /// Every awaited stage runs under the caller's shared [bounded]
+  /// deadline (bug #744) — the staleness re-render is part of the bounded
+  /// flow, not an unbounded tail.
   ///
   /// Option B (lenient):
   /// - the subject on disk no longer contains `UnimplementedError` → it
@@ -343,10 +412,14 @@ class GenCommand extends Command<void> {
     required Behavior behavior,
     required String testPath,
     required String subjectPath,
+    required Future<T> Function<T>(Future<T> stage, String stageName) bounded,
   }) async {
     final subjectFile = File(subjectPath);
     if (!await subjectFile.exists()) return false;
-    final onDiskSubject = await subjectFile.readAsString();
+    final onDiskSubject = await bounded(
+      subjectFile.readAsString(),
+      'staleness: read on-disk subject',
+    );
     // A progressed artifact is never clobbered by the staleness check.
     if (!onDiskSubject.contains('UnimplementedError')) return false;
 
@@ -365,18 +438,33 @@ class GenCommand extends Command<void> {
         'tdd',
         p.basename(subjectPath),
       );
-      await const BehaviorTestWriter().write(
-        behavior: behavior,
-        testPath: mirroredTest,
-        subjectPath: mirroredSubject,
+      await bounded(
+        const BehaviorTestWriter().write(
+          behavior: behavior,
+          testPath: mirroredTest,
+          subjectPath: mirroredSubject,
+        ),
+        'staleness: render current pair (test)',
       );
-      await const SubjectWriter().write(
-        behavior: behavior,
-        subjectPath: mirroredSubject,
+      await bounded(
+        const SubjectWriter().write(
+          behavior: behavior,
+          subjectPath: mirroredSubject,
+        ),
+        'staleness: render current pair (subject)',
       );
-      final expectedTest = await File(mirroredTest).readAsString();
-      final expectedSubject = await File(mirroredSubject).readAsString();
-      final onDiskTest = await File(testPath).readAsString();
+      final expectedTest = await bounded(
+        File(mirroredTest).readAsString(),
+        'staleness: read rendered test',
+      );
+      final expectedSubject = await bounded(
+        File(mirroredSubject).readAsString(),
+        'staleness: read rendered subject',
+      );
+      final onDiskTest = await bounded(
+        File(testPath).readAsString(),
+        'staleness: read on-disk test',
+      );
       if (expectedSubject == onDiskSubject && expectedTest == onDiskTest) {
         return false;
       }
@@ -384,15 +472,29 @@ class GenCommand extends Command<void> {
       // Rewrite the real pair; roll back if either write fails so the
       // on-disk state is exactly what it was before this attempt.
       try {
-        await File(testPath).writeAsString(expectedTest);
-        await File(subjectPath).writeAsString(expectedSubject);
+        await bounded(
+          File(testPath).writeAsString(expectedTest),
+          'staleness: rewrite test file',
+        );
+        await bounded(
+          File(subjectPath).writeAsString(expectedSubject),
+          'staleness: rewrite subject file',
+        );
       } catch (error) {
         // Best-effort rollback: restore the pre-attempt bytes. If even
         // the rollback fails (e.g. permissions flipped mid-flight), let
         // the original error propagate so the caller sees a real failure.
+        // A bounded rollback past an expired deadline aborts before the
+        // write starts (the flow is dead anyway; no unbounded I/O).
         try {
-          await File(testPath).writeAsString(onDiskTest);
-          await File(subjectPath).writeAsString(onDiskSubject);
+          await bounded(
+            File(testPath).writeAsString(onDiskTest),
+            'staleness: roll back test file',
+          );
+          await bounded(
+            File(subjectPath).writeAsString(onDiskSubject),
+            'staleness: roll back subject file',
+          );
         } catch (_) {
           // Ignore rollback errors; surface the original failure.
         }
@@ -516,4 +618,43 @@ class GenCommand extends Command<void> {
     }
     return out.toString();
   }
+}
+
+/// The wall-clock deadline shared by every awaited stage of one gen flow
+/// (bug #744 — the budget, enforced INSIDE the flow so the transactional
+/// cleanup and the stage-boundary aborts work as designed).
+class _FlowDeadline {
+  _FlowDeadline(this.budget) : _startedAt = DateTime.now();
+
+  /// The total budget the flow was given.
+  final Duration budget;
+
+  final DateTime _startedAt;
+
+  /// Time left before the budget expires (never negative). A zero
+  /// remaining budget makes [Future.timeout] fire immediately, so an
+  /// abandoned continuation aborts at its next stage boundary.
+  Duration remaining() {
+    final left = budget - DateTime.now().difference(_startedAt);
+    return left.isNegative ? Duration.zero : left;
+  }
+
+  /// Whether the budget has already been exhausted.
+  bool get expired => remaining() == Duration.zero;
+}
+
+/// Thrown from INSIDE the gen flow when a stage outlives the shared
+/// deadline (bug #744 hardening). Throwing inside — not from a wrapper —
+/// is the point: the flow's transactional cleanup (remove what this
+/// attempt created) runs before the classification surfaces, so a
+/// timed-out gen cannot leave an orphan artifact that would poison the
+/// next run with an FR-008 ownership conflict.
+class _GenFlowTimeout implements Exception {
+  _GenFlowTimeout(this.stage);
+
+  /// The flow stage that outlived the budget.
+  final String stage;
+
+  @override
+  String toString() => 'gen flow timed out at the "$stage" stage';
 }

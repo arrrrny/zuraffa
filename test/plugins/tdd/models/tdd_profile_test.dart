@@ -52,12 +52,19 @@ void main() {
     test('dart single uses --plain-name (parity with flutter profile)', () {
       const p = TddProfile.dart;
       expect(p.single, contains('--plain-name'));
-      expect(p.single, isNot(contains('--name ')),
-          reason: '--name is a regex matcher; behavior ids containing '
-              'regex metacharacters (e.g. parens from Given/When/Then) '
-              'would break matching');
-      expect(TddProfile.flutter.single, contains('--plain-name'),
-          reason: 'both flavors must agree on the matcher flag');
+      expect(
+        p.single,
+        isNot(contains('--name ')),
+        reason:
+            '--name is a regex matcher; behavior ids containing '
+            'regex metacharacters (e.g. parens from Given/When/Then) '
+            'would break matching',
+      );
+      expect(
+        TddProfile.flutter.single,
+        contains('--plain-name'),
+        reason: 'both flavors must agree on the matcher flag',
+      );
     });
   });
 }

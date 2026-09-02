@@ -74,13 +74,17 @@ void main() {
   print(a3.subject_a3());
   print('persistence journal clean: $journalClean');
   print('');
-  print('todos (${stats.total} total, ${stats.active} active, '
-      '${stats.completed} completed):');
+  print(
+    'todos (${stats.total} total, ${stats.active} active, '
+    '${stats.completed} completed):',
+  );
   for (final todo in todos) {
     final marker = todo.isCompleted ? '[x]' : '[ ]';
     print('  $marker ${todo.id}  ${todo.title}');
-    print('      priority: ${todo.priority} (${u3.subject_u3()})'
-        '  tags: ${todo.tags.isEmpty ? '-' : todo.tags.join(', ')}');
+    print(
+      '      priority: ${todo.priority} (${u3.subject_u3()})'
+      '  tags: ${todo.tags.isEmpty ? '-' : todo.tags.join(', ')}',
+    );
   }
   print('');
   print('completion ratio (U5, empty-list case): ${u5.subject_u5()}');

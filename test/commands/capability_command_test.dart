@@ -93,50 +93,48 @@ void main() {
   //   FR-3: the file-bearing success path is unchanged (regression
   //         guard: the issue #414 test above).
   // ------------------------------------------------------------------
-  test(
-    'issue #769 — zero-file execution is not a success: no ✅ claim, '
-    'non-zero exit',
-    () async {
-      final capability = SkippingCapability();
-      final command = CapabilityCommand(capability);
-      final runner = CommandRunner<void>('test', 'test')..addCommand(command);
+  test('issue #769 — zero-file execution is not a success: no ✅ claim, '
+      'non-zero exit', () async {
+    final capability = SkippingCapability();
+    final command = CapabilityCommand(capability);
+    final runner = CommandRunner<void>('test', 'test')..addCommand(command);
 
-      exitCode = 0;
-      await expectLater(
-        () => runner.run(['skip']),
-        prints(
-          allOf(
-            isNot(contains('✅ Success!')),
-            contains('No files were generated'),
-          ),
+    exitCode = 0;
+    await expectLater(
+      () => runner.run(['skip']),
+      prints(
+        allOf(
+          isNot(contains('✅ Success!')),
+          contains('No files were generated'),
         ),
-      );
-      final code = exitCode;
-      exitCode = 0; // hermetic: never leak a failure code into the suite
-      expect(code, equals(1),
-          reason: 'generation was declined/skipped — automation must not '
-              'read this as success (issue #769)');
-    },
-  );
+      ),
+    );
+    final code = exitCode;
+    exitCode = 0; // hermetic: never leak a failure code into the suite
+    expect(
+      code,
+      equals(1),
+      reason:
+          'generation was declined/skipped — automation must not '
+          'read this as success (issue #769)',
+    );
+  });
 
-  test(
-    'issue #769 — file-bearing execution keeps exit code 0 and the '
-    'success framing',
-    () async {
-      final capability = UpdatedCapability();
-      final command = CapabilityCommand(capability);
-      final runner = CommandRunner<void>('test', 'test')..addCommand(command);
+  test('issue #769 — file-bearing execution keeps exit code 0 and the '
+      'success framing', () async {
+    final capability = UpdatedCapability();
+    final command = CapabilityCommand(capability);
+    final runner = CommandRunner<void>('test', 'test')..addCommand(command);
 
-      exitCode = 0;
-      await expectLater(
-        () => runner.run(['update']),
-        prints(contains('✅ Success! Created/Modified:')),
-      );
-      final code = exitCode;
-      exitCode = 0;
-      expect(code, equals(0));
-    },
-  );
+    exitCode = 0;
+    await expectLater(
+      () => runner.run(['update']),
+      prints(contains('✅ Success! Created/Modified:')),
+    );
+    final code = exitCode;
+    exitCode = 0;
+    expect(code, equals(0));
+  });
 }
 
 /// A capability that reports success but generates no files — the shape
@@ -172,9 +170,7 @@ class SkippingCapability implements ZuraffaCapability {
   Future<ExecutionResult> execute(Map<String, dynamic> args) async =>
       ExecutionResult(
         success: true,
-        data: {
-          'generatedFiles': <GeneratedFile>[],
-        },
+        data: {'generatedFiles': <GeneratedFile>[]},
       );
 }
 
