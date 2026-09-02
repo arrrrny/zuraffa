@@ -623,57 +623,55 @@ void main() {
       },
     );
 
-    test(
-      'a REAL generated legacy pair keeps compiling after migration — the '
-      "moved test's subject import is rewritten to the namespaced depth and "
-      'the cycle log follows',
-      () async {
-        await seedFeature('300-legacy-real');
-        // The legacy state exactly as a pre-#827 binary left it: the pair
-        // written by the REAL writers at the flat layout (so the test
-        // carries the flat relative import), a registry record with the
-        // flat paths gen recorded, and cycle-log evidence naming them.
-        final behavior = Behavior(
-          id: 'A1',
-          feature: '300-legacy-real',
-          kind: BehaviorKind.unit,
-          description: 'returns 42 when invoked with no args',
-          sourceCriterion: 'FR-007',
-          target: 'sampleSubject',
-        );
-        final flatTestPath = p.join(tmpDir.path, 'test', 'tdd', 'a1_test.dart');
-        final flatSubjectPath = p.join(
-          tmpDir.path,
-          'lib',
-          'tdd',
-          'a1_subject.dart',
-        );
-        await const BehaviorTestWriter().write(
-          behavior: behavior,
-          testPath: flatTestPath,
-          subjectPath: flatSubjectPath,
-        );
-        await const SubjectWriter().write(
-          behavior: behavior,
-          subjectPath: flatSubjectPath,
-        );
-        // Fixture sanity: the generated test really carries the flat
-        // relative import that dangles once the file moves deeper.
-        expect(
-          await File(flatTestPath).readAsString(),
-          contains("'../../lib/tdd/a1_subject.dart' as subject;"),
-        );
-        File(
-            p.join(
-              tmpDir.path,
-              'specs',
-              '300-legacy-real',
-              'tdd',
-              'artifacts.json',
-            ),
-          )
-          ..parent.createSync(recursive: true)
-          ..writeAsStringSync('''
+    test('a REAL generated legacy pair keeps compiling after migration — the '
+        "moved test's subject import is rewritten to the namespaced depth and "
+        'the cycle log follows', () async {
+      await seedFeature('300-legacy-real');
+      // The legacy state exactly as a pre-#827 binary left it: the pair
+      // written by the REAL writers at the flat layout (so the test
+      // carries the flat relative import), a registry record with the
+      // flat paths gen recorded, and cycle-log evidence naming them.
+      final behavior = Behavior(
+        id: 'A1',
+        feature: '300-legacy-real',
+        kind: BehaviorKind.unit,
+        description: 'returns 42 when invoked with no args',
+        sourceCriterion: 'FR-007',
+        target: 'sampleSubject',
+      );
+      final flatTestPath = p.join(tmpDir.path, 'test', 'tdd', 'a1_test.dart');
+      final flatSubjectPath = p.join(
+        tmpDir.path,
+        'lib',
+        'tdd',
+        'a1_subject.dart',
+      );
+      await const BehaviorTestWriter().write(
+        behavior: behavior,
+        testPath: flatTestPath,
+        subjectPath: flatSubjectPath,
+      );
+      await const SubjectWriter().write(
+        behavior: behavior,
+        subjectPath: flatSubjectPath,
+      );
+      // Fixture sanity: the generated test really carries the flat
+      // relative import that dangles once the file moves deeper.
+      expect(
+        await File(flatTestPath).readAsString(),
+        contains("'../../lib/tdd/a1_subject.dart' as subject;"),
+      );
+      File(
+          p.join(
+            tmpDir.path,
+            'specs',
+            '300-legacy-real',
+            'tdd',
+            'artifacts.json',
+          ),
+        )
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('''
 {
   "feature": "300-legacy-real",
   "records": [
@@ -691,14 +689,14 @@ void main() {
   ]
 }
 ''');
-        final cycleLogPath = p.join(
-          tmpDir.path,
-          'specs',
-          '300-legacy-real',
-          'tdd',
-          'cycle-log.md',
-        );
-        await File(cycleLogPath).writeAsString('''
+      final cycleLogPath = p.join(
+        tmpDir.path,
+        'specs',
+        '300-legacy-real',
+        'tdd',
+        'cycle-log.md',
+      );
+      await File(cycleLogPath).writeAsString('''
 # Cycle Log
 
 ## Cycle: A1 (red)
@@ -713,84 +711,83 @@ void main() {
 - at: 2026-09-01T00:00:00.000Z
 ''');
 
-        final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(migrateArgs());
-        expect(out, contains('migrated=1'), reason: out);
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(migrateArgs());
+      expect(out, contains('migrated=1'), reason: out);
 
-        // The moved test imports its subject at the namespaced depth —
-        // `../../lib/tdd/a1_subject.dart` from inside
-        // `test/tdd/<feature>/` resolves to `test/lib/tdd/...` and does
-        // not compile, so the rewrite is what keeps the migrated suite
-        // green (issue #827 requirement 4).
-        final movedTestPath = p.join(
-          tmpDir.path,
-          'test',
-          'tdd',
-          '300-legacy-real',
-          'a1_test.dart',
-        );
-        final movedTest = await File(movedTestPath).readAsString();
-        expect(
-          movedTest,
-          contains(
-            "'../../../lib/tdd/300-legacy-real/a1_subject.dart' as subject;",
-          ),
-          reason: movedTest,
-        );
-        expect(movedTest, isNot(contains('../../lib/tdd/a1_subject.dart')));
+      // The moved test imports its subject at the namespaced depth —
+      // `../../lib/tdd/a1_subject.dart` from inside
+      // `test/tdd/<feature>/` resolves to `test/lib/tdd/...` and does
+      // not compile, so the rewrite is what keeps the migrated suite
+      // green (issue #827 requirement 4).
+      final movedTestPath = p.join(
+        tmpDir.path,
+        'test',
+        'tdd',
+        '300-legacy-real',
+        'a1_test.dart',
+      );
+      final movedTest = await File(movedTestPath).readAsString();
+      expect(
+        movedTest,
+        contains(
+          "'../../../lib/tdd/300-legacy-real/a1_subject.dart' as subject;",
+        ),
+        reason: movedTest,
+      );
+      expect(movedTest, isNot(contains('../../lib/tdd/a1_subject.dart')));
 
-        // The rewritten import is exactly what a fresh namespaced gen
-        // would render, so the #683 staleness check stays silent on the
-        // next gen of this behavior.
-        final freshTestPath = p.join(
-          tmpDir.path,
-          'test',
-          'tdd',
-          '400-fresh-check',
-          'a1_test.dart',
-        );
-        final freshSubjectPath = p.join(
-          tmpDir.path,
-          'lib',
-          'tdd',
-          '400-fresh-check',
-          'a1_subject.dart',
-        );
-        await const BehaviorTestWriter().write(
-          behavior: Behavior(
-            id: 'A1',
-            feature: '400-fresh-check',
-            kind: BehaviorKind.unit,
-            description: 'returns 42 when invoked with no args',
-            sourceCriterion: 'FR-007',
-            target: 'sampleSubject',
-          ),
-          testPath: freshTestPath,
-          subjectPath: freshSubjectPath,
-        );
-        final freshImportLine =
-            "import '../../../lib/tdd/400-fresh-check/a1_subject.dart'"
-            ' as subject;';
-        expect(
-          (await File(movedTestPath).readAsString()).contains(
-            "import '../../../lib/tdd/300-legacy-real/a1_subject.dart'"
-            ' as subject;',
-          ),
-          isTrue,
-        );
-        expect(
-          await File(freshTestPath).readAsString(),
-          contains(freshImportLine),
-        );
+      // The rewritten import is exactly what a fresh namespaced gen
+      // would render, so the #683 staleness check stays silent on the
+      // next gen of this behavior.
+      final freshTestPath = p.join(
+        tmpDir.path,
+        'test',
+        'tdd',
+        '400-fresh-check',
+        'a1_test.dart',
+      );
+      final freshSubjectPath = p.join(
+        tmpDir.path,
+        'lib',
+        'tdd',
+        '400-fresh-check',
+        'a1_subject.dart',
+      );
+      await const BehaviorTestWriter().write(
+        behavior: Behavior(
+          id: 'A1',
+          feature: '400-fresh-check',
+          kind: BehaviorKind.unit,
+          description: 'returns 42 when invoked with no args',
+          sourceCriterion: 'FR-007',
+          target: 'sampleSubject',
+        ),
+        testPath: freshTestPath,
+        subjectPath: freshSubjectPath,
+      );
+      final freshImportLine =
+          "import '../../../lib/tdd/400-fresh-check/a1_subject.dart'"
+          ' as subject;';
+      expect(
+        (await File(movedTestPath).readAsString()).contains(
+          "import '../../../lib/tdd/300-legacy-real/a1_subject.dart'"
+          ' as subject;',
+        ),
+        isTrue,
+      );
+      expect(
+        await File(freshTestPath).readAsString(),
+        contains(freshImportLine),
+      );
 
-        // The cycle log's recorded paths follow the move.
-        final cycleLog = await File(cycleLogPath).readAsString();
-        expect(
-          cycleLog,
-          contains(p.join('test', 'tdd', '300-legacy-real', 'a1_test.dart')),
-        );
-        expect(cycleLog, isNot(contains(flatTestPath)));
-      },
-    );
+      // The cycle log's recorded paths follow the move.
+      final cycleLog = await File(cycleLogPath).readAsString();
+      expect(
+        cycleLog,
+        contains(p.join('test', 'tdd', '300-legacy-real', 'a1_test.dart')),
+      );
+      expect(cycleLog, isNot(contains(flatTestPath)));
+    });
   });
 }

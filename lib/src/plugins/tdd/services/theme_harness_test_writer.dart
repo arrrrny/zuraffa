@@ -53,11 +53,15 @@ class ThemeHarnessTestWriter {
   const ThemeHarnessTestWriter();
 
   /// Write the harness test file at [testPath] importing the subject at
-  /// [subjectPath].
+  /// [subjectPath]. The [golden] flag is accepted for shape parity with
+  /// [BehaviorTestWriter.write] (so a single dispatch site can call
+  /// either writer); theme-harness tests do not currently emit
+  /// `matchesGoldenFile` blocks, so the flag is reserved.
   Future<void> write({
     required Behavior behavior,
     required String testPath,
     required String subjectPath,
+    bool golden = false,
   }) async {
     final testFile = File(testPath);
     await testFile.parent.create(recursive: true);

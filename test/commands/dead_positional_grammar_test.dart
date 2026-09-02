@@ -35,14 +35,10 @@ const _deadUsageStrings = <String, String>{
 };
 
 Future<ProcessResult> _runProbe(String commandName) => Process.run(
-      Platform.resolvedExecutable,
-      [
-        'run',
-        'test/commands/fixtures/plugin_run_probe.dart',
-        commandName,
-      ],
-      workingDirectory: Directory.current.path,
-    );
+  Platform.resolvedExecutable,
+  ['run', 'test/commands/fixtures/plugin_run_probe.dart', commandName],
+  workingDirectory: Directory.current.path,
+);
 
 void main() {
   group('dead positional grammar (bug #856)', () {
@@ -53,35 +49,45 @@ void main() {
         () async {
           final result = await _runProbe(entry.key);
 
-          expect(result.exitCode, 64,
-              reason: 'a usage error must not look successful; '
-                  'stdout=${result.stdout} stderr=${result.stderr}');
-          expect(result.stdout, contains('<subcommand>'),
-              reason: 'run() must point at the live subcommand grammar');
-          expect(result.stdout, isNot(contains(entry.value)),
-              reason: 'the unreachable positional hint must be gone');
-          expect(result.stdout, isNot(contains('Generation complete')),
-              reason: 'run() must never reach the generator');
+          expect(
+            result.exitCode,
+            64,
+            reason:
+                'a usage error must not look successful; '
+                'stdout=${result.stdout} stderr=${result.stderr}',
+          );
+          expect(
+            result.stdout,
+            contains('<subcommand>'),
+            reason: 'run() must point at the live subcommand grammar',
+          );
+          expect(
+            result.stdout,
+            isNot(contains(entry.value)),
+            reason: 'the unreachable positional hint must be gone',
+          );
+          expect(
+            result.stdout,
+            isNot(contains('Generation complete')),
+            reason: 'run() must never reach the generator',
+          );
         },
         timeout: const Timeout(Duration(minutes: 3)),
       );
     }
 
-    test(
-      'FR-2: dispatch still rejects a bare entity name before run() — '
-      'the runner-level contract is unchanged',
-      () async {
-        final runner = CliRunner(exitOnCompletion: false);
-        for (final name in _deadUsageStrings.keys) {
-          final out = await runner.runCapturing([name, 'Widget']);
-          expect(
-            out,
-            contains('Could not find a subcommand named "Widget"'),
-            reason: 'zfa $name Widget must stay a dispatch-level error',
-          );
-        }
-      },
-    );
+    test('FR-2: dispatch still rejects a bare entity name before run() — '
+        'the runner-level contract is unchanged', () async {
+      final runner = CliRunner(exitOnCompletion: false);
+      for (final name in _deadUsageStrings.keys) {
+        final out = await runner.runCapturing([name, 'Widget']);
+        expect(
+          out,
+          contains('Could not find a subcommand named "Widget"'),
+          reason: 'zfa $name Widget must stay a dispatch-level error',
+        );
+      }
+    });
 
     test(
       'FR-3: the no-args CLI invocation still reports the missing subcommand '

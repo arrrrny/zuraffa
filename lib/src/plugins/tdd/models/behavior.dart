@@ -1,7 +1,6 @@
 /// Behavior entity for the `zfa tdd` plugin.
 library;
 
-<<<<<<< HEAD
 /// The subject kind a behavior's paired test + subject express.
 ///
 /// `widget` (bug #830): the behavior's acceptance scenario is UI-observable
@@ -15,16 +14,6 @@ library;
 /// test + subject contract — see `ThemeHarnessTestWriter` /
 /// `ThemeHarnessSubjectWriter`.
 enum BehaviorKind { acceptance, unit, widget, theme }
-=======
-/// The behavior kinds.
-///
-/// `acceptance` and `unit` are the loop kinds (spec 044). `theme` is the
-/// theme-harness kind (issue #841): a behavior declared in a
-/// `## Theme harness` section (or with a `theme` kind cell) whose gen pair
-/// is the theme-harness widget test + subject contract — see
-/// `ThemeHarnessTestWriter` / `ThemeHarnessSubjectWriter`.
-enum BehaviorKind { acceptance, unit, theme }
->>>>>>> 23b9ad68 (fix(841): theme harness — ShadTheme assertions + hardcoded-color audit + golden baselines)
 
 enum BehaviorState { pending, red, green, done }
 

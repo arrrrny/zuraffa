@@ -972,6 +972,7 @@ typedef _GenWriterPair = ({
     required Behavior behavior,
     required String testPath,
     required String subjectPath,
+    bool golden,
   })
   writeTest,
   Future<void> Function({

@@ -366,9 +366,7 @@ class MigratePathsCommand extends Command<void> {
     final oldRelative = _posix(
       p.relative(subjectFrom, from: p.dirname(testFrom)),
     );
-    final newRelative = _posix(
-      p.relative(subjectTo, from: p.dirname(testTo)),
-    );
+    final newRelative = _posix(p.relative(subjectTo, from: p.dirname(testTo)));
     if (oldRelative == newRelative) return;
     final file = File(testTo);
     final raw = file.readAsStringSync();
