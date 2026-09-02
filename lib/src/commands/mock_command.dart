@@ -9,14 +9,16 @@ class MockCommand extends PluginCommand {
   @override
   final MockPlugin plugin;
 
+  /// `JsonMockCommand` is registered manually below; the auto-registered
+  /// `CapabilityCommand` for `JsonMockCapability` (same `json` name) must be
+  /// skipped, or the duplicate registration would leave `JsonMockCommand`
+  /// unparented and crash `mock json --help` (issue #761).
+  @override
+  Set<String> get manualSubcommandNames => {'json'};
+
   MockCommand(this.plugin) : super(plugin) {
     addSubcommand(DataMockCommand(plugin));
-    try {
-      addSubcommand(JsonMockCommand(plugin));
-    } catch (_) {
-      // JsonMockCommand may already be registered if MockCommand is
-      // instantiated multiple times during test setup.
-    }
+    addSubcommand(JsonMockCommand(plugin));
     argParser.addFlag(
       'data-only',
       help: 'Generate only mock data (fixtures)',

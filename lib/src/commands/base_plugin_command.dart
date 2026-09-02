@@ -17,6 +17,20 @@ abstract class PluginCommand extends Command<void> {
   /// `zfa api <Entity>`) instead of requiring it to be a subcommand.
   final bool registerSubcommands;
 
+  /// Subcommand names the concrete command class registers itself (typically
+  /// richer first-party subcommands such as `JsonMockCommand`). Capabilities
+  /// whose derived subcommand name appears here are skipped during automatic
+  /// registration so the manual registration cannot collide with them.
+  ///
+  /// Why this hook exists (issue #761): in package:args, `addSubcommand`
+  /// writes the subcommand-map entry *before* calling `argParser.addCommand`
+  /// and only sets `command._parent` afterwards. A duplicate name therefore
+  /// throws mid-registration, leaving the manually-registered subcommand
+  /// dispatchable but unparented (`parent == null` → `runner == null`), which
+  /// crashes `Command.invocation` — i.e. `--help` — with "Null check operator
+  /// used on a null value" while normal dispatch keeps working.
+  Set<String> get manualSubcommandNames => const {};
+
   PluginCommand(this.plugin, {this.registerSubcommands = true}) {
     argParser.addOption(
       'output',
@@ -48,10 +62,16 @@ abstract class PluginCommand extends Command<void> {
       help: 'Revert generated files (delete them)',
     );
 
-    // Auto-register capabilities as subcommands
+    // Auto-register capabilities as subcommands, skipping any whose derived
+    // subcommand name the concrete class registers itself (see
+    // [manualSubcommandNames] for why the duplicate must never happen).
     if (registerSubcommands) {
       for (final capability in plugin.capabilities) {
-        addSubcommand(CapabilityCommand(capability));
+        final subcommand = CapabilityCommand(capability);
+        if (manualSubcommandNames.contains(subcommand.name)) {
+          continue;
+        }
+        addSubcommand(subcommand);
       }
     }
   }
