@@ -44,5 +44,41 @@ void main() {
       // The first (permitted) invocation still completes normally.
       expectLater(first, completion(contains('ZFA Generator Configuration')));
     });
+
+    test('restore survives a concurrently-deleted working directory', () async {
+      // Regression guard for the flaky U19 PathNotFoundException observed
+      // once the #767 suites changed suite scheduling: `Directory.current`
+      // is process-wide, suites run as concurrent isolates, and the saved
+      // CWD can be deleted by the other isolate's teardown between the
+      // capture and the restore inside `_withDirectory`. The deterministic
+      // part of that contract is the fallback resolver; the interleave
+      // itself cannot be reproduced deterministically in-process.
+      final outside = await Directory.systemTemp.createTemp('cwdr3_');
+      final doomed = await Directory.systemTemp.createTemp('cwdr4_');
+      final nested = Directory(p.join(doomed.path, 'child'))
+        ..createSync(recursive: true);
+      addTearDown(() async {
+        if (outside.existsSync()) {
+          await outside.delete(recursive: true);
+        }
+        if (doomed.existsSync()) {
+          await doomed.delete(recursive: true);
+        }
+      });
+
+      // Existing path resolves to itself.
+      expect(
+        CliRunner.nearestExistingDirectory(outside.path),
+        equals(outside.path),
+      );
+
+      // Deleted leaf resolves to its nearest surviving ancestor.
+      nested.deleteSync();
+      doomed.deleteSync();
+      expect(
+        CliRunner.nearestExistingDirectory(nested.path),
+        equals(p.dirname(p.dirname(nested.path))), // the systemTemp root
+      );
+    });
   });
 }

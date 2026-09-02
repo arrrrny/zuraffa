@@ -290,8 +290,30 @@ class CliRunner {
     try {
       await body();
     } finally {
-      Directory.current = saved;
+      // `Directory.current` is PROCESS-WIDE while the test runner executes
+      // suites as concurrent isolates in one VM. Between the capture above
+      // and this restore, another isolate can legitimately delete the saved
+      // directory (its own temp-dir teardown) — restoring to it then throws
+      // PathNotFoundException inside an UNRELATED test (observed as a flaky
+      // U19 in setup_corpus_specs_test once the #767 suites changed suite
+      // scheduling). Walk up to the nearest ancestor that still exists
+      // instead of failing; the root always exists.
+      Directory.current = nearestExistingDirectory(saved.path);
     }
+  }
+
+  /// Returns [path] if it exists on disk, otherwise the nearest ancestor
+  /// that does (falling back to the filesystem root). Used by the `-C`
+  /// scope restore so a concurrently-deleted working directory cannot
+  /// crash an unrelated invocation.
+  static String nearestExistingDirectory(String path) {
+    var dir = Directory(path);
+    while (!dir.existsSync()) {
+      final parentPath = dir.parent.path;
+      if (parentPath == dir.path) break; // filesystem root reached
+      dir = Directory(parentPath);
+    }
+    return dir.path;
   }
 
   /// Extract the global `-C`/`--directory` value from [args] (manual scan so
