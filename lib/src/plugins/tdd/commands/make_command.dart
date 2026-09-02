@@ -913,13 +913,12 @@ class MakeCommand extends Command<void> {
     return null;
   }
 
-<<<<<<< HEAD
   /// The runnable test name for `--plain-name` matching — the record's
   /// own contract ([ArtifactRecord.plainTestName]): the last segment with
   /// any legacy `<id> — ` echo stripped (bug #871), so both the legacy
   /// and the re-rendered test-file shapes substring-match.
   String _runnableNameOf(ArtifactRecord record) => record.plainTestName;
-=======
+
   /// Bug #829: the spec Key Entity this UNIT behavior's FR traces to —
   /// the first declared entity (from the test list's Key entities
   /// section, which plan extracted from the spec) named in the
@@ -993,16 +992,6 @@ class MakeCommand extends Command<void> {
     if (idx < 0 || idx + 1 >= args.length) return null;
     return args[idx + 1];
   }
-
-  /// The runnable test name: the last `::`-separated segment of the
-  /// registry's composite `file::group::test` name.
-  String _runnableNameOf(ArtifactRecord record) {
-    final segments = record.runnableTestName.split('::');
-    return segments.isEmpty || segments.last.isEmpty
-        ? record.runnableTestName
-        : segments.last;
-  }
->>>>>>> 60c87542 (fix(829): TDD loop orchestrates entities from spec Key Entities)
 
   // -----------------------------------------------------------------
   // Suite-guard regression scoping (issue #731).

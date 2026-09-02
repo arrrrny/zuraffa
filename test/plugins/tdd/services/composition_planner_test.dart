@@ -93,7 +93,15 @@ void main() {
       expect(plan.isExpressible, isTrue);
       expect(plan.steps.map((s) => s.args).toList(), [
         ['entity', 'create', '-n', 'User'],
-        ['tdd', 'wire', 'B-001', '--entity', 'User'],
+        [
+          'tdd',
+          'wire',
+          'B-001',
+          '--entity',
+          'User',
+          '--feature',
+          '052-compose',
+        ],
         ['build'],
       ]);
       expect(plan.steps[0].purpose, 'create entity User for behavior B-001');
