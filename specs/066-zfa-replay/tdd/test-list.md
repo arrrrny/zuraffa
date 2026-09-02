@@ -46,7 +46,7 @@ in-process (`CliRunner.runCapturing`, the sc_001–sc_012 pattern).
 
 | id  | behavior | traces | kind | state | test |
 | --- | -------- | ------ | ---- | ----- | ---- |
-| U3  | Chain integrity: a valid per-behavior chain verifies; a tampered certified fact breaks with the behavior + entry kind named; a spliced prev-hash breaks with a linkage divergence; hash-less schema-0 entries are skipped as unverified, never failed | FR-004 | example | PENDING | `test/plugins/tdd/services/replay_history_test.dart::U3: the recorded chain verifies or breaks named` |
+| U3  | Chain integrity: a valid per-behavior chain verifies; a tampered certified fact breaks with the behavior + entry kind named; a spliced prev-hash breaks with a linkage divergence; hash-less schema-0 entries are skipped as unverified, never failed; an integrity divergence stops that behavior's gen/verify stages (tampered commands never execute) | FR-004 | example | PENDING | `test/plugins/tdd/services/replay_history_test.dart::U3: the recorded chain verifies or breaks named` |
 | U4  | Red structural checks: missing recorded test path → `red-missing-test-artifact`; recorded exit 0 → `red-exit-zero`; missing classification → `red-no-classification`; a valid red passes | FR-005 | example | PENDING | `test/plugins/tdd/services/replay_history_test.dart::U4: red evidence is structurally validated` |
 | U5  | Replayability derivation: only-red → gen/verify skippable; green without a generation block → gen skipped; green without a recorded command → verify skipped; both present → fully replayable | FR-008, FR-010 | example | PENDING | `test/plugins/tdd/services/replay_history_test.dart::U5: replayability derives from what was recorded` |
 

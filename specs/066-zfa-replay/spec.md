@@ -196,7 +196,9 @@ process exit code.
   `prev-hash`, asserting (a) the recomputed hash equals the recorded `hash` and (b)
   the recorded `prev-hash` equals the previous hashed entry's hash for that behavior
   (or `CycleLog.genesisHash` for the first). Any mismatch MUST be a divergence
-  naming the behavior and the entry kind as the broken link.
+  naming the behavior and the entry kind as the broken link. A behavior whose
+  integrity stage diverges MUST NOT proceed to its gen/verify stages — the
+  commands of a tampered history are never executed.
 - **FR-005**: Red entries MUST be structurally validated: every recorded `test:`
   path MUST exist in the real project tree, the recorded `exit:` MUST be non-zero,
   and a red entry MUST carry a classification. Violations are divergences named
