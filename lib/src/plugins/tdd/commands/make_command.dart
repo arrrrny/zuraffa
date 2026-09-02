@@ -898,7 +898,8 @@ class MakeCommand extends Command<void> {
   /// The behavior description the planner will see — the record's own
   /// parsing contract ([ArtifactRecord.descriptionSegment]): the
   /// description segment with any legacy `<id> — ` echo stripped
-  /// (bug #871).
+  /// (bug #871). Issue #873: stripping is canonical so the planner
+  /// never reads the behavior's own id as an entity name.
   String _descriptionFor(ArtifactRecord record) => record.descriptionSegment;
 
   /// The target name parsed from the runnable name's description

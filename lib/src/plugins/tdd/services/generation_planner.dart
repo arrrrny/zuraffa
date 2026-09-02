@@ -31,7 +31,11 @@
 ///     description names no entity, `<Name>` is the slugified behavior
 ///     id and the plan passes `--no-entity` so the real CLI's #496
 ///     fail-fast ("no entity source file was found") cannot break the
-///     run.
+///     run. Issue #873: the behavior's OWN id is never a derived
+///     name — the generated test name (`<id> — <description>`) that leaks
+///     into description-keyed callers must never read as a spec-named
+///     entity, or the acceptance path dispatches `zfa make <BehaviorId>`
+///     (the #696 family, without `--no-entity`).
 ///   - **Function-intent behavior** (bug #657: description carries a
 ///     plain-function verb phrase — render, format, parse, compute,
 ///     convert, return — but matches neither surface above): plan is
@@ -302,6 +306,15 @@ class GenerationPlanner {
     //    `make`'s composition fallback (#642) engage for features
     //    holding composable green unit subjects. Legacy dashed ids
     //    keep the plain CRUD contract untouched.
+    //
+    //    Issue #873: the extraction must also refuse the behavior's OWN
+    //    id — the generated test name (`<id> — <description>`) callers
+    //    pass as the description made the leading id token resolve as
+    //    the "named entity" and dispatched `zfa make A3` (no
+    //    `--no-entity`, since a non-null derived name drops it): the
+    //    #696 family on the acceptance path. The id is filtered inside
+    //    `_extractCapitalizedTrace`, and make strips the test-name
+    //    prefix before the planner ever sees the description.
     if (desc.contains('crud') ||
         desc.contains('use case') ||
         desc.contains('use-case') ||
@@ -312,7 +325,10 @@ class GenerationPlanner {
           summary.target ??
           _extractEntityName(summary.description) ??
           (isAcceptanceBehaviorId(summary.behaviorId)
-              ? _extractCapitalizedTrace(summary.description)
+              ? _extractCapitalizedTrace(
+                  summary.description,
+                  behaviorId: summary.behaviorId,
+                )
               : null);
       final slug =
           derivedName ??
@@ -484,12 +500,28 @@ class GenerationPlanner {
   /// not stoplisted); a capitalized acronym (e.g. "API") can be
   /// extracted, which is benign — the wire step misfire-stops with an
   /// actionable message when no such entity file exists.
-  String? _extractCapitalizedTrace(String description) {
+  ///
+  /// Issue #873: the behavior's OWN id is never an entity name — a
+  /// caller may pass the generated test name (`<id> — <description>`)
+  /// rather than the bare description, and the leading id token is a
+  /// naming convention, not a spec-named entity. Returning it produced
+  /// `zfa make A3` (the #696 family on the acceptance path, without
+  /// `--no-entity`). The id is filtered case-insensitively, wherever it
+  /// appears in the prose; a REAL entity behind the prefix ("A1 — the
+  /// Todo repository service ...") still resolves.
+  String? _extractCapitalizedTrace(
+    String description, {
+    required String behaviorId,
+  }) {
     final words = description.split(RegExp(r'[^A-Za-z0-9_]'));
+    final idLower = behaviorId.toLowerCase();
     for (final word in words) {
       if (word.isEmpty) continue;
       if (!RegExp(r'^[A-Z][A-Za-z0-9_]*$').hasMatch(word)) continue;
       if (_capitalizedTraceStopwords.contains(word)) continue;
+      // Issue #873: the behavior's own id (the generated test-name
+      // prefix) is a naming convention, never a spec-named entity.
+      if (word.toLowerCase() == idLower) continue;
       return word;
     }
     return null;
