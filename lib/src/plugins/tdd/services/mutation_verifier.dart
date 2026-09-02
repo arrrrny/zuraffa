@@ -34,6 +34,7 @@ class MutationResult {
     required this.reportPath,
     required this.stdoutText,
     required this.stderrText,
+    this.survivors = const [],
   });
 
   /// `dart run mutation_test` exit code. 0 = all mutants either killed or
@@ -63,6 +64,12 @@ class MutationResult {
 
   /// Captured stderr from `dart run mutation_test`.
   final String stderrText;
+
+  /// Per-mutant detail for every survived mutant (bug #837): the file and
+  /// line the mutation_test v1.8+ markdown report lists under
+  /// "Undetected mutations in file". Empty when nothing survived or no
+  /// report was produced.
+  final List<MutationSurvivor> survivors;
 
   /// Total mutants evaluated = killed + survived + timeout.
   int get totalMutants => killedCount + survivedCount + timeoutCount;
@@ -209,6 +216,7 @@ class MutationVerifier {
       reportPath: reportExists ? reportPath : null,
       stdoutText: stdoutText,
       stderrText: stderrText,
+      survivors: parseMutationSurvivors(reportText),
     );
   }
 
@@ -295,4 +303,55 @@ class _Counts {
   final int killed;
   final int survived;
   final int timeout;
+}
+
+/// One survived mutant, cited by file + line (bug #837).
+///
+/// The mutation_test v1.8+ markdown report lists every undetected mutant
+/// under a `## Undetected mutations in file : <path>` heading with one
+/// `Line N:` block per mutant. [file] is the path exactly as the report
+/// writes it (project-relative for the scoped configs this pipeline
+/// generates).
+class MutationSurvivor {
+  const MutationSurvivor({required this.file, required this.line});
+
+  final String file;
+  final int line;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MutationSurvivor && other.file == file && other.line == line);
+
+  @override
+  int get hashCode => Object.hash(file, line);
+
+  @override
+  String toString() => '$file:$line';
+}
+
+/// Extract the survived mutants (file + line) from a mutation_test v1.8+
+/// markdown report (bug #837).
+///
+/// Only lines under `## Undetected mutations in file : <path>` headings are
+/// scanned, so the summary table (which also mentions counts) can never be
+/// mistaken for a per-mutant entry.
+List<MutationSurvivor> parseMutationSurvivors(String reportText) {
+  final survivors = <MutationSurvivor>[];
+  final fileHeader = RegExp(
+    r'^## Undetected mutations in file\s*:\s*(.+?)\s*$',
+    multiLine: true,
+  );
+  final lineEntry = RegExp(r'^Line\s+(\d+)\s*:', multiLine: true);
+  final matches = fileHeader.allMatches(reportText).toList();
+  for (var i = 0; i < matches.length; i++) {
+    final file = matches[i].group(1)!.trim();
+    final bodyStart = matches[i].end;
+    final bodyEnd = i + 1 < matches.length ? matches[i + 1].start : null;
+    final body = reportText.substring(bodyStart, bodyEnd ?? reportText.length);
+    for (final m in lineEntry.allMatches(body)) {
+      survivors.add(MutationSurvivor(file: file, line: int.parse(m.group(1)!)));
+    }
+  }
+  return survivors;
 }

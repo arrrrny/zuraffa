@@ -22,6 +22,7 @@
 ///  12. Exits non-zero whenever the gate is not PASS (FR-023).
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -121,8 +122,6 @@ class VerifyCommand extends Command<void> {
     // audit: auditing against a stale contract proves nothing).
     final drift = await _traceabilityDrift(featureDir);
     if (drift != null) {
-      // print() — the machine channel tests/corpus parse (stdout.writeln
-      // is invisible to CliRunner's capture zone).
       print('   drift: ${drift.reason}');
       print(
         'zfa tdd verify: DRIFT — ${drift.reason}\n'
@@ -134,31 +133,62 @@ class VerifyCommand extends Command<void> {
       return;
     }
 
-    stdout.writeln('zfa tdd verify: running mutation audit...');
-    stdout.writeln('   feature: $featureName');
-    stdout.writeln('   feature_dir: $featureDir');
+    print('zfa tdd verify: running mutation audit...');
+    print('   feature: $featureName');
+    print('   feature_dir: $featureDir');
 
     final auditor = MutationAuditor(
       featureDir: featureDir,
       workingDirectory: cwd,
       preflightTimeout: timeoutOverride,
       mutationTimeout: timeoutOverride,
+      scoreThreshold: _readScoreThreshold(cwd),
     );
     final report = await auditor.run();
 
     // Print the gate decision.
-    stdout.writeln('   gate: ${report.gate.label}');
+    print('   gate: ${report.gate.label}');
     if (report.notAssessedReason != null) {
-      stdout.writeln('   reason: ${report.notAssessedReason}');
+      print('   reason: ${report.notAssessedReason}');
     }
-    stdout.writeln('   killed: ${report.killedCount}');
-    stdout.writeln('   survived: ${report.survivedCount}');
-    stdout.writeln('   timed_out: ${report.timedOutCount}');
-    stdout.writeln('   mutation_was_run: ${report.mutationWasRun}');
-    stdout.writeln('   restoration_verified: ${report.restorationVerified}');
+    print('   killed: ${report.killedCount}');
+    print('   survived: ${report.survivedCount}');
+    print('   timed_out: ${report.timedOutCount}');
+    if (report.mutationScore != null) {
+      print('   mutation_score: ${report.mutationScore!.toStringAsFixed(4)}');
+    }
+    if (report.scoreThreshold != null) {
+      print(
+        '   score_threshold: ${report.scoreThreshold!.toStringAsFixed(4)} '
+        '(from .zfa.json)',
+      );
+    }
+    print('   mutation_was_run: ${report.mutationWasRun}');
+    print('   restoration_verified: ${report.restorationVerified}');
+
+    // Bug #837: a per-mutant report with an actionable fix line for every
+    // survived mutant; a fix hint when the mutation phase could not run at
+    // all (infrastructure, never silently a pass).
+    if (report.survivors.isNotEmpty) {
+      print('   survived_mutants:');
+      for (final s in report.survivors) {
+        print('     - ${s.file}:${s.line}');
+        print(
+          '       --> fix: add or strengthen a scope test that fails on '
+          'this mutant '
+          '(${report.reportPath ?? 'see the mutation report for the diff'})',
+        );
+      }
+    }
+    if (report.notAssessedReason != null) {
+      print(
+        '   --> fix: make the mutation phase runnable — add mutation_test '
+        'to dev_dependencies (dart pub add dev:mutation_test) and re-run.',
+      );
+    }
 
     // Machine-readable summary line for CI / scripts.
-    stdout.writeln(
+    print(
       'mutation: gate=${report.gate.label} '
       'killed=${report.killedCount} '
       'survived=${report.survivedCount} '
@@ -169,7 +199,16 @@ class VerifyCommand extends Command<void> {
     // Write verification.md from the REAL run (never a stale copy).
     await _writeVerificationMd(featureDir, report);
 
-    // Exit non-zero whenever the gate is not PASS (FR-023).
+    // Bug #837 exit protocol: a quality failure (survived or timed-out
+    // mutants) is a real gate verdict — exit 1 with the per-mutant report
+    // above. Usage/config-class refusals (preflight_red, not_assessed)
+    // keep the 64 usage class (FR-023: never exit zero on a non-PASS
+    // gate).
+    if (report.gate == MutationGateDecision.failSurvived ||
+        report.gate == MutationGateDecision.failTimeout) {
+      exitCode = 1;
+      return;
+    }
     if (report.gate != MutationGateDecision.pass) {
       throw UsageException(
         'mutation audit gate: ${report.gate.label}'
@@ -231,6 +270,49 @@ void _validateFeatureSegment(String feature) {
 String? _resolveFeatureFromCwd(String cwd) {
   // For now, we don't auto-resolve. Caller must pass --feature.
   return null;
+}
+
+/// Reads `tdd.mutation.scoreThreshold` from `<projectRoot>/.zfa.json`
+/// (bug #837).
+///
+/// Returns null when the file or the key is absent — the strict policy
+/// (any survived or timed-out mutant fails) applies. A present-but-invalid
+/// value warns on stderr and returns null: a broken config can never
+/// silently loosen or harden the gate, the strict policy is the honest
+/// fallback.
+double? _readScoreThreshold(String projectRoot) {
+  final file = File(p.join(projectRoot, '.zfa.json'));
+  if (!file.existsSync()) return null;
+  Object? raw;
+  try {
+    final decoded = jsonDecode(file.readAsStringSync());
+    if (decoded is! Map<String, dynamic>) {
+      stderr.writeln(
+        'zfa tdd verify: .zfa.json is not a JSON object — ignoring the '
+        'mutation score threshold.',
+      );
+      return null;
+    }
+    raw =
+        ((decoded['tdd'] as Map<String, dynamic>?)?['mutation']
+            as Map<String, dynamic>?)?['scoreThreshold'];
+  } on FormatException {
+    stderr.writeln(
+      'zfa tdd verify: .zfa.json is malformed — ignoring the mutation '
+      'score threshold.',
+    );
+    return null;
+  }
+  if (raw == null) return null;
+  if (raw is! num || raw < 0 || raw > 1) {
+    stderr.writeln(
+      'zfa tdd verify: invalid tdd.mutation.scoreThreshold in .zfa.json '
+      '($raw) — expected a number between 0 and 1. Ignoring it; the '
+      'strict policy applies.',
+    );
+    return null;
+  }
+  return raw.toDouble();
 }
 
 /// Write the verification.md file from the REAL run. This overwrites any

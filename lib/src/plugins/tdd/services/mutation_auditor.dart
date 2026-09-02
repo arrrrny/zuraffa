@@ -22,6 +22,7 @@ library;
 import 'dart:async';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/mutation_outcome.dart';
@@ -81,6 +82,11 @@ class MutationAuditReport {
     this.elapsedSeconds,
     this.reportPath,
     this.preflightOutput,
+    this.mutationScore,
+    this.scoreThreshold,
+    this.survivors = const [],
+    this.specHash,
+    this.subjectHashes = const {},
   });
 
   /// The feature name (e.g. `044-test-tdd-generation`).
@@ -107,6 +113,26 @@ class MutationAuditReport {
   /// True iff the mutation tool was actually invoked (false when the
   /// scope was empty or the preflight was red).
   final bool mutationWasRun;
+
+  /// The mutation score (killed / total) when the mutation ran and
+  /// produced mutants; null otherwise (bug #837).
+  final double? mutationScore;
+
+  /// The `.zfa.json` score threshold this audit was gated against, when
+  /// configured (bug #837). Null = the strict policy (any survivor fails).
+  final double? scoreThreshold;
+
+  /// Every survived mutant (bug #837): the per-mutant detail parsed from
+  /// the mutation_test report, cited by file + line.
+  final List<MutationSurvivor> survivors;
+
+  /// sha256 of the feature's `artifacts.json` at verify time — binds the
+  /// verification report to the exact spec it audited (bug #837).
+  final String? specHash;
+
+  /// Map of subject absolute path → pre-audit sha256 (bug #837). Binds the
+  /// verification report to the exact subject sources that were mutated.
+  final Map<String, String> subjectHashes;
 
   /// True iff all temporarily mutated subjects were restored post-audit.
   final bool restorationVerified;
@@ -192,6 +218,43 @@ class MutationAuditReport {
       ..writeln('## Mutation run')
       ..writeln()
       ..writeln('- mutation_was_run: $mutationWasRun');
+    if (mutationScore != null) {
+      buf.writeln('- mutation_score: ${mutationScore!.toStringAsFixed(4)}');
+    }
+    if (scoreThreshold != null) {
+      buf.writeln(
+        '- score_threshold: ${scoreThreshold!.toStringAsFixed(4)} '
+        '(from .zfa.json)',
+      );
+    }
+    if (survivors.isNotEmpty) {
+      buf
+        ..writeln()
+        ..writeln('## Survived mutants (bug #837)')
+        ..writeln();
+      for (final s in survivors) {
+        buf.writeln('- `${s.file}:${s.line}`');
+        buf.writeln(
+          '  --> fix: add or strengthen a scope test that fails on '
+          'this mutant (report: ${reportPath ?? 'mutation-test report'})',
+        );
+      }
+    }
+    if (specHash != null || subjectHashes.isNotEmpty) {
+      buf
+        ..writeln()
+        ..writeln('## Evidence binding (bug #837)')
+        ..writeln();
+      if (specHash != null) {
+        buf.writeln('- spec_hash: $specHash');
+      }
+      if (subjectHashes.isNotEmpty) {
+        final paths = subjectHashes.keys.toList()..sort();
+        for (final path in paths) {
+          buf.writeln('- subject_hash: `$path` ${subjectHashes[path]}');
+        }
+      }
+    }
     return buf.toString();
   }
 }
@@ -211,10 +274,12 @@ class MutationAuditor {
     Future<MutationResult> Function()? runMutation,
     Duration? preflightTimeout,
     Duration? mutationTimeout,
+    double? scoreThreshold,
   }) : _runPreflightOverride = runPreflight,
        _runMutationOverride = runMutation,
        _preflightTimeout = preflightTimeout,
-       _mutationTimeout = mutationTimeout;
+       _mutationTimeout = mutationTimeout,
+       _scoreThreshold = scoreThreshold;
 
   final String featureDir;
   final String workingDirectory;
@@ -226,9 +291,21 @@ class MutationAuditor {
   final Duration? _preflightTimeout;
   final Duration? _mutationTimeout;
 
+  /// Mutation score threshold from `.zfa.json` (bug #837); `null` applies
+  /// the strict policy (any survived or timed-out mutant fails the gate).
+  final double? _scoreThreshold;
+
   /// Run the audit. Returns a [MutationAuditReport].
   Future<MutationAuditReport> run() async {
     final scope = await MutationScope.derive(featureDir: featureDir);
+
+    // Bug #837: bind the audit to the exact spec + subjects it verifies.
+    // The spec hash is the sha256 of the feature's artifacts.json — the
+    // machine-readable behavior registry the scope was derived from.
+    final registryFile = File(p.join(featureDir, 'tdd', 'artifacts.json'));
+    final specHash = registryFile.existsSync()
+        ? sha256.convert(registryFile.readAsBytesSync()).toString()
+        : null;
 
     if (scope.isEmpty) {
       // No behavior artifacts registered → NOT_ASSESSED (FR-012).
@@ -244,6 +321,8 @@ class MutationAuditor {
         restorationVerified: true,
         restorationScope: const [],
         notAssessedReason: scope.notAssessedReason,
+        scoreThreshold: _scoreThreshold,
+        specHash: specHash,
       );
     }
 
@@ -300,6 +379,13 @@ class MutationAuditor {
     final restorer = SourceRestorer(paths: absoluteSubjectPaths);
     await restorer.capture();
 
+    // Bug #837: pre-audit subject hashes — the evidence binding for the
+    // verification report.
+    final subjectHashes = <String, String>{
+      for (final path in restorer.capturedPaths)
+        if (restorer.hashOf(path) != null) path: restorer.hashOf(path)!,
+    };
+
     // Run the mutation audit (delegated to MutationVerifier by default,
     // or to the override).
     MutationResult? mutationResult;
@@ -316,7 +402,8 @@ class MutationAuditor {
     });
 
     try {
-      mutationResult = await (_runMutationOverride ?? _defaultMutation)();
+      mutationResult =
+          await (_runMutationOverride ?? () => _defaultMutation(scope))();
     } on MutationToolUnavailable catch (e) {
       notAssessedReason = 'mutation tool unavailable: $e';
     } on MutationConfigError catch (e) {
@@ -347,6 +434,9 @@ class MutationAuditor {
         restorationScope: restorer.capturedPaths,
         notAssessedReason: notAssessedReason,
         runnerCommand: 'dart run mutation_test',
+        scoreThreshold: _scoreThreshold,
+        specHash: specHash,
+        subjectHashes: subjectHashes,
       );
     }
 
@@ -368,17 +458,37 @@ class MutationAuditor {
         runnerCommand: 'dart run mutation_test',
         exitCode: mutationResult.exitCode,
         elapsedSeconds: mutationResult.elapsed.inSeconds,
+        scoreThreshold: _scoreThreshold,
+        specHash: specHash,
+        subjectHashes: subjectHashes,
       );
     }
 
-    // Compute the gate decision (FR-017).
-    final gate = MutationGateDecision.decide(
-      killedCount: mutationResult.killedCount,
-      survivedCount: mutationResult.survivedCount,
-      timedOutCount: mutationResult.timeoutCount,
-      notAssessed: false,
-      preflightRed: false,
-    );
+    // Compute the gate decision (FR-017; bug #837 threshold gate).
+    //
+    // Without a configured threshold the strict policy holds (any survived
+    // or timed-out mutant fails). With a `.zfa.json` threshold the score
+    // governs — except timed-out mutants, which always fail (a bounded
+    // wall-clock kill is never a pass).
+    final MutationGateDecision gate;
+    if (_scoreThreshold != null) {
+      if (mutationResult.timeoutCount > 0) {
+        gate = MutationGateDecision.failTimeout;
+      } else if (mutationResult.killedCount / mutationResult.totalMutants >=
+          _scoreThreshold) {
+        gate = MutationGateDecision.pass;
+      } else {
+        gate = MutationGateDecision.failSurvived;
+      }
+    } else {
+      gate = MutationGateDecision.decide(
+        killedCount: mutationResult.killedCount,
+        survivedCount: mutationResult.survivedCount,
+        timedOutCount: mutationResult.timeoutCount,
+        notAssessed: false,
+        preflightRed: false,
+      );
+    }
 
     return MutationAuditReport(
       feature: p.basename(featureDir),
@@ -395,6 +505,11 @@ class MutationAuditor {
       exitCode: mutationResult.exitCode,
       elapsedSeconds: mutationResult.elapsed.inSeconds,
       reportPath: mutationResult.reportPath,
+      mutationScore: mutationResult.killedCount / mutationResult.totalMutants,
+      scoreThreshold: _scoreThreshold,
+      survivors: mutationResult.survivors,
+      specHash: specHash,
+      subjectHashes: subjectHashes,
     );
   }
 
@@ -430,13 +545,81 @@ class MutationAuditor {
     }
   }
 
-  Future<MutationResult> _defaultMutation() async {
+  Future<MutationResult> _defaultMutation(MutationScope scope) async {
+    // Bug #837: the mutation run is scoped to the feature's registered
+    // subjects (namespaced per #827) — never the whole repo — and the
+    // mutant test command runs only the feature's scope tests. The scoped
+    // config is generated on the fly under `.dart_tool` (gitignored) so a
+    // feature project needs no hand-written mutation-test.xml; this is
+    // what makes the mutation phase actually executable.
+    final configPath = p.join(
+      workingDirectory,
+      '.dart_tool',
+      'zfa',
+      'tdd-verify-mutation.xml',
+    );
+    final configFile = File(configPath);
+    await configFile.parent.create(recursive: true);
+    await configFile.writeAsString(
+      buildScopedMutationConfig(
+        subjectPaths: _relativeToWorkingDirectory(scope.subjectPaths),
+        testPaths: _relativeToWorkingDirectory(scope.testPaths),
+      ),
+    );
     final verifier = MutationVerifier(
+      configPath: configPath,
+      outputDir: p.join(
+        workingDirectory,
+        '.dart_tool',
+        'zfa',
+        'tdd-verify-report',
+      ),
       workingDirectory: workingDirectory,
       timeout: _mutationTimeout,
     );
     return verifier.run();
   }
+
+  /// Registry paths may be absolute (the gen convention) or repo-relative;
+  /// the mutation config wants project-relative paths.
+  List<String> _relativeToWorkingDirectory(List<String> paths) => paths
+      .map(
+        (path) => p.isAbsolute(path)
+            ? p.relative(path, from: workingDirectory)
+            : path,
+      )
+      .toList();
+}
+
+/// Builds the feature-scoped mutation_test config for `zfa tdd verify`
+/// (bug #837).
+///
+/// Mutants are generated for the feature's registered subjects ONLY
+/// (namespacing per #827) and the mutant test command runs ONLY the
+/// feature's scope tests, keeping the run bounded at corpus scale. Paths
+/// must already be project-relative.
+String buildScopedMutationConfig({
+  required List<String> subjectPaths,
+  required List<String> testPaths,
+}) {
+  String esc(String raw) => raw
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;');
+  final files = subjectPaths
+      .map((f) => '    <file>${esc(f)}</file>')
+      .join('\n');
+  final command = testPaths.map(esc).join(' ');
+  return '<mutations version="1.0">\n'
+      '  <files>\n'
+      '$files\n'
+      '  </files>\n'
+      '  <commands>\n'
+      '    <command group="test" expected-return="0" '
+      'working-directory=".">dart test $command</command>\n'
+      '  </commands>\n'
+      '</mutations>\n';
 }
 
 /// Extension to make hash-matching ergonomic on [SourceRestorer].
