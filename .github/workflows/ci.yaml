@@ -116,3 +116,30 @@ jobs:
         uses: codecov/codecov-action@v3
         with:
           files: ./coverage/lcov.info
+
+  ffi_golden_lane:
+    # Bug #835: the FFI/OCR golden fixture lane is a CI gate. The lane
+    # itself lives in the consuming project (the generated
+    # `*_golden_test.dart` files, tagged `integration` + `slow`, gated by
+    # `dart test --preset=integration`); THIS job gates the harness that
+    # generates them: the ffi-tagged tests run the full gen -> contract
+    # red -> binding wiring -> contract green -> golden lane e2e against
+    # the real CLI. Scoped to the `ffi` tag (NOT --preset=integration) —
+    # the full integration tier spins up heavy temp builds that the
+    # dart_test.yaml policy keeps off CI agents.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configuring Dart environment
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: "3.13.1"
+      - name: "Get dependencies"
+        run: dart pub get --no-example
+      - name: "FFI golden fixture lane (tag-scoped)"
+        # Never empty: sc_022 carries the ffi tag. A zero-match run exits
+        # 79 — an honest gate failure if the lane is ever emptied.
+        run: dart test --tags ffi

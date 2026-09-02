@@ -1,6 +1,7 @@
 /// Behavior entity for the `zfa tdd` plugin.
 library;
 
+<<<<<<< HEAD
 /// The subject kind a behavior's paired test + subject express.
 ///
 /// `widget` (bug #830): the behavior's acceptance scenario is UI-observable
@@ -14,6 +15,17 @@ library;
 /// test + subject contract — see `ThemeHarnessTestWriter` /
 /// `ThemeHarnessSubjectWriter`.
 enum BehaviorKind { acceptance, unit, widget, theme }
+=======
+/// The loop kind of a behavior.
+///
+/// `acceptance` / `unit` are the two spec-derived kinds (SpecParser).
+/// `ffi` (bug #835) marks a NATIVE-BOUNDARY behavior: its subject is an
+/// FFI binding contract (symbols resolved, marshalling round-trip) and
+/// its golden fixture assertion runs in the marked integration lane —
+/// declared by hand in the test list (the kind cell or a `## Native
+/// loop` section), never derived from spec prose.
+enum BehaviorKind { acceptance, unit, ffi }
+>>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
 
 enum BehaviorState { pending, red, green, done }
 

@@ -81,6 +81,7 @@ import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/behavior_test_writer.dart';
 import '../services/generated_shape.dart';
+import '../services/golden_harness_writer.dart';
 import '../services/subject_writer.dart';
 import '../services/test_list_reader.dart';
 import '../services/theme_harness_subject_writer.dart';
@@ -411,6 +412,10 @@ class GenCommand extends Command<void> {
     final adoptedPaths = <String>[];
     final createdPaths = <String>[];
 
+    // Bug #835: the golden-fixture lane paths for an ffi behavior (null
+    // for every other kind), surfaced in the structured output + verdict.
+    GoldenHarnessPaths? goldenPaths;
+
     var adoptConflict = false;
     try {
       record = await bounded(
@@ -573,6 +578,25 @@ class GenCommand extends Command<void> {
           );
           createdPaths.add(subjectPath);
         }
+        // Bug #835: an ffi behavior also gets the GOLDEN FIXTURE lane —
+        // the marked integration-tier test + the golden fixtures. Same
+        // transactional attempt: a failure later in this block removes
+        // what THIS invocation created. Only newly created pairs get the
+        // lane (a reused pair keeps its recorded golden data — the
+        // writer itself never overwrites an existing file either).
+        if (behavior.kind == BehaviorKind.ffi) {
+          final golden = await bounded(
+            const GoldenHarnessWriter().write(
+              behavior: behavior,
+              projectRoot: cwd,
+              featureName: featureName,
+              snakeId: snakeId,
+            ),
+            'write golden fixture lane',
+          );
+          createdPaths.addAll(golden.createdFiles);
+          goldenPaths = golden;
+        }
         record = await bounded(registry.append(record), 'registry append');
       } catch (error, stackTrace) {
         // Transactional cleanup: remove what THIS attempt created. The
@@ -646,6 +670,12 @@ class GenCommand extends Command<void> {
       'runnable_test_name: ${record.runnableTestName}\n'
       'ownership: ${record.testOwnership.name}/${record.subjectOwnership.name}',
     );
+    if (goldenPaths != null) {
+      print(
+        'golden_test_path: ${goldenPaths.laneTestPath}\n'
+        'golden_fixtures_dir: ${goldenPaths.fixturesDir}',
+      );
+    }
     // Bug #840: the machine-readable JSON verdict — the final stdout line
     // on every gen path.
     _printVerdict(
@@ -662,6 +692,8 @@ class GenCommand extends Command<void> {
       adopted: adoptedPaths,
       created: createdPaths,
       featureName: featureName,
+      goldenTestPath: goldenPaths?.laneTestPath,
+      goldenFixturesDir: goldenPaths?.fixturesDir,
     );
   }
 
@@ -680,6 +712,8 @@ class GenCommand extends Command<void> {
     // only the keys it knows.
     String? kind,
     bool golden = false,
+    String? goldenTestPath,
+    String? goldenFixturesDir,
   }) {
     print(
       jsonEncode({
@@ -693,6 +727,8 @@ class GenCommand extends Command<void> {
         if (created.isNotEmpty) 'created': created,
         if (adopted.isNotEmpty && featureName != null)
           'audit_log': p.join('specs', featureName, 'tdd', 'audit.log'),
+        'golden_test': ?goldenTestPath,
+        'golden_fixtures': ?goldenFixturesDir,
       }),
     );
   }
@@ -775,6 +811,14 @@ class GenCommand extends Command<void> {
     required String subjectPath,
     required Future<T> Function<T>(Future<T> stage, String stageName) bounded,
   }) async {
+    // Bug #835: an ffi harness is NEVER auto-regenerated. Its contract
+    // seams are the implementer's wiring point — partial wiring (the
+    // constants edited, a seam implemented) still contains
+    // UnimplementedError, so the byte-compare below would clobber real
+    // work (the same shape as the entity overwrite hazard). A stale
+    // harness is self-consistent with its contract test (both generated
+    // together), so the honest-red semantics survive untouched.
+    if (behavior.kind == BehaviorKind.ffi) return false;
     final subjectFile = File(subjectPath);
     if (!await subjectFile.exists()) return false;
     final onDiskSubject = await bounded(

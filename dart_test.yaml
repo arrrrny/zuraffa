@@ -52,6 +52,7 @@ tags:
   integration:
   property:
   benchmark:
+  ffi:
 
 exclude_tags: slow
 

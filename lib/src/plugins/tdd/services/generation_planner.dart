@@ -58,6 +58,7 @@
 library;
 
 import '../models/artifact_record.dart';
+import '../models/behavior.dart';
 import '../models/generation_plan.dart';
 
 /// Behavior summary the planner consumes. Mirrors just enough of an
@@ -75,6 +76,7 @@ class BehaviorSummary {
   /// (used as the entity slug or preset target).
   final String? target;
 
+<<<<<<< HEAD
   /// Bug #829: the spec Key Entity this behavior's FR traces to (the
   /// declared entity named in the behavior's description), resolved by
   /// the make command against the test list's Key entities section.
@@ -83,6 +85,13 @@ class BehaviorSummary {
   /// plain-function surface, so the domain layer is generated instead
   /// of an empty subject that sidesteps the architecture.
   final String? entityTraced;
+=======
+  /// The loop kind declared by the feature's test-list row, when the row
+  /// is readable (bug #835). Null when unknown — every pre-#835 summary
+  /// is kindless and keeps routing exactly as before; only `ffi` carries
+  /// routing semantics (see [GenerationPlanner.plan]).
+  final BehaviorKind? kind;
+>>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
 
   const BehaviorSummary({
     required this.behaviorId,
@@ -90,7 +99,11 @@ class BehaviorSummary {
     required this.sourceCriterion,
     required this.description,
     this.target,
+<<<<<<< HEAD
     this.entityTraced,
+=======
+    this.kind,
+>>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
   });
 
   /// Construct a summary from a registry record.
@@ -98,7 +111,11 @@ class BehaviorSummary {
     ArtifactRecord record, {
     String? description,
     String? target,
+<<<<<<< HEAD
     String? entityTraced,
+=======
+    BehaviorKind? kind,
+>>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
   }) {
     return BehaviorSummary(
       behaviorId: record.behaviorId,
@@ -106,7 +123,11 @@ class BehaviorSummary {
       sourceCriterion: record.sourceCriterion,
       description: description ?? record.behaviorId,
       target: target,
+<<<<<<< HEAD
       entityTraced: entityTraced,
+=======
+      kind: kind,
+>>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
     );
   }
 }
@@ -144,7 +165,36 @@ class GenerationPlanner {
   GenerationPlan plan(BehaviorSummary summary) {
     final desc = summary.description.toLowerCase();
 
-    // 0. Unit-kind behavior (bug #718): the behavior id prefix IS the
+    // 0. Native-boundary behavior (bug #835): the test-list row declares
+    //    kind `ffi` — the subject is a binding-contract harness wired to
+    //    the production native library by hand. The Dart generation
+    //    pipeline has no surface for native work (DynamicLibrary symbol
+    //    resolution, marshalling adapters, golden recording), and routing
+    //    the row anywhere else misfires: a `U<n>` id would hit `tdd func`,
+    //    whose scaffold refuses the harness shape, and the run would
+    //    dead-end in a generation-error. The honest plan is NONE: the
+    //    loop keeps gating on the contract lane (honest red until wired)
+    //    and the golden fixture lane keeps gating CI; make reports
+    //    unexpressible and the driver defers (bug #625 semantics).
+    if (summary.kind == BehaviorKind.ffi) {
+      return GenerationPlan(
+        behaviorId: summary.behaviorId,
+        feature: summary.feature,
+        sourceCriterion: summary.sourceCriterion,
+        steps: const [],
+        unexpressibleReason:
+            'ffi/native-boundary behavior "${summary.behaviorId}" — the '
+            'binding implementation is native work (DynamicLibrary symbol '
+            'resolution, marshalling adapters) the generation pipeline '
+            'cannot express. Wire the production binding into the '
+            'behavior\'s subject harness (the symbolResolved / roundTrip / '
+            'convertGolden seams) and record the golden fixtures; the '
+            'contract lane keeps gating the loop and the golden fixture '
+            'lane keeps gating `dart test --preset=integration` in CI.',
+      );
+    }
+
+    // 1. Unit-kind behavior (bug #718): the behavior id prefix IS the
     //    kind — SpecParser emits `U<n>` for FR-derived unit behaviors
     //    and `A<n>` for acceptance scenarios. A unit behavior's paired
     //    artifacts are a plain no-argument subject function and its

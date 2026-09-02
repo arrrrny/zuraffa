@@ -15,6 +15,22 @@ concurrency: 4
 timeout: 30s
 retry: 0
 pause_after_load: false
+
+# Test tiers (bug #835): the default run excludes the slow tier; every
+# slow test carries a tier tag (declared below so a test using one never
+# prints the unspecified-tag warning). The ffi golden fixture lane lives
+# in the integration tier and is gated by:
+#   dart test --preset=integration
+tags:
+  slow:
+  integration:
+
+exclude_tags: slow
+
+presets:
+  integration:
+    include_tags: integration
+    exclude_tags: "false"
 ''';
 
   Future<String?> write(String projectRoot, {bool dryRun = false}) async {

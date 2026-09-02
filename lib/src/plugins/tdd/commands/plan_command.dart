@@ -148,6 +148,7 @@ class PlanCommand extends Command<void> {
       }
     }
 
+<<<<<<< HEAD
     await outDir.create(recursive: true);
     await outFile.writeAsString(_render(feature, reconciled, entities));
 
@@ -159,10 +160,41 @@ class PlanCommand extends Command<void> {
       behaviors: reconciled,
     );
     await File(p.join(outDir.path, 'traceability.md')).writeAsString(matrix);
+=======
+    // Bug #835: hand-written ffi (native-boundary) rows survive
+    // re-planning. Plan derives only acceptance/unit behaviors from
+    // spec.md, so an ffi row would otherwise be silently re-homed as a
+    // plain unit row (or dropped) on the next plan run — the native
+    // boundary declaration is hand-authored and must be preserved
+    // verbatim. An ffi row whose traces match a spec-derived criterion
+    // WINS: the spec-derived behavior for that criterion is suppressed
+    // (the explicit native declaration is the more specific contract).
+    final preservedFfi = <BehaviorRow>[];
+    try {
+      for (final row in await TestListReader(
+        '$repoRoot/specs/$feature',
+      ).read()) {
+        if (row.kind == BehaviorKind.ffi) preservedFfi.add(row);
+      }
+    } on TestListReadException catch (e) {
+      stderr.writeln(
+        'zfa tdd plan: note: prior test list unreadable, ffi rows not '
+        'preserved (${e.message})',
+      );
+    }
+    final ffiCriteria = preservedFfi.map((r) => r.traces).toSet();
+    final expressible = reconciled
+        .where((b) => !ffiCriteria.contains(b.sourceCriterion))
+        .toList();
+>>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
 
-    final aCount = reconciled
+    await outDir.create(recursive: true);
+    await outFile.writeAsString(_render(feature, expressible, preservedFfi));
+
+    final aCount = expressible
         .where((b) => b.kind == BehaviorKind.acceptance)
         .length;
+<<<<<<< HEAD
     final wCount = reconciled
         .where((b) => b.kind == BehaviorKind.widget)
         .length;
@@ -170,6 +202,17 @@ class PlanCommand extends Command<void> {
     stdout.writeln(
       'zfa tdd plan: wrote $outFile with $aCount acceptance + $wCount widget '
       '+ $uCount unit behaviors (${reconciled.length} total).',
+=======
+    final uCount = expressible.where((b) => b.kind == BehaviorKind.unit).length;
+    final fCount = preservedFfi.length;
+    final total = expressible.length + fCount;
+    stdout.writeln(
+      fCount > 0
+          ? 'zfa tdd plan: wrote $outFile with $aCount acceptance + $uCount '
+                'unit + $fCount ffi behaviors ($total total).'
+          : 'zfa tdd plan: wrote $outFile with $aCount acceptance + $uCount '
+                'unit behaviors (${expressible.length} total).',
+>>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
     );
     if (entities.isNotEmpty) {
       stdout.writeln(
@@ -182,7 +225,11 @@ class PlanCommand extends Command<void> {
   String _render(
     String feature,
     List<Behavior> behaviors,
+<<<<<<< HEAD
     List<SpecEntity> entities,
+=======
+    List<BehaviorRow> preservedFfi,
+>>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
   ) {
     final acceptance = behaviors
         .where((b) => b.kind == BehaviorKind.acceptance)
@@ -239,6 +286,7 @@ class PlanCommand extends Command<void> {
         '| ${b.id} | ${_marked(b)} | ${b.sourceCriterion} | PENDING |',
       );
     }
+<<<<<<< HEAD
     // Bug #829: the spec's Key Entities, extracted for the loop's
     // entity orchestration (run phase 0 + the make entity pipeline).
     // The reader skips this section when resolving behavior rows.
@@ -253,6 +301,27 @@ class PlanCommand extends Command<void> {
         buf.writeln(
           '| ${e.name} | '
           '${e.fields.map((f) => '${f.name}: ${f.type}').join(', ')} |',
+=======
+    if (preservedFfi.isNotEmpty) {
+      buf
+        ..writeln()
+        ..writeln('## Native loop: ffi behaviors')
+        ..writeln()
+        ..writeln(
+          'Native-boundary behaviors (bug #835) — preserved verbatim '
+          'from the prior test list; plan derives acceptance/unit '
+          'behaviors only, so these rows are hand-declared and survive '
+          're-planning. gen scaffolds the binding-contract harness + '
+          'golden fixture lane for them.',
+        )
+        ..writeln()
+        ..writeln('| id | behavior | traces | state |')
+        ..writeln('| -- | -------- | ------ | ----- |');
+      for (final row in preservedFfi) {
+        buf.writeln(
+          '| ${row.id} | ${row.description} | ${row.traces} | '
+          '${row.state.name.toUpperCase()} |',
+>>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
         );
       }
     }

@@ -8,10 +8,11 @@
 ///
 ///     | B-001 | description | FR-001 | PENDING |
 ///
-/// The kind (acceptance vs unit) is inferred from the enclosing
-/// `## Outer loop:` / `## Inner loop:` section header, and the target
-/// defaults to `subject_<snake-id>` (the same defaulting gen's private
-/// parser applied before the unification; see [_resolveTarget]).
+/// The kind (acceptance vs unit vs ffi) is inferred from the enclosing
+/// `## Outer loop:` / `## Inner loop:` / `## Native loop:` section header
+/// (bug #835: the native loop carries the FFI/OCR harness behaviors), and
+/// the target defaults to `subject_<snake-id>` (the same defaulting gen's
+/// private parser applied before the unification; see [resolveDefaultTarget]).
 ///
 /// Deprecated compatibility shim (one release, bug #617 remediation):
 /// hand-written 6-column rows are still accepted in TWO private dialects
@@ -211,10 +212,17 @@ class TestListReader {
               : BehaviorKind.acceptance;
         } else if (header.startsWith('inner loop')) {
           kind = BehaviorKind.unit;
+<<<<<<< HEAD
         } else if (header.startsWith('theme harness')) {
           // Theme-harness section (issue #841): theme-kind behaviors whose
           // gen pair is the theme-harness widget test + subject contract.
           kind = BehaviorKind.theme;
+=======
+        } else if (header.startsWith('native loop')) {
+          // Bug #835: the native loop section carries FFI/OCR
+          // native-boundary behaviors. Rows under it are ffi-kind.
+          kind = BehaviorKind.ffi;
+>>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
         } else {
           kind = null;
         }
@@ -351,7 +359,8 @@ class TestListReader {
 
     // Deprecated 6-column row, dialect 1 (gen's old private dialect):
     // `| id | behavior | traces | kind | state | target |`. Only rows
-    // whose kind cell is a loop kind (acceptance/unit) take the shim;
+    // whose kind cell is a loop kind (acceptance/unit/ffi — bug #835
+    // adds the native-boundary kind) take the shim;
     // anything else falls through.
     if (cells.length == 7) {
       final kindFromCell = _kindFromCell(cells[4]);
@@ -428,6 +437,7 @@ class TestListReader {
     final kindStr = cell.toLowerCase();
     if (kindStr.contains('acceptance')) return BehaviorKind.acceptance;
     if (kindStr.contains('unit')) return BehaviorKind.unit;
+<<<<<<< HEAD
     // Bug #830: the widget subject kind — an outer-loop behavior whose
     // paired artifacts are a view-builder stub + a testWidgets test.
     if (kindStr.contains('widget')) return BehaviorKind.widget;
@@ -435,6 +445,12 @@ class TestListReader {
     // 'theme' contains neither 'acceptance' nor 'unit', so the order is
     // only about readability.
     if (kindStr.contains('theme')) return BehaviorKind.theme;
+=======
+    // Bug #835: the native-boundary kind, declared by hand in the kind
+    // cell (dialect 1) or via a `## Native loop` section header. No
+    // other kind-cell substring collides with "ffi".
+    if (kindStr.contains('ffi')) return BehaviorKind.ffi;
+>>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
     return null;
   }
 

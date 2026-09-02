@@ -11,6 +11,7 @@
 ///   - For `acceptance` classification: a behavior-level "scenario runner"
 ///     that throws `UnimplementedError()`. The acceptance subject does NOT
 ///     reference any entity/use case/repository — it stands alone (FR-004).
+<<<<<<< HEAD
 ///   - For `widget` classification (bug #830): a view-builder / page
 ///     contract — a no-argument function returning the feature `Widget` —
 ///     that the paired widget test pumps inside an app shell. The
@@ -18,6 +19,15 @@
 ///     generation + wire) is the entity-orchestration surface (issue
 ///     #829); the stub itself stands alone and compiles in any Flutter
 ///     project.
+=======
+///   - For `ffi` classification (bug #835): a NATIVE-BINDING CONTRACT
+///     harness — the declared contract (library name + required symbols)
+///     plus the three seams the generated contract/golden tests assert
+///     through (`symbolResolved`, `roundTrip`, `convertGolden`). Every
+///     seam throws `UnimplementedError` until the implementer wires it to
+///     the SAME binding production uses; the harness deliberately carries
+///     no `dart:ffi` import so it compiles everywhere the loop runs.
+>>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
 library;
 
 import 'dart:io';
@@ -52,6 +62,9 @@ class SubjectWriter {
   String _renderSubject(Behavior b) {
     final target = b.target.isEmpty ? 'subjectUnderTest' : b.target;
     final kind = b.kind;
+    if (kind == BehaviorKind.ffi) {
+      return _renderFfiHarness(b, target);
+    }
     if (kind == BehaviorKind.unit) {
       return '''
 // GENERATED STUB — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
@@ -123,6 +136,78 @@ library;
 ///
 /// Throws [UnimplementedError] until the real implementation lands.
 void $target() => throw UnimplementedError('$target not implemented');
+''';
+  }
+
+  /// The FFI binding-contract harness (bug #835).
+  ///
+  /// The harness is the SEAM the generated tests assert through, not a
+  /// mock of the native library: `symbolResolved` / `roundTrip` /
+  /// `convertGolden` must be wired to the SAME binding production uses
+  /// (typically a small adapter that opens the production
+  /// `DynamicLibrary` and calls its exported symbols). Until wired, every
+  /// seam throws `UnimplementedError` and the generated contract test is
+  /// honestly red — the loop gates on it, it never skips.
+  ///
+  /// The declared contract constants (`kNativeLibrary`,
+  /// `kRequiredSymbols`) are what the contract test iterates; wiring them
+  /// is part of implementing the binding, and the harness preserves the
+  /// behavior's `target` in the header for traceability.
+  static String _renderFfiHarness(Behavior b, String target) {
+    return '''
+// GENERATED STUB — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
+//
+// behavior_id: ${b.id}
+// source_criterion: ${b.sourceCriterion}
+// kind: ffi
+// target: $target
+// description: ${b.description}
+//
+// NATIVE-BINDING CONTRACT harness (bug #835). Wire the three seams below
+// to the SAME FFI binding production uses, then record the golden data
+// under test/tdd fixtures for this behavior. Every seam throws
+// UnimplementedError until wired — the paired contract test is honestly
+// red until then (honest red, never a skip). The harness carries no
+// dart:ffi import so it compiles everywhere the loop runs; the adapter
+// you write here is free to use dart:ffi.
+library;
+
+/// The production native library this behavior binds (e.g.
+/// 'libpdf_to_markdown.so'). Replace the placeholder when the binding is
+/// wired — the contract test surfaces it in failure reasons.
+const String kNativeLibrary = 'NATIVE_LIBRARY_NOT_CONFIGURED';
+
+/// The symbols the production binding must export for behavior ${b.id}.
+/// Replace the placeholder with the real exported symbol names.
+const List<String> kRequiredSymbols = <String>[
+  'REQUIRED_SYMBOL_NOT_CONFIGURED',
+];
+
+/// Whether [symbol] resolves on the wired production binding.
+///
+/// Throws [UnimplementedError] until the binding is wired.
+bool symbolResolved(String symbol) =>
+    throw UnimplementedError(
+        'wire the production ffi binding for ${b.id}: '
+        'symbolResolved(\$symbol)');
+
+/// Marshals [payload] through the wired binding to native memory and
+/// back; the contract test asserts the payload round-trips unchanged.
+///
+/// Throws [UnimplementedError] until the binding is wired.
+String roundTrip(String payload) =>
+    throw UnimplementedError(
+        'wire the production ffi binding for ${b.id}: roundTrip');
+
+/// Runs the production conversion/extraction over the golden fixture
+/// input (the pdf/image sample's content or path, per the recorded
+/// golden data) and returns the raw output for the fixture assertion.
+///
+/// Throws [UnimplementedError] until the binding is wired.
+String convertGolden(String input) =>
+    throw UnimplementedError(
+        'wire the production ffi binding for ${b.id}: convertGolden');
+
 ''';
   }
 }

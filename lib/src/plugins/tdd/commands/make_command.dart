@@ -83,6 +83,7 @@ import '../services/generation_planner.dart';
 import '../services/pipeline_runner.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/runner.dart';
+import '../services/test_list_reader.dart';
 import '../services/suite_guard.dart';
 import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
@@ -410,15 +411,27 @@ class MakeCommand extends Command<void> {
     // passes) — the make then takes the #694 skip transition.
     var buildStepTolerated = false;
     if (!alreadyGreen) {
-      // 6. Plan the minimal generation (FR-005).
+      // 6. Plan the minimal generation (FR-005). The row's loop kind
+      // rides along (bug #835): an ffi-kind row must route to the
+      // honest unexpressible plan, never to the id-prefix dispatch that
+      // would send a U<n> ffi behavior into `tdd func` (whose scaffold
+      // refuses the harness shape) and dead-end the run in a
+      // generation-error. The reader is the single format contract; an
+      // unreadable list degrades to kindless routing (exactly the
+      // pre-#835 behavior) with a note instead of a silent guess.
+      final rowKind = await _rowKind(target.featureDir, record.behaviorId);
       final summary = BehaviorSummary.fromRecord(
         record,
         description: _descriptionFor(record),
         target: _targetFor(record),
+<<<<<<< HEAD
         entityTraced: await _tracedEntityFor(
           record: record,
           featureDir: target.featureDir,
         ),
+=======
+        kind: rowKind,
+>>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
       );
       final plan = planner.plan(summary);
       GenerationPlan effectivePlan;
@@ -820,6 +833,26 @@ class MakeCommand extends Command<void> {
   /// The fallback shapes the plan through the pure `CompositionPlanner`;
   /// the planner itself (FR-008, SC-006) stays untouched and unaware of
   /// phases, run state, or subjects.
+  /// The loop kind the feature's test-list row declares for
+  /// [behaviorId] (bug #835), or null when the list is unreadable or the
+  /// row is missing — null keeps the pre-#835 kindless routing for every
+  /// legacy list. A malformed list prints a note (it is a real problem,
+  /// but the kind is only an optimization over the id dispatch and other
+  /// steps re-surface the malformation honestly).
+  Future<BehaviorKind?> _rowKind(String featureDir, String behaviorId) async {
+    try {
+      for (final row in await TestListReader(featureDir).read()) {
+        if (row.id == behaviorId) return row.kind;
+      }
+    } on TestListReadException catch (e) {
+      print(
+        '   note: test list unreadable ( ${e.message}) — '
+        'routing on id/description only',
+      );
+    }
+    return null;
+  }
+
   Future<GenerationPlan?> _compositionFallback({
     required String cwd,
     required ArtifactRecord record,
