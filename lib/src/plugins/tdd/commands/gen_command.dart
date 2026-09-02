@@ -34,8 +34,27 @@
 /// record for it, exits non-zero WITHOUT modifying the file (FR-008).
 ///
 /// `--dry-run`: plans the pair without writing anything (FR-009).
+///
+/// Bounded flow (bug #744): every awaited stage of the flow — behavior
+/// resolution, ownership preflight, the two writer writes, the registry
+/// append, and the staleness re-render — runs under ONE wall-clock budget
+/// (`--timeout`, default 30s; the same acceptance budget the #744 records
+/// name). This applies the #742 timeout pattern to the gen step as a
+/// safety net regardless of the exact stall trigger: a stage that waits
+/// indefinitely (the recorded "hangs until SIGKILL" failure mode) now
+/// stops the command at the budget with a classification naming the
+/// behavior, step, and `outcome=timeout`, and a non-zero exit — never a
+/// silent infinite hang. The flow spawns NO subprocess of its own (test
+/// execution is verify-red/make's contract, not gen's), so the budget
+/// needs no process-kill side effects. The flow also depends only on the
+/// test-list row, the registry, and the pair on disk — never on run-state
+/// or suite health — so a DEFERRED/unexpressible predecessor (A1 red at
+/// its phase-2 make, bug #625/#657) cannot block a later gen (A2): the
+/// #738-era deadlock inspection found no cross-behavior wait in this
+/// flow, and the budget caps whatever could stall.
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -73,6 +92,15 @@ class GenCommand extends Command<void> {
           'current working directory is used. Tests pass the temp fixture '
           'root here instead of mutating Directory.current.',
     );
+    argParser.addOption(
+      'timeout',
+      help:
+          'Wall-clock budget for the whole gen flow, in seconds (bug #744: '
+          'the #742 timeout pattern applied to gen as a safety net). On '
+          'expiry the command stops with outcome=timeout and a non-zero '
+          'exit instead of hanging indefinitely.',
+      defaultsTo: '$defaultTimeoutSeconds',
+    );
   }
 
   final TddPlugin plugin;
@@ -87,6 +115,11 @@ class GenCommand extends Command<void> {
 
   @override
   String get invocation => 'zfa tdd gen <behavior-id> [--dry-run]';
+
+  /// The default wall-clock budget for the whole gen flow, in seconds
+  /// (bug #744 — the same acceptance budget the bug records name:
+  /// "A2 completes within 30s").
+  static const int defaultTimeoutSeconds = 30;
 
   @override
   Future<void> run() async {
@@ -103,7 +136,49 @@ class GenCommand extends Command<void> {
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find();
+    final timeoutSeconds = _parseTimeoutSeconds();
+    final budget = Duration(seconds: timeoutSeconds);
 
+    // Bug #744: the WHOLE flow runs under one wall-clock budget. A stage
+    // that waits indefinitely — the recorded failure mode (the command
+    // hung until SIGKILL) — stops here at the budget with an honest
+    // misfire-stop classification (#742 pattern applied to gen) instead
+    // of hanging. gen spawns no subprocess of its own, so no process-kill
+    // side effects are needed: a timed-out stage's pending I/O is simply
+    // abandoned as the process exits.
+    try {
+      await _generate(
+        behaviorId,
+        dryRun: dryRun,
+        featureFlag: featureFlag,
+        cwd: cwd,
+      ).timeout(budget);
+    } on TimeoutException {
+      stderr.writeln(
+        'zfa tdd gen: timeout after ${timeoutSeconds}s — behavior='
+        '$behaviorId step=gen outcome=timeout',
+      );
+      stderr.writeln(
+        '   a gen stage exceeded its wall-clock budget and was stopped '
+        'before it could hang (bug #742/#744 safety net). Re-run with '
+        '--timeout <seconds> to raise the budget.',
+      );
+      throw StateError(
+        'zfa tdd gen: timeout after ${timeoutSeconds}s — behavior='
+        '$behaviorId step=gen outcome=timeout',
+      );
+    }
+  }
+
+  /// The unbounded-shaped flow body, verbatim the pre-#744 contract:
+  /// resolve → preflight → write → register → (staleness check) → print.
+  /// Bounded by [run]'s budget.
+  Future<void> _generate(
+    String behaviorId, {
+    required bool dryRun,
+    required String? featureFlag,
+    required String cwd,
+  }) async {
     // Resolve the behavior. If --feature is set, only scan that one
     // feature's test-list. Otherwise, scan all features and prefer
     // `044-test-tdd-generation` (the feature this command lives under).
@@ -223,6 +298,23 @@ class GenCommand extends Command<void> {
       'runnable_test_name: ${record.runnableTestName}\n'
       'ownership: ${record.testOwnership.name}/${record.subjectOwnership.name}',
     );
+  }
+
+  /// Parse the `--timeout` value (seconds). A non-integer or a value
+  /// that is not positive is a usage error.
+  int _parseTimeoutSeconds() {
+    final raw = argResults!['timeout'] as String?;
+    if (raw == null || raw.trim().isEmpty) {
+      return defaultTimeoutSeconds;
+    }
+    final parsed = int.tryParse(raw.trim());
+    if (parsed == null || parsed <= 0) {
+      usageException(
+        'zfa tdd gen: --timeout must be a positive integer (seconds), '
+        'got "$raw".',
+      );
+    }
+    return parsed;
   }
 
   /// Detect a stub written by an OLDER binary (bug #683) and regenerate

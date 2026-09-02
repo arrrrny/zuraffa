@@ -525,6 +525,121 @@ int sampleSubject() {
       expect(regFile.existsSync(), isFalse);
     });
   });
+
+  group(
+    'GenCommand — bounded gen flow (bug #744: gen hangs on second behavior)',
+    () {
+      test(
+        'a stalled gen stage cannot hang the command past the default budget '
+        '— it stops with outcome=timeout instead of hanging until SIGKILL',
+        () async {
+          await seedSpecAndTestList();
+          if (Platform.isWindows) {
+            // The deterministic stall fixture below is a POSIX named pipe;
+            // there is no mkfifo on Windows.
+            return;
+          }
+          // Replace the test list with a FIFO no writer ever opens: the
+          // FIRST awaited stage of the gen flow (the shared TestListReader)
+          // stalls forever — the exact "a stage waits indefinitely" failure
+          // mode the #744 report recorded (command killed with SIGKILL).
+          final fifo = p.join(featureDir, 'tdd', 'test-list.md');
+          await File(fifo).delete();
+          final mk = await Process.run('mkfifo', [fifo]);
+          expect(mk.exitCode, 0, reason: 'mkfifo failed: ${mk.stderr}');
+
+          final runner = CliRunner(exitOnCompletion: false);
+          final sw = Stopwatch()..start();
+          final out = await runner.runCapturing(genArgs('A1'));
+          sw.stop();
+
+          // The flow stopped honestly at its budget: classification names
+          // the behavior, step, and outcome, and the runner classified the
+          // stop as an error (non-zero exit).
+          expect(out, contains('outcome=timeout'));
+          expect(out, contains('behavior=A1'));
+          expect(out, contains('step=gen'));
+          expect(out, contains('Error:'));
+          // Bounded: returned at the 30s budget, well inside the watchdog.
+          expect(sw.elapsed, lessThan(const Duration(seconds: 45)));
+        },
+        timeout: const Timeout(Duration(seconds: 60)),
+      );
+
+      test(
+        'an explicit --timeout overrides the default budget and is honored',
+        () async {
+          await seedSpecAndTestList();
+          if (Platform.isWindows) return;
+          final fifo = p.join(featureDir, 'tdd', 'test-list.md');
+          await File(fifo).delete();
+          final mk = await Process.run('mkfifo', [fifo]);
+          expect(mk.exitCode, 0, reason: 'mkfifo failed: ${mk.stderr}');
+
+          final runner = CliRunner(exitOnCompletion: false);
+          final sw = Stopwatch()..start();
+          final out = await runner.runCapturing([
+            ...genArgs('A1'),
+            '--timeout',
+            '3',
+          ]);
+          sw.stop();
+
+          expect(out, contains('outcome=timeout'));
+          expect(out, contains('behavior=A1'));
+          expect(sw.elapsed, lessThan(const Duration(seconds: 25)));
+        },
+        timeout: const Timeout(Duration(seconds: 30)),
+      );
+
+      test(
+        'gen A2 on a fresh project completes within the 30s budget with A1 '
+        'deferred (red stub on disk) — no deferred-predecessor deadlock',
+        () async {
+          // Two-row fresh project, exactly the recorded repro: A1 generated
+          // first (its stub test sits red on disk — the deferred/unexpressible
+          // predecessor state the driver leaves behind), then gen A2.
+          final specDir = Directory(featureDir);
+          await specDir.create(recursive: true);
+          final tddDir = Directory(p.join(specDir.path, 'tdd'));
+          await tddDir.create(recursive: true);
+          await File(p.join(tddDir.path, 'test-list.md')).writeAsString('''
+# Test List
+
+## Outer loop: acceptance behaviors
+
+| id | behavior | traces | state |
+|----|----------|--------|-------|
+| A1 | the bootstrap completes and the shell renders | AC-1 | PENDING |
+| A2 | the home screen shows the greeting | AC-2 | PENDING |
+''');
+          final runner = CliRunner(exitOnCompletion: false);
+          final outA1 = await runner.runCapturing(genArgs('A1'));
+          expect(outA1, contains('behavior_id: A1'));
+
+          // A2 must complete — bounded, no deadlock, A1 untouched.
+          final sw = Stopwatch()..start();
+          final outA2 = await runner.runCapturing(genArgs('A2'));
+          sw.stop();
+          expect(outA2, contains('behavior_id: A2'));
+          expect(outA2.toLowerCase(), contains('ownership: created/created'));
+          expect(sw.elapsed, lessThan(const Duration(seconds: 30)));
+          expect(
+            File(
+              p.join(tmpDir.path, 'lib', 'tdd', 'a1_subject.dart'),
+            ).existsSync(),
+            isTrue,
+            reason: 'the deferred predecessor artifacts must be untouched',
+          );
+          expect(
+            File(p.join(featureDir, 'tdd', 'artifacts.json')).readAsString(),
+            completion(contains('"A1"')),
+          );
+        },
+        timeout: const Timeout(Duration(seconds: 45)),
+      );
+    },
+  );
 }
 
 Future<List<String>> _findGeneratedFiles(String root, String suffix) async {
