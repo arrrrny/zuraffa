@@ -78,6 +78,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
+import '../services/cross_feature_ownership.dart';
 import '../services/behavior_test_writer.dart';
 import '../services/generated_shape.dart';
 import '../services/subject_writer.dart';
@@ -404,6 +405,36 @@ class GenCommand extends Command<void> {
       );
     } on OwnershipConflict catch (e) {
       if (!adopt || dryRun) {
+        // Bug #874: consult ALL feature registries before calling the
+        // conflicting file unowned. Another feature's artifact is
+        // foreign-owned — the verdict names the owner and the migrate
+        // fix; adopting it into a second registry would corrupt
+        // ownership.
+        final foreignOwner = await bounded(
+          foreignOwnerOf(cwd, [e.path], excludeFeature: featureName),
+          'ownership preflight: cross-registry lookup',
+        );
+        if (foreignOwner != null) {
+          final migrateFix = 'zfa tdd migrate-paths $foreignOwner';
+          _printVerdict(
+            behaviorId: behavior.id,
+            verdict: 'foreign-owned',
+            reason:
+                'the conflicting file is owned by feature "$foreignOwner" '
+                '— never adopt another feature\'s artifacts; run '
+                '`$migrateFix` to move the owning feature\'s artifacts '
+                'to the namespaced layout',
+          );
+          exitCode = 1;
+          stderr.writeln(
+            'zfa tdd gen: foreign-owned — the conflicting file is owned '
+            'by feature $foreignOwner',
+          );
+          throw StateError(
+            'zfa tdd gen: foreign-owned — the conflicting file is owned '
+            'by feature $foreignOwner',
+          );
+        }
         _printVerdict(
           behaviorId: behavior.id,
           verdict: 'refused',
@@ -438,6 +469,33 @@ class GenCommand extends Command<void> {
           'zfa tdd gen: --adopt refused — a registry record for '
           '"${behavior.id}" already exists',
         );
+      }
+      // Bug #874: the existing file(s) may be another feature's recorded
+      // artifact. Consult ALL feature registries before calling anything
+      // unowned — a foreign-owned file is refused with the migrate hint,
+      // never registered into a second registry. (House pattern: the
+      // refusal returns so the JSON verdict stays the final stdout line.)
+      final existingConflicts = [
+        if (File(testPath).existsSync()) testPath,
+        if (File(subjectPath).existsSync()) subjectPath,
+      ];
+      final adoptForeignOwner = await bounded(
+        foreignOwnerOf(cwd, existingConflicts, excludeFeature: featureName),
+        'adopt: cross-registry lookup',
+      );
+      if (adoptForeignOwner != null) {
+        final migrateFix = 'zfa tdd migrate-paths $adoptForeignOwner';
+        _printVerdict(
+          behaviorId: behavior.id,
+          verdict: 'foreign-owned',
+          reason:
+              'the conflicting file is owned by feature '
+              '"$adoptForeignOwner" — never adopt another feature\'s '
+              'artifacts; run `$migrateFix` to move the owning '
+              'feature\'s artifacts to the namespaced layout',
+        );
+        exitCode = 1;
+        return;
       }
       for (final (role, path, shaped) in [
         ('test', testPath, matchesGeneratedTestShape),

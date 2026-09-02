@@ -6,19 +6,24 @@
 /// layout on disk, and prescribes EXACTLY ONE recovery action as a
 /// `--> fix:` line, in this deterministic priority order:
 ///
-/// 1. **adopt** — generated-shape files exist on disk that the registry
-///    does not own (the post-crash/post-merge state): ownership must be
+/// 1. **migrate** — generated-shape files exist at the legacy flat layout
+///    that ANOTHER feature's registry owns (the pre-#827 multi-feature
+///    project, bug #874): the owning feature's artifacts must be migrated
+///    to the namespaced layout (`zfa tdd migrate-paths <owner>`) — never
+///    adopted, which would corrupt ownership.
+/// 2. **adopt** — generated-shape files exist on disk that NO feature's
+///    registry owns (the post-crash/post-merge state): ownership must be
 ///    registered before anything else can run (`zfa tdd gen <id>
 ///    --adopt`).
-/// 2. **reset** — the registry records artifacts that are MISSING from
+/// 3. **reset** — the registry records artifacts that are MISSING from
 ///    disk: every later step would die at the ownership preflight, and
 ///    the state cannot be reconciled without dropping the stale records
 ///    (`zfa tdd reset <feature>`).
-/// 3. **resume** — the stores disagree on progress (an in-flight marker,
+/// 4. **resume** — the stores disagree on progress (an in-flight marker,
 ///    or claims whose matching cycle-log evidence is missing): the run
 ///    driver re-drives the incomplete steps honestly (`zfa tdd run
 ///    <feature>`).
-/// 4. **none** — the stores agree; the feature is healthy.
+/// 5. **none** — the stores agree; the feature is healthy.
 ///
 /// The same state always produces the same prescription (deterministic:
 /// pure priority order over store contents, no clocks, no randomness).
@@ -33,6 +38,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
+import '../services/cross_feature_ownership.dart';
 import '../services/cycle_evidence.dart';
 import '../services/generated_shape.dart';
 import '../services/run_state_store.dart';
@@ -58,9 +64,10 @@ class DoctorCommand extends Command<void> {
   @override
   String get description =>
       'Diagnose a feature\'s TDD stores and prescribe exactly one recovery '
-      'action — adopt (register unowned generated files), reset (drop '
-      'stale registry records), or resume (re-run the loop) — as a '
-      '--> fix: line with a JSON verdict (bug #840).';
+      'action — migrate (another feature owns the legacy-layout files), '
+      'adopt (register unowned generated files), reset (drop stale '
+      'registry records), or resume (re-run the loop) — as a '
+      '--> fix: line with a JSON verdict (bugs #840, #874).';
 
   @override
   String get invocation => 'zfa tdd doctor <feature> [--project <path>]';
@@ -95,8 +102,15 @@ class DoctorCommand extends Command<void> {
     // ---- Store loads -------------------------------------------------
     final registry = ArtifactRegistry(featureDir: featureDir);
     final records = await registry.loadAll();
-    final ownedTestPaths = records.map((r) => r.testPath).toSet();
-    final ownedSubjectPaths = records.map((r) => r.subjectPath).toSet();
+    // Bug #874: registries may record absolute (gen's default) or
+    // project-relative paths — ownership comparisons normalize both sides
+    // so a recorded file is never misread as unowned by path form.
+    final ownedTestPaths = records
+        .map((r) => normalizeArtifactPath(cwd, r.testPath))
+        .toSet();
+    final ownedSubjectPaths = records
+        .map((r) => normalizeArtifactPath(cwd, r.subjectPath))
+        .toSet();
 
     RunState? state;
     var stateCorrupt = false;
@@ -111,17 +125,75 @@ class DoctorCommand extends Command<void> {
     final red = await evidence.redEvidence();
     final green = await evidence.greenEvidence();
 
-    // ---- 1. Unowned generated files -> ADOPT -------------------------
-    // Scan the gen default layout; a file whose provenance header names a
-    // behavior the registry does not own is unowned.
+    // ---- 1. Legacy-layout scan ---------------------------------------
+    // Scan the gen default layout; classify every generated-shape file
+    // the queried feature does not own (bug #874): another feature's
+    // registry owning the path makes it FOREIGN-OWNED (migrate the
+    // owning feature, never adopt); nobody owning it makes it unowned
+    // (the #840 adopt state).
+    final ownersByPath = await ownershipByPathAcrossFeatures(cwd);
     final unowned = <String, List<String>>{};
+    final foreignByBehavior = <String, List<String>>{};
+    final ownedBy = <String, String>{};
     for (final entry in _scanGeneratedLayout(cwd)) {
+      final normalized = normalizeArtifactPath(cwd, entry.path);
       final isOwned =
-          ownedTestPaths.contains(entry.path) ||
-          ownedSubjectPaths.contains(entry.path);
+          ownedTestPaths.contains(normalized) ||
+          ownedSubjectPaths.contains(normalized);
       if (isOwned) continue;
+      final owner = ownersByPath[normalized];
+      if (owner != null && owner != feature) {
+        foreignByBehavior
+            .putIfAbsent(entry.behaviorId, () => [])
+            .add(entry.path);
+        ownedBy[_displayPath(cwd, entry.path)] = owner;
+        continue;
+      }
       unowned.putIfAbsent(entry.behaviorId, () => []).add(entry.path);
     }
+
+    // ---- 1a. Foreign-owned files -> MIGRATE (never adopt, bug #874) --
+    if (foreignByBehavior.isNotEmpty) {
+      final ownersInvolved = ownedBy.values.toSet().toList()..sort();
+      for (final entry in foreignByBehavior.entries) {
+        final ownersForBehavior =
+            entry.value
+                .map((path_) => ownedBy[_displayPath(cwd, path_)] ?? '')
+                .where((owner_) => owner_.isNotEmpty)
+                .toSet()
+                .toList()
+              ..sort();
+        drifts.add(
+          'foreign-owned generated file(s) for "${entry.key}" '
+          '(owned by ${ownersForBehavior.join(', ')}): '
+          '${entry.value.map((path_) => _displayPath(cwd, path_)).join(', ')}',
+        );
+      }
+      final fix = ownersInvolved.length == 1
+          ? 'zfa tdd migrate-paths ${ownersInvolved.first}'
+          : 'zfa tdd migrate-paths';
+      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      for (final drift in drifts) {
+        print('  drift: $drift');
+      }
+      print(
+        '   --> fix: $fix — move the owning feature\'s legacy flat '
+        'artifacts into its namespaced layout (adopting another '
+        'feature\'s files would corrupt ownership)',
+      );
+      _printVerdict(
+        feature: feature,
+        verdict: 'foreign-owned',
+        prescription: 'migrate',
+        fix: fix,
+        drifts: drifts,
+        ownedBy: ownedBy,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // ---- 1b. Unowned generated files -> ADOPT ------------------------
     if (unowned.isNotEmpty) {
       for (final entry in unowned.entries) {
         drifts.add(
@@ -295,6 +367,11 @@ class DoctorCommand extends Command<void> {
     return found;
   }
 
+  /// The path relative to the project root, POSIX separators (the display
+  /// and verdict form for scanned artifacts).
+  String _displayPath(String cwd, String absolute) =>
+      p.relative(absolute, from: cwd).replaceAll(r'\', '/');
+
   /// The machine-readable JSON verdict (bug #840) — the LAST stdout line.
   void _printVerdict({
     required String feature,
@@ -302,6 +379,7 @@ class DoctorCommand extends Command<void> {
     required String prescription,
     String? fix,
     List<String> drifts = const [],
+    Map<String, String>? ownedBy,
   }) {
     print(
       jsonEncode({
@@ -311,6 +389,7 @@ class DoctorCommand extends Command<void> {
         'prescription': prescription,
         'fix': ?fix,
         'drifts': drifts,
+        'owned_by': ?((ownedBy != null && ownedBy.isNotEmpty) ? ownedBy : null),
       }),
     );
   }

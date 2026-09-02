@@ -1,0 +1,127 @@
+00:00 +0: loading test/plugins/tdd/bug_874_doctor_cross_feature_adoption_test.dart
+00:00 +0: bug 874: zfa tdd doctor <feature> cross-registry awareness doctor prescribes migrate (never adopt) for another feature's flat artifacts — the issue repro
+00:00 +0 -1: bug 874: zfa tdd doctor <feature> cross-registry awareness doctor prescribes migrate (never adopt) for another feature's flat artifacts — the issue repro [E]
+  Expected: contains 'foreign-owned'
+    Actual: 'zfa tdd doctor: feature 004-dependency-injection (specs/004-dependency-injection/tdd)\n'
+              '  drift: unowned generated file(s) for "A3": test/tdd/a3_test.dart, lib/tdd/a3_subject.dart\n'
+              '   --> fix: zfa tdd gen A3 --adopt --feature 004-dependency-injection — verify the generated shape, register ownership, audit-log the adoption\n'
+              '{"command":"doctor","feature":"004-dependency-injection","verdict":"drift","prescription":"adopt","fix":"zfa tdd gen A3 --adopt --feature 004-dependency-injection","drifts":["unowned generated file(s) for \\"A3\\": test/tdd/a3_test.dart, lib/tdd/a3_subject.dart"]}\n'
+              ''
+     Which: does not contain 'foreign-owned'
+  zfa tdd doctor: feature 004-dependency-injection (specs/004-dependency-injection/tdd)
+    drift: unowned generated file(s) for "A3": test/tdd/a3_test.dart, lib/tdd/a3_subject.dart
+     --> fix: zfa tdd gen A3 --adopt --feature 004-dependency-injection — verify the generated shape, register ownership, audit-log the adoption
+  {"command":"doctor","feature":"004-dependency-injection","verdict":"drift","prescription":"adopt","fix":"zfa tdd gen A3 --adopt --feature 004-dependency-injection","drifts":["unowned generated file(s) for \"A3\": test/tdd/a3_test.dart, lib/tdd/a3_subject.dart"]}
+  
+  
+  package:matcher                                                         expect
+  test/plugins/tdd/bug_874_doctor_cross_feature_adoption_test.dart 216:7  main.<fn>.<fn>
+  
+00:00 +0 -1: bug 874: zfa tdd doctor <feature> cross-registry awareness verdict includes the owning feature for foreign files (requirement 3)
+00:00 +0 -2: bug 874: zfa tdd doctor <feature> cross-registry awareness verdict includes the owning feature for foreign files (requirement 3) [E]
+  type 'Null' is not a subtype of type 'Map<String, dynamic>' in type cast
+  test/plugins/tdd/bug_874_doctor_cross_feature_adoption_test.dart 240:37  main.<fn>.<fn>
+  
+00:00 +0 -2: bug 874: zfa tdd doctor <feature> cross-registry awareness relative-path registry records still resolve to their owner (normalization)
+00:00 +0 -3: bug 874: zfa tdd doctor <feature> cross-registry awareness relative-path registry records still resolve to their owner (normalization) [E]
+  Expected: 'foreign-owned'
+    Actual: 'drift'
+     Which: is different.
+            Expected: foreign-ow ...
+              Actual: drift
+                      ^
+             Differ at offset 0
+  zfa tdd doctor: feature 004-dependency-injection (specs/004-dependency-injection/tdd)
+    drift: unowned generated file(s) for "A3": test/tdd/a3_test.dart, lib/tdd/a3_subject.dart
+     --> fix: zfa tdd gen A3 --adopt --feature 004-dependency-injection — verify the generated shape, register ownership, audit-log the adoption
+  {"command":"doctor","feature":"004-dependency-injection","verdict":"drift","prescription":"adopt","fix":"zfa tdd gen A3 --adopt --feature 004-dependency-injection","drifts":["unowned generated file(s) for \"A3\": test/tdd/a3_test.dart, lib/tdd/a3_subject.dart"]}
+  
+  
+  package:matcher                                                         expect
+  test/plugins/tdd/bug_874_doctor_cross_feature_adoption_test.dart 269:7  main.<fn>.<fn>
+  
+00:00 +0 -3: bug 874: zfa tdd doctor <feature> cross-registry awareness multiple foreign owners -> the all-features migration
+00:00 +0 -4: bug 874: zfa tdd doctor <feature> cross-registry awareness multiple foreign owners -> the all-features migration [E]
+  Expected: 'foreign-owned'
+    Actual: 'drift'
+     Which: is different.
+            Expected: foreign-ow ...
+              Actual: drift
+                      ^
+             Differ at offset 0
+  zfa tdd doctor: feature 004-dependency-injection (specs/004-dependency-injection/tdd)
+    drift: unowned generated file(s) for "A3": test/tdd/b7_test.dart, test/tdd/a3_test.dart, lib/tdd/a3_subject.dart, lib/tdd/b7_subject.dart
+     --> fix: zfa tdd gen A3 --adopt --feature 004-dependency-injection — verify the generated shape, register ownership, audit-log the adoption
+  {"command":"doctor","feature":"004-dependency-injection","verdict":"drift","prescription":"adopt","fix":"zfa tdd gen A3 --adopt --feature 004-dependency-injection","drifts":["unowned generated file(s) for \"A3\": test/tdd/b7_test.dart, test/tdd/a3_test.dart, lib/tdd/a3_subject.dart, lib/tdd/b7_subject.dart"]}
+  
+  
+  package:matcher                                                         expect
+  test/plugins/tdd/bug_874_doctor_cross_feature_adoption_test.dart 293:7  main.<fn>.<fn>
+  
+00:00 +0 -4: bug 874: zfa tdd doctor <feature> cross-registry awareness a genuinely unowned flat file still prescribes adopt (#840 control)
+00:00 +1 -4: bug 874: zfa tdd doctor <feature> cross-registry awareness foreign-owned takes precedence over a same-run unowned finding
+00:00 +1 -5: bug 874: zfa tdd doctor <feature> cross-registry awareness foreign-owned takes precedence over a same-run unowned finding [E]
+  Expected: 'foreign-owned'
+    Actual: 'drift'
+     Which: is different.
+            Expected: foreign-ow ...
+              Actual: drift
+                      ^
+             Differ at offset 0
+  zfa tdd doctor: feature 004-dependency-injection (specs/004-dependency-injection/tdd)
+    drift: unowned generated file(s) for "C1": test/tdd/c1_test.dart, lib/tdd/c1_subject.dart
+    drift: unowned generated file(s) for "A3": test/tdd/a3_test.dart, lib/tdd/a3_subject.dart
+     --> fix: zfa tdd gen A3 --adopt --feature 004-dependency-injection && zfa tdd gen C1 --adopt --feature 004-dependency-injection — verify the generated shape, register ownership, audit-log the adoption
+  {"command":"doctor","feature":"004-dependency-injection","verdict":"drift","prescription":"adopt","fix":"zfa tdd gen A3 --adopt --feature 004-dependency-injection && zfa tdd gen C1 --adopt --feature 004-dependency-injection","drifts":["unowned generated file(s) for \"C1\": test/tdd/c1_test.dart, lib/tdd/c1_subject.dart","unowned generated file(s) for \"A3\": test/tdd/a3_test.dart, lib/tdd/a3_subject.dart"]}
+  
+  
+  package:matcher                                                         expect
+  test/plugins/tdd/bug_874_doctor_cross_feature_adoption_test.dart 342:7  main.<fn>.<fn>
+  
+00:00 +1 -5: bug 874: zfa tdd doctor <feature> cross-registry awareness the owning feature's own doctor run stays healthy
+00:00 +2 -5: bug 874: zfa tdd gen recovery path refuses foreign-owned files --adopt refuses to register a file another feature owns
+00:00 +2 -6: bug 874: zfa tdd gen recovery path refuses foreign-owned files --adopt refuses to register a file another feature owns [E]
+  Expected: <1>
+    Actual: <0>
+  note: adopting 2 unowned file(s) for "A3" (bug #840)
+  behavior_id: A3
+  source_criterion: FR-003
+  test_path: /tmp/tdd_fixture_TBZUCW/test/tdd/004-dependency-injection/a3_test.dart
+  subject_path: /tmp/tdd_fixture_TBZUCW/lib/tdd/004-dependency-injection/a3_subject.dart
+  runnable_test_name: /tmp/tdd_fixture_TBZUCW/test/tdd/004-dependency-injection/a3_test.dart::A3::A3 — resolves a dependency by contract
+  ownership: created/created
+  {"command":"gen","behavior":"A3","verdict":"adopted","adopted":["/tmp/tdd_fixture_TBZUCW/test/tdd/004-dependency-injection/a3_test.dart","/tmp/tdd_fixture_TBZUCW/lib/tdd/004-dependency-injection/a3_subject.dart"],"audit_log":"specs/004-dependency-injection/tdd/audit.log"}
+  
+  
+  package:matcher                                                         expect
+  test/plugins/tdd/bug_874_doctor_cross_feature_adoption_test.dart 401:7  main.<fn>.<fn>
+  
+00:00 +2 -6: bug 874: zfa tdd gen recovery path refuses foreign-owned files plain gen (no --adopt) also reports foreign-owned, not just a generic ownership conflict
+zfa tdd gen: ownership conflict — OwnershipConflict: test file "/tmp/tdd_fixture_IBVLZS/test/tdd/004-dependency-injection/a3_test.dart" exists on disk but the registry has no recorded ownership. Refusing to overwrite non-owned content. Run `zfa tdd gen <behavior-id>` after resolving the conflict.
+00:00 +2 -7: bug 874: zfa tdd gen recovery path refuses foreign-owned files plain gen (no --adopt) also reports foreign-owned, not just a generic ownership conflict [E]
+  Expected: contains '"verdict":"foreign-owned"'
+    Actual: '{"command":"gen","behavior":"A3","verdict":"refused","reason":"ownership conflict: OwnershipConflict: test file \\"/tmp/tdd_fixture_IBVLZS/test/tdd/004-dependency-injection/a3_test.dart\\" exists on disk but the registry has no recorded ownership. Refusing to overwrite non-owned content. Run `zfa tdd gen <behavior-id>` after resolving the conflict."}\n'
+              '❌ Error: Bad state: zfa tdd gen: ownership conflict — OwnershipConflict: test file "/tmp/tdd_fixture_IBVLZS/test/tdd/004-dependency-injection/a3_test.dart" exists on disk but the registry has no recorded ownership. Refusing to overwrite non-owned content. Run `zfa tdd gen <behavior-id>` after resolving the conflict.\n'
+              ''
+     Which: does not contain '"verdict":"foreign-owned"'
+  {"command":"gen","behavior":"A3","verdict":"refused","reason":"ownership conflict: OwnershipConflict: test file \"/tmp/tdd_fixture_IBVLZS/test/tdd/004-dependency-injection/a3_test.dart\" exists on disk but the registry has no recorded ownership. Refusing to overwrite non-owned content. Run `zfa tdd gen <behavior-id>` after resolving the conflict."}
+  ❌ Error: Bad state: zfa tdd gen: ownership conflict — OwnershipConflict: test file "/tmp/tdd_fixture_IBVLZS/test/tdd/004-dependency-injection/a3_test.dart" exists on disk but the registry has no recorded ownership. Refusing to overwrite non-owned content. Run `zfa tdd gen <behavior-id>` after resolving the conflict.
+  
+  
+  package:matcher                                                         expect
+  test/plugins/tdd/bug_874_doctor_cross_feature_adoption_test.dart 434:7  main.<fn>.<fn>
+  
+00:00 +2 -7: bug 874: zfa tdd gen recovery path refuses foreign-owned files --adopt still adopts a genuinely unowned file (#840 control)
+00:00 +3 -7: bug 874: zfa tdd gen recovery path refuses foreign-owned files --adopt with a prior record in THIS feature still refuses (nothing unowned to adopt — control)
+00:00 +4 -7: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/bug_874_doctor_cross_feature_adoption_test.dart: bug 874: zfa tdd doctor <feature> cross-registry awareness doctor prescribes migrate (never adopt) for another feature's flat artifacts — the issue repro
+  test/plugins/tdd/bug_874_doctor_cross_feature_adoption_test.dart: bug 874: zfa tdd doctor <feature> cross-registry awareness foreign-owned takes precedence over a same-run unowned finding
+  test/plugins/tdd/bug_874_doctor_cross_feature_adoption_test.dart: bug 874: zfa tdd doctor <feature> cross-registry awareness multiple foreign owners -> the all-features migration
+  test/plugins/tdd/bug_874_doctor_cross_feature_adoption_test.dart: bug 874: zfa tdd doctor <feature> cross-registry awareness relative-path registry records still resolve to their owner (normalization)
+  ... and 3 more
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
+exit=1

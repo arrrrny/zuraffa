@@ -1,0 +1,15 @@
+00:00 +0: loading test/plugins/tdd/bug_874_doctor_cross_feature_adoption_test.dart
+00:00 +0: bug 874: zfa tdd doctor <feature> cross-registry awareness doctor prescribes migrate (never adopt) for another feature's flat artifacts — the issue repro
+00:00 +1: bug 874: zfa tdd doctor <feature> cross-registry awareness verdict includes the owning feature for foreign files (requirement 3)
+00:00 +2: bug 874: zfa tdd doctor <feature> cross-registry awareness relative-path registry records still resolve to their owner (normalization)
+00:00 +3: bug 874: zfa tdd doctor <feature> cross-registry awareness multiple foreign owners -> the all-features migration
+00:00 +4: bug 874: zfa tdd doctor <feature> cross-registry awareness a genuinely unowned flat file still prescribes adopt (#840 control)
+00:00 +5: bug 874: zfa tdd doctor <feature> cross-registry awareness foreign-owned takes precedence over a same-run unowned finding
+00:00 +6: bug 874: zfa tdd doctor <feature> cross-registry awareness the owning feature's own doctor run stays healthy
+00:00 +7: bug 874: zfa tdd gen recovery path refuses foreign-owned files --adopt refuses to register a file another feature owns
+00:00 +8: bug 874: zfa tdd gen recovery path refuses foreign-owned files plain gen (no --adopt) also reports foreign-owned, not just a generic ownership conflict
+zfa tdd gen: foreign-owned — the conflicting file is owned by feature 001-app-bootstrap
+00:00 +9: bug 874: zfa tdd gen recovery path refuses foreign-owned files --adopt still adopts a genuinely unowned file (#840 control)
+00:00 +10: bug 874: zfa tdd gen recovery path refuses foreign-owned files --adopt with a prior record in THIS feature still refuses (nothing unowned to adopt — control)
+00:00 +11: All tests passed!
+exit=0
