@@ -474,6 +474,63 @@ Text, no table.
     expect(rows049.first.kind, BehaviorKind.acceptance);
     expect(rows049.firstWhere((r) => r.id == 'U15').kind, BehaviorKind.unit);
   });
+
+  group('theme kind (issue #841, bug tdd-theme-harness)', () {
+    test(
+      'theme harness section header sets kind=theme for 4-column rows',
+      () async {
+        final dir = await seed('''
+# Test List: 090-fixture
+
+## Theme harness: theme behaviors (issue #841)
+
+Widget tests that pump the app shell under both ThemeModes and assert
+ShadTheme values (brand colors, typography, sonner), plus the
+hardcoded-color audit, golden baselines, and theme-switch latency.
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| T1 | ShadTheme primary equals kBrandGreen in light and dark | SC-001 | PENDING |
+| T2 | hardcoded-color audit: no raw Color(0x...) outside constants | SC-003 | PENDING |
+
+## Inner loop: unit behaviors
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| U1 | unrelated unit behavior | FR-001 | PENDING |
+''');
+
+        final rows = await TestListReader(dir).read();
+
+        expect(rows, hasLength(3));
+        expect(rows[0].id, 'T1');
+        expect(rows[0].kind, BehaviorKind.theme);
+        expect(rows[1].id, 'T2');
+        expect(rows[1].kind, BehaviorKind.theme);
+        expect(rows[2].id, 'U1');
+        expect(rows[2].kind, BehaviorKind.unit);
+        expect(rows[0].state, BehaviorState.pending);
+        expect(rows[0].target, 'subject_t1');
+      },
+    );
+
+    test('theme kind cell wins in the 6-column gen-legacy dialect', () async {
+      final dir = await seed('''
+# Test List for theme fixture
+
+| id | behavior | traces | kind | state | target |
+|----|----------|--------|------|-------|--------|
+| T1 | pumps shell under both ThemeModes and asserts ShadTheme | SC-002 | theme | PENDING | themed_shell |
+''');
+
+      final rows = await TestListReader(dir).read();
+
+      expect(rows, hasLength(1));
+      expect(rows[0].id, 'T1');
+      expect(rows[0].kind, BehaviorKind.theme);
+      expect(rows[0].target, 'themed_shell');
+    });
+  });
 }
 
 /// Walk up from the CWD to the repo root (the pubspec named `zuraffa`).
