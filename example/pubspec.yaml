@@ -29,5 +29,18 @@ dev_dependencies:
   json_serializable: ^6.13.2
   hive_ce_generator: ^1.11.1
 
+# Issue #891: the Flutter SDK pins meta to an exact version (1.17.0 on
+# 3.41.x) while the root package's analyzer constraint (analyzer ^14.3.0,
+# itself forced by dart_style 3.1.12 which requires analyzer >=13.1.0)
+# needs meta ^1.18.3. example/ depends on BOTH flutter from sdk and
+# zuraffa from path, so without this override the solver cannot close and
+# every `flutter pub get` / `flutter analyze` / `flutter test` that
+# recurses into example/ dies — including every CI job. This is a VERSION
+# override (the root pubspec's prohibition targets path: overrides from
+# sibling checkouts, which stays respected). meta is annotation-only and
+# source-stable across the range. Drop this once Flutter re-pins meta.
+dependency_overrides:
+  meta: ^1.18.3
+
 flutter:
   uses-material-design: true
