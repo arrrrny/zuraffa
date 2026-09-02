@@ -47,6 +47,15 @@
 /// re-run on a theme feature (it would drop hand-written theme rows), and
 /// `zfa tdd make`/`run` stop honestly on theme ids (the planner does not
 /// express them yet).
+///
+/// PLATFORM KIND EXTENSION (issue #831): a `## Platform harness` section
+/// header (or a `platform` kind cell) marks rows whose subjects sit on
+/// platform channels (camera, barcode, permissions, notifications,
+/// location). Like theme rows they are HAND-MAINTAINED, and the gen pair
+/// additionally requires the committed-intent scenario + certified fake
+/// written by `zfa tdd fake <channel> --behavior <id>` — gen refuses a
+/// platform row whose scenario is missing. `zfa tdd make`/`run` stop
+/// honestly on platform ids (the planner does not express them yet).
 library;
 
 import 'dart:io';
@@ -212,17 +221,19 @@ class TestListReader {
               : BehaviorKind.acceptance;
         } else if (header.startsWith('inner loop')) {
           kind = BehaviorKind.unit;
-<<<<<<< HEAD
         } else if (header.startsWith('theme harness')) {
           // Theme-harness section (issue #841): theme-kind behaviors whose
           // gen pair is the theme-harness widget test + subject contract.
           kind = BehaviorKind.theme;
-=======
         } else if (header.startsWith('native loop')) {
           // Bug #835: the native loop section carries FFI/OCR
           // native-boundary behaviors. Rows under it are ffi-kind.
           kind = BehaviorKind.ffi;
->>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
+        } else if (header.startsWith('platform harness')) {
+          // Platform-harness section (issue #831): platform-kind behaviors
+          // whose gen pair drives a platform channel through the certified
+          // fake + committed scenario written by `zfa tdd fake`.
+          kind = BehaviorKind.platform;
         } else {
           kind = null;
         }
@@ -437,7 +448,6 @@ class TestListReader {
     final kindStr = cell.toLowerCase();
     if (kindStr.contains('acceptance')) return BehaviorKind.acceptance;
     if (kindStr.contains('unit')) return BehaviorKind.unit;
-<<<<<<< HEAD
     // Bug #830: the widget subject kind — an outer-loop behavior whose
     // paired artifacts are a view-builder stub + a testWidgets test.
     if (kindStr.contains('widget')) return BehaviorKind.widget;
@@ -445,12 +455,13 @@ class TestListReader {
     // 'theme' contains neither 'acceptance' nor 'unit', so the order is
     // only about readability.
     if (kindStr.contains('theme')) return BehaviorKind.theme;
-=======
     // Bug #835: the native-boundary kind, declared by hand in the kind
     // cell (dialect 1) or via a `## Native loop` section header. No
     // other kind-cell substring collides with "ffi".
     if (kindStr.contains('ffi')) return BehaviorKind.ffi;
->>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
+    // Platform-harness kind cell (issue #831). Last: 'platform' shares no
+    // substring with the kinds above, so ordering is purely cosmetic.
+    if (kindStr.contains('platform')) return BehaviorKind.platform;
     return null;
   }
 

@@ -1,5 +1,6 @@
-/// `RedClassification` + `RunRecord` — the six-way outcome of a
-/// `zfa tdd verify-red` run (spec 046-tdd-verify-red, FR-004, T003).
+/// `RedClassification` + `RunRecord` — the seven-way outcome of a
+/// `zfa tdd verify-red` run (spec 046-tdd-verify-red, FR-004, T003;
+/// seventh class added by issue #831).
 ///
 /// Exactly one class per run. `assertion` is the only class that
 /// certifies honest red; every other class is a rejection with a
@@ -46,6 +47,20 @@ enum RedClassification {
     'the runner did not execute exactly the target test; check the '
         'tdd-profile `single` command and the toolchain, then re-run '
         '`zfa tdd verify-red <behavior-id>`',
+  ),
+
+  /// A platform-channel call never resolved (issue #831): the fake is
+  /// missing or misconfigured, or the channel never answered — the
+  /// transcript carries MissingPluginException / a channel-scoped
+  /// TimeoutException / PlatformException(channel-error) WITHOUT an
+  /// assertion signature. A harness/config failure, never a certified
+  /// red: the behavior was not honestly observed through an assertion.
+  channelTimeout(
+    'channel-timeout',
+    'the platform-channel call never resolved — generate the certified '
+        'fake and its committed scenario with `zfa tdd fake <channel> '
+        '--behavior <behavior-id>`, extend the scenario script, then '
+        're-run `zfa tdd verify-red <behavior-id>`',
   );
 
   const RedClassification(this.label, this.remediationHint);

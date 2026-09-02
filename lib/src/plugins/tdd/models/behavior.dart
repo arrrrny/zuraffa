@@ -1,7 +1,6 @@
 /// Behavior entity for the `zfa tdd` plugin.
 library;
 
-<<<<<<< HEAD
 /// The subject kind a behavior's paired test + subject express.
 ///
 /// `widget` (bug #830): the behavior's acceptance scenario is UI-observable
@@ -14,18 +13,19 @@ library;
 /// (or with a `theme` kind cell) whose gen pair is the theme-harness widget
 /// test + subject contract — see `ThemeHarnessTestWriter` /
 /// `ThemeHarnessSubjectWriter`.
-enum BehaviorKind { acceptance, unit, widget, theme }
-=======
-/// The loop kind of a behavior.
 ///
-/// `acceptance` / `unit` are the two spec-derived kinds (SpecParser).
-/// `ffi` (bug #835) marks a NATIVE-BOUNDARY behavior: its subject is an
+/// `ffi` (bug #835): marks a NATIVE-BOUNDARY behavior: its subject is an
 /// FFI binding contract (symbols resolved, marshalling round-trip) and
 /// its golden fixture assertion runs in the marked integration lane —
-/// declared by hand in the test list (the kind cell or a `## Native
-/// loop` section), never derived from spec prose.
-enum BehaviorKind { acceptance, unit, ffi }
->>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
+/// declared by hand in the test list, never derived from spec prose.
+///
+/// `platform` (issue #831): a behavior declared in a `## Platform harness`
+/// section (or with a `platform` kind cell) whose subject sits on a
+/// platform channel (camera, barcode, permissions, notifications,
+/// location). Its gen pair is a channel test that installs the certified
+/// fake (`zfa tdd fake`) and asserts on the OBSERVED calls — arguments
+/// recorded, ordering preserved — plus a channel-calling subject stub.
+enum BehaviorKind { acceptance, unit, widget, theme, ffi, platform }
 
 enum BehaviorState { pending, red, green, done }
 

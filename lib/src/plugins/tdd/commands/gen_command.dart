@@ -77,11 +77,18 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../models/channel_scenario.dart';
 import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/behavior_test_writer.dart';
 import '../services/generated_shape.dart';
+<<<<<<< HEAD
 import '../services/golden_harness_writer.dart';
+=======
+import '../services/platform_harness_context.dart';
+import '../services/platform_harness_subject_writer.dart';
+import '../services/platform_harness_test_writer.dart';
+>>>>>>> 802ef8b8 (fix(831): platform-channel test harness — zfa tdd fake generates certified fakes driven by committed scenario intent)
 import '../services/subject_writer.dart';
 import '../services/test_list_reader.dart';
 import '../services/theme_harness_subject_writer.dart';
@@ -390,6 +397,22 @@ class GenCommand extends Command<void> {
     final runnableTestName =
         '$testPath::${behavior.id}::${behavior.description}';
 
+    // Issue #831: platform behaviors drive a platform channel through
+    // the certified fake + committed scenario written by
+    // `zfa tdd fake <channel> --behavior <id>`. Both must exist BEFORE
+    // any gen artifact is written — a refusal happens at this boundary,
+    // with the exact remedy, never a half-written pair.
+    PlatformHarnessContext? platformContext;
+    if (effectiveBehavior.kind == BehaviorKind.platform) {
+      platformContext = _resolvePlatformContext(
+        cwd: cwd,
+        featureDir: featureDir,
+        featureName: featureName,
+        snakeId: snakeId,
+        behaviorId: behavior.id,
+      );
+    }
+
     final registry = ArtifactRegistry(featureDir: featureDir);
 
     // Build the proposed record, then preflight ownership without changing
@@ -554,7 +577,7 @@ class GenCommand extends Command<void> {
     if (record.testOwnership != Ownership.reused && !dryRun) {
       final adoptTest = adoptedPaths.contains(testPath);
       final adoptSubject = adoptedPaths.contains(subjectPath);
-      final writers = _writersFor(behavior);
+      final writers = _writersFor(behavior, platformContext: platformContext);
       try {
         if (!adoptTest) {
           await bounded(
@@ -652,6 +675,7 @@ class GenCommand extends Command<void> {
         featureName: featureName,
         testPath: testPath,
         subjectPath: subjectPath,
+        platformContext: platformContext,
         bounded: bounded,
       );
     }
@@ -733,24 +757,125 @@ class GenCommand extends Command<void> {
     );
   }
 
-  /// Writer selection by behavior kind (issue #841): theme-kind behaviors
-  /// get the theme-harness pair (`ThemeHarnessTestWriter` emitting the
-  /// four-proof widget test — ShadTheme assertions under both ThemeModes,
-  /// hardcoded-color audit, golden baselines, switch latency — and
-  /// `ThemeHarnessSubjectWriter` emitting the subject contract); every
-  /// other kind gets the plain-function pair (spec 044). Both pairs share
-  /// the same `write` signatures so the transactional flow and the
-  /// staleness re-render treat them identically.
-  static _GenWriterPair _writersFor(Behavior behavior) {
+  /// Writer selection by behavior kind (issue #841, issue #831):
+  /// theme-kind behaviors get the theme-harness pair (`ThemeHarnessTestWriter`
+  /// emitting the four-proof widget test — ShadTheme assertions under both
+  /// ThemeModes, hardcoded-color audit, golden baselines, switch latency —
+  /// and `ThemeHarnessSubjectWriter` emitting the subject contract);
+  /// platform-kind behaviors (issue #831) get the platform-harness pair
+  /// (certified-fake channel test + platform-channel subject stub) built
+  /// from the resolved [PlatformHarnessContext]; every other kind gets the
+  /// plain-function pair (spec 044). All pairs share the same `write`
+  /// signatures so the transactional flow and the staleness re-render
+  /// treat them identically.
+  static _GenWriterPair _writersFor(
+    Behavior behavior, {
+    PlatformHarnessContext? platformContext,
+  }) {
     if (behavior.kind == BehaviorKind.theme) {
       return (
         writeTest: const ThemeHarnessTestWriter().write,
         writeSubject: const ThemeHarnessSubjectWriter().write,
       );
     }
+    if (behavior.kind == BehaviorKind.platform && platformContext != null) {
+      return (
+        writeTest: PlatformHarnessTestWriter(context: platformContext).write,
+        writeSubject: PlatformHarnessSubjectWriter(
+          context: platformContext,
+        ).write,
+      );
+    }
     return (
       writeTest: const BehaviorTestWriter().write,
       writeSubject: const SubjectWriter().write,
+    );
+  }
+
+  /// Resolve the platform-harness context for a platform-kind behavior
+  /// (issue #831): the committed scenario + certified fake written by
+  /// `zfa tdd fake <channel> --behavior <id>` must BOTH exist. A missing
+  /// artifact or a schema violation is an honest refusal BEFORE any gen
+  /// artifact is written, naming the exact remedy command.
+  PlatformHarnessContext _resolvePlatformContext({
+    required String cwd,
+    required String featureDir,
+    required String featureName,
+    required String snakeId,
+    required String behaviorId,
+  }) {
+    final scenarioPath = p.join(
+      featureDir,
+      'tdd',
+      'scenarios',
+      '$snakeId.json',
+    );
+    final scenarioFile = File(scenarioPath);
+    if (!scenarioFile.existsSync()) {
+      final scenarioRef = p.join(
+        'specs',
+        featureName,
+        'tdd',
+        'scenarios',
+        '$snakeId.json',
+      );
+      stderr.writeln(
+        'zfa tdd gen: platform behavior "$behaviorId" has no committed '
+        'scenario at $scenarioRef. Generate the scenario + certified fake '
+        'with `zfa tdd fake <channel> --behavior $behaviorId --feature '
+        '$featureName`, commit the scenario as intent, then re-run gen '
+        '(issue #831 — fakes replay committed intent, they are not '
+        'agent-written).',
+      );
+      throw StateError(
+        'zfa tdd gen: platform behavior "$behaviorId" has no committed '
+        'scenario — run `zfa tdd fake <channel> --behavior $behaviorId '
+        '--feature $featureName` first (issue #831)',
+      );
+    }
+    final ChannelScenario scenario;
+    try {
+      final decoded =
+          jsonDecode(scenarioFile.readAsStringSync()) as Map<String, Object?>;
+      scenario = ChannelScenario.fromJson(decoded);
+    } on ChannelScenarioException catch (e) {
+      stderr.writeln(
+        'zfa tdd gen: scenario at $scenarioPath violates the schema: $e '
+        '(issue #831).',
+      );
+      throw StateError('zfa tdd gen: scenario schema violation — $e');
+    } on FormatException catch (e) {
+      stderr.writeln(
+        'zfa tdd gen: scenario at $scenarioPath is not valid JSON: $e',
+      );
+      throw StateError('zfa tdd gen: scenario is not valid JSON — $e');
+    }
+    final fakePath = '$cwd/test/tdd/$featureName/fakes/${snakeId}_fake.dart';
+    if (!File(fakePath).existsSync()) {
+      stderr.writeln(
+        'zfa tdd gen: platform behavior "$behaviorId" has a committed '
+        'scenario but no certified fake at test/tdd/$featureName/fakes/'
+        '${snakeId}_fake.dart. Re-run `zfa tdd fake <channel> --behavior '
+        '$behaviorId --feature $featureName` to regenerate it (issue '
+        '#831).',
+      );
+      throw StateError(
+        'zfa tdd gen: platform behavior "$behaviorId" has no certified '
+        'fake — run `zfa tdd fake <channel> --behavior $behaviorId '
+        '--feature $featureName` first (issue #831)',
+      );
+    }
+    return PlatformHarnessContext(
+      scenario: scenario,
+      slug: snakeId,
+      fakeImport: 'fakes/${snakeId}_fake.dart',
+      scenarioRef: p.join(
+        'specs',
+        featureName,
+        'tdd',
+        'scenarios',
+        '$snakeId.json',
+      ),
     );
   }
 
@@ -810,6 +935,7 @@ class GenCommand extends Command<void> {
     required String testPath,
     required String subjectPath,
     required Future<T> Function<T>(Future<T> stage, String stageName) bounded,
+    PlatformHarnessContext? platformContext,
   }) async {
     // Bug #835: an ffi harness is NEVER auto-regenerated. Its contract
     // seams are the implementer's wiring point — partial wiring (the
@@ -840,7 +966,7 @@ class GenCommand extends Command<void> {
     // THIS binary would really write for the behavior's kind.
     final mirror = await Directory.systemTemp.createTemp('zfa_gen_stale_');
     try {
-      final writers = _writersFor(behavior);
+      final writers = _writersFor(behavior, platformContext: platformContext);
       final mirroredTest = p.join(
         mirror.path,
         'test',

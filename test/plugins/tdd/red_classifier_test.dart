@@ -142,12 +142,14 @@ Failing tests:
     bool startedProcess = true,
     int? testCount,
     String command = 'dart test <file> --plain-name "<name>"',
+    bool timedOut = false,
   }) => RunRecord(
     command: command,
     exitCode: exitCode,
     output: output,
     startedProcess: startedProcess,
     testCount: testCount,
+    timedOut: timedOut,
   );
 
   group('U1 — assertion signature classifies assertion', () {
@@ -318,6 +320,104 @@ Failing tests:
     });
   });
 
+  group('issue #831 — channel-timeout vs assertion failures', () {
+    // Captured grammar: a platform-channel call that never resolves. The
+    // fake is missing, misconfigured, or the channel never answers — a
+    // harness/config failure the TDD loop must NAME, not lump into
+    // runner-error (issue #831 requirement 4).
+    const missingPluginOutput = '''
+00:01 +0: loading test/tdd/013-fixture/t1_test.dart
+00:01 +0 -1: T1 — scans a barcode [E]
+  MissingPluginException(No implementation found for method available on channel dev.zuraffa/barcode)
+
+00:01 +0 -1: Some tests failed.
+''';
+
+    const channelTimeoutOutput = '''
+00:01 +0: loading test/tdd/072-fixture/t2_test.dart
+00:01 +0 -1: T2 — resolves location within the timeout [E]
+  TimeoutException: channel dev.zuraffa/location method getLocation never resolved after 0:00:10.000000
+
+00:01 +0 -1: Some tests failed.
+''';
+
+    const channelErrorOutput = '''
+00:01 +0: loading test/tdd/077-fixture/t3_test.dart
+00:01 +0 -1: T3 — captures a photo [E]
+  PlatformException(channel-error, Failed to send message to channel dev.zuraffa/camera, null, null)
+
+00:01 +0 -1: Some tests failed.
+''';
+
+    test('MissingPluginException -> channel-timeout', () {
+      final result = classify(
+        record(missingPluginOutput, exitCode: 1, testCount: 1),
+      );
+      expect(result, RedClassification.channelTimeout);
+    });
+
+    test('channel-scoped TimeoutException -> channel-timeout', () {
+      final result = classify(
+        record(channelTimeoutOutput, exitCode: 1, testCount: 1),
+      );
+      expect(result, RedClassification.channelTimeout);
+    });
+
+    test('PlatformException(channel-error) -> channel-timeout', () {
+      final result = classify(
+        record(channelErrorOutput, exitCode: 1, testCount: 1),
+      );
+      expect(result, RedClassification.channelTimeout);
+    });
+
+    test(
+      'a bare TimeoutException with no channel context stays runner-error',
+      () {
+        // pumpAndSettle / arbitrary future timeouts are NOT channel
+        // failures — the widget taxonomy (issue #830) keeps them.
+        final result = classify(
+          record(timeoutOutput, exitCode: 1, testCount: 1),
+        );
+        expect(result, RedClassification.runnerError);
+      },
+    );
+
+    test(
+      'an assertion signature beats channel text (assertion stays king)',
+      () {
+        // flutter_test wraps every failure — an expect() mismatch that
+        // QUOTES a MissingPluginException in its Expected/Actual block is
+        // an honest red, not a harness failure.
+        const mixed = '''
+00:01 +0 -1: T1 — rejects the unscripted method [E]
+  Expected: PlatformException:code<unscripted>
+    Actual: MissingPluginException(No implementation found for method available on channel dev.zuraffa/barcode)
+
+00:01 +0 -1: Some tests failed.
+''';
+        final result = classify(record(mixed, exitCode: 1, testCount: 1));
+        expect(result, RedClassification.assertion);
+      },
+    );
+
+    test('a PROCESS-level timeout (SIGKILL) stays runner-error even with '
+        'channel text (bug #742 precedence)', () {
+      final result = classify(
+        record(missingPluginOutput, exitCode: 1, testCount: 1, timedOut: true),
+      );
+      expect(result, RedClassification.runnerError);
+    });
+
+    test('channel signature does not fire on green runs', () {
+      // Green with channel chatter in the transcript is still
+      // unexpected-green — the classification is red-side only.
+      final result = classify(
+        record(missingPluginOutput, exitCode: 0, testCount: 1),
+      );
+      expect(result, RedClassification.unexpectedGreen);
+    });
+  });
+
   group('parseExecutedTestCount — runner grammar (helper for U7)', () {
     test('single failing test counts one', () {
       expect(parseExecutedTestCount(assertionOutput), 1);
@@ -359,7 +459,7 @@ Failing tests:
   });
 
   group('RedClassification model (T003)', () {
-    test('exposes exactly the six spec classes with kebab labels', () {
+    test('exposes exactly the seven spec classes with kebab labels', () {
       expect(RedClassification.values.map((c) => c.label), [
         'assertion',
         'compile-error',
@@ -367,7 +467,14 @@ Failing tests:
         'skipped',
         'unexpected-green',
         'runner-error',
+        'channel-timeout',
       ]);
+    });
+
+    test('channel-timeout carries a non-empty remediation hint', () {
+      final channelTimeout = RedClassification.channelTimeout;
+      expect(channelTimeout.remediationHint, isNotEmpty);
+      expect(channelTimeout.label, 'channel-timeout');
     });
 
     test('every class carries a non-empty remediation hint', () {

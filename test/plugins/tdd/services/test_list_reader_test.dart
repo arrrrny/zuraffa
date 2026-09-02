@@ -542,6 +542,97 @@ Text, no table.
       expect(await TestListReader(dir).readEntities(), isEmpty);
     });
   });
+
+  group('platform kind (issue #831, bug tdd-platform-channel-fake)', () {
+    test(
+      'platform harness section header sets kind=platform for 4-column rows',
+      () async {
+        final dir = await seed('''
+# Test List: 013-barcode-fixture
+
+## Platform harness: channel behaviors (issue #831)
+
+Behaviors that sit on platform channels (camera, barcode, permissions,
+notifications, location) and are expressed through certified fakes.
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| T1 | scans a barcode and returns the decoded payload | SC-001 | PENDING |
+| T2 | requests camera permission and honors the granted state | SC-002 | PENDING |
+
+## Inner loop: unit behaviors
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| U1 | unrelated unit behavior | FR-001 | PENDING |
+''');
+
+        final rows = await TestListReader(dir).read();
+
+        expect(rows, hasLength(3));
+        expect(rows[0].id, 'T1');
+        expect(rows[0].kind, BehaviorKind.platform);
+        expect(rows[1].id, 'T2');
+        expect(rows[1].kind, BehaviorKind.platform);
+        expect(rows[2].id, 'U1');
+        expect(rows[2].kind, BehaviorKind.unit);
+        expect(rows[0].state, BehaviorState.pending);
+        expect(rows[0].target, 'subject_t1');
+      },
+    );
+
+    test(
+      'platform kind cell wins in the 6-column gen-legacy dialect',
+      () async {
+        final dir = await seed('''
+# Test List for platform fixture
+
+| id | behavior | traces | kind | state | target |
+|----|----------|--------|------|-------|--------|
+| T1 | scans a barcode and returns the decoded payload | SC-001 | platform | PENDING | channel_scanner |
+''');
+
+        final rows = await TestListReader(dir).read();
+
+        expect(rows, hasLength(1));
+        expect(rows[0].id, 'T1');
+        expect(rows[0].kind, BehaviorKind.platform);
+        expect(rows[0].target, 'channel_scanner');
+      },
+    );
+
+    test(
+      'a section reset clears the platform kind (orphan rows reject)',
+      () async {
+        final dir = await seed('''
+# Test List for platform fixture
+
+## Platform harness: channel behaviors (issue #831)
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| T1 | scans a barcode and returns the decoded payload | SC-001 | PENDING |
+
+## Notes
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| X1 | orphan row outside a behavior section | SC-001 | PENDING |
+''');
+
+        expect(
+          () => TestListReader(dir).read(),
+          throwsA(
+            isA<TestListReadException>().having(
+              (e) => e.message,
+              'message',
+              contains('X1'),
+            ),
+          ),
+        );
+      },
+    );
+  });
 }
 
 /// Walk up from the CWD to the repo root (the pubspec named `zuraffa`).

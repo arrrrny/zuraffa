@@ -1,4 +1,4 @@
-/// `classify` — pure six-way classification of a runner transcript
+/// `classify` — pure seven-way classification of a runner transcript
 /// (spec 046-tdd-verify-red, FR-004, FR-005, T004; decision order per
 /// research.md Decision 3).
 ///
@@ -11,7 +11,12 @@
 ///   5. exit 0, skip markers only                   -> skipped
 ///   6. exit 0                                      -> unexpected-green
 ///   7. exit != 0 with assertion signature          -> assertion
-///   8. anything else                               -> runner-error
+///   8. exit != 0 with channel-timeout signature    -> channel-timeout
+///      (issue #831: MissingPluginException / channel-scoped
+///      TimeoutException / PlatformException(channel-error) WITHOUT an
+///      assertion signature — the certified fake is missing or the
+///      scenario never answered; a named rejection, never a red)
+///   9. anything else                               -> runner-error
 ///
 /// All parsing lives here (pure, unit-testable) — the same lesson
 /// `MutationVerifier` paid for: never scatter output-grammar regexes
@@ -82,6 +87,16 @@ RedClassification classify(RunRecord record) {
   if (_hasAssertionSignature(output)) {
     return RedClassification.assertion;
   }
+  // 8. Channel-timeout (issue #831): a platform-channel call that never
+  //    resolved, AFTER the assertion check — a transcript whose
+  //    Expected/Actual block QUOTES channel text is still an honest red
+  //    (the assertion demonstrably fired). A PROCESS-level kill
+  //    (record.timedOut, bug #742) never reaches this branch: the
+  //    runner-error verdict above keeps infrastructure timeouts distinct
+  //    from in-test channel failures.
+  if (_hasChannelTimeoutSignature(output)) {
+    return RedClassification.channelTimeout;
+  }
   if (_hasWidgetPumpException(output)) {
     return RedClassification.runnerError;
   }
@@ -148,6 +163,23 @@ final RegExp _widgetPumpException = RegExp(
 
 bool _hasWidgetPumpException(String output) =>
     _widgetPumpException.hasMatch(output);
+
+/// Platform-channel failures (issue #831): the call never resolved. The
+/// signatures are deliberately CHANNEL-SCOPED — a bare `TimeoutException`
+/// (pumpAndSettle, an arbitrary future) stays in the widget/runner
+/// taxonomy (issue #830), while `MissingPluginException` (no handler
+/// registered — the fake is not installed), a `TimeoutException` that
+/// names the channel, and `PlatformException(channel-error)` (the
+/// messenger refused the message) are the harness's named rejection.
+final RegExp _channelTimeoutSignature = RegExp(
+  r'MissingPluginException|'
+  r'TimeoutException[^\n]*channel[^\n]*|'
+  r'channel[^\n]*TimeoutException|'
+  r"PlatformException\(channel-error",
+);
+
+bool _hasChannelTimeoutSignature(String output) =>
+    _channelTimeoutSignature.hasMatch(output);
 
 // ---------------------------------------------------------------------
 // Executed-test counting
