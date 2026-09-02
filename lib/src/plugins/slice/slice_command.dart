@@ -7,6 +7,7 @@
 /// never a stack trace.
 library;
 
+import 'dart:io' as io show exitCode;
 import 'dart:io';
 
 import 'package:args/args.dart';
@@ -170,58 +171,72 @@ example:
 
   @override
   Future<void> run() async {
+    // Issue #767: the instance `exitCode` field SHADOWS dart:io's global
+    // inside this class, so failure-path assignments (usage errors, failed
+    // capabilities) never reach the process — the real binary exited 0 for
+    // every failed slice capability while the INV-1 in-process assertions
+    // stayed green. Publish the instance outcome to the global when the
+    // dispatch completes so CliRunner._runDispatched honors it.
     exitCode = 0;
-    final args = argResults!.arguments;
-    if (args.isEmpty || args.first == '--help' || args.first == '-h') {
-      print(_usage);
-      return;
-    }
-
-    final rawSubcommand = args.first;
-    final rest = args.sublist(1);
-
-    // Manifest alias: the manifest advertises dotted/underscored capability
-    // names (cut_slice, merge_slice, verify_slice, export_slice); accept them
-    // as aliases of the canonical subcommands.
-    const manifestAliases = <String, String>{
-      'cut_slice': 'cut',
-      'merge_slice': 'merge',
-      'verify_slice': 'verify',
-      'export_slice': 'export',
-      'slice.cut': 'cut',
-      'slice.merge': 'merge',
-      'slice.verify': 'verify',
-      'slice.export': 'export',
-    };
-    final subcommand = manifestAliases[rawSubcommand] ?? rawSubcommand;
-
-    // T072: focused help per subcommand.
-    if (rest.contains('--help') || rest.contains('-h')) {
-      print(_subcommandHelp[subcommand] ?? _usage);
-      return;
-    }
-
-    switch (subcommand) {
-      case 'cut':
-        await _cut(rest);
-      case 'merge':
-        await _merge(rest);
-      case 'list':
-        await _list(rest);
-      case 'inspect':
-        await _inspect(rest);
-      case 'verify':
-        await _verify(rest);
-      case 'run':
-        await _run(rest);
-      case 'export':
-        await _export(rest);
-      case 'import':
-        await _import(rest);
-      default:
-        print('Unknown slice subcommand: $rawSubcommand');
+    try {
+      final args = argResults!.arguments;
+      if (args.isEmpty || args.first == '--help' || args.first == '-h') {
         print(_usage);
-        exit(64);
+        return;
+      }
+
+      final rawSubcommand = args.first;
+      final rest = args.sublist(1);
+
+      // Manifest alias: the manifest advertises dotted/underscored capability
+      // names (cut_slice, merge_slice, verify_slice, export_slice); accept them
+      // as aliases of the canonical subcommands.
+      const manifestAliases = <String, String>{
+        'cut_slice': 'cut',
+        'merge_slice': 'merge',
+        'verify_slice': 'verify',
+        'export_slice': 'export',
+        'slice.cut': 'cut',
+        'slice.merge': 'merge',
+        'slice.verify': 'verify',
+        'slice.export': 'export',
+      };
+      final subcommand = manifestAliases[rawSubcommand] ?? rawSubcommand;
+
+      // T072: focused help per subcommand.
+      if (rest.contains('--help') || rest.contains('-h')) {
+        print(_subcommandHelp[subcommand] ?? _usage);
+        return;
+      }
+
+      switch (subcommand) {
+        case 'cut':
+          await _cut(rest);
+        case 'merge':
+          await _merge(rest);
+        case 'list':
+          await _list(rest);
+        case 'inspect':
+          await _inspect(rest);
+        case 'verify':
+          await _verify(rest);
+        case 'run':
+          await _run(rest);
+        case 'export':
+          await _export(rest);
+        case 'import':
+          await _import(rest);
+        default:
+          print('Unknown slice subcommand: $rawSubcommand');
+          print(_usage);
+          // Issue #767: was `exit(64)` — a hard process exit that also
+          // killed in-process test runners. Set the outcome and return;
+          // the finally below publishes it to the process.
+          exitCode = 64;
+          return;
+      }
+    } finally {
+      io.exitCode = exitCode;
     }
   }
 
