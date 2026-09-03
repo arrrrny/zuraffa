@@ -877,3 +877,61 @@ For example, 'dart test --chain-stack-traces'.
 - prev-hash: genesis
 - hash: b766d1c6da6390b6f967efbbf18022437fee10914cc488c8a646cbc7ff03233c
 
+## Cycle: U17,U18 (green)
+
+- behavior: U17,U18
+- kind: green
+- classification: -
+- criterion: SC-4
+- test: test/plugins/tdd/services/era_tagged_log_test.dart
+- command: `dart test test/plugins/tdd/services/era_tagged_log_test.dart`
+- exit: 0
+- at: 2026-09-03T08:45:51.364187Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/era_tagged_log_test.dart
+00:00 +0: test/plugins/tdd/services/era_tagged_log_test.dart: U17: entries carry era tags and a verifiable hash chain
+00:00 +1: test/plugins/tdd/services/era_tagged_log_test.dart: U18: lastEra() reads the era back and survives across entries
+00:00 +2: test/plugins/tdd/commands/realize_command_test.dart: A1: full green path rebinds DI, transitions era, persists state
+00:00 +3: test/plugins/tdd/commands/realize_command_test.dart: A2: --adapter is required — a swap without a real adapter is refused
+00:00 +4: test/plugins/tdd/commands/realize_command_test.dart: A6: a behavior id target resolves through the registry
+00:00 +5: test/plugins/tdd/commands/realize_command_test.dart: A3: a red real-binding run blocks the swap, rolls the rebind back, and the verdict names the side
+00:00 +6: test/plugins/tdd/commands/realize_command_test.dart: A3b: a red baseline (mock era already broken) blocks before any rebind and blames the mock side
+00:00 +7: test/plugins/tdd/commands/realize_command_test.dart: A4a: drift within the .zfa.json threshold passes with a drift report
+00:00 +8: test/plugins/tdd/commands/realize_command_test.dart: A4b: drift beyond the .zfa.json threshold blocks the transition and rolls the rebind back
+00:00 +9: test/plugins/tdd/commands/realize_command_test.dart: A5: ungated hand-deltas block the swap; gated deltas are recorded and the swap proceeds
+00:00 +10: All tests passed!
+```
+- schema: 1
+- prev-hash: fe17cd72840065ff5d57a6bb20b5bb2ad1e58bade4f25e3d982f798dff566551
+- hash: d9dbf0f98957aa826a7c8d02e112e481b9aef0933333ec08f6a146bda60f7cda
+
+## Cycle: A1-era (green)
+
+- behavior: A1-era
+- kind: green
+- classification: -
+- criterion: SC-4
+- test: test/plugins/tdd/commands/realize_command_test.dart
+- command: `dart test test/plugins/tdd/commands/realize_command_test.dart --plain-name A1`
+- exit: 0
+- at: 2026-09-03T08:45:51.916179Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/era_tagged_log_test.dart
+00:00 +0: test/plugins/tdd/services/era_tagged_log_test.dart: U17: entries carry era tags and a verifiable hash chain
+00:00 +1: test/plugins/tdd/services/era_tagged_log_test.dart: U18: lastEra() reads the era back and survives across entries
+00:00 +2: test/plugins/tdd/commands/realize_command_test.dart: A1: full green path rebinds DI, transitions era, persists state
+00:00 +3: test/plugins/tdd/commands/realize_command_test.dart: A2: --adapter is required — a swap without a real adapter is refused
+00:00 +4: test/plugins/tdd/commands/realize_command_test.dart: A6: a behavior id target resolves through the registry
+00:00 +5: test/plugins/tdd/commands/realize_command_test.dart: A3: a red real-binding run blocks the swap, rolls the rebind back, and the verdict names the side
+00:00 +6: test/plugins/tdd/commands/realize_command_test.dart: A3b: a red baseline (mock era already broken) blocks before any rebind and blames the mock side
+00:00 +7: test/plugins/tdd/commands/realize_command_test.dart: A4a: drift within the .zfa.json threshold passes with a drift report
+00:00 +8: test/plugins/tdd/commands/realize_command_test.dart: A4b: drift beyond the .zfa.json threshold blocks the transition and rolls the rebind back
+00:00 +9: test/plugins/tdd/commands/realize_command_test.dart: A5: ungated hand-deltas block the swap; gated deltas are recorded and the swap proceeds
+00:00 +10: All tests passed!
+```
+- schema: 1
+- prev-hash: b766d1c6da6390b6f967efbbf18022437fee10914cc488c8a646cbc7ff03233c
+- hash: ed3339643e07a92ee664b87fa11dd2d79469d5d6993cfc3237f9bec1db3879fc
+

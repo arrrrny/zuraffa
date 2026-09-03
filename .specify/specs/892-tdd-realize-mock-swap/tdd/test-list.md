@@ -66,7 +66,7 @@ observable result.
 | id  | behavior                                                              | traces | kind     | state   | test                                                          |
 | --- | --------------------------------------------------------------------- | ------ | -------- | ------- | ------------------------------------------------------------ |
 | U17 | appended entries carry `- era: MOCKED|REAL` and the schema-1 hash chain (prev-hash/hash) over an era-aware payload | SC-4   | example  | PENDING | `test/plugins/tdd/services/era_tagged_log_test.dart::U17`    |
-| U18 | the last era tag is read back from the cycle log and survives across appended entries (evidence per era) | SC-4   | example  | PENDING | `test/plugins/tdd/services/era_tagged_log_test.dart::U18`    |
+| U18 | the last era tag is read back from the cycle log and survives across appended entries (evidence per era) | SC-4   | example  | DONE | `test/plugins/tdd/services/era_tagged_log_test.dart::U18`    |
 
 ## Traceability
 

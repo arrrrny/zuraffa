@@ -33,9 +33,11 @@ import 'package:path/path.dart' as p;
 import '../../../core/project/project_root.dart';
 import '../../../core/project/receipt_store.dart';
 import '../services/artifact_registry.dart';
+import '../services/entity_lookup.dart' show toSnakeCase;
 import '../services/contract_gate.dart';
 import '../services/di_rebind.dart';
 import '../services/differential_gate.dart';
+import '../services/era_tagged_log.dart';
 import '../services/nuance_receipts.dart';
 import '../services/realize_state.dart';
 import '../tdd_plugin.dart';
@@ -468,7 +470,8 @@ class RealizeCommand extends Command<void> {
     // The state transition MOCKED -> REAL, persisted. The rebind is a
     // generation step: a #807 receipt covers its writes only once every
     // gate passed (a rolled-back swap writes no receipt — the restored
-    // tree stays exactly the mock-era provenance).
+    // tree stays exactly the mock-era provenance). The transition leaves
+    // era-tagged, hash-chained evidence in the cycle log.
     // ---------------------------------------------------------------
     await _receiptRebind(cwd, rebind);
     final next = await stateStore.transitionToReal(
@@ -486,6 +489,26 @@ class RealizeCommand extends Command<void> {
     );
     await stateStore.save(next);
     print('   state: MOCKED -> REAL (${stateStore.path})');
+
+    await EraTaggedLog(featureDir).append(
+      EraTaggedLogEntry(
+        behaviorId: '${toSnakeCase(entity)}-realize',
+        kind: 'realize',
+        era: RealizeEra.real,
+        criterion: 'SC-1..SC-5',
+        test: suitePaths.isEmpty ? '-' : 'mock-era suite (${suitePaths.length} file(s))',
+        command:
+            'zfa tdd realize $entity --adapter $adapter'
+            '${featureFlag.isEmpty ? '' : ' --feature $featureFlag'}',
+        exitCode: 0,
+        output: 'contract=${_contractLabel(gate.verdict)} '
+            'differential=${differential.verdict.name} '
+            'drift=${differential.driftLabel} '
+            'handDeltas=$gatedDeltas'
+            ' era=MOCKED->REAL result=realized',
+      ),
+    );
+    print('   evidence: era-tagged cycle-log entry appended (era REAL)');
 
     _printSummary(
       entity: entity,

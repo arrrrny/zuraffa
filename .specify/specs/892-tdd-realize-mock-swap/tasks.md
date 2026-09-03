@@ -17,7 +17,7 @@ a failing test before its implementation (TDD extension contract).
 - [x] T004. Nuance receipts (A5, U14-U16): `nuance_receipts.dart` — hand-deltas
       recorded (file, reason, diff-hash) in the feature's provenance ledger
       (#807 proof-carrying); ungated hand-deltas block.
-- [ ] T005. Era-tagged cycle-log (U17-U18): `era_tagged_log.dart` — entries
+- [x] T005. Era-tagged cycle-log (U17-U18): `era_tagged_log.dart` — entries
       carry era tags; state transitions visible in history; era preserved.
 - [ ] T006. REFACTOR + VERIFY: `dart format .`, `dart analyze`,
       `tools/run_tests_chunked.sh` — no new failures. Then
