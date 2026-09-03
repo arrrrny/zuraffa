@@ -247,7 +247,8 @@ class TestListReader {
         // their rows are declarations, not behaviors; parsing them as
         // behavior rows killed `zfa tdd run` (exit 2) on every
         // deps-declaring (zuraffa-1.0) spec.
-        inDeclarativeSection = header.startsWith('key entities') ||
+        inDeclarativeSection =
+            header.startsWith('key entities') ||
             header.startsWith('external dependencies') ||
             header.startsWith('layer contracts');
         continue;
