@@ -35,17 +35,18 @@ class DeclaredRouting {
       final traces = row == null
           ? const <String>[]
           : row.traces
-              .split(',')
-              .map((t) => t.trim())
-              .where((t) => t.isNotEmpty)
-              .toList();
+                .split(',')
+                .map((t) => t.trim())
+                .where((t) => t.isNotEmpty)
+                .toList();
       if (traces.isEmpty) return null;
       final specFile = File('$featureDir/spec.md');
       if (!specFile.existsSync()) return null;
       final declarations = SpecDeclarations(
         contractRows: {
-          for (final r
-              in const SpecParser().parseContractRows(specFile.readAsStringSync()))
+          for (final r in const SpecParser().parseContractRows(
+            specFile.readAsStringSync(),
+          ))
             r.name: r,
         },
       );

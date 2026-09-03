@@ -30,8 +30,7 @@ const _malformed = '''
 ''';
 
 void main() {
-  test('a Function bullet parses into function-kind rows with signatures',
-      () {
+  test('a Function bullet parses into function-kind rows with signatures', () {
     final rows = const SpecParser().parseContractRows(_spec);
     final formatter = rows.where((r) => r.name == 'Formatter').toList();
     expect(formatter, hasLength(1));
@@ -41,8 +40,11 @@ void main() {
     expect(formatter.single.signatures.first.parameters, ['Template']);
     expect(formatter.single.signatures.first.returnType, 'String');
     expect(formatter.single.signatures.last.returnType, 'String');
-    expect(formatter.single.specLine, isNotNull,
-        reason: 'rows are line-addressable');
+    expect(
+      formatter.single.specLine,
+      isNotNull,
+      reason: 'rows are line-addressable',
+    );
   });
 
   test('a malformed function signature is refused, naming the row', () {

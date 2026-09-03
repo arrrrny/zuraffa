@@ -494,9 +494,11 @@ class PlanCommand extends Command<void> {
         ..writeln()
         ..writeln('## Routing provenance')
         ..writeln()
-        ..writeln('Per-behavior routing decisions (issue #951): what each '
-            'decision consulted — a declared marker/contract row, or the '
-            'labeled legacy fallback to migrate.')
+        ..writeln(
+          'Per-behavior routing decisions (issue #951): what each '
+          'decision consulted — a declared marker/contract row, or the '
+          'labeled legacy fallback to migrate.',
+        )
         ..writeln();
       for (final lines in provenanceLines.values) {
         for (final line in lines) {
@@ -523,13 +525,13 @@ class PlanCommand extends Command<void> {
     const resolver = RoutingResolver();
     final lines = <String, List<String>>{};
     String lane(BehaviorKind kind) => switch (kind) {
-          BehaviorKind.acceptance => 'acceptance lane',
-          BehaviorKind.widget => 'widget lane',
-          BehaviorKind.unit => 'unit lane',
-          BehaviorKind.ffi => 'ffi lane',
-          BehaviorKind.platform => 'platform lane',
-          BehaviorKind.theme => 'theme lane',
-        };
+      BehaviorKind.acceptance => 'acceptance lane',
+      BehaviorKind.widget => 'widget lane',
+      BehaviorKind.unit => 'unit lane',
+      BehaviorKind.ffi => 'ffi lane',
+      BehaviorKind.platform => 'platform lane',
+      BehaviorKind.theme => 'theme lane',
+    };
 
     void record(String id, List<String> entry) => lines[id] = entry;
 
@@ -568,7 +570,10 @@ class PlanCommand extends Command<void> {
       }
       if (result is RoutingFailure) {
         if (strict) {
-          record('__refused__', [
+          // Append: several behaviors may refuse; every refusal must
+          // survive (a shared fixed key would overwrite earlier ones —
+          // caught by the quickstart run, feature 071).
+          lines.putIfAbsent('__refused__', () => <String>[]).addAll([
             'zfa tdd plan: ${result.code.name} for behavior '
                 '"${b.id}" (strict mode).',
             ...result.message.split('\n'),
@@ -585,8 +590,8 @@ class PlanCommand extends Command<void> {
       final hint = decision == BehaviorKind.widget
           ? 'add `**Type**: widget` to the scenario'
           : decision == BehaviorKind.acceptance
-              ? 'add `**Type**: acceptance` to the scenario'
-              : 'trace FR to a declared contract row';
+          ? 'add `**Type**: acceptance` to the scenario'
+          : 'trace FR to a declared contract row';
       record(b.id, [
         'route: ${b.id} -> ${lane(decision)} '
             '[fallback: legacy description classifier matched — $hint]',

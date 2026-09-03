@@ -122,7 +122,9 @@ class SpecParser {
   /// A scenario type marker line (feature 071, rung 1): `**Type**: widget`
   /// on its own line inside a scenario block. The kind must name a
   /// [BehaviorKind] value.
-  static final RegExp _typeMarkerLine = RegExp(r'^\s*\*\*Type\*\*:\s*(\S+)\s*$');
+  static final RegExp _typeMarkerLine = RegExp(
+    r'^\s*\*\*Type\*\*:\s*(\S+)\s*$',
+  );
 
   /// The scenario block header (`1. **Given** ...`) — the same walk
   /// [_extractAcceptance] uses, so marker ids stay aligned with the
@@ -166,9 +168,7 @@ class SpecParser {
         );
       }
       final raw = m.group(1)!.toLowerCase();
-      final kind = BehaviorKind.values
-          .where((k) => k.name == raw)
-          .firstOrNull;
+      final kind = BehaviorKind.values.where((k) => k.name == raw).firstOrNull;
       if (kind == null) {
         throw StateError(
           'spec line $lineNo declares an unknown scenario type '
@@ -200,7 +200,6 @@ class SpecParser {
     }
     return markers;
   }
-
 
   /// The heading that opens a Key Entities section (corpus format:
   /// `### Key Entities`; any heading level 1-6 is accepted, matched
@@ -437,10 +436,9 @@ class SpecParser {
             ? ContractRowKind.values.firstWhere((k) => k.name == label)
             : null;
         if (kind == null) continue; // no routing kind — not a routing row
-        final methods = RegExp(r'`([^`]+)`')
-            .allMatches(bullet.group(2)!)
-            .map((m) => m.group(1)!.trim())
-            .toList();
+        final methods = RegExp(
+          r'`([^`]+)`',
+        ).allMatches(bullet.group(2)!).map((m) => m.group(1)!.trim()).toList();
         final signatures = <Signature>[];
         for (final method in methods) {
           try {
@@ -491,12 +489,10 @@ class SpecParser {
         final kind = type.startsWith('storage')
             ? ContractRowKind.storage
             : (type.startsWith('channel') || type.startsWith('platform'))
-                ? ContractRowKind.channel
-                : null;
+            ? ContractRowKind.channel
+            : null;
         if (kind == null) continue;
-        rows.add(
-          ContractRowDecl(name: cells[0], kind: kind, specLine: lineNo),
-        );
+        rows.add(ContractRowDecl(name: cells[0], kind: kind, specLine: lineNo));
         continue;
       }
     }
@@ -630,7 +626,8 @@ class SpecParser {
         // testWidgets pair instead of a smoke-shaped plain-function stub.
         // Feature 071: a `**Type**` marker (rung 1) outranks the prose
         // classifier; the classifier only routes UNDECLARED scenarios.
-        kind: markers['A$aIdx']?.declaredType ??
+        kind:
+            markers['A$aIdx']?.declaredType ??
             (isUiAcceptance(description)
                 ? BehaviorKind.widget
                 : BehaviorKind.acceptance),
@@ -712,7 +709,9 @@ class SpecParser {
       final m = frPattern.firstMatch(lines[i]);
       if (m == null) continue;
       uIdx += 1;
-      final t = i + 1 < lines.length ? tracesLine.firstMatch(lines[i + 1]) : null;
+      final t = i + 1 < lines.length
+          ? tracesLine.firstMatch(lines[i + 1])
+          : null;
       if (t == null) continue;
       traces['U$uIdx'] = t
           .group(1)!

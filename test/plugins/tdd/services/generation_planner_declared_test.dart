@@ -31,8 +31,7 @@ void main() {
   const planner = GenerationPlanner();
 
   group('A2: declared contract rows decide the generation surface', () {
-    test('an entity row plans the entity pipeline with the declared name',
-        () {
+    test('an entity row plans the entity pipeline with the declared name', () {
       final plan = planner.plan(
         summary(
           traces: ['Product'],
@@ -108,16 +107,10 @@ void main() {
     test('an undeclared summary keeps the legacy description-keyed '
         'routing (fallback window)', () {
       final plan = planner.plan(
-        summary(
-          id: 'B-7',
-          description: 'create entity Invoice with email',
-        ),
+        summary(id: 'B-7', description: 'create entity Invoice with email'),
       );
       expect(plan.isExpressible, isTrue);
-      expect(
-        plan.steps.first.args,
-        ['entity', 'create', '-n', 'Invoice'],
-      );
+      expect(plan.steps.first.args, ['entity', 'create', '-n', 'Invoice']);
     });
 
     test('a declared conflict surfaces as an honest unexpressible plan '

@@ -26,8 +26,7 @@ void main() {
   });
 
   test('a declared function signature scaffolds the declared return '
-      'type; the prose deriver stays only for undeclared behaviors',
-      () async {
+      'type; the prose deriver stays only for undeclared behaviors', () async {
     await fx.seedTestList([
       (
         id: 'U-20',

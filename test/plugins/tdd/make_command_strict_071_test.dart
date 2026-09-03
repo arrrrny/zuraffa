@@ -13,16 +13,16 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'helpers/tdd_fixture.dart';
 
 List<String> makeArgs(TddFixture fx, {required String zfaBin}) => [
-      'tdd',
-      'make',
-      '--project',
-      fx.root.path,
-      '--feature',
-      fx.featureName,
-      '--zfa-bin',
-      zfaBin,
-      '--strict-routing',
-    ];
+  'tdd',
+  'make',
+  '--project',
+  fx.root.path,
+  '--feature',
+  fx.featureName,
+  '--zfa-bin',
+  zfaBin,
+  '--strict-routing',
+];
 
 void main() {
   late TddFixture fx;
@@ -52,9 +52,7 @@ void main() {
     final zfaBin = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
 
     final runner = CliRunner(exitOnCompletion: false);
-    final out = await runner.runCapturing(
-      makeArgs(fx, zfaBin: zfaBin),
-    );
+    final out = await runner.runCapturing(makeArgs(fx, zfaBin: zfaBin));
 
     expect(exitCode, 1);
     expect(out, contains('outcome=unexpressible'));

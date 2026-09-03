@@ -90,3 +90,21 @@ test task first (RED recorded here), then the implementation tasks that flip it
 - green: 2026-09-03 — plan pins `+9: All tests passed!`; make strict pin `+1: All tests passed!`; full fast tier 923 green (+44 new); #939/#950 slow widget suites 5/5; analyze clean
 - design refinements during green (recorded): (1) strict passes through plan_command to resolver.resolve (initially omitted — refusals never armed); (2) parse-time sniffer kind is never resolver-declared (it IS the fallback); (3) widget rows are exempt from the strict surface requirement — a declared widget lane routes to the view builder (issue #939), whose unexpressible-primary-plan is routing, not a strict failure; make's strict gate therefore refuses only resolver failures (reason carries `--> fix:`); (4) make parses spec declarations fail-closed (missing spec = empty declarations = everything undeclared under strict)
 - tasks ticked: T025, T026, T027, T028
+
+## Cycle: quickstart validation (T031)
+
+- Scenarios 1-5 of quickstart.md executed against a scratch project (/tmp/qs071):
+  declared widget+renders -> widget lane [declared: type marker, spec line 19];
+  function row -> func surface [declared: contract row: Formatter]; storage-free
+  vocabulary unmarked; strict flip on undeclared U2 -> exit 1 with `--> fix:`;
+  dangling trace + undeclared -> BOTH refusals printed, exit 1.
+- BUG FOUND BY VALIDATION: multiple strict refusals collided on a shared
+  '__refused__' key (last overwrote first). Fixed: refusals accumulate. Full
+  fast tier re-green after fix.
+- tasks ticked: T031
+
+## Cycle: T032 final sweep
+
+- `dart test test/plugins/tdd` — 923/923 green (post-format)
+- `dart analyze lib/src/plugins/tdd/ test/plugins/tdd/` — no issues
+- `dart format` — touched files clean

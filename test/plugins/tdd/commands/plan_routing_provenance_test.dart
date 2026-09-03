@@ -16,7 +16,8 @@ import 'package:zuraffa/src/plugins/tdd/models/behavior.dart';
 import 'package:zuraffa/src/plugins/tdd/services/spec_parser.dart';
 
 Behavior? parseOne(String scenario) {
-  final spec = '## Scenarios\n\n1. **Given** the app state, **When** it '
+  final spec =
+      '## Scenarios\n\n1. **Given** the app state, **When** it '
       'changes, **Then** $scenario\n';
   final behaviors = const SpecParser().parse('071-probe', spec);
   return behaviors.where((b) => b.id == 'A1').firstOrNull;
@@ -87,9 +88,8 @@ void main() {
 
     test('reworded prose with identical markers routes identically '
         '(SC-001)', () {
-      Behavior? parse(String prose) => parseOne(
-        '$prose\n   **Type**: widget\n',
-      );
+      Behavior? parse(String prose) =>
+          parseOne('$prose\n   **Type**: widget\n');
       final a = parse('the widget renders "Order placed".');
       final b = parse('the widget rendered the order confirmation.');
       final c = parse('the order screen computes its total.');
@@ -102,8 +102,11 @@ void main() {
         '(fallback window, SC-005)', () {
       final widgetProse = parseOne('the page shows the settings form.');
       final plainProse = parseOne('the total equals the sum of items.');
-      expect(widgetProse?.kind, BehaviorKind.widget,
-          reason: 'legacy classifier still routes undeclared scenarios');
+      expect(
+        widgetProse?.kind,
+        BehaviorKind.widget,
+        reason: 'legacy classifier still routes undeclared scenarios',
+      );
       expect(plainProse?.kind, BehaviorKind.acceptance);
     });
   });
@@ -121,16 +124,18 @@ void main() {
       expect(list, contains('route: A1 -> widget lane'));
     });
 
-    test('a unit FR traced to a function row prints its declared surface',
-        () async {
-      final (out, _) = await planSpec(
-        '- **FR-001**: the label renders the template\n'
-        '            traces: Formatter.format',
-      );
-      expect(out, contains('route: U1 -> unit lane'));
-      expect(out, contains('func surface'));
-      expect(out, contains('[declared: contract row: Formatter'));
-    });
+    test(
+      'a unit FR traced to a function row prints its declared surface',
+      () async {
+        final (out, _) = await planSpec(
+          '- **FR-001**: the label renders the template\n'
+          '            traces: Formatter.format',
+        );
+        expect(out, contains('route: U1 -> unit lane'));
+        expect(out, contains('func surface'));
+        expect(out, contains('[declared: contract row: Formatter'));
+      },
+    );
 
     test('an undeclared widget scenario prints a labeled fallback line '
         'with the fix hint', () async {

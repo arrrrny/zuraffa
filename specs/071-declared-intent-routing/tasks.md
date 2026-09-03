@@ -28,7 +28,7 @@ description: "Task list for feature implementation"
 
 **Purpose**: Baseline capture — prove the tree starts green before any behavior work.
 
-- [ ] T001 Run the tdd plugin fast tier (`dart test test/plugins/tdd`) and record the baseline result (expected: all green at commit `37a46c5b`); any pre-existing red is documented in `specs/071-declared-intent-routing/tdd/cycle-log.md` before work begins.
+- [x] T001 Run the tdd plugin fast tier (`dart test test/plugins/tdd`) and record the baseline result (expected: all green at commit `37a46c5b`); any pre-existing red is documented in `specs/071-declared-intent-routing/tdd/cycle-log.md` before work begins.
 
 ---
 
@@ -152,10 +152,10 @@ description: "Task list for feature implementation"
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T029 [P] Document the v1.1 declarations (marker, traces, function bullet, `[persistent]`) in `openwiki/` (authoring guide page) per contracts/template-declarations.md.
-- [ ] T030 [P] Update the tdd plugin docs (`doc/` routing-related pages) that describe description-keyed routing: note the declaration ladder, fallback window, and strict flag.
-- [ ] T031 Run `specs/071-declared-intent-routing/quickstart.md` scenarios end-to-end against a scratch project and record results in the feature's `tdd/cycle-log.md`.
-- [ ] T032 Full fast-tier sweep (`dart test test/plugins/tdd`) + `dart analyze` on touched files; fix any drift.
+- [x] T029 [P] Document the v1.1 declarations (marker, traces, function bullet, `[persistent]`) in `openwiki/` (authoring guide page) per contracts/template-declarations.md.
+- [x] T030 [P] Update the tdd plugin docs (`doc/` routing-related pages) that describe description-keyed routing: note the declaration ladder, fallback window, and strict flag.
+- [x] T031 Run `specs/071-declared-intent-routing/quickstart.md` scenarios end-to-end against a scratch project and record results in the feature's `tdd/cycle-log.md`.
+- [x] T032 Full fast-tier sweep (`dart test test/plugins/tdd`) + `dart analyze` on touched files; fix any drift.
 
 ---
 

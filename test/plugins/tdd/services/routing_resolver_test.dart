@@ -27,11 +27,8 @@ SpecDeclarations decls({
   persistence: persistence,
 );
 
-ScenarioDeclaration marker(
-  String id,
-  BehaviorKind kind, {
-  int line = 10,
-}) => ScenarioDeclaration(behaviorId: id, declaredType: kind, specLine: line);
+ScenarioDeclaration marker(String id, BehaviorKind kind, {int line = 10}) =>
+    ScenarioDeclaration(behaviorId: id, declaredType: kind, specLine: line);
 
 ContractRowDecl entityRow(String name, {int line = 20}) =>
     ContractRowDecl(name: name, kind: ContractRowKind.entity, specLine: line);
@@ -48,7 +45,11 @@ ContractRowDecl functionRow(
 );
 
 ContractRowDecl presentationRow(String name, {int line = 40}) =>
-    ContractRowDecl(name: name, kind: ContractRowKind.presentation, specLine: line);
+    ContractRowDecl(
+      name: name,
+      kind: ContractRowKind.presentation,
+      specLine: line,
+    );
 
 ContractRowDecl storageRow(String name, {int line = 50}) =>
     ContractRowDecl(name: name, kind: ContractRowKind.storage, specLine: line);
@@ -69,9 +70,9 @@ void main() {
       expect(d.surface, GenerationSurface.entityPipeline);
       expect(d.entityName, 'Product');
       expect(
-        d.provenance.where((p) => p.aspect == RoutingAspect.kind).map(
-          (p) => p.source,
-        ),
+        d.provenance
+            .where((p) => p.aspect == RoutingAspect.kind)
+            .map((p) => p.source),
         everyElement(RoutingSource.declared),
       );
     });
@@ -110,7 +111,9 @@ void main() {
     test('a marker outranks the test-list kind declaration (rung 1 > 3)', () {
       final result = resolver.resolve(
         row: row('U3', kind: BehaviorKind.unit),
-        declarations: decls(scenarios: {'U3': marker('U3', BehaviorKind.widget)}),
+        declarations: decls(
+          scenarios: {'U3': marker('U3', BehaviorKind.widget)},
+        ),
         strict: false,
       );
       final d = result as RoutingDecision;
@@ -127,9 +130,7 @@ void main() {
       expect(d.kind, BehaviorKind.ffi);
       expect(d.surface, isNull, reason: 'rung 3 declares kind only');
       expect(
-        d.provenance
-            .firstWhere((p) => p.aspect == RoutingAspect.kind)
-            .source,
+        d.provenance.firstWhere((p) => p.aspect == RoutingAspect.kind).source,
         RoutingSource.declared,
       );
     });
@@ -137,7 +138,9 @@ void main() {
     test('a storage row marks persistence without changing the lane', () {
       final result = resolver.resolve(
         row: row('U5', kind: BehaviorKind.unit, traces: ['CartStorage']),
-        declarations: decls(contractRows: {'CartStorage': storageRow('CartStorage')}),
+        declarations: decls(
+          contractRows: {'CartStorage': storageRow('CartStorage')},
+        ),
         strict: false,
       );
       final d = result as RoutingDecision;
@@ -265,7 +268,9 @@ void main() {
         row: row('U13', traces: ['Formatter.format']),
         declarations: decls(
           contractRows: {
-            'Formatter': functionRow('Formatter', ['format(Template) -> String']),
+            'Formatter': functionRow('Formatter', [
+              'format(Template) -> String',
+            ]),
           },
         ),
         strict: false,

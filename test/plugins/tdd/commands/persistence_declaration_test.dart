@@ -59,28 +59,27 @@ void main() {
       '--project',
       tmpDir.path,
     ]);
-    return File(
-      p.join(featureDir, 'tdd', 'test-list.md'),
-    ).readAsStringSync();
+    return File(p.join(featureDir, 'tdd', 'test-list.md')).readAsStringSync();
   }
 
-  test('a [persistent] tag marks the behavior (no storage words needed)',
-      () async {
-    final list = await runPlan(
-      '- **FR-001**: [persistent] the cart survives an app restart',
-    );
-    expect(
-      list,
-      contains(
-        '| U1 | the cart survives an app restart [persistence] | FR-001 | PENDING |',
-      ),
-      reason: 'tag stripped from the description; the mark is appended',
-    );
-    expect(list, contains('[persistence]'));
-  });
+  test(
+    'a [persistent] tag marks the behavior (no storage words needed)',
+    () async {
+      final list = await runPlan(
+        '- **FR-001**: [persistent] the cart survives an app restart',
+      );
+      expect(
+        list,
+        contains(
+          '| U1 | the cart survives an app restart [persistence] | FR-001 | PENDING |',
+        ),
+        reason: 'tag stripped from the description; the mark is appended',
+      );
+      expect(list, contains('[persistence]'));
+    },
+  );
 
-  test('storage vocabulary WITHOUT a declaration stays unmarked (AC2)',
-      () async {
+  test('storage vocabulary WITHOUT a declaration stays unmarked (AC2)', () async {
     final list = await runPlan(
       '- **FR-001**: caches the result for display alongside the query',
     );

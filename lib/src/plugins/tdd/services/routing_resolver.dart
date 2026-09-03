@@ -25,7 +25,10 @@ class RoutingResolver {
 
   /// Tokens shaped like criterion traces (`FR-001`, `AC-2`) are not
   /// contract references and never dangle.
-  static final RegExp _criterionToken = RegExp(r'^(FR|AC|SC)[-]?\d+', caseSensitive: false);
+  static final RegExp _criterionToken = RegExp(
+    r'^(FR|AC|SC)[-]?\d+',
+    caseSensitive: false,
+  );
 
   RoutingResult resolve({
     required RoutingRow row,
@@ -87,22 +90,52 @@ class RoutingResolver {
         case ContractRowKind.storage:
           storageDeclared = true;
         case ContractRowKind.presentation:
-          kindSources.add(_KindSource(BehaviorKind.widget, 'contract row: ${ref.row.name}', ref.row.specLine));
+          kindSources.add(
+            _KindSource(
+              BehaviorKind.widget,
+              'contract row: ${ref.row.name}',
+              ref.row.specLine,
+            ),
+          );
           surfaceRow ??= ref.row;
         case ContractRowKind.domain:
         case ContractRowKind.data:
-          kindSources.add(_KindSource(BehaviorKind.unit, 'contract row: ${ref.row.name}', ref.row.specLine));
+          kindSources.add(
+            _KindSource(
+              BehaviorKind.unit,
+              'contract row: ${ref.row.name}',
+              ref.row.specLine,
+            ),
+          );
           surfaceRow ??= ref.row;
         case ContractRowKind.entity:
-          kindSources.add(_KindSource(BehaviorKind.unit, 'contract row: ${ref.row.name}', ref.row.specLine));
+          kindSources.add(
+            _KindSource(
+              BehaviorKind.unit,
+              'contract row: ${ref.row.name}',
+              ref.row.specLine,
+            ),
+          );
           surfaceRow ??= ref.row;
           entityRow ??= ref.row;
         case ContractRowKind.function:
-          kindSources.add(_KindSource(BehaviorKind.unit, 'contract row: ${ref.row.name}', ref.row.specLine));
+          kindSources.add(
+            _KindSource(
+              BehaviorKind.unit,
+              'contract row: ${ref.row.name}',
+              ref.row.specLine,
+            ),
+          );
           surfaceRow ??= ref.row;
           functionRow ??= ref.row;
         case ContractRowKind.channel:
-          kindSources.add(_KindSource(BehaviorKind.platform, 'contract row: ${ref.row.name}', ref.row.specLine));
+          kindSources.add(
+            _KindSource(
+              BehaviorKind.platform,
+              'contract row: ${ref.row.name}',
+              ref.row.specLine,
+            ),
+          );
           surfaceRow ??= ref.row;
       }
     }
@@ -211,7 +244,9 @@ class RoutingResolver {
         ProvenanceLine(
           aspect: RoutingAspect.persistence,
           source: RoutingSource.declared,
-          detail: persistenceDecl.fromTag ? '[persistent] tag' : 'storage dependency',
+          detail: persistenceDecl.fromTag
+              ? '[persistent] tag'
+              : 'storage dependency',
           specLine: persistenceDecl.specLine,
         ),
       );
@@ -282,7 +317,9 @@ class RoutingResolver {
     if (dot > 0) {
       final prefix = token.substring(0, dot);
       final prefixRow = rows[prefix];
-      if (prefixRow != null) return _RowRef(prefixRow, method: token.substring(dot + 1));
+      if (prefixRow != null) {
+        return _RowRef(prefixRow, method: token.substring(dot + 1));
+      }
     }
     return null;
   }

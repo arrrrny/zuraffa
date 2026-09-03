@@ -91,8 +91,7 @@ class Signature {
   }
 
   @override
-  String toString() =>
-      '$name(${parameters.join(', ')}) -> $returnType';
+  String toString() => '$name(${parameters.join(', ')}) -> $returnType';
 }
 
 /// The kind of a declared contract row, derived from the section that

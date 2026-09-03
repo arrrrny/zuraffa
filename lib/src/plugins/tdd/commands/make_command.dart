@@ -468,8 +468,7 @@ class MakeCommand extends Command<void> {
       // pre-#835 behavior) with a note instead of a silent guess.
       final rowKind = await _rowKind(target.featureDir, record.behaviorId);
       final isStub = argResults?['stub'] as bool? ?? false;
-      final strictRouting =
-          argResults?['strict-routing'] as bool? ?? false;
+      final strictRouting = argResults?['strict-routing'] as bool? ?? false;
       final summary = BehaviorSummary.fromRecord(
         record,
         description: _descriptionFor(record),

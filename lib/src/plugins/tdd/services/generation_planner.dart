@@ -608,10 +608,7 @@ class GenerationPlanner {
   /// Translate a resolver outcome into the declared plan, or null when
   /// the ladder leaves the behavior undeclared (the legacy branches
   /// below are then the labeled fallback, migration window).
-  GenerationPlan? _declaredPlan(
-    BehaviorSummary summary,
-    RoutingResult result,
-  ) {
+  GenerationPlan? _declaredPlan(BehaviorSummary summary, RoutingResult result) {
     if (result is RoutingFailure) {
       // Errors-are-an-API: surface the resolver's fix-naming refusal
       // verbatim as the honest plan.
@@ -709,7 +706,8 @@ class GenerationPlanner {
   /// generator surface). Shared by the unit-kind branch (bug #718) and
   /// the function-intent branch (bug #657); [verb] names the described
   /// function intent for the step purpose.
-  GenerationPlan _functionSurfacePlan(BehaviorSummary summary, String verb) {    return GenerationPlan(
+  GenerationPlan _functionSurfacePlan(BehaviorSummary summary, String verb) {
+    return GenerationPlan(
       behaviorId: summary.behaviorId,
       feature: summary.feature,
       sourceCriterion: summary.sourceCriterion,
