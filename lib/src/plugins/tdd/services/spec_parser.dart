@@ -677,7 +677,13 @@ class SpecParser {
       if (m != null) {
         uIdx += 1;
         final frId = m.group(1)!;
-        final desc = m.group(2)!.replaceAll('**', '').trim();
+        // Feature 071: a `[persistent]` tag is a routing declaration,
+        // not prose — strip it from the description (the persistence
+        // map carries the mark; the rendered row stays clean).
+        var desc = m.group(2)!.replaceAll('**', '').trim();
+        if (desc.startsWith('[persistent]')) {
+          desc = desc.substring('[persistent]'.length).trim();
+        }
         behaviors.add(
           Behavior(
             id: 'U$uIdx',
@@ -691,5 +697,60 @@ class SpecParser {
       }
     }
     return behaviors;
+  }
+
+  /// The `_persistence` declaration scan (feature 071): FR lines
+  /// carrying a `[persistent]` tag, or a `traces:` continuation naming
+  /// a declared storage dependency row. Keyed by the document-wide
+  /// unit id (the same walk [_extractUnit] uses, so ids align).
+  static Map<String, PersistenceDeclaration> parsePersistenceDeclarations(
+    String specMd,
+  ) {
+    final declarations = <String, PersistenceDeclaration>{};
+    final storageNames = const SpecParser()
+        .parseContractRows(specMd)
+        .where((r) => r.kind == ContractRowKind.storage)
+        .map((r) => r.name)
+        .toSet();
+    final lines = specMd.split('\n');
+    final frPattern = RegExp(r'^\s*-\s*\*\*(FR-\d{3})\*\*:\s*(.+)$');
+    final tracesLine = RegExp(r'^\s+traces:\s*(.+)$');
+    var uIdx = 0;
+    for (var i = 0; i < lines.length; i++) {
+      final m = frPattern.firstMatch(lines[i]);
+      if (m == null) continue;
+      uIdx += 1;
+      final id = 'U$uIdx';
+      final desc = m.group(2)!.trim();
+      final tagged = desc.startsWith('[persistent]');
+      final traceTokens = <String>[];
+      if (i + 1 < lines.length) {
+        final t = tracesLine.firstMatch(lines[i + 1]);
+        if (t != null) {
+          traceTokens.addAll(
+            t
+                .group(1)!
+                .split(',')
+                .map((token) => token.trim())
+                .where((token) => token.isNotEmpty),
+          );
+        }
+      }
+      final viaStorage = traceTokens.any(storageNames.contains);
+      if (tagged) {
+        declarations[id] = PersistenceDeclaration(
+          behaviorId: id,
+          fromTag: true,
+          specLine: i + 1,
+        );
+      } else if (viaStorage) {
+        declarations[id] = PersistenceDeclaration(
+          behaviorId: id,
+          fromTag: false,
+          specLine: i + 2,
+        );
+      }
+    }
+    return declarations;
   }
 }

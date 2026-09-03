@@ -99,13 +99,13 @@ description: "Task list for feature implementation"
 
 ### Tests for User Story 3 (write FIRST, ensure RED)
 
-- [ ] T018 [P] [US3] MANDATORY [behavior: U4] Write `test/plugins/tdd/services/persistence_declaration_test.dart` (RED): tag → marked; storage-dependency trace → marked; storage vocabulary without declaration → unmarked; fallback marking labeled in provenance.
+- [x] T018 [P] [US3] MANDATORY [behavior: U4] Write `test/plugins/tdd/services/persistence_declaration_test.dart` (RED): tag → marked; storage-dependency trace → marked; storage vocabulary without declaration → unmarked; fallback marking labeled in provenance.
 
 ### Implementation for User Story 3
 
-- [ ] T019 [US3] Parse `[persistent]` FR tags and storage-dependency traces into `PersistenceDeclaration`s in `lib/src/plugins/tdd/services/spec_parser.dart`. Depends on T018 (RED).
-- [ ] T020 [US3] Switch the mark trigger in `lib/src/plugins/tdd/services/test_list_reader.dart` / `lib/src/plugins/tdd/commands/plan_command.dart` (`_marked`) to declarations, keywords demoted to fallback (read-side `PersistenceMarker.extract` unchanged). Depends on T019, T004.
-- [ ] T021 [US3] Verify T018 pins green + existing persistence suites (`plan_persistence_marking_833_test.dart` family) stay green. Depends on T020.
+- [x] T019 [US3] Parse `[persistent]` FR tags and storage-dependency traces into `PersistenceDeclaration`s in `lib/src/plugins/tdd/services/spec_parser.dart`. Depends on T018 (RED).
+- [x] T020 [US3] Switch the mark trigger in `lib/src/plugins/tdd/services/test_list_reader.dart` / `lib/src/plugins/tdd/commands/plan_command.dart` (`_marked`) to declarations, keywords demoted to fallback (read-side `PersistenceMarker.extract` unchanged). Depends on T019, T004.
+- [x] T021 [US3] Verify T018 pins green + existing persistence suites (`plan_persistence_marking_833_test.dart` family) stay green. Depends on T020.
 
 **Checkpoint**: Persistence harnesses appear exactly where declared.
 

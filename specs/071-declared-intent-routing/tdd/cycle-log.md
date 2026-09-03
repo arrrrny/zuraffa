@@ -60,3 +60,13 @@ test task first (RED recorded here), then the implementation tasks that flip it
 - green: 2026-09-03 — planner `+5: All tests passed!` (T015: resolver-first in plan(), surface-keyed declared plans, legacy branches as labeled fallback); func `+10: All tests passed!` across both files (T016: DeclaredRouting.declaredSignatureFor feeds the declared signature; deriver demoted to fallback); services regression 526 green; #950/#835 planner pins re-green
 - notes: one pin fixed its own expectation (U-id dispatch precedes description branches per #718 — used a non-U id to exercise the description-keyed legacy branch); make wiring of declarations lands with strict mode (T027) per tasks.md
 - tasks ticked: T013, T015, T016, T017
+
+## Cycle: U4 (red -> green)
+
+- behavior: U4 — persistence marking from declarations (`[persistent]` tag, storage-dependency trace); storage vocabulary without a declaration stays unmarked
+- criterion: FR-006
+- test: test/plugins/tdd/commands/persistence_declaration_test.dart
+- red: 2026-09-03 — `+1 -2`: tag unparsed, keyword-marked vocabulary (AC2 violated); the storage-trace pin was green pre-change only via the 'offline' keyword — coincidence, replaced by the declaration trigger
+- green: 2026-09-03 — `+3: All tests passed!` (T019: parsePersistenceDeclarations + tag stripping in _extractUnit; T020: _marked consults declarations, keyword trigger retired per spec AC2)
+- CONTRACT CHANGE (spec-sanctioned, not a weakened pin): plan_persistence_marking_833_test.dart re-pointed to the declared contract — its keyword-wording pins now declare `[persistent]`; added an explicit vocabulary-unmarked pin; mark shape/idempotency/non-persistence default unchanged (#833 family 14/14 green). matchesKeywords remains exported (read-side extract unchanged); its removal is a follow-up.
+- tasks ticked: T018, T019, T020, T021

@@ -16,6 +16,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../models/routing.dart';
 import '../services/requirement_scan.dart';
 import '../services/spec_parser.dart';
 import '../services/test_list_reader.dart';
@@ -264,6 +265,7 @@ class PlanCommand extends Command<void> {
         dependencies,
         layerContracts,
         preservedFfi,
+        SpecParser.parsePersistenceDeclarations(specMd),
       ),
     );
 
@@ -295,6 +297,7 @@ class PlanCommand extends Command<void> {
     List<SpecDependency> dependencies,
     List<LayerContract> layerContracts,
     List<BehaviorRow> preservedFfi,
+    Map<String, PersistenceDeclaration> persistenceDeclarations,
   ) {
     final acceptance = behaviors
         .where((b) => b.kind == BehaviorKind.acceptance)
@@ -318,7 +321,7 @@ class PlanCommand extends Command<void> {
       ..writeln('| -- | -------- | ------ | ----- |');
     for (final b in acceptance) {
       buf.writeln(
-        '| ${b.id} | ${_marked(b)} | ${b.sourceCriterion} | PENDING |',
+        '| ${b.id} | ${_marked(b, persistenceDeclarations)} | ${b.sourceCriterion} | PENDING |',
       );
     }
     buf
@@ -348,7 +351,7 @@ class PlanCommand extends Command<void> {
       ..writeln('| -- | -------- | ------ | ----- |');
     for (final b in unit) {
       buf.writeln(
-        '| ${b.id} | ${_marked(b)} | ${b.sourceCriterion} | PENDING |',
+        '| ${b.id} | ${_marked(b, persistenceDeclarations)} | ${b.sourceCriterion} | PENDING |',
       );
     }
     // Bug #829: the spec's Key Entities, extracted for the loop's
@@ -444,11 +447,19 @@ class PlanCommand extends Command<void> {
     return buf.toString();
   }
 
-  /// Bug #833: the plan MARKS the behavior persistence-kind — a behavior
-  /// whose prose names a persistence concern (Hive, cache, TTL, offline,
-  /// corruption, registrar, persistence) gets the ` [persistence]` tag, and
-  /// `zfa tdd gen` generates the harness-backed test for it. Idempotent.
-  String _marked(Behavior b) => PersistenceMarker.matchesKeywords(b.description)
+  /// Bug #833: the plan MARKS the behavior persistence-kind — the
+  /// ` [persistence]` tag makes `zfa tdd gen` generate the
+  /// harness-backed test. Idempotent.
+  ///
+  /// Feature 071 (issue #951): the trigger is DECLARED — a `[persistent]`
+  /// FR tag or a trace to a `storage:` dependency row (FR-006). The
+  /// #833 keyword sniffing is retired entirely (spec AC2: storage
+  /// vocabulary without a declaration stays unmarked — the keyword
+  /// trigger was false-positive-prone by construction).
+  String _marked(
+    Behavior b,
+    Map<String, PersistenceDeclaration> persistenceDeclarations,
+  ) => persistenceDeclarations.containsKey(b.id)
       ? PersistenceMarker.mark(b.description)
       : b.description;
 }
