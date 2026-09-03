@@ -87,6 +87,8 @@ class FixtureCorpus {
   static String cleanSpec(String feature) =>
       '# Feature Specification: $feature\n'
       '\n'
+      '**Template Version**: `zuraffa-1.0`\n'
+      '\n'
       '## Acceptance Scenarios\n'
       '\n'
       '1. **Given** a calculator **When** the user adds two numbers '
@@ -104,6 +106,8 @@ class FixtureCorpus {
   /// planning must refuse it; corpus import must still copy it verbatim.
   static String proseOnlySpec(String feature) =>
       '# Feature Specification: $feature\n'
+      '\n'
+      '**Template Version**: `zuraffa-1.0`\n'
       '\n'
       'This feature is described in prose only. There is no acceptance '
       'scenario section and no functional requirement list, so the TDD '
