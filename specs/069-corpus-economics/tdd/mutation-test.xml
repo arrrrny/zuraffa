@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Spec 069 scoped mutation audit: the two pure services with
+     fast-tier coverage (corpus_sharder, budget_telemetry). -->
+<mutations version="1.0">
+  <files>
+    <file>lib/src/plugins/tdd/services/corpus_sharder.dart</file>
+    <file>lib/src/plugins/tdd/services/budget_telemetry.dart</file>
+  </files>
+  <commands>
+    <command group="test" expected-return="0" working-directory=".">dart test test/plugins/tdd/corpus_sharder_test.dart test/plugins/tdd/budget_telemetry_test.dart -j 1</command>
+  </commands>
+</mutations>

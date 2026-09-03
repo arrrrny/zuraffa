@@ -33,6 +33,7 @@ class CorpusFixture {
       p.join(root.path, '.zfa', 'manifests', 'corpus-manifest.json');
   String get progressPath =>
       p.join(root.path, '.zfa', 'corpus', 'progress.json');
+  String get verdictPath => p.join(root.path, '.zfa', 'corpus', 'verdict.json');
   String get ledgerPath =>
       p.join(root.path, '.zfa', 'corpus', 'gap-ledger.json');
   String get waiversPath => p.join(root.path, '.zfa', 'corpus', 'waivers.json');

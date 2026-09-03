@@ -99,6 +99,20 @@ import '../../../core/project/project_root.dart';
 class GenCommand extends Command<void> {
   GenCommand(this.plugin) {
     argParser.addFlag(
+      'all',
+      negatable: false,
+      defaultsTo: false,
+      help:
+          'Batch generation (spec 069-corpus-economics, issue #916): '
+          'materialize every PLANNED behavior of the feature (or every '
+          'feature, without --feature) that has no artifact-registry '
+          'record yet, in ONE invocation — one process, one profile '
+          'load, one registry preflight per behavior. Already-registered '
+          'behaviors are skipped (idempotent; progressed artifacts are '
+          'never clobbered). Excludes the per-behavior `dart test` spawn '
+          'economics of the gen lineage (issues #792/#785).',
+    );
+    argParser.addFlag(
       'dry-run',
       abbr: 'n',
       help: 'Plan the test+subject pair without writing anything (FR-009).',
@@ -203,10 +217,16 @@ class GenCommand extends Command<void> {
   @override
   Future<void> run() async {
     final rest = argResults?.rest ?? const <String>[];
-    if (rest.isEmpty) {
+    final batchAll = argResults!['all'] as bool;
+    if (batchAll && rest.isNotEmpty) {
+      usageException(
+        'zfa tdd gen --all takes no behavior id — it batches every '
+        'planned-but-unregistered behavior itself.',
+      );
+    }
+    if (rest.isEmpty && !batchAll) {
       usageException('Behavior id is required: zfa tdd gen <behavior-id>');
     }
-    final behaviorId = rest.first;
     final dryRun = argResults!['dry-run'] as bool;
     final adopt = argResults!['adopt'] as bool;
     // Bug #830: explicit subject-kind override and the widget-only golden
@@ -253,6 +273,24 @@ class GenCommand extends Command<void> {
     // and an abandoned continuation (Dart futures cannot be cancelled)
     // aborts at its next stage boundary instead of silently completing
     // writes or the registry append after the timeout was reported.
+    //
+    // Spec 069: --all batches every planned-but-unregistered behavior
+    // through this same deadline-bounded flow (per-behavior budget), one
+    // process for the whole batch.
+    if (batchAll) {
+      await _generateAll(
+        dryRun: dryRun,
+        adopt: adopt,
+        kindOverride: kindOverride,
+        golden: golden,
+        featureFlag: featureFlag,
+        cwd: cwd,
+        widgetShell: widgetShell,
+        perBehaviorBudget: budget,
+      );
+      return;
+    }
+    final behaviorId = rest.first;
     final deadline = _FlowDeadline(budget);
     try {
       await _generate(
@@ -283,6 +321,125 @@ class GenCommand extends Command<void> {
       exitCode = 1;
       return;
     }
+  }
+
+  /// Spec 069 (issue #916) batch generation: enumerate every test-list
+  /// behavior of the feature(s); drive each WITHOUT an artifact-registry
+  /// record through the SAME deadline-bounded [_generate] flow — one
+  /// process, one profile load. Behaviors already registered are
+  /// counted and skipped (idempotent; their in-flight cycle is never
+  /// disturbed). The batch machine line
+  /// `gen: batch behaviors=<n> generated=<x> registered=<y> failed=<z>`
+  /// is the final stdout line; exit 0 iff every attempted generation
+  /// succeeded.
+  Future<void> _generateAll({
+    required bool dryRun,
+    required bool adopt,
+    required BehaviorKind? kindOverride,
+    required bool golden,
+    required String? featureFlag,
+    required String cwd,
+    required WidgetAppShell widgetShell,
+    required Duration perBehaviorBudget,
+  }) async {
+    final behaviors = await _enumerateBehaviors(cwd, featureFlag);
+    if (behaviors.isEmpty) {
+      print(
+        'zfa tdd gen --all: no behavior found in any test list'
+        '${featureFlag != null && featureFlag.isNotEmpty ? " for feature $featureFlag" : ""}. '
+        'Nothing to generate.',
+      );
+      print('gen: batch behaviors=0 generated=0 registered=0 failed=0');
+      return;
+    }
+
+    var generated = 0;
+    var registered = 0;
+    var failed = 0;
+    for (final entry in behaviors) {
+      final registry = ArtifactRegistry(featureDir: entry.featureDir);
+      if (await registry.findRecord(entry.id) != null) {
+        // Already materialized: skip — the batch never clobbers a
+        // behavior's in-flight cycle (gen's FR-006 reuse semantics one
+        // level up).
+        registered++;
+        continue;
+      }
+      // Each behavior gets its own deadline-bounded flow (the #744
+      // per-flow budget semantics are unchanged).
+      final deadline = _FlowDeadline(perBehaviorBudget);
+      try {
+        await _generate(
+          entry.id,
+          dryRun: dryRun,
+          adopt: adopt,
+          kindOverride: kindOverride,
+          golden: golden,
+          featureFlag: featureFlag ?? entry.featureName,
+          cwd: cwd,
+          widgetShell: widgetShell,
+          deadline: deadline,
+        );
+        generated++;
+      } on _GenFlowTimeout catch (e) {
+        print(
+          'zfa tdd gen: timeout after ${formatTddTimeout(perBehaviorBudget)} '
+          '— behavior=${entry.id} step=${e.stage} outcome=timeout',
+        );
+        failed++;
+      } on StateError {
+        // The flow already printed its honest refusal (unknown id,
+        // malformed list, ownership conflict); the batch counts it and
+        // keeps going — a single bad row never aborts the batch.
+        failed++;
+      }
+    }
+
+    print(
+      'gen: batch behaviors=${behaviors.length} generated=$generated '
+      'registered=$registered failed=$failed',
+    );
+    exitCode = failed == 0 ? 0 : 1;
+  }
+
+  /// Every test-list row of the feature(s). With [featureFlag], only
+  /// that feature's list is scanned; otherwise every feature dir
+  /// (sorted, the _resolveBehavior contract).
+  Future<List<_PlannedBehavior>> _enumerateBehaviors(
+    String cwd,
+    String? featureFlag,
+  ) async {
+    final specsDir = Directory('$cwd/specs');
+    if (!await specsDir.exists()) return const [];
+
+    List<Directory> dirs;
+    if (featureFlag != null && featureFlag.isNotEmpty) {
+      dirs = [Directory('$cwd/specs/$featureFlag')];
+    } else {
+      dirs = <Directory>[];
+      await for (final entity in specsDir.list()) {
+        if (entity is Directory) dirs.add(entity);
+      }
+      dirs.sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
+    }
+
+    final behaviors = <_PlannedBehavior>[];
+    for (final dir in dirs) {
+      final testListFile = File('${dir.path}/tdd/test-list.md');
+      if (!await testListFile.exists()) continue;
+      final featureName = p.basename(dir.path);
+      final rows = await TestListReader(dir.path).read();
+      for (final row in rows) {
+        behaviors.add(
+          _PlannedBehavior(
+            id: row.id,
+            featureDir: dir.path,
+            featureName: featureName,
+          ),
+        );
+      }
+    }
+    return behaviors;
   }
 
   /// The deadline-bounded flow body, verbatim the pre-#744 contract:
@@ -1308,3 +1465,18 @@ typedef _GenWriterPair = ({
   })
   writeSubject,
 });
+
+/// One enumerated test-list row for the spec 069 batch generation
+/// (`zfa tdd gen --all`): the behavior id plus the feature directory it
+/// was planned in.
+class _PlannedBehavior {
+  const _PlannedBehavior({
+    required this.id,
+    required this.featureDir,
+    required this.featureName,
+  });
+
+  final String id;
+  final String featureDir;
+  final String featureName;
+}

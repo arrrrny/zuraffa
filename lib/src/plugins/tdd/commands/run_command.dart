@@ -115,6 +115,7 @@ import 'package:path/path.dart' as p;
 import '../services/artifact_registry.dart';
 import '../services/cycle_evidence.dart';
 import '../services/entity_lookup.dart';
+import '../services/baseline_cache.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/run_state_store.dart';
 import '../services/runner.dart';
@@ -400,26 +401,66 @@ class RunCommand extends Command<void> {
         final suiteTemplate = await const SingleTestRunner().loadSuiteTemplate(
           workingDirectory: projectRoot,
         );
-        print('   suite baseline: $suiteTemplate (once per run — issue #741)');
-        final baselineRecord = await const SingleTestRunner().runSuite(
-          suiteTemplate: suiteTemplate,
-          workingDirectory: projectRoot,
+        // Spec 069 T004 (issue #916, extends #741): the corpus-wide
+        // baseline FIRST — a usable cache captured by ANOTHER feature
+        // of this lane (same dependency fingerprint, same suite
+        // command) is reused verbatim: the full-suite re-run per
+        // feature is exactly the per-feature cost the corpus lane
+        // cannot afford. A dependency change since the capture
+        // invalidates it honestly (a miss, never a stale green).
+        final corpusBaseline = await const CorpusBaselineCache().read(
+          projectRoot: projectRoot,
+          suiteCommand: suiteTemplate,
         );
-        final snapshot = const SuiteGuard().fromRunRecord(
-          record: baselineRecord,
-          capturedAt: DateTime.now().toUtc().toIso8601String(),
-        );
-        if (snapshot.parseable) {
-          suiteBaselinePath = await const RunBaselineCache().write(
-            featureDir: featureDir,
-            snapshot: snapshot,
+        if (corpusBaseline != null) {
+          suiteBaselinePath = CorpusBaselineCache.pathFor(
+            projectRoot: projectRoot,
           );
           print(
-            '   baseline cached for this run: '
+            '   suite baseline: corpus-wide cache HIT '
             '${p.relative(suiteBaselinePath, from: projectRoot)} '
-            '(${snapshot.failedTests.length} pre-existing failure(s)); '
-            'make steps reuse it instead of re-running the suite',
+            '(captured ${corpusBaseline.capturedAt}; '
+            '${corpusBaseline.failedTests.length} pre-existing '
+            'failure(s)) — reusing across features [069]',
           );
+        } else {
+          print(
+            '   suite baseline: $suiteTemplate (once per run — issue #741)',
+          );
+          final baselineRecord = await const SingleTestRunner().runSuite(
+            suiteTemplate: suiteTemplate,
+            workingDirectory: projectRoot,
+          );
+          final snapshot = const SuiteGuard().fromRunRecord(
+            record: baselineRecord,
+            capturedAt: DateTime.now().toUtc().toIso8601String(),
+          );
+          if (snapshot.parseable) {
+            // Write the corpus-wide cache for the NEXT feature of this
+            // lane (dependency-fingerprinted), then the per-feature
+            // path this run's steps consume (the #741 contract).
+            try {
+              await const CorpusBaselineCache().write(
+                projectRoot: projectRoot,
+                snapshot: snapshot,
+                suiteCommand: suiteTemplate,
+              );
+            } on IOException {
+              // The corpus cache is an optimization: an unwritable
+              // lane cache never blocks the per-feature baseline.
+            }
+            suiteBaselinePath = await const RunBaselineCache().write(
+              featureDir: featureDir,
+              snapshot: snapshot,
+            );
+            print(
+              '   baseline cached for this run: '
+              '${p.relative(suiteBaselinePath, from: projectRoot)} '
+              '(${snapshot.failedTests.length} pre-existing failure(s)); '
+              'make steps reuse it instead of re-running the suite; '
+              'corpus-wide reuse for later features [069]',
+            );
+          }
         }
       } on StateError {
         // No profile / no suite template

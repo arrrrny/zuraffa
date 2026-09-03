@@ -34,6 +34,7 @@ library;
 
 import 'dart:io';
 
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
@@ -60,6 +61,23 @@ class VerifyRedResolutionError implements Exception {
 
 class VerifyRedCommand extends Command<void> {
   VerifyRedCommand(this.plugin) {
+    argParser.addFlag(
+      'all',
+      negatable: false,
+      defaultsTo: false,
+      help:
+          'Batch red verification (spec 069-corpus-economics, issue #916): '
+          'certify EVERY behavior that has gen artifacts and no red '
+          'evidence yet, through ONE suite invocation (the profile `suite` '
+          'template + the batch\u2019s test file paths) instead of one '
+          '`dart test` spawn per behavior (issues #792/#785). Per-behavior '
+          'honesty is preserved: each behavior\u2019s test result is segmented '
+          'from the batch transcript and classified independently \u2014 '
+          'assertion-failing behaviors are certified, any other class is '
+          'a named rejection. The batch machine line '
+          '`verify-red: batch behaviors=<n> certified=<x> spawns=<k> '
+          'feature=<f>` is the final stdout line.',
+    );
     argParser.addOption(
       'feature',
       help:
@@ -107,7 +125,22 @@ class VerifyRedCommand extends Command<void> {
   @override
   Future<void> run() async {
     final rest = argResults?.rest ?? const <String>[];
+    final batchAll = argResults!['all'] as bool;
     final behaviorId = rest.isNotEmpty ? rest.first : null;
+    if (batchAll && behaviorId != null) {
+      usageException(
+        'zfa tdd verify-red --all takes no behavior id — it batches every '
+        'gen\'d-but-uncertified behavior itself.',
+      );
+    }
+    if (batchAll) {
+      await _runBatch(
+        cwd: _projectRoot(argResults),
+        featureFlag: _normalizedFeatureFlag(argResults),
+        timeoutOverride: _parsedTimeout(argResults),
+      );
+      return;
+    }
     final rawFeatureFlag = argResults?['feature'] as String?;
     final featureFlag = (rawFeatureFlag != null && rawFeatureFlag.isNotEmpty)
         ? _stripSpecsPrefix(rawFeatureFlag)
@@ -300,6 +333,236 @@ class VerifyRedCommand extends Command<void> {
       feature: target.featureName,
     );
     exitCode = 1;
+  }
+
+  // -------------------------------------------------------------------
+  // Batch mode (spec 069-corpus-economics, issue #916): --all.
+  // -------------------------------------------------------------------
+
+  /// The resolved project root for the batch path (the single-mode
+  /// resolution contract, extracted so both paths share it).
+  String _projectRoot(ArgResults? argResults) {
+    final projectFlag = argResults?['project'] as String?;
+    return projectFlag != null && projectFlag.isNotEmpty
+        ? p.absolute(projectFlag)
+        : ProjectRoot.find(anchorDir: 'specs');
+  }
+
+  /// The --feature flag, `specs/`-prefix stripped and segment-validated.
+  String? _normalizedFeatureFlag(ArgResults? argResults) {
+    final raw = argResults?['feature'] as String?;
+    if (raw == null || raw.isEmpty) return raw;
+    final feature = _stripSpecsPrefix(raw);
+    if (feature.isNotEmpty) _validateFeatureSegment(feature);
+    return feature;
+  }
+
+  /// The --timeout override (null when absent; a bad value is a usage
+  /// error, the #742 house contract).
+  Duration? _parsedTimeout(ArgResults? argResults) {
+    final raw = argResults?['timeout'] as String?;
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return parseTddTimeoutMinutes(raw);
+    } on TddTimeoutFormatException catch (e) {
+      usageException('zfa tdd verify-red: ${e.message}');
+    }
+  }
+
+  /// The batch flow: resolve every gen'd-but-uncertified behavior, run
+  /// ONE suite invocation scoped to their test files, segment the
+  /// transcript per file, classify each behavior independently, and
+  /// append red evidence for every assertion-classified behavior.
+  Future<void> _runBatch({
+    required String cwd,
+    String? featureFlag,
+    Duration? timeoutOverride,
+  }) async {
+    // 1. Candidates: every behavior with gen artifacts and no red
+    //    evidence (the single-mode inference set, ALL of it — with
+    //    --feature restricted to that feature).
+    final registries = await _scanRegistries(cwd, featureFlag);
+    final candidates = <_ResolvedTarget>[];
+    for (final entry in registries) {
+      final certified = await _certifiedBehaviors(entry.featureDir);
+      for (final record in await entry.registry.loadAll()) {
+        if (certified.contains(record.behaviorId)) continue;
+        candidates.add(
+          _ResolvedTarget(record, entry.featureDir, entry.featureName),
+        );
+      }
+    }
+    final batchFeatureLabel = featureFlag != null && featureFlag.isNotEmpty
+        ? featureFlag
+        : (candidates.isEmpty ? 'unknown' : candidates.first.featureName);
+    if (candidates.isEmpty) {
+      print(
+        'zfa tdd verify-red --all: every gen\u2019d behavior already has '
+        'red evidence — nothing to certify.',
+      );
+      _printBatchSummary(
+        behaviors: 0,
+        certified: 0,
+        spawns: 0,
+        feature: batchFeatureLabel,
+      );
+      return;
+    }
+
+    // 2. The suite template + ONE scoped spawn (the batch's whole
+    //    economics: one compile, one process).
+    final runner = const SingleTestRunner();
+    String suiteTemplate;
+    try {
+      suiteTemplate = await runner.loadSuiteTemplate(workingDirectory: cwd);
+    } on StateError catch (e) {
+      print(e.message);
+      _printBatchSummary(
+        behaviors: candidates.length,
+        certified: 0,
+        spawns: 0,
+        feature: batchFeatureLabel,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // Read-only integrity: the batch never modifies test/ or lib/.
+    final beforeRun = await _ReadOnlyTreeSnapshot.capture(cwd);
+    final testPaths = candidates
+        .map((c) => p.normalize(p.relative(c.record.testPath, from: cwd)))
+        .toList();
+    print(
+      'zfa tdd verify-red --all: batching ${candidates.length} '
+      'behavior(s) into ONE suite invocation [069]',
+    );
+    print('   command: $suiteTemplate');
+    print('   scope: ${testPaths.length} test file(s)');
+    final batch = await runner.runScopedSuite(
+      suiteTemplate: suiteTemplate,
+      testPaths: testPaths,
+      workingDirectory: cwd,
+      timeout: timeoutOverride,
+    );
+    print('   runner exit: ${batch.exitCode}');
+    if (batch.timedOut) {
+      print(
+        'zfa tdd verify-red --all: the batch suite timed out: '
+        '${batch.output}',
+      );
+      print(
+        '   re-run with a larger --timeout <minutes> if the batch '
+        'legitimately needs longer.',
+      );
+      _printBatchSummary(
+        behaviors: candidates.length,
+        certified: 0,
+        spawns: 1,
+        feature: batchFeatureLabel,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // 3. Read-only integrity check (FR-008, the batch contract too).
+    List<String> changedPaths;
+    try {
+      final afterRun = await _ReadOnlyTreeSnapshot.capture(cwd);
+      changedPaths = beforeRun.changedPaths(afterRun);
+    } on FileSystemException catch (e) {
+      changedPaths = ['snapshot failed: ${e.message}'];
+    }
+    if (changedPaths.isNotEmpty) {
+      print(
+        'zfa tdd verify-red --all: read-only integrity violation under '
+        'test/ or lib/: ${changedPaths.join(', ')}',
+      );
+      _printBatchSummary(
+        behaviors: candidates.length,
+        certified: 0,
+        spawns: 1,
+        feature: batchFeatureLabel,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // 4. Segment the batch transcript per test file and classify each
+    //    behavior independently (the per-behavior honesty contract).
+    final segments = BatchTranscript.segment(batch.output, testPaths.toSet());
+    var certified = 0;
+    for (final target in candidates) {
+      final relPath = p.normalize(
+        p.relative(target.record.testPath, from: cwd),
+      );
+      final segment = segments[relPath];
+      final perRecord = RunRecord(
+        command: batch.command,
+        exitCode: segment == null || segment.failed ? 1 : 0,
+        output: segment?.text ?? '',
+        startedProcess: batch.startedProcess,
+        testCount: segment?.testCount,
+        timedOut: batch.timedOut,
+      );
+      final classification = classify(perRecord);
+      final isCertified = classification == RedClassification.assertion;
+      print(
+        '   ${target.record.behaviorId}: '
+        '${segment == null ? "not-in-transcript" : classification.label}'
+        '${isCertified ? " (certified)" : ""}',
+      );
+      if (isCertified) {
+        final log = CycleLog(target.featureDir);
+        await log.append(
+          CycleLogEntry(
+            behaviorId: target.record.behaviorId,
+            kind: CycleEntryKind.red,
+            runnerCommand: batch.command,
+            exitCode: perRecord.exitCode,
+            capturedOutput: perRecord.output,
+            classification: FailureClass.assertionFailure,
+            sourceCriterion: target.record.sourceCriterion,
+            testPath: target.record.testPath,
+            timestamp: DateTime.now().toUtc().toIso8601String(),
+          ),
+        );
+        certified++;
+      } else if (segment == null) {
+        stderr.writeln(
+          'zfa tdd verify-red --all: behavior '
+          '"${target.record.behaviorId}" produced no result in the batch '
+          'transcript (${target.record.testPath}) — the runner did not '
+          'execute it. No evidence written.',
+        );
+      } else {
+        stderr.writeln(
+          'zfa tdd verify-red --all: behavior '
+          '"${target.record.behaviorId}" classified '
+          '${classification.label} \u2014 ${classification.remediationHint}',
+        );
+        stderr.writeln('   no evidence written');
+      }
+    }
+
+    _printBatchSummary(
+      behaviors: candidates.length,
+      certified: certified,
+      spawns: 1,
+      feature: batchFeatureLabel,
+    );
+    exitCode = certified == candidates.length ? 0 : 1;
+  }
+
+  void _printBatchSummary({
+    required int behaviors,
+    required int certified,
+    required int spawns,
+    required String feature,
+  }) {
+    print(
+      'verify-red: batch behaviors=$behaviors certified=$certified '
+      'spawns=$spawns feature=$feature',
+    );
   }
 
   // -------------------------------------------------------------------
@@ -579,5 +842,101 @@ class _ReadOnlyTreeSnapshot {
   List<String> changedPaths(_ReadOnlyTreeSnapshot other) {
     final paths = {...entries.keys, ...other.entries.keys}.toList()..sort();
     return paths.where((path) => entries[path] != other.entries[path]).toList();
+  }
+}
+
+/// One test file's slice of a batch suite transcript (spec 069 T002):
+/// the progress lines naming that file plus the detail lines that
+/// follow them (failure dumps, assertion diffs), the number of DISTINCT
+/// tests observed for the file, and whether any of them failed.
+class BatchFileSegment {
+  const BatchFileSegment({
+    required this.text,
+    required this.testCount,
+    required this.failed,
+  });
+
+  final String text;
+  final int testCount;
+  final bool failed;
+}
+
+/// Segments a package:test compact-reporter transcript per test file
+/// (spec 069-corpus-economics: the batch verify-red classifies each
+/// behavior from ITS file's slice of the ONE batch invocation).
+///
+/// Grammar (shared with the red classifier / suite guard):
+///   `HH:MM +<passed> [-<failed>] [~<skipped>]: <path>: <name> [E]`
+/// A progress line whose `<path>` is one of [testPaths] opens that
+/// file's segment; every non-progress line that follows (until the
+/// next progress line) belongs to the same file (failure detail
+/// blocks). Distinct `<name>` values per file are the executed-test
+/// count — the start line and the failure line of ONE test share a
+/// name and must not count twice.
+class BatchTranscript {
+  static final RegExp _progressLine = RegExp(
+    r'^\d\d:\d\d \+\d+(?: -\d+)?(?: ~\d+)?: (.+)$',
+  );
+
+  /// Segment [transcript] per file in [testPaths]. Paths not in the set
+  /// (e.g. other suites in a wider run) are ignored; detail lines with
+  /// no open segment are ignored.
+  static Map<String, BatchFileSegment> segment(
+    String transcript,
+    Set<String> testPaths,
+  ) {
+    final buffers = <String, List<String>>{};
+    final names = <String, Set<String>>{};
+    final failures = <String, bool>{};
+    String? current;
+    for (final rawLine in transcript.split('\n')) {
+      final line = rawLine.trimRight();
+      if (line.isEmpty) continue;
+      final match = _progressLine.firstMatch(line);
+      if (match != null) {
+        final rest = match.group(1)!;
+        // `<path>: <name>` — split at the first `: ` after the path.
+        final colon = rest.indexOf(': ');
+        String? matched;
+        if (colon > 0) {
+          final candidate = rest.substring(0, colon);
+          if (testPaths.contains(candidate)) matched = candidate;
+        }
+        if (matched == null) {
+          // A summary line ("All tests passed!", "Some tests failed.")
+          // or a foreign suite: keep the current file open only for
+          // attribution of stray detail lines, but do not open a new
+          // segment.
+          continue;
+        }
+        current = matched;
+        buffers.putIfAbsent(current, () => []);
+        names.putIfAbsent(current, () => {});
+        final testName = rest
+            .substring(colon + 2)
+            .replaceAll(RegExp(r'\s*\[E\]\s*$'), '');
+        final isFailure = line.contains('[E]');
+        if (isFailure) failures[current] = true;
+        // A failure line repeats the SAME test name as its start line —
+        // distinct names (the [E] marker stripped) are the executed
+        // count.
+        names[current]!.add(testName);
+        buffers[current]!.add(line);
+        continue;
+      }
+      // Detail line: attribute to the open segment (failure dumps
+      // print directly under their [E] progress line).
+      if (current != null && buffers.containsKey(current)) {
+        buffers[current]!.add(line);
+      }
+    }
+    return {
+      for (final entry in buffers.entries)
+        entry.key: BatchFileSegment(
+          text: entry.value.join('\n'),
+          testCount: names[entry.key]!.length,
+          failed: failures[entry.key] ?? false,
+        ),
+    };
   }
 }
