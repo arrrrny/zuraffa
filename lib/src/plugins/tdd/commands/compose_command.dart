@@ -259,9 +259,16 @@ class ComposeCommand extends Command<void> {
       return;
     }
     final anchors = (discovery as CompositionTargetResolved).anchors;
+    // Issue #923: the anchor set may mix green subjects with entity-wired
+    // stubs — the audit line names both honestly.
+    final wiredCount = anchors.where((a) => a.entityWired).length;
+    final anchorSummary = wiredCount == 0
+        ? '${anchors.length} green unit subject(s)'
+        : '${anchors.length - wiredCount} green, $wiredCount entity-wired '
+              'unit subject(s)';
     print(
-      '   anchors: ${anchors.map((a) => a.behaviorId).join(', ')} '
-      '(${anchors.length} green unit subject(s))',
+      '   anchors: ${anchors.map((a) => a.entityWired ? '${a.behaviorId} [entity-wired]' : a.behaviorId).join(', ')} '
+      '($anchorSummary)',
     );
 
     // -------------------------------------------------------------
@@ -379,16 +386,25 @@ class ComposeCommand extends Command<void> {
       if (i > 0) symbols.write(', ');
       symbols.write('anchor$i.${anchor.symbol}');
     }
+    // Issue #923: the anchor list may include entity-wired subjects whose
+    // behaviors are still stubs — name each anchor's status so the audit
+    // trail says exactly what the composition rests on.
+    final anchorList = anchors
+        .map(
+          (a) =>
+              '${a.behaviorId} (${a.subjectPath})${a.entityWired ? ' [entity-wired]' : ''}',
+        )
+        .join(', ');
     final body = returnType == 'void'
         ? '''
-  // Composition anchor: references the feature's green unit subjects this
-  // behavior builds on.
+  // Composition anchor: references the feature's green / entity-wired unit
+  // subjects this behavior builds on.
   // ignore: unused_local_variable
   final composedUnitAnchors = <Function>[$symbols];
 '''
         : '''
-  // Composition anchor: references the feature's green unit subjects this
-  // behavior builds on.
+  // Composition anchor: references the feature's green / entity-wired unit
+  // subjects this behavior builds on.
   // ignore: unused_local_variable
   final composedUnitAnchors = <Function>[$symbols];
   return 0;
@@ -396,23 +412,26 @@ class ComposeCommand extends Command<void> {
     return '''
 // GENERATED IMPLEMENTATION — `zfa tdd compose ${record.behaviorId}` (issue
 // #642; spec 052-acceptance-make-composition: the acceptance subject is
-// composed against the feature's green unit subjects by a
+// composed against the feature's green / entity-wired unit subjects by a
 // generation-pipeline step, never by a wrapper or by hand).
 //
 // behavior_id: ${record.behaviorId}
 // source_criterion: ${record.sourceCriterion}
-// composed against: ${anchors.map((a) => '${a.behaviorId} (${a.subjectPath})').join(', ')}
+// composed against: $anchorList
 // description: ${_descriptionFor(record)}
 //
 // This replaces the `zfa tdd gen` stub with the minimal composed
-// implementation (spec 047 FR-005): the feature's green unit subjects are
-// the implementation anchors. Extend the body with real behavior in later
-// cycles — the paired test file is immutable (044 ownership).
+// implementation (spec 047 FR-005): the feature's unit subjects are the
+// implementation anchors. An anchor marked [entity-wired] carries only
+// the `zfa tdd wire` wiring so far (issue #923) — the composed scenario's
+// real green transition lands when those unit subjects are filled with
+// business logic in later cycles. Extend the body with real behavior in
+// later cycles — the paired test file is immutable (044 ownership).
 library;
 
 $imports
 /// Subject for behavior ${record.behaviorId}, composed against the
-/// feature's green unit subjects by the generation pipeline.
+/// feature's unit subject anchors by the generation pipeline.
 $returnType $functionName() {$body}
 ''';
   }

@@ -175,6 +175,48 @@ void main() {
       expect(await File(fx.subjectPathOf('A-001')).readAsString(), stubBefore);
     });
 
+    test('A6b (issue #923): an entity-wired unit subject anchors the '
+        'composition even without green cycle-log evidence', () async {
+      // Strip the unit's green evidence AND make its subject entity-wired
+      // (the `zfa tdd wire` implementation shape, bug #610). Discovery
+      // must treat the wired subject as a composable anchor, so compose
+      // succeeds against it.
+      final log = await File(fx.cycleLogPath).readAsString();
+      await File(
+        fx.cycleLogPath,
+      ).writeAsString(log.replaceAll('kind: green', 'kind: red-x'));
+      await File(fx.subjectPathOf('U-001')).writeAsString('''
+// GENERATED IMPLEMENTATION — `zfa tdd wire U-001` (bug #610).
+library;
+
+int subject_u_001() {
+  // Implementation anchor: references the generated entity this
+  // behavior builds on.
+  // ignore: unused_local_variable
+  final Type wiredEntityAnchor = Account;
+  return 0;
+}
+''');
+
+      final out = await runner.runCapturing(composeArgs(fx, id: 'A-001'));
+
+      expect(exitCode, 0, reason: out);
+      expect(
+        out,
+        contains(
+          'compose: behavior=A-001 outcome=composed '
+          'feature=${fx.featureName}',
+        ),
+      );
+      // The composed subject references the entity-wired anchor.
+      final subject = await File(fx.subjectPathOf('A-001')).readAsString();
+      expect(subject, isNot(contains('UnimplementedError')));
+      expect(subject, contains('composedUnitAnchors'));
+      expect(subject, contains('subject_u_001'));
+      // The audit trail names the anchor's wiring status honestly.
+      expect(out, contains('entity-wired'));
+    });
+
     test('A7: a green unit with a missing subject file → runner-error '
         'naming the missing artifact', () async {
       await File(fx.subjectPathOf('U-001')).delete();

@@ -1126,6 +1126,94 @@ void main() {
       expect(cycleLog, contains('tdd compose A-100'));
     });
 
+    test('A13b (issue #923): an ENTITY-WIRED unit subject anchors the '
+        'acceptance make even without green cycle-log evidence — the '
+        'acceptance behavior is never stuck at unexpressible when the '
+        'units are entity-wired', () async {
+      // The spec-004 state the issue reports: the unit subject was wired
+      // to its entity anchor (the `zfa tdd wire` implementation shape,
+      // bug #610 — `wiredEntityAnchor` marker in executable code) but the
+      // unit behavior carries NO green cycle-log evidence yet. The
+      // composition fallback must engage (compose → build) instead of
+      // honest-stopping unexpressible.
+      await fx.seedTestList([
+        (
+          id: 'A-100',
+          description: 'the signup flow completes and the account is usable',
+          traces: 'FR-052',
+          state: 'PENDING',
+          kind: 'acceptance',
+        ),
+        (
+          id: 'U-100',
+          description: 'unit behavior backing A-100',
+          traces: 'FR-052',
+          state: 'PENDING',
+          kind: 'unit',
+        ),
+      ]);
+      await fx.seedCertifiedRed(
+        id: 'A-100',
+        description: 'the signup flow completes and the account is usable',
+        testContent: TddFixture.subjectDrivenTest(
+          'A-100',
+          'the signup flow completes and the account is usable',
+        ),
+      );
+      await fx.registerBehavior(id: 'U-100', description: 'unit one');
+      // NO green evidence for U-100 — the wired subject is the anchor.
+      await Directory(p.join(fx.root.path, 'lib')).create(recursive: true);
+      await File(fx.subjectPathOf('U-100')).writeAsString('''
+// GENERATED IMPLEMENTATION — `zfa tdd wire U-100` (bug #610).
+library;
+
+int subject_u_100() {
+  // Implementation anchor: references the generated entity this
+  // behavior builds on.
+  // ignore: unused_local_variable
+  final Type wiredEntityAnchor = Account;
+  return 0;
+}
+''');
+      // The fake compose step turns the target test green by writing the
+      // production subject (the fallback pipeline's real effect).
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'tdd compose': fx.overwriteSubjectCommands(
+            'A-100',
+            TddFixture.subjectReturning('A-100', 42),
+          ),
+        },
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'A-100', zfaBin: zfaBin),
+      );
+
+      // THE FIX: the make composes and certifies green instead of
+      // reporting unexpressible.
+      expect(exitCode, 0, reason: out);
+      expect(
+        out,
+        contains(
+          'make: behavior=A-100 outcome=green feature=${fx.featureName}',
+        ),
+      );
+      // The fallback plan executed compose then build, in order.
+      final log = await fx.readFakeZfaLog();
+      expect(log, hasLength(2), reason: log.join('\n'));
+      expect(log[0], contains('tdd compose A-100'));
+      expect(log[1], 'build');
+      // The disengagement never printed — the acceptance behavior was
+      // expressible via the entity-wired anchor.
+      expect(out, isNot(contains('outcome=unexpressible')));
+      final cycleLog = await File(fx.cycleLogPath).readAsString();
+      expect(cycleLog, contains('## Cycle: A-100 (green)'));
+      expect(cycleLog, contains('tdd compose A-100'));
+    });
+
     test('A10: acceptance make with zero composable anchors honest-stops '
         'unexpressible (FR-009, SC-003)', () async {
       await fx.seedTestList([

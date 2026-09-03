@@ -974,8 +974,15 @@ class MakeCommand extends Command<void> {
       return null;
     }
     final anchors = (discovery as CompositionTargetResolved).anchors;
+    // Issue #923: the anchors may mix green subjects with entity-wired
+    // stubs — name both so the fallback's report stays honest.
+    final wiredCount = anchors.where((a) => a.entityWired).length;
+    final anchorSummary = wiredCount == 0
+        ? '${anchors.length} green unit subject(s)'
+        : '${anchors.length - wiredCount} green, $wiredCount entity-wired '
+              'unit subject(s)';
     print(
-      '   composition fallback: ${anchors.length} green unit subject(s) '
+      '   composition fallback: $anchorSummary '
       '(${anchors.map((a) => a.behaviorId).join(', ')})',
     );
     return const CompositionPlanner().plan(summary, anchors);
