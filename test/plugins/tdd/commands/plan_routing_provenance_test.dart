@@ -167,4 +167,90 @@ void main() {
       }
     });
   });
+
+  group('A4: strict mode', () {
+    test('--strict-routing refuses an undeclared behavior with a fix '
+        'hint (exit 1, no fallback routes)', () async {
+      final tmp = Directory.systemTemp.createTempSync('strict_a4_');
+      try {
+        final featureDir = p.join(tmp.path, 'specs', '071-prov');
+        await Directory(featureDir).create(recursive: true);
+        await File(p.join(featureDir, 'spec.md')).writeAsString('''
+**Template Version**: `zuraffa-1.0`
+
+# Spec: 071-prov
+
+## Functional Requirements
+
+- **FR-001**: returns 42 when invoked with no args
+
+## Acceptance Scenarios
+
+1. **Given** the app **When** it starts **Then** the page shows the settings form.
+''');
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'plan',
+          '071-prov',
+          '--project',
+          tmp.path,
+          '--strict-routing',
+        ]);
+        expect(exitCode, 1);
+        expect(out, contains('U1'));
+        expect(out, contains('--> fix:'));
+        expect(out, isNot(contains('[fallback:')));
+        expect(
+          File(p.join(featureDir, 'tdd', 'test-list.md')).existsSync(),
+          isFalse,
+          reason: 'no artifact is written when the plan refuses',
+        );
+      } finally {
+        tmp.deleteSync(recursive: true);
+      }
+    });
+
+    test('a fully declared spec plans clean under strict', () async {
+      final tmp = Directory.systemTemp.createTempSync('strict_ok_');
+      try {
+        final featureDir = p.join(tmp.path, 'specs', '071-prov');
+        await Directory(featureDir).create(recursive: true);
+        await File(p.join(featureDir, 'spec.md')).writeAsString('''
+**Template Version**: `zuraffa-1.0`
+
+# Spec: 071-prov
+
+## Layer Contracts
+
+**Function**:
+- `Formatter`: `format(Template) -> String`
+
+## Functional Requirements
+
+- **FR-001**: the label renders the template
+            traces: Formatter.format
+
+## Acceptance Scenarios
+
+1. **Given** the app **When** it starts **Then** the widget renders "Ready".
+   **Type**: widget
+''');
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'plan',
+          '071-prov',
+          '--project',
+          tmp.path,
+          '--strict-routing',
+        ]);
+        expect(exitCode, 0);
+        expect(out, contains('[declared:'));
+        expect(out, isNot(contains('[fallback:')));
+      } finally {
+        tmp.deleteSync(recursive: true);
+      }
+    });
+  });
 }

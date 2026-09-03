@@ -26,6 +26,14 @@ import '../../../core/project/project_root.dart';
 
 class PlanCommand extends Command<void> {
   PlanCommand(this.plugin) {
+    argParser.addFlag(
+      'strict-routing',
+      help:
+          'Refuse undeclared routing intent instead of falling back to the '
+          'legacy keyword classifiers. Undeclared behaviors exit 1 with the '
+          'spec line and the declaration to add (feature 071, issue #951).',
+      negatable: false,
+    );
     argParser.addOption(
       'project',
       aliases: const ['project-root'],
@@ -261,6 +269,7 @@ class PlanCommand extends Command<void> {
     // Feature 071 (issue #951): per-behavior routing provenance — the
     // resolver consults the parsed declarations; undeclared behaviors
     // render their LABELED legacy fallback (migration window).
+    final strict = argResults?['strict-routing'] as bool? ?? false;
     final scenarioMarkers = SpecParser.parseScenarioTypeMarkers(specMd);
     final declarations = SpecDeclarations(
       scenarios: scenarioMarkers,
@@ -276,7 +285,16 @@ class PlanCommand extends Command<void> {
       declarations,
       frTraces,
       scenarioMarkers,
+      strict: strict,
     );
+    // Strict gate (feature 071): a refusal writes no artifact.
+    if (strict && provenance.containsKey('__refused__')) {
+      for (final line in provenance.remove('__refused__')!) {
+        print(line);
+      }
+      exitCode = 1;
+      return;
+    }
     await outFile.writeAsString(
       _render(
         feature,
@@ -499,8 +517,9 @@ class PlanCommand extends Command<void> {
     List<BehaviorRow> preservedFfi,
     SpecDeclarations declarations,
     Map<String, List<String>> frTraces,
-    Map<String, ScenarioDeclaration> scenarioMarkers,
-  ) {
+    Map<String, ScenarioDeclaration> scenarioMarkers, {
+    bool strict = false,
+  }) {
     const resolver = RoutingResolver();
     final lines = <String, List<String>>{};
     String lane(BehaviorKind kind) => switch (kind) {
@@ -525,6 +544,7 @@ class PlanCommand extends Command<void> {
           traces: frTraces[b.id] ?? const [],
         ),
         declarations: declarations,
+        strict: strict,
       );
       final decision = b.kind;
       if (result is RoutingDecision) {
@@ -547,6 +567,14 @@ class PlanCommand extends Command<void> {
         continue;
       }
       if (result is RoutingFailure) {
+        if (strict) {
+          record('__refused__', [
+            'zfa tdd plan: ${result.code.name} for behavior '
+                '"${b.id}" (strict mode).',
+            ...result.message.split('\n'),
+          ]);
+          continue;
+        }
         record(b.id, [
           'route: ${b.id} -> refused [${result.code.name}: '
               '${result.message.split('\n').first}]',

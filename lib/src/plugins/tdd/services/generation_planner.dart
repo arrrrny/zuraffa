@@ -115,6 +115,10 @@ class BehaviorSummary {
   /// decides first; the branches below become the labeled fallback.
   final SpecDeclarations? declarations;
 
+  /// Feature 071: strict mode — undeclared routing intent refuses
+  /// instead of falling back (the declaration ladder's strict gate).
+  final bool strictRouting;
+
   const BehaviorSummary({
     required this.behaviorId,
     required this.feature,
@@ -126,6 +130,7 @@ class BehaviorSummary {
     this.stub = false,
     this.traces = const [],
     this.declarations,
+    this.strictRouting = false,
   });
 
   /// Construct a summary from a registry record.
@@ -138,6 +143,7 @@ class BehaviorSummary {
     bool stub = false,
     List<String> traces = const [],
     SpecDeclarations? declarations,
+    bool strictRouting = false,
   }) {
     return BehaviorSummary(
       behaviorId: record.behaviorId,
@@ -150,6 +156,7 @@ class BehaviorSummary {
       stub: stub,
       traces: traces,
       declarations: declarations,
+      strictRouting: strictRouting,
     );
   }
 }
@@ -203,6 +210,7 @@ class GenerationPlanner {
           traces: summary.traces,
         ),
         declarations: declarations,
+        strict: summary.strictRouting,
       );
       final declared = _declaredPlan(summary, result);
       if (declared != null) return declared;

@@ -233,9 +233,12 @@ class RoutingResolver {
       }
       return RoutingUndeclared(behaviorId: row.behaviorId);
     }
-    final surfaceRequired = kind == BehaviorKind.unit ||
-        kind == BehaviorKind.acceptance ||
-        kind == BehaviorKind.widget;
+    // Widget rows are exempt from the surface requirement: the view
+    // lane needs no contract row (the view builder reads the declared
+    // Presentation contract directly, issue #939); ffi/platform/theme
+    // never had a generation surface.
+    final surfaceRequired =
+        kind == BehaviorKind.unit || kind == BehaviorKind.acceptance;
     if (strict && surfaceRequired && surface == null) {
       return RoutingFailure(
         code: RoutingFailureCode.undeclaredStrict,

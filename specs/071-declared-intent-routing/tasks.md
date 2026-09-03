@@ -138,13 +138,13 @@ description: "Task list for feature implementation"
 
 ### Tests for User Story 5 (write FIRST, ensure RED)
 
-- [ ] T025 [P] [US5] MANDATORY [behavior: A4] Write strict-mode pins in `test/plugins/tdd/commands/plan_routing_provenance_test.dart` (RED): strict refusal message shape (behavior id + spec line + `--> fix:` declaration), exit code 1, no fallback routes in output; conflict/dangling refusals surface at plan time; declared-only spec plans clean under strict.
+- [x] T025 [P] [US5] MANDATORY [behavior: A4] Write strict-mode pins in `test/plugins/tdd/commands/plan_routing_provenance_test.dart` (RED): strict refusal message shape (behavior id + spec line + `--> fix:` declaration), exit code 1, no fallback routes in output; conflict/dangling refusals surface at plan time; declared-only spec plans clean under strict.
 
 ### Implementation for User Story 5
 
-- [ ] T026 [US5] Add `--strict-routing` to `lib/src/plugins/tdd/commands/plan_command.dart` (flag + project-config opt-in, flag wins): wire `strict` into resolver calls, render refusals per contracts/cli-routing.md, exit 1. Depends on T025 (RED), T023.
-- [ ] T027 [US5] Honor strict mode in `lib/src/plugins/tdd/commands/make_command.dart` planning (no fallback routes when strict; refusals carry the same fix-naming shape). Depends on T026.
-- [ ] T028 [US5] Verify T025 pins green + the five replay pins from T007/T013/T018 pass under strict + full fast tier green. Depends on T027.
+- [x] T026 [US5] Add `--strict-routing` to `lib/src/plugins/tdd/commands/plan_command.dart` (flag + project-config opt-in, flag wins): wire `strict` into resolver calls, render refusals per contracts/cli-routing.md, exit 1. Depends on T025 (RED), T023.
+- [x] T027 [US5] Honor strict mode in `lib/src/plugins/tdd/commands/make_command.dart` planning (no fallback routes when strict; refusals carry the same fix-naming shape). Depends on T026.
+- [x] T028 [US5] Verify T025 pins green + the five replay pins from T007/T013/T018 pass under strict + full fast tier green. Depends on T027.
 
 **Checkpoint**: The defect class is unreachable; routing is declaration-only when strict.
 

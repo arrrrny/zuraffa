@@ -80,3 +80,13 @@ test task first (RED recorded here), then the implementation tasks that flip it
 - green: 2026-09-03 — `+7: All tests passed!` (T023: plan_command parses declarations, resolves per behavior via RoutingResolver, renders declared/fallback lines + `## Routing provenance` artifact block); commands fast tier 150 green
 - fixes during green: provenance emitted via print (runCapturing intercepts zone print, not stdout.writeln); parse-time sniffer kind is NOT passed to the resolver as rung-3 declared kind (only the marker is — the sniffer outcome is the fallback being labeled)
 - tasks ticked: T022, T023, T024
+
+## Cycle: A4 (red -> green)
+
+- behavior: A4 — strict mode: --strict-routing refuses undeclared intent (plan + make); declared specs run clean
+- criterion: FR-010, FR-011, SC-004, SC-002
+- test: test/plugins/tdd/commands/plan_routing_provenance_test.dart (A4 group) + test/plugins/tdd/make_command_strict_071_test.dart
+- red: 2026-09-03 — `+7 -2`: `Could not find an option named "--strict-routing"` (flag absent)
+- green: 2026-09-03 — plan pins `+9: All tests passed!`; make strict pin `+1: All tests passed!`; full fast tier 923 green (+44 new); #939/#950 slow widget suites 5/5; analyze clean
+- design refinements during green (recorded): (1) strict passes through plan_command to resolver.resolve (initially omitted — refusals never armed); (2) parse-time sniffer kind is never resolver-declared (it IS the fallback); (3) widget rows are exempt from the strict surface requirement — a declared widget lane routes to the view builder (issue #939), whose unexpressible-primary-plan is routing, not a strict failure; make's strict gate therefore refuses only resolver failures (reason carries `--> fix:`); (4) make parses spec declarations fail-closed (missing spec = empty declarations = everything undeclared under strict)
+- tasks ticked: T025, T026, T027, T028
