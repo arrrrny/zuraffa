@@ -18,6 +18,7 @@ import 'package:test/test.dart';
 
 import '../helpers/tdd_fixture.dart';
 import 'package:zuraffa/src/plugins/tdd/commands/realize_command.dart';
+import 'package:zuraffa/src/plugins/tdd/services/differential_gate.dart';
 import 'package:zuraffa/src/plugins/tdd/tdd_plugin.dart';
 
 const datasourceDi = '''
@@ -102,6 +103,7 @@ void main() {
     String? adapter,
     String? feature,
     List<int> exitSequence = const [0, 0],
+    RealizeFixtureDriver? fixtureDriver,
   }) async {
     var call = 0;
     final cmd = RealizeCommand(
@@ -113,6 +115,7 @@ void main() {
         call++;
         return (exitCode: exit, output: 'call $call exit $exit');
       },
+      fixtureDriver: fixtureDriver,
     );
     final runner = CommandRunner('zfa-test', 'test')..addCommand(cmd);
     final args = <String>[
@@ -131,6 +134,17 @@ void main() {
       ),
     );
     return lines.join('\n');
+  }
+
+  Future<void> _writeFixtures() async {
+    final dir = Directory(p.join(fx.featureDir, 'tdd', 'fixtures'));
+    await dir.create(recursive: true);
+    await File(p.join(dir.path, 'get_by_id.json')).writeAsString(jsonEncode({
+      'schema': 'realize-diff.v1',
+      'id': 'get-by-id-u1',
+      'input': {'op': 'getById', 'id': 'u1'},
+      'mockOutput': {'id': 'u1', 'email': 'a@b.c'},
+    }));
   }
 
   test('A1: full green path rebinds DI, transitions era, persists state',
@@ -248,7 +262,69 @@ void main() {
       isFalse,
     );
   });
+
+  test('A4a: drift within the .zfa.json threshold passes with a drift '
+      'report', () async {
+    await _writeFixtures();
+    await File(p.join(fx.root.path, '.zfa.json')).writeAsString(jsonEncode({
+      'tdd': {'realizeDifferentialThreshold': 0.9},
+    }));
+
+    // A driver whose REAL side drifts one field of two.
+    final out = await runRealize(
+      adapter: 'UserRealAdapter',
+      fixtureDriver: (binding, entity, input) async => binding == 'mock'
+          ? {'id': 'u1', 'email': 'a@b.c'}
+          : {'id': 'u1', 'email': 'drifted@z.c'},
+    );
+
+    expect(exitCode, 0, reason: 'out: $out');
+    expect(out, contains('differential=pass'));
+    expect(out, contains('drift=0.5'));
+    expect(out, contains('result=realized'));
+    expect(
+      File(p.join(fx.featureDir, 'tdd', 'differential-report.json'))
+          .existsSync(),
+      isTrue,
+      reason: 'a passing gate still writes the drift report',
+    );
+    // The drift is carried into the transition evidence.
+    final state = jsonDecode(
+      await File(p.join(fx.featureDir, 'tdd', 'realize-state.json'))
+          .readAsString(),
+    ) as Map<String, dynamic>;
+    expect(state['transitions'].first['evidence']['differential'], 'pass');
+  });
+
+  test('A4b: drift beyond the .zfa.json threshold blocks the transition '
+      'and rolls the rebind back', () async {
+    await _writeFixtures();
+    await File(p.join(fx.root.path, '.zfa.json')).writeAsString(jsonEncode({
+      'tdd': {'realizeDifferentialThreshold': 0.0},
+    }));
+
+    final out = await runRealize(
+      adapter: 'UserRealAdapter',
+      fixtureDriver: (binding, entity, input) async => binding == 'mock'
+          ? {'id': 'u1', 'email': 'a@b.c'}
+          : {'id': 'u1', 'email': 'drifted@z.c'},
+    );
+
+    expect(exitCode, 1, reason: 'out: $out');
+    expect(out, contains('differential=drift'));
+    expect(out, contains('result=blocked'));
+    // The rebind was rolled back and no REAL transition persisted.
+    final datasourceDiFile = await File(p.join(fx.root.path, 'lib/src/di',
+        'datasources', 'user_mock_datasource_di.dart')).readAsString();
+    expect(datasourceDiFile, datasourceDi,
+        reason: 'a drift-blocked swap restores the mock-era bytes');
+    expect(
+      File(p.join(fx.featureDir, 'tdd', 'realize-state.json')).existsSync(),
+      isFalse,
+    );
+  });
 }
+
 
 void _write(String path, String content) {
   File(path)..createSync(recursive: true)..writeAsStringSync(content);

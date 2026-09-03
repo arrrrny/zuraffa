@@ -32,6 +32,7 @@ import '../../../core/project/project_root.dart';
 import '../services/artifact_registry.dart';
 import '../services/contract_gate.dart';
 import '../services/di_rebind.dart';
+import '../services/differential_gate.dart';
 import '../services/realize_state.dart';
 import '../tdd_plugin.dart';
 
@@ -56,8 +57,12 @@ enum RealizeOutcome {
 }
 
 class RealizeCommand extends Command<void> {
-  RealizeCommand(this.plugin, {RealizeSuiteRunner? suiteRunner})
-    : _suiteRunnerOverride = suiteRunner {
+  RealizeCommand(
+    this.plugin, {
+    RealizeSuiteRunner? suiteRunner,
+    RealizeFixtureDriver? fixtureDriver,
+  }) : _suiteRunnerOverride = suiteRunner,
+       _fixtureDriverOverride = fixtureDriver {
     argParser.addOption(
       'adapter',
       help:
@@ -83,6 +88,8 @@ class RealizeCommand extends Command<void> {
   final TddPlugin plugin;
 
   final RealizeSuiteRunner? _suiteRunnerOverride;
+
+  final RealizeFixtureDriver? _fixtureDriverOverride;
 
   @override
   String get name => 'realize';

@@ -433,3 +433,120 @@ For example, 'dart test --chain-stack-traces'.
 - prev-hash: 88aafeb75e9618cb3458a62657e0ee0c4f0203e9c99b34628d4d49ffdb2e28b5
 - hash: 8694b60dd7b2b12e17c1d3fb3a6a5854094ec049c98f99ce5875a7e5fff229fa
 
+## Cycle: U11-U13 (red)
+
+- behavior: U11-U13
+- kind: red
+- classification: assertionFailure
+- criterion: SC-2
+- test: test/plugins/tdd/services/differential_gate_test.dart
+- command: `dart test test/plugins/tdd/services/differential_gate_test.dart`
+- exit: 1
+- at: 2026-09-03T08:33:48.266515Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/differential_gate_test.dart
+00:00 +0: U11: per-field drift report from committed fixtures
+00:00 +0 -1: U11: per-field drift report from committed fixtures [E]
+  UnimplementedError
+  package:zuraffa/src/plugins/tdd/services/differential_gate.dart 102:7  DifferentialGate.run
+  test/plugins/tdd/services/differential_gate_test.dart 74:33            main.<fn>
+  
+00:00 +0 -1: U12: threshold from .zfa.json — 0.5 tolerates the 0.2 drift
+00:00 +0 -2: U12: threshold from .zfa.json — 0.5 tolerates the 0.2 drift [E]
+  UnimplementedError
+  package:zuraffa/src/plugins/tdd/services/differential_gate.dart 102:7  DifferentialGate.run
+  test/plugins/tdd/services/differential_gate_test.dart 108:33           main.<fn>
+  
+00:00 +0 -2: U12b: default threshold 0.0 is strict — any drift fails
+00:00 +0 -3: U12b: default threshold 0.0 is strict — any drift fails [E]
+  UnimplementedError
+  package:zuraffa/src/plugins/tdd/services/differential_gate.dart 102:7  DifferentialGate.run
+  test/plugins/tdd/services/differential_gate_test.dart 119:33           main.<fn>
+  
+00:00 +0 -3: U13: a missing fixtures directory is skipped, never silently passed
+00:00 +0 -4: U13: a missing fixtures directory is skipped, never silently passed [E]
+  UnimplementedError
+  package:zuraffa/src/plugins/tdd/services/differential_gate.dart 102:7  DifferentialGate.run
+  test/plugins/tdd/services/differential_gate_test.dart 127:33           main.<fn>
+  
+00:00 +0 -4: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/services/differential_gate_test.dart: U11: per-field drift report from committed fixtures
+  test/plugins/tdd/services/differential_gate_test.dart: U12: threshold from .zfa.json — 0.5 tolerates the 0.2 drift
+  test/plugins/tdd/services/differential_gate_test.dart: U12b: default threshold 0.0 is strict — any drift fails
+  test/plugins/tdd/services/differential_gate_test.dart: U13: a missing fixtures directory is skipped, never silently passed
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
+```
+- schema: 1
+- prev-hash: genesis
+- hash: 5daba8d63284c58004741bec6c65cc1b4afd713ac0ea0b9d2845975db63e013f
+
+## Cycle: A4a,A4b (red)
+
+- behavior: A4a,A4b
+- kind: red
+- classification: assertionFailure
+- criterion: SC-2
+- test: test/plugins/tdd/commands/realize_command_test.dart
+- command: `dart test test/plugins/tdd/commands/realize_command_test.dart`
+- exit: 1
+- at: 2026-09-03T08:33:48.776762Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/commands/realize_command_test.dart
+00:00 +0: A1: full green path rebinds DI, transitions era, persists state
+00:00 +1: A2: --adapter is required — a swap without a real adapter is refused
+00:00 +2: A6: a behavior id target resolves through the registry
+00:00 +3: A3: a red real-binding run blocks the swap, rolls the rebind back, and the verdict names the side
+00:00 +4: A3b: a red baseline (mock era already broken) blocks before any rebind and blames the mock side
+00:00 +5: A4a: drift within the .zfa.json threshold passes with a drift report
+00:00 +5 -1: A4a: drift within the .zfa.json threshold passes with a drift report [E]
+  Expected: contains 'differential=pass'
+    Actual: 'zfa tdd realize: entity User -> adapter UserRealAdapter\n'
+              '   feature: 090-tdd-fixture\n'
+              '   era: MOCKED\n'
+              '   rebound: lib/src/di/datasources/user_mock_datasource_di.dart (2 site(s))\n'
+              '   rebound: lib/src/di/repositories/user_repository_di.dart (1 site(s))\n'
+              '   interface preserved: 1 domain file(s) byte-identical\n'
+              '   contract gate green: the mock-era suite stays green against the real binding — the contract holds on both sides.\n'
+              '   state: MOCKED -> REAL (/tmp/tdd_fixture_GPPRZM/specs/090-tdd-fixture/tdd/realize-state.json)\n'
+              'realize: entity=User adapter=UserRealAdapter feature=090-tdd-fixture contract=green era=MOCKED->REAL result=realized'
+     Which: does not contain 'differential=pass'
+  
+  package:matcher                                            expect
+  test/plugins/tdd/commands/realize_command_test.dart 282:5  main.<fn>
+  
+00:00 +5 -1: A4b: drift beyond the .zfa.json threshold blocks the transition and rolls the rebind back
+00:00 +5 -2: A4b: drift beyond the .zfa.json threshold blocks the transition and rolls the rebind back [E]
+  Expected: <1>
+    Actual: <0>
+  out: zfa tdd realize: entity User -> adapter UserRealAdapter
+     feature: 090-tdd-fixture
+     era: MOCKED
+     rebound: lib/src/di/datasources/user_mock_datasource_di.dart (2 site(s))
+     rebound: lib/src/di/repositories/user_repository_di.dart (1 site(s))
+     interface preserved: 1 domain file(s) byte-identical
+     contract gate green: the mock-era suite stays green against the real binding — the contract holds on both sides.
+     state: MOCKED -> REAL (/tmp/tdd_fixture_HYPKBN/specs/090-tdd-fixture/tdd/realize-state.json)
+  realize: entity=User adapter=UserRealAdapter feature=090-tdd-fixture contract=green era=MOCKED->REAL result=realized
+  
+  package:matcher                                            expect
+  test/plugins/tdd/commands/realize_command_test.dart 313:5  main.<fn>
+  
+00:00 +5 -2: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/commands/realize_command_test.dart: A4a: drift within the .zfa.json threshold passes with a drift report
+  test/plugins/tdd/commands/realize_command_test.dart: A4b: drift beyond the .zfa.json threshold blocks the transition and rolls the rebind back
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
+```
+- schema: 1
+- prev-hash: genesis
+- hash: 31a1455f63e8154744ca5be892836b1336b0a7e80b38441ff57470e7bd6989dd
+
