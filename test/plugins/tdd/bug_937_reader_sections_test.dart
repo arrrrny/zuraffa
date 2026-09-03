@@ -29,15 +29,12 @@ void main() {
   });
 
   Future<void> writeTestList(String body) async {
-    await File(p.join(featureDir, 'tdd', 'test-list.md'))
-        .writeAsString(body);
+    await File(p.join(featureDir, 'tdd', 'test-list.md')).writeAsString(body);
   }
 
-  test(
-    'read() tolerates the External dependencies and Layer contracts '
-    'sections plan writes (returns behavior rows, no exception)',
-    () async {
-      await writeTestList('''
+  test('read() tolerates the External dependencies and Layer contracts '
+      'sections plan writes (returns behavior rows, no exception)', () async {
+    await writeTestList('''
 # Test List: 001-demo
 
 ## Outer loop: acceptance behaviors
@@ -71,21 +68,18 @@ void main() {
 | U1 | returns the demo | FR-001 | PENDING |
 ''');
 
-      final rows = await TestListReader(featureDir).read();
+    final rows = await TestListReader(featureDir).read();
 
-      expect(rows, hasLength(2));
-      expect(rows.first.id, 'A1');
-      expect(rows.first.kind.name, 'acceptance');
-      expect(rows.last.id, 'U1');
-      expect(rows.last.kind.name, 'unit');
-    },
-  );
+    expect(rows, hasLength(2));
+    expect(rows.first.id, 'A1');
+    expect(rows.first.kind.name, 'acceptance');
+    expect(rows.last.id, 'U1');
+    expect(rows.last.kind.name, 'unit');
+  });
 
-  test(
-    'read() on an artifact WITHOUT the declarative sections is unchanged '
-    '(regression guard)',
-    () async {
-      await writeTestList('''
+  test('read() on an artifact WITHOUT the declarative sections is unchanged '
+      '(regression guard)', () async {
+    await writeTestList('''
 # Test List: 001-demo
 
 ## Outer loop: acceptance behaviors
@@ -95,11 +89,10 @@ void main() {
 | A1 | the app responds | AC-1 | DONE |
 ''');
 
-      final rows = await TestListReader(featureDir).read();
+    final rows = await TestListReader(featureDir).read();
 
-      expect(rows, hasLength(1));
-      expect(rows.first.id, 'A1');
-      expect(rows.first.state.name, 'done');
-    },
-  );
+    expect(rows, hasLength(1));
+    expect(rows.first.id, 'A1');
+    expect(rows.first.state.name, 'done');
+  });
 }
