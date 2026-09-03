@@ -28,6 +28,7 @@
 /// 3 corrupt-state, 4 concurrent-run.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -39,8 +40,10 @@ import '../models/corpus_ledger.dart';
 import '../models/corpus_manifest.dart';
 import '../models/corpus_plan.dart';
 import '../models/corpus_progress.dart';
+import '../services/budget_telemetry.dart';
 import '../services/corpus_manifest_store.dart';
 import '../services/corpus_progress_store.dart';
+import '../services/corpus_sharder.dart';
 import '../services/corpus_step_runner.dart';
 import '../services/gap_ledger_store.dart';
 import '../services/test_list_reader.dart';
@@ -72,6 +75,29 @@ class CorpusRunCommand extends Command<void> {
           'Hard deadline in minutes for each spawned per-feature command '
           '(bug #742; default 10). Fractions are allowed. On timeout the '
           'child is killed and the corpus stops with a runner-error.',
+    );
+    argParser.addOption(
+      'shard',
+      valueHelp: '<i>/<k>',
+      help:
+          'Shard the corpus lane (spec 069-corpus-economics, issue #916): '
+          'drive ONLY the features of shard <i> of <k> (1-based, the CI '
+          'matrix form). The assignment is deterministic round-robin over '
+          'the manifest/plan order, so the k parallel lanes of a CI '
+          'matrix cover every feature exactly once — the per-PR corpus '
+          'lane stays ≤ 10 minutes. The verdict JSON records the shard.',
+    );
+    argParser.addOption(
+      'concurrency',
+      valueHelp: 'lanes',
+      defaultsTo: '1',
+      help:
+          'Concurrent feature lanes INSIDE this invocation (spec 069): '
+          'drive up to N features in parallel through a bounded worker '
+          'pool. The default 1 is the strictly-sequential corpus '
+          'contract (order preserved, STOP-ON-ROADBLOCK semantics '
+          'unchanged — on a roadblock no NEW feature starts; in-flight '
+          'features drain to completion and are recorded honestly).',
     );
     argParser.addOption(
       'plan',
@@ -120,6 +146,36 @@ class CorpusRunCommand extends Command<void> {
         : ProjectRoot.find(anchorDir: 'specs');
     final zfaBin = argResults?['zfa-bin'] as String?;
     final planFlag = argResults?['plan'] as String?;
+
+    // Spec 069: the shard spec (`--shard <i>/<k>`). A malformed value
+    // stops honestly BEFORE anything is driven — a mistyped shard spec
+    // would silently drive the WRONG lane.
+    final (int, int)? shardSpec;
+    try {
+      shardSpec = CorpusSharder.parseShardSpec(argResults?['shard'] as String?);
+    } on FormatException catch (e) {
+      print('zfa tdd corpus run: ${e.message}');
+      _printSummary(features: 0, result: 'runner-error');
+      exitCode = _exitRunnerError;
+      return;
+    }
+
+    // Spec 069: the in-process lane concurrency (`--concurrency n`).
+    final concurrencyRaw = argResults?['concurrency'] as String?;
+    var concurrency = 1;
+    if (concurrencyRaw != null && concurrencyRaw.isNotEmpty) {
+      final parsed = int.tryParse(concurrencyRaw);
+      if (parsed == null || parsed < 1) {
+        print(
+          'zfa tdd corpus run: invalid --concurrency "$concurrencyRaw" — '
+          'expected an integer >= 1.',
+        );
+        _printSummary(features: 0, result: 'runner-error');
+        exitCode = _exitRunnerError;
+        return;
+      }
+      concurrency = parsed;
+    }
 
     // Bug #742: the --timeout override for each spawned per-feature command.
     final Duration? timeoutOverride;
@@ -307,22 +363,74 @@ class CorpusRunCommand extends Command<void> {
       // -----------------------------------------------------------------
       // 3. Drive in plan/topological order when --plan is given (bug
       //    #836), else manifest order (FR-001); STOP-ON-ROADBLOCK
-      //    (FR-002).
+      //    (FR-002). Spec 069: the order may be scoped to ONE shard
+      //    lane (--shard i/k, deterministic round-robin) and driven
+      //    through a bounded worker pool (--concurrency n, default 1 =
+      //    the strictly-sequential contract).
       // -----------------------------------------------------------------
+      var laneOrder = driveOrder;
+      if (shardSpec != null) {
+        final (lane, lanes) = shardSpec;
+        final names = driveOrder.map((f) => f.name).toList();
+        final laneNames = const CorpusSharder().shardLane(
+          features: names,
+          shardCount: lanes,
+          shardIndex: lane - 1,
+        );
+        final laneSet = laneNames.toSet();
+        laneOrder = driveOrder.where((f) => laneSet.contains(f.name)).toList();
+        print(
+          '[corpus] shard $lane/$lanes: ${laneOrder.length} of '
+          '${driveOrder.length} feature(s) in this lane [069]',
+        );
+      }
+      if (concurrency > 1) {
+        print(
+          '[corpus] concurrency: $concurrency feature lane(s) in '
+          'process [069]',
+        );
+      }
       final runner = CorpusStepRunner(zfaBin: zfaBin, timeout: timeoutOverride);
       String? stoppedAtFeature;
 
-      Future<void> persist() =>
-          progressStore.save(progress, manifestFeatureNames: manifestNames);
+      // Spec 069 budget telemetry: wall-clock per step kind, suite
+      // seconds, mutant count — MEASURED around the real spawns and
+      // written into the lane's verdict JSON.
+      final telemetry = BudgetTelemetry();
+      // The ledger store is load->append->persist: concurrent roadblock
+      // bookkeeping is serialized through this lock so no gap entry is
+      // lost (append-only contract).
+      var ledgerLock = Future<void>.value();
+      Future<void> serializedStop(void Function() stop) async {
+        final pending = ledgerLock.then((_) => stop());
+        ledgerLock = pending.catchError((_) {});
+        await pending;
+      }
 
-      for (final feature in driveOrder) {
+      // The progress store's temp+rename save uses ONE fixed tmp path:
+      // concurrent saves from parallel lanes would race the rename (a
+      // PathNotFoundException aborting the lane). Serialized through
+      // this lock every save stays atomic AND every mutation order is
+      // preserved (the shared progress object is only mutated between
+      // awaits, so each serialized save carries all applied mutations).
+      var persistLock = Future<void>.value();
+      Future<void> persist() {
+        final pending = persistLock.then(
+          (_) =>
+              progressStore.save(progress, manifestFeatureNames: manifestNames),
+        );
+        persistLock = pending.catchError((_) {});
+        return pending;
+      }
+
+      Future<void> driveOne(CorpusFeature feature) async {
         final name = feature.name;
         final existing = progress.features[name];
 
         // Resume: done/waived features are never re-driven (US1.AC2).
         if (existing?.state == FeatureCorpusState.done ||
             existing?.state == FeatureCorpusState.waived) {
-          continue;
+          return;
         }
 
         // Not-ready: skipped and reported, never spawned (FR-003).
@@ -331,7 +439,7 @@ class CorpusRunCommand extends Command<void> {
             '[corpus] $name not-ready (${feature.reason.isEmpty ? 'no reason recorded' : feature.reason}) '
             '-- skipped, never driven',
           );
-          continue;
+          return;
         }
 
         // mark -> save -> spawn -> advance -> save: an interruption loses
@@ -344,37 +452,49 @@ class CorpusRunCommand extends Command<void> {
         await persist();
 
         // --- zfa tdd run <feature> ---
+        final runWatch = Stopwatch()..start();
         final runResult = await runner.runFeature(
           feature: name,
           projectRoot: projectRoot,
         );
+        runWatch.stop();
+        telemetry.wallClock.addDuration('run', runWatch.elapsed);
+        telemetry.addSuiteSeconds(runWatch.elapsed.inMilliseconds / 1000);
         print('[corpus] $name run -> ${runResult.outcome}');
         if (!runResult.success) {
           final stoppedAtParts = runResult.stoppedAt?.split(':');
-          await _stopAtFeature(
-            feature: name,
-            step: stoppedAtParts != null && stoppedAtParts.length > 1
-                ? stoppedAtParts[1]
-                : 'run',
-            outcome: runResult.outcome,
-            expectedResult: 'complete',
-            stoppedAt: runResult.stoppedAt,
-            gate: null,
-            failingCommand: _runCommand(name, projectRoot),
-            output: runResult.output,
-            progress: progress,
-            ledgerStore: ledgerStore,
-            persist: persist,
+          await serializedStop(
+            () => _stopAtFeature(
+              feature: name,
+              step: stoppedAtParts != null && stoppedAtParts.length > 1
+                  ? stoppedAtParts[1]
+                  : 'run',
+              outcome: runResult.outcome,
+              expectedResult: 'complete',
+              stoppedAt: runResult.stoppedAt,
+              gate: null,
+              failingCommand: _runCommand(name, projectRoot),
+              output: runResult.output,
+              progress: progress,
+              ledgerStore: ledgerStore,
+              persist: persist,
+            ),
           );
-          stoppedAtFeature = name;
-          break;
+          stoppedAtFeature ??= name;
+          return;
         }
 
         // --- zfa tdd verify --feature <feature> ---
+        final verifyWatch = Stopwatch()..start();
         final verifyResult = await runner.verifyFeature(
           feature: name,
           projectRoot: projectRoot,
         );
+        verifyWatch.stop();
+        telemetry.wallClock.addDuration('verify', verifyWatch.elapsed);
+        telemetry.addSuiteSeconds(verifyWatch.elapsed.inMilliseconds / 1000);
+        final mutants = _mutantsOf(verifyResult);
+        if (mutants != null) telemetry.addMutants(mutants);
         print('[corpus] $name verify -> ${verifyResult.outcome}');
 
         if (verifyResult.success) {
@@ -389,9 +509,11 @@ class CorpusRunCommand extends Command<void> {
           print('[corpus] $name -> done (gate: pass)');
           // A previously-gapped feature passing records the resolution as
           // NEW ledger entries — history is never edited (US4.AC2).
-          await _appendResolutionsIfGapped(
-            feature: name,
-            ledgerStore: ledgerStore,
+          await serializedStop(
+            () => _appendResolutionsIfGapped(
+              feature: name,
+              ledgerStore: ledgerStore,
+            ),
           );
         } else {
           // Exact-match waiver only (FR-004): a waiver for a different
@@ -414,26 +536,55 @@ class CorpusRunCommand extends Command<void> {
               'reason: ${waiver.reason}; by ${waiver.actor} at ${waiver.at})',
             );
           } else {
-            await _stopAtFeature(
-              feature: name,
-              step: 'verify',
-              outcome: verifyResult.outcome,
-              expectedResult: 'pass',
-              stoppedAt: 'gate:${verifyResult.outcome}',
-              gate: verifyResult.outcome,
-              failingCommand: _verifyCommand(name, projectRoot),
-              output: verifyResult.output,
-              progress: progress,
-              ledgerStore: ledgerStore,
-              persist: persist,
+            await serializedStop(
+              () => _stopAtFeature(
+                feature: name,
+                step: 'verify',
+                outcome: verifyResult.outcome,
+                expectedResult: 'pass',
+                stoppedAt: 'gate:${verifyResult.outcome}',
+                gate: verifyResult.outcome,
+                failingCommand: _verifyCommand(name, projectRoot),
+                output: verifyResult.output,
+                progress: progress,
+                ledgerStore: ledgerStore,
+                persist: persist,
+              ),
             );
-            stoppedAtFeature = name;
-            break;
+            stoppedAtFeature ??= name;
+            return;
           }
         }
         progress.inFlight = null;
         await persist();
       }
+
+      // The bounded worker pool: worker() claims the next feature until
+      // the queue drains or a roadblock stops new lanes (in-flight
+      // features drain to completion). With concurrency 1 this is
+      // EXACTLY the sequential contract (order preserved).
+      var next = 0;
+      var noNewLanes = false;
+      Future<void> worker() async {
+        while (true) {
+          if (noNewLanes || next >= laneOrder.length) return;
+          final feature = laneOrder[next++];
+          await driveOne(feature);
+          if (stoppedAtFeature != null) noNewLanes = true;
+        }
+      }
+
+      final workerCount = concurrency > laneOrder.length || laneOrder.isEmpty
+          ? concurrency.clamp(0, laneOrder.isEmpty ? 1 : laneOrder.length)
+          : concurrency;
+      final workers = List.generate(
+        workerCount == 0 ? 1 : workerCount,
+        (_) => worker(),
+        growable: false,
+      );
+      await Future.wait(workers);
+      // Let a failed worker's stop bookkeeping settle before reporting.
+      await ledgerLock;
 
       // -----------------------------------------------------------------
       // 4. Final report + the machine summary line (FR-008/FR-009).
@@ -453,13 +604,19 @@ class CorpusRunCommand extends Command<void> {
       );
 
       _printReport(manifest: manifest, progress: progress, totals: totals);
+      // Spec 069: a sharded lane's completeness is LANE-scoped — every
+      // ready feature of THIS lane done/waived. The other lanes are
+      // other CI jobs' business; a lane reporting `complete` means its
+      // own slice is proven, and the matrix union is the full corpus.
+      final completionScope = shardSpec != null ? laneOrder : manifest.features;
+      final scopeComplete = _scopeComplete(completionScope, progress);
       final openGapRefusal = totals.open.isNotEmpty;
       final result = stoppedAtFeature != null
           ? 'stopped'
-          : _complete(manifest, progress) && !openGapRefusal
+          : scopeComplete && !openGapRefusal
           ? 'complete'
           : 'incomplete';
-      if (_complete(manifest, progress) && openGapRefusal) {
+      if (scopeComplete && openGapRefusal) {
         // Bug #846: every feature done/waived is NOT enough — the corpus
         // refuses a `complete` verdict while open gaps exist in the
         // ledger (a done feature's gap is reported, never absorbed).
@@ -474,6 +631,51 @@ class CorpusRunCommand extends Command<void> {
           );
         }
       }
+      // Spec 069: the budget-telemetry verdict JSON — where the lane's
+      // minutes went (wall-clock per step, suite seconds, mutants),
+      // machine-readable for CI budget dashboards. Written BEFORE the
+      // machine summary line so the summary stays the FINAL stdout
+      // line (FR-009).
+      final verdictPath = p.join(projectRoot, '.zfa', 'corpus', 'verdict.json');
+      try {
+        final verdictFile = File(verdictPath);
+        await verdictFile.parent.create(recursive: true);
+        final tmp = File('${verdictFile.path}.tmp');
+        await tmp.writeAsString(
+          const JsonEncoder.withIndent('  ').convert({
+            'result': result,
+            'shard': shardSpec != null
+                ? '${shardSpec.$1}/${shardSpec.$2}'
+                : null,
+            'concurrency': concurrency,
+            'features': {
+              'manifest': manifest.features.length,
+              'lane': laneOrder.length,
+              'done': progress.features.values
+                  .where((f) => f.state == FeatureCorpusState.done)
+                  .length,
+              'waived': progress.features.values
+                  .where((f) => f.state == FeatureCorpusState.waived)
+                  .length,
+            },
+            'stopped_at': stoppedAtFeature,
+            'gaps': totals.found,
+            'budget': telemetry.toJson(),
+          }),
+        );
+        await tmp.rename(verdictFile.path);
+        print(
+          '   verdict: $verdictPath (budget telemetry [069]: '
+          'wall_clock_ms=${telemetry.wallClock.millisOf('run') + telemetry.wallClock.millisOf('verify')} '
+          'suite_seconds=${telemetry.suiteSeconds} '
+          'mutants=${telemetry.mutantCount})',
+        );
+      } on IOException catch (e) {
+        // The verdict is telemetry, never a gate: an unwritable verdict
+        // file must not fail an otherwise-proven lane.
+        print('   verdict: could not write $verdictPath ($e) [069]');
+      }
+
       _printSummary(
         features: manifest.features.length,
         result: result,
@@ -482,6 +684,7 @@ class CorpusRunCommand extends Command<void> {
         gaps: totals.found,
         stoppedAt: stoppedAtFeature,
         order: plan != null ? 'topological' : null,
+        shard: shardSpec != null ? '${shardSpec.$1}/${shardSpec.$2}' : null,
       );
 
       exitCode = result == 'complete' ? _exitComplete : _exitStopped;
@@ -497,12 +700,16 @@ class CorpusRunCommand extends Command<void> {
     }
   }
 
-  /// Every manifest feature is done or waived (not-ready features block
-  /// completion — they are reported, never silently absorbed). The open
-  /// ledger gap refusal (bug #846) is applied by the caller on top of
-  /// this check.
-  static bool _complete(CorpusManifest manifest, CorpusProgress progress) {
-    for (final feature in manifest.features) {
+  /// Every feature in [scope] is done or waived (not-ready features
+  /// block completion — they are reported, never silently absorbed).
+  /// The scope is the whole manifest (unsharded) or ONE shard's lane
+  /// (spec 069: lane-scoped completeness). The open ledger gap refusal
+  /// (bug #846) is applied by the caller on top of this check.
+  static bool _scopeComplete(
+    List<CorpusFeature> scope,
+    CorpusProgress progress,
+  ) {
+    for (final feature in scope) {
       if (!feature.ready) return false;
       final state = progress.features[feature.name]?.state;
       if (state != FeatureCorpusState.done &&
@@ -511,6 +718,24 @@ class CorpusRunCommand extends Command<void> {
       }
     }
     return true;
+  }
+
+  /// The assessed mutant count of a verify step's mutation summary
+  /// (`killed` + `survived` + `timed_out`), or null when the step
+  /// produced no parseable mutation counters (spec 069 budget
+  /// telemetry — the verdict's `mutant_count`).
+  static int? _mutantsOf(CorpusStepResult result) {
+    final fields = result.summaryFields;
+    int? parse(String key) {
+      if (!fields.containsKey(key)) return null;
+      return int.tryParse(fields[key]!);
+    }
+
+    final killed = parse('killed');
+    final survived = parse('survived');
+    final timedOut = parse('timed_out');
+    if (killed == null && survived == null && timedOut == null) return null;
+    return (killed ?? 0) + (survived ?? 0) + (timedOut ?? 0);
   }
 
   /// STOP-ON-ROADBLOCK bookkeeping (FR-002 + FR-007): ledger entry,
@@ -800,6 +1025,7 @@ class CorpusRunCommand extends Command<void> {
     int gaps = 0,
     String? stoppedAt,
     String? order,
+    String? shard,
   }) {
     var done = 0;
     var waived = 0;
@@ -833,7 +1059,8 @@ class CorpusRunCommand extends Command<void> {
       'not_ready=$notReady pending=$pending dropped=$dropped gaps=$gaps '
       'result=$result'
       '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}'
-      '${order != null ? ' order=$order' : ''}',
+      '${order != null ? ' order=$order' : ''}'
+      '${shard != null ? ' shard=$shard' : ''}',
     );
   }
 }

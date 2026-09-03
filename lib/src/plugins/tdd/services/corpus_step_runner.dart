@@ -44,6 +44,7 @@ class CorpusStepResult {
     required this.success,
     required this.output,
     this.stoppedAt,
+    this.summaryFields = const {},
   });
 
   final CorpusStep step;
@@ -62,6 +63,11 @@ class CorpusStepResult {
   /// Run's `stopped_at=<behavior>:<step>` when present (the ledger's
   /// behavior/step detail).
   final String? stoppedAt;
+
+  /// Every `key=value` field of the step's summary line (spec 069
+  /// budget telemetry): verify's `killed`/`survived`/`timed_out` feed
+  /// the verdict's `mutant_count`; run's counters are additive too.
+  final Map<String, String> summaryFields;
 
   @override
   String toString() =>
@@ -200,6 +206,7 @@ class CorpusStepRunner {
       success: process.exitCode == 0 && outcome == successToken,
       output: output,
       stoppedAt: kv['stopped_at'],
+      summaryFields: kv,
     );
   }
 
