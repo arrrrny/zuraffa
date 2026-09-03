@@ -11,7 +11,7 @@ a failing test before its implementation (TDD extension contract).
 - [x] T002. Contract gate (A3, U8-U10): `contract_gate.dart` — MOCK-era suite
       against the real binding stays green; verdict attributes red to the real
       impl or the mock; red blocks the swap and rolls the rebind back.
-- [ ] T003. Differential gate (A4, U11-U13): `differential_gate.dart` — real vs
+- [x] T003. Differential gate (A4, U11-U13): `differential_gate.dart` — real vs
       mock on the same committed fixtures (extends #832), drift report with
       per-field comparison, threshold from `.zfa.json`, reuses #805 machinery.
 - [ ] T004. Nuance receipts (A5, U14-U16): `nuance_receipts.dart` — hand-deltas

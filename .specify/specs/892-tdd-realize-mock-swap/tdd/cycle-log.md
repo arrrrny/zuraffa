@@ -550,3 +550,63 @@ For example, 'dart test --chain-stack-traces'.
 - prev-hash: genesis
 - hash: 31a1455f63e8154744ca5be892836b1336b0a7e80b38441ff57470e7bd6989dd
 
+## Cycle: U11-U13 (green)
+
+- behavior: U11-U13
+- kind: green
+- classification: -
+- criterion: SC-2
+- test: test/plugins/tdd/services/differential_gate_test.dart
+- command: `dart test test/plugins/tdd/services/differential_gate_test.dart`
+- exit: 0
+- at: 2026-09-03T08:36:47.831254Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/differential_gate_test.dart
+00:00 +0: test/plugins/tdd/services/differential_gate_test.dart: U11: per-field drift report from committed fixtures
+00:00 +1: test/plugins/tdd/services/differential_gate_test.dart: U12: threshold from .zfa.json — 0.5 tolerates the 0.2 drift
+00:00 +2: test/plugins/tdd/services/differential_gate_test.dart: U12b: default threshold 0.0 is strict — any drift fails
+00:00 +3: test/plugins/tdd/services/differential_gate_test.dart: U13: a missing fixtures directory is skipped, never silently passed
+00:00 +4: test/plugins/tdd/commands/realize_command_test.dart: A1: full green path rebinds DI, transitions era, persists state
+00:00 +5: test/plugins/tdd/commands/realize_command_test.dart: A2: --adapter is required — a swap without a real adapter is refused
+00:00 +6: test/plugins/tdd/commands/realize_command_test.dart: A6: a behavior id target resolves through the registry
+00:00 +7: test/plugins/tdd/commands/realize_command_test.dart: A3: a red real-binding run blocks the swap, rolls the rebind back, and the verdict names the side
+00:00 +8: test/plugins/tdd/commands/realize_command_test.dart: A3b: a red baseline (mock era already broken) blocks before any rebind and blames the mock side
+00:00 +9: test/plugins/tdd/commands/realize_command_test.dart: A4a: drift within the .zfa.json threshold passes with a drift report
+00:00 +10: test/plugins/tdd/commands/realize_command_test.dart: A4b: drift beyond the .zfa.json threshold blocks the transition and rolls the rebind back
+00:00 +11: All tests passed!
+```
+- schema: 1
+- prev-hash: 5daba8d63284c58004741bec6c65cc1b4afd713ac0ea0b9d2845975db63e013f
+- hash: d78cec9da309d7e778504a84739f9354df251a13b7d7c3d756825ea6e9f137a3
+
+## Cycle: A4a,A4b (green)
+
+- behavior: A4a,A4b
+- kind: green
+- classification: -
+- criterion: SC-2
+- test: test/plugins/tdd/commands/realize_command_test.dart
+- command: `dart test test/plugins/tdd/commands/realize_command_test.dart`
+- exit: 0
+- at: 2026-09-03T08:36:48.524612Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/differential_gate_test.dart
+00:00 +0: test/plugins/tdd/services/differential_gate_test.dart: U11: per-field drift report from committed fixtures
+00:00 +1: test/plugins/tdd/services/differential_gate_test.dart: U12: threshold from .zfa.json — 0.5 tolerates the 0.2 drift
+00:00 +2: test/plugins/tdd/services/differential_gate_test.dart: U12b: default threshold 0.0 is strict — any drift fails
+00:00 +3: test/plugins/tdd/services/differential_gate_test.dart: U13: a missing fixtures directory is skipped, never silently passed
+00:00 +4: test/plugins/tdd/commands/realize_command_test.dart: A1: full green path rebinds DI, transitions era, persists state
+00:00 +5: test/plugins/tdd/commands/realize_command_test.dart: A2: --adapter is required — a swap without a real adapter is refused
+00:00 +6: test/plugins/tdd/commands/realize_command_test.dart: A6: a behavior id target resolves through the registry
+00:00 +7: test/plugins/tdd/commands/realize_command_test.dart: A3: a red real-binding run blocks the swap, rolls the rebind back, and the verdict names the side
+00:00 +8: test/plugins/tdd/commands/realize_command_test.dart: A3b: a red baseline (mock era already broken) blocks before any rebind and blames the mock side
+00:00 +9: test/plugins/tdd/commands/realize_command_test.dart: A4a: drift within the .zfa.json threshold passes with a drift report
+00:00 +10: test/plugins/tdd/commands/realize_command_test.dart: A4b: drift beyond the .zfa.json threshold blocks the transition and rolls the rebind back
+00:00 +11: All tests passed!
+```
+- schema: 1
+- prev-hash: 31a1455f63e8154744ca5be892836b1336b0a7e80b38441ff57470e7bd6989dd
+- hash: e19ad8e73efd154b25090d6d6fbb0d8437322430c7f8d4f68de1222026a247aa
+

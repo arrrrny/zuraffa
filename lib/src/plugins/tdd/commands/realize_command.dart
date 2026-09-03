@@ -23,6 +23,7 @@
 ///              era=MOCKED->REAL result=<realized|blocked|runner-error>
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -140,6 +141,7 @@ class RealizeCommand extends Command<void> {
     final cwd = projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find(anchorDir: 'specs');
+    _resolvedRoot = cwd;
 
     // ---------------------------------------------------------------
     // Resolve the feature + entity behind the target.
@@ -298,6 +300,71 @@ class RealizeCommand extends Command<void> {
     print('   contract gate green: ${gate.attribution}');
 
     // ---------------------------------------------------------------
+    // The differential gate: real vs mock run the same committed
+    // fixtures; the output diff becomes a drift report judged against
+    // the .zfa.json threshold. Drift beyond it rolls the rebind back.
+    // ---------------------------------------------------------------
+    final diffGate = DifferentialGate(
+      featureDir: featureDir,
+      projectRoot: cwd,
+      driver: _fixtureDriver(),
+    );
+    final differential = await diffGate.run(entity: entity);
+    switch (differential.verdict) {
+      case DifferentialVerdict.skipped:
+        print(
+          '   differential gate skipped: no committed fixtures under '
+          '${p.relative(p.join(featureDir, 'tdd', 'fixtures'), from: cwd)} — '
+          'the gate is marked skipped, never silently passed',
+        );
+      case DifferentialVerdict.pass:
+        print(
+          '   differential gate pass: drift ${differential.driftLabel} '
+          '<= threshold ${differential.threshold}',
+        );
+      case DifferentialVerdict.drift:
+        await DiRebinder(projectRoot: cwd).rollback(rebind);
+        print(
+          '   differential gate DRIFT: drift ${differential.driftLabel} > '
+          'threshold ${differential.threshold} — the rebind was rolled '
+          'back. Raise tdd.realizeDifferentialThreshold in .zfa.json only '
+          'if the drift is intended.',
+        );
+        _printSummary(
+          entity: entity,
+          adapter: adapter,
+          feature: feature,
+          contract: _contractLabel(gate.verdict),
+          differential: 'drift',
+          drift: differential.driftLabel,
+          threshold: '${differential.threshold}',
+          era: state.era.name.toUpperCase(),
+          outcome: RealizeOutcome.blocked,
+        );
+        exitCode = 1;
+        return;
+      case DifferentialVerdict.runnerError:
+        await DiRebinder(projectRoot: cwd).rollback(rebind);
+        print(
+          '   differential gate RUNNER-ERROR: ${differential.error} — the '
+          'rebind was rolled back (the gate fails closed).',
+        );
+        _printSummary(
+          entity: entity,
+          adapter: adapter,
+          feature: feature,
+          contract: _contractLabel(gate.verdict),
+          differential: 'runner-error',
+          drift: '-',
+          threshold: '${differential.threshold}',
+          era: state.era.name.toUpperCase(),
+          outcome: RealizeOutcome.blocked,
+        );
+        exitCode = 1;
+        return;
+    }
+
+    // ---------------------------------------------------------------
     // The state transition MOCKED -> REAL, persisted.
     // ---------------------------------------------------------------
     final next = await stateStore.transitionToReal(
@@ -306,6 +373,10 @@ class RealizeCommand extends Command<void> {
       evidence: {
         'contract': _contractLabel(gate.verdict),
         'suitePaths': suitePaths.length,
+        'differential': differential.verdict.name,
+        'drift': differential.driftLabel,
+        'threshold': differential.threshold,
+        'fixtures': differential.fixturesRun,
       },
     );
     await stateStore.save(next);
@@ -316,6 +387,9 @@ class RealizeCommand extends Command<void> {
       adapter: adapter,
       feature: feature,
       contract: _contractLabel(gate.verdict),
+      differential: differential.verdict.name,
+      drift: differential.driftLabel,
+      threshold: '${differential.threshold}',
       era: 'MOCKED->REAL',
       outcome: RealizeOutcome.realized,
     );
@@ -333,6 +407,54 @@ class RealizeCommand extends Command<void> {
         return 'mock-broke-contract';
     }
   }
+
+  /// The fixture driver: injected for fast-tier tests, the project's
+  /// `tool/realize_driver.dart` subprocess protocol in production (the
+  /// input JSON travels on stdin, the output JSON returns on stdout).
+  RealizeFixtureDriver _fixtureDriver() {
+    final override = _fixtureDriverOverride;
+    if (override != null) return override;
+    return (binding, entity, input) async {
+      final driverScript =
+          File(p.join(_resolvedRoot, 'tool', 'realize_driver.dart'));
+      if (!driverScript.existsSync()) {
+        throw StateError(
+          'tool/realize_driver.dart not found — the differential gate '
+          'needs the project-owned driver (see the realize command docs).',
+        );
+      }
+      final process = await Process.start(
+        'dart',
+        [
+          'run',
+          'tool/realize_driver.dart',
+          '--binding',
+          binding,
+          '--entity',
+          entity,
+        ],
+        workingDirectory: _resolvedRoot,
+      );
+      process.stdin.write(jsonEncode(input));
+      await process.stdin.close();
+      final stdoutText = await process.stdout.transform(utf8.decoder).join();
+      final stderrText = await process.stderr.transform(utf8.decoder).join();
+      final driverExit = await process.exitCode;
+      if (driverExit != 0) {
+        throw StateError(
+          'driver failed (exit $driverExit): $stdoutText$stderrText',
+        );
+      }
+      final decoded = jsonDecode(stdoutText);
+      if (decoded is! Map<String, dynamic>) {
+        throw StateError('driver printed non-object JSON');
+      }
+      return decoded;
+    };
+  }
+
+  /// The project root this invocation resolved (the driver spawn cwd).
+  String _resolvedRoot = '';
 
   /// The suite runner: injected for fast-tier tests, real `dart test`
   /// subprocess in production.
@@ -480,12 +602,16 @@ class RealizeCommand extends Command<void> {
     required String adapter,
     required String feature,
     required String contract,
+    String differential = '-',
+    String drift = '-',
+    String threshold = '-',
     required String era,
     required RealizeOutcome outcome,
   }) {
     print(
       'realize: entity=$entity adapter=$adapter feature=$feature '
-      'contract=$contract era=$era result=${outcome.label}',
+      'contract=$contract differential=$differential drift=$drift '
+      'threshold=$threshold era=$era result=${outcome.label}',
     );
   }
 }

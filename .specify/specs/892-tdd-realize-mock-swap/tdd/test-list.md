@@ -49,9 +49,9 @@ observable result.
 
 | id  | behavior                                                              | traces | kind     | state   | test                                                          |
 | --- | --------------------------------------------------------------------- | ------ | -------- | ------- | ------------------------------------------------------------ |
-| U11 | real vs mock outputs on the same committed fixtures produce a per-field drift report (reuses #805-style findings) | SC-2   | example  | PENDING | `test/plugins/tdd/services/differential_gate_test.dart::U11` |
-| U12 | threshold comes from `.zfa.json` (`tdd.realizeDifferentialThreshold`); default is 0.0 (strict) and drift above it fails the gate | SC-2   | example  | PENDING | `test/plugins/tdd/services/differential_gate_test.dart::U12` |
-| U13 | a missing fixtures directory is reported `skipped`, never silently passed | SC-2   | example  | PENDING | `test/plugins/tdd/services/differential_gate_test.dart::U13` |
+| U11 | real vs mock outputs on the same committed fixtures produce a per-field drift report (reuses #805-style findings) | SC-2   | example  | DONE | `test/plugins/tdd/services/differential_gate_test.dart::U11` |
+| U12 | threshold comes from `.zfa.json` (`tdd.realizeDifferentialThreshold`); default is 0.0 (strict) and drift above it fails the gate | SC-2   | example  | DONE | `test/plugins/tdd/services/differential_gate_test.dart::U12` |
+| U13 | a missing fixtures directory is reported `skipped`, never silently passed | SC-2   | example  | DONE | `test/plugins/tdd/services/differential_gate_test.dart::U13` |
 
 ### `lib/src/plugins/tdd/services/nuance_receipts.dart`
 
