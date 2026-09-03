@@ -22,6 +22,7 @@ import '../tdd_plugin.dart';
 import '../models/corpus_ledger.dart';
 import '../models/corpus_manifest.dart';
 import '../models/corpus_progress.dart';
+import '../services/adapter_parity_checker.dart';
 import '../services/corpus_manifest_store.dart';
 import '../services/corpus_progress_store.dart';
 import '../services/gap_ledger_store.dart';
@@ -214,6 +215,19 @@ class CorpusStatusCommand extends Command<void> {
           '${coverage.complete}/${coverage.total} '
           '(manual: ${coverage.manual})',
         );
+      }
+    }
+
+    // Per-adapter parity rollup (bug #915): the differential harness's
+    // per-adapter parity score, surfaced for every manifest feature
+    // with committed adapter-contract fixtures. Features without
+    // contract fixtures have no line — reported, never invented.
+    for (final feature in manifest.features) {
+      final rollup = AdapterParityChecker.rollupForFeature(
+        p.join(projectRoot, 'specs', feature.name),
+      );
+      if (rollup.reports.isNotEmpty) {
+        print('   parity: ${feature.name} ${rollup.summaryLine}');
       }
     }
 

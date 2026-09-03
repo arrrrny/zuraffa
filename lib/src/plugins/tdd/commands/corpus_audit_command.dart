@@ -20,6 +20,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../tdd_plugin.dart';
+import '../services/adapter_parity_checker.dart';
 import '../services/corpus_manifest_store.dart';
 import '../services/provenance_scanner.dart';
 import '../../../core/project/project_root.dart';
@@ -111,6 +112,19 @@ class CorpusAuditCommand extends Command<void> {
         }),
       );
       print('   report: $reportPath');
+
+      // Per-adapter parity rollup (bug #915): every spec feature with
+      // committed adapter-contract fixtures gets its parity score
+      // surfaced in the audit. Features without contract fixtures have
+      // no line — reported, never invented.
+      for (final feature in AdapterParityChecker.discoverFeaturesWithContracts(
+        projectRoot,
+      )) {
+        final rollup = AdapterParityChecker.rollupForFeature(
+          p.join(projectRoot, 'specs', feature),
+        );
+        print('   parity: $feature ${rollup.summaryLine}');
+      }
 
       _printSummary(report, result);
       exitCode = result == 'pass' ? _exitPass : _exitFail;

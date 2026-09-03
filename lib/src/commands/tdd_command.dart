@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 
 import '../plugins/tdd/commands/compose_command.dart';
 import '../plugins/tdd/commands/corpus_command.dart';
+import '../plugins/tdd/commands/diff_check_command.dart';
 import '../plugins/tdd/commands/doctor_command.dart';
 import '../plugins/tdd/commands/fake_command.dart';
 import '../plugins/tdd/commands/func_command.dart';
@@ -39,6 +40,7 @@ class TddCommand extends Command<void> {
     addSubcommand(VerifyCommand(plugin));
     addSubcommand(MigratePathsCommand(plugin));
     addSubcommand(CorpusCommand(plugin));
+    addSubcommand(DiffCheckCommand(plugin));
     addSubcommand(ResetCommand(plugin));
     addSubcommand(DoctorCommand(plugin));
   }

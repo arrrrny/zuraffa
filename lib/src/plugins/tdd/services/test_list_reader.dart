@@ -394,8 +394,9 @@ class TestListReader {
         layer = layerM.group(1)!.trim();
         continue;
       }
-      final bullet = RegExp(r'^\s*[-*]\s+`([^`]+)`\s*:\s*(.+)$')
-          .firstMatch(trimmed);
+      final bullet = RegExp(
+        r'^\s*[-*]\s+`([^`]+)`\s*:\s*(.+)$',
+      ).firstMatch(trimmed);
       if (bullet == null || layer.isEmpty) continue;
       contracts.add(
         LayerContract(

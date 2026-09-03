@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "bug": 915,
+  "contract": "rest-quotes",
+  "adapterFamily": "rest",
+  "zorphyType": "MarketQuote",
+  "operations": {
+    "GET /v1/quote/USD-TRY": {
+      "symbol": "USD-TRY",
+      "price": 41.75,
+      "change": 0.4,
+      "source": {
+        "name": "live-feed",
+        "tier": 2
+      }
+    },
+    "GET /v1/search?q=kayak": {
+      "results": [
+        {
+          "title": "Sea Kayak",
+          "price": 2699.0
+        }
+      ]
+    },
+    "POST /v1/lists": {
+      "id": "list-42"
+    }
+  },
+  "faults": {
+    "timeout": {
+      "kind": "timeout",
+      "detail": "recorded real-lane timeout against the staging gateway"
+    },
+    "http-5xx": {
+      "kind": "http-5xx",
+      "status": 503,
+      "detail": "recorded real-lane upstream unavailability"
+    },
+    "corrupted-payload": {
+      "kind": "corrupted-payload",
+      "detail": "recorded real-lane corruption from a proxy retry"
+    }
+  }
+}
