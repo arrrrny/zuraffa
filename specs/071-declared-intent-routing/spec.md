@@ -1,6 +1,6 @@
 # Feature Specification: Declared-Intent Routing (eliminate keyword-based matching)
 
-**Feature Branch**: `943-declared-intent-routing`
+**Feature Branch**: `071-declared-intent-routing`
 
 **Created**: 2026-09-03
 
