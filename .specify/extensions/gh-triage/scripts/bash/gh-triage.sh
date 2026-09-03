@@ -195,6 +195,7 @@ load_config() {
   [ -n "${CFG_BUG_KEYWORDS:-}" ] && BUG_KEYWORDS="$CFG_BUG_KEYWORDS"
   [ -n "${CFG_FEATURE_KEYWORDS:-}" ] && FEATURE_KEYWORDS="$CFG_FEATURE_KEYWORDS"
   [ -n "${CFG_CHORE_KEYWORDS:-}" ] && CHORE_KEYWORDS="$CFG_CHORE_KEYWORDS"
+  return 0
 }
 
 # ---------------------------------------------------------------------------

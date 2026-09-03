@@ -152,6 +152,15 @@ class SpecParser {
     caseSensitive: false,
   );
 
+  /// Fenced code blocks (```` ``` ```` … ```` ``` ````). The template
+  /// version marker inside a fenced block is documentation, not a treaty
+  /// pin (a spec's "How to write a spec" example would otherwise pin the
+  /// spec to the example's version).
+  static final RegExp _fencedCodeBlock = RegExp(
+    r'^[ \t]*```[^\r\n]*(?:\r?\n|$)[\s\S]*?^[ \t]*```[ \t]*\r?$',
+    multiLine: true,
+  );
+
   /// Template versions whose grammar this parser implements (bug #919).
   /// A spec declaring anything else — or nothing — is contract drift:
   /// plan exits 3 before parsing, so an unpinned spec can never drive a
@@ -173,8 +182,13 @@ class SpecParser {
 
   /// The declared template version, or null when the spec carries no
   /// `**Template Version**` marker.
+  ///
+  /// Fenced code blocks (``` … ```) are stripped before matching, so a
+  /// marker that appears inside a "How to write a spec" example is
+  /// treated as documentation and not as the spec's treaty pin.
   String? parseTemplateVersion(String specMd) {
-    for (final line in specMd.split('\n')) {
+    final stripped = specMd.replaceAll(_fencedCodeBlock, '');
+    for (final line in stripped.split('\n')) {
       final m = _templateVersionMarker.firstMatch(line.trim());
       if (m != null) return m.group(1)!.trim();
     }
