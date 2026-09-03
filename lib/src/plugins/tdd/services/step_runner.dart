@@ -250,8 +250,13 @@ class StepRunner {
       projectRoot,
     ];
     // Issue #741: hand the run's cached suite baseline to make steps so
-    // the full suite runs once per run, not once per behavior.
-    if (step == 'make' &&
+    // the full suite runs once per run, not once per behavior. Issue #922:
+    // refactor steps get the same handoff — the spawned preflight and
+    // re-proof exclude the baseline's pre-existing red from their verdicts,
+    // so 24 pre-existing failures in unrelated files cannot refuse every
+    // refactor and stop the run at green=13 done=0. A flag-less standalone
+    // refactor keeps the absolute-green contract (spec 048 FR-001).
+    if ((step == 'make' || step == 'refactor') &&
         suiteBaselinePath != null &&
         suiteBaselinePath.isNotEmpty) {
       argv.addAll(['--suite-baseline', suiteBaselinePath]);
