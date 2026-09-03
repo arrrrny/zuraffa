@@ -73,3 +73,83 @@ existed and failed before the implementation.
 - commit: `79ec0bc6` (test + implementation; suite file intentionally
   carries the remaining not-yet-green behaviors at this commit — the
   branch's final state is all-green)
+
+## Cycle 2: A3 phase-0 seam read-back — COMMITTED 2561447e
+
+- test: `bug_919_template_structures_test.dart::A3` (had a fixture bug:
+  `'$tmpDir/...'` interpolated `Directory.toString()` -> `Directory: '/tmp/...'`,
+  so the reader saw no artifact — invalid red, fixed the path construction)
+- red: after the fix the test passed on first run — behavior pre-existed in
+  the lenient `readEntities`; deliberate mutant (fields read from the
+  purpose column `cells[3]` instead of `cells[2]`) -> RED, restored ->
+  green. Suite targeted set green.
+- refactor: none
+
+## Cycle 3: strict Template Version gate — COMMITTED 8e065358
+
+- tests: `bug_919_template_structures_test.dart::A4, A5, A6, A13`
+- red (pre-implementation, suite-level): A4 "no exit 3, plan proceeds to
+  coverage gate"; A5 "no exit 3, plan proceeds"; A13 "StateError 'no
+  acceptance scenarios', exit 0"
+- green: `SpecParser.parseTemplateVersion` + `knownTemplateVersions` +
+  plan-side gate before any parsing — missing/unknown marker = exit 3,
+  `--> fix:` line, no artifacts. A6 control validated by deliberate
+  mutant (gate rejecting `zuraffa-1.0` -> RED), restored.
+- fixtures: strict gate broke 21 existing plan tests across
+  bug_846/830/833/plan_gen_contract — every planned fixture pins
+  `**Template Version**: `zuraffa-1.0`` (T001); all 38 tests green after.
+  This is the recorded baseline update the intended behavior change
+  required (A2/A10's home tests keep their assertions).
+- refactor: none
+
+## Cycle 4: A7 dependencies table — COMMITTED 9f31ca29
+
+- test: `bug_919_template_structures_test.dart::A7`
+- red: "no `## External dependencies` rendered"
+- green: `SpecDependency` model + `parseDependencies`; artifact section
+  `| dependency | type | contract | mock priority |` with declared rows.
+- refactor: none
+
+## Cycle 5: A8 layer contracts — COMMITTED 9f31ca29
+
+- test: `bug_919_template_structures_test.dart::A8`
+- red: "no `## Layer contracts` rendered"
+- green: `LayerContract` model + `parseLayerContracts`; artifact renders
+  per-layer `### <layer>` blocks with backticked interface declarations.
+- refactor: none (layer grouping extracted into a per-layer map in the
+  same render)
+
+## Cycle 6: A14 reader round-trip — COMMITTED d71cd571
+
+- test: `test/plugins/tdd/services/bug_919_reader_test.dart` (new, 3
+  tests, written first)
+- red: `Error: The method 'readDependencies'/'readLayerContracts' isn't
+  defined for the type 'TestListReader'` (unresolved-symbol red)
+- green: both methods implemented mirroring `readEntities`' lenient
+  section parsing; imports `spec_parser.dart` models; pre-919 artifacts
+  yield empty lists. Existing reader suite unchanged/green.
+- refactor: none
+
+## Cycle 7: A9/A12 undeclared-dependency lint — COMMITTED 71473db8
+
+- tests: `bug_919_template_structures_test.dart::A9 (exit 2 + fix)`,
+  `A12` (no externals / declared only -> exit 0)
+- red: A9 "no exit 2 (Hive reference uncaught)"; A12 pre-passed as a
+  control — deliberate mutant (lint firing on every statement) -> RED,
+  restored
+- green: `SpecParser.knownExternalDependencies` (Hive, SharedPreferences,
+  Firebase, Supabase, SQLite, Drift) + plan-side scan over requirement
+  statements minus the declared set = exit 2 naming each dependency with
+  `--> fix:` and no artifacts.
+- refactor: none
+
+## Environment deviation (unrelated, recorded)
+
+- `verify_red_subdirectory_test.dart` (3 tests) fails with
+  `TimeoutException: zfa subprocess exceeded its 75s child timeout` —
+  reproduced on a clean tree via stash; `dart bin/zfa.dart` cold JIT
+  startup measures ~1m36s on this machine vs the harness's 75s cap.
+  Not caused by this fix; not filtered or weakened; must be re-run
+  before merging.
+- `subprocess_timeout_test.dart::runTimed ...` failed once under full
+  suite load, passes in isolation — transient load flake.

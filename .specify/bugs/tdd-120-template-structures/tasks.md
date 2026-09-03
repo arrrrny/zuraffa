@@ -22,44 +22,44 @@ Tests are NOT optional for this bug. Every test task must be observed RED
 - [x] T004: Write RED acceptance test — a mixed table + bullets section
   extracts entities from both forms. [A11]
 - [x] T005: Make T004 green (may fall out of T003; prove it). [A11]
-- [ ] T006: Write RED acceptance test — entities planned from a table are read
+- [x] T006: Write RED acceptance test — entities planned from a table are read
   back by `TestListReader.readEntities` (phase-0 seam). [A3]
-- [ ] T007: Make T006 green (artifact format feeds the existing reader; adjust
+- [x] T007: Make T006 green (artifact format feeds the existing reader; adjust
   rendering only if the seam fails). [A3]
 
 ## 3. Template Version gate (item 4, strict)
 
-- [ ] T008: Write RED acceptance tests — missing marker → exit 3 + `--> fix:`
+- [x] T008: Write RED acceptance tests — missing marker → exit 3 + `--> fix:`
   line + no artifacts; unknown version → exit 3 naming it; `zuraffa-1.0` →
   plan proceeds exit 0. [A4][A5][A6]
-- [ ] T009: Implement `parseTemplateVersion` + the strict gate in
+- [x] T009: Implement `parseTemplateVersion` + the strict gate in
   `zfa tdd plan`, running before the coverage gate and before any artifact
   write. [A4][A5][A6]
-- [ ] T010: Write RED acceptance test — a spec with both drift and a coverage
+- [x] T010: Write RED acceptance test — a spec with both drift and a coverage
   gap exits 3 (gate ordering). [A13]
-- [ ] T011: Make T010 green (ordering proof; may fall out of T009). [A13]
+- [x] T011: Make T010 green (ordering proof; may fall out of T009). [A13]
 
 ## 4. Dependencies & Layer Contracts (items 2-3, plan side)
 
-- [ ] T012: Write RED acceptance test — External Dependencies & Contracts
+- [x] T012: Write RED acceptance test — External Dependencies & Contracts
   table lands row-for-row in the plan artifact. [A7]
-- [ ] T013: Implement `SpecDependency` parsing + artifact rendering
+- [x] T013: Implement `SpecDependency` parsing + artifact rendering
   (`## External dependencies` section). [A7]
-- [ ] T014: Write RED acceptance test — Layer Contracts land per-layer,
+- [x] T014: Write RED acceptance test — Layer Contracts land per-layer,
   per-interface, with signatures in the plan artifact. [A8]
-- [ ] T015: Implement `LayerContract` parsing + artifact rendering
+- [x] T015: Implement `LayerContract` parsing + artifact rendering
   (`## Layer contracts` section). [A8]
-- [ ] T016: Write RED acceptance test — `TestListReader` reads dependencies
+- [x] T016: Write RED acceptance test — `TestListReader` reads dependencies
   and layer contracts back from a produced artifact. [A14]
-- [ ] T017: Implement `readDependencies`/`readLayerContracts` in
+- [x] T017: Implement `readDependencies`/`readLayerContracts` in
   `TestListReader`. [A14]
 
 ## 5. Undeclared-dependency lint (item 2 lint)
 
-- [ ] T018: Write RED acceptance tests — a requirement referencing `Hive`
+- [x] T018: Write RED acceptance tests — a requirement referencing `Hive`
   undeclared → exit 2 naming it + fix line + no artifacts; no external
   references (or declared ones) → exit 0. [A9][A12]
-- [ ] T019: Implement the lint in `zfa tdd plan` (known-externals set in
+- [x] T019: Implement the lint in `zfa tdd plan` (known-externals set in
   `SpecParser`, declared set from the parsed table). [A9][A12]
 
 ## 6. Close-out
