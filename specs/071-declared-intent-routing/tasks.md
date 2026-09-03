@@ -41,7 +41,7 @@ description: "Task list for feature implementation"
 - [ ] T002 [P] Create routing vocabulary models in `lib/src/plugins/tdd/models/routing.dart`: `GenerationSurface` enum (`entityPipeline`, `dependencyMake`, `viewGeneration`, `plainFunction`, `none`), `Signature` (name/parameters/returnType), `ProvenanceLine` (aspect/source/detail/specLine), `RoutingFailureCode` enum (`declarationConflict`, `danglingReference`, `malformedDeclaration`, `undeclaredStrict`) — per data-model.md.
 - [ ] T003 [P] Create `Signature` parsing (`name(Params) -> Return`) for Layer-Contracts signature text in `lib/src/plugins/tdd/services/routing_resolver.dart` (pure functions; malformed text yields `RoutingFailureCode.malformedDeclaration` with the offending row text).
 - [ ] T004 Implement the `RoutingResolver` ladder in `lib/src/plugins/tdd/services/routing_resolver.dart`: `resolve({row, declarations, strict})` → `RoutingDecision | RoutingFailure` implementing rungs 1–3 + strict gate + per-aspect resolution and provenance assembly (kind, surface, entity, signature, persistence), per contracts/routing-resolver.md. Depends on T002, T003.
-- [ ] T005 Write `test/plugins/tdd/services/routing_resolver_test.dart` FIRST (RED before T004): ladder precedence (marker beats row beats section beats fallback), per-aspect mixing, `declarationConflict` names both lines, `danglingReference`, `malformedDeclaration`, strict `undeclaredStrict`, determinism, fallback labeling with fix hint. Depends on T002, T003.
+- [ ] T005 MANDATORY [behavior: U1] Write `test/plugins/tdd/services/routing_resolver_test.dart` FIRST (RED before T004): ladder precedence (marker beats row beats section beats fallback), per-aspect mixing, `declarationConflict` names both lines, `danglingReference`, `malformedDeclaration`, strict `undeclaredStrict`, determinism, fallback labeling with fix hint. Depends on T002, T003.
 
 **Checkpoint**: Foundation ready — the ladder is unit-testable; story work can begin.
 
@@ -55,8 +55,8 @@ description: "Task list for feature implementation"
 
 ### Tests for User Story 1 (write FIRST, ensure RED)
 
-- [ ] T006 [P] [US1] Write `test/plugins/tdd/services/spec_parser_declarations_test.dart` (RED): parses `**Type**: <kind>` markers into scenario declarations with spec lines; rejects duplicate markers; unparsed specs yield empty declarations.
-- [ ] T007 [P] [US1] Write plan-level replay pins in `test/plugins/tdd/commands/plan_routing_provenance_test.dart` (RED): a marker-declared widget scenario whose text says "renders" plans the widget lane; a past-tense scenario ("rendered", "navigated") keeps its declared lane; reworded prose produces identical routing.
+- [ ] T006 [P] [US1] MANDATORY [behavior: U2] Write `test/plugins/tdd/services/spec_parser_declarations_test.dart` (RED): parses `**Type**: <kind>` markers into scenario declarations with spec lines; rejects duplicate markers; unparsed specs yield empty declarations.
+- [ ] T007 [P] [US1] MANDATORY [behavior: A1] Write plan-level replay pins in `test/plugins/tdd/commands/plan_routing_provenance_test.dart` (RED): a marker-declared widget scenario whose text says "renders" plans the widget lane; a past-tense scenario ("rendered", "navigated") keeps its declared lane; reworded prose produces identical routing.
 
 ### Implementation for User Story 1
 
@@ -77,8 +77,8 @@ description: "Task list for feature implementation"
 
 ### Tests for User Story 2 (write FIRST, ensure RED)
 
-- [ ] T012 [P] [US2] Write `test/plugins/tdd/services/function_contracts_parsing_test.dart` (RED): the `**Function**` Layer Contracts bullet parses into rows with parsed signatures; a bullet missing `->` is a `malformedDeclaration` naming the row.
-- [ ] T013 [P] [US2] Write planner surface pins in `test/plugins/tdd/services/generation_planner_declared_test.dart` (RED): entity-row trace → entity pipeline steps; function-row trace → `tdd func` with declared signature; presentation-row trace → view-lane unexpressible; undeclared behaviors fall back labeled (planner reason carries provenance).
+- [ ] T012 [P] [US2] MANDATORY [behavior: U3] Write `test/plugins/tdd/services/function_contracts_parsing_test.dart` (RED): the `**Function**` Layer Contracts bullet parses into rows with parsed signatures; a bullet missing `->` is a `malformedDeclaration` naming the row.
+- [ ] T013 [P] [US2] MANDATORY [behavior: A2] Write planner surface pins in `test/plugins/tdd/services/generation_planner_declared_test.dart` (RED): entity-row trace → entity pipeline steps; function-row trace → `tdd func` with declared signature; presentation-row trace → view-lane unexpressible; undeclared behaviors fall back labeled (planner reason carries provenance).
 
 ### Implementation for User Story 2
 
@@ -99,7 +99,7 @@ description: "Task list for feature implementation"
 
 ### Tests for User Story 3 (write FIRST, ensure RED)
 
-- [ ] T018 [P] [US3] Write `test/plugins/tdd/services/persistence_declaration_test.dart` (RED): tag → marked; storage-dependency trace → marked; storage vocabulary without declaration → unmarked; fallback marking labeled in provenance.
+- [ ] T018 [P] [US3] MANDATORY [behavior: U4] Write `test/plugins/tdd/services/persistence_declaration_test.dart` (RED): tag → marked; storage-dependency trace → marked; storage vocabulary without declaration → unmarked; fallback marking labeled in provenance.
 
 ### Implementation for User Story 3
 
@@ -119,7 +119,7 @@ description: "Task list for feature implementation"
 
 ### Tests for User Story 4 (write FIRST, ensure RED)
 
-- [ ] T022 [P] [US4] Write provenance rendering pins in `test/plugins/tdd/commands/plan_routing_provenance_test.dart` (RED, extend T007 file): `route:` line grammar per contracts/cli-routing.md (declared/fallback bracket tokens, spec-line references), provenance block persisted into the test list.
+- [ ] T022 [P] [US4] MANDATORY [behavior: A3] Write provenance rendering pins in `test/plugins/tdd/commands/plan_routing_provenance_test.dart` (RED, extend T007 file): `route:` line grammar per contracts/cli-routing.md (declared/fallback bracket tokens, spec-line references), provenance block persisted into the test list.
 
 ### Implementation for User Story 4
 
@@ -138,7 +138,7 @@ description: "Task list for feature implementation"
 
 ### Tests for User Story 5 (write FIRST, ensure RED)
 
-- [ ] T025 [P] [US5] Write strict-mode pins in `test/plugins/tdd/commands/plan_routing_provenance_test.dart` (RED): strict refusal message shape (behavior id + spec line + `--> fix:` declaration), exit code 1, no fallback routes in output; conflict/dangling refusals surface at plan time; declared-only spec plans clean under strict.
+- [ ] T025 [P] [US5] MANDATORY [behavior: A4] Write strict-mode pins in `test/plugins/tdd/commands/plan_routing_provenance_test.dart` (RED): strict refusal message shape (behavior id + spec line + `--> fix:` declaration), exit code 1, no fallback routes in output; conflict/dangling refusals surface at plan time; declared-only spec plans clean under strict.
 
 ### Implementation for User Story 5
 
