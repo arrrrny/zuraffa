@@ -153,3 +153,11 @@ existed and failed before the implementation.
   before merging.
 - `subprocess_timeout_test.dart::runTimed ...` failed once under full
   suite load, passes in isolation — transient load flake.
+
+## Correction (append-only record)
+
+- The environment-deviation entry above flagged verify_red_subdirectory
+  (bug #679) as failing under the 75s child cap. On the FINAL suite run
+  after all cycles closed, `dart test test/plugins/tdd/` -> 731 passed,
+  1 skipped, 0 failed — the three tests passed. Environmental (machine
+  load/temperature), not code: no mitigation was applied.

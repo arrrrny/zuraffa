@@ -64,6 +64,6 @@ Tests are NOT optional for this bug. Every test task must be observed RED
 
 ## 6. Close-out
 
-- [ ] T020: All outer behaviors A1-A14 DONE in the test list; scoped suite
+- [x] T020: All outer behaviors A1-A14 DONE in the test list; scoped suite
   `dart test test/plugins/tdd/` green; `dart analyze lib/src/plugins/tdd/
   test/plugins/tdd/` clean; cycle log complete; fix.md written.
