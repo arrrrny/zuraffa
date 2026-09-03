@@ -43,6 +43,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
 import '../services/entity_lookup.dart';
+import '../services/subject_signature_deriver.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -333,20 +334,49 @@ class WireCommand extends Command<void> {
     required String entityName,
     required String entityImport,
   }) {
-    final body = returnType == 'void'
-        ? '''
+    final description = _descriptionFor(record);
+    final derived = deriveSubjectSignature(description, forWire: true);
+    final effectiveReturnType = returnType == 'void'
+        ? 'void'
+        : (derived.returnType.isNotEmpty ? derived.returnType : returnType);
+
+    String body;
+    if (effectiveReturnType == 'void') {
+      body =
+          '''
   // Implementation anchor: references the generated entity this
   // behavior builds on.
   // ignore: unused_local_variable
   final Type wiredEntityAnchor = $entityName;
-'''
-        : '''
+''';
+    } else if (derived.explicitBody != null) {
+      body =
+          '''
+  // Implementation anchor: references the generated entity this
+  // behavior builds on.
+  // ignore: unused_local_variable
+  final Type wiredEntityAnchor = $entityName;
+  ${derived.explicitBody}
+''';
+    } else if (effectiveReturnType == 'String') {
+      body =
+          '''
+  // Implementation anchor: references the generated entity this
+  // behavior builds on.
+  // ignore: unused_local_variable
+  final Type wiredEntityAnchor = $entityName;
+  return '$functionName';
+''';
+    } else {
+      body =
+          '''
   // Implementation anchor: references the generated entity this
   // behavior builds on.
   // ignore: unused_local_variable
   final Type wiredEntityAnchor = $entityName;
   return 0;
 ''';
+    }
     return '''
 // GENERATED IMPLEMENTATION — `zfa tdd wire ${record.behaviorId}` (bug
 // #610; epic 045 precondition 5: the subject is wired by a
@@ -367,7 +397,7 @@ import '$entityImport';
 
 /// Subject for behavior ${record.behaviorId}, wired to entity
 /// $entityName by the generation pipeline.
-$returnType $functionName() {$body}
+$effectiveReturnType $functionName() {$body}
 ''';
   }
 

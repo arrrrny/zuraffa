@@ -332,5 +332,23 @@ class Weird {
       final subject = await File(fx.subjectPathOf('B-001')).readAsString();
       expect(subject, contains('class Weird'));
     });
+
+    test('U-920: wired subject infers signature from description', () async {
+      await fx.registerBehavior(
+        id: 'B-002',
+        description: 'render returns a non-empty string for task',
+      );
+      await File(
+        fx.subjectPathOf('B-002'),
+      ).writeAsString(genStyleStub('B-002'));
+
+      final out = await runWire(id: 'B-002');
+
+      expect(exitCode, 0, reason: 'out: $out');
+      final subject = await File(fx.subjectPathOf('B-002')).readAsString();
+      expect(subject, contains('String subject_b_002() {'));
+      expect(subject, contains('final Type wiredEntityAnchor = User;'));
+      expect(subject, contains("return 'subject_b_002';"));
+    });
   });
 }

@@ -43,6 +43,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
+import '../services/subject_signature_deriver.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -218,6 +219,7 @@ class FuncCommand extends Command<void> {
           outcome: FuncOutcome.alreadyImplemented,
           feature: resolved.featureName,
         );
+        exitCode = 0;
       }
       return;
     }
@@ -238,6 +240,7 @@ class FuncCommand extends Command<void> {
       outcome: FuncOutcome.scaffolded,
       feature: resolved.featureName,
     );
+    exitCode = 0;
   }
 
   // -------------------------------------------------------------------
@@ -256,64 +259,16 @@ class FuncCommand extends Command<void> {
   static String _descriptionFor(ArtifactRecord record) =>
       record.descriptionSegment;
 
-  /// Derive the return type and the minimal body from the behavior
-  /// description (bug #657: only the return type comes from the DESCRIPTION,
-  /// never from the test). The body is the minimal implementation
-  /// satisfying the described contract — generation, not hand-writing.
-  /// A null body means the caller renders the String fallback (a
-  /// deterministic non-empty literal).
-  static (String, String?) _deriveSignature(String description) {
-    final desc = description.toLowerCase();
-    // "returns 42" — a concrete integer result.
-    final digits = RegExp(r'\breturns?\s+(\d+)').firstMatch(desc);
-    if (digits != null) {
-      return ('int', 'return ${digits.group(1)};');
-    }
-    // Boolean results.
-    if (RegExp(r'\breturns?\s+true\b').hasMatch(desc) ||
-        RegExp(r'\breturns?\s+false\b').hasMatch(desc)) {
-      final value = RegExp(r'\breturns?\s+false\b').hasMatch(desc)
-          ? 'false'
-          : 'true';
-      return ('bool', 'return $value;');
-    }
-    // A non-empty string result (render / format / label / message).
-    if (desc.contains('non-empty string') ||
-        RegExp(r'\breturns?\s+a?\s*string\b').hasMatch(desc) ||
-        desc.contains('as a string') ||
-        desc.contains('string for')) {
-      return ('String', null);
-    }
-    // Collections and numbers.
-    if (RegExp(r'\breturns?\s+a?\s*(list|array)\b').hasMatch(desc)) {
-      return ('List<String>', 'return const <String>[];');
-    }
-    if (RegExp(r'\breturns?\s+a?\s*map\b').hasMatch(desc)) {
-      return ('Map<String, Object?>', 'return const <String, Object?>{};');
-    }
-    if (RegExp(r'\breturns?\s+a?\s*(double|float|num)\b').hasMatch(desc)) {
-      return ('double', 'return 0.0;');
-    }
-    if (RegExp(r'\breturns?\s+an?\s+int').hasMatch(desc) ||
-        RegExp(r'\breturns?\s+a?\s*count\b').hasMatch(desc)) {
-      return ('int', 'return 0;');
-    }
-    // Type-silent descriptions: the paired generated test only asserts
-    // the subject is implemented (isNot(UnimplementedError)) — a
-    // non-empty String satisfies every described contract shape.
-    return ('String', null);
-  }
-
   String _renderScaffolded({
     required String description,
     required String functionName,
   }) {
-    final (returnType, explicitBody) = _deriveSignature(description);
+    final derived = deriveSubjectSignature(description);
     // For a String result the minimal body returns a deterministic
     // non-empty literal (the function name) — never an empty string,
     // which would violate a "non-empty string" contract.
-    final body = explicitBody ?? "return '$functionName';";
-    return '''$returnType $functionName() {
+    final body = derived.explicitBody ?? "return '$functionName';";
+    return '''${derived.returnType} $functionName() {
   $body
 }''';
   }
