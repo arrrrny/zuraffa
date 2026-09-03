@@ -18,10 +18,11 @@ Generated DI registers mock datasources under a simulation flavor: `flutter run 
 
 `zfa make --di / zfa mock create`:
 
-1. **Generated DI**: simulation binding is generated, not hand-wired; flavor switch is a single `--dart-define=SIMULATION=true`.
-2. **Fixture data**: every mock datasource uses committed fixtures from `specs/<feature>/tdd/fixtures/` (extends #832 simulate adapters).
-3. **Isolation guard**: simulation mode never opens real sockets except through explicitly whitelisted lanes (landed with #832).
-4. **Feature completeness**: any feature reaching `complete(mocked)` is immediately DEMOABLE — no real adapter required.
+1. **Simulation input**: generated registration reads the compile-time `SIMULATION` value exactly once. The literal `true` selects mock DI; the literal `false` or an absent value selects production DI; any other value is malformed, fails startup before registration, and selects neither graph. Persisted `ZfaConfig.mockByDefault` is a generation-time default only and MUST NOT influence runtime DI selection.
+2. **Generated DI and mock discovery**: simulation binding is generated, not hand-wired; flavor switch is a single `--dart-define=SIMULATION=true`. Each `zfa make --di` / `zfa mock create` result MUST keep at least one canonical static-discovery contract: generated code imports `package:zuraffa/mock.dart`, generated code references `zuraffaMockLibrary`, or `.zfa.json` retains the canonical `mocking` block. Runtime flavor selection MUST NOT remove or replace that discovery signal.
+3. **Fixture data**: every mock datasource uses committed fixtures from `specs/<feature>/tdd/fixtures/` (extends #832 simulate adapters).
+4. **Isolation guard**: simulation mode never opens real sockets; `NetworkIsolationGuard` blocks every outbound socket attempt, including loopback, with no allowlisted lane (landed with #832).
+5. **Feature completeness**: any feature reaching `complete(mocked)` is immediately DEMOABLE — no real adapter required.
 
 ## Why this matters
 

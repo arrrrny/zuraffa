@@ -25,11 +25,13 @@
 ### Phase 1: command skeleton
 - `zfa tdd realize <entity|behavior> --adapter <real>` subcommand
 - DI rebinding: mock → real via generated interface (no contract change)
-- State transition MOCKED → REAL persisted in run-state
+- Prepare a candidate mock → real rebind while `RunState.era` remains `MOCKED`; do not persist `REAL` during command setup
+- Keep `BehaviorState` / `TestListReader._parseState` on `PENDING`, `RED`, `GREEN`, and `DONE`; retain `BASELINE`, `BLOCKED`, and `DROPPED` as bookkeeping states, never era values
 
 ### Phase 2: contract gate
+- Establish a validated green mock baseline with the unchanged fixtures and harness before evaluating the real binding
 - Run the MOCK-era test suite against the real binding (untouched tests)
-- Any red = verdict attributes failure to real impl OR mock contract breakage
+- Apply deterministic fail-closed triage: `mock-baseline`, `fixture`, or `test-harness` failures block attribution; only a real-binding-only failure after those checks is `real-adapter`
 - Must stay green for the swap to proceed
 
 ### Phase 3: differential gate
@@ -37,6 +39,7 @@
 - Output diff = drift report with per-field comparison
 - Threshold from `.zfa.json` (configurable)
 - Reuses #805 differential machinery for diff computation
+- If both gates pass, atomically append their successful REAL-era evidence and persist `RunState.era = REAL`; on either failure, persist neither the REAL era nor successful-transition evidence
 
 ### Phase 4: nuance receipts
 - Hand-written deltas recorded in feature's provenance ledger
@@ -45,9 +48,9 @@
 - References #807 proof-carrying pattern
 
 ### Phase 5: era-tagged cycle-log
-- cycle-log entries carry era tag (MOCKED or REAL)
-- Evidence preserved per era
-- State transitions visible in history
+- Add an `era` field (`MOCKED` or `REAL`) to newly appended cycle-log entries; never rewrite or backfill existing entries
+- Preserve every prior entry byte-for-byte and retain each new entry's command, failure output, green-making change/generation evidence, and refactor evidence for `/speckit.tdd.verify`
+- Keep behavior and bookkeeping states independent from era metadata; the MOCKED → REAL run-era transition remains visible in append-only history
 
 ## Files likely to change
 
@@ -64,7 +67,7 @@
 - `contract_gate_test.dart` — mock-era suite against real binding stays green
 - `differential_gate_test.dart` — drift report, threshold enforcement
 - `nuance_receipts_test.dart` — hand-deltas recorded with reason + diff-hash
-- `era_tagged_log_test.dart` — era tag preserved through cycle-log
+- `era_tagged_log_test.dart` — append-only writes preserve prior entries byte-for-byte and retain complete command, failure, green-making, and refactor evidence for both MOCKED and REAL eras
 
 ## Risks
 

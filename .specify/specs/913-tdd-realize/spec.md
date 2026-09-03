@@ -19,10 +19,10 @@ Provide `zfa tdd realize` that rebinds DI from mock to real behind the SAME gene
 `zfa tdd realize <entity|behavior> --adapter <real>`:
 
 1. **Rebinds DI** from mock datasource to the real adapter behind the SAME generated interface (no contract change).
-2. **CONTRACT GATE**: the MOCK-era suite runs unchanged against the real binding — must stay green. Any red = the real impl (or the mock) broke the contract; verdict says which side.
+2. **CONTRACT GATE**: first validate a green MOCK-era baseline using the unchanged suite, fixtures, and test harness; only then run that suite against the real binding. Triage is deterministic and fail-closed: a failing mock baseline is `mock-baseline`, an invalid shared fixture is `fixture`, and a runner/setup failure is `test-harness`; none permits a real-or-mock verdict. Only a valid green mock baseline plus valid fixtures/harness may attribute a real-binding-only failure to `real-adapter`.
 3. **DIFFERENTIAL GATE**: real vs mock run the same committed fixtures (extends #832 simulate adapters); output diff = drift report, threshold from `.zfa.json`. Reuses #805 differential machinery.
 4. **NUANCE RECEIPTS** (#807 proof-carrying): any hand-written delta is recorded (file, reason, diff-hash) in the feature's provenance ledger. Hand-deltas are legal; ungated hand-deltas are not.
-5. **State transitions MOCKED → REAL**; cycle-log carries era-tagged evidence.
+5. **Era metadata, not behavior state**: `MOCKED` and `REAL` are values of a separate era field. `BehaviorState` and `TestListReader._parseState` retain the shared behavior states `PENDING`, `RED`, `GREEN`, and `DONE`; `BASELINE`, `BLOCKED`, and `DROPPED` remain bookkeeping states and are not eras. `RunState` persists the era independently of per-behavior state, and every new cycle-log entry carries its era without rewriting existing entries. The era remains `MOCKED` until both contract and differential gates pass, then the `REAL` era and its successful gate evidence are persisted atomically.
 
 ## Why this is the keystone
 
@@ -33,7 +33,7 @@ Mocks are 100% generatable; real impls are not. This command is where the honest
 - MOCK-era suite stays green when run against the real binding
 - Differential report quantifies real-vs-mock output drift with configurable threshold
 - All hand-written deltas recorded in provenance ledger with reason + diff-hash
-- State transitions MOCKED → REAL; era tags carried through cycle-log
+- Run era transitions MOCKED → REAL only after both gates pass; era tags are additive cycle-log metadata and behavior/bookkeeping states remain unchanged
 - Mock-first realization is the default path (not an aspirational one)
 
 ## References

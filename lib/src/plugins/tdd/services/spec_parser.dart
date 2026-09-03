@@ -156,7 +156,10 @@ class SpecParser {
   /// version marker inside a fenced block is documentation, not a treaty
   /// pin (a spec's "How to write a spec" example would otherwise pin the
   /// spec to the example's version).
-  static final RegExp _fencedCodeBlock = RegExp(r'```[\s\S]*?```');
+  static final RegExp _fencedCodeBlock = RegExp(
+    r'^[ \t]*```[^\r\n]*(?:\r?\n|$)[\s\S]*?^[ \t]*```[ \t]*\r?$',
+    multiLine: true,
+  );
 
   /// Template versions whose grammar this parser implements (bug #919).
   /// A spec declaring anything else — or nothing — is contract drift:
