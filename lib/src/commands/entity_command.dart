@@ -315,6 +315,29 @@ ${missing.map((d) => '   • $d').join('\n')}
       exit(1);
     }
 
+    // Spec 0806-zfa-replay FR-006 (convergent generation): `entity create`
+    // is a fixed point. Re-running a recorded generation step against the
+    // tree it already produced — exactly what `zfa replay` does in its
+    // sandbox — must converge: the existing entity file (which later steps
+    // like `tdd wire` enriched with fields) is reported as already present
+    // and left byte-identical, exit 0. Overwriting it with a fresh scaffold
+    // would clobber the fields and stamp a new `Generated at:` line, making
+    // deterministic replay impossible. The zorphy `EntityCreator` path
+    // contract this mirrors: `<outputDir>/<snakeName>/<snakeName>.dart`.
+    final snakeName = entityConfig.snakeName;
+    final entityTarget = p.join(outputDir, snakeName, '$snakeName.dart');
+    if (await File(entityTarget).exists()) {
+      print(
+        '✓ Entity "$name" already exists at $entityTarget — '
+        'convergent re-run, nothing to do.',
+      );
+      print(
+        '   (Re-running a recorded generation step against the tree it '
+        'already produced is a no-op; delete the file to regenerate.)',
+      );
+      return;
+    }
+
     final creator = EntityCreator(baseOutputDir: outputDir);
     final result = await creator.create(entityConfig);
 
@@ -481,6 +504,23 @@ ${missing.map((d) => '   • $d').join('\n')}
     );
 
     final creator = EntityCreator(baseOutputDir: fixedEntityOutput);
+
+    // Spec 0806 FR-006 (convergent generation) — same fixed-point contract
+    // as `entity create`: an existing enum file is a convergent no-op.
+    // The zorphy path contract: `<outputDir>/enums/<snakeName>.dart`.
+    final enumTarget = p.join(
+      fixedEntityOutput,
+      'enums',
+      '${enumConfig.snakeName}.dart',
+    );
+    if (await File(enumTarget).exists()) {
+      print(
+        '✓ Enum "$name" already exists at $enumTarget — '
+        'convergent re-run, nothing to do.',
+      );
+      return;
+    }
+
     final result = await creator.createEnum(enumConfig);
 
     if (result.isSuccess) {
