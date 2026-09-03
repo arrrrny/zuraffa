@@ -6,3 +6,5 @@
 // hand-written composition roots import it to check the flavor and to
 // boot the app on certified mocks.
 export 'src/simulation/simulation_flavor.dart';
+export 'src/simulation/network_isolation_guard.dart';
+export 'src/simulation/simulation_whitelist.dart';

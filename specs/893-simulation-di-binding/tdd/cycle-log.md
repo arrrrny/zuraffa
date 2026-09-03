@@ -265,3 +265,117 @@ For example, 'dart test --chain-stack-traces'.
 00:00 +2: no fixture file is written without --fixtures-dir
 00:00 +3: All tests passed!
 ```
+
+## 2026-09-03T09:27:11Z: 893-guard-whitelist-lanes (red)
+- behavior: 893-guard-whitelist-lanes
+- kind: red
+- at: 2026-09-03T09:27:11Z
+- exit: 1
+- criterion: FR-005/FR-006/FR-007: whitelisted lanes permitted, all other sockets blocked with clear diagnostics (T004 red: SocketLane/whitelist API missing)
+- command: `dart test test/simulation/network_isolation_guard_whitelist_test.dart`
+- schema: 1
+- prev-hash: 269f983d9c6af5f99f1b6a45825a79620cf4ef3728617aeda8c64eb0a9e076ea
+- hash: eede70ade99ca86a1d9911cd5a1cbcc7ed2e76ed5b2bd2e5010d9ca7528d9dad
+- output: ```
+00:00 +0: loading test/simulation/network_isolation_guard_whitelist_test.dart
+00:00 +0 -1: loading test/simulation/network_isolation_guard_whitelist_test.dart [E]
+  Failed to load "test/simulation/network_isolation_guard_whitelist_test.dart":
+  test/simulation/network_isolation_guard_whitelist_test.dart:11:8: Error: Error when reading 'lib/src/simulation/simulation_whitelist.dart': No such file or directory
+  import 'package:zuraffa/src/simulation/simulation_whitelist.dart';
+         ^
+  test/simulation/network_isolation_guard_whitelist_test.dart:24:20: Error: Method not found: 'SocketLane'.
+        const lane = SocketLane(host: 'analytics.example.com');
+                     ^^^^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:30:20: Error: Method not found: 'SocketLane'.
+        const lane = SocketLane(host: '.example.com');
+                     ^^^^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:39:20: Error: Method not found: 'SocketLane'.
+        const lane = SocketLane(host: 'analytics.example.com', port: 443);
+                     ^^^^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:42:14: Error: Method not found: 'SocketLane'.
+        expect(SocketLane(host: 'analytics.example.com').matches(
+               ^^^^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:49:14: Error: Undefined name 'SocketLane'.
+        expect(SocketLane.parse('analytics.example.com').host,
+               ^^^^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:51:22: Error: Undefined name 'SocketLane'.
+        final object = SocketLane.parse({
+                       ^^^^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:57:20: Error: Undefined name 'SocketLane'.
+        expect(() => SocketLane.parse(42), throwsArgumentError);
+                     ^^^^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:66:29: Error: Method not found: 'SocketLane'.
+            whitelist: const [SocketLane(host: 'analytics.example.com')],
+                              ^^^^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:66:11: Error: No named parameter with the name 'whitelist'.
+            whitelist: const [SocketLane(host: 'analytics.example.com')],
+            ^^^^^^^^^
+  lib/src/simulation/network_isolation_guard.dart:85:15: Context: Found this candidate, but the arguments don't match.
+    static void install() {
+                ^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:85:33: Error: Member not found: 'approvedAttempts'.
+            NetworkIsolationGuard.approvedAttempts,
+                                  ^^^^^^^^^^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:87:19: Error: Couldn't find constructor 'ApprovedConnection'.
+              const ApprovedConnection(
+                    ^^^^^^^^^^^^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:114:38: Error: Member not found: 'approvedAttempts'.
+          expect(NetworkIsolationGuard.approvedAttempts, isEmpty);
+                                       ^^^^^^^^^^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:121:27: Error: Method not found: 'SocketLane'.
+          whitelist: const [SocketLane(host: 'analytics.example.com')],
+                            ^^^^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:121:9: Error: No named parameter with the name 'whitelist'.
+          whitelist: const [SocketLane(host: 'analytics.example.com')],
+          ^^^^^^^^^
+  lib/src/simulation/network_isolation_guard.dart:85:15: Context: Found this candidate, but the arguments don't match.
+    static void install() {
+                ^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:143:9: Error: Method not found: 'jsonEncode'.
+          jsonEncode({
+          ^^^^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:154:21: Error: Undefined name 'SimulationWhitelistConfig'.
+        final lanes = SimulationWhitelistConfig.load(config.path);
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:170:14: Error: Undefined name 'SimulationWhitelistConfig'.
+        expect(SimulationWhitelistConfig.load('${tempDir.path}/none.json'),
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:175:14: Error: Undefined name 'SimulationWhitelistConfig'.
+        expect(SimulationWhitelistConfig.load(config.path), isEmpty);
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:185:9: Error: Method not found: 'jsonEncode'.
+          jsonEncode({
+          ^^^^^^^^^^
+  test/simulation/network_isolation_guard_whitelist_test.dart:193:15: Error: Undefined name 'SimulationWhitelistConfig'.
+          () => SimulationWhitelistConfig.load(config.path),
+                ^^^^^^^^^^^^^^^^^^^^^^^^^
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  test/simulation/network_isolation_guard_whitelist_test.dart: loading test/simulation/network_isolation_guard_whitelist_test.dart
+```
+
+## 2026-09-03T09:27:11Z: 893-guard-whitelist-lanes (green)
+- behavior: 893-guard-whitelist-lanes
+- kind: green
+- at: 2026-09-03T09:27:11Z
+- exit: 0
+- criterion: FR-005..FR-008: SocketLane whitelist with delegation to pre-install overrides, approved-exception log, config file loader, empty default
+- command: `dart test test/simulation/network_isolation_guard_whitelist_test.dart`
+- schema: 1
+- prev-hash: eede70ade99ca86a1d9911cd5a1cbcc7ed2e76ed5b2bd2e5010d9ca7528d9dad
+- hash: 85979396044bb9d9ade367d6951effce30db9746624ed7d4e337187c9b371620
+- output: ```
+00:00 +0: loading test/simulation/network_isolation_guard_whitelist_test.dart
+00:00 +0: U7: SocketLane matching matches exact hosts
+00:00 +1: U7: SocketLane matching wildcard subdomains via leading dot
+00:00 +2: U7: SocketLane matching optional port constraint
+00:00 +3: U7: SocketLane matching parses lanes from string and object config forms
+00:00 +4: A4: guard permits whitelisted lanes and blocks every other socket U8: whitelisted connects delegate to the pre-install overrides and are recorded as approved exceptions
+00:00 +5: A4: guard permits whitelisted lanes and blocks every other socket U9: default install keeps blocking everything (empty whitelist is the safest default)
+00:00 +6: A4: guard permits whitelisted lanes and blocks every other socket uninstall restores the real socket path (FR-008 inertness)
+00:00 +7: U10: whitelist config file parses lanes from the project-level config file
+00:00 +8: U10: whitelist config file missing file or missing key yields the empty (safe) whitelist
+00:00 +9: U10: whitelist config file Malformed whitelist entries fail loudly (never silently open lanes)
+00:00 +10: All tests passed!
+```
