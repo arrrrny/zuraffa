@@ -13,7 +13,21 @@
 /// certification (`zfa tdd make`) reads that marker and EXCLUDES the
 /// behavior from contract-green accounting — a placeholder test never
 /// certifies green.
+///
+/// Issue #938: the default ShadApp shell emits
+/// `import 'package:shadcn_ui/shadcn_ui.dart';` — a dependency a fresh
+/// zfa setup / zfa-init project does not necessarily declare. A generated
+/// test that cannot resolve its imports dies at compile-error inside
+/// `verify-red` and the loop never reaches an honest RED. The
+/// [WidgetShadcnPreflight] makes that dependency explicit (VISION §4
+/// errors-are-an-API): the gen command refuses BEFORE writing artifacts,
+/// naming the exact machine-parseable fix.
 library;
+
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
 
 /// The app shell a generated widget test pumps the feature view in.
 enum WidgetAppShell {
@@ -51,3 +65,53 @@ const String widgetScaffoldComment =
 /// Whether [content] carries the scaffold marker (a scaffolded test is
 /// excluded from contract-green accounting, issue #912 defect 3).
 bool contentIsScaffolded(String content) => content.contains(scaffoldedMarker);
+
+/// Issue #938 preflight — the widget lane boots generated widget tests in
+/// a ShadApp shell, whose import must resolve in the TARGET project.
+///
+/// VISION §4 (errors-are-an-API): a missing dependency is surfaced as a
+/// named, machine-parseable fix BEFORE any artifact is written — never as
+/// a generated test that can only die at `verify-red` with
+/// `compile-error` (the loop would never reach an honest RED), and never
+/// as a silent pubspec mutation (this class only READS the pubspec).
+abstract final class WidgetShadcnPreflight {
+  /// The package the shadapp shell's import needs.
+  static const String shadcnPackage = 'shadcn_ui';
+
+  /// The canonical fix line (machine-parseable: tools and humans grep for
+  /// the `--> fix:` prefix; the remainder names the exact remedy).
+  static const String fixLine =
+      '--> fix: flutter pub add shadcn_ui '
+      '(widget-lane behaviors boot a ShadApp shell)';
+
+  /// Whether [projectRoot]'s `pubspec.yaml` declares [shadcnPackage] in
+  /// its `dependencies:` map.
+  ///
+  /// A project with NO pubspec.yaml has nothing to resolve — the check
+  /// passes and gen keeps its pre-#938 behavior (bug-830-era fixture
+  /// contexts are not pubspec-carrying projects; a real zfa project
+  /// always has a pubspec).
+  static bool projectDeclaresShadcnUi(String projectRoot) {
+    final pubspecFile = File(p.join(projectRoot, 'pubspec.yaml'));
+    if (!pubspecFile.existsSync()) return true;
+    final YamlNode? doc;
+    try {
+      doc = loadYaml(pubspecFile.readAsStringSync());
+    } on YamlException {
+      // An unparseable pubspec is not this bug's problem — gen's own
+      // resolution and the project's tooling will surface it. The
+      // preflight only refuses on a READABLE pubspec that omits the
+      // dependency (deterministic: same pubspec, same verdict).
+      return true;
+    }
+    if (doc is! YamlMap) return true;
+    final dependencies = doc['dependencies'];
+    if (dependencies is! YamlMap) return false;
+    return dependencies.containsKey(shadcnPackage);
+  }
+
+  /// Whether a gen for [shell] on [projectRoot] must stop at the #938
+  /// preflight (widget kind is enforced by the caller).
+  static bool shadcnImportRequired(WidgetAppShell shell) =>
+      shell == WidgetAppShell.shadapp;
+}
