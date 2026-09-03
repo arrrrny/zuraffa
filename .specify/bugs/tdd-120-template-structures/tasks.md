@@ -67,3 +67,10 @@ Tests are NOT optional for this bug. Every test task must be observed RED
 - [x] T020: All outer behaviors A1-A14 DONE in the test list; scoped suite
   `dart test test/plugins/tdd/` green; `dart analyze lib/src/plugins/tdd/
   test/plugins/tdd/` clean; cycle log complete; fix.md written.
+
+## Phase 8: TDD remediation
+
+- [ ] T021: Split A14's CLI test (bug_919_template_structures_test.dart:415)
+  so the dependencies-section and layer-contract-section assertions are two
+  tests, keeping the reader side in bug_919_reader_test.dart. Prove with
+  `dart test test/plugins/tdd/bug_919_template_structures_test.dart` (finding 1, MED).
