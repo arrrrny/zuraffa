@@ -7,6 +7,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/entity_utils.dart';
 
 /// Generates a SQLite-backed DataSource for an entity (issue #464).
 ///
@@ -65,11 +66,18 @@ class SqliteDataSourceBuilder {
     final filePath =
         '$outputDir/data/datasources/$entitySnake/${entitySnake}_sqlite_datasource.dart';
 
+    // Issue #942: the sqlite datasource imports the entity file
+    // UNCONDITIONALLY plus the framework barrel — an entity whose name
+    // matches a zuraffa core export (e.g. `Credentials`) makes this file
+    // fail with `ambiguous_import` errors. The barrel import hides the
+    // entity's own symbols so the entity's definitions win resolution.
+    final barrelHide = EntityUtils.barrelHideNames(entityName);
+
     final directives = <Directive>[
       Directive.import('dart:async'),
       Directive.import('dart:convert'),
       Directive.import('package:sqlite3/sqlite3.dart'),
-      Directive.import('package:zuraffa/zuraffa.dart'),
+      Directive.import('package:zuraffa/zuraffa.dart', hide: barrelHide),
       Directive.import(
         '../../../domain/entities/$entitySnake/$entitySnake.dart',
       ),

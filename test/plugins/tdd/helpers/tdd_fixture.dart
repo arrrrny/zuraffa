@@ -920,6 +920,10 @@ int ${symbol}_value() => $value;
   /// [sideEffectByArgv] lets the script create / write files for
   /// tests that need the pipeline to actually mutate the project
   /// (e.g. turn the target test green by overwriting the subject).
+  /// [stdoutByArgv] lets the script emit stdout lines for an
+  /// invocation (e.g. analyzer error lines from a failing `build`
+  /// step — the pipeline runner captures combined stdout+stderr, so
+  /// the make command's #942 error gate can read them).
   /// [name] lets a test install several distinct fakes (e.g. a `zfa`
   /// on PATH plus a `dart-vm` stand-in).
   Future<String> writeFakeZfaBin({
@@ -927,6 +931,7 @@ int ${symbol}_value() => $value;
     String name = 'zfa',
     Map<String, int> exitByArgv = const {},
     Map<String, List<String>> sideEffectByArgv = const {},
+    Map<String, List<String>> stdoutByArgv = const {},
   }) async {
     final binDir = Directory(fakeBinDirPath);
     await binDir.create(recursive: true);
@@ -952,6 +957,16 @@ int ${symbol}_value() => $value;
           // NOTE: do not indent commands here — here-doc delimiters
           // must start at column 0 (or use `<<-` with tabs).
           buf.writeln(cmd);
+        }
+        buf.writeln('fi');
+      });
+    }
+    if (stdoutByArgv.isNotEmpty) {
+      buf.writeln('# stdout dispatch (substring match on argv)');
+      stdoutByArgv.forEach((pattern, lines) {
+        buf.writeln('if [[ "\$ARGV" == *"$pattern"* ]]; then');
+        for (final line in lines) {
+          buf.writeln("echo '$line'");
         }
         buf.writeln('fi');
       });

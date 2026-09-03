@@ -90,11 +90,6 @@ class ProviderBuilder {
         ? '../../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
         : '../../../domain/services/${serviceSnake}_service.dart';
 
-    final directives = <Directive>[
-      Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.import(serviceImport),
-    ];
-
     final entityTypes = <String>{};
     if (config.isEntityBased) {
       entityTypes.add(config.name);
@@ -193,7 +188,24 @@ class ProviderBuilder {
       includeDomain: false,
       fileSystem: fileSystem,
     );
-    directives.addAll(entityImports.map(Directive.import));
+    // Issue #942: the provider imports the entity file(s) AND the
+    // framework barrel unprefixed — an entity whose name matches a
+    // zuraffa core export (e.g. `Credentials`) makes this file fail with
+    // `ambiguous_import` errors. The generator knows the locally-imported
+    // entity symbols (`entityTypes` drives the entity imports below), so
+    // the barrel import hides exactly those symbols and the entity's own
+    // definitions win resolution. With no locally-imported entity types
+    // the hide list stays empty and the import is emitted unchanged.
+    final barrelHide = CommonPatterns.barrelHideNamesForTypes(entityTypes);
+
+    final directives = <Directive>[
+      if (barrelHide.isEmpty)
+        Directive.import('package:zuraffa/zuraffa.dart')
+      else
+        Directive.import('package:zuraffa/zuraffa.dart', hide: barrelHide),
+      Directive.import(serviceImport),
+      ...entityImports.map(Directive.import),
+    ];
 
     if (config.generateInit) {
       methods.add(
