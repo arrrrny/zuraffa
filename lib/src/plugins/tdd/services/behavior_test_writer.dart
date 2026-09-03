@@ -45,8 +45,14 @@ class BehaviorTestWriter {
     final testFile = File(testPath);
     await testFile.parent.create(recursive: true);
     final relativeSubjectPath = _relativeSubjectPath(testPath, subjectPath);
+    final escapedGroupDesc = '${behavior.id} (${behavior.sourceCriterion})'.replaceAll(
+      "'",
+      "\\'",
+    );
     final content = behavior.kind == BehaviorKind.ffi
         ? renderContractTest(behavior, testPath, subjectPath)
+        : behavior.persistence
+        ? _renderPersistenceTest(behavior, relativeSubjectPath, escapedGroupDesc, behavior.description)
         : behavior.kind == BehaviorKind.widget
         ? _renderWidgetTest(behavior, relativeSubjectPath, golden)
         : _renderTest(behavior, relativeSubjectPath);
@@ -334,6 +340,58 @@ Object? _captured(Object? Function() invoke) {
 ''';
   }
 
+
+  /// The persistence-kind test shape (bug #833).
+  String _renderPersistenceTest(
+    Behavior b,
+    String relativeSubjectPath,
+    String escapedGroupDescription,
+    String escapedDescription,
+  ) {
+    final assertion = _deriveAssertion(b);
+    final boxName = 'tdd_${_toSnakeCase(b.id)}';
+    return '''
+// GENERATED TEST for ${b.id} (bug #833 persistence test harness).
+//
+// Persistence-kind behavior -- the persistence harness is wired in:
+//   1. a fresh temp-directory Hive box set is bootstrapped PER TEST and
+//      torn down PER TEST (never shared across tests);
+//   2. TTL assertions use the injected test clock (advanceTime) -- no
+//      real sleeps in the suite;
+//   3. corruption drills: harness.seedCorruptedBox('$boxName') +
+//      harness.openWithRecovery('$boxName') drive the clear + re-fetch
+//      recovery path against a pre-corrupted fixture;
+//   4. registrar gate: pass registerAdapters + expectedTypeIds to
+//      the harness below so init-time registration failures surface as
+//      RegistrarGateError -- a deterministic red at init, not a runtime
+//      read crash.
+library;
+
+import 'package:test/test.dart';
+import 'package:zuraffa/zuraffa.dart';
+import '$relativeSubjectPath' as subject;
+
+void main() {
+  group('$escapedGroupDescription', () {
+    final harness = PersistenceTestHarness(boxNames: ['$boxName']);
+    final clock = TestClock();
+
+    setUp(() async {
+      await harness.bootstrap();
+    });
+
+    tearDown(() async {
+      await harness.teardown();
+    });
+
+    test('${b.id} - $escapedDescription', () {
+      clock.advanceTime(const Duration(minutes: 1));
+      $assertion
+    });
+  });
+}
+''';
+  }
   static String _toSnakeCase(String s) {
     final out = StringBuffer();
     for (var i = 0; i < s.length; i++) {
