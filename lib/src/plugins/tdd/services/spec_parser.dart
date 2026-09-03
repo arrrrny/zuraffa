@@ -159,6 +159,19 @@ class SpecParser {
   /// silently-wrong plan.
   static const Set<String> knownTemplateVersions = {'zuraffa-1.0'};
 
+  /// External dependency names the template ecosystem knows (bug #919):
+  /// a requirement statement may reference one of these only when the
+  /// spec declares it in the External Dependencies & Contracts table —
+  /// an undeclared reference is a spec contract violation (exit 2).
+  static const Set<String> knownExternalDependencies = {
+    'Hive',
+    'SharedPreferences',
+    'Firebase',
+    'Supabase',
+    'SQLite',
+    'Drift',
+  };
+
   /// The declared template version, or null when the spec carries no
   /// `**Template Version**` marker.
   String? parseTemplateVersion(String specMd) {

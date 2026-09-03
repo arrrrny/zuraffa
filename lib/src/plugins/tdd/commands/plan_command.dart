@@ -135,6 +135,45 @@ class PlanCommand extends Command<void> {
       return;
     }
 
+    // Bug #919: undeclared-dependency lint. The template declares what a
+    // spec may reach for: a requirement statement referencing a known
+    // external dependency that the External Dependencies & Contracts
+    // table does not declare is a spec contract violation = exit 2,
+    // naming the dependency with a fix line, no artifacts.
+    final declaredDependencies = dependencies.map((d) => d.dependency).toSet();
+    final undeclared = <RequirementStatement, List<String>>{};
+    for (final statement in scan.statements) {
+      final found = SpecParser.knownExternalDependencies
+          .where(
+            (name) => RegExp('\\b${RegExp.escape(name)}\\b')
+                .hasMatch(statement.line),
+          )
+          .where((name) => !declaredDependencies.contains(name))
+          .toList();
+      if (found.isNotEmpty) undeclared[statement] = found;
+    }
+    if (undeclared.isNotEmpty) {
+      print(
+        'zfa tdd plan: undeclared dependencies — ${undeclared.length} '
+        'requirement statement(s) reference external dependencies not '
+        'declared in the External Dependencies & Contracts table (spec: '
+        '$specPath). No test list was written; declare each dependency '
+        'or remove the reference, then re-run `zfa tdd plan`.',
+      );
+      undeclared.forEach((statement, names) {
+        print(
+          '  ${statement.id} (line ${statement.lineNo}): '
+          '${statement.line}',
+        );
+        print(
+          '    --> fix: add ${names.join(', ')} to the External '
+          'Dependencies & Contracts table (or drop the reference).',
+        );
+      });
+      exitCode = 2;
+      return;
+    }
+
     final outDir = Directory('$repoRoot/specs/$feature/tdd');
     final outFile = File('${outDir.path}/test-list.md');
     final existing = <String, Behavior>{};
