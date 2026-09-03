@@ -19,6 +19,7 @@ import '../../utils/string_utils.dart';
 import 'builders/package_registrar_builder.dart';
 import 'builders/registration_builder.dart';
 import 'builders/service_locator_builder.dart';
+import 'builders/simulation_binding_builder.dart';
 import 'capabilities/create_di_capability.dart';
 import 'capabilities/register_capability.dart';
 import 'detectors/registration_detector.dart';
@@ -224,6 +225,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       files.addAll(await _generateUseCaseDIFiles(config, fs));
     }
 
+    var emitSimulationBinding = false;
     if (!config.hasService && !config.isOrchestrator) {
       if (config.generateDataSource || config.generateData) {
         if (config.enableCache) {
@@ -236,6 +238,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           files.add(await _generateSqliteDataSourceDI(config, fs));
         } else if (config.useMockInDi) {
           files.add(await _generateMockDataSourceDI(config, fs));
+          emitSimulationBinding = true;
         } else if (config.generateLocal) {
           files.add(await _generateLocalDataSourceDI(config, fs));
         } else {
@@ -251,6 +254,31 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           !config.generateMockDataOnly &&
           (config.generateData || config.generateDataSource)) {
         files.add(await _generateMockDataSourceDI(config, fs));
+        emitSimulationBinding = true;
+      }
+    }
+
+    // Spec 893 (T002): the simulation binding is generated, not
+    // hand-wired. Whenever a mock datasource DI registration was emitted,
+    // the matching simulation binding + di/simulation/ index are emitted
+    // too (FR-002, SC-003). Runs before the index regeneration so the
+    // app-level index picks up `registerSimulationBindings`.
+    if (emitSimulationBinding && !config.revert) {
+      final emitter = SimulationBindingEmitter(
+        outputDir: outputDir,
+        options: options,
+        fileSystem: fs,
+      );
+      final simulationEntity = config.repo != null
+          ? config.repo!.replaceAll('Repository', '')
+          : config.name;
+      final binding = await emitter.emitBinding(entityName: simulationEntity);
+      files.add(binding);
+      final simulationIndex = await emitter.regenerateIndex(
+        pendingFiles: [binding],
+      );
+      if (simulationIndex != null) {
+        files.add(simulationIndex);
       }
     }
 
@@ -335,9 +363,18 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       functionName: 'register$dataSourceName',
       imports: [
         'package:zuraffa/zuraffa.dart',
+        // Spec 893: real adapters never register under the simulation
+        // flavor — mocks are served exclusively in simulation mode.
+        'package:zuraffa/simulation.dart',
         '../../data/datasources/$baseSnake/${baseSnake}_remote_datasource.dart',
       ],
-      body: Block((b) => b..statements.add(registrationCall.statement)),
+      body: Block(
+        (b) => b
+          ..statements.addAll([
+            Code('if (kSimulationMode) return;'),
+            registrationCall.statement,
+          ]),
+      ),
     );
 
     return FileUtils.writeFile(
@@ -442,8 +479,19 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$dataSourceName',
-      imports: imports,
-      body: Block((b) => b..statements.add(registrationCall.statement)),
+      imports: imports
+        ..add(
+          // Spec 893: real adapters never register under the simulation
+          // flavor — mocks are served exclusively in simulation mode.
+          'package:zuraffa/simulation.dart',
+        ),
+      body: Block(
+        (b) => b
+          ..statements.addAll([
+            Code('if (kSimulationMode) return;'),
+            registrationCall.statement,
+          ]),
+      ),
     );
 
     return FileUtils.writeFile(
@@ -506,9 +554,18 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       imports: [
         'package:zuraffa/zuraffa.dart',
         'package:sqlite3/sqlite3.dart',
+        // Spec 893: real adapters never register under the simulation
+        // flavor — mocks are served exclusively in simulation mode.
+        'package:zuraffa/simulation.dart',
         '../../data/datasources/$baseSnake/${baseSnake}_sqlite_datasource.dart',
       ],
-      body: Block((b) => b..statements.add(registrationCall.statement)),
+      body: Block(
+        (b) => b
+          ..statements.addAll([
+            Code('if (kSimulationMode) return;'),
+            registrationCall.statement,
+          ]),
+      ),
     );
 
     return FileUtils.writeFile(
@@ -1426,6 +1483,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final repositoriesDir = path.join(outputDir, 'di', 'repositories');
     final servicesDir = path.join(outputDir, 'di', 'services');
     final providersDir = path.join(outputDir, 'di', 'providers');
+    final simulationDir = path.join(outputDir, 'di', simulationDiFolder);
 
     final deletedPaths = files
         .where((f) => f.action == 'deleted')
@@ -1460,6 +1518,16 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       exportPaths.add('datasources/index.dart');
       importPaths.add('datasources/index.dart');
       registrationCalls.add('registerAllDataSources(getIt);');
+    }
+
+    // Spec 893: the generated simulation bindings are wired into the
+    // composition root whenever the simulation index exists — the flavor
+    // switch is a single --dart-define evaluated inside each binding
+    // (FR-002, SC-004), never hand-wired.
+    if (await hasIndex(simulationDir)) {
+      exportPaths.add('$simulationDiFolder/index.dart');
+      importPaths.add('$simulationDiFolder/index.dart');
+      registrationCalls.add('registerSimulationBindings(getIt);');
     }
 
     if (await hasIndex(repositoriesDir)) {

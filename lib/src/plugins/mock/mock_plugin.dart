@@ -14,6 +14,7 @@ import '../method_append/builders/inject_builder.dart';
 import '../method_append/builders/method_append_builder.dart';
 import '../method_append/capabilities/inject_capability.dart';
 import '../method_append/capabilities/method_capability.dart';
+import '../di/builders/simulation_binding_builder.dart';
 import 'builders/mock_builder.dart';
 import 'capabilities/create_mock_capability.dart';
 import 'capabilities/json_mock_capability.dart';
@@ -186,7 +187,40 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     // emit the datasource interface it needs, and the data-only path has
     // always generated.
     if (config.generateMock || config.generateMockDataOnly) {
-      return builder.generate(config);
+      final files = await builder.generate(config);
+
+      // Spec 893 (T002, FR-002): `zfa mock create` generates the DI
+      // registration for mocks — the simulation binding is emitted
+      // alongside the mock datasource so the flavor is a first-class
+      // output of the generation workflow, never hand-wired.
+      if (config.generateMock &&
+          !config.generateMockDataOnly &&
+          !config.revert) {
+        final emitter = SimulationBindingEmitter(
+          outputDir: outputDir,
+          options: options,
+          fileSystem: fs,
+        );
+        final entityName = config.repo != null
+            ? config.repo!.replaceAll('Repository', '')
+            : config.name;
+        final binding = await emitter.emitBinding(entityName: entityName);
+        files.add(binding);
+        final simulationIndex = await emitter.regenerateIndex(
+          pendingFiles: [binding],
+        );
+        if (simulationIndex != null) {
+          files.add(simulationIndex);
+        }
+        // Keep an existing app-level composition root wired with
+        // `registerSimulationBindings(getIt);` (idempotent append).
+        final mainIndex = await emitter.syncMainIndex();
+        if (mainIndex != null) {
+          files.add(mainIndex);
+        }
+      }
+
+      return files;
     }
 
     // If not explicitly requested, only run if we are appending to existing mocks
