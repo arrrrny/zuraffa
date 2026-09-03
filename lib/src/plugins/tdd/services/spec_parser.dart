@@ -28,7 +28,8 @@ class SpecDependency {
   final String mockPriority;
 
   @override
-  String toString() => 'SpecDependency($dependency, $type, $contract, '
+  String toString() =>
+      'SpecDependency($dependency, $type, $contract, '
       '$mockPriority)';
 }
 
@@ -141,9 +142,7 @@ class SpecParser {
   );
 
   /// A Key Entities table separator row (`| -- | -- | -- |`).
-  static final RegExp _tableSeparator = RegExp(
-    r'^\s*\|\s*[\s\-|]*\|\s*$',
-  );
+  static final RegExp _tableSeparator = RegExp(r'^\s*\|\s*[\s\-|]*\|\s*$');
 
   /// The zuraffa spec template's treaty pin (bug #919): the header marker
   /// `**Template Version**: `x`` that declares which template grammar the
@@ -151,6 +150,15 @@ class SpecParser {
   static final RegExp _templateVersionMarker = RegExp(
     r'^\s*\*\*template\s+version\*\*:\s*`?([^`\n]+?)`?\s*$',
     caseSensitive: false,
+  );
+
+  /// Fenced code blocks (```` ``` ```` … ```` ``` ````). The template
+  /// version marker inside a fenced block is documentation, not a treaty
+  /// pin (a spec's "How to write a spec" example would otherwise pin the
+  /// spec to the example's version).
+  static final RegExp _fencedCodeBlock = RegExp(
+    r'^[ \t]*```[^\r\n]*(?:\r?\n|$)[\s\S]*?^[ \t]*```[ \t]*\r?$',
+    multiLine: true,
   );
 
   /// Template versions whose grammar this parser implements (bug #919).
@@ -174,8 +182,13 @@ class SpecParser {
 
   /// The declared template version, or null when the spec carries no
   /// `**Template Version**` marker.
+  ///
+  /// Fenced code blocks (``` … ```) are stripped before matching, so a
+  /// marker that appears inside a "How to write a spec" example is
+  /// treated as documentation and not as the spec's treaty pin.
   String? parseTemplateVersion(String specMd) {
-    for (final line in specMd.split('\n')) {
+    final stripped = specMd.replaceAll(_fencedCodeBlock, '');
+    for (final line in stripped.split('\n')) {
       final m = _templateVersionMarker.firstMatch(line.trim());
       if (m != null) return m.group(1)!.trim();
     }

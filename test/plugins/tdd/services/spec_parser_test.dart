@@ -7,6 +7,21 @@ import 'package:zuraffa/src/plugins/tdd/services/spec_parser.dart';
 
 void main() {
   group('SpecParser', () {
+    test('ignores fenced template markers after embedded triple backticks', () {
+      const spec = '''
+## How to write a spec
+
+```
+An inline mention of ``` does not close this example.
+**Template Version**: `zuraffa-2.0`
+```
+
+**Template Version**: `zuraffa-1.0`
+''';
+
+      expect(const SpecParser().parseTemplateVersion(spec), 'zuraffa-1.0');
+    });
+
     test('extracts one acceptance behavior per Given/When/Then', () {
       const spec = '''
 # Feature Spec
