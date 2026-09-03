@@ -57,7 +57,7 @@ a silent ignore.
 | `feature` | string | – | optional zuraffa feature slug |
 | `budget.maxSteps` | integer ≥1 | ✔ | session step budget; FIXED by the FIRST mission |
 | `policy.riskTier` | `standard`\|`elevated`\|`admin` | ✔ | carried; enforcement beyond allowlist is v1 work |
-| `policy.toolAllowlist` | string[] (≥1, unique) | – | allowed EXECUTABLES (first token of each command); omit = allow nothing executable? No — omit = allowlist not restricted at the policy layer? **No**: v0.1 requires the allowlist to be present on the first mission and fixed for the session (see §4) |
+| `policy.toolAllowlist` | string[] (≥1, unique) | ✔ | allowed EXECUTABLES (first token of each command); required on the first mission and fixed for the session (see §4) |
 | `steps[].id` | string | ✔ | unique within the mission |
 | `steps[].command` | string | ✔ | whitespace-tokenized; executed WITHOUT a shell; first token must be in the allowlist |
 | `steps[].phase` | `red`\|`green`\|`refactor`\|`verify` | ✔ | drives the TDD-discipline verdict |
@@ -100,10 +100,15 @@ code (can be negative on signals; `124` = timeout by convention). Sending
 
 Snapshots persist to `<checkpoint-dir>/<stateId>.json` (atomic
 tmp+rename; default dir `.zfa/zap/checkpoints` under the host's working
-directory, overridable). Unknown `stateId` → `error {code:
-"bad-checkpoint"}`; checkpoint for a mission never submitted → `error
-{code: "unknown-mission"}`. Restoring rebuilds the evidence chain; the next
-mission's receipt chains from the restored head.
+directory, overridable). `stateId` is host-generated
+(`cp-<12 hex>`) and always resolved INSIDE the checkpoint dir. On
+restore the host recomputes the snapshot digest and rejects any record
+that no longer hashes to its certified `digest` (a planted or
+hand-edited file is not a session). Unknown `stateId`, a failed digest
+check, or a checkpoint for a mission never submitted → `error {code:
+"bad-checkpoint"}` / `error {code: "unknown-mission"}`. Restoring
+rebuilds the evidence chain; the next mission's receipt chains from the
+restored head.
 
 ### 3.4 `receipt` (host → agent) — verified verdict
 
@@ -142,7 +147,7 @@ received evidence is tampered.
 | `budget` | step count would exceed the session budget (rejected BEFORE execution) |
 | `policy` | command executable not in the session allowlist (rejected BEFORE execution) |
 | `unknown-mission` | checkpoint for a mission that was never submitted |
-| `bad-checkpoint` | restore of an unknown `stateId` |
+| `bad-checkpoint` | restore of an unknown `stateId`, or a persisted record whose snapshot no longer hashes to its certified `digest` |
 | `internal` | unexpected host fault (never hides a schema problem) |
 
 ## 4. Session rules (v0.1 — deliberately strict)

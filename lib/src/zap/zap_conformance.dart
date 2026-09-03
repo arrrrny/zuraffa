@@ -204,8 +204,16 @@ abstract final class ZapConformance {
           String actualCode;
           List<String> detail = const [];
           if (message == null) {
-            // The garbage-line path: the host's decode failure.
-            actualCode = 'schema';
+            // The garbage-line path: exercise the SAME decode the host
+            // runs — a FormatException is what becomes a `schema`
+            // error envelope. If the line ever decodes, the sentinel
+            // fails the check.
+            try {
+              ZapProtocol.decodeLine('this is not json at all');
+              actualCode = '(accepted!)';
+            } on FormatException {
+              actualCode = 'schema';
+            }
           } else {
             try {
               ZapMessage.fromJson(message);
@@ -382,20 +390,22 @@ abstract final class ZapConformance {
         continue;
       }
       try {
-        final committed = jsonDecode(file.readAsStringSync());
-        final ok = _mapsEqualDeep(
-          committed as Map<String, Object?>,
-          entry.value,
-        );
+        // Byte-compare against the exporter's canonical serialization —
+        // the committed file must be exactly what
+        // `zfa zap schema --export` writes, not merely an equal JSON
+        // value.
+        final ok = file.readAsStringSync() == zapCanonicalJson(entry.value);
         checks.add(
           ZapConformanceCheck(
             name,
             ok,
-            ok ? 'committed schema equals the code' : 'schema DRIFTED',
+            ok
+                ? 'committed schema is byte-identical to the code'
+                : 'schema DRIFTED (bytes differ from the canonical export)',
           ),
         );
       } catch (e) {
-        checks.add(ZapConformanceCheck(name, false, 'unparseable: $e'));
+        checks.add(ZapConformanceCheck(name, false, 'unreadable: $e'));
       }
     }
 
@@ -407,25 +417,23 @@ abstract final class ZapConformance {
         continue;
       }
       try {
-        final committed = jsonDecode(file.readAsStringSync());
-        final ok = _mapsEqualDeep(
-          committed as Map<String, Object?>,
-          ZapGoldens.example(type),
-        );
+        final ok =
+            file.readAsStringSync() ==
+            zapCanonicalJson(ZapGoldens.example(type));
         checks.add(
           ZapConformanceCheck(
             name,
             ok,
-            ok ? 'committed golden equals the code' : 'golden DRIFTED',
+            ok
+                ? 'committed golden is byte-identical to the code'
+                : 'golden DRIFTED (bytes differ from the canonical export)',
           ),
         );
       } catch (e) {
-        checks.add(ZapConformanceCheck(name, false, 'unparseable: $e'));
+        checks.add(ZapConformanceCheck(name, false, 'unreadable: $e'));
       }
     }
 
     return checks;
   }
-
-  static bool _mapsEqualDeep(Map a, Map b) => jsonEncode(a) == jsonEncode(b);
 }

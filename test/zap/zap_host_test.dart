@@ -433,6 +433,58 @@ void main() {
         reason: 'the chain must continue from the restored state',
       );
     });
+
+    test(
+      'U15: a tampered checkpoint file is rejected with bad-checkpoint',
+      () async {
+        final dir = Directory.systemTemp.createTempSync('zap_cp_tamper');
+        addTearDown(() => dir.deleteSync(recursive: true));
+
+        final host1 = ZapHost(
+          executor: _RecordingScripted({'s1': 1}),
+          checkpointDir: dir.path,
+        );
+        await _drive(
+          host1,
+          _mission(missionId: 'm1', steps: [_step('s1', 'dart a', 'red')]),
+        );
+        final saved = await _drive(host1, _checkpoint('m1', 'save'));
+        final stateId = saved.single['stateId'] as String;
+
+        // Tamper with the persisted record on disk: rewrite the red
+        // evidence as a PASSING step — a fabricated session history.
+        final file = File('${dir.path}/$stateId.json');
+        final record = (jsonDecode(file.readAsStringSync()) as Map)
+            .cast<String, Object?>();
+        final snap = (record['snapshot'] as Map).cast<String, Object?>();
+        final evidence0 = (snap['evidence'] as List).first as Map;
+        evidence0['exit'] = 0;
+        file.writeAsStringSync(jsonEncode(record));
+
+        // A NEW host restoring from the tampered file gets the named
+        // rejection — never a restored session.
+        final host2 = ZapHost(
+          executor: _RecordingScripted({}),
+          checkpointDir: dir.path,
+        );
+        final replies = await _drive(
+          host2,
+          _checkpoint('m1', 'restore', stateId: stateId),
+        );
+        expect(replies.single['type'], 'error');
+        expect(replies.single['code'], 'bad-checkpoint');
+        expect(
+          (replies.single['message'] as String).contains('digest'),
+          isTrue,
+          reason: 'the refusal must name the digest check',
+        );
+        // ...and the session was NOT restored: a save now finds no session
+        // (a wrongly-restored session would answer `saved`).
+        final saveReplies = await _drive(host2, _checkpoint('m1', 'save'));
+        expect(saveReplies.single['type'], 'error');
+        expect(saveReplies.single['code'], 'unknown-mission');
+      },
+    );
   });
 
   group('ZapHost — direction, version, garbage (U16 / A7)', () {
@@ -626,6 +678,62 @@ void main() {
         reason: 'the order rule must say no red was witnessed',
       );
     });
+
+    test('U18: a green certified BEFORE any red fails (order rule)', () async {
+      final executor = _RecordingScripted({'s1': 0, 's2': 1});
+      final host = ZapHost(executor: executor);
+
+      final replies = await _drive(
+        host,
+        _mission(
+          missionId: 'm1',
+          steps: [_step('s1', 'dart a', 'green'), _step('s2', 'dart b', 'red')],
+        ),
+      );
+      final discipline = ((replies.last['checks'] as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere((c) => c['name'] == 'tdd-discipline'));
+      expect(replies.last['verdict'], 'fail');
+      expect(discipline['ok'], isFalse);
+      expect(
+        (discipline['detail'] as String).contains('before any red'),
+        isTrue,
+        reason:
+            'a red AFTER the first green does not satisfy the order '
+            'rule: ${discipline['detail']}',
+      );
+    });
+
+    test(
+      'U18: red failing before green passing is certified honestly',
+      () async {
+        final executor = _RecordingScripted({'s1': 1, 's2': 0});
+        final host = ZapHost(executor: executor);
+
+        final replies = await _drive(
+          host,
+          _mission(
+            missionId: 'm1',
+            steps: [
+              _step('s1', 'dart a', 'red'),
+              _step('s2', 'dart b', 'green'),
+            ],
+          ),
+        );
+        final discipline = ((replies.last['checks'] as List)
+            .cast<Map<String, Object?>>()
+            .firstWhere((c) => c['name'] == 'tdd-discipline'));
+        expect(replies.last['verdict'], 'pass');
+        expect(discipline['ok'], isTrue);
+        expect(
+          (discipline['detail'] as String).contains(
+            'red failed before green passed',
+          ),
+          isTrue,
+          reason: 'the success detail may only claim the order held',
+        );
+      },
+    );
 
     test('U18: a refactor step that stays green is neutral', () async {
       final executor = _RecordingScripted({'s1': 1, 's2': 0, 's3': 0});

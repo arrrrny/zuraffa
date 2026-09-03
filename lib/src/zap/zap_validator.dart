@@ -284,7 +284,10 @@ abstract final class ZapValidator {
       case 'boolean':
         return value is bool;
       case 'integer':
-        return value is int || (value is num && value.toInt() == value);
+        // isFinite guards double.infinity/NaN (e.g. jsonDecode of
+        // `1e999`): toInt() would throw, and this engine never throws.
+        return value is int ||
+            (value is num && value.isFinite && value.toInt() == value);
       case 'number':
         return value is num;
       case 'null':

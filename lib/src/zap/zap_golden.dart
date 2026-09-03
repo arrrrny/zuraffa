@@ -21,6 +21,15 @@ const String _redOutput =
 
 String _sha256Of(String text) => sha256.convert(utf8.encode(text)).toString();
 
+/// The JSON encoding the exporter writes: two-space indent.
+const JsonEncoder zapJsonEncoder = JsonEncoder.withIndent('  ');
+
+/// The exact file bytes `zfa zap schema --export` writes for [value] —
+/// two-space-indented JSON plus one trailing newline. Every drift gate
+/// byte-compares committed files against this, so the published
+/// contract is writer-canonical, not merely structurally equal.
+String zapCanonicalJson(Object? value) => '${zapJsonEncoder.convert(value)}\n';
+
 /// Golden examples for the four core message types.
 abstract final class ZapGoldens {
   /// The canonical example for [type] (`mission`, `evidence`,

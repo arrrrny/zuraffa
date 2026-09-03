@@ -45,6 +45,8 @@ the outside. Details: `examples/zap_demo/README.md`.
 ## 5. Use the reference client in Dart
 
 ```dart
+import 'package:zuraffa/zap.dart';
+
 final host = await Process.start('dart', ['bin/zfa.dart', 'zap', 'serve']);
 final client = ZapClient.overProcess(host)..start();
 final receipt = await client.submit(mission);

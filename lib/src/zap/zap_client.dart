@@ -27,9 +27,8 @@ class ZapClient {
         .transform(const LineSplitter());
     return ZapClient(
       inbound: () => inbound,
-      send: (line) {
-        process.stdin.writeln(line.trim());
-      },
+      // encodeLine already terminates with \n — write it verbatim.
+      send: process.stdin.write,
     );
   }
 
@@ -58,9 +57,12 @@ class ZapClient {
   /// Starts consuming the inbound stream. Call once before submitting.
   void start() {
     if (_subscription != null) return;
-    _subscription = _inboundWrapped().listen((message) {
-      final type = message['type'] as String;
-      switch (type) {
+    _subscription = _inboundWrapped().listen(_dispatch);
+  }
+
+  void _dispatch(Map<String, Object?> message) {
+    try {
+      switch (message['type'] as String?) {
         case 'evidence':
           evidence.add(EvidencePacket.fromValidated(message));
           break;
@@ -77,7 +79,11 @@ class ZapClient {
           errors.add(ZapError.fromValidated(message));
           break;
       }
-    });
+    } catch (e) {
+      // A line that decodes but violates the typed contract must not
+      // kill the stream — the reference client never dies on a bad
+      // line; it drops the offender and keeps consuming.
+    }
   }
 
   Stream<Map<String, Object?>> _inboundWrapped() async* {
@@ -95,26 +101,32 @@ class ZapClient {
   }
 
   /// Submits [mission]; resolves when THIS mission's receipt arrives.
+  ///
+  /// Throws immediately when the host answers with an error envelope for
+  /// THIS envelope id (or an `internal` fault) — a rejected mission
+  /// never produces a receipt, so waiting would only burn the timeout.
   Future<ZapReceipt> submit(MissionEnvelope mission) {
     final seen = _receiptWaiters[mission.missionId] ?? 0;
     _receiptWaiters[mission.missionId] = seen + 1;
     send(ZapProtocol.encodeLine(mission.toJson()));
-    return _awaitReceipt(mission.missionId, seen + 1);
+    return _awaitReceipt(mission, seen + 1);
   }
 
   /// Requests a checkpoint snapshot; resolves with the `saved` reply.
   Future<CheckpointMessage> saveCheckpoint(String missionId) {
+    final requestId =
+        'c-save-$missionId-${DateTime.now().millisecondsSinceEpoch}';
     send(
       ZapProtocol.encodeLine(
         ZapProtocol.envelope(
           'checkpoint',
-          'c-save-$missionId-${DateTime.now().millisecondsSinceEpoch}',
+          requestId,
           DateTime.now().toUtc().toIso8601String(),
           {'missionId': missionId, 'kind': 'save'},
         ),
       ),
     );
-    return _awaitCheckpoint(missionId, 'saved');
+    return _awaitCheckpoint(missionId, 'saved', requestId: requestId);
   }
 
   /// Requests a restore of [stateId]; resolves with the `restored` reply.
@@ -122,17 +134,19 @@ class ZapClient {
     String missionId,
     String stateId,
   ) {
+    final requestId =
+        'c-restore-$missionId-${DateTime.now().millisecondsSinceEpoch}';
     send(
       ZapProtocol.encodeLine(
         ZapProtocol.envelope(
           'checkpoint',
-          'c-restore-$missionId-${DateTime.now().millisecondsSinceEpoch}',
+          requestId,
           DateTime.now().toUtc().toIso8601String(),
           {'missionId': missionId, 'kind': 'restore', 'stateId': stateId},
         ),
       ),
     );
-    return _awaitCheckpoint(missionId, 'restored');
+    return _awaitCheckpoint(missionId, 'restored', requestId: requestId);
   }
 
   /// Evidence for [missionId], in order.
@@ -162,27 +176,44 @@ class ZapClient {
   // Waiters (polling with backoff — receipts arrive after evidence)
   // ----------------------------------------------------------------
 
-  Future<ZapReceipt> _awaitReceipt(String missionId, int index) async {
+  /// Fails fast when an error envelope replying to [requestId] (or any
+  /// `internal` host fault) arrived after [errorsBefore]: the awaited
+  /// reply will never come, so the waiter throws instead of burning
+  /// its full timeout.
+  void _failFastOnErrors(int errorsBefore, String requestId, String complaint) {
+    for (var i = errorsBefore; i < errors.length; i++) {
+      final e = errors[i];
+      if (e.inReplyTo == requestId || e.code == 'internal') {
+        throw StateError('host rejected $complaint: [${e.code}] ${e.message}');
+      }
+    }
+  }
+
+  Future<ZapReceipt> _awaitReceipt(MissionEnvelope mission, int index) async {
+    final errorsBefore = errors.length;
     final deadline = DateTime.now().add(const Duration(seconds: 30));
     while (DateTime.now().isBefore(deadline)) {
-      final receipts = _receiptsByMission[missionId] ?? const [];
+      final receipts = _receiptsByMission[mission.missionId] ?? const [];
       if (receipts.length >= index) return receipts[index - 1];
-      final lastError = errors.isNotEmpty ? errors.last : null;
-      if (lastError != null && lastError.code == 'internal') {
-        throw StateError('host errored: ${lastError.message}');
-      }
+      _failFastOnErrors(
+        errorsBefore,
+        mission.id,
+        'mission "${mission.missionId}"',
+      );
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
     throw TimeoutException(
-      'no receipt for mission "$missionId" '
+      'no receipt for mission "${mission.missionId}" '
       '(index $index)',
     );
   }
 
   Future<CheckpointMessage> _awaitCheckpoint(
     String missionId,
-    String kind,
-  ) async {
+    String kind, {
+    required String requestId,
+  }) async {
+    final errorsBefore = errors.length;
     final before = checkpoints.length;
     final deadline = DateTime.now().add(const Duration(seconds: 30));
     while (DateTime.now().isBefore(deadline)) {
@@ -190,6 +221,12 @@ class ZapClient {
         final c = checkpoints[i];
         if (c.missionId == missionId && c.kind == kind) return c;
       }
+      _failFastOnErrors(
+        errorsBefore,
+        requestId,
+        'the "$kind" request '
+        'for mission "$missionId"',
+      );
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
     throw TimeoutException('no "$kind" reply for mission "$missionId"');

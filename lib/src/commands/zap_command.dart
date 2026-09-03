@@ -256,10 +256,9 @@ class ZapSchemaCommand extends Command<void> {
     await schemasDir.create(recursive: true);
     await goldensDir.create(recursive: true);
 
-    final encoder = const JsonEncoder.withIndent('  ');
     for (final entry in ZapSchema.all.entries) {
       final file = File('${schemasDir.path}/${entry.key}.schema.json');
-      await file.writeAsString('${encoder.convert(entry.value)}\n');
+      await file.writeAsString(zapCanonicalJson(entry.value));
     }
     for (final goldenType in const [
       'mission',
@@ -269,7 +268,7 @@ class ZapSchemaCommand extends Command<void> {
     ]) {
       final file = File('${goldensDir.path}/$goldenType.golden.json');
       await file.writeAsString(
-        '${encoder.convert(ZapGoldens.example(goldenType))}\n',
+        zapCanonicalJson(ZapGoldens.example(goldenType)),
       );
     }
 

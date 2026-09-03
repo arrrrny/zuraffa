@@ -2,12 +2,12 @@
 // gate.
 //
 // A1 + U12 from specs/071-zuraffa-agent-protocol/tdd/test-list.md: the
-// committed schemas/goldens under the spec dir must byte-equal the
-// code-derived maps (the published contract cannot drift), and the golden
-// examples must validate + round-trip (FR-006, SC-001).
+// committed schemas/goldens under the spec dir must be BYTE-identical to
+// what `zfa zap schema --export` writes (the published contract cannot
+// drift, not even in whitespace), and the golden examples must validate +
+// round-trip (FR-006, SC-001).
 library;
 
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -44,52 +44,59 @@ void main() {
     }
   });
 
-  test('A1: committed schemas and goldens match the code (no drift)', () async {
-    final root = await findProjectRoot();
-    final specDir = '$root/specs/071-zuraffa-agent-protocol';
+  test(
+    'A1: committed schemas and goldens are byte-identical to the writer',
+    () async {
+      final root = await findProjectRoot();
+      final specDir = '$root/specs/071-zuraffa-agent-protocol';
 
-    // Every code schema is committed, byte-equal.
-    for (final entry in ZapSchema.all.entries) {
-      final file = File('$specDir/schemas/${entry.key}.schema.json');
-      expect(
-        file.existsSync(),
-        isTrue,
-        reason:
-            '${entry.key}.schema.json must be committed '
-            '(run `zfa zap schema --export specs/071-zuraffa-agent-protocol`)',
-      );
-      final committed = jsonDecode(file.readAsStringSync());
-      expect(
-        committed,
-        entry.value,
-        reason:
-            '${entry.key}.schema.json drifted from the code — the '
-            'published contract is stale; re-export it',
-      );
-    }
+      // Every code schema is committed, byte-equal to what
+      // `zfa zap schema --export` writes.
+      for (final entry in ZapSchema.all.entries) {
+        final file = File('$specDir/schemas/${entry.key}.schema.json');
+        expect(
+          file.existsSync(),
+          isTrue,
+          reason:
+              '${entry.key}.schema.json must be committed '
+              '(run `zfa zap schema --export specs/071-zuraffa-agent-protocol`)',
+        );
+        expect(
+          file.readAsStringSync(),
+          zapCanonicalJson(entry.value),
+          reason:
+              '${entry.key}.schema.json drifted from the writer\'s '
+              'canonical bytes — the published contract is stale; '
+              're-export it',
+        );
+      }
 
-    // Every golden example is committed, byte-equal.
-    for (final type in ['mission', 'evidence', 'checkpoint', 'receipt']) {
-      final file = File('$specDir/golden/$type.golden.json');
-      expect(
-        file.existsSync(),
-        isTrue,
-        reason: '$type.golden.json must be committed',
-      );
-      final committed = jsonDecode(file.readAsStringSync());
-      expect(
-        committed,
-        ZapGoldens.example(type),
-        reason: '$type.golden.json drifted from the code; re-export it',
-      );
-    }
+      // Every golden example is committed, byte-equal to the writer.
+      for (final type in ['mission', 'evidence', 'checkpoint', 'receipt']) {
+        final file = File('$specDir/golden/$type.golden.json');
+        expect(
+          file.existsSync(),
+          isTrue,
+          reason: '$type.golden.json must be committed',
+        );
+        expect(
+          file.readAsStringSync(),
+          zapCanonicalJson(ZapGoldens.example(type)),
+          reason:
+              '$type.golden.json drifted from the writer\'s canonical '
+              'bytes; re-export it',
+        );
+      }
 
-    // No stray files in the published dirs.
-    final schemaFiles = Directory(
-      '$specDir/schemas',
-    ).listSync().whereType<File>().map((f) => f.uri.pathSegments.last).toSet();
-    expect(schemaFiles, {
-      for (final t in ZapSchema.all.keys) '$t.schema.json',
-    }, reason: 'no unpublished schema files may linger');
-  });
+      // No stray files in the published dirs.
+      final schemaFiles = Directory('$specDir/schemas')
+          .listSync()
+          .whereType<File>()
+          .map((f) => f.uri.pathSegments.last)
+          .toSet();
+      expect(schemaFiles, {
+        for (final t in ZapSchema.all.keys) '$t.schema.json',
+      }, reason: 'no unpublished schema files may linger');
+    },
+  );
 }

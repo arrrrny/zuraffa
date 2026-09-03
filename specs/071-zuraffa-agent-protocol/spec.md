@@ -110,7 +110,7 @@ non-MCP client driving a full TDD loop".
 ### User Story 4 - Two independent implementations interop with zero code changes (Priority: P1)
 
 An auditor runs the interop test suite. Client A is the reference `ZapClient`
-(importing `package:zuraffa/src/zap/...`). Client B is the foreign client
+(importing `package:zuraffa/zap.dart`). Client B is the foreign client
 (`examples/zap_demo/foreign_client.dart`, pure `dart:io`/`dart:convert`, zero
 zuraffa imports — hand-rolled JSON per the published schemas). BOTH drive the
 same host implementation (`zfa zap serve`, spawned from the same entry point
@@ -253,6 +253,8 @@ builds against them alone. No zuraffa-specific type is required on the wire.
 - `ZapClient` — `lib/src/zap/zap_client.dart`
 - `ZapCommand` (`conform`, `serve`, `schema`) —
   `lib/src/commands/zap_command.dart`
+- Public import surface: `package:zuraffa/zap.dart` (a barrel re-exporting
+  every type above; consumers never import `src/` directly)
 
 ## Success Criteria *(mandatory)*
 

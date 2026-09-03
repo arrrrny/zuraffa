@@ -92,12 +92,22 @@ class ZapCheckpointStore {
 
   final Map<String, Map<String, Object?>> _memory = {};
 
+  /// Host-generated stateIds always match this: `cp-` + 12 lowercase
+  /// hex chars (the first 12 of the snapshot digest).
+  static final RegExp _stateIdPattern = RegExp(r'^cp-[a-f0-9]{12}$');
+
+  /// The digest stamped on a snapshot record: sha256 over the canonical
+  /// (sorted-key) JSON of [snapshot]. [save] stamps it; the restore path
+  /// recomputes it over whatever is actually on disk, so an edited or
+  /// planted checkpoint file is rejected instead of restored.
+  static String digestOf(Map<String, Object?> snapshot) =>
+      sha256.convert(utf8.encode(jsonEncode(_sorted(snapshot)))).toString();
+
   /// Saves [snapshot], returning (stateId, digest).
   Future<({String stateId, String digest})> save(
     Map<String, Object?> snapshot,
   ) async {
-    final canonical = jsonEncode(_sorted(snapshot));
-    final digest = sha256.convert(utf8.encode(canonical)).toString();
+    final digest = digestOf(snapshot);
     final stateId = 'cp-${digest.substring(0, 12)}';
     final record = <String, Object?>{
       'zap': zapProtocolVersion,
@@ -118,7 +128,12 @@ class ZapCheckpointStore {
   }
 
   /// Loads the record for [stateId], from disk when persistent.
+  ///
+  /// [stateId] is host-generated (`cp-<12 hex>`): anything else is
+  /// refused BEFORE it reaches the filesystem, so a client-controlled
+  /// id can never traverse out of [dir] via an absolute path or `../`.
   Future<Map<String, Object?>?> load(String stateId) async {
+    if (!_stateIdPattern.hasMatch(stateId)) return null;
     final cached = _memory[stateId];
     if (cached != null) return cached;
     if (dir != null) {
@@ -436,7 +451,8 @@ class ZapHost {
   }
 
   /// FR-012 — the cumulative TDD discipline rules, each named when
-  /// violated.
+  /// violated. The order rule: at least one red must PRECEDE the first
+  /// green/verify.
   ZapCheck _disciplineCheck(ZapSession session) {
     final evidence = session.evidence;
     for (final e in evidence) {
@@ -459,20 +475,37 @@ class ZapHost {
         );
       }
     }
-    final hasGreen = evidence.any(
+    final firstGreenIndex = evidence.indexWhere(
       (e) => e['phase'] == 'green' || e['phase'] == 'verify',
     );
-    final hasRed = evidence.any((e) => e['phase'] == 'red');
-    if (hasGreen && !hasRed) {
+    if (firstGreenIndex == -1) {
+      // No green certified yet — the order rule is vacuously satisfied.
       return const ZapCheck(
         name: 'tdd-discipline',
-        ok: false,
+        ok: true,
         detail:
-            'a green was certified but no red was ever witnessed — '
-            'the loop skipped the failing-test phase',
+            'no green/verify certified yet; every phase exit so far '
+            'is honest',
       );
     }
-    return ZapCheck(
+    final redBeforeGreen = evidence
+        .take(firstGreenIndex)
+        .any((e) => e['phase'] == 'red');
+    if (!redBeforeGreen) {
+      final hasRed = evidence.any((e) => e['phase'] == 'red');
+      return ZapCheck(
+        name: 'tdd-discipline',
+        ok: false,
+        detail: hasRed
+            ? 'the first green/verify step '
+                  '"${evidence[firstGreenIndex]['stepId']}" was certified '
+                  'before any red — the loop went green without a '
+                  'witnessed failing test first'
+            : 'a green was certified but no red was ever witnessed — '
+                  'the loop skipped the failing-test phase',
+      );
+    }
+    return const ZapCheck(
       name: 'tdd-discipline',
       ok: true,
       detail:
@@ -545,6 +578,21 @@ class ZapHost {
       return;
     }
     final snap = snapshot.cast<String, Object?>();
+    // Tamper gate: the record on disk must still hash to the digest the
+    // host certified at save time. A planted or hand-edited checkpoint
+    // file is rejected instead of restored as a session.
+    if (ZapCheckpointStore.digestOf(snap) != record['digest']) {
+      _emitError(
+        emit,
+        code: 'bad-checkpoint',
+        message:
+            'checkpoint "$stateId" failed its digest check — the '
+            'persisted record does not match the digest certified at '
+            'save time',
+        inReplyTo: id,
+      );
+      return;
+    }
     if (snap['missionId'] != message.missionId) {
       _emitError(
         emit,

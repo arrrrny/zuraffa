@@ -5,6 +5,11 @@
 // zero zuraffa imports) both complete verified sessions against the SAME
 // unmodified host entry point — `dart bin/zfa.dart zap serve` (FR-015,
 // FR-017, SC-003, SC-004).
+//
+// Spawns real JIT `dart bin/zfa.dart` host subprocesses (multi-minute) —
+// tagged out of the default fast tier; run with
+// `dart test --preset=integration test/zap/zap_interop_test.dart`.
+@Tags(['integration', 'slow'])
 library;
 
 import 'dart:convert';

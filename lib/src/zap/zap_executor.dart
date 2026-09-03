@@ -83,8 +83,17 @@ class SubprocessZapStepExecutor extends ZapStepExecutor {
 
     final stdoutBuffer = StringBuffer();
     final stderrBuffer = StringBuffer();
-    process.stdout.transform(utf8.decoder).listen(stdoutBuffer.write);
-    process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
+    // Drain both streams to completion — the certified digest covers
+    // the FULL output, so the last chunks must be decoded before the
+    // digest is computed, even when the process exits first.
+    final stdoutDrained = process.stdout
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .listen(stdoutBuffer.write)
+        .asFuture<void>();
+    final stderrDrained = process.stderr
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .listen(stderrBuffer.write)
+        .asFuture<void>();
 
     var timedOut = false;
     int exit;
@@ -93,12 +102,16 @@ class SubprocessZapStepExecutor extends ZapStepExecutor {
       exit = await done.timeout(timeout);
     } on TimeoutException {
       timedOut = true;
-      process.kill();
-      exit = await done;
-      // Convention: a killed step reports the timeout exit, regardless
-      // of the signal's raw negative code.
+      // SIGTERM can be trapped — a step that ignores it would hang the
+      // sequential serve loop forever. Escalate straight to SIGKILL.
+      process.kill(ProcessSignal.sigkill);
+      // Wait out the kill, then normalize to the timeout convention —
+      // the signal's raw negative code is not part of the contract.
+      await done;
       exit = zapTimeoutExit;
     }
+    await stdoutDrained;
+    await stderrDrained;
 
     final combined = '${stdoutBuffer.toString()}${stderrBuffer.toString()}';
     final output = timedOut

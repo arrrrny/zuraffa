@@ -139,6 +139,35 @@ void main() {
       expect(result.ok, isFalse);
       expect(result.issues.any((i) => i.path == 'steps'), isTrue);
     });
+
+    test(
+      'U6: a payload of 1e999 (double.infinity) is an issue, not a throw',
+      () {
+        // jsonDecode('1e999') is double.infinity. The validator promises
+        // to NEVER throw — an out-of-range numeric payload must come back
+        // as a validation issue on the integer field.
+        final payload = (jsonDecode('{"maxSteps": 1e999}') as Map)
+            .cast<String, Object?>();
+        final result = ZapValidator.validateWith(payload, const {
+          'type': 'object',
+          'additionalProperties': false,
+          'required': ['maxSteps'],
+          'properties': {
+            'maxSteps': {'type': 'integer', 'minimum': 1},
+          },
+        });
+        expect(result.ok, isFalse);
+        expect(
+          result.issues.any(
+            (i) => i.path == 'maxSteps' && i.message.contains('integer'),
+          ),
+          isTrue,
+          reason: result.issues
+              .map((i) => '${i.path}: ${i.message}')
+              .join('\n'),
+        );
+      },
+    );
   });
 
   group('ZapValidator — closed envelopes and roots (U7)', () {
