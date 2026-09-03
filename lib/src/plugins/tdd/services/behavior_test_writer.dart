@@ -24,6 +24,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../models/behavior.dart';
+import 'finder_taxonomy.dart';
 import 'widget_scaffold.dart';
 
 /// Writes a Dart test file that pairs with the subject for a behavior.
@@ -269,14 +270,65 @@ void main() {
     final shellImport = widgetShell == WidgetAppShell.shadapp
         ? "import 'package:shadcn_ui/shadcn_ui.dart';\n"
         : '';
-    // Issue #912 defect 3: derive concrete scenario finders from the
-    // description's quoted literals; a test with NO derivable finder is
-    // a scaffolded placeholder and carries the machine-readable marker
-    // (excluded from contract-green accounting by `zfa tdd make`).
-    final finders = _scenarioFinders(b.description);
-    final scenarioBlock = finders.isEmpty
-        ? '$widgetScaffoldComment\n      expect(find.byWidget(view), findsOneWidget);'
-        : "${finders.join('\n      ')}\n      expect(find.byWidget(view), findsOneWidget);";
+    // Issue #964 (finder-kind taxonomy): the scenario verb decides the
+    // assertion class — presence stays find.text, navigation becomes a
+    // route-outcome assertion on a recording NavigatorObserver, absence
+    // becomes findsNothing, enabled-state asserts onPressed null-ness,
+    // and a sequence scenario (while … in flight) is marked scaffolded
+    // instead of silently flattened to presence.
+    final analysis = FinderTaxonomy.analyze(b.description);
+    final finders = FinderTaxonomy.emitTestAssertions(
+      analysis,
+      escape: escapeDartString,
+    );
+    final assertionsHeader = FinderTaxonomy.headerLine(analysis);
+    final routeObserver = analysis.needsRouteObserver;
+    // Issue #912 defect 3 (as refined by issue #964): a test with NO
+    // derivable finder is a scaffolded placeholder; a SEQUENCE scenario
+    // is scaffolded too (a single pump cannot honestly assert the
+    // act → intermediate → final machine), even when it carries
+    // derivable sub-assertions.
+    final String scenarioBlock;
+    if (analysis.sequence) {
+      final sequenceComment =
+          '// $scaffoldedMarker — SEQUENCE scenario '
+          '(issue #964): the scenario describes an in-flight state\n'
+          '      // machine (act → intermediate → final). A single-pump '
+          'template cannot assert\n'
+          '      // the sequence honestly, so this test is SCAFFOLDED, not '
+          'certified: implement\n'
+          '      // the sequence here (act → pump the intermediate state → '
+          'assert → settle →\n'
+          '      // assert the final state) and remove this marker before '
+          'certifying green.';
+      scenarioBlock = finders.isEmpty
+          ? sequenceComment
+          : '$sequenceComment\n      ${finders.join('\n      ')}';
+    } else if (finders.isEmpty) {
+      scenarioBlock =
+          '$widgetScaffoldComment\n      expect(find.byWidget(view), findsOneWidget);';
+    } else if (routeObserver) {
+      // Route-outcome scenarios carry NO trailing mounted-view smoke
+      // assertion: once the scenario's route is pushed, the home route
+      // goes offstage and `find.byWidget(view)` would honestly fail —
+      // the pushedNames assertion IS the scenario.
+      scenarioBlock = finders.join('\n      ');
+    } else {
+      scenarioBlock =
+          "${finders.join('\n      ')}\n      expect(find.byWidget(view), findsOneWidget);";
+    }
+    final observerDecl = routeObserver
+        ? '      // Route-outcome recording (issue #964): the scenario asserts\n'
+              '      // navigation, so pushed ROUTES are observed — never the\n'
+              '      // route name rendered as on-screen text.\n'
+              '      final observer = _RouteRecorder();\n'
+        : '';
+    final pumpCall = routeObserver
+        ? 'await tester.pumpWidget($shellName(\n'
+              '        navigatorObservers: <NavigatorObserver>[observer],\n'
+              '        home: Scaffold(body: view),\n'
+              '      ));'
+        : 'await tester.pumpWidget($shellName(home: Scaffold(body: view)));';
     final goldenBlock = golden
         ? '''
       // Golden baseline (bug #830): commit one PNG per platform under
@@ -288,23 +340,42 @@ void main() {
       );
 '''
         : '';
+    final recorderClass = routeObserver
+        ? '''
+
+/// Records pushed route names so route-outcome assertions (issue #964)
+/// observe real navigation — the scenario's green measures the ROUTE
+/// outcome, not the route name rendered as display text.
+class _RouteRecorder extends NavigatorObserver {
+  final List<String?> pushedNames = <String?>[];
+
+  @override
+  void didPush(Route<Object?> route, Route<Object?>? previousRoute) {
+    pushedNames.add(route.settings.name);
+  }
+}
+'''
+        : '';
     return '''
 // GENERATED TEST — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
 //
 // behavior_id: ${b.id}
 // source_criterion: ${b.sourceCriterion}
 // kind: widget
-// description: $description
+${assertionsHeader.isEmpty ? '' : '$assertionsHeader\n'}// description: $description
 //
 // This is a WIDGET test (bug #830): it boots the feature view through
 // the subject's view-builder contract, pumps it inside a $shellName
-// shell, and asserts the acceptance scenario (theme.of colors, presence
-// of expected widgets, navigation outcomes). The stub's
-// UnimplementedError is captured BEFORE the pump, so the first
-// execution fails through the assertion below (honest red), never an
-// exception escaping pump (classified runner/compile, not red).
-// Widget tests run on the flutter profile's slower tier; golden
-// baselines are committed per platform under test/tdd/goldens/.
+// shell, and asserts the acceptance scenario through verb-matched
+// assertions (issue #964 finder-kind taxonomy: shows/renders → presence,
+// navigates → route outcome via the recorded pushed routes, hides/not
+// shown → absence, disables/enables → enabled state; a while/in-flight
+// sequence scenario is marked scaffolded). The stub's UnimplementedError
+// is captured BEFORE the pump, so the first execution fails through the
+// assertion below (honest red), never an exception escaping pump
+// (classified runner/compile, not red). Widget tests run on the flutter
+// profile's slower tier; golden baselines are committed per platform
+// under test/tdd/goldens/.
 library;
 
 import 'package:flutter/material.dart';
@@ -318,7 +389,7 @@ void main() {
       // the stub's UnimplementedError lands in the expect below (an
       // assertion failure) instead of escaping the pump as a runner
       // error (issue #830 widget failure taxonomy).
-      final Object? built = (() {
+$observerDecl      final Object? built = (() {
         try {
           return subject.$target();
         } on UnimplementedError catch (error) {
@@ -330,34 +401,16 @@ void main() {
       // Boot the view inside an app shell so Theme.of / ShadTheme.of /
       // Navigator / MediaQuery lookups resolve (issue #830 remediation 2;
       // shell configurable per issue #912 defect 2).
-      await tester.pumpWidget($shellName(home: Scaffold(body: view)));
+      $pumpCall
       await tester.pumpAndSettle();
-      // Acceptance scenario (issue #912 defect 3): concrete finders
-      // derived from the scenario description, not a placeholder a bare
-      // SizedBox() would satisfy.
+      // Acceptance scenario (issue #912 defect 3 + issue #964 taxonomy):
+      // verb-matched assertions derived from the scenario description —
+      // never a placeholder a bare SizedBox() would satisfy, never a
+      // route outcome flattened into presence-of-text.
       $scenarioBlock
 $goldenBlock    });
   });
-}
-''';
-  }
-
-  /// Derives concrete scenario finders from the behavior description
-  /// (issue #912 defect 3): each quoted literal in the scenario prose
-  /// names a UI surface the scenario asserts — it becomes a
-  /// `find.text` assertion. Descriptions without quoted literals yield
-  /// no finder; the caller marks such tests scaffolded.
-  static List<String> _scenarioFinders(String description) {
-    final finders = <String>[];
-    final quoted = RegExp("'([^']+)'|\"([^\"]+)\"");
-    for (final match in quoted.allMatches(description)) {
-      final text = (match.group(1) ?? match.group(2))?.trim();
-      if (text == null || text.isEmpty) continue;
-      finders.add(
-        "expect(find.text('${escapeDartString(text)}'), findsOneWidget);",
-      );
-    }
-    return finders;
+}$recorderClass''';
   }
 
   /// The same snake-case convention `zfa tdd gen` uses for artifact

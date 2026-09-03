@@ -12,7 +12,11 @@
 ///      the target test through it via [SingleTestRunner].
 ///   3. Classifies the outcome into exactly one of six classes (FR-004)
 ///      and rejects blended/empty runs (FR-005).
-///   4. On `assertion` ONLY, appends the 8-field red-evidence entry to
+///   4. On `assertion` ONLY — after the issue #964 kind gate confirms the
+///      test's assertion KINDS match the scenario verbs (a presence red
+///      in a navigation scenario is honest but irrelevant to the
+///      scenario; it is refused as kind-mismatch, no evidence) — appends
+///      the 8-field red-evidence entry to
 ///      `specs/<feature>/tdd/cycle-log.md` (FR-006). The log is
 ///      append-only.
 ///   5. On any other class, exits non-zero with a named classification
@@ -41,9 +45,11 @@ import 'package:path/path.dart' as p;
 import '../models/red_classification.dart';
 import '../services/artifact_registry.dart';
 import '../services/cycle_log.dart';
+import '../services/finder_taxonomy.dart';
 import '../services/red_classifier.dart';
 import '../services/runner.dart';
 import '../services/tdd_timeout.dart';
+import '../services/widget_scaffold.dart' show contentIsScaffolded;
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -258,8 +264,36 @@ class VerifyRedCommand extends Command<void> {
 
     // ---------------------------------------------------------------
     // 5/6. Evidence on assertion only; rejection otherwise (FR-006/007).
+    //      Issue #964 kind gate: BEFORE evidence, the test's assertion
+    //      kinds must match the scenario verbs — a red from a presence
+    //      finder in a navigation scenario is honest but IRRELEVANT to
+    //      the scenario (the certified lie of issue #964).
     // ---------------------------------------------------------------
     if (classification == RedClassification.assertion) {
+      final kindGaps = await _certifyFinderKinds(cwd, record);
+      if (kindGaps != null && kindGaps.isNotEmpty) {
+        print('   classification: ${RedClassification.kindMismatch.label}');
+        print(
+          'zfa tdd verify-red: red observed, but the test\'s assertion '
+          'kinds do not match the scenario verb (issue #964): required '
+          '${kindGaps.map((c) => c.label).join(', ')} — a rendered '
+          'string, an absence of a finder, or a wrong-kind assertion '
+          'never proves this scenario.',
+        );
+        stderr.writeln(
+          'zfa tdd verify-red: ${RedClassification.kindMismatch.label} — '
+          '${RedClassification.kindMismatch.remediationHint}',
+        );
+        stderr.writeln('   no evidence written');
+        _printSummary(
+          behavior: record.behaviorId,
+          classification: RedClassification.kindMismatch.label,
+          certified: false,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
       final log = CycleLog(target.featureDir);
       await log.append(
         CycleLogEntry(
@@ -482,6 +516,41 @@ class VerifyRedCommand extends Command<void> {
   /// own contract ([ArtifactRecord.plainTestName]): the last segment with
   /// any legacy `<id> — ` echo stripped (bug #871).
   String _runnableNameOf(ArtifactRecord record) => record.plainTestName;
+
+  /// The issue #964 kind gate: re-derive the scenario's required
+  /// assertion classes from the generated test's own description header
+  /// and check the file satisfies them. Returns the unsatisfied classes,
+  /// or null when the gate does not apply (unreadable file — the
+  /// classifier already handled it; a scaffolded test — already excluded
+  /// from green accounting; a non-widget plain-dart test; or a test with
+  /// no derivable scenario).
+  Future<Set<ScenarioAssertionClass>?> _certifyFinderKinds(
+    String cwd,
+    ArtifactRecord record,
+  ) async {
+    final testPath = p.isAbsolute(record.testPath)
+        ? record.testPath
+        : p.join(cwd, record.testPath);
+    final String content;
+    try {
+      content = await File(testPath).readAsString();
+    } on FileSystemException {
+      return null;
+    }
+    // Scaffolded tests are already excluded from green certification —
+    // their reds stay the bootstrap honest red.
+    if (contentIsScaffolded(content)) return null;
+    // Only the widget lane carries finder kinds.
+    if (!content.contains('testWidgets(')) return null;
+    final descriptionMatch = RegExp(
+      r'^// description: (.*)$',
+      multiLine: true,
+    ).firstMatch(content);
+    if (descriptionMatch == null) return null;
+    final analysis = FinderTaxonomy.analyze(descriptionMatch.group(1)!.trim());
+    final unsatisfied = FinderTaxonomy.unsatisfiedClasses(analysis, content);
+    return unsatisfied.isEmpty ? null : unsatisfied;
+  }
 
   void _printSummary({
     required String behavior,
