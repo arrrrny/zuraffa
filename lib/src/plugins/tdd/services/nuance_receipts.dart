@@ -124,9 +124,7 @@ class NuanceReceipts {
     final entries = decoded['entries'];
     if (entries is! List) return const [];
     return entries
-        .map(
-          (e) => LedgerEntry.fromJson(Map<String, dynamic>.from(e as Map)),
-        )
+        .map((e) => LedgerEntry.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList(growable: false);
   }
 

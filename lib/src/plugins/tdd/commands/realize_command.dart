@@ -242,8 +242,9 @@ class RealizeCommand extends Command<void> {
       ...await rebinder.mockImplementationFiles(entity: entity),
     ].map((f) => _normalizeRel(p.relative(f, from: cwd))).toList();
     final unrecorded = await receipts.detect(files: surface);
-    final ungated =
-        unrecorded.where((d) => !handDeltaFlags.contains(d.file)).toList();
+    final ungated = unrecorded
+        .where((d) => !handDeltaFlags.contains(d.file))
+        .toList();
     if (ungated.isNotEmpty) {
       print(
         '   nuance gate BLOCKED: ${ungated.length} unrecorded '
@@ -269,8 +270,9 @@ class RealizeCommand extends Command<void> {
       exitCode = 1;
       return;
     }
-    final gatedDeltas =
-        unrecorded.where((d) => handDeltaFlags.contains(d.file)).toList();
+    final gatedDeltas = unrecorded
+        .where((d) => handDeltaFlags.contains(d.file))
+        .toList();
     if (handDeltaFlags.isNotEmpty && handDeltaReason.isEmpty) {
       print(
         '   nuance gate BLOCKED: --hand-delta requires a non-empty '
@@ -318,9 +320,7 @@ class RealizeCommand extends Command<void> {
       realRun: const ContractRun(exitCode: 0, output: '(not yet run)'),
     );
     if (baselineGate.verdict == ContractVerdict.mockBrokeContract) {
-      print(
-        '   contract gate RED (baseline): ${baselineGate.attribution}',
-      );
+      print('   contract gate RED (baseline): ${baselineGate.attribution}');
       _printSummary(
         entity: entity,
         adapter: adapter,
@@ -340,10 +340,7 @@ class RealizeCommand extends Command<void> {
     // ---------------------------------------------------------------
     DiRebindResult rebind;
     try {
-      rebind = await rebinder.rebind(
-        entity: entity,
-        adapterClass: adapter,
-      );
+      rebind = await rebinder.rebind(entity: entity, adapterClass: adapter);
     } on DiRebindException catch (e) {
       _fail(
         'zfa tdd realize: ${e.message}',
@@ -496,12 +493,15 @@ class RealizeCommand extends Command<void> {
         kind: 'realize',
         era: RealizeEra.real,
         criterion: 'SC-1..SC-5',
-        test: suitePaths.isEmpty ? '-' : 'mock-era suite (${suitePaths.length} file(s))',
+        test: suitePaths.isEmpty
+            ? '-'
+            : 'mock-era suite (${suitePaths.length} file(s))',
         command:
             'zfa tdd realize $entity --adapter $adapter'
             '${featureFlag.isEmpty ? '' : ' --feature $featureFlag'}',
         exitCode: 0,
-        output: 'contract=${_contractLabel(gate.verdict)} '
+        output:
+            'contract=${_contractLabel(gate.verdict)} '
             'differential=${differential.verdict.name} '
             'drift=${differential.driftLabel} '
             'handDeltas=$gatedDeltas'
@@ -543,26 +543,23 @@ class RealizeCommand extends Command<void> {
     final override = _fixtureDriverOverride;
     if (override != null) return override;
     return (binding, entity, input) async {
-      final driverScript =
-          File(p.join(_resolvedRoot, 'tool', 'realize_driver.dart'));
+      final driverScript = File(
+        p.join(_resolvedRoot, 'tool', 'realize_driver.dart'),
+      );
       if (!driverScript.existsSync()) {
         throw StateError(
           'tool/realize_driver.dart not found — the differential gate '
           'needs the project-owned driver (see the realize command docs).',
         );
       }
-      final process = await Process.start(
-        'dart',
-        [
-          'run',
-          'tool/realize_driver.dart',
-          '--binding',
-          binding,
-          '--entity',
-          entity,
-        ],
-        workingDirectory: _resolvedRoot,
-      );
+      final process = await Process.start('dart', [
+        'run',
+        'tool/realize_driver.dart',
+        '--binding',
+        binding,
+        '--entity',
+        entity,
+      ], workingDirectory: _resolvedRoot);
       process.stdin.write(jsonEncode(input));
       await process.stdin.close();
       final stdoutText = await process.stdout.transform(utf8.decoder).join();
@@ -593,11 +590,10 @@ class RealizeCommand extends Command<void> {
       if (paths.isEmpty) {
         return (exitCode: 0, output: '(no mock-era suite registered)');
       }
-      final result = await Process.run(
-        'dart',
-        ['test', ...paths],
-        workingDirectory: workingDirectory,
-      );
+      final result = await Process.run('dart', [
+        'test',
+        ...paths,
+      ], workingDirectory: workingDirectory);
       return (
         exitCode: result.exitCode,
         output: '${result.stdout}${result.stderr}',
@@ -607,10 +603,7 @@ class RealizeCommand extends Command<void> {
 
   /// The mock-era suite scope: the feature's registered test files that
   /// exist on disk. The suite runs UNCHANGED — realize never edits a test.
-  Future<List<String>> _mockEraSuitePaths(
-    String cwd,
-    String featureDir,
-  ) async {
+  Future<List<String>> _mockEraSuitePaths(String cwd, String featureDir) async {
     final registry = ArtifactRegistry(featureDir: featureDir);
     final records = await registry.loadAll();
     final paths = <String>[];
@@ -644,13 +637,9 @@ class RealizeCommand extends Command<void> {
       final specsDir = Directory(p.join(cwd, 'specs'));
       if (await specsDir.exists()) {
         final dirs = specsDir.listSync().whereType<Directory>().toList()
-          ..sort(
-            (a, b) => p.basename(a.path).compareTo(p.basename(b.path)),
-          );
+          ..sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
         for (final dir in dirs) {
-          if (await File(
-            p.join(dir.path, 'tdd', 'artifacts.json'),
-          ).exists()) {
+          if (await File(p.join(dir.path, 'tdd', 'artifacts.json')).exists()) {
             entries.add(
               _RegistryEntry(
                 p.basename(dir.path),
@@ -764,7 +753,8 @@ class RealizeCommand extends Command<void> {
       GenerationReceipt(
         command: 'zfa tdd realize',
         target: rebind.entity,
-        repro: 'zfa tdd realize ${rebind.entity} '
+        repro:
+            'zfa tdd realize ${rebind.entity} '
             '--adapter ${rebind.adapterClass}',
         at: DateTime.now().toUtc(),
         generatorVersion: '6.1.0',

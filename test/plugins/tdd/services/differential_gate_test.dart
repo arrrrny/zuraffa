@@ -35,18 +35,25 @@ void main() {
   Future<void> writeFixtures() async {
     final dir = p.join(featureDir, 'tdd', 'fixtures');
     await File(p.join(dir, 'get_by_id.json')).create(recursive: true);
-    await File(p.join(dir, 'get_by_id.json')).writeAsString(jsonEncode({
-      'schema': 'realize-diff.v1',
-      'id': 'get-by-id-u1',
-      'input': {'op': 'getById', 'id': 'u1'},
-      'mockOutput': {'id': 'u1', 'email': 'a@b.c', 'active': true},
-    }));
-    await File(p.join(dir, 'search.json')).writeAsString(jsonEncode({
-      'schema': 'realize-diff.v1',
-      'id': 'search-active',
-      'input': {'op': 'search', 'active': true},
-      'mockOutput': {'count': 2, 'ids': ['u1', 'u2']},
-    }));
+    await File(p.join(dir, 'get_by_id.json')).writeAsString(
+      jsonEncode({
+        'schema': 'realize-diff.v1',
+        'id': 'get-by-id-u1',
+        'input': {'op': 'getById', 'id': 'u1'},
+        'mockOutput': {'id': 'u1', 'email': 'a@b.c', 'active': true},
+      }),
+    );
+    await File(p.join(dir, 'search.json')).writeAsString(
+      jsonEncode({
+        'schema': 'realize-diff.v1',
+        'id': 'search-active',
+        'input': {'op': 'search', 'active': true},
+        'mockOutput': {
+          'count': 2,
+          'ids': ['u1', 'u2'],
+        },
+      }),
+    );
   }
 
   Future<Map<String, dynamic>> driver(
@@ -59,14 +66,17 @@ void main() {
           ? {'id': 'u1', 'email': 'a@b.c', 'active': true}
           : {'id': 'u1', 'email': 'real@z.c', 'active': true};
     }
-    return {'count': 2, 'ids': ['u1', 'u2']};
+    return {
+      'count': 2,
+      'ids': ['u1', 'u2'],
+    };
   }
 
   DifferentialGate gate() => DifferentialGate(
-        featureDir: featureDir,
-        projectRoot: root,
-        driver: driver,
-      );
+    featureDir: featureDir,
+    projectRoot: root,
+    driver: driver,
+  );
 
   test('U11: per-field drift report from committed fixtures', () async {
     await writeFixtures();
@@ -74,8 +84,11 @@ void main() {
     final result = await gate().run(entity: 'User');
 
     expect(result.fixturesRun, 2);
-    expect(result.verdict, DifferentialVerdict.drift,
-        reason: 'default threshold is 0.0 (strict) and one field drifted');
+    expect(
+      result.verdict,
+      DifferentialVerdict.drift,
+      reason: 'default threshold is 0.0 (strict) and one field drifted',
+    );
     // 2 fields drifted of 5 compared (3 + 2 fields across the fixtures).
     expect(result.diffs, hasLength(2));
     final getById = result.diffs.firstWhere((d) => d.fixture == 'get-by-id-u1');
@@ -90,7 +103,9 @@ void main() {
     expect(search.drifted, 0, reason: 'identical outputs drift nothing');
 
     // The drift report is written with the #805-style findings.
-    final reportFile = File(p.join(featureDir, 'tdd', 'differential-report.json'));
+    final reportFile = File(
+      p.join(featureDir, 'tdd', 'differential-report.json'),
+    );
     expect(reportFile.existsSync(), isTrue);
     final report =
         jsonDecode(await reportFile.readAsString()) as Map<String, dynamic>;
@@ -101,9 +116,11 @@ void main() {
 
   test('U12: threshold from .zfa.json — 0.5 tolerates the 0.2 drift', () async {
     await writeFixtures();
-    await File(p.join(root, '.zfa.json')).writeAsString(jsonEncode({
-      'tdd': {'realizeDifferentialThreshold': 0.5},
-    }));
+    await File(p.join(root, '.zfa.json')).writeAsString(
+      jsonEncode({
+        'tdd': {'realizeDifferentialThreshold': 0.5},
+      }),
+    );
 
     final result = await gate().run(entity: 'User');
 
@@ -122,12 +139,14 @@ void main() {
     expect(result.verdict, DifferentialVerdict.drift);
   });
 
-  test('U13: a missing fixtures directory is skipped, never silently passed',
-      () async {
-    final result = await gate().run(entity: 'User');
+  test(
+    'U13: a missing fixtures directory is skipped, never silently passed',
+    () async {
+      final result = await gate().run(entity: 'User');
 
-    expect(result.verdict, DifferentialVerdict.skipped);
-    expect(result.fixturesRun, 0);
-    expect(result.diffs, isEmpty);
-  });
+      expect(result.verdict, DifferentialVerdict.skipped);
+      expect(result.fixturesRun, 0);
+      expect(result.diffs, isEmpty);
+    },
+  );
 }

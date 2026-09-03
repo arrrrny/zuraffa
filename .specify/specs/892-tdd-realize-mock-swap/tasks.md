@@ -19,8 +19,8 @@ a failing test before its implementation (TDD extension contract).
       (#807 proof-carrying); ungated hand-deltas block.
 - [x] T005. Era-tagged cycle-log (U17-U18): `era_tagged_log.dart` — entries
       carry era tags; state transitions visible in history; era preserved.
-- [ ] T006. REFACTOR + VERIFY: `dart format .`, `dart analyze`,
+- [x] T006. REFACTOR + VERIFY: `dart format .`, `dart analyze`,
       `tools/run_tests_chunked.sh` — no new failures. Then
       `/speckit.tdd.verify` writes `tdd/verification.md` from the real run.
-- [ ] T007. Docs: `.specify/extensions/tdd/templates/realize.md` command docs
+- [x] T007. Docs: `.specify/extensions/tdd/templates/realize.md` command docs
       (the driver protocol for the differential gate and the ledger contract).

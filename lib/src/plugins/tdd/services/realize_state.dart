@@ -62,7 +62,9 @@ class RealizeTransition {
       );
 
   static RealizeEra _eraFrom(dynamic raw) =>
-      (raw as String).toLowerCase() == 'real' ? RealizeEra.real : RealizeEra.mocked;
+      (raw as String).toLowerCase() == 'real'
+      ? RealizeEra.real
+      : RealizeEra.mocked;
 }
 
 /// The persisted realization state for one feature + entity.
@@ -111,15 +113,16 @@ class RealizeState {
     adapter: json['adapter'] as String? ?? '',
     transitions: (json['transitions'] as List? ?? const [])
         .map(
-          (t) => RealizeTransition.fromJson(Map<String, dynamic>.from(t as Map)),
+          (t) =>
+              RealizeTransition.fromJson(Map<String, dynamic>.from(t as Map)),
         )
         .toList(growable: false),
   );
 
   static RealizeEra _era(dynamic raw) =>
       raw is String && raw.toLowerCase() == 'real'
-          ? RealizeEra.real
-          : RealizeEra.mocked;
+      ? RealizeEra.real
+      : RealizeEra.mocked;
 }
 
 /// Atomic persistence for `specs/<feature>/tdd/realize-state.json`.

@@ -200,7 +200,9 @@ class DiRebinder {
       next = _ensureImport(next, site.file, adapterFile, adapterClass);
 
       await file.writeAsString(next);
-      changedSites.add(DiBindingSite(file: site.file, occurrences: site.occurrences));
+      changedSites.add(
+        DiBindingSite(file: site.file, occurrences: site.occurrences),
+      );
     }
 
     // The same-interface proof, part 2: re-hash every domain/ file and
@@ -277,12 +279,15 @@ class DiRebinder {
   /// longer appears in the file body.
   static String _dropImport(String text, String suffix, String symbol) {
     if (suffix.isEmpty || _countSymbol(text, symbol) > 0) return text;
-    return text.split('\n').where((line) {
-      final trimmed = line.trim();
-      final isImport = trimmed.startsWith("import '") ||
-          trimmed.startsWith('import "');
-      return !(isImport && trimmed.contains(suffix));
-    }).join('\n');
+    return text
+        .split('\n')
+        .where((line) {
+          final trimmed = line.trim();
+          final isImport =
+              trimmed.startsWith("import '") || trimmed.startsWith('import "');
+          return !(isImport && trimmed.contains(suffix));
+        })
+        .join('\n');
   }
 
   /// Ensure the file at [file] imports the adapter file's path (relative

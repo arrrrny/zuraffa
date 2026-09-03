@@ -184,7 +184,8 @@ class DifferentialGate {
           threshold: threshold,
           diffs: diffs,
           fixturesRun: diffs.length,
-          error: 'fixture ${p.basename(file.path)} could not execute '
+          error:
+              'fixture ${p.basename(file.path)} could not execute '
               'through both bindings — see the driver protocol in the '
               'realize command docs.',
         );
@@ -213,7 +214,9 @@ class DifferentialGate {
       drifted += diff.drifted;
     }
     final drift = compared == 0 ? 0.0 : drifted / compared;
-    return drift <= threshold ? DifferentialVerdict.pass : DifferentialVerdict.drift;
+    return drift <= threshold
+        ? DifferentialVerdict.pass
+        : DifferentialVerdict.drift;
   }
 
   /// Execute one fixture through both bindings; null on a driver/parse
@@ -229,7 +232,8 @@ class DifferentialGate {
     }
     final input = fixture['input'];
     if (input is! Map<String, dynamic>) return null;
-    final id = (fixture['id'] as String?) ?? p.basenameWithoutExtension(file.path);
+    final id =
+        (fixture['id'] as String?) ?? p.basenameWithoutExtension(file.path);
 
     Map<String, dynamic> mockOut;
     final recorded = fixture['mockOutput'];
@@ -312,8 +316,8 @@ class DifferentialGate {
             {'kind': finding.kind, 'detail': finding.detail},
       ],
     };
-    await File(path).writeAsString(
-      '${const JsonEncoder.withIndent('  ').convert(report)}\n',
-    );
+    await File(
+      path,
+    ).writeAsString('${const JsonEncoder.withIndent('  ').convert(report)}\n');
   }
 }

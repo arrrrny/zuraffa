@@ -74,16 +74,26 @@ void main() {
   setUp(() {
     temp = Directory.systemTemp.createTempSync('di_rebind_');
     root = temp.path;
-    _write(p.join(root, 'lib/src/di/datasources/user_mock_datasource_di.dart'),
-        mockDatasourceDi);
-    _write(p.join(root, 'lib/src/di/repositories/user_repository_di.dart'),
-        repositoryDi);
-    _write(p.join(root, 'lib/src/domain/repositories/user_repository.dart'),
-        domainRepository);
-    _write(p.join(root, 'lib/src/data/datasources/user/user_mock_datasource.dart'),
-        mockDatasource);
-    _write(p.join(root, 'lib/src/data/datasources/user/user_real_adapter.dart'),
-        realAdapter);
+    _write(
+      p.join(root, 'lib/src/di/datasources/user_mock_datasource_di.dart'),
+      mockDatasourceDi,
+    );
+    _write(
+      p.join(root, 'lib/src/di/repositories/user_repository_di.dart'),
+      repositoryDi,
+    );
+    _write(
+      p.join(root, 'lib/src/domain/repositories/user_repository.dart'),
+      domainRepository,
+    );
+    _write(
+      p.join(root, 'lib/src/data/datasources/user/user_mock_datasource.dart'),
+      mockDatasource,
+    );
+    _write(
+      p.join(root, 'lib/src/data/datasources/user/user_real_adapter.dart'),
+      realAdapter,
+    );
   });
 
   tearDown(() {
@@ -99,95 +109,113 @@ void main() {
     final paths = sites.map((s) => p.normalize(s.file)).toList();
     expect(
       paths,
-      contains(p.normalize(
-          p.join(root, 'lib/src/di/datasources/user_mock_datasource_di.dart'))),
-    );
-    expect(
-      paths,
-      contains(p.normalize(
-          p.join(root, 'lib/src/di/repositories/user_repository_di.dart'))),
-    );
-    final datasourceSite = sites.firstWhere((s) => s.file.endsWith(
-        p.normalize('lib/src/di/datasources/user_mock_datasource_di.dart')));
-    expect(datasourceSite.occurrences, 2,
-        reason: 'registerLazySingleton<UserMockDataSource>(() => '
-            'UserMockDataSource()) is two references');
-  });
-
-  test('U5: rebind swaps symbols, fixes imports, keeps domain untouched',
-      () async {
-    final domainFile = File(
-        p.join(root, 'lib/src/domain/repositories/user_repository.dart'));
-    final domainBefore = crypto.sha256
-        .convert(await domainFile.readAsBytes())
-        .toString();
-
-    final result = await rebinder().rebind(
-      entity: 'User',
-      adapterClass: 'UserRealAdapter',
-    );
-
-    expect(result.mockClass, 'UserMockDataSource');
-    expect(result.adapterClass, 'UserRealAdapter');
-    expect(p.basename(result.adapterFile), 'user_real_adapter.dart');
-    expect(result.sites, hasLength(2));
-
-    final datasourceDi = await File(p.join(root,
-            'lib/src/di/datasources/user_mock_datasource_di.dart'))
-        .readAsString();
-    expect(RegExp(r'\bUserMockDataSource\b').hasMatch(datasourceDi), isFalse);
-    expect(datasourceDi, contains('registerLazySingleton<UserRealAdapter>('));
-    expect(datasourceDi, contains('() => UserRealAdapter())'));
-    expect(datasourceDi,
-        isNot(contains('user_mock_datasource.dart')));
-    expect(datasourceDi, contains('user_real_adapter.dart'));
-
-    final repoDi = await File(
-            p.join(root, 'lib/src/di/repositories/user_repository_di.dart'))
-        .readAsString();
-    expect(RegExp(r'\bUserMockDataSource\b').hasMatch(repoDi), isFalse);
-    expect(repoDi, contains('getIt<UserRealAdapter>()'));
-    expect(repoDi, isNot(contains('user_mock_datasource.dart')));
-    expect(repoDi, contains('user_real_adapter.dart'));
-
-    // The interface layer is byte-identical — the swap happened behind the
-    // SAME generated interface, never through it.
-    final domainAfter = crypto.sha256
-        .convert(await domainFile.readAsBytes())
-        .toString();
-    expect(domainAfter, domainBefore);
-    expect(result.interfaceFilesUntouched, isNotEmpty);
-    expect(
-      result.interfaceFilesUntouched.map((f) => p.basename(f)),
-      contains('user_repository.dart'),
-    );
-
-    // The mock datasource itself is untouched: unbound, not deleted.
-    final mock = await File(p.join(
-            root, 'lib/src/data/datasources/user/user_mock_datasource.dart'))
-        .readAsString();
-    expect(mock, contains('class UserMockDataSource'));
-  });
-
-  test('U6: rebind refuses when the adapter class does not exist in lib/',
-      () async {
-    expect(
-      () => rebinder().rebind(entity: 'User', adapterClass: 'UserFirestore'),
-      throwsA(
-        isA<DiRebindException>().having(
-          (e) => e.message,
-          'message',
-          allOf(contains('UserFirestore'), contains('never generates')),
+      contains(
+        p.normalize(
+          p.join(root, 'lib/src/di/datasources/user_mock_datasource_di.dart'),
         ),
       ),
     );
+    expect(
+      paths,
+      contains(
+        p.normalize(
+          p.join(root, 'lib/src/di/repositories/user_repository_di.dart'),
+        ),
+      ),
+    );
+    final datasourceSite = sites.firstWhere(
+      (s) => s.file.endsWith(
+        p.normalize('lib/src/di/datasources/user_mock_datasource_di.dart'),
+      ),
+    );
+    expect(
+      datasourceSite.occurrences,
+      2,
+      reason:
+          'registerLazySingleton<UserMockDataSource>(() => '
+          'UserMockDataSource()) is two references',
+    );
   });
+
+  test(
+    'U5: rebind swaps symbols, fixes imports, keeps domain untouched',
+    () async {
+      final domainFile = File(
+        p.join(root, 'lib/src/domain/repositories/user_repository.dart'),
+      );
+      final domainBefore = crypto.sha256
+          .convert(await domainFile.readAsBytes())
+          .toString();
+
+      final result = await rebinder().rebind(
+        entity: 'User',
+        adapterClass: 'UserRealAdapter',
+      );
+
+      expect(result.mockClass, 'UserMockDataSource');
+      expect(result.adapterClass, 'UserRealAdapter');
+      expect(p.basename(result.adapterFile), 'user_real_adapter.dart');
+      expect(result.sites, hasLength(2));
+
+      final datasourceDi = await File(
+        p.join(root, 'lib/src/di/datasources/user_mock_datasource_di.dart'),
+      ).readAsString();
+      expect(RegExp(r'\bUserMockDataSource\b').hasMatch(datasourceDi), isFalse);
+      expect(datasourceDi, contains('registerLazySingleton<UserRealAdapter>('));
+      expect(datasourceDi, contains('() => UserRealAdapter())'));
+      expect(datasourceDi, isNot(contains('user_mock_datasource.dart')));
+      expect(datasourceDi, contains('user_real_adapter.dart'));
+
+      final repoDi = await File(
+        p.join(root, 'lib/src/di/repositories/user_repository_di.dart'),
+      ).readAsString();
+      expect(RegExp(r'\bUserMockDataSource\b').hasMatch(repoDi), isFalse);
+      expect(repoDi, contains('getIt<UserRealAdapter>()'));
+      expect(repoDi, isNot(contains('user_mock_datasource.dart')));
+      expect(repoDi, contains('user_real_adapter.dart'));
+
+      // The interface layer is byte-identical — the swap happened behind the
+      // SAME generated interface, never through it.
+      final domainAfter = crypto.sha256
+          .convert(await domainFile.readAsBytes())
+          .toString();
+      expect(domainAfter, domainBefore);
+      expect(result.interfaceFilesUntouched, isNotEmpty);
+      expect(
+        result.interfaceFilesUntouched.map((f) => p.basename(f)),
+        contains('user_repository.dart'),
+      );
+
+      // The mock datasource itself is untouched: unbound, not deleted.
+      final mock = await File(
+        p.join(root, 'lib/src/data/datasources/user/user_mock_datasource.dart'),
+      ).readAsString();
+      expect(mock, contains('class UserMockDataSource'));
+    },
+  );
+
+  test(
+    'U6: rebind refuses when the adapter class does not exist in lib/',
+    () async {
+      expect(
+        () => rebinder().rebind(entity: 'User', adapterClass: 'UserFirestore'),
+        throwsA(
+          isA<DiRebindException>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('UserFirestore'), contains('never generates')),
+          ),
+        ),
+      );
+    },
+  );
 
   test('U7: rebind refuses when there is no mock binding to swap', () async {
     // A project with no mock references anywhere.
     Directory(p.join(root, 'lib/src/di')).deleteSync(recursive: true);
-    Directory(p.join(root, 'lib/src/data/datasources/user'))
-        .deleteSync(recursive: true);
+    Directory(
+      p.join(root, 'lib/src/data/datasources/user'),
+    ).deleteSync(recursive: true);
 
     expect(
       () => rebinder().rebind(entity: 'User', adapterClass: 'UserRealAdapter'),
@@ -203,5 +231,7 @@ void main() {
 }
 
 void _write(String path, String content) {
-  File(path)..createSync(recursive: true)..writeAsStringSync(content);
+  File(path)
+    ..createSync(recursive: true)
+    ..writeAsStringSync(content);
 }

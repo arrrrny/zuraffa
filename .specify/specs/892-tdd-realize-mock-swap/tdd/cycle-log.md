@@ -935,3 +935,49 @@ For example, 'dart test --chain-stack-traces'.
 - prev-hash: b766d1c6da6390b6f967efbbf18022437fee10914cc488c8a646cbc7ff03233c
 - hash: ed3339643e07a92ee664b87fa11dd2d79469d5d6993cfc3237f9bec1db3879fc
 
+## Cycle: T006 (refactor)
+
+- behavior: T006
+- kind: refactor
+- classification: -
+- criterion: SC-1
+- test: test/plugins/tdd/
+- command: `dart format . && dart analyze && tools/run_tests_chunked.sh`
+- exit: 0
+- at: 2026-09-03T08:58:51.285606Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/realize_state_test.dart
+00:00 +0: test/plugins/tdd/services/realize_state_test.dart: U1: absent state file means era MOCKED (mock-first default)
+00:00 +1: test/plugins/tdd/services/realize_state_test.dart: U2: transitionToReal persists era REAL with gate evidence
+00:00 +2: test/plugins/tdd/services/di_rebind_test.dart: U4: scan finds the mock binding sites for the entity
+00:00 +3: test/plugins/tdd/services/di_rebind_test.dart: U4: scan finds the mock binding sites for the entity
+00:00 +4: test/plugins/tdd/services/di_rebind_test.dart: U5: rebind swaps symbols, fixes imports, keeps domain untouched
+00:00 +5: test/plugins/tdd/services/di_rebind_test.dart: U6: rebind refuses when the adapter class does not exist in lib/
+00:00 +6: test/plugins/tdd/services/di_rebind_test.dart: U7: rebind refuses when there is no mock binding to swap
+00:00 +7: test/plugins/tdd/services/contract_gate_test.dart: U8: green when the suite is green against both bindings
+00:00 +8: test/plugins/tdd/services/contract_gate_test.dart: U9: real-broke-contract when baseline green and real red
+00:00 +9: test/plugins/tdd/services/contract_gate_test.dart: U10: mock-broke-contract when the baseline run is already red
+00:00 +10: test/plugins/tdd/services/differential_gate_test.dart: U11: per-field drift report from committed fixtures
+00:00 +11: test/plugins/tdd/services/differential_gate_test.dart: U12: threshold from .zfa.json — 0.5 tolerates the 0.2 drift
+00:00 +12: test/plugins/tdd/services/differential_gate_test.dart: U12b: default threshold 0.0 is strict — any drift fails
+00:00 +13: test/plugins/tdd/services/nuance_receipts_test.dart: U14: record() writes (file, reason, diff-hash) into the ledger
+00:00 +14: test/plugins/tdd/services/nuance_receipts_test.dart: U14: record() writes (file, reason, diff-hash) into the ledger
+00:00 +15: test/plugins/tdd/services/nuance_receipts_test.dart: U15: record() refuses an empty reason — reason is enforced
+00:00 +16: test/plugins/tdd/services/nuance_receipts_test.dart: U16: detect() finds drifted and unreceipted hand-deltas
+00:00 +17: test/plugins/tdd/services/era_tagged_log_test.dart: U17: entries carry era tags and a verifiable hash chain
+00:00 +18: test/plugins/tdd/services/era_tagged_log_test.dart: U18: lastEra() reads the era back and survives across entries
+00:07 +19: test/plugins/tdd/commands/realize_command_test.dart: A1: full green path rebinds DI, transitions era, persists state
+00:07 +20: test/plugins/tdd/commands/realize_command_test.dart: A2: --adapter is required — a swap without a real adapter is refused
+00:07 +21: test/plugins/tdd/commands/realize_command_test.dart: A6: a behavior id target resolves through the registry
+00:07 +22: test/plugins/tdd/commands/realize_command_test.dart: A3: a red real-binding run blocks the swap, rolls the rebind back, and the verdict names the side
+00:07 +23: test/plugins/tdd/commands/realize_command_test.dart: A3b: a red baseline (mock era already broken) blocks before any rebind and blames the mock side
+00:07 +24: test/plugins/tdd/commands/realize_command_test.dart: A4a: drift within the .zfa.json threshold passes with a drift report
+00:07 +25: test/plugins/tdd/commands/realize_command_test.dart: A4b: drift beyond the .zfa.json threshold blocks the transition and rolls the rebind back
+00:07 +26: test/plugins/tdd/commands/realize_command_test.dart: A5: ungated hand-deltas block the swap; gated deltas are recorded and the swap proceeds
+00:07 +27: All tests passed!
+```
+- schema: 1
+- prev-hash: genesis
+- hash: 321ea9273d7f3a41ef8829fd658053f8d6bba6f42193967d0143ab10aaefb9e5
+

@@ -107,7 +107,10 @@ void main() {
     await s.save(twice);
 
     expect(twice.era, RealizeEra.real);
-    expect(twice.transitions, hasLength(1),
-        reason: 'same-adapter re-realize must not append a transition');
+    expect(
+      twice.transitions,
+      hasLength(1),
+      reason: 'same-adapter re-realize must not append a transition',
+    );
   });
 }

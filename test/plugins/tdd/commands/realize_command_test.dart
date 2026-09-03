@@ -74,41 +74,72 @@ class UserRealAdapter implements UserRepository {
 void main() {
   late TddFixture fx;
 
-
   /// Receipt the current bytes of [rel] as a #807 generation run (the
   /// provenance baseline realize detects drift against).
-  Future<void> _receipt(String rel, String content) async {
+  Future<void> recordReceipt(String rel, String content) async {
     final store = ReceiptStore(projectRoot: fx.root.path);
-    await store.save(GenerationReceipt(
-      command: 'zfa di',
-      target: 'User',
-      repro: 'zfa di User',
-      at: DateTime.now().toUtc(),
-      generatorVersion: '6.1.0',
-      input: const {},
-      files: [
-        GenerationReceiptFile(
-          path: rel,
-          action: 'create',
-          sha256: crypto.sha256.convert(content.codeUnits).toString(),
-          bytes: content.length,
-        ),
-      ],
-    ));
+    await store.save(
+      GenerationReceipt(
+        command: 'zfa di',
+        target: 'User',
+        repro: 'zfa di User',
+        at: DateTime.now().toUtc(),
+        generatorVersion: '6.1.0',
+        input: const {},
+        files: [
+          GenerationReceiptFile(
+            path: rel,
+            action: 'create',
+            sha256: crypto.sha256.convert(content.codeUnits).toString(),
+            bytes: content.length,
+          ),
+        ],
+      ),
+    );
   }
 
   setUp(() async {
     fx = await TddFixture.create();
-    _write(p.join(fx.root.path, 'lib/src/di/datasources',
-        'user_mock_datasource_di.dart'), datasourceDi);
-    _write(p.join(fx.root.path, 'lib/src/di/repositories',
-        'user_repository_di.dart'), repositoryDi);
-    _write(p.join(fx.root.path, 'lib/src/domain/repositories',
-        'user_repository.dart'), domainRepository);
-    _write(p.join(fx.root.path, 'lib/src/data/datasources/user',
-        'user_mock_datasource.dart'), mockDatasource);
-    _write(p.join(fx.root.path, 'lib/src/data/datasources/user',
-        'user_real_adapter.dart'), realAdapter);
+    _write(
+      p.join(
+        fx.root.path,
+        'lib/src/di/datasources',
+        'user_mock_datasource_di.dart',
+      ),
+      datasourceDi,
+    );
+    _write(
+      p.join(
+        fx.root.path,
+        'lib/src/di/repositories',
+        'user_repository_di.dart',
+      ),
+      repositoryDi,
+    );
+    _write(
+      p.join(
+        fx.root.path,
+        'lib/src/domain/repositories',
+        'user_repository.dart',
+      ),
+      domainRepository,
+    );
+    _write(
+      p.join(
+        fx.root.path,
+        'lib/src/data/datasources/user',
+        'user_mock_datasource.dart',
+      ),
+      mockDatasource,
+    );
+    _write(
+      p.join(
+        fx.root.path,
+        'lib/src/data/datasources/user',
+        'user_real_adapter.dart',
+      ),
+      realAdapter,
+    );
     await fx.registerBehavior(
       id: 'B-001',
       description: 'create entity User with email',
@@ -116,13 +147,18 @@ void main() {
     // The generated surface carries its #807 receipts — the provenance
     // baseline the nuance gate detects drift against (the real `zfa di`
     // and `zfa mock` runs write these).
-    await _receipt('lib/src/di/datasources/user_mock_datasource_di.dart',
-        datasourceDi);
-    await _receipt('lib/src/di/repositories/user_repository_di.dart',
-        repositoryDi);
-    await _receipt(
-        'lib/src/data/datasources/user/user_mock_datasource.dart',
-        mockDatasource);
+    await recordReceipt(
+      'lib/src/di/datasources/user_mock_datasource_di.dart',
+      datasourceDi,
+    );
+    await recordReceipt(
+      'lib/src/di/repositories/user_repository_di.dart',
+      repositoryDi,
+    );
+    await recordReceipt(
+      'lib/src/data/datasources/user/user_mock_datasource.dart',
+      mockDatasource,
+    );
   });
 
   tearDown(() {
@@ -175,76 +211,99 @@ void main() {
     return lines.join('\n');
   }
 
-  Future<void> _writeFixtures() async {
+  Future<void> writeFixtures() async {
     final dir = Directory(p.join(fx.featureDir, 'tdd', 'fixtures'));
     await dir.create(recursive: true);
-    await File(p.join(dir.path, 'get_by_id.json')).writeAsString(jsonEncode({
-      'schema': 'realize-diff.v1',
-      'id': 'get-by-id-u1',
-      'input': {'op': 'getById', 'id': 'u1'},
-      'mockOutput': {'id': 'u1', 'email': 'a@b.c'},
-    }));
+    await File(p.join(dir.path, 'get_by_id.json')).writeAsString(
+      jsonEncode({
+        'schema': 'realize-diff.v1',
+        'id': 'get-by-id-u1',
+        'input': {'op': 'getById', 'id': 'u1'},
+        'mockOutput': {'id': 'u1', 'email': 'a@b.c'},
+      }),
+    );
   }
 
+  test(
+    'A1: full green path rebinds DI, transitions era, persists state',
+    () async {
+      final out = await runRealize(adapter: 'UserRealAdapter');
 
-  test('A1: full green path rebinds DI, transitions era, persists state',
-      () async {
-    final out = await runRealize(adapter: 'UserRealAdapter');
+      expect(exitCode, 0, reason: 'out: $out');
+      expect(out, contains('result=realized'));
 
-    expect(exitCode, 0, reason: 'out: $out');
-    expect(out, contains('result=realized'));
+      // The DI binding is swapped behind the same interface.
+      final datasourceDiFile = await File(
+        p.join(
+          fx.root.path,
+          'lib/src/di',
+          'datasources',
+          'user_mock_datasource_di.dart',
+        ),
+      ).readAsString();
+      expect(
+        RegExp(r'\bUserMockDataSource\b').hasMatch(datasourceDiFile),
+        isFalse,
+      );
+      expect(datasourceDiFile, contains('UserRealAdapter'));
 
-    // The DI binding is swapped behind the same interface.
-    final datasourceDiFile = await File(p.join(fx.root.path, 'lib/src/di',
-        'datasources', 'user_mock_datasource_di.dart')).readAsString();
-    expect(RegExp(r'\bUserMockDataSource\b').hasMatch(datasourceDiFile), isFalse);
-    expect(datasourceDiFile, contains('UserRealAdapter'));
+      // The state transition MOCKED -> REAL is persisted.
+      final stateFile = File(
+        p.join(fx.featureDir, 'tdd', 'realize-state.json'),
+      );
+      expect(stateFile.existsSync(), isTrue, reason: 'out: $out');
+      final state =
+          jsonDecode(await stateFile.readAsString()) as Map<String, dynamic>;
+      expect(state['era'], 'REAL');
+      expect(state['entity'], 'User');
+      expect(state['adapter'], 'UserRealAdapter');
+      expect(state['transitions'], isNotEmpty);
+      expect(state['transitions'].first['from'], 'MOCKED');
+      expect(state['transitions'].first['to'], 'REAL');
 
-    // The state transition MOCKED -> REAL is persisted.
-    final stateFile = File(p.join(
-        fx.featureDir, 'tdd', 'realize-state.json'));
-    expect(stateFile.existsSync(), isTrue, reason: 'out: $out');
-    final state = jsonDecode(await stateFile.readAsString())
-        as Map<String, dynamic>;
-    expect(state['era'], 'REAL');
-    expect(state['entity'], 'User');
-    expect(state['adapter'], 'UserRealAdapter');
-    expect(state['transitions'], isNotEmpty);
-    expect(state['transitions'].first['from'], 'MOCKED');
-    expect(state['transitions'].first['to'], 'REAL');
+      // The mock-era suite ran unchanged against the real binding (the
+      // injected runner was invoked with the registered test paths).
+      // Asserted structurally: the contract evidence names the suite.
+      expect(out, contains('contract=green'));
 
-    // The mock-era suite ran unchanged against the real binding (the
-    // injected runner was invoked with the registered test paths).
-    // Asserted structurally: the contract evidence names the suite.
-    expect(out, contains('contract=green'));
+      // The era-tagged evidence lands in the cycle log (T005): the REAL
+      // era entry, hash-chained.
+      final cycleLog = await File(
+        p.join(fx.featureDir, 'tdd', 'cycle-log.md'),
+      ).readAsString();
+      expect(cycleLog, contains('- kind: realize'));
+      expect(cycleLog, contains('- era: REAL'));
+      expect(cycleLog, contains('- schema: 1'));
+      expect(
+        RegExp(r'^- hash: [0-9a-f]{64}$', multiLine: true).hasMatch(cycleLog),
+        isTrue,
+      );
+    },
+  );
 
-    // The era-tagged evidence lands in the cycle log (T005): the REAL
-    // era entry, hash-chained.
-    final cycleLog = await File(
-            p.join(fx.featureDir, 'tdd', 'cycle-log.md'))
-        .readAsString();
-    expect(cycleLog, contains('- kind: realize'));
-    expect(cycleLog, contains('- era: REAL'));
-    expect(cycleLog, contains('- schema: 1'));
-    expect(RegExp(r'^- hash: [0-9a-f]{64}$', multiLine: true)
-        .hasMatch(cycleLog), isTrue);
-  });
+  test(
+    'A2: --adapter is required — a swap without a real adapter is refused',
+    () async {
+      final out = await runRealize(adapter: null);
 
-  test('A2: --adapter is required — a swap without a real adapter is refused',
-      () async {
-    final out = await runRealize(adapter: null);
-
-    expect(exitCode, 1, reason: 'out: $out');
-    expect(out, contains('--adapter'));
-    // Nothing was rebound.
-    final datasourceDiFile = await File(p.join(fx.root.path, 'lib/src/di',
-        'datasources', 'user_mock_datasource_di.dart')).readAsString();
-    expect(datasourceDiFile, contains('UserMockDataSource'));
-    expect(
-      File(p.join(fx.featureDir, 'tdd', 'realize-state.json')).existsSync(),
-      isFalse,
-    );
-  });
+      expect(exitCode, 1, reason: 'out: $out');
+      expect(out, contains('--adapter'));
+      // Nothing was rebound.
+      final datasourceDiFile = await File(
+        p.join(
+          fx.root.path,
+          'lib/src/di',
+          'datasources',
+          'user_mock_datasource_di.dart',
+        ),
+      ).readAsString();
+      expect(datasourceDiFile, contains('UserMockDataSource'));
+      expect(
+        File(p.join(fx.featureDir, 'tdd', 'realize-state.json')).existsSync(),
+        isFalse,
+      );
+    },
+  );
 
   test('A6: a behavior id target resolves through the registry', () async {
     final out = await runRealize(target: 'B-001', adapter: 'UserRealAdapter');
@@ -257,9 +316,18 @@ void main() {
     // The behavior's description ("create entity User with email")
     // resolved the entity the registry recorded.
     expect(state['entity'], 'User');
-    final datasourceDiFile = await File(p.join(fx.root.path, 'lib/src/di',
-        'datasources', 'user_mock_datasource_di.dart')).readAsString();
-    expect(RegExp(r'\bUserMockDataSource\b').hasMatch(datasourceDiFile), isFalse);
+    final datasourceDiFile = await File(
+      p.join(
+        fx.root.path,
+        'lib/src/di',
+        'datasources',
+        'user_mock_datasource_di.dart',
+      ),
+    ).readAsString();
+    expect(
+      RegExp(r'\bUserMockDataSource\b').hasMatch(datasourceDiFile),
+      isFalse,
+    );
   });
 
   test('A3: a red real-binding run blocks the swap, rolls the rebind back, '
@@ -278,26 +346,41 @@ void main() {
 
     // The rebind was ROLLED BACK: the binding file is byte-identical to
     // the mock-era content again.
-    final datasourceDiFile = await File(p.join(fx.root.path, 'lib/src/di',
-        'datasources', 'user_mock_datasource_di.dart')).readAsString();
-    expect(datasourceDiFile, datasourceDi,
-        reason: 'a blocked swap must restore the pre-rebind bytes');
-    final repoDiFile = await File(p.join(fx.root.path, 'lib/src/di',
-        'repositories', 'user_repository_di.dart')).readAsString();
+    final datasourceDiFile = await File(
+      p.join(
+        fx.root.path,
+        'lib/src/di',
+        'datasources',
+        'user_mock_datasource_di.dart',
+      ),
+    ).readAsString();
+    expect(
+      datasourceDiFile,
+      datasourceDi,
+      reason: 'a blocked swap must restore the pre-rebind bytes',
+    );
+    final repoDiFile = await File(
+      p.join(
+        fx.root.path,
+        'lib/src/di',
+        'repositories',
+        'user_repository_di.dart',
+      ),
+    ).readAsString();
     expect(repoDiFile, repositoryDi);
 
     // The era never crossed to REAL.
     final stateFile = File(p.join(fx.featureDir, 'tdd', 'realize-state.json'));
-    expect(stateFile.existsSync(), isFalse,
-        reason: 'a blocked swap must not persist a REAL transition');
+    expect(
+      stateFile.existsSync(),
+      isFalse,
+      reason: 'a blocked swap must not persist a REAL transition',
+    );
   });
 
   test('A3b: a red baseline (mock era already broken) blocks before any '
       'rebind and blames the mock side', () async {
-    final out = await runRealize(
-      adapter: 'UserRealAdapter',
-      exitSequence: [1],
-    );
+    final out = await runRealize(adapter: 'UserRealAdapter', exitSequence: [1]);
 
     expect(exitCode, 1, reason: 'out: $out');
     expect(out, contains('contract=mock-broke-contract'));
@@ -305,8 +388,14 @@ void main() {
     expect(out, contains('mock'));
 
     // Nothing was rebound — the baseline runs BEFORE the rebind.
-    final datasourceDiFile = await File(p.join(fx.root.path, 'lib/src/di',
-        'datasources', 'user_mock_datasource_di.dart')).readAsString();
+    final datasourceDiFile = await File(
+      p.join(
+        fx.root.path,
+        'lib/src/di',
+        'datasources',
+        'user_mock_datasource_di.dart',
+      ),
+    ).readAsString();
     expect(datasourceDiFile, datasourceDi);
     expect(
       File(p.join(fx.featureDir, 'tdd', 'realize-state.json')).existsSync(),
@@ -316,10 +405,12 @@ void main() {
 
   test('A4a: drift within the .zfa.json threshold passes with a drift '
       'report', () async {
-    await _writeFixtures();
-    await File(p.join(fx.root.path, '.zfa.json')).writeAsString(jsonEncode({
-      'tdd': {'realizeDifferentialThreshold': 0.9},
-    }));
+    await writeFixtures();
+    await File(p.join(fx.root.path, '.zfa.json')).writeAsString(
+      jsonEncode({
+        'tdd': {'realizeDifferentialThreshold': 0.9},
+      }),
+    );
 
     // A driver whose REAL side drifts one field of two.
     final out = await runRealize(
@@ -334,25 +425,31 @@ void main() {
     expect(out, contains('drift=0.5'));
     expect(out, contains('result=realized'));
     expect(
-      File(p.join(fx.featureDir, 'tdd', 'differential-report.json'))
-          .existsSync(),
+      File(
+        p.join(fx.featureDir, 'tdd', 'differential-report.json'),
+      ).existsSync(),
       isTrue,
       reason: 'a passing gate still writes the drift report',
     );
     // The drift is carried into the transition evidence.
-    final state = jsonDecode(
-      await File(p.join(fx.featureDir, 'tdd', 'realize-state.json'))
-          .readAsString(),
-    ) as Map<String, dynamic>;
+    final state =
+        jsonDecode(
+              await File(
+                p.join(fx.featureDir, 'tdd', 'realize-state.json'),
+              ).readAsString(),
+            )
+            as Map<String, dynamic>;
     expect(state['transitions'].first['evidence']['differential'], 'pass');
   });
 
   test('A4b: drift beyond the .zfa.json threshold blocks the transition '
       'and rolls the rebind back', () async {
-    await _writeFixtures();
-    await File(p.join(fx.root.path, '.zfa.json')).writeAsString(jsonEncode({
-      'tdd': {'realizeDifferentialThreshold': 0.0},
-    }));
+    await writeFixtures();
+    await File(p.join(fx.root.path, '.zfa.json')).writeAsString(
+      jsonEncode({
+        'tdd': {'realizeDifferentialThreshold': 0.0},
+      }),
+    );
 
     final out = await runRealize(
       adapter: 'UserRealAdapter',
@@ -365,10 +462,19 @@ void main() {
     expect(out, contains('differential=drift'));
     expect(out, contains('result=blocked'));
     // The rebind was rolled back and no REAL transition persisted.
-    final datasourceDiFile = await File(p.join(fx.root.path, 'lib/src/di',
-        'datasources', 'user_mock_datasource_di.dart')).readAsString();
-    expect(datasourceDiFile, datasourceDi,
-        reason: 'a drift-blocked swap restores the mock-era bytes');
+    final datasourceDiFile = await File(
+      p.join(
+        fx.root.path,
+        'lib/src/di',
+        'datasources',
+        'user_mock_datasource_di.dart',
+      ),
+    ).readAsString();
+    expect(
+      datasourceDiFile,
+      datasourceDi,
+      reason: 'a drift-blocked swap restores the mock-era bytes',
+    );
     expect(
       File(p.join(fx.featureDir, 'tdd', 'realize-state.json')).existsSync(),
       isFalse,
@@ -379,9 +485,10 @@ void main() {
       'and the swap proceeds', () async {
     const rel = 'lib/src/di/datasources/user_mock_datasource_di.dart';
     // The binding file was generated (receipted) and then hand-edited.
-    await _receipt(rel, datasourceDi);
-    await File(p.join(fx.root.path, rel))
-        .writeAsString('$datasourceDi\n// hand-tuned for the demo');
+    await recordReceipt(rel, datasourceDi);
+    await File(
+      p.join(fx.root.path, rel),
+    ).writeAsString('$datasourceDi\n// hand-tuned for the demo');
 
     // Ungated: the swap is blocked before anything is rebound.
     final blocked = await runRealize(
@@ -393,8 +500,11 @@ void main() {
     expect(blocked, contains(rel));
     expect(blocked, contains('result=blocked'));
     final stillMocked = await File(p.join(fx.root.path, rel)).readAsString();
-    expect(stillMocked, contains('// hand-tuned for the demo'),
-        reason: 'a blocked swap leaves the tree untouched');
+    expect(
+      stillMocked,
+      contains('// hand-tuned for the demo'),
+      reason: 'a blocked swap leaves the tree untouched',
+    );
 
     // Gated: the delta is recorded with (file, reason, diff-hash) and
     // the swap proceeds.
@@ -406,8 +516,9 @@ void main() {
     expect(exitCode, 0, reason: 'out: $out');
     expect(out, contains('result=realized'));
 
-    final ledgerFile =
-        File(p.join(fx.featureDir, 'tdd', 'provenance-ledger.json'));
+    final ledgerFile = File(
+      p.join(fx.featureDir, 'tdd', 'provenance-ledger.json'),
+    );
     expect(ledgerFile.existsSync(), isTrue);
     final ledger =
         jsonDecode(await ledgerFile.readAsString()) as Map<String, dynamic>;
@@ -422,7 +533,8 @@ void main() {
   });
 }
 
-
 void _write(String path, String content) {
-  File(path)..createSync(recursive: true)..writeAsStringSync(content);
+  File(path)
+    ..createSync(recursive: true)
+    ..writeAsStringSync(content);
 }
