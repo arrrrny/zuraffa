@@ -22,6 +22,7 @@ import '../plugins/tdd/commands/reset_command.dart';
 import '../plugins/tdd/commands/run_command.dart';
 import '../plugins/tdd/commands/verify_command.dart';
 import '../plugins/tdd/commands/verify_red_command.dart';
+import '../plugins/tdd/commands/view_command.dart';
 import '../plugins/tdd/commands/wire_command.dart';
 import '../plugins/tdd/tdd_plugin.dart';
 
@@ -36,6 +37,7 @@ class TddCommand extends Command<void> {
     addSubcommand(WireCommand(plugin));
     addSubcommand(ComposeCommand(plugin));
     addSubcommand(FuncCommand(plugin));
+    addSubcommand(ViewCommand(plugin));
     addSubcommand(RefactorCommand(plugin));
     addSubcommand(RunCommand(plugin));
     addSubcommand(ReplayCommand(plugin));
