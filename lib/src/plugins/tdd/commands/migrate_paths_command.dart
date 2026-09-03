@@ -379,8 +379,12 @@ class MigratePathsCommand extends Command<void> {
     final oldSubjectPosix = _posix(subjectFrom);
     final newSubjectPosix = _posix(subjectTo);
     if (oldSubjectPosix.contains('lib/') && newSubjectPosix.contains('lib/')) {
-      final oldLibSubpath = oldSubjectPosix.substring(oldSubjectPosix.indexOf('lib/') + 4);
-      final newLibSubpath = newSubjectPosix.substring(newSubjectPosix.indexOf('lib/') + 4);
+      final oldLibSubpath = oldSubjectPosix.substring(
+        oldSubjectPosix.indexOf('lib/') + 4,
+      );
+      final newLibSubpath = newSubjectPosix.substring(
+        newSubjectPosix.indexOf('lib/') + 4,
+      );
       raw = raw.replaceAll(oldLibSubpath, newLibSubpath);
     }
 
