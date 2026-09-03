@@ -392,6 +392,40 @@ class GenCommand extends Command<void> {
       );
     }
 
+    // Issue #938 preflight (VISION §4 errors-are-an-API): the shadapp
+    // widget shell emits `import 'package:shadcn_ui/shadcn_ui.dart';`.
+    // When the target project's pubspec does not declare shadcn_ui, that
+    // import cannot resolve: the generated pair dies at `verify-red` with
+    // compile-error and the loop never reaches an honest RED. Stop HERE —
+    // before any artifact write, registry append, or re-render — with the
+    // machine-parseable fix line, instead of emitting a test that can
+    // only die at compile. Deterministic: the check only READS the
+    // pubspec (no silent pubspec mutation). The materialapp opt-out emits
+    // no shadcn import, so it is exempt; a project with no pubspec.yaml
+    // keeps gen's pre-#938 behavior (nothing to resolve).
+    if (effectiveBehavior.kind == BehaviorKind.widget &&
+        WidgetShadcnPreflight.shadcnImportRequired(widgetShell) &&
+        !WidgetShadcnPreflight.projectDeclaresShadcnUi(cwd)) {
+      // print() (not stdout.writeln) so the fix line lands on the same
+      // captured channel as the verdict JSON — greppable by tooling and
+      // by `zfa tdd run`'s step logs (the JSON verdict stays the final
+      // stdout line).
+      print(WidgetShadcnPreflight.fixLine);
+      _printVerdict(
+        behaviorId: behavior.id,
+        verdict: 'refused',
+        kind: 'widget',
+        reason:
+            'pubspec.yaml does not declare shadcn_ui — widget-lane '
+            'behaviors boot a ShadApp shell whose import would die at '
+            'compile (issue #938). Run: flutter pub add shadcn_ui',
+      );
+      // House pattern (spec 048 / bug #840): signal through exitCode and
+      // return, so the JSON verdict stays the final stdout line.
+      exitCode = 1;
+      return;
+    }
+
     // Compute paths. Bug #827: the artifacts are namespaced by feature-slug
     // so two features planning the same behavior id never collide on one
     // flat file (the registry is per-feature; the flat layout made feature
