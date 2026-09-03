@@ -139,5 +139,5 @@ config:
     branch_numbering: sequential
     branch_template: ""
     branch_prefix: ""
-    create_worktree: true
+    create_worktree: false
     init_commit_message: "[Spec Kit] Initial commit"

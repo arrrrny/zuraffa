@@ -88,6 +88,8 @@ default `false`). If neither is true, skip this phase and stop after reporting.
 __SPECKIT_COMMAND_SPECIFY__ $TITLE: <one-paragraph summary of the request, quoting the issue URL>
 ```
 
+**Strip any issue number prefix from `$TITLE` before passing it to `__SPECKIT_COMMAND_SPECIFY__`.** The spec slug must never contain the GitHub issue number — that number belongs to the GitHub issue, not the spec. Numbers in the spec slug break spec enumeration. If `$TITLE` is something like `#42: Add dark mode`, pass `Add dark mode` to `__SPECKIT_COMMAND_SPECIFY__`, not `#42: Add dark mode`.
+
 This writes `specs/<n>-<slug>/spec.md`. Follow it with clarification/planning as
 the spec workflow directs.
 
