@@ -47,6 +47,7 @@ class BehaviorTestWriter {
     final relativeSubjectPath = _relativeSubjectPath(testPath, subjectPath);
     final escapedGroupDesc = '${behavior.id} (${behavior.sourceCriterion})'
         .replaceAll("'", "\\'");
+    final escapedDesc = behavior.description.replaceAll("'", "\\'");
     final content = behavior.kind == BehaviorKind.ffi
         ? renderContractTest(behavior, testPath, subjectPath)
         : behavior.persistence
@@ -54,7 +55,7 @@ class BehaviorTestWriter {
             behavior,
             relativeSubjectPath,
             escapedGroupDesc,
-            behavior.description,
+            escapedDesc,
           )
         : behavior.kind == BehaviorKind.widget
         ? _renderWidgetTest(behavior, relativeSubjectPath, golden)
