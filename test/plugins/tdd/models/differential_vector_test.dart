@@ -349,42 +349,39 @@ void main() {
       expect(findings.single.detail, contains('gen U2'));
     });
 
-    test(
-      'the reverse direction (from has more steps than to) is also a '
-      'step finding',
-      () {
-        final from = EntryVector(
-          entry: 'e',
-          ref: 'a',
-          steps: [
-            StepVector(
-              label: 'gen U1',
-              exitCode: 0,
-              outcome: DifferentialStepOutcome.complete,
-            ),
-            StepVector(
-              label: 'gen U2',
-              exitCode: 0,
-              outcome: DifferentialStepOutcome.complete,
-            ),
-          ],
-        );
-        final to = EntryVector(
-          entry: 'e',
-          ref: 'b',
-          steps: [
-            StepVector(
-              label: 'gen U1',
-              exitCode: 0,
-              outcome: DifferentialStepOutcome.complete,
-            ),
-          ],
-        );
-        final findings = compareEntryVectors(from: from, to: to);
-        expect(findings, hasLength(1));
-        expect(findings.single.kind, 'step');
-        expect(findings.single.detail, contains('gen U2'));
-      },
-    );
+    test('the reverse direction (from has more steps than to) is also a '
+        'step finding', () {
+      final from = EntryVector(
+        entry: 'e',
+        ref: 'a',
+        steps: [
+          StepVector(
+            label: 'gen U1',
+            exitCode: 0,
+            outcome: DifferentialStepOutcome.complete,
+          ),
+          StepVector(
+            label: 'gen U2',
+            exitCode: 0,
+            outcome: DifferentialStepOutcome.complete,
+          ),
+        ],
+      );
+      final to = EntryVector(
+        entry: 'e',
+        ref: 'b',
+        steps: [
+          StepVector(
+            label: 'gen U1',
+            exitCode: 0,
+            outcome: DifferentialStepOutcome.complete,
+          ),
+        ],
+      );
+      final findings = compareEntryVectors(from: from, to: to);
+      expect(findings, hasLength(1));
+      expect(findings.single.kind, 'step');
+      expect(findings.single.detail, contains('gen U2'));
+    });
   });
 }
