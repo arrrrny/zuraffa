@@ -217,6 +217,17 @@ void main() {
     // injected runner was invoked with the registered test paths).
     // Asserted structurally: the contract evidence names the suite.
     expect(out, contains('contract=green'));
+
+    // The era-tagged evidence lands in the cycle log (T005): the REAL
+    // era entry, hash-chained.
+    final cycleLog = await File(
+            p.join(fx.featureDir, 'tdd', 'cycle-log.md'))
+        .readAsString();
+    expect(cycleLog, contains('- kind: realize'));
+    expect(cycleLog, contains('- era: REAL'));
+    expect(cycleLog, contains('- schema: 1'));
+    expect(RegExp(r'^- hash: [0-9a-f]{64}$', multiLine: true)
+        .hasMatch(cycleLog), isTrue);
   });
 
   test('A2: --adapter is required — a swap without a real adapter is refused',

@@ -802,3 +802,78 @@ For example, 'dart test --chain-stack-traces'.
 - prev-hash: 0b0b5e30341453268307fe459fe69c3015c9dfc293606bb6368ab7c9f6bd1c05
 - hash: 2656c362b254e63c9fa01e35dfc9e6b435b136b93d3567d2cffc97877b9566de
 
+## Cycle: U17,U18 (red)
+
+- behavior: U17,U18
+- kind: red
+- classification: assertionFailure
+- criterion: SC-4
+- test: test/plugins/tdd/services/era_tagged_log_test.dart
+- command: `dart test test/plugins/tdd/services/era_tagged_log_test.dart`
+- exit: 1
+- at: 2026-09-03T08:44:46.381344Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/era_tagged_log_test.dart
+00:00 +0: U17: entries carry era tags and a verifiable hash chain
+00:00 +0 -1: U17: entries carry era tags and a verifiable hash chain [E]
+  UnimplementedError
+  package:zuraffa/src/plugins/tdd/services/era_tagged_log.dart 55:51  EraTaggedLog.append
+  test/plugins/tdd/services/era_tagged_log_test.dart 51:15            main.<fn>
+  
+00:00 +0 -1: U18: lastEra() reads the era back and survives across entries
+00:00 +0 -2: U18: lastEra() reads the era back and survives across entries [E]
+  UnimplementedError
+  package:zuraffa/src/plugins/tdd/services/era_tagged_log.dart 65:36  EraTaggedLog.lastEra
+  test/plugins/tdd/services/era_tagged_log_test.dart 100:22           main.<fn>
+  
+00:00 +0 -2: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/services/era_tagged_log_test.dart: U17: entries carry era tags and a verifiable hash chain
+  test/plugins/tdd/services/era_tagged_log_test.dart: U18: lastEra() reads the era back and survives across entries
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
+```
+- schema: 1
+- prev-hash: genesis
+- hash: fe17cd72840065ff5d57a6bb20b5bb2ad1e58bade4f25e3d982f798dff566551
+
+## Cycle: A1-era (red)
+
+- behavior: A1-era
+- kind: red
+- classification: assertionFailure
+- criterion: SC-4
+- test: test/plugins/tdd/commands/realize_command_test.dart
+- command: `dart test test/plugins/tdd/commands/realize_command_test.dart --plain-name A1`
+- exit: 1
+- at: 2026-09-03T08:44:46.889461Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/commands/realize_command_test.dart
+00:00 +0: A1: full green path rebinds DI, transitions era, persists state
+00:00 +0 -1: A1: full green path rebinds DI, transitions era, persists state [E]
+  PathNotFoundException: Cannot open file, path = '/tmp/tdd_fixture_ABUTSP/specs/090-tdd-fixture/tdd/cycle-log.md' (OS Error: No such file or directory, errno = 2)
+  test/plugins/tdd/commands/realize_command_test.dart 223:22  main.<fn>
+  
+00:00 +0 -1: A2: --adapter is required — a swap without a real adapter is refused
+00:00 +1 -1: A6: a behavior id target resolves through the registry
+00:00 +2 -1: A3: a red real-binding run blocks the swap, rolls the rebind back, and the verdict names the side
+00:00 +3 -1: A3b: a red baseline (mock era already broken) blocks before any rebind and blames the mock side
+00:00 +4 -1: A4a: drift within the .zfa.json threshold passes with a drift report
+00:00 +5 -1: A4b: drift beyond the .zfa.json threshold blocks the transition and rolls the rebind back
+00:00 +6 -1: A5: ungated hand-deltas block the swap; gated deltas are recorded and the swap proceeds
+00:00 +7 -1: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/commands/realize_command_test.dart: A1: full green path rebinds DI, transitions era, persists state
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
+```
+- schema: 1
+- prev-hash: genesis
+- hash: b766d1c6da6390b6f967efbbf18022437fee10914cc488c8a646cbc7ff03233c
+
