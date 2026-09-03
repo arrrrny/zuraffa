@@ -6,6 +6,8 @@
 
 **Status**: Draft
 
+**Template Version**: `zuraffa-1.0`
+
 **Input**: User description: "https://github.com/arrrrny/zuraffa/issues/960 — [ZIKZAK-REBUILD] dependency-table mocks: FirebaseAuth/Hive-class touchpoints get certified mocks from the declared contract (the unconsumed half of mock-first)."
 
 ## User Scenarios & Testing *(mandatory)*
@@ -115,6 +117,13 @@ Each declared row's mock priority (P1/P2/P3) orders dependency-mock generation i
 - **SC-003**: Regenerating an unchanged row produces byte-identical artifacts (determinism check passes on repeat).
 - **SC-004**: A real `FirebaseAuth`-class adapter implementing the declared interface passes `zfa tdd realize --adapter FirebaseAuth` with the suite green; a drifting adapter refuses naming the drift.
 - **SC-005**: Every malformed-row case in Edge Cases refuses with the row and defect named; 0 malformed rows produce a generated artifact.
+
+## External Dependencies & Contracts
+
+| Dependency | Type | Contract | Mock Priority |
+| --- | --- | --- | --- |
+| FirebaseAuth | service | signIn(email, password) -> User, signOut() -> void | P1 |
+| Hive | storage | openBox(name) -> Box, put(key, value) -> void | P2 |
 
 ## Assumptions
 
