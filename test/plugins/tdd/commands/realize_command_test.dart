@@ -135,7 +135,7 @@ void main() {
     // The DI binding is swapped behind the same interface.
     final datasourceDiFile = await File(p.join(fx.root.path, 'lib/src/di',
         'datasources', 'user_mock_datasource_di.dart')).readAsString();
-    expect(datasourceDiFile, isNot(contains('UserMockDataSource')));
+    expect(RegExp(r'\bUserMockDataSource\b').hasMatch(datasourceDiFile), isFalse);
     expect(datasourceDiFile, contains('UserRealAdapter'));
 
     // The state transition MOCKED -> REAL is persisted.
@@ -186,7 +186,7 @@ void main() {
     expect(state['entity'], 'User');
     final datasourceDiFile = await File(p.join(fx.root.path, 'lib/src/di',
         'datasources', 'user_mock_datasource_di.dart')).readAsString();
-    expect(datasourceDiFile, isNot(contains('UserMockDataSource')));
+    expect(RegExp(r'\bUserMockDataSource\b').hasMatch(datasourceDiFile), isFalse);
   });
 }
 

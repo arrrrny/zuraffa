@@ -3,10 +3,10 @@
 Derived from the SPEC 913 protocol's TDD cycle table. Every behavioral task has
 a failing test before its implementation (TDD extension contract).
 
-- [ ] T001. RED: write the failing acceptance/unit tests for the command
+- [x] T001. RED: write the failing acceptance/unit tests for the command
       skeleton + DI rebind + state transition MOCKED → REAL (A1, A2, A6, U1-U7).
       Evidence: red runs recorded in `tdd/cycle-log.md`.
-- [ ] T001. GREEN: implement `realize_command.dart` skeleton, `realize_state.dart`,
+- [x] T001. GREEN: implement `realize_command.dart` skeleton, `realize_state.dart`,
       `di_rebind.dart`; register the subcommand. Evidence: green runs.
 - [ ] T002. Contract gate (A3, U8-U10): `contract_gate.dart` — MOCK-era suite
       against the real binding stays green; verdict attributes red to the real

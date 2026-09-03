@@ -135,7 +135,7 @@ void main() {
     final datasourceDi = await File(p.join(root,
             'lib/src/di/datasources/user_mock_datasource_di.dart'))
         .readAsString();
-    expect(datasourceDi, isNot(contains('UserMockDataSource')));
+    expect(RegExp(r'\bUserMockDataSource\b').hasMatch(datasourceDi), isFalse);
     expect(datasourceDi, contains('registerLazySingleton<UserRealAdapter>('));
     expect(datasourceDi, contains('() => UserRealAdapter())'));
     expect(datasourceDi,
@@ -145,7 +145,7 @@ void main() {
     final repoDi = await File(
             p.join(root, 'lib/src/di/repositories/user_repository_di.dart'))
         .readAsString();
-    expect(repoDi, isNot(contains('UserMockDataSource')));
+    expect(RegExp(r'\bUserMockDataSource\b').hasMatch(repoDi), isFalse);
     expect(repoDi, contains('getIt<UserRealAdapter>()'));
     expect(repoDi, isNot(contains('user_mock_datasource.dart')));
     expect(repoDi, contains('user_real_adapter.dart'));

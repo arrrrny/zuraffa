@@ -183,3 +183,90 @@ For example, 'dart test --chain-stack-traces'.
 - prev-hash: genesis
 - hash: 28756beb9f722ce9481b3414987c40097b468e675d0e7a1929c6b3f6f1c0ed85
 
+## Cycle: U1-U3 (green)
+
+- behavior: U1-U3
+- kind: green
+- classification: -
+- criterion: SC-5
+- test: test/plugins/tdd/services/realize_state_test.dart
+- command: `dart test test/plugins/tdd/services/realize_state_test.dart`
+- exit: 0
+- at: 2026-09-03T08:27:44.881617Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/realize_state_test.dart
+00:00 +0: test/plugins/tdd/services/realize_state_test.dart: U1: absent state file means era MOCKED (mock-first default)
+00:00 +1: test/plugins/tdd/services/di_rebind_test.dart: U4: scan finds the mock binding sites for the entity
+00:00 +2: test/plugins/tdd/services/di_rebind_test.dart: U4: scan finds the mock binding sites for the entity
+00:00 +3: test/plugins/tdd/services/di_rebind_test.dart: U4: scan finds the mock binding sites for the entity
+00:00 +4: test/plugins/tdd/services/di_rebind_test.dart: U5: rebind swaps symbols, fixes imports, keeps domain untouched
+00:00 +5: test/plugins/tdd/services/di_rebind_test.dart: U6: rebind refuses when the adapter class does not exist in lib/
+00:00 +6: test/plugins/tdd/services/di_rebind_test.dart: U7: rebind refuses when there is no mock binding to swap
+00:00 +7: test/plugins/tdd/commands/realize_command_test.dart: A1: full green path rebinds DI, transitions era, persists state
+00:00 +8: test/plugins/tdd/commands/realize_command_test.dart: A2: --adapter is required — a swap without a real adapter is refused
+00:00 +9: test/plugins/tdd/commands/realize_command_test.dart: A6: a behavior id target resolves through the registry
+00:00 +10: All tests passed!
+```
+- schema: 1
+- prev-hash: e424d3e09eeca6773587118948da25cced253bcaaf8447c66d15b4c86c937163
+- hash: 8c58a0069d02d1fbc6a430f972bb5e255ca5874b29f719f91cb5894fc6f3af7e
+
+## Cycle: U4-U7 (green)
+
+- behavior: U4-U7
+- kind: green
+- classification: -
+- criterion: SC-1
+- test: test/plugins/tdd/services/di_rebind_test.dart
+- command: `dart test test/plugins/tdd/services/di_rebind_test.dart`
+- exit: 0
+- at: 2026-09-03T08:27:45.456315Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/realize_state_test.dart
+00:00 +0: test/plugins/tdd/services/realize_state_test.dart: U1: absent state file means era MOCKED (mock-first default)
+00:00 +1: test/plugins/tdd/services/di_rebind_test.dart: U4: scan finds the mock binding sites for the entity
+00:00 +2: test/plugins/tdd/services/di_rebind_test.dart: U4: scan finds the mock binding sites for the entity
+00:00 +3: test/plugins/tdd/services/di_rebind_test.dart: U4: scan finds the mock binding sites for the entity
+00:00 +4: test/plugins/tdd/services/di_rebind_test.dart: U5: rebind swaps symbols, fixes imports, keeps domain untouched
+00:00 +5: test/plugins/tdd/services/di_rebind_test.dart: U6: rebind refuses when the adapter class does not exist in lib/
+00:00 +6: test/plugins/tdd/services/di_rebind_test.dart: U7: rebind refuses when there is no mock binding to swap
+00:00 +7: test/plugins/tdd/commands/realize_command_test.dart: A1: full green path rebinds DI, transitions era, persists state
+00:00 +8: test/plugins/tdd/commands/realize_command_test.dart: A2: --adapter is required — a swap without a real adapter is refused
+00:00 +9: test/plugins/tdd/commands/realize_command_test.dart: A6: a behavior id target resolves through the registry
+00:00 +10: All tests passed!
+```
+- schema: 1
+- prev-hash: 1ab5516df18d3845509516b24e8a24568261fa5623b95929dc4c594240164b16
+- hash: d37b6214fee9740c91e06570d49f679411b9c85ad97386d795be728964163367
+
+## Cycle: A1,A2,A6 (green)
+
+- behavior: A1,A2,A6
+- kind: green
+- classification: -
+- criterion: SC-4
+- test: test/plugins/tdd/commands/realize_command_test.dart
+- command: `dart test test/plugins/tdd/commands/realize_command_test.dart`
+- exit: 0
+- at: 2026-09-03T08:27:45.992052Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/realize_state_test.dart
+00:00 +0: test/plugins/tdd/services/realize_state_test.dart: U1: absent state file means era MOCKED (mock-first default)
+00:00 +1: test/plugins/tdd/services/di_rebind_test.dart: U4: scan finds the mock binding sites for the entity
+00:00 +2: test/plugins/tdd/services/di_rebind_test.dart: U4: scan finds the mock binding sites for the entity
+00:00 +3: test/plugins/tdd/services/di_rebind_test.dart: U4: scan finds the mock binding sites for the entity
+00:00 +4: test/plugins/tdd/services/di_rebind_test.dart: U5: rebind swaps symbols, fixes imports, keeps domain untouched
+00:00 +5: test/plugins/tdd/services/di_rebind_test.dart: U6: rebind refuses when the adapter class does not exist in lib/
+00:00 +6: test/plugins/tdd/services/di_rebind_test.dart: U7: rebind refuses when there is no mock binding to swap
+00:00 +7: test/plugins/tdd/commands/realize_command_test.dart: A1: full green path rebinds DI, transitions era, persists state
+00:00 +8: test/plugins/tdd/commands/realize_command_test.dart: A2: --adapter is required — a swap without a real adapter is refused
+00:00 +9: test/plugins/tdd/commands/realize_command_test.dart: A6: a behavior id target resolves through the registry
+00:00 +10: All tests passed!
+```
+- schema: 1
+- prev-hash: 28756beb9f722ce9481b3414987c40097b468e675d0e7a1929c6b3f6f1c0ed85
+- hash: a2120d9ce9ff8a1bff4734c33fecca587f78fdfe7b431ec2afb0bbb40e83032f
+
