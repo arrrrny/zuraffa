@@ -10,6 +10,46 @@ library;
 
 import '../models/behavior.dart';
 
+/// One row of the zuraffa-1.0 template's `External Dependencies &
+/// Contracts` table (bug #919): the dependency's name, its kind, the
+/// declared contract (`name(args) -> return` shapes), and the mock
+/// priority the mock-first make path (#909) will honor.
+class SpecDependency {
+  const SpecDependency({
+    required this.dependency,
+    required this.type,
+    required this.contract,
+    required this.mockPriority,
+  });
+
+  final String dependency;
+  final String type;
+  final String contract;
+  final String mockPriority;
+
+  @override
+  String toString() => 'SpecDependency($dependency, $type, $contract, '
+      '$mockPriority)';
+}
+
+/// One declared layer-contract interface (bug #919): the layer name
+/// (`**Domain**:`), the interface name, and its declared method
+/// signatures (backticked `name(args) -> result` shapes).
+class LayerContract {
+  const LayerContract({
+    required this.layer,
+    required this.interfaceName,
+    required this.methods,
+  });
+
+  final String layer;
+  final String interfaceName;
+  final List<String> methods;
+
+  @override
+  String toString() => 'LayerContract($layer, $interfaceName, $methods)';
+}
+
 /// One declared field of a [SpecEntity], parsed from a backticked
 /// `` `name: Type` `` pair in the spec's Key Entities prose.
 class EntityField {
@@ -127,6 +167,106 @@ class SpecParser {
       if (m != null) return m.group(1)!.trim();
     }
     return null;
+  }
+
+  /// The heading that opens the External Dependencies & Contracts section
+  /// (bug #919): `## External Dependencies & Contracts` (any level,
+  /// `&` or `and`, case-insensitive).
+  static final RegExp _dependenciesHeading = RegExp(
+    r'^#{1,6}\s+external\s+dependencies\s+(?:&|and)\s+contracts\s*$',
+    caseSensitive: false,
+  );
+
+  /// The heading that opens the Layer Contracts section (bug #919):
+  /// `## Layer Contracts` (any level, case-insensitive).
+  static final RegExp _layerContractsHeading = RegExp(
+    r'^#{1,6}\s+layer\s+contracts\s*$',
+    caseSensitive: false,
+  );
+
+  /// A bold layer name inside the Layer Contracts section: `**Domain**:`.
+  static final RegExp _layerName = RegExp(r'^\s*\*\*(.+?)\*\*\s*:\s*$');
+
+  /// A layer-contract declaration bullet:
+  /// `` - `Repo`: `save(x) -> R`, `get() -> R?` ``.
+  static final RegExp _layerContractBullet = RegExp(
+    r'^\s*[-*]\s+`([^`]+)`\s*:\s*(.+)$',
+  );
+
+  /// Split a markdown pipe row into its cells (no escape handling —
+  /// cells in these template sections never carry literal pipes).
+  static List<String> _splitCells(String line) {
+    return line
+        .split('|')
+        .map((c) => c.trim())
+        .where((c) => c.isNotEmpty)
+        .toList();
+  }
+
+  /// Extract the declared external dependencies (bug #919): each row of
+  /// the `| Dependency | Type | Contract | Mock Priority |` table.
+  /// Header and separator rows are skipped; rows with fewer than four
+  /// cells are ignored rather than fatal.
+  List<SpecDependency> parseDependencies(String specMd) {
+    final dependencies = <SpecDependency>[];
+    var inSection = false;
+    for (final line in specMd.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('#')) {
+        inSection = _dependenciesHeading.hasMatch(trimmed);
+        continue;
+      }
+      if (!inSection || !trimmed.startsWith('|')) continue;
+      final cells = _splitCells(trimmed);
+      if (cells.length < 4) continue;
+      if (cells[0].toLowerCase() == 'dependency') continue; // header
+      if (RegExp(r'^-+$').hasMatch(cells[0])) continue; // separator
+      dependencies.add(
+        SpecDependency(
+          dependency: cells[0],
+          type: cells[1],
+          contract: cells[2],
+          mockPriority: cells[3],
+        ),
+      );
+    }
+    return dependencies;
+  }
+
+  /// Extract the declared layer contracts (bug #919): the bold layer
+  /// names and their backticked interface declarations, preserving the
+  /// declared method signatures verbatim.
+  List<LayerContract> parseLayerContracts(String specMd) {
+    final contracts = <LayerContract>[];
+    var inSection = false;
+    var layer = '';
+    for (final line in specMd.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('#')) {
+        inSection = _layerContractsHeading.hasMatch(trimmed);
+        if (!inSection) layer = '';
+        continue;
+      }
+      if (!inSection || trimmed.isEmpty) continue;
+      final layerM = _layerName.firstMatch(trimmed);
+      if (layerM != null) {
+        layer = layerM.group(1)!.trim();
+        continue;
+      }
+      final bullet = _layerContractBullet.firstMatch(trimmed);
+      if (bullet == null || layer.isEmpty) continue;
+      contracts.add(
+        LayerContract(
+          layer: layer,
+          interfaceName: bullet.group(1)!.trim(),
+          methods: RegExp(r'`([^`]+)`')
+              .allMatches(bullet.group(2)!)
+              .map((m) => m.group(1)!.trim())
+              .toList(),
+        ),
+      );
+    }
+    return contracts;
   }
 
   /// Extract the entities the spec declares under `Key Entities` (bug

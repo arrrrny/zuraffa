@@ -107,6 +107,12 @@ class PlanCommand extends Command<void> {
     // this section back through TestListReader.readEntities).
     final entities = const SpecParser().parseKeyEntities(specMd);
 
+    // Bug #919: extract the zuraffa-1.0 template's declared dependencies
+    // and layer contracts into the plan artifact, so the mock-first make
+    // path (#909) and interface generation can consume them.
+    final dependencies = const SpecParser().parseDependencies(specMd);
+    final layerContracts = const SpecParser().parseLayerContracts(specMd);
+
     // Coverage gate (bug #846): every FR/AC requirement statement must
     // map to a behavior row or to a valid `(manual: owner)` declaration.
     // Any gap = exit 2, no artifacts, offending line + fix instruction.
@@ -212,7 +218,14 @@ class PlanCommand extends Command<void> {
 
     await outDir.create(recursive: true);
     await outFile.writeAsString(
-      _render(feature, expressible, entities, preservedFfi),
+      _render(
+        feature,
+        expressible,
+        entities,
+        dependencies,
+        layerContracts,
+        preservedFfi,
+      ),
     );
 
     final aCount = expressible
@@ -240,6 +253,8 @@ class PlanCommand extends Command<void> {
     String feature,
     List<Behavior> behaviors,
     List<SpecEntity> entities,
+    List<SpecDependency> dependencies,
+    List<LayerContract> layerContracts,
     List<BehaviorRow> preservedFfi,
   ) {
     final acceptance = behaviors
@@ -329,6 +344,38 @@ class PlanCommand extends Command<void> {
             '| ${e.name} | '
             '${e.fields.map((f) => '${f.name}: ${f.type}').join(', ')} |',
           );
+        }
+      }
+    }
+    if (dependencies.isNotEmpty) {
+      buf
+        ..writeln()
+        ..writeln('## External dependencies')
+        ..writeln()
+        ..writeln('| dependency | type | contract | mock priority |')
+        ..writeln('| ---------- | ---- | -------- | ------------- |');
+      for (final d in dependencies) {
+        buf.writeln(
+          '| ${d.dependency} | ${d.type} | ${d.contract} '
+          '| ${d.mockPriority} |',
+        );
+      }
+    }
+    if (layerContracts.isNotEmpty) {
+      buf
+        ..writeln()
+        ..writeln('## Layer contracts')
+        ..writeln();
+      final byLayer = <String, List<LayerContract>>{};
+      for (final c in layerContracts) {
+        byLayer.putIfAbsent(c.layer, () => []).add(c);
+      }
+      for (final entry in byLayer.entries) {
+        buf
+          ..writeln('### ${entry.key}')
+          ..writeln();
+        for (final c in entry.value) {
+          buf.writeln('- `${c.interfaceName}`: ${c.methods.join(', ')}');
         }
       }
     }
