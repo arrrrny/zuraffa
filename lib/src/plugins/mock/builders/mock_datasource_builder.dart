@@ -41,11 +41,27 @@ class MockDataSourceBuilder {
         '$outputDir/data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart';
     final fileExists = await fileSystem.exists(filePath);
 
+    // Issue #942: the mock datasource imports the entity file AND the
+    // framework mock barrel unprefixed. When the entity's name matches a
+    // zuraffa core export (an entity named `Credentials` — the framework
+    // exports its own `Credentials` params class), every use of the name
+    // is an `ambiguous_import` error and the generated tree does not
+    // compile. The generator knows the entity's own symbols, so the
+    // barrel import hides exactly those symbols and the entity's own
+    // definitions win resolution. With no locally-imported entity types
+    // the hide list is empty and the import is emitted unchanged.
+    final barrelHide = <String>{
+      if (config.isEntityBased) ...EntityUtils.barrelHideNames(entityName),
+      if (config.isCustomUseCase && config.returnsType != null)
+        for (final type in EntityUtils.extractEntityTypes(config.returnsType!))
+          ...EntityUtils.barrelHideNames(type),
+    }.toList();
+
     final directives = [
       Directive.import('dart:async'),
       // Canonical zuraffa-native mock marker: detects native mocking for static
       // tooling (e.g. speckit-tdd-setup) without a third-party double library.
-      Directive.import('package:zuraffa/mock.dart'),
+      Directive.import('package:zuraffa/mock.dart', hide: barrelHide),
       if (config.isEntityBased)
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',

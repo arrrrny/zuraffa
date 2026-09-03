@@ -49,7 +49,9 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../services/artifact_registry.dart';
 import '../services/cycle_log.dart';
+import '../services/pass_registry_tracker.dart';
 import '../services/refactor_passes.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/runner.dart';
@@ -110,6 +112,16 @@ class RefactorCommand extends Command<void> {
           'timeout the child is killed and the command stops non-zero as '
           'runner-error.',
     );
+    argParser.addFlag(
+      'full-reproof',
+      help:
+          'Force the FULL-suite re-proof even when the pass-registry-'
+          'changed files map to covering tests (spec 069 T001: the '
+          'feature-completion / nightly full gate; the default re-proof '
+          'is scoped to the covering tests of the changed files).',
+      defaultsTo: false,
+      negatable: false,
+    );
     // Note (FR-002): there is INTENTIONALLY no --skip-preflight option.
     // The preflight is the entire discipline of the refactor step; skipping
     // it would destroy the signal that makes refactoring safe.
@@ -166,6 +178,7 @@ class RefactorCommand extends Command<void> {
       featureFlag: featureFlag,
       zfaBin: zfaBinFlag,
       timeout: timeoutOverride,
+      fullReproof: argResults?['full-reproof'] as bool? ?? false,
       suiteBaselinePath: argResults?['suite-baseline'] as String?,
     );
   }
@@ -178,6 +191,7 @@ class RefactorCommand extends Command<void> {
     String? featureFlag,
     String? zfaBin,
     Duration? timeout,
+    bool fullReproof = false,
     String? suiteBaselinePath,
   }) async {
     RefactorOutcome outcome;
@@ -416,11 +430,80 @@ class RefactorCommand extends Command<void> {
         return;
       }
 
-      // 7. Re-run the suite (FR-006). On regression, name the regressed
-      // tests, exit non-zero, write no success evidence.
-      print('zfa tdd refactor: re-proof suite');
+      // Spec 069 T001 (incremental verification): persist the
+      // pass-registry-changed files, then scope the re-proof to the
+      // covering tests of those files. The FULL suite still runs at
+      // feature completion (`zfa tdd verify`'s preflight) and nightly
+      // (the corpus lane) — the gate exists, its frequency is
+      // engineered. The scoped path requires EVERY changed file to be
+      // a registered artifact's subject (the gen pairing); one
+      // unattributable file falls back to the full suite (safe
+      // failure, never a silently narrowed re-proof).
+      if (libChanged.isNotEmpty) {
+        final formatPass = passResult.actions
+            .where((a) => a.filesChanged.isNotEmpty)
+            .lastOrNull;
+        await PassRegistryTracker(
+          featureDir: p.join(cwd, 'specs', featureName),
+        ).record(
+          changedFiles: libChanged,
+          capturedAt: DateTime.now().toUtc().toIso8601String(),
+          command: formatPass?.command,
+        );
+      }
+      final artifacts = await ArtifactRegistry(
+        featureDir: p.join(cwd, 'specs', featureName),
+      ).loadAll();
+      final coveringTests = fullReproof
+          ? const <String>{}
+          : PassRegistryTracker.coveringTestsFor(
+              changedFiles: libChanged.toSet(),
+              artifacts: artifacts,
+              projectRoot: cwd,
+            );
+      final scopedReproof =
+          coveringTests.isNotEmpty && libChanged.isNotEmpty && !fullReproof;
+      final reproofPaths = scopedReproof
+          ? (coveringTests.toList()..sort())
+          : const <String>[];
+
+      // 7. Re-run the suite (FR-006) — scoped to the covering tests of
+      //    the pass-registry-changed files when every changed file maps
+      //    to a registered artifact (spec 069 T001); the full suite
+      //    otherwise (and under --full-reproof). On regression, name the
+      //    regressed tests, exit non-zero, write no success evidence.
+      String reproofCommand;
+      if (scopedReproof) {
+        // Quote each path so a feature directory with spaces survives
+        // the suite runner's whitespace split (same token contract as
+        // zfaBuildCommand's quoteIfNeeded + the pass executor's
+        // quote-aware tokenizer, bug #689; spec 069 T001).
+        reproofCommand = [
+          suiteTemplate,
+          ...reproofPaths.map((path) => '"$path"'),
+        ].join(' ');
+        print(
+          'zfa tdd refactor: re-proof: scoped '
+          '(${reproofPaths.length} covering test(s) for '
+          '${libChanged.length} changed file(s))',
+        );
+        print('   command: $reproofCommand');
+      } else {
+        reproofCommand = suiteTemplate;
+        if (fullReproof) {
+          print('zfa tdd refactor: re-proof: full (--full-reproof)');
+        } else if (libChanged.isNotEmpty) {
+          print(
+            'zfa tdd refactor: re-proof: full (changed set not fully '
+            'attributable to registered artifacts — safe fallback)',
+          );
+        } else {
+          print('zfa tdd refactor: re-proof suite');
+        }
+        print('   command: $reproofCommand');
+      }
       final reproof = await runner.runSuite(
-        suiteTemplate: suiteTemplate,
+        suiteTemplate: reproofCommand,
         workingDirectory: cwd,
         timeout: timeout,
       );
@@ -504,6 +587,12 @@ class RefactorCommand extends Command<void> {
         return;
       }
 
+      final reproofNote = scopedReproof
+          ? 're-proof: scoped (${reproofPaths.length} covering test(s) '
+                'for ${libChanged.length} changed file(s); spec 069 T001 — '
+                'the full gate runs at feature completion + nightly)'
+          : 're-proof: full';
+
       // 8. Green before AND after. Append evidence (FR-007) or record a
       // clean no-op (FR-008). The verdicts name tolerated pre-existing red
       // honestly (issue #922) instead of claiming an absolute green that
@@ -529,6 +618,7 @@ class RefactorCommand extends Command<void> {
             exitCode: 0,
             capturedOutput:
                 'preflight: $preflightVerdict\nre-proof: $reproofVerdict\n'
+                '$reproofNote\n'
                 'applied: 0 actions.',
             sourceCriterion: 'FR-008',
             testPath: 'test/',
@@ -544,10 +634,11 @@ class RefactorCommand extends Command<void> {
           CycleLogEntry(
             behaviorId: '$featureName-refactor',
             kind: CycleEntryKind.refactor,
-            runnerCommand: suiteTemplate,
+            runnerCommand: reproofCommand,
             exitCode: 0,
             capturedOutput:
                 'preflight: $preflightVerdict\nre-proof: $reproofVerdict\n'
+                '$reproofNote\n'
                 'applied: ${passResult.actions.length} action(s), '
                 '$applied with file changes.',
             sourceCriterion: 'FR-007',

@@ -26,6 +26,7 @@ import 'package:path/path.dart' as p;
 
 import 'cycle_evidence.dart';
 import 'cycle_log.dart';
+import 'replay_paths.dart';
 
 /// One recorded generation step parsed from a green section's
 /// `generation:` block.
@@ -168,9 +169,18 @@ class ReplayHistory {
 
   /// The integrity stage (FR-004/FR-005): recompute the per-behavior chain
   /// over hashed entries, then structurally validate the red evidence.
+  ///
+  /// [recordedRoot] (spec 0806 FR-002): the detected root the history's
+  /// paths were anchored at on the recording machine. A red `test:` path
+  /// that does not exist locally but carries the canonical
+  /// `<recordedRoot>/./<rel>` anchor re-anchors against [projectRoot]
+  /// before the existence check — a path that still does not resolve
+  /// remains a divergence naming the recorded path (the fact). Null keeps
+  /// the 066 same-machine resolution.
   static Future<IntegrityOutcome> verifyIntegrity(
     ReplayBehavior behavior, {
     required String projectRoot,
+    String? recordedRoot,
   }) async {
     final unverified = <String>[];
     String? prevHash;
@@ -223,10 +233,15 @@ class ReplayHistory {
           unverifiedKinds: unverified,
         );
       }
-      final resolved = p.isAbsolute(testPath)
-          ? testPath
-          : p.join(projectRoot, testPath);
-      if (!await File(resolved).exists()) {
+      final resolved = ReplayPaths.resolveTestPath(
+        testPath,
+        recordedRoot: recordedRoot,
+        projectRoot: projectRoot,
+      );
+      final resolvedPath = p.isAbsolute(resolved)
+          ? resolved
+          : p.join(projectRoot, resolved);
+      if (!await File(resolvedPath).exists()) {
         return IntegrityOutcome.broken(
           reason: 'red-missing-test-artifact: $testPath',
           entryKind: 'red',

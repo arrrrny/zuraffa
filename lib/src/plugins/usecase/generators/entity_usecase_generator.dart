@@ -396,6 +396,17 @@ class EntityUseCaseGenerator {
     );
     imports.addAll(entityImports);
 
+    // Issue #942: the use case imports the entity file(s) AND the
+    // framework barrel unprefixed — an entity whose name matches a
+    // zuraffa core export (e.g. `Credentials`) makes this file fail with
+    // `ambiguous_import` errors. The generator knows the locally-imported
+    // entity symbols (the same `sigTypes` the entity imports were
+    // resolved from), so the barrel import hides exactly those symbols
+    // and the entity's own definitions win resolution. With no
+    // locally-imported entity types the hide list stays empty and the
+    // import is emitted unchanged.
+    final barrelHide = CommonPatterns.barrelHideNamesForTypes(sigTypes);
+
     if (hasService) {
       final serviceSnake = StringUtils.camelToSnake(
         sourceName.replaceAll('Service', ''),
@@ -480,7 +491,11 @@ class EntityUseCaseGenerator {
     );
     final library = const SpecLibrary().library(
       specs: [useCaseClass],
-      directives: imports.map(Directive.import),
+      directives: imports.map(
+        (uri) => uri == 'package:zuraffa/zuraffa.dart' && barrelHide.isNotEmpty
+            ? Directive.import(uri, hide: barrelHide)
+            : Directive.import(uri),
+      ),
     );
     final content = const SpecLibrary().emitLibrary(
       library,

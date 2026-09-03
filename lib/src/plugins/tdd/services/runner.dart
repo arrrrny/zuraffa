@@ -231,6 +231,69 @@ class SingleTestRunner {
     );
   }
 
+  /// Load the `file` (whole-file) command template from the TDD profile
+  /// (spec 069-corpus-economics T002: the batched verify-red lane).
+  ///
+  /// Resolution order mirrors [loadSingleTemplate]: the `file:` key in
+  /// the machine-readable Keys block first, then the human-facing
+  /// `- Whole file:` bullet. The template carries exactly one `{file}`
+  /// placeholder (the batch substitutes the first target path and
+  /// appends the rest — `dart test a_test.dart b_test.dart`).
+  /// Misfire-stop: throws [StateError] when the profile is missing or
+  /// contains no `file` command.
+  Future<String> loadFileTemplate({
+    required String workingDirectory,
+    String profilePath = defaultProfilePath,
+  }) async {
+    final raw = await _readProfile(workingDirectory, profilePath);
+
+    // 1. Machine-readable Keys block.
+    final keysBlock = RegExp(
+      r'##\s*Keys \(machine-readable\)\s*\n+```ya?ml\n(.*?)```',
+      dotAll: true,
+    ).firstMatch(raw);
+    if (keysBlock != null) {
+      final file = _firstMatchValue(
+        r'''^\s*file:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))\s*$''',
+        keysBlock.group(1)!,
+      );
+      if (file != null && file.isNotEmpty) {
+        return _normalize(file.trim());
+      }
+    }
+
+    // 1b. Legacy frontmatter YAML block.
+    final frontmatterBlock = RegExp(
+      r'^---\n([\s\S]*?)\n---',
+      dotAll: true,
+    ).firstMatch(raw);
+    if (frontmatterBlock != null) {
+      final file = _firstMatchValue(
+        r'''^\s*file:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))''',
+        frontmatterBlock.group(1)!,
+      );
+      if (file != null && file.isNotEmpty) {
+        return _normalize(file.trim());
+      }
+    }
+
+    // 2. Human-facing bullet — the first `- Whole file` line.
+    final bullet = RegExp(
+      r'-\s*Whole file[^\n]*?:\s*`([^`]+)`',
+    ).firstMatch(raw);
+    if (bullet != null && bullet.group(1)!.trim().isNotEmpty) {
+      return _normalize(bullet.group(1)!.trim());
+    }
+
+    throw StateError(
+      'zfa tdd verify-red: no `file` command template found in '
+      '${p.join(workingDirectory, profilePath)}. Add a `file:` key to '
+      'the Keys (machine-readable) block or a `- Whole file:` bullet, '
+      'then re-run (spec 069 T002: the batched red lane needs the '
+      'whole-file runner).',
+    );
+  }
+
   /// Read the raw profile contents, misfire-stopping on missing file or
   /// unreadable content.
   Future<String> _readProfile(
@@ -333,7 +396,12 @@ class SingleTestRunner {
   /// regression guard.
   ///
   /// [suiteTemplate] is the profile template (no placeholders). The
-  /// command is split on whitespace into an executable + args list.
+  /// command is split into an executable + args list; the split is
+  /// quote-aware — quote pairs wrapping a segment are stripped and the
+  /// segment stays ONE token — so a suite command carrying a path with
+  /// spaces (the scoped re-proof's quoted covering tests, spec 069 T001)
+  /// survives, the same token contract as [_tokenize] and the refactor
+  /// pass executor (bug #689).
   ///
   /// [timeout] is the hard deadline for the spawned suite process (bug
   /// #742): a hanging child is killed and the returned [SuiteRunRecord]
@@ -344,7 +412,7 @@ class SingleTestRunner {
     Duration? timeout,
   }) async {
     final command = suiteTemplate.trim();
-    final tokens = command.split(RegExp(r'\s+'));
+    final tokens = splitCommand(command);
     final executable = tokens.first;
     final args = tokens.skip(1).toList();
 
@@ -413,6 +481,44 @@ class SingleTestRunner {
       }
       return out;
     }).toList();
+  }
+
+  /// Tokenize a command line into an executable + argument list (static
+  /// so [runSuite] and callers share one contract).
+  ///
+  /// The splitter is quote-aware: quote pairs wrapping a segment are
+  /// stripped and the segment stays ONE token even when it contains
+  /// whitespace — shell quoting, not data (mirrors the refactor pass
+  /// executor's tokenizer, bug #689).
+  static List<String> splitCommand(String command) {
+    final tokens = <String>[];
+    final buffer = StringBuffer();
+    String? quote;
+    for (var i = 0; i < command.length; i++) {
+      final c = command[i];
+      if (quote != null) {
+        if (c == quote) {
+          quote = null;
+        } else {
+          buffer.write(c);
+        }
+        continue;
+      }
+      if (c == '"' || c == "'") {
+        quote = c;
+        continue;
+      }
+      if (c.trim().isEmpty) {
+        if (buffer.isNotEmpty) {
+          tokens.add(buffer.toString());
+          buffer.clear();
+        }
+        continue;
+      }
+      buffer.write(c);
+    }
+    if (buffer.isNotEmpty) tokens.add(buffer.toString());
+    return tokens;
   }
 
   /// Escape regex metacharacters so a string is matched literally by a

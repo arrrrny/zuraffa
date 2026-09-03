@@ -459,7 +459,9 @@ Failing tests:
   });
 
   group('RedClassification model (T003)', () {
-    test('exposes exactly the seven spec classes with kebab labels', () {
+    test('exposes exactly the eight spec classes with kebab labels', () {
+      // The eighth class (kind-mismatch, issue #964): the observed red
+      // came from a finder whose kind does not match the scenario verb.
       expect(RedClassification.values.map((c) => c.label), [
         'assertion',
         'compile-error',
@@ -468,6 +470,7 @@ Failing tests:
         'unexpected-green',
         'runner-error',
         'channel-timeout',
+        'kind-mismatch',
       ]);
     });
 

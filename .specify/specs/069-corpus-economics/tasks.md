@@ -34,3 +34,7 @@
 - Run `/speckit.tdd.verify` against the full spec
 - Generate `tdd/verification.md` from real run
 - Commit and open PR
+## T007: Measure the acceptance targets on a real corpus (remediation from /speckit.tdd.verify)
+- Run the full corpus lane on a real >=120-spec corpus on Intel-Mac-class hardware
+- Gate on the budget-telemetry verdict's wall_clock_ms (<= 30 min full lane, <= 10 min per shard lane)
+- Replace the projected acceptance numbers in specs/069-corpus-economics/tdd/verification.md with the measured ones

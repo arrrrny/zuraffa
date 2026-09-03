@@ -277,8 +277,33 @@ class DataSourceInterfaceBuilder {
       }
     }
 
+    // Issue #942: the datasource imports the entity file AND the
+    // framework barrel unprefixed. When the entity's name matches a
+    // zuraffa core export, the two symbols collide and the generated file
+    // fails with `ambiguous_import` errors. The generator knows the
+    // entity's own symbols, so the barrel import hides exactly those
+    // symbols and the entity's own definitions win resolution. With no
+    // locally-imported entity types the hide list stays empty and the
+    // import is emitted unchanged.
+    final barrelHide = <String>{
+      if (config.repo == null &&
+          fileSystem.existsSync(
+            path.join(
+              outputDir,
+              'domain',
+              'entities',
+              entitySnake,
+              '$entitySnake.dart',
+            ),
+          ))
+        ...EntityUtils.barrelHideNames(entityName),
+      if (config.isCustomUseCase && config.returnsType != null)
+        for (final type in EntityUtils.extractEntityTypes(config.returnsType!))
+          ...EntityUtils.barrelHideNames(type),
+    }.toList();
+
     final directives = <Directive>[
-      Directive.import('package:zuraffa/zuraffa.dart'),
+      Directive.import('package:zuraffa/zuraffa.dart', hide: barrelHide),
       if (config.repo == null &&
           fileSystem.existsSync(
             path.join(

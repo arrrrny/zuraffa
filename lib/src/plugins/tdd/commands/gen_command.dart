@@ -146,6 +146,19 @@ class GenCommand extends Command<void> {
       defaultsTo: false,
       negatable: false,
     );
+    argParser.addFlag(
+      'all',
+      negatable: false,
+      help:
+          'Batch generation (spec 069 T002): generate EVERY pending row '
+          'of the feature\'s test list — or every feature\'s rows when '
+          '--feature is omitted — in ONE invocation (one process, one '
+          'registry pass per feature). Pairs with `zfa tdd verify-red '
+          '--all` to collapse the per-behavior test spawns of the '
+          'batched lineage. A refusing row stops the batch honestly at '
+          'that row (already-written pairs stay registered; a re-run is '
+          'idempotent).',
+    );
     argParser.addOption(
       'feature',
       help:
@@ -203,10 +216,18 @@ class GenCommand extends Command<void> {
   @override
   Future<void> run() async {
     final rest = argResults?.rest ?? const <String>[];
-    if (rest.isEmpty) {
+    final all = argResults!['all'] as bool;
+    if (all) {
+      if (rest.isNotEmpty) {
+        usageException(
+          'zfa tdd gen --all takes no behavior id — it drives every row '
+          'of the test list (drop "${rest.first}" or drop --all).',
+        );
+      }
+    } else if (rest.isEmpty) {
       usageException('Behavior id is required: zfa tdd gen <behavior-id>');
     }
-    final behaviorId = rest.first;
+    final behaviorId = rest.isEmpty ? null : rest.first;
     final dryRun = argResults!['dry-run'] as bool;
     final adopt = argResults!['adopt'] as bool;
     // Bug #830: explicit subject-kind override and the widget-only golden
@@ -253,10 +274,25 @@ class GenCommand extends Command<void> {
     // and an abandoned continuation (Dart futures cannot be cancelled)
     // aborts at its next stage boundary instead of silently completing
     // writes or the registry append after the timeout was reported.
+    // (The `--all` batch builds one such deadline PER ROW from the same
+    // budget — see _generateAll; the single-flow contract is unchanged.)
     final deadline = _FlowDeadline(budget);
     try {
+      if (all) {
+        await _generateAll(
+          dryRun: dryRun,
+          adopt: adopt,
+          kindOverride: kindOverride,
+          golden: golden,
+          featureFlag: featureFlag,
+          cwd: cwd,
+          widgetShell: widgetShell,
+          budget: budget,
+        );
+        return;
+      }
       await _generate(
-        behaviorId,
+        behaviorId!,
         dryRun: dryRun,
         adopt: adopt,
         kindOverride: kindOverride,
@@ -273,7 +309,8 @@ class GenCommand extends Command<void> {
       // "Bad state:" exception noise from the runner's generic handler.
       print(
         'zfa tdd gen: timeout after ${formatTddTimeout(budget)} — '
-        'behavior=$behaviorId step=${e.stage} outcome=timeout',
+        'behavior=${behaviorId ?? '(batch)'} step=${e.stage} '
+        'outcome=timeout',
       );
       print(
         '   a gen stage exceeded its wall-clock deadline and was stopped '
@@ -285,10 +322,233 @@ class GenCommand extends Command<void> {
     }
   }
 
+  /// Spec 069 T002: the batched generation flow — enumerate every row of
+  /// the target feature (or all features, alphabetical, when --feature
+  /// is omitted) and drive each through the SAME deadline-bounded
+  /// per-behavior flow, one deadline PER ROW built from the same
+  /// per-flow budget (a shared batch-wide deadline would cap the whole
+  /// batch at one flow's budget; the single-flow contract is unchanged).
+  /// One process; a refusing row stops the batch honestly AT that row
+  /// (its predecessors stay written + registered — a re-run is
+  /// idempotent). The batch verdict JSON is the FINAL stdout line.
+  Future<void> _generateAll({
+    required bool dryRun,
+    required bool adopt,
+    required BehaviorKind? kindOverride,
+    required bool golden,
+    required String? featureFlag,
+    required String cwd,
+    required WidgetAppShell widgetShell,
+    required Duration budget,
+  }) async {
+    // Resolve the target rows: (featureDir, featureName, behaviorId) in
+    // list order (feature order alphabetical when unscoped).
+    final specsDir = Directory('$cwd/specs');
+    final targets = <(String, String, String)>[];
+
+    var readable = true;
+    if (featureFlag != null && featureFlag.isNotEmpty) {
+      readable = await _tryReadTestList(
+        '$cwd/specs/$featureFlag',
+        featureFlag,
+        targets,
+      );
+    } else {
+      final dirs = <Directory>[];
+      if (await specsDir.exists()) {
+        await for (final entity in specsDir.list()) {
+          if (entity is Directory) dirs.add(entity);
+        }
+      }
+      dirs.sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
+      for (final dir in dirs) {
+        final featureName = p.basename(dir.path);
+        final testList = File('${dir.path}/tdd/test-list.md');
+        if (!await testList.exists()) continue;
+        if (!await _tryReadTestList(dir.path, featureName, targets)) {
+          readable = false;
+          break;
+        }
+      }
+    }
+    if (!readable) {
+      _printBatchVerdict(
+        feature: featureFlag,
+        behaviors: targets.length,
+        verdict: 'stopped',
+        stoppedAt: null,
+        counts: const {},
+      );
+      exitCode = 1;
+      return;
+    }
+
+    if (targets.isEmpty) {
+      print(
+        'zfa tdd gen --all: no behaviors found'
+        '${featureFlag != null && featureFlag.isNotEmpty ? " for feature $featureFlag" : " in any test list"}'
+        ' — nothing to generate.',
+      );
+      _printBatchVerdict(
+        feature: featureFlag,
+        behaviors: 0,
+        verdict: 'empty',
+        stoppedAt: null,
+        counts: const {},
+      );
+      return;
+    }
+
+    final featureCount = targets.map((t) => t.$2).toSet().length;
+    print(
+      'zfa tdd gen --all: ${targets.length} behavior(s) '
+      '${featureFlag != null && featureFlag.isNotEmpty ? "for feature $featureFlag" : "across $featureCount feature(s)"} '
+      '(spec 069 T002 batch)',
+    );
+
+    final counts = <String, int>{};
+    String? stoppedAt;
+    var driven = 0;
+    for (final (_, featureName, id) in targets) {
+      final before = exitCode;
+      String? verdictToken;
+      // The deadline is PER ROW: the budget is one gen flow's budget, so
+      // every row gets its own fresh deadline from the same value
+      // instead of the rows sharing (and exhausting) one deadline.
+      final rowDeadline = _FlowDeadline(budget);
+      // The per-behavior flow re-resolves the row by id inside the
+      // feature's test list (featureDir resolved by _generate).
+      try {
+        verdictToken = await _generate(
+          id,
+          dryRun: dryRun,
+          adopt: adopt,
+          kindOverride: kindOverride,
+          golden: golden,
+          featureFlag: featureName,
+          cwd: cwd,
+          widgetShell: widgetShell,
+          deadline: rowDeadline,
+        );
+      } on StateError {
+        // A refusal already printed its per-behavior verdict JSON and
+        // set exitCode — stop the batch AT this row, honestly.
+        stoppedAt = id;
+        break;
+      } on TestListReadException catch (e) {
+        stderr.writeln('zfa tdd gen: ${e.message}');
+        stoppedAt = id;
+        break;
+      } on UsageException catch (e) {
+        // A usage error in one row (e.g. --golden on a non-widget row)
+        // must not escape the batch to CliRunner (exit 64) — the row is
+        // the honest stop point and the batch verdict JSON still prints.
+        stderr.writeln('zfa tdd gen: ${e.message}');
+        stoppedAt = id;
+        break;
+      } on _GenFlowTimeout {
+        print(
+          'zfa tdd gen: timeout after ${formatTddTimeout(budget)} — '
+          'batch stopped at behavior=$id',
+        );
+        stoppedAt = id;
+        break;
+      }
+      if (exitCode != before) {
+        // A refusing path that returned (not threw): stop at this row.
+        stoppedAt = id;
+        break;
+      }
+      driven++;
+      if (verdictToken != null) {
+        counts[verdictToken] = (counts[verdictToken] ?? 0) + 1;
+      }
+      if (rowDeadline.expired) {
+        stoppedAt = id;
+        print(
+          'zfa tdd gen: timeout after ${formatTddTimeout(budget)} — '
+          'batch stopped at behavior=$id',
+        );
+        break;
+      }
+    }
+
+    final batchVerdict = stoppedAt != null
+        ? 'stopped'
+        : (counts['created'] ?? 0) > 0
+        ? 'created'
+        : (counts['adopted'] ?? 0) > 0
+        ? 'adopted'
+        : (counts['reused'] ?? 0) > 0
+        ? 'reused'
+        : (counts['planned'] ?? 0) > 0
+        ? 'planned'
+        : 'empty';
+    _printBatchVerdict(
+      feature: featureFlag,
+      behaviors: driven,
+      verdict: batchVerdict,
+      stoppedAt: stoppedAt,
+      counts: counts,
+    );
+    if (stoppedAt != null || exitCode != 0) {
+      exitCode = 1;
+    }
+  }
+
+  /// Collect every test-list row of [featureDir] into [targets]
+  /// ((featureDir, featureName, id) tuples). Returns false — the honest
+  /// stop signal — when the list is unreadable/malformed.
+  Future<bool> _tryReadTestList(
+    String featureDir,
+    String featureName,
+    List<(String, String, String)> targets,
+  ) async {
+    final reader = TestListReader(featureDir);
+    try {
+      for (final row in await reader.read()) {
+        targets.add((featureDir, featureName, row.id));
+      }
+      return true;
+    } on TestListReadException catch (e) {
+      // FR-011: a malformed list stops honestly naming the line —
+      // never silently skipped.
+      stderr.writeln('zfa tdd gen: ${e.message}');
+      return false;
+    }
+  }
+
+  /// The batch's machine-readable JSON verdict — the FINAL stdout line
+  /// (the per-behavior verdicts print above it).
+  void _printBatchVerdict({
+    required String? feature,
+    required int behaviors,
+    required String verdict,
+    required String? stoppedAt,
+    required Map<String, int> counts,
+  }) {
+    print(
+      jsonEncode({
+        'command': 'gen',
+        'batch': true,
+        if (feature != null && feature.isNotEmpty) 'feature': feature,
+        'behaviors': behaviors,
+        'created': counts['created'] ?? 0,
+        'reused': counts['reused'] ?? 0,
+        'adopted': counts['adopted'] ?? 0,
+        'planned': counts['planned'] ?? 0,
+        'verdict': verdict,
+        'stopped_at': ?stoppedAt,
+      }),
+    );
+  }
+
   /// The deadline-bounded flow body, verbatim the pre-#744 contract:
   /// resolve → preflight → write → register → (staleness check) → print.
-  /// Every awaited stage is bounded by [run]'s shared deadline.
-  Future<void> _generate(
+  /// Every awaited stage is bounded by [deadline] — the single flow's
+  /// deadline from `run`, or the current row's own deadline in the
+  /// `--all` batch.
+  Future<String?> _generate(
     String behaviorId, {
     required bool dryRun,
     required bool adopt,
@@ -423,7 +683,7 @@ class GenCommand extends Command<void> {
       // House pattern (spec 048 / bug #840): signal through exitCode and
       // return, so the JSON verdict stays the final stdout line.
       exitCode = 1;
-      return;
+      return 'refused';
     }
 
     // Compute paths. Bug #827: the artifacts are namespaced by feature-slug
@@ -585,7 +845,7 @@ class GenCommand extends Command<void> {
               'feature\'s artifacts to the namespaced layout',
         );
         exitCode = 1;
-        return;
+        return 'foreign-owned';
       }
       for (final (role, path, shaped) in [
         ('test', testPath, matchesGeneratedTestShape),
@@ -605,7 +865,7 @@ class GenCommand extends Command<void> {
           // House pattern (spec 048): signal through exitCode and return,
           // so the JSON verdict stays the final stdout line (bug #840).
           exitCode = 1;
-          return;
+          return 'refused';
         }
         adoptedPaths.add(path);
       }
@@ -755,23 +1015,26 @@ class GenCommand extends Command<void> {
     }
     // Bug #840: the machine-readable JSON verdict — the final stdout line
     // on every gen path.
+    final verdictToken = adoptedPaths.isNotEmpty
+        ? 'adopted'
+        : dryRun
+        ? 'planned'
+        : record.testOwnership == Ownership.reused
+        ? 'reused'
+        : 'created';
     _printVerdict(
       behaviorId: record.behaviorId,
       kind: effectiveBehavior.kind.name,
       golden: golden,
-      verdict: adoptedPaths.isNotEmpty
-          ? 'adopted'
-          : dryRun
-          ? 'planned'
-          : record.testOwnership == Ownership.reused
-          ? 'reused'
-          : 'created',
+      verdict: verdictToken,
       adopted: adoptedPaths,
       created: createdPaths,
       featureName: featureName,
       goldenTestPath: goldenPaths?.laneTestPath,
       goldenFixturesDir: goldenPaths?.fixturesDir,
     );
+    // Spec 069 T002: the token feeds the batch's created/reused counts.
+    return verdictToken;
   }
 
   /// Emit the machine-readable JSON verdict (bug #840): the LAST stdout

@@ -23,15 +23,12 @@
 ///   5. Executes the plan via [PipelineRunner], capturing every
 ///      invocation as a [GenerationStep] (FR-006). Misfire-stop on
 ///      unexpressible behaviors (US4) or failing generation steps
-///      (US4.AC2) — with one per-behavior guard (issue #737): a
-///      failure of the plan's TERMINAL `build` step is tolerated when
-///      the CURRENT behavior's own test passes (the profile `single`
-///      command) after the generation steps ran. The build step
-///      validates the whole project, so it can fail on pre-existing
-///      red suite state the make is not responsible for; grading the
-///      behavior per-behavior (the #694 skip transition,
-///      `outcome=skipped`) instead of `generation-error` keeps
-///      `zfa tdd run` off a false negative.
+///      (US4.AC2) — with one per-behavior guard (issue #737, amended by
+///      issue #942): a failure of the plan's TERMINAL `build` step is
+///      tolerated when the CURRENT behavior's own test passes (the
+///      profile `single` command) AND the failed build's output carries
+///      no analyzer errors — a non-compiling generated tree is not
+///      tolerable noise and keeps the honest `generation-error` stop.
 ///   6. Runs the target test via the profile `single` command and
 ///      requires a PASS (FR-007). Then requires no NEW suite failures
 ///      that are attributable to this make, relative to a pre-run
@@ -74,6 +71,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/generation_plan.dart';
 import '../models/red_classification.dart';
+import '../models/routing.dart';
 import '../services/artifact_registry.dart';
 import '../services/composition_planner.dart';
 import '../services/composition_targets.dart';
@@ -83,12 +81,14 @@ import '../services/generation_planner.dart';
 import '../services/pipeline_runner.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/runner.dart';
+import '../services/spec_parser.dart';
 import '../services/test_list_reader.dart';
 import '../services/suite_guard.dart';
 import '../services/tdd_timeout.dart';
 import '../services/widget_scaffold.dart';
 import '../tdd_plugin.dart';
 import '../../../cli/plugin_loader.dart';
+import '../../../commands/build_command.dart' show BuildCommand;
 import '../../../config/zfa_config.dart';
 import '../../../core/plugin_system/plugin_manager.dart';
 import '../../../core/plugin_system/plugin_registry.dart';
@@ -152,6 +152,15 @@ class MakeCommand extends Command<void> {
           'running the full suite, and certifies the post-generation guard '
           'from the scoped single-test result — falling back to the live '
           'suite when the cache is missing, corrupt, or unparseable.',
+    );
+    argParser.addFlag(
+      'strict-routing',
+      help:
+          'Refuse undeclared routing intent (no `**Type**` marker, contract '
+          'trace, or kind declaration) instead of falling back to the legacy '
+          'description-keyed branches and the composition fallback '
+          '(feature 071, issue #951).',
+      negatable: false,
     );
     argParser.addFlag(
       'stub',
@@ -444,7 +453,10 @@ class MakeCommand extends Command<void> {
     var postRun = driftRun;
     // Issue #737: set when the plan's terminal `build` step failed but
     // the per-behavior guard tolerated it (the behavior's own test
-    // passes) — the make then takes the #694 skip transition.
+    // passes, and the failed build's output carried no analyzer errors
+    // — the issue #942 gate) — the make then records the honest
+    // `green-with-failed-build` outcome instead of conflating the
+    // failure with real green.
     var buildStepTolerated = false;
     if (!alreadyGreen) {
       // 6. Plan the minimal generation (FR-005). The row's loop kind
@@ -457,6 +469,24 @@ class MakeCommand extends Command<void> {
       // pre-#835 behavior) with a note instead of a silent guess.
       final rowKind = await _rowKind(target.featureDir, record.behaviorId);
       final isStub = argResults?['stub'] as bool? ?? false;
+      final strictRouting = argResults?['strict-routing'] as bool? ?? false;
+      // Round-2 review fix 3b: a MALFORMED spec (the parser's
+      // StateError refusals) refuses the make — the same surfacing
+      // path as a pipeline resolution error — instead of silently
+      // routing on empty declarations (the #920 regression class).
+      final SpecDeclarations declarations;
+      try {
+        declarations = await _declarationsFor(target.featureDir);
+      } on StateError catch (e) {
+        print('zfa tdd make: declaration refused — ${e.message}');
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.runnerError,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
       final summary = BehaviorSummary.fromRecord(
         record,
         description: _descriptionFor(record),
@@ -467,6 +497,9 @@ class MakeCommand extends Command<void> {
         ),
         kind: rowKind,
         stub: isStub,
+        strictRouting: strictRouting,
+        traces: await _rowTraces(target.featureDir, record.behaviorId),
+        declarations: declarations,
       );
       final plan = planner.plan(summary);
       GenerationPlan effectivePlan;
@@ -500,6 +533,26 @@ class MakeCommand extends Command<void> {
         // acceptance prose with zero composable anchors (FR-009),
         // report `unexpressible` exactly as before.
         // ---------------------------------------------------------
+        // Feature 071 strict gate: under --strict-routing a resolver
+        // refusal (errors-are-an-API: the reason carries `--> fix:`) is
+        // the honest stop — the composition fallback (legacy lanes)
+        // must not engage. Declared widget rows still route to the view
+        // lane: their unexpressible plan is the ROUTING (the #950/#939
+        // contract), not a strict failure.
+        if (summary.strictRouting &&
+            (plan.unexpressibleReason ?? '').contains('--> fix:')) {
+          print(
+            'zfa tdd make: cannot plan a generation for behavior '
+            '"${record.behaviorId}". ${plan.unexpressibleReason}',
+          );
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: MakeOutcome.unexpressible,
+            feature: target.featureName,
+          );
+          exitCode = 1;
+          return;
+        }
         final composed = await _compositionFallback(
           cwd: cwd,
           record: record,
@@ -656,7 +709,8 @@ class MakeCommand extends Command<void> {
           print(
             "   per-behavior check: the behavior's own test passes — the "
             'build failure is not attributable to this make (issue #737 '
-            'per-behavior guard); taking the #694 skip transition.',
+            'per-behavior guard); recording it as green-with-failed-build '
+            '(issue #942).',
           );
           postRun = toleratedRun;
           buildStepTolerated = true;
@@ -851,7 +905,9 @@ class MakeCommand extends Command<void> {
     );
     _printSummary(
       behavior: record.behaviorId,
-      outcome: alreadyGreen || buildStepTolerated
+      outcome: buildStepTolerated
+          ? MakeOutcome.greenWithFailedBuild
+          : alreadyGreen
           ? MakeOutcome.skipped
           : MakeOutcome.green,
       feature: target.featureName,
@@ -888,6 +944,50 @@ class MakeCommand extends Command<void> {
       );
     }
     return null;
+  }
+
+  /// Feature 071: the behavior's raw trace tokens from its test-list
+  /// row (`traces:` cell) — the resolver resolves these against
+  /// declared contract rows. Empty when the row is missing. Tokens are
+  /// split by [SpecParser.traceTokens], so a backticked inline
+  /// signature never splits mid-declaration and signature-shaped
+  /// tokens never dangle (round-2 review fix 2).
+  Future<List<String>> _rowTraces(String featureDir, String behaviorId) async {
+    try {
+      for (final row in await TestListReader(featureDir).read()) {
+        if (row.id != behaviorId) continue;
+        return SpecParser.traceTokens(row.traces);
+      }
+    } on TestListReadException {
+      // unreadable list: kindless/traceless routing, as pre-#835
+    }
+    return const [];
+  }
+
+  /// Feature 071: the spec's parsed routing declarations (markers,
+  /// contract rows, persistence). A MISSING or UNREADABLE spec yields
+  /// EMPTY declarations — the resolver still runs, so under
+  /// --strict-routing everything is honestly undeclared (refusal), and
+  /// in the fallback window the legacy branches route unchanged. A
+  /// MALFORMED spec (the parser's StateError refusals) propagates to
+  /// the caller (round-2 review fix 3b): swallowing it would route a
+  /// declared behavior on legacy prose — the #920 regression class.
+  Future<SpecDeclarations> _declarationsFor(String featureDir) async {
+    final specFile = File('$featureDir/spec.md');
+    if (!specFile.existsSync()) return const SpecDeclarations();
+    final String specMd;
+    try {
+      specMd = specFile.readAsStringSync();
+    } on FileSystemException {
+      return const SpecDeclarations(); // unreadable file: empty declarations
+    }
+    return SpecDeclarations(
+      scenarios: SpecParser.parseScenarioTypeMarkers(specMd),
+      contractRows: {
+        for (final r in const SpecParser().parseContractRows(specMd)) r.name: r,
+      },
+      persistence: SpecParser.parsePersistenceDeclarations(specMd),
+    );
   }
 
   /// The composition fallback for an unexpressible plan (issue #642, spec
@@ -1007,6 +1107,11 @@ class MakeCommand extends Command<void> {
   ///     failure means real generation work never ran — no tolerance);
   ///   - that step is a `build` step (the #737 scope: the make plan's
   ///     build/guard logic only);
+  ///   - the failed step's output carries NO analyzer ERRORS (issue
+  ///     #942): `dart analyze` error lines mean the generated tree does
+  ///     not compile — the behavior test can pass only because nothing
+  ///     exercises the broken files. Tolerating that would green-wash
+  ///     the make; the honest stop stands instead;
   ///   - the CURRENT behavior's own test — the profile `single`
   ///     command, e.g. `dart test test/tdd/u3_test.dart` — runs and
   ///     passes right now (the same per-behavior check the TDD loop is
@@ -1028,6 +1133,22 @@ class MakeCommand extends Command<void> {
     if (idx < 0 || idx != plan.steps.length - 1) return null;
     final args = plan.steps[idx].args;
     if (args.isEmpty || args.first != 'build') return null;
+    // Issue #942: a failed build whose analyze stage reports ERRORS is
+    // not tolerable noise — the generated tree does not compile. The
+    // behavior's own test passing proves nothing here (nothing may
+    // exercise the broken files), so the tolerance must refuse and keep
+    // the honest `generation-error` stop. Warnings/info/build-config
+    // noise still tolerable (the #737 scope).
+    final buildOutput = result.steps[idx].output;
+    if (BuildCommand.analyzeReportsError(buildOutput)) {
+      final errorLines = BuildCommand.countAnalyzerErrors(buildOutput);
+      print(
+        '   terminal build step failed with $errorLines analyzer error(s) '
+        '— a non-compiling generated tree is not tolerable noise '
+        '(issue #942): the per-behavior guard refuses the tolerance.',
+      );
+      return null;
+    }
     final run = await runner.runSingle(
       singleTemplate: singleTemplate,
       testPath: testPath,

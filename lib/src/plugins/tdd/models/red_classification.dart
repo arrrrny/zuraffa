@@ -1,6 +1,6 @@
-/// `RedClassification` + `RunRecord` — the seven-way outcome of a
+/// `RedClassification` + `RunRecord` — the eight-way outcome of a
 /// `zfa tdd verify-red` run (spec 046-tdd-verify-red, FR-004, T003;
-/// seventh class added by issue #831).
+/// seventh class added by issue #831, eighth by issue #964).
 ///
 /// Exactly one class per run. `assertion` is the only class that
 /// certifies honest red; every other class is a rejection with a
@@ -61,6 +61,23 @@ enum RedClassification {
         'fake and its committed scenario with `zfa tdd fake <channel> '
         '--behavior <behavior-id>`, extend the scenario script, then '
         're-run `zfa tdd verify-red <behavior-id>`',
+  ),
+
+  /// The observed red came from a finder whose KIND does not match the
+  /// scenario verb (issue #964): e.g. a navigation scenario whose only
+  /// assertions are presence-of-text, so a static `Column` of `Text`
+  /// widgets satisfies the scenario while nothing navigates. The failure
+  /// may be honest, but it is IRRELEVANT to the scenario — certifying it
+  /// would be the certified lie the finder-kind taxonomy exists to kill.
+  /// Never evidence; the pair must be regenerated with verb-matched
+  /// assertions.
+  kindMismatch(
+    'kind-mismatch',
+    "the test's assertion kinds do not match the scenario verb (issue "
+        '#964) — regenerate the pair with `zfa tdd gen <behavior-id>` so '
+        'the emitted assertions carry the scenario\'s kinds (route '
+        'outcome / absence / enabled-state), then re-run `zfa tdd '
+        'verify-red <behavior-id>`',
   );
 
   const RedClassification(this.label, this.remediationHint);

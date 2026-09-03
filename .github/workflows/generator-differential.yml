@@ -20,6 +20,11 @@ on:
       - 'corpus/**'
       - '.github/workflows/generator-differential.yml'
   workflow_dispatch:
+    inputs:
+      baseline_ref:
+        description: 'Baseline ref to compare against (e.g. origin/master)'
+        required: false
+        default: ''
 
 jobs:
   differential:
@@ -32,6 +37,10 @@ jobs:
           # Full history so the base ref resolves and its worktree can
           # be materialized.
           fetch-depth: 0
+          # Do not persist credentials so subsequent steps cannot access them.
+          persist-credentials: false
+          # Compare against the PR head, falling back to github.sha.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Configuring Dart environment
         uses: dart-lang/setup-dart@v1
@@ -41,10 +50,10 @@ jobs:
       - name: "Get dependencies (head)"
         run: dart pub get --no-example
 
-      - name: "Generator differential: origin/base vs HEAD"
+      - name: "Generator differential: baseline vs head"
         run: |
           dart run bin/zfa.dart tdd corpus differential \
-            --from "origin/${{ github.base_ref }}" \
+            --from "${{ inputs.baseline_ref || github.event.inputs.baseline_ref || format('origin/{0}', github.base_ref) }}" \
             --to HEAD \
             --budget 240
 

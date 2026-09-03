@@ -126,6 +126,7 @@ lib/src/
 | [Integrations](integrations.md) | MCP server, GraphQL, Zed extension, OpenTelemetry |
 | [Operations](operations.md) | Configuration, debugging, CI/CD, caching, sync, migration |
 | [Plugin Development](plugin-development.md) | Plugin API, lifecycle, capability system, development checklist |
+| [TDD Declared Routing](tdd-declared-routing.md) | How `zfa tdd` routes behaviors from spec declarations (markers, contract traces), provenance, `--strict-routing` |
 
 ## Key References
 
