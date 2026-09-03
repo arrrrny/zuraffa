@@ -1,113 +1,104 @@
-# Implementation Plan: [FEATURE]
+# Implementation Plan: Declared-Intent Routing (eliminate keyword-based matching)
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
+**Branch**: `071-declared-intent-routing` | **Date**: 2026-09-03 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
-
-**Note**: This template is filled in by the `/skill:speckit-plan` command; its definition describes the execution workflow.
+**Input**: Feature specification from `/specs/071-declared-intent-routing/spec.md`
 
 ## Summary
 
-[Extract from feature spec: primary requirement + technical approach from research]
+Route behavior classification and generation exclusively from **declarations in the
+spec** (scenario-type markers, contract-row traces, declared signatures, persistence
+declarations) instead of semantic keyword matching over prose. The five keyword
+sniffers (UI-intent lane classifier, function-verb surface selector, persistence
+keywords, entity-name extraction, signature inference) are demoted to **named
+fallbacks** during a migration window and removed in **strict mode**; every routing
+decision emits per-behavior provenance naming the declaration (or fallback + spec
+line) it consulted. Deletes the #936/#950/#920/#696-#873/#833 defect class at the
+root.
 
 ## Technical Context
 
-<!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
--->
+**Language/Version**: Dart 3.13 (stable; SDK constraint ^3.11.0)
 
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]
+**Primary Dependencies**: package:test (dev), package:path, package:args (CLI parsing)
 
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
+**Storage**: N/A (spec/test-list artifacts are files under the target project's `specs/<feature>/`)
 
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
+**Testing**: `dart test` (fast tier default; slow tiers tagged, presets in dart_test.yaml). TDD profile: `.specify/memory/tdd-profile.md`
 
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]
+**Target Platform**: CLI (macOS/Linux/Windows developer machines)
 
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
+**Project Type**: library + CLI (pure-Dart root package, Flutter-independent)
 
-**Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]
+**Performance Goals**: routing decision per behavior < 1ms (pure in-process resolution); plan command output unchanged in latency
 
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]
+**Constraints**: no Flutter SDK dependency; must not change behavior for existing valid specs during the fallback window (SC-005); structural grammar parsing untouched (FR-012)
 
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]
-
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+**Scale/Scope**: 5 sniffers replaced across 4 service files + 2 commands; template v1.1 declarations; new routing-resolver service; provenance output; strict flag
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+The project constitution (`.specify/memory/constitution.md`) is an unfilled template
+(no ratified principles), so no project-specific gates apply. The feature is checked
+against the issue's own declared principles, which the spec encodes:
+
+- **Declared structures, not prose mining** (issue #951 principle; #919 precedent): PASS — routing reads only declared spec structure; structural grammars preserved (FR-012).
+- **Errors-are-an-API** (VISION §4): PASS — conflicts, dangling references, malformed rows, and strict-mode misses refuse naming the spec line (FR-011, FR-010).
+- **Test-first (TDD profile)**: PASS — the delivery runs through the red-green loop (spec-whole pipeline); profile present.
 
 ## Project Structure
 
 ### Documentation (this feature)
 
 ```text
-specs/[###-feature]/
-├── plan.md              # This file (/skill:speckit-plan command output)
-├── research.md          # Phase 0 output (/skill:speckit-plan command)
-├── data-model.md        # Phase 1 output (/skill:speckit-plan command)
-├── quickstart.md        # Phase 1 output (/skill:speckit-plan command)
-├── contracts/           # Phase 1 output (/skill:speckit-plan command)
-└── tasks.md             # Phase 2 output (/skill:speckit-tasks command - NOT created by /skill:speckit-plan)
+specs/071-declared-intent-routing/
+├── plan.md              # This file
+├── research.md          # Phase 0 output: routing-design decisions
+├── data-model.md        # Phase 1 output: declarations, decisions, provenance
+├── quickstart.md        # Phase 1 output: end-to-end validation guide
+├── contracts/           # Phase 1 output: CLI + template + resolver contracts
+│   ├── cli-routing.md
+│   ├── template-declarations.md
+│   └── routing-resolver.md
+└── tasks.md             # Phase 2 output (/skill:speckit-tasks)
 ```
 
 ### Source Code (repository root)
-<!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
--->
 
 ```text
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
-src/
+lib/src/plugins/tdd/
 ├── models/
+│   └── behavior.dart                      # BehaviorKind (exists), + routing provenance record
 ├── services/
-├── cli/
-└── lib/
+│   ├── spec_parser.dart                   # uiAcceptanceIntent sniffer (demote); + scenario marker/trace parsing
+│   ├── generation_planner.dart            # functionIntentVerbs + entity extractors (demote); consult resolver first
+│   ├── test_list_reader.dart              # PersistenceMarker.keywords (demote); + persistence declarations
+│   ├── subject_signature_deriver.dart     # prose signature inference (demote); declared signatures first
+│   └── routing_resolver.dart              # NEW: declaration ladder -> RoutingDecision (+ provenance)
+├── commands/
+│   ├── plan_command.dart                  # emit per-behavior provenance; --strict-routing
+│   ├── func_command.dart                  # declared signature first, deriver as fallback
+│   └── make_command.dart                  # planner already consumes kind; wire resolver reason through
 
-tests/
-├── contract/
-├── integration/
-└── unit/
-
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
-backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
-
-frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
-
-# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
-
-ios/ or android/
-└── [platform-specific structure: feature modules, UI flows, platform tests]
+test/plugins/tdd/
+├── services/
+│   ├── routing_resolver_test.dart         # NEW: ladder, conflicts, dangling refs, provenance
+│   ├── spec_parser_declarations_test.dart # marker + contract-trace parsing
+│   └── ... (existing suites keep green)
+└── commands/
+    └── plan_routing_provenance_test.dart  # NEW: provenance lines + strict refusal
 ```
 
-**Structure Decision**: [Document the selected structure and reference the real
-directories captured above]
+**Structure Decision**: Single-project layout (existing). All work lands in the tdd
+plugin's existing service/command files plus one new resolver service and its tests —
+no new packages, no new top-level trees.
 
 ## Complexity Tracking
 
-> **Fill ONLY if Constitution Check has violations that must be justified**
+> No constitution violations to justify — table intentionally empty.
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+| (none) | | |
