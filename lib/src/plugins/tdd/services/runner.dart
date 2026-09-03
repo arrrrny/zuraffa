@@ -380,6 +380,60 @@ class SingleTestRunner {
     }
   }
 
+  /// Run the suite SCOPED to explicit test file paths (spec
+  /// 069-corpus-economics T001: the incremental refactor re-proof).
+  ///
+  /// The suite template stays the operator's contract — the scoped
+  /// paths are APPENDED as trailing arguments so a `dart test` suite
+  /// runs exactly those files in ONE spawn (the compile happens once
+  /// for the batch instead of once per behavior). Spy/scripted suite
+  /// templates (tests) observe the paths in their argv log.
+  ///
+  /// [testPaths] are project-RELATIVE paths resolved against
+  /// [workingDirectory]. Timeout semantics mirror [runSuite].
+  Future<SuiteRunRecord> runScopedSuite({
+    required String suiteTemplate,
+    required List<String> testPaths,
+    required String workingDirectory,
+    Duration? timeout,
+  }) async {
+    final tokens = suiteTemplate.trim().split(RegExp(r'\s+'));
+    final executable = tokens.first;
+    final args = [...tokens.skip(1), ...testPaths];
+    final command = [...tokens, ...testPaths].join(' ');
+
+    try {
+      final result = await runTimed(
+        executable,
+        args,
+        workingDirectory: workingDirectory,
+        timeout: timeout ?? TddTimeouts.defaultSuite,
+      );
+      final output = '${result.stdout}${result.stderr}';
+      return SuiteRunRecord(
+        command: command,
+        exitCode: result.exitCode,
+        output: output,
+        startedProcess: true,
+      );
+    } on ProcessTimeoutException catch (e) {
+      return SuiteRunRecord(
+        command: command,
+        exitCode: -1,
+        output: e.toString(),
+        startedProcess: true,
+        timedOut: true,
+      );
+    } on ProcessException catch (e) {
+      return SuiteRunRecord(
+        command: command,
+        exitCode: -1,
+        output: 'Failed to start "$executable": $e',
+        startedProcess: false,
+      );
+    }
+  }
+
   /// Substitute placeholders for display/evidence (keeps quoting).
   String _substitute(String template, String file, String name) =>
       template.replaceAll('{file}', file).replaceAll('{name}', name);

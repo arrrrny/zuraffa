@@ -50,6 +50,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/cycle_log.dart';
+import '../services/pass_registry_tracker.dart';
 import '../services/refactor_passes.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/runner.dart';
@@ -110,6 +111,31 @@ class RefactorCommand extends Command<void> {
           'timeout the child is killed and the command stops non-zero as '
           'runner-error.',
     );
+    argParser.addOption(
+      'reproof',
+      allowed: ['auto', 'full'],
+      defaultsTo: 'auto',
+      help:
+          'Re-proof scope policy (spec 069-corpus-economics, issue #916). '
+          'auto (default): the re-proof is INCREMENTAL — scoped to the '
+          'tests covering pass-registry-changed files, escalating to the '
+          'full suite on the first proof, on unowned file changes, and '
+          'when the nightly full-proof window expires; a zero delta '
+          'skips the redundant re-proof spawn (the full gate still runs '
+          'at preflight, feature completion, and nightly). full: force '
+          'the full-suite re-proof unconditionally (the pre-069 '
+          'behavior).',
+    );
+    argParser.addOption(
+      'full-proof-interval',
+      valueHelp: 'hours',
+      defaultsTo: '24',
+      help:
+          'The nightly full-proof window in hours (spec 069): when the '
+          'last FULL-suite proof is older than this, an otherwise-scoped '
+          're-proof escalates to full — the full verify gate still '
+          'exists, its frequency is engineered. Fractions allowed.',
+    );
     // Note (FR-002): there is INTENTIONALLY no --skip-preflight option.
     // The preflight is the entire discipline of the refactor step; skipping
     // it would destroy the signal that makes refactoring safe.
@@ -161,12 +187,39 @@ class RefactorCommand extends Command<void> {
       return;
     }
 
+    // Spec 069: the re-proof scope policy + the nightly full-proof
+    // window (hours, fractions allowed; 24 = nightly by default).
+    final reproofMode = (argResults?['reproof'] as String?) ?? 'auto';
+    Duration? fullProofInterval;
+    final intervalRaw = argResults?['full-proof-interval'] as String?;
+    if (intervalRaw != null && intervalRaw.isNotEmpty) {
+      final hours = double.tryParse(intervalRaw);
+      if (hours == null || hours <= 0) {
+        print(
+          'zfa tdd refactor: invalid --full-proof-interval '
+          '"$intervalRaw" — expected hours > 0 (fractions allowed).',
+        );
+        _printSummary(
+          feature: featureFlag ?? 'unknown',
+          outcome: RefactorOutcome.runnerError,
+          applied: 0,
+        );
+        exitCode = 1;
+        return;
+      }
+      fullProofInterval = Duration(
+        microseconds: (hours * Duration.microsecondsPerHour).round(),
+      );
+    }
+
     await _run(
       cwd: cwd,
       featureFlag: featureFlag,
       zfaBin: zfaBinFlag,
       timeout: timeoutOverride,
       suiteBaselinePath: argResults?['suite-baseline'] as String?,
+      reproofMode: reproofMode,
+      fullProofInterval: fullProofInterval,
     );
   }
 
@@ -179,6 +232,8 @@ class RefactorCommand extends Command<void> {
     String? zfaBin,
     Duration? timeout,
     String? suiteBaselinePath,
+    String reproofMode = 'auto',
+    Duration? fullProofInterval,
   }) async {
     RefactorOutcome outcome;
     int applied = 0;
@@ -416,14 +471,95 @@ class RefactorCommand extends Command<void> {
         return;
       }
 
-      // 7. Re-run the suite (FR-006). On regression, name the regressed
-      // tests, exit non-zero, write no success evidence.
-      print('zfa tdd refactor: re-proof suite');
-      final reproof = await runner.runSuite(
-        suiteTemplate: suiteTemplate,
-        workingDirectory: cwd,
-        timeout: timeout,
+      // 7. Re-run the suite (FR-006) — spec 069-corpus-economics: the
+      //    re-proof is INCREMENTAL. The pass registry records the
+      //    checksum of every registered artifact file at the last
+      //    proof; the re-proof scope is decided from the delta between
+      //    that state and the CURRENT disk state (captured AFTER the
+      //    passes, so pass-caused changes count):
+      //      - first proof (no registry)            -> FULL
+      //      - unowned file changed                 -> FULL (honest scope)
+      //      - nightly full-proof window expired    -> FULL (the gate)
+      //      - zero delta since the last proof      -> SKIPPED (the exact
+      //        file state already carries a green proof; the full gate
+      //        still runs at preflight, feature completion, nightly)
+      //      - otherwise                            -> SCOPED to the
+      //        tests covering the pass-registry-changed files.
+      //    On regression, name the regressed tests, exit non-zero,
+      //    write no success evidence.
+      final tracker = const PassRegistryTracker();
+      final featureDir = p.join(cwd, 'specs', featureName);
+      final previousRegistry = await tracker.load(featureDir);
+      final currentRegistry = await tracker.capture(
+        projectRoot: cwd,
+        featureDir: featureDir,
       );
+      // The tree delta (test/ + lib/, registered or not) is the honest
+      // change signal; ownership decides scopeability.
+      final delta = PassRegistryTracker.delta(
+        previousRegistry ??
+            PassRegistryState(feature: featureName, files: const {}),
+        currentRegistry,
+      );
+      final covering = await tracker.coveringTestsFor(
+        changedPaths: delta.allChanged,
+        projectRoot: cwd,
+        featureDir: featureDir,
+      );
+      final scope = PassRegistryTracker.decideScope(
+        previous: previousRegistry,
+        delta: delta,
+        current: currentRegistry,
+        coveringTests: covering,
+        fullProofInterval: fullProofInterval,
+        forceFull: reproofMode == 'full',
+      );
+
+      final SuiteRunRecord reproof;
+      if (scope.skipped) {
+        print(
+          '   re-proof scope: skipped (no pass-registry changes since '
+          'the last proof) [069 corpus economics]',
+        );
+        reproof = const SuiteRunRecord(
+          command: '',
+          exitCode: 0,
+          output: '',
+          startedProcess: true,
+        );
+      } else if (scope.full) {
+        print(
+          '   re-proof scope: full (${scope.reason}) '
+          '[069 corpus economics]',
+        );
+        if (scope.reason == 'unowned-files') {
+          final unowned = scope.changedFiles
+              .where((f) => !previousRegistry!.files.containsKey(f))
+              .toList();
+          for (final path in unowned) {
+            print('   unowned change: $path');
+          }
+        }
+        print('zfa tdd refactor: re-proof suite');
+        reproof = await runner.runSuite(
+          suiteTemplate: suiteTemplate,
+          workingDirectory: cwd,
+          timeout: timeout,
+        );
+      } else {
+        print(
+          '   re-proof scope: scoped (${scope.testPaths.length} test '
+          'file(s), ${scope.changedFiles.length} changed file(s)) '
+          '[069 corpus economics]',
+        );
+        print('zfa tdd refactor: re-proof suite (scoped)');
+        reproof = await runner.runScopedSuite(
+          suiteTemplate: suiteTemplate,
+          testPaths: scope.testPaths,
+          workingDirectory: cwd,
+          timeout: timeout,
+        );
+      }
       print('   re-proof exit: ${reproof.exitCode}');
       if (reproof.timedOut) {
         // Bug #742: the re-proof child outlived the deadline and was
@@ -512,10 +648,12 @@ class RefactorCommand extends Command<void> {
           ? 'tolerated $preflightTolerated pre-existing failure(s) '
                 '(issue #922)'
           : 'green';
-      final reproofVerdict = reproofTolerated > 0
-          ? 'tolerated $reproofTolerated pre-existing failure(s) '
-                '(issue #922)'
-          : 'green';
+      // Spec 069: the re-proof verdict names its SCOPE (scoped / full
+      // / skipped) alongside the honest tolerated-red accounting.
+      final reproofVerdict = _reproofVerdict(
+        scope: scope,
+        tolerated: reproofTolerated,
+      );
       if (applied == 0) {
         // Clean no-op — no fabricated actions.
         print('   no actions applied — clean no-op.');
@@ -560,6 +698,19 @@ class RefactorCommand extends Command<void> {
         print(
           '   refactor evidence appended to specs/$featureName/tdd/'
           'cycle-log.md',
+        );
+      }
+      // Spec 069: commit the pass registry at the proven state — the
+      // NEXT refactor's delta is measured from here. Full proofs stamp
+      // last_full_proof_at (the nightly window restarts); scoped proofs
+      // preserve the previous stamp (the window still expires); skipped
+      // re-proofs commit nothing (nothing was re-proven).
+      if (!scope.skipped) {
+        await tracker.commit(
+          featureDir: featureDir,
+          state: currentRegistry,
+          fullProof: scope.full,
+          proofAt: DateTime.now().toUtc().toIso8601String(),
         );
       }
       _printSummary(feature: featureName, outcome: outcome, applied: applied);
@@ -607,6 +758,30 @@ class RefactorCommand extends Command<void> {
     }
     final sorted = names.toList()..sort();
     return sorted;
+  }
+
+  /// The re-proof verdict line for the cycle-log evidence, naming the
+  /// spec 069 scope alongside the issue #922 tolerated-red accounting.
+  /// The tolerated form keeps the legacy prefix contract
+  /// (`re-proof: tolerated … (issue #922)`) so #922 evidence consumers
+  /// keep parsing; the scope detail follows.
+  String _reproofVerdict({
+    required ReproofScope scope,
+    required int tolerated,
+  }) {
+    if (scope.skipped) {
+      return 'skipped (no pass-registry changes since the last proof) '
+          '[069]';
+    }
+    final scopeLabel = scope.full
+        ? 'full (${scope.reason})'
+        : 'scoped (${scope.testPaths.length} test file(s), '
+              '${scope.changedFiles.length} changed file(s))';
+    if (tolerated > 0) {
+      return 'tolerated $tolerated pre-existing failure(s) '
+          '(issue #922) — scope: $scopeLabel [069]';
+    }
+    return '$scopeLabel green [069]';
   }
 
   void _printSummary({
