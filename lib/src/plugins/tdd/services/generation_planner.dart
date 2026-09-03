@@ -17,6 +17,12 @@
 ///     can never flip its test green — dispatching on description prose
 ///     produced `zfa make u5` (the slugified id as an entity name) and
 ///     the issue #718 generation-error.
+///   - **Widget-kind behavior** (issue #950): the row declares kind
+///     `widget` (bug #830) — plan is `unexpressible` naming the tdd view
+///     lane, so make's composition fallback routes it to the #939
+///     view-builder generation (`tdd view <id>` + build). Kind outranks
+///     prose and the id-prefix dispatch: `render` in
+///     `functionIntentVerbs` must never send a widget row to `tdd func`.
 ///   - **Entity-bearing behavior** (description starts with "entity"
 ///     or contains "create entity"): plan is
 ///     `zfa entity create -n <Name>` (bug #609: the real CLI requires
@@ -188,6 +194,40 @@ class GenerationPlanner {
             'convertGolden seams) and record the golden fixtures; the '
             'contract lane keeps gating the loop and the golden fixture '
             'lane keeps gating `dart test --preset=integration` in CI.',
+      );
+    }
+
+    // 0b. Widget-kind behavior (issue #950): the test-list row declares
+    //    kind `widget` — the bug #830 testWidgets lane. Kind must
+    //    outrank prose (the same principle the #835 ffi guard applies):
+    //    `functionIntentVerbs` contains `render`, so a description like
+    //    "the widget renders 'Hello, shopper'" would otherwise take the
+    //    function-intent branch below and dispatch `tdd func`, whose
+    //    scaffold refuses the gen-shaped view-builder stub and dead-ends
+    //    the make in a generation-error — with the #939 view lane
+    //    unreachable, because it lives in the composition fallback that
+    //    only engages on an unexpressible plan. The honest primary plan
+    //    is NONE: make's fallback routes widget rows to the view-builder
+    //    lane (`tdd view <id>` + build) regardless of the description's
+    //    verbs, the id prefix, or CRUD/entity prose.
+    if (summary.kind == BehaviorKind.widget) {
+      return GenerationPlan(
+        behaviorId: summary.behaviorId,
+        feature: summary.feature,
+        sourceCriterion: summary.sourceCriterion,
+        steps: const [],
+        unexpressibleReason:
+            'widget-kind behavior "${summary.behaviorId}" — the scenario '
+            'is UI-observable and its gen pair is a view-builder subject '
+            '+ a testWidgets test, which no primary plan surface '
+            'expresses. The make composition fallback routes this row to '
+            'the tdd view lane (issue #939): `zfa tdd view '
+            '${summary.behaviorId} --feature ${summary.feature}` + build '
+            'generates the deterministic minimal view from the declared '
+            'Presentation layer contract. A function-intent verb in the '
+            'description ("renders") must never route a widget row to '
+            '`tdd func` (issue #950 — the func scaffold refuses the '
+            'view-builder stub shape).',
       );
     }
 
