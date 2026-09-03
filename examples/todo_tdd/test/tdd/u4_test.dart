@@ -14,12 +14,12 @@
 library;
 
 import 'package:test/test.dart';
-import '../../lib/tdd/u4_subject.dart' as subject;
+import 'package:todo_tdd/tdd/u4_subject.dart' as subject;
 
 void main() {
   group('U4 (FR-004)', () {
     test('The overdue tag collector returns a list of tag names.', () {
-      final Object? result = (() {
+      final Object result = (() {
         try {
           return subject.subject_u4();
         } on UnimplementedError catch (error) {

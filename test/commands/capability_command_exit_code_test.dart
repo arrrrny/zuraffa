@@ -32,11 +32,16 @@ void main() {
       final runner = CommandRunner<void>('test', 'test')..addCommand(command);
 
       exitCode = 0;
+      late int code;
       await expectLater(
-        () => runner.run(['req']),
+        () => runner.run(['req']).then((_) {
+          // Capture inside the same microtask — exitCode is process-global
+          // and parallel test isolates can reset it before the read after
+          // expectLater returns (parallel-load flaky, issue #767).
+          code = exitCode;
+        }),
         prints(contains('Missing required arguments: name')),
       );
-      final code = exitCode;
       exitCode = 0; // hermetic: never leak a failure code into the suite
       expect(
         code,
@@ -53,8 +58,11 @@ void main() {
     final runner = CommandRunner<void>('test', 'test')..addCommand(command);
 
     exitCode = 0;
+    late int code;
     await expectLater(
-      () => runner.run(['fail']),
+      () => runner.run(['fail']).then((_) {
+        code = exitCode;
+      }),
       prints(
         allOf(
           contains('❌ Failed:'),
@@ -62,7 +70,6 @@ void main() {
         ),
       ),
     );
-    final code = exitCode;
     exitCode = 0;
     expect(
       code,
@@ -79,8 +86,13 @@ void main() {
     final runner = CommandRunner<void>('test', 'test')..addCommand(command);
 
     exitCode = 0;
-    await expectLater(() => runner.run(['ok']), prints(contains('✅ Success!')));
-    final code = exitCode;
+    late int code;
+    await expectLater(
+      () => runner.run(['ok']).then((_) {
+        code = exitCode;
+      }),
+      prints(contains('✅ Success!')),
+    );
     exitCode = 0;
     expect(code, equals(0));
   });

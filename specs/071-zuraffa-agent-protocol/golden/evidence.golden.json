@@ -1,0 +1,15 @@
+{
+  "zap": "0.1",
+  "type": "evidence",
+  "id": "e-demo-0001",
+  "ts": "2026-09-03T10:00:01Z",
+  "missionId": "demo-tdd",
+  "stepId": "s1",
+  "phase": "red",
+  "command": "dart examples/zap_demo/tdd_loop.dart red",
+  "exit": 1,
+  "digest": "49767ac48b62d130e8054ea10ac2a1923598c7b2ae0b495d2f556cdc851606cf",
+  "at": "2026-09-03T10:00:01Z",
+  "durationMs": 412,
+  "output": "ZAP DEMO red: 1 check FAILED (by design) — add(2, 3) returned 6, expected 5"
+}

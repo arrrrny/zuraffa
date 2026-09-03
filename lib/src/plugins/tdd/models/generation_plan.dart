@@ -31,6 +31,17 @@ enum MakeOutcome {
   /// explicitly empty generation block is appended, exit 0.
   skipped('skipped'),
 
+  /// The plan's terminal `build` step FAILED but the per-behavior guard
+  /// tolerated it (issue #737) because the behavior's own test passes —
+  /// and the failed build's output carried NO analyzer errors (issue
+  /// #942 gate), so the failure is pre-existing build/suite noise rather
+  /// than a non-compiling generated tree. Exit 0, green evidence
+  /// appended. Issue #942: this outcome EXISTS so the summary never
+  /// conflates honest green with green-with-failed-build — the run loop
+  /// accepts it as success (the loop must flow past tolerated noise),
+  /// but the accounting stays distinguishable.
+  greenWithFailedBuild('green-with-failed-build'),
+
   /// Planner cannot map behavior to pipeline steps.
   /// Non-zero exit, no green entry.
   unexpressible('unexpressible'),

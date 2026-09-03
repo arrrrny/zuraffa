@@ -14,12 +14,12 @@
 library;
 
 import 'package:test/test.dart';
-import '../../lib/tdd/u6_subject.dart' as subject;
+import 'package:todo_tdd/tdd/u6_subject.dart' as subject;
 
 void main() {
   group('U6 (FR-006)', () {
     test('The persistence flag returns true when the journal is clean.', () {
-      final Object? result = (() {
+      final Object result = (() {
         try {
           return subject.subject_u6();
         } on UnimplementedError catch (error) {

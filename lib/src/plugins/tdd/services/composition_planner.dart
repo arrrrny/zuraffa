@@ -36,10 +36,19 @@ class CompositionPlanner {
   /// The caller (the make command) MUST have confirmed [anchors] is
   /// non-empty (the discovery's `no-green-units` outcome must be reported
   /// as the honest unexpressible stop, not composed away — FR-009).
+  ///
+  /// Issue #923: the anchors may be green unit subjects or entity-wired
+  /// ones (the `wiredEntityAnchor` implementation anchor, bug #610) — the
+  /// purpose line names the mix so the audit trail stays honest.
   GenerationPlan plan(
     BehaviorSummary summary,
     List<ComposableUnitSubject> anchors,
   ) {
+    final wired = anchors.where((a) => a.entityWired).length;
+    final anchorSummary = wired == 0
+        ? '${anchors.length} green unit subject(s)'
+        : '${anchors.length - wired} green, $wired entity-wired unit '
+              'subject(s)';
     return GenerationPlan(
       behaviorId: summary.behaviorId,
       feature: summary.feature,
@@ -55,7 +64,7 @@ class CompositionPlanner {
           ],
           purpose:
               'compose subject of behavior ${summary.behaviorId} against '
-              '${anchors.length} green unit subject(s)',
+              '$anchorSummary',
         ),
         GenerationStepSpec(
           args: ['build'],

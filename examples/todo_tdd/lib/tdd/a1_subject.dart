@@ -12,6 +12,7 @@
 // the implementation anchor. Extend the body with real behavior in
 // later cycles — the paired test file is immutable (044 ownership).
 library;
+// ignore_for_file: non_constant_identifier_names
 
 import 'package:todo_tdd/src/domain/entities/todo/todo.dart';
 

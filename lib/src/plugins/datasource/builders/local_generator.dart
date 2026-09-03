@@ -183,8 +183,30 @@ class LocalDataSourceBuilder {
         ..methods.addAll(methods),
     );
 
+    // Issue #942: hide the entity's own symbols from the framework barrel
+    // the file imports alongside the entity file — otherwise an entity
+    // whose name matches a zuraffa core export makes every generated file
+    // fail with `ambiguous_import` errors. Empty hide list → import
+    // emitted unchanged (no locally-imported entity types).
+    final barrelHide = <String>{
+      if (config.isEntityBased &&
+          fileSystem.existsSync(
+            path.join(
+              outputDir,
+              'domain',
+              'entities',
+              entitySnake,
+              '$entitySnake.dart',
+            ),
+          ))
+        ...EntityUtils.barrelHideNames(entityName),
+      if (config.isCustomUseCase && config.returnsType != null)
+        for (final type in EntityUtils.extractEntityTypes(config.returnsType!))
+          ...EntityUtils.barrelHideNames(type),
+    }.toList();
+
     final directives = <Directive>[
-      Directive.import('package:zuraffa/zuraffa.dart'),
+      Directive.import('package:zuraffa/zuraffa.dart', hide: barrelHide),
       if (config.isEntityBased &&
           fileSystem.existsSync(
             path.join(

@@ -14,14 +14,14 @@
 library;
 
 import 'package:test/test.dart';
-import '../../lib/tdd/u3_subject.dart' as subject;
+import 'package:todo_tdd/tdd/u3_subject.dart' as subject;
 
 void main() {
   group('U3 (FR-003)', () {
     test(
       'The priority label formatter returns a non-empty string for every priority level.',
       () {
-        final Object? result = (() {
+        final Object result = (() {
           try {
             return subject.subject_u3();
           } on UnimplementedError catch (error) {

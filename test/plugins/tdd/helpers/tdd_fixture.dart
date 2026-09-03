@@ -408,7 +408,10 @@ void main() {
 
   /// Seed `specs/<feature>/tdd/test-list.md` in the 4-column format
   /// `plan_command.dart` writes. Rows carrying `kind: 'acceptance'` land in
-  /// the outer-loop section, everything else in the inner-loop section.
+  /// the outer-loop section, `kind: 'widget'` rows land in the widget
+  /// outer-loop section (bug #830's `## Outer loop: widget behaviors`,
+  /// mirroring plan's render order), everything else in the inner-loop
+  /// section.
   Future<void> seedTestList(
     List<
       ({
@@ -426,8 +429,12 @@ void main() {
         .where((r) => r.kind == 'acceptance')
         .map((r) => (r.id, r.description, r.traces, r.state))
         .toList();
+    final widget = rows
+        .where((r) => r.kind == 'widget')
+        .map((r) => (r.id, r.description, r.traces, r.state))
+        .toList();
     final unit = rows
-        .where((r) => r.kind != 'acceptance')
+        .where((r) => r.kind != 'acceptance' && r.kind != 'widget')
         .map((r) => (r.id, r.description, r.traces, r.state))
         .toList();
     final buf = StringBuffer()
@@ -437,6 +444,9 @@ void main() {
       buf.write(
         _renderTestListSection('Outer loop: acceptance behaviors', acceptance),
       );
+    }
+    if (widget.isNotEmpty) {
+      buf.write(_renderTestListSection('Outer loop: widget behaviors', widget));
     }
     if (unit.isNotEmpty) {
       buf.write(_renderTestListSection('Inner loop: unit behaviors', unit));
@@ -913,6 +923,10 @@ int ${symbol}_value() => $value;
   /// [sideEffectByArgv] lets the script create / write files for
   /// tests that need the pipeline to actually mutate the project
   /// (e.g. turn the target test green by overwriting the subject).
+  /// [stdoutByArgv] lets the script emit stdout lines for an
+  /// invocation (e.g. analyzer error lines from a failing `build`
+  /// step — the pipeline runner captures combined stdout+stderr, so
+  /// the make command's #942 error gate can read them).
   /// [name] lets a test install several distinct fakes (e.g. a `zfa`
   /// on PATH plus a `dart-vm` stand-in).
   Future<String> writeFakeZfaBin({
@@ -920,6 +934,7 @@ int ${symbol}_value() => $value;
     String name = 'zfa',
     Map<String, int> exitByArgv = const {},
     Map<String, List<String>> sideEffectByArgv = const {},
+    Map<String, List<String>> stdoutByArgv = const {},
   }) async {
     final binDir = Directory(fakeBinDirPath);
     await binDir.create(recursive: true);
@@ -945,6 +960,16 @@ int ${symbol}_value() => $value;
           // NOTE: do not indent commands here — here-doc delimiters
           // must start at column 0 (or use `<<-` with tabs).
           buf.writeln(cmd);
+        }
+        buf.writeln('fi');
+      });
+    }
+    if (stdoutByArgv.isNotEmpty) {
+      buf.writeln('# stdout dispatch (substring match on argv)');
+      stdoutByArgv.forEach((pattern, lines) {
+        buf.writeln('if [[ "\$ARGV" == *"$pattern"* ]]; then');
+        for (final line in lines) {
+          buf.writeln("echo '$line'");
         }
         buf.writeln('fi');
       });

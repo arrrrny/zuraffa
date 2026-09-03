@@ -37,6 +37,7 @@ class PreflightResult {
     required this.exitCode,
     required this.output,
     this.timedOut = false,
+    this.ranTestPaths = const [],
   });
 
   /// 0 = green, non-zero = red.
@@ -50,17 +51,32 @@ class PreflightResult {
   /// the audit is NOT_ASSESSED, never `preflight_red`.
   final bool timedOut;
 
+  /// The per-behavior test files actually executed before the verdict
+  /// (bug #924). Empty when the preflight did not run any per-behavior
+  /// test (no own test files, or a pre-#924 combined invocation).
+  final List<String> ranTestPaths;
+
   bool get isGreen => exitCode == 0;
 
   factory PreflightResult.green({
     required int exitCode,
     required String output,
-  }) => PreflightResult(exitCode: exitCode, output: output);
+    List<String> ranTestPaths = const [],
+  }) => PreflightResult(
+    exitCode: exitCode,
+    output: output,
+    ranTestPaths: ranTestPaths,
+  );
 
   factory PreflightResult.red({
     required int exitCode,
     required String output,
-  }) => PreflightResult(exitCode: exitCode, output: output);
+    List<String> ranTestPaths = const [],
+  }) => PreflightResult(
+    exitCode: exitCode,
+    output: output,
+    ranTestPaths: ranTestPaths,
+  );
 }
 
 /// The complete audit report produced by [MutationAuditor.run].
@@ -87,6 +103,7 @@ class MutationAuditReport {
     this.survivors = const [],
     this.specHash,
     this.subjectHashes = const {},
+    this.preflightScopeRan = const [],
   });
 
   /// The feature name (e.g. `044-test-tdd-generation`).
@@ -151,6 +168,12 @@ class MutationAuditReport {
   final String? reportPath;
   final String? preflightOutput;
 
+  /// The per-behavior test files the preflight actually executed before
+  /// its verdict (bug #924) — fail-fast diagnostics: with 24+ pre-existing
+  /// failures the report must show exactly which of the feature's own
+  /// test files ran, never a full-suite baseline.
+  final List<String> preflightScopeRan;
+
   /// Render the report as markdown for `verification.md`.
   String toMarkdown() {
     final buf = StringBuffer()
@@ -213,6 +236,14 @@ class MutationAuditReport {
     if (preflightOutput != null) {
       buf.writeln('- preflight_output: `${_truncate(preflightOutput!, 400)}`');
     }
+    if (preflightScopeRan.isNotEmpty) {
+      buf
+        ..writeln('- preflight_scope_ran (bug #924, per-behavior):')
+        ..writeln('  - `${preflightScopeRan.first}`');
+      for (final path in preflightScopeRan.skip(1)) {
+        buf.writeln('  - `$path`');
+      }
+    }
     buf
       ..writeln()
       ..writeln('## Mutation run')
@@ -271,11 +302,13 @@ class MutationAuditor {
     required this.featureDir,
     required this.workingDirectory,
     Future<PreflightResult> Function(List<String> scopePaths)? runPreflight,
+    Future<PreflightResult> Function(String testPath)? runPreflightBehavior,
     Future<MutationResult> Function()? runMutation,
     Duration? preflightTimeout,
     Duration? mutationTimeout,
     double? scoreThreshold,
   }) : _runPreflightOverride = runPreflight,
+       _runPreflightBehaviorOverride = runPreflightBehavior,
        _runMutationOverride = runMutation,
        _preflightTimeout = preflightTimeout,
        _mutationTimeout = mutationTimeout,
@@ -285,6 +318,13 @@ class MutationAuditor {
   final String workingDirectory;
   final Future<PreflightResult> Function(List<String> scopePaths)?
   _runPreflightOverride;
+
+  /// Per-behavior preflight runner (bug #924): when provided, the DEFAULT
+  /// preflight delegates each of the feature's own test files to it
+  /// (fail-fast) instead of spawning `dart test` itself. The list-level
+  /// [runPreflight] override still bypasses the loop entirely.
+  final Future<PreflightResult> Function(String testPath)?
+  _runPreflightBehaviorOverride;
   final Future<MutationResult> Function()? _runMutationOverride;
 
   /// Per-command deadlines (bug #742); `null` uses the shared defaults.
@@ -326,9 +366,39 @@ class MutationAuditor {
       );
     }
 
+    // Bug #924: resolve the mutation config BEFORE the preflight. A
+    // missing/unresolvable mutation config (`mutation-test.xml not found`
+    // in the issue's forklift repro) must surface `gate: not_assessed`
+    // IMMEDIATELY — never after paying the full-suite preflight cost. The
+    // default mutation phase reuses the config written here.
+    String? ensuredConfigPath;
+    if (_runMutationOverride == null) {
+      try {
+        ensuredConfigPath = await _ensureScopedMutationConfig(scope);
+      } on MutationConfigError catch (e) {
+        return MutationAuditReport(
+          feature: p.basename(featureDir),
+          gate: MutationGateDecision.notAssessed,
+          killedCount: 0,
+          survivedCount: 0,
+          timedOutCount: 0,
+          behaviorIds: scope.behaviorIds,
+          sourceCriteriaByBehavior: scope.sourceCriteriaByBehavior,
+          mutationWasRun: false,
+          restorationVerified: true,
+          restorationScope: const [],
+          notAssessedReason: 'mutation config error: $e',
+          scoreThreshold: _scoreThreshold,
+          specHash: specHash,
+        );
+      }
+    }
+
     // Green-suite preflight FIRST (FR-013). Run only the test paths
     // (not subject paths — subject files are not tests and `dart test`
-    // would fail to load them as tests).
+    // would fail to load them as tests). Bug #924: the default preflight
+    // runs the feature's own per-behavior test files individually
+    // (fail-fast) instead of one full-suite baseline invocation.
     final preflight = await (_runPreflightOverride ?? _defaultPreflight)(
       scope.testPaths,
     );
@@ -350,6 +420,7 @@ class MutationAuditor {
         notAssessedReason: 'preflight timed out: ${preflight.output}',
         runnerCommand: 'dart test ${scope.testPaths.join(' ')}',
         preflightOutput: preflight.output,
+        preflightScopeRan: preflight.ranTestPaths,
       );
     }
     if (!preflight.isGreen) {
@@ -365,6 +436,7 @@ class MutationAuditor {
         restorationVerified: true,
         restorationScope: const [],
         preflightOutput: preflight.output,
+        preflightScopeRan: preflight.ranTestPaths,
       );
     }
 
@@ -403,7 +475,10 @@ class MutationAuditor {
 
     try {
       mutationResult =
-          await (_runMutationOverride ?? () => _defaultMutation(scope))();
+          await (_runMutationOverride ??
+              // The config was ensured before the preflight (bug #924);
+              // the default mutation phase reuses it.
+              () => _defaultMutation(scope, ensuredConfigPath!))();
     } on MutationToolUnavailable catch (e) {
       notAssessedReason = 'mutation tool unavailable: $e';
     } on MutationConfigError catch (e) {
@@ -437,6 +512,7 @@ class MutationAuditor {
         scoreThreshold: _scoreThreshold,
         specHash: specHash,
         subjectHashes: subjectHashes,
+        preflightScopeRan: preflight.ranTestPaths,
       );
     }
 
@@ -461,6 +537,7 @@ class MutationAuditor {
         scoreThreshold: _scoreThreshold,
         specHash: specHash,
         subjectHashes: subjectHashes,
+        preflightScopeRan: preflight.ranTestPaths,
       );
     }
 
@@ -510,62 +587,132 @@ class MutationAuditor {
       survivors: mutationResult.survivors,
       specHash: specHash,
       subjectHashes: subjectHashes,
+      preflightScopeRan: preflight.ranTestPaths,
     );
   }
 
+  /// The whole preflight phase's deadline (bug #742): one wall-clock
+  /// budget shared across the per-behavior runs, so `--timeout` keeps
+  /// bounding the phase exactly as it bounded the pre-#924 combined
+  /// invocation.
+  Duration get _effectivePreflightTimeout =>
+      _preflightTimeout ?? TddTimeouts.defaultMutationPreflight;
+
+  /// Bug #924: per-behavior green-suite preflight. When the feature has
+  /// its own test files, run EACH registered test file individually (the
+  /// TDD profile's single/file template shape) and fail fast on the first
+  /// red — instead of one combined `dart test` over the whole scope, the
+  /// full-suite baseline that hung at corpus scale with 24+ pre-existing
+  /// failures. The whole phase stays bounded by [_effectivePreflightTimeout];
+  /// the files actually executed are recorded in [PreflightResult.ranTestPaths]
+  /// for the verification diagnostics. No own test files → green no-op:
+  /// there is NO full-suite fallback.
   Future<PreflightResult> _defaultPreflight(List<String> scopePaths) async {
-    // Run `dart test <scope>` under a hard deadline (bug #742) and capture
-    // the exit code + output.
     if (scopePaths.isEmpty) {
       return PreflightResult.green(exitCode: 0, output: '(no scope)');
     }
-    try {
-      final result = await runTimed(
-        'dart',
-        ['test', ...scopePaths],
-        workingDirectory: workingDirectory,
-        timeout: _preflightTimeout ?? TddTimeouts.defaultMutationPreflight,
-      );
-      if (result.exitCode == 0) {
-        return PreflightResult.green(
-          exitCode: 0,
-          output: result.stdout.toString(),
+    final ran = <String>[];
+    final combined = StringBuffer();
+    final phase = Stopwatch()..start();
+    for (final testPath in scopePaths) {
+      final remaining = _effectivePreflightTimeout - phase.elapsed;
+      if (remaining <= Duration.zero) {
+        return PreflightResult(
+          exitCode: -1,
+          output: _preflightBudgetExhaustedOutput(combined, ran),
+          timedOut: true,
+          ranTestPaths: List.unmodifiable(ran),
         );
       }
-      return PreflightResult.red(
-        exitCode: result.exitCode,
-        output: '${result.stdout}\n${result.stderr}',
-      );
-    } on ProcessTimeoutException catch (e) {
-      return PreflightResult(
-        exitCode: -1,
-        output: e.toString(),
-        timedOut: true,
-      );
+      PreflightResult fileResult;
+      try {
+        fileResult = _runPreflightBehaviorOverride != null
+            // Hook path: bound the hook future by the remaining budget.
+            ? await _runPreflightBehaviorOverride
+                  .call(testPath)
+                  .timeout(remaining)
+            // Real spawn path: the child itself is killed at the budget.
+            : await _runPreflightTestFile(testPath, remaining);
+      } on TimeoutException {
+        // The per-behavior run outlived the phase's remaining budget.
+        ran.add(testPath);
+        return PreflightResult(
+          exitCode: -1,
+          output: _preflightBudgetExhaustedOutput(combined, ran),
+          timedOut: true,
+          ranTestPaths: List.unmodifiable(ran),
+        );
+      } on ProcessTimeoutException {
+        // Same verdict for the real spawn path (runTimed killed the child
+        // at the remaining budget) — infrastructure, never preflight_red.
+        ran.add(testPath);
+        return PreflightResult(
+          exitCode: -1,
+          output: _preflightBudgetExhaustedOutput(combined, ran),
+          timedOut: true,
+          ranTestPaths: List.unmodifiable(ran),
+        );
+      }
+      ran.add(testPath);
+      combined.writeln('--- $testPath ---');
+      combined.write(fileResult.output);
+      if (!fileResult.isGreen) {
+        // Fail fast: the preflight only needs a green/red verdict, and
+        // the first red file already decides it (bug #924).
+        return PreflightResult.red(
+          exitCode: fileResult.exitCode,
+          output: combined.toString(),
+          ranTestPaths: List.unmodifiable(ran),
+        );
+      }
     }
+    return PreflightResult.green(
+      exitCode: 0,
+      output: combined.toString(),
+      ranTestPaths: List.unmodifiable(ran),
+    );
   }
 
-  Future<MutationResult> _defaultMutation(MutationScope scope) async {
+  String _preflightBudgetExhaustedOutput(
+    StringBuffer combined,
+    List<String> ran,
+  ) =>
+      '${combined}preflight phase budget exhausted after '
+      '${ran.length} per-behavior test file(s) '
+      '(--timeout ${formatTddTimeout(_effectivePreflightTimeout)})';
+
+  /// Runs one behavior's test file under [remaining] — the real spawn
+  /// path (`dart test <file>`, the profile's file template shape). The
+  /// child is killed (SIGKILL) if it outlives the remaining budget —
+  /// [runTimed] throws [ProcessTimeoutException] and the loop maps the
+  /// phase to timed out (NOT_ASSESSED, never preflight_red).
+  Future<PreflightResult> _runPreflightTestFile(
+    String testPath,
+    Duration remaining,
+  ) async {
+    final result = await runTimed(
+      'dart',
+      ['test', testPath],
+      workingDirectory: workingDirectory,
+      timeout: remaining,
+    );
+    final output = '${result.stdout}\n${result.stderr}';
+    return preflightFileResultFromProcess(
+      exitCode: result.exitCode,
+      output: output,
+    );
+  }
+
+  Future<MutationResult> _defaultMutation(
+    MutationScope scope,
+    String configPath,
+  ) async {
     // Bug #837: the mutation run is scoped to the feature's registered
     // subjects (namespaced per #827) — never the whole repo — and the
-    // mutant test command runs only the feature's scope tests. The scoped
-    // config is generated on the fly under `.dart_tool` (gitignored) so a
-    // feature project needs no hand-written mutation-test.xml; this is
-    // what makes the mutation phase actually executable.
-    final configPath = p.join(
-      workingDirectory,
-      '.dart_tool',
-      'zfa',
-      'tdd-verify-mutation.xml',
-    );
-    final configFile = File(configPath);
-    await configFile.parent.create(recursive: true);
-    await configFile.writeAsString(
-      buildScopedMutationConfig(
-        subjectPaths: _relativeToWorkingDirectory(scope.subjectPaths),
-        testPaths: _relativeToWorkingDirectory(scope.testPaths),
-      ),
-    );
+    // mutant test command runs only the feature's scope tests. Bug #924:
+    // the scoped config was already written by [_ensureScopedMutationConfig]
+    // BEFORE the preflight (so a config failure returns NOT_ASSESSED
+    // immediately); this phase only consumes it.
     final verifier = MutationVerifier(
       configPath: configPath,
       outputDir: p.join(
@@ -580,6 +727,35 @@ class MutationAuditor {
     return verifier.run();
   }
 
+  /// Writes the feature-scoped mutation_test config under
+  /// `.dart_tool/zfa/` and returns its absolute path (bug #924: called
+  /// BEFORE the preflight so a missing/unwritable config yields
+  /// `gate: not_assessed` without running any tests). Throws
+  /// [MutationConfigError] when the config cannot be created.
+  Future<String> _ensureScopedMutationConfig(MutationScope scope) async {
+    final configPath = p.join(
+      workingDirectory,
+      '.dart_tool',
+      'zfa',
+      'tdd-verify-mutation.xml',
+    );
+    try {
+      final configFile = File(configPath);
+      await configFile.parent.create(recursive: true);
+      await configFile.writeAsString(
+        buildScopedMutationConfig(
+          subjectPaths: _relativeToWorkingDirectory(scope.subjectPaths),
+          testPaths: _relativeToWorkingDirectory(scope.testPaths),
+        ),
+      );
+    } on IOException catch (e) {
+      throw MutationConfigError(
+        'could not write the scoped mutation config at $configPath: $e',
+      );
+    }
+    return configPath;
+  }
+
   /// Registry paths may be absolute (the gen convention) or repo-relative;
   /// the mutation config wants project-relative paths.
   List<String> _relativeToWorkingDirectory(List<String> paths) => paths
@@ -590,6 +766,17 @@ class MutationAuditor {
       )
       .toList();
 }
+
+/// The per-behavior file verdict from a finished `dart test <file>` child
+/// (bug #924, mutation finding M-1): factored out of the spawn path so the
+/// fast tier pins the green/red classification directly — the real spawn
+/// path is otherwise only driven by the integration tier.
+PreflightResult preflightFileResultFromProcess({
+  required int exitCode,
+  required String output,
+}) => exitCode == 0
+    ? PreflightResult.green(exitCode: 0, output: output)
+    : PreflightResult.red(exitCode: exitCode, output: output);
 
 /// Builds the feature-scoped mutation_test config for `zfa tdd verify`
 /// (bug #837).

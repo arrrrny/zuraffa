@@ -62,7 +62,15 @@
 ///   row model cannot see — skip with a recorded reason, stay GREEN,
 ///   never a fake DONE). The spawned `refactor`'s own full-suite
 ///   preflight (spec 048 FR-001) remains the absolute authority either
-///   way.
+///   way — and, issue #922, it excludes the run baseline's pre-existing
+///   failures from that authority: the driver hands its cached baseline
+///   (the issue #741 `run-baseline.json`) to every refactor spawn, so
+///   pre-existing red in unrelated files (a baseline carrying failures
+///   the feature did not cause — 24 of them in the issue's run) cannot
+///   refuse every refactor and stop the run at `green=13 done=0`. Only
+///   NEW failures (not in the baseline) refuse, keeping the done gate
+///   honest: a green behavior behind a red-but-not-worse suite is DONE,
+///   and a genuinely regressed suite is still skipped and reported.
 ///
 /// Run-state semantics are unchanged: deferred behaviors sit RED
 /// between the phases (their unit siblings sit GREEN with the refactor
@@ -570,8 +578,8 @@ class RunCommand extends Command<void> {
       current = result.state;
     }
 
-    // --- Phase 2b: the refactor pass (bugs #635 and #734). Every
-    // behavior still short of DONE now sits GREEN — the units whose
+    // --- Phase 2b: the refactor pass (bugs #635 and #734; issue #922).
+    // Every behavior still short of DONE now sits GREEN — the units whose
     // refactor deferred in phase 1 plus the acceptance behaviors phase
     // 2a just flipped — and every pending stub has been driven. The
     // pass is gated PER BEHAVIOR on that behavior's own test being
@@ -588,7 +596,12 @@ class RunCommand extends Command<void> {
     // stopping the pass for everyone. Behaviors whose own test IS
     // certified green refactor as before; the spawned command's
     // full-suite preflight (spec 048 FR-001) remains the absolute
-    // authority either way.
+    // authority — narrowed, per issue #922, by the run baseline each
+    // spawn receives (`--suite-baseline`, the issue #741 cache):
+    // pre-existing red recorded at baseline is excluded from the
+    // verdict, so a suite that is no worse than at run start cannot
+    // block the done transition, while any NEW failure still refuses
+    // (and skips honestly, never a fake DONE).
     final certifiedGreen = await evidence.greenEvidence();
     final skippedRefactors = <String, String>{};
     for (final row in rows) {

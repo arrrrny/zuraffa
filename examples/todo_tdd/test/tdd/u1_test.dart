@@ -14,14 +14,14 @@
 library;
 
 import 'package:test/test.dart';
-import '../../lib/tdd/u1_subject.dart' as subject;
+import 'package:todo_tdd/tdd/u1_subject.dart' as subject;
 
 void main() {
   group('U1 (FR-001)', () {
     test(
       'The default priority returns 1 when a todo is created without an explicit priority.',
       () {
-        final Object? result = (() {
+        final Object result = (() {
           try {
             return subject.subject_u1();
           } on UnimplementedError catch (error) {

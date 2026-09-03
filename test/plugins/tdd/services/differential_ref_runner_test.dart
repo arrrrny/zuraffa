@@ -61,7 +61,7 @@ void main() {
       final runner = DifferentialRefRunner(
         gitRunner: (args, cwd) async => fail('', 'fatal: not a ref'),
       );
-      expect(
+      await expectLater(
         () => runner.resolveRef('nope', repoRoot: repoRoot.path),
         throwsA(isA<DifferentialRefException>()),
       );
@@ -114,7 +114,7 @@ void main() {
             return fail('', 'resolution failed');
           },
         );
-        expect(
+        await expectLater(
           () => runner.setupWorktree('/tmp/wt-x'),
           throwsA(isA<DifferentialSetupException>()),
         );
@@ -401,7 +401,7 @@ void main() {
           artifactRoots: const ['test/tdd'],
           projectDir: scaffold.path,
         );
-        expect(
+        await expectLater(
           () => runner.runEntry(
             entry: real,
             ref: 'HEAD',

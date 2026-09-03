@@ -11,6 +11,7 @@
 // reference any entity/use case/repository (FR-004): it stands alone.
 // Replace this stub body with real implementation to make the test pass.
 library;
+// ignore_for_file: non_constant_identifier_names
 
 /// Scenario runner for behavior A3.
 ///
