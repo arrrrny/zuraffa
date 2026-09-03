@@ -27,7 +27,7 @@ library;
 /// recorded, ordering preserved — plus a channel-calling subject stub.
 enum BehaviorKind { acceptance, unit, widget, theme, ffi, platform }
 
-enum BehaviorState { pending, red, green, done }
+enum BehaviorState { pending, red, green, mocked, done }
 
 class Behavior {
   final String id;

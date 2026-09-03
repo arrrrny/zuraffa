@@ -625,8 +625,8 @@ void main() {
   group('GenerationPlanner — bug 829: entity-traced unit behaviors route '
       'to the entity pipeline', () {
     test('U-829a: a unit behavior traced to a declared entity plans '
-        'entity create -> make <Entity> -> wire -> build — the '
-        'architecture engages instead of the empty func subject', () {
+        'entity create -> mock create -> wire -> build — the '
+        'architecture engages with mock-first default', () {
       final plan = planner.plan(
         const BehaviorSummary(
           behaviorId: 'U1',
@@ -639,7 +639,7 @@ void main() {
       expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
       expect(plan.steps.map((s) => s.args).toList(), [
         ['entity', 'create', '-n', 'User'],
-        ['make', 'User'],
+        ['mock', 'create', '--name', 'User'],
         [
           'tdd',
           'wire',
@@ -787,6 +787,62 @@ void main() {
         );
       }
     });
+
+    test(
+      'U-909: default entity plan generates mock and wire steps; --stub keeps make',
+      () {
+        final defaultPlan = planner.plan(
+          const BehaviorSummary(
+            behaviorId: 'U1',
+            feature: '001-demo',
+            sourceCriterion: 'FR-001',
+            description: 'user preference storage',
+            entityTraced: 'UserPreference',
+          ),
+        );
+        expect(defaultPlan.isExpressible, isTrue);
+        expect(defaultPlan.steps.map((s) => s.args).toList(), [
+          ['entity', 'create', '-n', 'UserPreference'],
+          ['mock', 'create', '--name', 'UserPreference'],
+          [
+            'tdd',
+            'wire',
+            'U1',
+            '--entity',
+            'UserPreference',
+            '--feature',
+            '001-demo',
+          ],
+          ['build'],
+        ]);
+
+        final stubPlan = planner.plan(
+          const BehaviorSummary(
+            behaviorId: 'U1',
+            feature: '001-demo',
+            sourceCriterion: 'FR-001',
+            description: 'user preference storage',
+            entityTraced: 'UserPreference',
+            stub: true,
+          ),
+        );
+        expect(stubPlan.isExpressible, isTrue);
+        expect(stubPlan.steps.map((s) => s.args).toList(), [
+          ['entity', 'create', '-n', 'UserPreference'],
+          ['make', 'UserPreference'],
+          [
+            'tdd',
+            'wire',
+            'U1',
+            '--entity',
+            'UserPreference',
+            '--feature',
+            '001-demo',
+          ],
+          ['build'],
+        ]);
+      },
+    );
   });
 }
 

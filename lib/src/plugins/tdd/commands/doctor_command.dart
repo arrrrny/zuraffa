@@ -395,6 +395,7 @@ class DoctorCommand extends Command<void> {
         switch (claim) {
           case BehaviorState.done:
             backed = hasRed && hasGreen;
+          case BehaviorState.mocked:
           case BehaviorState.green:
             backed = hasGreen;
           case BehaviorState.red:

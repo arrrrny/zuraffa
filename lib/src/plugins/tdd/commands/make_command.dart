@@ -153,6 +153,13 @@ class MakeCommand extends Command<void> {
           'from the scoped single-test result — falling back to the live '
           'suite when the cache is missing, corrupt, or unparseable.',
     );
+    argParser.addFlag(
+      'stub',
+      help:
+          'Demote generation to shallow func-stubs (the legacy escape hatch). '
+          'Default generates contract-conforming mocks via zfa mock create.',
+      defaultsTo: false,
+    );
   }
 
   final TddPlugin plugin;
@@ -449,6 +456,7 @@ class MakeCommand extends Command<void> {
       // unreadable list degrades to kindless routing (exactly the
       // pre-#835 behavior) with a note instead of a silent guess.
       final rowKind = await _rowKind(target.featureDir, record.behaviorId);
+      final isStub = argResults?['stub'] as bool? ?? false;
       final summary = BehaviorSummary.fromRecord(
         record,
         description: _descriptionFor(record),
@@ -458,6 +466,7 @@ class MakeCommand extends Command<void> {
           featureDir: target.featureDir,
         ),
         kind: rowKind,
+        stub: isStub,
       );
       final plan = planner.plan(summary);
       GenerationPlan effectivePlan;
