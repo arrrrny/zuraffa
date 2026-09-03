@@ -363,15 +363,32 @@ class MigratePathsCommand extends Command<void> {
     required String subjectFrom,
     required String subjectTo,
   }) {
+    final file = File(testTo);
+    if (!file.existsSync()) return;
+    var raw = file.readAsStringSync();
+
     final oldRelative = _posix(
       p.relative(subjectFrom, from: p.dirname(testFrom)),
     );
     final newRelative = _posix(p.relative(subjectTo, from: p.dirname(testTo)));
-    if (oldRelative == newRelative) return;
-    final file = File(testTo);
-    final raw = file.readAsStringSync();
-    if (!raw.contains(oldRelative)) return;
-    file.writeAsStringSync(raw.replaceAll(oldRelative, newRelative));
+    if (oldRelative != newRelative && raw.contains(oldRelative)) {
+      raw = raw.replaceAll(oldRelative, newRelative);
+    }
+
+    // Also rewrite package-URI imports if the subject was under lib/
+    final oldSubjectPosix = _posix(subjectFrom);
+    final newSubjectPosix = _posix(subjectTo);
+    if (oldSubjectPosix.contains('lib/') && newSubjectPosix.contains('lib/')) {
+      final oldLibSubpath = oldSubjectPosix.substring(
+        oldSubjectPosix.indexOf('lib/') + 4,
+      );
+      final newLibSubpath = newSubjectPosix.substring(
+        newSubjectPosix.indexOf('lib/') + 4,
+      );
+      raw = raw.replaceAll(oldLibSubpath, newLibSubpath);
+    }
+
+    file.writeAsStringSync(raw);
   }
 
   /// Rewrite the feature's cycle-log evidence lines that name the moved

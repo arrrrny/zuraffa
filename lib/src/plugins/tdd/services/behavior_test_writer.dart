@@ -45,14 +45,18 @@ class BehaviorTestWriter {
     final testFile = File(testPath);
     await testFile.parent.create(recursive: true);
     final relativeSubjectPath = _relativeSubjectPath(testPath, subjectPath);
-    final escapedGroupDesc = '${behavior.id} (${behavior.sourceCriterion})'.replaceAll(
-      "'",
-      "\\'",
-    );
+    final escapedGroupDesc = '${behavior.id} (${behavior.sourceCriterion})'
+        .replaceAll("'", "\\'");
+    final escapedDesc = behavior.description.replaceAll("'", "\\'");
     final content = behavior.kind == BehaviorKind.ffi
         ? renderContractTest(behavior, testPath, subjectPath)
         : behavior.persistence
-        ? _renderPersistenceTest(behavior, relativeSubjectPath, escapedGroupDesc, behavior.description)
+        ? _renderPersistenceTest(
+            behavior,
+            relativeSubjectPath,
+            escapedGroupDesc,
+            escapedDesc,
+          )
         : behavior.kind == BehaviorKind.widget
         ? _renderWidgetTest(behavior, relativeSubjectPath, golden)
         : _renderTest(behavior, relativeSubjectPath);
@@ -340,7 +344,6 @@ Object? _captured(Object? Function() invoke) {
 ''';
   }
 
-
   /// The persistence-kind test shape (bug #833).
   String _renderPersistenceTest(
     Behavior b,
@@ -392,6 +395,7 @@ void main() {
 }
 ''';
   }
+
   static String _toSnakeCase(String s) {
     final out = StringBuffer();
     for (var i = 0; i < s.length; i++) {
