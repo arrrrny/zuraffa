@@ -13,10 +13,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../helpers/tdd_fixture.dart';
+import 'package:zuraffa/src/core/project/receipt_store.dart';
 import 'package:zuraffa/src/plugins/tdd/commands/realize_command.dart';
 import 'package:zuraffa/src/plugins/tdd/services/differential_gate.dart';
 import 'package:zuraffa/src/plugins/tdd/tdd_plugin.dart';
@@ -104,6 +106,8 @@ void main() {
     String? feature,
     List<int> exitSequence = const [0, 0],
     RealizeFixtureDriver? fixtureDriver,
+    List<String> handDeltas = const [],
+    String? handDeltaReason,
   }) async {
     var call = 0;
     final cmd = RealizeCommand(
@@ -125,6 +129,8 @@ void main() {
       fx.root.path,
       if (adapter != null) ...['--adapter', adapter],
       if (feature != null) ...['--feature', feature],
+      for (final delta in handDeltas) ...['--hand-delta', delta],
+      if (handDeltaReason != null) ...['--reason', handDeltaReason],
     ];
     final lines = <String>[];
     await runZoned(
@@ -145,6 +151,28 @@ void main() {
       'input': {'op': 'getById', 'id': 'u1'},
       'mockOutput': {'id': 'u1', 'email': 'a@b.c'},
     }));
+  }
+
+  /// Receipt the current bytes of [rel] as a #807 generation run (the
+  /// provenance baseline realize detects drift against).
+  Future<void> _receipt(String rel, String content) async {
+    final store = ReceiptStore(projectRoot: fx.root.path);
+    await store.save(GenerationReceipt(
+      command: 'zfa di',
+      target: 'User',
+      repro: 'zfa di User',
+      at: DateTime.now().toUtc(),
+      generatorVersion: '6.1.0',
+      input: const {},
+      files: [
+        GenerationReceiptFile(
+          path: rel,
+          action: 'create',
+          sha256: crypto.sha256.convert(content.codeUnits).toString(),
+          bytes: content.length,
+        ),
+      ],
+    ));
   }
 
   test('A1: full green path rebinds DI, transitions era, persists state',
@@ -322,6 +350,52 @@ void main() {
       File(p.join(fx.featureDir, 'tdd', 'realize-state.json')).existsSync(),
       isFalse,
     );
+  });
+
+  test('A5: ungated hand-deltas block the swap; gated deltas are recorded '
+      'and the swap proceeds', () async {
+    const rel = 'lib/src/di/datasources/user_mock_datasource_di.dart';
+    // The binding file was generated (receipted) and then hand-edited.
+    await _receipt(rel, datasourceDi);
+    await File(p.join(fx.root.path, rel))
+        .writeAsString('$datasourceDi\n// hand-tuned for the demo');
+
+    // Ungated: the swap is blocked before anything is rebound.
+    final blocked = await runRealize(
+      adapter: 'UserRealAdapter',
+      handDeltas: const [],
+    );
+    expect(exitCode, 1, reason: 'out: $blocked');
+    expect(blocked, contains('hand-delta'));
+    expect(blocked, contains(rel));
+    expect(blocked, contains('result=blocked'));
+    final stillMocked = await File(p.join(fx.root.path, rel)).readAsString();
+    expect(stillMocked, contains('// hand-tuned for the demo'),
+        reason: 'a blocked swap leaves the tree untouched');
+
+    // Gated: the delta is recorded with (file, reason, diff-hash) and
+    // the swap proceeds.
+    final out = await runRealize(
+      adapter: 'UserRealAdapter',
+      handDeltas: [rel],
+      handDeltaReason: 'hand-tuned for the demo fixture',
+    );
+    expect(exitCode, 0, reason: 'out: $out');
+    expect(out, contains('result=realized'));
+
+    final ledgerFile =
+        File(p.join(fx.featureDir, 'tdd', 'provenance-ledger.json'));
+    expect(ledgerFile.existsSync(), isTrue);
+    final ledger =
+        jsonDecode(await ledgerFile.readAsString()) as Map<String, dynamic>;
+    final entries = (ledger['entries'] as List)
+        .where((e) => (e as Map<String, dynamic>)['file'] == rel)
+        .toList();
+    expect(entries, isNotEmpty);
+    final entry = entries.first as Map<String, dynamic>;
+    expect(entry['reason'], 'hand-tuned for the demo fixture');
+    expect(entry['diffHash'], matches(RegExp(r'^[0-9a-f]{64}$')));
+    expect(entry['adapter'], 'UserRealAdapter');
   });
 }
 

@@ -84,6 +84,20 @@ class RealizeCommand extends Command<void> {
           'Project root containing specs/, lib/, test/. Defaults to the '
           'current working directory.',
     );
+    argParser.addMultiOption(
+      'hand-delta',
+      valueHelp: 'file',
+      help:
+          'A hand-written delta to gate with a nuance receipt (repeatable; '
+          'project-relative POSIX path). Required together with --reason '
+          'when realize detects an unrecorded hand-delta.',
+    );
+    argParser.addOption(
+      'reason',
+      help:
+          'The reason the hand-delta(s) are legal (required with '
+          '--hand-delta; recorded verbatim in the provenance ledger).',
+    );
   }
 
   final TddPlugin plugin;

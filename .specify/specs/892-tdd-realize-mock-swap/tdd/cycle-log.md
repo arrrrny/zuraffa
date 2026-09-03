@@ -610,3 +610,107 @@ For example, 'dart test --chain-stack-traces'.
 - prev-hash: 31a1455f63e8154744ca5be892836b1336b0a7e80b38441ff57470e7bd6989dd
 - hash: e19ad8e73efd154b25090d6d6fbb0d8437322430c7f8d4f68de1222026a247aa
 
+## Cycle: U14-U16 (red)
+
+- behavior: U14-U16
+- kind: red
+- classification: assertionFailure
+- criterion: SC-3
+- test: test/plugins/tdd/services/nuance_receipts_test.dart
+- command: `dart test test/plugins/tdd/services/nuance_receipts_test.dart`
+- exit: 1
+- at: 2026-09-03T08:39:10.565006Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/nuance_receipts_test.dart
+00:00 +0: U14: record() writes (file, reason, diff-hash) into the ledger
+00:00 +0 -1: U14: record() writes (file, reason, diff-hash) into the ledger [E]
+  UnimplementedError
+  package:zuraffa/src/plugins/tdd/services/nuance_receipts.dart 97:9  NuanceReceipts.record
+  test/plugins/tdd/services/nuance_receipts_test.dart 53:36           main.<fn>
+  
+00:00 +0 -1: U15: record() refuses an empty reason — reason is enforced
+00:00 +0 -2: U15: record() refuses an empty reason — reason is enforced [E]
+  Expected: throws <Instance of 'NuanceReceiptException'> with `message`: contains 'reason'
+    Actual: <Closure: () => Future<LedgerEntry>>
+     Which: threw UnimplementedError:<UnimplementedError>
+            stack package:zuraffa/src/plugins/tdd/services/nuance_receipts.dart 97:9  NuanceReceipts.record
+                  test/plugins/tdd/services/nuance_receipts_test.dart 85:24           main.<fn>.<fn>
+                  package:matcher                                                     expect
+                  test/plugins/tdd/services/nuance_receipts_test.dart 84:5            main.<fn>
+                  
+            which is not an instance of 'NuanceReceiptException'
+  
+  package:matcher                                           expect
+  test/plugins/tdd/services/nuance_receipts_test.dart 84:5  main.<fn>
+  
+00:00 +0 -2: U16: detect() finds drifted and unreceipted hand-deltas
+00:00 +0 -3: U16: detect() finds drifted and unreceipted hand-deltas [E]
+  UnimplementedError
+  package:zuraffa/src/plugins/tdd/services/nuance_receipts.dart 106:9  NuanceReceipts.detect
+  test/plugins/tdd/services/nuance_receipts_test.dart 131:29           main.<fn>
+  
+00:00 +0 -3: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/services/nuance_receipts_test.dart: U14: record() writes (file, reason, diff-hash) into the ledger
+  test/plugins/tdd/services/nuance_receipts_test.dart: U15: record() refuses an empty reason — reason is enforced
+  test/plugins/tdd/services/nuance_receipts_test.dart: U16: detect() finds drifted and unreceipted hand-deltas
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
+```
+- schema: 1
+- prev-hash: genesis
+- hash: caaefb8710422020778f6a628ef481690e068aea0d8239d3ac813bdba32bbd28
+
+## Cycle: A5 (red)
+
+- behavior: A5
+- kind: red
+- classification: assertionFailure
+- criterion: SC-3
+- test: test/plugins/tdd/commands/realize_command_test.dart
+- command: `dart test test/plugins/tdd/commands/realize_command_test.dart`
+- exit: 1
+- at: 2026-09-03T08:39:11.080355Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/commands/realize_command_test.dart
+00:00 +0: A1: full green path rebinds DI, transitions era, persists state
+00:00 +1: A2: --adapter is required — a swap without a real adapter is refused
+00:00 +2: A6: a behavior id target resolves through the registry
+00:00 +3: A3: a red real-binding run blocks the swap, rolls the rebind back, and the verdict names the side
+00:00 +4: A3b: a red baseline (mock era already broken) blocks before any rebind and blames the mock side
+00:00 +5: A4a: drift within the .zfa.json threshold passes with a drift report
+00:00 +6: A4b: drift beyond the .zfa.json threshold blocks the transition and rolls the rebind back
+00:00 +7: A5: ungated hand-deltas block the swap; gated deltas are recorded and the swap proceeds
+00:00 +7 -1: A5: ungated hand-deltas block the swap; gated deltas are recorded and the swap proceeds [E]
+  Expected: <1>
+    Actual: <0>
+  out: zfa tdd realize: entity User -> adapter UserRealAdapter
+     feature: 090-tdd-fixture
+     era: MOCKED
+     rebound: lib/src/di/datasources/user_mock_datasource_di.dart (2 site(s))
+     rebound: lib/src/di/repositories/user_repository_di.dart (1 site(s))
+     interface preserved: 1 domain file(s) byte-identical
+     contract gate green: the mock-era suite stays green against the real binding — the contract holds on both sides.
+     differential gate skipped: no committed fixtures under specs/090-tdd-fixture/tdd/fixtures — the gate is marked skipped, never silently passed
+     state: MOCKED -> REAL (/tmp/tdd_fixture_TDPZGZ/specs/090-tdd-fixture/tdd/realize-state.json)
+  realize: entity=User adapter=UserRealAdapter feature=090-tdd-fixture contract=green differential=skipped drift=0.0 threshold=0.0 era=MOCKED->REAL result=realized
+  
+  package:matcher                                            expect
+  test/plugins/tdd/commands/realize_command_test.dart 368:5  main.<fn>
+  
+00:00 +7 -1: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/commands/realize_command_test.dart: A5: ungated hand-deltas block the swap; gated deltas are recorded and the swap proceeds
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
+```
+- schema: 1
+- prev-hash: genesis
+- hash: 0b0b5e30341453268307fe459fe69c3015c9dfc293606bb6368ab7c9f6bd1c05
+
