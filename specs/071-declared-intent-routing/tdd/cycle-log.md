@@ -50,3 +50,13 @@ test task first (RED recorded here), then the implementation tasks that flip it
 - red: 2026-09-03 — `+0 -1` load failure (parseContractRows absent)
 - green: 2026-09-03 — `+4: All tests passed!` (T014; one iteration: domain rows declare `->` signatures too per the #919 grammar, so signature parsing covers every layer row with the malformed-refusal scoped to function rows)
 - tasks ticked: T012, T014
+
+## Cycle: A2 (red -> green)
+
+- behavior: A2 — generation surfaces/signatures/entity attribution from declared contract rows; undeclared keeps legacy routing
+- criterion: FR-004, FR-005, FR-007
+- test: test/plugins/tdd/services/generation_planner_declared_test.dart + test/plugins/tdd/commands/func_declared_signature_test.dart
+- red: 2026-09-03 — planner pins `+0 -1` load failure (BehaviorSummary lacked traces/declarations); func pin `+0 -1` for the right reason (subject scaffolded `String` by prose, declared `bool`)
+- green: 2026-09-03 — planner `+5: All tests passed!` (T015: resolver-first in plan(), surface-keyed declared plans, legacy branches as labeled fallback); func `+10: All tests passed!` across both files (T016: DeclaredRouting.declaredSignatureFor feeds the declared signature; deriver demoted to fallback); services regression 526 green; #950/#835 planner pins re-green
+- notes: one pin fixed its own expectation (U-id dispatch precedes description branches per #718 — used a non-U id to exercise the description-keyed legacy branch); make wiring of declarations lands with strict mode (T027) per tasks.md
+- tasks ticked: T013, T015, T016, T017

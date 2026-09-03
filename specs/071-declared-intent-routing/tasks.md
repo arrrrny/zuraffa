@@ -78,14 +78,14 @@ description: "Task list for feature implementation"
 ### Tests for User Story 2 (write FIRST, ensure RED)
 
 - [x] T012 [P] [US2] MANDATORY [behavior: U3] Write `test/plugins/tdd/services/function_contracts_parsing_test.dart` (RED): the `**Function**` Layer Contracts bullet parses into rows with parsed signatures; a bullet missing `->` is a `malformedDeclaration` naming the row.
-- [ ] T013 [P] [US2] MANDATORY [behavior: A2] Write planner surface pins in `test/plugins/tdd/services/generation_planner_declared_test.dart` (RED): entity-row trace → entity pipeline steps; function-row trace → `tdd func` with declared signature; presentation-row trace → view-lane unexpressible; undeclared behaviors fall back labeled (planner reason carries provenance).
+- [x] T013 [P] [US2] MANDATORY [behavior: A2] Write planner surface pins in `test/plugins/tdd/services/generation_planner_declared_test.dart` (RED): entity-row trace → entity pipeline steps; function-row trace → `tdd func` with declared signature; presentation-row trace → view-lane unexpressible; undeclared behaviors fall back labeled (planner reason carries provenance).
 
 ### Implementation for User Story 2
 
 - [x] T014 [US2] Parse the `**Function**` contracts bullet in `lib/src/plugins/tdd/services/spec_parser.dart` (`parseLayerContracts` gains the function layer; signatures via T003 parser). Depends on T012 (RED).
-- [ ] T015 [US2] Route `GenerationPlanner.plan()` through the resolver in `lib/src/plugins/tdd/services/generation_planner.dart`: declared surface decides the plan (entity pipeline / dependency make / view / func); the id-prefix and prose branches become the fallback rung with labeled reasons; `_extractEntityName`/`_extractCapitalizedTrace` run only when no entity row is declared, with fallback provenance naming the Key Entities row to declare. Depends on T004, T013 (RED).
-- [ ] T016 [US2] Prefer declared signatures in `lib/src/plugins/tdd/commands/func_command.dart` and the wire path: contract-row signature first, `subject_signature_deriver.dart` as labeled fallback. Depends on T014, T015.
-- [ ] T017 [US2] Verify T013 pins green + the #920 replay (an entity-fields FR with a declared String function signature scaffolds `String`, not `int`) + existing planner suites stay green. Depends on T016.
+- [x] T015 [US2] Route `GenerationPlanner.plan()` through the resolver in `lib/src/plugins/tdd/services/generation_planner.dart`: declared surface decides the plan (entity pipeline / dependency make / view / func); the id-prefix and prose branches become the fallback rung with labeled reasons; `_extractEntityName`/`_extractCapitalizedTrace` run only when no entity row is declared, with fallback provenance naming the Key Entities row to declare. Depends on T004, T013 (RED).
+- [x] T016 [US2] Prefer declared signatures in `lib/src/plugins/tdd/commands/func_command.dart` and the wire path: contract-row signature first, `subject_signature_deriver.dart` as labeled fallback. Depends on T014, T015.
+- [x] T017 [US2] Verify T013 pins green + the #920 replay (an entity-fields FR with a declared String function signature scaffolds `String`, not `int`) + existing planner suites stay green. Depends on T016.
 
 **Checkpoint**: Surfaces, signatures, and entity attribution are declaration-driven.
 
