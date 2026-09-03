@@ -26,6 +26,26 @@ DerivedSignature deriveSubjectSignature(
 }) {
   final desc = description.toLowerCase();
 
+  // "returns 3.14" — a concrete decimal result.
+  final decimal = RegExp(r'\breturns?\s+([+-]?\d+\.\d+)').firstMatch(desc);
+  if (decimal != null) {
+    return DerivedSignature(
+      returnType: 'double',
+      explicitBody: 'return ${decimal.group(1)};',
+    );
+  }
+
+  // "returns -42" — a concrete signed integer result.
+  // This follows decimal matching so the integer expression cannot consume
+  // only the leading digits of a decimal literal.
+  final signedDigits = RegExp(r'\breturns?\s+([+-]\d+)').firstMatch(desc);
+  if (signedDigits != null) {
+    return DerivedSignature(
+      returnType: 'int',
+      explicitBody: 'return ${signedDigits.group(1)};',
+    );
+  }
+
   // "returns 42" — a concrete integer result.
   final digits = RegExp(r'\breturns?\s+(\d+)').firstMatch(desc);
   if (digits != null) {

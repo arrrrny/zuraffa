@@ -350,5 +350,42 @@ class Weird {
       expect(subject, contains('final Type wiredEntityAnchor = User;'));
       expect(subject, contains("return 'subject_b_002';"));
     });
+
+    test(
+      'U-920a: wired subject preserves a signed integer return value',
+      () async {
+        await fx.registerBehavior(
+          id: 'B-003',
+          description: 'returns -42 when invoked with no args',
+        );
+        await File(
+          fx.subjectPathOf('B-003'),
+        ).writeAsString(genStyleStub('B-003'));
+
+        final out = await runWire(id: 'B-003');
+
+        expect(exitCode, 0, reason: 'out: $out');
+        final subject = await File(fx.subjectPathOf('B-003')).readAsString();
+        expect(subject, contains('int subject_b_003() {'));
+        expect(subject, contains('return -42;'));
+      },
+    );
+
+    test('U-920b: wired subject preserves a decimal return value', () async {
+      await fx.registerBehavior(
+        id: 'B-004',
+        description: 'returns 3.14 when invoked with no args',
+      );
+      await File(
+        fx.subjectPathOf('B-004'),
+      ).writeAsString(genStyleStub('B-004'));
+
+      final out = await runWire(id: 'B-004');
+
+      expect(exitCode, 0, reason: 'out: $out');
+      final subject = await File(fx.subjectPathOf('B-004')).readAsString();
+      expect(subject, contains('double subject_b_004() {'));
+      expect(subject, contains('return 3.14;'));
+    });
   });
 }

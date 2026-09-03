@@ -108,6 +108,42 @@ void main() {
     expect(subject, isNot(contains('UnimplementedError')));
   });
 
+  test('U-F2a: a "returns -42" description derives an int signature with '
+      'the signed return value', () async {
+    await fx.registerBehavior(
+      id: 'B-002A',
+      description: 'returns -42 when invoked with no args',
+    );
+    await File(
+      fx.subjectPathOf('B-002A'),
+    ).writeAsString(genStyleStub('B-002A'));
+
+    final out = await runFunc(id: 'B-002A');
+
+    expect(exitCode, 0, reason: 'out: $out');
+    final subject = await File(fx.subjectPathOf('B-002A')).readAsString();
+    expect(subject, contains('int subject_b_002a()'));
+    expect(subject, contains('return -42;'));
+  });
+
+  test('U-F2b: a "returns 3.14" description derives a double signature '
+      'with the decimal return value', () async {
+    await fx.registerBehavior(
+      id: 'B-002B',
+      description: 'returns 3.14 when invoked with no args',
+    );
+    await File(
+      fx.subjectPathOf('B-002B'),
+    ).writeAsString(genStyleStub('B-002B'));
+
+    final out = await runFunc(id: 'B-002B');
+
+    expect(exitCode, 0, reason: 'out: $out');
+    final subject = await File(fx.subjectPathOf('B-002B')).readAsString();
+    expect(subject, contains('double subject_b_002b()'));
+    expect(subject, contains('return 3.14;'));
+  });
+
   test('U-F3: a boolean description derives a bool signature', () async {
     await fx.registerBehavior(
       id: 'B-003',
