@@ -37,6 +37,14 @@ class CycleLogEntry {
   final String capturedOutput;
   final FailureClass? classification;
 
+  /// The failing authored assertion's identity for red entries (issue
+  /// #959): extracted from the runner transcript by `failingAssertionOf`.
+  /// Nullable — present only when the transcript names the assertion;
+  /// rendered as the optional `- evidence:` field line. Outside the
+  /// chain-hash payload (which covers the certified facts only), so the
+  /// evidence schema stays at v1.
+  final String? redEvidence;
+
   /// The spec criterion the behavior traces to (e.g. `FR-006`).
   final String sourceCriterion;
 
@@ -87,6 +95,7 @@ class CycleLogEntry {
     required this.testPath,
     required this.timestamp,
     this.classification,
+    this.redEvidence,
     this.refactorActions = const [],
     this.isNoOp = false,
     this.generationSteps = const [],
@@ -107,6 +116,9 @@ class CycleLogEntry {
       ..writeln('- kind: $kindLabel');
     if (classification != null) {
       buf.writeln('- classification: ${classification!.name}');
+    }
+    if (redEvidence != null) {
+      buf.writeln('- evidence: $redEvidence');
     }
     buf
       ..writeln('- criterion: $sourceCriterion')

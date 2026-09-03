@@ -486,4 +486,68 @@ Failing tests:
       }
     });
   });
+
+  // ------------------------------------------------------------------
+  // issue #959 — failingAssertionOf: name the failing authored assertion
+  // (U3): a certified red must identify WHICH authored assertion failed,
+  // extracted from the same reporter grammar classify() parses.
+  // ------------------------------------------------------------------
+  group('failingAssertionOf — names the failing authored assertion (U3)', () {
+    test('finder-failure transcript yields the failing test description', () {
+      expect(
+        failingAssertionOf(assertionOutput),
+        'returns 42 when invoked with no args',
+      );
+    });
+
+    test('flutter assertion shape yields the test description', () {
+      expect(
+        failingAssertionOf(flutterAssertionOutput),
+        'returns 42 when invoked with no args',
+      );
+    });
+
+    test('blended transcript yields the LAST failing assertion', () {
+      expect(
+        failingAssertionOf(blendedOutput),
+        'returns 41 when invoked with no args',
+      );
+    });
+
+    test('loading [E] lines are never mistaken for an authored assertion', () {
+      // Load failures route to load-error, never assertion — the
+      // extractor must not hand back a "loading ..." identity.
+      expect(failingAssertionOf(loadErrorMissingFileOutput), isNull);
+      expect(failingAssertionOf(compileErrorOutput), isNull);
+    });
+
+    test('runner-crash transcript without an [E] line yields null', () {
+      const crash = '''
+00:01 +0: loading test/tdd/a1_test.dart
+══╡ EXCEPTION CAUGHT BY WIDGETS LIBRARY ╞═════════════════════════════
+The following StateError was thrown building Dashboard(dirty):
+  Bad state: no theme
+
+00:01 +0 -1: Some tests failed.
+''';
+      expect(failingAssertionOf(crash), isNull);
+    });
+
+    test('empty and unparseable transcripts yield null', () {
+      expect(failingAssertionOf(''), isNull);
+      expect(failingAssertionOf('gibberish'), isNull);
+    });
+
+    test('the identity is single-line even when the name has em-dashes', () {
+      const named = '''
+00:00 +0: loading test/b_001_test.dart
+00:00 +0 -1: B-001 \u2014 renders the 'Home' label [E]
+  Expected: exactly one matching node in the widget tree
+    Actual: _TextWidgetFinder:<zero widgets with text "Home">
+
+00:00 +0 -1: Some tests failed.
+''';
+      expect(failingAssertionOf(named), "B-001 \u2014 renders the 'Home' label");
+    });
+  });
 }

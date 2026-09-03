@@ -17,7 +17,10 @@
 ///     composition with the entity pipeline (`zfa make --with=vpc` view
 ///     generation + wire) is the entity-orchestration surface (issue
 ///     #829); the stub itself stands alone and compiles in any Flutter
-///     project.
+///     project. Since issue #959 the widget stub is INERT — it returns
+///     `SizedBox.shrink()` (a valid widget that displays nothing) so the
+///     authored finder assertions are the red surface — while the other
+///     kinds throw `UnimplementedError()`.
 ///   - For `ffi` classification (bug #835): a NATIVE-BINDING CONTRACT
 ///     harness — the declared contract (library name + required symbols)
 ///     plus the three seams the generated contract/golden tests assert
@@ -83,8 +86,13 @@ int $target() => throw UnimplementedError('$target not implemented');
 ''';
     }
     // Widget (bug #830): a view-builder / page contract. Returns the
-    // feature Widget the paired testWidgets test pumps; throws
-    // UnimplementedError until the real view lands (honest red).
+    // feature Widget the paired testWidgets test pumps. Issue #959: the
+    // stub is the INERT RED SURFACE of the widget lane — a valid,
+    // renderable widget that displays none of the authored expectations.
+    // The generated test's guard passes, the pump runs, and the authored
+    // finder assertions fail against this empty view, so red is certified
+    // ON the authored assertions (never at the guard — a throwing stub
+    // aborts the test and leaves the finders born green).
     if (kind == BehaviorKind.widget) {
       return '''
 // GENERATED STUB — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
@@ -94,21 +102,21 @@ int $target() => throw UnimplementedError('$target not implemented');
 // kind: widget
 // description: ${b.description}
 //
-// This is a MINIMAL COMPILABLE view-builder stub for a UI behavior (bug
-// #830): a page contract the entity pipeline composes (issue #829). It
-// compiles cleanly (FR-011) but does NOT satisfy the behavior described
-// above — the paired widget test fails on first execution through an
-// assertion (honest red), because the UnimplementedError is captured
-// BEFORE the pump. Replace this stub body with the real view builder.
+// This is the INERT RED SURFACE of the widget lane (issue #959): a
+// valid, renderable view-builder that displays none of the authored
+// expectations. The paired widget test's guard passes, the pump runs,
+// and the authored finder assertions fail against this empty view —
+// red is certified ON the authored assertions, never at the guard.
+// Replace this stub body with the real view builder to make the test
+// pass (green needs zero edits to the assertions).
 library;
 
 import 'package:flutter/material.dart';
 
 /// View-builder subject for behavior ${b.id}.
 ///
-/// Returns the feature view this behavior's acceptance scenario asserts
-/// against. Throws [UnimplementedError] until the real implementation lands.
-Widget $target() => throw UnimplementedError('$target not implemented');
+/// Inert red surface: replace this body with the real view builder.
+Widget $target() => const SizedBox.shrink();
 ''';
     }
     // Acceptance: emit a "scenario runner" that throws UnimplementedError.

@@ -340,7 +340,11 @@ void main() {
           contains("import 'package:flutter/material.dart';"),
         );
         expect(subjectContent, contains('Widget subject_b003()'));
-        expect(subjectContent, contains('UnimplementedError'));
+        // Inert red surface (issue #959): the widget stub is a valid,
+        // renderable widget that displays nothing — the authored finders
+        // are what fail at red time, so the stub body never throws.
+        expect(subjectContent, contains('const SizedBox.shrink();'));
+        expect(subjectContent, isNot(contains('throw UnimplementedError')));
       },
     );
 
