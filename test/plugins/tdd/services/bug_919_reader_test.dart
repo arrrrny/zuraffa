@@ -10,7 +10,6 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
-import 'package:zuraffa/src/plugins/tdd/services/spec_parser.dart';
 import 'package:zuraffa/src/plugins/tdd/services/test_list_reader.dart';
 
 void main() {
