@@ -14,12 +14,12 @@
 library;
 
 import 'package:test/test.dart';
-import '../../lib/tdd/u2_subject.dart' as subject;
+import 'package:todo_tdd/tdd/u2_subject.dart' as subject;
 
 void main() {
   group('U2 (FR-002)', () {
     test('The maximum title length returns 120 when a title is validated.', () {
-      final Object? result = (() {
+      final Object result = (() {
         try {
           return subject.subject_u2();
         } on UnimplementedError catch (error) {

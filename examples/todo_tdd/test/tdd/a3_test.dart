@@ -14,7 +14,7 @@
 library;
 
 import 'package:test/test.dart';
-import '../../lib/tdd/a3_subject.dart' as subject;
+import 'package:todo_tdd/tdd/a3_subject.dart' as subject;
 
 void main() {
   group('A3 (AC-3)', () {

@@ -9,6 +9,7 @@
 // fail on first execution with an assertion-level failure (honest red).
 // Replace this stub body with real implementation to make the test pass.
 library;
+// ignore_for_file: non_constant_identifier_names
 
 /// Subject for behavior U3.
 ///
