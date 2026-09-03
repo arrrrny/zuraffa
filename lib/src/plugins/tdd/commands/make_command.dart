@@ -86,6 +86,7 @@ import '../services/runner.dart';
 import '../services/test_list_reader.dart';
 import '../services/suite_guard.dart';
 import '../services/tdd_timeout.dart';
+import '../services/widget_scaffold.dart';
 import '../tdd_plugin.dart';
 import '../../../cli/plugin_loader.dart';
 import '../../../config/zfa_config.dart';
@@ -289,6 +290,35 @@ class MakeCommand extends Command<void> {
         ? record.testPath
         : p.join(cwd, record.testPath);
     final testName = _runnableNameOf(record);
+
+    // ---------------------------------------------------------------
+    // 3b. Scaffolded widget tests cannot certify green (issue #912
+    //     defect 3). A generated widget test whose scenario assertions
+    //     are still placeholder finders carries the machine-readable
+    //     scaffold marker; a green such test proves nothing (a bare
+    //     SizedBox() passes it). The behavior is EXCLUDED from
+    //     contract-green accounting: refuse with the remedy, exit
+    //     non-zero, no green evidence appended.
+    // ---------------------------------------------------------------
+    final scaffoldCheckFile = File(testPath);
+    if (scaffoldCheckFile.existsSync() &&
+        contentIsScaffolded(await scaffoldCheckFile.readAsString())) {
+      print(
+        'zfa tdd make: behavior "${record.behaviorId}" test is SCAFFOLDED '
+        '— its scenario assertions are placeholder finders '
+        '($scaffoldedMarker, issue #912 defect 3). Replace the '
+        'placeholder finders with concrete scenario-derived finders '
+        '(find.text / find.byType ...), remove the marker, and re-run '
+        'make.',
+      );
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: MakeOutcome.scaffolded,
+        feature: target.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
 
     // ---------------------------------------------------------------
     // 4. Drift check: re-run target test BEFORE generation (FR-003).
