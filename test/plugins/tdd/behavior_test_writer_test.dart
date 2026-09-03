@@ -21,7 +21,9 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/models/behavior.dart';
+import 'package:zuraffa/src/plugins/tdd/models/red_classification.dart';
 import 'package:zuraffa/src/plugins/tdd/services/behavior_test_writer.dart';
+import 'package:zuraffa/src/plugins/tdd/services/red_classifier.dart';
 import 'package:zuraffa/src/plugins/tdd/services/widget_scaffold.dart';
 
 void main() {
@@ -101,6 +103,50 @@ void main() {
         reason: 'the authored finders are the primary red surface against '
             'the inert stub; the template must say so',
       );
+    });
+
+    test('renders are deterministic — only the subject file separates red '
+        'from green (zero assertion edits, A2/U6)', () async {
+      final first = await renderWidgetTest();
+      final second = await renderWidgetTest();
+      expect(second, first, reason:
+          'the emitted test must be identical across renders: the red→green '
+          'transition swaps ONLY the subject stub body — authored assertions '
+          'are never edited');
+    });
+
+    test('a vacuous-only template against the inert stub is green at red '
+        'time — unexpected-green refusal (U4/U8/A4/A5)', () async {
+      // The scaffolded template (finder-less description) carries ONLY the
+      // vacuous tail finder: find.byWidget(view) passes against ANY widget,
+      // including the inert stub's SizedBox.shrink. At red time every
+      // assertion therefore PASSES — the transcript is green — and the
+      // classifier's verdict is unexpected-green: the mechanical refusal
+      // that replaces the honor-system marker check.
+      final content = await renderWidgetTest(
+        description: 'renders the dashboard view.',
+      );
+      expect(contentIsScaffolded(content), isTrue);
+      expect(content, contains('find.byWidget(view)'));
+      expect(content, isNot(contains('find.text(')),
+          reason: 'vacuous-only: no content-inspecting finder exists');
+      const greenAtRedTime = '''
+00:00 +0: loading test/b_001_test.dart
+00:00 +1: B-001 — renders the dashboard view
+00:00 +1: All tests passed!
+''';
+      final verdict = classify(
+        RunRecord(
+          command: 'flutter test test/b_001_test.dart --plain-name "B-001"',
+          exitCode: 0,
+          output: greenAtRedTime,
+          startedProcess: true,
+          testCount: 1,
+        ),
+      );
+      expect(verdict, RedClassification.unexpectedGreen, reason:
+          'a scaffolded test cannot certify red: it is already green against '
+          'the inert stub, and verify-red refuses unexpected-green');
     });
   });
 }
