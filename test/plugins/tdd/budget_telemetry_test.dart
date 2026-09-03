@@ -76,6 +76,38 @@ void main() {
       }),
       isNull,
     );
+    // MIXED shapes: any ONE bad axis is still a refusal — a verdict
+    // reader must never half-trust a malformed block.
+    expect(
+      BudgetTelemetry.fromJson({
+        'wall_clock_ms': {'run': 1},
+        'suite_seconds': 'not-a-num',
+        'mutant_count': 1,
+      }),
+      isNull,
+    );
+    expect(
+      BudgetTelemetry.fromJson({
+        'wall_clock_ms': {'run': 1},
+        'suite_seconds': 1,
+        'mutant_count': 'not-a-num',
+      }),
+      isNull,
+    );
+  });
+
+  test('fromJson ignores non-numeric wall-clock entries (never crashes)', () {
+    // A non-numeric entry under a step key is skipped, not multiplied
+    // into the budget — the accumulator stays well-typed.
+    final restored = BudgetTelemetry.fromJson({
+      'wall_clock_ms': {'run': 'fast', 'verify': 2},
+      'suite_seconds': 1,
+      'mutant_count': 3,
+    });
+    expect(restored, isNotNull);
+    expect(restored!.wallClock.millisOf('run'), 0);
+    expect(restored.wallClock.millisOf('verify'), 2);
+    expect(restored.mutantCount, 3);
   });
 
   test('stepNames is sorted (stable verdict field order)', () {

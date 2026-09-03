@@ -66,20 +66,58 @@ void main() {
     test('shard count < 1 is refused (never silently one big shard)', () {
       expect(
         () => sharder.shard(features: ['a'], shardCount: 0),
-        throwsArgumentError,
+        throwsA(
+          isA<ArgumentError>().having((e) => e.name, 'name', 'shardCount'),
+        ),
       );
     });
 
     test('shardLane returns exactly one lane', () {
       final features = List.generate(7, (i) => 'f${i + 1}');
+      // Lane 0 is valid (the first lane) — never refused.
+      expect(
+        sharder.shardLane(features: features, shardCount: 3, shardIndex: 0),
+        ['f1', 'f4', 'f7'],
+      );
       expect(
         sharder.shardLane(features: features, shardCount: 3, shardIndex: 2),
         ['f3', 'f6'],
       );
+      // The out-of-range lane index is a NAMED ArgumentError (never a
+      // raw RangeError leaking from the shard list access).
       expect(
         () =>
             sharder.shardLane(features: features, shardCount: 3, shardIndex: 3),
-        throwsArgumentError,
+        throwsA(
+          isA<ArgumentError>()
+              .having((e) => e.name, 'name', 'shardIndex')
+              .having(
+                (e) => e.message,
+                'message',
+                contains(
+                  'must be in [0, 3) (0-based; the CLI flag is 1-based)',
+                ),
+              ),
+        ),
+      );
+      expect(
+        () => sharder.shardLane(
+          features: features,
+          shardCount: 3,
+          shardIndex: -1,
+        ),
+        throwsA(
+          isA<ArgumentError>().having((e) => e.name, 'name', 'shardIndex'),
+        ),
+      );
+      // Index BEYOND count+1 must still be the NAMED refusal, never a
+      // RangeError leaking from the shard list access.
+      expect(
+        () =>
+            sharder.shardLane(features: features, shardCount: 3, shardIndex: 4),
+        throwsA(
+          isA<ArgumentError>().having((e) => e.name, 'name', 'shardIndex'),
+        ),
       );
     });
   });
@@ -96,11 +134,53 @@ void main() {
     });
 
     test('malformed values are REFUSED, never silently unsharded', () {
-      expect(() => CorpusSharder.parseShardSpec('abc'), throwsFormatException);
-      expect(() => CorpusSharder.parseShardSpec('4'), throwsFormatException);
-      expect(() => CorpusSharder.parseShardSpec('0/4'), throwsFormatException);
-      expect(() => CorpusSharder.parseShardSpec('5/4'), throwsFormatException);
-      expect(() => CorpusSharder.parseShardSpec('1/0'), throwsFormatException);
+      void expectInvalid(String raw) {
+        expect(
+          () => CorpusSharder.parseShardSpec(raw),
+          throwsA(
+            isA<FormatException>().having(
+              (e) => e.message,
+              'message',
+              contains('invalid --shard "$raw"'),
+            ),
+          ),
+        );
+      }
+
+      // The message names the expected CI matrix form + the 1-based
+      // convention (the error prose is a contract: operators paste it
+      // straight into CI configs).
+      void expectInvalidWithForm(String raw) {
+        expect(
+          () => CorpusSharder.parseShardSpec(raw),
+          throwsA(
+            isA<FormatException>()
+                .having(
+                  (e) => e.message,
+                  'message',
+                  contains('invalid --shard "$raw"'),
+                )
+                // The full expected-form sentence (the error prose is
+                // the operator-facing contract).
+                .having(
+                  (e) => e.message,
+                  'message',
+                  contains(
+                    'expected the CI matrix form <i>/<k> such as 1/4 '
+                    '(1-based lane index of the lane count).',
+                  ),
+                ),
+          ),
+        );
+      }
+
+      // The shape-mismatch errors name the expected CI matrix form.
+      expectInvalidWithForm('abc');
+      expectInvalidWithForm('4');
+      // The range errors name the valid 1-based window.
+      expectInvalid('0/4');
+      expectInvalid('5/4');
+      expectInvalid('1/0');
     });
   });
 
@@ -142,6 +222,32 @@ void main() {
         CorpusSharder.suggestLaneCount(
           featureCount: 0,
           minutesPerFeature: 1,
+          targetLaneMinutes: 10,
+        ),
+        1,
+      );
+      // Negative feature counts / per-feature costs never divide into
+      // a negative lane count — the floor is one lane.
+      expect(
+        CorpusSharder.suggestLaneCount(
+          featureCount: -5,
+          minutesPerFeature: 1,
+          targetLaneMinutes: 10,
+        ),
+        1,
+      );
+      expect(
+        CorpusSharder.suggestLaneCount(
+          featureCount: 10,
+          minutesPerFeature: 0,
+          targetLaneMinutes: 10,
+        ),
+        1,
+      );
+      expect(
+        CorpusSharder.suggestLaneCount(
+          featureCount: 10,
+          minutesPerFeature: -1,
           targetLaneMinutes: 10,
         ),
         1,
