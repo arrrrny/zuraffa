@@ -389,6 +389,120 @@ class SpecParser {
     return contracts;
   }
 
+  /// Extract the declared contract rows (feature 071): every row an
+  /// author can trace a behavior to, with its routing kind and
+  /// (function rows) eagerly-parsed signatures.
+  ///
+  /// Sources: the Layer Contracts section (bold layer label → row kind:
+  /// Presentation/Domain/Data/Function; other layers carry no routing
+  /// kind and are skipped), the Key Entities table (entity rows), and
+  /// the External Dependencies table (`storage:`/`channel:` type
+  /// tokens; other dependency types carry no routing kind). Rows are
+  /// line-addressable (1-based spec line). A malformed FUNCTION
+  /// signature (missing the `-> Return`) refuses naming the row and the
+  /// offending text — errors-are-an-API.
+  List<ContractRowDecl> parseContractRows(String specMd) {
+    const functionKinds = ['presentation', 'domain', 'data', 'function'];
+    final rows = <ContractRowDecl>[];
+    final lines = specMd.split('\n');
+    String? layer; // active Layer Contracts layer label
+    String? section; // active declared section kind
+    for (var i = 0; i < lines.length; i++) {
+      final trimmed = lines[i].trim();
+      final lineNo = i + 1;
+      if (trimmed.startsWith('#')) {
+        layer = null;
+        section = null;
+        if (_layerContractsHeading.hasMatch(trimmed)) {
+          section = 'layer-contracts';
+        } else if (_keyEntitiesHeading.hasMatch(trimmed)) {
+          section = 'key-entities';
+        } else if (_dependenciesHeading.hasMatch(trimmed)) {
+          section = 'dependencies';
+        }
+        continue;
+      }
+      if (trimmed.isEmpty) continue;
+      if (section == 'layer-contracts') {
+        final layerM = _layerName.firstMatch(trimmed);
+        if (layerM != null) {
+          layer = layerM.group(1)!.trim();
+          continue;
+        }
+        final bullet = _layerContractBullet.firstMatch(trimmed);
+        if (bullet == null || layer == null) continue;
+        final name = bullet.group(1)!.trim();
+        final label = layer.toLowerCase();
+        final kind = functionKinds.contains(label)
+            ? ContractRowKind.values.firstWhere((k) => k.name == label)
+            : null;
+        if (kind == null) continue; // no routing kind — not a routing row
+        final methods = RegExp(r'`([^`]+)`')
+            .allMatches(bullet.group(2)!)
+            .map((m) => m.group(1)!.trim())
+            .toList();
+        final signatures = <Signature>[];
+        for (final method in methods) {
+          try {
+            signatures.add(Signature.parse(method));
+          } on FormatException {
+            // A malformed signature refuses on FUNCTION rows (their
+            // return type drives subject generation); other layers
+            // preserve methods verbatim for their existing consumers.
+            if (kind == ContractRowKind.function) {
+              throw StateError(
+                'contract row "$name" declares a malformed signature '
+                '"$method" — declared signatures must be '
+                '`name(Params) -> Return` (spec line $lineNo).\n'
+                '   --> fix: add the `-> Return` part.',
+              );
+            }
+          }
+        }
+        rows.add(
+          ContractRowDecl(
+            name: name,
+            kind: kind,
+            signatures: signatures,
+            specLine: lineNo,
+          ),
+        );
+        continue;
+      }
+      if (section == 'key-entities') {
+        final bullet = _entityBullet.firstMatch(trimmed);
+        if (bullet == null) continue;
+        rows.add(
+          ContractRowDecl(
+            name: bullet.group(1)!.trim(),
+            kind: ContractRowKind.entity,
+            specLine: lineNo,
+          ),
+        );
+        continue;
+      }
+      if (section == 'dependencies') {
+        if (!trimmed.startsWith('|')) continue;
+        final cells = _splitCells(trimmed);
+        if (cells.length < 2) continue;
+        if (cells[0].toLowerCase() == 'dependency') continue;
+        if (RegExp(r'^-+$').hasMatch(cells[0])) continue;
+        final type = cells[1].toLowerCase();
+        final kind = type.startsWith('storage')
+            ? ContractRowKind.storage
+            : (type.startsWith('channel') || type.startsWith('platform'))
+                ? ContractRowKind.channel
+                : null;
+        if (kind == null) continue;
+        rows.add(
+          ContractRowDecl(name: cells[0], kind: kind, specLine: lineNo),
+        );
+        continue;
+      }
+    }
+    return rows;
+  }
+
   /// Extract the entities the spec declares under `Key Entities` (bug
   /// #829 remediation 1: plan must surface them so the loop can create
   /// and wire them). Bug #919: the zuraffa-1.0 template declares

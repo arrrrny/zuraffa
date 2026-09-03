@@ -41,3 +41,12 @@ test task first (RED recorded here), then the implementation tasks that flip it
 - red: 2026-09-03 — `+2 -2`: marker-unit + "renders the widget" prose routed acceptance (declaration ignored); marker-widget + non-UI prose routed acceptance; the two fallback-window pins were green pre-change as required
 - green: 2026-09-03 — `+10: All tests passed!` (T009: `_extractAcceptance` consults `parseScenarioTypeMarkers` before the #830 classifier; T010 needed NO change — the plan render is already kind-driven (bug #830 machinery), so declared kinds flow to the widget section through the parse)
 - tasks ticked: T007, T009, T010, T011
+
+## Cycle: U3 (red -> green)
+
+- behavior: U3 — `**Function**` Layer Contracts bullet parses into function-kind rows with declared signatures; malformed signature refuses naming the row
+- criterion: FR-003, FR-005
+- test: test/plugins/tdd/services/function_contracts_parsing_test.dart
+- red: 2026-09-03 — `+0 -1` load failure (parseContractRows absent)
+- green: 2026-09-03 — `+4: All tests passed!` (T014; one iteration: domain rows declare `->` signatures too per the #919 grammar, so signature parsing covers every layer row with the malformed-refusal scoped to function rows)
+- tasks ticked: T012, T014
