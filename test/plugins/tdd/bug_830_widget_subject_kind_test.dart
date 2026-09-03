@@ -113,6 +113,52 @@ void main() {
 ''');
       expect(behaviors.single.kind.name, 'acceptance');
     });
+
+    test('bug 936: past-tense outcome verbs (shown, navigated, rendered, '
+        'displayed) are UI intent too', () {
+      final behaviors = const SpecParser().parse('002-login', '''
+# Spec: Login
+
+## Acceptance Scenarios
+
+1. **Given** I am on the login page, **When** I enter valid credentials and tap Sign In, **Then** a loading indicator is shown and I am navigated to the home screen.
+2. **Given** I enter wrong credentials, **When** I tap Sign In, **Then** an error message is rendered on the login page.
+3. **Given** the profile page, **When** it loads, **Then** the avatar is displayed with the user's initials.
+
+## Functional Requirements
+
+- **FR-001**: the login page exposes a loading indicator contract.
+''');
+      expect(behaviors, hasLength(4));
+      expect(behaviors[0].id, 'A1');
+      expect(
+        behaviors[0].kind.name,
+        'widget',
+        reason: '"is shown / is navigated" is UI intent',
+      );
+      expect(behaviors[1].id, 'A2');
+      expect(
+        behaviors[1].kind.name,
+        'widget',
+        reason: '"is rendered" is UI intent',
+      );
+      expect(behaviors[2].id, 'A3');
+      expect(
+        behaviors[2].kind.name,
+        'widget',
+        reason: '"is displayed" is UI intent',
+      );
+    });
+
+    test(
+      'bug 936: a non-UI past-tense sentence still routes to acceptance',
+      () {
+        final behaviors = const SpecParser().parse('002-nonui', '''
+1. **Given** a repository with a count method, **When** it runs, **Then** the result is returned and the row count matches the seeded data.
+''');
+        expect(behaviors.single.kind.name, 'acceptance');
+      },
+    );
   });
 
   // ------------------------------------------------------------------
