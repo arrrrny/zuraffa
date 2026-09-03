@@ -234,11 +234,26 @@ class FuncCommand extends Command<void> {
     // the behavior's function contract row outranks prose inference.
     // Undeclared behaviors keep the description-keyed deriver (the
     // labeled fallback; strict surfaces are handled at plan).
-    final declared = await DeclaredRouting.declaredSignatureFor(
-      cwd: cwd,
-      featureName: resolved.featureName,
-      behaviorId: record.behaviorId,
-    );
+    // Round-2 review fix 3c: a MALFORMED declaration propagates out of
+    // the lookup as a StateError — surfaced here as a refusal (exit 1
+    // + fix message), never a silent prose-inference fallback.
+    final Signature? declared;
+    try {
+      declared = await DeclaredRouting.declaredSignatureFor(
+        cwd: cwd,
+        featureName: resolved.featureName,
+        behaviorId: record.behaviorId,
+      );
+    } on StateError catch (e) {
+      print('zfa tdd func: declaration refused — ${e.message}');
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: FuncOutcome.runnerError,
+        feature: resolved.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
 
     final scaffolded = _renderScaffolded(
       description: description,

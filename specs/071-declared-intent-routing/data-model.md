@@ -15,11 +15,12 @@ parser from scenario bodies and FR lines.
 |---|---|---|---|
 | behaviorId | String | scenario/FR id (`A<n>`, `U<n>`, legacy dashed) | the behavior the declaration belongs to |
 | declaredType | BehaviorKind? | `**Type**: <kind>` marker line in the scenario body | optional; validated against the enum |
-| contractRefs | List<String> | trace cell references resolving to contract rows (entity names, contract interface names, dependency names) | empty = no row trace |
+| contractRefs | List<String> | trace cell references resolving to contract rows (entity names, contract interface names, dependency names) | **reserved for future use** — never populated by the shipped parser (FR `traces:` continuations are consumed as the U-keyed `parseFrContractTraces` map instead); empty = no row trace |
 | specLine | int | position of the marker/trace in spec.md | names the line in provenance and errors |
 
 Validation: declaredType must parse to a BehaviorKind; contractRefs must resolve to
-existing rows (else `dangling-reference` failure, FR-011).
+existing rows (else `dangling-reference` failure, FR-011) — no `contractRefs`
+validation runs while the field is unpopulated (reserved).
 
 ### ContractRow
 

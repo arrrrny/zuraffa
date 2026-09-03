@@ -9,7 +9,7 @@ declarations, never reads files, never spawns.
 class RoutingResolver {
   /// Resolve routing for one behavior from parsed declarations.
   RoutingResult resolve({
-    required BehaviorRow row,                  // id, description, traces, existing kind cell
+    required RoutingRow row,                   // behaviorId, declared test-list kind, raw trace tokens
     required SpecDeclarations declarations,    // markers, contract rows, persistence tags (parsed once per spec)
     required bool strict,                      // strict mode flag
   });
@@ -36,9 +36,9 @@ class RoutingFailure extends RoutingResult {
 
 1. If `row.declaredType` (marker) applies → kind decided. Conflicts with a
    contract-row trace of a different lane → `declarationConflict` naming both lines.
-2. Else if `row.contractRefs` resolve to rows → kind + surface + entity/signature
+2. Else if `row.traces` resolve to rows → kind + surface + entity/signature
    from the row kind (D2 table). Unresolvable name → `danglingReference`.
-   Rows of different kinds → `declarationConflict`.
+   Rows of different kinds → `declarationConflict` naming the rows.
 3. Else if the test list declares kind (section header / kind cell) → kind decided;
    surface/entity/signature remain undeclared (fall to 4 per aspect).
 4. Else (fallback window, `strict == false`): the legacy classifiers decide the

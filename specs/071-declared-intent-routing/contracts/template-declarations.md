@@ -31,12 +31,18 @@ syntax, extended to accept contract-row names alongside FR/AC ids:
 
 - A trace token resolves, in order: Key Entities row name → Layer Contracts
   interface/component name → External Dependencies row name.
+- `traces:` entries are contract ROW NAMES. A backticked inline signature such
+  as `` `format(Template) -> String` `` documents the expected signature for
+  reviewers — it is NOT a row reference: the tokenizer keeps the span intact
+  (never comma-split mid-signature) and drops it, so it neither resolves nor
+  dangles.
 - Row kind follows the declaring section (research D2 table):
   `**Presentation**` → presentation; `**Domain**`/`**Data**` → domain/data;
   Key Entities → entity; Dependencies type `storage:…` → storage;
   type `channel:…` → channel; a `**Function**` contracts bullet → function.
 - A trace to a name that resolves to nothing is a `dangling-reference`.
-- Traces to rows of different kinds are a `declaration-conflict`.
+- Traces to rows of different kinds are a `declaration-conflict` naming the
+  rows.
 
 ## 3. Function contracts bullet (new, inside Layer Contracts)
 

@@ -8,33 +8,37 @@
                     spec line and the declaration to add.
 ```
 
-Default: off (migration window). Project config may set it persistently; the flag
-wins over config.
+Default: off (migration window). Flag-only today — the CLI flag is the only
+switch; project-config persistence is reserved (no config surface ships yet).
 
 ## Provenance output (stdout, per behavior, plan time)
 
 ```
-   route: A3 -> widget lane (presentation contract: Login page) [declared: type marker, spec line 42]
-   route: U2 -> func surface (function contract: Formatter.format -> String) [declared: contract row, spec line 87]
-   route: U5 -> unit lane (entity: Product) [declared: key entity row, spec line 23]
-   route: U7 -> unit lane + persistence [declared: [persistent] tag, spec line 31]
-   route: U9 -> widget lane [fallback: UI-intent keyword 'shows' matched — add `**Type**: widget` to the scenario (spec line 55)]
+   route: A3 -> widget lane (view generation) [declared: type marker, spec line 42]
+   route: U2 -> func surface [declared: contract row: Formatter, spec line 87]
+   route: U5 -> unit lane (entity pipeline: Product) [declared: contract row: Product, spec line 23]
+   route: U9 -> widget lane [fallback: legacy description classifier matched — add `**Type**: widget` to the scenario]
+   route: U8 -> refused [danglingReference: behavior "U8" traces to "Ghost", which names no declared contract row …]
 ```
 
-Grammar: `   route: <id> -> <decision> ([detail])? [declared: <source>, spec line <n>]` or
-`   route: <id> -> <decision> [fallback: <classifier> matched — <fix hint> (spec line <n>)]`.
+Grammar: `   route: <id> -> <lane> ([detail])? [declared: <source>[, spec line <n>]]`,
+`   route: <id> -> <lane> [fallback: legacy description classifier matched — <fix hint>]`,
+or `   route: <id> -> refused [<code>: <first message line>]`.
 
-The bracketed token is machine-parseable: it starts with exactly `declared:` or
-`fallback:`. Provenance is additionally written into the test list's traceability
+The bracketed token is machine-parseable: it starts with exactly `declared:`,
+`fallback:`, or `refused:`. Persistence is NOT part of a route line — it renders
+as the test-list ` [persistence]` cell mark (durable artifact). Fallback lines
+carry no spec line; refused lines quote the failure's first message line.
+Provenance is additionally written into the test list's traceability
 block (durable artifact).
 
 ## Exit codes (unchanged semantics, new strict case)
 
 | Exit | Meaning |
 |---|---|
-| 0 | plan written; every behavior routed (declared or fallback) |
-| 1 | honest refusal: strict-mode undeclared behavior, declaration conflict, dangling reference, malformed declaration — message names the spec line(s), `--> fix:` names the declaration to add |
-| 2 | grammar/parse error (existing contract) |
+| 0 | plan written; every behavior routed (declared or fallback). A NON-strict plan that hits a declaration conflict, dangling reference, or malformed declaration also exits 0 — the refusal is recorded as a `route: <id> -> refused [<code>: …]` provenance line (stdout + artifact), not an exit code. (Malformed declarations refuse pre-artifact with exit 2 under `zfa tdd plan` since the round-2 gate reorder.) |
+| 1 | honest refusal — strict plan (`--strict-routing`), `tdd make`, or `tdd func`: undeclared routing intent, declaration conflict, dangling reference, or malformed declaration. Message names the spec line(s); `--> fix:` names the declaration to add |
+| 2 | grammar/parse error (existing contract); also `zfa tdd plan`'s pre-artifact declaration refusal |
 
 ## Refusal message shape (strict + invalid declarations)
 

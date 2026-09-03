@@ -229,16 +229,6 @@ class PlanCommand extends Command<void> {
       }
     }
 
-    await outDir.create(recursive: true);
-
-    // The completeness proof (bug #846): behavior <-> FR/AC matrix with
-    // the spec-contract hash, re-checked by verify/corpus for drift.
-    final matrix = const TraceabilityMatrix().render(
-      feature: feature,
-      scan: scan,
-      behaviors: reconciled,
-    );
-    await File(p.join(outDir.path, 'traceability.md')).writeAsString(matrix);
     // Bug #835: hand-written ffi (native-boundary) rows survive
     // re-planning. Plan derives only acceptance/unit behaviors from
     // spec.md, so an ffi row would otherwise be silently re-homed as a
@@ -265,20 +255,35 @@ class PlanCommand extends Command<void> {
         .where((b) => !ffiCriteria.contains(b.sourceCriterion))
         .toList();
 
-    await outDir.create(recursive: true);
     // Feature 071 (issue #951): per-behavior routing provenance — the
     // resolver consults the parsed declarations; undeclared behaviors
     // render their LABELED legacy fallback (migration window).
+    //
+    // Round-2 review fix 3a: declarations parse BEFORE any artifact is
+    // written — a malformed Function signature is a refusal naming the
+    // row (`--> fix:`), and a strict refusal must leave the feature
+    // directory untouched (traceability.md included).
     final strict = argResults?['strict-routing'] as bool? ?? false;
-    final scenarioMarkers = SpecParser.parseScenarioTypeMarkers(specMd);
-    final declarations = SpecDeclarations(
-      scenarios: scenarioMarkers,
-      contractRows: {
-        for (final r in const SpecParser().parseContractRows(specMd)) r.name: r,
-      },
-      persistence: SpecParser.parsePersistenceDeclarations(specMd),
-    );
-    final frTraces = SpecParser.parseFrContractTraces(specMd);
+    final Map<String, ScenarioDeclaration> scenarioMarkers;
+    final SpecDeclarations declarations;
+    final Map<String, List<String>> frTraces;
+    try {
+      scenarioMarkers = SpecParser.parseScenarioTypeMarkers(specMd);
+      declarations = SpecDeclarations(
+        scenarios: scenarioMarkers,
+        contractRows: {
+          for (final r in const SpecParser().parseContractRows(specMd))
+            r.name: r,
+        },
+        persistence: SpecParser.parsePersistenceDeclarations(specMd),
+      );
+      frTraces = SpecParser.parseFrContractTraces(specMd);
+    } on StateError catch (e) {
+      print('zfa tdd plan: declaration refused — ${e.message}');
+      print('  no artifacts were written.');
+      exitCode = 2;
+      return;
+    }
     final provenance = _provenanceLines(
       expressible,
       preservedFfi,
@@ -295,6 +300,18 @@ class PlanCommand extends Command<void> {
       exitCode = 1;
       return;
     }
+
+    await outDir.create(recursive: true);
+    // The completeness proof (bug #846): behavior <-> FR/AC matrix with
+    // the spec-contract hash, re-checked by verify/corpus for drift.
+    // Written only AFTER the declarations parse and the strict gate
+    // pass (round-2 review fix 3a).
+    final matrix = const TraceabilityMatrix().render(
+      feature: feature,
+      scan: scan,
+      behaviors: reconciled,
+    );
+    await File(p.join(outDir.path, 'traceability.md')).writeAsString(matrix);
     await outFile.writeAsString(
       _render(
         feature,
@@ -303,7 +320,7 @@ class PlanCommand extends Command<void> {
         dependencies,
         layerContracts,
         preservedFfi,
-        SpecParser.parsePersistenceDeclarations(specMd),
+        declarations.persistence,
         provenance,
       ),
     );

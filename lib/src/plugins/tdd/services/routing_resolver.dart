@@ -55,6 +55,31 @@ class RoutingResolver {
       resolved.add(ref);
     }
 
+    // Rows of different kinds never co-declare one behavior (FR-011):
+    // when a behavior's trace rows map to different lanes the
+    // declaration is a conflict naming the rows — never a silent
+    // first-mapped-row win of the surface.
+    _RowRef? laneAnchor;
+    for (final ref in resolved) {
+      final lane = _laneFor(ref.row.kind);
+      if (lane == null) continue; // storage: orthogonal persistence only
+      final anchor = laneAnchor;
+      if (anchor != null && _laneFor(anchor.row.kind) != lane) {
+        return RoutingFailure(
+          code: RoutingFailureCode.declarationConflict,
+          message:
+              'behavior "${row.behaviorId}" traces to contract rows of '
+              'different kinds: "${anchor.row.name}" '
+              '(${anchor.row.kind.name}) at '
+              '${anchor.row.specLine ?? 'the row'} vs "${ref.row.name}" '
+              '(${ref.row.kind.name}) at ${ref.row.specLine ?? 'the row'}.\n'
+              '   --> fix: keep exactly one routing declaration for '
+              '${row.behaviorId}.',
+        );
+      }
+      laneAnchor ??= ref;
+    }
+
     // ---- malformed raw signatures on consulted function rows -------
     for (final ref in resolved) {
       if (ref.row.kind != ContractRowKind.function) continue;
@@ -282,9 +307,12 @@ class RoutingResolver {
     // Widget rows are exempt from the surface requirement: the view
     // lane needs no contract row (the view builder reads the declared
     // Presentation contract directly, issue #939); ffi/platform/theme
-    // never had a generation surface.
-    final surfaceRequired =
-        kind == BehaviorKind.unit || kind == BehaviorKind.acceptance;
+    // never had a generation surface. Acceptance rows are exempt too:
+    // acceptance prose is the make composition fallback's lane by
+    // design (FR-009) and has no contract-row surface to declare —
+    // scenario-level `traces:` support is a prerequisite for gating
+    // scenario units.
+    final surfaceRequired = kind == BehaviorKind.unit;
     if (strict && surfaceRequired && surface == null) {
       return RoutingFailure(
         code: RoutingFailureCode.undeclaredStrict,
@@ -334,6 +362,18 @@ class RoutingResolver {
     }
     return null;
   }
+
+  /// The lane a contract row's kind maps to (research D2). Storage rows
+  /// map to no lane — persistence is orthogonal to the ladder.
+  static BehaviorKind? _laneFor(ContractRowKind kind) => switch (kind) {
+    ContractRowKind.presentation => BehaviorKind.widget,
+    ContractRowKind.domain ||
+    ContractRowKind.data ||
+    ContractRowKind.entity ||
+    ContractRowKind.function => BehaviorKind.unit,
+    ContractRowKind.channel => BehaviorKind.platform,
+    ContractRowKind.storage => null,
+  };
 
   /// Resolve the declared signature for a function row. Returns
   /// `(signature, error)` — exactly one is non-null: an error when a

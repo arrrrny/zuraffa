@@ -145,7 +145,16 @@ class SpecParser {
     String specMd,
   ) {
     final markers = <String, ScenarioDeclaration>{};
-    final lines = specMd.split('\n');
+    // Fenced code blocks are documentation, not declarations: a
+    // `**Type**` marker inside a ``` example must neither declare a
+    // lane nor collide with a real marker (round-2 review fix 5). Each
+    // fenced span is blanked to equivalent newlines so the surviving
+    // markers' spec lines stay accurate.
+    final blanked = specMd.replaceAllMapped(
+      _fencedCodeBlock,
+      (m) => '\n' * '\n'.allMatches(m.group(0)!).length,
+    );
+    final lines = blanked.split('\n');
     var inScenario = false;
     var scenarioLine = 0;
     var aIdx = 0;
@@ -156,6 +165,13 @@ class SpecParser {
         aIdx += 1;
         inScenario = true;
         scenarioLine = lineNo;
+        continue;
+      }
+      // Any markdown heading that is not a scenario header ends the
+      // scenario block: a marker after `## Functional Requirements`
+      // belongs to no numbered scenario (round-2 review fix 5).
+      if (line.trimLeft().startsWith('#')) {
+        inScenario = false;
         continue;
       }
       final m = _typeMarkerLine.firstMatch(line);
@@ -671,6 +687,13 @@ class SpecParser {
     return line.replaceAll('**', '').trim();
   }
 
+  /// Whether an FR line carries the `[persistent]` routing tag,
+  /// ignoring bold markers: `**[persistent]**` declares exactly what
+  /// `[persistent]` does (round-2 review fix 6 — the two walks must
+  /// agree on the tag whether or not it is bold-wrapped).
+  static bool _carriesPersistentTag(String frText) =>
+      frText.replaceAll('**', '').trim().startsWith('[persistent]');
+
   List<Behavior> _extractUnit(String feature, String specMd) {
     final behaviors = <Behavior>[];
     final frPattern = RegExp(r'^\s*-\s*\*\*(FR-\d{3})\*\*:\s*(.+)$');
@@ -682,9 +705,13 @@ class SpecParser {
         final frId = m.group(1)!;
         // Feature 071: a `[persistent]` tag is a routing declaration,
         // not prose — strip it from the description (the persistence
-        // map carries the mark; the rendered row stays clean).
-        var desc = m.group(2)!.replaceAll('**', '').trim();
-        if (desc.startsWith('[persistent]')) {
+        // map carries the mark; the rendered row stays clean). The tag
+        // is detected on the RAW text before the `**` strip, so a
+        // bold-wrapped tag is honored too (round-2 review fix 6).
+        final rawDesc = m.group(2)!;
+        final tagged = _carriesPersistentTag(rawDesc);
+        var desc = rawDesc.replaceAll('**', '').trim();
+        if (tagged) {
           desc = desc.substring('[persistent]'.length).trim();
         }
         behaviors.add(
@@ -701,6 +728,21 @@ class SpecParser {
     }
     return behaviors;
   }
+
+  /// `traces:` payload -> tokens, keeping backticked spans intact so a
+  /// declared inline signature is never comma-split (round-2 review
+  /// fix 2). A span carrying `(` documents an expected signature, not a
+  /// contract-row reference — such tokens are dropped so they neither
+  /// resolve nor dangle. Every `traces:` consumer (parser, make, func)
+  /// routes through this helper so they all see the same tokens.
+  static List<String> traceTokens(String raw) => RegExp(r'`[^`]*`|[^,]+')
+      .allMatches(raw)
+      .map((m) => m.group(0)!.trim())
+      .where((t) => t.isNotEmpty)
+      .map((t) => t.replaceAll('`', '').trim())
+      .where((t) => t.isNotEmpty)
+      .where((t) => !t.contains('('))
+      .toList();
 
   /// The FR contract-trace continuation scan (feature 071): a `traces:`
   /// line following an FR names the contract rows the requirement
@@ -719,12 +761,7 @@ class SpecParser {
           ? tracesLine.firstMatch(lines[i + 1])
           : null;
       if (t == null) continue;
-      traces['U$uIdx'] = t
-          .group(1)!
-          .split(',')
-          .map((token) => token.trim())
-          .where((token) => token.isNotEmpty)
-          .toList();
+      traces['U$uIdx'] = traceTokens(t.group(1)!);
     }
     return traces;
   }
@@ -751,19 +788,12 @@ class SpecParser {
       if (m == null) continue;
       uIdx += 1;
       final id = 'U$uIdx';
-      final desc = m.group(2)!.trim();
-      final tagged = desc.startsWith('[persistent]');
+      final tagged = _carriesPersistentTag(m.group(2)!);
       final traceTokens = <String>[];
       if (i + 1 < lines.length) {
         final t = tracesLine.firstMatch(lines[i + 1]);
         if (t != null) {
-          traceTokens.addAll(
-            t
-                .group(1)!
-                .split(',')
-                .map((token) => token.trim())
-                .where((token) => token.isNotEmpty),
-          );
+          traceTokens.addAll(SpecParser.traceTokens(t.group(1)!));
         }
       }
       final viaStorage = traceTokens.any(storageNames.contains);

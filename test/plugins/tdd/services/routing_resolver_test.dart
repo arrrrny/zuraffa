@@ -10,6 +10,7 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/models/behavior.dart';
 import 'package:zuraffa/src/plugins/tdd/models/routing.dart';
 import 'package:zuraffa/src/plugins/tdd/services/routing_resolver.dart';
+import 'package:zuraffa/src/plugins/tdd/services/spec_parser.dart';
 
 RoutingRow row(
   String id, {
@@ -280,6 +281,94 @@ void main() {
         strict: true,
       );
       expect(result, isA<RoutingDecision>());
+    });
+
+    test(
+      'a strict acceptance behavior needs no contract-row surface '
+      '(round-2 fix 1: acceptance prose is the composition lane, FR-009)',
+      () {
+        final result = resolver.resolve(
+          row: row('A5', kind: BehaviorKind.acceptance),
+          declarations: decls(),
+          strict: true,
+        );
+        expect(result, isA<RoutingDecision>(), reason: 'no surface refusal');
+        final d = result as RoutingDecision;
+        expect(d.kind, BehaviorKind.acceptance);
+        expect(d.surface, isNull);
+      },
+    );
+
+    test('a marker-declared strict acceptance scenario resolves without a '
+        'dangling or surface refusal', () {
+      final result = resolver.resolve(
+        row: row('A6', kind: BehaviorKind.acceptance, traces: []),
+        declarations: decls(
+          scenarios: {'A6': marker('A6', BehaviorKind.acceptance, line: 55)},
+        ),
+        strict: true,
+      );
+      expect(result, isA<RoutingDecision>());
+      expect(
+        (result as RoutingDecision).provenance
+            .where((p) => p.aspect == RoutingAspect.kind)
+            .map((p) => p.source),
+        everyElement(RoutingSource.declared),
+      );
+    });
+
+    test('traces to rows of different kinds conflict, naming the rows '
+        '(round-2 fix 4)', () {
+      final result = resolver.resolve(
+        row: row('U15', traces: ['Login page', 'Product']),
+        declarations: decls(
+          contractRows: {
+            'Login page': presentationRow('Login page', line: 40),
+            'Product': entityRow('Product', line: 20),
+          },
+        ),
+        strict: false,
+      );
+      expect(result, isA<RoutingFailure>());
+      final f = result as RoutingFailure;
+      expect(f.code, RoutingFailureCode.declarationConflict);
+      expect(f.message, contains('Login page'));
+      expect(f.message, contains('Product'));
+      expect(f.message, contains('--> fix:'));
+    });
+
+    test('a backticked inline signature in traces neither resolves nor '
+        'dangles — the row reference still routes (round-2 fix 2)', () {
+      const spec = '''
+- **FR-004**: The checkout totals the cart and returns the payable amount.
+            traces: ProductRepository, `format(Template) -> String`
+''';
+      final tokens = SpecParser.parseFrContractTraces(spec)['U1']!;
+      expect(tokens, [
+        'ProductRepository',
+      ], reason: 'the inline signature is not a row reference');
+      final result = resolver.resolve(
+        row: row(
+          'U1',
+          traces: SpecParser.traceTokens(
+            'ProductRepository, `format(Template) -> String`',
+          ),
+        ),
+        declarations: decls(
+          contractRows: {
+            'ProductRepository': functionRow('ProductRepository', [
+              'save(Product) -> Future<void>',
+            ], line: 21),
+          },
+        ),
+        strict: true,
+      );
+      expect(
+        result,
+        isA<RoutingDecision>(),
+        reason: 'the signature token is dropped: no dangle, no refusal',
+      );
+      expect((result as RoutingDecision).signature, isNotNull);
     });
   });
 

@@ -211,6 +211,11 @@ void main() {
           isFalse,
           reason: 'no artifact is written when the plan refuses',
         );
+        expect(
+          File(p.join(featureDir, 'tdd', 'traceability.md')).existsSync(),
+          isFalse,
+          reason: 'round-2 fix 3a: the gate runs before ANY artifact write',
+        );
       } finally {
         tmp.deleteSync(recursive: true);
       }
@@ -253,6 +258,57 @@ void main() {
         expect(exitCode, 0);
         expect(out, contains('[declared:'));
         expect(out, isNot(contains('[fallback:')));
+      } finally {
+        tmp.deleteSync(recursive: true);
+      }
+    });
+
+    test('a malformed Function declaration refuses BEFORE any artifact is '
+        'written (round-2 fix 3a: exit 2, no test list, no matrix)', () async {
+      final tmp = Directory.systemTemp.createTempSync('decl_refuse_');
+      try {
+        final featureDir = p.join(tmp.path, 'specs', '071-prov');
+        await Directory(featureDir).create(recursive: true);
+        await File(p.join(featureDir, 'spec.md')).writeAsString('''
+**Template Version**: `zuraffa-1.0`
+
+# Spec: 071-prov
+
+## Layer Contracts
+
+**Function**:
+- `Broken`: `format(Template)`
+
+## Functional Requirements
+
+- **FR-001**: returns 42 when invoked with no args
+
+## Acceptance Scenarios
+
+1. **Given** the app **When** it starts **Then** the widget renders "Ready".
+   **Type**: widget
+''');
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'plan',
+          '071-prov',
+          '--project',
+          tmp.path,
+        ]);
+        expect(exitCode, 2, reason: out);
+        expect(out, contains('declaration refused'));
+        expect(out, contains('--> fix:'));
+        expect(out, contains('no artifacts were written'));
+        expect(
+          File(p.join(featureDir, 'tdd', 'test-list.md')).existsSync(),
+          isFalse,
+        );
+        expect(
+          File(p.join(featureDir, 'tdd', 'traceability.md')).existsSync(),
+          isFalse,
+          reason: 'the traceability write happens only after the gate',
+        );
       } finally {
         tmp.deleteSync(recursive: true);
       }
