@@ -98,7 +98,20 @@ class RouteBuilder {
     // proven by generated tests" (every declared route resolves to a
     // builder, unknown paths hit 404, deep-link patterns parse typed
     // params). The manifest is refreshed on every route run.
-    final routeTableTest = await _generateRouteTableTest(config);
+    //
+    // Issue #912 defect 5: the manifest discovery must also see the route
+    // modules THIS run would write — a dry run writes nothing, so a
+    // disk-only discovery missed the planned routes and the route-table
+    // test silently vanished from the dry-run changes list.
+    final pendingModules = <String, String>{
+      for (final f in files)
+        if (f.content != null && path.basename(f.path).endsWith('_routes.dart'))
+          path.basename(f.path): f.content!,
+    };
+    final routeTableTest = await _generateRouteTableTest(
+      config,
+      pendingModules: pendingModules,
+    );
     if (routeTableTest != null) {
       files.add(routeTableTest);
     }
@@ -109,12 +122,20 @@ class RouteBuilder {
   /// #842: regenerates `test/routing/route_table_test.dart` from the
   /// routing directory's manifest. Returns `null` when there is nothing to
   /// prove (empty routing dir) or on a dry run (no writes).
-  Future<GeneratedFile?> _generateRouteTableTest(GeneratorConfig config) async {
+  ///
+  /// [pendingModules] (issue #912 defect 5): route-module content this run
+  /// would write but that is not on disk yet (a dry run) — the manifest
+  /// discovers it so the planned route-table test matches the real run.
+  Future<GeneratedFile?> _generateRouteTableTest(
+    GeneratorConfig config, {
+    Map<String, String> pendingModules = const {},
+  }) async {
     if (config.revert) return null;
     return RouteTableTestBuilder(fileSystem: fileSystem).emitRouteTableTest(
       outputDir: outputDir,
       dryRun: options.dryRun,
       verbose: options.verbose,
+      pendingModules: pendingModules,
     );
   }
 

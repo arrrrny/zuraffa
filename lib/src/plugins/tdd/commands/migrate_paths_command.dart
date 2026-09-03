@@ -27,6 +27,18 @@
 ///   differently-broken one); any refusal or missing artifact exits non-zero.
 /// - **Idempotent**: already-namespaced records are untouched and re-runs
 ///   migrate zero records.
+/// - **Package-URI aware + self-checked (issue #912 defect 4)**: the moved
+///   test's subject reference is rewritten in BOTH forms — the relative
+///   path AND the `package:<host>/tdd/...` URI — composed tests get every
+///   moved sibling subject rewritten, and a final self-check verifies the
+///   touched tests' relative/self-package imports RESOLVE ON DISK before
+///   success may be declared. A reference that cannot be made resolvable
+///   rolls the pair back and is refused (exit 1) — never `migrated=N`
+///   success on an unloadable suite.
+/// - **Repairs already-migrated-but-broken pairs (issue #912)**: a
+///   namespaced record whose test still references the legacy flat
+///   subject location (a pre-#912 migration's residue) is repaired on
+///   re-run and counted under `migrated=`.
 /// - **Opt-in**: a flat project that never runs this command keeps working —
 ///   `dart test`/`flutter test` discover everything under `test/` regardless
 ///   of layout, and every registry-driven command (verify-red/make/wire/
@@ -45,6 +57,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
+import '../services/import_resolution.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -112,6 +125,12 @@ class MigratePathsCommand extends Command<void> {
 
       final updated = <ArtifactRecord>[];
       var registryDirty = false;
+      // Issue #912 defect 4: the pairs moved by THIS run, in registry
+      // order. The post-move pass finishes what the per-pair pass started
+      // (cross-pair references in composed tests), then self-checks every
+      // moved test's imports before success may be declared.
+      final moves = <_MovedPair>[];
+      final movedTestToPaths = <String>{};
 
       for (final record in records) {
         final plan = _plan(record, cwd, entry.featureName);
@@ -189,18 +208,16 @@ class MigratePathsCommand extends Command<void> {
             // norm). Rewrite both; a pair whose references cannot be
             // rewritten is a pair that no longer compiles, so the move
             // rolls back and refuses rather than shipping a broken suite.
+            //
+            // Issue #912 defect 4: the rewrite now covers BOTH reference
+            // forms (relative AND the self-package URI) and VERIFIES the
+            // subject reference resolves before moving on; the cycle-log
+            // rewrite + the cross-pair/self-check pass run AFTER the whole
+            // registry's pairs moved (below), so composed tests and
+            // refused pairs are handled without split-brain state.
             try {
-              _rewriteMovedTestImport(
-                testFrom: testFrom,
-                testTo: testTo,
-                subjectFrom: subjectFrom,
-                subjectTo: subjectTo,
-              );
-              await _rewriteCycleLogPaths(
-                featureDir: entry.featureDir,
+              _rewriteMovedTestReferences(
                 cwd: cwd,
-                record: record,
-                plan: plan,
                 testFrom: testFrom,
                 testTo: testTo,
                 subjectFrom: subjectFrom,
@@ -220,12 +237,233 @@ class MigratePathsCommand extends Command<void> {
             );
             updated.add(record);
             continue;
+          } on _MigrationRewriteFailure catch (e) {
+            refused++;
+            print(
+              'zfa tdd migrate-paths: REFUSED for behavior '
+              '"${record.behaviorId}" in ${entry.featureName}: '
+              '${e.message} The pair was rolled back to its recorded '
+              'layout — the command never reports success on an '
+              'unloadable suite.',
+            );
+            updated.add(record);
+            continue;
           }
-          _cleanupEmptyLegacyDirs(cwd, plan);
+          movedTestToPaths.add(_posix(testTo));
+          moves.add(
+            _MovedPair(
+              record: record,
+              plan: plan,
+              testFrom: testFrom,
+              testTo: testTo,
+              subjectFrom: subjectFrom,
+              subjectTo: subjectTo,
+              updatedIndex: updated.length,
+            ),
+          );
         }
         migrated++;
         registryDirty = true;
         updated.add(plan.record);
+      }
+
+      // -------------------------------------------------------------
+      // Post-move pass (issue #912 defect 4), non-dry-run only:
+      //   1. cross-pair reference rewrites (composed tests importing
+      //      subjects whose own pairs moved later in the loop);
+      //   2. the self-check — every moved test's relative and
+      //      self-package imports must resolve on disk BEFORE success;
+      //      a pair that cannot resolve rolls back and is refused;
+      //   3. the cycle-log evidence rewrite, only for pairs that
+      //      verified;
+      // then the repair pass for already-migrated-but-broken records —
+      // which runs EVEN when nothing moved this run (the re-run repair
+      // scenario).
+      // -------------------------------------------------------------
+      if (!dryRun) {
+        final pkg = hostPackageName(cwd);
+        if (moves.isNotEmpty) {
+          // 1. Cross-pair rewrites.
+          for (final moved in moves) {
+            final file = File(moved.testTo);
+            var content = file.readAsStringSync();
+            var changed = false;
+            for (final other in moves) {
+              final oldRel = _posix(
+                p.relative(other.subjectFrom, from: p.dirname(moved.testTo)),
+              );
+              final newRel = _posix(
+                p.relative(other.subjectTo, from: p.dirname(moved.testTo)),
+              );
+              if (oldRel != newRel && content.contains(oldRel)) {
+                content = content.replaceAll(oldRel, newRel);
+                changed = true;
+              }
+              if (pkg != null) {
+                final oldUri =
+                    'package:$pkg/${_posix(p.relative(other.subjectFrom, from: p.join(cwd, 'lib')))}';
+                final newUri =
+                    'package:$pkg/${_posix(p.relative(other.subjectTo, from: p.join(cwd, 'lib')))}';
+                if (oldUri != newUri && content.contains(oldUri)) {
+                  content = content.replaceAll(oldUri, newUri);
+                  changed = true;
+                }
+              }
+            }
+            if (changed) file.writeAsStringSync(content);
+          }
+
+          // 2. Self-check with honest rollback.
+          final verified = <_MovedPair>[];
+          for (final moved in moves) {
+            final content = File(moved.testTo).readAsStringSync();
+            final issues = unresolvedImports(
+              source: content,
+              filePath: moved.testTo,
+              projectRoot: cwd,
+              packageName: pkg,
+            );
+            final movedBasenames = moves
+                .map((m) => p.basename(m.subjectFrom))
+                .toSet();
+            final fatal = issues
+                .where((i) => movedBasenames.contains(_uriBasename(i.uri)))
+                .toList();
+            if (fatal.isNotEmpty) {
+              // Roll the pair back: files, registry record, counters.
+              File(moved.subjectTo).renameSync(moved.subjectFrom);
+              final testFile = File(moved.testTo);
+              final original = File(moved.testTo).readAsStringSync();
+              testFile.renameSync(moved.testFrom);
+              File(moved.testFrom).writeAsStringSync(original);
+              updated[moved.updatedIndex] = moved.record;
+              migrated--;
+              refused++;
+              print(
+                'zfa tdd migrate-paths: REFUSED for behavior '
+                '"${moved.record.behaviorId}" in ${entry.featureName}: the '
+                'moved test still has unresolvable imports for a moved '
+                'subject (${fatal.join(', ')}). The pair was rolled back — '
+                'the command never reports success on an unloadable suite '
+                '(issue #912 defect 4).',
+              );
+              continue;
+            }
+            for (final issue in issues) {
+              print(
+                'zfa tdd migrate-paths: drift hint for '
+                '"${moved.record.behaviorId}" in ${entry.featureName}: '
+                '${moved.testTo} imports ${issue.uri} which does not '
+                'resolve — pre-existing, unrelated to this migration; '
+                '`zfa tdd doctor` reports it.',
+              );
+            }
+            verified.add(moved);
+          }
+
+          // 3. Cycle-log evidence rewrite for verified pairs.
+          for (final moved in verified) {
+            try {
+              await _rewriteCycleLogPaths(
+                featureDir: entry.featureDir,
+                cwd: cwd,
+                record: moved.record,
+                plan: moved.plan,
+                testFrom: moved.testFrom,
+                testTo: moved.testTo,
+                subjectFrom: moved.subjectFrom,
+                subjectTo: moved.subjectTo,
+              );
+            } on FileSystemException catch (e) {
+              File(moved.subjectTo).renameSync(moved.subjectFrom);
+              final content = File(moved.testTo).readAsStringSync();
+              File(moved.testTo).renameSync(moved.testFrom);
+              File(moved.testFrom).writeAsStringSync(content);
+              updated[moved.updatedIndex] = moved.record;
+              migrated--;
+              refused++;
+              print(
+                'zfa tdd migrate-paths: REFUSED for behavior '
+                '"${moved.record.behaviorId}" in ${entry.featureName}: the '
+                'cycle-log evidence rewrite failed: ${e.message}. The pair '
+                'was rolled back.',
+              );
+              continue;
+            }
+            _cleanupEmptyLegacyDirs(cwd, moved.plan);
+          }
+        }
+
+        // -----------------------------------------------------------
+        // Repair pass (issue #912, already-migrated-but-broken state):
+        // namespaced records whose tests still reference the legacy flat
+        // subject location get the stale references rewritten.
+        // -----------------------------------------------------------
+        final subjectIndex = <String, String>{};
+        for (final record in updated) {
+          final subjectPath = _resolve(cwd, record.subjectPath);
+          if (File(subjectPath).existsSync()) {
+            subjectIndex[p.basename(subjectPath)] = subjectPath;
+          }
+        }
+        for (final record in updated) {
+          final testPath = _resolve(cwd, record.testPath);
+          if (movedTestToPaths.contains(_posix(testPath))) continue;
+          final testFile = File(testPath);
+          if (!testFile.existsSync()) continue;
+          final original = testFile.readAsStringSync();
+          final issues = unresolvedImports(
+            source: original,
+            filePath: testPath,
+            projectRoot: cwd,
+            packageName: pkg,
+          );
+          final repairable = issues
+              .where((i) => subjectIndex.containsKey(_uriBasename(i.uri)))
+              .toList();
+          if (repairable.isEmpty) continue;
+          var content = original;
+          for (final issue in repairable) {
+            final target = subjectIndex[_uriBasename(issue.uri)]!;
+            final corrected = issue.uri.startsWith('package:')
+                ? (pkg == null
+                      ? null
+                      : 'package:$pkg/${_posix(p.relative(target, from: p.join(cwd, 'lib')))}')
+                : _posix(p.relative(target, from: p.dirname(testPath)));
+            if (corrected == null || corrected == issue.uri) continue;
+            content = content.replaceAll(issue.uri, corrected);
+          }
+          final leftover =
+              unresolvedImports(
+                    source: content,
+                    filePath: testPath,
+                    projectRoot: cwd,
+                    packageName: pkg,
+                  )
+                  .where((i) => subjectIndex.containsKey(_uriBasename(i.uri)))
+                  .toList();
+          if (leftover.isNotEmpty) {
+            refused++;
+            print(
+              'zfa tdd migrate-paths: REFUSED for behavior '
+              '"${record.behaviorId}" in ${entry.featureName}: the '
+              'recorded test still references a known subject location '
+              'that does not resolve after repair '
+              '(${leftover.join(', ')}).',
+            );
+            continue;
+          }
+          if (content != original) {
+            testFile.writeAsStringSync(content);
+            migrated++;
+            print(
+              'zfa tdd migrate-paths: repaired "${record.behaviorId}" in '
+              '${entry.featureName}: stale flat subject references '
+              'rewritten to the namespaced layout (issue #912, '
+              'already-migrated-but-broken state).',
+            );
+          }
+        }
       }
 
       if (registryDirty && !dryRun) {
@@ -352,12 +590,20 @@ class MigratePathsCommand extends Command<void> {
     }
   }
 
-  /// Rewrite the moved test's relative subject import to the namespaced
-  /// depth. The generated test imports its subject through a path relative
-  /// to the test file's directory; the move changed that directory, so the
-  /// old relative path dangles. Content that does not carry the old
-  /// relative path (a hand-edited or custom test) is left verbatim.
-  void _rewriteMovedTestImport({
+  /// Rewrite the moved test's subject reference to the namespaced depth —
+  /// in BOTH forms (issue #912 defect 4): the relative path (the only form
+  /// the pre-#912 command handled) AND the `package:<host>/tdd/...` URI.
+  /// Content that does not carry the old reference (a hand-edited or
+  /// custom test) is left verbatim.
+  ///
+  /// Verify-before-write: when the test referenced its subject at all, the
+  /// rewritten content must reference it in a RESOLVABLE form (the new
+  /// relative path or the new package URI) — otherwise a
+  /// [_MigrationRewriteFailure] is thrown and the caller rolls the pair
+  /// back. A rewrite that leaves the reference dangling is exactly the
+  /// issue #912 defect (success reported on an unloadable suite).
+  void _rewriteMovedTestReferences({
+    required String cwd,
     required String testFrom,
     required String testTo,
     required String subjectFrom,
@@ -367,12 +613,51 @@ class MigratePathsCommand extends Command<void> {
       p.relative(subjectFrom, from: p.dirname(testFrom)),
     );
     final newRelative = _posix(p.relative(subjectTo, from: p.dirname(testTo)));
-    if (oldRelative == newRelative) return;
+    final pkg = hostPackageName(cwd);
+    final oldLibRel = _posix(p.relative(subjectFrom, from: p.join(cwd, 'lib')));
+    final newLibRel = _posix(p.relative(subjectTo, from: p.join(cwd, 'lib')));
+    final oldPackageUri = pkg == null ? null : 'package:$pkg/$oldLibRel';
+    final newPackageUri = pkg == null ? null : 'package:$pkg/$newLibRel';
+
     final file = File(testTo);
-    final raw = file.readAsStringSync();
-    if (!raw.contains(oldRelative)) return;
-    file.writeAsStringSync(raw.replaceAll(oldRelative, newRelative));
+    final original = file.readAsStringSync();
+    var content = original;
+    if (oldRelative != newRelative) {
+      content = content.replaceAll(oldRelative, newRelative);
+    }
+    if (oldPackageUri != null &&
+        newPackageUri != null &&
+        oldPackageUri != newPackageUri) {
+      content = content.replaceAll(oldPackageUri, newPackageUri);
+    }
+
+    final subjectBasename = p.basename(subjectFrom);
+    final referencedSubject =
+        original.contains(oldRelative) ||
+        importUrisOf(
+          original,
+        ).any((uri) => _uriBasename(uri) == subjectBasename);
+    if (referencedSubject) {
+      final resolves =
+          content.contains(newRelative) ||
+          (newPackageUri != null && content.contains(newPackageUri));
+      if (!resolves) {
+        throw _MigrationRewriteFailure(
+          'the moved test "$_posix(p.relative(testTo, from: cwd))" does '
+          'not reference its subject in a resolvable form (expected '
+          '"$newRelative" or "${newPackageUri ?? 'a self-package URI'}")',
+        );
+      }
+    }
+    if (content != original) {
+      file.writeAsStringSync(content);
+    }
   }
+
+  /// The basename a URI reference resolves to: the last path segment for
+  /// both relative paths and `package:<pkg>/...` URIs.
+  static String _uriBasename(String uri) =>
+      p.basename(Uri.tryParse(uri)?.path ?? uri);
 
   /// Rewrite the feature's cycle-log evidence lines that name the moved
   /// paths (`- test:` and `- command:` entries), so certified evidence
@@ -454,4 +739,41 @@ class _MigrationPlan {
   final String testPath;
   final String subjectPath;
   final ArtifactRecord record;
+}
+
+/// A rewrite failure that would leave a moved test's subject reference
+/// dangling (issue #912 defect 4): the pair rolls back and the migration
+/// is refused instead of reporting success on an unloadable suite.
+class _MigrationRewriteFailure implements Exception {
+  const _MigrationRewriteFailure(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// One pair moved by THIS run — the post-move pass (cross-pair rewrites,
+/// self-check, cycle-log rewrite, rollback) reads these.
+class _MovedPair {
+  const _MovedPair({
+    required this.record,
+    required this.plan,
+    required this.testFrom,
+    required this.testTo,
+    required this.subjectFrom,
+    required this.subjectTo,
+    required this.updatedIndex,
+  });
+
+  final ArtifactRecord record;
+  final _MigrationPlan plan;
+  final String testFrom;
+  final String testTo;
+  final String subjectFrom;
+  final String subjectTo;
+
+  /// The index of the pair's updated record in the registry write list —
+  /// a rollback swaps it back to [record].
+  final int updatedIndex;
 }

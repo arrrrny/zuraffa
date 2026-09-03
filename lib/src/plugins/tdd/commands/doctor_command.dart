@@ -41,6 +41,7 @@ import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/cycle_evidence.dart';
 import '../services/generated_shape.dart';
+import '../services/import_resolution.dart';
 import '../services/run_state_store.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
@@ -228,9 +229,16 @@ class DoctorCommand extends Command<void> {
     final missingFiles = <String>[];
     for (final record in records) {
       for (final path in [record.testPath, record.subjectPath]) {
-        if (!File(path).existsSync()) {
+        // Records may be absolute (gen's default) or project-relative —
+        // resolve both against the project root (issue #912: the raw
+        // relative form resolved against the process CWD, flagging
+        // healthy files as missing when doctor ran from elsewhere).
+        final resolved = p.isAbsolute(path)
+            ? p.normalize(path)
+            : p.normalize(p.join(cwd, path));
+        if (!File(resolved).existsSync()) {
           missingFiles.add(
-            '${record.behaviorId}: ${p.relative(path, from: cwd)} is '
+            '${record.behaviorId}: ${_displayPath(cwd, resolved)} is '
             'recorded but missing from disk',
           );
         }
@@ -252,6 +260,62 @@ class DoctorCommand extends Command<void> {
         feature: feature,
         verdict: 'drift',
         prescription: 'reset',
+        fix: fix,
+        drifts: drifts,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // ---- 2b. Import-resolution drift -> MIGRATE (issue #912) ---------
+    // A recorded test whose relative or self-package imports dangle is
+    // UNLOADABLE — the suite cannot run no matter what the stores claim.
+    // The migration repair (`zfa tdd migrate-paths`) rewrites stale flat
+    // references to the namespaced layout; doctor prescribes it.
+    final pkg = hostPackageName(cwd);
+    final importDrifts = <String>[];
+    for (final record in records) {
+      final testFile = File(
+        p.isAbsolute(record.testPath)
+            ? p.normalize(record.testPath)
+            : p.normalize(p.join(cwd, record.testPath)),
+      );
+      if (!testFile.existsSync()) continue; // check 2 reported it
+      String source;
+      try {
+        source = testFile.readAsStringSync();
+      } on FileSystemException {
+        continue;
+      }
+      for (final issue in unresolvedImports(
+        source: source,
+        filePath: testFile.path,
+        projectRoot: cwd,
+        packageName: pkg,
+      )) {
+        importDrifts.add(
+          '${record.behaviorId}: '
+          '${_displayPath(cwd, testFile.path)} imports '
+          "'${issue.uri}' which does not resolve (${issue.reason})",
+        );
+      }
+    }
+    if (importDrifts.isNotEmpty) {
+      drifts.addAll(importDrifts);
+      final fix = 'zfa tdd migrate-paths $feature';
+      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      for (final drift in drifts) {
+        print('  drift: $drift');
+      }
+      print(
+        '   --> fix: $fix — rewrite stale subject references to the '
+        'namespaced layout and self-check the imports (issue #912 '
+        'defect 4: an unloadable recorded suite must not read healthy)',
+      );
+      _printVerdict(
+        feature: feature,
+        verdict: 'drift',
+        prescription: 'migrate',
         fix: fix,
         drifts: drifts,
       );
