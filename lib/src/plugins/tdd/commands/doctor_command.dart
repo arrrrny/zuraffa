@@ -41,6 +41,7 @@ import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/cycle_evidence.dart';
 import '../services/generated_shape.dart';
+import '../services/import_resolution_checker.dart';
 import '../services/run_state_store.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
@@ -252,6 +253,42 @@ class DoctorCommand extends Command<void> {
         feature: feature,
         verdict: 'drift',
         prescription: 'reset',
+        fix: fix,
+        drifts: drifts,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // ---- 2b. Import-resolution & version-skew drift -> UPGRADE-RUNTIME --
+    const importChecker = ImportResolutionChecker();
+    final importDrifts = <String>[];
+    for (final record in records) {
+      final testDrifts = importChecker.checkTestFile(
+        record.testPath,
+        projectRoot: cwd,
+      );
+      for (final td in testDrifts) {
+        importDrifts.add(
+          '${_displayPath(cwd, record.testPath)} references $td',
+        );
+      }
+    }
+    if (importDrifts.isNotEmpty) {
+      drifts.addAll(importDrifts);
+      const fix = 'dart pub upgrade zuraffa';
+      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      for (final drift in drifts) {
+        print('  drift: $drift');
+      }
+      print(
+        '   --> fix: $fix — upgrade zuraffa to resolve unexported symbols '
+        'referenced by generated tests',
+      );
+      _printVerdict(
+        feature: feature,
+        verdict: 'drift',
+        prescription: 'upgrade-runtime',
         fix: fix,
         drifts: drifts,
       );

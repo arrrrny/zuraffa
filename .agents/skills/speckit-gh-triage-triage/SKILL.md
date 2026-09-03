@@ -1,1 +1,0 @@
-../../../.specify/extensions/gh-triage/.specify-dev/agent-commands/zed/speckit-gh-triage-triage/SKILL.md
