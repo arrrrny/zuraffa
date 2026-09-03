@@ -615,6 +615,376 @@ class VerifyRedCommand extends Command<void> {
     return FinderTaxonomy.unsatisfiedClasses(analysis, content);
   }
 
+  // -----------------------------------------------------------------
+  // Spec 069 T002 — the batched red lane.
+  // -----------------------------------------------------------------
+
+  /// Certify every gen'd-but-not-red behavior through ONE whole-file
+  /// runner invocation. Per-behavior classification from the batch
+  /// transcript; evidence appended ONLY for assertion-classified
+  /// behaviors; exit 0 only when every behavior certifies.
+  Future<void> _runBatch({
+    required String cwd,
+    required String? featureFlag,
+    required Duration? timeout,
+    required SingleTestRunner runner,
+  }) async {
+    // 1. Collect the targets: every registry record whose behavior has
+    //    no red evidence yet (the same `_certifiedBehaviors` filter the
+    //    single-target inference uses).
+    final registries = await _scanRegistries(cwd, featureFlag);
+    final targets = <_ResolvedTarget>[];
+    for (final entry in registries) {
+      final certified = await _certifiedBehaviors(entry.featureDir);
+      for (final record in await entry.registry.loadAll()) {
+        if (!certified.contains(record.behaviorId)) {
+          targets.add(
+            _ResolvedTarget(record, entry.featureDir, entry.featureName),
+          );
+        }
+      }
+    }
+
+    final featureLabel = featureFlag != null && featureFlag.isNotEmpty
+        ? featureFlag
+        : 'all';
+    if (targets.isEmpty) {
+      print(
+        'zfa tdd verify-red --all: no behavior with gen artifacts lacks '
+        'red evidence — nothing to certify.',
+      );
+      print(
+        'verify-red: batch=true behaviors=0 certified=0 '
+        'classification=batch feature=$featureLabel',
+      );
+      return;
+    }
+
+    print(
+      'zfa tdd verify-red --all: ${targets.length} behavior(s) '
+      '(spec 069 T002 batch)',
+    );
+
+    // 2. Load the whole-file template (misfire-stop: the batch lane
+    //    needs the `file` runner; never a silent per-behavior fallback).
+    final String fileTemplate;
+    try {
+      fileTemplate = await runner.loadFileTemplate(workingDirectory: cwd);
+    } on StateError catch (e) {
+      print(e.message);
+      for (final target in targets) {
+        _printSummary(
+          behavior: target.record.behaviorId,
+          classification: 'unresolved',
+          certified: false,
+          feature: target.featureName,
+        );
+      }
+      print(
+        'verify-red: batch=true behaviors=${targets.length} certified=0 '
+        'classification=unresolved feature=$featureLabel',
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // 3. Build the ONE batch invocation: the file template's tokens with
+    //    the placeholder tokens dropped, then every target test path
+    //    appended (`dart test a_test.dart b_test.dart …`).
+    final testPaths = targets.map((t) {
+      final path = t.record.testPath;
+      return p.isAbsolute(path) ? path : p.join(cwd, path);
+    }).toList();
+    final templateTokens = fileTemplate
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where(
+          (token) => !token.contains('{file}') && !token.contains('{name}'),
+        )
+        .toList();
+    final argv = [...templateTokens, ...testPaths];
+    final display = [
+      fileTemplate.replaceAll('{file}', testPaths.first),
+      ...testPaths.skip(1),
+    ].join(' ');
+    print('zfa tdd verify-red: batch runner');
+    print('   command: $display');
+
+    // 4. Read-only integrity: the batch run must not modify test/ or
+    //    lib/ (FR-008), same as the single run.
+    _ReadOnlyTreeSnapshot? beforeRun;
+    try {
+      beforeRun = await _ReadOnlyTreeSnapshot.capture(cwd);
+    } on FileSystemException catch (e) {
+      print('zfa tdd verify-red: cannot snapshot test/ and lib/: ${e.message}');
+      print(
+        'verify-red: batch=true behaviors=${targets.length} certified=0 '
+        'classification=unresolved feature=$featureLabel',
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // 5. Execute the ONE invocation under the deadline (bug #742 unit
+    //    contract; the batch budget defaults to the suite-class deadline).
+    final started = DateTime.now();
+    final ProcessResult batch;
+    try {
+      batch = await runTimed(
+        argv.first,
+        argv.skip(1).toList(),
+        workingDirectory: cwd,
+        timeout: timeout ?? TddTimeouts.defaultSuite,
+      );
+    } on ProcessTimeoutException catch (e) {
+      // Bug #742: the batch child outlived the deadline — nothing about
+      // any behavior was observed; no evidence, never a certified red.
+      print('zfa tdd verify-red: the batch runner timed out: $e');
+      print(
+        '   re-run with a larger --timeout <minutes> if the batch '
+        'legitimately needs longer.',
+      );
+      print(
+        'verify-red: batch=true behaviors=${targets.length} certified=0 '
+        'classification=runner-error feature=$featureLabel',
+      );
+      exitCode = 1;
+      return;
+    } on ProcessException catch (e) {
+      print('zfa tdd verify-red: batch runner failed to start: ${e.message}');
+      print(
+        'verify-red: batch=true behaviors=${targets.length} certified=0 '
+        'classification=runner-error feature=$featureLabel',
+      );
+      exitCode = 1;
+      return;
+    }
+    final elapsed = DateTime.now().difference(started);
+    final output = '${batch.stdout}${batch.stderr}';
+    print('   runner exit: ${batch.exitCode} (${elapsed.inMilliseconds}ms)');
+
+    List<String> changedPaths;
+    try {
+      final afterRun = await _ReadOnlyTreeSnapshot.capture(cwd);
+      changedPaths = beforeRun.changedPaths(afterRun);
+    } on FileSystemException catch (e) {
+      changedPaths = ['snapshot failed: ${e.message}'];
+    }
+    if (changedPaths.isNotEmpty) {
+      print(
+        'zfa tdd verify-red: read-only integrity violation under test/ or '
+        'lib/: ${changedPaths.join(', ')}',
+      );
+      print('   no evidence written');
+      print(
+        'verify-red: batch=true behaviors=${targets.length} certified=0 '
+        'classification=runner-error feature=$featureLabel',
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // 6. Classify each behavior from the batch transcript.
+    final failingSegments = _failingSegments(output);
+    final passingNames = _passingNames(output);
+    var certifiedCount = 0;
+    final failures = <(String, String)>[]; // (behavior, classification)
+    for (final target in targets) {
+      final record = target.record;
+      var classification = _classifyBatchBehavior(
+        record: record,
+        output: output,
+        failingSegments: failingSegments,
+        passingNames: passingNames,
+      );
+      // Issue #964 kind gate (batch lane): the same refusal as the
+      // single-target path — evidence only for verb-matched reds. A
+      // behavior whose description is unavailable is refused, never
+      // certified on faith.
+      if (classification == 'assertion') {
+        final kindGaps = await _certifyFinderKinds(cwd, record);
+        if (kindGaps == null || kindGaps.isNotEmpty) {
+          classification = 'kind-mismatch';
+        }
+      }
+      if (classification == 'assertion') {
+        final segment = _segmentFor(record.plainTestName, failingSegments);
+        final log = CycleLog(target.featureDir);
+        await log.append(
+          CycleLogEntry(
+            behaviorId: record.behaviorId,
+            kind: CycleEntryKind.red,
+            runnerCommand: display,
+            exitCode: batch.exitCode,
+            capturedOutput:
+                '${segment ?? output}\n'
+                '(batched red — one runner invocation for '
+                '${targets.length} behavior(s), spec 069 T002)',
+            classification: FailureClass.assertionFailure,
+            sourceCriterion: record.sourceCriterion,
+            testPath: record.testPath,
+            timestamp: DateTime.now().toUtc().toIso8601String(),
+          ),
+        );
+        print(
+          '   red evidence appended to specs/${target.featureName}/tdd/'
+          'cycle-log.md (${record.behaviorId})',
+        );
+        certifiedCount++;
+      } else {
+        failures.add((record.behaviorId, classification));
+      }
+      _printSummary(
+        behavior: record.behaviorId,
+        classification: classification,
+        certified: classification == 'assertion',
+        feature: target.featureName,
+      );
+    }
+    for (final (behavior, classification) in failures) {
+      print(
+        'zfa tdd verify-red: behavior "$behavior" — $classification: not '
+        'certified in the batch (no evidence written for it).',
+      );
+    }
+
+    // 7. The batch summary line — the machine contract's batch form.
+    final allCertified = certifiedCount == targets.length;
+    print(
+      'verify-red: batch=true behaviors=${targets.length} '
+      'certified=$certifiedCount '
+      'classification=${allCertified ? 'batch' : 'mixed'} '
+      'feature=$featureLabel',
+    );
+    exitCode = allCertified ? 0 : 1;
+  }
+
+  /// The failing test-name → failure-detail segments of a `dart test`
+  /// batch transcript (pure). A failing progress line
+  /// `HH:MM +N ~S -M: <name> [E]` opens a segment that runs to the next
+  /// progress line; loading/summary lines are not test names.
+  static Map<String, String> _failingSegments(String output) {
+    final segments = <String, String>{};
+    final lines = output.split('\n');
+    String? currentName;
+    final current = StringBuffer();
+    for (final line in lines) {
+      // The `~N` skipped counter may sit before OR after the `-\d+` fail
+      // counter: the real `dart test` expanded reporter prints
+      // `+P ~S -F`, while the SuiteGuard precedent parses `-F ~S`.
+      // Without it, a transcript containing a skipped test parses no
+      // failing segment at all and the whole batch degrades to
+      // runner-error.
+      final failing = RegExp(
+        r'^\d\d:\d\d \+\d+(?: ~\d+)?(?: -\d+(?: ~\d+)?)?: (.+) \[E\]\s*$',
+      ).firstMatch(line);
+      final progress = RegExp(r'^\d\d:\d\d [+\-~]').hasMatch(line);
+      if (failing != null) {
+        if (currentName != null) {
+          segments[currentName] = current.toString();
+        }
+        currentName = failing.group(1)!.trim();
+        current.clear();
+        continue;
+      }
+      if (progress) {
+        if (currentName != null) {
+          segments[currentName] = current.toString();
+          currentName = null;
+          current.clear();
+        }
+        continue;
+      }
+      if (currentName != null) current.writeln(line);
+    }
+    if (currentName != null) {
+      segments[currentName] = current.toString();
+    }
+    return segments;
+  }
+
+  /// The names that PASSED in the batch transcript (progress lines
+  /// `HH:MM +N: <name>` / `HH:MM +N -M: <name>` / `HH:MM +N ~S -M:
+  /// <name>` without the `[E]` failure marker — a test passing AFTER an
+  /// earlier failure still counts as passed).
+  static Set<String> _passingNames(String output) {
+    final names = <String>{};
+    for (final line in output.split('\n')) {
+      final m = RegExp(
+        r'^\d\d:\d\d \+\d+(?: ~\d+)?(?: -\d+(?: ~\d+)?)?: (.+)$',
+      ).firstMatch(line);
+      if (m == null) continue;
+      var name = m.group(1)!.trim();
+      if (name.endsWith('[E]')) continue; // a failing line, not a pass.
+      name = name.trim();
+      if (name.startsWith('loading ') ||
+          name == 'All tests passed!' ||
+          name == 'Some tests failed.') {
+        continue;
+      }
+      names.add(name);
+    }
+    return names;
+  }
+
+  /// Classify one behavior against the batch transcript (pure): the
+  /// behavior's test must appear as a FAILING name with an assertion
+  /// signature in its detail segment — everything else is an honest
+  /// rejection, never a certified red.
+  static String _classifyBatchBehavior({
+    required ArtifactRecord record,
+    required String output,
+    required Map<String, String> failingSegments,
+    required Set<String> passingNames,
+  }) {
+    final name = record.plainTestName;
+    // A load failure naming this behavior's file: its test never ran.
+    if (output.contains('Failed to load')) {
+      final fileRef = p.basename(record.testPath);
+      if (RegExp(
+        'Failed to load .*${RegExp.escape(fileRef)}',
+      ).hasMatch(output)) {
+        return 'load-error';
+      }
+    }
+    final segment = _segmentFor(name, failingSegments);
+    if (segment != null) {
+      final hasAssertion =
+          segment.contains('Expected:') ||
+          segment.contains('Actual:') ||
+          segment.contains('TestFailure');
+      return hasAssertion ? 'assertion' : 'runner-error';
+    }
+    final passed = passingNames.any((n) => _transcriptNameMatches(n, name));
+    if (passed) return 'unexpected-green';
+    return 'runner-error';
+  }
+
+  /// Whether a transcript test name refers to [plainName]: exact, or the
+  /// plain name as a whole-suffix word (transcript names carry
+  /// `<file>: <groups>` prefixes ahead of it). A bare `contains` is
+  /// wrong for natural-language names — "adds item" is contained in
+  /// "adds item to cart", so a PASSING behavior would be certified from
+  /// a longer FAILING behavior's segment (a fabricated red).
+  static bool _transcriptNameMatches(String transcriptName, String plainName) =>
+      transcriptName == plainName || transcriptName.endsWith(' $plainName');
+
+  /// The detail segment for [plainName] under the [_transcriptNameMatches]
+  /// rule. Several matches resolve to the SHORTEST key — the most
+  /// specific suffix.
+  static String? _segmentFor(
+    String plainName,
+    Map<String, String> failingSegments,
+  ) {
+    String? best;
+    for (final key in failingSegments.keys) {
+      if (!_transcriptNameMatches(key, plainName)) continue;
+      if (best == null || key.length < best.length) best = key;
+    }
+    return best == null ? null : failingSegments[best];
+  }
+
+
   void _printSummary({
     required String behavior,
     required String classification,
