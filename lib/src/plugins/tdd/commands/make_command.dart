@@ -424,14 +424,11 @@ class MakeCommand extends Command<void> {
         record,
         description: _descriptionFor(record),
         target: _targetFor(record),
-<<<<<<< HEAD
         entityTraced: await _tracedEntityFor(
           record: record,
           featureDir: target.featureDir,
         ),
-=======
         kind: rowKind,
->>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
       );
       final plan = planner.plan(summary);
       GenerationPlan effectivePlan;

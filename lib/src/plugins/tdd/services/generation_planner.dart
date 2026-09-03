@@ -76,7 +76,6 @@ class BehaviorSummary {
   /// (used as the entity slug or preset target).
   final String? target;
 
-<<<<<<< HEAD
   /// Bug #829: the spec Key Entity this behavior's FR traces to (the
   /// declared entity named in the behavior's description), resolved by
   /// the make command against the test list's Key entities section.
@@ -85,13 +84,12 @@ class BehaviorSummary {
   /// plain-function surface, so the domain layer is generated instead
   /// of an empty subject that sidesteps the architecture.
   final String? entityTraced;
-=======
+
   /// The loop kind declared by the feature's test-list row, when the row
   /// is readable (bug #835). Null when unknown — every pre-#835 summary
   /// is kindless and keeps routing exactly as before; only `ffi` carries
   /// routing semantics (see [GenerationPlanner.plan]).
   final BehaviorKind? kind;
->>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
 
   const BehaviorSummary({
     required this.behaviorId,
@@ -99,11 +97,8 @@ class BehaviorSummary {
     required this.sourceCriterion,
     required this.description,
     this.target,
-<<<<<<< HEAD
     this.entityTraced,
-=======
     this.kind,
->>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
   });
 
   /// Construct a summary from a registry record.
@@ -111,11 +106,8 @@ class BehaviorSummary {
     ArtifactRecord record, {
     String? description,
     String? target,
-<<<<<<< HEAD
     String? entityTraced,
-=======
     BehaviorKind? kind,
->>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
   }) {
     return BehaviorSummary(
       behaviorId: record.behaviorId,
@@ -123,11 +115,8 @@ class BehaviorSummary {
       sourceCriterion: record.sourceCriterion,
       description: description ?? record.behaviorId,
       target: target,
-<<<<<<< HEAD
       entityTraced: entityTraced,
-=======
       kind: kind,
->>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
     );
   }
 }

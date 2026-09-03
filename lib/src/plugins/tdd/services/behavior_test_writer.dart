@@ -12,14 +12,6 @@
 ///     (FR-010: honest red — not skipped, not pending, not a compile
 ///     error, not a load error, not an unconditional placeholder).
 ///
-/// For an `ffi` behavior (bug #835) the test is the BINDING CONTRACT lane:
-/// it asserts the declared contract — every required symbol resolves and a
-/// payload marshals through the binding and back unchanged — on the host
-/// runner, in the default test tier. The golden-fixture assertion lives in
-/// the separate marked integration lane (see `GoldenHarnessWriter`). With
-/// the binding unwired the test is honestly red: the `UnimplementedError`
-/// seam is captured into an assertion, exactly like the generic template.
-///
 /// The test asserts the OBSERVABLE behavior described in `behavior.description`.
 /// For a description like "returns 42 when invoked with no args", the test
 /// calls `subject()` and asserts the result is `42`. The paired subject
@@ -53,24 +45,15 @@ class BehaviorTestWriter {
     final testFile = File(testPath);
     await testFile.parent.create(recursive: true);
     final relativeSubjectPath = _relativeSubjectPath(testPath, subjectPath);
-    final content = behavior.kind == BehaviorKind.widget
+    final content = behavior.kind == BehaviorKind.ffi
+        ? renderContractTest(behavior, testPath, subjectPath)
+        : behavior.kind == BehaviorKind.widget
         ? _renderWidgetTest(behavior, relativeSubjectPath, golden)
         : _renderTest(behavior, relativeSubjectPath);
     await testFile.writeAsString(content);
   }
 
-  /// Render the test content the CURRENT binary would write for
-  /// [behavior], without touching disk — the test-side counterpart of
-  /// [SubjectWriter.render], used by tests to pin the emitted shape.
-  String renderContractTest(Behavior b, String testPath, String subjectPath) {
-    final relativeSubjectPath = _relativeSubjectPath(testPath, subjectPath);
-    return _renderTest(b, relativeSubjectPath);
-  }
-
   String _renderTest(Behavior b, String relativeSubjectPath) {
-    if (b.kind == BehaviorKind.ffi) {
-      return _renderFfiContractTest(b, relativeSubjectPath);
-    }
     final description = b.description;
     final escapedDescription = description.replaceAll("'", "\\'");
     final escapedGroupDescription = '${b.id} (${b.sourceCriterion})'.replaceAll(
@@ -78,14 +61,6 @@ class BehaviorTestWriter {
       "\\'",
     );
     final assertion = _deriveAssertion(b);
-    if (b.persistence) {
-      return _renderPersistenceTest(
-        b,
-        relativeSubjectPath,
-        escapedGroupDescription,
-        escapedDescription,
-      );
-    }
     return '''
 // GENERATED TEST — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
 //
@@ -107,15 +82,7 @@ import '$relativeSubjectPath' as subject;
 
 void main() {
   group('$escapedGroupDescription', () {
-    // Bug #871: the test name is the PURE description — no `<id> — `
-    // echo. gen composes the registry's runnable-name third segment from
-    // the description only, and that segment feeds `--plain-name`
-    // matching, so writer and registry must agree exactly. An id echo
-    // here also leaked the id into every description-segment consumer —
-    // most damagingly the tdd planner's capitalized-trace fallback,
-    // which captured the id as the entity name. The behavior id stays
-    // traceable via the group name (FR-018) and the doc comment.
-    test('$escapedDescription', () {
+    test('${b.id} \u2014 $escapedDescription', () {
       $assertion
     });
   });
@@ -123,161 +90,6 @@ void main() {
 ''';
   }
 
-<<<<<<< HEAD
-  /// The persistence-kind test shape (bug #833): the persistence harness is
-  /// wired in — a fresh temp-directory Hive box set bootstrapped per test
-  /// and torn down per test, plus the injected test clock so TTL
-  /// assertions advance virtually instead of sleeping for real.
-  String _renderPersistenceTest(
-    Behavior b,
-    String relativeSubjectPath,
-    String escapedGroupDescription,
-    String escapedDescription,
-  ) {
-    final assertion = _deriveAssertion(b);
-    final boxName = 'tdd_${_toSnakeCase(b.id)}';
-    return '''
-// GENERATED TEST — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation;
-// bug #833 persistence test harness).
-//
-// behavior_id: ${b.id}
-// source_criterion: ${b.sourceCriterion}
-// kind: ${b.kind.name}
-// persistence: true
-// description: ${b.description}
-//
-// Persistence-kind behavior — the persistence harness is wired in:
-//   1. a fresh temp-directory Hive box set is bootstrapped PER TEST and
-//      torn down PER TEST (never shared across tests);
-//   2. TTL assertions use the injected test clock (advanceTime) — no
-//      real sleeps in the suite;
-//   3. corruption drills: `harness.seedCorruptedBox('$boxName')` +
-//      `harness.openWithRecovery('$boxName')` drive the clear + re-fetch
-//      recovery path against a pre-corrupted fixture;
-//   4. registrar gate: pass `registerAdapters` + `expectedTypeIds` to
-//      the harness below so init-time registration failures surface as
-//      `RegistrarGateError` — a deterministic red at init, not a runtime
-//      read crash.
-//
-// This test is still "honest red" on first execution: the paired subject
-// at `$relativeSubjectPath` is unimplemented, so the test fails through
-// an assertion. Wire the subject to the harness box set to make it pass.
-library;
-
-import 'package:test/test.dart';
-import 'package:zuraffa/zuraffa.dart';
-=======
-  /// The BINDING CONTRACT lane for `ffi` behaviors (bug #835): ONE test
-  /// — named exactly `<id> — <description>` so the registered runnable
-  /// name (`--plain-name`) matches it and verify-red's exactly-one-test
-  /// contract (FR-005) holds — asserting the declared contract on the
-  /// host runner in the default tier: (1) the declared symbol list is
-  /// non-empty and every required symbol resolves on the wired binding,
-  /// (2) a payload marshals through the binding and back unchanged. The
-  /// harness's `UnimplementedError` seams are captured into assertion
-  /// failures so the unwired state is an honest red (FR-010) — never a
-  /// thrown error (which the red classifier would reject as runner-error)
-  /// and never a skip.
-  String _renderFfiContractTest(Behavior b, String relativeSubjectPath) {
-    final escapedDescription = b.description.replaceAll("'", "\\'");
-    final escapedGroupDescription = '${b.id} (${b.sourceCriterion})'.replaceAll(
-      "'",
-      "\\'",
-    );
-    return '''
-// GENERATED TEST — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
-//
-// behavior_id: ${b.id}
-// source_criterion: ${b.sourceCriterion}
-// kind: ffi
-// description: ${b.description}
-//
-// BINDING CONTRACT lane (bug #835). This test asserts the native-binding
-// CONTRACT — required symbols resolve, marshalling round-trips — through
-// the harness at
-// `$relativeSubjectPath`,
-// wired to the SAME binding production uses. It runs in the default test
-// tier on the host runner. With the binding unwired it is honestly red
-// (assertion-level, never skipped). The golden-fixture assertion lives in
-// the marked integration lane next to this file (*_golden_test.dart),
-// gated by `dart test --preset=integration` in CI.
-library;
-
-import 'package:test/test.dart';
->>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
-import '$relativeSubjectPath' as subject;
-
-void main() {
-  group('$escapedGroupDescription', () {
-<<<<<<< HEAD
-    final harness = PersistenceTestHarness(boxNames: ['$boxName']);
-    final clock = TestClock();
-
-    setUp(() async {
-      // Fresh temp-directory box set for THIS test (bug #833 #1).
-      await harness.bootstrap();
-    });
-
-    tearDown(() async {
-      // The box set is torn down per test, never shared.
-      await harness.teardown();
-    });
-
-    test('${b.id} \u2014 $escapedDescription', () {
-      // Advance the clock virtually for TTL assertions — never sleep
-      // for real in the suite (bug #833 #2).
-      clock.advanceTime(const Duration(minutes: 1));
-      $assertion
-    });
-  });
-}
-''';
-  }
-
-  /// snake_case for the generated per-test box name.
-  String _toSnakeCase(String s) =>
-      s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
-
-=======
-    test('${b.id} \u2014 $escapedDescription', () {
-      // (1) The declared contract: every required symbol resolves on the
-      // wired production binding.
-      expect(subject.kRequiredSymbols, isNotEmpty,
-          reason: 'declare the symbols the production binding must export '
-              'in kRequiredSymbols');
-      for (final symbol in subject.kRequiredSymbols) {
-        final Object? resolved =
-            _captured(() => subject.symbolResolved(symbol));
-        expect(resolved, isTrue,
-            reason: 'symbol "\$symbol" must resolve on '
-                '\${subject.kNativeLibrary} (wire the production binding '
-                'in the subject harness)');
-      }
-      // (2) Marshalling: a payload round-trips through the binding
-      // to native memory and back unchanged.
-      const payload = '${b.id.toLowerCase()}-ffi-round-trip-payload';
-      final Object? roundTripped = _captured(() => subject.roundTrip(payload));
-      expect(roundTripped, equals(payload),
-          reason: 'the binding must marshal the payload to native memory '
-              'and back unchanged (wire roundTrip in the subject harness)');
-    });
-  });
-}
-
-/// Captures an [UnimplementedError] thrown by an unwired harness seam as
-/// the assertion's actual value, so the unwired state fails through an
-/// assertion (honest red) instead of an uncaught error.
-Object? _captured(Object? Function() invoke) {
-  try {
-    return invoke();
-  } on UnimplementedError catch (error) {
-    return error;
-  }
-}
-''';
-  }
-
->>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
   /// Derive the test's assertion from the behavior description. The
   /// assertion must NOT be a placeholder `expect(true, isFalse)` — it must
   /// assert the observable behavior (FR-010).
@@ -448,5 +260,93 @@ $goldenBlock    });
   });
 }
 ''';
+  }
+
+  /// The same snake-case convention `zfa tdd gen` uses for artifact
+  /// paths (mirrored locally so the writer stays dependency-free).
+
+  String renderContractTest(Behavior b, String testPath, String subjectPath) {
+    final relativeSubjectPath = _relativeSubjectPath(testPath, subjectPath);
+    final escapedDescription = b.description.replaceAll("'", "\\'");
+    final escapedGroupDescription = '${b.id} (${b.sourceCriterion})'.replaceAll(
+      "'",
+      "\\'",
+    );
+    return '''
+// GENERATED TEST — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
+//
+// behavior_id: ${b.id}
+// source_criterion: ${b.sourceCriterion}
+// kind: ffi
+// description: ${b.description}
+//
+// BINDING CONTRACT lane (bug #835). This test asserts the native-binding
+// CONTRACT — required symbols resolve, marshalling round-trips — through
+// the harness at
+// `$relativeSubjectPath`,
+// wired to the SAME binding production uses. It runs in the default test
+// tier on the host runner. With the binding unwired it is honestly red
+// (assertion-level, never skipped). The golden-fixture assertion lives in
+// the marked integration lane next to this file (*_golden_test.dart),
+// gated by `dart test --preset=integration` in CI.
+library;
+
+import 'package:test/test.dart';
+import '$relativeSubjectPath' as subject;
+
+void main() {
+  group('$escapedGroupDescription', () {
+    test('${b.id} \u2014 $escapedDescription', () {
+      // (1) The declared contract: every required symbol resolves on the
+      // wired production binding.
+      expect(subject.kRequiredSymbols, isNotEmpty,
+          reason: 'declare the symbols the production binding must export '
+              'in kRequiredSymbols');
+      for (final symbol in subject.kRequiredSymbols) {
+        final Object? resolved =
+            _captured(() => subject.symbolResolved(symbol));
+        expect(resolved, isTrue,
+            reason: 'symbol "\$symbol" must resolve on '
+                '\${subject.kNativeLibrary} (wire the production binding '
+                'in the subject harness)');
+      }
+      // (2) Marshalling: a payload round-trips through the binding
+      // to native memory and back unchanged.
+      const payload = '${b.id.toLowerCase()}-ffi-round-trip-payload';
+      final Object? roundTripped = _captured(() => subject.roundTrip(payload));
+      expect(roundTripped, equals(payload),
+          reason: 'the binding must marshal the payload to native memory '
+              'and back unchanged (wire roundTrip in the subject harness)');
+    });
+  });
+}
+
+/// Captures an [UnimplementedError] thrown by an unwired harness seam as
+/// the assertion's actual value, so the unwired state fails through an
+/// assertion (honest red) instead of an uncaught error.
+Object? _captured(Object? Function() invoke) {
+  try {
+    return invoke();
+  } on UnimplementedError catch (error) {
+    return error;
+  }
+}
+''';
+  }
+
+  static String _toSnakeCase(String s) {
+    final out = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      final c = s[i];
+      if (c == '-' || c == ' ' || c == '_') {
+        out.write('_');
+      } else if (c.toUpperCase() == c && c.toLowerCase() != c && i > 0) {
+        out.write('_');
+        out.write(c.toLowerCase());
+      } else {
+        out.write(c.toLowerCase());
+      }
+    }
+    return out.toString();
   }
 }

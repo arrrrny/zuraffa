@@ -11,7 +11,6 @@
 ///   - For `acceptance` classification: a behavior-level "scenario runner"
 ///     that throws `UnimplementedError()`. The acceptance subject does NOT
 ///     reference any entity/use case/repository — it stands alone (FR-004).
-<<<<<<< HEAD
 ///   - For `widget` classification (bug #830): a view-builder / page
 ///     contract — a no-argument function returning the feature `Widget` —
 ///     that the paired widget test pumps inside an app shell. The
@@ -19,7 +18,6 @@
 ///     generation + wire) is the entity-orchestration surface (issue
 ///     #829); the stub itself stands alone and compiles in any Flutter
 ///     project.
-=======
 ///   - For `ffi` classification (bug #835): a NATIVE-BINDING CONTRACT
 ///     harness — the declared contract (library name + required symbols)
 ///     plus the three seams the generated contract/golden tests assert
@@ -27,7 +25,6 @@
 ///     seam throws `UnimplementedError` until the implementer wires it to
 ///     the SAME binding production uses; the harness deliberately carries
 ///     no `dart:ffi` import so it compiles everywhere the loop runs.
->>>>>>> be1e86d5 (fix(835): TDD loop TDD-ables native boundaries — ffi-kind behaviors get a binding-contract lane in the loop and a golden fixture lane wired to CI)
 library;
 
 import 'dart:io';

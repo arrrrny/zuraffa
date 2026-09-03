@@ -82,13 +82,10 @@ import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/behavior_test_writer.dart';
 import '../services/generated_shape.dart';
-<<<<<<< HEAD
 import '../services/golden_harness_writer.dart';
-=======
 import '../services/platform_harness_context.dart';
 import '../services/platform_harness_subject_writer.dart';
 import '../services/platform_harness_test_writer.dart';
->>>>>>> 802ef8b8 (fix(831): platform-channel test harness — zfa tdd fake generates certified fakes driven by committed scenario intent)
 import '../services/subject_writer.dart';
 import '../services/test_list_reader.dart';
 import '../services/theme_harness_subject_writer.dart';
