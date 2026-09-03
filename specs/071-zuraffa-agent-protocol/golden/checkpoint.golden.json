@@ -1,0 +1,12 @@
+{
+  "zap": "0.1",
+  "type": "checkpoint",
+  "id": "c-demo-0001",
+  "ts": "2026-09-03T10:00:02Z",
+  "missionId": "demo-tdd",
+  "kind": "saved",
+  "stateId": "cp-9d8c7b6a5f4e3",
+  "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "steps": 2,
+  "at": "2026-09-03T10:00:02Z"
+}

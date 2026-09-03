@@ -229,6 +229,135 @@ exit 0
     await cfg.parent.create(recursive: true);
     await cfg.writeAsString('WRITE $relativePath\n$body\n');
   }
+
+  /// The recorded root of a history written on ANOTHER machine (spec
+  /// 0806-zfa-replay): a path that intentionally does not exist locally —
+  /// every `<recordedRoot>/./…` path in the seeded history is anchored here,
+  /// exactly like `examples/todo_tdd`'s real cycle-log.
+  String get recordedRoot => p.join(root.path, 'recorded_box');
+
+  /// An anchored test path as the runner template renders it:
+  /// `<root>/./<relative>`.
+  String anchoredTestPathOf(String id) =>
+      '$recordedRoot/./test/${_snake(id)}_test.dart';
+
+  /// An anchored subject path as `artifacts.json` records it.
+  String anchoredSubjectPathOf(String id) =>
+      '$recordedRoot/./lib/${_snake(id)}_subject.dart';
+
+  /// The machine-absolute entrypoint pair the make pipeline records for gen
+  /// steps on the recording box: `<recorded dart> <recorded zfa.dart>`.
+  String recordedEntrypointOf(String id) =>
+      '/gone/sdk/bin/dart /gone/zuraffa/bin/zfa.dart tdd gen $id '
+      '--feature $featureName';
+
+  /// The recorded green command carrying the anchored subject path (the
+  /// runner template substituted the absolute test/subject paths).
+  String anchoredGreenCommandOf(String id) =>
+      'sh .specify/check_${_snake(id)}.sh ${anchoredSubjectPathOf(id)} OK';
+
+  /// The registry (`specs/<feature>/tdd/artifacts.json`) exactly as the
+  /// recording machine wrote it: anchored test/subject/runnable paths for
+  /// [ids].
+  Future<void> writeAnchoredRegistry(List<String> ids) async {
+    final records = [
+      for (final id in ids)
+        {
+          'behavior_id': id,
+          'feature': featureName,
+          'source_criterion': 'AC-1',
+          'test_path': anchoredTestPathOf(id),
+          'subject_path': anchoredSubjectPathOf(id),
+          'runnable_test_name': '${anchoredTestPathOf(id)}::$id::recorded',
+          'test_ownership': 'created',
+          'subject_ownership': 'created',
+          'created_at': '2026-09-02T09:06:43.108460Z',
+        },
+    ];
+    await File(
+      p.join(featureDir, 'tdd', 'artifacts.json'),
+    ).writeAsString(const JsonEncoder.withIndent(' ').convert(records));
+  }
+
+  /// Append a full machine-format cycle for [id] whose recorded facts are
+  /// anchored at [recordedRoot] — the todo example's recorded shape: the
+  /// red/green `- test:` fields and the green command carry
+  /// `<root>/./…` paths, and the generation steps carry the machine-absolute
+  /// entrypoint pair.
+  Future<void> appendAnchoredCycle(
+    String id, {
+    required String marker,
+    List<GenerationStep> genSteps = const [],
+  }) async {
+    final log = CycleLog(featureDir);
+    await writeTest(id);
+    await writeSubject(id, marker);
+    await writeCheckScript(id, marker);
+    await log.append(
+      CycleLogEntry(
+        behaviorId: id,
+        kind: CycleEntryKind.red,
+        runnerCommand: 'dart test ${anchoredTestPathOf(id)} --name "$id"',
+        exitCode: 1,
+        capturedOutput: 'Expected: marker present',
+        classification: FailureClass.assertionFailure,
+        sourceCriterion: 'AC-1',
+        testPath: anchoredTestPathOf(id),
+        timestamp: '2026-09-02T09:07:00.000Z',
+      ),
+    );
+    await log.append(
+      CycleLogEntry(
+        behaviorId: id,
+        kind: CycleEntryKind.green,
+        runnerCommand: anchoredGreenCommandOf(id),
+        exitCode: 0,
+        capturedOutput: 'All tests passed!',
+        sourceCriterion: 'AC-1',
+        testPath: anchoredTestPathOf(id),
+        timestamp: '2026-09-02T09:08:52.000Z',
+        generationSteps: genSteps,
+      ),
+    );
+  }
+
+  /// The fake zfa variant that also proves the sandbox contract end-to-end
+  /// (spec 0806 FR-005): every invocation asserts the registry under its CWD
+  /// is anchored into the sandbox — it exits 7 (a loud, named failure) when
+  /// the copied registry still carries the recorded root. Drift-config
+  /// behavior is identical to [writeFakeZfa].
+  Future<void> writeAnchoredFakeZfa() async {
+    final binDir = Directory(p.join(root.path, 'fake_bin'));
+    await binDir.create(recursive: true);
+    await Directory(p.join(binDir.path, 'config')).create();
+    await File(fakeZfaLogPath).writeAsString('');
+    final cfgDir = p.join(binDir.path, 'config');
+    final script =
+        '''
+#!/bin/sh
+# fake zfa for re-anchored replay tests (spec 0806).
+echo "\$@" >> "@@LOG@@"
+REG="specs/@@FEATURE@@/tdd/artifacts.json"
+if [ -f "\$REG" ] && grep -q "@@ROOT@@" "\$REG"; then
+  echo "registry not re-anchored: recorded root leaked into sandbox" >&2
+  exit 7
+fi
+ID="\$3"
+CFG="@@CFG@@/\$ID"
+if [ -f "\$CFG" ]; then
+  TARGET=\$(head -n 1 "\$CFG" | sed "s/^WRITE //")
+  tail -n +2 "\$CFG" > "\$TARGET"
+  exit 0
+fi
+exit 0
+'''
+            .replaceAll('@@LOG@@', fakeZfaLogPath)
+            .replaceAll('@@CFG@@', cfgDir)
+            .replaceAll('@@FEATURE@@', featureName)
+            .replaceAll('@@ROOT@@', recordedRoot);
+    await File(fakeZfaPath).writeAsString(script);
+    await Process.run('chmod', ['+x', fakeZfaPath]);
+  }
 }
 
 /// A `GenerationStep` for seeding green entries.

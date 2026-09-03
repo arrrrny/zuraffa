@@ -9,6 +9,7 @@
 library;
 
 import '../models/behavior.dart';
+import '../models/routing.dart';
 
 /// One row of the zuraffa-1.0 template's `External Dependencies &
 /// Contracts` table (bug #919): the dependency's name, its kind, the
@@ -117,6 +118,104 @@ class SpecParser {
   /// row, so the id alignment is preserved even when scenarios are
   /// human-executed.
   static final RegExp manualScenarioMarker = RegExp(r'\(manual:\s*[^)]*\)');
+
+  /// A scenario type marker line (feature 071, rung 1): `**Type**: widget`
+  /// on its own line inside a scenario block. The kind must name a
+  /// [BehaviorKind] value.
+  static final RegExp _typeMarkerLine = RegExp(
+    r'^\s*\*\*Type\*\*:\s*(\S+)\s*$',
+  );
+
+  /// The scenario block header (`1. **Given** ...`) — the same walk
+  /// [_extractAcceptance] uses, so marker ids stay aligned with the
+  /// document-wide AC numbers.
+  static final RegExp _scenarioHeader = RegExp(r'^\s*(\d+)\.\s*\*\*Given\*\*');
+
+  /// Parse the per-scenario `**Type**` lane markers (feature 071,
+  /// contracts/template-declarations.md §1) into declarations keyed by
+  /// the document-wide behavior id (`A<n>`), each carrying the 1-based
+  /// spec line of its marker.
+  ///
+  /// Declared structures only: the walk mirrors [_extractAcceptance]'s
+  /// block scan (numbered Given headers, document-wide AC numbering,
+  /// manual scenarios consume a number but emit nothing) — no prose is
+  /// interpreted. Refusals are errors-are-an-API: a duplicate marker or
+  /// an unknown kind names the offending spec line and the fix.
+  static Map<String, ScenarioDeclaration> parseScenarioTypeMarkers(
+    String specMd,
+  ) {
+    final markers = <String, ScenarioDeclaration>{};
+    // Fenced code blocks are documentation, not declarations: a
+    // `**Type**` marker inside a ``` example must neither declare a
+    // lane nor collide with a real marker (round-2 review fix 5). Each
+    // fenced span is blanked to equivalent newlines so the surviving
+    // markers' spec lines stay accurate.
+    final blanked = specMd.replaceAllMapped(
+      _fencedCodeBlock,
+      (m) => '\n' * '\n'.allMatches(m.group(0)!).length,
+    );
+    final lines = blanked.split('\n');
+    var inScenario = false;
+    var scenarioLine = 0;
+    var aIdx = 0;
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final lineNo = i + 1;
+      if (_scenarioHeader.hasMatch(line)) {
+        aIdx += 1;
+        inScenario = true;
+        scenarioLine = lineNo;
+        continue;
+      }
+      // Any markdown heading that is not a scenario header ends the
+      // scenario block: a marker after `## Functional Requirements`
+      // belongs to no numbered scenario (round-2 review fix 5).
+      if (line.trimLeft().startsWith('#')) {
+        inScenario = false;
+        continue;
+      }
+      final m = _typeMarkerLine.firstMatch(line);
+      if (m == null) continue;
+      if (!inScenario) {
+        throw StateError(
+          'spec line $lineNo carries a `**Type**` marker outside any '
+          'numbered scenario block.\n'
+          '   --> fix: move the marker inside the scenario it declares.',
+        );
+      }
+      final raw = m.group(1)!.toLowerCase();
+      final kind = BehaviorKind.values.where((k) => k.name == raw).firstOrNull;
+      if (kind == null) {
+        throw StateError(
+          'spec line $lineNo declares an unknown scenario type '
+          '"**Type**: ${m.group(1)}".\n'
+          '   --> fix: use one of '
+          '${BehaviorKind.values.map((k) => k.name).join(', ')}.',
+        );
+      }
+      final id = 'A$aIdx';
+      if (markers.containsKey(id)) {
+        throw StateError(
+          'duplicate `**Type**` markers for scenario $id (first at line '
+          '${markers[id]!.specLine}, duplicate at line $lineNo).\n'
+          '   --> fix: keep exactly one `**Type**` marker per scenario.',
+        );
+      }
+      // A manual scenario consumes the AC number but emits no row
+      // (bug #846) — so it also declares nothing (no row to route).
+      final blockIsManual = manualScenarioMarker.hasMatch(
+        lines[scenarioLine - 1],
+      );
+      if (!blockIsManual) {
+        markers[id] = ScenarioDeclaration(
+          behaviorId: id,
+          declaredType: kind,
+          specLine: lineNo,
+        );
+      }
+    }
+    return markers;
+  }
 
   /// The heading that opens a Key Entities section (corpus format:
   /// `### Key Entities`; any heading level 1-6 is accepted, matched
@@ -305,6 +404,123 @@ class SpecParser {
     return contracts;
   }
 
+  /// Extract the declared contract rows (feature 071): every row an
+  /// author can trace a behavior to, with its routing kind and
+  /// (function rows) eagerly-parsed signatures.
+  ///
+  /// Sources: the Layer Contracts section (bold layer label → row kind:
+  /// Presentation/Domain/Data/Function; other layers carry no routing
+  /// kind and are skipped), the Key Entities table (entity rows), and
+  /// the External Dependencies table (`storage:`/`channel:` type
+  /// tokens; other dependency types carry no routing kind). Rows are
+  /// line-addressable (1-based spec line). A malformed FUNCTION
+  /// signature (missing the `-> Return`) refuses naming the row and the
+  /// offending text — errors-are-an-API.
+  List<ContractRowDecl> parseContractRows(String specMd) {
+    const functionKinds = ['presentation', 'domain', 'data', 'function'];
+    final rows = <ContractRowDecl>[];
+    final lines = specMd.split('\n');
+    String? layer; // active Layer Contracts layer label
+    String? section; // active declared section kind
+    for (var i = 0; i < lines.length; i++) {
+      final trimmed = lines[i].trim();
+      final lineNo = i + 1;
+      if (trimmed.startsWith('#')) {
+        layer = null;
+        section = null;
+        if (_layerContractsHeading.hasMatch(trimmed)) {
+          section = 'layer-contracts';
+        } else if (_keyEntitiesHeading.hasMatch(trimmed)) {
+          section = 'key-entities';
+        } else if (_dependenciesHeading.hasMatch(trimmed)) {
+          section = 'dependencies';
+        }
+        continue;
+      }
+      if (trimmed.isEmpty) continue;
+      if (section == 'layer-contracts') {
+        final layerM = _layerName.firstMatch(trimmed);
+        if (layerM != null) {
+          layer = layerM.group(1)!.trim();
+          continue;
+        }
+        final bullet = _layerContractBullet.firstMatch(trimmed);
+        if (bullet == null || layer == null) continue;
+        final name = bullet.group(1)!.trim();
+        final label = layer.toLowerCase();
+        final kind = functionKinds.contains(label)
+            ? ContractRowKind.values.firstWhere((k) => k.name == label)
+            : null;
+        if (kind == null) continue; // no routing kind — not a routing row
+        final methods = RegExp(
+          r'`([^`]+)`',
+        ).allMatches(bullet.group(2)!).map((m) => m.group(1)!.trim()).toList();
+        final signatures = <Signature>[];
+        for (final method in methods) {
+          try {
+            signatures.add(Signature.parse(method));
+          } on FormatException {
+            // A malformed signature refuses on FUNCTION rows (their
+            // return type drives subject generation); other layers
+            // preserve methods verbatim for their existing consumers.
+            if (kind == ContractRowKind.function) {
+              throw StateError(
+                'contract row "$name" declares a malformed signature '
+                '"$method" — declared signatures must be '
+                '`name(Params) -> Return` (spec line $lineNo).\n'
+                '   --> fix: add the `-> Return` part.',
+              );
+            }
+          }
+        }
+        rows.add(
+          ContractRowDecl(
+            name: name,
+            kind: kind,
+            signatures: signatures,
+            specLine: lineNo,
+          ),
+        );
+        continue;
+      }
+      if (section == 'key-entities') {
+        // Bug #919: the zuraffa-1.0 template declares entities as a
+        // 3-column TABLE (`| Entity | Fields | Purpose |`) — parse the
+        // table rows (header/separator skipped), like parseDependencies.
+        if (!trimmed.startsWith('|')) continue;
+        final cells = _splitCells(trimmed);
+        if (cells.isEmpty) continue;
+        if (cells[0].toLowerCase() == 'entity') continue; // header
+        if (RegExp(r'^-+$').hasMatch(cells[0])) continue; // separator
+        rows.add(
+          ContractRowDecl(
+            name: cells[0],
+            kind: ContractRowKind.entity,
+            specLine: lineNo,
+          ),
+        );
+        continue;
+      }
+      if (section == 'dependencies') {
+        if (!trimmed.startsWith('|')) continue;
+        final cells = _splitCells(trimmed);
+        if (cells.length < 2) continue;
+        if (cells[0].toLowerCase() == 'dependency') continue;
+        if (RegExp(r'^-+$').hasMatch(cells[0])) continue;
+        final type = cells[1].toLowerCase();
+        final kind = type.startsWith('storage')
+            ? ContractRowKind.storage
+            : (type.startsWith('channel') || type.startsWith('platform'))
+            ? ContractRowKind.channel
+            : null;
+        if (kind == null) continue;
+        rows.add(ContractRowDecl(name: cells[0], kind: kind, specLine: lineNo));
+        continue;
+      }
+    }
+    return rows;
+  }
+
   /// Extract the entities the spec declares under `Key Entities` (bug
   /// #829 remediation 1: plan must surface them so the loop can create
   /// and wire them). Bug #919: the zuraffa-1.0 template declares
@@ -392,6 +608,12 @@ class SpecParser {
 
   List<Behavior> _extractAcceptance(String feature, String specMd) {
     final behaviors = <Behavior>[];
+    // Feature 071 (issue #951): the rung-1 lane declaration. A
+    // scenario's `**Type**` marker decides its kind outright; the
+    // #830 UI-intent classifier below is the labeled fallback for
+    // undeclared scenarios (migration window). Prose never overrides
+    // a declaration (FR-001/FR-013).
+    final markers = parseScenarioTypeMarkers(specMd);
     final lines = specMd.split('\n');
     var scenarioBuffer = <String>[];
     var aIdx = 0;
@@ -424,9 +646,13 @@ class SpecParser {
         // whose prose is UI-observable gets the widget subject kind so
         // plan writes it into the widget section and gen emits a
         // testWidgets pair instead of a smoke-shaped plain-function stub.
-        kind: isUiAcceptance(description)
-            ? BehaviorKind.widget
-            : BehaviorKind.acceptance,
+        // Feature 071: a `**Type**` marker (rung 1) outranks the prose
+        // classifier; the classifier only routes UNDECLARED scenarios.
+        kind:
+            markers['A$aIdx']?.declaredType ??
+            (isUiAcceptance(description)
+                ? BehaviorKind.widget
+                : BehaviorKind.acceptance),
         description: description,
         // Bug #846: AC source criterion aligned to the document-wide AC
         // number consumed above (id alignment with the requirement scan).
@@ -461,6 +687,13 @@ class SpecParser {
     return line.replaceAll('**', '').trim();
   }
 
+  /// Whether an FR line carries the `[persistent]` routing tag,
+  /// ignoring bold markers: `**[persistent]**` declares exactly what
+  /// `[persistent]` does (round-2 review fix 6 — the two walks must
+  /// agree on the tag whether or not it is bold-wrapped).
+  static bool _carriesPersistentTag(String frText) =>
+      frText.replaceAll('**', '').trim().startsWith('[persistent]');
+
   List<Behavior> _extractUnit(String feature, String specMd) {
     final behaviors = <Behavior>[];
     final frPattern = RegExp(r'^\s*-\s*\*\*(FR-\d{3})\*\*:\s*(.+)$');
@@ -470,7 +703,17 @@ class SpecParser {
       if (m != null) {
         uIdx += 1;
         final frId = m.group(1)!;
-        final desc = m.group(2)!.replaceAll('**', '').trim();
+        // Feature 071: a `[persistent]` tag is a routing declaration,
+        // not prose — strip it from the description (the persistence
+        // map carries the mark; the rendered row stays clean). The tag
+        // is detected on the RAW text before the `**` strip, so a
+        // bold-wrapped tag is honored too (round-2 review fix 6).
+        final rawDesc = m.group(2)!;
+        final tagged = _carriesPersistentTag(rawDesc);
+        var desc = rawDesc.replaceAll('**', '').trim();
+        if (tagged) {
+          desc = desc.substring('[persistent]'.length).trim();
+        }
         behaviors.add(
           Behavior(
             id: 'U$uIdx',
@@ -484,5 +727,90 @@ class SpecParser {
       }
     }
     return behaviors;
+  }
+
+  /// `traces:` payload -> tokens, keeping backticked spans intact so a
+  /// declared inline signature is never comma-split (round-2 review
+  /// fix 2). A span carrying `(` documents an expected signature, not a
+  /// contract-row reference — such tokens are dropped so they neither
+  /// resolve nor dangle. Every `traces:` consumer (parser, make, func)
+  /// routes through this helper so they all see the same tokens.
+  static List<String> traceTokens(String raw) => RegExp(r'`[^`]*`|[^,]+')
+      .allMatches(raw)
+      .map((m) => m.group(0)!.trim())
+      .where((t) => t.isNotEmpty)
+      .map((t) => t.replaceAll('`', '').trim())
+      .where((t) => t.isNotEmpty)
+      .where((t) => !t.contains('('))
+      .toList();
+
+  /// The FR contract-trace continuation scan (feature 071): a `traces:`
+  /// line following an FR names the contract rows the requirement
+  /// exercises. Keyed by the document-wide unit id.
+  static Map<String, List<String>> parseFrContractTraces(String specMd) {
+    final traces = <String, List<String>>{};
+    final lines = specMd.split('\n');
+    final frPattern = RegExp(r'^\s*-\s*\*\*(FR-\d{3})\*\*:\s*(.+)$');
+    final tracesLine = RegExp(r'^\s+traces:\s*(.+)$');
+    var uIdx = 0;
+    for (var i = 0; i < lines.length; i++) {
+      final m = frPattern.firstMatch(lines[i]);
+      if (m == null) continue;
+      uIdx += 1;
+      final t = i + 1 < lines.length
+          ? tracesLine.firstMatch(lines[i + 1])
+          : null;
+      if (t == null) continue;
+      traces['U$uIdx'] = traceTokens(t.group(1)!);
+    }
+    return traces;
+  }
+
+  /// The `_persistence` declaration scan (feature 071): FR lines
+  /// carrying a `[persistent]` tag, or a `traces:` continuation naming
+  /// a declared storage dependency row. Keyed by the document-wide
+  /// unit id (the same walk [_extractUnit] uses, so ids align).
+  static Map<String, PersistenceDeclaration> parsePersistenceDeclarations(
+    String specMd,
+  ) {
+    final declarations = <String, PersistenceDeclaration>{};
+    final storageNames = const SpecParser()
+        .parseContractRows(specMd)
+        .where((r) => r.kind == ContractRowKind.storage)
+        .map((r) => r.name)
+        .toSet();
+    final lines = specMd.split('\n');
+    final frPattern = RegExp(r'^\s*-\s*\*\*(FR-\d{3})\*\*:\s*(.+)$');
+    final tracesLine = RegExp(r'^\s+traces:\s*(.+)$');
+    var uIdx = 0;
+    for (var i = 0; i < lines.length; i++) {
+      final m = frPattern.firstMatch(lines[i]);
+      if (m == null) continue;
+      uIdx += 1;
+      final id = 'U$uIdx';
+      final tagged = _carriesPersistentTag(m.group(2)!);
+      final traceTokens = <String>[];
+      if (i + 1 < lines.length) {
+        final t = tracesLine.firstMatch(lines[i + 1]);
+        if (t != null) {
+          traceTokens.addAll(SpecParser.traceTokens(t.group(1)!));
+        }
+      }
+      final viaStorage = traceTokens.any(storageNames.contains);
+      if (tagged) {
+        declarations[id] = PersistenceDeclaration(
+          behaviorId: id,
+          fromTag: true,
+          specLine: i + 1,
+        );
+      } else if (viaStorage) {
+        declarations[id] = PersistenceDeclaration(
+          behaviorId: id,
+          fromTag: false,
+          specLine: i + 2,
+        );
+      }
+    }
+    return declarations;
   }
 }

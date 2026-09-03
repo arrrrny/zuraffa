@@ -66,6 +66,18 @@ class VerifyRedResolutionError implements Exception {
 
 class VerifyRedCommand extends Command<void> {
   VerifyRedCommand(this.plugin) {
+    argParser.addFlag(
+      'all',
+      negatable: false,
+      help:
+          'Batched red certification (spec 069 T002): certify EVERY '
+          'behavior that has gen artifacts but no red evidence through '
+          'ONE whole-file runner invocation (the profile\'s `file` '
+          'template with every target test path) instead of one '
+          'single-test spawn per behavior. Exit 0 only when every '
+          'behavior certifies an honest assertion red; evidence is '
+          'appended per certified behavior.',
+    );
     argParser.addOption(
       'feature',
       help:
@@ -144,6 +156,29 @@ class VerifyRedCommand extends Command<void> {
         feature: featureFlag ?? 'unknown',
       );
       exitCode = 1;
+      return;
+    }
+
+    // ---------------------------------------------------------------
+    // Spec 069 T002: the batched red lane — one whole-file invocation
+    // for every gen'd-but-not-red behavior. Dispatched BEFORE the
+    // single-target resolution (multiple pending behaviors are the
+    // batch's normal input, not an ambiguity).
+    // ---------------------------------------------------------------
+    if (argResults?['all'] as bool? ?? false) {
+      if (behaviorId != null) {
+        usageException(
+          'zfa tdd verify-red --all takes no behavior id — it targets '
+          'every behavior lacking red evidence (drop "$behaviorId" or '
+          'drop --all).',
+        );
+      }
+      await _runBatch(
+        cwd: cwd,
+        featureFlag: featureFlag,
+        timeout: timeoutOverride,
+        runner: const SingleTestRunner(),
+      );
       return;
     }
 

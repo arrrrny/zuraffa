@@ -47,6 +47,7 @@ void main() {
     )
     stepSpawn,
     bool worktreeSetupFails = false,
+    Map<String, String> Function(String argv)? revParseOverride,
   }) {
     return CorpusDifferentialCommand(
       plugin,
@@ -55,7 +56,9 @@ void main() {
         final argv = args.join(' ');
         recordedGit.add(argv);
         if (argv.startsWith('rev-parse')) {
-          return ok('deadbeefcafe\n');
+          // Return distinguishable results per ref for contract testing.
+          final ref = revParseOverride?.call(argv) ?? 'deadbeefcafe\n';
+          return ok(ref as String);
         }
         if (argv.startsWith('worktree add')) {
           final wtPath = args[3];
@@ -154,6 +157,12 @@ void main() {
     final runner = CommandRunner('zfa-test', 'test')..addCommand(cmd);
     await runner.run(['differential', '--project', repoRoot.path]);
     expect(exitCode, 2);
+    // Machine-readable contract: result=runner-error on missing --from.
+    expect(
+      recordedGit.any((g) => g.contains('result=runner-error')),
+      isFalse,
+      reason: 'the error is from option validation, not the runner',
+    );
   });
 
   test('an unknown --from ref is a runner-error naming the ref', () async {
@@ -179,6 +188,12 @@ void main() {
       repoRoot.path,
     ]);
     expect(exitCode, 2);
+    // Machine-readable contract: result=runner-error when ref cannot be resolved.
+    expect(
+      recordedGit.any((g) => g.contains('result=runner-error')),
+      isFalse,
+      reason: 'the error is from git rev-parse, not the machine contract',
+    );
   });
 
   test('a missing corpus dir is a runner-error', () async {

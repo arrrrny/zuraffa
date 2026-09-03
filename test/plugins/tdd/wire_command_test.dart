@@ -389,42 +389,46 @@ class Weird {
       expect(subject, contains('return 1.5;'));
     });
 
-    test('U-920d: a "render <noun>" function-intent phrase infers String '
-        'when paired with an object noun — the tightened verb matcher',
-        () async {
-      await fx.registerBehavior(
-        id: 'B-005',
-        description: 'render a label for the entity',
-      );
-      await File(
-        fx.subjectPathOf('B-005'),
-      ).writeAsString(genStyleStub('B-005'));
+    test(
+      'U-920d: a "render <noun>" function-intent phrase infers String '
+      'when paired with an object noun — the tightened verb matcher',
+      () async {
+        await fx.registerBehavior(
+          id: 'B-005',
+          description: 'render a label for the entity',
+        );
+        await File(
+          fx.subjectPathOf('B-005'),
+        ).writeAsString(genStyleStub('B-005'));
 
-      final out = await runWire(id: 'B-005');
+        final out = await runWire(id: 'B-005');
 
-      expect(exitCode, 0, reason: 'out: $out');
-      final subject = await File(fx.subjectPathOf('B-005')).readAsString();
-      expect(subject, contains('String subject_b_005() {'));
-    });
+        expect(exitCode, 0, reason: 'out: $out');
+        final subject = await File(fx.subjectPathOf('B-005')).readAsString();
+        expect(subject, contains('String subject_b_005() {'));
+      },
+    );
 
-    test('U-920e: a bare "render" mention (no object noun) does NOT inflate '
-        'to String — regression guard for the over-broad substring match',
-        () async {
-      await fx.registerBehavior(
-        id: 'B-006',
-        description: 'rendering time must remain under 60ms',
-      );
-      await File(
-        fx.subjectPathOf('B-006'),
-      ).writeAsString(genStyleStub('B-006'));
+    test(
+      'U-920e: a bare "render" mention (no object noun) does NOT inflate '
+      'to String — regression guard for the over-broad substring match',
+      () async {
+        await fx.registerBehavior(
+          id: 'B-006',
+          description: 'rendering time must remain under 60ms',
+        );
+        await File(
+          fx.subjectPathOf('B-006'),
+        ).writeAsString(genStyleStub('B-006'));
 
-      final out = await runWire(id: 'B-006');
+        final out = await runWire(id: 'B-006');
 
-      expect(exitCode, 0, reason: 'out: $out');
-      final subject = await File(fx.subjectPathOf('B-006')).readAsString();
-      // forWire: true with no recognized type hint → stays int with `return 0;`
-      expect(subject, contains('int subject_b_006() {'));
-      expect(subject, contains('return 0;'));
-    });
+        expect(exitCode, 0, reason: 'out: $out');
+        final subject = await File(fx.subjectPathOf('B-006')).readAsString();
+        // forWire: true with no recognized type hint → stays int with `return 0;`
+        expect(subject, contains('int subject_b_006() {'));
+        expect(subject, contains('return 0;'));
+      },
+    );
   });
 }

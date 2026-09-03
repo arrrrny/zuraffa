@@ -588,14 +588,27 @@ class BuildCommand extends Command {
   /// severity marker is `error`. `dart analyze` formats lines as:
   ///   `   error - path:line:col - message - code`
   /// We look for ` - error - ` at the start of a line (after whitespace).
-  /// Returns true when [analyzeOutput] contains at least one line whose
-  /// severity marker is `error`. Exposed for unit testing so the parser can
-  /// be verified without spawning `dart analyze` (which needs a full package).
-  @visibleForTesting
+  /// The single contract for the analyzer error-line format: the build
+  /// command's post-build guard (issue #395) and the TDD make's
+  /// #737-tolerance gate (issue #942 — a failed build whose output
+  /// reports errors is a non-compiling generated tree, not tolerable
+  /// noise) both read the same format through this parser, so the two
+  /// verdicts can never drift apart. Also exposed for unit testing so
+  /// the parser can be verified without spawning `dart analyze`.
   static bool analyzeReportsError(String analyzeOutput) {
     final errorLine = RegExp(r'^\s*error\s*-\s', multiLine: true);
     return errorLine.hasMatch(analyzeOutput);
   }
+
+  /// Counts the `error -` severity lines in [analyzeOutput] — the same
+  /// line format [analyzeReportsError] matches (see its doc). For
+  /// verdicts that need the magnitude, not just the boolean: the TDD
+  /// make's #942 refusal message reports how many analyzer errors made
+  /// the failed build non-tolerable.
+  static int countAnalyzerErrors(String analyzeOutput) => RegExp(
+    r'^\s*error\s*-\s',
+    multiLine: true,
+  ).allMatches(analyzeOutput).length;
 
   Future<int> _runBuild() async {
     // `--delete-conflicting-outputs` was removed in build_runner 2.16.0 and

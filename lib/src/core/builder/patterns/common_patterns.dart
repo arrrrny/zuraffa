@@ -6,9 +6,29 @@ import '../../../core/plugin_system/discovery_engine.dart';
 import '../../../core/context/file_system.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/parsed_usecase_info.dart';
+import '../../../utils/entity_utils.dart';
 import '../../../utils/string_utils.dart';
 
 class CommonPatterns {
+  static final RegExp _dartIdentifier = RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*$');
+
+  /// The framework-barrel `hide` names for every locally-imported entity
+  /// type in [types] (issue #942) — the entity symbol plus its zorphy
+  /// `Patch` pair ([EntityUtils.barrelHideNames]) for each base type that
+  /// [entityImports] would resolve to an entity-file import (same
+  /// extraction and exclusion rules). Types that do not shape to a Dart
+  /// identifier are skipped so a malformed type string cannot emit a
+  /// malformed `hide` clause.
+  static List<String> barrelHideNamesForTypes(Iterable<String?> types) =>
+      <String>{
+        for (final type in types)
+          if (type != null)
+            for (final baseType in extractBaseTypes(type))
+              if (!KnownTypes.isExcluded(baseType) &&
+                  _dartIdentifier.hasMatch(baseType))
+                ...EntityUtils.barrelHideNames(baseType),
+      }.toList();
+
   static List<String> entityImports(
     List<String?> types,
     GeneratorConfig config, {

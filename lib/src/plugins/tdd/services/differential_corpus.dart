@@ -156,7 +156,15 @@ class DifferentialCorpus {
   static DifferentialEntry _parseEntry(File entryFile) {
     final Map<String, dynamic> json;
     try {
-      json = jsonDecode(entryFile.readAsStringSync()) as Map<String, dynamic>;
+      final decoded = jsonDecode(entryFile.readAsStringSync());
+      if (decoded is! Map<String, dynamic>) {
+        throw DifferentialCorpusException(
+          DifferentialCorpusFailure.corrupt,
+          '${entryFile.path}: entry.json must be an object, got '
+          '${decoded.runtimeType}',
+        );
+      }
+      json = decoded;
     } on FormatException catch (e) {
       throw DifferentialCorpusException(
         DifferentialCorpusFailure.corrupt,
@@ -176,6 +184,13 @@ class DifferentialCorpus {
       throw DifferentialCorpusException(
         DifferentialCorpusFailure.invalid,
         '${entryFile.path}: "name" is required',
+      );
+    }
+    // Reject path-like names for containment.
+    if (name.contains('/') || name.contains('\\') || name.contains('..')) {
+      throw DifferentialCorpusException(
+        DifferentialCorpusFailure.invalid,
+        '${entryFile.path}: "name" must not contain path separators or ".."',
       );
     }
     if (stepsRaw is! List || stepsRaw.isEmpty) {
@@ -199,12 +214,24 @@ class DifferentialCorpus {
           '${entryFile.path}: each step must be an object',
         );
       }
-      final argv = (raw['argv'] as List?)?.cast<String>();
-      if (argv == null || argv.isEmpty) {
+      final argvRaw = raw['argv'] as List?;
+      if (argvRaw == null || argvRaw.isEmpty) {
         throw DifferentialCorpusException(
           DifferentialCorpusFailure.corrupt,
           '${entryFile.path}: each step needs a non-empty "argv"',
         );
+      }
+      // Eagerly validate each argv element is a String.
+      final argv = <String>[];
+      for (final arg in argvRaw) {
+        if (arg is! String) {
+          throw DifferentialCorpusException(
+            DifferentialCorpusFailure.corrupt,
+            '${entryFile.path}: argv elements must be strings, got '
+            '${arg.runtimeType}',
+          );
+        }
+        argv.add(arg);
       }
       steps.add(
         DifferentialStepSpec(
@@ -216,9 +243,25 @@ class DifferentialCorpus {
       );
     }
 
-    final roots =
-        (json['artifactRoots'] as List?)?.cast<String>() ??
-        const ['test/tdd', 'lib/tdd'];
+    // Eagerly validate artifactRoots elements.
+    final rootsRaw = (json['artifactRoots'] as List?);
+    List<String> roots;
+    if (rootsRaw == null || rootsRaw.isEmpty) {
+      roots = const ['test/tdd', 'lib/tdd'];
+    } else {
+      final validatedRoots = <String>[];
+      for (final root in rootsRaw) {
+        if (root is! String) {
+          throw DifferentialCorpusException(
+            DifferentialCorpusFailure.corrupt,
+            '${entryFile.path}: artifactRoots elements must be strings, got '
+            '${root.runtimeType}',
+          );
+        }
+        validatedRoots.add(root);
+      }
+      roots = validatedRoots;
+    }
 
     return DifferentialEntry(
       name: name,
