@@ -39,8 +39,10 @@ import '../models/corpus_ledger.dart';
 import '../models/corpus_manifest.dart';
 import '../models/corpus_plan.dart';
 import '../models/corpus_progress.dart';
+import '../services/budget_telemetry.dart';
 import '../services/corpus_manifest_store.dart';
 import '../services/corpus_progress_store.dart';
+import '../services/corpus_sharder.dart';
 import '../services/corpus_step_runner.dart';
 import '../services/gap_ledger_store.dart';
 import '../services/test_list_reader.dart';
@@ -86,6 +88,37 @@ class CorpusRunCommand extends Command<void> {
           'without behaviors land in the gap ledger (the completeness '
           'proof). Plan errors (missing file, unknown feature, cycle) '
           'stop honestly with exit 2 and nothing driven.',
+    );
+    // -------------------------------------------------------------------
+    // Spec 069 T003 — sharding + budget telemetry for the corpus lane.
+    // -------------------------------------------------------------------
+    argParser.addOption(
+      'shard',
+      valueHelp: 'i/n',
+      help:
+          'Spec 069 T003: drive ONLY the features of the i-th of n '
+          'round-robin shards (deterministic, manifest/plan order '
+          'preserved within the shard; every feature lands in exactly '
+          'one shard). The per-PR lane runs N shard invocations '
+          'concurrently (a CI matrix of checkouts) — each ≤ 10 min — '
+          'while the unsharded full lane stays the nightly gate. A '
+          'shard lane reports completion for ITS features.',
+    );
+    argParser.addFlag(
+      'telemetry',
+      defaultsTo: true,
+      negatable: true,
+      help:
+          'Spec 069 T003: write the budget-telemetry JSON verdict '
+          '(wall-clock per step, suite seconds, mutant counts — schema '
+          'corpus.budget.v1). --no-telemetry disables it.',
+    );
+    argParser.addOption(
+      'telemetry-file',
+      valueHelp: 'file',
+      help:
+          'Where the budget-telemetry JSON verdict is written (default: '
+          '.zfa/corpus/budget-telemetry.json).',
     );
   }
 
@@ -137,6 +170,30 @@ class CorpusRunCommand extends Command<void> {
     final manifestStore = CorpusManifestStore(projectRoot);
     final progressStore = CorpusProgressStore(projectRoot);
     final ledgerStore = GapLedgerStore(projectRoot);
+
+    // -----------------------------------------------------------------
+    // Spec 069 T003: parse the --shard <i>/<n> spec BEFORE anything is
+    // touched (a malformed spec is the runner-error class — the same
+    // honest stop as the --timeout parse).
+    // -----------------------------------------------------------------
+    final shardFlag = argResults?['shard'] as String?;
+    (int, int)? shardSpec;
+    if (shardFlag != null && shardFlag.isNotEmpty) {
+      try {
+        shardSpec = CorpusSharder.parseShardSpec(shardFlag);
+      } on ShardSpecFormatException catch (e) {
+        print('zfa tdd corpus run: ${e.message}');
+        _printSummary(features: 0, result: 'runner-error');
+        exitCode = _exitRunnerError;
+        return;
+      }
+    }
+    final telemetryEnabled = argResults?['telemetry'] as bool? ?? true;
+    final telemetryFileFlag = argResults?['telemetry-file'] as String?;
+    final telemetryPath =
+        telemetryFileFlag != null && telemetryFileFlag.isNotEmpty
+        ? telemetryFileFlag
+        : p.join(projectRoot, '.zfa', 'corpus', 'budget-telemetry.json');
 
     // -----------------------------------------------------------------
     // 1. The manifest (no-manifest is the distinct runner-error class).
@@ -312,10 +369,41 @@ class CorpusRunCommand extends Command<void> {
       final runner = CorpusStepRunner(zfaBin: zfaBin, timeout: timeoutOverride);
       String? stoppedAtFeature;
 
+      // -----------------------------------------------------------------
+      // 3b. Spec 069 T003 — the shard lane: filter the drive order to
+      //     this invocation's round-robin shard (deterministic; every
+      //     feature lands in exactly one shard, so the union of the N
+      //     concurrent shard invocations covers the manifest). The
+      //     unsharded lane keeps the full-corpus (nightly) semantics.
+      // -----------------------------------------------------------------
+      var lane = driveOrder;
+      String? shardLabel;
+      if (shardSpec != null) {
+        final (index, count) = shardSpec;
+        shardLabel = '$index/$count';
+        final selected = CorpusSharder.selectShard(
+          ordered: driveOrder.map((f) => f.name).toList(),
+          index: index,
+          count: count,
+        ).toSet();
+        lane = driveOrder.where((f) => selected.contains(f.name)).toList();
+        print(
+          '[corpus] shard: $shardLabel — ${lane.length} of '
+          '${driveOrder.length} feature(s): '
+          '${lane.map((f) => f.name).join(', ')}',
+        );
+      }
+
+      // Spec 069 T003 — the budget telemetry: wall-clock per step,
+      // suite seconds, and mutant counts land in ONE JSON verdict the
+      // lane writes at the end (CI enforces the ≤ 30 min full / ≤ 10
+      // min sharded budgets against these REAL numbers).
+      final telemetry = BudgetTelemetry.start(shard: shardLabel);
+
       Future<void> persist() =>
           progressStore.save(progress, manifestFeatureNames: manifestNames);
 
-      for (final feature in driveOrder) {
+      for (final feature in lane) {
         final name = feature.name;
         final existing = progress.features[name];
 
@@ -344,9 +432,17 @@ class CorpusRunCommand extends Command<void> {
         await persist();
 
         // --- zfa tdd run <feature> ---
+        final runStopwatch = Stopwatch()..start();
         final runResult = await runner.runFeature(
           feature: name,
           projectRoot: projectRoot,
+        );
+        runStopwatch.stop();
+        telemetry.recordStep(
+          feature: name,
+          step: 'run',
+          elapsed: runStopwatch.elapsed,
+          outcome: runResult.outcome,
         );
         print('[corpus] $name run -> ${runResult.outcome}');
         if (!runResult.success) {
@@ -371,9 +467,20 @@ class CorpusRunCommand extends Command<void> {
         }
 
         // --- zfa tdd verify --feature <feature> ---
+        final verifyStopwatch = Stopwatch()..start();
         final verifyResult = await runner.verifyFeature(
           feature: name,
           projectRoot: projectRoot,
+        );
+        verifyStopwatch.stop();
+        telemetry.recordStep(
+          feature: name,
+          step: 'verify',
+          elapsed: verifyStopwatch.elapsed,
+          outcome: verifyResult.outcome,
+        );
+        telemetry.recordMutants(
+          BudgetTelemetry.parseMutantCounts(verifyResult.output),
         );
         print('[corpus] $name verify -> ${verifyResult.outcome}');
 
@@ -454,12 +561,13 @@ class CorpusRunCommand extends Command<void> {
 
       _printReport(manifest: manifest, progress: progress, totals: totals);
       final openGapRefusal = totals.open.isNotEmpty;
+      final laneComplete = _completeFeatures(lane, progress);
       final result = stoppedAtFeature != null
           ? 'stopped'
-          : _complete(manifest, progress) && !openGapRefusal
+          : laneComplete && !openGapRefusal
           ? 'complete'
           : 'incomplete';
-      if (_complete(manifest, progress) && openGapRefusal) {
+      if (laneComplete && openGapRefusal) {
         // Bug #846: every feature done/waived is NOT enough — the corpus
         // refuses a `complete` verdict while open gaps exist in the
         // ledger (a done feature's gap is reported, never absorbed).
@@ -474,14 +582,46 @@ class CorpusRunCommand extends Command<void> {
           );
         }
       }
+      // -----------------------------------------------------------------
+      // 4b. Spec 069 T003 — write the budget-telemetry JSON verdict
+      //     BEFORE the summary line (the machine summary stays the
+      //     final stdout line).
+      // -----------------------------------------------------------------
+      final laneDoneOrWaived = lane
+          .where(
+            (f) =>
+                progress.features[f.name]?.state == FeatureCorpusState.done ||
+                progress.features[f.name]?.state == FeatureCorpusState.waived,
+          )
+          .length;
+      telemetry.finish(result: result, features: laneDoneOrWaived);
+      if (telemetryEnabled) {
+        try {
+          final written = await telemetry.write(path: telemetryPath);
+          final verdict = telemetry.toJson();
+          print(
+            '   telemetry: budget verdict written to $written '
+            '(wall_clock_ms=${verdict['wall_clock_ms']} '
+            'suite_seconds=${verdict['suite_seconds']} '
+            "mutants=${(verdict['mutants'] as Map).values.join('/')} — "
+            'spec 069 T003)',
+          );
+        } on IOException catch (e) {
+          // Fail-safe: telemetry must never fail the lane — it is the
+          // budget observability, not the gate.
+          print('   telemetry: could not write $telemetryPath: $e');
+        }
+      }
       _printSummary(
-        features: manifest.features.length,
+        features: lane.length,
         result: result,
         progress: progress,
         manifest: manifest,
         gaps: totals.found,
         stoppedAt: stoppedAtFeature,
         order: plan != null ? 'topological' : null,
+        shard: shardLabel,
+        lane: lane,
       );
 
       exitCode = result == 'complete' ? _exitComplete : _exitStopped;
@@ -497,12 +637,16 @@ class CorpusRunCommand extends Command<void> {
     }
   }
 
-  /// Every manifest feature is done or waived (not-ready features block
+  /// Every lane feature is done or waived (not-ready features block
   /// completion — they are reported, never silently absorbed). The open
   /// ledger gap refusal (bug #846) is applied by the caller on top of
-  /// this check.
-  static bool _complete(CorpusManifest manifest, CorpusProgress progress) {
-    for (final feature in manifest.features) {
+  /// this check. Spec 069 T003: the lane is the shard's feature subset
+  /// for a shard invocation, the whole manifest for the full lane.
+  static bool _completeFeatures(
+    List<CorpusFeature> lane,
+    CorpusProgress progress,
+  ) {
+    for (final feature in lane) {
       if (!feature.ready) return false;
       final state = progress.features[feature.name]?.state;
       if (state != FeatureCorpusState.done &&
@@ -800,30 +944,33 @@ class CorpusRunCommand extends Command<void> {
     int gaps = 0,
     String? stoppedAt,
     String? order,
+    String? shard,
+    List<CorpusFeature>? lane,
   }) {
     var done = 0;
     var waived = 0;
     var stopped = 0;
     var notReady = 0;
     var pending = 0;
-    if (manifest != null) {
-      for (final feature in manifest.features) {
-        final state = progress?.features[feature.name]?.state;
-        if (!feature.ready) {
-          notReady++;
-        } else {
-          switch (state) {
-            case FeatureCorpusState.done:
-              done++;
-            case FeatureCorpusState.waived:
-              waived++;
-            case FeatureCorpusState.stopped:
-              stopped++;
-            case null:
-            case FeatureCorpusState.pending:
-            case FeatureCorpusState.driving:
-              pending++;
-          }
+    // Spec 069 T003: a shard invocation counts ITS lane's features —
+    // the full (unsharded) lane counts the manifest, exactly as before.
+    final countedFeatures = lane ?? manifest?.features ?? const [];
+    for (final feature in countedFeatures) {
+      final state = progress?.features[feature.name]?.state;
+      if (!feature.ready) {
+        notReady++;
+      } else {
+        switch (state) {
+          case FeatureCorpusState.done:
+            done++;
+          case FeatureCorpusState.waived:
+            waived++;
+          case FeatureCorpusState.stopped:
+            stopped++;
+          case null:
+          case FeatureCorpusState.pending:
+          case FeatureCorpusState.driving:
+            pending++;
         }
       }
     }
@@ -833,7 +980,8 @@ class CorpusRunCommand extends Command<void> {
       'not_ready=$notReady pending=$pending dropped=$dropped gaps=$gaps '
       'result=$result'
       '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}'
-      '${order != null ? ' order=$order' : ''}',
+      '${order != null ? ' order=$order' : ''}'
+      '${shard != null ? ' shard=$shard' : ''}',
     );
   }
 }

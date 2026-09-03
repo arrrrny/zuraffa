@@ -108,6 +108,7 @@ import '../services/artifact_registry.dart';
 import '../services/cycle_evidence.dart';
 import '../services/entity_lookup.dart';
 import '../services/run_baseline_cache.dart';
+import '../services/corpus_baseline_cache.dart';
 import '../services/run_state_store.dart';
 import '../services/runner.dart';
 import '../services/step_runner.dart';
@@ -386,32 +387,76 @@ class RunCommand extends Command<void> {
 
     // ---------------------------------------------------------------
     // 6b. Cache the full-suite baseline ONCE per run (issue #741).
+    //     Spec 069 T004: reuse the CORPUS-WIDE baseline when the
+    //     dependency fingerprint matches — the corpus lane's per-"
+    //     feature suite spawn collapses to one capture per dependency
+    //     state. Invalidation (pubspec/lock/suite-template change) is
+    //     the safe fallback to the live capture.
     // ---------------------------------------------------------------
     if (anyMakeOutstanding) {
       try {
         final suiteTemplate = await const SingleTestRunner().loadSuiteTemplate(
           workingDirectory: projectRoot,
         );
-        print('   suite baseline: $suiteTemplate (once per run — issue #741)');
-        final baselineRecord = await const SingleTestRunner().runSuite(
-          suiteTemplate: suiteTemplate,
-          workingDirectory: projectRoot,
+        final corpusCache = const CorpusBaselineCache();
+        final fingerprint = await corpusCache.dependencyFingerprint(
+          projectRoot,
         );
-        final snapshot = const SuiteGuard().fromRunRecord(
-          record: baselineRecord,
-          capturedAt: DateTime.now().toUtc().toIso8601String(),
-        );
-        if (snapshot.parseable) {
+        SuiteSnapshot? corpusReused;
+        if (fingerprint != null) {
+          corpusReused = await corpusCache.read(
+            projectRoot: projectRoot,
+            fingerprint: fingerprint,
+          );
+        }
+        if (corpusReused != null && corpusReused.parseable) {
+          // Corpus-wide reuse (spec 069 T004): the make steps' guard is
+          // still the scoped single-test run (#741's contract) — the
+          // reuse only removes the redundant live capture.
           suiteBaselinePath = await const RunBaselineCache().write(
             featureDir: featureDir,
-            snapshot: snapshot,
+            snapshot: corpusReused,
           );
           print(
-            '   baseline cached for this run: '
-            '${p.relative(suiteBaselinePath, from: projectRoot)} '
-            '(${snapshot.failedTests.length} pre-existing failure(s)); '
-            'make steps reuse it instead of re-running the suite',
+            '   suite baseline: corpus-wide reuse '
+            '(fingerprint match; spec 069 T004) — '
+            '${corpusReused.failedTests.length} pre-existing failure(s) '
+            'captured ${corpusReused.capturedAt}; the suite is not '
+            're-run for this feature',
           );
+        } else {
+          print(
+            '   suite baseline: $suiteTemplate (once per run — issue #741)',
+          );
+          final baselineRecord = await const SingleTestRunner().runSuite(
+            suiteTemplate: suiteTemplate,
+            workingDirectory: projectRoot,
+          );
+          final snapshot = const SuiteGuard().fromRunRecord(
+            record: baselineRecord,
+            capturedAt: DateTime.now().toUtc().toIso8601String(),
+          );
+          if (snapshot.parseable) {
+            suiteBaselinePath = await const RunBaselineCache().write(
+              featureDir: featureDir,
+              snapshot: snapshot,
+            );
+            // Spec 069 T004: publish the snapshot corpus-wide so the
+            // NEXT feature's driver reuses it (fingerprint-keyed).
+            if (fingerprint != null) {
+              await corpusCache.write(
+                projectRoot: projectRoot,
+                snapshot: snapshot,
+                fingerprint: fingerprint,
+              );
+            }
+            print(
+              '   baseline cached for this run: '
+              '${p.relative(suiteBaselinePath, from: projectRoot)} '
+              '(${snapshot.failedTests.length} pre-existing failure(s)); '
+              'make steps reuse it instead of re-running the suite',
+            );
+          }
         }
       } on StateError {
         // No profile / no suite template

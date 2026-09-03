@@ -231,6 +231,69 @@ class SingleTestRunner {
     );
   }
 
+  /// Load the `file` (whole-file) command template from the TDD profile
+  /// (spec 069-corpus-economics T002: the batched verify-red lane).
+  ///
+  /// Resolution order mirrors [loadSingleTemplate]: the `file:` key in
+  /// the machine-readable Keys block first, then the human-facing
+  /// `- Whole file:` bullet. The template carries exactly one `{file}`
+  /// placeholder (the batch substitutes the first target path and
+  /// appends the rest — `dart test a_test.dart b_test.dart`).
+  /// Misfire-stop: throws [StateError] when the profile is missing or
+  /// contains no `file` command.
+  Future<String> loadFileTemplate({
+    required String workingDirectory,
+    String profilePath = defaultProfilePath,
+  }) async {
+    final raw = await _readProfile(workingDirectory, profilePath);
+
+    // 1. Machine-readable Keys block.
+    final keysBlock = RegExp(
+      r'##\s*Keys \(machine-readable\)\s*\n+```ya?ml\n(.*?)```',
+      dotAll: true,
+    ).firstMatch(raw);
+    if (keysBlock != null) {
+      final file = _firstMatchValue(
+        r'''^\s*file:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))\s*$''',
+        keysBlock.group(1)!,
+      );
+      if (file != null && file.isNotEmpty) {
+        return _normalize(file.trim());
+      }
+    }
+
+    // 1b. Legacy frontmatter YAML block.
+    final frontmatterBlock = RegExp(
+      r'^---\n([\s\S]*?)\n---',
+      dotAll: true,
+    ).firstMatch(raw);
+    if (frontmatterBlock != null) {
+      final file = _firstMatchValue(
+        r'''^\s*file:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))''',
+        frontmatterBlock.group(1)!,
+      );
+      if (file != null && file.isNotEmpty) {
+        return _normalize(file.trim());
+      }
+    }
+
+    // 2. Human-facing bullet — the first `- Whole file` line.
+    final bullet = RegExp(
+      r'-\s*Whole file[^\n]*?:\s*`([^`]+)`',
+    ).firstMatch(raw);
+    if (bullet != null && bullet.group(1)!.trim().isNotEmpty) {
+      return _normalize(bullet.group(1)!.trim());
+    }
+
+    throw StateError(
+      'zfa tdd verify-red: no `file` command template found in '
+      '${p.join(workingDirectory, profilePath)}. Add a `file:` key to '
+      'the Keys (machine-readable) block or a `- Whole file:` bullet, '
+      'then re-run (spec 069 T002: the batched red lane needs the '
+      'whole-file runner).',
+    );
+  }
+
   /// Read the raw profile contents, misfire-stopping on missing file or
   /// unreadable content.
   Future<String> _readProfile(

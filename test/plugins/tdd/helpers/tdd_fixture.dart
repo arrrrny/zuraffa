@@ -761,15 +761,18 @@ esac
   Future<void> rewriteProfile({
     required String singleTemplate,
     required String suiteTemplate,
+    String? fileTemplate,
   }) async {
     final dir = Directory(p.join(root.path, '.specify', 'memory'));
     await dir.create(recursive: true);
+    final file = fileTemplate ?? 'dart test {file}';
     await File(p.join(dir.path, 'tdd-profile.md')).writeAsString('''
 # TDD Profile — fixture
 
 ## Commands
 
 - Single test: `$singleTemplate`
+- Whole file: `$file`
 - Full suite: `$suiteTemplate`
 
 ## Keys (machine-readable)
@@ -778,7 +781,7 @@ esac
 runner: dart
 single: '$singleTemplate'
 suite: '$suiteTemplate'
-file: 'dart test {file}'
+file: '$file'
 coverage: 'dart test --coverage'
 ```
 ''');
