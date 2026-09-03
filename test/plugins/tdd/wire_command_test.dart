@@ -350,5 +350,81 @@ class Weird {
       expect(subject, contains('final Type wiredEntityAnchor = User;'));
       expect(subject, contains("return 'subject_b_002';"));
     });
+
+    test('U-920b: a signed integer literal returns an int body (not String) '
+        '— bug #920 review: unsigned regex mis-routed "-1" to the String '
+        'fallback', () async {
+      await fx.registerBehavior(
+        id: 'B-003',
+        description: 'returns -1 to signal an empty result',
+      );
+      await File(
+        fx.subjectPathOf('B-003'),
+      ).writeAsString(genStyleStub('B-003'));
+
+      final out = await runWire(id: 'B-003');
+
+      expect(exitCode, 0, reason: 'out: $out');
+      final subject = await File(fx.subjectPathOf('B-003')).readAsString();
+      expect(subject, contains('int subject_b_003() {'));
+      expect(subject, contains('return -1;'));
+    });
+
+    test('U-920c: a decimal literal returns a double body (not a truncated '
+        'int) — bug #920 review: unsigned regex truncated "1.5" to '
+        '"return 1;"', () async {
+      await fx.registerBehavior(
+        id: 'B-004',
+        description: 'returns 1.5 as the average rating',
+      );
+      await File(
+        fx.subjectPathOf('B-004'),
+      ).writeAsString(genStyleStub('B-004'));
+
+      final out = await runWire(id: 'B-004');
+
+      expect(exitCode, 0, reason: 'out: $out');
+      final subject = await File(fx.subjectPathOf('B-004')).readAsString();
+      expect(subject, contains('double subject_b_004() {'));
+      expect(subject, contains('return 1.5;'));
+    });
+
+    test('U-920d: a "render <noun>" function-intent phrase infers String '
+        'when paired with an object noun — the tightened verb matcher',
+        () async {
+      await fx.registerBehavior(
+        id: 'B-005',
+        description: 'render a label for the entity',
+      );
+      await File(
+        fx.subjectPathOf('B-005'),
+      ).writeAsString(genStyleStub('B-005'));
+
+      final out = await runWire(id: 'B-005');
+
+      expect(exitCode, 0, reason: 'out: $out');
+      final subject = await File(fx.subjectPathOf('B-005')).readAsString();
+      expect(subject, contains('String subject_b_005() {'));
+    });
+
+    test('U-920e: a bare "render" mention (no object noun) does NOT inflate '
+        'to String — regression guard for the over-broad substring match',
+        () async {
+      await fx.registerBehavior(
+        id: 'B-006',
+        description: 'rendering time must remain under 60ms',
+      );
+      await File(
+        fx.subjectPathOf('B-006'),
+      ).writeAsString(genStyleStub('B-006'));
+
+      final out = await runWire(id: 'B-006');
+
+      expect(exitCode, 0, reason: 'out: $out');
+      final subject = await File(fx.subjectPathOf('B-006')).readAsString();
+      // forWire: true with no recognized type hint → stays int with `return 0;`
+      expect(subject, contains('int subject_b_006() {'));
+      expect(subject, contains('return 0;'));
+    });
   });
 }

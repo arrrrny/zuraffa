@@ -26,12 +26,17 @@ DerivedSignature deriveSubjectSignature(
 }) {
   final desc = description.toLowerCase();
 
-  // "returns 42" — a concrete integer result.
-  final digits = RegExp(r'\breturns?\s+(\d+)').firstMatch(desc);
-  if (digits != null) {
+  // "returns 42" / "returns -1" / "returns 1.5" — a concrete numeric
+  // literal result. Bug #920 review: an unsigned-only regex mis-routes
+  // signed integers to the String fallback and decimal literals to a
+  // truncated int body (`return 1;` from `returns 1.5`).
+  final number =
+      RegExp(r'\breturns?\s+(-?\d+(?:\.\d+)?)\b').firstMatch(desc);
+  if (number != null) {
+    final literal = number.group(1)!;
     return DerivedSignature(
-      returnType: 'int',
-      explicitBody: 'return ${digits.group(1)};',
+      returnType: literal.contains('.') ? 'double' : 'int',
+      explicitBody: 'return $literal;',
     );
   }
 
@@ -46,12 +51,14 @@ DerivedSignature deriveSubjectSignature(
   }
 
   // A non-empty string result (render / format / label / message).
+  // The render/format substring check is paired with the function-intent
+  // verbs ("render <noun>" / "format <noun>") so it does not match
+  // unrelated prose like "rendering time" or "formatted database".
   if (desc.contains('non-empty string') ||
       RegExp(r'\breturns?\s+a?\s*string\b').hasMatch(desc) ||
       desc.contains('as a string') ||
       desc.contains('string for') ||
-      desc.contains('render') ||
-      desc.contains('format')) {
+      RegExp(r'\b(render|format)\s+\w+').hasMatch(desc)) {
     return const DerivedSignature(returnType: 'String', explicitBody: null);
   }
 

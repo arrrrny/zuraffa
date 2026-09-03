@@ -368,13 +368,18 @@ class WireCommand extends Command<void> {
   return '$functionName';
 ''';
     } else {
+      // Bug #920 review: the previous `return 0;` fallback produced a
+      // type-wrong body for any non-int/String derived type (bool,
+      // List<String>, Map<String, Object?>, double, etc.) once a future
+      // matcher added the type without an explicit body. Route through
+      // `_defaultBodyFor` so the literal is type-correct by construction.
       body =
           '''
   // Implementation anchor: references the generated entity this
   // behavior builds on.
   // ignore: unused_local_variable
   final Type wiredEntityAnchor = $entityName;
-  return 0;
+  ${_defaultBodyFor(effectiveReturnType, functionName)}
 ''';
     }
     return '''
@@ -385,7 +390,7 @@ class WireCommand extends Command<void> {
 // behavior_id: ${record.behaviorId}
 // source_criterion: ${record.sourceCriterion}
 // entity: $entityName
-// description: ${_descriptionFor(record)}
+// description: $description
 //
 // This replaces the `zfa tdd gen` stub with the minimal wired
 // implementation (spec 047 FR-005): the generated entity $entityName is
@@ -399,6 +404,30 @@ import '$entityImport';
 /// $entityName by the generation pipeline.
 $effectiveReturnType $functionName() {$body}
 ''';
+  }
+
+  /// Minimal compilable return for a wired subject whose description
+  /// implies [returnType] but yielded no explicit body. Bug #920 review
+  /// — the previous `return 0;` was type-wrong for any non-int type.
+  static String _defaultBodyFor(String returnType, String functionName) {
+    switch (returnType) {
+      case 'bool':
+        return 'return false;';
+      case 'double':
+        return 'return 0.0;';
+      case 'List<String>':
+        return 'return const <String>[];';
+      case 'Map<String, Object?>':
+        return 'return const <String, Object?>{};';
+      case 'int':
+        return 'return 0;';
+      case 'String':
+        return "return '$functionName';";
+      default:
+        // Unknown type — emit a null cast so the stub compiles; the
+        // real contract must replace this body in a later cycle.
+        return 'return null as $returnType;';
+    }
   }
 
   /// The `package:<name>/...` import for [entityFile] under [cwd],
