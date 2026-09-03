@@ -970,10 +970,7 @@ class MakeCommand extends Command<void> {
     // noise still tolerable (the #737 scope).
     final buildOutput = result.steps[idx].output;
     if (BuildCommand.analyzeReportsError(buildOutput)) {
-      final errorLines = buildOutput
-          .split('\n')
-          .where((l) => RegExp(r'^\s*error\s*-\s').hasMatch(l))
-          .length;
+      final errorLines = BuildCommand.countAnalyzerErrors(buildOutput);
       print(
         '   terminal build step failed with $errorLines analyzer error(s) '
         '— a non-compiling generated tree is not tolerable noise '

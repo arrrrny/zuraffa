@@ -30,13 +30,14 @@ import 'dart:io';
 /// applied, collecting the top-level class/enum/mixin/extension/typedef
 /// names of every exported library (its part files included).
 class FrameworkExportSurface {
-  FrameworkExportSurface._(this._symbols, this._sources);
-
-  /// Every exported symbol name.
-  final Set<String> _symbols;
+  FrameworkExportSurface._(this._sources);
 
   /// Symbol → declaring file (relative to the package root), for the
-  /// refusal message.
+  /// refusal message. Only symbols that are actually part of the
+  /// composed export surface appear here — a symbol that every barrel
+  /// path to its declaring file hides (`export 'a.dart' show Foo;` when
+  /// the barrel needs `Bar`) is not on the surface and [lookup] reports
+  /// null for it.
   final Map<String, String> _sources;
 
   static final Map<String, FrameworkExportSurface?> _cache = {};
@@ -58,9 +59,6 @@ class FrameworkExportSurface {
   /// The framework file exporting [name], relative to the package root,
   /// or null when the surface does not export it (or is unknown).
   String? lookup(String name) => _sources[name];
-
-  /// True when the surface exports [name].
-  bool exports(String name) => _symbols.contains(name);
 
   // -------------------------------------------------------------------
   // Resolution
@@ -111,9 +109,12 @@ class FrameworkExportSurface {
         }
         var rootPath = uri.scheme == 'file'
             ? uri.toFilePath()
-            : // Relative rootUri entries resolve against the config's
-              // directory's parent (the project root).
-              _join([configFile.parent.parent.path, rootUri]);
+            : // Relative rootUri entries resolve against the config
+              // file's own directory (`<project>/.dart_tool/`) per the
+              // package_config v2 spec — a root package's `"rootUri":
+              // "../"` therefore lands on the project root, not one
+              // level above it.
+              _join([configFile.parent.path, rootUri]);
         if (rootPath.endsWith('/')) {
           rootPath = rootPath.substring(0, rootPath.length - 1);
         }
@@ -145,8 +146,9 @@ class FrameworkExportSurface {
       if (pubspec.existsSync()) {
         final content = pubspec.readAsStringSync();
         // Only the zuraffa package itself carries the framework surface.
+        // A trailing `# comment` is allowed (YAML).
         final nameMatch = RegExp(
-          r'^name:\s*zuraffa\s*$',
+          r'^name:\s*zuraffa\s*(?:#.*)?$',
           multiLine: true,
         ).firstMatch(content);
         if (nameMatch != null && Directory(_join([dir, 'lib'])).existsSync()) {
@@ -165,7 +167,6 @@ class FrameworkExportSurface {
   // -------------------------------------------------------------------
 
   static FrameworkExportSurface? _parseSurface(String libRoot) {
-    final symbols = <String>{};
     final sources = <String, String>{};
     final visited = <String>{};
 
@@ -181,24 +182,37 @@ class FrameworkExportSurface {
       return 'package:zuraffa${path.substring(idx + libMarker.length - 1)}';
     }
 
-    void visit(String fileUri) {
-      if (visited.contains(fileUri)) return;
+    /// The effective symbol set [fileUri] exports to its importer: the
+    /// library's own top-level declarations (part files included) plus
+    /// every transitive re-export, with each hop's `show`/`hide`
+    /// combinators applied. Combinators are per-hop: `export 'a.dart'
+    /// show Foo;` exposes only `Foo` from `a.dart` — `a.dart`'s other
+    /// declarations stay off the surface even though `a.dart` itself
+    /// declares them.
+    Set<String> visit(String fileUri) {
+      // Cycle safety: a file already visited (or re-entered mid-visit
+      // through an export cycle) contributes nothing new on this path.
+      // An export cycle loses the second hop's contribution rather than
+      // looping — acceptable for a collision preflight, which only ever
+      // over-reports danger, never under-reports a first-hop collision.
+      if (visited.contains(fileUri)) return const <String>{};
       visited.add(fileUri);
       final file = File(fileUri);
-      if (!file.existsSync()) return;
+      if (!file.existsSync()) return const <String>{};
       final content = _stripComments(file.readAsStringSync());
 
-      // Symbols declared in this file and its part files.
+      final effective = <String>{};
+
+      // Symbols declared in this file, plus its part files (parts merge
+      // into the library).
       final own = fileSymbols.putIfAbsent(
         fileUri,
         () => _collectSymbols(content),
       );
-      symbols.addAll(own);
+      effective.addAll(own);
       for (final symbol in own) {
         sources.putIfAbsent(symbol, () => display(fileUri));
       }
-
-      // Part files merge into this library.
       for (final part in _partUris(content)) {
         final resolved = _resolveUri(part, fileUri);
         // Skip template-literal "part"/"export" statements (e.g. a code
@@ -210,46 +224,44 @@ class FrameworkExportSurface {
           resolved,
           () => _collectSymbols(partContent),
         );
-        symbols.addAll(partSymbols);
+        effective.addAll(partSymbols);
         for (final symbol in partSymbols) {
           sources.putIfAbsent(symbol, () => display(resolved));
         }
       }
 
-      // Transitive exports, with combinators applied.
+      // Transitive re-exports: visit first so declaring files win source
+      // attribution, then narrow by THIS hop's combinators.
       for (final export in _exportsOf(content)) {
         final resolved = _resolveUri(export.uri, fileUri);
         if (resolved.isEmpty || !File(resolved).existsSync()) continue;
-        final exportedContent = _stripComments(
-          File(resolved).readAsStringSync(),
-        );
-        final exportedSymbols = fileSymbols.putIfAbsent(
-          resolved,
-          () => _collectSymbols(exportedContent),
-        );
+        var exported = visit(resolved);
         final showList = export.show;
         final hideList = export.hide;
-        var effective = exportedSymbols;
         if (showList != null) {
-          effective = effective.intersection(showList.toSet());
+          exported = exported.intersection(showList.toSet());
         }
         if (hideList != null) {
-          effective = effective.difference(hideList.toSet());
+          exported = exported.difference(hideList.toSet());
         }
-        symbols.addAll(effective);
-        for (final symbol in effective) {
+        effective.addAll(exported);
+        for (final symbol in exported) {
           sources.putIfAbsent(symbol, () => display(resolved));
         }
-        // Recurse into export-of-export barrels.
-        visit(resolved);
       }
+      return effective;
     }
 
+    final symbols = <String>{};
     for (final barrel in _barrels) {
-      visit(_join([libRoot, barrel]));
+      symbols.addAll(visit(_join([libRoot, barrel])));
     }
+    // Sources must describe the COMPOSED surface: drop symbols that are
+    // declared (or re-exported) somewhere in the graph but hidden on
+    // every barrel path — `lookup()` on them must stay null.
+    sources.removeWhere((name, _) => !symbols.contains(name));
     if (symbols.isEmpty) return null;
-    return FrameworkExportSurface._(symbols, sources);
+    return FrameworkExportSurface._(sources);
   }
 
   static String _resolveUri(String uri, String fromFile) {
@@ -300,23 +312,29 @@ class FrameworkExportSurface {
       r'(?:class|enum|mixin)\s+([A-Za-z_$][A-Za-z0-9_$]*)',
       multiLine: true,
     );
+    // `extension Foo on X` and `extension type Foo(...)` alike — the
+    // `type` introducer must not be captured as the name.
     final extension = RegExp(
-      r'^\s*extension\s+([A-Za-z_$][A-Za-z0-9_$]*)',
+      r'^\s*extension\s+(?:type\s+)?([A-Za-z_$][A-Za-z0-9_$]*)',
       multiLine: true,
     );
     final typedef = RegExp(
       r'^\s*typedef\s+([A-Za-z_$][A-Za-z0-9_$]*)',
       multiLine: true,
     );
-    for (final match in classLike.allMatches(content)) {
-      symbols.add(match.group(1)!);
+    void collect(RegExp pattern) {
+      for (final match in pattern.allMatches(content)) {
+        final name = match.group(1)!;
+        // Private declarations are not part of the public export
+        // surface (Dart forbids exporting them anyway).
+        if (name.startsWith('_')) continue;
+        symbols.add(name);
+      }
     }
-    for (final match in extension.allMatches(content)) {
-      symbols.add(match.group(1)!);
-    }
-    for (final match in typedef.allMatches(content)) {
-      symbols.add(match.group(1)!);
-    }
+
+    collect(classLike);
+    collect(extension);
+    collect(typedef);
     return symbols;
   }
 

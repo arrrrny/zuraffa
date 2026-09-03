@@ -600,6 +600,16 @@ class BuildCommand extends Command {
     return errorLine.hasMatch(analyzeOutput);
   }
 
+  /// Counts the `error -` severity lines in [analyzeOutput] — the same
+  /// line format [analyzeReportsError] matches (see its doc). For
+  /// verdicts that need the magnitude, not just the boolean: the TDD
+  /// make's #942 refusal message reports how many analyzer errors made
+  /// the failed build non-tolerable.
+  static int countAnalyzerErrors(String analyzeOutput) => RegExp(
+    r'^\s*error\s*-\s',
+    multiLine: true,
+  ).allMatches(analyzeOutput).length;
+
   Future<int> _runBuild() async {
     // `--delete-conflicting-outputs` was removed in build_runner 2.16.0 and
     // emits a "These options have been removed" warning on every invocation.

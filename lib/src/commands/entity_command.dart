@@ -166,13 +166,14 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     // Issue #942: refuse entity names that collide with the framework's
     // export surface BEFORE writing anything. The generated
-    // datasources/mocks import the entity file AND the framework barrel
-    // unprefixed, so an entity named like a zuraffa core export (e.g.
-    // `Credentials`) makes every generated file fail to compile with
-    // `ambiguous_import` errors. Fail-open: when the export surface
-    // cannot be resolved (e.g. a pub-global snapshot without package
-    // context) the preflight is skipped silently — the #942 hide clauses
-    // in the generated templates remain the compile-time safety net.
+    // datasource/mock/repository/usecase/provider templates import the
+    // entity file AND the framework barrel unprefixed, so an entity named
+    // like a zuraffa core export (e.g. `Credentials`) makes every
+    // generated file fail to compile with `ambiguous_import` errors.
+    // Fail-open: when the export surface cannot be resolved (e.g. a
+    // pub-global snapshot without package context) the preflight is
+    // skipped silently — the #942 hide clauses in the generated templates
+    // remain the compile-time safety net.
     final surface = FrameworkExportSurface.tryResolve(
       projectRoot: Directory.current.path,
     );
@@ -184,9 +185,10 @@ ${missing.map((d) => '   • $d').join('\n')}
       );
       print('');
       print(
-        '   Generated datasources and mocks import the entity file AND '
-        'the framework barrel (package:zuraffa/zuraffa.dart). With both '
-        'exporting "$name", every generated datasource/mock fails to '
+        '   Generated datasources, mocks, repositories, use cases and '
+        'providers import the entity file AND the framework barrel '
+        '(package:zuraffa/zuraffa.dart, or package:zuraffa/mock.dart for '
+        'mocks). With both exporting "$name", the generated files fail to '
         'compile with ambiguous_import errors.',
       );
       print('');

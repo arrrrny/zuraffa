@@ -90,8 +90,15 @@ void main() {
         isTrue,
         reason: 'useZorphy=false should emit Partial<Entity> for update params',
       );
+      // The #942 hide clause names ProductPatch on the barrel import by
+      // design — the update path must not USE it, so check the body
+      // only, imports excluded.
+      final body = content
+          .split('\n')
+          .where((line) => !line.trim().startsWith('import '))
+          .join('\n');
       expect(
-        content.contains('ProductPatch'),
+        body.contains('ProductPatch'),
         isFalse,
         reason: 'useZorphy=false should NOT emit EntityPatch',
       );
