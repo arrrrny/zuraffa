@@ -408,7 +408,10 @@ void main() {
 
   /// Seed `specs/<feature>/tdd/test-list.md` in the 4-column format
   /// `plan_command.dart` writes. Rows carrying `kind: 'acceptance'` land in
-  /// the outer-loop section, everything else in the inner-loop section.
+  /// the outer-loop section, `kind: 'widget'` rows land in the widget
+  /// outer-loop section (bug #830's `## Outer loop: widget behaviors`,
+  /// mirroring plan's render order), everything else in the inner-loop
+  /// section.
   Future<void> seedTestList(
     List<
       ({
@@ -426,8 +429,12 @@ void main() {
         .where((r) => r.kind == 'acceptance')
         .map((r) => (r.id, r.description, r.traces, r.state))
         .toList();
+    final widget = rows
+        .where((r) => r.kind == 'widget')
+        .map((r) => (r.id, r.description, r.traces, r.state))
+        .toList();
     final unit = rows
-        .where((r) => r.kind != 'acceptance')
+        .where((r) => r.kind != 'acceptance' && r.kind != 'widget')
         .map((r) => (r.id, r.description, r.traces, r.state))
         .toList();
     final buf = StringBuffer()
@@ -437,6 +444,9 @@ void main() {
       buf.write(
         _renderTestListSection('Outer loop: acceptance behaviors', acceptance),
       );
+    }
+    if (widget.isNotEmpty) {
+      buf.write(_renderTestListSection('Outer loop: widget behaviors', widget));
     }
     if (unit.isNotEmpty) {
       buf.write(_renderTestListSection('Inner loop: unit behaviors', unit));

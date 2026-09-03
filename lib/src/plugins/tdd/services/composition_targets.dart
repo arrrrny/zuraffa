@@ -11,6 +11,11 @@
 /// consumes — so discovery stays independent of `tdd/run-state.json` (the
 /// driver owns run state; the make pipeline owns the cycle log).
 ///
+/// The TARGET (the behavior being made) may be acceptance-kind or
+/// widget-kind (issue #939): both compose against the feature's green
+/// unit subjects. Every other kind fails closed with the row's ACTUAL
+/// kind named — never a hardcoded guess.
+///
 /// Discovery is the ONLY new filesystem-reading surface the composition
 /// feature adds. It is fail-closed: every anomaly (no/ malformed test
 /// list, non-acceptance target, missing anchor record or file, zero
@@ -101,8 +106,15 @@ class CompositionTargets {
       );
     }
 
-    // 2. Kind gate: composition is the acceptance-subject surface only
-    //    (spec Out of Scope). A unit-kind or unknown target fails closed.
+    // 2. Kind gate: composition is the acceptance+widget subject surface
+    //    (spec 052 Out of Scope as amended by issue #939: a widget-kind
+    //    row composes like acceptance — against the feature's green unit
+    //    subjects — instead of being refused with a WRONG kind label).
+    //    Every other kind fails closed, NAMING THE ACTUAL KIND: the
+    //    pre-#939 message hardcoded "is unit-kind" for every
+    //    non-acceptance kind, so a widget row's disengage said unit-kind
+    //    — wrong on its face — and hid the widget lane's real shape
+    //    (issue #939 defect 2).
     BehaviorRow? targetRow;
     for (final row in rows) {
       if (row.id == behaviorId) {
@@ -119,14 +131,16 @@ class CompositionTargets {
             'acceptance subjects only (spec 052).',
       );
     }
-    if (targetRow.kind != BehaviorKind.acceptance) {
+    if (targetRow.kind != BehaviorKind.acceptance &&
+        targetRow.kind != BehaviorKind.widget) {
+      final kindName = targetRow.kind.name;
       return CompositionTargetFailure(
         code: 'target-not-acceptance',
         message:
-            'behavior "$behaviorId" is unit-kind: compose composes '
-            'acceptance subjects against the feature\'s green unit subjects, '
-            'and a unit subject implements its own logic (spec 052 Out of '
-            'Scope).',
+            'behavior "$behaviorId" is $kindName-kind: compose composes '
+            'acceptance and widget subjects against the feature\'s green '
+            'unit subjects, and a $kindName subject implements its own '
+            'logic (spec 052 Out of Scope; issue #939).',
       );
     }
 

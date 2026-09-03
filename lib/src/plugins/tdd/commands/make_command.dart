@@ -486,7 +486,16 @@ class MakeCommand extends Command<void> {
         // composable green unit subjects, offer the composition plan
         // (compose → build) that wires the acceptance subject against
         // them, so a deferred phase-2 acceptance make can actually
-        // flip green. Everything else keeps the honest stop:
+        // flip green.
+        //
+        // Issue #939 (the widget make path): a WIDGET-kind row — the
+        // bug #830 testWidgets lane — dead-ended here forever (the
+        // gate refused it, mislabeled as unit-kind). It now routes to
+        // the view-builder lane: a deterministic minimal view
+        // generated from the spec's declared Presentation layer
+        // contract + the behavior's scenario literals, then build —
+        // the loop REACHES green through a generated skeleton, exactly
+        // as func subjects do. Everything else keeps the honest stop:
         // unit-kind behaviors and unknown rows (fail-closed), and
         // acceptance prose with zero composable anchors (FR-009),
         // report `unexpressible` exactly as before.
@@ -854,26 +863,19 @@ class MakeCommand extends Command<void> {
   // Helpers — resolution + summary (mirror verify_red_command.dart).
   // -------------------------------------------------------------------
 
-  /// The composition fallback for an unexpressible plan (issue #642, spec
-  /// 052). Returns the composition plan (`compose <id>` → `build`) when
-  /// the fallback engages, or null when the honest `unexpressible` stop
-  /// stands:
-  ///
-  /// - the behavior has no test-list row, or the list is unreadable —
-  ///   fail-closed (the fallback never guesses kinds);
-  /// - the row is unit-kind (a unit subject implements its own logic);
-  /// - the feature has zero composable green unit subjects (nothing to
-  ///   wire against — the acceptance prose remains uncomposable).
-  ///
-  /// The fallback shapes the plan through the pure `CompositionPlanner`;
-  /// the planner itself (FR-008, SC-006) stays untouched and unaware of
-  /// phases, run state, or subjects.
   /// The loop kind the feature's test-list row declares for
   /// [behaviorId] (bug #835), or null when the list is unreadable or the
   /// row is missing — null keeps the pre-#835 kindless routing for every
   /// legacy list. A malformed list prints a note (it is a real problem,
   /// but the kind is only an optimization over the id dispatch and other
   /// steps re-surface the malformation honestly).
+  ///
+  /// Issue #939: widget rows resolve as WIDGET here (the shared
+  /// `TestListReader` contract parses the `## Outer loop: widget
+  /// behaviors` header since bug #830) — the kind the composition
+  /// fallback's widget lane and the discovery gate now consume. The
+  /// pre-#939 disengage message hardcoded "is unit-kind" for every
+  /// non-acceptance kind and mislabeled exactly this resolution.
   Future<BehaviorKind?> _rowKind(String featureDir, String behaviorId) async {
     try {
       for (final row in await TestListReader(featureDir).read()) {
@@ -888,6 +890,30 @@ class MakeCommand extends Command<void> {
     return null;
   }
 
+  /// The composition fallback for an unexpressible plan (issue #642, spec
+  /// 052). Returns the composition plan (`compose <id>` → `build`) when
+  /// the fallback engages, or null when the honest `unexpressible` stop
+  /// stands:
+  ///
+  /// - the behavior has no test-list row, or the list is unreadable —
+  ///   fail-closed (the fallback never guesses kinds);
+  /// - the row is unit-kind (a unit subject implements its own logic);
+  /// - the feature has zero composable green unit subjects (nothing to
+  ///   wire against — the acceptance prose remains uncomposable).
+  ///
+  /// Issue #939 — the WIDGET lane engages BEFORE all of the above: a
+  /// widget-kind row's make path is the deterministic view-builder
+  /// generation (`tdd view <id>` → `build`), shaped without anchor
+  /// discovery because the minimal view is driven by the spec's declared
+  /// Presentation layer contract + the behavior's scenario literals, not
+  /// by the feature's green unit subjects (no anchor precondition — the
+  /// loop must reach green through a generated skeleton exactly as func
+  /// subjects do). Scenario-specific behavior inside the emitted view
+  /// stays the sanctioned handcraft seam.
+  ///
+  /// The fallback shapes the acceptance plan through the pure
+  /// `CompositionPlanner`; the planner itself (FR-008, SC-006) stays
+  /// untouched and unaware of phases, run state, or subjects.
   Future<GenerationPlan?> _compositionFallback({
     required String cwd,
     required ArtifactRecord record,
@@ -895,6 +921,48 @@ class MakeCommand extends Command<void> {
     required String featureName,
     required BehaviorSummary summary,
   }) async {
+    // Issue #939 — the widget lane: a widget-kind target's make path is
+    // the deterministic view-builder generation, shaped BEFORE anchor
+    // discovery. The minimal view is driven by the spec's declared
+    // Presentation layer contract + the behavior's scenario literals
+    // (the same finders the paired widget test asserts), not by the
+    // feature's green unit subjects, so no anchor precondition applies
+    // (unlike the acceptance composition below). The generation step is
+    // `zfa tdd view <id>` (registered alongside func/compose); the
+    // composition gate's kind fix (widget treated like acceptance,
+    // issue #939) governs the shared discovery surface for direct
+    // `zfa tdd compose` callers.
+    if (summary.kind == BehaviorKind.widget) {
+      print(
+        '   widget lane: view-builder generation (issue #939) — '
+        'deterministic minimal view from the declared Presentation '
+        'contract',
+      );
+      return GenerationPlan(
+        behaviorId: summary.behaviorId,
+        feature: summary.feature,
+        sourceCriterion: summary.sourceCriterion,
+        steps: [
+          GenerationStepSpec(
+            args: [
+              'tdd',
+              'view',
+              summary.behaviorId,
+              '--feature',
+              summary.feature,
+            ],
+            purpose:
+                'generate the minimal view for behavior '
+                '${summary.behaviorId} from the declared Presentation '
+                'layer contract (issue #939)',
+          ),
+          GenerationStepSpec(
+            args: ['build'],
+            purpose: 'build generated code for behavior ${summary.behaviorId}',
+          ),
+        ],
+      );
+    }
     final discovery = await const CompositionTargets().discover(
       projectRoot: cwd,
       featureDir: featureDir,
