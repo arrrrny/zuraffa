@@ -92,9 +92,19 @@ class SpecParser {
   /// outcomes, the app shell — cannot be expressed by a plain-function
   /// subject, so such scenarios are marked [BehaviorKind.widget] and their
   /// gen pair is a view-builder stub + a `testWidgets` test.
+  ///
+  /// Bug #936: Then-clauses are passive/past by convention ("an error
+  /// message is rendered", "the user is navigated", "a spinner is shown",
+  /// "the avatar is displayed"), so the verb alternation covers the full
+  /// conjugation (`render(?:s|ed|ing)?`, `navigat(?:e|es|ed|ion|ing)`)
+  /// and adds the missing outcome verbs `display(?:s|ed|ing)?` and
+  /// `shows?|shown`. Word boundaries stay anchored; "navigation" already
+  /// matched before #936, so this only completes the grammar — it does
+  /// not widen the concept set.
   static final RegExp uiAcceptanceIntent = RegExp(
-    r'\b(renders?|sidebar|bottom nav|tab bar|app bar|app shell|themes?|'
-    r'widgets?|navigat(?:es|ion|ing))\b',
+    r'\b(render(?:s|ed|ing)?|sidebar|bottom nav|tab bar|app bar|app shell|'
+    r'themes?|widgets?|navigat(?:e|es|ed|ion|ing)|display(?:s|ed|ing)?|'
+    r'shows?|shown)\b',
     caseSensitive: false,
   );
 
