@@ -297,5 +297,85 @@ void main() {
         expect(invocations.last.trim(), 'invoke', reason: out);
       },
     );
+
+    test('a feature directory with spaces survives the scoped re-proof '
+        '(each covering path is quoted and stays ONE runner token)', () async {
+      const spacedFeature = '090 spaced feature';
+      final testPath = p.join(
+        fx.root.path,
+        'test',
+        'tdd',
+        spacedFeature,
+        'b_001_test.dart',
+      );
+      final subjectPath = p.join(
+        fx.root.path,
+        'lib',
+        'tdd',
+        spacedFeature,
+        'b_001_subject.dart',
+      );
+      final featureTddDir = p.join(fx.root.path, 'specs', spacedFeature, 'tdd');
+      await Directory(featureTddDir).create(recursive: true);
+      await File(testPath).parent.create(recursive: true);
+      await File(testPath).writeAsString('// covering test\n');
+      await File(subjectPath).parent.create(recursive: true);
+      // Malformed so `dart format` changes exactly this registered file.
+      await File(
+        subjectPath,
+      ).writeAsString('int b_001_value() {  return  42 ;  }\n\n\n');
+      await File(p.join(featureTddDir, 'artifacts.json')).writeAsString(
+        jsonEncode({
+          'feature': spacedFeature,
+          'records': [
+            {
+              'behavior_id': 'B-001',
+              'feature': spacedFeature,
+              'source_criterion': 'FR-007',
+              'test_path': testPath,
+              'subject_path': subjectPath,
+              'runnable_test_name': '$testPath::B-001::first',
+              'test_ownership': 'created',
+              'subject_ownership': 'created',
+              'created_at': '2026-09-03T00:00:00.000Z',
+            },
+          ],
+        }),
+      );
+      // A suite spy that logs its ARGUMENT COUNT: the quoted spaced path
+      // must arrive as ONE argv token (`$#` = 1), not the word fragments
+      // a naive whitespace split produces (`$#` = 3).
+      final countingSpy = await fx.writeSpyScript(
+        'suite-count',
+        output: TddFixture.greenSuiteTranscript,
+        logFilter: r'$#',
+      );
+      await fx.rewriteProfile(
+        singleTemplate: '$countingSpy {file} {name}',
+        suiteTemplate: countingSpy,
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'refactor',
+        '--project',
+        fx.root.path,
+        '--feature',
+        spacedFeature,
+        '--zfa-bin',
+        fakeZfa,
+      ]);
+
+      expect(out, contains('re-proof: scoped'), reason: out);
+      expect(out, contains('outcome=refactored'), reason: out);
+      expect(exitCode, 0, reason: out);
+      // Preflight (0 args) then the scoped re-proof: the spaced path
+      // arrived as exactly ONE argument.
+      final invocations = fx.spyLog('suite-count');
+      expect(invocations, hasLength(2), reason: out);
+      expect(invocations.first, 'invoke 0', reason: out);
+      expect(invocations.last, 'invoke 1', reason: out);
+    });
   });
 }

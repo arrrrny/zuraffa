@@ -754,7 +754,7 @@ class VerifyRedCommand extends Command<void> {
 
   /// The failing test-name → failure-detail segments of a `dart test`
   /// batch transcript (pure). A failing progress line
-  /// `HH:MM +N -M: <name> [E]` opens a segment that runs to the next
+  /// `HH:MM +N ~S -M: <name> [E]` opens a segment that runs to the next
   /// progress line; loading/summary lines are not test names.
   static Map<String, String> _failingSegments(String output) {
     final segments = <String, String>{};
@@ -762,8 +762,14 @@ class VerifyRedCommand extends Command<void> {
     String? currentName;
     final current = StringBuffer();
     for (final line in lines) {
+      // The `~N` skipped counter may sit before OR after the `-\d+` fail
+      // counter: the real `dart test` expanded reporter prints
+      // `+P ~S -F`, while the SuiteGuard precedent parses `-F ~S`.
+      // Without it, a transcript containing a skipped test parses no
+      // failing segment at all and the whole batch degrades to
+      // runner-error.
       final failing = RegExp(
-        r'^\d\d:\d\d \+\d+(?: -\d+)?: (.+) \[E\]\s*$',
+        r'^\d\d:\d\d \+\d+(?: ~\d+)?(?: -\d+(?: ~\d+)?)?: (.+) \[E\]\s*$',
       ).firstMatch(line);
       final progress = RegExp(r'^\d\d:\d\d [+\-~]').hasMatch(line);
       if (failing != null) {
@@ -791,13 +797,15 @@ class VerifyRedCommand extends Command<void> {
   }
 
   /// The names that PASSED in the batch transcript (progress lines
-  /// `HH:MM +N: <name>` / `HH:MM +N -M: <name>` without the `[E]`
-  /// failure marker — a test passing AFTER an earlier failure still
-  /// counts as passed).
+  /// `HH:MM +N: <name>` / `HH:MM +N -M: <name>` / `HH:MM +N ~S -M:
+  /// <name>` without the `[E]` failure marker — a test passing AFTER an
+  /// earlier failure still counts as passed).
   static Set<String> _passingNames(String output) {
     final names = <String>{};
     for (final line in output.split('\n')) {
-      final m = RegExp(r'^\d\d:\d\d \+\d+(?: -\d+)?: (.+)$').firstMatch(line);
+      final m = RegExp(
+        r'^\d\d:\d\d \+\d+(?: ~\d+)?(?: -\d+(?: ~\d+)?)?: (.+)$',
+      ).firstMatch(line);
       if (m == null) continue;
       var name = m.group(1)!.trim();
       if (name.endsWith('[E]')) continue; // a failing line, not a pass.
@@ -826,7 +834,9 @@ class VerifyRedCommand extends Command<void> {
     // A load failure naming this behavior's file: its test never ran.
     if (output.contains('Failed to load')) {
       final fileRef = p.basename(record.testPath);
-      if (RegExp('Failed to load .*$fileRef').hasMatch(output)) {
+      if (RegExp(
+        'Failed to load .*${RegExp.escape(fileRef)}',
+      ).hasMatch(output)) {
         return 'load-error';
       }
     }
@@ -838,18 +848,33 @@ class VerifyRedCommand extends Command<void> {
           segment.contains('TestFailure');
       return hasAssertion ? 'assertion' : 'runner-error';
     }
-    final passed = passingNames.where((n) => n.contains(name)).isNotEmpty;
+    final passed = passingNames.any((n) => _transcriptNameMatches(n, name));
     if (passed) return 'unexpected-green';
     return 'runner-error';
   }
 
-  /// The detail segment whose failing test name contains [name] (the
-  /// transcript name may carry `file: group:` prefixes).
-  static String? _segmentFor(String name, Map<String, String> failingSegments) {
-    for (final entry in failingSegments.entries) {
-      if (entry.key.contains(name)) return entry.value;
+  /// Whether a transcript test name refers to [plainName]: exact, or the
+  /// plain name as a whole-suffix word (transcript names carry
+  /// `<file>: <groups>` prefixes ahead of it). A bare `contains` is
+  /// wrong for natural-language names — "adds item" is contained in
+  /// "adds item to cart", so a PASSING behavior would be certified from
+  /// a longer FAILING behavior's segment (a fabricated red).
+  static bool _transcriptNameMatches(String transcriptName, String plainName) =>
+      transcriptName == plainName || transcriptName.endsWith(' $plainName');
+
+  /// The detail segment for [plainName] under the [_transcriptNameMatches]
+  /// rule. Several matches resolve to the SHORTEST key — the most
+  /// specific suffix.
+  static String? _segmentFor(
+    String plainName,
+    Map<String, String> failingSegments,
+  ) {
+    String? best;
+    for (final key in failingSegments.keys) {
+      if (!_transcriptNameMatches(key, plainName)) continue;
+      if (best == null || key.length < best.length) best = key;
     }
-    return null;
+    return best == null ? null : failingSegments[best];
   }
 
   void _printSummary({

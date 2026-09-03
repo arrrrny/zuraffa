@@ -274,6 +274,8 @@ class GenCommand extends Command<void> {
     // and an abandoned continuation (Dart futures cannot be cancelled)
     // aborts at its next stage boundary instead of silently completing
     // writes or the registry append after the timeout was reported.
+    // (The `--all` batch builds one such deadline PER ROW from the same
+    // budget — see _generateAll; the single-flow contract is unchanged.)
     final deadline = _FlowDeadline(budget);
     try {
       if (all) {
@@ -285,7 +287,6 @@ class GenCommand extends Command<void> {
           featureFlag: featureFlag,
           cwd: cwd,
           widgetShell: widgetShell,
-          deadline: deadline,
           budget: budget,
         );
         return;
@@ -324,10 +325,12 @@ class GenCommand extends Command<void> {
   /// Spec 069 T002: the batched generation flow — enumerate every row of
   /// the target feature (or all features, alphabetical, when --feature
   /// is omitted) and drive each through the SAME deadline-bounded
-  /// per-behavior flow. One process; a refusing row stops the batch
-  /// honestly AT that row (its predecessors stay written + registered —
-  /// a re-run is idempotent). The batch verdict JSON is the FINAL
-  /// stdout line.
+  /// per-behavior flow, one deadline PER ROW built from the same
+  /// per-flow budget (a shared batch-wide deadline would cap the whole
+  /// batch at one flow's budget; the single-flow contract is unchanged).
+  /// One process; a refusing row stops the batch honestly AT that row
+  /// (its predecessors stay written + registered — a re-run is
+  /// idempotent). The batch verdict JSON is the FINAL stdout line.
   Future<void> _generateAll({
     required bool dryRun,
     required bool adopt,
@@ -336,7 +339,6 @@ class GenCommand extends Command<void> {
     required String? featureFlag,
     required String cwd,
     required WidgetAppShell widgetShell,
-    required _FlowDeadline deadline,
     required Duration budget,
   }) async {
     // Resolve the target rows: (featureDir, featureName, behaviorId) in
@@ -410,6 +412,10 @@ class GenCommand extends Command<void> {
     for (final (_, featureName, id) in targets) {
       final before = exitCode;
       String? verdictToken;
+      // The deadline is PER ROW: the budget is one gen flow's budget, so
+      // every row gets its own fresh deadline from the same value
+      // instead of the rows sharing (and exhausting) one deadline.
+      final rowDeadline = _FlowDeadline(budget);
       // The per-behavior flow re-resolves the row by id inside the
       // feature's test list (featureDir resolved by _generate).
       try {
@@ -422,7 +428,7 @@ class GenCommand extends Command<void> {
           featureFlag: featureName,
           cwd: cwd,
           widgetShell: widgetShell,
-          deadline: deadline,
+          deadline: rowDeadline,
         );
       } on StateError {
         // A refusal already printed its per-behavior verdict JSON and
@@ -430,6 +436,13 @@ class GenCommand extends Command<void> {
         stoppedAt = id;
         break;
       } on TestListReadException catch (e) {
+        stderr.writeln('zfa tdd gen: ${e.message}');
+        stoppedAt = id;
+        break;
+      } on UsageException catch (e) {
+        // A usage error in one row (e.g. --golden on a non-widget row)
+        // must not escape the batch to CliRunner (exit 64) — the row is
+        // the honest stop point and the batch verdict JSON still prints.
         stderr.writeln('zfa tdd gen: ${e.message}');
         stoppedAt = id;
         break;
@@ -450,7 +463,7 @@ class GenCommand extends Command<void> {
       if (verdictToken != null) {
         counts[verdictToken] = (counts[verdictToken] ?? 0) + 1;
       }
-      if (deadline.expired) {
+      if (rowDeadline.expired) {
         stoppedAt = id;
         print(
           'zfa tdd gen: timeout after ${formatTddTimeout(budget)} — '
@@ -532,7 +545,9 @@ class GenCommand extends Command<void> {
 
   /// The deadline-bounded flow body, verbatim the pre-#744 contract:
   /// resolve → preflight → write → register → (staleness check) → print.
-  /// Every awaited stage is bounded by [run]'s shared deadline.
+  /// Every awaited stage is bounded by [deadline] — the single flow's
+  /// deadline from `run`, or the current row's own deadline in the
+  /// `--all` batch.
   Future<String?> _generate(
     String behaviorId, {
     required bool dryRun,

@@ -396,7 +396,12 @@ class SingleTestRunner {
   /// regression guard.
   ///
   /// [suiteTemplate] is the profile template (no placeholders). The
-  /// command is split on whitespace into an executable + args list.
+  /// command is split into an executable + args list; the split is
+  /// quote-aware — quote pairs wrapping a segment are stripped and the
+  /// segment stays ONE token — so a suite command carrying a path with
+  /// spaces (the scoped re-proof's quoted covering tests, spec 069 T001)
+  /// survives, the same token contract as [_tokenize] and the refactor
+  /// pass executor (bug #689).
   ///
   /// [timeout] is the hard deadline for the spawned suite process (bug
   /// #742): a hanging child is killed and the returned [SuiteRunRecord]
@@ -407,7 +412,7 @@ class SingleTestRunner {
     Duration? timeout,
   }) async {
     final command = suiteTemplate.trim();
-    final tokens = command.split(RegExp(r'\s+'));
+    final tokens = splitCommand(command);
     final executable = tokens.first;
     final args = tokens.skip(1).toList();
 
@@ -476,6 +481,44 @@ class SingleTestRunner {
       }
       return out;
     }).toList();
+  }
+
+  /// Tokenize a command line into an executable + argument list (static
+  /// so [runSuite] and callers share one contract).
+  ///
+  /// The splitter is quote-aware: quote pairs wrapping a segment are
+  /// stripped and the segment stays ONE token even when it contains
+  /// whitespace — shell quoting, not data (mirrors the refactor pass
+  /// executor's tokenizer, bug #689).
+  static List<String> splitCommand(String command) {
+    final tokens = <String>[];
+    final buffer = StringBuffer();
+    String? quote;
+    for (var i = 0; i < command.length; i++) {
+      final c = command[i];
+      if (quote != null) {
+        if (c == quote) {
+          quote = null;
+        } else {
+          buffer.write(c);
+        }
+        continue;
+      }
+      if (c == '"' || c == "'") {
+        quote = c;
+        continue;
+      }
+      if (c.trim().isEmpty) {
+        if (buffer.isNotEmpty) {
+          tokens.add(buffer.toString());
+          buffer.clear();
+        }
+        continue;
+      }
+      buffer.write(c);
+    }
+    if (buffer.isNotEmpty) tokens.add(buffer.toString());
+    return tokens;
   }
 
   /// Escape regex metacharacters so a string is matched literally by a

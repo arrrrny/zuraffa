@@ -597,8 +597,14 @@ class CorpusRunCommand extends Command<void> {
       telemetry.finish(result: result, features: laneDoneOrWaived);
       if (telemetryEnabled) {
         try {
-          final written = await telemetry.write(path: telemetryPath);
+          // Serialize ONCE: `toJson()` stamps finished_at/wall_clock_ms
+          // at call time, so the printed and persisted verdicts must
+          // come from the same map.
           final verdict = telemetry.toJson();
+          final written = await telemetry.writeVerdict(
+            verdict,
+            path: telemetryPath,
+          );
           print(
             '   telemetry: budget verdict written to $written '
             '(wall_clock_ms=${verdict['wall_clock_ms']} '

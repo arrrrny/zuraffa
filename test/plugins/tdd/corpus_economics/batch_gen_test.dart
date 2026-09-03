@@ -253,6 +253,45 @@ void main() {
       expect(out, isNot(contains('"batch": true')));
       expect(await registryRecords(), isEmpty, reason: out);
     });
+
+    test('a per-row usage error stops the batch honestly and the verdict '
+        'JSON is still the FINAL stdout line (it never escapes to '
+        'CliRunner\'s exit-64 usage handler)', () async {
+      await seedThreeRows();
+      // --golden on unit-kind rows is a usage error raised INSIDE the
+      // per-row flow — the first row (B-001) is the honest stop point.
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'gen',
+        '--all',
+        '--golden',
+        '--project',
+        fx.root.path,
+        '--feature',
+        feature,
+      ]);
+
+      expect(exitCode, 1, reason: out);
+      // The batch verdict JSON is the final stdout line, naming the row
+      // that stopped the batch.
+      final lastLine = out.trim().split('\n').last;
+      final verdict = jsonDecode(lastLine) as Map<String, dynamic>;
+      expect(verdict['command'], 'gen');
+      expect(verdict['batch'], isTrue);
+      expect(verdict['verdict'], 'stopped');
+      expect(verdict['stopped_at'], 'B-001');
+      expect(verdict['behaviors'], 0, reason: out);
+      // Nothing was generated for any row.
+      expect(await registryRecords(), isEmpty, reason: out);
+      expect(
+        File(
+          p.join(fx.root.path, 'test', 'tdd', feature, 'b_001_test.dart'),
+        ).existsSync(),
+        isFalse,
+        reason: out,
+      );
+    });
   });
 
   group('zfa tdd verify-red --all (T002 batched red certification)', () {
@@ -404,6 +443,150 @@ void main() {
       final cycleLog = await File(fx.cycleLogPath).readAsString();
       expect(cycleLog, contains('## Cycle: B-001 (red)'));
       expect(cycleLog, isNot(contains('## Cycle: B-002 (red)')));
+    });
+
+    test('a behavior whose name is CONTAINED in a failing behavior\'s '
+        'name never inherits that failure (suffix-boundary matching — '
+        'no fabricated red)', () async {
+      // B-001 "adds item" PASSES; B-002 "adds item to cart" FAILS with
+      // an assertion. Plain names are natural language, so a substring
+      // matcher would hand B-001 the other's failure segment and
+      // certify it red.
+      await fx.seedTestList([
+        (
+          id: 'B-001',
+          description: 'adds item',
+          traces: 'FR-001',
+          state: 'PENDING',
+          kind: 'unit',
+        ),
+        (
+          id: 'B-002',
+          description: 'adds item to cart',
+          traces: 'FR-001',
+          state: 'PENDING',
+          kind: 'unit',
+        ),
+      ]);
+      await fx.registerBehavior(
+        id: 'B-001',
+        description: 'adds item',
+        writeTestFile: false,
+      );
+      await fx.registerBehavior(
+        id: 'B-002',
+        description: 'adds item to cart',
+        writeTestFile: false,
+      );
+      for (final id in ['B-001', 'B-002']) {
+        final path = fx.testPathOf(id);
+        await File(path).parent.create(recursive: true);
+        await File(path).writeAsString('// generated test $id\n');
+      }
+      await fx.writeSpyScript(
+        'file',
+        output:
+            '00:00 +0: loading test file\n'
+            '00:00 +1: ${fx.testPathOf('B-001')}: adds item\n'
+            '00:00 +0 -1: ${fx.testPathOf('B-002')}: adds item to cart [E]\n'
+            '  Expected: <42>\n'
+            '    Actual: <13>\n'
+            '00:00 +1 -1: Some tests failed.',
+        exit: '1',
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'verify-red',
+        '--all',
+        '--project',
+        fx.root.path,
+        '--feature',
+        feature,
+      ]);
+
+      expect(exitCode, 1, reason: out);
+      // The PASSING substring behavior is honestly unexpected-green —
+      // never certified from the longer failing behavior's segment.
+      expect(
+        out,
+        contains(
+          'verify-red: behavior=B-001 classification=unexpected-green '
+          'certified=false',
+        ),
+        reason: out,
+      );
+      // The FAILING longer-name behavior certifies from its OWN segment.
+      expect(
+        out,
+        contains(
+          'verify-red: behavior=B-002 classification=assertion '
+          'certified=true',
+        ),
+        reason: out,
+      );
+      expect(
+        out,
+        contains(
+          'verify-red: batch=true behaviors=2 certified=1 '
+          'classification=mixed feature=$feature',
+        ),
+        reason: out,
+      );
+      // Evidence ONLY for the real failure.
+      final cycleLog = await File(fx.cycleLogPath).readAsString();
+      expect(cycleLog, contains('## Cycle: B-002 (red)'));
+      expect(cycleLog, isNot(contains('## Cycle: B-001 (red)')));
+    });
+
+    test('a transcript with skipped tests still parses: the ~N skipped '
+        'counter does not blind the batch into runner-error', () async {
+      await seedTwoGenArtifacts();
+      // Real `dart test` counter order: +passed ~skipped -failed. The
+      // old parser regexes had no ~N segment, so EVERY line here parsed
+      // as nothing and both behaviors degraded to runner-error.
+      await fx.writeSpyScript(
+        'file',
+        output:
+            '00:00 +0: loading test file\n'
+            '00:00 +0 ~1 -1: first behavior red [E]\n'
+            '  Expected: <42>\n'
+            '    Actual: <13>\n'
+            '00:00 +0 ~1 -2: second behavior red [E]\n'
+            '  Expected: <42>\n'
+            '    Actual: <13>\n'
+            '00:00 +0 ~1 -2: Some tests failed.',
+        exit: '1',
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'verify-red',
+        '--all',
+        '--project',
+        fx.root.path,
+        '--feature',
+        feature,
+      ]);
+
+      expect(exitCode, 0, reason: out);
+      expect(
+        out,
+        contains(
+          'verify-red: batch=true behaviors=2 certified=2 '
+          'classification=batch feature=$feature',
+        ),
+        reason: out,
+      );
+      // Both behaviors classified assertion from their own segments —
+      // not the runner-error the blinded parser used to produce.
+      expect(out, contains('classification=assertion'), reason: out);
+      expect(out, isNot(contains('classification=runner-error')), reason: out);
+      final cycleLog = await File(fx.cycleLogPath).readAsString();
+      expect(cycleLog, contains('## Cycle: B-001 (red)'));
+      expect(cycleLog, contains('## Cycle: B-002 (red)'));
     });
 
     test('a missing `file` template misfire-stops before any run '

@@ -301,6 +301,58 @@ void main() {
       expect(decoded['dependency_fingerprint'], newFingerprint);
     });
 
+    test(
+      'a legacy profile suite-command change must NOT reuse the corpus '
+      'baseline (the stored command must equal the loaded template)',
+      () async {
+        // Legacy frontmatter profile: NO machine-readable Keys block, so
+        // the dependency fingerprint silently degrades to pubspec+lock —
+        // a changed suite command cannot flip it. The command-equality
+        // guard at the consumption site is the defense: the cached
+        // snapshot must have been captured under the SAME suite command.
+        Future<void> writeLegacyProfile(String suiteTemplate) async {
+          final dir = Directory(p.join(fx.root.path, '.specify', 'memory'));
+          await dir.create(recursive: true);
+          await File(p.join(dir.path, 'tdd-profile.md')).writeAsString('''
+# TDD Profile — fixture
+
+## Commands
+
+- Single test: `$singleSpy {file} {name}`
+- Full suite (repo): `$suiteTemplate`
+''');
+        }
+
+        await writeLegacyProfile(suiteSpy);
+        await seedBehavior(featureA, 'B-001');
+        final out = await drive(featureA);
+        expect(exitCode, 0, reason: out);
+        expect(fx.spyLog('suite'), hasLength(1), reason: out);
+        final cachePath = CorpusBaselineCache.pathFor(
+          projectRoot: fx.root.path,
+        );
+        expect(File(cachePath).existsSync(), isTrue, reason: out);
+
+        // The suite command changes under the SAME pubspec/lock: the
+        // fingerprint cannot see the change (no Keys block) — the command
+        // guard must.
+        final suiteSpyB = await fx.writeSpyScript(
+          'suite-b',
+          output: TddFixture.greenSuiteTranscript,
+        );
+        await writeLegacyProfile(suiteSpyB);
+
+        await seedBehavior(featureB, 'B-002');
+        final out2 = await drive(featureB);
+        expect(exitCode, 0, reason: out2);
+        // NOT reused: the live suite re-ran through the NEW command.
+        expect(out2, isNot(contains('corpus-wide reuse')), reason: out2);
+        expect(fx.spyLog('suite-b'), hasLength(1), reason: out2);
+        // The original command's spy was NOT invoked again.
+        expect(fx.spyLog('suite'), hasLength(1), reason: out2);
+      },
+    );
+
     test('a corrupt corpus cache is a safe failure: the live suite runs '
         '(never a silent pass from garbage)', () async {
       await seedBehavior(featureA, 'B-001');

@@ -162,11 +162,27 @@ class BudgetTelemetry {
 
   /// Write the JSON verdict to [path] (pretty-printed, durable). The
   /// parent directory is created when missing. Returns [path].
-  Future<String> write({required String path}) async {
+  ///
+  /// Convenience for callers that only persist: `toJson()` is called
+  /// here, stamping `finished_at`/`wall_clock_ms` at write time. Callers
+  /// that ALSO print the verdict must serialize once themselves and use
+  /// [writeVerdict], so the printed and persisted JSON cannot differ.
+  Future<String> write({required String path}) =>
+      writeVerdict(toJson(), path: path);
+
+  /// Persist an ALREADY-SERIALIZED [verdict] to [path] (pretty-printed,
+  /// durable). The parent directory is created when missing. Returns
+  /// [path]. `toJson()` stamps `finished_at`/`wall_clock_ms` at call
+  /// time, so a verdict used for both stdout and the file must be
+  /// produced ONCE and passed here.
+  Future<String> writeVerdict(
+    Map<String, dynamic> verdict, {
+    required String path,
+  }) async {
     final file = File(path);
     await file.parent.create(recursive: true);
     await file.writeAsString(
-      const JsonEncoder.withIndent('  ').convert(toJson()),
+      const JsonEncoder.withIndent('  ').convert(verdict),
     );
     return path;
   }

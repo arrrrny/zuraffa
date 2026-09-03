@@ -372,7 +372,14 @@ class RefactorCommand extends Command<void> {
       //    regressed tests, exit non-zero, write no success evidence.
       String reproofCommand;
       if (scopedReproof) {
-        reproofCommand = [suiteTemplate, ...reproofPaths].join(' ');
+        // Quote each path so a feature directory with spaces survives
+        // the suite runner's whitespace split (same token contract as
+        // zfaBuildCommand's quoteIfNeeded + the pass executor's
+        // quote-aware tokenizer, bug #689; spec 069 T001).
+        reproofCommand = [
+          suiteTemplate,
+          ...reproofPaths.map((path) => '"$path"'),
+        ].join(' ');
         print(
           'zfa tdd refactor: re-proof: scoped '
           '(${reproofPaths.length} covering test(s) for '
@@ -438,7 +445,7 @@ class RefactorCommand extends Command<void> {
 
       final reproofNote = scopedReproof
           ? 're-proof: scoped (${reproofPaths.length} covering test(s) '
-                'for ${libChanged.length} changed file(s); spec 069 T01 — '
+                'for ${libChanged.length} changed file(s); spec 069 T001 — '
                 'the full gate runs at feature completion + nightly)'
           : 're-proof: full';
 

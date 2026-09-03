@@ -206,5 +206,32 @@ mutation: gate=pass killed=12 survived=0 timed_out=1 mutation_was_run=true
         dir.deleteSync(recursive: true);
       }
     });
+
+    test('writeVerdict() persists an ALREADY-SERIALIZED verdict verbatim '
+        '(the printed and persisted JSON cannot drift)', () async {
+      final dir = await Directory.systemTemp.createTemp('budget_tel3_');
+      try {
+        final telemetry = BudgetTelemetry.start(shard: '3/4');
+        telemetry.recordStep(
+          feature: 'f1',
+          step: 'run',
+          elapsed: const Duration(milliseconds: 100),
+          outcome: 'complete',
+        );
+        telemetry.finish(result: 'complete', features: 1);
+        // Serialize ONCE, then use the same map for both consumers — the
+        // corpus-run contract.
+        final verdict = telemetry.toJson();
+        final path = '${dir.path}/nested/budget.json';
+        final written = await telemetry.writeVerdict(verdict, path: path);
+        expect(written, path);
+        final decoded = jsonDecode(await File(path).readAsString());
+        // The persisted JSON IS the passed verdict (same wall clock,
+        // same finished_at — not a re-stamped second serialization).
+        expect(decoded, verdict);
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    });
   });
 }

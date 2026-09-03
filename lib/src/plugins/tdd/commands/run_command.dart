@@ -409,6 +409,23 @@ class RunCommand extends Command<void> {
             fingerprint: fingerprint,
           );
         }
+        // Defense in depth (spec 069 T004): the fingerprint keys the
+        // suite command only when the profile carries the
+        // machine-readable Keys block — a legacy frontmatter profile
+        // silently degrades the fingerprint to pubspec+lock, so a
+        // changed suite command would still read-hit. The stored
+        // live-capture command must equal the freshly loaded template;
+        // on mismatch the reuse is dropped and the live suite re-runs.
+        if (corpusReused != null &&
+            corpusReused.parseable &&
+            corpusReused.command != suiteTemplate) {
+          print(
+            '   suite baseline: corpus cache command drift — the stored '
+            'snapshot was captured under a different suite command; the '
+            'live suite re-runs (spec 069 T004)',
+          );
+          corpusReused = null;
+        }
         if (corpusReused != null && corpusReused.parseable) {
           // Corpus-wide reuse (spec 069 T004): the make steps' guard is
           // still the scoped single-test run (#741's contract) — the
