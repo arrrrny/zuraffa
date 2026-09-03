@@ -74,6 +74,29 @@ class UserRealAdapter implements UserRepository {
 void main() {
   late TddFixture fx;
 
+
+  /// Receipt the current bytes of [rel] as a #807 generation run (the
+  /// provenance baseline realize detects drift against).
+  Future<void> _receipt(String rel, String content) async {
+    final store = ReceiptStore(projectRoot: fx.root.path);
+    await store.save(GenerationReceipt(
+      command: 'zfa di',
+      target: 'User',
+      repro: 'zfa di User',
+      at: DateTime.now().toUtc(),
+      generatorVersion: '6.1.0',
+      input: const {},
+      files: [
+        GenerationReceiptFile(
+          path: rel,
+          action: 'create',
+          sha256: crypto.sha256.convert(content.codeUnits).toString(),
+          bytes: content.length,
+        ),
+      ],
+    ));
+  }
+
   setUp(() async {
     fx = await TddFixture.create();
     _write(p.join(fx.root.path, 'lib/src/di/datasources',
@@ -90,6 +113,16 @@ void main() {
       id: 'B-001',
       description: 'create entity User with email',
     );
+    // The generated surface carries its #807 receipts — the provenance
+    // baseline the nuance gate detects drift against (the real `zfa di`
+    // and `zfa mock` runs write these).
+    await _receipt('lib/src/di/datasources/user_mock_datasource_di.dart',
+        datasourceDi);
+    await _receipt('lib/src/di/repositories/user_repository_di.dart',
+        repositoryDi);
+    await _receipt(
+        'lib/src/data/datasources/user/user_mock_datasource.dart',
+        mockDatasource);
   });
 
   tearDown(() {
@@ -153,27 +186,6 @@ void main() {
     }));
   }
 
-  /// Receipt the current bytes of [rel] as a #807 generation run (the
-  /// provenance baseline realize detects drift against).
-  Future<void> _receipt(String rel, String content) async {
-    final store = ReceiptStore(projectRoot: fx.root.path);
-    await store.save(GenerationReceipt(
-      command: 'zfa di',
-      target: 'User',
-      repro: 'zfa di User',
-      at: DateTime.now().toUtc(),
-      generatorVersion: '6.1.0',
-      input: const {},
-      files: [
-        GenerationReceiptFile(
-          path: rel,
-          action: 'create',
-          sha256: crypto.sha256.convert(content.codeUnits).toString(),
-          bytes: content.length,
-        ),
-      ],
-    ));
-  }
 
   test('A1: full green path rebinds DI, transitions era, persists state',
       () async {

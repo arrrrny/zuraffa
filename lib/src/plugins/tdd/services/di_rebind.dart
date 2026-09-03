@@ -125,6 +125,21 @@ class DiRebinder {
     return sites;
   }
 
+  /// Files that DECLARE the mock datasource class (the mock
+  /// implementation itself). Part of the realization surface the nuance
+  /// receipts gate watches, but never a binding site.
+  Future<List<String>> mockImplementationFiles({required String entity}) async {
+    final mockClass = mockClassFor(entity);
+    final decl = RegExp('class\\s+$mockClass\\b');
+    final files = <String>[];
+    for (final file in await _dartFiles()) {
+      if (decl.hasMatch(await File(file).readAsString())) {
+        files.add(file);
+      }
+    }
+    return files..sort();
+  }
+
   /// Resolve the file declaring [adapterClass], or throw
   /// [DiRebindException] — the command never generates real impls.
   Future<String> locateAdapter({required String adapterClass}) async {

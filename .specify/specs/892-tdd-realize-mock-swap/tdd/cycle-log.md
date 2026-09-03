@@ -714,3 +714,91 @@ For example, 'dart test --chain-stack-traces'.
 - prev-hash: genesis
 - hash: 0b0b5e30341453268307fe459fe69c3015c9dfc293606bb6368ab7c9f6bd1c05
 
+## Cycle: U14-U16 (green)
+
+- behavior: U14-U16
+- kind: green
+- classification: -
+- criterion: SC-3
+- test: test/plugins/tdd/services/nuance_receipts_test.dart
+- command: `dart test test/plugins/tdd/services/nuance_receipts_test.dart`
+- exit: 0
+- at: 2026-09-03T08:43:29.421542Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/realize_state_test.dart
+00:00 +0: test/plugins/tdd/services/realize_state_test.dart: U1: absent state file means era MOCKED (mock-first default)
+00:00 +1: test/plugins/tdd/services/realize_state_test.dart: U2: transitionToReal persists era REAL with gate evidence
+00:00 +2: test/plugins/tdd/services/realize_state_test.dart: U3: re-realizing the same adapter is idempotent
+00:00 +3: test/plugins/tdd/services/di_rebind_test.dart: U4: scan finds the mock binding sites for the entity
+00:00 +4: test/plugins/tdd/services/di_rebind_test.dart: U5: rebind swaps symbols, fixes imports, keeps domain untouched
+00:00 +5: test/plugins/tdd/services/di_rebind_test.dart: U6: rebind refuses when the adapter class does not exist in lib/
+00:00 +6: test/plugins/tdd/services/di_rebind_test.dart: U7: rebind refuses when there is no mock binding to swap
+00:00 +7: test/plugins/tdd/services/contract_gate_test.dart: U8: green when the suite is green against both bindings
+00:00 +8: test/plugins/tdd/services/contract_gate_test.dart: U9: real-broke-contract when baseline green and real red
+00:00 +9: test/plugins/tdd/services/contract_gate_test.dart: U10: mock-broke-contract when the baseline run is already red
+00:00 +10: test/plugins/tdd/services/nuance_receipts_test.dart: U14: record() writes (file, reason, diff-hash) into the ledger
+00:00 +11: test/plugins/tdd/services/differential_gate_test.dart: U11: per-field drift report from committed fixtures
+00:00 +12: test/plugins/tdd/services/differential_gate_test.dart: U11: per-field drift report from committed fixtures
+00:00 +13: test/plugins/tdd/services/nuance_receipts_test.dart: U16: detect() finds drifted and unreceipted hand-deltas
+00:00 +14: test/plugins/tdd/services/nuance_receipts_test.dart: U16: detect() finds drifted and unreceipted hand-deltas
+00:00 +15: test/plugins/tdd/services/nuance_receipts_test.dart: U16: detect() finds drifted and unreceipted hand-deltas
+00:00 +16: test/plugins/tdd/services/nuance_receipts_test.dart: U16: detect() finds drifted and unreceipted hand-deltas
+00:00 +17: test/plugins/tdd/commands/realize_command_test.dart: A1: full green path rebinds DI, transitions era, persists state
+00:01 +18: test/plugins/tdd/commands/realize_command_test.dart: A2: --adapter is required — a swap without a real adapter is refused
+00:01 +19: test/plugins/tdd/commands/realize_command_test.dart: A6: a behavior id target resolves through the registry
+00:01 +20: test/plugins/tdd/commands/realize_command_test.dart: A3: a red real-binding run blocks the swap, rolls the rebind back, and the verdict names the side
+00:01 +21: test/plugins/tdd/commands/realize_command_test.dart: A3b: a red baseline (mock era already broken) blocks before any rebind and blames the mock side
+00:01 +22: test/plugins/tdd/commands/realize_command_test.dart: A4a: drift within the .zfa.json threshold passes with a drift report
+00:01 +23: test/plugins/tdd/commands/realize_command_test.dart: A4b: drift beyond the .zfa.json threshold blocks the transition and rolls the rebind back
+00:01 +24: test/plugins/tdd/commands/realize_command_test.dart: A5: ungated hand-deltas block the swap; gated deltas are recorded and the swap proceeds
+00:01 +25: All tests passed!
+```
+- schema: 1
+- prev-hash: caaefb8710422020778f6a628ef481690e068aea0d8239d3ac813bdba32bbd28
+- hash: ab811583236f84f7049ae55c60cdbbd5f04c5fe307832455c75c52f5f42bc814
+
+## Cycle: A5 (green)
+
+- behavior: A5
+- kind: green
+- classification: -
+- criterion: SC-3
+- test: test/plugins/tdd/commands/realize_command_test.dart
+- command: `dart test test/plugins/tdd/commands/realize_command_test.dart`
+- exit: 0
+- at: 2026-09-03T08:43:29.939689Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/realize_state_test.dart
+00:00 +0: test/plugins/tdd/services/realize_state_test.dart: U1: absent state file means era MOCKED (mock-first default)
+00:00 +1: test/plugins/tdd/services/realize_state_test.dart: U2: transitionToReal persists era REAL with gate evidence
+00:00 +2: test/plugins/tdd/services/realize_state_test.dart: U3: re-realizing the same adapter is idempotent
+00:00 +3: test/plugins/tdd/services/di_rebind_test.dart: U4: scan finds the mock binding sites for the entity
+00:00 +4: test/plugins/tdd/services/di_rebind_test.dart: U5: rebind swaps symbols, fixes imports, keeps domain untouched
+00:00 +5: test/plugins/tdd/services/di_rebind_test.dart: U6: rebind refuses when the adapter class does not exist in lib/
+00:00 +6: test/plugins/tdd/services/di_rebind_test.dart: U7: rebind refuses when there is no mock binding to swap
+00:00 +7: test/plugins/tdd/services/contract_gate_test.dart: U8: green when the suite is green against both bindings
+00:00 +8: test/plugins/tdd/services/contract_gate_test.dart: U9: real-broke-contract when baseline green and real red
+00:00 +9: test/plugins/tdd/services/contract_gate_test.dart: U10: mock-broke-contract when the baseline run is already red
+00:00 +10: test/plugins/tdd/services/nuance_receipts_test.dart: U14: record() writes (file, reason, diff-hash) into the ledger
+00:00 +11: test/plugins/tdd/services/differential_gate_test.dart: U11: per-field drift report from committed fixtures
+00:00 +12: test/plugins/tdd/services/differential_gate_test.dart: U11: per-field drift report from committed fixtures
+00:00 +13: test/plugins/tdd/services/nuance_receipts_test.dart: U16: detect() finds drifted and unreceipted hand-deltas
+00:00 +14: test/plugins/tdd/services/nuance_receipts_test.dart: U16: detect() finds drifted and unreceipted hand-deltas
+00:00 +15: test/plugins/tdd/services/nuance_receipts_test.dart: U16: detect() finds drifted and unreceipted hand-deltas
+00:00 +16: test/plugins/tdd/services/nuance_receipts_test.dart: U16: detect() finds drifted and unreceipted hand-deltas
+00:00 +17: test/plugins/tdd/commands/realize_command_test.dart: A1: full green path rebinds DI, transitions era, persists state
+00:01 +18: test/plugins/tdd/commands/realize_command_test.dart: A2: --adapter is required — a swap without a real adapter is refused
+00:01 +19: test/plugins/tdd/commands/realize_command_test.dart: A6: a behavior id target resolves through the registry
+00:01 +20: test/plugins/tdd/commands/realize_command_test.dart: A3: a red real-binding run blocks the swap, rolls the rebind back, and the verdict names the side
+00:01 +21: test/plugins/tdd/commands/realize_command_test.dart: A3b: a red baseline (mock era already broken) blocks before any rebind and blames the mock side
+00:01 +22: test/plugins/tdd/commands/realize_command_test.dart: A4a: drift within the .zfa.json threshold passes with a drift report
+00:01 +23: test/plugins/tdd/commands/realize_command_test.dart: A4b: drift beyond the .zfa.json threshold blocks the transition and rolls the rebind back
+00:01 +24: test/plugins/tdd/commands/realize_command_test.dart: A5: ungated hand-deltas block the swap; gated deltas are recorded and the swap proceeds
+00:01 +25: All tests passed!
+```
+- schema: 1
+- prev-hash: 0b0b5e30341453268307fe459fe69c3015c9dfc293606bb6368ab7c9f6bd1c05
+- hash: 2656c362b254e63c9fa01e35dfc9e6b435b136b93d3567d2cffc97877b9566de
+

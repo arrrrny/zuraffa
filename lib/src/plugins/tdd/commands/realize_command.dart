@@ -27,13 +27,16 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
 import '../../../core/project/project_root.dart';
+import '../../../core/project/receipt_store.dart';
 import '../services/artifact_registry.dart';
 import '../services/contract_gate.dart';
 import '../services/di_rebind.dart';
 import '../services/differential_gate.dart';
+import '../services/nuance_receipts.dart';
 import '../services/realize_state.dart';
 import '../tdd_plugin.dart';
 
@@ -157,6 +160,14 @@ class RealizeCommand extends Command<void> {
         : ProjectRoot.find(anchorDir: 'specs');
     _resolvedRoot = cwd;
 
+    final handDeltaFlags =
+        (argResults?['hand-delta'] as List<String>? ?? const <String>[])
+            .map((f) => f.trim())
+            .where((f) => f.isNotEmpty)
+            .map(_normalizeRel)
+            .toList();
+    final handDeltaReason = (argResults?['reason'] as String?)?.trim() ?? '';
+
     // ---------------------------------------------------------------
     // Resolve the feature + entity behind the target.
     // ---------------------------------------------------------------
@@ -216,6 +227,79 @@ class RealizeCommand extends Command<void> {
     }
 
     // ---------------------------------------------------------------
+    // The nuance-receipts gate (#807 proof-carrying): hand-deltas are
+    // legal, ungated hand-deltas are not. The realization surface (the
+    // mock binding files + the mock implementation itself) is compared
+    // against its last provenance baseline; every drift must be
+    // recorded with --hand-delta <file> --reason <text> or reverted.
+    // ---------------------------------------------------------------
+    final rebinder = DiRebinder(projectRoot: cwd);
+    final receipts = NuanceReceipts(featureDir: featureDir, projectRoot: cwd);
+    final surface = <String>[
+      for (final site in await rebinder.scan(entity: entity)) site.file,
+      ...await rebinder.mockImplementationFiles(entity: entity),
+    ].map((f) => _normalizeRel(p.relative(f, from: cwd))).toList();
+    final unrecorded = await receipts.detect(files: surface);
+    final ungated =
+        unrecorded.where((d) => !handDeltaFlags.contains(d.file)).toList();
+    if (ungated.isNotEmpty) {
+      print(
+        '   nuance gate BLOCKED: ${ungated.length} unrecorded '
+        'hand-delta(s) on the realization surface — hand-deltas are '
+        'legal, ungated hand-deltas are not:',
+      );
+      for (final delta in ungated) {
+        print('   hand-delta: ${delta.file} (${delta.detail})');
+      }
+      print(
+        '   Record each one with --hand-delta <file> --reason "<why>" or '
+        'revert it, then re-run.',
+      );
+      _printSummary(
+        entity: entity,
+        adapter: adapter,
+        feature: feature,
+        contract: '-',
+        handDeltas: ungated.length,
+        era: state.era.name.toUpperCase(),
+        outcome: RealizeOutcome.blocked,
+      );
+      exitCode = 1;
+      return;
+    }
+    final gatedDeltas =
+        unrecorded.where((d) => handDeltaFlags.contains(d.file)).toList();
+    if (handDeltaFlags.isNotEmpty && handDeltaReason.isEmpty) {
+      print(
+        '   nuance gate BLOCKED: --hand-delta requires a non-empty '
+        '--reason — reason metadata is enforced, not optional.',
+      );
+      _printSummary(
+        entity: entity,
+        adapter: adapter,
+        feature: feature,
+        contract: '-',
+        handDeltas: gatedDeltas.length,
+        era: state.era.name.toUpperCase(),
+        outcome: RealizeOutcome.blocked,
+      );
+      exitCode = 1;
+      return;
+    }
+    for (final delta in gatedDeltas) {
+      final entry = await receipts.record(
+        file: delta.file,
+        reason: handDeltaReason,
+        adapter: adapter,
+      );
+      print(
+        '   nuance receipt: ${delta.file} recorded '
+        '(diff-hash ${entry.diffHash.substring(0, 12)}...) — '
+        '"$handDeltaReason"',
+      );
+    }
+
+    // ---------------------------------------------------------------
     // The contract gate, part 1: the BASELINE run — the mock-era suite
     // against the CURRENT (mock) binding, recorded BEFORE the rebind so
     // a red baseline blames the mock era, never the real impl.
@@ -249,10 +333,12 @@ class RealizeCommand extends Command<void> {
 
     // ---------------------------------------------------------------
     // The DI rebind: mock -> real behind the same generated interface.
+    // The rebind is a generation step: its own writes are provenanced
+    // with a #807 receipt so they are never mistaken for hand-deltas.
     // ---------------------------------------------------------------
     DiRebindResult rebind;
     try {
-      rebind = await DiRebinder(projectRoot: cwd).rebind(
+      rebind = await rebinder.rebind(
         entity: entity,
         adapterClass: adapter,
       );
@@ -379,8 +465,12 @@ class RealizeCommand extends Command<void> {
     }
 
     // ---------------------------------------------------------------
-    // The state transition MOCKED -> REAL, persisted.
+    // The state transition MOCKED -> REAL, persisted. The rebind is a
+    // generation step: a #807 receipt covers its writes only once every
+    // gate passed (a rolled-back swap writes no receipt — the restored
+    // tree stays exactly the mock-era provenance).
     // ---------------------------------------------------------------
+    await _receiptRebind(cwd, rebind);
     final next = await stateStore.transitionToReal(
       state: state,
       adapter: adapter,
@@ -391,6 +481,7 @@ class RealizeCommand extends Command<void> {
         'drift': differential.driftLabel,
         'threshold': differential.threshold,
         'fixtures': differential.fixturesRun,
+        'handDeltas': gatedDeltas.length,
       },
     );
     await stateStore.save(next);
@@ -619,15 +710,57 @@ class RealizeCommand extends Command<void> {
     String differential = '-',
     String drift = '-',
     String threshold = '-',
+    int handDeltas = 0,
     required String era,
     required RealizeOutcome outcome,
   }) {
     print(
       'realize: entity=$entity adapter=$adapter feature=$feature '
       'contract=$contract differential=$differential drift=$drift '
-      'threshold=$threshold era=$era result=${outcome.label}',
+      'threshold=$threshold handDeltas=$handDeltas era=$era '
+      'result=${outcome.label}',
     );
   }
+
+  /// Write the #807 generation receipt covering the rebind's writes so
+  /// the swap itself is provenanced (never a hand-delta).
+  Future<void> _receiptRebind(String cwd, DiRebindResult rebind) async {
+    final files = <GenerationReceiptFile>[];
+    for (final site in rebind.sites) {
+      final bytes = await File(site.file).readAsBytes();
+      files.add(
+        GenerationReceiptFile(
+          path: _normalizeRel(p.relative(site.file, from: cwd)),
+          action: 'update',
+          sha256: _sha256(bytes),
+          bytes: bytes.length,
+        ),
+      );
+    }
+    await ReceiptStore(projectRoot: cwd).save(
+      GenerationReceipt(
+        command: 'zfa tdd realize',
+        target: rebind.entity,
+        repro: 'zfa tdd realize ${rebind.entity} '
+            '--adapter ${rebind.adapterClass}',
+        at: DateTime.now().toUtc(),
+        generatorVersion: '6.1.0',
+        input: {
+          'entity': rebind.entity,
+          'mockClass': rebind.mockClass,
+          'adapter': rebind.adapterClass,
+        },
+        files: files,
+      ),
+    );
+  }
+
+  String _sha256(List<int> bytes) {
+    return crypto.sha256.convert(bytes).toString();
+  }
+
+  static String _normalizeRel(String rel) =>
+      p.posix.normalize(p.posix.joinAll(p.split(rel))).replaceAll('\\', '/');
 }
 
 class _ResolveError implements Exception {

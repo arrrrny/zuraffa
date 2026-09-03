@@ -57,9 +57,9 @@ observable result.
 
 | id  | behavior                                                              | traces | kind     | state   | test                                                          |
 | --- | --------------------------------------------------------------------- | ------ | -------- | ------- | ------------------------------------------------------------ |
-| U14 | record() writes (file, reason, diff-hash) into `tdd/provenance-ledger.json` (#807 proof-carrying pattern) | SC-3   | example  | PENDING | `test/plugins/tdd/services/nuance_receipts_test.dart::U14`   |
-| U15 | record() refuses an empty reason — reason metadata is enforced, not optional | SC-3   | example  | PENDING | `test/plugins/tdd/services/nuance_receipts_test.dart::U15`   |
-| U16 | detect() finds hand-deltas as files whose bytes drifted from their last receipted/ledger digest, and flags unreceipted files | SC-3   | example  | PENDING | `test/plugins/tdd/services/nuance_receipts_test.dart::U16`   |
+| U14 | record() writes (file, reason, diff-hash) into `tdd/provenance-ledger.json` (#807 proof-carrying pattern) | SC-3   | example  | DONE | `test/plugins/tdd/services/nuance_receipts_test.dart::U14`   |
+| U15 | record() refuses an empty reason — reason metadata is enforced, not optional | SC-3   | example  | DONE | `test/plugins/tdd/services/nuance_receipts_test.dart::U15`   |
+| U16 | detect() finds hand-deltas as files whose bytes drifted from their last receipted/ledger digest, and flags unreceipted files | SC-3   | example  | DONE | `test/plugins/tdd/services/nuance_receipts_test.dart::U16`   |
 
 ### `lib/src/plugins/tdd/services/era_tagged_log.dart`
 

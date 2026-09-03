@@ -14,7 +14,7 @@ a failing test before its implementation (TDD extension contract).
 - [x] T003. Differential gate (A4, U11-U13): `differential_gate.dart` — real vs
       mock on the same committed fixtures (extends #832), drift report with
       per-field comparison, threshold from `.zfa.json`, reuses #805 machinery.
-- [ ] T004. Nuance receipts (A5, U14-U16): `nuance_receipts.dart` — hand-deltas
+- [x] T004. Nuance receipts (A5, U14-U16): `nuance_receipts.dart` — hand-deltas
       recorded (file, reason, diff-hash) in the feature's provenance ledger
       (#807 proof-carrying); ungated hand-deltas block.
 - [ ] T005. Era-tagged cycle-log (U17-U18): `era_tagged_log.dart` — entries
