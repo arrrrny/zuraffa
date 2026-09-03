@@ -2,6 +2,7 @@ import '../../../core/plugin_system/capability.dart';
 import '../mock_plugin.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
+import '../builders/simulation_fixture_writer.dart';
 
 class CreateMockCapability implements ZuraffaCapability {
   final MockPlugin plugin;
@@ -36,6 +37,13 @@ class CreateMockCapability implements ZuraffaCapability {
         'type': 'boolean',
         'description': 'Generate mock data only',
         'default': false,
+      },
+      'fixturesDir': {
+        'type': 'string',
+        'description':
+            'Commit per-entity fixture data under this directory (e.g. '
+            'specs/<feature>/tdd/fixtures) and re-certify it through the '
+            '#832 fixture registry (spec 893)',
       },
       'dryRun': {
         'type': 'boolean',
@@ -122,6 +130,7 @@ class CreateMockCapability implements ZuraffaCapability {
     final domain = args['domain'];
     final params = args['params'];
     final returns = args['returns'];
+    final fixturesDir = args['fixturesDir'] as String?;
     // Issue #770: semantic default for direct execute() callers that omit
     // the key — same canonical set as the schema default and
     // MockPlugin.generateWithContext (#294). Explicit values are honored.
@@ -144,6 +153,33 @@ class CreateMockCapability implements ZuraffaCapability {
       verbose: verbose,
     );
 
-    return await plugin.generate(config);
+    final files = await plugin.generate(config);
+
+    // Spec 893 (T003, FR-003): commit per-entity fixture data under the
+    // feature's tdd/fixtures/ directory and re-certify it through the
+    // #832 fixture registry. Fixture commitment is part of the standard
+    // `zfa mock create` workflow, not a manual step.
+    if (fixturesDir != null &&
+        fixturesDir.isNotEmpty &&
+        !dryRun &&
+        !dataOnly) {
+      final entityName = config.repo != null
+          ? config.repo!.replaceAll('Repository', '')
+          : config.name;
+      final writer = SimulationFixtureWriter(
+        outputDir: outputDir,
+        verbose: verbose,
+      );
+      files.add(
+        await writer.write(
+          entityName: entityName,
+          fixturesDir: fixturesDir,
+          commandLine:
+              'zfa mock create $entityName --fixtures-dir $fixturesDir',
+        ),
+      );
+    }
+
+    return files;
   }
 }

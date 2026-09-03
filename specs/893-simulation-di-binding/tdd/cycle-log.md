@@ -207,3 +207,61 @@ For example, 'dart test --chain-stack-traces'.
 00:00 +6: U5: real adapters under the simulation flavor U5: real datasource registration is guarded against the simulation flavor
 00:00 +7: All tests passed!
 ```
+
+## 2026-09-03T09:19:08Z: 893-entity-fixture-wiring (red)
+- behavior: 893-entity-fixture-wiring
+- kind: red
+- at: 2026-09-03T09:19:08Z
+- exit: 1
+- criterion: FR-003: zfa mock create commits per-entity fixtures under specs/<feature>/tdd/fixtures through the #832 registry (T003 red: no fixturesDir support; 0 passed / 2 failed)
+- command: `dart test test/plugins/mock/simulation_fixture_writer_test.dart`
+- schema: 1
+- prev-hash: fc0e9bec0675ac0d83db4b44bc6f9d097e55afa16fca18e7aac6dfc4075a2fcc
+- hash: 35734bb1035e72e64317271dcecefabf803373529e3674df45cf3d63eb55595a
+- output: ```
+00:00 +0: loading test/plugins/mock/simulation_fixture_writer_test.dart
+00:00 +0: U14: mock create commits per-entity fixtures through the fixture registry
+00:00 +0 -1: U14: mock create commits per-entity fixtures through the fixture registry [E]
+  Expected: true
+    Actual: <false>
+  per-entity fixture JSON must be committed under the feature fixtures directory
+  
+  package:matcher                                             expect
+  test/plugins/mock/simulation_fixture_writer_test.dart 66:7  main.<fn>
+  
+00:00 +0 -1: re-running mock create re-certifies without duplicating fixtures
+00:00 +0 -2: re-running mock create re-certifies without duplicating fixtures [E]
+  Expected: true
+    Actual: <false>
+  
+  package:matcher                                              expect
+  test/plugins/mock/simulation_fixture_writer_test.dart 122:5  main.<fn>
+  
+00:00 +0 -2: no fixture file is written without --fixtures-dir
+00:00 +1 -2: Some tests failed.
+
+Failing tests:
+  test/plugins/mock/simulation_fixture_writer_test.dart: U14: mock create commits per-entity fixtures through the fixture registry
+  test/plugins/mock/simulation_fixture_writer_test.dart: re-running mock create re-certifies without duplicating fixtures
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
+```
+
+## 2026-09-03T09:19:08Z: 893-entity-fixture-wiring (green)
+- behavior: 893-entity-fixture-wiring
+- kind: green
+- at: 2026-09-03T09:19:08Z
+- exit: 0
+- criterion: FR-003/SC-005 prep: deterministic per-entity fixture JSON committed, manifest re-certified, hash-chained cycle evidence appended
+- command: `dart test test/plugins/mock/simulation_fixture_writer_test.dart`
+- schema: 1
+- prev-hash: 35734bb1035e72e64317271dcecefabf803373529e3674df45cf3d63eb55595a
+- hash: 269f983d9c6af5f99f1b6a45825a79620cf4ef3728617aeda8c64eb0a9e076ea
+- output: ```
+00:00 +0: loading test/plugins/mock/simulation_fixture_writer_test.dart
+00:00 +0: U14: mock create commits per-entity fixtures through the fixture registry
+00:00 +1: re-running mock create re-certifies without duplicating fixtures
+00:00 +2: no fixture file is written without --fixtures-dir
+00:00 +3: All tests passed!
+```
