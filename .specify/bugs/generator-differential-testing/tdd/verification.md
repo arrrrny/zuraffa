@@ -1,3 +1,4 @@
+---
 feature: generator-differential-testing (vision #805 slice v0, branch mode)
 verdict: PASS
 standard: .specify/extensions/tdd/templates/tdd-test-quality-rubric.md
@@ -30,7 +31,8 @@ all caught.
 Record source note: issue #805 is a VISION item (Pillar A of #804,
 "Proof-carrying generation") and has no `.specify/bugs/` record on any
 branch; the authoritative input was the GitHub issue body of
-[arrrrny/zuraffa#805]("[VISION] Generator differential testing") plus
+[arrrrny/zuraffa#805]: https://github.com/arrrrny/zuraffa/issues/805 "[VISION] Generator differential testing"
+plus
 the three incident bodies it names (#744 fixed by #748, #751, #752).
 
 ## Gap (from issue, confirmed in source)
@@ -220,7 +222,7 @@ All applied to the working tree, tested, then restored byte-identical
 
 ## Shared verify (branch-level)
 
-```
+```sh
 dart analyze lib test
 # 1 issue: pre-existing unused import in test/commands/entity_help_test.dart
 # (file untouched by this branch). Zero new.
