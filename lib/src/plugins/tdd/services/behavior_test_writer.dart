@@ -49,10 +49,14 @@ class BehaviorTestWriter {
       "'",
       "\\'",
     );
+    final escapedDesc = behavior.description.replaceAll(
+      "'",
+      "\\'",
+    );
     final content = behavior.kind == BehaviorKind.ffi
         ? renderContractTest(behavior, testPath, subjectPath)
         : behavior.persistence
-        ? _renderPersistenceTest(behavior, relativeSubjectPath, escapedGroupDesc, behavior.description)
+        ? _renderPersistenceTest(behavior, relativeSubjectPath, escapedGroupDesc, escapedDesc)
         : behavior.kind == BehaviorKind.widget
         ? _renderWidgetTest(behavior, relativeSubjectPath, golden)
         : _renderTest(behavior, relativeSubjectPath);
