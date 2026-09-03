@@ -25,12 +25,19 @@ class EntityField {
 /// One entity declared by the spec's `Key Entities` section (bug #829):
 /// the name is the bullet's bold head (generic suffixes stripped to a
 /// valid Dart identifier), the fields are the backticked `name: Type`
-/// pairs the spec carries (empty when the prose declares none).
+/// pairs the spec carries (empty when the prose declares none). Bug
+/// #919: `purpose` is the third column of the zuraffa-1.0 template's
+/// table form; empty for legacy bullet declarations.
 class SpecEntity {
-  const SpecEntity({required this.name, this.fields = const []});
+  const SpecEntity({
+    required this.name,
+    this.fields = const [],
+    this.purpose = '',
+  });
 
   final String name;
   final List<EntityField> fields;
+  final String purpose;
 
   @override
   String toString() => 'SpecEntity(name: $name, fields: $fields)';
@@ -81,22 +88,78 @@ class SpecParser {
 
   static final RegExp _dartIdentifier = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
 
+  /// A Key Entities table header (bug #919): the zuraffa-1.0 template
+  /// declares entities as a 3-column table `| Entity | Fields | Purpose |`.
+  static final RegExp _entityTableHeader = RegExp(
+    r'^\s*\|\s*entity\s*\|\s*fields\s*\|\s*purpose\s*\|\s*$',
+    caseSensitive: false,
+  );
+
+  /// A Key Entities table row: `| Name | `f: T`, `g: U` | purpose |`.
+  static final RegExp _entityTableRow = RegExp(
+    r'^\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|\s*$',
+  );
+
+  /// A Key Entities table separator row (`| -- | -- | -- |`).
+  static final RegExp _tableSeparator = RegExp(
+    r'^\s*\|\s*[\s\-|]*\|\s*$',
+  );
+
   /// Extract the entities the spec declares under `Key Entities` (bug
   /// #829 remediation 1: plan must surface them so the loop can create
-  /// and wire them).
+  /// and wire them). Bug #919: the zuraffa-1.0 template declares
+  /// entities as a 3-column table — rows are parsed alongside the legacy
+  /// bullets, and a section may mix both forms.
   List<SpecEntity> parseKeyEntities(String specMd) {
     final entities = <SpecEntity>[];
     var inSection = false;
+    var tableMode = false;
     for (final line in specMd.split('\n')) {
       final trimmed = line.trim();
       if (trimmed.startsWith('#')) {
         inSection = _keyEntitiesHeading.hasMatch(trimmed);
+        tableMode = false;
         continue;
       }
       if (!inSection) continue;
       if (trimmed.isEmpty) continue;
+      if (_entityTableHeader.hasMatch(trimmed)) {
+        tableMode = true;
+        continue;
+      }
+      if (_tableSeparator.hasMatch(trimmed)) continue;
+      if (tableMode) {
+        final m = _entityTableRow.firstMatch(trimmed);
+        if (m == null) {
+          // End of the table — fall through to bullet handling so a
+          // mixed section still extracts its bullet-declared entities.
+          tableMode = false;
+        } else {
+          var name = m.group(1)!.trim();
+          final genericStart = name.indexOf('<');
+          if (genericStart > 0) {
+            name = name.substring(0, genericStart).trim();
+          }
+          if (!_dartIdentifier.hasMatch(name)) continue;
+          final fields = _fieldPair
+              .allMatches(m.group(2) ?? '')
+              .map(
+                (f) => EntityField(name: f.group(1)!, type: f.group(2)!.trim()),
+              )
+              .toList();
+          entities.add(
+            SpecEntity(
+              name: name,
+              fields: fields,
+              purpose: (m.group(3) ?? '').trim(),
+            ),
+          );
+          continue;
+        }
+      }
       final m = _entityBullet.firstMatch(trimmed);
       if (m == null) {
+        if (trimmed.startsWith('|')) continue;
         inSection = false;
         continue;
       }

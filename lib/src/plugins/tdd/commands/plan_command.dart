@@ -274,18 +274,36 @@ class PlanCommand extends Command<void> {
     // Bug #829: the spec's Key Entities, extracted for the loop's
     // entity orchestration (run phase 0 + the make entity pipeline).
     // The reader skips this section when resolving behavior rows.
+    // Bug #919: a third `purpose` column when any entity declares one
+    // (the zuraffa-1.0 template's table form). Purpose-less sections keep
+    // the 2-column shape so every pre-919 artifact reads back identically.
     if (entities.isNotEmpty) {
+      final hasPurpose = entities.any((e) => e.purpose.isNotEmpty);
       buf
         ..writeln()
         ..writeln('## Key entities')
-        ..writeln()
-        ..writeln('| entity | fields |')
-        ..writeln('| ------ | ------ |');
-      for (final e in entities) {
-        buf.writeln(
-          '| ${e.name} | '
-          '${e.fields.map((f) => '${f.name}: ${f.type}').join(', ')} |',
-        );
+        ..writeln();
+      if (hasPurpose) {
+        buf
+          ..writeln('| entity | fields | purpose |')
+          ..writeln('| ------ | ------ | ------- |');
+        for (final e in entities) {
+          buf.writeln(
+            '| ${e.name} | '
+            '${e.fields.map((f) => '${f.name}: ${f.type}').join(', ')}'
+            ' | ${e.purpose} |',
+          );
+        }
+      } else {
+        buf
+          ..writeln('| entity | fields |')
+          ..writeln('| ------ | ------ |');
+        for (final e in entities) {
+          buf.writeln(
+            '| ${e.name} | '
+            '${e.fields.map((f) => '${f.name}: ${f.type}').join(', ')} |',
+          );
+        }
       }
     }
     if (preservedFfi.isNotEmpty) {
