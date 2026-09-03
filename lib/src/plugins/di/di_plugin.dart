@@ -272,9 +272,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       final simulationEntity = config.repo != null
           ? config.repo!.replaceAll('Repository', '')
           : config.name;
-      final binding = await emitter.emitBinding(
-        entityName: simulationEntity,
-      );
+      final binding = await emitter.emitBinding(entityName: simulationEntity);
       files.add(binding);
       final simulationIndex = await emitter.regenerateIndex(
         pendingFiles: [binding],
@@ -371,10 +369,11 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         '../../data/datasources/$baseSnake/${baseSnake}_remote_datasource.dart',
       ],
       body: Block(
-        (b) => b..statements.addAll([
-          Code('if (kSimulationMode) return;'),
-          registrationCall.statement,
-        ]),
+        (b) => b
+          ..statements.addAll([
+            Code('if (kSimulationMode) return;'),
+            registrationCall.statement,
+          ]),
       ),
     );
 
@@ -487,10 +486,11 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           'package:zuraffa/simulation.dart',
         ),
       body: Block(
-        (b) => b..statements.addAll([
-          Code('if (kSimulationMode) return;'),
-          registrationCall.statement,
-        ]),
+        (b) => b
+          ..statements.addAll([
+            Code('if (kSimulationMode) return;'),
+            registrationCall.statement,
+          ]),
       ),
     );
 
@@ -560,10 +560,11 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         '../../data/datasources/$baseSnake/${baseSnake}_sqlite_datasource.dart',
       ],
       body: Block(
-        (b) => b..statements.addAll([
-          Code('if (kSimulationMode) return;'),
-          registrationCall.statement,
-        ]),
+        (b) => b
+          ..statements.addAll([
+            Code('if (kSimulationMode) return;'),
+            registrationCall.statement,
+          ]),
       ),
     );
 

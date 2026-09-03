@@ -52,9 +52,7 @@ void main() {
   /// mock-builder tests) provide it before `zfa mock create` runs.
   Future<void> runMockCreate(String entity) async {
     final entitySnake = entity.toLowerCase();
-    final entityDir = Directory(
-      '$outputDir/domain/entities/$entitySnake',
-    );
+    final entityDir = Directory('$outputDir/domain/entities/$entitySnake');
     await entityDir.create(recursive: true);
     await File('${entityDir.path}/$entitySnake.dart').writeAsString(
       'class $entity { final String id; const $entity(this.id); }',
@@ -87,12 +85,18 @@ void main() {
         await runMockCreate('Todo');
 
         final binding = simulationBindingFile('todo');
-        expect(binding.existsSync(), isTrue, reason:
-            'zfa mock create must emit the di/simulation/ binding');
+        expect(
+          binding.existsSync(),
+          isTrue,
+          reason: 'zfa mock create must emit the di/simulation/ binding',
+        );
 
         final index = simulationIndexFile();
-        expect(index.existsSync(), isTrue, reason:
-            'simulation index (registerSimulationBindings) must exist');
+        expect(
+          index.existsSync(),
+          isTrue,
+          reason: 'simulation index (registerSimulationBindings) must exist',
+        );
 
         // Running the standard `zfa make --di` workflow (useMockInDi) must
         // produce the same generated simulation surface with zero manual
@@ -190,7 +194,9 @@ void main() {
         // FR-011: dedicated generated location + explicit markers.
         expect(
           simulationBindingFile('todo').path,
-          contains('${Platform.pathSeparator}di${Platform.pathSeparator}simulation'),
+          contains(
+            '${Platform.pathSeparator}di${Platform.pathSeparator}simulation',
+          ),
         );
         final content = simulationBindingFile('todo').readAsStringSync();
         expect(content, contains('SIMULATION BINDING'));

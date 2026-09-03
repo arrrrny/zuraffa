@@ -38,8 +38,7 @@ final class EntityFixtures {
   static String pathFor({
     required String fixturesDir,
     required String entity,
-  }) =>
-      p.join(fixturesDir, '${_snake(entity)}_fixtures.json');
+  }) => p.join(fixturesDir, '${_snake(entity)}_fixtures.json');
 
   /// Loads the fixture records for every [entities] entry, failing fast
   /// with [SimulationFixtureError] on the first unusable file.
@@ -112,8 +111,7 @@ final class EntityFixtures {
     final buffer = StringBuffer();
     for (var i = 0; i < name.length; i++) {
       final char = name[i];
-      final isUpper =
-          char.toUpperCase() == char && char.toLowerCase() != char;
+      final isUpper = char.toUpperCase() == char && char.toLowerCase() != char;
       if (isUpper && i > 0) buffer.write('_');
       buffer.write(char.toLowerCase());
     }

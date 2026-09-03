@@ -167,9 +167,13 @@ void main() {
         // The generated-style mock graph resolves through DI and serves
         // the COMMITTED fixture records — no real adapter exists, no
         // socket is opened (the guard would throw NetworkIsolationViolation).
-        expect(container.isRegistered<_GetTodoListUseCase>(), isFalse,
-            reason: 'boot binds fixtures/adapters; the composition root '
-                'registers the graph — mirror that here');
+        expect(
+          container.isRegistered<_GetTodoListUseCase>(),
+          isFalse,
+          reason:
+              'boot binds fixtures/adapters; the composition root '
+              'registers the graph — mirror that here',
+        );
         container.registerLazySingleton<_TodoDataSource>(
           () => _TodoMockDataSource(records: report.fixtures['Todo']!),
         );
@@ -193,52 +197,56 @@ void main() {
       },
     );
 
-    test('any real socket attempt inside the demo session is blocked',
-        () async {
-      commitTodoFixtures();
-      final container = ZuraffaContainer.instance;
-      container.reset();
+    test(
+      'any real socket attempt inside the demo session is blocked',
+      () async {
+        commitTodoFixtures();
+        final container = ZuraffaContainer.instance;
+        container.reset();
 
-      await SimulationBoot.runApp(
-        container: container,
-        featureDir: featureDir,
-        entities: const {'Todo'},
-        simulation: true,
-      );
+        await SimulationBoot.runApp(
+          container: container,
+          featureDir: featureDir,
+          entities: const {'Todo'},
+          simulation: true,
+        );
 
-      await expectLater(
-        Socket.connect('api.real-backend.invalid', 443),
-        throwsA(isA<NetworkIsolationViolation>()),
-      );
-    });
+        await expectLater(
+          Socket.connect('api.real-backend.invalid', 443),
+          throwsA(isA<NetworkIsolationViolation>()),
+        );
+      },
+    );
   });
 
   group('U13: zero mocked features', () {
-    test('boots with a warning when no complete(mocked) features exist',
-        () async {
-      final container = ZuraffaContainer.instance;
-      container.reset();
+    test(
+      'boots with a warning when no complete(mocked) features exist',
+      () async {
+        final container = ZuraffaContainer.instance;
+        container.reset();
 
-      final report = await SimulationBoot.runApp(
-        container: container,
-        featureDir: featureDir,
-        entities: const {},
-        simulation: true,
-      );
+        final report = await SimulationBoot.runApp(
+          container: container,
+          featureDir: featureDir,
+          entities: const {},
+          simulation: true,
+        );
 
-      expect(report.guardActive, isTrue);
-      expect(
-        report.warnings.join('\n'),
-        contains('complete(mocked)'),
-        reason: 'FR-010: the developer is warned that no mocked features '
-            'are available for demo',
-      );
-    });
+        expect(report.guardActive, isTrue);
+        expect(
+          report.warnings.join('\n'),
+          contains('complete(mocked)'),
+          reason:
+              'FR-010: the developer is warned that no mocked features '
+              'are available for demo',
+        );
+      },
+    );
   });
 
   group('FR-008: no-op outside the simulation flavor', () {
-    test('boot without the SIMULATION define is a harmless no-op',
-        () async {
+    test('boot without the SIMULATION define is a harmless no-op', () async {
       commitTodoFixtures();
       final container = ZuraffaContainer.instance;
       container.reset();

@@ -23,9 +23,7 @@ void main() {
       expect(SimulationFlavor.describe(), 'real');
     });
 
-    test(
-      'U1: SIMULATION define routes kSimulationMode to true',
-      () async {
+    test('U1: SIMULATION define routes kSimulationMode to true', () async {
       final result = await _runProbe(const ['-DSIMULATION=true']);
       expect(result.exitCode, 0, reason: result.stderr.toString());
       expect(result.stdout, contains('kSimulationMode=true'));
@@ -93,12 +91,12 @@ void main() {
 }
 
 Future<ProcessResult> _runProbe(List<String> defines) {
-  final probePath = File('test/simulation/helpers/simulation_flavor_probe.dart')
-      .absolute
-      .path;
-  return Process.run(
-    Platform.resolvedExecutable,
-    ['run', ...defines, probePath],
-    workingDirectory: Directory.current.path,
-  );
+  final probePath = File(
+    'test/simulation/helpers/simulation_flavor_probe.dart',
+  ).absolute.path;
+  return Process.run(Platform.resolvedExecutable, [
+    'run',
+    ...defines,
+    probePath,
+  ], workingDirectory: Directory.current.path);
 }

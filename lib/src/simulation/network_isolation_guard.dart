@@ -83,8 +83,7 @@ final class NetworkIsolationGuard {
   /// matched a whitelisted lane is recorded here. Bounded to the most
   /// recent [_maxApprovedAttempts] attempts so long demo sessions cannot
   /// grow it without limit.
-  static final List<({String host, int port, String operation})>
-  _approved = [];
+  static final List<({String host, int port, String operation})> _approved = [];
 
   static const int _maxApprovedAttempts = 500;
 
@@ -240,11 +239,7 @@ final class _GuardedHttpOverrides extends HttpOverrides {
     // Build the raw client via super — `new HttpClient()` would consult
     // HttpOverrides.current again and recurse until the stack overflows.
     final client = super.createHttpClient(context)
-      ..connectionFactory = (
-        Uri uri,
-        String? proxyHost,
-        int? proxyPort,
-      ) async {
+      ..connectionFactory = (Uri uri, String? proxyHost, int? proxyPort) async {
         final host = proxyHost ?? uri.host;
         final port = proxyPort ?? uri.port;
         if (NetworkIsolationGuard._isAllowed(
@@ -255,10 +250,7 @@ final class _GuardedHttpOverrides extends HttpOverrides {
           // Whitelisted lane: dial through the real socket path with the
           // guard's overrides lifted (the IO-level lane check re-approves
           // and records the attempt).
-          return NetworkIsolationGuard._delegateSocketStartConnect(
-            host,
-            port,
-          );
+          return NetworkIsolationGuard._delegateSocketStartConnect(host, port);
         }
         throw NetworkIsolationViolation('HttpClient.connect', host, port);
       };

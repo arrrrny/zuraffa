@@ -62,9 +62,13 @@ void main() {
 
       // The committed fixture file exists and carries the entity records.
       final fixtureFile = File('$fixturesDir/todo_fixtures.json');
-      expect(fixtureFile.existsSync(), isTrue,
-          reason: 'per-entity fixture JSON must be committed under the '
-              'feature fixtures directory');
+      expect(
+        fixtureFile.existsSync(),
+        isTrue,
+        reason:
+            'per-entity fixture JSON must be committed under the '
+            'feature fixtures directory',
+      );
 
       final fixtureJson =
           jsonDecode(fixtureFile.readAsStringSync()) as Map<String, dynamic>;
@@ -101,35 +105,36 @@ void main() {
     },
   );
 
-  test('re-running mock create re-certifies without duplicating fixtures',
-      () async {
-    final plugin = MockPlugin(
-      outputDir: outputDir,
-      options: const GeneratorOptions(dryRun: false, force: true),
-    );
+  test(
+    're-running mock create re-certifies without duplicating fixtures',
+    () async {
+      final plugin = MockPlugin(
+        outputDir: outputDir,
+        options: const GeneratorOptions(dryRun: false, force: true),
+      );
 
-    await capability(plugin).execute({
-      'name': 'Todo',
-      'fixturesDir': fixturesDir,
-    });
-    await capability(plugin).execute({
-      'name': 'Todo',
-      'fixturesDir': fixturesDir,
-    });
+      await capability(
+        plugin,
+      ).execute({'name': 'Todo', 'fixturesDir': fixturesDir});
+      await capability(
+        plugin,
+      ).execute({'name': 'Todo', 'fixturesDir': fixturesDir});
 
-    final fixtureFile = File('$fixturesDir/todo_fixtures.json');
-    expect(fixtureFile.existsSync(), isTrue);
-    // The digest stays stable for identical fixture bytes.
-    final firstDigest =
-        (await FixtureRegistry(fixturesDir).readManifest())['digest'];
-    await capability(plugin).execute({
-      'name': 'Todo',
-      'fixturesDir': fixturesDir,
-    });
-    final secondDigest =
-        (await FixtureRegistry(fixturesDir).readManifest())['digest'];
-    expect(secondDigest, firstDigest);
-  });
+      final fixtureFile = File('$fixturesDir/todo_fixtures.json');
+      expect(fixtureFile.existsSync(), isTrue);
+      // The digest stays stable for identical fixture bytes.
+      final firstDigest = (await FixtureRegistry(
+        fixturesDir,
+      ).readManifest())['digest'];
+      await capability(
+        plugin,
+      ).execute({'name': 'Todo', 'fixturesDir': fixturesDir});
+      final secondDigest = (await FixtureRegistry(
+        fixturesDir,
+      ).readManifest())['digest'];
+      expect(secondDigest, firstDigest);
+    },
+  );
 
   test('no fixture file is written without --fixtures-dir', () async {
     final plugin = MockPlugin(

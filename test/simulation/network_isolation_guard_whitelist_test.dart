@@ -31,8 +31,11 @@ void main() {
       const lane = SocketLane(host: '.example.com');
       expect(lane.matches('api.example.com', 443), isTrue);
       expect(lane.matches('deep.api.example.com', 443), isTrue);
-      expect(lane.matches('example.com', 443), isTrue,
-          reason: 'the apex domain is part of the lane');
+      expect(
+        lane.matches('example.com', 443),
+        isTrue,
+        reason: 'the apex domain is part of the lane',
+      );
       expect(lane.matches('notexample.com', 443), isFalse);
     });
 
@@ -40,15 +43,20 @@ void main() {
       const lane = SocketLane(host: 'analytics.example.com', port: 443);
       expect(lane.matches('analytics.example.com', 443), isTrue);
       expect(lane.matches('analytics.example.com', 80), isFalse);
-      expect(SocketLane(host: 'analytics.example.com').matches(
-        'analytics.example.com',
-        9999,
-      ), isTrue, reason: 'no port means any port on the lane host');
+      expect(
+        SocketLane(
+          host: 'analytics.example.com',
+        ).matches('analytics.example.com', 9999),
+        isTrue,
+        reason: 'no port means any port on the lane host',
+      );
     });
 
     test('parses lanes from string and object config forms', () {
-      expect(SocketLane.parse('analytics.example.com').host,
-          'analytics.example.com');
+      expect(
+        SocketLane.parse('analytics.example.com').host,
+        'analytics.example.com',
+      );
       final object = SocketLane.parse({
         'host': '.crashlytics.com',
         'port': 443,
@@ -84,13 +92,11 @@ void main() {
         );
         expect(
           NetworkIsolationGuard.approvedAttempts,
-          contains(
-            (
-              host: 'analytics.example.com',
-              port: 443,
-              operation: 'Socket.connect',
-            ),
-          ),
+          contains((
+            host: 'analytics.example.com',
+            port: 443,
+            operation: 'Socket.connect',
+          )),
         );
 
         // HttpClient through a whitelisted host is also permitted (the
@@ -116,28 +122,31 @@ void main() {
       },
     );
 
-    test('uninstall restores the real socket path (FR-008 inertness)',
-        () async {
-      NetworkIsolationGuard.install(
-        whitelist: const [SocketLane(host: 'analytics.example.com')],
-      );
-      NetworkIsolationGuard.uninstall();
+    test(
+      'uninstall restores the real socket path (FR-008 inertness)',
+      () async {
+        NetworkIsolationGuard.install(
+          whitelist: const [SocketLane(host: 'analytics.example.com')],
+        );
+        NetworkIsolationGuard.uninstall();
 
-      // Outside simulation mode the guard is inactive: the connect
-      // attempt reaches the OS network stack (unresolvable host →
-      // SocketException, not NetworkIsolationViolation).
-      await expectLater(
-        Socket.connect('api.real-backend.invalid', 443),
-        throwsA(isA<SocketException>()),
-      );
-      expect(NetworkIsolationGuard.isActive, isFalse);
-    });
+        // Outside simulation mode the guard is inactive: the connect
+        // attempt reaches the OS network stack (unresolvable host →
+        // SocketException, not NetworkIsolationViolation).
+        await expectLater(
+          Socket.connect('api.real-backend.invalid', 443),
+          throwsA(isA<SocketException>()),
+        );
+        expect(NetworkIsolationGuard.isActive, isFalse);
+      },
+    );
   });
 
   group('U10: whitelist config file', () {
     test('parses lanes from the project-level config file', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('zuraffa_893_whitelist_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'zuraffa_893_whitelist_',
+      );
       addTearDown(() => tempDir.delete(recursive: true));
       final config = File('${tempDir.path}/.zfa.json');
       await config.writeAsString(
@@ -162,38 +171,48 @@ void main() {
       expect(lanes[2].port, 4317);
     });
 
-    test('missing file or missing key yields the empty (safe) whitelist',
-        () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('zuraffa_893_whitelist_');
-      addTearDown(() => tempDir.delete(recursive: true));
+    test(
+      'missing file or missing key yields the empty (safe) whitelist',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'zuraffa_893_whitelist_',
+        );
+        addTearDown(() => tempDir.delete(recursive: true));
 
-      expect(SimulationWhitelistConfig.load('${tempDir.path}/none.json'),
-          isEmpty);
+        expect(
+          SimulationWhitelistConfig.load('${tempDir.path}/none.json'),
+          isEmpty,
+        );
 
-      final config = File('${tempDir.path}/.zfa.json');
-      await config.writeAsString('{"name": "app"}');
-      expect(SimulationWhitelistConfig.load(config.path), isEmpty);
-    });
+        final config = File('${tempDir.path}/.zfa.json');
+        await config.writeAsString('{"name": "app"}');
+        expect(SimulationWhitelistConfig.load(config.path), isEmpty);
+      },
+    );
 
-    test('Malformed whitelist entries fail loudly (never silently open lanes)',
-        () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('zuraffa_893_whitelist_');
-      addTearDown(() => tempDir.delete(recursive: true));
-      final config = File('${tempDir.path}/.zfa.json');
-      await config.writeAsString(
-        jsonEncode({
-          'simulation': {
-            'whitelist': [{'port': 443}],
-          },
-        }),
-      );
+    test(
+      'Malformed whitelist entries fail loudly (never silently open lanes)',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'zuraffa_893_whitelist_',
+        );
+        addTearDown(() => tempDir.delete(recursive: true));
+        final config = File('${tempDir.path}/.zfa.json');
+        await config.writeAsString(
+          jsonEncode({
+            'simulation': {
+              'whitelist': [
+                {'port': 443},
+              ],
+            },
+          }),
+        );
 
-      expect(
-        () => SimulationWhitelistConfig.load(config.path),
-        throwsA(isA<FormatException>()),
-      );
-    });
+        expect(
+          () => SimulationWhitelistConfig.load(config.path),
+          throwsA(isA<FormatException>()),
+        );
+      },
+    );
   });
 }

@@ -65,28 +65,33 @@ class SimulationBindingBuilder {
         ..name = functionName
         ..returns = refer('void')
         ..requiredParameters.add(
-          Parameter((p) => p..name = 'getIt'..type = refer('GetIt')),
+          Parameter(
+            (p) => p
+              ..name = 'getIt'
+              ..type = refer('GetIt'),
+          ),
         )
         ..body = Block(
-          (b) => b..statements.addAll([
-            // Single --dart-define flavor switch (FR-001): the binding is
-            // inert in the real flavor and dead-code-eliminated in AOT.
-            Code('if (!kSimulationMode) return;'),
-            refer('getIt')
-                .property('registerLazySingleton')
-                .call(
-                  [
-                    Method(
-                      (m) => m
-                        ..lambda = true
-                        ..body = refer(mockName).call([]).code,
-                    ).closure,
-                  ],
-                  {},
-                  [refer(interfaceName)],
-                )
-                .statement,
-          ]),
+          (b) => b
+            ..statements.addAll([
+              // Single --dart-define flavor switch (FR-001): the binding is
+              // inert in the real flavor and dead-code-eliminated in AOT.
+              Code('if (!kSimulationMode) return;'),
+              refer('getIt')
+                  .property('registerLazySingleton')
+                  .call(
+                    [
+                      Method(
+                        (m) => m
+                          ..lambda = true
+                          ..body = refer(mockName).call([]).code,
+                      ).closure,
+                    ],
+                    {},
+                    [refer(interfaceName)],
+                  )
+                  .statement,
+            ]),
         ),
     );
 
@@ -126,18 +131,25 @@ class SimulationBindingBuilder {
         ..name = 'registerSimulationBindings'
         ..returns = refer('void')
         ..requiredParameters.add(
-          Parameter((p) => p..name = 'getIt'..type = refer('GetIt')),
+          Parameter(
+            (p) => p
+              ..name = 'getIt'
+              ..type = refer('GetIt'),
+          ),
         )
         ..body = Block(
-          (b) => b..statements.addAll([
-            // FR-012: an incoherent build-time flag set fails loudly
-            // before any binding is registered — never a silent
-            // fall-through to real network access.
-            refer('SimulationFlavor').property('checkFlagConflicts').call([]).statement,
-            ...registrations.map(
-              (r) => refer(r.functionName).call([refer('getIt')]).statement,
-            ),
-          ]),
+          (b) => b
+            ..statements.addAll([
+              // FR-012: an incoherent build-time flag set fails loudly
+              // before any binding is registered — never a silent
+              // fall-through to real network access.
+              refer(
+                'SimulationFlavor',
+              ).property('checkFlagConflicts').call([]).statement,
+              ...registrations.map(
+                (r) => refer(r.functionName).call([refer('getIt')]).statement,
+              ),
+            ]),
         ),
     );
 
@@ -188,7 +200,10 @@ class SimulationBindingEmitter {
 
     return FileUtils.writeFile(
       bindingPath,
-      builder.buildBindingFile(entityName: entityName, entitySnake: entitySnake),
+      builder.buildBindingFile(
+        entityName: entityName,
+        entitySnake: entitySnake,
+      ),
       'di_simulation_binding',
       force: true,
       dryRun: options.dryRun,

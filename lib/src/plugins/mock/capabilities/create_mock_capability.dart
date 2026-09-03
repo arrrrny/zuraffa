@@ -159,10 +159,7 @@ class CreateMockCapability implements ZuraffaCapability {
     // feature's tdd/fixtures/ directory and re-certify it through the
     // #832 fixture registry. Fixture commitment is part of the standard
     // `zfa mock create` workflow, not a manual step.
-    if (fixturesDir != null &&
-        fixturesDir.isNotEmpty &&
-        !dryRun &&
-        !dataOnly) {
+    if (fixturesDir != null && fixturesDir.isNotEmpty && !dryRun && !dataOnly) {
       final entityName = config.repo != null
           ? config.repo!.replaceAll('Repository', '')
           : config.name;

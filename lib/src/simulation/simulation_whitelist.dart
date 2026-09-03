@@ -58,7 +58,8 @@ final class SocketLane {
   }
 
   @override
-  String toString() => port == null ? 'SocketLane($host)' : 'SocketLane($host:$port)';
+  String toString() =>
+      port == null ? 'SocketLane($host)' : 'SocketLane($host:$port)';
 }
 
 /// Loads the isolation-guard whitelist from the project-level

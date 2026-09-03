@@ -193,7 +193,9 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       // registration for mocks — the simulation binding is emitted
       // alongside the mock datasource so the flavor is a first-class
       // output of the generation workflow, never hand-wired.
-      if (config.generateMock && !config.generateMockDataOnly && !config.revert) {
+      if (config.generateMock &&
+          !config.generateMockDataOnly &&
+          !config.revert) {
         final emitter = SimulationBindingEmitter(
           outputDir: outputDir,
           options: options,
