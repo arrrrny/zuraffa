@@ -265,7 +265,7 @@ class FuncCommand extends Command<void> {
   /// on. Distinguished from the stub header's doc comment, which merely
   /// mentions `UnimplementedError` and survives implementation.
   static final RegExp _unimplementedThrow = RegExp(
-    r'throw[ \t]+UnimplementedError\s*\(',
+    r'throw[ \t]+(?:const[ \t]+)?UnimplementedError\s*\(',
   );
 
   /// The behavior description the record carries — the record's own

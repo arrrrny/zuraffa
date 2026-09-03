@@ -95,4 +95,29 @@ String subject_b_001() {
     expect(exitCode, 1, reason: 'out: $out');
     expect(out, contains('func: behavior=B-001 outcome=runner-error'));
   });
+
+  test('U7b: a `throw const UnimplementedError(` still refuses '
+      '(the matcher must not drop the const form)', () async {
+    await fx.registerBehavior(
+      id: 'B-001',
+      description:
+          'render returns a non-empty string for a fully '
+          'populated task',
+    );
+    await File(fx.subjectPathOf('B-001')).writeAsString('''
+library;
+
+/// Subject for behavior B-001.
+String subject_b_001() {
+  if (true) {
+    throw const UnimplementedError('hand-written, const');
+  }
+}
+''');
+
+    final out = await runFunc();
+
+    expect(exitCode, 1, reason: 'out: $out');
+    expect(out, contains('func: behavior=B-001 outcome=runner-error'));
+  });
 }

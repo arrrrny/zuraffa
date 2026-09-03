@@ -204,6 +204,17 @@ void main() {
       },
     );
 
+    test('a `..`-bearing anchored tail is NOT re-anchored (containment)', () {
+      final resolved = ReplayPaths.resolveTestPath(
+        '/other-box/todo/./../../etc/passwd_test.dart',
+        recordedRoot: '/other-box/todo',
+        projectRoot: '/local/todo',
+      );
+      // Left verbatim: integrity reports the artifact missing against
+      // the recorded path — it never resolves outside the project.
+      expect(resolved, '/other-box/todo/./../../etc/passwd_test.dart');
+    });
+
     test(
       'a locally-existing absolute path wins (same-machine first)',
       () async {

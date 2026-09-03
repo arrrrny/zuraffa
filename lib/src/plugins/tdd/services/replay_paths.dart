@@ -97,7 +97,13 @@ class ReplayPaths {
     final match = _anchorPattern.firstMatch(testPath);
     if (match == null) return testPath;
     if (match.group(1) != recordedRoot) return testPath;
-    return p.join(projectRoot, match.group(2)!);
+    // Containment: a `..`-bearing tail would resolve outside the project
+    // (and, re-anchored, outside the sandbox). Leave it un-anchored so
+    // integrity reports the artifact missing instead of probing
+    // somewhere else on disk.
+    final rel = p.normalize(match.group(2)!);
+    if (rel == '..' || rel.startsWith('../')) return testPath;
+    return p.join(projectRoot, rel);
   }
 
   /// Strip every `<recordedRoot>/./` occurrence from [command], leaving the
@@ -108,7 +114,14 @@ class ReplayPaths {
   /// evidence: a bare recorded-root prefix (no marker) is left alone.
   static String reAnchorCommand(String command, {String? recordedRoot}) {
     if (recordedRoot == null || recordedRoot.isEmpty) return command;
-    return command.replaceAll('$recordedRoot/./', '');
+    // Same containment rule as [resolveTestPath]: normalize the tail and
+    // keep `..`-bearing ones verbatim — the spawned command then fails
+    // honestly inside the sandbox instead of writing outside it.
+    final escaped = RegExp.escape(recordedRoot);
+    return command.replaceAllMapped(RegExp('$escaped/\\./(\\S+)'), (m) {
+      final rel = p.normalize(m.group(1)!);
+      return (rel == '..' || rel.startsWith('../')) ? m.group(0)! : rel;
+    });
   }
 
   /// Re-resolve a gen step's entrypoint pair when locally broken.

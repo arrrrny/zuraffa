@@ -41,60 +41,66 @@ class ReplaySandbox {
     final dir = await Directory.systemTemp.createTemp('zfa_replay_');
     final sandbox = ReplaySandbox._(dir.path);
     final root = projectRoot;
+    try {
+      Future<void> copyFile(String relative) async {
+        final source = File(p.join(root, relative));
+        if (!await source.exists()) return;
+        final target = File(p.join(sandbox.path, relative));
+        await target.parent.create(recursive: true);
+        await source.copy(target.path);
+      }
 
-    Future<void> copyFile(String relative) async {
-      final source = File(p.join(root, relative));
-      if (!await source.exists()) return;
-      final target = File(p.join(sandbox.path, relative));
-      await target.parent.create(recursive: true);
-      await source.copy(target.path);
-    }
-
-    Future<void> copyTree(String relative) async {
-      final source = Directory(p.join(root, relative));
-      if (!await source.exists()) return;
-      await for (final entity in source.list(recursive: true)) {
-        final relativePath = p.relative(entity.path, from: source.path);
-        final segments = p.split(relativePath);
-        // Never copy VCS/build/kernel-cache content, wherever it appears.
-        if (segments.contains('.git') ||
-            segments.contains('build') ||
-            segments.contains('.dart_tool')) {
-          continue;
-        }
-        final target = p.join(sandbox.path, relative, relativePath);
-        if (entity is File) {
-          await File(target).parent.create(recursive: true);
-          await entity.copy(target);
-        } else if (entity is Directory) {
-          await Directory(target).create(recursive: true);
+      Future<void> copyTree(String relative) async {
+        final source = Directory(p.join(root, relative));
+        if (!await source.exists()) return;
+        await for (final entity in source.list(recursive: true)) {
+          final relativePath = p.relative(entity.path, from: source.path);
+          final segments = p.split(relativePath);
+          // Never copy VCS/build/kernel-cache content, wherever it appears.
+          if (segments.contains('.git') ||
+              segments.contains('build') ||
+              segments.contains('.dart_tool')) {
+            continue;
+          }
+          final target = p.join(sandbox.path, relative, relativePath);
+          if (entity is File) {
+            await File(target).parent.create(recursive: true);
+            await entity.copy(target);
+          } else if (entity is Directory) {
+            await Directory(target).create(recursive: true);
+          }
         }
       }
-    }
 
-    for (final file in const [
-      'pubspec.yaml',
-      'pubspec.lock',
-      'analysis_options.yaml',
-      '.zfa.json',
-      // Spec 0806 FR-005: the contracts the recorded `zfa build` and
-      // `dart test` commands read from the project root (cwd = sandbox).
-      'build.yaml',
-      'dart_test.yaml',
-    ]) {
-      await copyFile(file);
-    }
-    await copyFile(p.join('.dart_tool', 'package_config.json'));
-    await copyTree('lib');
-    await copyTree('test');
-    await copyTree(p.join('specs', feature));
-    await copyTree('.specify');
-    if (recordedRoot != null && recordedRoot.isNotEmpty) {
-      await _reAnchorRegistry(
-        sandboxPath: sandbox.path,
-        feature: feature,
-        recordedRoot: recordedRoot,
-      );
+      for (final file in const [
+        'pubspec.yaml',
+        'pubspec.lock',
+        'analysis_options.yaml',
+        '.zfa.json',
+        // Spec 0806 FR-005: the contracts the recorded `zfa build` and
+        // `dart test` commands read from the project root (cwd = sandbox).
+        'build.yaml',
+        'dart_test.yaml',
+      ]) {
+        await copyFile(file);
+      }
+      await copyFile(p.join('.dart_tool', 'package_config.json'));
+      await copyTree('lib');
+      await copyTree('test');
+      await copyTree(p.join('specs', feature));
+      await copyTree('.specify');
+      if (recordedRoot != null && recordedRoot.isNotEmpty) {
+        await _reAnchorRegistry(
+          sandboxPath: sandbox.path,
+          feature: feature,
+          recordedRoot: recordedRoot,
+        );
+      }
+    } on Object {
+      // A mid-seed failure must not leak the temp dir — the caller's
+      // `finally` only ever sees sandboxes `create` returned.
+      await sandbox.delete();
+      rethrow;
     }
     return sandbox;
   }

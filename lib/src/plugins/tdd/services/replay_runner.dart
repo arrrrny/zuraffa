@@ -189,6 +189,12 @@ class ReplayRunner {
         zfaBin: zfaBin,
         resolvedDart: resolvedDart,
         runningScript: runningScript,
+        // Probe relative recorded entrypoints against the SANDBOX (the
+        // execution cwd), not the CLI's launch directory — re-anchoring
+        // must not depend on where the operator ran `zfa replay`.
+        exists: (path) => File(
+          p.isAbsolute(path) ? path : p.join(sandboxPath, path),
+        ).existsSync(),
       );
       // Spec 0806 FR-003: strip the recorded root so the command runs
       // sandbox-relative (cwd = sandbox).
