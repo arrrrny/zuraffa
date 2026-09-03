@@ -329,7 +329,13 @@ void main() {
               '        home: Scaffold(body: view),\n'
               '      ));'
         : 'await tester.pumpWidget($shellName(home: Scaffold(body: view)));';
-    final goldenBlock = golden
+    // Issue #964 (code review on #981): a route-outcome scenario's
+    // golden hook can NEVER pass — after the route pushes, the home
+    // route goes offstage and find.byWidget(view) resolves to nothing
+    // (the same mechanism that killed the smoke assertion). Skip the
+    // hook for route scenarios; goldens stay available for the other
+    // assertion classes.
+    final goldenBlock = golden && !routeObserver
         ? '''
       // Golden baseline (bug #830): commit one PNG per platform under
       // test/tdd/goldens/ (VISION §6 institutional memory). Refresh with:
@@ -338,6 +344,13 @@ void main() {
         find.byWidget(view),
         matchesGoldenFile('goldens/$snakeId.png'),
       );
+'''
+        : golden && routeObserver
+        ? '''
+      // No golden hook (issue #964): a route-outcome scenario's view is
+      // offstage once the asserted route is pushed, so a
+      // matchesGoldenFile on the home view can never settle. Remove
+      // --golden or drop the navigation assertion to use goldens here.
 '''
         : '';
     final recorderClass = routeObserver

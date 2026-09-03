@@ -294,7 +294,10 @@ void main() {
       tmpDir.deleteSync(recursive: true);
     });
 
-    Future<String> renderWidget(String description) async {
+    Future<String> renderWidget(
+      String description, {
+      bool golden = false,
+    }) async {
       final testPath = p.join(tmpDir.path, 'w_1_test.dart');
       await BehaviorTestWriter().write(
         behavior: Behavior(
@@ -307,6 +310,7 @@ void main() {
         ),
         testPath: testPath,
         subjectPath: p.join(tmpDir.path, 'w_1_subject.dart'),
+        golden: golden,
       );
       return File(testPath).readAsString();
     }
@@ -446,6 +450,39 @@ void main() {
         );
       },
     );
+
+    test(
+      'a route-outcome scenario with --golden emits NO matchesGoldenFile '
+      'hook (it could never settle — home view offstage after the push)',
+      () async {
+        final content = await renderWidget(
+          'the app navigates to the route "deal_list"',
+          golden: true,
+        );
+        expect(
+          content,
+          isNot(contains("matchesGoldenFile('goldens/")),
+          reason:
+              'after the asserted route is pushed the home view is '
+              'offstage; find.byWidget(view) resolves to nothing, so the '
+              'golden hook can never pass (code review finding on #981)',
+        );
+        expect(
+          content,
+          contains("expect(observer.pushedNames, contains('deal_list'),"),
+          reason: 'the route assertion itself is unaffected',
+        );
+        expect(content, contains('No golden hook (issue #964)'));
+      },
+    );
+
+    test('a presence scenario with --golden keeps the golden hook', () async {
+      final content = await renderWidget(
+        "shows the 'Add to cart' action on the product view",
+        golden: true,
+      );
+      expect(content, contains('matchesGoldenFile'));
+    });
   });
 
   group('zfa tdd view: taxonomy-aware composition', () {
