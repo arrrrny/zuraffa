@@ -26,6 +26,19 @@
 ///      line on every code path (FR-009); exit code 0 means exactly
 ///      "green before and after".
 ///
+/// Issue #922 — pre-existing red and the run's done gate. When the driving
+/// `zfa tdd run` hands its cached full-suite baseline
+/// (`--suite-baseline run-baseline.json`, the issue #741 cache) to a
+/// spawned refactor, the preflight and re-proof verdicts exclude the
+/// baseline's pre-existing failures: only NEW failures refuse or classify
+/// as a regression. A suite that is red ONLY from failures the baseline
+/// already recorded (unrelated files that cannot even load, tolerated
+/// U16-style the way make treats them) no longer blocks the run's done
+/// transition, and the evidence entry names the tolerated red honestly.
+/// The flag-less standalone command keeps the absolute-green contract
+/// (FR-001) unchanged, and a missing/corrupt cache falls back to it
+/// safely — the exclusion can never turn an unparseable red into a pass.
+///
 /// Rejections and misfires are signaled through dart:io `exitCode` (which
 /// [CliRunner] honors) rather than by throwing, so the summary line stays
 /// the final stdout line.
@@ -38,7 +51,9 @@ import 'package:path/path.dart' as p;
 
 import '../services/cycle_log.dart';
 import '../services/refactor_passes.dart';
+import '../services/run_baseline_cache.dart';
 import '../services/runner.dart';
+import '../services/suite_guard.dart';
 import '../services/tdd_timeout.dart';
 import '../services/tree_snapshot.dart';
 import '../tdd_plugin.dart';
@@ -72,6 +87,19 @@ class RefactorCommand extends Command<void> {
           'resolve it: the running CLI from source, then the system zfa on '
           'PATH, then the dart+script fallback — never a hardcoded '
           'bin/zfa.dart, which zfa setup does not create.',
+    );
+    argParser.addOption(
+      'suite-baseline',
+      valueHelp: 'path',
+      help:
+          'Path to a cached full-suite baseline snapshot (run-baseline.json) '
+          'from the driving `zfa tdd run` (issue #922). When given AND the '
+          'cache is usable, the preflight and re-proof exclude the '
+          "baseline's pre-existing failures from their green verdicts — "
+          'only NEW failures refuse — so pre-existing red in unrelated '
+          'files cannot block the run\'s done transition. Without it the '
+          'absolute-green contract applies (spec 048 FR-001). A missing or '
+          'corrupt cache falls back to the absolute-green contract safely.',
     );
     argParser.addOption(
       'timeout',
@@ -138,6 +166,7 @@ class RefactorCommand extends Command<void> {
       featureFlag: featureFlag,
       zfaBin: zfaBinFlag,
       timeout: timeoutOverride,
+      suiteBaselinePath: argResults?['suite-baseline'] as String?,
     );
   }
 
@@ -149,10 +178,17 @@ class RefactorCommand extends Command<void> {
     String? featureFlag,
     String? zfaBin,
     Duration? timeout,
+    String? suiteBaselinePath,
   }) async {
     RefactorOutcome outcome;
     int applied = 0;
     String featureName = featureFlag ?? 'unknown';
+    // Issue #922: how many failures each suite verdict tolerated as
+    // pre-existing (recorded in the run baseline) — 0 when the verdict
+    // was absolutely green or no usable baseline was handed in. The
+    // evidence entry records them honestly instead of claiming green.
+    var preflightTolerated = 0;
+    var reproofTolerated = 0;
 
     try {
       // 1. Resolve feature (for cycle-log destination).
@@ -184,6 +220,33 @@ class RefactorCommand extends Command<void> {
         timeout: timeout,
       );
       print('   preflight exit: ${preflight.exitCode}');
+
+      // Issue #922: the driving run hands its cached baseline to spawned
+      // refactor steps. With a usable baseline, the preflight's verdict is
+      // "no NEW failures" — failures already red at baseline are tolerated
+      // (the same U16 discipline make applies), so pre-existing red in
+      // unrelated files cannot block the run's done transition. Without a
+      // baseline (standalone refactor) or with an unusable cache, the
+      // absolute-green contract applies (spec 048 FR-001) — a safe
+      // fallback, never a silent pass.
+      SuiteSnapshot? suiteBaseline;
+      if (suiteBaselinePath != null && suiteBaselinePath.isNotEmpty) {
+        final cached = await const RunBaselineCache().read(suiteBaselinePath);
+        if (cached != null && cached.parseable) {
+          suiteBaseline = cached;
+          print(
+            '   suite baseline: cached (${cached.capturedAt}) — '
+            '${cached.failedTests.length} pre-existing failure(s) excluded '
+            'from the green verdicts (issue #922)',
+          );
+        } else {
+          print(
+            '   suite baseline cache unreadable — the absolute-green '
+            'preflight applies (safe fallback, issue #922)',
+          );
+        }
+      }
+
       if (preflight.timedOut) {
         // Bug #742: the preflight child outlived the deadline and was
         // killed — an infrastructure failure, never `not-green` (that
@@ -212,24 +275,63 @@ class RefactorCommand extends Command<void> {
 
       if (preflight.exitCode != 0) {
         // Red preflight (U14 / A2) — refuse, name failing tests, point to
-        // `zfa tdd make`, modify zero files.
-        final failingTests = _extractFailingTestNames(preflight.output);
-        print('   suite is RED — refusing to refactor.');
-        for (final name in failingTests) {
-          print('   failing: $name');
+        // `zfa tdd make`, modify zero files. Issue #922: with a usable run
+        // baseline, only NEW failures refuse — failures already red at
+        // baseline are pre-existing red, not this feature's doing, and are
+        // tolerated (the U16 discipline make already applies). An
+        // unparseable transcript is never tolerated: a red the parser
+        // cannot name may be a runner/compile failure, so the refusal
+        // stands (safe failure — never a silent pass).
+        final preflightSnapshot = suiteBaseline == null
+            ? null
+            : const SuiteGuard().fromRunRecord(
+                record: preflight,
+                capturedAt: DateTime.now().toUtc().toIso8601String(),
+              );
+        final newFailures = (suiteBaseline == null || preflightSnapshot == null)
+            ? const <String>[]
+            : const SuiteGuard()
+                  .diff(baseline: suiteBaseline, guard: preflightSnapshot)
+                  .newFailures;
+        if (preflightSnapshot != null &&
+            preflightSnapshot.parseable &&
+            newFailures.isEmpty) {
+          preflightTolerated = preflightSnapshot.failedTests.length;
+          print(
+            '   suite is RED but every failure is pre-existing at '
+            'baseline — $preflightTolerated tolerated (issue #922):',
+          );
+          for (final name in preflightSnapshot.failedTests) {
+            print('   tolerated: $name');
+          }
+        } else {
+          final failingTests = _extractFailingTestNames(preflight.output);
+          print('   suite is RED — refusing to refactor.');
+          for (final name in failingTests) {
+            print('   failing: $name');
+          }
+          if (failingTests.isEmpty) {
+            print('   (no individual test names parsed from output)');
+            print('   --- suite output ---');
+            print(preflight.output.trim());
+          }
+          if (newFailures.isNotEmpty) {
+            print(
+              '   NEW failures vs baseline (${newFailures.length}) — '
+              'these are not pre-existing red:',
+            );
+            for (final name in newFailures) {
+              print('   new: $name');
+            }
+          }
+          print(
+            '   Return to `zfa tdd make` to restore green before refactoring.',
+          );
+          outcome = RefactorOutcome.notGreen;
+          _printSummary(feature: featureName, outcome: outcome, applied: 0);
+          exitCode = 1;
+          return;
         }
-        if (failingTests.isEmpty) {
-          print('   (no individual test names parsed from output)');
-          print('   --- suite output ---');
-          print(preflight.output.trim());
-        }
-        print(
-          '   Return to `zfa tdd make` to restore green before refactoring.',
-        );
-        outcome = RefactorOutcome.notGreen;
-        _printSummary(feature: featureName, outcome: outcome, applied: 0);
-        exitCode = 1;
-        return;
       }
 
       // 4. Capture before snapshots for immutability + attribution checks.
@@ -338,19 +440,61 @@ class RefactorCommand extends Command<void> {
       }
 
       if (!reproof.startedProcess || reproof.exitCode != 0) {
-        final regressedTests = _extractFailingTestNames(reproof.output);
-        print('   REGRESSION detected — suite is no longer green.');
-        for (final name in regressedTests) {
-          print('   regressed: $name');
+        // Issue #922: with a usable run baseline, the re-proof verdict is
+        // "no NEW failures" — the same pre-existing red the preflight
+        // tolerated is not a regression introduced by the passes. An
+        // unparseable transcript still classifies as a regression (safe
+        // failure), and so does any failure whose identifier the baseline
+        // does not already record.
+        final reproofSnapshot =
+            (!reproof.startedProcess || suiteBaseline == null)
+            ? null
+            : const SuiteGuard().fromRunRecord(
+                record: reproof,
+                capturedAt: DateTime.now().toUtc().toIso8601String(),
+              );
+        final newReproofFailures =
+            (suiteBaseline == null || reproofSnapshot == null)
+            ? const <String>[]
+            : const SuiteGuard()
+                  .diff(baseline: suiteBaseline, guard: reproofSnapshot)
+                  .newFailures;
+        if (reproofSnapshot != null &&
+            reproofSnapshot.parseable &&
+            newReproofFailures.isEmpty) {
+          reproofTolerated = reproofSnapshot.failedTests.length;
+          print(
+            '   re-proof RED but every failure is pre-existing at '
+            'baseline — $reproofTolerated tolerated, no regression '
+            '(issue #922).',
+          );
+        } else {
+          final regressedTests = _extractFailingTestNames(reproof.output);
+          print('   REGRESSION detected — suite is no longer green.');
+          for (final name in regressedTests) {
+            print('   regressed: $name');
+          }
+          if (regressedTests.isEmpty) {
+            print('   --- suite output ---');
+            print(reproof.output.trim());
+          }
+          if (newReproofFailures.isNotEmpty) {
+            print(
+              '   NEW failures vs baseline (${newReproofFailures.length}):',
+            );
+            for (final name in newReproofFailures) {
+              print('   new: $name');
+            }
+          }
+          outcome = RefactorOutcome.regression;
+          _printSummary(
+            feature: featureName,
+            outcome: outcome,
+            applied: applied,
+          );
+          exitCode = 1;
+          return;
         }
-        if (regressedTests.isEmpty) {
-          print('   --- suite output ---');
-          print(reproof.output.trim());
-        }
-        outcome = RefactorOutcome.regression;
-        _printSummary(feature: featureName, outcome: outcome, applied: applied);
-        exitCode = 1;
-        return;
       }
 
       if (passResult.stopped) {
@@ -361,7 +505,17 @@ class RefactorCommand extends Command<void> {
       }
 
       // 8. Green before AND after. Append evidence (FR-007) or record a
-      // clean no-op (FR-008).
+      // clean no-op (FR-008). The verdicts name tolerated pre-existing red
+      // honestly (issue #922) instead of claiming an absolute green that
+      // did not exist.
+      final preflightVerdict = preflightTolerated > 0
+          ? 'tolerated $preflightTolerated pre-existing failure(s) '
+                '(issue #922)'
+          : 'green';
+      final reproofVerdict = reproofTolerated > 0
+          ? 'tolerated $reproofTolerated pre-existing failure(s) '
+                '(issue #922)'
+          : 'green';
       if (applied == 0) {
         // Clean no-op — no fabricated actions.
         print('   no actions applied — clean no-op.');
@@ -374,7 +528,7 @@ class RefactorCommand extends Command<void> {
             runnerCommand: suiteTemplate,
             exitCode: 0,
             capturedOutput:
-                'preflight: green\nre-proof: green\n'
+                'preflight: $preflightVerdict\nre-proof: $reproofVerdict\n'
                 'applied: 0 actions.',
             sourceCriterion: 'FR-008',
             testPath: 'test/',
@@ -393,7 +547,7 @@ class RefactorCommand extends Command<void> {
             runnerCommand: suiteTemplate,
             exitCode: 0,
             capturedOutput:
-                'preflight: green\nre-proof: green\n'
+                'preflight: $preflightVerdict\nre-proof: $reproofVerdict\n'
                 'applied: ${passResult.actions.length} action(s), '
                 '$applied with file changes.',
             sourceCriterion: 'FR-007',

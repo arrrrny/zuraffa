@@ -1,3 +1,136 @@
+# TDD Verification Ledger — tdd-refactor-preflight-full-suite
+
+This file is a per-round ledger: each fix round appends its verification
+below, preserving earlier rounds verbatim. The LATEST round (top) is the
+current verdict for this bug record.
+
+---
+---
+
+# TDD Verification — fix(922): refactor preflight excludes pre-existing red
+# from done gate
+
+- **Slug**: tdd-refactor-preflight-full-suite
+- **Feature (bug dir)**: .specify/bugs/tdd-refactor-preflight-full-suite
+- **Branch**: fix/922-refactor-preflight-preexisting-red
+- **Verified**: 2026-09-03
+- **Cycle log**: ./cycle-log.md (red + green evidence, real runs)
+- **Reproduction suite**: test/plugins/tdd/bug_922_refactor_preflight_baseline_test.dart
+- **Verdict**: **passed** — all four mutants killed, test-first evidence
+  complete, acceptance criteria covered. Pre-existing red exists in the
+  repo's slow tier and is documented below; it does not touch the fix.
+
+## 1. Test-first evidence (FR: red before green)
+
+The fix was driven red-first; the reproduction suite was written and
+executed BEFORE the implementation changed.
+
+- RED (pre-fix): `dart test
+  test/plugins/tdd/bug_922_refactor_preflight_baseline_test.dart
+  --preset=all` → 7 failing / 1 passing. The end-to-end test reproduced the
+  exact issue #922 signature against the REAL CLI (exec forwarder to
+  `bin/zfa.dart`, real `dart test` suites, real pass registry):
+  `result=stopped pending=0 red=0 green=1 done=0
+  stopped_at=B-001:refactor`. The five command-level tests failed on the
+  then-nonexistent `--suite-baseline` option; the driver argv test failed
+  because refactor spawns did not receive the run baseline.
+- GREEN (post-fix): same suite → 9/9 passing. The end-to-end run completes:
+  `result=complete pending=0 red=0 green=0 done=1`,
+  run-state `{"B-001": "done"}`.
+- Evidence integrity: both runs are recorded verbatim in ./cycle-log.md;
+  neither was re-derived after the fact. The pre-fix output was captured in
+  the same session, on the same branch, before the first implementation
+  edit (git history is the witness).
+
+## 2. Mutation results (real runs — mutate, test, record, revert)
+
+Four representative mutants were applied to the changed code, one at a
+time; the reproduction suite ran against each. Every mutant was killed.
+
+| Mutant | File | Change | Targeted run | Verdict |
+|--------|------|--------|--------------|---------|
+| M1 | refactor_command.dart | preflight verdict inverted (`newFailures.isEmpty` → `isNotEmpty`) | baseline-tolerance group | **killed** (3 failed: tolerance tests see refusals; new-failure test sees a pass-through) |
+| M2 | refactor_command.dart | re-proof parseable guard dropped (`reproofSnapshot.parseable &&` removed) | unparseable-re-proof test | **survived first pass → test strengthened → killed** |
+| M3 | step_runner.dart | refactor removed from the baseline handoff (`step == 'make' \|\| step == 'refactor'` → `step == 'make'`) | driver argv test | **killed** (refactor spawn no longer carries `--suite-baseline`) |
+| M4 | refactor_command.dart | tolerated-failure counter zeroed (`preflightTolerated = preflightSnapshot.failedTests.length` → `= 0`) | re-proof evidence test | **killed** (evidence would claim `green` instead of `tolerated N … (issue #922)`) |
+
+M2 remediation (recorded honestly per the remediation loop): the original
+suite never reached an unparseable RE-PROOF transcript (the unparseable
+test died at the preflight), so the re-proof parseable guard was
+untested. A new test (`an UNPARSEABLE re-proof transcript is a regression,
+never baseline-tolerated`) drives a two-phase suite spy — parseable
+baseline-matching red at preflight, garbage at re-proof — and asserts
+`outcome=regression` with `test/` byte-identical. Re-applied M2 against the
+strengthened suite: killed. Final mutant score: **4/4 killed, 0 survived,
+0 timed out.**
+
+## 3. Test-smell rubric
+
+- Assertion-Poor Tests: none — every test asserts outcome tokens
+  (`outcome=clean` / `not-green` / `regression`), exit codes, argv
+  contracts, run-state files, and file-tree checksums, not just "no
+  exception".
+- Tautological assertions: one was introduced during the M2 remediation
+  (`expect(fx.checksumTestTree(), equals(fx.checksumTestTree())))` —
+  caught in review and replaced with a real before/after snapshot before
+  commit. None remain.
+- Fixed-vs-live mismatch: the command-level tests run the REAL `dart test`
+  in temp fixtures; the driver tests use the scripted fake zfa (the
+  repo's standard two-tier discipline); the end-to-end test runs the REAL
+  refactor through an exec forwarder (the sc_017 pattern). No test mocks
+  the unit under test.
+- Hidden ordering: the two-phase re-proof test counts its own invocations
+  from a log file; no sleep/timeout coupling.
+- Evidence honesty: the refactor's cycle-log evidence records
+  `preflight: tolerated N pre-existing failure(s) (issue #922)` instead of
+  claiming an absolute green that did not exist (M4 pins this).
+
+## 4. Acceptance-criteria coverage (issue #922 "Expected")
+
+| Issue #922 expectation | Where proven |
+|------------------------|--------------|
+| Mark behaviors done when make returns green even if the refactor preflight fails for suite-wide reasons | e2e test: green behavior + baseline-red suite → `result=complete`, `done=1` (with the real refactor in the loop) |
+| Refactor preflight uses baseline-recorded pre-existing red instead of refusing | command tests: only-baseline-red tolerated (`outcome=clean`), NEW failure refuses (`outcome=not-green` naming it) |
+| Run continues past suite-wide refactor refusals | e2e + driver tests: spawned refactor receives `--suite-baseline` (argv asserted); genuine refusals still skip with a recorded reason (existing #734 v2 behavior preserved) |
+| Re-proof treats same-as-baseline red as "no regression" | re-proof tolerance test with applied passes → `outcome=refactored`, exit 0 |
+| 13 green behaviors marked done | the 13-behavior count is the consumer repo's fixture (spec 004, not committed here); the mechanism is proven at N=1 (e2e, real refactor) and N=3 (driver suites unchanged, still complete). The fix scales per-behavior: every green behavior's refactor now passes the same gate. |
+| verification.md produced even with pre-existing failures | this file; the pre-existing failures are enumerated in §5 and do not gate the verdict |
+
+## 5. Pre-existing failures (repo baseline — NOT introduced by this fix)
+
+Verified by `git stash` + re-run on the pristine master tree; identical
+results with and without the fix:
+
+- `test/plugins/tdd/run_command_test.dart` — bug #691 unexpected-green
+  skip test (1 failure, slow tier).
+- `test/plugins/tdd/make_command_test.dart` — bug 657 unexpressible-hint,
+  U-829g/U-829h entity-pipeline, SC-004 no-compose (4 failures, slow tier).
+- `examples/todo_tdd/` — `dart analyze` errors from never-committed
+  generated artifacts (47 issues, all inside `examples/`).
+
+The fast tier (`tools/run_tests_chunked.sh`, 68 chunks) passes 100% with
+the fix applied. `dart analyze lib test bin` → 1 pre-existing warning
+(unused import, `test/commands/entity_help_test.dart`, untouched).
+
+## 6. Contract guardrails preserved
+
+- Standalone `zfa tdd refactor` (no `--suite-baseline`) keeps the
+  absolute-green preflight (spec 048 FR-001) — regression test included;
+  the `--skip-preflight` flag remains nonexistent (FR-002, existing test).
+- A missing/corrupt baseline cache falls back to the absolute-green
+  contract (safe failure, never a silent pass).
+- An unparseable red transcript is never baseline-tolerated, at preflight
+  or re-proof (M2's strengthened test).
+- The existing issue #741 / #731 / #734-v2 / bug #828 / bug #829 suites
+  all pass unchanged.
+
+---
+---
+
+# Prior round (preserved verbatim): bug #734 v2 — refactor preflight refusals are per-behavior information, not pass-fatal (reopened)
+
+> Everything below this line is the previous round's verification.md, kept unchanged for provenance (branch fix/734-v2-refactor-preflight-full-suite).
+
 feature: tdd-refactor-preflight-full-suite
 verdict: PASS_WITH_GAPS
 standard: .specify/extensions/tdd/templates/tdd-test-quality-rubric.md # rubric graded against
