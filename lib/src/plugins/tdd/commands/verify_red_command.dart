@@ -12,7 +12,11 @@
 ///      the target test through it via [SingleTestRunner].
 ///   3. Classifies the outcome into exactly one of six classes (FR-004)
 ///      and rejects blended/empty runs (FR-005).
-///   4. On `assertion` ONLY, appends the 8-field red-evidence entry to
+///   4. On `assertion` ONLY — after the issue #964 kind gate confirms the
+///      test's assertion KINDS match the scenario verbs (a presence red
+///      in a navigation scenario is honest but irrelevant to the
+///      scenario; it is refused as kind-mismatch, no evidence) — appends
+///      the 8-field red-evidence entry to
 ///      `specs/<feature>/tdd/cycle-log.md` (FR-006). The log is
 ///      append-only.
 ///   5. On any other class, exits non-zero with a named classification
@@ -41,9 +45,11 @@ import 'package:path/path.dart' as p;
 import '../models/red_classification.dart';
 import '../services/artifact_registry.dart';
 import '../services/cycle_log.dart';
+import '../services/finder_taxonomy.dart';
 import '../services/red_classifier.dart';
 import '../services/runner.dart';
 import '../services/tdd_timeout.dart';
+import '../services/widget_scaffold.dart' show contentIsScaffolded;
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -293,8 +299,53 @@ class VerifyRedCommand extends Command<void> {
 
     // ---------------------------------------------------------------
     // 5/6. Evidence on assertion only; rejection otherwise (FR-006/007).
+    //      Issue #964 kind gate: BEFORE evidence, the test's assertion
+    //      kinds must match the scenario verbs — a red from a presence
+    //      finder in a navigation scenario is honest but IRRELEVANT to
+    //      the scenario (the certified lie of issue #964).
     // ---------------------------------------------------------------
     if (classification == RedClassification.assertion) {
+      final kindGaps = await _certifyFinderKinds(cwd, record);
+      if (kindGaps == null) {
+        print('   classification: ${RedClassification.kindMismatch.label}');
+        print(
+          'zfa tdd verify-red: red observed, but no scenario description '
+          'is available from the artifact record or legacy test header; '
+          'the assertion kinds cannot be certified.',
+        );
+        stderr.writeln('   no evidence written');
+        _printSummary(
+          behavior: record.behaviorId,
+          classification: RedClassification.kindMismatch.label,
+          certified: false,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+      if (kindGaps.isNotEmpty) {
+        print('   classification: ${RedClassification.kindMismatch.label}');
+        print(
+          'zfa tdd verify-red: red observed, but the test\'s assertion '
+          'kinds do not match the scenario verb (issue #964): required '
+          '${kindGaps.map((c) => c.label).join(', ')} — a rendered '
+          'string, an absence of a finder, or a wrong-kind assertion '
+          'never proves this scenario.',
+        );
+        stderr.writeln(
+          'zfa tdd verify-red: ${RedClassification.kindMismatch.label} — '
+          '${RedClassification.kindMismatch.remediationHint}',
+        );
+        stderr.writeln('   no evidence written');
+        _printSummary(
+          behavior: record.behaviorId,
+          classification: RedClassification.kindMismatch.label,
+          certified: false,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
       final log = CycleLog(target.featureDir);
       await log.append(
         CycleLogEntry(
@@ -518,6 +569,52 @@ class VerifyRedCommand extends Command<void> {
   /// any legacy `<id> — ` echo stripped (bug #871).
   String _runnableNameOf(ArtifactRecord record) => record.plainTestName;
 
+  /// The issue #964 kind gate: re-derive the scenario's required
+  /// assertion classes from the artifact record's scenario description
+  /// and check the file satisfies them. Legacy records without a description
+  /// segment fall back to the generated test's description header. Returns
+  /// the unsatisfied classes, or null when neither source supplies a scenario
+  /// description. An unreadable file, scaffolded test, or non-widget test
+  /// does not apply the gate and returns an empty set.
+  Future<Set<ScenarioAssertionClass>?> _certifyFinderKinds(
+    String cwd,
+    ArtifactRecord record,
+  ) async {
+    final testPath = p.isAbsolute(record.testPath)
+        ? record.testPath
+        : p.join(cwd, record.testPath);
+    final String content;
+    try {
+      content = await File(testPath).readAsString();
+    } on FileSystemException {
+      return const <ScenarioAssertionClass>{};
+    }
+    // Scaffolded tests are already excluded from green certification —
+    // their reds stay the bootstrap honest red.
+    if (contentIsScaffolded(content)) {
+      return const <ScenarioAssertionClass>{};
+    }
+    // Only the widget lane carries finder kinds.
+    if (!content.contains('testWidgets(')) {
+      return const <ScenarioAssertionClass>{};
+    }
+    final descriptionMatch = RegExp(
+      r'^// description: (.*)$',
+      multiLine: true,
+    ).firstMatch(content);
+    final segments = record.runnableTestName.split('::');
+    final recordDescription = segments.length >= 3
+        ? record.descriptionSegment.trim()
+        : '';
+    final headerDescription = descriptionMatch?.group(1)?.trim() ?? '';
+    final description = recordDescription.isNotEmpty
+        ? recordDescription
+        : headerDescription;
+    if (description.isEmpty) return null;
+    final analysis = FinderTaxonomy.analyze(description);
+    return FinderTaxonomy.unsatisfiedClasses(analysis, content);
+  }
+
   // -----------------------------------------------------------------
   // Spec 069 T002 — the batched red lane.
   // -----------------------------------------------------------------
@@ -694,12 +791,22 @@ class VerifyRedCommand extends Command<void> {
     final failures = <(String, String)>[]; // (behavior, classification)
     for (final target in targets) {
       final record = target.record;
-      final classification = _classifyBatchBehavior(
+      var classification = _classifyBatchBehavior(
         record: record,
         output: output,
         failingSegments: failingSegments,
         passingNames: passingNames,
       );
+      // Issue #964 kind gate (batch lane): the same refusal as the
+      // single-target path — evidence only for verb-matched reds. A
+      // behavior whose description is unavailable is refused, never
+      // certified on faith.
+      if (classification == 'assertion') {
+        final kindGaps = await _certifyFinderKinds(cwd, record);
+        if (kindGaps == null || kindGaps.isNotEmpty) {
+          classification = 'kind-mismatch';
+        }
+      }
       if (classification == 'assertion') {
         final segment = _segmentFor(record.plainTestName, failingSegments);
         final log = CycleLog(target.featureDir);
@@ -876,6 +983,7 @@ class VerifyRedCommand extends Command<void> {
     }
     return best == null ? null : failingSegments[best];
   }
+
 
   void _printSummary({
     required String behavior,

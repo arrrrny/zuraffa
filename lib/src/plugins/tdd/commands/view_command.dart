@@ -23,11 +23,13 @@
 ///      SubjectWriter emits for widget-kind rows (bug #830).
 ///   3. Derives the minimal view composition from two DECLARED sources,
 ///      never from the test (044 ownership contract):
-///        - the behavior description's quoted scenario literals — the
-///          same literals `behavior_test_writer.dart`'s `_scenarioFinders`
-///          turns into `find.text(...)` assertions, so the emitted view
-///          renders one `Text` per literal and the paired widget test can
-///          actually flip green;
+///        - the behavior description's scenario assertions (issue #964
+///          finder-kind taxonomy — the same classification
+///          `behavior_test_writer.dart` uses for the paired test's
+///          verb-matched assertions): presence literals render one
+///          `Text` each so the paired test can actually flip green;
+///          route/enabled-state literals render a labeled button
+///          affordance; absence literals render nothing;
 ///        - the spec's declared Presentation layer contract (the
 ///          zuraffa-1.0 template's `### Layer Contracts → **Presentation**`
 ///          section, read back through `TestListReader.readLayerContracts`,
@@ -62,6 +64,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
 import '../services/behavior_test_writer.dart' show BehaviorTestWriter;
+import '../services/finder_taxonomy.dart';
 import '../services/test_list_reader.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
@@ -246,10 +249,14 @@ class ViewCommand extends Command<void> {
     // the scaffolded signature (044 ownership contract).
     final functionName = stub.group(2)!;
 
-    // Declared source 1 — the scenario literals the paired widget test
-    // asserts via find.text (the same extraction behavior_test_writer
-    // applies when deriving the test's finders, issue #912 defect 3).
-    final literals = scenarioLiterals(description);
+    // Declared source 1 — the scenario assertions the paired widget test
+    // emits (issue #964 finder-kind taxonomy: the same classification
+    // behavior_test_writer applies when deriving the test's assertions,
+    // issue #912 defect 3). Presence literals render as Text; route
+    // literals render as a navigation affordance (never the route name
+    // as on-screen text — that was the certified lie of issue #964);
+    // absence literals render nothing.
+    final analysis = FinderTaxonomy.analyze(description);
 
     // Declared source 2 — the Presentation layer contract (the
     // zuraffa-1.0 template's `### Layer Contracts → **Presentation**`
@@ -275,7 +282,7 @@ class ViewCommand extends Command<void> {
       description: description,
       functionName: functionName,
       viewClass: viewClass,
-      literals: literals,
+      analysis: analysis,
       components: components,
     );
     // The gen'd stub carries a doc-comment block immediately above the
@@ -316,25 +323,10 @@ class ViewCommand extends Command<void> {
     multiLine: true,
   );
 
-  /// The quoted scenario literals of a behavior description — the same
-  /// contract behavior_test_writer's finder derivation uses (issue #912
-  /// defect 3): each quoted literal names a UI surface the scenario
-  /// asserts, so the emitted view renders one Text per literal.
-  static List<String> scenarioLiterals(String description) {
-    final literals = <String>[];
-    final quoted = RegExp("'([^']+)'|\"([^\"]+)\"");
-    for (final match in quoted.allMatches(description)) {
-      final text = (match.group(1) ?? match.group(2))?.trim();
-      if (text == null || text.isEmpty) continue;
-      literals.add(text);
-    }
-    return literals;
-  }
-
   /// The declared component tokens of the feature's Presentation layer
   /// contract, de-duplicated order-preservingly. Empty when the feature's
   /// test list declares no `Presentation` section (the view then composes
-  /// the scenario literals only — still deterministic).
+  /// the scenario assertions only — still deterministic).
   static Future<List<String>> _presentationComponents(String featureDir) async {
     try {
       final contracts = await TestListReader(featureDir).readLayerContracts();
@@ -374,28 +366,40 @@ class ViewCommand extends Command<void> {
 
   /// Render the view-builder implementation that replaces the stub
   /// declaration (issue #939 remediation 1). The composition is:
-  ///   1. one `Text` per scenario literal (satisfies the paired test's
-  ///      `find.text` assertions), then
+  ///   1. one surface per scenario assertion (issue #964 finder-kind
+  ///      taxonomy): a presence literal renders a `Text` (satisfying the
+  ///      paired test's presence assertions); a route or enabled-state
+  ///      literal renders a labeled `ElevatedButton` affordance — never
+  ///      the route name as on-screen text, which was the certified lie
+  ///      of issue #964; an absence literal renders nothing (rendering
+  ///      it would honestly fail the paired absence assertion);
   ///   2. one deterministic stand-in per declared Presentation component
   ///      (composes the declared contract; unknown components render as
   ///      labeled placeholders — never invented semantics).
   ///
-  /// A view with NEITHER literals nor components carries the behavior id
-  /// as a traceable marker text. Scenario-specific behavior (navigation,
-  /// validation, state) is the sanctioned handcraft seam — the header
-  /// comment names it, the loop only certifies compile + finders.
+  /// A view with NEITHER assertions nor components carries the behavior
+  /// id as a traceable marker text. Scenario-specific behavior
+  /// (navigation, validation, state) is the sanctioned handcraft seam —
+  /// the header comment names it, the loop only certifies compile +
+  /// verb-matched assertions.
   static String _renderView({
     required String behaviorId,
     required String criterion,
     required String description,
     required String functionName,
     required String viewClass,
-    required List<String> literals,
+    required ScenarioAnalysis analysis,
     required List<String> components,
   }) {
     final children = <String>[
-      for (final literal in literals)
-        "            Text('${BehaviorTestWriter.escapeDartString(literal)}'),",
+      for (final assertion in analysis.assertions)
+        if (assertion.assertionClass == ScenarioAssertionClass.presence)
+          "            Text('${BehaviorTestWriter.escapeDartString(assertion.literal)}'),"
+        else if (assertion.assertionClass != ScenarioAssertionClass.absence)
+          '            ElevatedButton(\n'
+              '              onPressed: () {},\n'
+              "              child: Text('${BehaviorTestWriter.escapeDartString(assertion.literal)}'),\n"
+              '            ),',
       for (final component in components) _standIn(component),
     ];
     if (children.isEmpty) {
@@ -408,9 +412,11 @@ class ViewCommand extends Command<void> {
     return '''
 /// View-builder subject for behavior $behaviorId (issue #939): returns
 /// the deterministic minimal view composed from the declared Presentation
-/// layer contract and the scenario literals of the behavior description.
-/// Scenario-specific behavior (navigation, validation, state) is the
-/// sanctioned handcraft seam — implement it in [$viewClass].
+/// layer contract and the scenario assertions of the behavior description
+/// (issue #964 finder-kind taxonomy: presence literals render as Text,
+/// route/enabled-state literals as a labeled affordance, absence literals
+/// render nothing). Scenario-specific behavior (navigation, validation,
+/// state) is the sanctioned handcraft seam — implement it in [$viewClass].
 Widget $functionName() => $viewClass();
 
 /// The minimal view for behavior $behaviorId (issue #939 skeleton).
