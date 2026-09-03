@@ -14,14 +14,14 @@ Tests are NOT optional for this bug. Every test task must be observed RED
 
 ## 2. Entity table parsing (item 1)
 
-- [ ] T002: Write RED acceptance test — a Key Entities markdown table yields
+- [x] T002: Write RED acceptance test — a Key Entities markdown table yields
   name + fields + purpose in the plan artifact's Key entities table. [A1]
-- [ ] T003: Implement table-row parsing in `SpecParser.parseKeyEntities` (both
+- [x] T003: Implement table-row parsing in `SpecParser.parseKeyEntities` (both
   formats; `purpose` on `SpecEntity`; table rows no longer terminate the
   section). [A1]
-- [ ] T004: Write RED acceptance test — a mixed table + bullets section
+- [x] T004: Write RED acceptance test — a mixed table + bullets section
   extracts entities from both forms. [A11]
-- [ ] T005: Make T004 green (may fall out of T003; prove it). [A11]
+- [x] T005: Make T004 green (may fall out of T003; prove it). [A11]
 - [ ] T006: Write RED acceptance test — entities planned from a table are read
   back by `TestListReader.readEntities` (phase-0 seam). [A3]
 - [ ] T007: Make T006 green (artifact format feeds the existing reader; adjust

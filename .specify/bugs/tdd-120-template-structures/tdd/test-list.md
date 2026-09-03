@@ -14,6 +14,13 @@ Bug fix for issue #919 ([TDD-120]). Scope agreed with the user: **plan-side
 complete** — parsing, gating, and artifact rendering land here; make-side
 consumption (mock routing, signature-consistent generation) is #909 territory.
 
+Provenance note (Cycle 1): the 14-test suite file
+`test/plugins/tdd/bug_919_template_structures_test.dart` was found in the
+working tree as an untracked artifact of an interrupted earlier session,
+aligned 1:1 with this test list and using the recorded helpers. It was adopted
+as the suite; each behavior still goes through its own observed red before
+implementation.
+
 Test level: behaviors marked `cli` drive the real entry point in-process
 (`CliRunner.runCapturing(['tdd', 'plan', ...])` on a temp project — the same
 harness as `bug_846_coverage_gate_test.dart`). Behaviors marked `integration`
@@ -26,7 +33,7 @@ One per acceptance criterion in `spec.md`. All kind `example`.
 
 | id  | behavior                                                                                                                                | traces      | kind | state   | test |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ---- | ------- | ---- |
-| A1  | A `## Key Entities` markdown table row `\| ShoeSizePreference \| `id: String`, `sizeEu: double` \| purpose \|` yields the entity with fields `id:String`,`sizeEu:double` and its purpose in the plan artifact's Key entities table | FR-001 | example | PENDING | |
+| A1  | A `## Key Entities` markdown table row `\| ShoeSizePreference \| `id: String`, `sizeEu: double` \| purpose \|` yields the entity with fields `id:String`,`sizeEu:double` and its purpose in the plan artifact's Key entities table | FR-001 | example | DONE | `test/plugins/tdd/bug_919_template_structures_test.dart::A1` |
 | A2  | A legacy bullet-format Key Entities section (with the Template Version marker present) extracts entities identically to today — no regression | FR-002 | example | DONE | `test/plugins/tdd/commands/plan_gen_contract_test.dart` (bug 829 group; fixture gains the marker — see cycle log) |
 | A3  | Entities planned from a table are read back by the phase-0 path: `TestListReader.readEntities` returns name + fields from the produced artifact | FR-001 | example | PENDING | |
 | A4  | A spec missing the `**Template Version**` marker makes `zfa tdd plan` exit 3, print a `--> fix:` line pointing at the zuraffa extension template, and write no artifacts | FR-003, FR-006 | example | PENDING | |
@@ -36,7 +43,7 @@ One per acceptance criterion in `spec.md`. All kind `example`.
 | A8  | A Layer Contracts section (bold layer line + backticked `Interface`: signatures bullets) lands per-layer, per-interface, with method signatures in the plan artifact | FR-005, FR-008 | example | PENDING | |
 | A9  | A requirement statement referencing a known external dependency (e.g. `Hive`) not declared in the dependencies table makes plan exit 2 naming the dependency, with a `--> fix:` line, writing no artifacts | FR-007 | example | PENDING | |
 | A10 | A spec with no Key Entities section plans cleanly and writes no entities section (as today) | FR-001 | example | DONE | `test/plugins/tdd/commands/plan_gen_contract_test.dart:261` (fixture gains the marker) |
-| A11 | A Key Entities section mixing a table and legacy bullets extracts entities from both forms | FR-001, FR-002 | example | PENDING | |
+| A11 | A Key Entities section mixing a table and legacy bullets extracts entities from both forms | FR-001, FR-002 | example | DONE | `test/plugins/tdd/bug_919_template_structures_test.dart::A11` |
 | A12 | A spec whose requirements reference no externals — or only declared ones — plans without the dependency lint firing (exit 0) | FR-007 | example | PENDING | |
 | A13 | A spec with BOTH a missing Template Version and a coverage gap exits 3, not 2 — the version gate runs before the coverage gate | FR-006 | example | PENDING | |
 | A14 | Dependencies and layer contracts are read back by `TestListReader` from the produced artifact (new `readDependencies`/`readLayerContracts`) | FR-009 | example | PENDING | |
