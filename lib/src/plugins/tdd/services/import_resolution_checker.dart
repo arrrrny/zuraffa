@@ -54,20 +54,39 @@ class ImportResolutionChecker {
     }
 
     final missingSymbols = <String>[];
-    
+
     // Check for references to symbols that look like classes or types
     final symbolPattern = RegExp(r'\b([A-Z][a-zA-Z0-9_]+)\b');
     final matches = symbolPattern.allMatches(content);
-    
+
     // Common Dart core and package:test symbols to ignore
     const ignored = {
-      'String', 'int', 'double', 'num', 'bool', 'List', 'Map', 'Set',
-      'DateTime', 'Duration', 'Future', 'Stream', 'Object', 'Function',
-      'File', 'Directory', 'Process', 'Platform',
-      'Test', 'Group', 'Expect', 'Matcher',
+      'String',
+      'int',
+      'double',
+      'num',
+      'bool',
+      'List',
+      'Map',
+      'Set',
+      'DateTime',
+      'Duration',
+      'Future',
+      'Stream',
+      'Object',
+      'Function',
+      'File',
+      'Directory',
+      'Process',
+      'Platform',
+      'Test',
+      'Group',
+      'Expect',
+      'Matcher',
     };
 
-    final barrelSymbols = _resolveBarrelSymbols(projectRoot) ?? _knownZuraffaExports;
+    final barrelSymbols =
+        _resolveBarrelSymbols(projectRoot) ?? _knownZuraffaExports;
 
     for (final match in matches) {
       final symbol = match.group(1)!;
@@ -75,7 +94,8 @@ class ImportResolutionChecker {
       if (symbol == 'NonExistentZuraffaSymbol' ||
           (symbol.endsWith('Harness') && !barrelSymbols.contains(symbol)) ||
           (symbol.endsWith('Clock') && !barrelSymbols.contains(symbol))) {
-        if (!barrelSymbols.contains(symbol) && !missingSymbols.contains(symbol)) {
+        if (!barrelSymbols.contains(symbol) &&
+            !missingSymbols.contains(symbol)) {
           missingSymbols.add(symbol);
         }
       }
@@ -83,7 +103,9 @@ class ImportResolutionChecker {
 
     final drifts = <String>[];
     for (final missing in missingSymbols) {
-      drifts.add('unexported symbol "$missing" referenced from package:zuraffa/zuraffa.dart');
+      drifts.add(
+        'unexported symbol "$missing" referenced from package:zuraffa/zuraffa.dart',
+      );
     }
     return drifts;
   }
