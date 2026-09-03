@@ -699,6 +699,31 @@ class SpecParser {
     return behaviors;
   }
 
+  /// The FR contract-trace continuation scan (feature 071): a `traces:`
+  /// line following an FR names the contract rows the requirement
+  /// exercises. Keyed by the document-wide unit id.
+  static Map<String, List<String>> parseFrContractTraces(String specMd) {
+    final traces = <String, List<String>>{};
+    final lines = specMd.split('\n');
+    final frPattern = RegExp(r'^\s*-\s*\*\*(FR-\d{3})\*\*:\s*(.+)$');
+    final tracesLine = RegExp(r'^\s+traces:\s*(.+)$');
+    var uIdx = 0;
+    for (var i = 0; i < lines.length; i++) {
+      final m = frPattern.firstMatch(lines[i]);
+      if (m == null) continue;
+      uIdx += 1;
+      final t = i + 1 < lines.length ? tracesLine.firstMatch(lines[i + 1]) : null;
+      if (t == null) continue;
+      traces['U$uIdx'] = t
+          .group(1)!
+          .split(',')
+          .map((token) => token.trim())
+          .where((token) => token.isNotEmpty)
+          .toList();
+    }
+    return traces;
+  }
+
   /// The `_persistence` declaration scan (feature 071): FR lines
   /// carrying a `[persistent]` tag, or a `traces:` continuation naming
   /// a declared storage dependency row. Keyed by the document-wide

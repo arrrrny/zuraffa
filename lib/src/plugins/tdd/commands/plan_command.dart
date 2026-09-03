@@ -17,6 +17,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/routing.dart';
+import '../services/routing_resolver.dart';
 import '../services/requirement_scan.dart';
 import '../services/spec_parser.dart';
 import '../services/test_list_reader.dart';
@@ -257,6 +258,25 @@ class PlanCommand extends Command<void> {
         .toList();
 
     await outDir.create(recursive: true);
+    // Feature 071 (issue #951): per-behavior routing provenance — the
+    // resolver consults the parsed declarations; undeclared behaviors
+    // render their LABELED legacy fallback (migration window).
+    final scenarioMarkers = SpecParser.parseScenarioTypeMarkers(specMd);
+    final declarations = SpecDeclarations(
+      scenarios: scenarioMarkers,
+      contractRows: {
+        for (final r in const SpecParser().parseContractRows(specMd)) r.name: r,
+      },
+      persistence: SpecParser.parsePersistenceDeclarations(specMd),
+    );
+    final frTraces = SpecParser.parseFrContractTraces(specMd);
+    final provenance = _provenanceLines(
+      expressible,
+      preservedFfi,
+      declarations,
+      frTraces,
+      scenarioMarkers,
+    );
     await outFile.writeAsString(
       _render(
         feature,
@@ -266,8 +286,14 @@ class PlanCommand extends Command<void> {
         layerContracts,
         preservedFfi,
         SpecParser.parsePersistenceDeclarations(specMd),
+        provenance,
       ),
     );
+    for (final line in provenance.values.expand((l) => l)) {
+      // print (not stdout.writeln): the observable-CLI convention the
+      // tdd command suites assert on (runCapturing intercepts print).
+      print('   $line');
+    }
 
     final aCount = expressible
         .where((b) => b.kind == BehaviorKind.acceptance)
@@ -298,6 +324,7 @@ class PlanCommand extends Command<void> {
     List<LayerContract> layerContracts,
     List<BehaviorRow> preservedFfi,
     Map<String, PersistenceDeclaration> persistenceDeclarations,
+    Map<String, List<String>> provenanceLines,
   ) {
     final acceptance = behaviors
         .where((b) => b.kind == BehaviorKind.acceptance)
@@ -443,8 +470,107 @@ class PlanCommand extends Command<void> {
         );
       }
     }
+    // Feature 071: the durable provenance artifact.
+    if (provenanceLines.isNotEmpty) {
+      buf
+        ..writeln()
+        ..writeln('## Routing provenance')
+        ..writeln()
+        ..writeln('Per-behavior routing decisions (issue #951): what each '
+            'decision consulted — a declared marker/contract row, or the '
+            'labeled legacy fallback to migrate.')
+        ..writeln();
+      for (final lines in provenanceLines.values) {
+        for (final line in lines) {
+          buf.writeln(line);
+        }
+      }
+    }
     buf.writeln();
     return buf.toString();
+  }
+
+  /// Feature 071 (issue #951): the per-behavior routing provenance —
+  /// the resolver consults the parsed declarations; undeclared
+  /// behaviors render their LABELED legacy fallback (migration window;
+  /// strict mode turns these into refusals).
+  Map<String, List<String>> _provenanceLines(
+    List<Behavior> behaviors,
+    List<BehaviorRow> preservedFfi,
+    SpecDeclarations declarations,
+    Map<String, List<String>> frTraces,
+    Map<String, ScenarioDeclaration> scenarioMarkers,
+  ) {
+    const resolver = RoutingResolver();
+    final lines = <String, List<String>>{};
+    String lane(BehaviorKind kind) => switch (kind) {
+          BehaviorKind.acceptance => 'acceptance lane',
+          BehaviorKind.widget => 'widget lane',
+          BehaviorKind.unit => 'unit lane',
+          BehaviorKind.ffi => 'ffi lane',
+          BehaviorKind.platform => 'platform lane',
+          BehaviorKind.theme => 'theme lane',
+        };
+
+    void record(String id, List<String> entry) => lines[id] = entry;
+
+    for (final b in behaviors) {
+      // Rung-3 kind for spec-parsed behaviors is DECLARED only via the
+      // `**Type**` marker — the parse-time sniffer kind is precisely the
+      // legacy fallback being labeled, so it is NOT passed as declared.
+      final result = resolver.resolve(
+        row: RoutingRow(
+          behaviorId: b.id,
+          kind: scenarioMarkers[b.id]?.declaredType,
+          traces: frTraces[b.id] ?? const [],
+        ),
+        declarations: declarations,
+      );
+      final decision = b.kind;
+      if (result is RoutingDecision) {
+        final first = result.provenance.firstOrNull;
+        final extras = <String>[
+          if (result.surface == GenerationSurface.plainFunction)
+            'func surface'
+          else if (result.surface == GenerationSurface.entityPipeline &&
+              result.entityName != null)
+            'entity pipeline: ${result.entityName}'
+          else if (result.surface == GenerationSurface.viewGeneration)
+            'view generation',
+        ];
+        final detail = extras.isEmpty ? '' : ' (${extras.join(', ')})';
+        record(b.id, [
+          'route: ${b.id} -> ${lane(decision)}$detail '
+              '[declared: ${first?.detail ?? 'declaration'}'
+              '${first?.specLine == null ? '' : ', spec line ${first!.specLine}'}]',
+        ]);
+        continue;
+      }
+      if (result is RoutingFailure) {
+        record(b.id, [
+          'route: ${b.id} -> refused [${result.code.name}: '
+              '${result.message.split('\n').first}]',
+        ]);
+        continue;
+      }
+      // RoutingUndeclared — the labeled legacy fallback.
+      final hint = decision == BehaviorKind.widget
+          ? 'add `**Type**: widget` to the scenario'
+          : decision == BehaviorKind.acceptance
+              ? 'add `**Type**: acceptance` to the scenario'
+              : 'trace FR to a declared contract row';
+      record(b.id, [
+        'route: ${b.id} -> ${lane(decision)} '
+            '[fallback: legacy description classifier matched — $hint]',
+      ]);
+    }
+    for (final row in preservedFfi) {
+      record(row.id, [
+        'route: ${row.id} -> ffi lane '
+            '[declared: native loop section]',
+      ]);
+    }
+    return lines;
   }
 
   /// Bug #833: the plan MARKS the behavior persistence-kind — the

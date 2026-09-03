@@ -70,3 +70,13 @@ test task first (RED recorded here), then the implementation tasks that flip it
 - green: 2026-09-03 — `+3: All tests passed!` (T019: parsePersistenceDeclarations + tag stripping in _extractUnit; T020: _marked consults declarations, keyword trigger retired per spec AC2)
 - CONTRACT CHANGE (spec-sanctioned, not a weakened pin): plan_persistence_marking_833_test.dart re-pointed to the declared contract — its keyword-wording pins now declare `[persistent]`; added an explicit vocabulary-unmarked pin; mark shape/idempotency/non-persistence default unchanged (#833 family 14/14 green). matchesKeywords remains exported (read-side extract unchanged); its removal is a follow-up.
 - tasks ticked: T018, T019, T020, T021
+
+## Cycle: A3 (red -> green)
+
+- behavior: A3 — per-behavior routing provenance (stdout route: lines + persisted artifact block)
+- criterion: FR-008, SC-003
+- test: test/plugins/tdd/commands/plan_routing_provenance_test.dart (A3 group)
+- red: 2026-09-03 — `+4 -3`: no route: lines existed
+- green: 2026-09-03 — `+7: All tests passed!` (T023: plan_command parses declarations, resolves per behavior via RoutingResolver, renders declared/fallback lines + `## Routing provenance` artifact block); commands fast tier 150 green
+- fixes during green: provenance emitted via print (runCapturing intercepts zone print, not stdout.writeln); parse-time sniffer kind is NOT passed to the resolver as rung-3 declared kind (only the marker is — the sniffer outcome is the fallback being labeled)
+- tasks ticked: T022, T023, T024

@@ -7,7 +7,11 @@
 // Issue #951; spec FR-001/FR-013.
 library;
 
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/plugins/tdd/models/behavior.dart';
 import 'package:zuraffa/src/plugins/tdd/services/spec_parser.dart';
 
@@ -16,6 +20,49 @@ Behavior? parseOne(String scenario) {
       'changes, **Then** $scenario\n';
   final behaviors = const SpecParser().parse('071-probe', spec);
   return behaviors.where((b) => b.id == 'A1').firstOrNull;
+}
+
+/// A3 harness: plan a full spec in a temp project and return stdout +
+/// the rendered test list (mirrors the #833 persistence harness).
+Future<(String out, String list)> planSpec(String body) async {
+  final tmp = Directory.systemTemp.createTempSync('prov_a3_');
+  try {
+    final featureDir = p.join(tmp.path, 'specs', '071-prov');
+    await Directory(featureDir).create(recursive: true);
+    await File(p.join(featureDir, 'spec.md')).writeAsString('''
+**Template Version**: `zuraffa-1.0`
+
+# Spec: 071-prov
+
+## Layer Contracts
+
+**Function**:
+- `Formatter`: `format(Template) -> String`
+
+## Functional Requirements
+
+$body
+
+## Acceptance Scenarios
+
+1. **Given** the app **When** it starts **Then** the widget renders "Ready".
+   **Type**: widget
+''');
+    final runner = CliRunner(exitOnCompletion: false);
+    final out = await runner.runCapturing([
+      'tdd',
+      'plan',
+      '071-prov',
+      '--project',
+      tmp.path,
+    ]);
+    final list = await File(
+      p.join(featureDir, 'tdd', 'test-list.md'),
+    ).readAsString();
+    return (out, list);
+  } finally {
+    tmp.deleteSync(recursive: true);
+  }
 }
 
 void main() {
@@ -58,6 +105,66 @@ void main() {
       expect(widgetProse?.kind, BehaviorKind.widget,
           reason: 'legacy classifier still routes undeclared scenarios');
       expect(plainProse?.kind, BehaviorKind.acceptance);
+    });
+  });
+
+  group('A3: routing provenance per behavior', () {
+    test('a declared scenario prints a declared route line naming the '
+        'marker and spec line', () async {
+      final (out, list) = await planSpec(
+        '- **FR-001**: returns 42 when invoked with no args',
+      );
+      expect(out, contains('route: A1 -> widget lane'));
+      expect(out, contains('[declared: type marker'));
+      expect(out, contains('spec line'));
+      expect(list, contains('## Routing provenance'));
+      expect(list, contains('route: A1 -> widget lane'));
+    });
+
+    test('a unit FR traced to a function row prints its declared surface',
+        () async {
+      final (out, _) = await planSpec(
+        '- **FR-001**: the label renders the template\n'
+        '            traces: Formatter.format',
+      );
+      expect(out, contains('route: U1 -> unit lane'));
+      expect(out, contains('func surface'));
+      expect(out, contains('[declared: contract row: Formatter'));
+    });
+
+    test('an undeclared widget scenario prints a labeled fallback line '
+        'with the fix hint', () async {
+      final tmp = Directory.systemTemp.createTempSync('prov_fb_');
+      try {
+        final featureDir = p.join(tmp.path, 'specs', '071-prov');
+        await Directory(featureDir).create(recursive: true);
+        await File(p.join(featureDir, 'spec.md')).writeAsString('''
+**Template Version**: `zuraffa-1.0`
+
+# Spec: 071-prov
+
+## Functional Requirements
+
+- **FR-001**: returns 42 when invoked with no args
+
+## Acceptance Scenarios
+
+1. **Given** the app **When** it starts **Then** the page shows the settings form.
+''');
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'plan',
+          '071-prov',
+          '--project',
+          tmp.path,
+        ]);
+        expect(out, contains('route: A1 -> widget lane'));
+        expect(out, contains('[fallback:'));
+        expect(out, contains('**Type**'));
+      } finally {
+        tmp.deleteSync(recursive: true);
+      }
     });
   });
 }

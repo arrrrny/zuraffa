@@ -119,12 +119,12 @@ description: "Task list for feature implementation"
 
 ### Tests for User Story 4 (write FIRST, ensure RED)
 
-- [ ] T022 [P] [US4] MANDATORY [behavior: A3] Write provenance rendering pins in `test/plugins/tdd/commands/plan_routing_provenance_test.dart` (RED, extend T007 file): `route:` line grammar per contracts/cli-routing.md (declared/fallback bracket tokens, spec-line references), provenance block persisted into the test list.
+- [x] T022 [P] [US4] MANDATORY [behavior: A3] Write provenance rendering pins in `test/plugins/tdd/commands/plan_routing_provenance_test.dart` (RED, extend T007 file): `route:` line grammar per contracts/cli-routing.md (declared/fallback bracket tokens, spec-line references), provenance block persisted into the test list.
 
 ### Implementation for User Story 4
 
-- [ ] T023 [US4] Emit per-behavior `route:` lines from `lib/src/plugins/tdd/commands/plan_command.dart` (resolver decisions → rendered provenance) and persist the provenance block into the test-list artifact. Depends on T022 (RED), T010, T020.
-- [ ] T024 [US4] Verify T022 pins green + plan command suites (`plan_command_ffi_835_test.dart`, `plan_gen_contract_test.dart`) stay green. Depends on T023.
+- [x] T023 [US4] Emit per-behavior `route:` lines from `lib/src/plugins/tdd/commands/plan_command.dart` (resolver decisions → rendered provenance) and persist the provenance block into the test-list artifact. Depends on T022 (RED), T010, T020.
+- [x] T024 [US4] Verify T022 pins green + plan command suites (`plan_command_ffi_835_test.dart`, `plan_gen_contract_test.dart`) stay green. Depends on T023.
 
 **Checkpoint**: Routing is inspectable per behavior, in terminal and artifact.
 
