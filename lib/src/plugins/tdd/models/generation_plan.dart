@@ -62,6 +62,15 @@ enum MakeOutcome {
   /// Non-zero exit, no green entry.
   regression('regression'),
 
+  /// The target test is a SCAFFOLDED widget test (issue #912 defect 3):
+  /// its scenario assertions are placeholder finders (marked
+  /// `zfa:tdd: scaffolded` by the widget template), so a green proves
+  /// nothing about the scenario — a bare SizedBox() would pass it. The
+  /// behavior is EXCLUDED from contract-green accounting: non-zero exit,
+  /// no green entry; the remedy is concrete scenario finders + marker
+  /// removal, then re-run make.
+  scaffolded('scaffolded'),
+
   /// Runner/profile/tooling failure.
   /// Non-zero exit, no green entry.
   runnerError('runner-error');

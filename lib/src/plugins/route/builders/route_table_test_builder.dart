@@ -101,81 +101,74 @@ class RouteTableTestBuilder {
   /// `*_shell.dart`, deep-link patterns (paths containing `:param`
   /// segments) and adaptive shells (shell modules carrying BOTH nav
   /// surfaces).
+  ///
+  /// [pendingModules] (issue #912 defect 5) carries module content the
+  /// CURRENT run would write (`basename -> source`) but that is not on
+  /// disk yet — a dry run writes nothing, so a disk-only discovery missed
+  /// the planned routes and the route-table test silently vanished from
+  /// the dry-run changes list. Pending modules whose file already exists
+  /// on disk are skipped (the disk scan read the same content).
   Future<RouteTableManifest> discover({
     required String outputDir,
     FileSystem? fileSystem,
+    Map<String, String> pendingModules = const {},
   }) async {
     final fs = fileSystem ?? this.fileSystem;
     final routingDir = path.join(outputDir, 'routing');
-    if (!await fs.exists(routingDir)) {
-      return const RouteTableManifest(
-        declaredRoutes: [],
-        deepLinks: [],
-        adaptiveShells: [],
-      );
-    }
 
     final declared = <DeclaredRoute>[];
     final deepLinks = <DeepLinkPattern>[];
     final shells = <AdaptiveShellSpec>[];
 
-    for (final entry in await fs.list(routingDir)) {
-      if (await fs.isDirectory(entry)) continue;
-      final fileName = path.basename(entry);
-      if (fileName.endsWith('index.dart') ||
-          fileName.endsWith('app_routes.dart')) {
-        continue;
-      }
+    if (await fs.exists(routingDir)) {
+      for (final entry in await fs.list(routingDir)) {
+        if (await fs.isDirectory(entry)) continue;
+        final fileName = path.basename(entry);
+        if (_isAggregatedModule(fileName)) continue;
 
+        if (fileName.endsWith('_routes.dart')) {
+          _collectRouteModule(
+            fileName: fileName,
+            source: await fs.read(entry),
+            declared: declared,
+            deepLinks: deepLinks,
+          );
+          continue;
+        }
+
+        if (fileName.endsWith('_shell.dart')) {
+          _collectShellModule(
+            fileName: fileName,
+            source: await fs.read(entry),
+            declared: declared,
+            shells: shells,
+          );
+          continue;
+        }
+      }
+    }
+
+    // Pending modules (issue #912 defect 5): planned route modules this
+    // very run would write, discovered even when the routing directory
+    // does not exist on disk yet (a fresh-project dry run).
+    for (final entry in pendingModules.entries) {
+      final fileName = entry.key;
+      if (_isAggregatedModule(fileName)) continue;
+      if (await fs.exists(path.join(routingDir, fileName))) continue;
       if (fileName.endsWith('_routes.dart')) {
-        final moduleBase = fileName.replaceAll('_routes.dart', '');
-        final ownerClass =
-            '${StringUtils.convertToPascalCase(moduleBase)}Routes';
-        final constants = parseRouteConstants(await fs.read(entry));
-        for (final constant in constants.entries) {
-          declared.add(
-            DeclaredRoute(
-              path: constant.value,
-              owner: '$ownerClass.${constant.key}',
-            ),
-          );
-          final params = extractPathParams(constant.value);
-          if (params.isNotEmpty) {
-            deepLinks.add(
-              DeepLinkPattern(
-                pattern: constant.value,
-                params: params,
-                owner: '$ownerClass.${constant.key}',
-              ),
-            );
-          }
-        }
-        continue;
-      }
-
-      if (fileName.endsWith('_shell.dart')) {
-        final nameSnake = fileName.replaceAll('_shell.dart', '');
-        final namePascal = StringUtils.convertToPascalCase(nameSnake);
-        final source = await fs.read(entry);
-        final branchRoots = parseGoRoutePaths(source);
-        for (final branchPath in branchRoots) {
-          declared.add(
-            DeclaredRoute(path: branchPath, owner: '${namePascal}Shell.branch'),
-          );
-        }
-        // An adaptive shell declares BOTH nav surfaces (bottom nav +
-        // rail) — that is the platform divergence #842 asks to assert.
-        if (source.contains('NavigationRail') &&
-            source.contains('NavigationBar')) {
-          shells.add(
-            AdaptiveShellSpec(
-              namePascal: namePascal,
-              nameSnake: nameSnake,
-              branchRoots: branchRoots,
-            ),
-          );
-        }
-        continue;
+        _collectRouteModule(
+          fileName: fileName,
+          source: entry.value,
+          declared: declared,
+          deepLinks: deepLinks,
+        );
+      } else if (fileName.endsWith('_shell.dart')) {
+        _collectShellModule(
+          fileName: fileName,
+          source: entry.value,
+          declared: declared,
+          shells: shells,
+        );
       }
     }
 
@@ -184,6 +177,68 @@ class RouteTableTestBuilder {
       deepLinks: deepLinks,
       adaptiveShells: shells,
     );
+  }
+
+  /// Aggregated modules the manifest never parses (the index re-exports
+  /// everything; app_routes aggregates the constants under a name the
+  /// per-entity modules own).
+  static bool _isAggregatedModule(String fileName) =>
+      fileName.endsWith('index.dart') || fileName.endsWith('app_routes.dart');
+
+  void _collectRouteModule({
+    required String fileName,
+    required String source,
+    required List<DeclaredRoute> declared,
+    required List<DeepLinkPattern> deepLinks,
+  }) {
+    final moduleBase = fileName.replaceAll('_routes.dart', '');
+    final ownerClass = '${StringUtils.convertToPascalCase(moduleBase)}Routes';
+    final constants = parseRouteConstants(source);
+    for (final constant in constants.entries) {
+      declared.add(
+        DeclaredRoute(
+          path: constant.value,
+          owner: '$ownerClass.${constant.key}',
+        ),
+      );
+      final params = extractPathParams(constant.value);
+      if (params.isNotEmpty) {
+        deepLinks.add(
+          DeepLinkPattern(
+            pattern: constant.value,
+            params: params,
+            owner: '$ownerClass.${constant.key}',
+          ),
+        );
+      }
+    }
+  }
+
+  void _collectShellModule({
+    required String fileName,
+    required String source,
+    required List<DeclaredRoute> declared,
+    required List<AdaptiveShellSpec> shells,
+  }) {
+    final nameSnake = fileName.replaceAll('_shell.dart', '');
+    final namePascal = StringUtils.convertToPascalCase(nameSnake);
+    final branchRoots = parseGoRoutePaths(source);
+    for (final branchPath in branchRoots) {
+      declared.add(
+        DeclaredRoute(path: branchPath, owner: '${namePascal}Shell.branch'),
+      );
+    }
+    // An adaptive shell declares BOTH nav surfaces (bottom nav +
+    // rail) — that is the platform divergence #842 asks to assert.
+    if (source.contains('NavigationRail') && source.contains('NavigationBar')) {
+      shells.add(
+        AdaptiveShellSpec(
+          namePascal: namePascal,
+          nameSnake: nameSnake,
+          branchRoots: branchRoots,
+        ),
+      );
+    }
   }
 
   /// Parses `static const String <name> = '<path>';` route constants from a
@@ -231,8 +286,12 @@ class RouteTableTestBuilder {
     required String outputDir,
     required bool dryRun,
     required bool verbose,
+    Map<String, String> pendingModules = const {},
   }) async {
-    final manifest = await discover(outputDir: outputDir);
+    final manifest = await discover(
+      outputDir: outputDir,
+      pendingModules: pendingModules,
+    );
     if (manifest.isEmpty) return null;
 
     final testPath = path.join(

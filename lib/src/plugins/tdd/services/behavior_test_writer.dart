@@ -24,10 +24,60 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../models/behavior.dart';
+import 'widget_scaffold.dart';
 
 /// Writes a Dart test file that pairs with the subject for a behavior.
 class BehaviorTestWriter {
-  const BehaviorTestWriter();
+  /// The app shell the generated WIDGET test pumps the feature view in
+  /// (issue #912 defect 2): default [WidgetAppShell.shadapp] — zuraffa
+  /// apps are shadcn_ui apps — overridable per project.
+  const BehaviorTestWriter({this.widgetShell = WidgetAppShell.shadapp});
+
+  final WidgetAppShell widgetShell;
+
+  /// Escapes [raw] for safe interpolation into a single-quoted Dart
+  /// string literal (issue #912 defect 1): backslash, both quote forms,
+  /// `$` (interpolation — a raw `${...}` in a behavior description must
+  /// never reach the generated source as code), and control characters.
+  static String escapeDartString(String raw) {
+    final out = StringBuffer();
+    for (final code in raw.codeUnits) {
+      switch (code) {
+        case 0x5C:
+          out.write(r'\\');
+        case 0x27:
+          out.write(r"\'");
+        case 0x22:
+          out.write(r'\"');
+        case 0x24:
+          out.write(r'\$');
+        case 0x0A:
+          out.write(r'\n');
+        case 0x0D:
+          out.write(r'\r');
+        case 0x09:
+          out.write(r'\t');
+        case 0x08:
+          out.write(r'\b');
+        case 0x0C:
+          out.write(r'\f');
+        case 0x0B:
+          out.write(r'\v');
+        default:
+          if (code < 0x20 || code == 0x7F) {
+            out.write('\\u{${code.toRadixString(16)}}');
+          } else {
+            out.writeCharCode(code);
+          }
+      }
+    }
+    return out.toString();
+  }
+
+  /// Makes [raw] safe for a `//` comment line: line breaks would
+  /// terminate the comment and spill the remainder into code.
+  static String _commentSafe(String raw) =>
+      raw.replaceAll('\r', ' ').replaceAll('\n', ' ').replaceAll('\t', ' ');
 
   /// Write the test file at [testPath] that imports the subject at
   /// [subjectPath] and asserts the behavior's observable behavior.
@@ -45,17 +95,19 @@ class BehaviorTestWriter {
     final testFile = File(testPath);
     await testFile.parent.create(recursive: true);
     final relativeSubjectPath = _relativeSubjectPath(testPath, subjectPath);
-    final escapedGroupDesc = '${behavior.id} (${behavior.sourceCriterion})'
-        .replaceAll("'", "\\'");
-    final escapedDesc = behavior.description.replaceAll("'", "\\'");
     final content = behavior.kind == BehaviorKind.ffi
         ? renderContractTest(behavior, testPath, subjectPath)
         : behavior.persistence
         ? _renderPersistenceTest(
             behavior,
             relativeSubjectPath,
-            escapedGroupDesc,
-            escapedDesc,
+            // Issue #912 defect 1: the behavior description reached the
+            // persistence template RAW (the parameter was named
+            // `escapedDescription` but carried the unescaped text), so a
+            // description like "persist the user's theme preference"
+            // produced an unterminated string literal.
+            escapeDartString('${behavior.id} (${behavior.sourceCriterion})'),
+            escapeDartString(behavior.description),
           )
         : behavior.kind == BehaviorKind.widget
         ? _renderWidgetTest(behavior, relativeSubjectPath, golden)
@@ -64,11 +116,10 @@ class BehaviorTestWriter {
   }
 
   String _renderTest(Behavior b, String relativeSubjectPath) {
-    final description = b.description;
-    final escapedDescription = description.replaceAll("'", "\\'");
-    final escapedGroupDescription = '${b.id} (${b.sourceCriterion})'.replaceAll(
-      "'",
-      "\\'",
+    final description = _commentSafe(b.description);
+    final escapedDescription = escapeDartString(b.description);
+    final escapedGroupDescription = escapeDartString(
+      '${b.id} (${b.sourceCriterion})',
     );
     final assertion = _deriveAssertion(b);
     return '''
@@ -187,7 +238,12 @@ void main() {
 
   /// Render the WIDGET test (bug #830): a `testWidgets` pair that boots
   /// the feature view through the subject's view-builder contract, pumps
-  /// it inside a MaterialApp shell, and asserts the acceptance scenario.
+  /// it inside a configurable app shell (issue #912 defect 2 — ShadApp
+  /// by default, MaterialApp for plain-Material projects), and asserts
+  /// the acceptance scenario through finders DERIVED from the scenario
+  /// description (issue #912 defect 3 — a bare `findsOneWidget`
+  /// placeholder is greenable by a SizedBox and marks the test
+  /// scaffolded).
   ///
   /// Honest red (FR-010): the stub's `UnimplementedError` is captured by
   /// calling the view-builder BEFORE the pump and asserted with
@@ -200,14 +256,27 @@ void main() {
     String relativeSubjectPath,
     bool golden,
   ) {
-    final description = b.description;
-    final escapedDescription = description.replaceAll("'", "\\'");
-    final escapedGroupDescription = '${b.id} (${b.sourceCriterion})'.replaceAll(
-      "'",
-      "\\'",
+    final description = _commentSafe(b.description);
+    final escapedDescription = escapeDartString(b.description);
+    final escapedGroupDescription = escapeDartString(
+      '${b.id} (${b.sourceCriterion})',
     );
     final target = b.target.isEmpty ? 'subjectUnderTest' : b.target;
     final snakeId = _toSnakeCase(b.id);
+    // Issue #912 defect 2: the shell is configurable; the shadcn shell
+    // needs its own import (material.dart stays for Scaffold + Theme).
+    final shellName = widgetShell.widgetName;
+    final shellImport = widgetShell == WidgetAppShell.shadapp
+        ? "import 'package:shadcn_ui/shadcn_ui.dart';\n"
+        : '';
+    // Issue #912 defect 3: derive concrete scenario finders from the
+    // description's quoted literals; a test with NO derivable finder is
+    // a scaffolded placeholder and carries the machine-readable marker
+    // (excluded from contract-green accounting by `zfa tdd make`).
+    final finders = _scenarioFinders(b.description);
+    final scenarioBlock = finders.isEmpty
+        ? '$widgetScaffoldComment\n      expect(find.byWidget(view), findsOneWidget);'
+        : "${finders.join('\n      ')}\n      expect(find.byWidget(view), findsOneWidget);";
     final goldenBlock = golden
         ? '''
       // Golden baseline (bug #830): commit one PNG per platform under
@@ -228,7 +297,7 @@ void main() {
 // description: $description
 //
 // This is a WIDGET test (bug #830): it boots the feature view through
-// the subject's view-builder contract, pumps it inside a MaterialApp
+// the subject's view-builder contract, pumps it inside a $shellName
 // shell, and asserts the acceptance scenario (theme.of colors, presence
 // of expected widgets, navigation outcomes). The stub's
 // UnimplementedError is captured BEFORE the pump, so the first
@@ -240,7 +309,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '$relativeSubjectPath' as subject;
+${shellImport}import '$relativeSubjectPath' as subject;
 
 void main() {
   group('$escapedGroupDescription', () {
@@ -258,18 +327,37 @@ void main() {
       })();
       expect(built, isNot(isA<UnimplementedError>()));
       final view = built! as Widget;
-      // Boot the view inside an app shell so Theme.of / Navigator /
-      // MediaQuery lookups resolve (issue #830 remediation 2).
-      await tester.pumpWidget(MaterialApp(home: Scaffold(body: view)));
+      // Boot the view inside an app shell so Theme.of / ShadTheme.of /
+      // Navigator / MediaQuery lookups resolve (issue #830 remediation 2;
+      // shell configurable per issue #912 defect 2).
+      await tester.pumpWidget($shellName(home: Scaffold(body: view)));
       await tester.pumpAndSettle();
-      // Acceptance scenario: the subject view is mounted in the tree.
-      // Extend here with the scenario's concrete finders (theme colors,
-      // expected widgets, navigation outcomes).
-      expect(find.byWidget(view), findsOneWidget);
+      // Acceptance scenario (issue #912 defect 3): concrete finders
+      // derived from the scenario description, not a placeholder a bare
+      // SizedBox() would satisfy.
+      $scenarioBlock
 $goldenBlock    });
   });
 }
 ''';
+  }
+
+  /// Derives concrete scenario finders from the behavior description
+  /// (issue #912 defect 3): each quoted literal in the scenario prose
+  /// names a UI surface the scenario asserts — it becomes a
+  /// `find.text` assertion. Descriptions without quoted literals yield
+  /// no finder; the caller marks such tests scaffolded.
+  static List<String> _scenarioFinders(String description) {
+    final finders = <String>[];
+    final quoted = RegExp("'([^']+)'|\"([^\"]+)\"");
+    for (final match in quoted.allMatches(description)) {
+      final text = (match.group(1) ?? match.group(2))?.trim();
+      if (text == null || text.isEmpty) continue;
+      finders.add(
+        "expect(find.text('${escapeDartString(text)}'), findsOneWidget);",
+      );
+    }
+    return finders;
   }
 
   /// The same snake-case convention `zfa tdd gen` uses for artifact
@@ -277,10 +365,9 @@ $goldenBlock    });
 
   String renderContractTest(Behavior b, String testPath, String subjectPath) {
     final relativeSubjectPath = _relativeSubjectPath(testPath, subjectPath);
-    final escapedDescription = b.description.replaceAll("'", "\\'");
-    final escapedGroupDescription = '${b.id} (${b.sourceCriterion})'.replaceAll(
-      "'",
-      "\\'",
+    final escapedDescription = escapeDartString(b.description);
+    final escapedGroupDescription = escapeDartString(
+      '${b.id} (${b.sourceCriterion})',
     );
     return '''
 // GENERATED TEST — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
@@ -361,8 +448,8 @@ Object? _captured(Object? Function() invoke) {
 //      torn down PER TEST (never shared across tests);
 //   2. TTL assertions use the injected test clock (advanceTime) -- no
 //      real sleeps in the suite;
-//   3. corruption drills: harness.seedCorruptedBox('$boxName') +
-//      harness.openWithRecovery('$boxName') drive the clear + re-fetch
+//   3. corruption drills: harness.seedCorruptedBox('${escapeDartString(boxName)}') +
+//      harness.openWithRecovery('${escapeDartString(boxName)}') drive the clear + re-fetch
 //      recovery path against a pre-corrupted fixture;
 //   4. registrar gate: pass registerAdapters + expectedTypeIds to
 //      the harness below so init-time registration failures surface as
@@ -376,7 +463,7 @@ import '$relativeSubjectPath' as subject;
 
 void main() {
   group('$escapedGroupDescription', () {
-    final harness = PersistenceTestHarness(boxNames: ['$boxName']);
+    final harness = PersistenceTestHarness(boxNames: ['${escapeDartString(boxName)}']);
     final clock = TestClock();
 
     setUp(() async {
