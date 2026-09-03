@@ -87,9 +87,14 @@ class BehaviorSummary {
 
   /// The loop kind declared by the feature's test-list row, when the row
   /// is readable (bug #835). Null when unknown — every pre-#835 summary
+  /// The loop kind declared by the feature's test-list row, when the row
+  /// is readable (bug #835). Null when unknown — every pre-#835 summary
   /// is kindless and keeps routing exactly as before; only `ffi` carries
   /// routing semantics (see [GenerationPlanner.plan]).
   final BehaviorKind? kind;
+
+  /// Whether to demote to shallow func-stubs (the legacy escape hatch).
+  final bool stub;
 
   const BehaviorSummary({
     required this.behaviorId,
@@ -99,6 +104,7 @@ class BehaviorSummary {
     this.target,
     this.entityTraced,
     this.kind,
+    this.stub = false,
   });
 
   /// Construct a summary from a registry record.
@@ -108,6 +114,7 @@ class BehaviorSummary {
     String? target,
     String? entityTraced,
     BehaviorKind? kind,
+    bool stub = false,
   }) {
     return BehaviorSummary(
       behaviorId: record.behaviorId,
@@ -117,6 +124,7 @@ class BehaviorSummary {
       target: target,
       entityTraced: entityTraced,
       kind: kind,
+      stub: stub,
     );
   }
 }
@@ -207,6 +215,47 @@ class GenerationPlanner {
       // reused, never regenerated).
       final traced = summary.entityTraced;
       if (traced != null && traced.isNotEmpty) {
+        if (!summary.stub) {
+          return GenerationPlan(
+            behaviorId: summary.behaviorId,
+            feature: summary.feature,
+            sourceCriterion: summary.sourceCriterion,
+            steps: [
+              GenerationStepSpec(
+                args: ['entity', 'create', '-n', traced],
+                purpose:
+                    'ensure entity $traced exists for behavior '
+                    '${summary.behaviorId} (idempotent — an existing '
+                    'entity is reused, never overwritten)',
+              ),
+              GenerationStepSpec(
+                args: ['mock', 'create', '--name', traced],
+                purpose:
+                    'generate contract-conforming mock datasource for entity '
+                    '$traced (behavior ${summary.behaviorId})',
+              ),
+              GenerationStepSpec(
+                args: [
+                  'tdd',
+                  'wire',
+                  summary.behaviorId,
+                  '--entity',
+                  traced,
+                  '--feature',
+                  summary.feature,
+                ],
+                purpose:
+                    'wire subject of behavior ${summary.behaviorId} to '
+                    'mock entity $traced',
+              ),
+              GenerationStepSpec(
+                args: ['build'],
+                purpose:
+                    'build generated code for behavior ${summary.behaviorId}',
+              ),
+            ],
+          );
+        }
         return GenerationPlan(
           behaviorId: summary.behaviorId,
           feature: summary.feature,

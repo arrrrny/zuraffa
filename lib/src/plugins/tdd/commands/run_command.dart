@@ -750,10 +750,11 @@ class RunCommand extends Command<void> {
             : hasRed
             ? BehaviorState.red
             : BehaviorState.pending;
-      } else if (claimed == BehaviorState.green) {
-        // Bug #828: a green claim stands only on its green evidence.
+      } else if (claimed == BehaviorState.mocked ||
+          claimed == BehaviorState.green) {
+        // Bug #828: a green or mocked claim stands only on its green evidence.
         effective = hasGreen
-            ? BehaviorState.green
+            ? claimed
             : hasRed
             ? BehaviorState.red
             : BehaviorState.pending;
@@ -809,7 +810,7 @@ class RunCommand extends Command<void> {
     var start = switch (state) {
       BehaviorState.pending => 0,
       BehaviorState.red => 2,
-      BehaviorState.green => 3,
+      BehaviorState.mocked || BehaviorState.green => 3,
       BehaviorState.done => 4,
     };
     if (inFlightStep != null && inFlightStep.isNotEmpty) {
@@ -838,7 +839,7 @@ class RunCommand extends Command<void> {
       // red (or the run stopped). Defensive: treat as red.
       BehaviorState.pending => 0,
       BehaviorState.red => 0,
-      BehaviorState.green => 1,
+      BehaviorState.mocked || BehaviorState.green => 1,
       BehaviorState.done => 1,
     };
     if (inFlightStep != null) {
@@ -858,11 +859,11 @@ class RunCommand extends Command<void> {
   ) {
     const window = ['refactor'];
     var start = switch (state) {
-      // Unreachable: only GREEN behaviors reach the refactor pass.
+      // Unreachable: only GREEN/MOCKED behaviors reach the refactor pass.
       // Defensive: treat as green.
       BehaviorState.pending => 0,
       BehaviorState.red => 0,
-      BehaviorState.green => 0,
+      BehaviorState.mocked || BehaviorState.green => 0,
       BehaviorState.done => 1,
     };
     if (inFlightStep != null) {
@@ -1455,6 +1456,7 @@ class RunCommand extends Command<void> {
           pending++;
         case BehaviorState.red:
           red++;
+        case BehaviorState.mocked:
         case BehaviorState.green:
           green++;
         case BehaviorState.done:
