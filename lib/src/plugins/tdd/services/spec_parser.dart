@@ -28,7 +28,8 @@ class SpecDependency {
   final String mockPriority;
 
   @override
-  String toString() => 'SpecDependency($dependency, $type, $contract, '
+  String toString() =>
+      'SpecDependency($dependency, $type, $contract, '
       '$mockPriority)';
 }
 
@@ -141,9 +142,7 @@ class SpecParser {
   );
 
   /// A Key Entities table separator row (`| -- | -- | -- |`).
-  static final RegExp _tableSeparator = RegExp(
-    r'^\s*\|\s*[\s\-|]*\|\s*$',
-  );
+  static final RegExp _tableSeparator = RegExp(r'^\s*\|\s*[\s\-|]*\|\s*$');
 
   /// The zuraffa spec template's treaty pin (bug #919): the header marker
   /// `**Template Version**: `x`` that declares which template grammar the
@@ -157,9 +156,7 @@ class SpecParser {
   /// version marker inside a fenced block is documentation, not a treaty
   /// pin (a spec's "How to write a spec" example would otherwise pin the
   /// spec to the example's version).
-  static final RegExp _fencedCodeBlock = RegExp(
-    r'```[\s\S]*?```',
-  );
+  static final RegExp _fencedCodeBlock = RegExp(r'```[\s\S]*?```');
 
   /// Template versions whose grammar this parser implements (bug #919).
   /// A spec declaring anything else — or nothing — is contract drift:
