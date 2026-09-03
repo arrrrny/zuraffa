@@ -73,6 +73,11 @@ void main() {
       final plan = planner.plan(summary(kind: BehaviorKind.widget));
       expect(plan.unexpressibleReason, contains('view'));
       expect(plan.unexpressibleReason, contains('widget'));
+      // The reason is the operator-facing route instruction: it must
+      // name the `tdd view` command itself, not just any fallback words
+      // (audit mutant: a reason naming the WRONG command survived until
+      // this assertion landed).
+      expect(plan.unexpressibleReason, contains('`zfa tdd view'));
     });
 
     test('the widget guard outranks the U<n> id-prefix dispatch', () {
