@@ -379,3 +379,101 @@ Failing tests:
 00:00 +9: U10: whitelist config file Malformed whitelist entries fail loudly (never silently open lanes)
 00:00 +10: All tests passed!
 ```
+
+## 2026-09-03T09:32:15Z: 893-simulation-demo-boot (red)
+- behavior: 893-simulation-demo-boot
+- kind: red
+- at: 2026-09-03T09:32:15Z
+- exit: 1
+- criterion: US1/SC-001/SC-002/FR-009/FR-010: boot on certified mocks with fixture data, zero sockets (T005 red: boot + entity fixture modules missing)
+- command: `dart test test/simulation/simulation_boot_test.dart`
+- schema: 1
+- prev-hash: 85979396044bb9d9ade367d6951effce30db9746624ed7d4e337187c9b371620
+- hash: 43363658d738b4b061502f3aacc3e4dd67b251973ffa43c7b197d9774d66a727
+- output: ```
+00:00 +0: loading test/simulation/simulation_boot_test.dart
+00:00 +0 -1: loading test/simulation/simulation_boot_test.dart [E]
+  Failed to load "test/simulation/simulation_boot_test.dart":
+  test/simulation/simulation_boot_test.dart:14:8: Error: Error when reading 'lib/src/simulation/entity_fixture.dart': No such file or directory
+  import 'package:zuraffa/src/simulation/entity_fixture.dart';
+         ^
+  test/simulation/simulation_boot_test.dart:15:8: Error: Error when reading 'lib/src/simulation/simulation_boot.dart': No such file or directory
+  import 'package:zuraffa/src/simulation/simulation_boot.dart';
+         ^
+  test/simulation/simulation_boot_test.dart:78:5: Error: Undefined name 'NetworkIsolationGuard'.
+      NetworkIsolationGuard.uninstall();
+      ^^^^^^^^^^^^^^^^^^^^^
+  test/simulation/simulation_boot_test.dart:82:5: Error: Undefined name 'NetworkIsolationGuard'.
+      NetworkIsolationGuard.uninstall();
+      ^^^^^^^^^^^^^^^^^^^^^
+  test/simulation/simulation_boot_test.dart:113:15: Error: Undefined name 'EntityFixtures'.
+          () => EntityFixtures.loadAll(
+                ^^^^^^^^^^^^^^
+  test/simulation/simulation_boot_test.dart:118:15: Error: 'SimulationFixtureError' isn't a type.
+            isA<SimulationFixtureError>()
+                ^^^^^^^^^^^^^^^^^^^^^^
+  test/simulation/simulation_boot_test.dart:129:15: Error: Undefined name 'EntityFixtures'.
+          () => EntityFixtures.loadAll(
+                ^^^^^^^^^^^^^^
+  test/simulation/simulation_boot_test.dart:133:21: Error: 'SimulationFixtureError' isn't a type.
+          throwsA(isA<SimulationFixtureError>()),
+                      ^^^^^^^^^^^^^^^^^^^^^^
+  test/simulation/simulation_boot_test.dart:139:24: Error: Undefined name 'EntityFixtures'.
+        final fixtures = EntityFixtures.loadAll(
+                         ^^^^^^^^^^^^^^
+  test/simulation/simulation_boot_test.dart:156:30: Error: Undefined name 'SimulationBoot'.
+          final report = await SimulationBoot.runApp(
+                               ^^^^^^^^^^^^^^
+  test/simulation/simulation_boot_test.dart:165:16: Error: Undefined name 'NetworkIsolationGuard'.
+          expect(NetworkIsolationGuard.isActive, isTrue);
+                 ^^^^^^^^^^^^^^^^^^^^^
+  test/simulation/simulation_boot_test.dart:194:16: Error: Undefined name 'NetworkIsolationGuard'.
+          expect(NetworkIsolationGuard.approvedAttempts, isEmpty);
+                 ^^^^^^^^^^^^^^^^^^^^^
+  test/simulation/simulation_boot_test.dart:204:13: Error: Undefined name 'SimulationBoot'.
+        await SimulationBoot.runApp(
+              ^^^^^^^^^^^^^^
+  test/simulation/simulation_boot_test.dart:213:21: Error: 'NetworkIsolationViolation' isn't a type.
+          throwsA(isA<NetworkIsolationViolation>()),
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^
+  test/simulation/simulation_boot_test.dart:224:28: Error: Undefined name 'SimulationBoot'.
+        final report = await SimulationBoot.runApp(
+                             ^^^^^^^^^^^^^^
+  test/simulation/simulation_boot_test.dart:248:28: Error: Undefined name 'SimulationBoot'.
+        final report = await SimulationBoot.runApp(
+                             ^^^^^^^^^^^^^^
+  test/simulation/simulation_boot_test.dart:256:14: Error: Undefined name 'NetworkIsolationGuard'.
+        expect(NetworkIsolationGuard.isActive, isFalse);
+               ^^^^^^^^^^^^^^^^^^^^^
+  test/simulation/simulation_boot_test.dart:119:32: Error: The getter 'entity' isn't defined for the type 'Object?'.
+   - 'Object' is from 'dart:core'.
+  Try correcting the name to the name of an existing getter, or defining a getter or field named 'entity'.
+                .having((e) => e.entity, 'entity', 'Todo')
+                                 ^^^^^^
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  test/simulation/simulation_boot_test.dart: loading test/simulation/simulation_boot_test.dart
+```
+
+## 2026-09-03T09:32:15Z: 893-simulation-demo-boot (green)
+- behavior: 893-simulation-demo-boot
+- kind: green
+- at: 2026-09-03T09:32:15Z
+- exit: 0
+- criterion: FR-008..FR-010 + SC-001/SC-002/SC-005: guard-first boot, entity fixture fail-fast naming the entity, zero-features warning, mock graph runs committed fixture data through DI with zero sockets
+- command: `dart test test/simulation/simulation_boot_test.dart`
+- schema: 1
+- prev-hash: 43363658d738b4b061502f3aacc3e4dd67b251973ffa43c7b197d9774d66a727
+- hash: 666d5c9ba04b637b577a69547e8029426e9a717f64e16b91aeeb470be937ae3b
+- output: ```
+00:00 +0: loading test/simulation/simulation_boot_test.dart
+00:00 +0: U11: entity fixture validation missing fixtures fail fast naming the entity
+00:00 +1: U11: entity fixture validation corrupt fixtures fail fast naming the entity
+00:00 +2: U11: entity fixture validation valid fixtures load deterministically
+00:00 +3: A6: boot on certified mocks — demoability A6: simulation boot validates entity fixtures, warns on zero features, and runs the mock graph on fixture data
+00:00 +4: A6: boot on certified mocks — demoability any real socket attempt inside the demo session is blocked
+00:00 +5: U13: zero mocked features boots with a warning when no complete(mocked) features exist
+00:00 +6: FR-008: no-op outside the simulation flavor boot without the SIMULATION define is a harmless no-op
+00:00 +7: All tests passed!
+```

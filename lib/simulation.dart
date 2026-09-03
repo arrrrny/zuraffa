@@ -8,3 +8,5 @@
 export 'src/simulation/simulation_flavor.dart';
 export 'src/simulation/network_isolation_guard.dart';
 export 'src/simulation/simulation_whitelist.dart';
+export 'src/simulation/simulation_boot.dart';
+export 'src/simulation/entity_fixture.dart';
