@@ -66,6 +66,8 @@ library;
 import '../models/artifact_record.dart';
 import '../models/behavior.dart';
 import '../models/generation_plan.dart';
+import '../models/routing.dart';
+import 'routing_resolver.dart';
 
 /// Behavior summary the planner consumes. Mirrors just enough of an
 /// [ArtifactRecord] to derive a plan; tests construct these directly
@@ -102,6 +104,21 @@ class BehaviorSummary {
   /// Whether to demote to shallow func-stubs (the legacy escape hatch).
   final bool stub;
 
+  /// Feature 071: the behavior's raw trace tokens (the test-list row's
+  /// `traces` cell) — the resolver resolves these against declared
+  /// contract rows.
+  final List<String> traces;
+
+  /// Feature 071: the spec's parsed declarations. Null = the caller
+  /// cannot supply them and the planner routes the legacy
+  /// description-keyed way (fallback window). Non-null: the resolver
+  /// decides first; the branches below become the labeled fallback.
+  final SpecDeclarations? declarations;
+
+  /// Feature 071: strict mode — undeclared routing intent refuses
+  /// instead of falling back (the declaration ladder's strict gate).
+  final bool strictRouting;
+
   const BehaviorSummary({
     required this.behaviorId,
     required this.feature,
@@ -111,6 +128,9 @@ class BehaviorSummary {
     this.entityTraced,
     this.kind,
     this.stub = false,
+    this.traces = const [],
+    this.declarations,
+    this.strictRouting = false,
   });
 
   /// Construct a summary from a registry record.
@@ -121,6 +141,9 @@ class BehaviorSummary {
     String? entityTraced,
     BehaviorKind? kind,
     bool stub = false,
+    List<String> traces = const [],
+    SpecDeclarations? declarations,
+    bool strictRouting = false,
   }) {
     return BehaviorSummary(
       behaviorId: record.behaviorId,
@@ -131,6 +154,9 @@ class BehaviorSummary {
       entityTraced: entityTraced,
       kind: kind,
       stub: stub,
+      traces: traces,
+      declarations: declarations,
+      strictRouting: strictRouting,
     );
   }
 }
@@ -167,6 +193,28 @@ class GenerationPlanner {
   /// phrased in behavior terms).
   GenerationPlan plan(BehaviorSummary summary) {
     final desc = summary.description.toLowerCase();
+
+    // Feature 071 (issue #951): the declaration ladder decides first
+    // when the caller supplied parsed declarations. A declared surface
+    // yields the plan outright; a declared refusal yields an honest
+    // unexpressible plan carrying the resolver's fix-naming message;
+    // `undeclared` falls through to the branches below, which are the
+    // LABELED fallback (migration window). Callers that supply no
+    // declarations keep the exact legacy routing.
+    final declarations = summary.declarations;
+    if (declarations != null) {
+      final result = const RoutingResolver().resolve(
+        row: RoutingRow(
+          behaviorId: summary.behaviorId,
+          kind: summary.kind,
+          traces: summary.traces,
+        ),
+        declarations: declarations,
+        strict: summary.strictRouting,
+      );
+      final declared = _declaredPlan(summary, result);
+      if (declared != null) return declared;
+    }
 
     // 0. Native-boundary behavior (bug #835): the test-list row declares
     //    kind `ffi` — the subject is a binding-contract harness wired to
@@ -555,6 +603,103 @@ class GenerationPlanner {
       steps: const [],
       unexpressibleReason: reason,
     );
+  }
+
+  /// Translate a resolver outcome into the declared plan, or null when
+  /// the ladder leaves the behavior undeclared (the legacy branches
+  /// below are then the labeled fallback, migration window).
+  GenerationPlan? _declaredPlan(BehaviorSummary summary, RoutingResult result) {
+    if (result is RoutingFailure) {
+      // Errors-are-an-API: surface the resolver's fix-naming refusal
+      // verbatim as the honest plan.
+      return GenerationPlan(
+        behaviorId: summary.behaviorId,
+        feature: summary.feature,
+        sourceCriterion: summary.sourceCriterion,
+        steps: const [],
+        unexpressibleReason: result.message,
+      );
+    }
+    if (result is! RoutingDecision) return null; // RoutingUndeclared
+    switch (result.surface) {
+      case GenerationSurface.entityPipeline:
+        final name = result.entityName;
+        if (name == null) return null; // undeclared aspect -> fallback
+        return GenerationPlan(
+          behaviorId: summary.behaviorId,
+          feature: summary.feature,
+          sourceCriterion: summary.sourceCriterion,
+          steps: [
+            GenerationStepSpec(
+              args: ['entity', 'create', '-n', name],
+              purpose:
+                  'ensure entity $name exists for behavior '
+                  '${summary.behaviorId} (declared contract row; '
+                  'idempotent — an existing entity is reused)',
+            ),
+            GenerationStepSpec(
+              args: ['mock', 'create', '--name', name],
+              purpose:
+                  'generate contract-conforming mock datasource for entity '
+                  '$name (behavior ${summary.behaviorId})',
+            ),
+            GenerationStepSpec(
+              args: [
+                'tdd',
+                'wire',
+                summary.behaviorId,
+                '--entity',
+                name,
+                '--feature',
+                summary.feature,
+              ],
+              purpose:
+                  'wire subject of behavior ${summary.behaviorId} to '
+                  'declared entity $name',
+            ),
+            GenerationStepSpec(
+              args: ['build'],
+              purpose:
+                  'build generated code for behavior ${summary.behaviorId}',
+            ),
+          ],
+        );
+      case GenerationSurface.plainFunction:
+        return _functionSurfacePlan(
+          summary,
+          result.signature?.name ?? 'declared function',
+        );
+      case GenerationSurface.viewGeneration:
+        // The make composition fallback's widget lane (issue #939)
+        // owns view generation — return the honest unexpressible plan
+        // that engages it (the #950 widget guard semantics).
+        return GenerationPlan(
+          behaviorId: summary.behaviorId,
+          feature: summary.feature,
+          sourceCriterion: summary.sourceCriterion,
+          steps: const [],
+          unexpressibleReason:
+              'widget-kind behavior "${summary.behaviorId}" — the scenario '
+              'is UI-observable and its declared contract row routes it to '
+              'the tdd view lane (issue #939): `zfa tdd view '
+              '${summary.behaviorId} --feature ${summary.feature}` + build.',
+        );
+      case GenerationSurface.none:
+        return GenerationPlan(
+          behaviorId: summary.behaviorId,
+          feature: summary.feature,
+          sourceCriterion: summary.sourceCriterion,
+          steps: const [],
+          unexpressibleReason:
+              'behavior "${summary.behaviorId}" declares a platform-channel '
+              'dependency — the native-boundary implementation has no '
+              'generation surface (see the ffi contract lane).',
+        );
+      case GenerationSurface.dependencyMake:
+        return null; // not row-declarable yet — legacy fallback decides
+      case null:
+        return null; // kind declared without a row surface — fallback
+    }
   }
 
   /// The `tdd func` + `build` plan (the bug #657/#660 plain-function

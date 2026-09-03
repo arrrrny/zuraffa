@@ -42,7 +42,9 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../models/routing.dart';
 import '../services/artifact_registry.dart';
+import '../services/declared_routing.dart';
 import '../services/subject_signature_deriver.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
@@ -236,9 +238,35 @@ class FuncCommand extends Command<void> {
     // scaffolded signature (044 ownership contract).
     final functionName = stub.group(2)!;
 
+    // Feature 071 (issue #920's durable fix): a DECLARED signature from
+    // the behavior's function contract row outranks prose inference.
+    // Undeclared behaviors keep the description-keyed deriver (the
+    // labeled fallback; strict surfaces are handled at plan).
+    // Round-2 review fix 3c: a MALFORMED declaration propagates out of
+    // the lookup as a StateError — surfaced here as a refusal (exit 1
+    // + fix message), never a silent prose-inference fallback.
+    final Signature? declared;
+    try {
+      declared = await DeclaredRouting.declaredSignatureFor(
+        cwd: cwd,
+        featureName: resolved.featureName,
+        behaviorId: record.behaviorId,
+      );
+    } on StateError catch (e) {
+      print('zfa tdd func: declaration refused — ${e.message}');
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: FuncOutcome.runnerError,
+        feature: resolved.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+
     final scaffolded = _renderScaffolded(
       description: description,
       functionName: functionName,
+      declared: declared,
     );
     final updated = raw.replaceRange(stub.start, stub.end, scaffolded);
     await subjectFile.writeAsString(updated);
@@ -277,15 +305,35 @@ class FuncCommand extends Command<void> {
   String _renderScaffolded({
     required String description,
     required String functionName,
+    Signature? declared,
   }) {
+    // Feature 071: the declared signature is authoritative when
+    // present — the prose deriver runs ONLY on the fallback branch
+    // (issue #920: no invented return types when a declaration exists).
+    if (declared != null) {
+      return '''${declared.returnType} $functionName() {
+  ${_declaredStubBody(declared.returnType, functionName)}
+}''';
+    }
     final derived = deriveSubjectSignature(description);
-    // For a String result the minimal body returns a deterministic
-    // non-empty literal (the function name) — never an empty string,
-    // which would violate a "non-empty string" contract.
     final body = derived.explicitBody ?? "return '$functionName';";
     return '''${derived.returnType} $functionName() {
   $body
 }''';
+  }
+
+  /// A minimal compiling body honoring the declared return type. For
+  /// non-primitive declared returns the honest scaffold stays red —
+  /// `UnimplementedError` — instead of inventing a vacuous value
+  /// (issue #920: a green suite that measures nothing).
+  String _declaredStubBody(String returnType, String functionName) {
+    if (returnType == 'String') return "return '$functionName';";
+    if (returnType == 'int') return 'return 0;';
+    if (returnType == 'double') return 'return 0.0;';
+    if (returnType == 'bool') return 'return true;';
+    if (returnType == 'void') return '';
+    return "throw UnimplementedError('implement per declared signature: "
+        '$functionName -> $returnType\');';
   }
 
   Future<_Resolved?> _resolve(

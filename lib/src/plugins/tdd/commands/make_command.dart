@@ -71,6 +71,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/generation_plan.dart';
 import '../models/red_classification.dart';
+import '../models/routing.dart';
 import '../services/artifact_registry.dart';
 import '../services/composition_planner.dart';
 import '../services/composition_targets.dart';
@@ -80,6 +81,7 @@ import '../services/generation_planner.dart';
 import '../services/pipeline_runner.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/runner.dart';
+import '../services/spec_parser.dart';
 import '../services/test_list_reader.dart';
 import '../services/suite_guard.dart';
 import '../services/tdd_timeout.dart';
@@ -150,6 +152,15 @@ class MakeCommand extends Command<void> {
           'running the full suite, and certifies the post-generation guard '
           'from the scoped single-test result — falling back to the live '
           'suite when the cache is missing, corrupt, or unparseable.',
+    );
+    argParser.addFlag(
+      'strict-routing',
+      help:
+          'Refuse undeclared routing intent (no `**Type**` marker, contract '
+          'trace, or kind declaration) instead of falling back to the legacy '
+          'description-keyed branches and the composition fallback '
+          '(feature 071, issue #951).',
+      negatable: false,
     );
     argParser.addFlag(
       'stub',
@@ -458,6 +469,24 @@ class MakeCommand extends Command<void> {
       // pre-#835 behavior) with a note instead of a silent guess.
       final rowKind = await _rowKind(target.featureDir, record.behaviorId);
       final isStub = argResults?['stub'] as bool? ?? false;
+      final strictRouting = argResults?['strict-routing'] as bool? ?? false;
+      // Round-2 review fix 3b: a MALFORMED spec (the parser's
+      // StateError refusals) refuses the make — the same surfacing
+      // path as a pipeline resolution error — instead of silently
+      // routing on empty declarations (the #920 regression class).
+      final SpecDeclarations declarations;
+      try {
+        declarations = await _declarationsFor(target.featureDir);
+      } on StateError catch (e) {
+        print('zfa tdd make: declaration refused — ${e.message}');
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.runnerError,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
       final summary = BehaviorSummary.fromRecord(
         record,
         description: _descriptionFor(record),
@@ -468,6 +497,9 @@ class MakeCommand extends Command<void> {
         ),
         kind: rowKind,
         stub: isStub,
+        strictRouting: strictRouting,
+        traces: await _rowTraces(target.featureDir, record.behaviorId),
+        declarations: declarations,
       );
       final plan = planner.plan(summary);
       GenerationPlan effectivePlan;
@@ -501,6 +533,26 @@ class MakeCommand extends Command<void> {
         // acceptance prose with zero composable anchors (FR-009),
         // report `unexpressible` exactly as before.
         // ---------------------------------------------------------
+        // Feature 071 strict gate: under --strict-routing a resolver
+        // refusal (errors-are-an-API: the reason carries `--> fix:`) is
+        // the honest stop — the composition fallback (legacy lanes)
+        // must not engage. Declared widget rows still route to the view
+        // lane: their unexpressible plan is the ROUTING (the #950/#939
+        // contract), not a strict failure.
+        if (summary.strictRouting &&
+            (plan.unexpressibleReason ?? '').contains('--> fix:')) {
+          print(
+            'zfa tdd make: cannot plan a generation for behavior '
+            '"${record.behaviorId}". ${plan.unexpressibleReason}',
+          );
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: MakeOutcome.unexpressible,
+            feature: target.featureName,
+          );
+          exitCode = 1;
+          return;
+        }
         final composed = await _compositionFallback(
           cwd: cwd,
           record: record,
@@ -892,6 +944,50 @@ class MakeCommand extends Command<void> {
       );
     }
     return null;
+  }
+
+  /// Feature 071: the behavior's raw trace tokens from its test-list
+  /// row (`traces:` cell) — the resolver resolves these against
+  /// declared contract rows. Empty when the row is missing. Tokens are
+  /// split by [SpecParser.traceTokens], so a backticked inline
+  /// signature never splits mid-declaration and signature-shaped
+  /// tokens never dangle (round-2 review fix 2).
+  Future<List<String>> _rowTraces(String featureDir, String behaviorId) async {
+    try {
+      for (final row in await TestListReader(featureDir).read()) {
+        if (row.id != behaviorId) continue;
+        return SpecParser.traceTokens(row.traces);
+      }
+    } on TestListReadException {
+      // unreadable list: kindless/traceless routing, as pre-#835
+    }
+    return const [];
+  }
+
+  /// Feature 071: the spec's parsed routing declarations (markers,
+  /// contract rows, persistence). A MISSING or UNREADABLE spec yields
+  /// EMPTY declarations — the resolver still runs, so under
+  /// --strict-routing everything is honestly undeclared (refusal), and
+  /// in the fallback window the legacy branches route unchanged. A
+  /// MALFORMED spec (the parser's StateError refusals) propagates to
+  /// the caller (round-2 review fix 3b): swallowing it would route a
+  /// declared behavior on legacy prose — the #920 regression class.
+  Future<SpecDeclarations> _declarationsFor(String featureDir) async {
+    final specFile = File('$featureDir/spec.md');
+    if (!specFile.existsSync()) return const SpecDeclarations();
+    final String specMd;
+    try {
+      specMd = specFile.readAsStringSync();
+    } on FileSystemException {
+      return const SpecDeclarations(); // unreadable file: empty declarations
+    }
+    return SpecDeclarations(
+      scenarios: SpecParser.parseScenarioTypeMarkers(specMd),
+      contractRows: {
+        for (final r in const SpecParser().parseContractRows(specMd)) r.name: r,
+      },
+      persistence: SpecParser.parsePersistenceDeclarations(specMd),
+    );
   }
 
   /// The composition fallback for an unexpressible plan (issue #642, spec

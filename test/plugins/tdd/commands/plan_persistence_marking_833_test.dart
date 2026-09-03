@@ -1,11 +1,15 @@
 // Bug #833 (tdd-persistence-test-harness) — the plan marks the behavior
-// persistence-kind.
+// persistence-kind so `zfa tdd gen` generates the harness-backed test.
 //
-// `zfa tdd plan` marks behaviors whose prose names persistence concerns
-// (Hive, cache, TTL, offline, corruption, registrar, persistence) by
-// appending the ` [persistence]` marker to the behavior cell, so that
-// `zfa tdd gen` generates the harness-backed test for them. Behaviors that
-// do not touch persistence stay unmarked (plain shape).
+// Feature 071 (issue #951) CHANGED THE TRIGGER by spec (FR-006/AC2):
+// the mark lands on a DECLARED `[persistent]` FR tag or a trace to a
+// `storage:` dependency row. The #833 keyword sniffing (Hive, cache,
+// TTL, offline, corruption, registrar, persistence) is retired —
+// storage vocabulary without a declaration stays unmarked (it was
+// false-positive-prone by construction). These pins now assert the
+// DECLARED contract; the keyword-era pins were re-pointed, not
+// weakened: the mark's shape, idempotency, and non-persistence
+// default are unchanged.
 library;
 
 import 'dart:io';
@@ -69,8 +73,8 @@ $body
 
   test('persistence-worded FRs are marked with [persistence]', () async {
     await seedSpec('''
-- **FR-001**: cached listing is served from Hive with a 24h TTL
-- **FR-002**: corrupted box recovers through the clear + re-fetch path
+- **FR-001**: [persistent] cached listing is served from Hive with a 24h TTL
+- **FR-002**: [persistent] corrupted box recovers through the clear + re-fetch path
 ''');
     final list = await runPlan();
     expect(
@@ -78,7 +82,9 @@ $body
       contains(
         'cached listing is served from Hive with a 24h TTL [persistence]',
       ),
-      reason: 'Hive/TTL wording marks the behavior persistence-kind',
+      reason:
+          'the declared tag marks the behavior persistence-kind (the prose '
+          'alone no longer does — feature 071)',
     );
     expect(
       list,
@@ -108,7 +114,7 @@ $body
 
   test('the marker is idempotent across a re-plan', () async {
     await seedSpec('''
-- **FR-001**: offline queue replays against the cache after reconnect
+- **FR-001**: [persistent] offline queue replays against the cache after reconnect
 ''');
     final first = await runPlan();
     expect(
@@ -122,5 +128,19 @@ $body
     final second = await runPlan();
     expect(second, isNot(contains('[persistence] [persistence]')));
     expect(second, contains('[persistence]'));
+  });
+
+  test('feature 071: storage vocabulary WITHOUT a declaration stays '
+      'unmarked (the keyword trigger is retired)', () async {
+    await seedSpec('''
+- **FR-001**: caches the result for display alongside the query
+''');
+    final list = await runPlan();
+    expect(
+      list,
+      contains(
+        '| U1 | caches the result for display alongside the query | FR-001 | PENDING |',
+      ),
+    );
   });
 }

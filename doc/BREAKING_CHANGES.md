@@ -43,3 +43,25 @@ This document summarizes breaking changes introduced in the v2 series. Use it al
 ## Related
 
 - [MIGRATION_GUIDE.md](file:///Users/arrrrny/Developer/zuraffa/doc/MIGRATION_GUIDE.md)
+
+## TDD Routing: Declared Intent (feature 071, issue #951)
+
+- Behavior routing (lane, generation surface, subject signature, persistence
+  marking, entity attribution) now consults **spec declarations** first:
+  `**Type**` scenario markers, contract-row traces (Layer Contracts / Key
+  Entities / External Dependencies), and `[persistent]` FR tags.
+- The legacy keyword classifiers (`render(s|ed|ing)?`, persistence words,
+  capitalized-name extraction, prose signature inference) are demoted to
+  labeled fallbacks and print `[fallback: ...]` in the plan's routing
+  provenance.
+- Persistence marking no longer triggers on storage vocabulary ("cache",
+  "hive", "offline", ...): declare `[persistent]` or trace to a `storage:`
+  dependency. Undeclared behaviors stay unmarked.
+- `zfa tdd plan` prints a `route:` line per behavior and persists a
+  `## Routing provenance` block into the test list.
+- New `--strict-routing` flag (plan + make): undeclared routing intent exits 1
+  with the spec line and the declaration to add; no fallback lanes engage and
+  no artifacts are written.
+- Action required: add `**Type**` markers / contract traces to specs you want
+  fully declared, then adopt `--strict-routing`. Undeclared specs keep routing
+  through the labeled fallback until then.
