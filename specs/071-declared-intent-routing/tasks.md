@@ -55,15 +55,15 @@ description: "Task list for feature implementation"
 
 ### Tests for User Story 1 (write FIRST, ensure RED)
 
-- [ ] T006 [P] [US1] MANDATORY [behavior: U2] Write `test/plugins/tdd/services/spec_parser_declarations_test.dart` (RED): parses `**Type**: <kind>` markers into scenario declarations with spec lines; rejects duplicate markers; unparsed specs yield empty declarations.
-- [ ] T007 [P] [US1] MANDATORY [behavior: A1] Write plan-level replay pins in `test/plugins/tdd/commands/plan_routing_provenance_test.dart` (RED): a marker-declared widget scenario whose text says "renders" plans the widget lane; a past-tense scenario ("rendered", "navigated") keeps its declared lane; reworded prose produces identical routing.
+- [x] T006 [P] [US1] MANDATORY [behavior: U2] Write `test/plugins/tdd/services/spec_parser_declarations_test.dart` (RED): parses `**Type**: <kind>` markers into scenario declarations with spec lines; rejects duplicate markers; unparsed specs yield empty declarations.
+- [x] T007 [P] [US1] MANDATORY [behavior: A1] Write plan-level replay pins in `test/plugins/tdd/commands/plan_routing_provenance_test.dart` (RED): a marker-declared widget scenario whose text says "renders" plans the widget lane; a past-tense scenario ("rendered", "navigated") keeps its declared lane; reworded prose produces identical routing.
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Parse `**Type**` scenario markers in `lib/src/plugins/tdd/services/spec_parser.dart` into `ScenarioDeclaration`s (id, kind, specLine) per contracts/template-declarations.md §1. Depends on T006 (RED).
-- [ ] T009 [US1] Demote `uiAcceptanceIntent` in `lib/src/plugins/tdd/services/spec_parser.dart` to the fallback rung: `_extractAcceptance` consults declarations first, regex only when undeclared (fallback window), provenance labeled either way. Depends on T008, T004.
-- [ ] T010 [US1] Surface declared lanes through `lib/src/plugins/tdd/commands/plan_command.dart` test-list rendering (marker-declared widget rows land in `## Outer loop: widget behaviors`) and confirm `GenerationPlanner.plan()`'s existing kind dispatch (#950/#835 guards) routes them. Depends on T009.
-- [ ] T011 [US1] Verify T007 pins green + no regression in `test/plugins/tdd/services/spec_parser_test.dart` and the make widget suites. Depends on T010.
+- [x] T008 [US1] Parse `**Type**` scenario markers in `lib/src/plugins/tdd/services/spec_parser.dart` into `ScenarioDeclaration`s (id, kind, specLine) per contracts/template-declarations.md §1. Depends on T006 (RED).
+- [x] T009 [US1] Demote `uiAcceptanceIntent` in `lib/src/plugins/tdd/services/spec_parser.dart` to the fallback rung: `_extractAcceptance` consults declarations first, regex only when undeclared (fallback window), provenance labeled either way. Depends on T008, T004.
+- [x] T010 [US1] Surface declared lanes through `lib/src/plugins/tdd/commands/plan_command.dart` test-list rendering (marker-declared widget rows land in `## Outer loop: widget behaviors`) and confirm `GenerationPlanner.plan()`'s existing kind dispatch (#950/#835 guards) routes them. Depends on T009.
+- [x] T011 [US1] Verify T007 pins green + no regression in `test/plugins/tdd/services/spec_parser_test.dart` and the make widget suites. Depends on T010.
 
 **Checkpoint**: Lanes are declaration-driven end to end; MVP of the routing story.
 

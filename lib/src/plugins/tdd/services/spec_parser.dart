@@ -9,6 +9,7 @@
 library;
 
 import '../models/behavior.dart';
+import '../models/routing.dart';
 
 /// One row of the zuraffa-1.0 template's `External Dependencies &
 /// Contracts` table (bug #919): the dependency's name, its kind, the
@@ -117,6 +118,89 @@ class SpecParser {
   /// row, so the id alignment is preserved even when scenarios are
   /// human-executed.
   static final RegExp manualScenarioMarker = RegExp(r'\(manual:\s*[^)]*\)');
+
+  /// A scenario type marker line (feature 071, rung 1): `**Type**: widget`
+  /// on its own line inside a scenario block. The kind must name a
+  /// [BehaviorKind] value.
+  static final RegExp _typeMarkerLine = RegExp(r'^\s*\*\*Type\*\*:\s*(\S+)\s*$');
+
+  /// The scenario block header (`1. **Given** ...`) — the same walk
+  /// [_extractAcceptance] uses, so marker ids stay aligned with the
+  /// document-wide AC numbers.
+  static final RegExp _scenarioHeader = RegExp(r'^\s*(\d+)\.\s*\*\*Given\*\*');
+
+  /// Parse the per-scenario `**Type**` lane markers (feature 071,
+  /// contracts/template-declarations.md §1) into declarations keyed by
+  /// the document-wide behavior id (`A<n>`), each carrying the 1-based
+  /// spec line of its marker.
+  ///
+  /// Declared structures only: the walk mirrors [_extractAcceptance]'s
+  /// block scan (numbered Given headers, document-wide AC numbering,
+  /// manual scenarios consume a number but emit nothing) — no prose is
+  /// interpreted. Refusals are errors-are-an-API: a duplicate marker or
+  /// an unknown kind names the offending spec line and the fix.
+  static Map<String, ScenarioDeclaration> parseScenarioTypeMarkers(
+    String specMd,
+  ) {
+    final markers = <String, ScenarioDeclaration>{};
+    final lines = specMd.split('\n');
+    var inScenario = false;
+    var scenarioLine = 0;
+    var aIdx = 0;
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final lineNo = i + 1;
+      if (_scenarioHeader.hasMatch(line)) {
+        aIdx += 1;
+        inScenario = true;
+        scenarioLine = lineNo;
+        continue;
+      }
+      final m = _typeMarkerLine.firstMatch(line);
+      if (m == null) continue;
+      if (!inScenario) {
+        throw StateError(
+          'spec line $lineNo carries a `**Type**` marker outside any '
+          'numbered scenario block.\n'
+          '   --> fix: move the marker inside the scenario it declares.',
+        );
+      }
+      final raw = m.group(1)!.toLowerCase();
+      final kind = BehaviorKind.values
+          .where((k) => k.name == raw)
+          .firstOrNull;
+      if (kind == null) {
+        throw StateError(
+          'spec line $lineNo declares an unknown scenario type '
+          '"**Type**: ${m.group(1)}".\n'
+          '   --> fix: use one of '
+          '${BehaviorKind.values.map((k) => k.name).join(', ')}.',
+        );
+      }
+      final id = 'A$aIdx';
+      if (markers.containsKey(id)) {
+        throw StateError(
+          'duplicate `**Type**` markers for scenario $id (first at line '
+          '${markers[id]!.specLine}, duplicate at line $lineNo).\n'
+          '   --> fix: keep exactly one `**Type**` marker per scenario.',
+        );
+      }
+      // A manual scenario consumes the AC number but emits no row
+      // (bug #846) — so it also declares nothing (no row to route).
+      final blockIsManual = manualScenarioMarker.hasMatch(
+        lines[scenarioLine - 1],
+      );
+      if (!blockIsManual) {
+        markers[id] = ScenarioDeclaration(
+          behaviorId: id,
+          declaredType: kind,
+          specLine: lineNo,
+        );
+      }
+    }
+    return markers;
+  }
+
 
   /// The heading that opens a Key Entities section (corpus format:
   /// `### Key Entities`; any heading level 1-6 is accepted, matched
@@ -392,6 +476,12 @@ class SpecParser {
 
   List<Behavior> _extractAcceptance(String feature, String specMd) {
     final behaviors = <Behavior>[];
+    // Feature 071 (issue #951): the rung-1 lane declaration. A
+    // scenario's `**Type**` marker decides its kind outright; the
+    // #830 UI-intent classifier below is the labeled fallback for
+    // undeclared scenarios (migration window). Prose never overrides
+    // a declaration (FR-001/FR-013).
+    final markers = parseScenarioTypeMarkers(specMd);
     final lines = specMd.split('\n');
     var scenarioBuffer = <String>[];
     var aIdx = 0;
@@ -424,9 +514,12 @@ class SpecParser {
         // whose prose is UI-observable gets the widget subject kind so
         // plan writes it into the widget section and gen emits a
         // testWidgets pair instead of a smoke-shaped plain-function stub.
-        kind: isUiAcceptance(description)
-            ? BehaviorKind.widget
-            : BehaviorKind.acceptance,
+        // Feature 071: a `**Type**` marker (rung 1) outranks the prose
+        // classifier; the classifier only routes UNDECLARED scenarios.
+        kind: markers['A$aIdx']?.declaredType ??
+            (isUiAcceptance(description)
+                ? BehaviorKind.widget
+                : BehaviorKind.acceptance),
         description: description,
         // Bug #846: AC source criterion aligned to the document-wide AC
         // number consumed above (id alignment with the requirement scan).
