@@ -114,7 +114,7 @@ void main() {
 
   setUp(() async {
     workspace = await Directory.systemTemp.createTemp('zfa-parity-915');
-    featureDir = '${workspace.path}/specs/892-tdd-realize-mock-swap';
+    featureDir = '${workspace.path}/specs/067-tdd-realize-mock-swap';
   });
 
   tearDown(() async {
@@ -422,7 +422,7 @@ void main() {
         '--project',
         workspace.path,
         '--feature',
-        '892-tdd-realize-mock-swap',
+        '067-tdd-realize-mock-swap',
       ]);
       expect(code, 0, reason: output);
       expect(output, contains('diff-check: contracts=1 matched=1 drifted=0'));
@@ -444,7 +444,7 @@ void main() {
         '--project',
         workspace.path,
         '--feature',
-        '892-tdd-realize-mock-swap',
+        '067-tdd-realize-mock-swap',
       ]);
       expect(code, 2, reason: output);
       expect(output, contains('result=drift'));
@@ -465,7 +465,7 @@ void main() {
         '--project',
         workspace.path,
         '--feature',
-        '892-tdd-realize-mock-swap',
+        '067-tdd-realize-mock-swap',
         '--full',
       ]);
       expect(code, 2, reason: output);
@@ -483,7 +483,7 @@ void main() {
           '--project',
           workspace.path,
           '--feature',
-          '892-tdd-realize-mock-swap',
+          '067-tdd-realize-mock-swap',
         ]);
         expect(code, 1, reason: output);
         expect(output, contains('result=incomplete'));

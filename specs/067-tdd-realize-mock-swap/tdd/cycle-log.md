@@ -38,7 +38,7 @@ adapters. The feature's broader realize work has no prior cycles here.
   (`zfa tdd diff-check`), registration in `tdd_command.dart`, parity
   rollup lines in `corpus_status_command.dart` /
   `corpus_audit_command.dart`, committed fixture pair
-  `specs/892-tdd-realize-mock-swap/tdd/fixtures/rest-quotes/{mock,real}.json`.
+  `specs/067-tdd-realize-mock-swap/tdd/fixtures/rest-quotes/{mock,real}.json`.
   Suite -> 23 passed, 0 failed (~2s). Full fast tier -> 2,506 passed,
   0 failed.
 - refactor: `dart format` on the changed files (0 changed on re-run);

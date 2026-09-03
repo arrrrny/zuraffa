@@ -1,6 +1,6 @@
 # Feature Specification: Corpus Economics — Verify in Minutes
 
-**Feature Branch**: `894-corpus-economics`
+**Feature Branch**: `069-corpus-economics`
 
 **Created**: 2026-09-03
 

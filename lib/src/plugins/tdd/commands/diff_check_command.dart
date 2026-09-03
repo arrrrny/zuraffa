@@ -39,7 +39,7 @@ class DiffCheckCommand extends Command<void> {
       'feature',
       help:
           'Feature name whose adapter contracts are checked (e.g. '
-          '892-tdd-realize-mock-swap). Reads '
+          '067-tdd-realize-mock-swap). Reads '
           'specs/<feature>/tdd/fixtures/<contract>/{mock,real}.json.',
     );
     argParser.addOption(

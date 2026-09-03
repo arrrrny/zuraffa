@@ -1,6 +1,6 @@
 # Feature Specification: zfa tdd realize — Mock→Real Swap
 
-**Feature Branch**: `892-tdd-realize-mock-swap`
+**Feature Branch**: `067-tdd-realize-mock-swap`
 
 **Created**: 2026-09-03
 

@@ -1,6 +1,6 @@
 # Feature Specification: Simulation-Mode DI Binding
 
-**Feature Branch**: `893-simulation-di-binding`
+**Feature Branch**: `068-simulation-di-binding`
 
 **Created**: 2026-09-03
 

@@ -1,5 +1,5 @@
 ---
-feature: 892-tdd-realize-mock-swap (bug #915 slice — differential harness)
+feature: 067-tdd-realize-mock-swap (bug #915 slice — differential harness)
 verdict: PASS_WITH_GAPS
 standard: .specify/extensions/tdd/templates/tdd-test-quality-rubric.md
 verified_at: ba7b45c # short SHA audited (working tree carrying the #915 fix, pre-commit)
@@ -18,6 +18,12 @@ suite: 2506 passed, 0 failed # fast tier via tools/run_tests_chunked.sh (67 chun
 
 # TDD Verification: Differential harness — fixture parity between mock and real adapters (bug #915)
 
+> Post-audit note: master renumbered the spec directories mid-flight
+> (892-… → 067-…, commit 5c0add5). This report and the fixture pair were
+> audited under the pre-renumber `specs/892-tdd-realize-mock-swap/` paths;
+> they now live at `specs/067-tdd-realize-mock-swap/`. Paths below reflect
+> the current layout.
+
 **Verdict: PASS_WITH_GAPS.** Every remediation criterion is covered by tests
 through the real CLI entry point, no HIGH smells, and all three sampled
 deliberate mutants were caught — but the ordering evidence is `LIKELY` rather
@@ -30,7 +36,7 @@ Audit target: the bug #915 change set only —
 `lib/src/plugins/tdd/commands/diff_check_command.dart` (new),
 `lib/src/commands/tdd_command.dart` (registration),
 `corpus_status_command.dart` / `corpus_audit_command.dart` (parity rollup
-lines), `specs/892-tdd-realize-mock-swap/tdd/fixtures/rest-quotes/`
+lines), `specs/067-tdd-realize-mock-swap/tdd/fixtures/rest-quotes/`
 (committed fixture pair), `test/simulation/adapter_parity_checker_test.dart`
 (new). The broader realize feature in `spec.md` was NOT the audit target.
 
@@ -57,8 +63,8 @@ registry, none of which contain tests).
 | #   | Severity | Finding                                                                                                                                             | Evidence                                                              |
 | --- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | 1   | LOW      | The named-verdict kind tokens (`field-drift`, `type-drift`, `fault-drift`) are not directly pinned; tests assert verdict, path, and both sides' shape names via substring. A rename of a kind token alone would not fail the suite | `test/simulation/adapter_parity_checker_test.dart:191-196,213-215`    |
-| 2   | INFO     | `.specify/scripts/bash/check-prerequisites.sh --json --paths-only` with `SPECIFY_FEATURE_DIRECTORY` set resolves `FEATURE_DIR` without the `specs/` segment in this repo layout (`/home/z/zuraffa/892-tdd-realize-mock-swap` vs the real `/home/z/zuraffa/specs/892-tdd-realize-mock-swap`) | resolver run recorded in the audit session                            |
-| 3   | PROCESS  | `tdd/test-list.md` absent for 892 — behaviors for this audit were reconstructed from the bug remediation; a future realize slice should plan through the extension so per-behavior evidence exists | `specs/892-tdd-realize-mock-swap/tdd/` has no test-list.md            |
+| 2   | INFO     | `.specify/scripts/bash/check-prerequisites.sh --json --paths-only` with `SPECIFY_FEATURE_DIRECTORY` set resolves `FEATURE_DIR` without the `specs/` segment in this repo layout (`/home/z/zuraffa/067-tdd-realize-mock-swap` vs the real `/home/z/zuraffa/specs/067-tdd-realize-mock-swap`) | resolver run recorded in the audit session                            |
+| 3   | PROCESS  | `tdd/test-list.md` absent for 892 — behaviors for this audit were reconstructed from the bug remediation; a future realize slice should plan through the extension so per-behavior evidence exists | `specs/067-tdd-realize-mock-swap/tdd/` has no test-list.md            |
 
 ## Mutation results
 
@@ -89,14 +95,14 @@ zero mutant residue.
 Criteria with no test: none. Tests tracing to nothing: none.
 
 The committed fixture pair
-(`specs/892-tdd-realize-mock-swap/tdd/fixtures/rest-quotes/{mock,real}.json`)
+(`specs/067-tdd-realize-mock-swap/tdd/fixtures/rest-quotes/{mock,real}.json`)
 was additionally exercised through the real binary:
-`dart run bin/zfa.dart tdd diff-check --feature 892-tdd-realize-mock-swap --full`
+`dart run bin/zfa.dart tdd diff-check --feature 067-tdd-realize-mock-swap --full`
 -> `rest-quotes -> match`, `parity: ... score=1.00 result=match`, exit 0.
 
 ## What was not audited
 
-- The broader realize feature (`specs/892-tdd-realize-mock-swap/spec.md`
+- The broader realize feature (`specs/067-tdd-realize-mock-swap/spec.md`
   user stories, acceptance criteria, and functional requirements beyond the
   differential-gate slice): this audit graded bug #915's remediation only.
 - Coverage: opt-in per the profile, not run — uncovered-branch signals are
