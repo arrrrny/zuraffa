@@ -8,6 +8,7 @@ import '../core/project/receipt_store.dart';
 import '../utils/entity_field_injector.dart';
 import '../utils/entity_type_validator.dart';
 import '../utils/entity_utils.dart';
+import '../utils/framework_export_surface.dart';
 import '../utils/string_utils.dart';
 import '../version.dart';
 
@@ -160,6 +161,40 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     if (name == null || name.isEmpty) {
       print('Error: Entity name is required. Use -n or --name to specify.');
+      exit(1);
+    }
+
+    // Issue #942: refuse entity names that collide with the framework's
+    // export surface BEFORE writing anything. The generated
+    // datasources/mocks import the entity file AND the framework barrel
+    // unprefixed, so an entity named like a zuraffa core export (e.g.
+    // `Credentials`) makes every generated file fail to compile with
+    // `ambiguous_import` errors. Fail-open: when the export surface
+    // cannot be resolved (e.g. a pub-global snapshot without package
+    // context) the preflight is skipped silently — the #942 hide clauses
+    // in the generated templates remain the compile-time safety net.
+    final surface = FrameworkExportSurface.tryResolve(
+      projectRoot: Directory.current.path,
+    );
+    final collisionSource = surface?.lookup(name);
+    if (collisionSource != null) {
+      print(
+        '❌ Cannot create entity "$name": the name collides with the '
+        'zuraffa framework export "$name" ($collisionSource).',
+      );
+      print('');
+      print(
+        '   Generated datasources and mocks import the entity file AND '
+        'the framework barrel (package:zuraffa/zuraffa.dart). With both '
+        'exporting "$name", every generated datasource/mock fails to '
+        'compile with ambiguous_import errors.',
+      );
+      print('');
+      print(
+        '--> fix: rename the entity, e.g. '
+        '`zfa entity create ${name}Entity --fields=...` — pick a name '
+        'that does not match a zuraffa export.',
+      );
       exit(1);
     }
 

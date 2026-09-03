@@ -55,4 +55,22 @@ class EntityUtils {
 
     return types;
   }
+
+  /// The entity's own symbols a generated file must hide from the
+  /// framework barrel it imports alongside the entity file (issue #942).
+  ///
+  /// A generated datasource/mock imports the entity file AND
+  /// `package:zuraffa/zuraffa.dart` (or `package:zuraffa/mock.dart`)
+  /// unprefixed. When the entity's name matches a zuraffa core export
+  /// (e.g. an entity named `Credentials` — the framework exports its own
+  /// `Credentials` params class), every use of the name in the generated
+  /// file is an `ambiguous_import` error and the generated tree does not
+  /// compile. The generator knows the entity's own symbol set — the
+  /// zorphy concrete class and its `Patch` pair — so the barrel import
+  /// carries a `hide` clause for exactly those symbols, and the entity's
+  /// own definitions win resolution.
+  static List<String> barrelHideNames(String entityName) => <String>[
+    entityName,
+    '${entityName}Patch',
+  ];
 }

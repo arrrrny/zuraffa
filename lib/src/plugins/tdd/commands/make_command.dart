@@ -23,15 +23,12 @@
 ///   5. Executes the plan via [PipelineRunner], capturing every
 ///      invocation as a [GenerationStep] (FR-006). Misfire-stop on
 ///      unexpressible behaviors (US4) or failing generation steps
-///      (US4.AC2) — with one per-behavior guard (issue #737): a
-///      failure of the plan's TERMINAL `build` step is tolerated when
-///      the CURRENT behavior's own test passes (the profile `single`
-///      command) after the generation steps ran. The build step
-///      validates the whole project, so it can fail on pre-existing
-///      red suite state the make is not responsible for; grading the
-///      behavior per-behavior (the #694 skip transition,
-///      `outcome=skipped`) instead of `generation-error` keeps
-///      `zfa tdd run` off a false negative.
+///      (US4.AC2) — with one per-behavior guard (issue #737, amended by
+///      issue #942): a failure of the plan's TERMINAL `build` step is
+///      tolerated when the CURRENT behavior's own test passes (the
+///      profile `single` command) AND the failed build's output carries
+///      no analyzer errors — a non-compiling generated tree is not
+///      tolerable noise and keeps the honest `generation-error` stop.
 ///   6. Runs the target test via the profile `single` command and
 ///      requires a PASS (FR-007). Then requires no NEW suite failures
 ///      that are attributable to this make, relative to a pre-run
@@ -89,6 +86,7 @@ import '../services/tdd_timeout.dart';
 import '../services/widget_scaffold.dart';
 import '../tdd_plugin.dart';
 import '../../../cli/plugin_loader.dart';
+import '../../../commands/build_command.dart' show BuildCommand;
 import '../../../config/zfa_config.dart';
 import '../../../core/plugin_system/plugin_manager.dart';
 import '../../../core/plugin_system/plugin_registry.dart';
@@ -444,7 +442,10 @@ class MakeCommand extends Command<void> {
     var postRun = driftRun;
     // Issue #737: set when the plan's terminal `build` step failed but
     // the per-behavior guard tolerated it (the behavior's own test
-    // passes) — the make then takes the #694 skip transition.
+    // passes, and the failed build's output carried no analyzer errors
+    // — the issue #942 gate) — the make then records the honest
+    // `green-with-failed-build` outcome instead of conflating the
+    // failure with real green.
     var buildStepTolerated = false;
     if (!alreadyGreen) {
       // 6. Plan the minimal generation (FR-005). The row's loop kind
@@ -647,7 +648,8 @@ class MakeCommand extends Command<void> {
           print(
             "   per-behavior check: the behavior's own test passes — the "
             'build failure is not attributable to this make (issue #737 '
-            'per-behavior guard); taking the #694 skip transition.',
+            'per-behavior guard); recording it as green-with-failed-build '
+            '(issue #942).',
           );
           postRun = toleratedRun;
           buildStepTolerated = true;
@@ -842,7 +844,9 @@ class MakeCommand extends Command<void> {
     );
     _printSummary(
       behavior: record.behaviorId,
-      outcome: alreadyGreen || buildStepTolerated
+      outcome: buildStepTolerated
+          ? MakeOutcome.greenWithFailedBuild
+          : alreadyGreen
           ? MakeOutcome.skipped
           : MakeOutcome.green,
       feature: target.featureName,
@@ -932,6 +936,11 @@ class MakeCommand extends Command<void> {
   ///     failure means real generation work never ran — no tolerance);
   ///   - that step is a `build` step (the #737 scope: the make plan's
   ///     build/guard logic only);
+  ///   - the failed step's output carries NO analyzer ERRORS (issue
+  ///     #942): `dart analyze` error lines mean the generated tree does
+  ///     not compile — the behavior test can pass only because nothing
+  ///     exercises the broken files. Tolerating that would green-wash
+  ///     the make; the honest stop stands instead;
   ///   - the CURRENT behavior's own test — the profile `single`
   ///     command, e.g. `dart test test/tdd/u3_test.dart` — runs and
   ///     passes right now (the same per-behavior check the TDD loop is
@@ -953,6 +962,25 @@ class MakeCommand extends Command<void> {
     if (idx < 0 || idx != plan.steps.length - 1) return null;
     final args = plan.steps[idx].args;
     if (args.isEmpty || args.first != 'build') return null;
+    // Issue #942: a failed build whose analyze stage reports ERRORS is
+    // not tolerable noise — the generated tree does not compile. The
+    // behavior's own test passing proves nothing here (nothing may
+    // exercise the broken files), so the tolerance must refuse and keep
+    // the honest `generation-error` stop. Warnings/info/build-config
+    // noise still tolerable (the #737 scope).
+    final buildOutput = result.steps[idx].output;
+    if (BuildCommand.analyzeReportsError(buildOutput)) {
+      final errorLines = buildOutput
+          .split('\n')
+          .where((l) => RegExp(r'^\s*error\s*-\s').hasMatch(l))
+          .length;
+      print(
+        '   terminal build step failed with $errorLines analyzer error(s) '
+        '— a non-compiling generated tree is not tolerable noise '
+        '(issue #942): the per-behavior guard refuses the tolerance.',
+      );
+      return null;
+    }
     final run = await runner.runSingle(
       singleTemplate: singleTemplate,
       testPath: testPath,

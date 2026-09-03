@@ -9,9 +9,11 @@
 ///
 /// - `gen` — exit 0 (no summary-line requirement, U16);
 /// - `verify-red` — exit 0 and `certified=true` (U13);
-/// - `make` — exit 0 and `outcome=green` or `outcome=skipped` (U14;
+/// - `make` — exit 0 and `outcome=green`, `outcome=skipped` (U14;
 ///   `skipped` is the issue #694 already-green skip transition —
-///   generation skipped, suite re-certified, green evidence appended);
+///   generation skipped, suite re-certified, green evidence appended),
+///   or `outcome=green-with-failed-build` (issue #942 — a #737-tolerated
+///   terminal build failure recorded honestly);
 /// - `refactor` — exit 0 and `outcome=clean` or `outcome=refactored`
 ///   (U15).
 ///
@@ -334,8 +336,14 @@ class StepRunner {
                 ? // `green` is the certified generation outcome;
                   // `skipped` is the issue #694 already-green skip
                   // transition (generation skipped, suite re-certified,
-                  // green evidence appended by make itself).
-                  outcome == 'green' || outcome == 'skipped'
+                  // green evidence appended by make itself);
+                  // `green-with-failed-build` is the issue #942 honest
+                  // label for a #737-tolerated terminal build failure —
+                  // the loop must flow past tolerated noise, but the
+                  // accounting stays distinguishable from real green.
+                  outcome == 'green' ||
+                      outcome == 'skipped' ||
+                      outcome == 'green-with-failed-build'
                 : outcome == 'clean' || outcome == 'refactored');
         return StepResult(
           step: step,
