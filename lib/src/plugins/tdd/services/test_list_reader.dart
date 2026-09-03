@@ -206,7 +206,7 @@ class TestListReader {
     final lines = (await file.readAsString()).split('\n');
     final rows = <BehaviorRow>[];
     BehaviorKind? kind;
-    var inEntitySection = false;
+    var inDeclarativeSection = false;
     var deprecatedDialectWarned = false;
     for (var i = 0; i < lines.length; i++) {
       final raw = lines[i];
@@ -242,10 +242,17 @@ class TestListReader {
         // behavior rows — skip them instead of rejecting them as
         // malformed (plan writes the section; the reader is the single
         // format contract and must speak every shape plan writes).
-        inEntitySection = header.startsWith('key entities');
+        // Bug #937: the same contract covers the External dependencies
+        // and Layer contracts sections #926 taught plan to render —
+        // their rows are declarations, not behaviors; parsing them as
+        // behavior rows killed `zfa tdd run` (exit 2) on every
+        // deps-declaring (zuraffa-1.0) spec.
+        inDeclarativeSection = header.startsWith('key entities') ||
+            header.startsWith('external dependencies') ||
+            header.startsWith('layer contracts');
         continue;
       }
-      if (inEntitySection) continue;
+      if (inDeclarativeSection) continue;
       if (!trimmed.startsWith('|')) continue;
       final cells = _splitRow(trimmed).map((c) => c.trim()).toList();
       if (cells.length > 1 && cells.last.isEmpty) cells.removeLast();
