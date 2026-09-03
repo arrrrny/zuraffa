@@ -452,4 +452,43 @@ $kMinimalAcceptance
       expect(list, contains('`ShoeSizePreferenceRepository`'));
     },
   );
+
+  test(
+    'A15: a Template Version marker that appears only inside a fenced code '
+    'block (e.g. a "How to write a spec" example) is NOT treated as the '
+    "spec's treaty pin — pin absent => exit 3, not exit 0",
+    () async {
+      // writeRawSpec writes the body verbatim with no marker injection.
+      await writeRawSpec(
+        featureDir,
+        '''
+# Spec: 001-demo
+
+$kMinimalAcceptance
+
+## How to write a spec
+
+```
+**Template Version**: `zuraffa-1.0`
+```
+
+The marker above is just an example — it lives inside a fenced code block
+and must not pin this spec.
+''',
+      );
+
+      final out = await runPlan();
+      expect(
+        exitCode,
+        3,
+        reason: 'marker inside a fenced code block must not count; out=$out',
+      );
+      expect(out, contains('missing `**Template Version**` marker'));
+      expect(
+        File(p.join(featureDir, 'tdd', 'test-list.md')).existsSync(),
+        isFalse,
+        reason: 'no artifacts may be written when the gate fires',
+      );
+    },
+  );
 }
