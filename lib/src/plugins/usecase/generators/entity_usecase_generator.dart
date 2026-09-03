@@ -10,6 +10,7 @@ import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
+import '../../../utils/source_interface_guard.dart';
 import '../../../utils/string_utils.dart';
 
 /// Generates entity-based use cases for the domain layer.
@@ -40,6 +41,11 @@ class EntityUseCaseGenerator {
       'watchList',
     ];
 
+    // Issue #921: only request use cases whose action methods exist on the
+    // entity's repository/service interface. The guard fails open when the
+    // interface file does not exist yet (same-plan generation) or cannot be
+    // positively parsed.
+    final requestedMethods = <String>[];
     for (final method in config.methods) {
       if (!validMethods.contains(method)) {
         if (config.verbose) {
@@ -47,6 +53,15 @@ class EntityUseCaseGenerator {
         }
         continue;
       }
+      requestedMethods.add(method);
+    }
+    final effectiveMethods = await const SourceInterfaceGuard().filterMethods(
+      config,
+      methods: requestedMethods,
+      fileSystem: fileSystem,
+    );
+
+    for (final method in effectiveMethods) {
       files.add(await _generateForMethod(config, method));
     }
     if (config.revert && config.methods.isEmpty) {
