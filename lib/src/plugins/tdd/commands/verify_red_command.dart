@@ -306,7 +306,24 @@ class VerifyRedCommand extends Command<void> {
     // ---------------------------------------------------------------
     if (classification == RedClassification.assertion) {
       final kindGaps = await _certifyFinderKinds(cwd, record);
-      if (kindGaps != null && kindGaps.isNotEmpty) {
+      if (kindGaps == null) {
+        print('   classification: ${RedClassification.kindMismatch.label}');
+        print(
+          'zfa tdd verify-red: red observed, but no scenario description '
+          'is available from the artifact record or legacy test header; '
+          'the assertion kinds cannot be certified.',
+        );
+        stderr.writeln('   no evidence written');
+        _printSummary(
+          behavior: record.behaviorId,
+          classification: RedClassification.kindMismatch.label,
+          certified: false,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+      if (kindGaps.isNotEmpty) {
         print('   classification: ${RedClassification.kindMismatch.label}');
         print(
           'zfa tdd verify-red: red observed, but the test\'s assertion '
@@ -553,12 +570,12 @@ class VerifyRedCommand extends Command<void> {
   String _runnableNameOf(ArtifactRecord record) => record.plainTestName;
 
   /// The issue #964 kind gate: re-derive the scenario's required
-  /// assertion classes from the generated test's own description header
-  /// and check the file satisfies them. Returns the unsatisfied classes,
-  /// or null when the gate does not apply (unreadable file — the
-  /// classifier already handled it; a scaffolded test — already excluded
-  /// from green accounting; a non-widget plain-dart test; or a test with
-  /// no derivable scenario).
+  /// assertion classes from the artifact record's scenario description
+  /// and check the file satisfies them. Legacy records without a description
+  /// segment fall back to the generated test's description header. Returns
+  /// the unsatisfied classes, or null when neither source supplies a scenario
+  /// description. An unreadable file, scaffolded test, or non-widget test
+  /// does not apply the gate and returns an empty set.
   Future<Set<ScenarioAssertionClass>?> _certifyFinderKinds(
     String cwd,
     ArtifactRecord record,
@@ -570,21 +587,32 @@ class VerifyRedCommand extends Command<void> {
     try {
       content = await File(testPath).readAsString();
     } on FileSystemException {
-      return null;
+      return const <ScenarioAssertionClass>{};
     }
     // Scaffolded tests are already excluded from green certification —
     // their reds stay the bootstrap honest red.
-    if (contentIsScaffolded(content)) return null;
+    if (contentIsScaffolded(content)) {
+      return const <ScenarioAssertionClass>{};
+    }
     // Only the widget lane carries finder kinds.
-    if (!content.contains('testWidgets(')) return null;
+    if (!content.contains('testWidgets(')) {
+      return const <ScenarioAssertionClass>{};
+    }
     final descriptionMatch = RegExp(
       r'^// description: (.*)$',
       multiLine: true,
     ).firstMatch(content);
-    if (descriptionMatch == null) return null;
-    final analysis = FinderTaxonomy.analyze(descriptionMatch.group(1)!.trim());
-    final unsatisfied = FinderTaxonomy.unsatisfiedClasses(analysis, content);
-    return unsatisfied.isEmpty ? null : unsatisfied;
+    final segments = record.runnableTestName.split('::');
+    final recordDescription = segments.length >= 3
+        ? record.descriptionSegment.trim()
+        : '';
+    final headerDescription = descriptionMatch?.group(1)?.trim() ?? '';
+    final description = recordDescription.isNotEmpty
+        ? recordDescription
+        : headerDescription;
+    if (description.isEmpty) return null;
+    final analysis = FinderTaxonomy.analyze(description);
+    return FinderTaxonomy.unsatisfiedClasses(analysis, content);
   }
 
   void _printSummary({

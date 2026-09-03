@@ -19,6 +19,7 @@
 // subprocess), so the whole file stays in the fast tier.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -153,6 +154,38 @@ Some tests failed.
         ScenarioAssertionClass.enabledState,
       );
       expect(enabled.assertions.single.disabled, isFalse);
+    });
+
+    test('post-copula negation inverts enabled and hidden polarity', () {
+      final notDisabled = FinderTaxonomy.analyze(
+        'the "Sign in" button is not disabled',
+      );
+      expect(
+        notDisabled.assertions.single.assertionClass,
+        ScenarioAssertionClass.enabledState,
+      );
+      expect(notDisabled.assertions.single.disabled, isFalse);
+
+      final neverEnabled = FinderTaxonomy.analyze(
+        'the "Sign in" button is never enabled',
+      );
+      expect(neverEnabled.assertions.single.disabled, isTrue);
+
+      final notHidden = FinderTaxonomy.analyze(
+        'the "Welcome" banner is not hidden',
+      );
+      expect(
+        notHidden.assertions.single.assertionClass,
+        ScenarioAssertionClass.presence,
+      );
+
+      final notShown = FinderTaxonomy.analyze(
+        'the "Error" banner is not shown',
+      );
+      expect(
+        notShown.assertions.single.assertionClass,
+        ScenarioAssertionClass.absence,
+      );
     });
 
     test('an in-flight clause marks the scenario as a sequence', () {
@@ -359,6 +392,24 @@ void main() {
         content,
         contains('// scenario-assertions: enabled-state("Sign in")(disabled)'),
       );
+    });
+
+    test('multiple enabled-state assertions isolate buttonFinder locals', () {
+      final analysis = FinderTaxonomy.analyze(
+        'disables the "Save" button and enables the "Delete" button',
+      );
+      final emitted = FinderTaxonomy.emitTestAssertions(analysis).join('\n');
+      expect('final buttonFinder'.allMatches(emitted), hasLength(2));
+      expect(
+        RegExp(r'^\{$', multiLine: true).allMatches(emitted),
+        hasLength(2),
+      );
+      expect(
+        RegExp(r'^\s*\}$', multiLine: true).allMatches(emitted),
+        hasLength(2),
+      );
+      expect(emitted, contains('isNull'));
+      expect(emitted, contains('isNotNull'));
     });
 
     test('a sequence scenario is marked SCAFFOLDED, never flattened to '
@@ -573,6 +624,120 @@ void main() {
       expect(out, contains('route-outcome'));
       expect(exitCode, isNot(0));
       // The certified lie must never land in the ledger.
+      expect(File(fx.cycleLogPath).existsSync(), isFalse);
+    });
+
+    test(
+      'the artifact description is authoritative over the test header',
+      () async {
+        await registerWidgetBehavior(
+          id: 'A4',
+          description: 'the app navigates to the route "deal_list"',
+          testContent: '''
+// GENERATED TEST — stale description header.
+//
+// kind: widget
+// description: shows "deal_list"
+library;
+
+void main() {
+  testWidgets('A4 — navigates', (tester) async {
+    expect(find.text('deal_list'), findsOneWidget);
+  });
+}
+''',
+        );
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'verify-red',
+          '--project',
+          fx.root.path,
+          'A4',
+        ]);
+        expect(out, contains('classification=kind-mismatch certified=false'));
+        expect(out, contains('route-outcome'));
+        expect(File(fx.cycleLogPath).existsSync(), isFalse);
+      },
+    );
+
+    test(
+      'a legacy record without a description segment uses the header',
+      () async {
+        await registerWidgetBehavior(
+          id: 'A4',
+          description: 'unused legacy registry value',
+          testContent: '''
+// GENERATED TEST — legacy record shape.
+//
+// kind: widget
+// description: the app navigates to the route "deal_list"
+library;
+
+void main() {
+  testWidgets('A4 — navigates', (tester) async {
+    expect(find.text('deal_list'), findsOneWidget);
+  });
+}
+''',
+        );
+        final registry = File(fx.artifactsPath);
+        final raw =
+            jsonDecode(await registry.readAsString()) as Map<String, dynamic>;
+        final records = raw['records'] as List<dynamic>;
+        final record = records.single as Map<String, dynamic>;
+        record['runnable_test_name'] = '${fx.testPathOf('A4')}::A4';
+        await registry.writeAsString(jsonEncode(raw));
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'verify-red',
+          '--project',
+          fx.root.path,
+          'A4',
+        ]);
+        expect(out, contains('classification=kind-mismatch certified=false'));
+        expect(out, contains('route-outcome'));
+        expect(File(fx.cycleLogPath).existsSync(), isFalse);
+      },
+    );
+
+    test('a widget record with no scenario source fails closed', () async {
+      await registerWidgetBehavior(
+        id: 'A4',
+        description: 'unused legacy registry value',
+        testContent: '''
+// GENERATED TEST — missing description header.
+//
+// kind: widget
+library;
+
+void main() {
+  testWidgets('A4 — unknown', (tester) async {
+    expect(find.text('deal_list'), findsOneWidget);
+  });
+}
+''',
+      );
+      final registry = File(fx.artifactsPath);
+      final raw =
+          jsonDecode(await registry.readAsString()) as Map<String, dynamic>;
+      final records = raw['records'] as List<dynamic>;
+      final record = records.single as Map<String, dynamic>;
+      record['runnable_test_name'] = '${fx.testPathOf('A4')}::A4';
+      await registry.writeAsString(jsonEncode(raw));
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'verify-red',
+        '--project',
+        fx.root.path,
+        'A4',
+      ]);
+      expect(out, contains('classification=kind-mismatch certified=false'));
+      expect(out, contains('no scenario description is available'));
       expect(File(fx.cycleLogPath).existsSync(), isFalse);
     });
 

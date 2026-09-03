@@ -263,11 +263,27 @@ abstract final class FinderTaxonomy {
   ) {
     var best = -1;
     var bestClass = ScenarioAssertionClass.presence;
+    var bestNegated = false;
     void consider(RegExp verb, ScenarioAssertionClass kind) {
       for (final m in verb.allMatches(window)) {
         if (m.end > best) {
           best = m.end;
           bestClass = kind;
+          // Some absence expressions ("not shown", "never visible")
+          // already include their polarity in the matched text. Invert only
+          // when a separate post-copula prefix negates the lexical verb, as
+          // in "not disabled" or "never hidden".
+          final matchIncludesNegation = RegExp(
+            r'\b(?:not|never)\b',
+            caseSensitive: false,
+          ).hasMatch(m.group(0)!);
+          final prefix = window.substring(0, m.start);
+          bestNegated =
+              !matchIncludesNegation &&
+              RegExp(
+                r'\b(?:not|never)\s+$',
+                caseSensitive: false,
+              ).hasMatch(prefix);
         }
       }
     }
@@ -284,16 +300,24 @@ abstract final class FinderTaxonomy {
         r'\benabl(?:e|es|ed|ing)\b|\benabled\b',
         caseSensitive: false,
       ).allMatches(window).fold(-1, (end, m) => m.end > end ? m.end : end);
+      final disabled = lastDisable >= lastEnable;
       return ScenarioAssertion(
         assertionClass: bestClass,
         literal: literal,
-        disabled: lastDisable >= lastEnable,
+        disabled: bestNegated ? !disabled : disabled,
       );
     }
+    final assertionClass = bestNegated
+        ? switch (bestClass) {
+            ScenarioAssertionClass.absence => ScenarioAssertionClass.presence,
+            ScenarioAssertionClass.presence => ScenarioAssertionClass.absence,
+            _ => bestClass,
+          }
+        : bestClass;
     return ScenarioAssertion(
-      assertionClass: bestClass,
+      assertionClass: assertionClass,
       literal: literal,
-      kind: bestClass == ScenarioAssertionClass.routeOutcome
+      kind: assertionClass == ScenarioAssertionClass.routeOutcome
           ? LiteralKind.route
           : LiteralKind.text,
     );
@@ -332,16 +356,18 @@ abstract final class FinderTaxonomy {
             "'the scenario asserts navigation to route $literal; "
             "a rendered string is not a navigation');";
       case ScenarioAssertionClass.enabledState:
-        return "final buttonFinder = find.widgetWithText(ElevatedButton, "
+        return "{\n"
+            "        final buttonFinder = find.widgetWithText(ElevatedButton, "
             "'$literal');\n"
-            '      expect(buttonFinder, findsOneWidget,\n'
+            '        expect(buttonFinder, findsOneWidget,\n'
             "          reason: 'the scenario asserts the $literal control "
             "exists');\n"
-            '      expect(\n'
-            '        tester.widget<ElevatedButton>(buttonFinder).onPressed,\n'
-            '        ${assertion.disabled ? 'isNull' : 'isNotNull'},\n'
-            "        reason: 'the scenario asserts the $literal control is "
-            "${assertion.disabled ? 'disabled' : 'enabled'}');";
+            '        expect(\n'
+            '          tester.widget<ElevatedButton>(buttonFinder).onPressed,\n'
+            '          ${assertion.disabled ? 'isNull' : 'isNotNull'},\n'
+            "          reason: 'the scenario asserts the $literal control is "
+            "${assertion.disabled ? 'disabled' : 'enabled'}');\n"
+            '      }';
       case ScenarioAssertionClass.sequence:
         // Never emitted: a sequence scenario is marked scaffolded by the
         // writer; its per-literal sub-assertions arrive through their
