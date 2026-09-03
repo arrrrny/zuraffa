@@ -135,8 +135,9 @@ $kMinimalAcceptance
       final out = await runPlan();
       expect(exitCode, 0, reason: out);
 
-      final entities =
-          await TestListReader('$tmpDir/specs/$featureName').readEntities();
+      final entities = await TestListReader(
+        p.join(tmpDir.path, 'specs', featureName),
+      ).readEntities();
       expect(entities, hasLength(1));
       expect(entities.first.name, 'ShoeSizePreference');
       expect(entities.first.fields, containsAll(<String>[
