@@ -108,3 +108,12 @@ test task first (RED recorded here), then the implementation tasks that flip it
 - `dart test test/plugins/tdd` — 923/923 green (post-format)
 - `dart analyze lib/src/plugins/tdd/ test/plugins/tdd/` — no issues
 - `dart format` — touched files clean
+
+## Cycle: review fixes (CodeRabbit #958)
+
+- 4 review findings applied to the branch:
+  1. routing_resolver.dart — a method-qualified trace naming an undeclared method now refuses (danglingReference + fix line) instead of silently using the row's first signature; pinned (U14).
+  2. make_command.dart — the CLI-surface happy path for declared routing is now pinned (make_command_declared_071_test.dart), and the pin immediately caught TWO real wiring gaps: (a) make never passed the row's trace tokens into the summary (added `_rowTraces`), (b) parseContractRows read Key Entities as bullets instead of the zuraffa-1.0 TABLE form. Both fixed.
+  3. declared_routing.dart — feature dir built with p.join.
+  4. func_command.dart — the prose deriver runs only on the fallback branch.
+- post-fix sweep: fast tier 924/924, slow widget suites 5/5, analyze clean, format clean

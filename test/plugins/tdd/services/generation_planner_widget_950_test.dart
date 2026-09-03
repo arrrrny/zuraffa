@@ -31,90 +31,97 @@ void main() {
     kind: kind,
   );
 
-  group('bug 950: widget-kind rows never plan tdd func, even with a func verb', () {
-    test('a widget-kind row whose description says "renders" is NOT routed '
-        'to tdd func', () {
-      final plan = planner.plan(summary(kind: BehaviorKind.widget));
-      expect(
-        plan.isExpressible,
-        isFalse,
-        reason: 'the func scaffold cannot express a view-builder subject; '
-            'the row must fall to the composition fallback view lane',
-      );
-      expect(plan.steps, isEmpty);
-      expect(plan.unexpressibleReason, contains('A1'));
-    });
-
-    test('every render inflection (renders/rendered/rendering) stays off '
-        'the func surface', () {
-      for (final description in [
-        "the widget renders 'Hello, shopper'",
-        "the widget rendered 'Hello, shopper'",
-        "the widget is rendering 'Hello, shopper'",
-      ]) {
-        final plan = planner.plan(
-          summary(kind: BehaviorKind.widget, description: description),
-        );
+  group(
+    'bug 950: widget-kind rows never plan tdd func, even with a func verb',
+    () {
+      test('a widget-kind row whose description says "renders" is NOT routed '
+          'to tdd func', () {
+        final plan = planner.plan(summary(kind: BehaviorKind.widget));
         expect(
           plan.isExpressible,
           isFalse,
-          reason: 'description: $description',
+          reason:
+              'the func scaffold cannot express a view-builder subject; '
+              'the row must fall to the composition fallback view lane',
         );
+        expect(plan.steps, isEmpty);
+        expect(plan.unexpressibleReason, contains('A1'));
+      });
+
+      test('every render inflection (renders/rendered/rendering) stays off '
+          'the func surface', () {
+        for (final description in [
+          "the widget renders 'Hello, shopper'",
+          "the widget rendered 'Hello, shopper'",
+          "the widget is rendering 'Hello, shopper'",
+        ]) {
+          final plan = planner.plan(
+            summary(kind: BehaviorKind.widget, description: description),
+          );
+          expect(
+            plan.isExpressible,
+            isFalse,
+            reason: 'description: $description',
+          );
+          final plannedArgs = plan.steps.expand((s) => s.args);
+          expect(
+            plannedArgs,
+            isNot(contains('func')),
+            reason: 'description: $description',
+          );
+        }
+      });
+
+      test('the reason names the view lane (the fallback route)', () {
+        final plan = planner.plan(summary(kind: BehaviorKind.widget));
+        expect(plan.unexpressibleReason, contains('view'));
+        expect(plan.unexpressibleReason, contains('widget'));
+        // The reason is the operator-facing route instruction: it must
+        // name the `tdd view` command itself, not just any fallback words
+        // (audit mutant: a reason naming the WRONG command survived until
+        // this assertion landed).
+        expect(plan.unexpressibleReason, contains('`zfa tdd view'));
+      });
+
+      test('the widget guard outranks the U<n> id-prefix dispatch', () {
+        // Contradictory metadata (a widget-kind row on a U<n> id): the
+        // test-list row is the kind source of truth — a U<n> widget row
+        // must not hit `tdd func` either.
+        final plan = planner.plan(summary(id: 'U2', kind: BehaviorKind.widget));
+        expect(plan.isExpressible, isFalse);
         final plannedArgs = plan.steps.expand((s) => s.args);
-        expect(
-          plannedArgs,
-          isNot(contains('func')),
-          reason: 'description: $description',
-        );
-      }
-    });
+        expect(plannedArgs, isNot(contains('func')));
+      });
 
-    test('the reason names the view lane (the fallback route)', () {
-      final plan = planner.plan(summary(kind: BehaviorKind.widget));
-      expect(plan.unexpressibleReason, contains('view'));
-      expect(plan.unexpressibleReason, contains('widget'));
-      // The reason is the operator-facing route instruction: it must
-      // name the `tdd view` command itself, not just any fallback words
-      // (audit mutant: a reason naming the WRONG command survived until
-      // this assertion landed).
-      expect(plan.unexpressibleReason, contains('`zfa tdd view'));
-    });
-
-    test('the widget guard outranks the U<n> id-prefix dispatch', () {
-      // Contradictory metadata (a widget-kind row on a U<n> id): the
-      // test-list row is the kind source of truth — a U<n> widget row
-      // must not hit `tdd func` either.
-      final plan = planner.plan(
-        summary(id: 'U2', kind: BehaviorKind.widget),
+      test(
+        'the widget guard outranks the entity/CRUD description branches',
+        () {
+          // The prose deliberately carries no "widget"/"view" literal, so the
+          // 'widget' reason assertion below discriminates the guard from the
+          // #758 CRUD-acceptance stop (whose reason merely embeds the
+          // description verbatim).
+          final plan = planner.plan(
+            summary(
+              kind: BehaviorKind.widget,
+              description:
+                  'the cart repository list renders prices with totals',
+            ),
+          );
+          expect(plan.isExpressible, isFalse);
+          expect(
+            plan.unexpressibleReason,
+            contains('widget'),
+            reason:
+                'the refusal must come from the widget guard naming the '
+                'view lane, not from the #758 CRUD-acceptance stop',
+          );
+          final plannedFirstArgs = plan.steps.expand((s) => s.args);
+          expect(plannedFirstArgs, isNot(contains('make')));
+          expect(plannedFirstArgs, isNot(contains('entity')));
+        },
       );
-      expect(plan.isExpressible, isFalse);
-      final plannedArgs = plan.steps.expand((s) => s.args);
-      expect(plannedArgs, isNot(contains('func')));
-    });
-
-    test('the widget guard outranks the entity/CRUD description branches', () {
-      // The prose deliberately carries no "widget"/"view" literal, so the
-      // 'widget' reason assertion below discriminates the guard from the
-      // #758 CRUD-acceptance stop (whose reason merely embeds the
-      // description verbatim).
-      final plan = planner.plan(
-        summary(
-          kind: BehaviorKind.widget,
-          description: 'the cart repository list renders prices with totals',
-        ),
-      );
-      expect(plan.isExpressible, isFalse);
-      expect(
-        plan.unexpressibleReason,
-        contains('widget'),
-        reason: 'the refusal must come from the widget guard naming the '
-            'view lane, not from the #758 CRUD-acceptance stop',
-      );
-      final plannedFirstArgs = plan.steps.expand((s) => s.args);
-      expect(plannedFirstArgs, isNot(contains('make')));
-      expect(plannedFirstArgs, isNot(contains('entity')));
-    });
-  });
+    },
+  );
 
   group('bug 950 regressions: non-widget routing is untouched', () {
     test('a unit-kind row with "renders" still routes to the func surface', () {

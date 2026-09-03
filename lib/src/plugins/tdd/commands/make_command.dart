@@ -480,6 +480,7 @@ class MakeCommand extends Command<void> {
         kind: rowKind,
         stub: isStub,
         strictRouting: strictRouting,
+        traces: await _rowTraces(target.featureDir, record.behaviorId),
         declarations: await _declarationsFor(target.featureDir),
       );
       final plan = planner.plan(summary);
@@ -922,6 +923,25 @@ class MakeCommand extends Command<void> {
       );
     }
     return null;
+  }
+
+  /// Feature 071: the behavior's raw trace tokens from its test-list
+  /// row (`traces:` cell, comma-split) — the resolver resolves these
+  /// against declared contract rows. Empty when the row is missing.
+  Future<List<String>> _rowTraces(String featureDir, String behaviorId) async {
+    try {
+      for (final row in await TestListReader(featureDir).read()) {
+        if (row.id != behaviorId) continue;
+        return row.traces
+            .split(',')
+            .map((t) => t.trim())
+            .where((t) => t.isNotEmpty)
+            .toList();
+      }
+    } on TestListReadException {
+      // unreadable list: kindless/traceless routing, as pre-#835
+    }
+    return const [];
   }
 
   /// Feature 071: the spec's parsed routing declarations (markers,

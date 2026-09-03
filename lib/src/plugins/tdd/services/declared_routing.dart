@@ -8,6 +8,8 @@ library;
 
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+
 import '../models/routing.dart';
 import 'routing_resolver.dart';
 import 'spec_parser.dart';
@@ -27,7 +29,7 @@ class DeclaredRouting {
     required String behaviorId,
   }) async {
     try {
-      final featureDir = '$cwd/specs/$featureName';
+      final featureDir = p.join(cwd, 'specs', featureName);
       final rows = await TestListReader(featureDir).read();
       final row = rows.where((r) => r.id == behaviorId).firstOrNull;
       // The traces cell is a raw string (`FR-001, Formatter.format`) —
@@ -40,7 +42,7 @@ class DeclaredRouting {
                 .where((t) => t.isNotEmpty)
                 .toList();
       if (traces.isEmpty) return null;
-      final specFile = File('$featureDir/spec.md');
+      final specFile = File(p.join(featureDir, 'spec.md'));
       if (!specFile.existsSync()) return null;
       final declarations = SpecDeclarations(
         contractRows: {

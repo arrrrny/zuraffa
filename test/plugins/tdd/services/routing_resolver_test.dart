@@ -195,6 +195,27 @@ void main() {
       expect(f.message, contains('--> fix:'));
     });
 
+    test('a method-qualified trace naming an undeclared method refuses '
+        '(never falls back to the row\'s first signature)', () {
+      final result = resolver.resolve(
+        row: row('U14', traces: ['Formatter.summarise']),
+        declarations: decls(
+          contractRows: {
+            'Formatter': functionRow('Formatter', [
+              'format(Template) -> String',
+            ]),
+          },
+        ),
+        strict: false,
+      );
+      expect(result, isA<RoutingFailure>());
+      final f = result as RoutingFailure;
+      expect(f.code, RoutingFailureCode.danglingReference);
+      expect(f.message, contains('summarise'));
+      expect(f.message, contains('Formatter'));
+      expect(f.message, contains('--> fix:'));
+    });
+
     test('a dangling trace reference is refused, naming the line', () {
       final result = resolver.resolve(
         row: row('U8', kind: BehaviorKind.unit, traces: ['NonexistentRow']),

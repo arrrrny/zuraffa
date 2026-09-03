@@ -30,8 +30,7 @@ DerivedSignature deriveSubjectSignature(
   // literal result. Bug #920 review: an unsigned-only regex mis-routes
   // signed integers to the String fallback and decimal literals to a
   // truncated int body (`return 1;` from `returns 1.5`).
-  final number =
-      RegExp(r'\breturns?\s+(-?\d+(?:\.\d+)?)\b').firstMatch(desc);
+  final number = RegExp(r'\breturns?\s+(-?\d+(?:\.\d+)?)\b').firstMatch(desc);
   if (number != null) {
     final literal = number.group(1)!;
     return DerivedSignature(

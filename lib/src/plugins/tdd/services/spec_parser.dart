@@ -468,11 +468,17 @@ class SpecParser {
         continue;
       }
       if (section == 'key-entities') {
-        final bullet = _entityBullet.firstMatch(trimmed);
-        if (bullet == null) continue;
+        // Bug #919: the zuraffa-1.0 template declares entities as a
+        // 3-column TABLE (`| Entity | Fields | Purpose |`) — parse the
+        // table rows (header/separator skipped), like parseDependencies.
+        if (!trimmed.startsWith('|')) continue;
+        final cells = _splitCells(trimmed);
+        if (cells.isEmpty) continue;
+        if (cells[0].toLowerCase() == 'entity') continue; // header
+        if (RegExp(r'^-+$').hasMatch(cells[0])) continue; // separator
         rows.add(
           ContractRowDecl(
-            name: bullet.group(1)!.trim(),
+            name: cells[0],
             kind: ContractRowKind.entity,
             specLine: lineNo,
           ),

@@ -277,15 +277,17 @@ class FuncCommand extends Command<void> {
     required String functionName,
     Signature? declared,
   }) {
-    // Feature 071: the declared signature wins when present; the
-    // description-keyed deriver is the labeled fallback (issue #920:
-    // no invented return types when a declaration exists).
+    // Feature 071: the declared signature is authoritative when
+    // present — the prose deriver runs ONLY on the fallback branch
+    // (issue #920: no invented return types when a declaration exists).
+    if (declared != null) {
+      return '''${declared.returnType} $functionName() {
+  ${_declaredStubBody(declared.returnType, functionName)}
+}''';
+    }
     final derived = deriveSubjectSignature(description);
-    final returnType = declared?.returnType ?? derived.returnType;
-    final body = declared != null
-        ? _declaredStubBody(declared.returnType, functionName)
-        : (derived.explicitBody ?? "return '$functionName';");
-    return '''$returnType $functionName() {
+    final body = derived.explicitBody ?? "return '$functionName';";
+    return '''${derived.returnType} $functionName() {
   $body
 }''';
   }

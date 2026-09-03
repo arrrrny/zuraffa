@@ -222,7 +222,18 @@ class RoutingResolver {
       );
     }
     if (functionRow != null) {
-      signature = _signatureFor(functionRow, row.traces);
+      final lookup = _signatureFor(functionRow, row.traces);
+      // A method-qualified trace naming a method the row does not
+      // declare is a dangling reference, not a guess (feature 071
+      // review: falling back to the row's first signature silently
+      // routed the WRONG declared signature — the #920 class).
+      if (lookup.error != null) {
+        return RoutingFailure(
+          code: RoutingFailureCode.danglingReference,
+          message: lookup.error!,
+        );
+      }
+      signature = lookup.signature;
       if (signature != null) {
         provenance.add(
           ProvenanceLine(
@@ -324,7 +335,15 @@ class RoutingResolver {
     return null;
   }
 
-  Signature? _signatureFor(ContractRowDecl row, List<String> traces) {
+  /// Resolve the declared signature for a function row. Returns
+  /// `(signature, error)` — exactly one is non-null: an error when a
+  /// method-qualified trace names a method the row does not declare
+  /// (a dangling reference, never a silent fallback to another
+  /// signature).
+  ({Signature? signature, String? error}) _signatureFor(
+    ContractRowDecl row,
+    List<String> traces,
+  ) {
     final all = [
       ...row.signatures,
       ...row.rawSignatures.map((raw) {
@@ -335,17 +354,25 @@ class RoutingResolver {
         }
       }).whereType<Signature>(),
     ];
-    if (all.isEmpty) return null;
+    if (all.isEmpty) return (signature: null, error: null);
     for (final token in traces) {
       final dot = token.indexOf('.');
       if (dot > 0 && token.substring(0, dot) == row.name) {
         final wanted = token.substring(dot + 1);
         for (final s in all) {
-          if (s.name == wanted) return s;
+          if (s.name == wanted) return (signature: s, error: null);
         }
+        return (
+          signature: null,
+          error:
+              'contract row "${row.name}" declares no signature named '
+              '"$wanted" (trace "$token").\n'
+              '   --> fix: declare `$wanted(...)` on the row, or correct '
+              'the trace token.',
+        );
       }
     }
-    return all.first;
+    return (signature: all.first, error: null);
   }
 }
 
