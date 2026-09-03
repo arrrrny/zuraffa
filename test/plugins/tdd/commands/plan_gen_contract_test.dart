@@ -38,6 +38,8 @@ void main() {
     final specDir = Directory(featureDir);
     await specDir.create(recursive: true);
     await File(p.join(specDir.path, 'spec.md')).writeAsString('''
+**Template Version**: `zuraffa-1.0`
+
 # Spec: 001-demo
 
 ## Functional Requirements
@@ -233,6 +235,8 @@ void main() {
     test('a spec with a Key Entities section yields the entities table; '
         'the behavior rows are unchanged', () async {
       await File(p.join(featureDir, 'spec.md')).writeAsString('''
+**Template Version**: `zuraffa-1.0`
+
 # Spec: 001-demo
 
 ## Functional Requirements

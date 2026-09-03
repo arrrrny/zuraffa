@@ -10,6 +10,46 @@ library;
 
 import '../models/behavior.dart';
 
+/// One row of the zuraffa-1.0 template's `External Dependencies &
+/// Contracts` table (bug #919): the dependency's name, its kind, the
+/// declared contract (`name(args) -> return` shapes), and the mock
+/// priority the mock-first make path (#909) will honor.
+class SpecDependency {
+  const SpecDependency({
+    required this.dependency,
+    required this.type,
+    required this.contract,
+    required this.mockPriority,
+  });
+
+  final String dependency;
+  final String type;
+  final String contract;
+  final String mockPriority;
+
+  @override
+  String toString() => 'SpecDependency($dependency, $type, $contract, '
+      '$mockPriority)';
+}
+
+/// One declared layer-contract interface (bug #919): the layer name
+/// (`**Domain**:`), the interface name, and its declared method
+/// signatures (backticked `name(args) -> result` shapes).
+class LayerContract {
+  const LayerContract({
+    required this.layer,
+    required this.interfaceName,
+    required this.methods,
+  });
+
+  final String layer;
+  final String interfaceName;
+  final List<String> methods;
+
+  @override
+  String toString() => 'LayerContract($layer, $interfaceName, $methods)';
+}
+
 /// One declared field of a [SpecEntity], parsed from a backticked
 /// `` `name: Type` `` pair in the spec's Key Entities prose.
 class EntityField {
@@ -25,12 +65,19 @@ class EntityField {
 /// One entity declared by the spec's `Key Entities` section (bug #829):
 /// the name is the bullet's bold head (generic suffixes stripped to a
 /// valid Dart identifier), the fields are the backticked `name: Type`
-/// pairs the spec carries (empty when the prose declares none).
+/// pairs the spec carries (empty when the prose declares none). Bug
+/// #919: `purpose` is the third column of the zuraffa-1.0 template's
+/// table form; empty for legacy bullet declarations.
 class SpecEntity {
-  const SpecEntity({required this.name, this.fields = const []});
+  const SpecEntity({
+    required this.name,
+    this.fields = const [],
+    this.purpose = '',
+  });
 
   final String name;
   final List<EntityField> fields;
+  final String purpose;
 
   @override
   String toString() => 'SpecEntity(name: $name, fields: $fields)';
@@ -81,22 +128,215 @@ class SpecParser {
 
   static final RegExp _dartIdentifier = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
 
-  /// Extract the entities the spec declares under `Key Entities` (bug
-  /// #829 remediation 1: plan must surface them so the loop can create
-  /// and wire them).
-  List<SpecEntity> parseKeyEntities(String specMd) {
-    final entities = <SpecEntity>[];
+  /// A Key Entities table header (bug #919): the zuraffa-1.0 template
+  /// declares entities as a 3-column table `| Entity | Fields | Purpose |`.
+  static final RegExp _entityTableHeader = RegExp(
+    r'^\s*\|\s*entity\s*\|\s*fields\s*\|\s*purpose\s*\|\s*$',
+    caseSensitive: false,
+  );
+
+  /// A Key Entities table row: `| Name | `f: T`, `g: U` | purpose |`.
+  static final RegExp _entityTableRow = RegExp(
+    r'^\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|\s*$',
+  );
+
+  /// A Key Entities table separator row (`| -- | -- | -- |`).
+  static final RegExp _tableSeparator = RegExp(
+    r'^\s*\|\s*[\s\-|]*\|\s*$',
+  );
+
+  /// The zuraffa spec template's treaty pin (bug #919): the header marker
+  /// `**Template Version**: `x`` that declares which template grammar the
+  /// spec was authored against.
+  static final RegExp _templateVersionMarker = RegExp(
+    r'^\s*\*\*template\s+version\*\*:\s*`?([^`\n]+?)`?\s*$',
+    caseSensitive: false,
+  );
+
+  /// Template versions whose grammar this parser implements (bug #919).
+  /// A spec declaring anything else — or nothing — is contract drift:
+  /// plan exits 3 before parsing, so an unpinned spec can never drive a
+  /// silently-wrong plan.
+  static const Set<String> knownTemplateVersions = {'zuraffa-1.0'};
+
+  /// External dependency names the template ecosystem knows (bug #919):
+  /// a requirement statement may reference one of these only when the
+  /// spec declares it in the External Dependencies & Contracts table —
+  /// an undeclared reference is a spec contract violation (exit 2).
+  static const Set<String> knownExternalDependencies = {
+    'Hive',
+    'SharedPreferences',
+    'Firebase',
+    'Supabase',
+    'SQLite',
+    'Drift',
+  };
+
+  /// The declared template version, or null when the spec carries no
+  /// `**Template Version**` marker.
+  String? parseTemplateVersion(String specMd) {
+    for (final line in specMd.split('\n')) {
+      final m = _templateVersionMarker.firstMatch(line.trim());
+      if (m != null) return m.group(1)!.trim();
+    }
+    return null;
+  }
+
+  /// The heading that opens the External Dependencies & Contracts section
+  /// (bug #919): `## External Dependencies & Contracts` (any level,
+  /// `&` or `and`, case-insensitive).
+  static final RegExp _dependenciesHeading = RegExp(
+    r'^#{1,6}\s+external\s+dependencies\s+(?:&|and)\s+contracts\s*$',
+    caseSensitive: false,
+  );
+
+  /// The heading that opens the Layer Contracts section (bug #919):
+  /// `## Layer Contracts` (any level, case-insensitive).
+  static final RegExp _layerContractsHeading = RegExp(
+    r'^#{1,6}\s+layer\s+contracts\s*$',
+    caseSensitive: false,
+  );
+
+  /// A bold layer name inside the Layer Contracts section: `**Domain**:`.
+  static final RegExp _layerName = RegExp(r'^\s*\*\*(.+?)\*\*\s*:\s*$');
+
+  /// A layer-contract declaration bullet:
+  /// `` - `Repo`: `save(x) -> R`, `get() -> R?` ``.
+  static final RegExp _layerContractBullet = RegExp(
+    r'^\s*[-*]\s+`([^`]+)`\s*:\s*(.+)$',
+  );
+
+  /// Split a markdown pipe row into its cells (no escape handling —
+  /// cells in these template sections never carry literal pipes).
+  static List<String> _splitCells(String line) {
+    return line
+        .split('|')
+        .map((c) => c.trim())
+        .where((c) => c.isNotEmpty)
+        .toList();
+  }
+
+  /// Extract the declared external dependencies (bug #919): each row of
+  /// the `| Dependency | Type | Contract | Mock Priority |` table.
+  /// Header and separator rows are skipped; rows with fewer than four
+  /// cells are ignored rather than fatal.
+  List<SpecDependency> parseDependencies(String specMd) {
+    final dependencies = <SpecDependency>[];
     var inSection = false;
     for (final line in specMd.split('\n')) {
       final trimmed = line.trim();
       if (trimmed.startsWith('#')) {
+        inSection = _dependenciesHeading.hasMatch(trimmed);
+        continue;
+      }
+      if (!inSection || !trimmed.startsWith('|')) continue;
+      final cells = _splitCells(trimmed);
+      if (cells.length < 4) continue;
+      if (cells[0].toLowerCase() == 'dependency') continue; // header
+      if (RegExp(r'^-+$').hasMatch(cells[0])) continue; // separator
+      dependencies.add(
+        SpecDependency(
+          dependency: cells[0],
+          type: cells[1],
+          contract: cells[2],
+          mockPriority: cells[3],
+        ),
+      );
+    }
+    return dependencies;
+  }
+
+  /// Extract the declared layer contracts (bug #919): the bold layer
+  /// names and their backticked interface declarations, preserving the
+  /// declared method signatures verbatim.
+  List<LayerContract> parseLayerContracts(String specMd) {
+    final contracts = <LayerContract>[];
+    var inSection = false;
+    var layer = '';
+    for (final line in specMd.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('#')) {
+        inSection = _layerContractsHeading.hasMatch(trimmed);
+        if (!inSection) layer = '';
+        continue;
+      }
+      if (!inSection || trimmed.isEmpty) continue;
+      final layerM = _layerName.firstMatch(trimmed);
+      if (layerM != null) {
+        layer = layerM.group(1)!.trim();
+        continue;
+      }
+      final bullet = _layerContractBullet.firstMatch(trimmed);
+      if (bullet == null || layer.isEmpty) continue;
+      contracts.add(
+        LayerContract(
+          layer: layer,
+          interfaceName: bullet.group(1)!.trim(),
+          methods: RegExp(r'`([^`]+)`')
+              .allMatches(bullet.group(2)!)
+              .map((m) => m.group(1)!.trim())
+              .toList(),
+        ),
+      );
+    }
+    return contracts;
+  }
+
+  /// Extract the entities the spec declares under `Key Entities` (bug
+  /// #829 remediation 1: plan must surface them so the loop can create
+  /// and wire them). Bug #919: the zuraffa-1.0 template declares
+  /// entities as a 3-column table — rows are parsed alongside the legacy
+  /// bullets, and a section may mix both forms.
+  List<SpecEntity> parseKeyEntities(String specMd) {
+    final entities = <SpecEntity>[];
+    var inSection = false;
+    var tableMode = false;
+    for (final line in specMd.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('#')) {
         inSection = _keyEntitiesHeading.hasMatch(trimmed);
+        tableMode = false;
         continue;
       }
       if (!inSection) continue;
       if (trimmed.isEmpty) continue;
+      if (_entityTableHeader.hasMatch(trimmed)) {
+        tableMode = true;
+        continue;
+      }
+      if (_tableSeparator.hasMatch(trimmed)) continue;
+      if (tableMode) {
+        final m = _entityTableRow.firstMatch(trimmed);
+        if (m == null) {
+          // End of the table — fall through to bullet handling so a
+          // mixed section still extracts its bullet-declared entities.
+          tableMode = false;
+        } else {
+          var name = m.group(1)!.trim();
+          final genericStart = name.indexOf('<');
+          if (genericStart > 0) {
+            name = name.substring(0, genericStart).trim();
+          }
+          if (!_dartIdentifier.hasMatch(name)) continue;
+          final fields = _fieldPair
+              .allMatches(m.group(2) ?? '')
+              .map(
+                (f) => EntityField(name: f.group(1)!, type: f.group(2)!.trim()),
+              )
+              .toList();
+          entities.add(
+            SpecEntity(
+              name: name,
+              fields: fields,
+              purpose: (m.group(3) ?? '').trim(),
+            ),
+          );
+          continue;
+        }
+      }
       final m = _entityBullet.firstMatch(trimmed);
       if (m == null) {
+        if (trimmed.startsWith('|')) continue;
         inSection = false;
         continue;
       }

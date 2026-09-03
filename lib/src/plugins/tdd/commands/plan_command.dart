@@ -68,6 +68,32 @@ class PlanCommand extends Command<void> {
     }
     final specMd = await specFile.readAsString();
 
+    // Bug #919: the Template Version marker is the treaty pin. Missing or
+    // unknown version = contract drift: exit 3 with a fix line, no
+    // artifacts, BEFORE any parsing — a spec whose grammar we cannot
+    // trust must not drive a plan (and must never hit the coverage gate,
+    // whose messages would mislead on an unpinned spec).
+    final templateVersion = const SpecParser().parseTemplateVersion(specMd);
+    if (templateVersion == null ||
+        !SpecParser.knownTemplateVersions.contains(templateVersion)) {
+      final drift = templateVersion == null
+          ? 'missing `**Template Version**` marker'
+          : 'template version `$templateVersion` is not a known zuraffa '
+              'template version (known: '
+              '${SpecParser.knownTemplateVersions.join(', ')})';
+      print(
+        'zfa tdd plan: contract drift — $drift (spec: $specPath). '
+        'No test list was written.',
+      );
+      print(
+        '  --> fix: author the spec from the zuraffa spec template (zuraffa '
+        'speckit extension) so it pins a known template version; re-run '
+        '`zfa tdd plan`.',
+      );
+      exitCode = 3;
+      return;
+    }
+
     final List<Behavior> behaviors;
     try {
       behaviors = const SpecParser().parse(feature, specMd);
@@ -80,6 +106,12 @@ class PlanCommand extends Command<void> {
     // and wire them (run phase 0 + the entity pipeline routing read
     // this section back through TestListReader.readEntities).
     final entities = const SpecParser().parseKeyEntities(specMd);
+
+    // Bug #919: extract the zuraffa-1.0 template's declared dependencies
+    // and layer contracts into the plan artifact, so the mock-first make
+    // path (#909) and interface generation can consume them.
+    final dependencies = const SpecParser().parseDependencies(specMd);
+    final layerContracts = const SpecParser().parseLayerContracts(specMd);
 
     // Coverage gate (bug #846): every FR/AC requirement statement must
     // map to a behavior row or to a valid `(manual: owner)` declaration.
@@ -99,6 +131,45 @@ class PlanCommand extends Command<void> {
         );
         print('    ${gap.fix}');
       }
+      exitCode = 2;
+      return;
+    }
+
+    // Bug #919: undeclared-dependency lint. The template declares what a
+    // spec may reach for: a requirement statement referencing a known
+    // external dependency that the External Dependencies & Contracts
+    // table does not declare is a spec contract violation = exit 2,
+    // naming the dependency with a fix line, no artifacts.
+    final declaredDependencies = dependencies.map((d) => d.dependency).toSet();
+    final undeclared = <RequirementStatement, List<String>>{};
+    for (final statement in scan.statements) {
+      final found = SpecParser.knownExternalDependencies
+          .where(
+            (name) => RegExp('\\b${RegExp.escape(name)}\\b')
+                .hasMatch(statement.line),
+          )
+          .where((name) => !declaredDependencies.contains(name))
+          .toList();
+      if (found.isNotEmpty) undeclared[statement] = found;
+    }
+    if (undeclared.isNotEmpty) {
+      print(
+        'zfa tdd plan: undeclared dependencies — ${undeclared.length} '
+        'requirement statement(s) reference external dependencies not '
+        'declared in the External Dependencies & Contracts table (spec: '
+        '$specPath). No test list was written; declare each dependency '
+        'or remove the reference, then re-run `zfa tdd plan`.',
+      );
+      undeclared.forEach((statement, names) {
+        print(
+          '  ${statement.id} (line ${statement.lineNo}): '
+          '${statement.line}',
+        );
+        print(
+          '    --> fix: add ${names.join(', ')} to the External '
+          'Dependencies & Contracts table (or drop the reference).',
+        );
+      });
       exitCode = 2;
       return;
     }
@@ -186,7 +257,14 @@ class PlanCommand extends Command<void> {
 
     await outDir.create(recursive: true);
     await outFile.writeAsString(
-      _render(feature, expressible, entities, preservedFfi),
+      _render(
+        feature,
+        expressible,
+        entities,
+        dependencies,
+        layerContracts,
+        preservedFfi,
+      ),
     );
 
     final aCount = expressible
@@ -214,6 +292,8 @@ class PlanCommand extends Command<void> {
     String feature,
     List<Behavior> behaviors,
     List<SpecEntity> entities,
+    List<SpecDependency> dependencies,
+    List<LayerContract> layerContracts,
     List<BehaviorRow> preservedFfi,
   ) {
     final acceptance = behaviors
@@ -274,18 +354,68 @@ class PlanCommand extends Command<void> {
     // Bug #829: the spec's Key Entities, extracted for the loop's
     // entity orchestration (run phase 0 + the make entity pipeline).
     // The reader skips this section when resolving behavior rows.
+    // Bug #919: a third `purpose` column when any entity declares one
+    // (the zuraffa-1.0 template's table form). Purpose-less sections keep
+    // the 2-column shape so every pre-919 artifact reads back identically.
     if (entities.isNotEmpty) {
+      final hasPurpose = entities.any((e) => e.purpose.isNotEmpty);
       buf
         ..writeln()
         ..writeln('## Key entities')
+        ..writeln();
+      if (hasPurpose) {
+        buf
+          ..writeln('| entity | fields | purpose |')
+          ..writeln('| ------ | ------ | ------- |');
+        for (final e in entities) {
+          buf.writeln(
+            '| ${e.name} | '
+            '${e.fields.map((f) => '${f.name}: ${f.type}').join(', ')}'
+            ' | ${e.purpose} |',
+          );
+        }
+      } else {
+        buf
+          ..writeln('| entity | fields |')
+          ..writeln('| ------ | ------ |');
+        for (final e in entities) {
+          buf.writeln(
+            '| ${e.name} | '
+            '${e.fields.map((f) => '${f.name}: ${f.type}').join(', ')} |',
+          );
+        }
+      }
+    }
+    if (dependencies.isNotEmpty) {
+      buf
         ..writeln()
-        ..writeln('| entity | fields |')
-        ..writeln('| ------ | ------ |');
-      for (final e in entities) {
+        ..writeln('## External dependencies')
+        ..writeln()
+        ..writeln('| dependency | type | contract | mock priority |')
+        ..writeln('| ---------- | ---- | -------- | ------------- |');
+      for (final d in dependencies) {
         buf.writeln(
-          '| ${e.name} | '
-          '${e.fields.map((f) => '${f.name}: ${f.type}').join(', ')} |',
+          '| ${d.dependency} | ${d.type} | ${d.contract} '
+          '| ${d.mockPriority} |',
         );
+      }
+    }
+    if (layerContracts.isNotEmpty) {
+      buf
+        ..writeln()
+        ..writeln('## Layer contracts')
+        ..writeln();
+      final byLayer = <String, List<LayerContract>>{};
+      for (final c in layerContracts) {
+        byLayer.putIfAbsent(c.layer, () => []).add(c);
+      }
+      for (final entry in byLayer.entries) {
+        buf
+          ..writeln('### ${entry.key}')
+          ..writeln();
+        for (final c in entry.value) {
+          buf.writeln('- `${c.interfaceName}`: ${c.methods.join(', ')}');
+        }
       }
     }
     if (preservedFfi.isNotEmpty) {

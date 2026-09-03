@@ -30,8 +30,20 @@ void main() {
 
   Future<void> seedSpec(String body) async {
     await Directory(featureDir).create(recursive: true);
+    // Bug #919: persistence prose names Hive, a known external — the
+    // undeclared-dependency lint would exit 2 before the persistence
+    // marking path runs, so the fixture declares it in the template's
+    // table (the marking behavior asserted here is unaffected).
     await File(p.join(featureDir, 'spec.md')).writeAsString('''
+**Template Version**: `zuraffa-1.0`
+
 # Spec: $featureName
+
+## External Dependencies & Contracts
+
+| Dependency | Type | Contract | Mock Priority |
+|-----------|------|----------|---------------|
+| Hive | storage | `read(key) -> Object?` | P1 |
 
 ## Functional Requirements
 

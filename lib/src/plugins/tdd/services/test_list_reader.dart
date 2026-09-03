@@ -63,6 +63,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../models/behavior.dart';
+import 'spec_parser.dart';
 
 /// One parsed test-list row.
 class BehaviorRow {
@@ -327,6 +328,87 @@ class TestListReader {
       entities.add(DeclaredEntity(name: first, fields: fields));
     }
     return entities;
+  }
+
+  /// Parse the `## External dependencies` section plan writes (bug #919).
+  /// Lenient like [readEntities]: a list without the section yields an
+  /// empty list (every pre-919 artifact); header/separator rows and rows
+  /// without a dependency name are skipped rather than rejected.
+  Future<List<SpecDependency>> readDependencies() async {
+    final file = File(p.join(featureDir, 'tdd', 'test-list.md'));
+    if (!await file.exists()) return const [];
+    final lines = (await file.readAsString()).split('\n');
+    final dependencies = <SpecDependency>[];
+    var inSection = false;
+    for (final raw in lines) {
+      final trimmed = raw.trim();
+      if (trimmed.startsWith('## ')) {
+        inSection = trimmed
+            .substring(3)
+            .toLowerCase()
+            .startsWith('external dependencies');
+        continue;
+      }
+      if (!inSection || !trimmed.startsWith('|')) continue;
+      final cells = _splitRow(trimmed).map((c) => c.trim()).toList();
+      // Leading empty cell + the four data cells.
+      if (cells.length < 5) continue;
+      final first = cells[1];
+      if (first.isEmpty || RegExp(r'^-+$').hasMatch(first)) continue;
+      if (first.toLowerCase() == 'dependency') continue;
+      dependencies.add(
+        SpecDependency(
+          dependency: first,
+          type: cells[2],
+          contract: cells[3],
+          mockPriority: cells[4],
+        ),
+      );
+    }
+    return dependencies;
+  }
+
+  /// Parse the `## Layer contracts` section plan writes (bug #919):
+  /// `### <layer>` headings and `- `<interface>`: `sig1`, `sig2``
+  /// bullets beneath them.
+  Future<List<LayerContract>> readLayerContracts() async {
+    final file = File(p.join(featureDir, 'tdd', 'test-list.md'));
+    if (!await file.exists()) return const [];
+    final lines = (await file.readAsString()).split('\n');
+    final contracts = <LayerContract>[];
+    var inSection = false;
+    var layer = '';
+    for (final raw in lines) {
+      final trimmed = raw.trim();
+      if (trimmed.startsWith('## ')) {
+        inSection = trimmed
+            .substring(3)
+            .toLowerCase()
+            .startsWith('layer contracts');
+        if (!inSection) layer = '';
+        continue;
+      }
+      if (!inSection || trimmed.isEmpty) continue;
+      final layerM = RegExp(r'^###\s+(.+)$').firstMatch(trimmed);
+      if (layerM != null) {
+        layer = layerM.group(1)!.trim();
+        continue;
+      }
+      final bullet = RegExp(r'^\s*[-*]\s+`([^`]+)`\s*:\s*(.+)$')
+          .firstMatch(trimmed);
+      if (bullet == null || layer.isEmpty) continue;
+      contracts.add(
+        LayerContract(
+          layer: layer,
+          interfaceName: bullet.group(1)!.trim(),
+          methods: RegExp(r'`([^`]+)`')
+              .allMatches(bullet.group(2)!)
+              .map((m) => m.group(1)!.trim())
+              .toList(),
+        ),
+      );
+    }
+    return contracts;
   }
 
   /// Parse one data row. Returns the row (null when the line is a row
