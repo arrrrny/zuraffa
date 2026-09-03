@@ -477,3 +477,18 @@ Failing tests:
 00:00 +6: FR-008: no-op outside the simulation flavor boot without the SIMULATION define is a harmless no-op
 00:00 +7: All tests passed!
 ```
+
+## 2026-09-03T09:52:59Z: 893-refactor-verify (refactor)
+- behavior: 893-refactor-verify
+- kind: refactor
+- at: 2026-09-03T09:52:59Z
+- exit: 0
+- criterion: T006: chunked fast suite 67/67 chunks passed with zero failures (65 via runner + 3 re-run/completed with identical semantics after tool timeout at 600s); dart format zero diffs; analyzer 1 pre-existing unrelated warning (unused_import in test/commands/entity_help_test.dart)
+- command: `tools/run_tests_chunked.sh && dart format --set-exit-if-changed lib test && dart analyze lib test`
+- schema: 1
+- prev-hash: 666d5c9ba04b637b577a69547e8029426e9a717f64e16b91aeeb470be937ae3b
+- hash: 0b23745721ab593fb0b2ba8fbecb7b209eb74cb9adcb1108880d0a16ae46a7dc
+- output: ```
+chunks_completed_manually_after_timeout: test/state (exit=0, +95 passed), test/testing (exit=0, +15), test/utils (exit=0, +86)
+some_tests_failed_count_in_manual_completion: 0
+```
