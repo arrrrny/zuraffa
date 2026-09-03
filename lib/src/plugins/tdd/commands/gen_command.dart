@@ -92,6 +92,8 @@ import '../services/theme_harness_subject_writer.dart';
 import '../services/theme_harness_test_writer.dart';
 import '../tdd_plugin.dart';
 import '../services/tdd_timeout.dart';
+import '../services/widget_scaffold.dart';
+import '../../../config/zfa_config.dart';
 import '../../../core/project/project_root.dart';
 
 class GenCommand extends Command<void> {
@@ -112,6 +114,15 @@ class GenCommand extends Command<void> {
           'stub plus a widget test that pumps the view inside an app shell '
           'and asserts the acceptance scenario. Unknown values are a usage '
           'error.',
+    );
+    argParser.addOption(
+      'widget-shell',
+      allowed: ['shadapp', 'materialapp'],
+      help:
+          'Widget kind only (issue #912 defect 2): the app shell the '
+          'generated widget test pumps the view in. Defaults to shadapp '
+          '(zuraffa apps are shadcn_ui apps); `.zfa.json` `tdd.widgetShell` '
+          'sets the project default, this flag wins over it.',
     );
     argParser.addFlag(
       'golden',
@@ -219,6 +230,10 @@ class GenCommand extends Command<void> {
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find(anchorDir: 'specs');
+    // Issue #912 defect 2: the widget template's app shell — the explicit
+    // flag wins over the `.zfa.json` `tdd.widgetShell` project default;
+    // the default is ShadApp (zuraffa apps are shadcn_ui apps).
+    final widgetShell = _resolveWidgetShell(argResults, cwd);
     // Bug #742 unit contract: one shared parser for every TDD --timeout
     // (minutes, fractions allowed). A bad value is a usage error, exactly
     // like the other flags.
@@ -248,6 +263,7 @@ class GenCommand extends Command<void> {
         golden: golden,
         featureFlag: featureFlag,
         cwd: cwd,
+        widgetShell: widgetShell,
         deadline: deadline,
       );
     } on _GenFlowTimeout catch (e) {
@@ -280,6 +296,7 @@ class GenCommand extends Command<void> {
     required bool golden,
     required String? featureFlag,
     required String cwd,
+    required WidgetAppShell widgetShell,
     required _FlowDeadline deadline,
   }) async {
     // Every awaited stage runs under the shared deadline (bug #744). A
@@ -574,7 +591,11 @@ class GenCommand extends Command<void> {
     if (record.testOwnership != Ownership.reused && !dryRun) {
       final adoptTest = adoptedPaths.contains(testPath);
       final adoptSubject = adoptedPaths.contains(subjectPath);
-      final writers = _writersFor(behavior, platformContext: platformContext);
+      final writers = _writersFor(
+        behavior,
+        platformContext: platformContext,
+        widgetShell: widgetShell,
+      );
       try {
         if (!adoptTest) {
           await bounded(
@@ -673,6 +694,7 @@ class GenCommand extends Command<void> {
         testPath: testPath,
         subjectPath: subjectPath,
         platformContext: platformContext,
+        widgetShell: widgetShell,
         bounded: bounded,
       );
     }
@@ -768,6 +790,7 @@ class GenCommand extends Command<void> {
   static _GenWriterPair _writersFor(
     Behavior behavior, {
     PlatformHarnessContext? platformContext,
+    WidgetAppShell widgetShell = WidgetAppShell.shadapp,
   }) {
     if (behavior.kind == BehaviorKind.theme) {
       return (
@@ -784,9 +807,23 @@ class GenCommand extends Command<void> {
       );
     }
     return (
-      writeTest: const BehaviorTestWriter().write,
+      writeTest: BehaviorTestWriter(widgetShell: widgetShell).write,
       writeSubject: const SubjectWriter().write,
     );
+  }
+
+  /// Resolves the widget template's app shell (issue #912 defect 2):
+  /// the explicit `--widget-shell` flag wins over the `.zfa.json`
+  /// `tdd.widgetShell` project default; the fallback is ShadApp.
+  static WidgetAppShell _resolveWidgetShell(dynamic args, String cwd) {
+    final flag = args?['widget-shell'] as String?;
+    if (flag != null && flag.isNotEmpty) {
+      return WidgetAppShell.parse(flag);
+    }
+    final config = ZfaConfig.load(projectRoot: cwd);
+    final configured = config?.tddWidgetShell;
+    if (configured != null) return WidgetAppShell.parse(configured);
+    return WidgetAppShell.shadapp;
   }
 
   /// Resolve the platform-harness context for a platform-kind behavior
@@ -933,6 +970,7 @@ class GenCommand extends Command<void> {
     required String subjectPath,
     required Future<T> Function<T>(Future<T> stage, String stageName) bounded,
     PlatformHarnessContext? platformContext,
+    WidgetAppShell widgetShell = WidgetAppShell.shadapp,
   }) async {
     // Bug #835: an ffi harness is NEVER auto-regenerated. Its contract
     // seams are the implementer's wiring point — partial wiring (the
@@ -963,7 +1001,11 @@ class GenCommand extends Command<void> {
     // THIS binary would really write for the behavior's kind.
     final mirror = await Directory.systemTemp.createTemp('zfa_gen_stale_');
     try {
-      final writers = _writersFor(behavior, platformContext: platformContext);
+      final writers = _writersFor(
+        behavior,
+        platformContext: platformContext,
+        widgetShell: widgetShell,
+      );
       final mirroredTest = p.join(
         mirror.path,
         'test',

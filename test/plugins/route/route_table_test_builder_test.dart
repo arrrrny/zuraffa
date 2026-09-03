@@ -196,7 +196,8 @@ void main() {
       );
     });
 
-    test('dry run does not write the route-table test', () async {
+    test('dry run reports the route-table test without writing it '
+        '(issue #912 defect 5)', () async {
       final files = await routeBuilder(dryRun: true).generate(
         GeneratorConfig(
           name: 'Product',
@@ -207,7 +208,11 @@ void main() {
         ),
       );
 
-      expect(files.where((f) => f.type == 'route_table_test'), isEmpty);
+      // The dry-run changes list must CARRY the route-table test the real
+      // run emits (issue #912 defect 5: a dry-run that omits it reports a
+      // different change set than the real run).
+      expect(files.where((f) => f.type == 'route_table_test'), hasLength(1));
+      // ... and a dry run still writes nothing.
       expect(
         File('$projectRoot/test/routing/route_table_test.dart').existsSync(),
         isFalse,

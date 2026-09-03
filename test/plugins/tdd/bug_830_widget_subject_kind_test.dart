@@ -231,9 +231,9 @@ void main() {
         p.join(tmpDir.path, 'specs', '044-test-tdd-generation'),
       );
       await specDir.create(recursive: true);
-      await File(
-        p.join(specDir.path, 'spec.md'),
-      ).writeAsString('**Template Version**: `zuraffa-1.0`\n\n- **$sourceCriterion**: $description\n');
+      await File(p.join(specDir.path, 'spec.md')).writeAsString(
+        '**Template Version**: `zuraffa-1.0`\n\n- **$sourceCriterion**: $description\n',
+      );
       await Directory(p.join(specDir.path, 'tdd')).create(recursive: true);
       await File(p.join(specDir.path, 'tdd', 'test-list.md')).writeAsString('''
 | id | behavior | traces | kind | state | target |

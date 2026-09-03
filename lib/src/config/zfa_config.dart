@@ -76,6 +76,12 @@ class ZfaConfig {
   final Object? rawFeatures;
   final Object? rawFlavors;
 
+  /// Issue #912 defect 2: raw `tdd:` section of .zfa.json, preserved
+  /// verbatim across save() cycles. `tddWidgetShell` reads the widget
+  /// template's app shell from it (new config surface, documented on
+  /// `zfa tdd gen --widget-shell`).
+  final Object? rawTdd;
+
   ZfaConfig({
     Map<String, bool>? pluginDefaults,
     Set<String>? disabledPlugins,
@@ -100,6 +106,7 @@ class ZfaConfig {
     bool? cacheByDefault,
     this.rawFeatures,
     this.rawFlavors,
+    this.rawTdd,
   }) : pluginDefaults = Map.unmodifiable({
          ..._builtinPluginDefaults,
          ...?pluginDefaults,
@@ -159,6 +166,19 @@ class ZfaConfig {
           ?.toString() ??
       'adaptive-feature';
 
+  /// Issue #912 defect 2: the widget template's app shell from
+  /// `.zfa.json` `tdd.widgetShell` (`shadapp` | `materialapp`), or null
+  /// when unset/unknown (the caller applies the shadapp default).
+  String? get tddWidgetShell {
+    final tdd = rawTdd;
+    if (tdd is! Map) return null;
+    for (final key in const ['widgetShell', 'widget_shell']) {
+      final value = tdd[key]?.toString();
+      if (value == 'shadapp' || value == 'materialapp') return value;
+    }
+    return null;
+  }
+
   // Backward-compatible accessors while the rest of the codebase migrates.
   bool get zorphyByDefault => true;
   String get defaultEntityOutput => fixedEntityOutput;
@@ -182,6 +202,7 @@ class ZfaConfig {
     String? domainRoot,
     Object? rawFeatures,
     Object? rawFlavors,
+    Object? rawTdd,
   }) {
     return ZfaConfig(
       pluginDefaults: pluginDefaults ?? this.pluginDefaults,
@@ -199,6 +220,7 @@ class ZfaConfig {
       domainRoot: domainRoot ?? this.domainRoot,
       rawFeatures: rawFeatures ?? this.rawFeatures,
       rawFlavors: rawFlavors ?? this.rawFlavors,
+      rawTdd: rawTdd ?? this.rawTdd,
     );
   }
 
@@ -282,6 +304,7 @@ class ZfaConfig {
       domainRoot: fixedDomainRoot,
       rawFeatures: json['features'],
       rawFlavors: json['flavors'],
+      rawTdd: json['tdd'],
     );
   }
 
@@ -337,6 +360,9 @@ class ZfaConfig {
     // Spec 030: preserved verbatim (parsed/validated by FeatureFlagConfig).
     if (rawFeatures != null) 'features': rawFeatures,
     if (rawFlavors != null) 'flavors': rawFlavors,
+    // Issue #912: the tdd section round-trips verbatim so
+    // `tdd.widgetShell` (and future tdd keys) survive save() cycles.
+    if (rawTdd != null) 'tdd': rawTdd,
   };
 
   static Future<void> init({String? projectRoot}) async {
