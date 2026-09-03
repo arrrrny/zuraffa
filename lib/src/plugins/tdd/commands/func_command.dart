@@ -195,8 +195,16 @@ class FuncCommand extends Command<void> {
     final raw = await subjectFile.readAsString();
     final stub = _stubSignature.firstMatch(raw);
     if (stub == null) {
-      final hasUnimplementedError = raw.contains('UnimplementedError');
-      if (hasUnimplementedError) {
+      // Spec 0806 FR-006 (convergent generation): the refusal must key on
+      // an ACTUAL `throw UnimplementedError(…)` the command might have
+      // generated — not the word appearing anywhere. Every scaffolded
+      // subject keeps the stub header's doc comment ("Throws
+      // [UnimplementedError] until the real implementation lands.") AFTER
+      // implementation, so a substring check refuses every already-done
+      // subject and breaks deterministic replay of recorded `tdd func`
+      // steps (exit 1 on a converged tree).
+      final hasUnimplementedThrow = _unimplementedThrow.hasMatch(raw);
+      if (hasUnimplementedThrow) {
         print(
           'zfa tdd func: subject at "$recordedSubject" carries an '
           'UnimplementedError in an unrecognized shape — refusing to '
@@ -251,6 +259,13 @@ class FuncCommand extends Command<void> {
     r'^(int|void)[ \t]+([A-Za-z_][A-Za-z0-9_]*)\(\)[ \t]*=>[ \t]*'
     r'throw[ \t]+UnimplementedError\([^;\r\n]*\);[ \t]*$',
     multiLine: true,
+  );
+
+  /// Spec 0806 FR-006: an actual throw statement — what the refusal keys
+  /// on. Distinguished from the stub header's doc comment, which merely
+  /// mentions `UnimplementedError` and survives implementation.
+  static final RegExp _unimplementedThrow = RegExp(
+    r'throw[ \t]+UnimplementedError\s*\(',
   );
 
   /// The behavior description the record carries — the record's own

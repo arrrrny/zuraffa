@@ -24,6 +24,7 @@ import 'package:path/path.dart' as p;
 import '../../../core/project/project_root.dart';
 import 'replay_events.dart';
 import 'replay_history.dart';
+import 'replay_paths.dart';
 import 'replay_sandbox.dart' show ReplaySandbox;
 import 'tree_snapshot.dart';
 import 'tdd_timeout.dart';
@@ -152,12 +153,23 @@ class ReplayRunner {
 
   /// Gen stage (FR-008/FR-009): re-run the recorded generation steps in the
   /// sandbox, then compare the artifact trees path-stably.
+  ///
+  /// Spec 0806 FR-003/FR-004: each recorded step command is re-anchored
+  /// before execution — the entrypoint pair re-resolves when locally broken
+  /// ([zfaBin] takes precedence; otherwise the running dart / entrypoint
+  /// via [resolvedDart]/[runningScript], which default to the platform
+  /// facts), and every `<recordedRoot>/./` occurrence strips to
+  /// sandbox-relative form so the recorded root never survives into a
+  /// spawned process argument.
   static Future<ReplayStepResult> runGen(
     ReplayBehavior behavior, {
     required String sandboxPath,
     required String projectRoot,
     String? zfaBin,
     Duration? timeout,
+    String? recordedRoot,
+    String? resolvedDart,
+    String? runningScript,
   }) async {
     if (!behavior.canReplayGen) {
       return ReplayStepResult(
@@ -170,18 +182,26 @@ class ReplayRunner {
     final budget = timeout ?? TddTimeouts.defaultPipelineStep;
     for (final step in behavior.genSteps) {
       var command = step.command;
+      // Spec 0806 FR-004: re-resolve a machine-absolute recorded
+      // entrypoint pair when it is locally broken.
+      command = ReplayPaths.reAnchorEntrypoint(
+        command,
+        zfaBin: zfaBin,
+        resolvedDart: resolvedDart,
+        runningScript: runningScript,
+      );
+      // Spec 0806 FR-003: strip the recorded root so the command runs
+      // sandbox-relative (cwd = sandbox).
+      command = ReplayPaths.reAnchorCommand(
+        command,
+        recordedRoot: recordedRoot,
+      );
       // Defensive: a recorded `--project` must never point back at the
       // real project — replay retargets it into the sandbox.
       command = command.replaceAll(
         RegExp(r'--project(=|\s+)\S+'),
         '--project ${_shellQuote(sandboxPath)}',
       );
-      // A bare `zfa` entrypoint resolves through --zfa-bin.
-      if (zfaBin != null && zfaBin.isNotEmpty) {
-        if (command == 'zfa' || command.startsWith('zfa ')) {
-          command = '$zfaBin ${command.substring(4)}';
-        }
-      }
       try {
         final result = await runTimed(
           'sh',
@@ -231,11 +251,15 @@ class ReplayRunner {
 
   /// Verify stage (FR-010/FR-011): re-run the recorded green command in the
   /// sandbox and compare the exit with the recorded one.
+  ///
+  /// Spec 0806 FR-003: the recorded command's `<recordedRoot>/./` paths
+  /// strip to sandbox-relative form before execution (cwd = sandbox).
   static Future<ReplayStepResult> runVerify(
     ReplayBehavior behavior, {
     required String sandboxPath,
     required String projectRoot,
     Duration? timeout,
+    String? recordedRoot,
   }) async {
     final green = behavior.green;
     if (green == null || !behavior.canReplayVerify) {
@@ -262,10 +286,14 @@ class ReplayRunner {
       );
     }
     final expected = green.exit ?? 0;
+    final command = ReplayPaths.reAnchorCommand(
+      green.command!,
+      recordedRoot: recordedRoot,
+    );
     try {
       final result = await runTimed(
         'sh',
-        ['-c', green.command!],
+        ['-c', command],
         workingDirectory: sandboxPath,
         timeout: timeout ?? TddTimeouts.defaultPipelineStep,
       );
@@ -418,9 +446,19 @@ class ReplayRunner {
         selected = match;
       }
 
+      // Spec 0806 FR-001: detect the recorded project root from the
+      // history's `- test:` anchor markers (all markers must agree; zero
+      // or conflicting anchors disable re-anchoring entirely — 066
+      // behavior). The root never appears in any report line.
+      final recordedRoot = ReplayPaths.detectRecordedRoot([
+        for (final behavior in behaviors)
+          for (final entry in behavior.entries) entry.test,
+      ]);
+
       sandbox = await ReplaySandbox.create(
         projectRoot: projectRoot,
         feature: feature,
+        recordedRoot: recordedRoot,
       );
       emit(
         '[replay] feature=$feature project=$projectRoot '
@@ -435,6 +473,7 @@ class ReplayRunner {
         final integrity = await ReplayHistory.verifyIntegrity(
           behavior,
           projectRoot: projectRoot,
+          recordedRoot: recordedRoot,
         );
         final integrityResult = integrity.ok
             ? ReplayStepResult(
@@ -497,6 +536,8 @@ class ReplayRunner {
           projectRoot: projectRoot,
           zfaBin: zfaBin,
           timeout: timeout,
+          recordedRoot: recordedRoot,
+          runningScript: _runningScriptPath(),
         );
         results.add(gen);
         events?.stepEnd(gen);
@@ -509,6 +550,7 @@ class ReplayRunner {
           sandboxPath: sandbox.path,
           projectRoot: projectRoot,
           timeout: timeout,
+          recordedRoot: recordedRoot,
         );
         results.add(verify);
         events?.stepEnd(verify);
@@ -609,6 +651,20 @@ class ReplayRunner {
         'zfa tdd replay <feature> [--project <dir>] [--zfa-bin <path>]',
       );
     }
+  }
+
+  /// The running CLI's own entrypoint script, when this CLI runs from source
+  /// (spec 0806 FR-004's missing-zfa fallback): `Platform.script` is a
+  /// `file://` URL whose path ends in `/bin/zfa.dart` or
+  /// `/bin/zuraffa.dart`. A compiled/AOT CLI returns null — the recorded
+  /// script is then kept and the spawn fails honestly as a runner-error.
+  static String? _runningScriptPath() {
+    final uri = Platform.script;
+    if (uri.scheme != 'file') return null;
+    final path = uri.toFilePath();
+    final base = p.basename(path);
+    if (base != 'zfa.dart' && base != 'zuraffa.dart') return null;
+    return path;
   }
 
   /// The human rendering of one stage result (contracts/replay.md).
