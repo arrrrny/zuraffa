@@ -981,3 +981,65 @@ For example, 'dart test --chain-stack-traces'.
 - prev-hash: genesis
 - hash: 321ea9273d7f3a41ef8829fd658053f8d6bba6f42193967d0143ab10aaefb9e5
 
+## Cycle: U12c (red)
+
+- behavior: U12c
+- kind: red
+- classification: assertionFailure
+- criterion: SC-2
+- test: test/plugins/tdd/services/differential_gate_test.dart
+- command: `dart test test/plugins/tdd/services/differential_gate_test.dart --plain-name U12c (under deliberate mutant: drift < threshold)`
+- exit: 1
+- at: 2026-09-03T09:02:28.955460Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/differential_gate_test.dart
+00:00 +0: U11: per-field drift report from committed fixtures
+00:00 +1: U12: threshold from .zfa.json — 0.5 tolerates the 0.2 drift
+00:00 +2: U12b: default threshold 0.0 is strict — any drift fails
+00:00 +3: U12c: drift exactly equal to the threshold PASSES (the boundary is <=, pinning the inclusive comparison)
+00:00 +3 -1: U12c: drift exactly equal to the threshold PASSES (the boundary is <=, pinning the inclusive comparison) [E]
+  Expected: DifferentialVerdict:<DifferentialVerdict.pass>
+    Actual: DifferentialVerdict:<DifferentialVerdict.drift>
+  the threshold is INCLUSIVE: drift 0.5 at threshold 0.5 passes. A strict < comparison here would flip this verdict — this test pins the boundary.
+  
+  package:matcher                                              expect
+  test/plugins/tdd/services/differential_gate_test.dart 168:5  main.<fn>
+  
+00:00 +3 -1: U13: a missing fixtures directory is skipped, never silently passed
+00:00 +4 -1: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/services/differential_gate_test.dart: U12c: drift exactly equal to the threshold PASSES (the boundary is <=, pinning the inclusive comparison)
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
+```
+- schema: 1
+- prev-hash: genesis
+- hash: 3b9a1823d6e00c65686bd883d02f18063077eb86f792e71162f4a4249df38a95
+
+## Cycle: U12c (green)
+
+- behavior: U12c
+- kind: green
+- classification: -
+- criterion: SC-2
+- test: test/plugins/tdd/services/differential_gate_test.dart
+- command: `dart test test/plugins/tdd/services/differential_gate_test.dart`
+- exit: 0
+- at: 2026-09-03T09:02:29.490997Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/differential_gate_test.dart
+00:00 +0: U11: per-field drift report from committed fixtures
+00:00 +1: U12: threshold from .zfa.json — 0.5 tolerates the 0.2 drift
+00:00 +2: U12b: default threshold 0.0 is strict — any drift fails
+00:00 +3: U12c: drift exactly equal to the threshold PASSES (the boundary is <=, pinning the inclusive comparison)
+00:00 +4: U13: a missing fixtures directory is skipped, never silently passed
+00:00 +5: All tests passed!
+```
+- schema: 1
+- prev-hash: 3b9a1823d6e00c65686bd883d02f18063077eb86f792e71162f4a4249df38a95
+- hash: 894ee522bc44d1236c0c44905269463f0ecceb8158085e9cb8fe0a0fb135a823
+

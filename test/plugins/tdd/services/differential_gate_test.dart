@@ -139,6 +139,46 @@ void main() {
     expect(result.verdict, DifferentialVerdict.drift);
   });
 
+  test('U12c: drift exactly equal to the threshold PASSES (the boundary '
+      'is <=, pinning the inclusive comparison)', () async {
+    // One fixture, two fields, one drifted: drift = 1/2 = the threshold.
+    final dir = p.join(featureDir, 'tdd', 'fixtures');
+    await File(p.join(dir, 'get_by_id.json')).create(recursive: true);
+    await File(p.join(dir, 'get_by_id.json')).writeAsString(
+      jsonEncode({
+        'schema': 'realize-diff.v1',
+        'id': 'get-by-id-u1',
+        'input': {'op': 'getById', 'id': 'u1'},
+        'mockOutput': {'id': 'u1', 'email': 'a@b.c'},
+      }),
+    );
+    await File(p.join(root, '.zfa.json')).writeAsString(
+      jsonEncode({
+        'tdd': {'realizeDifferentialThreshold': 0.5},
+      }),
+    );
+
+    // A dedicated driver answering exactly the fixture's two fields.
+    final result = await DifferentialGate(
+      featureDir: featureDir,
+      projectRoot: root,
+      driver: (binding, entity, input) async => binding == 'mock'
+          ? {'id': 'u1', 'email': 'a@b.c'}
+          : {'id': 'u1', 'email': 'drifted@z.c'},
+    ).run(entity: 'User');
+
+    expect(result.drift, 0.5, reason: 'one drifted field of two compared');
+    expect(result.threshold, 0.5);
+    expect(
+      result.verdict,
+      DifferentialVerdict.pass,
+      reason:
+          'the threshold is INCLUSIVE: drift 0.5 at threshold 0.5 '
+          'passes. A strict < comparison here would flip this verdict — '
+          'this test pins the boundary.',
+    );
+  });
+
   test(
     'U13: a missing fixtures directory is skipped, never silently passed',
     () async {

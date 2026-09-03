@@ -24,3 +24,7 @@ a failing test before its implementation (TDD extension contract).
       `/speckit.tdd.verify` writes `tdd/verification.md` from the real run.
 - [x] T007. Docs: `.specify/extensions/tdd/templates/realize.md` command docs
       (the driver protocol for the differential gate and the ledger contract).
+
+- [x] T008. TDD remediation (from /speckit.tdd.verify mutant pass): pin the
+      differential threshold boundary (drift == threshold passes) with U12c —
+      red under the deliberate mutant (`drift < threshold`), green restored.
