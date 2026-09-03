@@ -30,6 +30,7 @@ import 'package:path/path.dart' as p;
 
 import '../../../core/project/project_root.dart';
 import '../services/artifact_registry.dart';
+import '../services/contract_gate.dart';
 import '../services/di_rebind.dart';
 import '../services/realize_state.dart';
 import '../tdd_plugin.dart';
@@ -192,6 +193,38 @@ class RealizeCommand extends Command<void> {
     }
 
     // ---------------------------------------------------------------
+    // The contract gate, part 1: the BASELINE run — the mock-era suite
+    // against the CURRENT (mock) binding, recorded BEFORE the rebind so
+    // a red baseline blames the mock era, never the real impl.
+    // ---------------------------------------------------------------
+    final suitePaths = await _mockEraSuitePaths(cwd, featureDir);
+    final suiteRunner = _suiteRunner();
+    final baselineRun = await suiteRunner(suitePaths, cwd);
+    final baseline = ContractRun(
+      exitCode: baselineRun.exitCode,
+      output: baselineRun.output,
+    );
+    final baselineGate = const ContractGate().evaluate(
+      baseline: baseline,
+      realRun: const ContractRun(exitCode: 0, output: '(not yet run)'),
+    );
+    if (baselineGate.verdict == ContractVerdict.mockBrokeContract) {
+      print(
+        '   contract gate RED (baseline): ${baselineGate.attribution}',
+      );
+      _printSummary(
+        entity: entity,
+        adapter: adapter,
+        feature: feature,
+        contract: _contractLabel(baselineGate.verdict),
+        era: state.era.name.toUpperCase(),
+        outcome: RealizeOutcome.blocked,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // ---------------------------------------------------------------
     // The DI rebind: mock -> real behind the same generated interface.
     // ---------------------------------------------------------------
     DiRebindResult rebind;
@@ -221,31 +254,41 @@ class RealizeCommand extends Command<void> {
     );
 
     // ---------------------------------------------------------------
-    // The contract gate: the MOCK-era suite runs UNCHANGED against the
-    // real binding and must stay green.
+    // The contract gate, part 2: the mock-era suite runs UNCHANGED
+    // against the real binding — must stay green. Any red rolls the
+    // rebind back so the tree is exactly the mock-era tree again.
     // ---------------------------------------------------------------
-    final suitePaths = await _mockEraSuitePaths(cwd, featureDir);
-    final run = await _suiteRunner()(suitePaths, cwd);
-    final contractVerdict = run.exitCode == 0 ? 'green' : 'red';
-    if (run.exitCode != 0) {
-      print(
-        '   contract gate RED: the mock-era suite failed against the real '
-        'binding.',
-      );
+    final realBindingRun = await suiteRunner(suitePaths, cwd);
+    final gate = const ContractGate().evaluate(
+      baseline: baseline,
+      realRun: ContractRun(
+        exitCode: realBindingRun.exitCode,
+        output: realBindingRun.output,
+      ),
+    );
+    if (!gate.isGreen) {
+      print('   contract gate RED: ${gate.attribution}');
+      if (gate.verdict == ContractVerdict.realBrokeContract) {
+        await DiRebinder(projectRoot: cwd).rollback(rebind);
+        print(
+          '   rolled back: ${rebind.sites.length} binding file(s) '
+          'restored to the mock-era bytes',
+        );
+      }
       print('   suite output (tail):');
-      print(run.output.split('\n').take(20).join('\n'));
+      print(realBindingRun.output.split('\n').take(20).join('\n'));
       _printSummary(
         entity: entity,
         adapter: adapter,
         feature: feature,
-        contract: contractVerdict,
+        contract: _contractLabel(gate.verdict),
         era: state.era.name.toUpperCase(),
         outcome: RealizeOutcome.blocked,
       );
       exitCode = 1;
       return;
     }
-    print('   contract gate green: suite stays green on the real binding');
+    print('   contract gate green: ${gate.attribution}');
 
     // ---------------------------------------------------------------
     // The state transition MOCKED -> REAL, persisted.
@@ -254,7 +297,7 @@ class RealizeCommand extends Command<void> {
       state: state,
       adapter: adapter,
       evidence: {
-        'contract': contractVerdict,
+        'contract': _contractLabel(gate.verdict),
         'suitePaths': suitePaths.length,
       },
     );
@@ -265,11 +308,23 @@ class RealizeCommand extends Command<void> {
       entity: entity,
       adapter: adapter,
       feature: feature,
-      contract: contractVerdict,
+      contract: _contractLabel(gate.verdict),
       era: 'MOCKED->REAL',
       outcome: RealizeOutcome.realized,
     );
     exitCode = 0;
+  }
+
+  /// The machine-summary label for a contract verdict.
+  static String _contractLabel(ContractVerdict verdict) {
+    switch (verdict) {
+      case ContractVerdict.green:
+        return 'green';
+      case ContractVerdict.realBrokeContract:
+        return 'real-broke-contract';
+      case ContractVerdict.mockBrokeContract:
+        return 'mock-broke-contract';
+    }
   }
 
   /// The suite runner: injected for fast-tier tests, real `dart test`

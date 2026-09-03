@@ -379,3 +379,57 @@ For example, 'dart test --chain-stack-traces'.
 - prev-hash: genesis
 - hash: 88aafeb75e9618cb3458a62657e0ee0c4f0203e9c99b34628d4d49ffdb2e28b5
 
+## Cycle: U8-U10 (green)
+
+- behavior: U8-U10
+- kind: green
+- classification: -
+- criterion: SC-1
+- test: test/plugins/tdd/services/contract_gate_test.dart
+- command: `dart test test/plugins/tdd/services/contract_gate_test.dart`
+- exit: 0
+- at: 2026-09-03T08:30:20.583393Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/contract_gate_test.dart
+00:00 +0: test/plugins/tdd/services/contract_gate_test.dart: U8: green when the suite is green against both bindings
+00:00 +1: test/plugins/tdd/services/contract_gate_test.dart: U9: real-broke-contract when baseline green and real red
+00:00 +2: test/plugins/tdd/services/contract_gate_test.dart: U10: mock-broke-contract when the baseline run is already red
+00:00 +3: test/plugins/tdd/commands/realize_command_test.dart: A1: full green path rebinds DI, transitions era, persists state
+00:00 +4: test/plugins/tdd/commands/realize_command_test.dart: A2: --adapter is required — a swap without a real adapter is refused
+00:00 +5: test/plugins/tdd/commands/realize_command_test.dart: A6: a behavior id target resolves through the registry
+00:00 +6: test/plugins/tdd/commands/realize_command_test.dart: A3: a red real-binding run blocks the swap, rolls the rebind back, and the verdict names the side
+00:00 +7: test/plugins/tdd/commands/realize_command_test.dart: A3b: a red baseline (mock era already broken) blocks before any rebind and blames the mock side
+00:00 +8: All tests passed!
+```
+- schema: 1
+- prev-hash: 4a47d62cf29c92e9a33b68ff2febda98532340c2cd49160f3d46e5b7e99f9cb7
+- hash: 0ac3bf6a3f29d9db2a8884573a463a2ffa25aa899786e17d332529c83ef19ebd
+
+## Cycle: A3,A3b (green)
+
+- behavior: A3,A3b
+- kind: green
+- classification: -
+- criterion: SC-1
+- test: test/plugins/tdd/commands/realize_command_test.dart
+- command: `dart test test/plugins/tdd/commands/realize_command_test.dart`
+- exit: 0
+- at: 2026-09-03T08:30:21.136886Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/contract_gate_test.dart
+00:00 +0: test/plugins/tdd/services/contract_gate_test.dart: U8: green when the suite is green against both bindings
+00:00 +1: test/plugins/tdd/services/contract_gate_test.dart: U9: real-broke-contract when baseline green and real red
+00:00 +2: test/plugins/tdd/services/contract_gate_test.dart: U10: mock-broke-contract when the baseline run is already red
+00:00 +3: test/plugins/tdd/commands/realize_command_test.dart: A1: full green path rebinds DI, transitions era, persists state
+00:00 +4: test/plugins/tdd/commands/realize_command_test.dart: A2: --adapter is required — a swap without a real adapter is refused
+00:00 +5: test/plugins/tdd/commands/realize_command_test.dart: A6: a behavior id target resolves through the registry
+00:00 +6: test/plugins/tdd/commands/realize_command_test.dart: A3: a red real-binding run blocks the swap, rolls the rebind back, and the verdict names the side
+00:00 +7: test/plugins/tdd/commands/realize_command_test.dart: A3b: a red baseline (mock era already broken) blocks before any rebind and blames the mock side
+00:00 +8: All tests passed!
+```
+- schema: 1
+- prev-hash: 88aafeb75e9618cb3458a62657e0ee0c4f0203e9c99b34628d4d49ffdb2e28b5
+- hash: 8694b60dd7b2b12e17c1d3fb3a6a5854094ec049c98f99ce5875a7e5fff229fa
+

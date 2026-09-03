@@ -8,7 +8,7 @@ a failing test before its implementation (TDD extension contract).
       Evidence: red runs recorded in `tdd/cycle-log.md`.
 - [x] T001. GREEN: implement `realize_command.dart` skeleton, `realize_state.dart`,
       `di_rebind.dart`; register the subcommand. Evidence: green runs.
-- [ ] T002. Contract gate (A3, U8-U10): `contract_gate.dart` — MOCK-era suite
+- [x] T002. Contract gate (A3, U8-U10): `contract_gate.dart` — MOCK-era suite
       against the real binding stays green; verdict attributes red to the real
       impl or the mock; red blocks the swap and rolls the rebind back.
 - [ ] T003. Differential gate (A4, U11-U13): `differential_gate.dart` — real vs

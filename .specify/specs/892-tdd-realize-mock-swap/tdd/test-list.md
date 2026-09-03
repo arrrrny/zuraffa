@@ -43,7 +43,7 @@ observable result.
 | --- | --------------------------------------------------------------------- | ------ | -------- | ------- | ------------------------------------------------------------ |
 | U8  | green verdict when the mock-era suite is green against both bindings    | SC-1   | example  | PENDING | `test/plugins/tdd/services/contract_gate_test.dart::U8`      |
 | U9  | verdict `real-broke-contract` when the baseline (mock) run is green and the real run is red | SC-1   | example  | PENDING | `test/plugins/tdd/services/contract_gate_test.dart::U9`      |
-| U10 | verdict `mock-broke-contract` when the baseline (mock) run is already red — the mock era broke it, not the real impl | SC-1   | example  | PENDING | `test/plugins/tdd/services/contract_gate_test.dart::U10`     |
+| U10 | verdict `mock-broke-contract` when the baseline (mock) run is already red — the mock era broke it, not the real impl | SC-1   | example  | DONE | `test/plugins/tdd/services/contract_gate_test.dart::U10`     |
 
 ### `lib/src/plugins/tdd/services/differential_gate.dart`
 

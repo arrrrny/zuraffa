@@ -1,8 +1,11 @@
 /// `ContractGate` — the MOCK-era suite against the real binding must stay
 /// green (spec 913, phase 2).
 ///
-/// STUB (red phase): every member throws until the green phase implements
-/// the verdict contract.
+/// The verdict is attribution-honest by construction: the baseline run
+/// (mock binding, recorded BEFORE the rebind) is judged first — a red
+/// baseline means the MOCK era broke the contract and the real impl is
+/// never blamed for it. Only a green baseline + red real run attributes
+/// the break to the real impl.
 library;
 
 /// The verdict the contract gate renders:
@@ -53,5 +56,38 @@ class ContractGate {
   ContractGateResult evaluate({
     required ContractRun baseline,
     required ContractRun realRun,
-  }) => throw UnimplementedError();
+  }) {
+    if (baseline.exitCode != 0) {
+      return ContractGateResult(
+        verdict: ContractVerdict.mockBrokeContract,
+        attribution:
+            'the mock era broke the contract: the MOCK-era suite is red '
+            'against the MOCK binding too (baseline exit '
+            '${baseline.exitCode}) — fix the mock or the tests before '
+            'realizing; this is not the real impl\'s fault.',
+        baseline: baseline,
+        realRun: realRun,
+      );
+    }
+    if (realRun.exitCode != 0) {
+      return ContractGateResult(
+        verdict: ContractVerdict.realBrokeContract,
+        attribution:
+            'the real impl broke the contract: the MOCK-era suite was '
+            'green against the mock binding and is red against the real '
+            'binding (exit ${realRun.exitCode}) — the swap is rolled '
+            'back.',
+        baseline: baseline,
+        realRun: realRun,
+      );
+    }
+    return ContractGateResult(
+      verdict: ContractVerdict.green,
+      attribution:
+          'the mock-era suite stays green against the real binding — '
+          'the contract holds on both sides.',
+      baseline: baseline,
+      realRun: realRun,
+    );
+  }
 }
