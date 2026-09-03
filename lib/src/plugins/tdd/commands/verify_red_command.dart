@@ -260,6 +260,14 @@ class VerifyRedCommand extends Command<void> {
     // 5/6. Evidence on assertion only; rejection otherwise (FR-006/007).
     // ---------------------------------------------------------------
     if (classification == RedClassification.assertion) {
+      // Issue #959: name the failing authored assertion in the verdict
+      // surface — detail line, summary token, and cycle-log field. Null
+      // identity (unparseable transcript) omits the detail everywhere
+      // rather than fabricating a name.
+      final evidence = failingAssertionOf(run.output);
+      if (evidence != null) {
+        print('   red-evidence: $evidence');
+      }
       final log = CycleLog(target.featureDir);
       await log.append(
         CycleLogEntry(
@@ -269,6 +277,7 @@ class VerifyRedCommand extends Command<void> {
           exitCode: run.exitCode,
           capturedOutput: run.output,
           classification: FailureClass.assertionFailure,
+          redEvidence: evidence,
           sourceCriterion: record.sourceCriterion,
           testPath: record.testPath,
           timestamp: DateTime.now().toUtc().toIso8601String(),
@@ -283,6 +292,7 @@ class VerifyRedCommand extends Command<void> {
         classification: classification.label,
         certified: true,
         feature: target.featureName,
+        evidence: evidence,
       );
       exitCode = 0;
       return;
@@ -488,11 +498,16 @@ class VerifyRedCommand extends Command<void> {
     required String classification,
     required bool certified,
     required String feature,
+    String? evidence,
   }) {
     // `print` (not stdout.writeln) so CliRunner's capturing zone sees it.
+    // Issue #959: a certified red may carry an optional trailing
+    // `evidence=<identity>` token; null keeps the line byte-identical to
+    // the pre-#959 contract (rejections never carry the token).
+    final evidenceToken = evidence == null ? '' : ' evidence=$evidence';
     print(
       'verify-red: behavior=$behavior classification=$classification '
-      'certified=$certified feature=$feature',
+      'certified=$certified feature=$feature$evidenceToken',
     );
   }
 }
