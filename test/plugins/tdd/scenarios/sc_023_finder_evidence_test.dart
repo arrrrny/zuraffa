@@ -3,11 +3,10 @@
 // failing authored assertion. The verdict surface grows:
 //
 //   - a `   red-evidence: <identity>` detail line on stdout,
-//   - an `evidence=<identity>` token appended to the summary line,
 //   - an optional `- evidence:` line in the cycle-log red entry.
 //
-// Rejection paths stay byte-identical to the pre-#959 contract: no
-// evidence token on non-assertion classes (VISION §4 — the agent parses
+// The summary line stays BYTE-IDENTICAL to the pinned spec-046 contract
+// on every path — no evidence token (VISION §4: the agent parses
 // verdicts; unchanged lines never break consumers).
 //
 // The fixture root is passed via `--project`; the runner is a spy script
@@ -71,7 +70,7 @@ void main() {
     );
   });
 
-  test('A7: certified red appends the evidence token to the summary line',
+  test('A7: summary stays pinned; the failing assertion is named elsewhere',
       () async {
     final runner = CliRunner(exitOnCompletion: false);
     final out = await runner.runCapturing([
@@ -85,10 +84,14 @@ void main() {
     expect(
       last,
       'verify-red: behavior=B-001 classification=assertion certified=true '
-      'feature=071-inert-stub-red evidence=$identity',
-      reason: 'the evidence token is the LAST space-separated token; '
-          'consumers parse tokens, never prose',
+      'feature=071-inert-stub-red',
+      reason: 'the summary line is the pinned spec-046 contract, '
+          'byte-identical on every path — the identity surfaces in the '
+          'red-evidence detail line and the cycle-log field instead',
     );
+    expect(out, contains('   red-evidence: $identity'));
+    final log = File(fx.cycleLogPath).readAsStringSync();
+    expect(log, contains('- evidence: $identity'));
   });
 
   test('A1: the cycle-log red entry carries the - evidence: field', () async {

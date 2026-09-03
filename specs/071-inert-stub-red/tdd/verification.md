@@ -63,7 +63,7 @@ deliberate-mutant sampling per the tdd-profile rubric (below).
 | ------ | ------ | --------------- | ------ |
 | M1 | widget stub back to `throw UnimplementedError` | `subject_writer_test.dart` (inert contract) | KILLED ✓ |
 | M2 | `failingAssertionOf` returns FIRST match | blended-transcript test | KILLED ✓ |
-| M3 | summary drops the `evidence=` token | sc_023 A7 test | KILLED ✓ |
+| M3 | `red-evidence:` detail line dropped from the certified path | sc_023 A1 test | KILLED ✓ |
 | M4 | secondary guard removed from emitted template | writer guard-presence test | KILLED ✓ |
 
 Restoration verified after every mutant (`git diff --quiet` post-checkout).
@@ -93,3 +93,20 @@ convention), and the suite is deterministic (flake-free full runs at
   via template content; a LIVE flutter-test execution (real pump of the
   inert stub) belongs to the target project's flutter tier and lands
   with ZikZak's next widget-lane run (issue #959's "live evidence" ask).
+
+## Post-review fixes (CodeRabbit-style self-review, PR #982)
+
+The initial implementation appended an optional `evidence=<identity>`
+token to the summary line. The review pass caught that this breaks
+spec-046's pinned contract: `sc_004`'s `A13/U26` anchors the line with a
+`$`-terminated regex and failed under `--preset=all`. Remediation
+(applied in the fix commit):
+
+- Summary line restored to byte-identical on EVERY path (revert of the
+  token); the identity surfaces only in the `red-evidence:` detail line
+  and the cycle-log `- evidence:` field.
+- `sc_023` A7 re-pinned: exact token-free summary + detail line +
+  cycle-log field.
+- `contracts/cli-verdicts.md` §1/§1b revised to the final surface.
+- Mutant M3 redefined and re-run in its final form (detail line
+  dropped) — still KILLED; sc_004/sc_023 green post-fix.

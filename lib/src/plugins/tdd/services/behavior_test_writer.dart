@@ -246,7 +246,8 @@ void main() {
   /// scaffolded).
   ///
   /// Red surfaces (issue #959): the inert stub (`SizedBox.shrink()`,
-  /// see [SubjectWriter]) lets the guard pass and the pump run, so the
+  /// see SubjectWriter's widget branch) lets the guard pass and the pump
+  /// run, so the
   /// AUTHORED FINDER assertions fail at red time — red is certified on
   /// the assertions, never born green. The UnimplementedError capture
   /// BEFORE the pump stays as the SECONDARY guard: a subject that still

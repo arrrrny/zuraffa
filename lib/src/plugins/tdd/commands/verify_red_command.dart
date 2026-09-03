@@ -292,7 +292,6 @@ class VerifyRedCommand extends Command<void> {
         classification: classification.label,
         certified: true,
         feature: target.featureName,
-        evidence: evidence,
       );
       exitCode = 0;
       return;
@@ -498,16 +497,15 @@ class VerifyRedCommand extends Command<void> {
     required String classification,
     required bool certified,
     required String feature,
-    String? evidence,
   }) {
     // `print` (not stdout.writeln) so CliRunner's capturing zone sees it.
-    // Issue #959: a certified red may carry an optional trailing
-    // `evidence=<identity>` token; null keeps the line byte-identical to
-    // the pre-#959 contract (rejections never carry the token).
-    final evidenceToken = evidence == null ? '' : ' evidence=$evidence';
+    // Byte-identical to the pre-#959 pinned contract on every path (FR-009,
+    // spec 046): the failing-assertion identity surfaces in the
+    // `red-evidence:` detail line and the cycle-log `- evidence:` field,
+    // never as a token on this line.
     print(
       'verify-red: behavior=$behavior classification=$classification '
-      'certified=$certified feature=$feature$evidenceToken',
+      'certified=$certified feature=$feature',
     );
   }
 }
