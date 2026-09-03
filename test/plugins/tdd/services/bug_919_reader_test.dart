@@ -53,49 +53,46 @@ void main() {
 - `ShoeSizePreferenceRepository`: `save(ShoeSizePreference) -> Future<Result<void, AppFailure>>`, `getByBrand(String brand) -> Future<Result<ShoeSizePreference?, AppFailure>>`
 ''';
 
-  test('A14: readDependencies() parses every declared dependency row', () async {
-    final dir = await seed(artifact);
-
-    final deps = await TestListReader(dir).readDependencies();
-
-    expect(deps, hasLength(2));
-    expect(deps[0].dependency, 'Hive');
-    expect(deps[0].type, 'storage');
-    expect(deps[0].contract, '`read(key) -> ShoeSizePreference?`');
-    expect(deps[0].mockPriority, 'P1');
-    expect(deps[1].dependency, 'SharedPreferences');
-    expect(deps[1].mockPriority, 'P2');
-  });
-
   test(
-    'A14: readLayerContracts() parses layers, interfaces and method '
-    'signatures',
+    'A14: readDependencies() parses every declared dependency row',
     () async {
       final dir = await seed(artifact);
 
-      final contracts = await TestListReader(dir).readLayerContracts();
+      final deps = await TestListReader(dir).readDependencies();
 
-      expect(contracts, hasLength(1));
-      expect(contracts.single.layer, 'Domain');
-      expect(contracts.single.interfaceName, 'ShoeSizePreferenceRepository');
-      expect(contracts.single.methods, [
-        'save(ShoeSizePreference) -> Future<Result<void, AppFailure>>',
-        'getByBrand(String brand) -> '
-            'Future<Result<ShoeSizePreference?, AppFailure>>',
-      ]);
+      expect(deps, hasLength(2));
+      expect(deps[0].dependency, 'Hive');
+      expect(deps[0].type, 'storage');
+      expect(deps[0].contract, '`read(key) -> ShoeSizePreference?`');
+      expect(deps[0].mockPriority, 'P1');
+      expect(deps[1].dependency, 'SharedPreferences');
+      expect(deps[1].mockPriority, 'P2');
     },
   );
 
-  test(
-    'A14: a section-less artifact yields empty dependency and contract '
-    'lists (every pre-919 artifact)',
-    () async {
-      final dir = await seed(
-        '# Test List: 091-demo\n\n## Outer loop: acceptance behaviors\n',
-      );
+  test('A14: readLayerContracts() parses layers, interfaces and method '
+      'signatures', () async {
+    final dir = await seed(artifact);
 
-      expect(await TestListReader(dir).readDependencies(), isEmpty);
-      expect(await TestListReader(dir).readLayerContracts(), isEmpty);
-    },
-  );
+    final contracts = await TestListReader(dir).readLayerContracts();
+
+    expect(contracts, hasLength(1));
+    expect(contracts.single.layer, 'Domain');
+    expect(contracts.single.interfaceName, 'ShoeSizePreferenceRepository');
+    expect(contracts.single.methods, [
+      'save(ShoeSizePreference) -> Future<Result<void, AppFailure>>',
+      'getByBrand(String brand) -> '
+          'Future<Result<ShoeSizePreference?, AppFailure>>',
+    ]);
+  });
+
+  test('A14: a section-less artifact yields empty dependency and contract '
+      'lists (every pre-919 artifact)', () async {
+    final dir = await seed(
+      '# Test List: 091-demo\n\n## Outer loop: acceptance behaviors\n',
+    );
+
+    expect(await TestListReader(dir).readDependencies(), isEmpty);
+    expect(await TestListReader(dir).readLayerContracts(), isEmpty);
+  });
 }

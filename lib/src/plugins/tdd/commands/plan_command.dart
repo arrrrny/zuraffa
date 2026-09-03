@@ -79,8 +79,8 @@ class PlanCommand extends Command<void> {
       final drift = templateVersion == null
           ? 'missing `**Template Version**` marker'
           : 'template version `$templateVersion` is not a known zuraffa '
-              'template version (known: '
-              '${SpecParser.knownTemplateVersions.join(', ')})';
+                'template version (known: '
+                '${SpecParser.knownTemplateVersions.join(', ')})';
       print(
         'zfa tdd plan: contract drift — $drift (spec: $specPath). '
         'No test list was written.',
@@ -145,8 +145,8 @@ class PlanCommand extends Command<void> {
     for (final statement in scan.statements) {
       final found = SpecParser.knownExternalDependencies
           .where(
-            (name) => RegExp('\\b${RegExp.escape(name)}\\b')
-                .hasMatch(statement.line),
+            (name) =>
+                RegExp('\\b${RegExp.escape(name)}\\b').hasMatch(statement.line),
           )
           .where((name) => !declaredDependencies.contains(name))
           .toList();
