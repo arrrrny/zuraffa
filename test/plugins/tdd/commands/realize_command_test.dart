@@ -101,10 +101,18 @@ void main() {
     String target = 'User',
     String? adapter,
     String? feature,
+    List<int> exitSequence = const [0, 0],
   }) async {
+    var call = 0;
     final cmd = RealizeCommand(
       TddPlugin(),
-      suiteRunner: (paths, cwd) async => (exitCode: 0, output: 'green'),
+      suiteRunner: (paths, cwd) async {
+        final exit = call < exitSequence.length
+            ? exitSequence[call]
+            : exitSequence.last;
+        call++;
+        return (exitCode: exit, output: 'call $call exit $exit');
+      },
     );
     final runner = CommandRunner('zfa-test', 'test')..addCommand(cmd);
     final args = <String>[
@@ -187,6 +195,58 @@ void main() {
     final datasourceDiFile = await File(p.join(fx.root.path, 'lib/src/di',
         'datasources', 'user_mock_datasource_di.dart')).readAsString();
     expect(RegExp(r'\bUserMockDataSource\b').hasMatch(datasourceDiFile), isFalse);
+  });
+
+  test('A3: a red real-binding run blocks the swap, rolls the rebind back, '
+      'and the verdict names the side', () async {
+    // Baseline (mock binding) green, real-binding run red — the real impl
+    // broke the contract.
+    final out = await runRealize(
+      adapter: 'UserRealAdapter',
+      exitSequence: [0, 1],
+    );
+
+    expect(exitCode, 1, reason: 'out: $out');
+    expect(out, contains('contract=real-broke-contract'));
+    expect(out, contains('result=blocked'));
+    expect(out, contains('real impl broke the contract'));
+
+    // The rebind was ROLLED BACK: the binding file is byte-identical to
+    // the mock-era content again.
+    final datasourceDiFile = await File(p.join(fx.root.path, 'lib/src/di',
+        'datasources', 'user_mock_datasource_di.dart')).readAsString();
+    expect(datasourceDiFile, datasourceDi,
+        reason: 'a blocked swap must restore the pre-rebind bytes');
+    final repoDiFile = await File(p.join(fx.root.path, 'lib/src/di',
+        'repositories', 'user_repository_di.dart')).readAsString();
+    expect(repoDiFile, repositoryDi);
+
+    // The era never crossed to REAL.
+    final stateFile = File(p.join(fx.featureDir, 'tdd', 'realize-state.json'));
+    expect(stateFile.existsSync(), isFalse,
+        reason: 'a blocked swap must not persist a REAL transition');
+  });
+
+  test('A3b: a red baseline (mock era already broken) blocks before any '
+      'rebind and blames the mock side', () async {
+    final out = await runRealize(
+      adapter: 'UserRealAdapter',
+      exitSequence: [1],
+    );
+
+    expect(exitCode, 1, reason: 'out: $out');
+    expect(out, contains('contract=mock-broke-contract'));
+    expect(out, contains('result=blocked'));
+    expect(out, contains('mock'));
+
+    // Nothing was rebound — the baseline runs BEFORE the rebind.
+    final datasourceDiFile = await File(p.join(fx.root.path, 'lib/src/di',
+        'datasources', 'user_mock_datasource_di.dart')).readAsString();
+    expect(datasourceDiFile, datasourceDi);
+    expect(
+      File(p.join(fx.featureDir, 'tdd', 'realize-state.json')).existsSync(),
+      isFalse,
+    );
   });
 }
 

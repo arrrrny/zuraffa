@@ -270,3 +270,112 @@ For example, 'dart test --chain-stack-traces'.
 - prev-hash: 28756beb9f722ce9481b3414987c40097b468e675d0e7a1929c6b3f6f1c0ed85
 - hash: a2120d9ce9ff8a1bff4734c33fecca587f78fdfe7b431ec2afb0bbb40e83032f
 
+## Cycle: U8-U10 (red)
+
+- behavior: U8-U10
+- kind: red
+- classification: assertionFailure
+- criterion: SC-1
+- test: test/plugins/tdd/services/contract_gate_test.dart
+- command: `dart test test/plugins/tdd/services/contract_gate_test.dart`
+- exit: 1
+- at: 2026-09-03T08:29:17.715591Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/services/contract_gate_test.dart
+00:00 +0: U8: green when the suite is green against both bindings
+00:00 +0 -1: U8: green when the suite is green against both bindings [E]
+  UnimplementedError
+  package:zuraffa/src/plugins/tdd/services/contract_gate.dart 56:9  ContractGate.evaluate
+  test/plugins/tdd/services/contract_gate_test.dart 18:25           main.<fn>
+  
+00:00 +0 -1: U9: real-broke-contract when baseline green and real red
+00:00 +0 -2: U9: real-broke-contract when baseline green and real red [E]
+  UnimplementedError
+  package:zuraffa/src/plugins/tdd/services/contract_gate.dart 56:9  ContractGate.evaluate
+  test/plugins/tdd/services/contract_gate_test.dart 29:25           main.<fn>
+  
+00:00 +0 -2: U10: mock-broke-contract when the baseline run is already red
+00:00 +0 -3: U10: mock-broke-contract when the baseline run is already red [E]
+  UnimplementedError
+  package:zuraffa/src/plugins/tdd/services/contract_gate.dart 56:9  ContractGate.evaluate
+  test/plugins/tdd/services/contract_gate_test.dart 49:25           main.<fn>
+  
+00:00 +0 -3: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/services/contract_gate_test.dart: U10: mock-broke-contract when the baseline run is already red
+  test/plugins/tdd/services/contract_gate_test.dart: U8: green when the suite is green against both bindings
+  test/plugins/tdd/services/contract_gate_test.dart: U9: real-broke-contract when baseline green and real red
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
+```
+- schema: 1
+- prev-hash: genesis
+- hash: 4a47d62cf29c92e9a33b68ff2febda98532340c2cd49160f3d46e5b7e99f9cb7
+
+## Cycle: A3,A3b (red)
+
+- behavior: A3,A3b
+- kind: red
+- classification: assertionFailure
+- criterion: SC-1
+- test: test/plugins/tdd/commands/realize_command_test.dart
+- command: `dart test test/plugins/tdd/commands/realize_command_test.dart`
+- exit: 1
+- at: 2026-09-03T08:29:18.223136Z
+- output:
+```
+00:00 +0: loading test/plugins/tdd/commands/realize_command_test.dart
+00:00 +0: A1: full green path rebinds DI, transitions era, persists state
+00:00 +1: A2: --adapter is required — a swap without a real adapter is refused
+00:00 +2: A6: a behavior id target resolves through the registry
+00:00 +3: A3: a red real-binding run blocks the swap, rolls the rebind back, and the verdict names the side
+00:00 +3 -1: A3: a red real-binding run blocks the swap, rolls the rebind back, and the verdict names the side [E]
+  Expected: <1>
+    Actual: <0>
+  out: zfa tdd realize: entity User -> adapter UserRealAdapter
+     feature: 090-tdd-fixture
+     era: MOCKED
+     rebound: lib/src/di/datasources/user_mock_datasource_di.dart (2 site(s))
+     rebound: lib/src/di/repositories/user_repository_di.dart (1 site(s))
+     interface preserved: 1 domain file(s) byte-identical
+     contract gate green: suite stays green on the real binding
+     state: MOCKED -> REAL (/tmp/tdd_fixture_IWDLCU/specs/090-tdd-fixture/tdd/realize-state.json)
+  realize: entity=User adapter=UserRealAdapter feature=090-tdd-fixture contract=green era=MOCKED->REAL result=realized
+  
+  package:matcher                                            expect
+  test/plugins/tdd/commands/realize_command_test.dart 209:5  main.<fn>
+  
+00:00 +3 -1: A3b: a red baseline (mock era already broken) blocks before any rebind and blames the mock side
+00:00 +3 -2: A3b: a red baseline (mock era already broken) blocks before any rebind and blames the mock side [E]
+  Expected: contains 'contract=mock-broke-contract'
+    Actual: 'zfa tdd realize: entity User -> adapter UserRealAdapter\n'
+              '   feature: 090-tdd-fixture\n'
+              '   era: MOCKED\n'
+              '   rebound: lib/src/di/datasources/user_mock_datasource_di.dart (2 site(s))\n'
+              '   rebound: lib/src/di/repositories/user_repository_di.dart (1 site(s))\n'
+              '   interface preserved: 1 domain file(s) byte-identical\n'
+              '   contract gate RED: the mock-era suite failed against the real binding.\n'
+              '   suite output (tail):\n'
+              'call 1 exit 1\n'
+              'realize: entity=User adapter=UserRealAdapter feature=090-tdd-fixture contract=red era=MOCKED result=blocked'
+     Which: does not contain 'contract=mock-broke-contract'
+  
+  package:matcher                                            expect
+  test/plugins/tdd/commands/realize_command_test.dart 238:5  main.<fn>
+  
+00:00 +3 -2: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/commands/realize_command_test.dart: A3: a red real-binding run blocks the swap, rolls the rebind back, and the verdict names the side
+  test/plugins/tdd/commands/realize_command_test.dart: A3b: a red baseline (mock era already broken) blocks before any rebind and blames the mock side
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
+```
+- schema: 1
+- prev-hash: genesis
+- hash: 88aafeb75e9618cb3458a62657e0ee0c4f0203e9c99b34628d4d49ffdb2e28b5
+
