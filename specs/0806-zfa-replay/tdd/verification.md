@@ -1,7 +1,7 @@
 # Verification: `zfa replay` path-stable replay (spec 0806-zfa-replay)
 
 **Date**: 2026-09-03 · **Branch**: `spec/0806-zfa-replay` · **Dart**: 3.13.3 (stable; format gate re-verified on the CI-pinned 3.13.1)
-**Method**: test-first TDD via the tdd extension — every behavior below was written and observed RED before the implementation that turned it green. Evidence entries live in `tdd/cycle-log.md`, appended through the real `CycleLog.append` writer (schema-1 hash chain — this log is itself replayable by the feature it certifies).
+**Method**: test-first TDD via the tdd extension — every behavior below was written and observed RED before the implementation that turned it green. Evidence entries live in `tdd/cycle-log.md`, appended through the real `CycleLog.append` writer (schema-1 hash chain; note the `- test:` fields carry filter suffixes, so the log certifies the runs but is not itself byte-replayable by `zfa replay`).
 
 ## /speckit.tdd.verify dispatch (step 7)
 
