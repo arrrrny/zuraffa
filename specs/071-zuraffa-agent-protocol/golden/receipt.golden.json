@@ -1,0 +1,39 @@
+{
+  "zap": "0.1",
+  "type": "receipt",
+  "id": "r-demo-0001",
+  "ts": "2026-09-03T10:00:03Z",
+  "missionId": "demo-tdd",
+  "verdict": "pass",
+  "exit": 0,
+  "chainDigest": "fbede07ef3556efc5c377c4d28aba69b2e035a222baa173ef5eb23996a60cba1",
+  "stepsExecuted": 3,
+  "stepsTotal": 3,
+  "checks": [
+    {
+      "name": "mission-schema",
+      "ok": true
+    },
+    {
+      "name": "budget",
+      "ok": true
+    },
+    {
+      "name": "policy",
+      "ok": true
+    },
+    {
+      "name": "steps-executed",
+      "ok": true
+    },
+    {
+      "name": "tdd-discipline",
+      "ok": true
+    },
+    {
+      "name": "evidence-chain",
+      "ok": true
+    }
+  ],
+  "at": "2026-09-03T10:00:03Z"
+}

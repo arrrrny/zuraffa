@@ -36,6 +36,7 @@ import '../core/error/suggestion_engine.dart';
 import '../version.dart';
 import 'plugin_loader.dart';
 import '../commands/agent_command.dart';
+import '../commands/zap_command.dart';
 
 /// CLI runner for Zuraffa.
 class CliRunner {
@@ -183,6 +184,7 @@ class CliRunner {
     _runner.addCommand(PackageCommand());
     _runner.addCommand(SimulateCommand());
     _runner.addCommand(AgentCommand());
+    _runner.addCommand(ZapCommand());
   }
 
   void _loadAndRegisterPlugins() {

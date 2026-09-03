@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ZAP Error Envelope (v0.1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "zap",
+    "type",
+    "id",
+    "ts",
+    "code",
+    "message"
+  ],
+  "properties": {
+    "zap": {
+      "type": "string",
+      "enum": [
+        "0.1"
+      ],
+      "description": "ZAP protocol version (0.1 = the v0 slice of issue #809)"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "error"
+      ]
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique message id (host: UUID v4)"
+    },
+    "ts": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "description": "ISO-8601 UTC with Z suffix"
+    },
+    "code": {
+      "type": "string",
+      "enum": [
+        "schema",
+        "version",
+        "direction",
+        "budget",
+        "policy",
+        "unknown-mission",
+        "bad-checkpoint",
+        "internal"
+      ]
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inReplyTo": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The rejected message's id, when known"
+    },
+    "details": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Precise validation issues (JSON paths)"
+    }
+  }
+}
