@@ -9,10 +9,14 @@
 /// Defect 3: when the widget template cannot derive concrete scenario
 /// finders from the behavior description, the emitted test is a
 /// PLACEHOLDER (its mounted-view `findsOneWidget` is greenable by a bare
-/// `SizedBox()`), so it carries [scaffoldedMarker]. The green
-/// certification (`zfa tdd make`) reads that marker and EXCLUDES the
-/// behavior from contract-green accounting — a placeholder test never
-/// certifies green.
+/// `SizedBox()`), so it carries [scaffoldedMarker]. Since issue #959 the
+/// placeholder cannot certify red at all: against the widget lane's INERT
+/// stub (`SizedBox.shrink()`) the vacuous finder passes, the red-time run
+/// is green, and `verify-red` refuses with `unexpected-green` — the
+/// mechanical gate. The green certification (`zfa tdd make`) still reads
+/// the marker and EXCLUDES the behavior from contract-green accounting as
+/// a backstop with a clearer message: a placeholder test never certifies
+/// green, and now it never certifies red either.
 ///
 /// Issue #938: the default ShadApp shell emits
 /// `import 'package:shadcn_ui/shadcn_ui.dart';` — a dependency a fresh
