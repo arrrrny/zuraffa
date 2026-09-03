@@ -744,7 +744,15 @@ void main() {
         [
           ['entity', 'create', '-n', 'Todo'],
           ['make', 'Todo'],
-          ['tdd', 'wire', 'A1', '--entity', 'Todo', '--feature', '001-crud-probe'],
+          [
+            'tdd',
+            'wire',
+            'A1',
+            '--entity',
+            'Todo',
+            '--feature',
+            '001-crud-probe',
+          ],
           ['build'],
         ],
         reason:

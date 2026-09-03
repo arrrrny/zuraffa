@@ -28,7 +28,8 @@ class SpecDependency {
   final String mockPriority;
 
   @override
-  String toString() => 'SpecDependency($dependency, $type, $contract, '
+  String toString() =>
+      'SpecDependency($dependency, $type, $contract, '
       '$mockPriority)';
 }
 
@@ -141,9 +142,7 @@ class SpecParser {
   );
 
   /// A Key Entities table separator row (`| -- | -- | -- |`).
-  static final RegExp _tableSeparator = RegExp(
-    r'^\s*\|\s*[\s\-|]*\|\s*$',
-  );
+  static final RegExp _tableSeparator = RegExp(r'^\s*\|\s*[\s\-|]*\|\s*$');
 
   /// The zuraffa spec template's treaty pin (bug #919): the header marker
   /// `**Template Version**: `x`` that declares which template grammar the
