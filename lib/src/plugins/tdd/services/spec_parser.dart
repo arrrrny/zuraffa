@@ -105,6 +105,30 @@ class SpecParser {
     r'^\s*\|\s*[\s\-|]*\|\s*$',
   );
 
+  /// The zuraffa spec template's treaty pin (bug #919): the header marker
+  /// `**Template Version**: `x`` that declares which template grammar the
+  /// spec was authored against.
+  static final RegExp _templateVersionMarker = RegExp(
+    r'^\s*\*\*template\s+version\*\*:\s*`?([^`\n]+?)`?\s*$',
+    caseSensitive: false,
+  );
+
+  /// Template versions whose grammar this parser implements (bug #919).
+  /// A spec declaring anything else — or nothing — is contract drift:
+  /// plan exits 3 before parsing, so an unpinned spec can never drive a
+  /// silently-wrong plan.
+  static const Set<String> knownTemplateVersions = {'zuraffa-1.0'};
+
+  /// The declared template version, or null when the spec carries no
+  /// `**Template Version**` marker.
+  String? parseTemplateVersion(String specMd) {
+    for (final line in specMd.split('\n')) {
+      final m = _templateVersionMarker.firstMatch(line.trim());
+      if (m != null) return m.group(1)!.trim();
+    }
+    return null;
+  }
+
   /// Extract the entities the spec declares under `Key Entities` (bug
   /// #829 remediation 1: plan must surface them so the loop can create
   /// and wire them). Bug #919: the zuraffa-1.0 template declares

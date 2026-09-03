@@ -31,6 +31,8 @@ void main() {
   Future<void> seedSpec(String body) async {
     await Directory(featureDir).create(recursive: true);
     await File(p.join(featureDir, 'spec.md')).writeAsString('''
+**Template Version**: `zuraffa-1.0`
+
 # Spec: $featureName
 
 ## Functional Requirements

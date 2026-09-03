@@ -69,7 +69,12 @@ void main() {
   });
 
   Future<void> writeSpec(String spec) async {
-    await File(p.join(featureDir, 'spec.md')).writeAsString(spec);
+    // Bug #919: the strict Template Version gate requires the marker on
+    // every planned spec; these fixtures test the coverage and drift
+    // gates, not the version gate, so all of them pin zuraffa-1.0.
+    await File(p.join(featureDir, 'spec.md')).writeAsString(
+      '**Template Version**: `zuraffa-1.0`\n\n$spec',
+    );
   }
 
   group('plan coverage gate (exit 2 on silent gaps)', () {

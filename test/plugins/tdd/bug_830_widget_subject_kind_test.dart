@@ -135,6 +135,8 @@ void main() {
       );
       await specDir.create(recursive: true);
       await File(p.join(specDir.path, 'spec.md')).writeAsString('''
+**Template Version**: `zuraffa-1.0`
+
 # Spec: UI dashboard
 
 ## Acceptance Scenarios
@@ -170,6 +172,8 @@ void main() {
       final specDir = Directory(p.join(tmpDir.path, 'specs', '002-toggle'));
       await specDir.create(recursive: true);
       await File(p.join(specDir.path, 'spec.md')).writeAsString('''
+**Template Version**: `zuraffa-1.0`
+
 # Spec: toggle
 
 ## Acceptance Scenarios
@@ -229,7 +233,7 @@ void main() {
       await specDir.create(recursive: true);
       await File(
         p.join(specDir.path, 'spec.md'),
-      ).writeAsString('- **$sourceCriterion**: $description\n');
+      ).writeAsString('**Template Version**: `zuraffa-1.0`\n\n- **$sourceCriterion**: $description\n');
       await Directory(p.join(specDir.path, 'tdd')).create(recursive: true);
       await File(p.join(specDir.path, 'tdd', 'test-list.md')).writeAsString('''
 | id | behavior | traces | kind | state | target |

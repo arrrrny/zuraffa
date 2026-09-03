@@ -68,6 +68,32 @@ class PlanCommand extends Command<void> {
     }
     final specMd = await specFile.readAsString();
 
+    // Bug #919: the Template Version marker is the treaty pin. Missing or
+    // unknown version = contract drift: exit 3 with a fix line, no
+    // artifacts, BEFORE any parsing — a spec whose grammar we cannot
+    // trust must not drive a plan (and must never hit the coverage gate,
+    // whose messages would mislead on an unpinned spec).
+    final templateVersion = const SpecParser().parseTemplateVersion(specMd);
+    if (templateVersion == null ||
+        !SpecParser.knownTemplateVersions.contains(templateVersion)) {
+      final drift = templateVersion == null
+          ? 'missing `**Template Version**` marker'
+          : 'template version `$templateVersion` is not a known zuraffa '
+              'template version (known: '
+              '${SpecParser.knownTemplateVersions.join(', ')})';
+      print(
+        'zfa tdd plan: contract drift — $drift (spec: $specPath). '
+        'No test list was written.',
+      );
+      print(
+        '  --> fix: author the spec from the zuraffa spec template (zuraffa '
+        'speckit extension) so it pins a known template version; re-run '
+        '`zfa tdd plan`.',
+      );
+      exitCode = 3;
+      return;
+    }
+
     final List<Behavior> behaviors;
     try {
       behaviors = const SpecParser().parse(feature, specMd);
