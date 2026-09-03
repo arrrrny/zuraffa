@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "bug": 915,
+  "contract": "rest-quotes",
+  "adapterFamily": "rest",
+  "zorphyType": "MarketQuote",
+  "operations": {
+    "GET /v1/quote/USD-TRY": {
+      "symbol": "USD-TRY",
+      "price": 41.2,
+      "change": -0.15,
+      "source": {
+        "name": "market",
+        "tier": 1
+      }
+    },
+    "GET /v1/search?q=kayak": {
+      "results": [
+        {
+          "title": "Kayak 1",
+          "price": 2499.0
+        },
+        {
+          "title": "Kayak 2",
+          "price": 3199.0
+        }
+      ]
+    },
+    "POST /v1/lists": {
+      "id": "list-1"
+    }
+  },
+  "faults": {
+    "timeout": {
+      "kind": "timeout",
+      "detail": "socket timeout after 30s — the mock rehearses the deadline class"
+    },
+    "http-5xx": {
+      "kind": "http-5xx",
+      "status": 500,
+      "detail": "scripted upstream failure (GET /v1/unstable in the certified world)"
+    },
+    "corrupted-payload": {
+      "kind": "corrupted-payload",
+      "detail": "truncated JSON body mid-object"
+    }
+  }
+}
