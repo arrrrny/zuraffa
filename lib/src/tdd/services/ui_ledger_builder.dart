@@ -11,8 +11,10 @@ library;
 
 import 'dart:convert';
 
-/// The kind of a declared UI surface.
-enum UiSurfaceKind { text, route, affordance }
+/// The kind of a declared UI surface. `key` (issue #965) is an i18n
+/// surface declared by the spec contract — its ledger row is the slang
+/// accessor (`t.<key>`), never the EN literal.
+enum UiSurfaceKind { text, route, affordance, key }
 
 /// One ledger row.
 class UiSurfaceRow {
