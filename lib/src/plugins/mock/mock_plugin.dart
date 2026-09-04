@@ -9,6 +9,7 @@ import '../../core/plugin_system/plugin_context.dart';
 import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../../utils/entity_analyzer.dart';
 import '../../utils/string_utils.dart';
 import '../method_append/builders/inject_builder.dart';
 import '../method_append/builders/method_append_builder.dart';
@@ -201,27 +202,55 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       if (config.generateMock &&
           !config.generateMockDataOnly &&
           !config.revert) {
-        final emitter = SimulationBindingEmitter(
-          outputDir: outputDir,
-          options: options,
-          fileSystem: fs,
-        );
         final entityName = config.repo != null
             ? config.repo!.replaceAll('Repository', '')
             : config.name;
-        final binding = await emitter.emitBinding(entityName: entityName);
-        files.add(binding);
-        final simulationIndex = await emitter.regenerateIndex(
-          pendingFiles: [binding],
+        // Issue #1037: an enum entity has no CRUD datasource surface, so
+        // it gets no simulation binding either — and the binding emitter
+        // must not run for it. A pre-#1037 run may have left the
+        // class-shaped artifacts on disk; purge them (generated-marker
+        // files only) and rebuild the simulation index so one re-run
+        // heals the tree.
+        final isEnumEntity = EntityAnalyzer.isEnum(
+          entityName,
+          outputDir,
+          fileSystem: fs,
         );
-        if (simulationIndex != null) {
-          files.add(simulationIndex);
-        }
-        // Keep an existing app-level composition root wired with
-        // `registerSimulationBindings(getIt);` (idempotent append).
-        final mainIndex = await emitter.syncMainIndex();
-        if (mainIndex != null) {
-          files.add(mainIndex);
+        if (isEnumEntity) {
+          final purged = await _purgeEnumDatasourceArtifacts(entityName, fs);
+          if (purged.isNotEmpty) {
+            final healer = SimulationBindingEmitter(
+              outputDir: outputDir,
+              options: options,
+              fileSystem: fs,
+            );
+            final index = await healer.regenerateIndex(
+              pendingFiles: const [],
+            );
+            if (index != null) {
+              files.add(index);
+            }
+          }
+        } else {
+          final emitter = SimulationBindingEmitter(
+            outputDir: outputDir,
+            options: options,
+            fileSystem: fs,
+          );
+          final binding = await emitter.emitBinding(entityName: entityName);
+          files.add(binding);
+          final simulationIndex = await emitter.regenerateIndex(
+            pendingFiles: [binding],
+          );
+          if (simulationIndex != null) {
+            files.add(simulationIndex);
+          }
+          // Keep an existing app-level composition root wired with
+          // `registerSimulationBindings(getIt);` (idempotent append).
+          final mainIndex = await emitter.syncMainIndex();
+          if (mainIndex != null) {
+            files.add(mainIndex);
+          }
         }
       }
 
@@ -262,5 +291,55 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     return [];
+  }
+
+  /// Issue #1037 self-heal: removes the class-shaped datasource artifacts a
+  /// pre-#1037 run left on disk for an enum entity. Only files carrying the
+  /// generated marker are deleted — a hand-written file in those paths is
+  /// never touched. Returns the removed relative paths (for the honest log
+  /// the caller prints).
+  Future<List<String>> _purgeEnumDatasourceArtifacts(
+    String entityName,
+    FileSystem fs,
+  ) async {
+    const marker = '// GENERATED - DO NOT EDIT';
+    final entitySnake = StringUtils.camelToSnake(entityName);
+    final candidates = <String>[
+      path.join(
+        outputDir,
+        'data',
+        'datasources',
+        entitySnake,
+        '${entitySnake}_datasource.dart',
+      ),
+      path.join(
+        outputDir,
+        'data',
+        'datasources',
+        entitySnake,
+        '${entitySnake}_mock_datasource.dart',
+      ),
+      path.join(
+        outputDir,
+        'di',
+        'simulation',
+        '${entitySnake}_simulation_datasource_di.dart',
+      ),
+    ];
+    final purged = <String>[];
+    for (final candidate in candidates) {
+      if (!await fs.exists(candidate)) continue;
+      try {
+        final content = await fs.read(candidate);
+        if (!content.contains(marker)) continue;
+      } catch (_) {
+        // Unreadable file in a generated path — leave it; the build gate
+        // will name it if it is actually broken.
+        continue;
+      }
+      await fs.delete(candidate);
+      purged.add(candidate);
+    }
+    return purged;
   }
 }

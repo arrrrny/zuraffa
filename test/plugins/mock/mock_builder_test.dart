@@ -747,4 +747,130 @@ class Product {
       );
     },
   );
+
+  test('issue #1037: enum entity gets mock data only, no CRUD datasource', () async {
+    final enumDir = Directory(
+      '$outputDir/domain/entities/enums',
+    );
+    await enumDir.create(recursive: true);
+    await File(
+      '${enumDir.path}/authentication_method.dart',
+    ).writeAsString('enum AuthenticationMethod { anonymous, google, apple }');
+
+    final builder = MockBuilder(
+      outputDir: outputDir,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
+    );
+
+    late List<String> prints;
+    late List files;
+    prints = await _capturePrints(() async {
+      files = await builder.generate(
+        GeneratorConfig(
+          name: 'AuthenticationMethod',
+          methods: const ['get', 'update', 'toggle'],
+          generateMock: true,
+          outputDir: outputDir,
+        ),
+      );
+    });
+
+    // Mock data (enum-value fixtures) IS generated.
+    expect(
+      File(
+        '$outputDir/data/mock/authentication_method_mock_data.dart',
+      ).existsSync(),
+      isTrue,
+    );
+    // The class-shaped CRUD surface is NOT.
+    expect(
+      File(
+        '$outputDir/data/datasources/authentication_method/'
+        'authentication_method_datasource.dart',
+      ).existsSync(),
+      isFalse,
+    );
+    expect(
+      File(
+        '$outputDir/data/datasources/authentication_method/'
+        'authentication_method_mock_datasource.dart',
+      ).existsSync(),
+      isFalse,
+    );
+    expect(
+      files.any((f) => f.path.contains('_datasource')),
+      isFalse,
+    );
+    expect(prints.join('\n'), contains('issue #1037'));
+  });
+
+  test('issue #1037: re-run purges pre-#1037 generated artifacts for an enum', () async {
+    final enumDir = Directory(
+      '$outputDir/domain/entities/enums',
+    );
+    await enumDir.create(recursive: true);
+    await File(
+      '${enumDir.path}/authentication_method.dart',
+    ).writeAsString('enum AuthenticationMethod { anonymous, google, apple }');
+
+    const marker = '// GENERATED - DO NOT EDIT';
+    final interfaceFile = File(
+      '$outputDir/data/datasources/authentication_method/'
+      'authentication_method_datasource.dart',
+    );
+    await interfaceFile.create(recursive: true);
+    await interfaceFile.writeAsString('$marker\n// broken interface');
+    final mockDsFile = File(
+      '$outputDir/data/datasources/authentication_method/'
+      'authentication_method_mock_datasource.dart',
+    );
+    await mockDsFile.create(recursive: true);
+    await mockDsFile.writeAsString('$marker\n// broken mock datasource');
+    final bindingFile = File(
+      '$outputDir/di/simulation/'
+      'authentication_method_simulation_datasource_di.dart',
+    );
+    await bindingFile.create(recursive: true);
+    await bindingFile.writeAsString('$marker\n// broken binding');
+    // A hand-written file (no marker) in a generated path survives.
+    final handWritten = File(
+      '$outputDir/data/datasources/authentication_method/custom.dart',
+    );
+    await handWritten.writeAsString('// hand-written, no marker');
+
+    final plugin = MockPlugin(
+      outputDir: outputDir,
+      options: const GeneratorOptions(dryRun: false, force: true),
+    );
+    final files = await plugin.generate(
+      GeneratorConfig(
+        name: 'AuthenticationMethod',
+        methods: const ['get', 'update', 'toggle'],
+        generateMock: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    expect(interfaceFile.existsSync(), isFalse);
+    expect(mockDsFile.existsSync(), isFalse);
+    expect(bindingFile.existsSync(), isFalse);
+    expect(handWritten.existsSync(), isTrue);
+    // The regenerated simulation index (if any was written) must not
+    // reference the purged binding.
+    final indexFile = File('$outputDir/di/simulation/index.dart');
+    if (indexFile.existsSync()) {
+      expect(
+        indexFile.readAsStringSync().contains('authentication_method'),
+        isFalse,
+      );
+    }
+    expect(
+      files.any((f) => f.path.contains('authentication_method_datasource')),
+      isFalse,
+    );
+  });
 }
