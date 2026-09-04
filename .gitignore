@@ -7,6 +7,7 @@
 !test/fixtures/slice_test_project/.dart_tool/package_config.json
 .idea/
 .packages
+pubspec.lock
 .pub/
 apps/
 build/
