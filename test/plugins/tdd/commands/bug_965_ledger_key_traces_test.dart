@@ -71,8 +71,7 @@ void main() {
       greenBehaviors: const {'A-001'},
     );
 
-    test('US4.AC2: a hardcoded string that traces to nothing is reported',
-        () {
+    test('US4.AC2: a hardcoded string that traces to nothing is reported', () {
       const view = '''
 Column(
   children: [
@@ -135,8 +134,7 @@ Column(
       expect(violations, isEmpty);
     });
 
-    test('button-child hardcoded strings are user-facing surfaces too',
-        () {
+    test('button-child hardcoded strings are user-facing surfaces too', () {
       const view = '''
 Column(
   children: [

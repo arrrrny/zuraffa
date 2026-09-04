@@ -113,16 +113,8 @@ void main() {
         ),
         throwsA(
           isA<I18nKeyContractParseException>()
-              .having(
-                (e) => e.message,
-                'message',
-                contains('LoginSection'),
-              )
-              .having(
-                (e) => e.message,
-                'message',
-                contains('--> fix:'),
-              ),
+              .having((e) => e.message, 'message', contains('LoginSection'))
+              .having((e) => e.message, 'message', contains('--> fix:')),
         ),
       );
     });
@@ -157,8 +149,7 @@ void main() {
       expect(table.contracts, hasLength(1));
     });
 
-    test('Domain rows never contribute keys (Presentation-only contract)',
-        () {
+    test('Domain rows never contribute keys (Presentation-only contract)', () {
       const spec = '''
 ### Layer Contracts
 

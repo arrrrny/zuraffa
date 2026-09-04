@@ -342,8 +342,8 @@ abstract final class FinderTaxonomy {
     var mappedAny = false;
     final mapped = <ScenarioAssertion>[];
     for (final assertion in analysis.assertions) {
-      final key = assertion.assertionClass ==
-              ScenarioAssertionClass.routeOutcome
+      final key =
+          assertion.assertionClass == ScenarioAssertionClass.routeOutcome
           ? null
           : table.keyOf(assertion.literal);
       if (key == null) {
@@ -393,9 +393,7 @@ abstract final class FinderTaxonomy {
     // Issue #965: keyed surfaces assert through the RESOLVED accessor —
     // the target is code identity (raw `t.auth.signIn`), never a quoted
     // EN literal. Text-kind targets stay quoted string literals.
-    final target = assertion.kind == LiteralKind.key
-        ? literal
-        : "'$literal'";
+    final target = assertion.kind == LiteralKind.key ? literal : "'$literal'";
     switch (assertion.assertionClass) {
       case ScenarioAssertionClass.presence:
         return 'expect(find.text($target), findsOneWidget);';

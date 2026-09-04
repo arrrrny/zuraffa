@@ -115,7 +115,8 @@ void main() {
       expect(
         assertionLine(after),
         assertionLine(before),
-        reason: 'a copy edit to the EN anchor cannot break green — the '
+        reason:
+            'a copy edit to the EN anchor cannot break green — the '
             'assertion resolves the key',
       );
       // And the EN copy never leaked into the test's FINDER lines (the
@@ -136,12 +137,14 @@ void main() {
       expect(content, contains("find.text('Home')"));
     });
 
-    test('a keyed absence asserts findsNothing through the accessor',
-        () async {
+    test('a keyed absence asserts findsNothing through the accessor', () async {
       final content = await renderTest(
         description: "the 'Incorrect password' error is not shown",
         i18nKeys: I18nKeyTable.of([
-          const I18nKeyContract(key: 'auth.error', anchor: 'Incorrect password'),
+          const I18nKeyContract(
+            key: 'auth.error',
+            anchor: 'Incorrect password',
+          ),
         ]),
         i18nImport: keyedImport,
       );
@@ -211,50 +214,53 @@ void main() {
 ''');
     }
 
-    test('gen emits the resolved-key test through the declared contract',
-        () async {
-      await seedKeyedContract();
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing([
-        'tdd',
-        'gen',
-        'A-001',
-        '--project',
-        fx.root.path,
-        '--widget-shell',
-        'materialapp',
-      ]);
-
-      expect(
-        out,
-        contains('gen: behavior=A-001 verdict=created'),
-        reason: 'out: $out',
-      );
-      final testFile = File(
-        p.join(
-          fx.root.path,
-          'test',
+    test(
+      'gen emits the resolved-key test through the declared contract',
+      () async {
+        await seedKeyedContract();
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
           'tdd',
-          fx.featureName,
-          'a_001_test.dart',
-        ),
-      );
-      expect(testFile.existsSync(), isTrue);
-      final content = await testFile.readAsString();
-      expect(content, contains('find.text(t.auth.signIn), findsOneWidget'));
-      expect(content, isNot(contains("find.text('Sign in')")));
-      expect(
-        content,
-        contains("import 'package:tdd_fixture/i18n/strings.g.dart';"),
-      );
-      expect(content, contains("LocaleSettings.setLocaleRaw('en');"));
-    });
+          'gen',
+          'A-001',
+          '--project',
+          fx.root.path,
+          '--widget-shell',
+          'materialapp',
+        ]);
 
-    test('a malformed key contract refuses BEFORE any artifact is written',
-        () async {
-      final list = File(fx.testListPath);
-      await list.parent.create(recursive: true);
-      await list.writeAsString('''
+        expect(
+          out,
+          contains('gen: behavior=A-001 verdict=created'),
+          reason: 'out: $out',
+        );
+        final testFile = File(
+          p.join(
+            fx.root.path,
+            'test',
+            'tdd',
+            fx.featureName,
+            'a_001_test.dart',
+          ),
+        );
+        expect(testFile.existsSync(), isTrue);
+        final content = await testFile.readAsString();
+        expect(content, contains('find.text(t.auth.signIn), findsOneWidget'));
+        expect(content, isNot(contains("find.text('Sign in')")));
+        expect(
+          content,
+          contains("import 'package:tdd_fixture/i18n/strings.g.dart';"),
+        );
+        expect(content, contains("LocaleSettings.setLocaleRaw('en');"));
+      },
+    );
+
+    test(
+      'a malformed key contract refuses BEFORE any artifact is written',
+      () async {
+        final list = File(fx.testListPath);
+        await list.parent.create(recursive: true);
+        await list.writeAsString('''
 # Test List: ${fx.featureName}
 
 ## Outer loop: widget behaviors
@@ -269,45 +275,46 @@ void main() {
 
 - `LoginSection`: `key: broken -> 'Sign in'`
 ''');
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing([
-        'tdd',
-        'gen',
-        'A-001',
-        '--project',
-        fx.root.path,
-        '--widget-shell',
-        'materialapp',
-      ]);
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'gen',
+          'A-001',
+          '--project',
+          fx.root.path,
+          '--widget-shell',
+          'materialapp',
+        ]);
 
-      expect(exitCode, isNot(0));
-      expect(out, contains('malformed i18n key token'));
-      expect(
-        File(
-          p.join(
-            fx.root.path,
-            'test',
-            'tdd',
-            fx.featureName,
-            'a_001_test.dart',
-          ),
-        ).existsSync(),
-        isFalse,
-        reason: 'no test artifact is written from a broken contract',
-      );
-      expect(
-        File(
-          p.join(
-            fx.root.path,
-            'lib',
-            'tdd',
-            fx.featureName,
-            'a_001_subject.dart',
-          ),
-        ).existsSync(),
-        isFalse,
-        reason: 'no subject artifact is written from a broken contract',
-      );
-    });
+        expect(exitCode, isNot(0));
+        expect(out, contains('malformed i18n key token'));
+        expect(
+          File(
+            p.join(
+              fx.root.path,
+              'test',
+              'tdd',
+              fx.featureName,
+              'a_001_test.dart',
+            ),
+          ).existsSync(),
+          isFalse,
+          reason: 'no test artifact is written from a broken contract',
+        );
+        expect(
+          File(
+            p.join(
+              fx.root.path,
+              'lib',
+              'tdd',
+              fx.featureName,
+              'a_001_subject.dart',
+            ),
+          ).existsSync(),
+          isFalse,
+          reason: 'no subject artifact is written from a broken contract',
+        );
+      },
+    );
   });
 }

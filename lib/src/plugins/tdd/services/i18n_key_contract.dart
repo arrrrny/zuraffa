@@ -92,9 +92,7 @@ class I18nKeyContract {
   static I18nKeyContract parseToken(String token) {
     final raw = token.trim();
     if (!isKeyToken(raw)) {
-      throw I18nKeyContractParseException(
-        'not a `key:` token: "$token"',
-      );
+      throw I18nKeyContractParseException('not a `key:` token: "$token"');
     }
     final m = _tokenShape.firstMatch(raw);
     if (m == null) {
@@ -164,9 +162,7 @@ class I18nKeyTable {
   /// tokens among a row's declared methods. Domain/Data rows never
   /// contribute. A malformed token throws with the row's interface named;
   /// a key re-declared with a DIFFERENT anchor is a contract conflict.
-  factory I18nKeyTable.fromLayerContracts(
-    List<LayerContract> layerContracts,
-  ) {
+  factory I18nKeyTable.fromLayerContracts(List<LayerContract> layerContracts) {
     final byKey = <String, I18nKeyContract>{};
     for (final row in layerContracts) {
       if (!row.layer.toLowerCase().contains('presentation')) continue;
@@ -242,15 +238,14 @@ class I18nKeyTable {
   /// the key as [proversByKey].
   List<DeclaredSurface> toDeclaredSurfaces({
     Map<String, List<String>> proversByKey = const {},
-  }) =>
-      [
-        for (final contract in contracts)
-          DeclaredSurface(
-            surface: contract.ledgerSurface,
-            kind: UiSurfaceKind.key,
-            declaredProvers: proversByKey[contract.key] ?? const [],
-          ),
-      ];
+  }) => [
+    for (final contract in contracts)
+      DeclaredSurface(
+        surface: contract.ledgerSurface,
+        kind: UiSurfaceKind.key,
+        declaredProvers: proversByKey[contract.key] ?? const [],
+      ),
+  ];
 }
 
 /// The `lib/i18n` translation scaffold (issue #965 FR-003): missing
@@ -326,10 +321,7 @@ abstract final class I18nScaffold {
   /// present (at any nesting depth) keep their stored value; missing keys
   /// are added with their anchor. Returns true when the file changed.
   /// Creates the file (and its parents) when absent.
-  static bool ensure(
-    String filePath,
-    List<I18nKeyContract> contracts,
-  ) {
+  static bool ensure(String filePath, List<I18nKeyContract> contracts) {
     final file = File(filePath);
     final existing = <String, Object>{};
     if (file.existsSync()) {
@@ -366,11 +358,7 @@ abstract final class I18nScaffold {
     return false;
   }
 
-  static void _placeKey(
-    Map<String, Object> node,
-    String key,
-    String anchor,
-  ) {
+  static void _placeKey(Map<String, Object> node, String key, String anchor) {
     final segments = key.split('.');
     var cursor = node;
     for (var i = 0; i < segments.length - 1; i++) {
@@ -413,8 +401,10 @@ abstract final class I18nScaffold {
       }
     }
     return p
-        .relative(p.join(projectRoot, 'lib', 'i18n', accessorFile),
-            from: fromDir)
+        .relative(
+          p.join(projectRoot, 'lib', 'i18n', accessorFile),
+          from: fromDir,
+        )
         .replaceAll('\\', '/');
   }
 }

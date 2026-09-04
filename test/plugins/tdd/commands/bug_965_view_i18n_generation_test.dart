@@ -74,27 +74,24 @@ void main() {
     return runner.runCapturing(args);
   }
 
-  test(
-    'US2.AC1: an anchored presence literal renders the accessor, never '
-    'the EN literal',
-    () async {
-      await fx.registerBehavior(
-        id: 'A-001',
-        description: "the login page shows 'Sign in'",
-      );
-      await File(
-        fx.subjectPathOf('A-001'),
-      ).writeAsString(genStyleWidgetStub('A-001'));
-      await seedKeyedContract(fx);
+  test('US2.AC1: an anchored presence literal renders the accessor, never '
+      'the EN literal', () async {
+    await fx.registerBehavior(
+      id: 'A-001',
+      description: "the login page shows 'Sign in'",
+    );
+    await File(
+      fx.subjectPathOf('A-001'),
+    ).writeAsString(genStyleWidgetStub('A-001'));
+    await seedKeyedContract(fx);
 
-      final out = await runView();
+    final out = await runView();
 
-      expect(exitCode, 0, reason: 'out: $out');
-      final subject = await File(fx.subjectPathOf('A-001')).readAsString();
-      expect(subject, contains('Text(t.auth.signIn),'));
-      expect(subject, isNot(contains("Text('Sign in')")));
-    },
-  );
+    expect(exitCode, 0, reason: 'out: $out');
+    final subject = await File(fx.subjectPathOf('A-001')).readAsString();
+    expect(subject, contains('Text(t.auth.signIn),'));
+    expect(subject, isNot(contains("Text('Sign in')")));
+  });
 
   test('US2.AC1: the accessor import lands exactly when a keyed surface '
       'is emitted', () async {
@@ -147,9 +144,7 @@ void main() {
     await seedKeyedContract(fx);
     // Pre-existing translations: app.name keeps its stored value,
     // auth.signOut is untouched, auth.signIn is missing and must land.
-    final i18nFile = File(
-      '${fx.root.path}/lib/i18n/strings.i18n.json',
-    );
+    final i18nFile = File('${fx.root.path}/lib/i18n/strings.i18n.json');
     await i18nFile.create(recursive: true);
     await i18nFile.writeAsString(
       '{"app": {"name": "ZikZak Reborn", "version": "1.0"}, '

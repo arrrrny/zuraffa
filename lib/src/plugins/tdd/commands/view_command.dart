@@ -558,13 +558,13 @@ class ViewCommand extends Command<void> {
         else if (assertion.assertionClass != ScenarioAssertionClass.absence)
           assertion.kind == LiteralKind.key
               ? '            ElevatedButton(\n'
-                  '              onPressed: () {},\n'
-                  '              child: Text(${assertion.literal}),\n'
-                  '            ),'
+                    '              onPressed: () {},\n'
+                    '              child: Text(${assertion.literal}),\n'
+                    '            ),'
               : '            ElevatedButton(\n'
-                  '              onPressed: () {},\n'
-                  "              child: Text('${BehaviorTestWriter.escapeDartString(assertion.literal)}'),\n"
-                  '            ),',
+                    '              onPressed: () {},\n'
+                    "              child: Text('${BehaviorTestWriter.escapeDartString(assertion.literal)}'),\n"
+                    '            ),',
       for (final component in components) _standIn(component),
     ];
     if (children.isEmpty) {

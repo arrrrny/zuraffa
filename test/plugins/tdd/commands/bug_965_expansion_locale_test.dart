@@ -71,7 +71,8 @@ void main() {
       expect(
         content.indexOf("LocaleSettings.setLocaleRaw('en');"),
         lessThan(content.indexOf("LocaleSettings.setLocaleRaw('de');")),
-        reason: 'the base shell boots first; the expansion pump comes '
+        reason:
+            'the base shell boots first; the expansion pump comes '
             'after in its own testWidgets',
       );
     });
@@ -104,8 +105,11 @@ void main() {
       final content = await File(testPath).readAsString();
 
       expect(content, isNot(contains('expansion locale')));
-      expect(content, contains("find.text('Home')"),
-          reason: 'the non-keyed template stays byte-for-byte');
+      expect(
+        content,
+        contains("find.text('Home')"),
+        reason: 'the non-keyed template stays byte-for-byte',
+      );
     });
   });
 
@@ -159,13 +163,7 @@ void main() {
 
       expect(out, contains('verdict=created'), reason: 'out: $out');
       final content = await File(
-        p.join(
-          fx.root.path,
-          'test',
-          'tdd',
-          fx.featureName,
-          'a_001_test.dart',
-        ),
+        p.join(fx.root.path, 'test', 'tdd', fx.featureName, 'a_001_test.dart'),
       ).readAsString();
       expect(content, contains('expansion locale de'));
       expect(content, contains("LocaleSettings.setLocaleRaw('de');"));
@@ -178,9 +176,7 @@ void main() {
         id: 'A-001',
         description: "the login page shows 'Sign in'",
       );
-      await File(
-        fx.subjectPathOf('A-001'),
-      ).writeAsString('''
+      await File(fx.subjectPathOf('A-001')).writeAsString('''
 // GENERATED STUB — `zfa tdd gen A-001` (spec 044-test-tdd-generation).
 library;
 
@@ -211,19 +207,18 @@ Widget subject_a_001() => throw UnimplementedError('not implemented');
       expect(base, contains('"signIn": "Sign in"'));
     });
 
-    test('.zfa.json tdd.i18nExpansion is honored when the flag is absent',
-        () async {
-      await seedKeyedContract();
-      await fx.registerBehavior(
-        id: 'A-001',
-        description: "the login page shows 'Sign in'",
-      );
-      await File(
-        '${fx.root.path}/.zfa.json',
-      ).writeAsString('{"tdd": {"i18nExpansion": "de"}}');
-      await File(
-        fx.subjectPathOf('A-001'),
-      ).writeAsString('''
+    test(
+      '.zfa.json tdd.i18nExpansion is honored when the flag is absent',
+      () async {
+        await seedKeyedContract();
+        await fx.registerBehavior(
+          id: 'A-001',
+          description: "the login page shows 'Sign in'",
+        );
+        await File(
+          '${fx.root.path}/.zfa.json',
+        ).writeAsString('{"tdd": {"i18nExpansion": "de"}}');
+        await File(fx.subjectPathOf('A-001')).writeAsString('''
 // GENERATED STUB — `zfa tdd gen A-001` (spec 044-test-tdd-generation).
 library;
 
@@ -232,21 +227,22 @@ import 'package:flutter/material.dart';
 /// View-builder subject for behavior A-001.
 Widget subject_a_001() => throw UnimplementedError('not implemented');
 ''');
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing([
-        'tdd',
-        'view',
-        'A-001',
-        '--project',
-        fx.root.path,
-      ]);
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'view',
+          'A-001',
+          '--project',
+          fx.root.path,
+        ]);
 
-      expect(exitCode, 0, reason: 'out: $out');
-      expect(
-        File('${fx.root.path}/lib/i18n/strings_de.i18n.json').existsSync(),
-        isTrue,
-        reason: 'the config-declared expansion locale is scaffolded',
-      );
-    });
+        expect(exitCode, 0, reason: 'out: $out');
+        expect(
+          File('${fx.root.path}/lib/i18n/strings_de.i18n.json').existsSync(),
+          isTrue,
+          reason: 'the config-declared expansion locale is scaffolded',
+        );
+      },
+    );
   });
 }

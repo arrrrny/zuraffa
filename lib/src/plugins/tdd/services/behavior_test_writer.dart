@@ -378,10 +378,10 @@ void main() {
     // key fails RED honestly.
     final localePin = keyed
         ? "// Slang test shell (issue #965): the base locale is pinned so\n"
-            "      // the resolved keys render the anchor copy — a copy edit to\n"
-            "      // the EN string can never break green; a missing key fails\n"
-            "      // RED honestly (the fallback is the base copy, not a lie).\n"
-            "      LocaleSettings.setLocaleRaw('${I18nScaffold.baseLocale}');\n"
+              "      // the resolved keys render the anchor copy — a copy edit to\n"
+              "      // the EN string can never break green; a missing key fails\n"
+              "      // RED honestly (the fallback is the base copy, not a lie).\n"
+              "      LocaleSettings.setLocaleRaw('${I18nScaffold.baseLocale}');\n"
         : '';
     // Issue #964 (code review on #981): a route-outcome scenario's
     // golden hook can NEVER pass — after the route pushes, the home
@@ -414,9 +414,7 @@ void main() {
     // key. Absent without the tier or without keyed surfaces.
     final expansionTests = keyed && i18nExpansion.isNotEmpty
         ? keyedSurfaces
-              .where(
-                (a) => a.assertionClass == ScenarioAssertionClass.presence,
-              )
+              .where((a) => a.assertionClass == ScenarioAssertionClass.presence)
               .map(
                 (surface) => _renderExpansionTest(
                   behavior: b,
@@ -472,7 +470,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-${shellImport}${i18nImportLine}import '$relativeSubjectPath' as subject;
+$shellImport${i18nImportLine}import '$relativeSubjectPath' as subject;
 
 void main() {
   group('$escapedGroupDescription', () {
@@ -539,9 +537,7 @@ $goldenBlock    });$expansionTests
           '      // $trimmed strings run ~30% longer, catching overflow '
           'assumptions before',
         )
-        ..writeln(
-          '      // goldens do. Assertions stay on the RESOLVED keys.',
-        )
+        ..writeln('      // goldens do. Assertions stay on the RESOLVED keys.')
         ..writeln("      LocaleSettings.setLocaleRaw('$trimmed');")
         ..writeln('      final Object? built = (() {')
         ..writeln('        try {')
@@ -556,9 +552,7 @@ $goldenBlock    });$expansionTests
           '      await tester.pumpWidget($shellName(home: Scaffold(body: view)));',
         )
         ..writeln('      await tester.pumpAndSettle();')
-        ..writeln(
-          '      expect(find.text($surfaceAccessor), findsOneWidget,',
-        )
+        ..writeln('      expect(find.text($surfaceAccessor), findsOneWidget,')
         ..writeln(
           "          reason: 'the keyed surface $surfaceAccessor must render "
           "under $trimmed');",
