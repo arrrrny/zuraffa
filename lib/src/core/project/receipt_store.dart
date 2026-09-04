@@ -196,6 +196,31 @@ class ReceiptStore {
     return file;
   }
 
+  /// Persists [receipt] at a DETERMINISTIC path ([fileName], sanitized)
+  /// instead of the timestamped run-scoped name, so a later consumer can
+  /// find the latest state by name — e.g. the #963 route-coverage ledger
+  /// reads `.zfa/receipts/routes-<entity>.json` (issue #971 order 3)
+  /// instead of re-parsing Dart.
+  ///
+  /// [extra] fields are merged into the document on top of the proof.v1
+  /// payload: [GenerationReceipt.fromJson] ignores unknown keys, so the
+  /// document stays a parseable generation receipt for [loadAll] and
+  /// `zfa proof check` while carrying the route table as data for the
+  /// ledger. Deterministic names collide by design: the newest write
+  /// wins (latest-wins is already [loadAll]'s ordering contract).
+  Future<File> saveNamed(
+    String fileName,
+    GenerationReceipt receipt, {
+    Map<String, dynamic> extra = const {},
+  }) async {
+    await directory.create(recursive: true);
+    final file = File(p.join(directory.path, _sanitize(fileName)));
+    const encoder = JsonEncoder.withIndent('  ');
+    final payload = <String, dynamic>{...receipt.toJson(), ...extra};
+    await file.writeAsString(encoder.convert(payload));
+    return file;
+  }
+
   /// Loads every parseable receipt, oldest first (ties broken by file
   /// name so latest-wins indexing is deterministic). Corrupted documents
   /// are skipped, not fatal — one broken receipt must not erase the
