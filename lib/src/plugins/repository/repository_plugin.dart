@@ -10,7 +10,7 @@ import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
-import '../../version.dart';
+import '../../version.dart' as cli_version;
 import '../datasource/builders/interface_generator.dart';
 import '../method_append/builders/method_append_builder.dart';
 import '../method_append/capabilities/method_capability.dart';
@@ -364,8 +364,8 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     throw RepositoryConformanceException(result);
   }
 
-  bool _isFreshEmit(String action) => action == 'created' ||
-      action == 'overwritten';
+  bool _isFreshEmit(String action) =>
+      action == 'created' || action == 'overwritten';
 
   /// Spec 0973: writes the per-entity repository contract manifest
   /// (`.zfa/receipts/repository-<entity>.json`) after the conformance gate
@@ -403,7 +403,7 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         ),
         methods: methods,
         methodsSha256: RepositoryContractManifest.hashOfMethods(methods),
-        generatorVersion: version,
+        generatorVersion: cli_version.version,
         at: DateTime.now().toUtc(),
       );
       await RepositoryContractManifestStore(

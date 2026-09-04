@@ -146,7 +146,8 @@ class RepositoryEmissionPlanner {
 
     // Interface emission — mirrors RepositoryPlugin.generate().
     final interfaceEmit =
-        config.isEntityBased || (config.appendToExisting && config.repo != null);
+        config.isEntityBased ||
+        (config.appendToExisting && config.repo != null);
     final interfaceTriggeredBy = <String>[];
     if (config.isEntityBased) {
       interfaceTriggeredBy.add(
@@ -195,15 +196,15 @@ class RepositoryEmissionPlanner {
       implTriggeredBy.add('--cache selects the cached (remote-first) variant');
     } else if (config.enableSync) {
       variant = 'synced';
-      implTriggeredBy.add(
-        '--sync selects the synced (local-first) variant',
-      );
+      implTriggeredBy.add('--sync selects the synced (local-first) variant');
     } else {
       variant = 'simple';
     }
     if (config.hasService) {
-      implTriggeredBy.add('skipped: --service / use-service mode emits a '
-          'service repository instead');
+      implTriggeredBy.add(
+        'skipped: --service / use-service mode emits a '
+        'service repository instead',
+      );
     }
 
     // Datasource interface emission — mirrors the #406 block: the
@@ -211,14 +212,15 @@ class RepositoryEmissionPlanner {
     // active (the plugin emits it itself, avoiding a duplicate-write
     // conflict on the same file).
     final dsEmit =
-        config.generateDataSource && !config.hasService &&
+        config.generateDataSource &&
+        !config.hasService &&
         !datasourcePluginActive;
     final dsTriggeredBy = <String>['--datasource requested'];
     dsTriggeredBy.add(
       datasourcePluginActive
           ? 'skipped: the datasource plugin is active and emits it itself'
           : 'emitted by the repository plugin because the datasource plugin '
-              'is NOT active',
+                'is NOT active',
     );
 
     return RepositoryEmissionPlan(
@@ -236,8 +238,7 @@ class RepositoryEmissionPlanner {
         RepositoryEmissionItem(
           id: 'implementation',
           emit: implEmit,
-          path:
-              'data/repositories/data_${config.nameSnake}_repository.dart',
+          path: 'data/repositories/data_${config.nameSnake}_repository.dart',
           className: 'Data${config.name}Repository',
           variant: variant,
           triggeredBy: implTriggeredBy,
@@ -245,7 +246,8 @@ class RepositoryEmissionPlanner {
         RepositoryEmissionItem(
           id: 'datasource_interface',
           emit: dsEmit,
-          path: 'data/datasources/${config.nameSnake}/'
+          path:
+              'data/datasources/${config.nameSnake}/'
               '${config.nameSnake}_datasource.dart',
           className: '${config.name}DataSource',
           triggeredBy: dsTriggeredBy,

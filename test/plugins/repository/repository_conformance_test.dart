@@ -36,7 +36,7 @@ abstract class ProductRepository {
 }
 ''';
 
-        const conformingImplSource = '''
+    const conformingImplSource = '''
 import 'product_repository.dart';
 
 class DataProductRepository implements ProductRepository {
@@ -160,30 +160,33 @@ class DataUserRepository implements UserRepository {
       expect(files, hasLength(2));
     });
 
-    test('a deliberate mismatch fails at generation time with --> fix:', () async {
-      // The unknown verb `purgeAll` never reaches the interface switch (no
-      // declaration) but the implementation's default branch still emits it
-      // with @override — a deliberate interface/impl mismatch that must now
-      // fail the generation instead of shipping a pair that cannot compile.
-      final config = GeneratorConfig(
-        name: 'Product',
-        methods: ['get', 'purgeAll'],
-        generateData: true,
-        outputDir: outputDir,
-        force: true,
-      );
+    test(
+      'a deliberate mismatch fails at generation time with --> fix:',
+      () async {
+        // The unknown verb `purgeAll` never reaches the interface switch (no
+        // declaration) but the implementation's default branch still emits it
+        // with @override — a deliberate interface/impl mismatch that must now
+        // fail the generation instead of shipping a pair that cannot compile.
+        final config = GeneratorConfig(
+          name: 'Product',
+          methods: ['get', 'purgeAll'],
+          generateData: true,
+          outputDir: outputDir,
+          force: true,
+        );
 
-      await expectLater(
-        plugin().generate(config),
-        throwsA(
-          isA<RepositoryConformanceException>().having(
-            (e) => e.toString(),
-            'message',
-            allOf(contains('--> fix:'), contains('purgeAll')),
+        await expectLater(
+          plugin().generate(config),
+          throwsA(
+            isA<RepositoryConformanceException>().having(
+              (e) => e.toString(),
+              'message',
+              allOf(contains('--> fix:'), contains('purgeAll')),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
     test('a synced pair conforms (sync ops carry @override)', () async {
       final config = GeneratorConfig(

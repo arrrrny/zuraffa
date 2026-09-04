@@ -144,9 +144,7 @@ class RepositoryContractManifest {
           Map<String, dynamic>.from(json['interface'] as Map? ?? const {}),
         ),
         implementation: RepositoryContractFile.fromJson(
-          Map<String, dynamic>.from(
-            json['implementation'] as Map? ?? const {},
-          ),
+          Map<String, dynamic>.from(json['implementation'] as Map? ?? const {}),
         ),
         methods: (json['methods'] as List? ?? const [])
             .map(
@@ -165,10 +163,10 @@ class RepositoryContractManifest {
 
   /// Recomputes the method-table hash from [methods]. Stable across runs
   /// with identical method sets (no timestamps, no map-order dependence).
-  static String hashOfMethods(List<RepositoryContractMethod> methods) =>
-      crypto.sha256
-          .convert(utf8.encode(methods.map((m) => m.canonicalJson()).join()))
-          .toString();
+  static String hashOfMethods(List<RepositoryContractMethod> methods) => crypto
+      .sha256
+      .convert(utf8.encode(methods.map((m) => m.canonicalJson()).join()))
+      .toString();
 }
 
 /// Extracts the contract method table from an emitted interface source.
@@ -249,9 +247,9 @@ class RepositoryContractManifestStore {
   Future<File> save(RepositoryContractManifest manifest) async {
     await directory.create(recursive: true);
     const encoder = JsonEncoder.withIndent('  ');
-    return fileFor(manifest.entity).writeAsString(
-      encoder.convert(manifest.toJson()),
-    );
+    return fileFor(
+      manifest.entity,
+    ).writeAsString(encoder.convert(manifest.toJson()));
   }
 
   /// Loads the entity's manifest, or null when absent / corrupt / foreign
@@ -276,11 +274,12 @@ class RepositoryContractManifestStore {
   Future<List<RepositoryContractManifest>> loadAll() async {
     if (!directory.existsSync()) return const [];
     final manifests = <RepositoryContractManifest>[];
-    for (final file in directory
-        .listSync()
-        .whereType<File>()
-        .where((f) => p.basename(f.path).startsWith('repository-'))
-        .where((f) => f.path.endsWith('.json'))) {
+    for (final file
+        in directory
+            .listSync()
+            .whereType<File>()
+            .where((f) => p.basename(f.path).startsWith('repository-'))
+            .where((f) => f.path.endsWith('.json'))) {
       try {
         final json =
             jsonDecode(await file.readAsString()) as Map<String, dynamic>;
@@ -297,9 +296,7 @@ class RepositoryContractManifestStore {
   /// Verifies [manifest] against the current tree. Returns a finding kind
   /// (`manifest_corrupt`, `manifest_drift`) with a detail line, or null
   /// when the manifest is fresh.
-  ({String kind, String detail})? verify(
-    RepositoryContractManifest manifest,
-  ) {
+  ({String kind, String detail})? verify(RepositoryContractManifest manifest) {
     if (RepositoryContractManifest.hashOfMethods(manifest.methods) !=
         manifest.methodsSha256) {
       return (

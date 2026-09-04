@@ -105,8 +105,10 @@ class RepositoryConformanceChecker {
     final failures = <ConformanceFailure>[];
 
     final interfaceMethods = _parseMembers(interfaceSource, interfaceClassName);
-    final implMembers = _parseMembers(implementationSource,
-        implementationClassName);
+    final implMembers = _parseMembers(
+      implementationSource,
+      implementationClassName,
+    );
 
     final interfaceNames = interfaceMethods.keys.toList();
     final overrideNames = implMembers.entries
@@ -237,14 +239,12 @@ class RepositoryConformanceChecker {
     for (final method in const AstHelper().findMethods(classNode)) {
       final name = method.name.lexeme;
       if (members.containsKey(name)) continue;
-      members[name] = _MemberSignature(
-        hasOverride: _hasOverride(method),
-      );
+      members[name] = _MemberSignature(hasOverride: _hasOverride(method));
     }
     return members;
   }
 
-  static bool _hasOverride(method) {
+  static bool _hasOverride(dynamic method) {
     for (final annotation in method.metadata) {
       if (annotation.name.toSource() == 'override') return true;
     }

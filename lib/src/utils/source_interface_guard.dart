@@ -63,12 +63,7 @@ class SourceInterfaceGuard {
       if (contract != null) {
         final declared = contract.methodNames.toSet();
         className = contract.interface.className;
-        return _filterAgainst(
-          methods,
-          declared,
-          className,
-          config,
-        );
+        return _filterAgainst(methods, declared, className, config);
       }
     }
 

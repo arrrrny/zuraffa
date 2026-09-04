@@ -84,42 +84,55 @@ abstract class ProductRepository {
       );
 
       expect(hash([a, b]), hash([a, b]), reason: 'same input, same hash');
-      expect(hash([a, b]), isNot(hash([b, a])),
-          reason: 'declaration order is part of the contract');
-      expect(hash([a]), isNot(hash([a, b])),
-          reason: 'method set changes must change the hash');
+      expect(
+        hash([a, b]),
+        isNot(hash([b, a])),
+        reason: 'declaration order is part of the contract',
+      );
+      expect(
+        hash([a]),
+        isNot(hash([a, b])),
+        reason: 'method set changes must change the hash',
+      );
     });
   });
 
   group('generation writes the contract manifest', () {
-    test('fresh generation writes repository-<entity>.json in the receipts dir', () async {
-      await generatePair();
+    test(
+      'fresh generation writes repository-<entity>.json in the receipts dir',
+      () async {
+        await generatePair();
 
-      final manifest = await storeFor(tempDir).loadForEntity('Product');
-      expect(manifest, isNotNull);
-      expect(manifest!.schema, 'repository-contract.v1');
-      expect(manifest.entity, 'Product');
-      expect(manifest.interface.className, 'ProductRepository');
-      expect(
-        manifest.interface.path,
-        'lib/src/domain/repositories/product_repository.dart',
-      );
-      expect(manifest.implementation.className, 'DataProductRepository');
-      expect(
-        manifest.implementation.path,
-        'lib/src/data/repositories/data_product_repository.dart',
-      );
-      expect(manifest.methodNames, containsAll(['get', 'update']));
-      expect(
-        manifest.methodsSha256,
-        RepositoryContractManifest.hashOfMethods(manifest.methods),
-      );
-      expect(File('${tempDir.path}/${manifest.interface.path}').existsSync(),
-          isTrue);
-    });
+        final manifest = await storeFor(tempDir).loadForEntity('Product');
+        expect(manifest, isNotNull);
+        expect(manifest!.schema, 'repository-contract.v1');
+        expect(manifest.entity, 'Product');
+        expect(manifest.interface.className, 'ProductRepository');
+        expect(
+          manifest.interface.path,
+          'lib/src/domain/repositories/product_repository.dart',
+        );
+        expect(manifest.implementation.className, 'DataProductRepository');
+        expect(
+          manifest.implementation.path,
+          'lib/src/data/repositories/data_product_repository.dart',
+        );
+        expect(manifest.methodNames, containsAll(['get', 'update']));
+        expect(
+          manifest.methodsSha256,
+          RepositoryContractManifest.hashOfMethods(manifest.methods),
+        );
+        expect(
+          File('${tempDir.path}/${manifest.interface.path}').existsSync(),
+          isTrue,
+        );
+      },
+    );
 
     test('manifest hash is stable across independent generations', () async {
-      final outer = await Directory.systemTemp.createTemp('zuraffa_manifest_b_');
+      final outer = await Directory.systemTemp.createTemp(
+        'zuraffa_manifest_b_',
+      );
       addTearDown(() => outer.delete(recursive: true));
       final secondDir = Directory('${outer.path}/lib/src')
         ..createSync(recursive: true);
@@ -178,30 +191,35 @@ abstract class ProductRepository {
       );
     }
 
-    test('fresh manifest is the source of truth (wins over source parse)', () async {
-      // The interface file declares get+update; the manifest records the
-      // same. Filtering an unknown method must be dropped either way.
-      final result = await filter(['get', 'update', 'nonexistent']);
-      expect(result, ['get', 'update']);
-    });
+    test(
+      'fresh manifest is the source of truth (wins over source parse)',
+      () async {
+        // The interface file declares get+update; the manifest records the
+        // same. Filtering an unknown method must be dropped either way.
+        final result = await filter(['get', 'update', 'nonexistent']);
+        expect(result, ['get', 'update']);
+      },
+    );
 
-    test('hand-edited interface makes the manifest stale → source parse fallback',
-        () async {
-      final interfaceFile = File(
-        '${tempDir.path}/lib/src/domain/repositories/product_repository.dart',
-      );
-      await interfaceFile.writeAsString(
-        (await interfaceFile.readAsString()).replaceFirst(
-          'abstract class ProductRepository {',
-          'abstract class ProductRepository {\n  Future<void> custom();',
-        ),
-      );
+    test(
+      'hand-edited interface makes the manifest stale → source parse fallback',
+      () async {
+        final interfaceFile = File(
+          '${tempDir.path}/lib/src/domain/repositories/product_repository.dart',
+        );
+        await interfaceFile.writeAsString(
+          (await interfaceFile.readAsString()).replaceFirst(
+            'abstract class ProductRepository {',
+            'abstract class ProductRepository {\n  Future<void> custom();',
+          ),
+        );
 
-      final result = await filter(['get', 'update', 'custom']);
-      // Fallback re-parses the drifted source: custom() is now declared.
-      expect(result, contains('custom'));
-      expect(result, containsAll(['get', 'update']));
-    });
+        final result = await filter(['get', 'update', 'custom']);
+        // Fallback re-parses the drifted source: custom() is now declared.
+        expect(result, contains('custom'));
+        expect(result, containsAll(['get', 'update']));
+      },
+    );
 
     test('divergent fresh manifest wins over what the source says', () async {
       // Hand-edit the interface, then re-record the manifest so it is
@@ -248,20 +266,26 @@ abstract class ProductRepository {
       expect(result, ['get'], reason: 'fresh manifest overrides source text');
     });
 
-    test('corrupt manifest (tampered method table) falls back to source parse',
-        () async {
-      final file = storeFor(tempDir).fileFor('Product');
-      final json =
-          jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-      json['methods'] = [
-        {'name': 'bogus', 'returns': 'void', 'params': <String>[]},
-      ];
-      await file.writeAsString(const JsonEncoder.withIndent('  ').convert(json));
+    test(
+      'corrupt manifest (tampered method table) falls back to source parse',
+      () async {
+        final file = storeFor(tempDir).fileFor('Product');
+        final json =
+            jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+        json['methods'] = [
+          {'name': 'bogus', 'returns': 'void', 'params': <String>[]},
+        ];
+        await file.writeAsString(
+          const JsonEncoder.withIndent('  ').convert(json),
+        );
 
-      final result = await filter(['get', 'update']);
-      expect(result, ['get', 'update'],
-          reason: 'integrity check fails → parse the interface instead');
-    });
+        final result = await filter(['get', 'update']);
+        expect(result, [
+          'get',
+          'update',
+        ], reason: 'integrity check fails → parse the interface instead');
+      },
+    );
   });
 
   group('zfa proof check integrates contract manifests', () {
@@ -282,10 +306,7 @@ abstract class ProductRepository {
 
       final red = await checker.check();
       expect(red.ok, isFalse);
-      expect(
-        red.findings.map((f) => f.kind),
-        contains('manifest_drift'),
-      );
+      expect(red.findings.map((f) => f.kind), contains('manifest_drift'));
     });
 
     test('red when the manifest method table is hand-edited', () async {
@@ -294,14 +315,13 @@ abstract class ProductRepository {
       final json =
           jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       (json['methods'] as List).removeAt(0);
-      await file.writeAsString(const JsonEncoder.withIndent('  ').convert(json));
+      await file.writeAsString(
+        const JsonEncoder.withIndent('  ').convert(json),
+      );
 
       final report = await ProofChecker(projectRoot: tempDir.path).check();
       expect(report.ok, isFalse);
-      expect(
-        report.findings.map((f) => f.kind),
-        contains('manifest_corrupt'),
-      );
+      expect(report.findings.map((f) => f.kind), contains('manifest_corrupt'));
     });
   });
 }

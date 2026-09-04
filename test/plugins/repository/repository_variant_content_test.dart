@@ -32,63 +32,64 @@ void main() {
   );
 
   group('simple variant (no cache, no sync)', () {
-    test('delegates directly to the data source with no cache machinery',
-        () async {
-      final config = GeneratorConfig(
-        name: 'Order',
-        methods: ['get', 'getList', 'create', 'update', 'delete'],
-        generateData: true,
-        outputDir: outputDir,
-        force: true,
-      );
+    test(
+      'delegates directly to the data source with no cache machinery',
+      () async {
+        final config = GeneratorConfig(
+          name: 'Order',
+          methods: ['get', 'getList', 'create', 'update', 'delete'],
+          generateData: true,
+          outputDir: outputDir,
+          force: true,
+        );
 
-      final files = await plugin().generate(config);
-      final impl = files.firstWhere(
-        (f) => f.path.contains('data_order_repository.dart'),
-      );
-      final content = impl.content ?? '';
+        final files = await plugin().generate(config);
+        final impl = files.firstWhere(
+          (f) => f.path.contains('data_order_repository.dart'),
+        );
+        final content = impl.content ?? '';
 
-      // Direct delegation to the single data source.
-      final normalized = content.replaceAll(RegExp(r'\s+'), '');
-      expect(normalized, contains('_dataSource.get'));
-      expect(normalized, contains('_dataSource.getList'));
-      expect(normalized, contains('_dataSource.create'));
-      expect(normalized, contains('_dataSource.update'));
-      expect(normalized, contains('_dataSource.delete'));
+        // Direct delegation to the single data source.
+        final normalized = content.replaceAll(RegExp(r'\s+'), '');
+        expect(normalized, contains('_dataSource.get'));
+        expect(normalized, contains('_dataSource.getList'));
+        expect(normalized, contains('_dataSource.create'));
+        expect(normalized, contains('_dataSource.update'));
+        expect(normalized, contains('_dataSource.delete'));
 
-      // Every CRUD method claims the interface.
-      expect('override'.allMatches(content).length, greaterThanOrEqualTo(5));
+        // Every CRUD method claims the interface.
+        expect('override'.allMatches(content).length, greaterThanOrEqualTo(5));
 
-      // No cache/sync machinery leaks into the simple variant.
-      expect(content, isNot(contains('_localDataSource')));
-      expect(content, isNot(contains('_remoteDataSource')));
-      expect(content, isNot(contains('_cachePolicy')));
-      expect(content, isNot(contains('_syncStrategy')));
-      expect(content, isNot(contains('syncPending')));
-      expect(content, isNot(contains('markPending')));
+        // No cache/sync machinery leaks into the simple variant.
+        expect(content, isNot(contains('_localDataSource')));
+        expect(content, isNot(contains('_remoteDataSource')));
+        expect(content, isNot(contains('_cachePolicy')));
+        expect(content, isNot(contains('_syncStrategy')));
+        expect(content, isNot(contains('syncPending')));
+        expect(content, isNot(contains('markPending')));
 
-      // Constructor takes exactly one data source.
-      expect(
-        RegExp(r'DataOrderRepository\(this\._dataSource\)').hasMatch(content),
-        isTrue,
-        reason: 'constructor wires exactly one data source',
-      );
+        // Constructor takes exactly one data source.
+        expect(
+          RegExp(r'DataOrderRepository\(this\._dataSource\)').hasMatch(content),
+          isTrue,
+          reason: 'constructor wires exactly one data source',
+        );
 
-      // Interface side: declares the same CRUD surface, no sync ops.
-      final interface = files.firstWhere(
-        (f) => f.path.contains('order_repository.dart'),
-      );
-      final interfaceContent = interface.content ?? '';
-      expect(interfaceContent, contains('Future<Order> get('));
-      expect(interfaceContent, contains('Future<List<Order>> getList('));
-      expect(interfaceContent, isNot(contains('syncPending')));
-      expect(interfaceContent, isNot(contains('pullRemote')));
-    });
+        // Interface side: declares the same CRUD surface, no sync ops.
+        final interface = files.firstWhere(
+          (f) => f.path.contains('order_repository.dart'),
+        );
+        final interfaceContent = interface.content ?? '';
+        expect(interfaceContent, contains('Future<Order> get('));
+        expect(interfaceContent, contains('Future<List<Order>> getList('));
+        expect(interfaceContent, isNot(contains('syncPending')));
+        expect(interfaceContent, isNot(contains('pullRemote')));
+      },
+    );
   });
 
   group('synced variant (--sync)', () {
-    test('reads local-first, marks pending writes, exposes sync ops',
-        () async {
+    test('reads local-first, marks pending writes, exposes sync ops', () async {
       final config = GeneratorConfig(
         name: 'Task',
         methods: ['get', 'getList', 'create', 'update', 'delete', 'watch'],
@@ -142,8 +143,7 @@ void main() {
   });
 
   group('append variant (--append onto an existing pair)', () {
-    test('preserves existing members and appends the new method set',
-        () async {
+    test('preserves existing members and appends the new method set', () async {
       final interfacePath =
           '$outputDir/domain/repositories/product_repository.dart';
       final implPath =
@@ -200,10 +200,7 @@ class DataProductRepository implements ProductRepository {
         1,
         reason: 'append must not double-add the same method',
       );
-      expect(
-        'Future<Product> get('.allMatches(implContent).length,
-        1,
-      );
+      expect('Future<Product> get('.allMatches(implContent).length, 1);
 
       // No augment files: append writes the host file directly.
       expect(

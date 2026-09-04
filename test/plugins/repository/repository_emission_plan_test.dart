@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
-import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/repository/plan/repository_emission_plan.dart';
 
@@ -35,9 +34,7 @@ void main() {
 
       // Snapshot: the resolved plan for this flag combination is fully
       // deterministic (output-relative paths, no timestamps).
-      expect(
-        const JsonEncoder.withIndent('  ').convert(plan.toJson()),
-        '''
+      expect(const JsonEncoder.withIndent('  ').convert(plan.toJson()), '''
 {
   "plugin": "repository",
   "entity": "Product",
@@ -84,8 +81,7 @@ void main() {
   "warnings": [
     "--cache and --sync are mutually exclusive: cache is remote-first, sync is local-first (generation would fail with ArgumentError)"
   ]
-}''',
-      );
+}''');
     });
 
     test('simple variant for a plain entity-based config', () {
@@ -123,26 +119,32 @@ void main() {
       );
     });
 
-    test('datasource interface skipped when the datasource plugin is active',
-        () {
-      final plan = const RepositoryEmissionPlanner().resolve(
-        GeneratorConfig(
-          name: 'Order',
-          methods: ['get'],
-          generateData: true,
-          generateDataSource: true,
-          outputDir: 'lib/src',
-        ),
-        datasourcePluginActive: true,
-      );
+    test(
+      'datasource interface skipped when the datasource plugin is active',
+      () {
+        final plan = const RepositoryEmissionPlanner().resolve(
+          GeneratorConfig(
+            name: 'Order',
+            methods: ['get'],
+            generateData: true,
+            generateDataSource: true,
+            outputDir: 'lib/src',
+          ),
+          datasourcePluginActive: true,
+        );
 
-      final ds = plan.emissions.firstWhere((e) => e.id == 'datasource_interface');
-      expect(ds.emit, isFalse);
-      expect(
-        ds.triggeredBy,
-        contains('skipped: the datasource plugin is active and emits it itself'),
-      );
-    });
+        final ds = plan.emissions.firstWhere(
+          (e) => e.id == 'datasource_interface',
+        );
+        expect(ds.emit, isFalse);
+        expect(
+          ds.triggeredBy,
+          contains(
+            'skipped: the datasource plugin is active and emits it itself',
+          ),
+        );
+      },
+    );
   });
 
   group('zfa make --explain / --json (CLI surface)', () {
