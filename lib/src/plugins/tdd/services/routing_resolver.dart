@@ -153,6 +153,18 @@ class RoutingResolver {
           );
           surfaceRow ??= ref.row;
           functionRow ??= ref.row;
+        case ContractRowKind.service:
+          // Issue #960: a declared service dependency is a first-class
+          // declaration — its unit behavior tests against the row's
+          // certified mock (surface: dependencyMake).
+          kindSources.add(
+            _KindSource(
+              BehaviorKind.unit,
+              'dependency row: ${ref.row.name}',
+              ref.row.specLine,
+            ),
+          );
+          surfaceRow ??= ref.row;
         case ContractRowKind.channel:
           kindSources.add(
             _KindSource(
@@ -223,13 +235,22 @@ class RoutingResolver {
           surface = GenerationSurface.none;
         case ContractRowKind.storage:
           surface = null;
+        case ContractRowKind.service:
+          // Issue #960: the traced dependency row's certified mock is
+          // the test double — the harness binds it, the suite proves it.
+          surface = GenerationSurface.dependencyMake;
       }
       if (surface != null) {
+        final detail = surface == GenerationSurface.dependencyMake
+            ? 'dependency row: ${surfaceRow.name} '
+                '(${surfaceRow.kind.name}, '
+                'priority ${surfaceRow.priority.label})'
+            : 'contract row: ${surfaceRow.name}';
         provenance.add(
           ProvenanceLine(
             aspect: RoutingAspect.surface,
             source: RoutingSource.declared,
-            detail: 'contract row: ${surfaceRow.name}',
+            detail: detail,
             specLine: surfaceRow.specLine,
           ),
         );
@@ -370,7 +391,8 @@ class RoutingResolver {
     ContractRowKind.domain ||
     ContractRowKind.data ||
     ContractRowKind.entity ||
-    ContractRowKind.function => BehaviorKind.unit,
+    ContractRowKind.function ||
+    ContractRowKind.service => BehaviorKind.unit,
     ContractRowKind.channel => BehaviorKind.platform,
     ContractRowKind.storage => null,
   };

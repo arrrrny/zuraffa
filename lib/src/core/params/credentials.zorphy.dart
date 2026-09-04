@@ -22,6 +22,23 @@ class Credentials extends Params {
     return Credentials(params: params ?? this.params);
   }
 
+  /// Returns a copy of this entity with [field] set to [value].
+  ///
+  /// Delegates to [copyWith]: the receiver is never mutated and a
+  /// null [value] keeps the current field value.
+  Credentials copyWithField<T>(Field<Credentials, T> field, T value) {
+    switch (field.name) {
+      case 'params':
+        return copyWith(params: value as Map<String, dynamic>?);
+      default:
+        throw ArgumentError.value(
+          field.name,
+          'field',
+          'Credentials has no settable field with this name',
+        );
+    }
+  }
+
   Credentials copyWithCredentials({Map<String, dynamic>? params}) {
     return copyWith(params: params);
   }

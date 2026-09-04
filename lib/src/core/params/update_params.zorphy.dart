@@ -41,6 +41,27 @@ class UpdateParams<I, P> extends Params {
     );
   }
 
+  /// Returns a copy of this entity with [field] set to [value].
+  ///
+  /// Delegates to [copyWith]: the receiver is never mutated and a
+  /// null [value] keeps the current field value.
+  UpdateParams copyWithField<T>(Field<UpdateParams<I, P>, T> field, T value) {
+    switch (field.name) {
+      case 'params':
+        return copyWith(params: value as Map<String, dynamic>?);
+      case 'id':
+        return copyWith(id: value as I);
+      case 'data':
+        return copyWith(data: value as P);
+      default:
+        throw ArgumentError.value(
+          field.name,
+          'field',
+          'UpdateParams has no settable field with this name',
+        );
+    }
+  }
+
   UpdateParams copyWithUpdateParams({
     Map<String, dynamic>? params,
     I? id,

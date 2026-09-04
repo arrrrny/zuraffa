@@ -87,6 +87,36 @@ class ListQueryParams<T> extends Params {
     );
   }
 
+  /// Returns a copy of this entity with [field] set to [value].
+  ///
+  /// Delegates to [copyWith]: the receiver is never mutated and a
+  /// null [value] keeps the current field value.
+  ListQueryParams copyWithField<TValue>(
+    Field<ListQueryParams<T>, TValue> field,
+    TValue value,
+  ) {
+    switch (field.name) {
+      case 'params':
+        return copyWith(params: value as Map<String, dynamic>?);
+      case 'search':
+        return copyWith(search: value as String?);
+      case 'filter':
+        return copyWith(filter: value as Filter<T>?);
+      case 'sort':
+        return copyWith(sort: value as Sort<T>?);
+      case 'limit':
+        return copyWith(limit: value as int?);
+      case 'offset':
+        return copyWith(offset: value as int?);
+      default:
+        throw ArgumentError.value(
+          field.name,
+          'field',
+          'ListQueryParams has no settable field with this name',
+        );
+    }
+  }
+
   ListQueryParams copyWithListQueryParams({
     Map<String, dynamic>? params,
     String? search,

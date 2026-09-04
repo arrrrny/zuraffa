@@ -31,6 +31,25 @@ class DeleteParams<I> extends Params {
     return DeleteParams(params: params ?? this.params, id: id ?? this.id);
   }
 
+  /// Returns a copy of this entity with [field] set to [value].
+  ///
+  /// Delegates to [copyWith]: the receiver is never mutated and a
+  /// null [value] keeps the current field value.
+  DeleteParams copyWithField<T>(Field<DeleteParams<I>, T> field, T value) {
+    switch (field.name) {
+      case 'params':
+        return copyWith(params: value as Map<String, dynamic>?);
+      case 'id':
+        return copyWith(id: value as I);
+      default:
+        throw ArgumentError.value(
+          field.name,
+          'field',
+          'DeleteParams has no settable field with this name',
+        );
+    }
+  }
+
   DeleteParams copyWithDeleteParams({Map<String, dynamic>? params, I? id}) {
     return copyWith(params: params, id: id);
   }

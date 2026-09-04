@@ -49,6 +49,28 @@ class QueryParams<T> extends Params {
     );
   }
 
+  /// Returns a copy of this entity with [field] set to [value].
+  ///
+  /// Delegates to [copyWith]: the receiver is never mutated and a
+  /// null [value] keeps the current field value.
+  QueryParams copyWithField<TValue>(
+    Field<QueryParams<T>, TValue> field,
+    TValue value,
+  ) {
+    switch (field.name) {
+      case 'params':
+        return copyWith(params: value as Map<String, dynamic>?);
+      case 'filter':
+        return copyWith(filter: value as Filter<T>?);
+      default:
+        throw ArgumentError.value(
+          field.name,
+          'field',
+          'QueryParams has no settable field with this name',
+        );
+    }
+  }
+
   QueryParams copyWithQueryParams({
     Map<String, dynamic>? params,
     Filter<T>? filter,
