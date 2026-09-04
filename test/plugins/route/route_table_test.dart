@@ -45,7 +45,7 @@ void main() {
       );
     });
 
-    test('U1.3: JSON encoding is stable across runs (sorted by path+source)', () {
+    test('U1.3: JSON encoding uses the canonical total ordering', () {
       const entries = [
         RouteEntry(
           path: '/b',
@@ -56,7 +56,28 @@ void main() {
         ),
         RouteEntry(
           path: '/a',
+          name: 'Z',
+          source: RouteSource.cli,
+          file: 'z.dart',
+          line: 2,
+        ),
+        RouteEntry(
+          path: '/a',
+          name: 'B',
+          source: RouteSource.cli,
+          file: 'a.dart',
+          line: 2,
+        ),
+        RouteEntry(
+          path: '/a',
           name: 'A',
+          source: RouteSource.cli,
+          file: 'a.dart',
+          line: 2,
+        ),
+        RouteEntry(
+          path: '/a',
+          name: 'Earlier',
           source: RouteSource.cli,
           file: 'a.dart',
           line: 1,
@@ -75,11 +96,13 @@ void main() {
 
       final decoded = jsonDecode(a) as Map<String, Object?>;
       final routes = (decoded['routes']! as List).cast<Map>();
-      expect(routes[0]['path'], equals('/a'));
+      expect(routes[0]['name'], equals('Earlier'));
       expect(routes[0]['source'], equals('cli'));
-      expect(routes[1]['path'], equals('/a'));
-      expect(routes[1]['source'], equals('dda'));
-      expect(routes[2]['path'], equals('/b'));
+      expect(routes[1]['name'], equals('A'));
+      expect(routes[2]['name'], equals('B'));
+      expect(routes[3]['name'], equals('Z'));
+      expect(routes[4]['source'], equals('dda'));
+      expect(routes[5]['path'], equals('/b'));
     });
   });
 }

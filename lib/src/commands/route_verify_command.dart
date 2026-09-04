@@ -12,12 +12,14 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 
 import '../plugins/route/route_drift_detector.dart';
 import '../plugins/route/route_table.dart';
 
 class RouteVerifyCommand extends Command<void> {
-  RouteVerifyCommand() {
+  RouteVerifyCommand({String? projectRoot})
+    : _projectRoot = projectRoot ?? Directory.current.path {
     argParser.addFlag(
       'json',
       negatable: false,
@@ -33,10 +35,14 @@ class RouteVerifyCommand extends Command<void> {
       negatable: false,
       help: 'Treat drift warnings as errors (exit 1).',
     );
-    argParser.addOption('out', help: 'Write JSON to this path instead of stdout.');
+    argParser.addOption(
+      'out',
+      help: 'Write JSON to this path instead of stdout.',
+    );
   }
 
   final _detector = const RouteDriftDetector();
+  final String _projectRoot;
 
   @override
   String get name => 'verify';
@@ -58,12 +64,18 @@ class RouteVerifyCommand extends Command<void> {
     if (json) {
       final payload = {
         'version': table.version,
-        'routes': table.routes.map((e) => e.toJson()).toList(),
+        'routes': canonicalRouteEntries(
+          table.routes,
+        ).map((e) => e.toJson()).toList(),
         'drift': drifts
-            .map((d) => {
-              'path': d.path,
-              'sources': d.sources.map((s) => s.toJson()).toList(),
-            })
+            .map(
+              (d) => {
+                'path': d.path,
+                'sources': canonicalRouteEntries(
+                  d.sources,
+                ).map((s) => s.toJson()).toList(),
+              },
+            )
             .toList(),
       };
       final encoded = jsonEncode(payload);
@@ -88,7 +100,9 @@ class RouteVerifyCommand extends Command<void> {
       for (final d in drifts) {
         stdout.writeln('⚠️  DRIFT ${d.path}');
         for (final s in d.sources) {
-          stdout.writeln('    ${s.source.name}: ${s.file}:${s.line} (${s.name})');
+          stdout.writeln(
+            '    ${s.source.name}: ${s.file}:${s.line} (${s.name})',
+          );
         }
       }
     }
@@ -98,13 +112,130 @@ class RouteVerifyCommand extends Command<void> {
     }
   }
 
-  /// Reads the on-disk route table. For this initial implementation we
-  /// return an empty table — the real per-generator walkers are out of
-  /// scope for the bug fix (they belong to follow-ups in spec 075). The
-  /// verify command is therefore runnable today (proves the surface,
-  /// the JSON shape, the plain text, the exit code) and the generators
-  /// can be wired in incrementally.
+  /// Reads CLI `*_routes.dart` modules and the DDA `zfa_router.g.dart`.
   RouteTable _readRouteTable() {
-    return const RouteTable(version: 1, routes: []);
+    final libDirectory = Directory(p.join(_projectRoot, 'lib'));
+    if (!libDirectory.existsSync()) {
+      return const RouteTable(version: 1, routes: []);
+    }
+
+    final files =
+        libDirectory
+            .listSync(recursive: true, followLinks: false)
+            .whereType<File>()
+            .where((file) => p.extension(file.path) == '.dart')
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
+
+    final cli = <RouteEntry>[];
+    final dda = <RouteEntry>[];
+    for (final file in files) {
+      final fileName = p.basename(file.path);
+      if (fileName == 'zfa_router.g.dart') {
+        dda.addAll(_parseRoutes(file, RouteSource.dda));
+      } else if (fileName.endsWith('_routes.dart') &&
+          fileName != 'app_routes.dart') {
+        cli.addAll(_parseRoutes(file, RouteSource.cli));
+      }
+    }
+    return RouteTable.union(cli: cli, dda: dda);
+  }
+
+  List<RouteEntry> _parseRoutes(File file, RouteSource routeSource) {
+    final source = file.readAsStringSync();
+    final constants = _routeConstants(source);
+    final entries = <RouteEntry>[];
+    final goRoutePattern = RegExp(r'\bGoRoute\s*\(');
+
+    for (final match in goRoutePattern.allMatches(source)) {
+      final openParen = source.indexOf('(', match.start);
+      final closeParen = _matchingParen(source, openParen);
+      if (closeParen == null) continue;
+      final invocation = source.substring(openParen + 1, closeParen);
+      final pathExpression = _namedArgument(invocation, 'path');
+      final nameExpression = _namedArgument(invocation, 'name');
+      final routePath = _resolveValue(pathExpression, constants);
+      final routeName = _resolveValue(nameExpression, constants);
+      if (routePath == null || routeName == null) continue;
+
+      entries.add(
+        RouteEntry(
+          path: routePath,
+          name: routeName,
+          source: routeSource,
+          file: p.relative(file.path, from: _projectRoot),
+          line: '\n'.allMatches(source.substring(0, match.start)).length + 1,
+        ),
+      );
+    }
+    return entries;
+  }
+
+  Map<String, String> _routeConstants(String source) {
+    final constants = <String, String>{};
+    final pattern = RegExp(
+      r'''static\s+const\s+String\s+([A-Za-z_]\w*)\s*=\s*((?:r)?'(?:\\.|[^'\\])*'|(?:r)?"(?:\\.|[^"\\])*")\s*;''',
+    );
+    for (final match in pattern.allMatches(source)) {
+      final value = _stringLiteralValue(match.group(2)!);
+      if (value != null) constants[match.group(1)!] = value;
+    }
+    return constants;
+  }
+
+  String? _namedArgument(String invocation, String name) {
+    final pattern = RegExp(
+      '\\b$name\\s*:\\s*'
+      r'''((?:r)?'(?:\\.|[^'\\])*'|(?:r)?"(?:\\.|[^"\\])*"|[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)''',
+    );
+    return pattern.firstMatch(invocation)?.group(1);
+  }
+
+  String? _resolveValue(String? expression, Map<String, String> constants) {
+    if (expression == null) return null;
+    return _stringLiteralValue(expression) ??
+        constants[expression.split('.').last];
+  }
+
+  String? _stringLiteralValue(String expression) {
+    var literal = expression;
+    final raw = literal.startsWith('r');
+    if (raw) literal = literal.substring(1);
+    if (literal.length < 2) return null;
+    final quote = literal[0];
+    if ((quote != "'" && quote != '"') ||
+        literal[literal.length - 1] != quote) {
+      return null;
+    }
+    final value = literal.substring(1, literal.length - 1);
+    if (raw) return value;
+    return value.replaceAll('\\$quote', quote).replaceAll(r'\\', r'\');
+  }
+
+  int? _matchingParen(String source, int openParen) {
+    var depth = 0;
+    String? quote;
+    var escaped = false;
+    for (var index = openParen; index < source.length; index++) {
+      final character = source[index];
+      if (quote != null) {
+        if (escaped) {
+          escaped = false;
+        } else if (character == r'\') {
+          escaped = true;
+        } else if (character == quote) {
+          quote = null;
+        }
+        continue;
+      }
+      if (character == "'" || character == '"') {
+        quote = character;
+      } else if (character == '(') {
+        depth++;
+      } else if (character == ')' && --depth == 0) {
+        return index;
+      }
+    }
+    return null;
   }
 }

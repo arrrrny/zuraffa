@@ -34,7 +34,9 @@ class RouteDriftDetector {
       final hasCli = sources.any((e) => e.source == RouteSource.cli);
       final hasDda = sources.any((e) => e.source == RouteSource.dda);
       if (hasCli && hasDda) {
-        drifts.add(RouteDrift(path: entry.key, sources: sources));
+        drifts.add(
+          RouteDrift(path: entry.key, sources: canonicalRouteEntries(sources)),
+        );
       }
     }
     drifts.sort((a, b) => a.path.compareTo(b.path));

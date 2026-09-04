@@ -8,8 +8,8 @@
 //
 // The shape is intentionally tiny: a `version`, a list of `RouteEntry`s,
 // and a `RouteSource` enum that names the originating generator. Encoding
-// is stable (entries sorted by `path`, then by `source`) so two runs over
-// the same on-disk reality produce byte-identical JSON — which is what
+// is stable (entries use [compareRouteEntries]) so two runs over the same
+// on-disk reality produce byte-identical JSON — which is what
 // `zfa route verify --json` advertises.
 
 import 'dart:convert';
@@ -20,6 +20,23 @@ import 'dart:convert';
 /// (writes `*_routes.dart`). `dda` comes from the annotation-driven
 /// `lib/src/dda/plugins/route/` plugin (writes `zfa_router.g.dart`).
 enum RouteSource { cli, dda }
+
+/// Canonical total ordering for route entries and drift sources.
+int compareRouteEntries(RouteEntry a, RouteEntry b) {
+  final byPath = a.path.compareTo(b.path);
+  if (byPath != 0) return byPath;
+  final bySource = a.source.name.compareTo(b.source.name);
+  if (bySource != 0) return bySource;
+  final byFile = a.file.compareTo(b.file);
+  if (byFile != 0) return byFile;
+  final byLine = a.line.compareTo(b.line);
+  if (byLine != 0) return byLine;
+  return a.name.compareTo(b.name);
+}
+
+/// Returns [entries] in the canonical route-entry order.
+List<RouteEntry> canonicalRouteEntries(Iterable<RouteEntry> entries) =>
+    entries.toList()..sort(compareRouteEntries);
 
 /// A single route declaration collected from one of the generators.
 class RouteEntry {
@@ -85,20 +102,13 @@ class RouteTable {
     List<RouteEntry> cli = const [],
     List<RouteEntry> dda = const [],
   }) {
-    return RouteTable(
-      version: 1,
-      routes: [...cli, ...dda],
-    );
+    return RouteTable(version: 1, routes: [...cli, ...dda]);
   }
 
   /// Returns a stable JSON encoding. The output is a single line with no
   /// trailing newline — `zfa route verify --json` pipes this to consumers.
   String toJsonString() {
-    final sorted = [...routes]..sort((a, b) {
-      final byPath = a.path.compareTo(b.path);
-      if (byPath != 0) return byPath;
-      return a.source.name.compareTo(b.source.name);
-    });
+    final sorted = canonicalRouteEntries(routes);
     return jsonEncode({
       'version': version,
       'routes': sorted.map((e) => e.toJson()).toList(),
