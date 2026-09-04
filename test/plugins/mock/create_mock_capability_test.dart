@@ -276,8 +276,13 @@ abstract class AuthService {
         // here as ['get','update','toggle'] and crashed service mode; with
         // the default removed it arrives as [] and must not strip the
         // entity-mode CRUD default (#770).
-        final runner = CommandRunner('zfa_test', 'capability command test')
-          ..addCommand(CapabilityCommand(capability));
+        // projectRoot pinned to the temp fixture: since spec 0996 the
+        // command persists a receipt into <projectRoot>/.zfa/receipts/ —
+        // without the pin it would pollute the repo working tree.
+        final runner = CommandRunner(
+          'zfa_test',
+          'capability command test',
+        )..addCommand(CapabilityCommand(capability, projectRoot: tempDir.path));
 
         // Service mode: no --methods — must conform to the interface.
         await runner.run([

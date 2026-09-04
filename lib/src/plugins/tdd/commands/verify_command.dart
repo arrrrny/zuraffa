@@ -29,10 +29,12 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/mutation_auditor.dart';
+import '../services/receipt_preflight.dart';
 import '../services/requirement_scan.dart';
 import '../services/tdd_timeout.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
+import '../services/mutation_scope.dart';
 
 class VerifyCommand extends Command<void> {
   VerifyCommand(this.plugin) {
@@ -138,6 +140,45 @@ class VerifyCommand extends Command<void> {
       );
       exitCode = 3;
       return;
+    }
+
+    // Receipt preflight gate (spec 0996, issue #996): the audit step
+    // includes receipt-checking BEFORE the mutation audit runs. Every
+    // shipped receipt must validate, and — when the project ships
+    // receipts at all — every subject the audit is about to mutate must
+    // be covered by one (missing receipt = gate failure, exit 1, no
+    // audit). Projects without receipts keep working (vacuous gate).
+    final scope = await MutationScope.derive(featureDir: featureDir);
+    final receiptGate = await ReceiptPreflight(
+      projectRoot: cwd,
+    ).check(auditedPaths: scope.subjectPaths);
+    if (!receiptGate.ok) {
+      print('zfa tdd verify: receipt preflight — FAIL');
+      print(
+        '   receipts checked: ${receiptGate.receipts}, '
+        'findings: ${receiptGate.findings.length}',
+      );
+      for (final finding in receiptGate.findings) {
+        print('   ${finding.toString()}');
+      }
+      print(
+        '   --> fix: regenerate the receipted artifact with its '
+        'capability (e.g. `zfa di create <Entity>`) or restore the '
+        '.zfa/receipts/ entry, then re-verify.',
+      );
+      exitCode = 1;
+      return;
+    }
+    if (receiptGate.gateActive) {
+      print(
+        '   receipt preflight: ok (${receiptGate.receipts} receipt(s) '
+        'validated, ${scope.subjectPaths.length} audited subject(s))',
+      );
+    } else {
+      print(
+        '   receipt preflight: skipped (no receipts shipped — proof-'
+        'carrying generation not in use)',
+      );
     }
 
     print('zfa tdd verify: running mutation audit...');

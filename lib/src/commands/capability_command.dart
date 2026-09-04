@@ -4,13 +4,24 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import '../models/generated_file.dart';
 import '../core/plugin_system/capability.dart';
+import '../core/plugin_system/capability_invocation_wrapper.dart';
+import '../core/project/project_root.dart';
 import '../core/plugin_system/plan_store.dart';
 import '../utils/string_utils.dart';
 
 class CapabilityCommand extends Command<void> {
   final ZuraffaCapability capability;
 
-  CapabilityCommand(this.capability) {
+  /// Owning plugin id (`di`, `cache`, ...). Injected by [PluginCommand]
+  /// at registration; falls back to the parent command's name, which for
+  /// plugin commands IS the plugin id.
+  final String? pluginId;
+
+  /// Project root the receipt store lives under (issue #996). Defaults
+  /// to the resolved project root; tests inject a temp fixture.
+  final String? projectRoot;
+
+  CapabilityCommand(this.capability, {this.pluginId, this.projectRoot}) {
     // Add generic JSON input option
     argParser.addOption('json', help: 'Pass arguments as JSON string');
 
@@ -227,7 +238,17 @@ class CapabilityCommand extends Command<void> {
       await PlanStore.instance.savePlan(report);
       print(jsonEncode(report.toJson()));
     } else {
-      final result = await capability.execute(args);
+      // Issue #996: execute through the CapabilityInvocationWrapper so
+      // every successful standalone invocation auto-persists a
+      // proof.v1 receipt into .zfa/receipts/. Best-effort inside the
+      // wrapper — a receipt failure never fails the generation.
+      final effectivePluginId = pluginId ?? parent?.name ?? 'unknown';
+      final wrapper = CapabilityInvocationWrapper(
+        capability: capability,
+        pluginId: effectivePluginId,
+        projectRoot: projectRoot ?? ProjectRoot.find(),
+      );
+      final result = await wrapper.execute(args);
       if (result.success) {
         final files =
             result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
