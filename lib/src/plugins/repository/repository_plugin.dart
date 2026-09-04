@@ -19,6 +19,7 @@ import 'conformance/repository_conformance_checker.dart';
 import 'contract/repository_contract_manifest.dart';
 import 'generators/implementation_generator.dart';
 import 'generators/interface_generator.dart';
+import 'plan/repository_emission_plan.dart';
 
 class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
@@ -96,10 +97,18 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   @override
   Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
-    final useService = context.get<bool>('use-service') ?? false;
-    if (useService) return [];
+    final config = configFromContext(context);
+    return generate(config, context: context);
+  }
 
-    final config = GeneratorConfig(
+  /// Builds the [GeneratorConfig] the plugin would run with, from the
+  /// resolved [PluginContext] — the single source of truth shared by
+  /// generation ([generateWithContext]) and explanation ([explainEmission]),
+  /// so `--explain` can never drift from what generation actually does.
+  static GeneratorConfig configFromContext(PluginContext context) {
+    final useService = context.get<bool>('use-service') ?? false;
+
+    return GeneratorConfig(
       name: context.core.name,
       outputDir: context.core.outputDir,
       dryRun: context.core.dryRun,
@@ -138,8 +147,21 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           (context.get<bool>('no-entity') == true &&
               context.data['repo'] != null),
     );
+  }
 
-    return generate(config, context: context);
+  /// Spec 0973: resolves the emission plan this plugin WOULD execute for
+  /// [context] — what gets emitted, which variant, which flags triggered
+  /// each decision. Used by `zfa make --explain` / `--json`; does not run
+  /// generation and does not change PluginManager activation order.
+  RepositoryEmissionPlan explainEmission(PluginContext context) {
+    final config = configFromContext(context);
+    final datasourceActive =
+        context.data['datasource'] == true ||
+        context.get<bool>('datasource') == true;
+    return const RepositoryEmissionPlanner().resolve(
+      config,
+      datasourcePluginActive: datasourceActive,
+    );
   }
 
   @override

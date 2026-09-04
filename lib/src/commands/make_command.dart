@@ -16,6 +16,8 @@ import '../core/plugin_system/plugin_manager.dart';
 import '../feature_flags/feature_flag.dart';
 import '../feature_flags/feature_flag_config.dart';
 import '../models/generated_file.dart';
+import '../plugins/repository/plan/repository_emission_plan.dart';
+import '../plugins/repository/repository_plugin.dart';
 import '../utils/entity_field_resolver.dart';
 
 /// Command to run multiple plugins explicitly.
@@ -185,6 +187,14 @@ class MakeCommand extends Command<void> {
       negatable: false,
       help: 'Explain the normalized execution plan and exit',
     );
+    argParser.addFlag(
+      'json',
+      negatable: false,
+      help:
+          'Emit the resolved plan — including the repository emission plan '
+          '(spec 0973) — as a single JSON object; implies --format json for '
+          'plan/explain output',
+    );
 
     argParser.addMultiOption('methods', help: 'Entity methods to generate');
     argParser.addMultiOption(
@@ -276,6 +286,7 @@ class MakeCommand extends Command<void> {
       'without',
       'plan',
       'explain',
+      'json',
       'methods',
       'usecases',
       'variants',
@@ -489,7 +500,10 @@ class MakeCommand extends Command<void> {
     }
 
     if (argResults?['plan'] == true || argResults?['explain'] == true) {
-      _printPlan(plan);
+      _printPlan(
+        plan,
+        emission: _repositoryEmissionSection(plan, normalizedOptions),
+      );
       return;
     }
 
@@ -858,9 +872,50 @@ class MakeCommand extends Command<void> {
     return normalized;
   }
 
-  void _printPlan(dynamic plan) {
-    if (argResults?['format'] == 'json') {
-      print(jsonEncode({'success': true, 'plan': plan.toJson()}));
+  /// Spec 0973: resolves the repository plugin's emission plan for this
+  /// run — what will be emitted and why (which variants, which flags
+  /// triggered them) — WITHOUT running generation or changing activation.
+  /// Null when the repository plugin is not part of the plan.
+  RepositoryEmissionPlan? _repositoryEmissionSection(
+    dynamic plan,
+    Map<String, dynamic> normalizedOptions,
+  ) {
+    final argResults = this.argResults;
+    if (argResults == null) return null;
+    try {
+      final repositoryPlugins = plan.activePlugins
+          .whereType<RepositoryPlugin>()
+          .toList();
+      if (repositoryPlugins.isEmpty) return null;
+
+      // Build the same context generation would build (schema defaults,
+      // activation sync, normalized options) so the explanation can never
+      // drift from what generation actually does.
+      final previewContext = manager.buildContext(
+        name: plan.name as String,
+        argResults: argResults,
+        activePlugins: plan.activePlugins,
+        overrideOutputDir: fixedOutputDir,
+      );
+      previewContext.data.addAll(normalizedOptions);
+      return repositoryPlugins.first.explainEmission(previewContext);
+    } catch (_) {
+      // Explaining must never fail the run — omit the section instead.
+      return null;
+    }
+  }
+
+  void _printPlan(dynamic plan, {RepositoryEmissionPlan? emission}) {
+    final jsonMode =
+        argResults?['format'] == 'json' || argResults?['json'] == true;
+    if (jsonMode) {
+      print(
+        jsonEncode({
+          'success': true,
+          'plan': plan.toJson(),
+          if (emission != null) 'emission': emission.toJson(),
+        }),
+      );
       return;
     }
 
@@ -875,6 +930,9 @@ class MakeCommand extends Command<void> {
       for (final warning in plan.warnings) {
         print('    - $warning');
       }
+    }
+    if (emission != null) {
+      print(emission.renderText());
     }
   }
 
