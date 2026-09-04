@@ -256,6 +256,12 @@ class TestListReader {
       if (inDeclarativeSection) continue;
       if (!trimmed.startsWith('|')) continue;
       final cells = _splitRow(trimmed).map((c) => c.trim()).toList();
+      // Bug #984: a bare ` |` line between table groups (e.g. between a
+      // sub-heading and the next table) splits into all-empty cells. It
+      // is whitespace between sections, not a malformed row — skipping it
+      // keeps committed test-lists with this spacing running instead of
+      // stopping `zfa tdd run` with "expected 4 columns, found 0".
+      if (cells.every((c) => c.isEmpty)) continue;
       if (cells.length > 1 && cells.last.isEmpty) cells.removeLast();
       // Separator rows (`| -- | --- | ...`).
       final isSeparator = cells
