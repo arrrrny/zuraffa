@@ -88,28 +88,43 @@ class RouteVerifyCommand extends Command<void> {
     } else if (plain) {
       stdout.writeln('routes: ${table.routes.length}');
       stdout.writeln('drift: ${drifts.length}');
-      for (final d in drifts) {
-        stdout.writeln('DRIFT ${d.path}');
-        for (final s in d.sources) {
-          stdout.writeln('  ${s.source.name}: ${s.file}:${s.line} (${s.name})');
-        }
-      }
+      stdout.write(_renderDrifts(
+        drifts,
+        driftPrefix: 'DRIFT',
+        sourceIndent: '  ',
+      ));
     } else {
       stdout.writeln('routes: ${table.routes.length}');
       stdout.writeln('drift: ${drifts.length}');
-      for (final d in drifts) {
-        stdout.writeln('⚠️  DRIFT ${d.path}');
-        for (final s in d.sources) {
-          stdout.writeln(
-            '    ${s.source.name}: ${s.file}:${s.line} (${s.name})',
-          );
-        }
-      }
+      stdout.write(_renderDrifts(
+        drifts,
+        driftPrefix: '⚠️  DRIFT',
+        sourceIndent: '    ',
+      ));
     }
 
     if (drifts.isNotEmpty && strict) {
       exitCode = 1;
     }
+  }
+
+  /// Render drift findings to a string. [driftPrefix] is prepended to
+  /// each drift path; [sourceIndent] precedes each source line.
+  /// The plain path uses `DRIFT` (no emoji) + 2-space indent; the
+  /// default path uses `⚠️  DRIFT` + 4-space indent.
+  String _renderDrifts(
+    List<RouteDrift> drifts, {
+    String driftPrefix = '⚠️  DRIFT',
+    String sourceIndent = '    ',
+  }) {
+    final buf = StringBuffer();
+    for (final d in drifts) {
+      buf.writeln('$driftPrefix ${d.path}');
+      for (final s in d.sources) {
+        buf.writeln('$sourceIndent${s.source.name}: ${s.file}:${s.line} (${s.name})');
+      }
+    }
+    return buf.toString();
   }
 
   /// Reads CLI `*_routes.dart` modules and the DDA `zfa_router.g.dart`.
@@ -138,7 +153,7 @@ class RouteVerifyCommand extends Command<void> {
         cli.addAll(_parseRoutes(file, RouteSource.cli));
       }
     }
-    return RouteTable.union(cli: cli, dda: dda);
+    return RouteTable.fromSources(cli: cli, dda: dda);
   }
 
   List<RouteEntry> _parseRoutes(File file, RouteSource routeSource) {

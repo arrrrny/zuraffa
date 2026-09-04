@@ -98,7 +98,15 @@ class RouteTable {
   final List<RouteEntry> routes;
 
   /// Convenience constructor that merges CLI- and DDA-discovered entries.
-  factory RouteTable.union({
+  ///
+  /// This is a **concat**, not a path-level set-union: if the same path
+  /// appears twice in `cli`, both entries are kept. The
+  /// [RouteDriftDetector] treats the result as union-of-paths only when
+  /// *both* `cli` and `dda` contribute at least one entry at the same
+  /// path, so a true duplicate within a single source is not reported as
+  /// drift. Renamed from `union` to reflect this is a concat, not a
+  /// dedup-by-path.
+  factory RouteTable.fromSources({
     List<RouteEntry> cli = const [],
     List<RouteEntry> dda = const [],
   }) {

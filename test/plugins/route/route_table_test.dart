@@ -18,7 +18,7 @@ void main() {
       expect((json['routes']! as List), isEmpty);
     });
 
-    test('U1.2: union of CLI and DDA entries preserves every input', () {
+    test('U1.2: fromSources of CLI and DDA entries preserves every input', () {
       const cli = [
         RouteEntry(
           path: '/products',
@@ -37,7 +37,7 @@ void main() {
           line: 4,
         ),
       ];
-      final table = RouteTable.union(cli: cli, dda: dda);
+      final table = RouteTable.fromSources(cli: cli, dda: dda);
       expect(table.routes, hasLength(2));
       expect(
         table.routes.map((r) => r.source).toSet(),

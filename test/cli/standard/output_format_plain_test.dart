@@ -35,5 +35,20 @@ void main() {
       final b = fmt.plain(const ErrorResult(code: 'x', message: 'm'));
       expect(a, equals(b));
     });
+
+    test('U3.5: plain error output contains code and message text', () {
+      final out = fmt.plain(
+        const ErrorResult(
+          code: 'notFound',
+          message: 'user not found',
+          details: {'userId': '123'},
+        ),
+      );
+      expect(out, contains('notFound'));
+      expect(out, contains('user not found'));
+      expect(out, contains('userId: 123'));
+      expect(out, startsWith('ERROR:'));
+      expect(out, isNot(contains('❌')));
+    });
   });
 }
