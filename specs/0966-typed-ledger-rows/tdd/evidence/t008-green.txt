@@ -1,0 +1,3 @@
+00:00 +0: loading test/tdd/0966-typed-ledger-rows/t008_artifact_pins_test.dart
+00:00 +0: T8 (FR-006) T8 - artifact strength pins: markdown table shape verbatim, completeness/partially-traced polarity, remaining verb branches, no wrong-semantics leaks.
+00:00 +1: All tests passed!
