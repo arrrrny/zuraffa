@@ -821,6 +821,82 @@ void main() {
     });
   });
 
+  test('bug #986: make reporting skipped is a terminal success even when its '
+      'exit code disagrees — the run advances instead of stopping', () async {
+    // The skip transition (issue #694) is make's own terminal
+    // classification: the target test already passes and generation was
+    // skipped by design. StepRunner grades the exit-0 skip as success;
+    // a skipped token whose exit code disagrees (binary skew, or the
+    // #657-era drift contract where the skip exited non-zero) fell
+    // through to the honest stop — the run halted on an already-green
+    // behavior, the exact #693/#694 deadlock family. The driver must
+    // recognize the token as terminal regardless of the exit code.
+    //
+    // The fake's literal `skipped` token prints
+    // `make: behavior=B-001 outcome=skipped feature=...` and exits 1 —
+    // the disagreeing-exit shape.
+    await fx.setStepOutcome('make', 'B-001', 'skipped');
+
+    final out = await drive();
+
+    // The run no longer stops at B-001:make.
+    expect(exitCode, 0, reason: out);
+    expect(
+      out,
+      isNot(contains('step failed — behavior=B-001 step=make')),
+      reason: out,
+    );
+    expect(out, contains('[run] B-001 make -> skipped'), reason: out);
+    expect(out, contains('[run] B-001 make -> green (skipped)'), reason: out);
+    // B-001 proceeds through refactor and later behaviors still run.
+    expect(fx.stepInvocations(), [
+      'gen B-001',
+      'verify-red B-001',
+      'make B-001',
+      'refactor B-001',
+      'gen B-002',
+      'verify-red B-002',
+      'make B-002',
+      'refactor B-002',
+      'gen B-003',
+      'verify-red B-003',
+      'make B-003',
+      'refactor B-003',
+    ]);
+    // B-001 ends DONE with the evidence refactor's contract requires:
+    // the driver records the green evidence the disagreeing skip never
+    // wrote (provenance-labeled, the #693 driver-recorded pattern).
+    final state = await readState();
+    expect(
+      (state['behavior_states'] as Map<String, dynamic>)['B-001'],
+      'done',
+    );
+    final cycleLog = await File(fx.cycleLogPath).readAsString();
+    expect(cycleLog, contains('- behavior: B-001\n- kind: green'));
+    expect(cycleLog, contains('bug #986'));
+    // And the run completes across the whole feature.
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 '
+        'green=0 done=3',
+      ),
+      reason: out,
+    );
+  });
+
+  test('bug #986: an existing green evidence entry is not duplicated when '
+      'make reports skipped', () async {
+    await fx.seedGreenEvidence('B-001');
+    await fx.setStepOutcome('make', 'B-001', 'skipped');
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    final cycleLog = await File(fx.cycleLogPath).readAsString();
+    expect('## Cycle: B-001 (green)'.allMatches(cycleLog).length, 1);
+  });
+
   test(
     'bug 734: refactor defers while a pending behavior carries generated '
     'stubs — the run drives it first, then refactors every behavior',

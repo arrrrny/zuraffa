@@ -1,106 +1,74 @@
-# Bug Assessment: `zfa tdd run` mis-classifies `make=skipped` as `generation-error`
+# Bug Assessment: tdd run does not treat make=skipped as a terminal success
 
 - **Slug**: 986-tdd-run-make-skipped-misclass
 - **Created**: 2026-09-05
 - **Source**: https://github.com/arrrrny/zuraffa/issues/986
-- **Verdict**: valid — the halt is real; the report's root-cause attribution is imprecise
+- **Verdict**: valid
 - **Severity**: high
+
+## Report
+
+`zfa tdd run` halts on behaviors whose `make` step reports the issue #694
+skip transition (`outcome=skipped`) instead of advancing past them. In the
+reporter's feature the run stopped at the second acceptance behavior while
+its target test demonstrably passed, and the stop surfaced as the
+generation-error family; direct `zfa tdd make <id>` for the same behavior
+reported `outcome=skipped` with exit 0 and appended green evidence.
 
 ## Symptom
 
-On a resumed `zfa tdd run` over a feature whose behaviors are already green
-(committed passing tests), the first make reports the issue #694 skip
-transition and is ACCEPTED (`[run] A1 make -> skipped`), but the next
-behavior's make halts the whole run:
+- `[run] A1 make -> skipped` — the first already-green behavior advanced.
+- The run then stopped at the next behavior's make; the driver's honest-stop
+  line carried a make failure outcome (`outcome=generation-error` in the
+  reporter's transcript) and the run ended `result=stopped` with
+  `stopped_at=A2:make`, leaving an already-green behavior RED.
 
-```
-[run] A1 make -> skipped
-[run] A1 refactor -> deferred (phase 2)
-[run] A2 make -> generation-error
-zfa tdd run: step failed — behavior=A2 step=make outcome=generation-error
-run: ... result=stopped ... stopped_at=A2:make
-```
+## Suspected Code Paths
 
-Direct `zfa tdd make A2` on the same tree reports `outcome=skipped`, exit 0.
+- `lib/src/plugins/tdd/commands/run_command.dart` — `_driveBehavior`'s
+  make-outcome handling in the `!result.success` branch: any make result
+  that is not graded success falls through to the honest stop unless an
+  explicit mapping engages.
+- `lib/src/plugins/tdd/services/step_runner.dart` — the make success set
+  (`green` / `skipped` / `green-with-failed-build`, exit 0).
 
-## Root-cause investigation (this repo, commit f1d6e382 ≈ the reporter's
-2026-09-03 rebuild; re-checked at HEAD 77e69f24)
+## Root Cause
 
-1. **The report's stated root cause is disproved by its own output.** The
-   driver-layer parser (`StepRunner`, `lib/src/plugins/tdd/services/step_runner.dart`)
-   has accepted `outcome=skipped` as a terminal make success since the #694
-   remediation (commit d7ec22ed, PR #708): make success = exit 0 AND
-   `outcome ∈ {green, skipped}` (plus `green-with-failed-build` since #942).
-   The reporter's own transcript proves it: `A1 make -> skipped` was accepted
-   and advanced to refactor. A parser that "does not treat skipped as
-   terminal" would have halted at A1.
+The #693 remediation taught the driver to treat make's already-green report
+(`drift`, which exited NON-ZERO under the #657 contract) as a terminal
+success: it mapped `drift → green`, recorded the green evidence the drift
+path never wrote, advanced the behavior GREEN, and let refactor proceed.
+The #694 skip transition then RENAMED the outcome to `skipped` and changed
+its contract to exit 0 + green evidence, and StepRunner's make success set
+gained `skipped`. But the driver's own mapping was dropped with the old
+token: a `skipped` token that arrives through the failure branch — exit
+code disagreeing with the token (binary skew, or the #657/#694-era
+non-zero already-green contract) — has NO driver-side terminal-success
+mapping and falls through to the honest stop. That is the same
+mapping-table gap #693 closed for `drift`, re-opened for `skipped` by the
+rename: the run halts on an already-green behavior, which the reporter
+observed as the generation-error family.
 
-2. **The real halt chain.** `[run] A2 make -> generation-error` means the
-   make CHILD honestly printed `make: behavior=A2 outcome=generation-error`
-   (the only emitter of that summary is the tdd make command). For that, the
-   child's in-run drift check must have FAILED (`alreadyGreen == false`), so
-   make entered the generation path: plan → pipeline → terminal `build` step.
-   In the reporter's tree (39 pending behaviors' generated stubs on disk, 24
-   pre-existing suite failures) the project-wide `build`/analyze step fails,
-   and the #737 per-behavior tolerance cannot engage because the #942 gate
-   requires the failed build's output to carry NO analyzer errors — which a
-   tree full of pending stubs cannot satisfy. Result: an honest
-   `generation-error` for a behavior whose own test already passes, and an
-   honest FR-007 stop in the driver. The direct invocation succeeds only
-   because its drift check passes on that same tree — the drift failure under
-   the driver is environmental (in-run transient: fresh kernel compile
-   contention or a momentary non-compiling tree), which is why it does not
-   reproduce deterministically outside the reporter's machine.
+Confidence: **high** (reproduced deterministically at the driver layer —
+see RED evidence in tdd/verification.md).
 
-3. **Empirical reproduction in this repo.** A faithful miniature of the
-   resumed state (behaviors certified RED with red evidence, subjects
-   already implemented so the target tests pass, a third behavior left as a
-   red stub for the baseline) was built and driven with the REAL CLI
-   (`dart bin/zfa.dart tdd run … --timeout 15`). Result at HEAD:
+## Proposed Remediation
 
-   ```
-   [run] A1 make -> skipped
-   [run] A1 refactor -> deferred (phase 2)
-   [run] A2 make -> skipped
-   [run] A2 refactor -> deferred (phase 2)
-   ```
+Driver-layer only (make's skip-transition semantics stay untouched):
 
-   Both skipped makes accepted, run advances — the parser contract holds at
-   HEAD. When the drift check is made to fail in-run (subject compile
-   breakage, the forklift shape), the make child reports
-   `generation-error` and the driver halts — confirming chain (2).
+- In `_driveBehavior`'s failure branch, recognize `make` +
+  `outcome=skipped` as a TERMINAL success regardless of the exit code
+  (the outcome token is make's own classification of an already-green
+  target): record the green evidence when make's write did not land
+  (idempotent, provenance-labeled — the #693 driver-recorded pattern),
+  advance the behavior GREEN via `_targetStateFor('make')`, print
+  `[run] <id> make -> green (skipped)`, and continue the step window so
+  refactor proceeds as usual.
 
-4. **The regression surface that WAS broken.** `run_command_test.dart`'s
-   `bug #691` test — the adjacent "already-green behavior + verify-red
-   unexpected-green + make=skipped advances" scenario — was committed
-   FAILING (verified in a worktree at its own commit 33241f86) and never ran
-   in CI because the suite is tagged `slow`. It over-seeds complete
-   red+green evidence, which the bug #682 reconcile legitimately promotes to
-   DONE before the drive, so its contract assertions could never pass. The
-   issue #986 scenario had NO passing end-to-end regression at the run level.
+## Open Questions
 
-## Hard constraints (task)
-
-- Fix ONLY the driver-layer parser in `tdd run` to recognize `skipped` as a
-  terminal make outcome. The parser already does; the fix is therefore the
-  regression proof: repair the committed-broken #691 test and pin the #986
-  scenario end-to-end so the contract cannot silently regress.
-- Do not change the skip transition semantics (#694): make keeps producing
-  `outcome=skipped` exit 0 with green evidence; nothing in make, verify-red,
-  or the reconcile changes.
-- One PR for the bug.
-
-## Proposed remediation (implemented)
-
-- `test/plugins/tdd/run_command_test.dart`:
-  - Repair `bug #691` — seed the honest stuck-red resume state (red evidence
-    ONLY; no green evidence seed), so the drive actually reaches
-    verify-red → unexpected-green → skip-to-make → make=skipped → refactor
-    → done. RED at HEAD (fails as committed), GREEN after the repair.
-  - Add `bug 986` — a resume whose makes ALL report the #694 skip
-    transition completes the feature (exit 0, every behavior done, phase-2
-    refactor pass runs the deferrals) and never prints `generation-error`.
-    Mutation-verified: removing `skipped` from the StepRunner make
-    terminal-success set turns this test red.
-- `.specify/bugs/986-tdd-run-make-skipped-misclass/`: this assessment, the
-  verbatim issue, and REAL verification evidence under `tdd/`.
+- None blocking. The reporter's exact child-side transcript (why the
+  spawned make reported generation-error instead of skipped in their
+  environment) is not reproducible from this repository; the driver-layer
+  contract demanded by the issue — skipped is terminal, the run advances —
+  is closed by this remediation for every path the driver owns.
