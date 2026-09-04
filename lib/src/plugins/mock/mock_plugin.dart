@@ -219,23 +219,38 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         );
         if (isEnumEntity) {
           final purged = await _purgeEnumDatasourceArtifacts(entityName, fs);
-          if (purged.isNotEmpty) {
-            final healer = SimulationBindingEmitter(
-              outputDir: outputDir,
-              options: options,
-              fileSystem: fs,
-            );
+          // The index must never outlive its bindings: a pre-#1037 run can
+          // leave it importing this entity's binding even when the binding
+          // file is already gone (a previous heal removed it), so the
+          // stale-reference check runs independently of this run's purge
+          // count (#1037).
+          final healer = SimulationBindingEmitter(
+            outputDir: outputDir,
+            options: options,
+            fileSystem: fs,
+          );
+          final indexPath = path.join(healer.simulationDir, 'index.dart');
+          var indexReferencesEntity = false;
+          if (await fs.exists(indexPath)) {
+            try {
+              indexReferencesEntity = (await fs.read(indexPath)).contains(
+                '${StringUtils.camelToSnake(entityName)}'
+                '_simulation_datasource_di.dart',
+              );
+            } catch (_) {
+              indexReferencesEntity = false;
+            }
+          }
+          if (purged.isNotEmpty || indexReferencesEntity) {
             final index = await healer.regenerateIndex(
               pendingFiles: const [],
             );
             if (index != null) {
               files.add(index);
             } else {
-              // Every binding was purged — regenerateIndex detects nothing
-              // and returns null, so the stale index (still importing the
-              // purged files) is rewritten as the empty skeleton instead of
-              // being left behind (#1037).
-              final indexPath = path.join(healer.simulationDir, 'index.dart');
+              // Every binding is gone — regenerateIndex detects nothing
+              // and returns null, so the stale index is rewritten as the
+              // empty skeleton instead of being left behind (#1037).
               if (await fs.exists(indexPath)) {
                 files.add(
                   await FileUtils.writeFile(
