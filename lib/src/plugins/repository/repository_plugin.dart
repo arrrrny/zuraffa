@@ -1,5 +1,6 @@
 import 'package:args/command_runner.dart';
 import '../../commands/repository_command.dart';
+import '../../core/context/file_system.dart';
 import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
@@ -11,6 +12,7 @@ import '../datasource/builders/interface_generator.dart';
 import '../method_append/builders/method_append_builder.dart';
 import '../method_append/capabilities/method_capability.dart';
 import 'capabilities/create_repository_capability.dart';
+import 'conformance/repository_conformance_checker.dart';
 import 'generators/implementation_generator.dart';
 import 'generators/interface_generator.dart';
 
@@ -246,8 +248,90 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           : DataSourceInterfaceBuilder(outputDir: outputDir, options: options);
       files.add(await datasourceInterfaceGen.generate(targetConfig));
     }
+
+    // Spec 0973: prove the emitted interface↔impl pair conforms before the
+    // run reports success. A mismatch fails the generation with `--> fix:`
+    // naming the method and side (the CLI exits 1) instead of shipping a
+    // pair that can only fail later at `zfa build`.
+    await _runConformanceGate(files, targetConfig, context);
+
     return files;
   }
+
+  /// Spec 0973: generation-time interface↔impl conformance gate.
+  ///
+  /// Runs only when this run emitted BOTH sides of the pair (created,
+  /// overwritten or appended — skipped/deleted files are not this run's
+  /// claim). Fresh pairs are audited in full; append flows are audited in
+  /// delta scope: only the methods this run contributed, so hand-written
+  /// members that predate the run cannot fail it.
+  Future<void> _runConformanceGate(
+    List<GeneratedFile> files,
+    GeneratorConfig config,
+    PluginContext? context,
+  ) async {
+    if (config.dryRun || config.revert) return;
+
+    bool emitted(GeneratedFile f) =>
+        f.action != 'skipped' &&
+        f.action != 'deleted' &&
+        f.action != 'reverted';
+
+    final interfaceFile = files
+        .where((f) => f.type == 'repository' && emitted(f))
+        .toList();
+    final implFile = files
+        .where((f) => f.type == 'repository_implementation' && emitted(f))
+        .toList();
+    if (interfaceFile.isEmpty || implFile.isEmpty) return;
+
+    final fs = context?.fileSystem ?? const DefaultFileSystem();
+    final interfaceSource =
+        interfaceFile.first.content ?? await fs.read(interfaceFile.first.path);
+    final implSource =
+        implFile.first.content ?? await fs.read(implFile.first.path);
+
+    final freshPair =
+        _isFreshEmit(interfaceFile.first.action) &&
+        _isFreshEmit(implFile.first.action);
+    final contributed = RepositoryConformanceChecker.contributedMethodNames(
+      config,
+    );
+
+    final result = const RepositoryConformanceChecker().check(
+      interfaceSource: interfaceSource,
+      implementationSource: implSource,
+      interfaceClassName: '${config.name}Repository',
+      implementationClassName: 'Data${config.name}Repository',
+      requiredInterfaceMethods: freshPair ? const {} : contributed,
+      auditedImplementationMethods: freshPair ? const {} : contributed,
+    );
+
+    if (result.ok) {
+      if (config.verbose) {
+        print(
+          '  ✓ repository conformance: ${result.interfaceMethods.length} '
+          'interface method(s) ↔ ${result.implementationOverrides.length} '
+          'override(s) — ${config.name}Repository ↔ '
+          'Data${config.name}Repository',
+        );
+      }
+      return;
+    }
+
+    print(
+      '❌ Repository conformance gate failed for ${config.name} '
+      '(${result.failures.length} mismatch(es)):',
+    );
+    for (final failure in result.failures) {
+      print('  [${failure.side}] ${failure.message}');
+      print('    ${failure.fix}');
+    }
+    throw RepositoryConformanceException(result);
+  }
+
+  bool _isFreshEmit(String action) => action == 'created' ||
+      action == 'overwritten';
 
   Future<GeneratedFile> generateInterface(GeneratorConfig config) {
     return interfaceGenerator.generate(config);
