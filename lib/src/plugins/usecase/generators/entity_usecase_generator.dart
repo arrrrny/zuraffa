@@ -11,6 +11,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/source_interface_guard.dart';
+import '../../../utils/stale_usecase_test_cleaner.dart';
 import '../../../utils/string_utils.dart';
 
 /// Generates entity-based use cases for the domain layer.
@@ -61,9 +62,30 @@ class EntityUseCaseGenerator {
       fileSystem: fileSystem,
     );
 
+    // Bug #989: every requested-but-rejected use case leaves pre-existing
+    // test files importing a use case file that will never be regenerated;
+    // those files break the suite at load time. When #921 rejects anything,
+    // sweep the test suite for imports of non-existent use case files and
+    // remove the stale surface. The rejection semantics themselves are
+    // unchanged — this only cleans up the debris the rejection leaves.
+    final rejectedMethods = requestedMethods
+        .where((method) => !effectiveMethods.contains(method))
+        .toList(growable: false);
+
     for (final method in effectiveMethods) {
       files.add(await _generateForMethod(config, method));
     }
+
+    if (rejectedMethods.isNotEmpty && !config.revert) {
+      files.addAll(
+        await StaleUsecaseTestCleaner(
+          outputDir: outputDir,
+          options: options,
+          fileSystem: fileSystem,
+        ).clean(),
+      );
+    }
+
     if (config.revert && config.methods.isEmpty) {
       final entitySnake = config.nameSnake;
       final usecaseDirPath = path.join(
