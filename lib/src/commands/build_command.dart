@@ -1,16 +1,20 @@
 import 'dart:io';
 
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
 import 'build_yaml_guard.dart';
+import '../core/ast/file_parser.dart';
 import '../core/project/project_root.dart';
 import '../dda/plugins/route/route_build_stage.dart';
 import '../feature_flags/feature_flag_config.dart';
 import '../feature_flags/registry_emitter.dart';
 
 class BuildCommand extends Command {
+  final FileParser _fileParser = const FileParser();
+
   @override
   final String name = 'build';
 
@@ -430,12 +434,18 @@ class BuildCommand extends Command {
           // Ignore unreadable files.
           continue;
         }
-        final partRe = RegExp(
-          r"""^\s*part\s+['"]([^'"]+)['"]\s*;""",
-          multiLine: true,
-        );
-        for (final m in partRe.allMatches(src)) {
-          final partName = m.group(1)!;
+        // AST-based detection: only REAL `part` directives count.
+        // A regex over the raw source false-positives on the repo's
+        // many in-source templates and fixture strings that CONTAIN a
+        // `part 'x.g.dart';` line (entity scaffolding templates,
+        // issue-310-style handwritten fixtures) — none of those is a
+        // declaration in the containing file.
+        final unit = _fileParser.parseSource(src, path: entity.path).unit;
+        if (unit == null) continue;
+        for (final directive in unit.directives) {
+          if (directive is! PartDirective) continue;
+          final partName = directive.uri.stringValue;
+          if (partName == null) continue;
           if (!partName.endsWith('.zorphy.dart') &&
               !partName.endsWith('.g.dart')) {
             continue;

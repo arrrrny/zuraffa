@@ -74,7 +74,7 @@ class SliceRunner {
     }
 
     // Verify first (A21): a broken slice must abort before launch.
-    final report = await _importVerifier.verify(
+    final report = _importVerifier.verify(
       sandboxDir: sandboxDir,
       projectRoot: projectRoot,
     );

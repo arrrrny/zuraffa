@@ -1,4 +1,5 @@
-/// SliceManifest model (spec 043 data model).
+/// SliceManifest model (spec 043 data model; 073 adds the declared
+/// routes and dependency rows the sandbox composition reads).
 library;
 
 import 'package:yaml/yaml.dart';
@@ -25,6 +26,37 @@ enum SliceExportFormat {
   }
 }
 
+/// One declared route of the feature (073): the router harness exposes
+/// EXACTLY these.
+class ManifestRoute {
+  final String path;
+  final String page;
+
+  const ManifestRoute({required this.path, required this.page});
+}
+
+/// One declared dependency row of the feature (073): the mock-DI
+/// wiring binds a certified mock for each.
+class ManifestDependency {
+  final String dependency;
+  final String kind;
+  final String contract;
+
+  /// Mock priority as declared (`P1`, `P2`, …).
+  final String priority;
+
+  /// Certified mock artifact path relative to the sandbox.
+  final String mockArtifact;
+
+  const ManifestDependency({
+    required this.dependency,
+    required this.kind,
+    required this.contract,
+    this.priority = 'P1',
+    required this.mockArtifact,
+  });
+}
+
 /// The persistent record of a slice, serialized as `slice.yaml` (FR-004).
 class SliceManifest {
   /// Creates a manifest.
@@ -40,6 +72,8 @@ class SliceManifest {
     required this.boundaries,
     this.exportedTo,
     this.generatedFiles = const [],
+    this.routes = const [],
+    this.dependencies = const [],
   });
 
   /// Slice name (e.g. `profile_feature`).
@@ -77,6 +111,13 @@ class SliceManifest {
   /// sandbox files are harness rather than agent work.
   final List<String> generatedFiles;
 
+  /// Declared routes the router harness exposes (073; empty on
+  /// manifests cut before the declared-facts sections existed).
+  final List<ManifestRoute> routes;
+
+  /// Declared dependency rows the mock DI binds (073).
+  final List<ManifestDependency> dependencies;
+
   static const Object _unset = Object();
 
   /// Returns a copy with the given fields replaced.
@@ -92,6 +133,8 @@ class SliceManifest {
     List<SliceFile>? files,
     List<SliceBoundary>? boundaries,
     List<String>? generatedFiles,
+    List<ManifestRoute>? routes,
+    List<ManifestDependency>? dependencies,
   }) {
     return SliceManifest(
       name: name ?? this.name,
@@ -107,6 +150,8 @@ class SliceManifest {
       files: files ?? this.files,
       boundaries: boundaries ?? this.boundaries,
       generatedFiles: generatedFiles ?? this.generatedFiles,
+      routes: routes ?? this.routes,
+      dependencies: dependencies ?? this.dependencies,
     );
   }
 
@@ -166,6 +211,27 @@ class SliceManifest {
         buffer.writeln('  - $generated');
       }
     }
+    buffer.writeln('routes:');
+    if (routes.isEmpty) {
+      buffer.writeln('  []');
+    } else {
+      for (final route in routes) {
+        buffer.writeln('  - path: ${route.path}');
+        buffer.writeln('    page: ${route.page}');
+      }
+    }
+    buffer.writeln('dependencies:');
+    if (dependencies.isEmpty) {
+      buffer.writeln('  []');
+    } else {
+      for (final dependency in dependencies) {
+        buffer.writeln('  - dependency: ${dependency.dependency}');
+        buffer.writeln('    kind: ${dependency.kind}');
+        buffer.writeln('    contract: "${dependency.contract}"');
+        buffer.writeln('    priority: ${dependency.priority}');
+        buffer.writeln('    mockArtifact: ${dependency.mockArtifact}');
+      }
+    }
     return buffer.toString();
   }
 
@@ -200,6 +266,8 @@ class SliceManifest {
       files: _files(doc['files']),
       boundaries: _boundaries(doc['boundaries']),
       generatedFiles: _stringList(doc['generatedFiles']),
+      routes: _routes(doc['routes']),
+      dependencies: _dependencies(doc['dependencies']),
     );
   }
 
@@ -250,6 +318,29 @@ class SliceManifest {
             ? null
             : boundary['diRegistrationFile'] as String,
         mockStrategy: mockStrategy,
+      );
+    }).toList();
+  }
+
+  static List<ManifestRoute> _routes(dynamic node) {
+    if (node is! List) return const [];
+    return node.whereType<Map>().map((route) {
+      return ManifestRoute(
+        path: route['path'] as String? ?? '',
+        page: route['page'] as String? ?? '',
+      );
+    }).toList();
+  }
+
+  static List<ManifestDependency> _dependencies(dynamic node) {
+    if (node is! List) return const [];
+    return node.whereType<Map>().map((dependency) {
+      return ManifestDependency(
+        dependency: dependency['dependency'] as String? ?? '',
+        kind: dependency['kind'] as String? ?? 'service',
+        contract: dependency['contract'] as String? ?? '',
+        priority: dependency['priority'] as String? ?? 'P1',
+        mockArtifact: dependency['mockArtifact'] as String? ?? '',
       );
     }).toList();
   }
