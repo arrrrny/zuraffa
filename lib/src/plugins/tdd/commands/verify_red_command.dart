@@ -305,6 +305,10 @@ class VerifyRedCommand extends Command<void> {
     //      the scenario (the certified lie of issue #964).
     // ---------------------------------------------------------------
     if (classification == RedClassification.assertion) {
+      // Issue #964 kind gate: BEFORE evidence, the test's assertion
+      // kinds must match the scenario verbs — a red from a presence
+      // finder in a navigation scenario is honest but IRRELEVANT to
+      // the scenario (the certified lie of issue #964).
       final kindGaps = await _certifyFinderKinds(cwd, record);
       if (kindGaps == null) {
         print('   classification: ${RedClassification.kindMismatch.label}');
@@ -346,6 +350,14 @@ class VerifyRedCommand extends Command<void> {
         exitCode = 1;
         return;
       }
+      // Issue #959: name the failing authored assertion in the verdict
+      // surface — detail line, summary token, and cycle-log field. Null
+      // identity (unparseable transcript) omits the detail everywhere
+      // rather than fabricating a name.
+      final evidence = failingAssertionOf(run.output);
+      if (evidence != null) {
+        print('   red-evidence: $evidence');
+      }
       final log = CycleLog(target.featureDir);
       await log.append(
         CycleLogEntry(
@@ -355,6 +367,7 @@ class VerifyRedCommand extends Command<void> {
           exitCode: run.exitCode,
           capturedOutput: run.output,
           classification: FailureClass.assertionFailure,
+          redEvidence: evidence,
           sourceCriterion: record.sourceCriterion,
           testPath: record.testPath,
           timestamp: DateTime.now().toUtc().toIso8601String(),
@@ -984,7 +997,6 @@ class VerifyRedCommand extends Command<void> {
     return best == null ? null : failingSegments[best];
   }
 
-
   void _printSummary({
     required String behavior,
     required String classification,
@@ -992,6 +1004,10 @@ class VerifyRedCommand extends Command<void> {
     required String feature,
   }) {
     // `print` (not stdout.writeln) so CliRunner's capturing zone sees it.
+    // Byte-identical to the pre-#959 pinned contract on every path (FR-009,
+    // spec 046): the failing-assertion identity surfaces in the
+    // `red-evidence:` detail line and the cycle-log `- evidence:` field,
+    // never as a token on this line.
     print(
       'verify-red: behavior=$behavior classification=$classification '
       'certified=$certified feature=$feature',

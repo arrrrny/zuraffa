@@ -1,0 +1,1 @@
+{"command":"dart test","exitCode":1,"failedTests":["test/tdd/072-dependency-mocks/a1_test.dart: A1 (AC-1) A1 — the generated interface exposes `signIn(email, password) -> User` and `signOut() -> void` with no additional, missing, or renamed members."],"capturedAt":"2026-09-04T01:13:35.884069Z","parseable":true}

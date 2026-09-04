@@ -50,6 +50,29 @@ class ToggleParams<I, F> extends Params {
     );
   }
 
+  /// Returns a copy of this entity with [field] set to [value].
+  ///
+  /// Delegates to [copyWith]: the receiver is never mutated and a
+  /// null [value] keeps the current field value.
+  ToggleParams copyWithField<T>(Field<ToggleParams<I, F>, T> field, T value) {
+    switch (field.name) {
+      case 'params':
+        return copyWith(params: value as Map<String, dynamic>?);
+      case 'id':
+        return copyWith(id: value as I);
+      case 'field':
+        return copyWith(field: value as F);
+      case 'value':
+        return copyWith(value: value as dynamic);
+      default:
+        throw ArgumentError.value(
+          field.name,
+          'field',
+          'ToggleParams has no settable field with this name',
+        );
+    }
+  }
+
   ToggleParams copyWithToggleParams({
     Map<String, dynamic>? params,
     I? id,

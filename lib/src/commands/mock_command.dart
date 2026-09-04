@@ -5,6 +5,7 @@ import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/mock/mock_plugin.dart';
 import '../plugins/mock/capabilities/create_mock_capability.dart';
+import '../plugins/mock/capabilities/dependency_mock_capability.dart';
 import '../plugins/mock/capabilities/json_mock_capability.dart';
 
 class MockCommand extends PluginCommand {
@@ -16,11 +17,12 @@ class MockCommand extends PluginCommand {
   /// skipped, or the duplicate registration would leave `JsonMockCommand`
   /// unparented and crash `mock json --help` (issue #761).
   @override
-  Set<String> get manualSubcommandNames => {'json'};
+  Set<String> get manualSubcommandNames => {'json', 'dependency'};
 
   MockCommand(this.plugin) : super(plugin) {
     addSubcommand(DataMockCommand(plugin));
     addSubcommand(JsonMockCommand(plugin));
+    addSubcommand(DependencyMockCommand(plugin));
     argParser.addFlag(
       'data-only',
       help: 'Generate only mock data (fixtures)',
@@ -210,5 +212,59 @@ class JsonMockCommand extends Command<void> {
     } else {
       print('❌ Error: ${result.message}');
     }
+  }
+}
+
+
+/// `zfa mock dependency <Name>` (issue #960): the certified mock for a
+/// declared External Dependencies & Contracts row. The capability owns
+/// exit codes + the machine summary line.
+class DependencyMockCommand extends Command<void> {
+  final MockPlugin plugin;
+
+  DependencyMockCommand(this.plugin) {
+    argParser.addOption(
+      'feature',
+      help: 'Feature directory under specs/ (defaults to the pinned '
+          '.specify/feature.json)',
+    );
+    argParser.addOption(
+      'project',
+      help: 'Project root containing specs/ (defaults to the current '
+          'working directory)',
+    );
+    argParser.addFlag(
+      'force',
+      abbr: 'f',
+      negatable: false,
+      help: 'Overwrite existing artifacts',
+    );
+  }
+
+  @override
+  String get name => 'dependency';
+
+  @override
+  String get description =>
+      'Generate the certified mock for a declared dependency row '
+      '(issue #960)';
+
+  @override
+  Future<void> run() async {
+    final results = argResults;
+    if (results == null || results.rest.isEmpty) {
+      print('❌ Usage: zfa mock dependency <Name> [--feature <f>] '
+          '[--project <dir>] [--force]');
+      exitCode = DependencyMockCapability.exitUndeclared;
+      return;
+    }
+    final argv = <String>[
+      results.rest.first,
+      if (results['feature'] != null) ...['--feature', results['feature']!],
+      if (results['project'] != null) ...['--project', results['project']!],
+      if (results['force'] == true) '--force',
+    ];
+    final capability = DependencyMockCapability(plugin);
+    exitCode = await capability.run(argv);
   }
 }
