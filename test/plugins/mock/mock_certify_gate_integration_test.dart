@@ -16,6 +16,8 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
+import 'mock_cli_guard.dart';
+
 void main() {
   late Directory tempDir;
   var exitCodeAtEntry = 0;
@@ -96,16 +98,18 @@ abstract class PaymentService {
     final runner = CliRunner(exitOnCompletion: false);
 
     // Conforming: fresh generation + the REAL scoped dart analyze.
-    final ok = await runner.runCapturing([
-      '-C',
-      tempDir.path,
-      'mock',
-      'create',
-      'Payment',
-      '--service',
-      'Payment',
-      '--certify',
-    ]);
+    final ok = await CwdGuard.exclusive(
+      () => runner.runCapturing([
+        '-C',
+        tempDir.path,
+        'mock',
+        'create',
+        'Payment',
+        '--service',
+        'Payment',
+        '--certify',
+      ]),
+    );
     expect(
       exitCode,
       0,
@@ -139,16 +143,18 @@ abstract class PaymentService {
 
     // Re-run without --force: generation skips the drifted file, the
     // gate must refuse it.
-    final refused = await runner.runCapturing([
-      '-C',
-      tempDir.path,
-      'mock',
-      'create',
-      'Payment',
-      '--service',
-      'Payment',
-      '--certify',
-    ]);
+    final refused = await CwdGuard.exclusive(
+      () => runner.runCapturing([
+        '-C',
+        tempDir.path,
+        'mock',
+        'create',
+        'Payment',
+        '--service',
+        'Payment',
+        '--certify',
+      ]),
+    );
     expect(exitCode, 1, reason: 'drifted mock fails the real analyzer gate');
     expect(refused, contains('--> fix:'));
     expect(

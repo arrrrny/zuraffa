@@ -17,6 +17,8 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
+import 'mock_cli_guard.dart';
+
 void main() {
   late Directory tempDir;
   var exitCodeAtEntry = 0;
@@ -40,12 +42,9 @@ void main() {
       // Pre-fix, the bare exit(64) inside JsonMockCommand kills THIS
       // process before the future below ever completes — reaching the
       // assertions is itself the survival proof.
-      final out = await runner.runCapturing([
-        '-C',
-        tempDir.path,
-        'mock',
-        'json',
-      ]);
+      final out = await CwdGuard.exclusive(
+        () => runner.runCapturing(['-C', tempDir.path, 'mock', 'json']),
+      );
 
       expect(exitCode, 64, reason: 'usage error must publish exit code 64');
       expect(
@@ -65,12 +64,16 @@ void main() {
   test('A1b: a follow-up command still runs in the same host process after the '
       'usage refusal (no process death)', () async {
     final runner = CliRunner(exitOnCompletion: false);
-    await runner.runCapturing(['-C', tempDir.path, 'mock', 'json']);
+    await CwdGuard.exclusive(
+      () => runner.runCapturing(['-C', tempDir.path, 'mock', 'json']),
+    );
     expect(exitCode, 64);
 
     // Same host, second dispatch: proves the first refusal did not
     // terminate the process.
-    final out2 = await runner.runCapturing(['-C', tempDir.path, '--help']);
+    final out2 = await CwdGuard.exclusive(
+      () => runner.runCapturing(['-C', tempDir.path, '--help']),
+    );
     expect(out2, contains('zfa'));
     expect(
       exitCode,

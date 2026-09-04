@@ -19,6 +19,8 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+
+import 'mock_cli_guard.dart';
 import 'package:zuraffa/src/core/proof/proof_checker.dart';
 
 void main() {
@@ -40,7 +42,13 @@ void main() {
 
   Future<String> runCli(List<String> args) async {
     final runner = CliRunner(exitOnCompletion: false);
-    return runner.runCapturing(['-C', tempDir.path, ...args]);
+    // The cwd lock: Directory.current is process-wide, so concurrent
+    // mock CLI test files would otherwise write into each other's
+    // fixtures (issue #970: the mutation baseline runs all these files
+    // in ONE `dart test` process).
+    return CwdGuard.exclusive(
+      () => runner.runCapturing(['-C', tempDir.path, ...args]),
+    );
   }
 
   test(
