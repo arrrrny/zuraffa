@@ -5,11 +5,17 @@ import '../di_plugin.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
 import '../../../utils/string_utils.dart';
+import 'di_receipt_writer.dart';
 
 class RegisterCapability implements ZuraffaCapability {
   final DiPlugin plugin;
 
-  RegisterCapability(this.plugin);
+  /// Project root the standalone receipt (`.zfa/receipts/`, spec 0974)
+  /// resolves from. Defaults to the current working directory — the CLI
+  /// contract. Injectable so tests can point at a temp fixture.
+  final String? projectRoot;
+
+  RegisterCapability(this.plugin, {this.projectRoot});
 
   @override
   String get name => 'register';
@@ -79,6 +85,25 @@ class RegisterCapability implements ZuraffaCapability {
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
     final files = await _runRegistration(args, dryRun: args['dryRun'] ?? false);
+
+    // Spec 0974 (issue #974, order 3): the standalone path ships proof —
+    // a `di-<target>` receipt binding the written registrations and the
+    // DI index hashes, so `zfa proof check` covers `zfa di register` runs
+    // exactly like `zfa make` runs (issue #807).
+    final dryRun = args['dryRun'] == true;
+    final revert = args['revert'] == true;
+    if (!dryRun &&
+        !revert &&
+        DiReceiptWriter.hasWritableOutput(files)) {
+      await DiReceiptWriter(
+        projectRoot: projectRoot ?? Directory.current.path,
+      ).writeReceipt(
+        capability: 'register',
+        target: args['target']?.toString() ?? '',
+        args: args,
+        files: files,
+      );
+    }
 
     return ExecutionResult(
       success: true,
