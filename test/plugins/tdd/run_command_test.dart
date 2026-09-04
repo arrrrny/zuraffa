@@ -373,15 +373,23 @@ void main() {
 
   test('bug #691: verify-red reporting unexpected-green on an already-green '
       'behavior skips to make instead of stopping the run', () async {
-    // The behavior was completed by prior work: its full manual cycle
-    // left red+green evidence in the cycle log, and the target test
-    // already passes — so the scripted verify-red classifies it
-    // `unexpected-green` (certified=false). The pre-#691 driver treated
-    // that as a step failure and hard-stopped the whole feature.
+    // The behavior is stuck RED from a prior run — its red evidence is
+    // certified, but the target test already passes from prior work (the
+    // bug #986 resume shape). The scripted verify-red therefore reports
+    // `unexpected-green` (certified=false) and the scripted make reports
+    // the issue #694 skip transition (`outcome=skipped`, exit 0, green
+    // evidence appended). The pre-#691 driver treated the unexpected-green
+    // as a step failure and hard-stopped the whole feature.
+    //
+    // Seeding note: red evidence ONLY. Complete red+green evidence would
+    // let the bug #682 reconcile promote the behavior DONE before the
+    // drive ("already done — skipping") and the #691 skip-to-make path
+    // would never run — that over-seeding is exactly what broke this
+    // test when it was first landed (it failed at its own commit and the
+    // slow tier never ran in CI to catch it).
     await fx.setStepOutcome('verify-red', 'B-001', 'unexpected-green');
     await fx.setStepOutcome('make', 'B-001', 'skip');
     await fx.seedRedEvidence('B-001');
-    await fx.seedGreenEvidence('B-001');
 
     final out = await drive();
 
@@ -761,6 +769,50 @@ void main() {
       'make B-003',
       'refactor B-003',
     ]);
+    final state = await readState();
+    expect(state['behavior_states'] as Map<String, dynamic>, {
+      'B-001': 'done',
+      'B-002': 'done',
+      'B-003': 'done',
+    });
+  });
+
+  test('bug 986: a resume whose makes all report the #694 skip transition '
+      'drives through every already-green behavior — no generation-error '
+      'halt', () async {
+    // The #986 report: a feature resumed after an interrupted run. Its
+    // behaviors are stuck RED (red evidence certified by the prior run)
+    // but their target tests already pass — every make therefore reports
+    // the issue #694 skip transition (`outcome=skipped`, exit 0, green
+    // evidence appended — the fake's `skip` token is the real contract).
+    // Each skipped make is a TERMINAL make success: the driver advances
+    // the behavior to refactor (deferred while a sibling sits red, bug
+    // #635, then run in the phase-2 refactor pass), completes the
+    // feature, and exits 0. `generation-error` must never appear for a
+    // make that reported skipped.
+    await fx.seedRedEvidence('B-001');
+    await fx.seedRedEvidence('B-002');
+    await fx.setStepOutcome('make', 'B-001', 'skip');
+    await fx.setStepOutcome('make', 'B-002', 'skip');
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    expect(out, contains('[run] B-001 make -> skipped'), reason: out);
+    expect(out, contains('[run] B-002 make -> skipped'), reason: out);
+    expect(out, isNot(contains('generation-error')), reason: out);
+    expect(out, isNot(contains('step failed')), reason: out);
+    // Every behavior completed: the skipped makes advanced to green, the
+    // deferral (#635) pushed B-001's refactor to the phase-2 pass, and
+    // the run ended complete rather than stopped at a skipped make.
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 green=0 '
+        'done=3',
+      ),
+      reason: out,
+    );
     final state = await readState();
     expect(state['behavior_states'] as Map<String, dynamic>, {
       'B-001': 'done',
