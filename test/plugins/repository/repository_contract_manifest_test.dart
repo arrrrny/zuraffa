@@ -214,10 +214,12 @@ abstract class ProductRepository {
           ),
         );
 
-        final result = await filter(['get', 'update', 'custom']);
-        // Fallback re-parses the drifted source: custom() is now declared.
-        expect(result, contains('custom'));
-        expect(result, containsAll(['get', 'update']));
+        final result = await filter(['get', 'update', 'custom', 'ghost']);
+        // Fallback re-parses the drifted source: custom() is now declared,
+        // and the un-declared ghost method is still dropped.
+        expect(result, containsAll(['get', 'update', 'custom']));
+        expect(result, isNot(contains('ghost')),
+            reason: 'the parse fallback must still drop undeclared methods');
       },
     );
 
@@ -279,11 +281,14 @@ abstract class ProductRepository {
           const JsonEncoder.withIndent('  ').convert(json),
         );
 
-        final result = await filter(['get', 'update']);
-        expect(result, [
-          'get',
-          'update',
-        ], reason: 'integrity check fails → parse the interface instead');
+        final result = await filter(['get', 'update', 'ghost']);
+        expect(
+          result,
+          ['get', 'update'],
+          reason:
+              'integrity check fails → parse the interface instead, and the '
+              'parse still drops un-declared methods',
+        );
       },
     );
   });
