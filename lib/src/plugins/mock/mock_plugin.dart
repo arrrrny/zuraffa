@@ -151,8 +151,15 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     GeneratorConfig config, {
     PluginContext? context,
   }) async {
+    // Issue #970: a json-only config (`zfa mock json X`, spec 008) is an
+    // explicit mock request too — the old gate returned [] for it, so the
+    // CLI printed "✅ JSON mock data generated" while writing ZERO files
+    // (the exact lying-success class this spec kills). Every other caller
+    // (make pipeline) sets generateMock, so admitting json-only configs
+    // changes no working path's output.
     if (!config.generateMock &&
         !config.generateMockDataOnly &&
+        !config.generateMockJson &&
         !config.revert) {
       return [];
     }
@@ -186,14 +193,10 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     // If mocks were explicitly requested, always generate/append.
     //
     // Issue #770: an explicit mock request must never be a silent no-op.
-    // The stale presentation-only gate here returned [] when no data-layer
-    // plugin was active — even though the user explicitly asked for mocks —
-    // which made `zfa mock create --name X` (and the positional
-    // `zfa mock X`) generate zero files while reporting success. The builder
-    // itself is standalone-safe: #417 already made the mock-datasource path
-    // emit the datasource interface it needs, and the data-only path has
-    // always generated.
-    if (config.generateMock || config.generateMockDataOnly) {
+    // (Issue #970 adds the json-only request to that contract.)
+    if (config.generateMock ||
+        config.generateMockDataOnly ||
+        config.generateMockJson) {
       final files = await builder.generate(config);
 
       // Spec 893 (T002, FR-002): `zfa mock create` generates the DI

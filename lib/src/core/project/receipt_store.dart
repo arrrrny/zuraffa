@@ -196,6 +196,20 @@ class ReceiptStore {
     return file;
   }
 
+  /// Persists [receipt] under an explicit [fileName] (issue #970): the
+  /// mock-certification receipts use the stable per-entity name
+  /// `mock-<entity>.json` so a regeneration supersedes the previous proof
+  /// for that entity (the checker's latest-wins contract) instead of
+  /// accumulating timestamped duplicates per run.
+  Future<File> saveAs(String fileName, GenerationReceipt receipt) async {
+    await directory.create(recursive: true);
+    final base = _sanitize(fileName.replaceAll('.json', ''));
+    final file = File(p.join(directory.path, '$base.json'));
+    const encoder = JsonEncoder.withIndent('  ');
+    await file.writeAsString(encoder.convert(receipt.toJson()));
+    return file;
+  }
+
   /// Loads every parseable receipt, oldest first (ties broken by file
   /// name so latest-wins indexing is deterministic). Corrupted documents
   /// are skipped, not fatal — one broken receipt must not erase the
