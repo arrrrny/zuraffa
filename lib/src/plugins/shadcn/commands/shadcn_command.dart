@@ -42,6 +42,7 @@ class ShadcnCommand extends Command<void> {
     if (rest.length < 2) {
       print('❌ Usage: zfa shadcn <layout> <Entity> [options]');
       print('Available layouts: list, form, grid, table');
+      exitCode = 64;
       return;
     }
 

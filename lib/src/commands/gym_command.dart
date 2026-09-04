@@ -145,7 +145,7 @@ class GymCommand extends PluginCommand {
   /// Runs the command using parsed CLI args.
   Future<void> run() async {
     if (argResults?.rest.isEmpty ?? true) {
-      print('❌ Usage: zfa gym <EntityName> [options]');
+      reportSubcommandUsage();
       return;
     }
 

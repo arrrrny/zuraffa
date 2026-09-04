@@ -31,7 +31,7 @@ class PresenterCommand extends PluginCommand {
   @override
   Future<void> run() async {
     if (argResults?.rest.isEmpty ?? true) {
-      print('❌ Usage: zfa presenter <EntityName> [options]');
+      reportSubcommandUsage();
       return;
     }
 

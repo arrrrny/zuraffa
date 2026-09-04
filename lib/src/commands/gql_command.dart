@@ -25,6 +25,10 @@ class GqlCommand extends PluginCommand {
 
   @override
   Future<void> run() async {
+    if (argResults?.rest.isEmpty ?? true) {
+      reportSubcommandUsage();
+      return;
+    }
     final entityName = argResults!.rest.first;
     final type = argResults!['type'] as String?;
     final returns = argResults!['returns'] as String?;

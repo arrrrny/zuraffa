@@ -25,6 +25,10 @@ class CacheCommand extends PluginCommand {
 
   @override
   Future<void> run() async {
+    if (argResults?.rest.isEmpty ?? true) {
+      reportSubcommandUsage();
+      return;
+    }
     final entityName = argResults!.rest.first;
     final policy = argResults!['policy'] as String;
     final storage = argResults!['storage'] as String?;

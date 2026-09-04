@@ -34,6 +34,10 @@ class SyncCommand extends PluginCommand {
 
   @override
   Future<void> run() async {
+    if (argResults?.rest.isEmpty ?? true) {
+      reportSubcommandUsage();
+      return;
+    }
     final entityName = argResults!.rest.first;
     final direction = argResults!['direction'] as String;
     final batchSizeStr = argResults!['batch-size'] as String;

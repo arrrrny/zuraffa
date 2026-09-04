@@ -48,11 +48,7 @@ class ViewCommand extends PluginCommand {
   @override
   Future<void> run() async {
     if (argResults!.rest.isEmpty) {
-      print('❌ Usage: zfa view <EntityName> [options]');
-      print('   Or use a subcommand:');
-      print('   zfa view create <EntityName> [options]');
-      print('   zfa view register <ViewName> <Entity1> <Entity2?> [options]');
-      print('   zfa view custom <Name> [options]');
+      reportSubcommandUsage();
       return;
     }
 

@@ -228,7 +228,7 @@ environment:
       final result = await runZfaSource([
         'feature',
       ], workingDirectory: workspace.path);
-      expect(result.exitCode, 0);
+      expect(result.exitCode, 64);
       final output = '${result.stdout}${result.stderr}'.toLowerCase();
       // scaffold usage path, NOT a feature-flag listing
       expect(output, anyOf(contains('usage'), contains('zfa')));

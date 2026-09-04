@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import '../models/generated_file.dart';
 import '../plugins/api/api_plugin.dart';
 import '../plugins/api/capabilities/create_api_bridge_capability.dart';
@@ -52,9 +50,8 @@ class ApiCommand extends PluginCommand {
         .toList();
 
     if (positional.isEmpty && argResults?['name'] == null) {
-      print('❌ Usage: zfa api <EntityName> [options]');
-      print('   Example: zfa api Product');
-      exit(64);
+      reportSubcommandUsage();
+      return;
     }
 
     final entityName = positional.isNotEmpty
