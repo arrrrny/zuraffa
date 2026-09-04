@@ -380,9 +380,11 @@ class RunCommand extends Command<void> {
     //     spec), the driver creates every entity that does not exist
     //     yet — idempotently: an existing entity file is REUSED, never
     //     regenerated over hand-tuned fields — and runs `zfa build`
-    //     ONCE, BEFORE any behavior is driven. A feature without
-    //     declared entities runs no phase-0 spawn at all (every pre-829
-    //     run is unchanged).
+    //     ONCE, BEFORE any behavior is driven (with --no-analyze, bug
+    //     #991: the target repo's pre-existing warnings are not this
+    //     run's verdict — analyze belongs in verify/refactor steps). A
+    //     feature without declared entities runs no phase-0 spawn at
+    //     all (every pre-829 run is unchanged).
     // ---------------------------------------------------------------
     if (anyMakeOutstanding) {
       final declaredEntities = await TestListReader(featureDir).readEntities();
@@ -1395,10 +1397,15 @@ class RunCommand extends Command<void> {
 
   /// Bug #829 phase 0 — create every declared entity that does not
   /// exist yet (idempotent reuse: an existing entity file is never
-  /// regenerated over hand-tuned fields), then run `zfa build` ONCE
-  /// when at least one entity was created. Returns the honest [_Stop]
-  /// when a spawn fails or hangs; null when phase 0 completed (or had
-  /// nothing to do).
+  /// regenerated over hand-tuned fields), then run `zfa build --no-analyze`
+  /// ONCE when at least one entity was created (bug #991: the default
+  /// `--analyze` gate makes the phase-0 build exit 1 on the target
+  /// repo's pre-existing analyze warnings — unused imports, dead code —
+  /// even when everything compiles, so the run dies with runner-error
+  /// before any behavior is driven; analyze is enforced by the
+  /// verify/refactor steps, not the phase-0 build gate). Returns the
+  /// honest [_Stop] when a spawn fails or hangs; null when phase 0
+  /// completed (or had nothing to do).
   Future<_Stop?> _runEntityPhaseZero({
     required String projectRoot,
     required List<DeclaredEntity> entities,
@@ -1488,7 +1495,11 @@ class RunCommand extends Command<void> {
     }
     ProcessResult build;
     try {
-      build = await spawn(const ['build']);
+      // Bug #991: --no-analyze — the phase-0 build is a generation gate,
+      // not an analysis gate. Pre-existing warnings in the target repo
+      // (unused imports, dead code) must not fail the run before any
+      // behavior is driven; verify/refactor keep their own analyze.
+      build = await spawn(const ['build', '--no-analyze']);
     } on ProcessTimeoutException {
       print(
         '[run] phase-0 build -> failed (timed out after '
