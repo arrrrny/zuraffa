@@ -5,6 +5,8 @@
 // Regenerating from an unchanged row is byte-for-byte identical.
 library;
 
+import 'user.dart';
+
 // Declared: service | priority: p1 | spec line 125
 abstract class FirebaseAuth {
   Future<User> signIn(String email, String password);

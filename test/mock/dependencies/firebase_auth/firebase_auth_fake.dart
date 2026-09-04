@@ -6,6 +6,7 @@
 
 // Declared: service | priority: p1 | spec line 125
 import 'firebase_auth.dart';
+import 'user.dart';
 
 class FirebaseAuthFake implements FirebaseAuth {
   final _CallRecorder _recorder = _CallRecorder();
@@ -61,7 +62,6 @@ class FirebaseAuthFake implements FirebaseAuth {
     }
     return scripted();
   }
-
 }
 
 /// Call recorder: (method, named arguments, invocation order) — query
