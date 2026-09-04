@@ -1,0 +1,105 @@
+/// UiLedgerBuilder (feature 075, issue #963): derives the per-feature
+/// UI surface ledger — one row per DECLARED surface (texts from the
+/// quoted-literal contract, routes from the Presentation contract row,
+/// affordances named in scenario markers), with kind, proving behavior
+/// ids, and evidence-derived state.
+///
+/// Pure and synchronous: declared facts + evidence in, ledger out.
+/// A surface nobody declares is never guessed; a surface with no
+/// prover appears as NOT-DONE (visible at plan time, never omitted).
+library;
+
+import 'dart:convert';
+
+/// The kind of a declared UI surface.
+enum UiSurfaceKind { text, route, affordance }
+
+/// One ledger row.
+class UiSurfaceRow {
+  final String surface;
+  final UiSurfaceKind kind;
+
+  /// Behavior ids that trace (prove) this surface.
+  final List<String> provers;
+
+  /// Recomputed state: `DONE` iff at least one prover is green;
+  /// `NOT-DONE` otherwise (planned-but-red provers never count).
+  final String state;
+
+  const UiSurfaceRow({
+    required this.surface,
+    required this.kind,
+    this.provers = const [],
+    required this.state,
+  });
+}
+
+/// One declared surface fact (from the plan's declared sources).
+class DeclaredSurface {
+  final String surface;
+  final UiSurfaceKind kind;
+
+  /// Behavior ids declared as tracing this surface (may be empty —
+  /// the row still appears, unproven).
+  final List<String> declaredProvers;
+
+  const DeclaredSurface({
+    required this.surface,
+    required this.kind,
+    this.declaredProvers = const [],
+  });
+}
+
+/// Derives and renders the UI surface ledger.
+abstract final class UiLedgerBuilder {
+  /// Derive the ledger rows from declared surfaces and the current
+  /// evidence (behavior id → green). State is recomputed HERE, at
+  /// read time — a stored state is a cache, never the truth.
+  static List<UiSurfaceRow> derive({
+    required List<DeclaredSurface> declared,
+    required Set<String> greenBehaviors,
+  }) {
+    return [
+      for (final surface in declared)
+        () {
+          final proven = surface.declaredProvers
+              .where((id) => greenBehaviors.contains(id))
+              .toList();
+          return UiSurfaceRow(
+            surface: surface.surface,
+            kind: surface.kind,
+            provers: proven,
+            state: proven.isEmpty ? 'NOT-DONE' : 'DONE',
+          );
+        }(),
+    ];
+  }
+
+  /// The ledger markdown artifact (`specs/<f>/tdd/ui-ledger.md`).
+  static String toMarkdown(List<UiSurfaceRow> rows) {
+    final buffer = StringBuffer()
+      ..writeln('# UI Surface Ledger')
+      ..writeln()
+      ..writeln('| surface | kind | proven by | state |')
+      ..writeln('| --- | --- | --- | --- |');
+    for (final row in rows) {
+      buffer.writeln(
+        '| ${row.surface} | ${row.kind.name} | '
+        '${row.provers.isEmpty ? "" : row.provers.join(", ")} '
+        '| ${row.state} |',
+      );
+    }
+    return buffer.toString();
+  }
+
+  /// The ledger JSON artifact (the cache; truth is recomputed on read).
+  static String toJson(List<UiSurfaceRow> rows) => jsonEncode([
+    for (final row in rows)
+      <String, Object>{
+        'surface': row.surface,
+        'kind': row.kind.name,
+        'provenBy': row.provers,
+        'state': row.state,
+      },
+  ]);
+}
