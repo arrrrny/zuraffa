@@ -29,9 +29,13 @@ Per feature, the plan produces a **UI surface ledger** alongside the traceabilit
 **Acceptance Scenarios**:
 
 1. **Given** a spec whose scenarios quote 8 production strings, declare a route row, and name 3 button affordances, **When** the plan runs, **Then** the ledger contains one row per surface with kind text/route/affordance.
+   **Type**: acceptance
 2. **Given** the produced ledger, **When** a surface's proving behaviors are green, **Then** its state reads DONE with the proving behavior ids named.
+   **Type**: acceptance
 3. **Given** a surface no behavior traces to, **When** the plan runs, **Then** the row exists with an empty prover and a state marking it unproven — visible at plan time, not after merge.
+   **Type**: acceptance
 4. **Given** a scenario quoted literal that names no production surface (an example value), **When** the plan runs, **Then** it is not forced into the ledger (the ledger's source is the declared Presentation/route contract plus scenario surface markers, not every quotation).
+   **Type**: acceptance
 
 ---
 
@@ -46,9 +50,13 @@ The coverage verdict is a gate: a machine-readable JSON report (one line per sur
 **Acceptance Scenarios**:
 
 1. **Given** a ledger where every row is proven by a green behavior, **When** the coverage gate runs, **Then** it exits 0 with a JSON verdict listing each surface proven.
+   **Type**: acceptance
 2. **Given** a ledger with one unproven affordance, **When** the gate runs, **Then** it exits non-zero and the verdict names the surface and its missing prover.
+   **Type**: acceptance
 3. **Given** the gate wired into merge, **When** a feature with an incomplete ledger lands, **Then** merge is blocked with the gap named.
+   **Type**: acceptance
 4. **Given** a behavior that is planned but not green, **When** the gate runs, **Then** the surfaces it would prove read NOT-DONE (green is the only proof).
+   **Type**: acceptance
 
 ---
 
@@ -63,8 +71,11 @@ With the XRay plugin enabled, the running app paints surfaces by ledger state �
 **Acceptance Scenarios**:
 
 1. **Given** a harness app with the login ledger seeded (one unproven affordance), **When** xray is enabled and the app renders, **Then** the overlay highlights exactly the unproven affordance and paints proven surfaces clean.
+   **Type**: acceptance
 2. **Given** the overlay, **When** a surface's ledger state changes to proven, **Then** the overlay reflects the new state on the next paint.
+   **Type**: acceptance
 3. **Given** the control deck, **When** opened, **Then** it lists the ledger rows with their states (the deck drives the ledger, not a separate inventory).
+   **Type**: acceptance
 
 ---
 
@@ -79,8 +90,11 @@ The XRay control deck drives the feature's certified mocks: the existing `@XRayM
 **Acceptance Scenarios**:
 
 1. **Given** a feature with generated dependency mocks (072), **When** the xray mock scaffolder runs, **Then** the deck lists each touchpoint with drive-able scenario entries.
+   **Type**: acceptance
 2. **Given** the deck driving a touchpoint, **When** a scenario is selected, **Then** the certified fake serves the scripted responses (the demo runs on the certification, not a parallel fake).
+   **Type**: acceptance
 3. **Given** a touchpoint with no generated mock, **When** the scaffolder runs, **Then** it names `zfa mock dependency <Name>` as the fix — no hand-authored stand-ins.
+   **Type**: acceptance
 
 ---
 
