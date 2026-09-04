@@ -30,8 +30,11 @@ When a verified slice merges into the host, the feature's routes become live thr
 **Acceptance Scenarios**:
 
 1. **Given** a verified slice with declared routes, **When** merge lands it in the host, **Then** the host's route barrel is regenerated to include the feature's routes.
+   **Type**: acceptance
 2. **Given** the landing, **When** each declared route path is resolved through the host's route table, **Then** it resolves to the feature's page.
+   **Type**: acceptance
 3. **Given** the merged host, **When** a hand-edit comparison is taken against the pre-merge host, **Then** the only changes outside the feature's own artifacts are regenerated barrels (no manual wiring).
+   **Type**: acceptance
 
 ---
 
@@ -46,8 +49,11 @@ The merged feature's dependencies resolve through the host's service locator: th
 **Acceptance Scenarios**:
 
 1. **Given** a verified slice with declared dependencies, **When** merge lands it, **Then** the feature's binding module registers through the host's locator in both mock and real flavors.
+   **Type**: acceptance
 2. **Given** the merged host, **When** the DI-graph construction check runs, **Then** every token the feature declares resolves (the graph constructs fully).
+   **Type**: acceptance
 3. **Given** the merged host booted in mock flavor, **When** the feature's page builds, **Then** every dependency touchpoint serves the certified mock.
+   **Type**: acceptance
 
 ---
 
@@ -62,7 +68,9 @@ The merged feature's pages land in the host's presentation layer composing behin
 **Acceptance Scenarios**:
 
 1. **Given** a verified slice, **When** merge lands its views, **Then** each page composes behind the host's adaptive shell convention.
+   **Type**: acceptance
 2. **Given** a slice whose view artifact bypasses the shell convention, **When** merge runs, **Then** it refuses naming the off-convention artifact.
+   **Type**: acceptance
 
 ---
 
@@ -77,9 +85,13 @@ After landing, merge runs the conformance suite: routes resolve (US1), the DI gr
 **Acceptance Scenarios**:
 
 1. **Given** a conforming slice, **When** merge completes, **Then** a machine-readable verdict reports routes/DI/feature-suite each passing and the host lands committed.
+   **Type**: acceptance
 2. **Given** a slice whose route declaration was removed after verify, **When** merge runs, **Then** the routes check fails, the host is rolled back byte-identical to pre-merge, and the exit is non-zero naming the failed check.
+   **Type**: acceptance
 3. **Given** a slice whose feature suite is red in-host, **When** merge runs, **Then** the feature-suite check fails, the host rolls back, and the failure names the red behavior.
+   **Type**: acceptance
 4. **Given** any rolled-back merge, **When** the pre-merge and post-rollback host trees are compared, **Then** they are byte-identical.
+   **Type**: acceptance
 
 ---
 
