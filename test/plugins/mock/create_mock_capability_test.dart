@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:args/command_runner.dart';
 import 'package:test/test.dart';
+import 'package:zuraffa/src/commands/capability_command.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/mock/capabilities/create_mock_capability.dart';
@@ -100,14 +102,22 @@ void main() {
       },
     );
 
-    test('capability: schema methods default is the canonical CRUD set', () {
+    test(
+        'capability: schema declares NO static methods default — it is '
+        'mode-dependent (entity CRUD vs service conformance, issue #1027)',
+        () {
       final props =
           capability.inputSchema['properties'] as Map<String, dynamic>;
-      expect((props['methods'] as Map<String, dynamic>)['default'], [
-        'get',
-        'update',
-        'toggle',
-      ]);
+      expect(
+        (props['methods'] as Map<String, dynamic>)['default'],
+        isNull,
+        reason: 'a static schema default would materialize through '
+            'CapabilityCommand (addMultiOption defaultsTo:) and the '
+            'service-mode branch in execute() could never fire (#1027). '
+            'The effective default is applied in execute(): the canonical '
+            'CRUD set for entity mode (#770/#294), an empty set for '
+            'service mode.',
+      );
     });
 
     test(
@@ -242,6 +252,59 @@ abstract class AuthService {
           content.contains("Unknown entity method"),
           isFalse,
         );
+      },
+    );
+
+    test(
+      'CLI layer: unprovided --methods via CapabilityCommand conforms in '
+      'service mode and keeps the CRUD default in entity mode',
+      () async {
+        final serviceDir = Directory('$outputDir/domain/services');
+        serviceDir.createSync(recursive: true);
+        File('${serviceDir.path}/auth_service.dart').writeAsStringSync('''
+abstract class AuthService {
+  Future<User> login(AuthRequest params);
+}
+''');
+
+        // Drive the real CLI layer: CapabilityCommand materializes
+        // schema-derived argResults into the capability args map. Before
+        // the schema default was removed, an unprovided --methods arrived
+        // here as ['get','update','toggle'] and crashed service mode; with
+        // the default removed it arrives as [] and must not strip the
+        // entity-mode CRUD default (#770).
+        final runner = CommandRunner('zfa_test', 'capability command test')
+          ..addCommand(CapabilityCommand(capability));
+
+        // Service mode: no --methods — must conform to the interface.
+        await runner.run([
+          'create',
+          '--name', 'Auth',
+          '--service', 'Auth',
+          '--domain', 'auth',
+          '--params', 'AuthRequest',
+          '--returns', 'User',
+        ]);
+        final providerPath = File(
+          '$outputDir/data/providers/auth/auth_mock_provider.dart',
+        );
+        expect(providerPath.existsSync(), isTrue,
+            reason: 'service-mode provider generated through the CLI layer');
+        final providerContent = providerPath.readAsStringSync();
+        expect(providerContent.contains('implements AuthService'), isTrue);
+        expect(providerContent.contains('login'), isTrue);
+
+        // Entity mode: no --methods — the canonical CRUD default survives.
+        await runner.run(['create', '--name', 'Product']);
+        final datasourcePath = File(
+          '$outputDir/data/datasources/product/product_mock_datasource.dart',
+        );
+        expect(datasourcePath.existsSync(), isTrue,
+            reason: 'entity-mode mock datasource generated through the CLI '
+                'layer (empty-list must not strip the CRUD default)');
+        final datasourceContent = datasourcePath.readAsStringSync();
+        expect(datasourceContent.contains('toggle'), isTrue,
+            reason: 'the canonical CRUD method set is applied in entity mode');
       },
     );
   });

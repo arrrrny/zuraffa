@@ -29,9 +29,15 @@ class CreateMockCapability implements ZuraffaCapability {
       'methods': {
         'type': 'array',
         'items': {'type': 'string'},
-        'default': ['get', 'update', 'toggle'],
+        // No static default here (issue #1027): the effective default is
+        // mode-dependent — the canonical CRUD set for entity mode, an empty
+        // set for service mode (which conforms to the declared service
+        // interface instead). A static schema default would materialize
+        // through CapabilityCommand's addMultiOption(defaultsTo:) and the
+        // service-mode branch in execute() could never distinguish an
+        // explicit --methods from the entity-mode default.
         'description':
-            'List of methods for the mock datasource (get,create,update,delete,list,watch,getList,watchList,toggle)',
+            'List of methods for the mock datasource (get,create,update,delete,list,watch,getList,watchList,toggle). Defaults to get,update,toggle for entity mode; none for service mode (conforms to the service interface).',
       },
       'dataOnly': {
         'type': 'boolean',
@@ -132,16 +138,22 @@ class CreateMockCapability implements ZuraffaCapability {
     final returns = args['returns'];
     final fixturesDir = args['fixturesDir'] as String?;
     // Issue #770: semantic default for direct execute() callers that omit
-    // the key — same canonical set as the schema default and
-    // MockPlugin.generateWithContext (#294). Explicit values are honored.
+    // the key — the canonical entity-CRUD set (#294). Explicit values are
+    // honored. There is deliberately no static schema default for this key
+    // (issue #1027): CapabilityCommand would materialize it and the
+    // service-mode branch below could never fire.
     // Issue #1027: service mode has no entity methods — an empty default
     // lets the provider builder conform to the declared service interface
     // (MethodExtractor) instead of crashing on the entity-CRUD set.
-    final methods =
-        (args['methods'] as List?)?.cast<String>() ??
-        (service != null
-            ? const <String>[]
-            : const ['get', 'update', 'toggle']);
+    // An EMPTY list is treated as unspecified: CapabilityCommand surfaces
+    // a never-provided multi-option as [] (package:args), which must not
+    // strip the entity-mode default.
+    final rawMethods = (args['methods'] as List?)?.cast<String>();
+    final methods = (rawMethods == null || rawMethods.isEmpty)
+        ? (service != null
+              ? const <String>[]
+              : const ['get', 'update', 'toggle'])
+        : rawMethods;
 
     final config = GeneratorConfig(
       name: name,
