@@ -1,4 +1,6 @@
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
+
 import '../../commands/repository_command.dart';
 import '../../core/context/file_system.dart';
 import '../../core/generator_options.dart';
@@ -8,11 +10,13 @@ import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../../version.dart';
 import '../datasource/builders/interface_generator.dart';
 import '../method_append/builders/method_append_builder.dart';
 import '../method_append/capabilities/method_capability.dart';
 import 'capabilities/create_repository_capability.dart';
 import 'conformance/repository_conformance_checker.dart';
+import 'contract/repository_contract_manifest.dart';
 import 'generators/implementation_generator.dart';
 import 'generators/interface_generator.dart';
 
@@ -316,6 +320,14 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           'Data${config.name}Repository',
         );
       }
+      await _persistContractManifest(
+        config: config,
+        context: context,
+        interfacePath: interfaceFile.first.path,
+        interfaceSource: interfaceSource,
+        implPath: implFile.first.path,
+        implSource: implSource,
+      );
       return;
     }
 
@@ -332,6 +344,68 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   bool _isFreshEmit(String action) => action == 'created' ||
       action == 'overwritten';
+
+  /// Spec 0973: writes the per-entity repository contract manifest
+  /// (`.zfa/receipts/repository-<entity>.json`) after the conformance gate
+  /// passed — a manifest asserts "this pair conformed when it was written".
+  /// Best-effort by design: the artifacts already exist, so a manifest
+  /// failure degrades to a warning instead of failing the run.
+  Future<void> _persistContractManifest({
+    required GeneratorConfig config,
+    required PluginContext? context,
+    required String interfacePath,
+    required String interfaceSource,
+    required String implPath,
+    required String implSource,
+  }) async {
+    try {
+      final projectRoot = repositoryProjectRootFor(
+        outputDir,
+        explicitProjectRoot: context?.core.projectRoot,
+      );
+      final methods = const RepositoryContractExtractor().extract(
+        interfaceSource: interfaceSource,
+        className: '${config.name}Repository',
+      );
+      final manifest = RepositoryContractManifest(
+        entity: config.name,
+        interface: RepositoryContractFile(
+          className: '${config.name}Repository',
+          path: _projectRelativePosix(interfacePath, projectRoot),
+          sha256: repositoryContractDigest(interfaceSource),
+        ),
+        implementation: RepositoryContractFile(
+          className: 'Data${config.name}Repository',
+          path: _projectRelativePosix(implPath, projectRoot),
+          sha256: repositoryContractDigest(implSource),
+        ),
+        methods: methods,
+        methodsSha256: RepositoryContractManifest.hashOfMethods(methods),
+        generatorVersion: version,
+        at: DateTime.now().toUtc(),
+      );
+      await RepositoryContractManifestStore(
+        projectRoot: projectRoot,
+      ).save(manifest);
+      if (config.verbose) {
+        print(
+          '  ✓ repository contract manifest: '
+          '.zfa/receipts/repository-${config.nameSnake}.json',
+        );
+      }
+    } catch (e) {
+      print('⚠️  Repository contract manifest not written: $e');
+    }
+  }
+
+  /// Normalizes a generated-file path to a project-relative POSIX path.
+  String _projectRelativePosix(String filePath, String projectRoot) {
+    final absolute = p.isAbsolute(filePath)
+        ? filePath
+        : p.join(p.absolute(projectRoot), filePath);
+    final relative = p.relative(absolute, from: p.absolute(projectRoot));
+    return p.normalize(relative).replaceAll('\\', '/');
+  }
 
   Future<GeneratedFile> generateInterface(GeneratorConfig config) {
     return interfaceGenerator.generate(config);
