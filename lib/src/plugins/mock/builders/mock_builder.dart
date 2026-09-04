@@ -162,6 +162,25 @@ class MockBuilder {
     );
 
     if (!config.generateMockDataOnly) {
+      // Issue #1037: an enum entity is a value type — no id, no Patch, no
+      // copyWithField — so the class-shaped CRUD datasource/provider
+      // surface cannot compile against it (the entity lives under
+      // entities/enums/, not the canonical class path). The mock-data
+      // section above already emitted enum-value fixtures; emitting the
+      // stack here produces the #1037 lie the `zfa build` analyzer gate
+      // then correctly refuses, dead-ending every `zfa tdd` feature that
+      // traces the enum as a Key Entity.
+      if (EntityAnalyzer.isEnum(
+        targetEntity,
+        outputDir,
+        fileSystem: fileSystem,
+      )) {
+        print(
+          'ℹ️  $targetEntity is an enum entity — mock data generated; '
+          'skipping the CRUD datasource/provider surface (issue #1037).',
+        );
+        return files;
+      }
       if (!config.hasService) {
         // #417: ensure the datasource interface file exists before emitting
         // the mock_datasource that imports + implements
