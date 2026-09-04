@@ -1,0 +1,28 @@
+{
+  "feature": "073-slice-isolation",
+  "behavior_states": {
+    "A2": "green",
+    "A4": "green",
+    "A5": "green",
+    "A6": "green",
+    "A7": "green",
+    "A8": "green",
+    "A9": "green",
+    "A10": "green",
+    "A11": "green",
+    "A12": "green",
+    "A13": "green",
+    "A14": "green",
+    "A1": "green",
+    "A3": "green",
+    "U1": "green",
+    "U2": "green",
+    "U3": "green",
+    "U4": "green",
+    "U5": "green",
+    "U6": "green",
+    "U7": "green",
+    "U8": "green"
+  },
+  "dropped": []
+}

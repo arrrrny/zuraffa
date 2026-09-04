@@ -125,7 +125,7 @@ class ExportSliceCapability implements ZuraffaCapability {
 
     // Verification gate (FR-020): never export a broken slice.
     progress.update('verifying the slice');
-    final report = await _importVerifier.verify(
+    final report = _importVerifier.verify(
       sandboxDir: sandboxDir,
       projectRoot: projectRoot,
     );

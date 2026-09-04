@@ -4,6 +4,12 @@
 /// copy the mirrored tree into `.zuraffa/slices/<name>/`, generate the mock
 /// DI wiring, the runnable entry point, and the agent instructions, then
 /// persist the manifest.
+///
+/// 073 composition: with declared facts (`feature`, `routes`,
+/// `dependencies`) the cut also emits the runnable sandbox scaffolding
+/// (shell bootstrap, router harness exposing exactly the declared
+/// routes, mock-DI bindings for every declared dependency) and carries
+/// the feature's spec + tdd receipts into the sandbox.
 library;
 
 import 'dart:io';
@@ -23,6 +29,7 @@ import '../generators/agent_readme_generator.dart';
 import '../generators/manifest_writer.dart';
 import '../generators/mock_stub_generator.dart';
 import '../generators/sandbox_bootstrapper.dart';
+import '../generators/sandbox_composition.dart';
 import '../models/file_graph.dart';
 import '../models/slice_depth.dart';
 import '../models/slice_file.dart';
@@ -120,7 +127,8 @@ class CutSliceCapability implements ZuraffaCapability {
       throw ArgumentError.value(
         sliceName,
         'sliceName',
-        'must be a non-empty, path-safe slice name',
+        'must be a non-empty, path-safe slice name --> fix: pass a slug like '
+            '"login_feature" (issue #961)',
       );
     }
     if (trimmed.contains('/') ||
@@ -129,14 +137,16 @@ class CutSliceCapability implements ZuraffaCapability {
       throw ArgumentError.value(
         sliceName,
         'sliceName',
-        'must not contain path separators or parent-directory traversal',
+        'must not contain path separators or parent-directory traversal --> fix: '
+            'pass a slug like "login_feature" (issue #961)',
       );
     }
     if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9_-]*$').hasMatch(trimmed)) {
       throw ArgumentError.value(
         sliceName,
         'sliceName',
-        'must contain only letters, numbers, underscores, or dashes',
+        'must contain only letters, numbers, underscores, or dashes --> fix: '
+            'pass a slug like "login_feature" (issue #961)',
       );
     }
     return trimmed;
@@ -193,6 +203,27 @@ class CutSliceCapability implements ZuraffaCapability {
     final sliceName = args['name'] as String;
     final entries = (args['entries'] as List).cast<String>();
     final depth = SliceDepth.parse(args['depth'] as String? ?? 'feature');
+    final feature = args['feature'] as String?;
+    final List<ManifestRoute> declaredRoutes;
+    final List<ManifestDependency> declaredDependencies;
+    try {
+      declaredRoutes = _parseRoutes(args['routes'] as List?);
+      declaredDependencies = _parseDependencies(args['dependencies'] as List?);
+    } on ArgumentError catch (e) {
+      return ExecutionResult(
+        success: false,
+        message: e.toString(),
+      );
+    }
+    if ((declaredRoutes.isNotEmpty || declaredDependencies.isNotEmpty) &&
+        (feature == null || feature.isEmpty)) {
+      return ExecutionResult(
+        success: false,
+        message:
+            'Declared routes/dependencies need --feature <f> --> fix: pass '
+            'the feature whose sandbox is being composed (issue #961).',
+      );
+    }
     final progress =
         args['progressReporter'] as ProgressReporter? ?? NullProgressReporter();
 
@@ -200,15 +231,16 @@ class CutSliceCapability implements ZuraffaCapability {
     try {
       sandboxDir = sandboxDirFor(projectRoot, sliceName);
     } on ArgumentError catch (e) {
-      return ExecutionResult(success: false, message: e.message.toString());
+      return ExecutionResult(success: false, message: e.toString());
     }
     if (Directory(sandboxDir).existsSync()) {
       return ExecutionResult(
         success: false,
         message:
             'A slice named "$sliceName" already exists at '
-            '${p.relative(sandboxDir, from: projectRoot)}. Choose another '
-            'name or merge/delete the existing slice first.',
+            '${p.relative(sandboxDir, from: projectRoot)} --> fix: choose '
+            'another name or merge/delete the existing slice first '
+            '(issue #961).',
       );
     }
 
@@ -378,6 +410,8 @@ class CutSliceCapability implements ZuraffaCapability {
       files: manifestFiles,
       boundaries: walkResult.boundaries,
       generatedFiles: generatedFiles,
+      routes: declaredRoutes,
+      dependencies: declaredDependencies,
     );
 
     // Copy the mirrored tree.
@@ -430,6 +464,25 @@ class CutSliceCapability implements ZuraffaCapability {
     progress.update('writing slice.yaml, SLICE.md, and the entry point');
     await _manifestWriter.write(manifest, sandboxDir);
 
+    // 073 composition: with declared facts, emit the runnable-sandbox
+    // scaffolding (shell, router harness, mock DI) and carry the
+    // feature's spec + tdd receipts into the sandbox. All pure
+    // generators of declared facts — identical inputs ⇒ byte-identical
+    // wiring (FR-007).
+    if (feature != null && feature.isNotEmpty) {
+      progress.update('composing the runnable sandbox (shell/router/DI)');
+      const SandboxComposition().compose(
+        projectRoot: projectRoot,
+        sandboxDir: sandboxDir,
+        feature: feature,
+        routes: declaredRoutes,
+        dependencies: declaredDependencies,
+        generatedFiles: generatedFiles,
+      );
+      manifest = manifest.copyWith(generatedFiles: generatedFiles);
+      await _manifestWriter.write(manifest, sandboxDir);
+    }
+
     return ExecutionResult(
       success: true,
       files: [
@@ -448,6 +501,62 @@ class CutSliceCapability implements ZuraffaCapability {
       },
     );
   }
+
+  /// Parses declared `--route <path>:<Page>` values.
+  List<ManifestRoute> _parseRoutes(List? raw) {
+    if (raw == null) return const [];
+    return [
+      for (final entry in raw.cast<String>())
+        if (entry.trim().isNotEmpty)
+          () {
+            final sep = entry.indexOf(':');
+            if (sep <= 0 || sep == entry.length - 1) {
+              throw ArgumentError.value(
+                entry,
+                'routes',
+                "must be '<path>:<Page>' --> fix: declare routes as "
+                "'/login:LoginPage' (issue #961)",
+              );
+            }
+            return ManifestRoute(
+              path: entry.substring(0, sep),
+              page: entry.substring(sep + 1),
+            );
+          }(),
+    ];
+  }
+
+  /// Parses declared `--dependency <Name>:<kind>:<contract>:<priority>:<artifact>`
+  /// values (the 072 declared rows, plus the certified artifact path).
+  List<ManifestDependency> _parseDependencies(List? raw) {
+    if (raw == null) return const [];
+    return [
+      for (final entry in raw.cast<String>())
+        if (entry.trim().isNotEmpty)
+          () {
+            final parts = entry.split(':');
+            if (parts.length != 5) {
+              throw ArgumentError.value(
+                entry,
+                'dependencies',
+                "must be '<Name>:<kind>:<contract>:<priority>:<artifact>' -- "
+                'fix: declare each dependency row with its contract and '
+                'certified mock path (issue #961)',
+              );
+            }
+            return ManifestDependency(
+              dependency: parts[0],
+              kind: parts[1],
+              contract: parts[2],
+              priority: parts[3],
+              mockArtifact: parts[4],
+            );
+          }(),
+    ];
+  }
+
+  /// The certified fake + contract splitting live in
+  /// [SandboxComposition] (the sync core cut and subjects share).
 
   /// Page directories owning files, one per entry spec.
   List<String> _entryPageDirs(List<String> entries, String projectRoot) {
