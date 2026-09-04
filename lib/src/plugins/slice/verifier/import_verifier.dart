@@ -64,10 +64,13 @@ class ImportVerifier {
   /// Verifies the sandbox at [sandboxDir] against the project at
   /// [projectRoot] (whose pubspec.yaml names the self package and the
   /// allowed external dependencies).
-  Future<VerifyReport> verify({
+  ///
+  /// Synchronous (073): the whole check is file reads + AST parsing,
+  /// and the slice verifier composes it into a sync verdict.
+  VerifyReport verify({
     required String sandboxDir,
     required String projectRoot,
-  }) async {
+  }) {
     final pubspecFile = File(p.join(projectRoot, 'pubspec.yaml'));
     final pubspec = pubspecFile.existsSync()
         ? (loadYaml(pubspecFile.readAsStringSync()) as Map)
