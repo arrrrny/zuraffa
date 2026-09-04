@@ -836,6 +836,14 @@ class Product {
     );
     await bindingFile.create(recursive: true);
     await bindingFile.writeAsString('$marker\n// broken binding');
+    // The stale index a pre-#1037 run left behind: still importing the
+    // binding the purge is about to remove.
+    final indexFile = File('$outputDir/di/simulation/index.dart');
+    await indexFile.create(recursive: true);
+    await indexFile.writeAsString(
+      '$marker\n'
+      "import 'authentication_method_simulation_datasource_di.dart';\n",
+    );
     // A hand-written file (no marker) in a generated path survives.
     final handWritten = File(
       '$outputDir/data/datasources/authentication_method/custom.dart',
@@ -859,15 +867,17 @@ class Product {
     expect(mockDsFile.existsSync(), isFalse);
     expect(bindingFile.existsSync(), isFalse);
     expect(handWritten.existsSync(), isTrue);
-    // The regenerated simulation index (if any was written) must not
-    // reference the purged binding.
-    final indexFile = File('$outputDir/di/simulation/index.dart');
-    if (indexFile.existsSync()) {
-      expect(
-        indexFile.readAsStringSync().contains('authentication_method'),
-        isFalse,
-      );
-    }
+    // With every binding purged, the stale index is rewritten as the
+    // empty skeleton — never left importing the removed files.
+    expect(indexFile.existsSync(), isTrue);
+    expect(
+      indexFile.readAsStringSync().contains('authentication_method'),
+      isFalse,
+    );
+    expect(
+      indexFile.readAsStringSync().contains('registerSimulationBindings'),
+      isTrue,
+    );
     expect(
       files.any((f) => f.path.contains('authentication_method_datasource')),
       isFalse,
