@@ -31,6 +31,7 @@ import 'package:yaml/yaml.dart';
 
 import '../../../tdd/services/ui_ledger_builder.dart';
 import 'spec_parser.dart';
+import 'test_list_reader.dart';
 
 /// One declared i18n surface: the dotted slang key plus the EN anchor.
 ///
@@ -212,6 +213,20 @@ class I18nKeyTable {
       if (contract.key == key) return contract;
     }
     return null;
+  }
+
+  /// Loads the feature's declared key table from its `tdd/test-list.md`
+  /// (the single format contract every consumer shares). An unreadable
+  /// list yields [I18nKeyTable.empty] — the same fail-open discipline as
+  /// the component tokens; a malformed `key:` token THROWS so the caller
+  /// refuses before any artifact is written (errors-are-an-API).
+  static Future<I18nKeyTable> loadForFeature(String featureDir) async {
+    try {
+      final contracts = await TestListReader(featureDir).readLayerContracts();
+      return I18nKeyTable.fromLayerContracts(contracts);
+    } on TestListReadException {
+      return I18nKeyTable.empty;
+    }
   }
 
   /// The anchor→key map the test writer consumes.

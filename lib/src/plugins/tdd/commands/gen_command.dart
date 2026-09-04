@@ -83,6 +83,7 @@ import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/behavior_test_writer.dart';
 import '../services/generated_shape.dart';
+import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
 import '../services/golden_harness_writer.dart';
 import '../services/platform_harness_context.dart';
@@ -750,6 +751,33 @@ class GenCommand extends Command<void> {
 
     final registry = ArtifactRegistry(featureDir: featureDir);
 
+    // The feature's declared i18n key contract (issue #965): the key is
+    // the contract, the literal is the anchor. A malformed `key:` token
+    // refuses BEFORE any artifact is written (errors-are-an-API — the
+    // same gate the #938 preflight sets). Keyed surfaces make the paired
+    // widget test boot the slang test shell and assert resolved keys.
+    final I18nKeyTable i18nKeys;
+    try {
+      i18nKeys = await I18nKeyTable.loadForFeature(featureDir);
+    } on I18nKeyContractParseException catch (error) {
+      print('zfa tdd gen: ${error.message}');
+      _printVerdict(
+        behaviorId: behavior.id,
+        verdict: 'refused',
+        reason: 'malformed i18n key contract (issue #965)',
+        featureName: featureName,
+        kind: effectiveBehavior.kind.name,
+      );
+      exitCode = 1;
+      return 'refused';
+    }
+    final i18nImport = i18nKeys.isEmpty
+        ? null
+        : I18nScaffold.accessorImport(
+            projectRoot: cwd,
+            fromDir: p.dirname(testPath),
+          );
+
     // Build the proposed record, then preflight ownership without changing
     // the registry. The record is appended only after both writes succeed.
     var record = ArtifactRecord(
@@ -916,6 +944,8 @@ class GenCommand extends Command<void> {
         behavior,
         platformContext: platformContext,
         widgetShell: widgetShell,
+        i18nKeys: i18nKeys,
+        i18nImport: i18nImport,
       );
       try {
         if (!adoptTest) {
@@ -1033,6 +1063,8 @@ class GenCommand extends Command<void> {
         subjectPath: subjectPath,
         platformContext: platformContext,
         widgetShell: widgetShell,
+        i18nKeys: i18nKeys,
+        i18nImport: i18nImport,
         bounded: bounded,
       );
     }
@@ -1147,6 +1179,8 @@ class GenCommand extends Command<void> {
     Behavior behavior, {
     PlatformHarnessContext? platformContext,
     WidgetAppShell widgetShell = WidgetAppShell.shadapp,
+    I18nKeyTable i18nKeys = I18nKeyTable.empty,
+    String? i18nImport,
   }) {
     if (behavior.kind == BehaviorKind.theme) {
       return (
@@ -1163,7 +1197,11 @@ class GenCommand extends Command<void> {
       );
     }
     return (
-      writeTest: BehaviorTestWriter(widgetShell: widgetShell).write,
+      writeTest: BehaviorTestWriter(
+        widgetShell: widgetShell,
+        i18nKeys: i18nKeys,
+        i18nImport: i18nImport,
+      ).write,
       writeSubject: const SubjectWriter().write,
     );
   }
@@ -1327,6 +1365,8 @@ class GenCommand extends Command<void> {
     required Future<T> Function<T>(Future<T> stage, String stageName) bounded,
     PlatformHarnessContext? platformContext,
     WidgetAppShell widgetShell = WidgetAppShell.shadapp,
+    I18nKeyTable i18nKeys = I18nKeyTable.empty,
+    String? i18nImport,
   }) async {
     // Bug #835: an ffi harness is NEVER auto-regenerated. Its contract
     // seams are the implementer's wiring point — partial wiring (the
@@ -1361,6 +1401,8 @@ class GenCommand extends Command<void> {
         behavior,
         platformContext: platformContext,
         widgetShell: widgetShell,
+        i18nKeys: i18nKeys,
+        i18nImport: i18nImport,
       );
       final mirroredTest = p.join(
         mirror.path,

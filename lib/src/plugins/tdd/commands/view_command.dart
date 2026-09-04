@@ -442,14 +442,8 @@ class ViewCommand extends Command<void> {
   /// refuses before any write (errors-are-an-API); an unreadable list
   /// degrades to the empty table (the same fail-open note discipline as
   /// the component tokens above).
-  static Future<I18nKeyTable> _loadI18nKeys(String featureDir) async {
-    try {
-      final contracts = await TestListReader(featureDir).readLayerContracts();
-      return I18nKeyTable.fromLayerContracts(contracts);
-    } on TestListReadException {
-      return I18nKeyTable.empty;
-    }
-  }
+  static Future<I18nKeyTable> _loadI18nKeys(String featureDir) =>
+      I18nKeyTable.loadForFeature(featureDir);
 
   /// Insert `import '<uri>';` after the last top-level import of [source]
   /// (or after `library;` when no imports exist). Idempotent.

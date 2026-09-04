@@ -25,6 +25,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/behavior.dart';
 import 'finder_taxonomy.dart';
+import 'i18n_key_contract.dart';
 import 'widget_scaffold.dart';
 
 /// Writes a Dart test file that pairs with the subject for a behavior.
@@ -32,9 +33,28 @@ class BehaviorTestWriter {
   /// The app shell the generated WIDGET test pumps the feature view in
   /// (issue #912 defect 2): default [WidgetAppShell.shadapp] — zuraffa
   /// apps are shadcn_ui apps — overridable per project.
-  const BehaviorTestWriter({this.widgetShell = WidgetAppShell.shadapp});
+  ///
+  /// Issue #965: [i18nKeys] carries the feature's declared i18n surfaces;
+  /// a scenario literal equal to a declared anchor asserts through the
+  /// RESOLVED key (`find.text(t.auth.signIn)`) and the test boots the
+  /// slang test shell (accessor import + base-locale pin). [i18nImport]
+  /// is the host accessor URI the caller derives from the project's
+  /// pubspec (relative fallback) — emitted only when a keyed surface is
+  /// emitted. An empty table keeps the pre-#965 template byte-for-byte.
+  const BehaviorTestWriter({
+    this.widgetShell = WidgetAppShell.shadapp,
+    this.i18nKeys = I18nKeyTable.empty,
+    this.i18nImport,
+  });
 
   final WidgetAppShell widgetShell;
+
+  /// The feature's declared i18n surfaces (issue #965).
+  final I18nKeyTable i18nKeys;
+
+  /// The host's generated slang accessor URI (nullable — no keyed
+  /// surface, no import).
+  final String? i18nImport;
 
   /// Escapes [raw] for safe interpolation into a single-quoted Dart
   /// string literal (issue #912 defect 1): backslash, both quote forms,
@@ -279,7 +299,21 @@ void main() {
     // becomes findsNothing, enabled-state asserts onPressed null-ness,
     // and a sequence scenario (while … in flight) is marked scaffolded
     // instead of silently flattened to presence.
-    final analysis = FinderTaxonomy.analyze(b.description);
+    // Issue #965: literals equal to a declared anchor resolve to their
+    // slang key BEFORE emission — the test asserts the resolved key
+    // through the translation test shell, never the EN string.
+    final analysis = FinderTaxonomy.resolveKeys(
+      FinderTaxonomy.analyze(b.description),
+      i18nKeys,
+    );
+    final keyedSurfaces = analysis.assertions
+        .where((a) => a.kind == LiteralKind.key)
+        .toList(growable: false);
+    final keyed = keyedSurfaces.isNotEmpty && i18nImport != null;
+    // Issue #965: keyed surfaces need the host's generated slang accessor
+    // (its global `t` + LocaleSettings). The import lands with the other
+    // package imports — only when a keyed surface is emitted.
+    final i18nImportLine = keyed ? "import '$i18nImport';\n" : '';
     final finders = FinderTaxonomy.emitTestAssertions(
       analysis,
       escape: escapeDartString,
@@ -332,6 +366,17 @@ void main() {
               '        home: Scaffold(body: view),\n'
               '      ));'
         : 'await tester.pumpWidget($shellName(home: Scaffold(body: view)));';
+    // Issue #965: the translation test shell boots BEFORE the pump — the
+    // base locale is pinned so the resolved keys render the anchor copy,
+    // a copy edit to the EN string can never break green, and a missing
+    // key fails RED honestly.
+    final localePin = keyed
+        ? "// Slang test shell (issue #965): the base locale is pinned so\n"
+            "      // the resolved keys render the anchor copy — a copy edit to\n"
+            "      // the EN string can never break green; a missing key fails\n"
+            "      // RED honestly (the fallback is the base copy, not a lie).\n"
+            "      LocaleSettings.setLocaleRaw('${I18nScaffold.baseLocale}');\n"
+        : '';
     // Issue #964 (code review on #981): a route-outcome scenario's
     // golden hook can NEVER pass — after the route pushes, the home
     // route goes offstage and find.byWidget(view) resolves to nothing
@@ -378,7 +423,7 @@ class _RouteRecorder extends NavigatorObserver {
 // behavior_id: ${b.id}
 // source_criterion: ${b.sourceCriterion}
 // kind: widget
-${assertionsHeader.isEmpty ? '' : '$assertionsHeader\n'}// description: $description
+${keyed ? "// i18n: slang test shell, base locale '${I18nScaffold.baseLocale}' pinned; keyed surfaces resolve (issue #965)\n" : ''}${assertionsHeader.isEmpty ? '' : '$assertionsHeader\n'}// description: $description
 //
 // This is a WIDGET test (bug #830): it boots the feature view through
 // the subject's view-builder contract, pumps it inside a $shellName
@@ -400,7 +445,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-${shellImport}import '$relativeSubjectPath' as subject;
+${shellImport}${i18nImportLine}import '$relativeSubjectPath' as subject;
 
 void main() {
   group('$escapedGroupDescription', () {
@@ -423,7 +468,7 @@ $observerDecl      final Object? built = (() {
       // Boot the view inside an app shell so Theme.of / ShadTheme.of /
       // Navigator / MediaQuery lookups resolve (issue #830 remediation 2;
       // shell configurable per issue #912 defect 2).
-      $pumpCall
+$localePin      $pumpCall
       await tester.pumpAndSettle();
       // PRIMARY red surface (issue #959 + issue #964 taxonomy):
       // verb-matched authored finders derived from the scenario
