@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 import 'package:zorphy/zorphy.dart';
@@ -11,6 +12,7 @@ import '../utils/entity_utils.dart';
 import '../utils/framework_export_surface.dart';
 import '../utils/string_utils.dart';
 import '../version.dart';
+import '../plugins/cli/cli_plugin.dart';
 
 class EntityCommand {
   static const String fixedEntityOutput = ZfaConfig.fixedEntityOutput;
@@ -80,6 +82,9 @@ class EntityCommand {
           break;
         case 'validate':
           await _handleValidate(subArgs);
+          break;
+        case 'cli':
+          await _handleCli(subArgs);
           break;
         default:
           print('Unknown subcommand: $subCommand');
@@ -1269,6 +1274,17 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
   }
 
+  Future<void> _handleCli(List<String> subArgs) async {
+    if (subArgs.isEmpty) {
+      print('Usage: zfa entity cli <EntityName>');
+      return;
+    }
+    // Delegate to the CliGeneratorPlugin which handles writing + receipts.
+    final runner = CommandRunner<void>('zfa-entity-cli', 'cli generator');
+    runner.addCommand(CliGeneratorPlugin(outputDir: 'lib/src').createCommand());
+    await runner.run(['cli', ...subArgs]);
+  }
+
   void _printHelp() {
     print('''
 zfa entity - Zorphy Entity Generation Commands
@@ -1286,6 +1302,7 @@ SUBCOMMANDS:
   build       Run build_runner build (with optional --clean, --force)
   watch       Run build_runner watch (live rebuild on changes)
   validate    Check entity dirs for missing generated files
+  cli         Generate a standardized CLI command for an entity (FR-011)
 
 CREATE COMMAND:
   zfa entity create -n <Name> [options]

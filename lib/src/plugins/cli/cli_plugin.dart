@@ -16,17 +16,23 @@
 // `lib/src/cli/standard/`. This file is the *generator* — it produces code
 // that uses the runtime library.
 
+import 'dart:io';
+
+import 'package:crypto/crypto.dart' as crypto;
+
 import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
 
 import '../../cli/standard/cli_plugin.dart' show CliPlugin;
 import '../../cli/standard/command_model.dart' show StandardCommand;
 import '../../core/generator_options.dart';
+import '../../core/project/receipt_store.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 
 /// Generates standardized CLI commands + entry points for an entity (FR-011).
@@ -170,7 +176,44 @@ class _CliGeneratorCommand extends Command<void> {
       return;
     }
     final file = plugin.generateForEntity(entityName);
-    print('Generated: ${file.path}');
+    final result = await FileUtils.writeFile(
+      file.path,
+      file.content!,
+      'cli_command',
+    );
+    print('Generated: ${result.path}');
+
+    // Emit proof.v1 receipt (#807) for the CLI command artifact.
+    try {
+      final absPath = file.path;
+      final absFile = File(absPath);
+      if (absFile.existsSync()) {
+        final bytes = absFile.readAsBytesSync();
+        await ReceiptStore(
+          projectRoot: Directory.current.path,
+        ).save(
+          GenerationReceipt(
+            command: 'cli generate',
+            target: entityName,
+            repro: 'zfa cli $entityName',
+            at: DateTime.now().toUtc(),
+            generatorVersion: CliPlugin.pluginVersion,
+            input: {'entity': entityName},
+            files: [
+              GenerationReceiptFile(
+                path: absPath,
+                action: 'create',
+                sha256: crypto.sha256.convert(bytes).toString(),
+                bytes: bytes.length,
+                snapshot: null,
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      print('⚠️  Receipt not written: $e');
+    }
   }
 }
 
