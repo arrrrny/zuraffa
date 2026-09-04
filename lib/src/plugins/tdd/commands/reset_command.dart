@@ -34,6 +34,13 @@ import '../../../core/project/project_root.dart';
 
 class ResetCommand extends Command<void> {
   ResetCommand(this.plugin) {
+    argParser.addFlag(
+      'json',
+      help:
+          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'line (VISION §5, issue #964).',
+      negatable: false,
+    );
     argParser.addOption(
       'project',
       aliases: const ['project-root'],
@@ -42,6 +49,8 @@ class ResetCommand extends Command<void> {
           'the current working directory is used.',
     );
   }
+
+  bool _jsonMode = false;
 
   final TddPlugin plugin;
 
@@ -61,6 +70,7 @@ class ResetCommand extends Command<void> {
   @override
   Future<void> run() async {
     final rest = argResults?.rest ?? const <String>[];
+    _jsonMode = argResults?['json'] as bool? ?? false;
     if (rest.isEmpty) {
       usageException(
         'Feature name is required: zfa tdd reset <feature> '
@@ -161,6 +171,15 @@ class ResetCommand extends Command<void> {
     int droppedRecords = 0,
     int foreignKept = 0,
   }) {
+    if (!_jsonMode) {
+      print(
+        'reset: feature=$feature verdict=$verdict'
+        '${reason != null ? ' reason="$reason"' : ''}'
+        ' dropped_records=$droppedRecords'
+        ' foreign_files_kept=$foreignKept',
+      );
+      return;
+    }
     print(
       jsonEncode({
         'command': 'reset',

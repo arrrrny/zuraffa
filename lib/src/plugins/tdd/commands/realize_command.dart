@@ -69,6 +69,13 @@ class RealizeCommand extends Command<void> {
     RealizeFixtureDriver? fixtureDriver,
   }) : _suiteRunnerOverride = suiteRunner,
        _fixtureDriverOverride = fixtureDriver {
+    argParser.addFlag(
+      'json',
+      help:
+          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'line (VISION §5, issue #964).',
+      negatable: false,
+    );
     argParser.addOption(
       'adapter',
       help:
