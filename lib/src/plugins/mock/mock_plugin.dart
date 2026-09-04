@@ -10,6 +10,7 @@ import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/entity_analyzer.dart';
+import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 import '../method_append/builders/inject_builder.dart';
 import '../method_append/builders/method_append_builder.dart';
@@ -229,6 +230,27 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             );
             if (index != null) {
               files.add(index);
+            } else {
+              // Every binding was purged — regenerateIndex detects nothing
+              // and returns null, so the stale index (still importing the
+              // purged files) is rewritten as the empty skeleton instead of
+              // being left behind (#1037).
+              final indexPath = path.join(healer.simulationDir, 'index.dart');
+              if (await fs.exists(indexPath)) {
+                files.add(
+                  await FileUtils.writeFile(
+                    indexPath,
+                    SimulationBindingEmitter.builder.buildIndexFile(
+                      registrations: const [],
+                    ),
+                    'di_simulation_index',
+                    force: true,
+                    dryRun: options.dryRun,
+                    verbose: options.verbose,
+                    fileSystem: fs,
+                  ),
+                );
+              }
             }
           }
         } else {
