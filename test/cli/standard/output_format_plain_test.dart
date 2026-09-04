@@ -30,11 +30,14 @@ void main() {
       expect(out, isNot(contains('✅')));
     });
 
-    test('U3.4: plain output is byte-identical across runs (no timestamps, no randomness)', () {
-      final a = fmt.plain(const ErrorResult(code: 'x', message: 'm'));
-      final b = fmt.plain(const ErrorResult(code: 'x', message: 'm'));
-      expect(a, equals(b));
-    });
+    test(
+      'U3.4: plain output is byte-identical across runs (no timestamps, no randomness)',
+      () {
+        final a = fmt.plain(const ErrorResult(code: 'x', message: 'm'));
+        final b = fmt.plain(const ErrorResult(code: 'x', message: 'm'));
+        expect(a, equals(b));
+      },
+    );
 
     test('U3.5: plain error output contains code and message text', () {
       final out = fmt.plain(

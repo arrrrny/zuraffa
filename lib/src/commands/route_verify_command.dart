@@ -88,19 +88,15 @@ class RouteVerifyCommand extends Command<void> {
     } else if (plain) {
       stdout.writeln('routes: ${table.routes.length}');
       stdout.writeln('drift: ${drifts.length}');
-      stdout.write(_renderDrifts(
-        drifts,
-        driftPrefix: 'DRIFT',
-        sourceIndent: '  ',
-      ));
+      stdout.write(
+        _renderDrifts(drifts, driftPrefix: 'DRIFT', sourceIndent: '  '),
+      );
     } else {
       stdout.writeln('routes: ${table.routes.length}');
       stdout.writeln('drift: ${drifts.length}');
-      stdout.write(_renderDrifts(
-        drifts,
-        driftPrefix: '⚠️  DRIFT',
-        sourceIndent: '    ',
-      ));
+      stdout.write(
+        _renderDrifts(drifts, driftPrefix: '⚠️  DRIFT', sourceIndent: '    '),
+      );
     }
 
     if (drifts.isNotEmpty && strict) {
@@ -121,7 +117,9 @@ class RouteVerifyCommand extends Command<void> {
     for (final d in drifts) {
       buf.writeln('$driftPrefix ${d.path}');
       for (final s in d.sources) {
-        buf.writeln('$sourceIndent${s.source.name}: ${s.file}:${s.line} (${s.name})');
+        buf.writeln(
+          '$sourceIndent${s.source.name}: ${s.file}:${s.line} (${s.name})',
+        );
       }
     }
     return buf.toString();
