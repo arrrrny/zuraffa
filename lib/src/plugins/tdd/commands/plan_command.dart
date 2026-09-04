@@ -16,7 +16,9 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../models/lane.dart';
 import '../models/routing.dart';
+import '../services/lane_split.dart';
 import '../services/routing_resolver.dart';
 import '../services/requirement_scan.dart';
 import '../services/spec_parser.dart';
@@ -195,7 +197,21 @@ class PlanCommand extends Command<void> {
     final outFile = File('${outDir.path}/test-list.md');
     final existing = <String, Behavior>{};
     if (await outFile.exists()) {
-      final raw = await outFile.readAsString();
+      var raw = await outFile.readAsString();
+      // Issue #1000: a prior lane split carries its rows in the lane
+      // plans the meta-index points at — reconcile against those so
+      // re-planning a split feature keeps its id assignment.
+      final split = LaneSplitFiles.find(raw);
+      if (split != null) {
+        final combined = StringBuffer();
+        for (final name in [split.engine, split.skin]) {
+          final laneFile = File(p.join(outDir.path, name));
+          if (await laneFile.exists()) {
+            combined.writeln(await laneFile.readAsString());
+          }
+        }
+        raw = combined.toString();
+      }
       for (final line in raw.split('\n')) {
         final m = RegExp(
           r'^\|\s*([A|U]\d+)\s*\|.*?\|\s*([A-Z0-9\-, ]+)\s*\|',
@@ -308,6 +324,27 @@ class PlanCommand extends Command<void> {
       return;
     }
 
+    // Issue #1000: lane resolution. A spec declaring `## Lanes` plans
+    // into the split files (04-ENGINE.md / 04-SKIN.md / 04-CONTRACT.md
+    // + the meta-index); the lane guards refuse BEFORE any artifact —
+    // an incomplete split never leaves a half-written lane plan.
+    final lanes = const SpecParser().parseLanes(specMd);
+    final laneResult = lanes.isEmpty
+        ? null
+        : _resolveLanes(lanes, expressible, preservedFfi);
+    if (laneResult != null && laneResult.refusals.isNotEmpty) {
+      print(
+        'zfa tdd plan: lane contract FAILED — ${laneResult.refusals.length} '
+        'lane violation(s) (spec: $specPath). No test list was written; '
+        'fix the ## Lanes section and re-run `zfa tdd plan`.',
+      );
+      for (final refusal in laneResult.refusals) {
+        print('  $refusal');
+      }
+      exitCode = 2;
+      return;
+    }
+
     await outDir.create(recursive: true);
     // The completeness proof (bug #846): behavior <-> FR/AC matrix with
     // the spec-contract hash, re-checked by verify/corpus for drift.
@@ -319,6 +356,95 @@ class PlanCommand extends Command<void> {
       behaviors: reconciled,
     );
     await File(p.join(outDir.path, 'traceability.md')).writeAsString(matrix);
+
+    if (laneResult != null) {
+      // Issue #1000: the lane split — engine plan + skin plan + the
+      // engine/skin contract, with the legacy filename demoted to the
+      // meta-index. TestListReader resolves the rows from the split
+      // files, so gen/make/run semantics are unchanged.
+      final engineRows = <LaneRow>[
+        for (final b in expressible)
+          ..._derivedLaneRows(b, laneResult, declarations.persistence),
+        ..._ffiLaneRows(preservedFfi, laneResult),
+        ...laneResult.handRows,
+      ].where((r) => r.lane.destinedForEngine).toList();
+      final skinRows = <LaneRow>[
+        for (final b in expressible)
+          ..._derivedLaneRows(b, laneResult, declarations.persistence),
+        ..._ffiLaneRows(preservedFfi, laneResult),
+        ...laneResult.handRows,
+      ].where((r) => r.lane.destinedForSkin).toList();
+      final adaptiveSlots = lanes
+          .expand((l) => l.adaptiveSlots)
+          .toSet()
+          .toList();
+
+      final engineProvenance = <String, List<String>>{};
+      final skinProvenance = <String, List<String>>{};
+      provenance.forEach((id, lines) {
+        // Ffi rows and any unclassified id default engine-side (the
+        // native boundary + routing bookkeeping are engine-owned).
+        final lane = laneResult.classification[id] ?? Lane.core;
+        if (lane.destinedForEngine) engineProvenance[id] = lines;
+        if (lane.destinedForSkin) skinProvenance[id] = lines;
+      });
+
+      final engineMd = renderEnginePlan(
+        feature: feature,
+        rows: engineRows,
+        entities: entities,
+        dependencies: dependencies,
+        layerContracts: layerContracts,
+        provenance: engineProvenance,
+      );
+      final skinMd = renderSkinPlan(
+        feature: feature,
+        rows: skinRows,
+        adaptiveSlots: adaptiveSlots,
+        provenance: skinProvenance,
+      );
+      final contractMd = renderContractPlan(
+        feature: feature,
+        adaptiveSlots: adaptiveSlots,
+        bothRows: engineRows.where((r) => r.lane == Lane.both).toList(),
+      );
+      final metaMd = renderMetaIndex(
+        feature: feature,
+        lanes: lanes,
+        classification: laneResult.classification,
+      );
+      await File(
+        p.join(outDir.path, LaneSplitFiles.engine),
+      ).writeAsString(engineMd);
+      await File(
+        p.join(outDir.path, LaneSplitFiles.skin),
+      ).writeAsString(skinMd);
+      await File(
+        p.join(outDir.path, LaneSplitFiles.contract),
+      ).writeAsString(contractMd);
+      await outFile.writeAsString(metaMd);
+      for (final line in provenance.values.expand((l) => l)) {
+        print('   $line');
+      }
+      stdout.writeln(
+        'zfa tdd plan: wrote ${p.join(outDir.path, LaneSplitFiles.engine)} '
+        '(${engineRows.where((r) => r.lane == Lane.core).length} CORE '
+        'behaviors), ${p.join(outDir.path, LaneSplitFiles.skin)} '
+        '(${skinRows.where((r) => r.lane == Lane.skin).length} SKIN '
+        'behaviors), ${p.join(outDir.path, LaneSplitFiles.contract)}; '
+        'test-list.md is the lane meta-index '
+        '(${laneResult.classification.length} behaviors, '
+        '${engineRows.where((r) => r.lane == Lane.both).length} BOTH).',
+      );
+      if (entities.isNotEmpty) {
+        stdout.writeln(
+          'zfa tdd plan: extracted ${entities.length} Key Entity('
+          'ies): ${entities.map((e) => e.name).join(', ')}.',
+        );
+      }
+      return;
+    }
+
     await outFile.writeAsString(
       _render(
         feature,
@@ -645,4 +771,188 @@ class PlanCommand extends Command<void> {
   ) => persistenceDeclarations.containsKey(b.id)
       ? PersistenceMarker.mark(b.description)
       : b.description;
+
+  /// The lane resolution result (issue #1000): every behavior's lane,
+  /// the hand-declared lane rows (ids the declarations carry but the
+  /// spec prose does not derive), and the refusals (unknown lane names,
+  /// undeclared derived behaviors, noFlutter violations).
+  ///
+  /// The refusals are surfaced by the caller BEFORE any artifact is
+  /// written — an incomplete split never leaves a half-written lane
+  /// plan.
+  static const _flutterReference =
+      'package:fl'
+      'utter';
+
+  _LaneResult _resolveLanes(
+    List<LaneDeclaration> lanes,
+    List<Behavior> expressible,
+    List<BehaviorRow> preservedFfi,
+  ) {
+    final classification = <String, Lane>{};
+    final annotations = <String, String>{};
+    final refusals = <String>[];
+
+    // Unknown lane names: the grammar is CORE/SKIN/BOTH.
+    for (final lane in lanes) {
+      final parsed = Lane.parse(lane.lane);
+      if (parsed == null) {
+        refusals.add(
+          'lane "${lane.lane}" is not a known lane '
+          '(CORE, SKIN, BOTH).',
+        );
+        continue;
+      }
+      for (final id in lane.behaviorIds) {
+        // A later declaration for the same id wins (the last word is
+        // the author's current intent).
+        classification[id] = parsed;
+        final note = lane.annotations[id];
+        if (note != null) annotations[id] = note;
+      }
+    }
+
+    // Undeclared derived behaviors: declarations win, gaps refuse —
+    // never a silent default.
+    final declaredHandIds = classification.keys.toSet();
+    for (final b in expressible) {
+      final lane = classification[b.id];
+      if (lane == null) {
+        refusals.add(
+          'behavior "${b.id}" (${b.sourceCriterion}: '
+          '"${b.description}") is declared in NO lane — every '
+          'spec-derived behavior must appear in a `behaviors:` list.',
+        );
+        continue;
+      }
+      // noFlutter guard (issue #1000): a behavior destined for the
+      // ENGINE plan may not reference Flutter — its row text lands in
+      // 04-ENGINE.md, which is pure Dart by construction.
+      final rowText = '${b.description} ${b.sourceCriterion}';
+      if (lane.destinedForEngine && rowText.contains(_flutterReference)) {
+        refusals.add(
+          'noFlutter guard: behavior "${b.id}" (${b.sourceCriterion}) is '
+          'lane ${lane.label} but references $_flutterReference — the '
+          'engine lane is pure Dart. --> fix: move the behavior to the '
+          'SKIN lane or drop the Flutter reference.',
+        );
+      }
+      // A Flutter-only subject kind cannot be CORE: its gen pair
+      // (testWidgets + view builder) imports Flutter.
+      if (lane == Lane.core &&
+          (b.kind == BehaviorKind.widget || b.kind == BehaviorKind.theme)) {
+        refusals.add(
+          'noFlutter guard: behavior "${b.id}" (${b.sourceCriterion}) is '
+          'routed ${b.kind.name}-kind (a Flutter-only subject whose gen '
+          'pair imports Flutter) but declared CORE. --> fix: declare it '
+          'SKIN (or BOTH), or add `**Type**: acceptance` to the scenario.',
+        );
+      }
+    }
+
+    // Ffi rows default engine-side (the native boundary is engine
+    // territory) unless a lane declares otherwise.
+    for (final row in preservedFfi) {
+      classification.putIfAbsent(row.id, () => Lane.core);
+    }
+
+    // Hand rows: ids the declarations carry but neither the spec prose
+    // nor the prior list derives — the lane's own reservation (the
+    // `W1-W4` skin slots), described by the lane annotation when the
+    // author wrote one.
+    final handRows = <LaneRow>[];
+    final derivedIds = {
+      ...expressible.map((b) => b.id),
+      ...preservedFfi.map((r) => r.id),
+    };
+    for (final id in declaredHandIds.difference(derivedIds).toList()..sort()) {
+      final lane = classification[id]!;
+      final note = annotations[id];
+      handRows.add(
+        LaneRow(
+          id: id,
+          description: note == null || note.isEmpty
+              ? '${lane.label.toLowerCase()} behavior declared in '
+                    '`## Lanes`'
+              : note,
+          traces: 'LANE:${lane.label}',
+          state: 'PENDING',
+          // Hand rows take the lane's natural section: SKIN/BOTH hand
+          // rows are widget-kind skin slots; CORE hand rows are
+          // engine units; (a BOTH hand row renders under the widget
+          // section — the seam's skin half is the visible half).
+          kind: lane == Lane.core ? BehaviorKind.unit : BehaviorKind.widget,
+          lane: lane,
+        ),
+      );
+      classification[id] = lane;
+    }
+
+    return _LaneResult(
+      classification: classification,
+      handRows: handRows,
+      refusals: refusals,
+    );
+  }
+
+  /// The engine/skin plan row pair for a spec-derived behavior (issue
+  /// #1000): CORE rows carry the persistence mark exactly like the
+  /// legacy single-file plan; BOTH rows appear in both files (the
+  /// reader dedupes by id, engine copy first).
+  List<LaneRow> _derivedLaneRows(
+    Behavior b,
+    _LaneResult laneResult,
+    Map<String, PersistenceDeclaration> persistenceDeclarations,
+  ) {
+    final lane = laneResult.classification[b.id];
+    if (lane == null) return const [];
+    return [
+      LaneRow(
+        id: b.id,
+        description: _marked(b, persistenceDeclarations),
+        traces: b.sourceCriterion,
+        state: 'PENDING',
+        kind: b.kind,
+        lane: lane,
+      ),
+    ];
+  }
+
+  /// The preserved ffi rows as lane rows (default CORE — the native
+  /// boundary is engine territory).
+  List<LaneRow> _ffiLaneRows(
+    List<BehaviorRow> preservedFfi,
+    _LaneResult laneResult,
+  ) => [
+    for (final row in preservedFfi)
+      LaneRow(
+        id: row.id,
+        description: row.description,
+        traces: row.traces,
+        state: row.state.name.toUpperCase(),
+        kind: row.kind,
+        lane: laneResult.classification[row.id] ?? Lane.core,
+      ),
+  ];
+}
+
+/// The plan-time lane resolution (issue #1000) — see
+/// [PlanCommand._resolveLanes].
+class _LaneResult {
+  const _LaneResult({
+    required this.classification,
+    required this.handRows,
+    required this.refusals,
+  });
+
+  /// Every behavior id -> its lane (derived + ffi + hand rows).
+  final Map<String, Lane> classification;
+
+  /// The hand-declared lane rows (ids the `## Lanes` section reserves
+  /// that the spec prose does not derive).
+  final List<LaneRow> handRows;
+
+  /// The lane contract violations (unknown lane, undeclared behavior,
+  /// noFlutter) — non-empty refuses the plan (exit 2, no artifacts).
+  final List<String> refusals;
 }
