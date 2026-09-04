@@ -67,6 +67,13 @@ class VerifyRedResolutionError implements Exception {
 class VerifyRedCommand extends Command<void> {
   VerifyRedCommand(this.plugin) {
     argParser.addFlag(
+      'json',
+      help:
+          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'line (VISION §5, issue #964).',
+      negatable: false,
+    );
+    argParser.addFlag(
       'all',
       negatable: false,
       help:

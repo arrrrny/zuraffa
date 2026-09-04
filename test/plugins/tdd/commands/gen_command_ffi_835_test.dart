@@ -20,6 +20,7 @@ void main() {
   List<String> genArgs(String id) => [
     'tdd',
     'gen',
+    '--json',
     '--project',
     tmpDir.path,
     '--feature',
