@@ -200,8 +200,10 @@ dependencies:
 ''');
 
           // Resolve dependencies so dart analyze can resolve package imports.
-          await Process.run('dart', ['pub', 'get'],
-              workingDirectory: tmpDir.path);
+          await Process.run('dart', [
+            'pub',
+            'get',
+          ], workingDirectory: tmpDir.path);
 
           // Point FileUtils.writeFile into the temp dir.
           Directory.current = tmpDir.path;
@@ -230,11 +232,10 @@ dependencies:
           );
 
           // The generated file must pass dart analyze (compile gate).
-          final analyzeResult = await Process.run(
-            'dart',
-            ['analyze', expectedPath],
-            workingDirectory: tmpDir.path,
-          );
+          final analyzeResult = await Process.run('dart', [
+            'analyze',
+            expectedPath,
+          ], workingDirectory: tmpDir.path);
           expect(
             analyzeResult.exitCode,
             0,

@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 env:
-  flutter_version: "3.41.x"
+  flutter_version: "3.47.x"
   java_version: "21.x"
   dart_sdk_version: ">=3.0.0 <4.0.0"
 
@@ -22,7 +22,7 @@ jobs:
       - name: Configuring Dart environment
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: "3.13.1"
+          sdk: "3.13.2"
       - name: "Get dependencies"
         run: dart pub get --no-example
       - name: "Dart Analyze (pure Dart, no Flutter)"
@@ -50,7 +50,7 @@ jobs:
       - name: Configuring Dart environment
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: "3.13.1"
+          sdk: "3.13.2"
       - name: "Get dependencies"
         run: dart pub get --no-example
       - name: "Proof smoke (receipts + proof check gate)"
@@ -93,7 +93,7 @@ jobs:
       - name: Configuring Dart environment
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: "3.13.1"
+          sdk: "3.13.2"
       - name: "Get dependencies"
         # Required so dart format can resolve analysis_options.yaml's
         # `package:lints/recommended.yaml` include; without a package
@@ -154,7 +154,7 @@ jobs:
       - name: Configuring Dart environment
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: "3.13.1"
+          sdk: "3.13.2"
       - name: "Get dependencies"
         run: dart pub get --no-example
       - name: "FFI golden fixture lane (tag-scoped)"

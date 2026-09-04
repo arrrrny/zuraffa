@@ -188,9 +188,7 @@ class _CliGeneratorCommand extends Command<void> {
       final absFile = File(file.path);
       if (absFile.existsSync()) {
         final bytes = absFile.readAsBytesSync();
-        await ReceiptStore(
-          projectRoot: Directory.current.path,
-        ).save(
+        await ReceiptStore(projectRoot: Directory.current.path).save(
           GenerationReceipt(
             command: 'cli generate',
             target: entityName,

@@ -45,7 +45,7 @@ jobs:
       - name: Configuring Dart environment
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: "3.13.1"
+          sdk: "3.13.2"
 
       - name: "Get dependencies (head)"
         run: dart pub get --no-example
