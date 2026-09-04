@@ -19,6 +19,7 @@ import '../method_append/capabilities/method_capability.dart';
 import '../di/builders/simulation_binding_builder.dart';
 import 'builders/mock_builder.dart';
 import 'capabilities/create_mock_capability.dart';
+import 'capabilities/certify_mock_capability.dart';
 import 'capabilities/dependency_mock_capability.dart';
 import 'capabilities/json_mock_capability.dart';
 
@@ -54,6 +55,7 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   @override
   List<ZuraffaCapability> get capabilities => [
     CreateMockCapability(this),
+    CertifyMockCapability(this),
     DependencyMockCapability(this),
     JsonMockCapability(this),
     MethodCapability(

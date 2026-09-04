@@ -20,6 +20,7 @@ import '../plugins/tdd/commands/refactor_command.dart';
 import '../plugins/tdd/commands/referee_command.dart';
 import '../plugins/tdd/commands/reset_command.dart';
 import '../plugins/tdd/commands/run_command.dart';
+import '../plugins/tdd/commands/run_engine_command.dart';
 import '../plugins/tdd/commands/verify_command.dart';
 import '../plugins/tdd/commands/verify_red_command.dart';
 import '../plugins/tdd/commands/view_command.dart';
@@ -40,6 +41,7 @@ class TddCommand extends Command<void> {
     addSubcommand(ViewCommand(plugin));
     addSubcommand(RefactorCommand(plugin));
     addSubcommand(RunCommand(plugin));
+    addSubcommand(RunEngineCommand(plugin));
     addSubcommand(ReplayCommand(plugin));
     addSubcommand(VerifyCommand(plugin));
     addSubcommand(MigratePathsCommand(plugin));
