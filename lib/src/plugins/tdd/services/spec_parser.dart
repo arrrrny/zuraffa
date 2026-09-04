@@ -275,7 +275,13 @@ class SpecParser {
   /// A spec declaring anything else — or nothing — is contract drift:
   /// plan exits 3 before parsing, so an unpinned spec can never drive a
   /// silently-wrong plan.
-  static const Set<String> knownTemplateVersions = {'zuraffa-1.0'};
+  static const Set<String> knownTemplateVersions = {latestTemplateVersion};
+
+  /// The latest template version whose grammar this parser implements.
+  /// The `--migrate-spec` migration path (issue #990) pins a migrated
+  /// spec to this version; the gate contract itself (knownTemplateVersions,
+  /// the drift exit) is unchanged.
+  static const String latestTemplateVersion = 'zuraffa-1.0';
 
   /// External dependency names the template ecosystem knows (bug #919):
   /// a requirement statement may reference one of these only when the
