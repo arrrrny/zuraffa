@@ -65,6 +65,7 @@ import 'package:path/path.dart' as p;
 import '../services/artifact_registry.dart';
 import '../services/behavior_test_writer.dart' show BehaviorTestWriter;
 import '../services/finder_taxonomy.dart';
+import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
 import '../services/test_list_reader.dart';
 import '../tdd_plugin.dart';
@@ -280,6 +281,55 @@ class ViewCommand extends Command<void> {
       print('   contract: ${components.join(', ')}');
     }
 
+    // Declared source 3 — the i18n key contract (issue #965): the key is
+    // the contract, the literal is the anchor. Anchored scenario literals
+    // render the slang accessor `t.<key>`; missing declared keys are
+    // scaffolded into lib/i18n so the host's localization gate passes
+    // mechanically. A malformed `key:` token refuses BEFORE any write.
+    final I18nKeyTable i18nKeys;
+    try {
+      i18nKeys = await _loadI18nKeys(featureDir);
+    } on I18nKeyContractParseException catch (error) {
+      print('zfa tdd view: ${error.message}');
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: ViewOutcome.runnerError,
+        feature: resolved.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+    final keyedAnalysis = FinderTaxonomy.resolveKeys(analysis, i18nKeys);
+    final keyedSurfaces = keyedAnalysis.assertions
+        .where((a) => a.kind == LiteralKind.key)
+        .toList(growable: false);
+    if (i18nKeys.isEmpty) {
+      print('   i18n: no keys declared — EN-literal fallback (issue #965)');
+    } else if (keyedSurfaces.isEmpty) {
+      print(
+        '   i18n: ${i18nKeys.contracts.length} key(s) declared, none '
+        'anchored to this behavior\'s literals',
+      );
+    } else {
+      print(
+        '   i18n: ${keyedSurfaces.length} keyed surface(s) '
+        '(${keyedSurfaces.map((a) => a.literal).join(', ')})',
+      );
+    }
+    // Scaffold missing declared keys (merge; existing values never
+    // clobbered) even when THIS behavior's literals are unkeyed — the
+    // localization gate needs every declared key present.
+    if (i18nKeys.isNotEmpty) {
+      final scaffolded = I18nScaffold.ensure(
+        I18nScaffold.baseFilePath(normalizedCwd),
+        i18nKeys.contracts,
+      );
+      print(
+        '   scaffold: lib/i18n/strings.i18n.json '
+        '(${scaffolded ? 'missing keys scaffolded' : 'already complete'})',
+      );
+    }
+
     // -------------------------------------------------------------
     // 4. Emit the deterministic minimal view (issue #939 remediation).
     // -------------------------------------------------------------
@@ -290,7 +340,7 @@ class ViewCommand extends Command<void> {
       description: description,
       functionName: functionName,
       viewClass: viewClass,
-      analysis: analysis,
+      analysis: keyedAnalysis,
       components: components,
     );
     // The gen'd stub carries a doc-comment block immediately above the
@@ -310,7 +360,19 @@ class ViewCommand extends Command<void> {
       }
     }
     final updated = raw.replaceRange(blockStart, stub.end, scaffolded);
-    await subjectFile.writeAsString(updated);
+    // Issue #965: keyed surfaces need the host's generated slang accessor.
+    // The import lands after the last existing top-level import (or after
+    // `library;`) — exactly once, only when a keyed surface is emitted.
+    final updatedWithImport = keyedSurfaces.isEmpty
+        ? updated
+        : _withI18nImport(
+            updated,
+            I18nScaffold.accessorImport(
+              projectRoot: normalizedCwd,
+              fromDir: p.dirname(subjectPath),
+            ),
+          );
+    await subjectFile.writeAsString(updatedWithImport);
     // #807 receipt: record the scaffolded file for the provenance
     // ledger so `zfa proof check` recognises it.
     try {
@@ -347,9 +409,11 @@ class ViewCommand extends Command<void> {
   );
 
   /// The declared component tokens of the feature's Presentation layer
-  /// contract, de-duplicated order-preservingly. Empty when the feature's
-  /// test list declares no `Presentation` section (the view then composes
-  /// the scenario assertions only — still deterministic).
+  /// contract, de-duplicated order-preservingly. `key:` tokens (issue
+  /// #965) are i18n SURFACES, not components — they never render as
+  /// labeled stand-ins. Empty when the feature's test list declares no
+  /// `Presentation` section (the view then composes the scenario
+  /// assertions only — still deterministic).
   static Future<List<String>> _presentationComponents(String featureDir) async {
     try {
       final contracts = await TestListReader(featureDir).readLayerContracts();
@@ -359,6 +423,7 @@ class ViewCommand extends Command<void> {
         for (final method in contract.methods) {
           final token = method.trim();
           if (token.isEmpty) continue;
+          if (I18nKeyContract.isKeyToken(token)) continue;
           if (!tokens.contains(token)) tokens.add(token);
         }
       }
@@ -370,6 +435,42 @@ class ViewCommand extends Command<void> {
       // default; other steps re-surface malformation honestly).
       return const [];
     }
+  }
+
+  /// The declared i18n key table of the feature's Presentation layer
+  /// contract (issue #965). A malformed `key:` token THROWS — the caller
+  /// refuses before any write (errors-are-an-API); an unreadable list
+  /// degrades to the empty table (the same fail-open note discipline as
+  /// the component tokens above).
+  static Future<I18nKeyTable> _loadI18nKeys(String featureDir) async {
+    try {
+      final contracts = await TestListReader(featureDir).readLayerContracts();
+      return I18nKeyTable.fromLayerContracts(contracts);
+    } on TestListReadException {
+      return I18nKeyTable.empty;
+    }
+  }
+
+  /// Insert `import '<uri>';` after the last top-level import of [source]
+  /// (or after `library;` when no imports exist). Idempotent.
+  static String _withI18nImport(String source, String uri) {
+    if (source.contains("import '$uri';")) return source;
+    final importLine = "import '$uri';";
+    final imports = RegExp(
+      r'^[ \t]*import\b.*;[ \t]*$',
+      multiLine: true,
+    ).allMatches(source).toList();
+    if (imports.isNotEmpty) {
+      final last = imports.last;
+      return source.replaceRange(last.end, last.end, '\n$importLine');
+    }
+    final libIndex = source.indexOf('library;');
+    if (libIndex >= 0) {
+      final lineEnd = source.indexOf('\n', libIndex);
+      final at = lineEnd >= 0 ? lineEnd : source.length;
+      return source.replaceRange(at, at, '\n$importLine');
+    }
+    return '$importLine\n$source';
   }
 
   /// The deterministic view class name for a behavior id: the id's
@@ -417,12 +518,22 @@ class ViewCommand extends Command<void> {
     final children = <String>[
       for (final assertion in analysis.assertions)
         if (assertion.assertionClass == ScenarioAssertionClass.presence)
-          "            Text('${BehaviorTestWriter.escapeDartString(assertion.literal)}'),"
+          // Issue #965: keyed surfaces render the slang accessor — code
+          // identity, never a quoted EN literal (the host's localization
+          // gate hard-fails quoted user-facing strings).
+          assertion.kind == LiteralKind.key
+              ? '            Text(${assertion.literal}),'
+              : "            Text('${BehaviorTestWriter.escapeDartString(assertion.literal)}'),"
         else if (assertion.assertionClass != ScenarioAssertionClass.absence)
-          '            ElevatedButton(\n'
-              '              onPressed: () {},\n'
-              "              child: Text('${BehaviorTestWriter.escapeDartString(assertion.literal)}'),\n"
-              '            ),',
+          assertion.kind == LiteralKind.key
+              ? '            ElevatedButton(\n'
+                  '              onPressed: () {},\n'
+                  '              child: Text(${assertion.literal}),\n'
+                  '            ),'
+              : '            ElevatedButton(\n'
+                  '              onPressed: () {},\n'
+                  "              child: Text('${BehaviorTestWriter.escapeDartString(assertion.literal)}'),\n"
+                  '            ),',
       for (final component in components) _standIn(component),
     ];
     if (children.isEmpty) {

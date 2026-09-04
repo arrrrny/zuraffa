@@ -157,6 +157,8 @@ class I18nKeyTable {
 
   bool get isEmpty => contracts.isEmpty;
 
+  bool get isNotEmpty => contracts.isNotEmpty;
+
   /// Extract from Presentation layer-contract rows (issue #965): `key:`
   /// tokens among a row's declared methods. Domain/Data rows never
   /// contribute. A malformed token throws with the row's interface named;
@@ -248,6 +250,10 @@ abstract final class I18nScaffold {
 
   /// The generated accessor the generated code imports.
   static const String accessorFile = 'strings.g.dart';
+
+  /// The i18n directory INSIDE the package (package URIs are lib-rooted:
+  /// `package:<name>/i18n/strings.g.dart`).
+  static const String _packageI18nDir = 'i18n';
 
   /// The base-locale source path for [projectRoot].
   static String baseFilePath(String projectRoot) =>
@@ -354,8 +360,11 @@ abstract final class I18nScaffold {
     var cursor = node;
     for (var i = 0; i < segments.length - 1; i++) {
       final next = cursor[segments[i]];
-      if (next is Map<String, Object>) {
-        cursor = next;
+      // jsonDecode yields Map<String, dynamic> — never assume the type
+      // arguments; cast-view and write through so sibling subtrees
+      // (pre-existing translations) survive the merge untouched.
+      if (next is Map) {
+        cursor = next.cast<String, Object>();
         continue;
       }
       final fresh = <String, Object>{};
@@ -381,7 +390,7 @@ abstract final class I18nScaffold {
         if (doc is YamlMap && doc['name'] is String) {
           final name = doc['name'] as String;
           if (name.isNotEmpty) {
-            return 'package:$name/$i18nDir/$accessorFile';
+            return 'package:$name/$_packageI18nDir/$accessorFile';
           }
         }
       } on YamlException {
