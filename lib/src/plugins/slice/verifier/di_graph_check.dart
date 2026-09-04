@@ -9,6 +9,8 @@
 /// seam); the bootstrap smoke pattern is the proven shape.
 library;
 
+import '../generators/_pascal_case.dart';
+
 /// One declared DI binding of the feature.
 class DiBindingDecl {
   final String token;
@@ -54,7 +56,7 @@ abstract final class DiGraphCheck {
             "    test('${binding.token} resolves (flavor: $flavor)', () {",
           )
           ..writeln('      final graph = DiGraph(flavor: \'$flavor\');')
-          ..writeln("      graph.register${_pascal(feature)}Bindings();")
+          ..writeln("      graph.register${pascalCase(feature)}Bindings();")
           ..writeln(
             "      expect(graph.resolve('${binding.token}'), isNotNull);",
           )
@@ -86,13 +88,3 @@ abstract final class DiGraphCheck {
   }
 }
 
-String _pascal(String raw) {
-  final parts = raw
-      .split(RegExp(r'[^A-Za-z0-9]+'))
-      .where((p) => p.isNotEmpty)
-      .toList();
-  if (parts.isEmpty) return raw;
-  return parts
-      .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
-      .join();
-}

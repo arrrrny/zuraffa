@@ -10,6 +10,7 @@ library;
 
 import 'dart:convert';
 
+import '../merger/host_baseline.dart';
 import 'di_graph_check.dart';
 import 'route_barrel.dart';
 
@@ -225,7 +226,7 @@ abstract final class ConformanceGate {
     required List<String> baselineFailures,
     required List<String> currentFailures,
   }) {
-    final newFailures = HostBaselineDiff.newFailures(
+    final newFailures = HostBaseline.newFailures(
       baseline: baselineFailures,
       current: currentFailures,
     );
@@ -241,18 +242,6 @@ abstract final class ConformanceGate {
           .where((f) => !newFailures.contains(f))
           .toList(),
     );
-  }
-}
-
-/// The suite-baseline diff (delegates to the host baseline service).
-class HostBaselineDiff {
-  /// Only NEW failures — the merge is never blamed for prior reds.
-  static List<String> newFailures({
-    required List<String> baseline,
-    required List<String> current,
-  }) {
-    final prior = baseline.toSet();
-    return current.where((f) => !prior.contains(f)).toList()..sort();
   }
 }
 
