@@ -134,9 +134,14 @@ class CreateMockCapability implements ZuraffaCapability {
     // Issue #770: semantic default for direct execute() callers that omit
     // the key — same canonical set as the schema default and
     // MockPlugin.generateWithContext (#294). Explicit values are honored.
+    // Issue #1027: service mode has no entity methods — an empty default
+    // lets the provider builder conform to the declared service interface
+    // (MethodExtractor) instead of crashing on the entity-CRUD set.
     final methods =
         (args['methods'] as List?)?.cast<String>() ??
-        const ['get', 'update', 'toggle'];
+        (service != null
+            ? const <String>[]
+            : const ['get', 'update', 'toggle']);
 
     final config = GeneratorConfig(
       name: name,

@@ -108,9 +108,12 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       // (['get', 'update', 'toggle']) so `--preset=crud --with=mock`
       // generates a fully-implemented mock datasource instead of an
       // empty class that fails `implements` with `non_abstract_class_inherits_abstract_member`.
+      // Issue #1027: service mode conforms to the declared service
+      // interface instead — the entity-CRUD default would crash there.
       methods:
           context.data['methods']?.cast<String>().toList() ??
-          (context.get<bool>('no-entity') == true
+          (context.get<bool>('no-entity') == true ||
+                  context.data['service'] != null
               ? []
               : ['get', 'update', 'toggle']),
       domain: context.data['domain'],

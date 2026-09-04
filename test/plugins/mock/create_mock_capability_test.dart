@@ -187,4 +187,62 @@ void main() {
       }
     });
   });
+
+  group('issue #1027 — service-mode mock conforms to the service interface', () {
+    test(
+      'capability: --service with no explicit methods parses the interface '
+      'and generates a conforming provider (no entity-methods crash)',
+      () async {
+        // Scaffold the internal service interface (production shape:
+        // AuthService.login(AuthRequest) -> User).
+        final serviceDir = Directory('$outputDir/domain/services');
+        serviceDir.createSync(recursive: true);
+        File('${serviceDir.path}/auth_service.dart').writeAsStringSync('''
+abstract class AuthService {
+  Future<User> login(AuthRequest params);
+}
+''');
+
+        // No 'methods' key — the exact CLI shape of
+        // `zfa mock create --name Auth --service Auth ...`. Before the fix
+        // this crashed with ArgumentError('Unknown entity method: toggle')
+        // because the entity-CRUD default hijacked the service path.
+        final result = await capability.execute({
+          'name': 'Auth',
+          'service': 'Auth',
+          'domain': 'auth',
+          'params': 'AuthRequest',
+          'returns': 'User',
+        });
+
+        expect(
+          result.success,
+          isTrue,
+          reason: 'service mode must not crash on the entity-methods default',
+        );
+
+        final providerPath = result.files
+            .where((p) => p.contains('data/providers/'))
+            .firstOrNull;
+        expect(providerPath, isNotNull, reason: 'a mock provider is generated');
+        final content = File(providerPath!).readAsStringSync();
+
+        expect(
+          content.contains('implements AuthService'),
+          isTrue,
+          reason: 'the provider implements the declared service interface',
+        );
+        expect(
+          content.contains('login'),
+          isTrue,
+          reason: 'the provider conforms to the interface login method '
+              '(parsed from the interface, not the entity-CRUD default)',
+        );
+        expect(
+          content.contains("Unknown entity method"),
+          isFalse,
+        );
+      },
+    );
+  });
 }
