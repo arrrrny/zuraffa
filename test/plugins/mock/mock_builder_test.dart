@@ -883,4 +883,47 @@ class Product {
       isFalse,
     );
   });
+
+  test('issue #1037: stale index referencing an already-absent enum binding is rewritten', () async {
+    final enumDir = Directory(
+      '$outputDir/domain/entities/enums',
+    );
+    await enumDir.create(recursive: true);
+    await File(
+      '${enumDir.path}/authentication_method.dart',
+    ).writeAsString('enum AuthenticationMethod { anonymous, google, apple }');
+
+    // A previous heal already removed the binding; only the stale index
+    // (still importing it) survives. Nothing to purge this run — the
+    // index must still be rewritten.
+    final indexFile = File('$outputDir/di/simulation/index.dart');
+    await indexFile.create(recursive: true);
+    await indexFile.writeAsString(
+      '// GENERATED - DO NOT EDIT\n'
+      "import 'authentication_method_simulation_datasource_di.dart';\n",
+    );
+
+    final plugin = MockPlugin(
+      outputDir: outputDir,
+      options: const GeneratorOptions(dryRun: false, force: true),
+    );
+    await plugin.generate(
+      GeneratorConfig(
+        name: 'AuthenticationMethod',
+        methods: const ['get', 'update', 'toggle'],
+        generateMock: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    expect(indexFile.existsSync(), isTrue);
+    expect(
+      indexFile.readAsStringSync().contains('authentication_method'),
+      isFalse,
+    );
+    expect(
+      indexFile.readAsStringSync().contains('registerSimulationBindings'),
+      isTrue,
+    );
+  });
 }
