@@ -97,13 +97,20 @@ class ServiceInterfaceBuilder {
     } else {
       final paramsType = config.paramsType ?? 'NoParams';
       final returnsType = config.returnsType ?? 'void';
+      final entityPaths = CommonPatterns.entityImports(
+        [paramsType, returnsType],
+        config,
+        depth: 0,
+        includeDomain: false,
+        fileSystem: fileSystem,
+      );
+      // Issue #1030: custom services write flat to
+      // `domain/services/<name>_service.dart` (service_plugin), so the
+      // shared `{depth}domain/entities` template carries one `domain`
+      // segment too many — entities resolve at `../entities/`.
       imports.addAll(
-        CommonPatterns.entityImports(
-          [paramsType, returnsType],
-          config,
-          depth: 1,
-          includeDomain: false,
-          fileSystem: fileSystem,
+        entityPaths.map(
+          (p) => p.replaceFirst('domain/entities/', '../entities/'),
         ),
       );
     }
