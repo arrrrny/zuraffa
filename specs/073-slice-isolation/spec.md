@@ -30,10 +30,15 @@ A developer (or agent) cuts a feature slice from a host project: `zfa slice cut 
 **Acceptance Scenarios**:
 
 1. **Given** a host project with a declared login feature, **When** `zfa slice cut --feature login --from <host>` runs, **Then** the sandbox contains the feature's spec, tdd artifacts, an app shell, a router harness exposing exactly the feature's routes, and DI wiring binding certified mocks for every declared dependency.
+   **Type**: acceptance
 2. **Given** the sandbox with the host project made unavailable, **When** the sandbox's test suite runs, **Then** it is green — no test references the host.
+   **Type**: acceptance
 3. **Given** the sandbox, **When** a widget test pumps the shell and navigates a declared route, **Then** the route resolves and renders through the mock DI bindings.
+   **Type**: acceptance
 4. **Given** the feature declares a platform-channel dependency, **When** the sandbox is cut, **Then** the certified channel fake from the tdd plugin is installed in the sandbox's DI.
+   **Type**: acceptance
 5. **Given** a second `slice cut` with unchanged inputs, **When** it completes, **Then** the sandbox's generated wiring is byte-for-byte identical (deterministic scaffolding).
+   **Type**: acceptance
 
 ---
 
@@ -48,8 +53,11 @@ The tdd loop (plan, gen, verify-red, make, view, refactor) runs against the sand
 **Acceptance Scenarios**:
 
 1. **Given** a sandbox carrying a feature spec with behaviors, **When** `zfa tdd run <feature>` runs with the sandbox as project root, **Then** the loop completes its cycle over those behaviors (red certified, green landed) with no reference to the host.
+   **Type**: acceptance
 2. **Given** the completed loop run, **When** the sandbox's tdd journal and registry are read, **Then** they contain the run's evidence (reds certified, greens, artifacts) — the receipts live in the sandbox, not the host.
+   **Type**: acceptance
 3. **Given** an operator whose only input is the spec, **When** they drive the loop in the sandbox, **Then** every step succeeds without host knowledge.
+   **Type**: acceptance
 
 ---
 
@@ -64,8 +72,11 @@ The tdd loop (plan, gen, verify-red, make, view, refactor) runs against the sand
 **Acceptance Scenarios**:
 
 1. **Given** a clean sandbox, **When** `zfa slice verify` runs, **Then** it exits 0 and the JSON verdict reports self-containment, mock certification, and suite state as passing.
+   **Type**: acceptance
 2. **Given** a sandbox file that imports a host-only path, **When** verify runs, **Then** it exits non-zero, its verdict marks self-containment failed, and the offending reference is named.
+   **Type**: acceptance
 3. **Given** a sandbox whose declared dependency lacks a certified mock binding, **When** verify runs, **Then** mock certification fails naming the unbound dependency.
+   **Type**: acceptance
 
 ---
 
@@ -80,8 +91,11 @@ The tdd loop (plan, gen, verify-red, make, view, refactor) runs against the sand
 **Acceptance Scenarios**:
 
 1. **Given** a verified sandbox, **When** `zfa slice merge --into <host>` runs, **Then** the feature's artifacts, journal, and registry land in the host.
+   **Type**: acceptance
 2. **Given** the landing, **When** the host's suite runs, **Then** it is green.
+   **Type**: acceptance
 3. **Given** an unverified sandbox (verify failing), **When** merge runs, **Then** it refuses naming the failed check (merge requires a verified slice).
+   **Type**: acceptance
 
 ---
 

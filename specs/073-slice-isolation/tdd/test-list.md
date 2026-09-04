@@ -6,7 +6,9 @@ One per acceptance criterion in `spec.md`.
 
 | id | behavior | traces | state |
 | -- | -------- | ------ | ----- |
+| A1 | the sandbox contains the feature's spec, tdd artifacts, an app shell, a router harness exposing exactly the feature's routes, and DI wiring binding certified mocks for every declared dependency. | AC-1 | PENDING |
 | A2 | it is green — no test references the host. | AC-2 | PENDING |
+| A3 | the route resolves and renders through the mock DI bindings. | AC-3 | PENDING |
 | A4 | the certified channel fake from the tdd plugin is installed in the sandbox's DI. | AC-4 | PENDING |
 | A5 | the sandbox's generated wiring is byte-for-byte identical (deterministic scaffolding). | AC-5 | PENDING |
 | A6 | the loop completes its cycle over those behaviors (red certified, green landed) with no reference to the host. | AC-6 | PENDING |
@@ -25,8 +27,6 @@ UI acceptance scenarios (bug #830): asserted through a testWidgets pair — a vi
 
 | id | behavior | traces | state |
 | -- | -------- | ------ | ----- |
-| A1 | the sandbox contains the feature's spec, tdd artifacts, an app shell, a router harness exposing exactly the feature's routes, and DI wiring binding certified mocks for every declared dependency. | AC-1 | PENDING |
-| A3 | the route resolves and renders through the mock DI bindings. | AC-3 | PENDING |
 
 ## Inner loop: unit behaviors
 
@@ -54,20 +54,20 @@ One per functional requirement in `spec.md`.
 
 Per-behavior routing decisions (issue #951): what each decision consulted — a declared marker/contract row, or the labeled legacy fallback to migrate.
 
-route: A1 -> widget lane [fallback: legacy description classifier matched — add `**Type**: widget` to the scenario]
-route: A2 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
-route: A3 -> widget lane [fallback: legacy description classifier matched — add `**Type**: widget` to the scenario]
-route: A4 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
-route: A5 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
-route: A6 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
-route: A7 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
-route: A8 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
-route: A9 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
-route: A10 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
-route: A11 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
-route: A12 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
-route: A13 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
-route: A14 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
+route: A1 -> acceptance lane [declared: type marker, spec line 33]
+route: A2 -> acceptance lane [declared: type marker, spec line 35]
+route: A3 -> acceptance lane [declared: type marker, spec line 37]
+route: A4 -> acceptance lane [declared: type marker, spec line 39]
+route: A5 -> acceptance lane [declared: type marker, spec line 41]
+route: A6 -> acceptance lane [declared: type marker, spec line 56]
+route: A7 -> acceptance lane [declared: type marker, spec line 58]
+route: A8 -> acceptance lane [declared: type marker, spec line 60]
+route: A9 -> acceptance lane [declared: type marker, spec line 75]
+route: A10 -> acceptance lane [declared: type marker, spec line 77]
+route: A11 -> acceptance lane [declared: type marker, spec line 79]
+route: A12 -> acceptance lane [declared: type marker, spec line 94]
+route: A13 -> acceptance lane [declared: type marker, spec line 96]
+route: A14 -> acceptance lane [declared: type marker, spec line 98]
 route: U1 -> unit lane [fallback: legacy description classifier matched — trace FR to a declared contract row]
 route: U2 -> unit lane [fallback: legacy description classifier matched — trace FR to a declared contract row]
 route: U3 -> unit lane [fallback: legacy description classifier matched — trace FR to a declared contract row]
