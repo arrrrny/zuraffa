@@ -90,11 +90,18 @@ class ExecutionResult {
   /// Optional additional data returned by the execution.
   final Map<String, dynamic>? data;
 
+  /// Structured warnings (spec 0974, issue #974): non-fatal outcomes a
+  /// caller can act on. Each entry carries `target` (the file, entity or
+  /// capability-level object the warning is about) and `reason` (why).
+  /// Empty (and omitted from [toJson]) when there is nothing to report.
+  final List<Map<String, dynamic>> warnings;
+
   ExecutionResult({
     required this.success,
     this.files = const [],
     this.message,
     this.data,
+    this.warnings = const [],
   });
 
   Map<String, dynamic> toJson() => {
@@ -102,6 +109,7 @@ class ExecutionResult {
     'files': files,
     if (message != null) 'message': message,
     if (data != null) 'data': data,
+    if (warnings.isNotEmpty) 'warnings': warnings,
   };
 }
 

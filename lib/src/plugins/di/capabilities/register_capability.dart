@@ -5,6 +5,7 @@ import '../di_plugin.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
 import '../../../utils/string_utils.dart';
+import 'create_di_capability.dart';
 import 'di_receipt_writer.dart';
 
 class RegisterCapability implements ZuraffaCapability {
@@ -84,14 +85,28 @@ class RegisterCapability implements ZuraffaCapability {
 
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
-    final files = await _runRegistration(args, dryRun: args['dryRun'] ?? false);
+    final dryRun = args['dryRun'] == true;
+    final revert = args['revert'] == true;
+    final target = args['target']?.toString() ?? '';
+
+    List<GeneratedFile> files;
+    try {
+      files = await _runRegistration(args, dryRun: dryRun);
+    } catch (e) {
+      // Spec 0974 (issue #974, order 4): real verdicts — a generation
+      // failure must surface as success: false with the failure message,
+      // never as an unhandled crash or a hardcoded success.
+      return ExecutionResult(
+        success: false,
+        message: 'di register failed for $target: $e',
+        data: {'generatedFiles': const <GeneratedFile>[]},
+      );
+    }
 
     // Spec 0974 (issue #974, order 3): the standalone path ships proof —
     // a `di-<target>` receipt binding the written registrations and the
     // DI index hashes, so `zfa proof check` covers `zfa di register` runs
     // exactly like `zfa make` runs (issue #807).
-    final dryRun = args['dryRun'] == true;
-    final revert = args['revert'] == true;
     if (!dryRun &&
         !revert &&
         DiReceiptWriter.hasWritableOutput(files)) {
@@ -99,7 +114,7 @@ class RegisterCapability implements ZuraffaCapability {
         projectRoot: projectRoot ?? Directory.current.path,
       ).writeReceipt(
         capability: 'register',
-        target: args['target']?.toString() ?? '',
+        target: target,
         args: args,
         files: files,
       );
@@ -109,6 +124,7 @@ class RegisterCapability implements ZuraffaCapability {
       success: true,
       files: files.map((f) => f.path).toList(),
       data: {'generatedFiles': files},
+      warnings: CreateDiCapability.structuredWarnings(target, files),
     );
   }
 

@@ -1778,7 +1778,16 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     if (await fileSystem.exists(serviceLocatorPath) && !options.force) {
-      return null;
+      // Spec 0974 (issue #974, order 4): a shared artifact kept from a
+      // previous run must be REPORTED as skipped, not silently dropped
+      // from the run's file list — capabilities surface it as a
+      // structured {target, reason} warning so callers can decide to
+      // re-run with --force.
+      return GeneratedFile(
+        path: serviceLocatorPath,
+        type: 'di_service_locator',
+        action: 'skipped',
+      );
     }
 
     final content = serviceLocatorBuilder.build();
