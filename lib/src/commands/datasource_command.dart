@@ -16,6 +16,20 @@ class DataSourceCommand extends PluginCommand {
   @override
   final DataSourcePlugin plugin;
 
+  /// The parent-level options run() actually reads (spec #979): unlike
+  /// the #856-family commands, this command's run() consumes its parent
+  /// flags on the (programmatically reachable) positional path — so they
+  /// are LIVE and `zfa manifest --verify` certifies them through this
+  /// declaration instead of flagging them dead.
+  @override
+  Set<String> get consumedParentFlags => const {
+    'methods',
+    'local',
+    'remote',
+    'cache',
+    'init',
+  };
+
   DataSourceCommand(this.plugin) : super(plugin) {
     argParser.addOption(
       'methods',
