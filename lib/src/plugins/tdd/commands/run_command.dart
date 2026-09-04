@@ -125,6 +125,7 @@ import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
 import '../services/tdd_transaction.dart';
 import '../tdd_plugin.dart';
+import 'run_engine_command.dart';
 import '../../../core/project/project_root.dart';
 
 class RunCommand extends Command<void> {
@@ -232,6 +233,34 @@ class RunCommand extends Command<void> {
     }
 
     final store = RunStateStore(featureDir);
+
+    // -----------------------------------------------------------------
+    // 1b. Tier-1 mock certification preflight (spec 1001, issue #1001):
+    //     the run engine refuses to proceed when any CORE entity's mock
+    //     is present but uncertified — the same gate `zfa tdd
+    //     run-engine <feature>` exposes as a command. Mocks that do not
+    //     exist yet are not enforced (the loop generates them); only
+    //     present-but-uncertified mocks block the engine.
+    // -----------------------------------------------------------------
+    final gate = await RunEngineCommand.checkFeature(
+      projectRoot: projectRoot,
+      featureDir: featureDir,
+    );
+    if (!gate.ok) {
+      final entity = gate.blockedEntity!;
+      print(
+        'zfa tdd run: CORE entity "$entity" has a mock on disk that is '
+        'NOT certified — the engine refuses to proceed (spec 1001: '
+        'mocks the framework certifies, not the agent).',
+      );
+      print(
+        '--> fix: zfa mock certify $entity (or zfa mock create $entity '
+        '--certify), then re-run.',
+      );
+      _printSummary(feature, 'runner-error', const [], null);
+      exitCode = _exitRunnerError;
+      return;
+    }
 
     // -----------------------------------------------------------------
     // 2. Load state — corruption stops with the recovery path (FR-006).
