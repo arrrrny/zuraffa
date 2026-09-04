@@ -539,9 +539,13 @@ class MockProviderBuilder {
     final baseReturns = returns.replaceAll('?', '');
     final isList = baseReturns.startsWith('List<');
 
-    final targetEntity = config.isCustomUseCase && config.returnsType != null
-        ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
-              config.name
+    // Issue #1030 follow-up: derive the canned-value mock-data class from
+    // the RETURNS type whenever it names an entity — not from --name.
+    // Service mode (Auth service, User returns) previously produced
+    // `AuthMockData.sampleAuth`, a class that exists only as a phantom.
+    final targetEntity = config.returnsType != null &&
+            EntityUtils.extractEntityTypes(config.returnsType!).isNotEmpty
+        ? EntityUtils.extractEntityTypes(config.returnsType!).first
         : config.name;
 
     final primitives = {
