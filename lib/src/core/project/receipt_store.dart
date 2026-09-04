@@ -183,14 +183,27 @@ class ReceiptStore {
 
   Directory get directory => Directory(p.join(projectRoot, '.zfa', 'receipts'));
 
-  /// Persists [receipt] as a timestamped JSON document; returns the file.
-  Future<File> save(GenerationReceipt receipt) async {
+  /// Persists [receipt] as a JSON document; returns the file.
+  ///
+  /// By default the document is timestamped (`$stamp-$cmd-$target.json`).
+  /// When [fileName] is provided (spec #977: standalone plugin receipts
+  /// such as `datasource-<entity>.json`), that name is used instead —
+  /// sanitized the same way, with a `.json` suffix ensured. `loadAll`
+  /// picks up both naming schemes, so `zfa proof check` verifies either.
+  Future<File> save(GenerationReceipt receipt, {String? fileName}) async {
     await directory.create(recursive: true);
-    // Colons are illegal in Windows file names; keep every name portable.
-    final stamp = receipt.at.toUtc().toIso8601String().replaceAll(':', '-');
-    final cmd = _sanitize(receipt.command);
-    final target = _sanitize(receipt.target);
-    final file = File(p.join(directory.path, '$stamp-$cmd-$target.json'));
+    final String resolvedName;
+    if (fileName != null) {
+      final base = fileName.replaceAll(RegExp(r'\.json$'), '');
+      resolvedName = '${_sanitize(base)}.json';
+    } else {
+      // Colons are illegal in Windows file names; keep every name portable.
+      final stamp = receipt.at.toUtc().toIso8601String().replaceAll(':', '-');
+      final cmd = _sanitize(receipt.command);
+      final target = _sanitize(receipt.target);
+      resolvedName = '$stamp-$cmd-$target.json';
+    }
+    final file = File(p.join(directory.path, resolvedName));
     const encoder = JsonEncoder.withIndent('  ');
     await file.writeAsString(encoder.convert(receipt.toJson()));
     return file;
