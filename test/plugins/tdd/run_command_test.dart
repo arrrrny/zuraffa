@@ -867,10 +867,7 @@ void main() {
     // the driver records the green evidence the disagreeing skip never
     // wrote (provenance-labeled, the #693 driver-recorded pattern).
     final state = await readState();
-    expect(
-      (state['behavior_states'] as Map<String, dynamic>)['B-001'],
-      'done',
-    );
+    expect((state['behavior_states'] as Map<String, dynamic>)['B-001'], 'done');
     final cycleLog = await File(fx.cycleLogPath).readAsString();
     expect(cycleLog, contains('- behavior: B-001\n- kind: green'));
     expect(cycleLog, contains('bug #986'));
