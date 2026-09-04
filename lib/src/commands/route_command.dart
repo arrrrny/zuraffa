@@ -1,5 +1,6 @@
 import 'base_plugin_command.dart';
 import '../plugins/route/route_plugin.dart';
+import 'route_verify_command.dart';
 
 class RouteCommand extends PluginCommand {
   @override
@@ -13,7 +14,11 @@ class RouteCommand extends PluginCommand {
           'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
       defaultsTo: 'get,update',
     );
+    addSubcommand(RouteVerifyCommand());
   }
+
+  @override
+  Set<String> get manualSubcommandNames => const {'verify'};
 
   @override
   String get name => 'route';

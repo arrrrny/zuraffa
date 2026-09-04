@@ -59,6 +59,45 @@ class OutputFormat {
     return jsonEncode(map);
   }
 
+  /// Render a [CommandResult] as plain text with no emoji and no ANSI color
+  /// codes. Used by `zfa route verify --plain` and any other command that
+  /// needs byte-identical output across runs in CI logs.
+  ///
+  /// Unlike [text], the plain path omits the two-space indent so output
+  /// can be parsed by simple `key: value` grep patterns in CI. Do not
+  /// change the indent to match [text] — it is intentionally flatter.
+  /// The order of `details` keys is the `Map` iteration order
+  /// (insertion order), so two calls over the same input return
+  /// byte-identical output — required for stable CI log diffs.
+  String plain(CommandResult result) {
+    switch (result) {
+      case SuccessResult(:final data):
+        if (data.isEmpty) return '';
+        final buf = StringBuffer();
+        data.forEach((k, v) => buf.writeln('$k: $v'));
+        final s = buf.toString();
+        return s.endsWith('\n') ? s.substring(0, s.length - 1) : s;
+      case WarningResult(:final message, :final data):
+        final buf = StringBuffer('WARN: $message');
+        if (data.isNotEmpty) {
+          for (final entry in data.entries) {
+            buf.writeln();
+            buf.write('  ${entry.key}: ${entry.value}');
+          }
+        }
+        return buf.toString();
+      case ErrorResult(:final code, :final message, :final details):
+        final buf = StringBuffer('ERROR: [$code] $message');
+        if (details.isNotEmpty) {
+          for (final entry in details.entries) {
+            buf.writeln();
+            buf.write('  ${entry.key}: ${entry.value}');
+          }
+        }
+        return buf.toString();
+    }
+  }
+
   /// Render a [CommandResult] as a human-readable multi-line string.
   ///
   /// For errors, the format is `❌ [<code>] <message>` followed by any
