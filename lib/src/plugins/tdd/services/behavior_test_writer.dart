@@ -45,6 +45,7 @@ class BehaviorTestWriter {
     this.widgetShell = WidgetAppShell.shadapp,
     this.i18nKeys = I18nKeyTable.empty,
     this.i18nImport,
+    this.i18nExpansion = const [],
   });
 
   final WidgetAppShell widgetShell;
@@ -55,6 +56,11 @@ class BehaviorTestWriter {
   /// The host's generated slang accessor URI (nullable — no keyed
   /// surface, no import).
   final String? i18nImport;
+
+  /// The expansion locales (issue #965 optional tier): one extra
+  /// `testWidgets` per locale re-pumps the view and re-asserts every
+  /// keyed presence surface through its resolved key. Empty = no tier.
+  final List<String> i18nExpansion;
 
   /// Escapes [raw] for safe interpolation into a single-quoted Dart
   /// string literal (issue #912 defect 1): backslash, both quote forms,
@@ -401,6 +407,27 @@ void main() {
       // --golden or drop the navigation assertion to use goldens here.
 '''
         : '';
+    // Issue #965 (optional tier): one expansion testWidgets per locale —
+    // the view is re-pumped under the expansion locale (de strings run
+    // ~30% longer, catching overflow assumptions before goldens do) and
+    // every keyed PRESENCE surface is re-asserted through its resolved
+    // key. Absent without the tier or without keyed surfaces.
+    final expansionTests = keyed && i18nExpansion.isNotEmpty
+        ? keyedSurfaces
+              .where(
+                (a) => a.assertionClass == ScenarioAssertionClass.presence,
+              )
+              .map(
+                (surface) => _renderExpansionTest(
+                  behavior: b,
+                  shellName: shellName,
+                  target: target,
+                  surfaceAccessor: surface.literal,
+                  locales: i18nExpansion,
+                ),
+              )
+              .join()
+        : '';
     final recorderClass = routeObserver
         ? '''
 
@@ -477,9 +504,68 @@ $localePin      $pumpCall
       // these assertions, never a placeholder a bare SizedBox() would
       // satisfy, never a route outcome flattened into presence-of-text.
       $scenarioBlock
-$goldenBlock    });
+$goldenBlock    });$expansionTests
   });
 }$recorderClass''';
+  }
+
+  /// One expansion-locale `testWidgets` (issue #965 optional tier): the
+  /// same view-builder pumped under [locale], every keyed presence
+  /// surface re-asserted through its resolved accessor. A missing
+  /// expansion key fails RED honestly (slang falls back to the base copy
+  /// only when configured — the test never accepts a silent string).
+  static String _renderExpansionTest({
+    required Behavior behavior,
+    required String shellName,
+    required String target,
+    required String surfaceAccessor,
+    required List<String> locales,
+  }) {
+    final buffer = StringBuffer();
+    for (final locale in locales) {
+      final trimmed = locale.trim();
+      if (trimmed.isEmpty) continue;
+      buffer
+        ..writeln()
+        ..writeln(
+          "    testWidgets('${behavior.id} \u2014 expansion locale $trimmed "
+          "renders every keyed surface (issue #965)', (tester) async {",
+        )
+        ..writeln(
+          '      // Expansion tier (issue #965, optional): pump the expansion '
+          'locale —',
+        )
+        ..writeln(
+          '      // $trimmed strings run ~30% longer, catching overflow '
+          'assumptions before',
+        )
+        ..writeln(
+          '      // goldens do. Assertions stay on the RESOLVED keys.',
+        )
+        ..writeln("      LocaleSettings.setLocaleRaw('$trimmed');")
+        ..writeln('      final Object? built = (() {')
+        ..writeln('        try {')
+        ..writeln('          return subject.$target();')
+        ..writeln('        } on UnimplementedError catch (error) {')
+        ..writeln('          return error;')
+        ..writeln('        }')
+        ..writeln('      })();')
+        ..writeln('      expect(built, isNot(isA<UnimplementedError>()));')
+        ..writeln('      final view = built! as Widget;')
+        ..writeln(
+          '      await tester.pumpWidget($shellName(home: Scaffold(body: view)));',
+        )
+        ..writeln('      await tester.pumpAndSettle();')
+        ..writeln(
+          '      expect(find.text($surfaceAccessor), findsOneWidget,',
+        )
+        ..writeln(
+          "          reason: 'the keyed surface $surfaceAccessor must render "
+          "under $trimmed');",
+        )
+        ..writeln('    });');
+    }
+    return buffer.toString();
   }
 
   /// The same snake-case convention `zfa tdd gen` uses for artifact

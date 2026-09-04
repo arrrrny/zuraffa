@@ -69,6 +69,7 @@ import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
 import '../services/test_list_reader.dart';
 import '../tdd_plugin.dart';
+import '../../../config/zfa_config.dart';
 import '../../../core/project/project_root.dart';
 
 /// Outcome labels for the machine-readable summary line.
@@ -103,6 +104,14 @@ class ViewCommand extends Command<void> {
       help:
           'Project root containing specs/, test/, and lib/. When omitted, '
           'the current working directory is used.',
+    );
+    argParser.addOption(
+      'i18n-expansion',
+      help:
+          'Comma-separated expansion locales for the optional i18n tier '
+          '(issue #965), e.g. "de". Each locale\'s strings_<loc>.i18n.json '
+          'is scaffolded alongside the base locale. Overrides the '
+          '.zfa.json `tdd.i18nExpansion` default.',
     );
   }
 
@@ -318,7 +327,8 @@ class ViewCommand extends Command<void> {
     }
     // Scaffold missing declared keys (merge; existing values never
     // clobbered) even when THIS behavior's literals are unkeyed — the
-    // localization gate needs every declared key present.
+    // localization gate needs every declared key present. Expansion
+    // locales (issue #965 optional tier) scaffold alongside the base.
     if (i18nKeys.isNotEmpty) {
       final scaffolded = I18nScaffold.ensure(
         I18nScaffold.baseFilePath(normalizedCwd),
@@ -328,6 +338,17 @@ class ViewCommand extends Command<void> {
         '   scaffold: lib/i18n/strings.i18n.json '
         '(${scaffolded ? 'missing keys scaffolded' : 'already complete'})',
       );
+      final expansionLocales = _resolveI18nExpansion(argResults, normalizedCwd);
+      for (final locale in expansionLocales) {
+        final expanded = I18nScaffold.ensure(
+          I18nScaffold.expansionFilePath(normalizedCwd, locale),
+          i18nKeys.contracts,
+        );
+        print(
+          '   scaffold: lib/i18n/strings_$locale.i18n.json '
+          '(${expanded ? 'missing keys scaffolded' : 'already complete'})',
+        );
+      }
     }
 
     // -------------------------------------------------------------
@@ -444,6 +465,22 @@ class ViewCommand extends Command<void> {
   /// the component tokens above).
   static Future<I18nKeyTable> _loadI18nKeys(String featureDir) =>
       I18nKeyTable.loadForFeature(featureDir);
+
+  /// Resolves the expansion locales for the optional i18n tier (issue
+  /// #965): the explicit `--i18n-expansion` flag wins over the `.zfa.json`
+  /// `tdd.i18nExpansion` project default; the fallback is no tier.
+  static List<String> _resolveI18nExpansion(dynamic args, String cwd) {
+    final flag = args?['i18n-expansion'] as String?;
+    final raw = (flag != null && flag.isNotEmpty)
+        ? flag
+        : ZfaConfig.load(projectRoot: cwd)?.tddI18nExpansion;
+    if (raw == null || raw.trim().isEmpty) return const [];
+    return raw
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList(growable: false);
+  }
 
   /// Insert `import '<uri>';` after the last top-level import of [source]
   /// (or after `library;` when no imports exist). Idempotent.
