@@ -4,6 +4,10 @@
 //
 // Pure-Dart (FR-012): no package:flutter import.
 
+import 'dart:io';
+
+import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/zuraffa.dart';
 import 'package:zuraffa/src/plugins/cli/cli_plugin.dart'
@@ -142,6 +146,106 @@ void main() {
           contains('Generate a standardized CLI command'),
         );
       });
+    });
+
+    group('disk write (issue #1022)', () {
+      late Directory tmpDir;
+      late String previousDir;
+
+      setUp(() async {
+        tmpDir = await Directory.systemTemp.createTemp('cli_plugin_test_');
+        previousDir = Directory.current.path;
+      });
+
+      tearDown(() async {
+        Directory.current = previousDir;
+        if (await tmpDir.exists()) await tmpDir.delete(recursive: true);
+      });
+
+      test(
+        'U48: cli command writes file to disk that dart analyze accepts',
+        () async {
+          // Create a self-contained project skeleton inside the temp dir
+          // so FileUtils.writeFile lands at the correct relative path and
+          // dart analyze can resolve all imports — no global state mutation.
+          final cliDir = p.join(tmpDir.path, 'lib', 'src', 'cli', 'commands');
+          final entityDir = p.join(
+            tmpDir.path,
+            'lib',
+            'src',
+            'domain',
+            'entities',
+            'product',
+          );
+          await Directory(cliDir).create(recursive: true);
+          await Directory(entityDir).create(recursive: true);
+
+          // Stub the entity use-case the generated import references.
+          await File(p.join(entityDir, 'product_usecase.dart')).writeAsString(
+            'class ProductUseCase {\n'
+            '  Future<dynamic> getList() async => [];\n'
+            '}\n',
+          );
+
+          // Point the temp project at zuraffa so dart analyze can resolve
+          // the generated import `package:zuraffa/zuraffa.dart`.
+          final projectRoot = previousDir;
+          await File(p.join(tmpDir.path, 'pubspec.yaml')).writeAsString('''
+name: cli_analyze_stub
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+dependencies:
+  zuraffa:
+    path: $projectRoot
+''');
+
+          // Resolve dependencies so dart analyze can resolve package imports.
+          await Process.run('dart', ['pub', 'get'],
+              workingDirectory: tmpDir.path);
+
+          // Point FileUtils.writeFile into the temp dir.
+          Directory.current = tmpDir.path;
+
+          // Register the cli command in a fresh runner.
+          final runner = CommandRunner<void>('zfa-test', 'test runner');
+          runner.addCommand(plugin.createCommand());
+
+          await runner.run(['cli', 'Product']);
+
+          // The file must exist on disk — not just in-memory.
+          final expectedPath = p.join(
+            tmpDir.path,
+            'lib',
+            'src',
+            'cli',
+            'commands',
+            'product_command.dart',
+          );
+          expect(
+            await File(expectedPath).exists(),
+            isTrue,
+            reason:
+                'zfa cli Product must write lib/src/cli/commands/product_command.dart '
+                'to disk (issue #1022: phantom write).',
+          );
+
+          // The generated file must pass dart analyze (compile gate).
+          final analyzeResult = await Process.run(
+            'dart',
+            ['analyze', expectedPath],
+            workingDirectory: tmpDir.path,
+          );
+          expect(
+            analyzeResult.exitCode,
+            0,
+            reason:
+                'Generated CLI command must pass dart analyze (compile gate).\n'
+                'stdout: ${analyzeResult.stdout}\n'
+                'stderr: ${analyzeResult.stderr}',
+          );
+        },
+        timeout: const Timeout(Duration(minutes: 2)),
+      );
     });
   });
 }
