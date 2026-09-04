@@ -66,6 +66,7 @@ class ModuleCommand extends Command<void> {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       printUsage();
+      exitCode = 64;
       return;
     }
 

@@ -121,6 +121,7 @@ class XrayDeckCommand extends Command<void> {
 
     if (sourcePath == null && yamlPath == null) {
       print('Error: provide --source and/or --yaml');
+      exitCode = 64;
       return;
     }
 
@@ -132,6 +133,7 @@ class XrayDeckCommand extends Command<void> {
 
     if (effectiveName == null) {
       print('Error: could not determine UseCase name. Use --usecase-name.');
+      exitCode = 2;
       return;
     }
 
@@ -146,6 +148,7 @@ class XrayDeckCommand extends Command<void> {
 
     if (allEntries.isEmpty) {
       print('No mock scenarios found.');
+      exitCode = 1;
       return;
     }
 
@@ -154,6 +157,7 @@ class XrayDeckCommand extends Command<void> {
     final outFile = File(effectiveOutput);
     if (outFile.existsSync() && !force) {
       print('Error: $effectiveOutput already exists. Use --force.');
+      exitCode = 1;
       return;
     }
 

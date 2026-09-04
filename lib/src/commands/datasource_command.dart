@@ -48,7 +48,7 @@ class DataSourceCommand extends PluginCommand {
     }
 
     if (argResults?.rest.isEmpty ?? true) {
-      print('❌ Usage: zfa datasource <EntityName> [options]');
+      reportSubcommandUsage();
       return;
     }
 

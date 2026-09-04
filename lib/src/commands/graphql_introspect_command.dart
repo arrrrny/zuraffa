@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
@@ -57,6 +58,7 @@ class IntrospectCommand extends Command<void> {
   @override
   Future<void> run() async {
     if (argResults!.rest.isEmpty) {
+      exitCode = 64;
       print('Usage: zfa graphql introspect <endpoint-url> [options]');
       print('  endpoint-url    The GraphQL endpoint URL to introspect');
       print('');

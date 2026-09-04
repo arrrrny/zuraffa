@@ -31,7 +31,7 @@ class ControllerCommand extends PluginCommand {
   @override
   Future<void> run() async {
     if (argResults?.rest.isEmpty ?? true) {
-      print('❌ Usage: zfa controller <EntityName> [options]');
+      reportSubcommandUsage();
       return;
     }
 
