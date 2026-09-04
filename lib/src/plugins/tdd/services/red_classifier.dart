@@ -182,6 +182,36 @@ bool _hasChannelTimeoutSignature(String output) =>
     _channelTimeoutSignature.hasMatch(output);
 
 // ---------------------------------------------------------------------
+// Failing-assertion identity (issue #959 / spec 071-inert-stub-red, U3)
+// ---------------------------------------------------------------------
+
+final RegExp _failingTestLine = RegExp(
+  r'^\d\d:\d\d \+\d+(?: -\d+)?: (.+) \[E\]$',
+  multiLine: true,
+);
+
+/// The failing authored assertion's identity for a red transcript: the
+/// description of the test whose `[E]` line certifies the red (the LAST
+/// one — the runner's final failure state). `null` when the transcript
+/// carries no parseable authored-assertion identity (load/compile
+/// "loading ..." lines, crash dumps, unparseable output) — the verdict
+/// then simply omits the evidence detail rather than fabricating a name.
+///
+/// Pure like [classify]: the same reporter grammar, one place.
+String? failingAssertionOf(String output) {
+  final matches = _failingTestLine.allMatches(output).toList();
+  for (final match in matches.reversed) {
+    final name = match.group(1)?.trim() ?? '';
+    if (name.isEmpty) continue;
+    // "loading <file> [E]" belongs to the load/compile tier — it names a
+    // FILE, never an authored assertion.
+    if (name.startsWith('loading ')) continue;
+    return name;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------
 // Executed-test counting
 // ---------------------------------------------------------------------
 

@@ -95,8 +95,12 @@ class SuiteGuard {
     // the test identifier (everything between `: ` and ` [E]`) only
     // when both failure markers are present, so the parser never
     // treats `All tests passed!` as a failing test.
+    //
+    // Segment order caveat (072): reporters differ in where the skip
+    // segment sits relative to the failure segment (`+N -F ~S` vs
+    // `+N ~S -F`), so both orders are accepted.
     final progressFailure = RegExp(
-      r'^\d\d:\d\d \+\d+ -\d+(?: ~\d+)?: (.+?) \[E\]$',
+      r'^\d\d:\d\d \+\d+(?: ~\d+)? -\d+(?: ~\d+)?: (.+?) \[E\]$',
       multiLine: true,
     );
     for (final m in progressFailure.allMatches(output)) {
@@ -106,19 +110,23 @@ class SuiteGuard {
       }
     }
 
-    // Some failures appear only in the trailing block:
-    //   Some tests failed:
-    //   - test/foo_test.dart: group name test name
+    // Some failures appear only in the trailing block. Two real shapes:
+    //   Some tests failed:            |  Failing tests:
+    //   - test/foo_test.dart: name    |    test/foo_test.dart: name
+    // (the compact reporter's `Failing tests:` block indents entries
+    // WITHOUT a leading dash — the 072 worktree baseline hit exactly
+    // that shape and the old pattern counted 0 failures on a real red).
     final block = RegExp(
-      r'(?:Some tests failed|Failed tests|Failed:)[^\n]*\n((?:\s*-\s+.+\n?)+)',
+      r'(?:Some tests failed|Failing tests|Failed tests|Failed:)[^\n]*\n((?:[ \t]+(?:-\s+)?.+\n?)+)',
     );
     for (final m in block.allMatches(output)) {
       for (final line in m.group(1)!.split('\n')) {
-        final trimmed = line.trimLeft();
-        if (!trimmed.startsWith('-')) continue;
-        final id = trimmed.substring(1).trim();
-        if (id.isNotEmpty) {
-          failed.add(id);
+        final trimmed = line.trim();
+        if (trimmed.isEmpty) continue;
+        if (trimmed.startsWith('-')) trimmed.substring(1).trim();
+        if (trimmed.startsWith('Consider enabling')) continue;
+        if (trimmed.isNotEmpty) {
+          failed.add(trimmed);
         }
       }
     }

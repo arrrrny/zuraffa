@@ -31,6 +31,28 @@ class CreateParams<T> extends Params {
     return CreateParams(params: params ?? this.params, data: data ?? this.data);
   }
 
+  /// Returns a copy of this entity with [field] set to [value].
+  ///
+  /// Delegates to [copyWith]: the receiver is never mutated and a
+  /// null [value] keeps the current field value.
+  CreateParams copyWithField<TValue>(
+    Field<CreateParams<T>, TValue> field,
+    TValue value,
+  ) {
+    switch (field.name) {
+      case 'params':
+        return copyWith(params: value as Map<String, dynamic>?);
+      case 'data':
+        return copyWith(data: value as T);
+      default:
+        throw ArgumentError.value(
+          field.name,
+          'field',
+          'CreateParams has no settable field with this name',
+        );
+    }
+  }
+
   CreateParams copyWithCreateParams({Map<String, dynamic>? params, T? data}) {
     return copyWith(params: params, data: data);
   }

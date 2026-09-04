@@ -8,6 +8,7 @@
 /// (no behavior row) and shows up in the traceability matrix as manual.
 library;
 
+import '../../../models/mock_priority.dart';
 import '../models/behavior.dart';
 import '../models/routing.dart';
 
@@ -512,9 +513,28 @@ class SpecParser {
             ? ContractRowKind.storage
             : (type.startsWith('channel') || type.startsWith('platform'))
             ? ContractRowKind.channel
-            : null;
-        if (kind == null) continue;
-        rows.add(ContractRowDecl(name: cells[0], kind: kind, specLine: lineNo));
+            : ContractRowKind.service; // issue #960: every declared
+        // dependency row is a first-class declaration — an undeclared
+        // kind is the row's own business, never a reason to skip it.
+        // Issue #960: the contract cell (methods) and the mock
+        // priority cell travel with the row so the mock surface is
+        // generated from the declaration and the loop orders mocks by
+        // declared priority.
+        final signatures = (cells.length > 2 ? cells[2] : '')
+            .split(',')
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .toList();
+        final priority = cells.length > 3 ? cells[3] : '';
+        rows.add(
+          ContractRowDecl(
+            name: cells[0],
+            kind: kind,
+            rawSignatures: signatures,
+            priority: MockPriority.tryParse(priority) ?? MockPriority.none,
+            specLine: lineNo,
+          ),
+        );
         continue;
       }
     }
