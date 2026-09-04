@@ -4,6 +4,7 @@
 /// specs/071-declared-intent-routing/data-model.md.
 library;
 
+import '../../../models/mock_priority.dart';
 import 'behavior.dart';
 
 /// The generation surface a behavior's declared contract row selects.
@@ -104,6 +105,7 @@ enum ContractRowKind {
   entity,
   storage,
   channel,
+  service,
   function,
 }
 
@@ -112,6 +114,10 @@ class ContractRowDecl {
   final String name;
   final ContractRowKind kind;
   final List<Signature> signatures;
+
+  /// The declared mock priority (issue #960) — orders dependency-mock
+  /// materialization in the loop (P1 → P2 → P3 → none).
+  final MockPriority priority;
 
   /// Raw signature text not yet parsed (parsed lazily by the resolver
   /// so a malformed row names itself instead of failing the parse).
@@ -123,6 +129,7 @@ class ContractRowDecl {
     required this.kind,
     this.signatures = const [],
     this.rawSignatures = const [],
+    this.priority = MockPriority.none,
     this.specLine,
   });
 }

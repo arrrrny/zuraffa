@@ -22,6 +22,23 @@ class Settings extends Params {
     return Settings(params: params ?? this.params);
   }
 
+  /// Returns a copy of this entity with [field] set to [value].
+  ///
+  /// Delegates to [copyWith]: the receiver is never mutated and a
+  /// null [value] keeps the current field value.
+  Settings copyWithField<T>(Field<Settings, T> field, T value) {
+    switch (field.name) {
+      case 'params':
+        return copyWith(params: value as Map<String, dynamic>?);
+      default:
+        throw ArgumentError.value(
+          field.name,
+          'field',
+          'Settings has no settable field with this name',
+        );
+    }
+  }
+
   Settings copyWithSettings({Map<String, dynamic>? params}) {
     return copyWith(params: params);
   }
