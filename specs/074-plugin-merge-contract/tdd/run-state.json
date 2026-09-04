@@ -1,0 +1,30 @@
+{
+  "feature": "074-plugin-merge-contract",
+  "behavior_states": {
+    "A1": "green",
+    "A2": "green",
+    "A3": "green",
+    "A4": "green",
+    "A5": "green",
+    "A6": "green",
+    "A7": "green",
+    "A8": "green",
+    "A9": "green",
+    "A10": "green",
+    "A11": "green",
+    "A12": "green",
+    "U1": "green",
+    "U2": "green",
+    "U3": "green",
+    "U4": "green",
+    "U5": "green",
+    "U6": "green",
+    "U7": "green",
+    "U8": "green",
+    "U9": "green"
+  },
+  "in_flight_behavior_id": null,
+  "in_flight_step": null,
+  "in_flight_owner_pid": null,
+  "dropped": []
+}
