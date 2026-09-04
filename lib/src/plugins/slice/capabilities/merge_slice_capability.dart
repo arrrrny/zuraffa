@@ -24,6 +24,9 @@ import '../merger/slice_merger.dart';
 import '../models/slice_file.dart';
 import '../models/slice_manifest.dart';
 import '../models/slice_verdict.dart';
+import '../verifier/conformance_gate.dart';
+import '../verifier/di_graph_check.dart';
+import '../verifier/route_barrel.dart';
 
 /// Outcome of one host suite run (injectable seam).
 class HostSuiteOutcome {
@@ -269,6 +272,37 @@ class MergeSliceCapability implements ZuraffaCapability {
           '${outcome.failures.take(3).join("; ")}'
           '${outcome.failures.length > 3 ? "…" : ""} --> fix: make the '
           'host suite green after landing (issue #961).',
+    );
+  }
+
+  /// The 074 conformance verdict, composed from the merged host facts
+  /// (sync core; the execute path supplies the facts and, on any red,
+  /// restores the [HostSnapshot] before reporting).
+  static MergeVerdict conformanceVerdict({
+    required String feature,
+    required String barrel,
+    required List<RouteDecl> declaredRoutes,
+    required List<DiBindingDecl> bindings,
+    required bool Function(String token, String flavor) resolves,
+    required Map<String, String> viewSources,
+    required String shellConvention,
+    required List<String> baselineFailures,
+    required List<String> currentFailures,
+    bool rolledBack = false,
+  }) {
+    return MergeVerdict(
+      feature: feature,
+      routes: ConformanceGate.routes(barrel: barrel, declared: declaredRoutes),
+      di: ConformanceGate.di(bindings: bindings, resolves: resolves),
+      views: ConformanceGate.views(
+        viewSources: viewSources,
+        shellConvention: shellConvention,
+      ),
+      featureSuite: ConformanceGate.featureSuite(
+        baselineFailures: baselineFailures,
+        currentFailures: currentFailures,
+      ),
+      rolledBack: rolledBack,
     );
   }
 
