@@ -54,6 +54,34 @@ class InitializationParams extends Params {
     );
   }
 
+  /// Returns a copy of this entity with [field] set to [value].
+  ///
+  /// Delegates to [copyWith]: the receiver is never mutated and a
+  /// null [value] keeps the current field value.
+  InitializationParams copyWithField<T>(
+    Field<InitializationParams, T> field,
+    T value,
+  ) {
+    switch (field.name) {
+      case 'params':
+        return copyWith(params: value as Map<String, dynamic>?);
+      case 'timeout':
+        return copyWith(timeout: value as Duration);
+      case 'forceRefresh':
+        return copyWith(forceRefresh: value as bool?);
+      case 'credentials':
+        return copyWith(credentials: value as Credentials?);
+      case 'settings':
+        return copyWith(settings: value as Settings?);
+      default:
+        throw ArgumentError.value(
+          field.name,
+          'field',
+          'InitializationParams has no settable field with this name',
+        );
+    }
+  }
+
   InitializationParams copyWithInitializationParams({
     Map<String, dynamic>? params,
     Duration? timeout,
