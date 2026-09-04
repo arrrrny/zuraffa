@@ -8,11 +8,11 @@ EN literal as the anchor.
 
 | id | behavior | traces | state |
 | -- | -------- | ------ | ----- |
-| A-001 | the spec contract parses `key:` declarations with EN anchors from Presentation rows and refuses malformed keys | FR-001 | PENDING |
-| A-002 | `zfa tdd view` emits `t.<key>` for anchored literals and scaffolds missing keys into lib/i18n | FR-002, FR-003 | PENDING |
-| A-003 | the generated widget test boots the slang test shell and asserts resolved keys; EN copy edits survive | FR-004 | PENDING |
-| A-004 | the ledger traces `t.<key>` per row and reports hardcoded strings as untraced-surface violations | FR-005 | PENDING |
-| A-005 | the optional expansion tier pumps base + de and scaffolds the expansion file | FR-006 | PENDING |
+| A-001 | the spec contract parses `key:` declarations with EN anchors from Presentation rows and refuses malformed keys | FR-001 | DONE |
+| A-002 | `zfa tdd view` emits `t.<key>` for anchored literals and scaffolds missing keys into lib/i18n | FR-002, FR-003 | DONE |
+| A-003 | the generated widget test boots the slang test shell and asserts resolved keys; EN copy edits survive | FR-004 | DONE |
+| A-004 | the ledger traces `t.<key>` per row and reports hardcoded strings as untraced-surface violations | FR-005 | DONE |
+| A-005 | the optional expansion tier pumps base + de and scaffolds the expansion file | FR-006 | DONE |
 
 ## Layer contracts
 
