@@ -12,6 +12,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '_pascal_case.dart';
 import 'sandbox_scaffold.dart';
 import '../models/slice_manifest.dart';
 
@@ -102,7 +103,7 @@ class SandboxComposition {
       )
       ..writeln('//')
       ..writeln('// Declared contract: ${dependency.contract}')
-      ..writeln('class Fake${_pascal(dependency.dependency)} {');
+      ..writeln('class Fake${pascalCase(dependency.dependency)} {');
     for (final signature in declaredSignatures(dependency.contract)) {
       buffer
         ..writeln()
@@ -159,13 +160,3 @@ class SandboxComposition {
   }
 }
 
-String _pascal(String raw) {
-  final parts = raw
-      .split(RegExp(r'[^A-Za-z0-9]+'))
-      .where((part) => part.isNotEmpty)
-      .toList();
-  if (parts.isEmpty) return raw;
-  return parts
-      .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
-      .join();
-}

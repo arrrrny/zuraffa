@@ -6,6 +6,8 @@
 /// identical cut inputs ⇒ byte-identical scaffolding (data-model I3).
 library;
 
+import '_pascal_case.dart';
+
 /// One declared route of the feature (declared at cut, recorded in the
 /// slice manifest).
 class SandboxRoute {
@@ -178,7 +180,7 @@ Widget pageFor(String path) {
   static String di({required List<SandboxBinding> bindings}) {
     final registrations = bindings
         .map(
-          (b) => "  sandbox.bind('${b.token}', build${_pascal(b.dependency)});"
+          (b) => "  sandbox.bind('${b.token}', build${pascalCase(b.dependency)});"
               " // ${b.kind}: certified mock (${b.mockArtifact})",
         )
         .join('\n');
@@ -187,7 +189,7 @@ Widget pageFor(String path) {
           (b) => '''
 /// Certified mock builder for ${b.dependency} — wired from
 /// `${b.mockArtifact}` (the 072 dependency-mock rail).
-Object build${_pascal(b.dependency)}() =>
+Object build${pascalCase(b.dependency)}() =>
     throw UnsupportedError(
       'wire the certified ${b.dependency} mock here --> fix: the artifact '
       'lives at ${b.mockArtifact} (issue #961 sandbox composition)',
@@ -238,11 +240,3 @@ $builders
   }
 }
 
-String _pascal(String raw) {
-  final parts = raw
-      .split(RegExp(r'[^A-Za-z0-9]+'))
-      .where((p) => p.isNotEmpty)
-      .toList();
-  if (parts.isEmpty) return raw;
-  return parts.map((p) => '${p[0].toUpperCase()}${p.substring(1)}').join();
-}

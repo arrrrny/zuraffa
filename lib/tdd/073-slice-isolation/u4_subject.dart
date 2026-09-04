@@ -71,13 +71,21 @@ Object? subject_u4() {
   expect(verdict.summaryLine(fixtureFeature), contains('outcome=verified'));
 
   // A failing check encodes its offenders — never a bare boolean.
+  // Verified by JSON roundtrip (the encode output is pretty-printed
+  // JSON; exact formatting is not part of the contract — the decoded
+  // values are).
   final failing = SliceVerdict(
     selfContainment: const SliceCheck(name: 'selfContainment', pass: false, offenders: ['lib/x.dart:3: "/host"']),
     mockCertification: const SliceCheck(name: 'mockCertification', pass: true),
     suiteState: const SliceCheck(name: 'suiteState', pass: true),
   );
-  expect(failing.encode(), contains('"offenders": ["lib/x.dart:3: \\"/host\\""]'));
-  expect(SliceVerdict.decode(failing.encode()).passed, isFalse);
+  final decodedFailing = SliceVerdict.decode(failing.encode());
+  expect(decodedFailing.passed, isFalse);
+  expect(
+    decodedFailing.selfContainment.offenders,
+    contains('lib/x.dart:3: "/host"'),
+    reason: 'offender text must roundtrip exactly (issue #961 verdict)',
+  );
   expect(File(VerifySliceCapability.verdictPathFor(sandboxPath)).existsSync(), isFalse,
       reason: 'only the verify capability writes the verdict file');
   return null;

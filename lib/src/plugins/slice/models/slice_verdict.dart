@@ -50,25 +50,10 @@ class SliceVerdict {
   };
 
   /// Serialize to the verdict JSON file (stable key order, no
-  /// timestamps — determinism).
-  String encode() {
-    final b = StringBuffer()
-      ..writeln('{')
-      ..writeln('  "check": "slice-verify",')
-      ..writeln('  "selfContainment": ${_check(selfContainment)},')
-      ..writeln('  "mockCertification": ${_check(mockCertification)},')
-      ..writeln('  "suiteState": ${_check(suiteState)},')
-      ..writeln('  "passed": $passed')
-      ..write('}');
-    return b.toString();
-  }
-
-  static String _check(SliceCheck c) {
-    final offenders = c.offenders
-        .map((o) => '"${o.replaceAll('"', r'\"')}"')
-        .join(', ');
-    return '{"pass": ${c.pass}, "offenders": [$offenders]}';
-  }
+  /// timestamps — determinism). Uses JsonEncoder for proper escaping;
+  /// the decode path relies on jsonDecode, so the roundtrip must match.
+  String encode() =>
+      const JsonEncoder.withIndent('  ').convert(toJson());
 
   /// Parse a verdict JSON (the merge gate reads what verify wrote).
   ///
