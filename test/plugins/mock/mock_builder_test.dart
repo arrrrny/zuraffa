@@ -748,28 +748,111 @@ class Product {
     },
   );
 
-  test('issue #1037: enum entity gets mock data only, no CRUD datasource', () async {
-    final enumDir = Directory(
-      '$outputDir/domain/entities/enums',
-    );
-    await enumDir.create(recursive: true);
-    await File(
-      '${enumDir.path}/authentication_method.dart',
-    ).writeAsString('enum AuthenticationMethod { anonymous, google, apple }');
+  test(
+    'issue #1037: enum entity gets mock data only, no CRUD datasource',
+    () async {
+      final enumDir = Directory('$outputDir/domain/entities/enums');
+      await enumDir.create(recursive: true);
+      await File(
+        '${enumDir.path}/authentication_method.dart',
+      ).writeAsString('enum AuthenticationMethod { anonymous, google, apple }');
 
-    final builder = MockBuilder(
-      outputDir: outputDir,
-      options: const GeneratorOptions(
-        dryRun: false,
-        force: true,
-        verbose: false,
-      ),
-    );
+      final builder = MockBuilder(
+        outputDir: outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
 
-    late List<String> prints;
-    late List files;
-    prints = await _capturePrints(() async {
-      files = await builder.generate(
+      late List<String> prints;
+      late List files;
+      prints = await _capturePrints(() async {
+        files = await builder.generate(
+          GeneratorConfig(
+            name: 'AuthenticationMethod',
+            methods: const ['get', 'update', 'toggle'],
+            generateMock: true,
+            outputDir: outputDir,
+          ),
+        );
+      });
+
+      // Mock data (enum-value fixtures) IS generated.
+      expect(
+        File(
+          '$outputDir/data/mock/authentication_method_mock_data.dart',
+        ).existsSync(),
+        isTrue,
+      );
+      // The class-shaped CRUD surface is NOT.
+      expect(
+        File(
+          '$outputDir/data/datasources/authentication_method/'
+          'authentication_method_datasource.dart',
+        ).existsSync(),
+        isFalse,
+      );
+      expect(
+        File(
+          '$outputDir/data/datasources/authentication_method/'
+          'authentication_method_mock_datasource.dart',
+        ).existsSync(),
+        isFalse,
+      );
+      expect(files.any((f) => f.path.contains('_datasource')), isFalse);
+      expect(prints.join('\n'), contains('issue #1037'));
+    },
+  );
+
+  test(
+    'issue #1037: re-run purges pre-#1037 generated artifacts for an enum',
+    () async {
+      final enumDir = Directory('$outputDir/domain/entities/enums');
+      await enumDir.create(recursive: true);
+      await File(
+        '${enumDir.path}/authentication_method.dart',
+      ).writeAsString('enum AuthenticationMethod { anonymous, google, apple }');
+
+      const marker = '// GENERATED - DO NOT EDIT';
+      final interfaceFile = File(
+        '$outputDir/data/datasources/authentication_method/'
+        'authentication_method_datasource.dart',
+      );
+      await interfaceFile.create(recursive: true);
+      await interfaceFile.writeAsString('$marker\n// broken interface');
+      final mockDsFile = File(
+        '$outputDir/data/datasources/authentication_method/'
+        'authentication_method_mock_datasource.dart',
+      );
+      await mockDsFile.create(recursive: true);
+      await mockDsFile.writeAsString('$marker\n// broken mock datasource');
+      final bindingFile = File(
+        '$outputDir/di/simulation/'
+        'authentication_method_simulation_datasource_di.dart',
+      );
+      await bindingFile.create(recursive: true);
+      await bindingFile.writeAsString('$marker\n// broken binding');
+      // The stale index a pre-#1037 run left behind: still importing the
+      // binding the purge is about to remove.
+      final indexFile = File('$outputDir/di/simulation/index.dart');
+      await indexFile.create(recursive: true);
+      await indexFile.writeAsString(
+        '$marker\n'
+        "import 'authentication_method_simulation_datasource_di.dart';\n",
+      );
+      // A hand-written file (no marker) in a generated path survives.
+      final handWritten = File(
+        '$outputDir/data/datasources/authentication_method/custom.dart',
+      );
+      await handWritten.writeAsString('// hand-written, no marker');
+
+      final plugin = MockPlugin(
+        outputDir: outputDir,
+        options: const GeneratorOptions(dryRun: false, force: true),
+      );
+      final files = await plugin.generate(
         GeneratorConfig(
           name: 'AuthenticationMethod',
           methods: const ['get', 'update', 'toggle'],
@@ -777,153 +860,70 @@ class Product {
           outputDir: outputDir,
         ),
       );
-    });
 
-    // Mock data (enum-value fixtures) IS generated.
-    expect(
-      File(
-        '$outputDir/data/mock/authentication_method_mock_data.dart',
-      ).existsSync(),
-      isTrue,
-    );
-    // The class-shaped CRUD surface is NOT.
-    expect(
-      File(
-        '$outputDir/data/datasources/authentication_method/'
-        'authentication_method_datasource.dart',
-      ).existsSync(),
-      isFalse,
-    );
-    expect(
-      File(
-        '$outputDir/data/datasources/authentication_method/'
-        'authentication_method_mock_datasource.dart',
-      ).existsSync(),
-      isFalse,
-    );
-    expect(
-      files.any((f) => f.path.contains('_datasource')),
-      isFalse,
-    );
-    expect(prints.join('\n'), contains('issue #1037'));
-  });
+      expect(interfaceFile.existsSync(), isFalse);
+      expect(mockDsFile.existsSync(), isFalse);
+      expect(bindingFile.existsSync(), isFalse);
+      expect(handWritten.existsSync(), isTrue);
+      // With every binding purged, the stale index is rewritten as the
+      // empty skeleton — never left importing the removed files.
+      expect(indexFile.existsSync(), isTrue);
+      expect(
+        indexFile.readAsStringSync().contains('authentication_method'),
+        isFalse,
+      );
+      expect(
+        indexFile.readAsStringSync().contains('registerSimulationBindings'),
+        isTrue,
+      );
+      expect(
+        files.any((f) => f.path.contains('authentication_method_datasource')),
+        isFalse,
+      );
+    },
+  );
 
-  test('issue #1037: re-run purges pre-#1037 generated artifacts for an enum', () async {
-    final enumDir = Directory(
-      '$outputDir/domain/entities/enums',
-    );
-    await enumDir.create(recursive: true);
-    await File(
-      '${enumDir.path}/authentication_method.dart',
-    ).writeAsString('enum AuthenticationMethod { anonymous, google, apple }');
+  test(
+    'issue #1037: stale index referencing an already-absent enum binding is rewritten',
+    () async {
+      final enumDir = Directory('$outputDir/domain/entities/enums');
+      await enumDir.create(recursive: true);
+      await File(
+        '${enumDir.path}/authentication_method.dart',
+      ).writeAsString('enum AuthenticationMethod { anonymous, google, apple }');
 
-    const marker = '// GENERATED - DO NOT EDIT';
-    final interfaceFile = File(
-      '$outputDir/data/datasources/authentication_method/'
-      'authentication_method_datasource.dart',
-    );
-    await interfaceFile.create(recursive: true);
-    await interfaceFile.writeAsString('$marker\n// broken interface');
-    final mockDsFile = File(
-      '$outputDir/data/datasources/authentication_method/'
-      'authentication_method_mock_datasource.dart',
-    );
-    await mockDsFile.create(recursive: true);
-    await mockDsFile.writeAsString('$marker\n// broken mock datasource');
-    final bindingFile = File(
-      '$outputDir/di/simulation/'
-      'authentication_method_simulation_datasource_di.dart',
-    );
-    await bindingFile.create(recursive: true);
-    await bindingFile.writeAsString('$marker\n// broken binding');
-    // The stale index a pre-#1037 run left behind: still importing the
-    // binding the purge is about to remove.
-    final indexFile = File('$outputDir/di/simulation/index.dart');
-    await indexFile.create(recursive: true);
-    await indexFile.writeAsString(
-      '$marker\n'
-      "import 'authentication_method_simulation_datasource_di.dart';\n",
-    );
-    // A hand-written file (no marker) in a generated path survives.
-    final handWritten = File(
-      '$outputDir/data/datasources/authentication_method/custom.dart',
-    );
-    await handWritten.writeAsString('// hand-written, no marker');
+      // A previous heal already removed the binding; only the stale index
+      // (still importing it) survives. Nothing to purge this run — the
+      // index must still be rewritten.
+      final indexFile = File('$outputDir/di/simulation/index.dart');
+      await indexFile.create(recursive: true);
+      await indexFile.writeAsString(
+        '// GENERATED - DO NOT EDIT\n'
+        "import 'authentication_method_simulation_datasource_di.dart';\n",
+      );
 
-    final plugin = MockPlugin(
-      outputDir: outputDir,
-      options: const GeneratorOptions(dryRun: false, force: true),
-    );
-    final files = await plugin.generate(
-      GeneratorConfig(
-        name: 'AuthenticationMethod',
-        methods: const ['get', 'update', 'toggle'],
-        generateMock: true,
+      final plugin = MockPlugin(
         outputDir: outputDir,
-      ),
-    );
+        options: const GeneratorOptions(dryRun: false, force: true),
+      );
+      await plugin.generate(
+        GeneratorConfig(
+          name: 'AuthenticationMethod',
+          methods: const ['get', 'update', 'toggle'],
+          generateMock: true,
+          outputDir: outputDir,
+        ),
+      );
 
-    expect(interfaceFile.existsSync(), isFalse);
-    expect(mockDsFile.existsSync(), isFalse);
-    expect(bindingFile.existsSync(), isFalse);
-    expect(handWritten.existsSync(), isTrue);
-    // With every binding purged, the stale index is rewritten as the
-    // empty skeleton — never left importing the removed files.
-    expect(indexFile.existsSync(), isTrue);
-    expect(
-      indexFile.readAsStringSync().contains('authentication_method'),
-      isFalse,
-    );
-    expect(
-      indexFile.readAsStringSync().contains('registerSimulationBindings'),
-      isTrue,
-    );
-    expect(
-      files.any((f) => f.path.contains('authentication_method_datasource')),
-      isFalse,
-    );
-  });
-
-  test('issue #1037: stale index referencing an already-absent enum binding is rewritten', () async {
-    final enumDir = Directory(
-      '$outputDir/domain/entities/enums',
-    );
-    await enumDir.create(recursive: true);
-    await File(
-      '${enumDir.path}/authentication_method.dart',
-    ).writeAsString('enum AuthenticationMethod { anonymous, google, apple }');
-
-    // A previous heal already removed the binding; only the stale index
-    // (still importing it) survives. Nothing to purge this run — the
-    // index must still be rewritten.
-    final indexFile = File('$outputDir/di/simulation/index.dart');
-    await indexFile.create(recursive: true);
-    await indexFile.writeAsString(
-      '// GENERATED - DO NOT EDIT\n'
-      "import 'authentication_method_simulation_datasource_di.dart';\n",
-    );
-
-    final plugin = MockPlugin(
-      outputDir: outputDir,
-      options: const GeneratorOptions(dryRun: false, force: true),
-    );
-    await plugin.generate(
-      GeneratorConfig(
-        name: 'AuthenticationMethod',
-        methods: const ['get', 'update', 'toggle'],
-        generateMock: true,
-        outputDir: outputDir,
-      ),
-    );
-
-    expect(indexFile.existsSync(), isTrue);
-    expect(
-      indexFile.readAsStringSync().contains('authentication_method'),
-      isFalse,
-    );
-    expect(
-      indexFile.readAsStringSync().contains('registerSimulationBindings'),
-      isTrue,
-    );
-  });
+      expect(indexFile.existsSync(), isTrue);
+      expect(
+        indexFile.readAsStringSync().contains('authentication_method'),
+        isFalse,
+      );
+      expect(
+        indexFile.readAsStringSync().contains('registerSimulationBindings'),
+        isTrue,
+      );
+    },
+  );
 }

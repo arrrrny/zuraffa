@@ -39,6 +39,7 @@ zfa build
 - **Do not hand-create entities.** Use `zfa entity create`.
 - **Do not call `build_runner` directly in normal agent flows.** Use `zfa build`.
 - **Do not invent alternate folder structures.** Zuraffa v5 assumes a fixed domain root.
+- **Always run `dart format lib test` before every commit and push.** CI enforces `dart format --set-exit-if-changed lib test` — any unformatted file blocks the build. Run it, stage the results, then commit. Never push without formatting first.
 
 ## STOP-ON-ROADBLOCK RULE (HARD, NON-NEGOTIABLE — HARDCODED)
 

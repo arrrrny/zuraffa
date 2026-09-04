@@ -242,9 +242,7 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             }
           }
           if (purged.isNotEmpty || indexReferencesEntity) {
-            final index = await healer.regenerateIndex(
-              pendingFiles: const [],
-            );
+            final index = await healer.regenerateIndex(pendingFiles: const []);
             if (index != null) {
               files.add(index);
             } else {
