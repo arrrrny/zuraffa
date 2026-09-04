@@ -7,4 +7,4 @@
 - [x] T005. RED: write `test/plugins/mock/mock_provider_builder_suite_test.dart` — ≥8 behavioral tests for `mock_provider_builder.dart`, all asserting file content. GREEN: suite passes against existing builder behavior (characterization; constraint: do not change generation).
 - [x] T006. REFACTOR + VERIFY: dart analyze on touched files; dart test test/plugins/mock/; chunked suite (no new failures); dart format (zero diff).
 - [x] T007. Run `/speckit.tdd.verify` → commit `tdd/verification.md` generated fresh from the real run.
-- [ ] T008. One PR for the spec (closes #970).
+- [x] T008. One PR for the spec (closes #970).
