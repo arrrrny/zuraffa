@@ -151,35 +151,60 @@ void main() {
     group('disk write (issue #1022)', () {
       late Directory tmpDir;
       late String previousDir;
-      late String projectRoot;
 
       setUp(() async {
         tmpDir = await Directory.systemTemp.createTemp('cli_plugin_test_');
         previousDir = Directory.current.path;
-        projectRoot = Directory.current.path;
       });
 
       tearDown(() async {
         Directory.current = previousDir;
-        // Clean up the generated test file from the project tree.
-        final generated = File(p.join(
-          projectRoot,
-          'lib',
-          'src',
-          'cli',
-          'commands',
-          'product_command.dart',
-        ));
-        if (await generated.exists()) await generated.delete();
         if (await tmpDir.exists()) await tmpDir.delete(recursive: true);
       });
 
       test(
         'U48: cli command writes file to disk that dart analyze accepts',
         () async {
-          // Change into the project root so FileUtils.writeFile lands
-          // at the correct project-relative path.
-          Directory.current = projectRoot;
+          // Create a self-contained project skeleton inside the temp dir
+          // so FileUtils.writeFile lands at the correct relative path and
+          // dart analyze can resolve all imports — no global state mutation.
+          final cliDir = p.join(tmpDir.path, 'lib', 'src', 'cli', 'commands');
+          final entityDir = p.join(
+            tmpDir.path,
+            'lib',
+            'src',
+            'domain',
+            'entities',
+            'product',
+          );
+          await Directory(cliDir).create(recursive: true);
+          await Directory(entityDir).create(recursive: true);
+
+          // Stub the entity use-case the generated import references.
+          await File(p.join(entityDir, 'product_usecase.dart')).writeAsString(
+            'class ProductUseCase {\n'
+            '  Future<dynamic> getList() async => [];\n'
+            '}\n',
+          );
+
+          // Point the temp project at zuraffa so dart analyze can resolve
+          // the generated import `package:zuraffa/zuraffa.dart`.
+          final projectRoot = previousDir;
+          await File(p.join(tmpDir.path, 'pubspec.yaml')).writeAsString('''
+name: cli_analyze_stub
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+dependencies:
+  zuraffa:
+    path: $projectRoot
+''');
+
+          // Resolve dependencies so dart analyze can resolve package imports.
+          await Process.run('dart', ['pub', 'get'],
+              workingDirectory: tmpDir.path);
+
+          // Point FileUtils.writeFile into the temp dir.
+          Directory.current = tmpDir.path;
 
           // Register the cli command in a fresh runner.
           final runner = CommandRunner<void>('zfa-test', 'test runner');
@@ -189,6 +214,7 @@ void main() {
 
           // The file must exist on disk — not just in-memory.
           final expectedPath = p.join(
+            tmpDir.path,
             'lib',
             'src',
             'cli',
@@ -203,47 +229,20 @@ void main() {
                 'to disk (issue #1022: phantom write).',
           );
 
-          // Create the stub entity use-case file so dart analyze can
-          // resolve the generated import.
-          final entityDir = p.join(
-            'lib',
-            'src',
-            'domain',
-            'entities',
-            'product',
+          // The generated file must pass dart analyze (compile gate).
+          final analyzeResult = await Process.run(
+            'dart',
+            ['analyze', expectedPath],
+            workingDirectory: tmpDir.path,
           );
-          final usecaseFile = File(p.join(entityDir, 'product_usecase.dart'));
-          final hadStub = await usecaseFile.exists();
-          if (!hadStub) {
-            await Directory(entityDir).create(recursive: true);
-            await usecaseFile.writeAsString(
-              'class ProductUseCase {\n'
-              '  Future<dynamic> getList() async => [];\n'
-              '}\n',
-            );
-          }
-
-          try {
-            // The generated file must pass dart analyze (compile gate).
-            final analyzeResult = await Process.run('dart', [
-              'analyze',
-              expectedPath,
-            ]);
-            expect(
-              analyzeResult.exitCode,
-              0,
-              reason:
-                  'Generated CLI command must pass dart analyze '
-                  '(compile gate).\n'
-                  'stdout: ${analyzeResult.stdout}\n'
-                  'stderr: ${analyzeResult.stderr}',
-            );
-          } finally {
-            // Clean up the stub if we created it.
-            if (!hadStub && await usecaseFile.exists()) {
-              await usecaseFile.delete();
-            }
-          }
+          expect(
+            analyzeResult.exitCode,
+            0,
+            reason:
+                'Generated CLI command must pass dart analyze (compile gate).\n'
+                'stdout: ${analyzeResult.stdout}\n'
+                'stderr: ${analyzeResult.stderr}',
+          );
         },
         timeout: const Timeout(Duration(minutes: 2)),
       );

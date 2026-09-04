@@ -185,8 +185,7 @@ class _CliGeneratorCommand extends Command<void> {
 
     // Emit proof.v1 receipt (#807) for the CLI command artifact.
     try {
-      final absPath = file.path;
-      final absFile = File(absPath);
+      final absFile = File(file.path);
       if (absFile.existsSync()) {
         final bytes = absFile.readAsBytesSync();
         await ReceiptStore(
@@ -201,7 +200,7 @@ class _CliGeneratorCommand extends Command<void> {
             input: {'entity': entityName},
             files: [
               GenerationReceiptFile(
-                path: absPath,
+                path: file.path,
                 action: 'create',
                 sha256: crypto.sha256.convert(bytes).toString(),
                 bytes: bytes.length,
@@ -211,8 +210,12 @@ class _CliGeneratorCommand extends Command<void> {
           ),
         );
       }
-    } catch (e) {
-      print('⚠️  Receipt not written: $e');
+    } catch (e, st) {
+      // Provenance failure is loud — issue #1022's exit criterion requires
+      // the receipt, so a silent warning would re-introduce the phantom
+      // write problem at the provenance layer.
+      stderr.writeln('❌ PROVENANCE FAILED: receipt not written: $e');
+      stderr.writeln(st);
     }
   }
 }
