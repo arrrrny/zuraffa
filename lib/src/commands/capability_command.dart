@@ -234,8 +234,7 @@ class CapabilityCommand extends Command<void> {
         // data['generatedFiles']. Read-only capabilities (e.g. the
         // `zfa di verify` gate) ship a verdict message and no generated
         // files by design; they must not trip a guard about generation.
-        final isGenerator =
-            result.data?.containsKey('generatedFiles') == true;
+        final isGenerator = result.data?.containsKey('generatedFiles') == true;
         final files =
             result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
         if (isGenerator && files.isEmpty) {

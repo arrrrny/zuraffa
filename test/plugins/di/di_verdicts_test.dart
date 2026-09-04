@@ -78,34 +78,34 @@ void main() {
     }
   });
 
-  test(
-    'A4: a forced generation failure returns success: false',
-    () async {
-      final plugin = DiPlugin(
-        outputDir: outputDir,
-        // Options must match the capability's config (force/dryRun/verbose/
-        // revert all false) so DiPlugin.generate does NOT delegate to a
-        // fresh plugin — the delegator rebuilds with a default FileSystem
-        // and would bypass the injected exploding one.
-        options: const GeneratorOptions(),
-        fileSystem: const _ExplodingFileSystem(),
-      );
-      final capability = CreateDiCapability(plugin, projectRoot: projectRoot);
+  test('A4: a forced generation failure returns success: false', () async {
+    final plugin = DiPlugin(
+      outputDir: outputDir,
+      // Options must match the capability's config (force/dryRun/verbose/
+      // revert all false) so DiPlugin.generate does NOT delegate to a
+      // fresh plugin — the delegator rebuilds with a default FileSystem
+      // and would bypass the injected exploding one.
+      options: const GeneratorOptions(),
+      fileSystem: const _ExplodingFileSystem(),
+    );
+    final capability = CreateDiCapability(plugin, projectRoot: projectRoot);
 
-      final result = await capability.execute({'name': 'Product'});
+    final result = await capability.execute({'name': 'Product'});
 
-      expect(result.success, isFalse,
-          reason: 'a generation failure must not report success');
-      expect(result.message, isNotNull);
-      expect(result.message, contains('simulated disk failure'));
-      expect(result.files, isEmpty);
-      // No proof for a failed run.
-      expect(
-        Directory(p.join(projectRoot, '.zfa', 'receipts')).existsSync(),
-        isFalse,
-      );
-    },
-  );
+    expect(
+      result.success,
+      isFalse,
+      reason: 'a generation failure must not report success',
+    );
+    expect(result.message, isNotNull);
+    expect(result.message, contains('simulated disk failure'));
+    expect(result.files, isEmpty);
+    // No proof for a failed run.
+    expect(
+      Directory(p.join(projectRoot, '.zfa', 'receipts')).existsSync(),
+      isFalse,
+    );
+  });
 
   test(
     'A4b: successful generation still returns success: true (no false negatives)',
@@ -114,13 +114,18 @@ void main() {
         outputDir: outputDir,
         options: const GeneratorOptions(force: true),
       );
-      final result = await CreateDiCapability(plugin, projectRoot: projectRoot)
-          .execute({'name': 'Product'});
+      final result = await CreateDiCapability(
+        plugin,
+        projectRoot: projectRoot,
+      ).execute({'name': 'Product'});
 
       expect(result.success, isTrue);
       expect(result.files, isNotEmpty);
-      expect(result.warnings, isEmpty,
-          reason: 'a clean first run has nothing to warn about');
+      expect(
+        result.warnings,
+        isEmpty,
+        reason: 'a clean first run has nothing to warn about',
+      );
     },
   );
 
@@ -139,8 +144,11 @@ void main() {
       // Second run without --force: every file is skipped.
       final second = await capability.execute({'name': 'Product'});
 
-      expect(second.warnings, isNotEmpty,
-          reason: 'skipped files must become structured warnings');
+      expect(
+        second.warnings,
+        isNotEmpty,
+        reason: 'skipped files must become structured warnings',
+      );
       for (final warning in second.warnings) {
         expect(warning.keys, containsAll(['target', 'reason']));
         expect(warning['target'], isA<String>());
@@ -152,32 +160,32 @@ void main() {
           (w) => w['target'].toString().endsWith('service_locator.dart'),
         ),
         isTrue,
-        reason: 'the silently-dropped shared artifact (service_locator) '
+        reason:
+            'the silently-dropped shared artifact (service_locator) '
             'must surface as a structured warning',
       );
     },
   );
 
-  test(
-    'U6: ExecutionResult serializes structured warnings in toJson()',
-    () {
-      final result = ExecutionResult(
-        success: true,
-        warnings: [
-          {'target': 'lib/src/di/x_di.dart', 'reason': 'exists'},
-        ],
-      );
+  test('U6: ExecutionResult serializes structured warnings in toJson()', () {
+    final result = ExecutionResult(
+      success: true,
+      warnings: [
+        {'target': 'lib/src/di/x_di.dart', 'reason': 'exists'},
+      ],
+    );
 
-      final json = result.toJson();
-      expect(json['warnings'], isA<List<dynamic>>());
-      expect(
-        (json['warnings'] as List).first,
-        containsPair('target', 'lib/src/di/x_di.dart'),
-      );
+    final json = result.toJson();
+    expect(json['warnings'], isA<List<dynamic>>());
+    expect(
+      (json['warnings'] as List).first,
+      containsPair('target', 'lib/src/di/x_di.dart'),
+    );
 
-      // Absent when empty — the default shape stays byte-compatible.
-      expect(ExecutionResult(success: true).toJson().containsKey('warnings'),
-          isFalse);
-    },
-  );
+    // Absent when empty — the default shape stays byte-compatible.
+    expect(
+      ExecutionResult(success: true).toJson().containsKey('warnings'),
+      isFalse,
+    );
+  });
 }

@@ -35,9 +35,28 @@ class DiVerifyCapability implements ZuraffaCapability {
   /// Dart core types that can legally appear in `getIt<T>` positions
   /// without any on-disk declaration.
   static const Set<String> _coreTypes = {
-    'dynamic', 'void', 'Null', 'Never', 'int', 'double', 'num', 'String',
-    'bool', 'Object', 'List', 'Map', 'Set', 'Iterable', 'Future', 'Stream',
-    'Function', 'Record', 'Duration', 'DateTime', 'Uri', 'BigInt',
+    'dynamic',
+    'void',
+    'Null',
+    'Never',
+    'int',
+    'double',
+    'num',
+    'String',
+    'bool',
+    'Object',
+    'List',
+    'Map',
+    'Set',
+    'Iterable',
+    'Future',
+    'Stream',
+    'Function',
+    'Record',
+    'Duration',
+    'DateTime',
+    'Uri',
+    'BigInt',
   };
 
   DiVerifyCapability(this.plugin, {this.projectRoot});
@@ -52,26 +71,26 @@ class DiVerifyCapability implements ZuraffaCapability {
 
   @override
   JsonSchema get inputSchema => {
-        'type': 'object',
-        'properties': {
-          'verbose': {
-            'type': 'boolean',
-            'description': 'Enable verbose logging',
-            'default': false,
-          },
-        },
-      };
+    'type': 'object',
+    'properties': {
+      'verbose': {
+        'type': 'boolean',
+        'description': 'Enable verbose logging',
+        'default': false,
+      },
+    },
+  };
 
   @override
   JsonSchema get outputSchema => {
-        'type': 'object',
-        'properties': {
-          'findings': {
-            'type': 'array',
-            'items': {'type': 'object'},
-          },
-        },
-      };
+    'type': 'object',
+    'properties': {
+      'findings': {
+        'type': 'array',
+        'items': {'type': 'object'},
+      },
+    },
+  };
 
   @override
   Future<EffectReport> plan(Map<String, dynamic> args) async {
@@ -115,7 +134,8 @@ class DiVerifyCapability implements ZuraffaCapability {
     if (!diDir.existsSync()) {
       return _VerifyOutcome(
         ok: true,
-        summary: 'di verify: no DI registrations under '
+        summary:
+            'di verify: no DI registrations under '
             '${_relative(root, diDir.path)} — nothing to verify',
         scannedFiles: const [],
         findings: const [],
@@ -123,12 +143,13 @@ class DiVerifyCapability implements ZuraffaCapability {
       );
     }
 
-    final diFiles = diDir
-        .listSync(recursive: true, followLinks: false)
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.dart'))
-        .toList()
-      ..sort((a, b) => a.path.compareTo(b.path));
+    final diFiles =
+        diDir
+            .listSync(recursive: true, followLinks: false)
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.dart'))
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
 
     // Classes on disk: every declaration under the project's lib/ tree.
     final declared = <String>{};
@@ -167,7 +188,8 @@ class DiVerifyCapability implements ZuraffaCapability {
               kind: 'dangling import',
               type: null,
               detail: "import '$importUri' points at a missing file",
-              fix: '--> fix: create ${_relative(root, target)} or fix the '
+              fix:
+                  '--> fix: create ${_relative(root, target)} or fix the '
                   'import in $relative',
             ),
           );
@@ -200,9 +222,11 @@ class DiVerifyCapability implements ZuraffaCapability {
             file: relative,
             kind: 'dangling binding',
             type: type,
-            detail: 'getIt<$type> in $relative binds a class that does not '
+            detail:
+                'getIt<$type> in $relative binds a class that does not '
                 'exist on disk',
-            fix: '--> fix: define $type in $expected and import it, or '
+            fix:
+                '--> fix: define $type in $expected and import it, or '
                 'remove the registration',
           ),
         );
@@ -211,10 +235,10 @@ class DiVerifyCapability implements ZuraffaCapability {
 
     final summary = findings.isEmpty
         ? 'di verify: ${diFiles.length} registration file(s), '
-            '$bindingsChecked binding(s) verified — OK'
+              '$bindingsChecked binding(s) verified — OK'
         : 'di verify: ${findings.length} finding(s) across '
-            '${diFiles.length} registration file(s)\n'
-            '${findings.map((f) => '${f.file}: ${f.detail}\n  ${f.fix}').join('\n')}';
+              '${diFiles.length} registration file(s)\n'
+              '${findings.map((f) => '${f.file}: ${f.detail}\n  ${f.fix}').join('\n')}';
 
     return _VerifyOutcome(
       ok: findings.isEmpty,
@@ -226,10 +250,8 @@ class DiVerifyCapability implements ZuraffaCapability {
   }
 
   Directory _resolveDir(String root, String dir) => Directory(
-        path.canonicalize(
-          path.isAbsolute(dir) ? dir : path.join(root, dir),
-        ),
-      );
+    path.canonicalize(path.isAbsolute(dir) ? dir : path.join(root, dir)),
+  );
 
   String _relative(String root, String target) {
     final relative = path.relative(target, from: root);
@@ -324,12 +346,12 @@ class _Finding {
   });
 
   Map<String, dynamic> toJson() => {
-        'file': file,
-        'kind': kind,
-        if (type != null) 'class': type,
-        'detail': detail,
-        'fix': fix,
-      };
+    'file': file,
+    'kind': kind,
+    if (type != null) 'class': type,
+    'detail': detail,
+    'fix': fix,
+  };
 }
 
 class _VerifyOutcome {
@@ -348,10 +370,10 @@ class _VerifyOutcome {
   });
 
   Map<String, dynamic> toData() => {
-        'findings': findings.map((f) => f.toJson()).toList(),
-        'files_scanned': scannedFiles.length,
-        'bindings_checked': bindingsChecked,
-      };
+    'findings': findings.map((f) => f.toJson()).toList(),
+    'files_scanned': scannedFiles.length,
+    'bindings_checked': bindingsChecked,
+  };
 }
 
 /// Resolves `package:` imports of a DI file through the project's

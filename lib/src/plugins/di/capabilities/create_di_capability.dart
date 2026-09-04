@@ -145,9 +145,7 @@ class CreateDiCapability implements ZuraffaCapability {
     // a `di-<target>` receipt binding the written registrations and the
     // DI index hashes, so `zfa proof check` covers `zfa di create` runs
     // exactly like `zfa make` runs (issue #807).
-    if (!dryRun &&
-        !revert &&
-        DiReceiptWriter.hasWritableOutput(files)) {
+    if (!dryRun && !revert && DiReceiptWriter.hasWritableOutput(files)) {
       await DiReceiptWriter(
         projectRoot: projectRoot ?? Directory.current.path,
       ).writeReceipt(

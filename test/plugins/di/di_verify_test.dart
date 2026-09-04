@@ -28,10 +28,8 @@ void main() {
     }
   });
 
-  DiPlugin buildPlugin() => DiPlugin(
-        outputDir: outputDir,
-        options: const GeneratorOptions(),
-      );
+  DiPlugin buildPlugin() =>
+      DiPlugin(outputDir: outputDir, options: const GeneratorOptions());
 
   DiVerifyCapability buildCapability() =>
       DiVerifyCapability(buildPlugin(), projectRoot: projectRoot);
@@ -42,42 +40,39 @@ void main() {
     file.writeAsStringSync(content);
   }
 
-  test(
-    'A2 positive: clean registrations verify green',
-    () async {
-      // Real class on disk, real import, real registration — the gate must
-      // pass and report what it checked.
-      writeSource(
-        'lib/src/domain/usecases/general/get_product_usecase.dart',
-        'class GetProductUseCase {\n'
-            '  final ProductRepository repository;\n'
-            '  GetProductUseCase(this.repository);\n'
-            '}\n',
-      );
-      writeSource(
-        'lib/src/data/repositories/product_repository.dart',
-        'abstract class ProductRepository {}\n',
-      );
-      writeSource(
-        'lib/src/di/usecases/get_product_usecase_di.dart',
-        "import 'package:get_it/get_it.dart';\n"
-            "import '../../domain/usecases/general/get_product_usecase.dart';\n"
-            "import '../../data/repositories/product_repository.dart';\n"
-            '\n'
-            'void registerGetProductUseCase(GetIt getIt) {\n'
-            '  getIt.registerFactory<GetProductUseCase>(\n'
-            '    () => GetProductUseCase(getIt<ProductRepository>()),\n'
-            '  );\n'
-            '}\n',
-      );
+  test('A2 positive: clean registrations verify green', () async {
+    // Real class on disk, real import, real registration — the gate must
+    // pass and report what it checked.
+    writeSource(
+      'lib/src/domain/usecases/general/get_product_usecase.dart',
+      'class GetProductUseCase {\n'
+          '  final ProductRepository repository;\n'
+          '  GetProductUseCase(this.repository);\n'
+          '}\n',
+    );
+    writeSource(
+      'lib/src/data/repositories/product_repository.dart',
+      'abstract class ProductRepository {}\n',
+    );
+    writeSource(
+      'lib/src/di/usecases/get_product_usecase_di.dart',
+      "import 'package:get_it/get_it.dart';\n"
+          "import '../../domain/usecases/general/get_product_usecase.dart';\n"
+          "import '../../data/repositories/product_repository.dart';\n"
+          '\n'
+          'void registerGetProductUseCase(GetIt getIt) {\n'
+          '  getIt.registerFactory<GetProductUseCase>(\n'
+          '    () => GetProductUseCase(getIt<ProductRepository>()),\n'
+          '  );\n'
+          '}\n',
+    );
 
-      final result = await buildCapability().execute({});
+    final result = await buildCapability().execute({});
 
-      expect(result.success, isTrue, reason: 'clean tree must verify green');
-      expect(result.files, contains(endsWith('get_product_usecase_di.dart')));
-      expect(result.data?['bindings_checked'], greaterThanOrEqualTo(2));
-    },
-  );
+    expect(result.success, isTrue, reason: 'clean tree must verify green');
+    expect(result.files, contains(endsWith('get_product_usecase_di.dart')));
+    expect(result.data?['bindings_checked'], greaterThanOrEqualTo(2));
+  });
 
   test(
     'A2 negative: dangling getIt<Missing>() registration fails with fix hint',
@@ -98,8 +93,11 @@ void main() {
 
       final result = await buildCapability().execute({});
 
-      expect(result.success, isFalse,
-          reason: 'a dangling binding must fail the verify gate');
+      expect(
+        result.success,
+        isFalse,
+        reason: 'a dangling binding must fail the verify gate',
+      );
       expect(result.message, isNotNull);
       expect(result.message, contains('MissingUseCase'));
       expect(result.message, contains('MissingRepository'));
@@ -110,45 +108,36 @@ void main() {
     },
   );
 
-  test(
-    'U2: a missing di/ tree verifies green (nothing to check)',
-    () async {
-      final result = await buildCapability().execute({});
-      expect(result.success, isTrue);
-    },
-  );
+  test('U2: a missing di/ tree verifies green (nothing to check)', () async {
+    final result = await buildCapability().execute({});
+    expect(result.success, isTrue);
+  });
 
-  test(
-    'U3: a dead import URI in a DI file is reported as a finding',
-    () async {
-      // #410's uri_does_not_exist mode: the registration's import points at
-      // a file that is not on disk, even though the class name would be
-      // conventional.
-      writeSource(
-        'lib/src/di/repositories/order_repository_di.dart',
-        "import 'package:get_it/get_it.dart';\n"
-            "import '../../data/repositories/order_repository.dart';\n"
-            '\n'
-            'void registerOrderRepository(GetIt getIt) {\n'
-            '  getIt.registerLazySingleton<OrderRepository>(\n'
-            '    () => DataOrderRepository(),\n'
-            '  );\n'
-            '}\n',
-      );
+  test('U3: a dead import URI in a DI file is reported as a finding', () async {
+    // #410's uri_does_not_exist mode: the registration's import points at
+    // a file that is not on disk, even though the class name would be
+    // conventional.
+    writeSource(
+      'lib/src/di/repositories/order_repository_di.dart',
+      "import 'package:get_it/get_it.dart';\n"
+          "import '../../data/repositories/order_repository.dart';\n"
+          '\n'
+          'void registerOrderRepository(GetIt getIt) {\n'
+          '  getIt.registerLazySingleton<OrderRepository>(\n'
+          '    () => DataOrderRepository(),\n'
+          '  );\n'
+          '}\n',
+    );
 
-      final result = await buildCapability().execute({});
+    final result = await buildCapability().execute({});
 
-      expect(result.success, isFalse);
-      expect(result.message, contains('order_repository.dart'));
-      expect(result.message, contains('--> fix:'));
-    },
-  );
+    expect(result.success, isFalse);
+    expect(result.message, contains('order_repository.dart'));
+    expect(result.message, contains('--> fix:'));
+  });
 
-  test(
-    'A2 wiring: the verify capability is registered as a di subcommand',
-    () {
-      final names = buildPlugin().capabilities.map((c) => c.name).toList();
-      expect(names, contains('verify'));
-    },
-  );
+  test('A2 wiring: the verify capability is registered as a di subcommand', () {
+    final names = buildPlugin().capabilities.map((c) => c.name).toList();
+    expect(names, contains('verify'));
+  });
 }
