@@ -46,6 +46,14 @@ dev_dependencies:
     await File(p.join(root.path, 'bin', 'zfa.dart'))
         .create(recursive: true)
         .then((file) => file.writeAsString('void main() {}\n'));
+    // Resolve dependencies so `dart test` in the temp project succeeds even
+    // when the host pub cache is cold (Linux CI).  Silently ignore errors —
+    // tests that don't spawn `dart test` don't need deps.
+    await Process.run('dart', [
+      'pub',
+      'get',
+      '--no-example',
+    ], workingDirectory: root.path).catchError((_) {});
     if (writeProfile) {
       await fx._writeProfile(singleTemplate, suiteTemplate);
     }
