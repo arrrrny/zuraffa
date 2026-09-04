@@ -17,12 +17,7 @@ import 'sandbox_fixture.dart';
 
 void subject_a4() {
   final host = writeHostProject();
-  final sandboxPath = p.join(
-    host.path,
-    '.zuraffa',
-    'slices',
-    fixtureFeature,
-  );
+  final sandboxPath = p.join(host.path, '.zuraffa', 'slices', fixtureFeature);
   final manifest = SliceManifest(
     name: fixtureFeature,
     createdAt: DateTime.parse('2026-09-04T00:00:00.000Z'),
@@ -66,12 +61,12 @@ void subject_a4() {
   expect(fake, contains('class FakeSecureStore'));
 
   // And the mock-certification check certifies exactly that binding.
-  final verdict = SliceVerifier(suiteRunner: (_) => const SuiteOutcome(passed: true))
-      .verify(
-    sandboxDir: sandboxPath,
-    manifest: manifest,
-    hostRoot: host.path,
+  final verdict = SliceVerifier(
+    suiteRunner: (_) => const SuiteOutcome(passed: true),
+  ).verify(sandboxDir: sandboxPath, manifest: manifest, hostRoot: host.path);
+  expect(
+    verdict.mockCertification.pass,
+    isTrue,
+    reason: verdict.mockCertification.offenders.join('\n'),
   );
-  expect(verdict.mockCertification.pass, isTrue,
-      reason: verdict.mockCertification.offenders.join('\n'));
 }

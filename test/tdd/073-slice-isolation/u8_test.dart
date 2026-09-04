@@ -18,15 +18,18 @@ import '../../../lib/tdd/073-slice-isolation/u8_subject.dart' as subject;
 
 void main() {
   group('U8 (FR-008)', () {
-    test('U8 — Every refusal across cut/verify/merge MUST name the offending path, reference, or check with a `--> fix:` hint.', () {
-      final Object? result = (() {
-        try {
-          return subject.subject_u8();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U8 — Every refusal across cut/verify/merge MUST name the offending path, reference, or check with a `--> fix:` hint.',
+      () {
+        final Object? result = (() {
+          try {
+            return subject.subject_u8();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

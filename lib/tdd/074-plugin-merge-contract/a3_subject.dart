@@ -18,14 +18,19 @@ void subject_a3() {
   // only diff is appended route entries.
   final originalLines = hostBarrel.trim().split('\n');
   final regeneratedLines = regenerated.barrel.trim().split('\n');
-  expect(regeneratedLines.take(originalLines.length),
-      equals(originalLines),
-      reason: 'existing barrel content is untouched');
+  expect(
+    regeneratedLines.take(originalLines.length),
+    equals(originalLines),
+    reason: 'existing barrel content is untouched',
+  );
   expect(regeneratedLines.length, greaterThan(originalLines.length));
   for (final line in regeneratedLines.skip(originalLines.length)) {
     if (line.isEmpty) continue;
-    expect(line, startsWith("route('/"),
-        reason: 'only regenerated route entries are added');
+    expect(
+      line,
+      startsWith("route('/"),
+      reason: 'only regenerated route entries are added',
+    );
   }
 
   // A route collision refuses BEFORE any landing — no silent rewrite.

@@ -13,16 +13,19 @@ import '../../../lib/tdd/075-ui-coverage-ledger/a6_subject.dart' as subject;
 
 void main() {
   group('A6 (AC-6)', () {
-    test('A6 - it exits non-zero and the verdict names the surface and its missing prover..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a6();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A6 - it exits non-zero and the verdict names the surface and its missing prover..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a6();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

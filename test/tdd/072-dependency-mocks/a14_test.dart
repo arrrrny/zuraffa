@@ -18,16 +18,19 @@ import '../../../lib/tdd/072-dependency-mocks/a14_subject.dart' as subject;
 
 void main() {
   group('A14 (AC-14)', () {
-    test('A14 — it refuses naming the missing method and the contract row — never silently swapping a drifting adapter.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a14();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A14 — it refuses naming the missing method and the contract row — never silently swapping a drifting adapter.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a14();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

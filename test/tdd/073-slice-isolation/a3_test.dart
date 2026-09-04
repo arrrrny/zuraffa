@@ -18,16 +18,19 @@ import '../../../lib/tdd/073-slice-isolation/a3_subject.dart' as subject;
 
 void main() {
   group('A3 (AC-3)', () {
-    test('A3 — the route resolves and renders through the mock DI bindings.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a3();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A3 — the route resolves and renders through the mock DI bindings.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a3();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

@@ -26,8 +26,16 @@ import 'package:zuraffa/src/plugins/tdd/commands/func_command.dart';
 void _expectJsonFlag(Command<void> command, String name) {
   final flag = command.argParser.options['json'];
   expect(flag, isNotNull, reason: '$name: --json flag must be registered');
-  expect(flag!.defaultsTo, isFalse, reason: '$name: --json must default to false');
-  expect(flag.isFlag, isTrue, reason: '$name: --json must be a flag, not an option');
+  expect(
+    flag!.defaultsTo,
+    isFalse,
+    reason: '$name: --json must default to false',
+  );
+  expect(
+    flag.isFlag,
+    isTrue,
+    reason: '$name: --json must be a flag, not an option',
+  );
 }
 
 void main() {

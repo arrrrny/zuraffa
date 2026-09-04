@@ -18,16 +18,19 @@ import '../../../lib/tdd/072-dependency-mocks/a1_subject.dart' as subject;
 
 void main() {
   group('A1 (AC-1)', () {
-    test('A1 — the generated interface exposes `signIn(email, password) -> User` and `signOut() -> void` with no additional, missing, or renamed members.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a1();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A1 — the generated interface exposes `signIn(email, password) -> User` and `signOut() -> void` with no additional, missing, or renamed members.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a1();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

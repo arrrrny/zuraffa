@@ -13,16 +13,19 @@ import '../../../lib/tdd/074-plugin-merge-contract/a7_subject.dart' as subject;
 
 void main() {
   group('A7 (AC-7)', () {
-    test('A7 — each page composes behind the host\'s adaptive shell convention..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a7();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A7 — each page composes behind the host\'s adaptive shell convention..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a7();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

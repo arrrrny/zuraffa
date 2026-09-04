@@ -13,16 +13,19 @@ import '../../../lib/tdd/075-ui-coverage-ledger/a8_subject.dart' as subject;
 
 void main() {
   group('A8 (AC-8)', () {
-    test('A8 - the surfaces it would prove read NOT-DONE (green is the only proof)..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a8();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A8 - the surfaces it would prove read NOT-DONE (green is the only proof)..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a8();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

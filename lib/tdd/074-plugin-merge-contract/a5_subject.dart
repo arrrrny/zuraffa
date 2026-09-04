@@ -24,7 +24,8 @@ void subject_a5() {
   // A missing factory surfaces at construction, named token+flavor.
   final offenders = DiGraphCheck.resolutionOffenders(
     bindings: bindings,
-    resolves: (token, flavor) => !(token == 'dependencies/login_repo' && flavor == 'mock'),
+    resolves: (token, flavor) =>
+        !(token == 'dependencies/login_repo' && flavor == 'mock'),
   );
   expect(offenders, hasLength(1));
   expect(offenders.single, contains('dependencies/login_repo'));

@@ -16,12 +16,7 @@ import 'sandbox_fixture.dart';
 
 void subject_a2() {
   final host = writeHostProject();
-  final sandboxPath = p.join(
-    host.path,
-    '.zuraffa',
-    'slices',
-    fixtureFeature,
-  );
+  final sandboxPath = p.join(host.path, '.zuraffa', 'slices', fixtureFeature);
   final manifest = fixtureManifest(host);
   SandboxComposition().compose(
     projectRoot: host.path,
@@ -43,8 +38,11 @@ void subject_a2() {
     hostRoot: host.path,
   );
   expect(verdict.suiteState.pass, isTrue);
-  expect(verdict.selfContainment.pass, isTrue,
-      reason: verdict.selfContainment.offenders.join('\n'));
+  expect(
+    verdict.selfContainment.pass,
+    isTrue,
+    reason: verdict.selfContainment.offenders.join('\n'),
+  );
 
   // No generated file references the host — the scan is the proof.
   expect(

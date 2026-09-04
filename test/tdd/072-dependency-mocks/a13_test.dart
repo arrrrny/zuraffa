@@ -18,16 +18,19 @@ import '../../../lib/tdd/072-dependency-mocks/a13_subject.dart' as subject;
 
 void main() {
   group('A13 (AC-13)', () {
-    test('A13 — the differential gates compare against the declared contract and the suite stays green through the swap.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a13();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A13 — the differential gates compare against the declared contract and the suite stays green through the swap.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a13();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

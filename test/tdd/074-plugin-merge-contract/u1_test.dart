@@ -13,16 +13,19 @@ import '../../../lib/tdd/074-plugin-merge-contract/u1_subject.dart' as subject;
 
 void main() {
   group('U1 (FR-001)', () {
-    test('U1 — Merge MUST regenerate the host\'s route barrel to include the merged feature\'s routes; hand-edited host routing is never required and never performed..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_u1();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U1 — Merge MUST regenerate the host\'s route barrel to include the merged feature\'s routes; hand-edited host routing is never required and never performed..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_u1();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

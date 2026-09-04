@@ -215,7 +215,6 @@ class JsonMockCommand extends Command<void> {
   }
 }
 
-
 /// `zfa mock dependency <Name>` (issue #960): the certified mock for a
 /// declared External Dependencies & Contracts row. The capability owns
 /// exit codes + the machine summary line.
@@ -225,12 +224,14 @@ class DependencyMockCommand extends Command<void> {
   DependencyMockCommand(this.plugin) {
     argParser.addOption(
       'feature',
-      help: 'Feature directory under specs/ (defaults to the pinned '
+      help:
+          'Feature directory under specs/ (defaults to the pinned '
           '.specify/feature.json)',
     );
     argParser.addOption(
       'project',
-      help: 'Project root containing specs/ (defaults to the current '
+      help:
+          'Project root containing specs/ (defaults to the current '
           'working directory)',
     );
     argParser.addFlag(
@@ -253,8 +254,10 @@ class DependencyMockCommand extends Command<void> {
   Future<void> run() async {
     final results = argResults;
     if (results == null || results.rest.isEmpty) {
-      print('❌ Usage: zfa mock dependency <Name> [--feature <f>] '
-          '[--project <dir>] [--force]');
+      print(
+        '❌ Usage: zfa mock dependency <Name> [--feature <f>] '
+        '[--project <dir>] [--force]',
+      );
       exitCode = DependencyMockCapability.exitUndeclared;
       return;
     }

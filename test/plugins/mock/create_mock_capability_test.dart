@@ -102,16 +102,15 @@ void main() {
       },
     );
 
-    test(
-        'capability: schema declares NO static methods default — it is '
-        'mode-dependent (entity CRUD vs service conformance, issue #1027)',
-        () {
+    test('capability: schema declares NO static methods default — it is '
+        'mode-dependent (entity CRUD vs service conformance, issue #1027)', () {
       final props =
           capability.inputSchema['properties'] as Map<String, dynamic>;
       expect(
         (props['methods'] as Map<String, dynamic>)['default'],
         isNull,
-        reason: 'a static schema default would materialize through '
+        reason:
+            'a static schema default would materialize through '
             'CapabilityCommand (addMultiOption defaultsTo:) and the '
             'service-mode branch in execute() could never fire (#1027). '
             'The effective default is applied in execute(): the canonical '
@@ -198,67 +197,69 @@ void main() {
     });
   });
 
-  group('issue #1027 — service-mode mock conforms to the service interface', () {
-    test(
-      'capability: --service with no explicit methods parses the interface '
-      'and generates a conforming provider (no entity-methods crash)',
-      () async {
-        // Scaffold the internal service interface (production shape:
-        // AuthService.login(AuthRequest) -> User).
-        final serviceDir = Directory('$outputDir/domain/services');
-        serviceDir.createSync(recursive: true);
-        File('${serviceDir.path}/auth_service.dart').writeAsStringSync('''
+  group(
+    'issue #1027 — service-mode mock conforms to the service interface',
+    () {
+      test(
+        'capability: --service with no explicit methods parses the interface '
+        'and generates a conforming provider (no entity-methods crash)',
+        () async {
+          // Scaffold the internal service interface (production shape:
+          // AuthService.login(AuthRequest) -> User).
+          final serviceDir = Directory('$outputDir/domain/services');
+          serviceDir.createSync(recursive: true);
+          File('${serviceDir.path}/auth_service.dart').writeAsStringSync('''
 abstract class AuthService {
   Future<User> login(AuthRequest params);
 }
 ''');
 
-        // No 'methods' key — the exact CLI shape of
-        // `zfa mock create --name Auth --service Auth ...`. Before the fix
-        // this crashed with ArgumentError('Unknown entity method: toggle')
-        // because the entity-CRUD default hijacked the service path.
-        final result = await capability.execute({
-          'name': 'Auth',
-          'service': 'Auth',
-          'domain': 'auth',
-          'params': 'AuthRequest',
-          'returns': 'User',
-        });
+          // No 'methods' key — the exact CLI shape of
+          // `zfa mock create --name Auth --service Auth ...`. Before the fix
+          // this crashed with ArgumentError('Unknown entity method: toggle')
+          // because the entity-CRUD default hijacked the service path.
+          final result = await capability.execute({
+            'name': 'Auth',
+            'service': 'Auth',
+            'domain': 'auth',
+            'params': 'AuthRequest',
+            'returns': 'User',
+          });
 
-        expect(
-          result.success,
-          isTrue,
-          reason: 'service mode must not crash on the entity-methods default',
-        );
+          expect(
+            result.success,
+            isTrue,
+            reason: 'service mode must not crash on the entity-methods default',
+          );
 
-        final providerPath = result.files
-            .where((p) => p.contains('data/providers/'))
-            .firstOrNull;
-        expect(providerPath, isNotNull, reason: 'a mock provider is generated');
-        final content = File(providerPath!).readAsStringSync();
+          final providerPath = result.files
+              .where((p) => p.contains('data/providers/'))
+              .firstOrNull;
+          expect(
+            providerPath,
+            isNotNull,
+            reason: 'a mock provider is generated',
+          );
+          final content = File(providerPath!).readAsStringSync();
 
-        expect(
-          content.contains('implements AuthService'),
-          isTrue,
-          reason: 'the provider implements the declared service interface',
-        );
-        expect(
-          content.contains('login'),
-          isTrue,
-          reason: 'the provider conforms to the interface login method '
-              '(parsed from the interface, not the entity-CRUD default)',
-        );
-        expect(
-          content.contains("Unknown entity method"),
-          isFalse,
-        );
-      },
-    );
+          expect(
+            content.contains('implements AuthService'),
+            isTrue,
+            reason: 'the provider implements the declared service interface',
+          );
+          expect(
+            content.contains('login'),
+            isTrue,
+            reason:
+                'the provider conforms to the interface login method '
+                '(parsed from the interface, not the entity-CRUD default)',
+          );
+          expect(content.contains("Unknown entity method"), isFalse);
+        },
+      );
 
-    test(
-      'CLI layer: unprovided --methods via CapabilityCommand conforms in '
-      'service mode and keeps the CRUD default in entity mode',
-      () async {
+      test('CLI layer: unprovided --methods via CapabilityCommand conforms in '
+          'service mode and keeps the CRUD default in entity mode', () async {
         final serviceDir = Directory('$outputDir/domain/services');
         serviceDir.createSync(recursive: true);
         File('${serviceDir.path}/auth_service.dart').writeAsStringSync('''
@@ -281,17 +282,25 @@ abstract class AuthService {
         // Service mode: no --methods — must conform to the interface.
         await runner.run([
           'create',
-          '--name', 'Auth',
-          '--service', 'Auth',
-          '--domain', 'auth',
-          '--params', 'AuthRequest',
-          '--returns', 'User',
+          '--name',
+          'Auth',
+          '--service',
+          'Auth',
+          '--domain',
+          'auth',
+          '--params',
+          'AuthRequest',
+          '--returns',
+          'User',
         ]);
         final providerPath = File(
           '$outputDir/data/providers/auth/auth_mock_provider.dart',
         );
-        expect(providerPath.existsSync(), isTrue,
-            reason: 'service-mode provider generated through the CLI layer');
+        expect(
+          providerPath.existsSync(),
+          isTrue,
+          reason: 'service-mode provider generated through the CLI layer',
+        );
         final providerContent = providerPath.readAsStringSync();
         expect(providerContent.contains('implements AuthService'), isTrue);
         expect(providerContent.contains('login'), isTrue);
@@ -307,13 +316,20 @@ abstract class AuthService {
         final datasourcePath = File(
           '$outputDir/data/datasources/product/product_mock_datasource.dart',
         );
-        expect(datasourcePath.existsSync(), isTrue,
-            reason: 'entity-mode mock datasource generated through the CLI '
-                'layer (empty-list must not strip the CRUD default)');
+        expect(
+          datasourcePath.existsSync(),
+          isTrue,
+          reason:
+              'entity-mode mock datasource generated through the CLI '
+              'layer (empty-list must not strip the CRUD default)',
+        );
         final datasourceContent = datasourcePath.readAsStringSync();
-        expect(datasourceContent.contains('toggle'), isTrue,
-            reason: 'the canonical CRUD method set is applied in entity mode');
-      },
-    );
-  });
+        expect(
+          datasourceContent.contains('toggle'),
+          isTrue,
+          reason: 'the canonical CRUD method set is applied in entity mode',
+        );
+      });
+    },
+  );
 }

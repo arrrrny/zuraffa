@@ -18,16 +18,19 @@ import '../../../lib/tdd/073-slice-isolation/a6_subject.dart' as subject;
 
 void main() {
   group('A6 (AC-6)', () {
-    test('A6 — the loop completes its cycle over those behaviors (red certified, green landed) with no reference to the host.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a6();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A6 — the loop completes its cycle over those behaviors (red certified, green landed) with no reference to the host.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a6();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

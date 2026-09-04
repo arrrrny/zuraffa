@@ -40,8 +40,8 @@ abstract final class DependencyParity {
     final fixHint = drifted.isEmpty
         ? ''
         : '--> fix: implement ${drifted.join(", ")} on the real adapter '
-            '— the declared contract row "${contract.name}" requires '
-            'them (issue #960).';
+              '— the declared contract row "${contract.name}" requires '
+              'them (issue #960).';
     return ParityReport(driftedMembers: drifted, fixHint: fixHint);
   }
 }

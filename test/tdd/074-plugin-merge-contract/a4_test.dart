@@ -13,16 +13,19 @@ import '../../../lib/tdd/074-plugin-merge-contract/a4_subject.dart' as subject;
 
 void main() {
   group('A4 (AC-4)', () {
-    test('A4 — the feature\'s binding module registers through the host\'s locator in both mock and real flavors..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a4();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A4 — the feature\'s binding module registers through the host\'s locator in both mock and real flavors..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a4();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

@@ -28,8 +28,11 @@ void subject_u8() {
     module: 'login',
     incoming: featureRoutes,
   );
-  expect(second.barrel, equals(first.barrel),
-      reason: 're-merge changes nothing');
+  expect(
+    second.barrel,
+    equals(first.barrel),
+    reason: 're-merge changes nothing',
+  );
   final secondGate = ConformanceGate.routes(
     barrel: second.barrel,
     declared: featureRoutes,

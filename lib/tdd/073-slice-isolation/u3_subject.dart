@@ -20,14 +20,24 @@ Future<Object?> subject_u3() async {
   expect(result.success, isTrue, reason: result.message);
 
   final sandbox = sandboxDirOf(host);
-  final journal = readSandboxFile(sandbox, 'specs/$fixtureFeature/tdd/journal.json');
+  final journal = readSandboxFile(
+    sandbox,
+    'specs/$fixtureFeature/tdd/journal.json',
+  );
   final registry = readSandboxFile(
     sandbox,
     'specs/$fixtureFeature/tdd/artifacts.json',
   );
   // The receipts are the loop's evidence, copied verbatim — the
   // sandbox carries its own run history, not a pointer into the host.
-  expect(journal, equals(File(p.join(host.path, 'specs', fixtureFeature, 'tdd', 'journal.json')).readAsStringSync()));
+  expect(
+    journal,
+    equals(
+      File(
+        p.join(host.path, 'specs', fixtureFeature, 'tdd', 'journal.json'),
+      ).readAsStringSync(),
+    ),
+  );
   expect(journal, contains('"cycle"'));
   expect(registry, contains('"artifacts"'));
   return null;

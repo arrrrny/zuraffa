@@ -13,16 +13,19 @@ import '../../../lib/tdd/075-ui-coverage-ledger/a1_subject.dart' as subject;
 
 void main() {
   group('A1 (AC-1)', () {
-    test('A1 - the ledger contains one row per surface with kind text/route/affordance..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a1();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A1 - the ledger contains one row per surface with kind text/route/affordance..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a1();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

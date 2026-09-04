@@ -66,7 +66,8 @@ abstract final class DependencyDeclarationReader {
       throw DependencyDeclarationError(
         'the dependency section of specs/$featureName/tdd/test-list.md '
         'is unreadable',
-        fix: '--> fix: re-run `zfa tdd plan $featureName` to regenerate '
+        fix:
+            '--> fix: re-run `zfa tdd plan $featureName` to regenerate '
             'the section, then re-run.',
       );
     }
@@ -112,4 +113,3 @@ abstract final class DependencyDeclarationReader {
     }
   }
 }
-

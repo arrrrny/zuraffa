@@ -30,8 +30,20 @@ import 'package:zuraffa/tdd/072-dependency-mocks/u10_subject.dart' as anchor9;
 
 /// Subject for behavior A8, composed against the
 /// feature's unit subject anchors by the generation pipeline.
-void subject_a8() {  // Composition anchor: references the feature's green / entity-wired unit
+void subject_a8() {
+  // Composition anchor: references the feature's green / entity-wired unit
   // subjects this behavior builds on.
   // ignore: unused_local_variable
-  final composedUnitAnchors = <Function>[anchor0.subject_u1, anchor1.subject_u2, anchor2.subject_u3, anchor3.subject_u4, anchor4.subject_u5, anchor5.subject_u6, anchor6.subject_u7, anchor7.subject_u8, anchor8.subject_u9, anchor9.subject_u10];
+  final composedUnitAnchors = <Function>[
+    anchor0.subject_u1,
+    anchor1.subject_u2,
+    anchor2.subject_u3,
+    anchor3.subject_u4,
+    anchor4.subject_u5,
+    anchor5.subject_u6,
+    anchor6.subject_u7,
+    anchor7.subject_u8,
+    anchor8.subject_u9,
+    anchor9.subject_u10,
+  ];
 }

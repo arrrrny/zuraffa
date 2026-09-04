@@ -18,16 +18,19 @@ import '../../../lib/tdd/072-dependency-mocks/a4_subject.dart' as subject;
 
 void main() {
   group('A4 (AC-4)', () {
-    test('A4 — it refuses non-zero with an author-actionable error naming the External Dependencies & Contracts table row to add.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a4();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A4 — it refuses non-zero with an author-actionable error naming the External Dependencies & Contracts table row to add.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a4();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

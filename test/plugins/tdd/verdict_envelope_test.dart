@@ -8,25 +8,30 @@ import 'package:zuraffa/src/plugins/tdd/models/verdict_envelope.dart';
 
 void main() {
   group('VerdictEnvelope', () {
-    test('U1: toJsonLine emits stable verdict.v1 schema with required keys',
-        () {
-      final envelope = VerdictEnvelope(
-        command: 'run',
-        outcome: VerdictOutcome.pass,
-        details: <String, Object?>{'feature': '073-slice-isolation', 'green': 22},
-        feature: '073-slice-isolation',
-        timestamp: DateTime.utc(2026, 9, 4, 12, 0, 0),
-      );
-      final line = envelope.toJsonLine();
-      final decoded = jsonDecode(line) as Map<String, Object?>;
-      expect(decoded['schema'], 'verdict.v1');
-      expect(decoded['command'], 'run');
-      expect(decoded['verdict'], 'pass');
-      expect(decoded['feature'], '073-slice-isolation');
-      expect(decoded['details'], isA<Map<String, Object?>>());
-      expect((decoded['details'] as Map<String, Object?>)['green'], 22);
-      expect(decoded['timestamp'], '2026-09-04T12:00:00.000Z');
-    });
+    test(
+      'U1: toJsonLine emits stable verdict.v1 schema with required keys',
+      () {
+        final envelope = VerdictEnvelope(
+          command: 'run',
+          outcome: VerdictOutcome.pass,
+          details: <String, Object?>{
+            'feature': '073-slice-isolation',
+            'green': 22,
+          },
+          feature: '073-slice-isolation',
+          timestamp: DateTime.utc(2026, 9, 4, 12, 0, 0),
+        );
+        final line = envelope.toJsonLine();
+        final decoded = jsonDecode(line) as Map<String, Object?>;
+        expect(decoded['schema'], 'verdict.v1');
+        expect(decoded['command'], 'run');
+        expect(decoded['verdict'], 'pass');
+        expect(decoded['feature'], '073-slice-isolation');
+        expect(decoded['details'], isA<Map<String, Object?>>());
+        expect((decoded['details'] as Map<String, Object?>)['green'], 22);
+        expect(decoded['timestamp'], '2026-09-04T12:00:00.000Z');
+      },
+    );
 
     test('U2: emit() returns valid JSON parseable by jsonDecode', () {
       final envelope = VerdictEnvelope(
@@ -50,11 +55,9 @@ void main() {
 
     test('U3b: every verdict enum is preserved in JSON', () {
       for (final outcome in VerdictOutcome.values) {
-        final envelope = VerdictEnvelope(
-          command: 'run',
-          outcome: outcome,
-        );
-        final decoded = jsonDecode(envelope.toJsonLine()) as Map<String, Object?>;
+        final envelope = VerdictEnvelope(command: 'run', outcome: outcome);
+        final decoded =
+            jsonDecode(envelope.toJsonLine()) as Map<String, Object?>;
         expect(decoded['verdict'], outcome.name);
       }
     });

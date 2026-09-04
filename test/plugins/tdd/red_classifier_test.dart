@@ -547,7 +547,10 @@ The following StateError was thrown building Dashboard(dirty):
 
 00:00 +0 -1: Some tests failed.
 ''';
-      expect(failingAssertionOf(named), "B-001 \u2014 renders the 'Home' label");
+      expect(
+        failingAssertionOf(named),
+        "B-001 \u2014 renders the 'Home' label",
+      );
     });
   });
 }

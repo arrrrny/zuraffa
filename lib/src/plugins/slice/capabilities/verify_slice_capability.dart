@@ -41,8 +41,7 @@ class VerifySliceCapability implements ZuraffaCapability {
   }) : _importVerifier = importVerifier ?? ImportVerifier(),
        _analyzeRunner = analyzeRunner ?? AnalyzeRunner(),
        _sliceVerifier =
-           sliceVerifier ??
-           SliceVerifier(suiteRunner: _processSuiteRunner),
+           sliceVerifier ?? SliceVerifier(suiteRunner: _processSuiteRunner),
        _manifestWriter = manifestWriter ?? ManifestWriter();
 
   /// The default sandbox suite runner: the sandbox's own `dart test`,
@@ -121,9 +120,7 @@ class VerifySliceCapability implements ZuraffaCapability {
       pluginId: 'slice',
       capabilityName: name,
       args: args,
-      changes: [
-        Effect(file: sandboxDir, action: 'check $dartFiles file(s)'),
-      ],
+      changes: [Effect(file: sandboxDir, action: 'check $dartFiles file(s)')],
     );
   }
 
@@ -147,7 +144,11 @@ class VerifySliceCapability implements ZuraffaCapability {
     }
 
     if (args['json'] as bool? ?? false) {
-      return _executeVerdict(args, sandboxDir: sandboxDir, sliceName: sliceName);
+      return _executeVerdict(
+        args,
+        sandboxDir: sandboxDir,
+        sliceName: sliceName,
+      );
     }
 
     final report = _importVerifier.verify(
@@ -235,7 +236,8 @@ class VerifySliceCapability implements ZuraffaCapability {
       );
     }
 
-    final verifier = _sliceVerifier ?? SliceVerifier(suiteRunner: _processSuiteRunner);
+    final verifier =
+        _sliceVerifier ?? SliceVerifier(suiteRunner: _processSuiteRunner);
     final verdict = verifier.verify(
       sandboxDir: sandboxDir,
       manifest: manifest,

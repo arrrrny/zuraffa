@@ -16,12 +16,7 @@ import 'sandbox_fixture.dart';
 
 Future<void> subject_a9() async {
   final host = writeHostProject();
-  final sandboxPath = p.join(
-    host.path,
-    '.zuraffa',
-    'slices',
-    fixtureFeature,
-  );
+  final sandboxPath = p.join(host.path, '.zuraffa', 'slices', fixtureFeature);
   final manifest = fixtureManifest(host);
   SandboxComposition().compose(
     projectRoot: host.path,
@@ -50,9 +45,8 @@ Future<void> subject_a9() async {
   // The JSON verdict is the machine-readable record (written by the
   // capability at the contract path).
   final json = verdict.encode();
-  final verdictFile = File(
-    p.join(sandboxPath, 'verify-verdict.json'),
-  )..writeAsStringSync(json);
+  final verdictFile = File(p.join(sandboxPath, 'verify-verdict.json'))
+    ..writeAsStringSync(json);
   final parsed = SliceVerdict.decode(verdictFile.readAsStringSync());
   expect(parsed.passed, isTrue);
   expect(parsed.summaryLine(fixtureFeature), contains('outcome=verified'));

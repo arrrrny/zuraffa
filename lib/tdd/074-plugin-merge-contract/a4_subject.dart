@@ -11,7 +11,11 @@ import 'merge_fixture.dart';
 
 void subject_a4() {
   final bindings = const [
-    DiBindingDecl(token: 'dependencies/auth', flavors: ['mock', 'real'], module: 'login'),
+    DiBindingDecl(
+      token: 'dependencies/auth',
+      flavors: ['mock', 'real'],
+      module: 'login',
+    ),
     DiBindingDecl(
       token: 'dependencies/login_repo',
       flavors: ['mock', 'real'],

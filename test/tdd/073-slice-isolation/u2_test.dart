@@ -18,15 +18,18 @@ import '../../../lib/tdd/073-slice-isolation/u2_subject.dart' as subject;
 
 void main() {
   group('U2 (FR-002)', () {
-    test('U2 — The sandbox MUST be self-contained: its suite runs green with the host unavailable, and no generated file references the host.', () {
-      final Object? result = (() {
-        try {
-          return subject.subject_u2();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U2 — The sandbox MUST be self-contained: its suite runs green with the host unavailable, and no generated file references the host.',
+      () {
+        final Object? result = (() {
+          try {
+            return subject.subject_u2();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

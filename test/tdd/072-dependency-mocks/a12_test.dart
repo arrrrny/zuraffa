@@ -18,16 +18,19 @@ import '../../../lib/tdd/072-dependency-mocks/a12_subject.dart' as subject;
 
 void main() {
   group('A12 (AC-12)', () {
-    test('A12 — each row\'s priority and resulting order position are visible.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a12();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A12 — each row\'s priority and resulting order position are visible.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a12();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

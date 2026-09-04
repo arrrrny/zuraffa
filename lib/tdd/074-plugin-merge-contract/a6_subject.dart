@@ -24,8 +24,11 @@ void subject_a6() {
     },
   );
   expect(check.pass, isTrue);
-  expect(mockServings, containsAll(bindings.map((b) => b.token)),
-      reason: 'the mock flavor served every touchpoint');
+  expect(
+    mockServings,
+    containsAll(bindings.map((b) => b.token)),
+    reason: 'the mock flavor served every touchpoint',
+  );
   // Evidence: each token@flavor pair is recorded.
   expect(check.evidence, contains('dependencies/auth@mock'));
   expect(check.evidence, contains('dependencies/auth@real'));

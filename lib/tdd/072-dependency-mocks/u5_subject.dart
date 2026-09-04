@@ -37,10 +37,7 @@ Object? subject_u5() {
   final resolver = const RoutingResolver();
   final result = resolver.resolve(
     declarations: declarations,
-    row: RoutingRow(
-      behaviorId: 'A1',
-      traces: const ['FirebaseAuth'],
-    ),
+    row: RoutingRow(behaviorId: 'A1', traces: const ['FirebaseAuth']),
     strict: false,
   );
   expect(result, isA<RoutingDecision>());
@@ -62,23 +59,15 @@ Object? subject_u5() {
   final proseOnly = resolver.resolve(
     declarations: SpecDeclarations(
       contractRows: declarations.contractRows,
-      scenarios: {
-        'A2': ScenarioDeclaration(behaviorId: 'A2', specLine: 31),
-      },
+      scenarios: {'A2': ScenarioDeclaration(behaviorId: 'A2', specLine: 31)},
     ),
-    row: RoutingRow(
-      behaviorId: 'A2',
-      traces: const [],
-    ),
+    row: RoutingRow(behaviorId: 'A2', traces: const []),
     strict: false,
   );
   // No declaration → either an explicit refusal or a non-dependency
   // fallback: NEVER a dependency-mock route (no prose sniffing).
   if (proseOnly is RoutingDecision) {
-    expect(
-      proseOnly.surface,
-      isNot(equals(GenerationSurface.dependencyMake)),
-    );
+    expect(proseOnly.surface, isNot(equals(GenerationSurface.dependencyMake)));
   } else {
     // Non-strict undeclared intent yields the named RoutingUndeclared
     // result — still never a dependency-mock route by prose.

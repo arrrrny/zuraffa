@@ -13,16 +13,19 @@ import '../../../lib/tdd/075-ui-coverage-ledger/u7_subject.dart' as subject;
 
 void main() {
   group('U7 (FR-007)', () {
-    test('U7 - The control deck MUST list ledger rows with states, and the xray mock scaffolder MUST wire to 072\'s dependency mocks so deck entries exist without hand authoring; a missing mock names the generation fix..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_u7();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U7 - The control deck MUST list ledger rows with states, and the xray mock scaffolder MUST wire to 072\'s dependency mocks so deck entries exist without hand authoring; a missing mock names the generation fix..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_u7();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

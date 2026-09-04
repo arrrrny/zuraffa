@@ -13,16 +13,19 @@ import '../../../lib/tdd/075-ui-coverage-ledger/a9_subject.dart' as subject;
 
 void main() {
   group('A9 (AC-9)', () {
-    test('A9 - the overlay highlights exactly the unproven affordance and paints proven surfaces clean..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a9();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A9 - the overlay highlights exactly the unproven affordance and paints proven surfaces clean..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a9();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

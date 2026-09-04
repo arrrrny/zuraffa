@@ -13,16 +13,19 @@ import '../../../lib/tdd/075-ui-coverage-ledger/a11_subject.dart' as subject;
 
 void main() {
   group('A11 (AC-11)', () {
-    test('A11 - it lists the ledger rows with their states (the deck drives the ledger, not a separate inventory)..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a11();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A11 - it lists the ledger rows with their states (the deck drives the ledger, not a separate inventory)..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a11();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

@@ -35,8 +35,11 @@ void subject_a10() {
     featureSuite: const MergeCheck(name: 'featureSuite', pass: true),
   );
 
-  expect(verdict.routes.pass, isFalse,
-      reason: 'the broken route must fail the gate');
+  expect(
+    verdict.routes.pass,
+    isFalse,
+    reason: 'the broken route must fail the gate',
+  );
   expect(verdict.passed, isFalse);
 
   // Rollback: restore the snapshot and prove byte-identity; the merge

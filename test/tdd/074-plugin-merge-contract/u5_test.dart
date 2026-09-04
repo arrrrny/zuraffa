@@ -13,16 +13,19 @@ import '../../../lib/tdd/074-plugin-merge-contract/u5_subject.dart' as subject;
 
 void main() {
   group('U5 (FR-005)', () {
-    test('U5 — Merge MUST run the conformance suite (routes resolve, DI graph constructs, feature suite green in-host) after landing, producing a machine-readable verdict with one line per check..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_u5();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U5 — Merge MUST run the conformance suite (routes resolve, DI graph constructs, feature suite green in-host) after landing, producing a machine-readable verdict with one line per check..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_u5();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

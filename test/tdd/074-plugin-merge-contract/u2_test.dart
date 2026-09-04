@@ -13,16 +13,19 @@ import '../../../lib/tdd/074-plugin-merge-contract/u2_subject.dart' as subject;
 
 void main() {
   group('U2 (FR-002)', () {
-    test('U2 — Every declared route path MUST resolve to the feature\'s page in the merged host (route-resolution check)..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_u2();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U2 — Every declared route path MUST resolve to the feature\'s page in the merged host (route-resolution check)..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_u2();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

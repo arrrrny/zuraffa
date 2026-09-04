@@ -14,12 +14,7 @@ import 'sandbox_fixture.dart';
 
 void subject_a10() {
   final host = writeHostProject();
-  final sandboxPath = p.join(
-    host.path,
-    '.zuraffa',
-    'slices',
-    fixtureFeature,
-  );
+  final sandboxPath = p.join(host.path, '.zuraffa', 'slices', fixtureFeature);
   final manifest = fixtureManifest(host);
   SandboxComposition().compose(
     projectRoot: host.path,
@@ -39,17 +34,16 @@ void subject_a10() {
 
   final verdict = SliceVerifier(
     suiteRunner: (_) => const SuiteOutcome(passed: true),
-  ).verify(
-    sandboxDir: sandboxPath,
-    manifest: manifest,
-    hostRoot: host.path,
-  );
+  ).verify(sandboxDir: sandboxPath, manifest: manifest, hostRoot: host.path);
 
   expect(verdict.passed, isFalse, reason: 'a leaked host reference fails');
   expect(verdict.selfContainment.pass, isFalse);
   final offenders = verdict.selfContainment.offenders.join('\n');
-  expect(offenders, contains('lib/router.dart'),
-      reason: 'the offending reference is named');
+  expect(
+    offenders,
+    contains('lib/router.dart'),
+    reason: 'the offending reference is named',
+  );
   expect(offenders, contains('--> fix:'));
   expect(verdict.mockCertification.pass, isTrue);
   expect(verdict.suiteState.pass, isTrue);

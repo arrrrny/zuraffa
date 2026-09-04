@@ -25,7 +25,8 @@ void main() {
   const description = "renders the 'Home' label after sign-in";
   const identity = "B-001 \u2014 renders the 'Home' label after sign-in";
 
-  final finderTranscript = '''
+  final finderTranscript =
+      '''
 00:00 +0: loading test/b_001_test.dart
 00:00 +0 -1: $identity [E]
   Expected: exactly one matching node in the widget tree
@@ -70,29 +71,32 @@ void main() {
     );
   });
 
-  test('A7: summary stays pinned; the failing assertion is named elsewhere',
-      () async {
-    final runner = CliRunner(exitOnCompletion: false);
-    final out = await runner.runCapturing([
-      'tdd',
-      'verify-red',
-      '--project',
-      fx.root.path,
-      'B-001',
-    ]);
-    final last = out.trim().split('\n').last;
-    expect(
-      last,
-      'verify-red: behavior=B-001 classification=assertion certified=true '
-      'feature=071-inert-stub-red',
-      reason: 'the summary line is the pinned spec-046 contract, '
-          'byte-identical on every path — the identity surfaces in the '
-          'red-evidence detail line and the cycle-log field instead',
-    );
-    expect(out, contains('   red-evidence: $identity'));
-    final log = File(fx.cycleLogPath).readAsStringSync();
-    expect(log, contains('- evidence: $identity'));
-  });
+  test(
+    'A7: summary stays pinned; the failing assertion is named elsewhere',
+    () async {
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'verify-red',
+        '--project',
+        fx.root.path,
+        'B-001',
+      ]);
+      final last = out.trim().split('\n').last;
+      expect(
+        last,
+        'verify-red: behavior=B-001 classification=assertion certified=true '
+        'feature=071-inert-stub-red',
+        reason:
+            'the summary line is the pinned spec-046 contract, '
+            'byte-identical on every path — the identity surfaces in the '
+            'red-evidence detail line and the cycle-log field instead',
+      );
+      expect(out, contains('   red-evidence: $identity'));
+      final log = File(fx.cycleLogPath).readAsStringSync();
+      expect(log, contains('- evidence: $identity'));
+    },
+  );
 
   test('A1: the cycle-log red entry carries the - evidence: field', () async {
     final runner = CliRunner(exitOnCompletion: false);
@@ -138,7 +142,8 @@ void main() {
         last,
         'verify-red: behavior=B-001 classification=unexpected-green '
         'certified=false feature=071-inert-stub-red',
-        reason: 'unexpected-green (the vacuous/scaffold refusal) keeps the '
+        reason:
+            'unexpected-green (the vacuous/scaffold refusal) keeps the '
             'pre-#959 line exactly — no evidence token',
       );
     } finally {

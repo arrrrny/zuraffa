@@ -30,7 +30,10 @@ Object? subject_u8() {
 
   // merge: an absent verdict refuses naming the missing check + fix.
   final dir = Directory.systemTemp.createTempSync('u8-gate-');
-  final gate = MergeSliceCapability.gateOnVerdict(dir.path, sliceName: fixtureFeature);
+  final gate = MergeSliceCapability.gateOnVerdict(
+    dir.path,
+    sliceName: fixtureFeature,
+  );
   expect(gate, isNotNull);
   expect(gate!.message, contains('no verify verdict'));
   expect(gate.message, contains('--> fix:'));
@@ -58,17 +61,19 @@ Object? subject_u8() {
   expect(unbound, contains('--> fix:'));
 
   // The GENERATED wiring carries the same refusal contracts.
-  final router = SandboxScaffold.router(routes: const [
-    SandboxRoute(path: '/login', page: 'LoginPage'),
-  ]);
+  final router = SandboxScaffold.router(
+    routes: const [SandboxRoute(path: '/login', page: 'LoginPage')],
+  );
   expect(router, contains('--> fix:'));
-  final di = SandboxScaffold.di(bindings: [
-    SandboxBinding(
-      dependency: 'FirebaseAuth',
-      kind: 'service',
-      mockArtifact: manifest.dependencies.first.mockArtifact,
-    ),
-  ]);
+  final di = SandboxScaffold.di(
+    bindings: [
+      SandboxBinding(
+        dependency: 'FirebaseAuth',
+        kind: 'service',
+        mockArtifact: manifest.dependencies.first.mockArtifact,
+      ),
+    ],
+  );
   expect(di, contains('--> fix:'));
   return null;
 }

@@ -15,9 +15,7 @@ void subject_a4() {
   // the undeclared-name exit code is 2 and the fix hint names the
   // declared table. Exercised through the class contract (no process
   // spawn in the unit lane).
-  final capability = DependencyMockCapability(
-    MockPlugin(outputDir: 'test'),
-  );
+  final capability = DependencyMockCapability(MockPlugin(outputDir: 'test'));
   expect(capability.name, equals('dependency'));
   expect(
     DependencyMockCapability.exitUndeclared,

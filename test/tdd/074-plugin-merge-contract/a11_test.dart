@@ -13,16 +13,19 @@ import '../../../lib/tdd/074-plugin-merge-contract/a11_subject.dart' as subject;
 
 void main() {
   group('A11 (AC-11)', () {
-    test('A11 — the feature-suite check fails, the host rolls back, and the failure names the red behavior..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a11();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A11 — the feature-suite check fails, the host rolls back, and the failure names the red behavior..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a11();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

@@ -37,8 +37,7 @@ class HostSuiteOutcome {
 }
 
 /// Runs the host suite; injectable so merge stays hermetic in tests.
-typedef HostSuiteRunner =
-    Future<HostSuiteOutcome> Function(String projectRoot);
+typedef HostSuiteRunner = Future<HostSuiteOutcome> Function(String projectRoot);
 
 /// Merge agent changes from a slice back into the main project.
 class MergeSliceCapability implements ZuraffaCapability {
@@ -228,8 +227,10 @@ class MergeSliceCapability implements ZuraffaCapability {
     );
     final message = StringBuffer(report.message ?? '');
     if (landed.isNotEmpty) {
-      message.write(' Landed ${landed.length} receipt file(s) for '
-          '"$feature" into the host.');
+      message.write(
+        ' Landed ${landed.length} receipt file(s) for '
+        '"$feature" into the host.',
+      );
     }
     message.write(reportLine.report);
 
@@ -308,8 +309,10 @@ class MergeSliceCapability implements ZuraffaCapability {
 
   /// Non-null refusal when the verdict is absent or failing; null when
   /// the merge may proceed. Sync so the gate is directly exercisable.
-  static ExecutionResult? gateOnVerdict(String sandboxDir,
-      {required String sliceName}) {
+  static ExecutionResult? gateOnVerdict(
+    String sandboxDir, {
+    required String sliceName,
+  }) {
     final verdictFile = File(VerifySliceCapability.verdictPathFor(sandboxDir));
     if (!verdictFile.existsSync()) {
       return ExecutionResult(

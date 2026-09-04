@@ -16,12 +16,7 @@ import 'sandbox_fixture.dart';
 
 void subject_a13() {
   final host = writeHostProject();
-  final sandboxPath = p.join(
-    host.path,
-    '.zuraffa',
-    'slices',
-    fixtureFeature,
-  );
+  final sandboxPath = p.join(host.path, '.zuraffa', 'slices', fixtureFeature);
   Directory(sandboxPath).createSync(recursive: true);
   const passing = SliceVerdict(
     selfContainment: SliceCheck(name: 'selfContainment', pass: true),

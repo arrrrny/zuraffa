@@ -35,8 +35,11 @@ void subject_a3() {
   final locator = SandboxLocator();
   final mock = Object();
   locator.bind('dependencies/firebase_auth', () => mock);
-  expect(identical(locator.resolve('dependencies/firebase_auth'), mock), isTrue,
-      reason: 'the bound certified mock is what the shell renders against');
+  expect(
+    identical(locator.resolve('dependencies/firebase_auth'), mock),
+    isTrue,
+    reason: 'the bound certified mock is what the shell renders against',
+  );
   // An unbound touchpoint refuses rather than silently returning null.
   expect(() => locator.resolve('dependencies/missing'), throwsStateError);
 }

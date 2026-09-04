@@ -35,8 +35,11 @@ Object? subject_u2() {
     manifest: fixtureManifest(host),
     hostRoot: host.path,
   );
-  expect(verdict.selfContainment.pass, isTrue,
-      reason: verdict.selfContainment.offenders.join('\n'));
+  expect(
+    verdict.selfContainment.pass,
+    isTrue,
+    reason: verdict.selfContainment.offenders.join('\n'),
+  );
 
   // A leaked host reference fails self-containment, named.
   final shell = File(p.join(sandbox.path, 'lib', 'main.dart'));

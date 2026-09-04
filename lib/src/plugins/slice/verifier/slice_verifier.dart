@@ -182,7 +182,7 @@ class SliceVerifier {
         pass: false,
         offenders: [
           'sandbox suite not run --> fix: wire a sandbox suite runner or '
-          'run `zfa slice verify --json` from the CLI (issue #961)',
+              'run `zfa slice verify --json` from the CLI (issue #961)',
         ],
       );
     }
@@ -193,7 +193,7 @@ class SliceVerifier {
       offenders: [
         for (final failure in outcome.failures)
           '$failure --> fix: make the sandbox suite green; the sandbox '
-          'runs on certified mocks alone (issue #961 suite state)',
+              'runs on certified mocks alone (issue #961 suite state)',
       ],
     );
   }

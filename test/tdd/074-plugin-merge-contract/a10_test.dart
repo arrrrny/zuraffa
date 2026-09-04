@@ -13,16 +13,19 @@ import '../../../lib/tdd/074-plugin-merge-contract/a10_subject.dart' as subject;
 
 void main() {
   group('A10 (AC-10)', () {
-    test('A10 — the routes check fails, the host is rolled back byte-identical to pre-merge, and the exit is non-zero naming the failed check..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a10();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A10 — the routes check fails, the host is rolled back byte-identical to pre-merge, and the exit is non-zero naming the failed check..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a10();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

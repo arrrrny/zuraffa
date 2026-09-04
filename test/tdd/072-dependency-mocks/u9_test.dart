@@ -18,15 +18,18 @@ import '../../../lib/tdd/072-dependency-mocks/u9_subject.dart' as subject;
 
 void main() {
   group('U9 (FR-009)', () {
-    test('U9 — `zfa tdd realize --adapter <Name>` MUST accept a generated dependency mock behind the declared interface, run the existing differential gates with the declared contract as the parity source, and refuse on surface drift naming the drifted member and the row.', () {
-      final Object? result = (() {
-        try {
-          return subject.subject_u9();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U9 — `zfa tdd realize --adapter <Name>` MUST accept a generated dependency mock behind the declared interface, run the existing differential gates with the declared contract as the parity source, and refuse on surface drift naming the drifted member and the row.',
+      () {
+        final Object? result = (() {
+          try {
+            return subject.subject_u9();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

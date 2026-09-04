@@ -18,16 +18,19 @@ import '../../../lib/tdd/073-slice-isolation/a12_subject.dart' as subject;
 
 void main() {
   group('A12 (AC-12)', () {
-    test('A12 — the feature\'s artifacts, journal, and registry land in the host.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a12();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A12 — the feature\'s artifacts, journal, and registry land in the host.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a12();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

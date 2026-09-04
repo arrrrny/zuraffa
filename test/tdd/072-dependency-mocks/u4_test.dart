@@ -18,15 +18,18 @@ import '../../../lib/tdd/072-dependency-mocks/u4_subject.dart' as subject;
 
 void main() {
   group('U4 (FR-004)', () {
-    test('U4 — Regeneration from an unchanged row MUST be byte-for-byte deterministic; a changed row regenerates deterministically with the change surfaced in the command output.', () {
-      final Object? result = (() {
-        try {
-          return subject.subject_u4();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U4 — Regeneration from an unchanged row MUST be byte-for-byte deterministic; a changed row regenerates deterministically with the change surfaced in the command output.',
+      () {
+        final Object? result = (() {
+          try {
+            return subject.subject_u4();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

@@ -6,12 +6,12 @@ void main() {
   // Production shape (ZikZak login engine slice): an internal service
   // whose declared signatures reference project entity types.
   DependencyContract contract() => DependencyContract.parseRow(
-        name: 'AuthService',
-        type: 'service',
-        contract: 'login(AuthRequest params) -> User',
-        priority: 'P1',
-        specLine: 109,
-      );
+    name: 'AuthService',
+    type: 'service',
+    contract: 'login(AuthRequest params) -> User',
+    priority: 'P1',
+    specLine: 109,
+  );
 
   group('issue #1030 — declared artifacts import the types they reference', () {
     test('interface emits contract-derived entity imports', () {
@@ -73,7 +73,8 @@ void main() {
         expect(
           artifact.content.contains('lib/src/domain/entities/'),
           isFalse,
-          reason: 'DateTime/String/void are primitives — no entity import '
+          reason:
+              'DateTime/String/void are primitives — no entity import '
               'for ${artifact.path}',
         );
       }
@@ -94,36 +95,32 @@ void main() {
       }
     });
 
-    test(
-      'absolute outDir anchors depth on the test segment, not the path '
-      'length',
-      () {
-        final relative = DependencyMockBuilder.emit(
-          contract: contract(),
-          outDir: 'test/mock/dependencies/auth_service',
-        );
-        final absolute = DependencyMockBuilder.emit(
-          contract: contract(),
-          outDir:
-              '/Users/dev/proj/test/mock/dependencies/auth_service',
-        );
+    test('absolute outDir anchors depth on the test segment, not the path '
+        'length', () {
+      final relative = DependencyMockBuilder.emit(
+        contract: contract(),
+        outDir: 'test/mock/dependencies/auth_service',
+      );
+      final absolute = DependencyMockBuilder.emit(
+        contract: contract(),
+        outDir: '/Users/dev/proj/test/mock/dependencies/auth_service',
+      );
 
-        // Both resolve to the same 4-hop prefix from the artifact dir to
-        // the project root — the depth must not count absolute-only
-        // leading segments (issue #1030 follow-up).
-        for (var i = 0; i < relative.length; i++) {
-          expect(
-            absolute[i].content.contains("'../../../../lib/src/"),
-            isTrue,
-            reason: '${absolute[i].path} anchors 4 hops to lib/',
-          );
-          expect(
-            absolute[i].content.contains("'../../../../../lib/src/"),
-            isFalse,
-            reason: 'no over-deep hop chains',
-          );
-        }
-      },
-    );
+      // Both resolve to the same 4-hop prefix from the artifact dir to
+      // the project root — the depth must not count absolute-only
+      // leading segments (issue #1030 follow-up).
+      for (var i = 0; i < relative.length; i++) {
+        expect(
+          absolute[i].content.contains("'../../../../lib/src/"),
+          isTrue,
+          reason: '${absolute[i].path} anchors 4 hops to lib/',
+        );
+        expect(
+          absolute[i].content.contains("'../../../../../lib/src/"),
+          isFalse,
+          reason: 'no over-deep hop chains',
+        );
+      }
+    });
   });
 }

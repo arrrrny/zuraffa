@@ -15,7 +15,8 @@ Object? subject_u4() {
     'contract': 'signIn(email, password) -> User, signOut() -> void',
     'priority': 'P1',
   };
-  DependencyContract parse(Map<String, String> r) => DependencyContract.parseRow(
+  DependencyContract parse(Map<String, String> r) =>
+      DependencyContract.parseRow(
         name: r['name']!,
         type: r['type']!,
         contract: r['contract']!,
@@ -35,10 +36,7 @@ Object? subject_u4() {
   // A changed row regenerates deterministically (different contract →
   // different bytes, same layout).
   final changed = DependencyMockBuilder.emit(
-    contract: parse({
-      ...row,
-      'contract': 'signIn(email, password) -> User',
-    }),
+    contract: parse({...row, 'contract': 'signIn(email, password) -> User'}),
     outDir: 'test/mock/dependencies/firebase_auth',
   );
   expect(changed.length, equals(first.length));

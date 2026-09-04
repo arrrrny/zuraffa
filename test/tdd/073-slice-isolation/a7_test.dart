@@ -18,16 +18,19 @@ import '../../../lib/tdd/073-slice-isolation/a7_subject.dart' as subject;
 
 void main() {
   group('A7 (AC-7)', () {
-    test('A7 — they contain the run\'s evidence (reds certified, greens, artifacts) — the receipts live in the sandbox, not the host.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a7();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A7 — they contain the run\'s evidence (reds certified, greens, artifacts) — the receipts live in the sandbox, not the host.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a7();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

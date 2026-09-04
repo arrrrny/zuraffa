@@ -18,15 +18,18 @@ import '../../../lib/tdd/073-slice-isolation/u5_subject.dart' as subject;
 
 void main() {
   group('U5 (FR-005)', () {
-    test('U5 — `zfa slice merge --into <host>` MUST land the feature\'s artifacts, journal, and registry into the host and MUST refuse when verify\'s verdict is failing or absent.', () {
-      final Object? result = (() {
-        try {
-          return subject.subject_u5();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U5 — `zfa slice merge --into <host>` MUST land the feature\'s artifacts, journal, and registry into the host and MUST refuse when verify\'s verdict is failing or absent.',
+      () {
+        final Object? result = (() {
+          try {
+            return subject.subject_u5();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

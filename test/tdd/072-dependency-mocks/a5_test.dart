@@ -18,16 +18,19 @@ import '../../../lib/tdd/072-dependency-mocks/a5_subject.dart' as subject;
 
 void main() {
   group('A5 (AC-5)', () {
-    test('A5 — the generated mock conforms to the storage contract the row declares (the rail is dependency-kind-agnostic across the declared service and storage kinds).', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a5();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A5 — the generated mock conforms to the storage contract the row declares (the rail is dependency-kind-agnostic across the declared service and storage kinds).',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a5();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

@@ -18,16 +18,19 @@ import '../../../lib/tdd/072-dependency-mocks/a9_subject.dart' as subject;
 
 void main() {
   group('A9 (AC-9)', () {
-    test('A9 — the run refuses (or auto-generates under the loop\'s existing generation gate) naming `zfa mock dependency <Name>` as the fix — never a silently absent test double.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a9();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A9 — the run refuses (or auto-generates under the loop\'s existing generation gate) naming `zfa mock dependency <Name>` as the fix — never a silently absent test double.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a9();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

@@ -18,16 +18,19 @@ import '../../../lib/tdd/073-slice-isolation/a5_subject.dart' as subject;
 
 void main() {
   group('A5 (AC-5)', () {
-    test('A5 — the sandbox\'s generated wiring is byte-for-byte identical (deterministic scaffolding).', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a5();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A5 — the sandbox\'s generated wiring is byte-for-byte identical (deterministic scaffolding).',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a5();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

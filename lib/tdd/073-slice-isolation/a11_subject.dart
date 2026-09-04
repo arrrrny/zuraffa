@@ -13,12 +13,7 @@ import 'sandbox_fixture.dart';
 
 void subject_a11() {
   final host = writeHostProject();
-  final sandboxPath = p.join(
-    host.path,
-    '.zuraffa',
-    'slices',
-    fixtureFeature,
-  );
+  final sandboxPath = p.join(host.path, '.zuraffa', 'slices', fixtureFeature);
   final manifest = fixtureManifest(host);
   SandboxComposition().compose(
     projectRoot: host.path,
@@ -32,24 +27,24 @@ void subject_a11() {
   // The developer's sandbox edit drops the GoRouterHost binding.
   final di = File(p.join(sandboxPath, 'lib', 'di.dart'));
   di.writeAsStringSync(
-    di
-        .readAsStringSync()
-        .replaceAll(RegExp(r"  sandbox\.bind\('dependencies/go_router_host'.*\n"), ''),
+    di.readAsStringSync().replaceAll(
+      RegExp(r"  sandbox\.bind\('dependencies/go_router_host'.*\n"),
+      '',
+    ),
   );
 
   final verdict = SliceVerifier(
     suiteRunner: (_) => const SuiteOutcome(passed: true),
-  ).verify(
-    sandboxDir: sandboxPath,
-    manifest: manifest,
-    hostRoot: host.path,
-  );
+  ).verify(sandboxDir: sandboxPath, manifest: manifest, hostRoot: host.path);
 
   expect(verdict.passed, isFalse);
   expect(verdict.mockCertification.pass, isFalse);
   final offenders = verdict.mockCertification.offenders.join('\n');
-  expect(offenders, contains('GoRouterHost'),
-      reason: 'the unbound dependency is named');
+  expect(
+    offenders,
+    contains('GoRouterHost'),
+    reason: 'the unbound dependency is named',
+  );
   expect(offenders, contains('--> fix:'));
   // The OTHER bindings still certify — the failure is precise.
   expect(offenders, isNot(contains('FirebaseAuth --')));

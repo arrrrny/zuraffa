@@ -13,16 +13,19 @@ import '../../../lib/tdd/074-plugin-merge-contract/u8_subject.dart' as subject;
 
 void main() {
   group('U8 (FR-008)', () {
-    test('U8 — Merge MUST be idempotent — re-merging a merged feature changes nothing and re-runs the gates..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_u8();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U8 — Merge MUST be idempotent — re-merging a merged feature changes nothing and re-runs the gates..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_u8();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

@@ -15,12 +15,7 @@ import 'sandbox_fixture.dart';
 
 void subject_a8() {
   final host = writeHostProject();
-  final sandboxPath = p.join(
-    host.path,
-    '.zuraffa',
-    'slices',
-    fixtureFeature,
-  );
+  final sandboxPath = p.join(host.path, '.zuraffa', 'slices', fixtureFeature);
   final manifest = fixtureManifest(host);
   Directory(sandboxPath).createSync(recursive: true);
   // The sandbox carries its own pubspec (the cut's filtered output):
@@ -44,14 +39,17 @@ void subject_a8() {
   final verifier = SliceVerifier(
     suiteRunner: (_) => const SuiteOutcome(passed: true),
   );
-  final verdict = verifier.verify(
-    sandboxDir: sandboxPath,
-    manifest: manifest,
+  final verdict = verifier.verify(sandboxDir: sandboxPath, manifest: manifest);
+  expect(
+    verdict.selfContainment.pass,
+    isTrue,
+    reason: verdict.selfContainment.offenders.join('\n'),
   );
-  expect(verdict.selfContainment.pass, isTrue,
-      reason: verdict.selfContainment.offenders.join('\n'));
-  expect(verdict.mockCertification.pass, isTrue,
-      reason: verdict.mockCertification.offenders.join('\n'));
+  expect(
+    verdict.mockCertification.pass,
+    isTrue,
+    reason: verdict.mockCertification.offenders.join('\n'),
+  );
   expect(verdict.suiteState.pass, isTrue);
   expect(verdict.passed, isTrue, reason: verdict.encode());
 }

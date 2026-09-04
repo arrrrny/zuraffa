@@ -458,39 +458,34 @@ void main() {
         );
       });
 
-      test(
-        'true when a part directive appears only inside a string literal '
-        '(templates/fixtures — the 073 refactor-gate misfire)',
-        () async {
-          await Directory(
-            p.join(sandbox.path, 'lib/src'),
-          ).create(recursive: true);
-          // The entity-scaffolding template shape: a generated-part line
-          // inside a template string is NOT a declaration.
-          await File(
-            p.join(sandbox.path, 'lib/src/template.dart'),
-          ).writeAsString(
-            "String generate(String entityName) {\n"
-            "  return '''\n"
-            "part '\$entityName.zorphy.dart';\n"
-            "''';\n"
-            "}\n",
-          );
-          // The handwritten-fixture shape: an embedded fixture source
-          // with its own part directive (issue-310 regression class).
-          await File(
-            p.join(sandbox.path, 'lib/src/fixture_source.dart'),
-          ).writeAsString(
-            "const String fixture = '''\n"
-            "part 'search_result_price.g.dart';\n"
-            "''';\n",
-          );
-          expect(
-            command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
-            isTrue,
-          );
-        },
-      );
+      test('true when a part directive appears only inside a string literal '
+          '(templates/fixtures — the 073 refactor-gate misfire)', () async {
+        await Directory(
+          p.join(sandbox.path, 'lib/src'),
+        ).create(recursive: true);
+        // The entity-scaffolding template shape: a generated-part line
+        // inside a template string is NOT a declaration.
+        await File(p.join(sandbox.path, 'lib/src/template.dart')).writeAsString(
+          "String generate(String entityName) {\n"
+          "  return '''\n"
+          "part '\$entityName.zorphy.dart';\n"
+          "''';\n"
+          "}\n",
+        );
+        // The handwritten-fixture shape: an embedded fixture source
+        // with its own part directive (issue-310 regression class).
+        await File(
+          p.join(sandbox.path, 'lib/src/fixture_source.dart'),
+        ).writeAsString(
+          "const String fixture = '''\n"
+          "part 'search_result_price.g.dart';\n"
+          "''';\n",
+        );
+        expect(
+          command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+          isTrue,
+        );
+      });
 
       test('true when all declared generated parts exist', () async {
         await Directory(

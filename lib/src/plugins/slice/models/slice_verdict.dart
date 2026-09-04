@@ -14,7 +14,11 @@ class SliceCheck {
   final bool pass;
   final List<String> offenders;
 
-  const SliceCheck({required this.name, required this.pass, this.offenders = const []});
+  const SliceCheck({
+    required this.name,
+    required this.pass,
+    this.offenders = const [],
+  });
 
   Map<String, Object> toJson() => {'pass': pass, 'offenders': offenders};
 }
@@ -36,10 +40,11 @@ class SliceVerdict {
 
   /// The failing checks, in contract order (self-containment,
   /// mock-certification, suite).
-  List<SliceCheck> get failures =>
-      [selfContainment, mockCertification, suiteState]
-          .where((c) => !c.pass)
-          .toList();
+  List<SliceCheck> get failures => [
+    selfContainment,
+    mockCertification,
+    suiteState,
+  ].where((c) => !c.pass).toList();
 
   Map<String, Object> toJson() => {
     'check': 'slice-verify',
@@ -52,8 +57,7 @@ class SliceVerdict {
   /// Serialize to the verdict JSON file (stable key order, no
   /// timestamps — determinism). Uses JsonEncoder for proper escaping;
   /// the decode path relies on jsonDecode, so the roundtrip must match.
-  String encode() =>
-      const JsonEncoder.withIndent('  ').convert(toJson());
+  String encode() => const JsonEncoder.withIndent('  ').convert(toJson());
 
   /// Parse a verdict JSON (the merge gate reads what verify wrote).
   ///

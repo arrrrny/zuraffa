@@ -17,7 +17,10 @@ void subject_u2() {
 
   // /login -> LoginPage, /register -> RegisterPage.
   expect(
-    RouteBarrel.resolutionOffenders(barrelSource: barrel, declared: featureRoutes),
+    RouteBarrel.resolutionOffenders(
+      barrelSource: barrel,
+      declared: featureRoutes,
+    ),
     isEmpty,
   );
 

@@ -243,8 +243,8 @@ class RoutingResolver {
       if (surface != null) {
         final detail = surface == GenerationSurface.dependencyMake
             ? 'dependency row: ${surfaceRow.name} '
-                '(${surfaceRow.kind.name}, '
-                'priority ${surfaceRow.priority.label})'
+                  '(${surfaceRow.kind.name}, '
+                  'priority ${surfaceRow.priority.label})'
             : 'contract row: ${surfaceRow.name}';
         provenance.add(
           ProvenanceLine(

@@ -13,7 +13,10 @@ class GeneratedDependencyArtifact {
   final String path;
   final String content;
 
-  const GeneratedDependencyArtifact({required this.path, required this.content});
+  const GeneratedDependencyArtifact({
+    required this.path,
+    required this.content,
+  });
 }
 
 /// The package layout for one dependency:
@@ -55,9 +58,22 @@ abstract final class DependencyMockBuilder {
   /// primitives. Same contract => same block (determinism).
   static String _entityImports(DependencyContract c, String outDir) {
     const primitives = {
-      'String', 'int', 'double', 'num', 'bool', 'void', 'DateTime',
-      'dynamic', 'Object', 'Map', 'List', 'Set', 'Iterable', 'Future',
-      'Stream', 'Function',
+      'String',
+      'int',
+      'double',
+      'num',
+      'bool',
+      'void',
+      'DateTime',
+      'dynamic',
+      'Object',
+      'Map',
+      'List',
+      'Set',
+      'Iterable',
+      'Future',
+      'Stream',
+      'Function',
     };
     final typeToken = RegExp(r'\b[A-Z][A-Za-z0-9_]*\b');
     final types = <String>{};
@@ -76,8 +92,7 @@ abstract final class DependencyMockBuilder {
     // root as the segments AFTER the `test` root segment (the directory
     // that owns lib/). `test/mock/dependencies/x` -> 4 ups whether the
     // outDir arrived as `test/mock/...` or `/home/u/proj/test/mock/...`.
-    final segments =
-        outDir.split('/').where((s) => s.isNotEmpty).toList();
+    final segments = outDir.split('/').where((s) => s.isNotEmpty).toList();
     final testIndex = segments.lastIndexOf('test');
     final ups = testIndex == -1 ? segments.length : segments.length - testIndex;
     final prefix = '../' * ups;
@@ -144,7 +159,8 @@ abstract final class DependencyMockBuilder {
   static String _interface(DependencyContract c, String entityImports) {
     final members = c.signatures
         .map(
-          (s) => '  ${_returnType(s.returnType)} ${s.name}'
+          (s) =>
+              '  ${_returnType(s.returnType)} ${s.name}'
               '(${_paramList(s.parameters)});',
         )
         .join('\n');
@@ -173,7 +189,8 @@ $members
         .join('\n');
     final scripters = c.signatures
         .map(
-          (s) => '''
+          (s) =>
+              '''
   /// Script the response for `${s.name}` — the fake returns exactly
   /// this value (and records the call) while the script is set.
   void script${_pascal(s.name)}(${_returnType(s.returnType)} response) {
@@ -251,7 +268,8 @@ class _CallRecorder {
     final dirName = snake(c.name);
     final scenarios = c.signatures
         .map(
-          (s) => '''
+          (s) =>
+              '''
   /// Staged scenario for `${s.name}` — deterministic staging from the
   /// declared signature; the response is supplied by the test.
   static void ${s.name}(

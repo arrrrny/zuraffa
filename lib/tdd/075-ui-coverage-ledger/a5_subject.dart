@@ -1,4 +1,5 @@
 library;
+
 import 'dart:convert';
 import 'package:test/test.dart';
 import 'sandbox_fixture.dart';
@@ -12,7 +13,10 @@ Object? subject_a5() {
     declared: fixtureSurfaces(),
     greenBehaviors: {'A1', 'A2', 'A3'},
   );
-  final verdict = CoverageGate.evaluate(feature: fixtureFeature, rows: allGreen);
+  final verdict = CoverageGate.evaluate(
+    feature: fixtureFeature,
+    rows: allGreen,
+  );
   expect(verdict.passed, isTrue);
   final json = jsonDecode(verdict.encode()) as Map;
   expect(json['passed'], isTrue);

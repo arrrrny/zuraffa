@@ -15,12 +15,7 @@ import 'sandbox_fixture.dart';
 
 void subject_a6() {
   final host = writeHostProject();
-  final sandboxPath = p.join(
-    host.path,
-    '.zuraffa',
-    'slices',
-    fixtureFeature,
-  );
+  final sandboxPath = p.join(host.path, '.zuraffa', 'slices', fixtureFeature);
   final manifest = fixtureManifest(host);
   SandboxComposition().compose(
     projectRoot: host.path,
@@ -36,8 +31,11 @@ void subject_a6() {
   // outcome; no host cooperation is available or needed.
   final verifier = SliceVerifier(
     suiteRunner: (dir) {
-      expect(dir, equals(sandboxPath),
-          reason: 'the suite must run against the sandbox, not the host');
+      expect(
+        dir,
+        equals(sandboxPath),
+        reason: 'the suite must run against the sandbox, not the host',
+      );
       return const SuiteOutcome(passed: true);
     },
   );

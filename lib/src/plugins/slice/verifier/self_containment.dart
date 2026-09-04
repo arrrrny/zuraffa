@@ -61,9 +61,7 @@ abstract final class HostReferenceScanner {
             .listSync(recursive: true)
             .whereType<File>()
             .where((f) => !_isBinary(f.path))
-            .where(
-              (f) => !provenanceRecords.contains(p.basename(f.path)),
-            )
+            .where((f) => !provenanceRecords.contains(p.basename(f.path)))
             .toList()
           ..sort((a, b) => a.path.compareTo(b.path));
 

@@ -18,15 +18,18 @@ import '../../../lib/tdd/072-dependency-mocks/u3_subject.dart' as subject;
 
 void main() {
   group('U3 (FR-003)', () {
-    test('U3 — The generated package MUST include a certified fake with scriptable per-method responses and call recording (arguments and invocation order) sufficient for tests to assert interactions.', () {
-      final Object? result = (() {
-        try {
-          return subject.subject_u3();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U3 — The generated package MUST include a certified fake with scriptable per-method responses and call recording (arguments and invocation order) sufficient for tests to assert interactions.',
+      () {
+        final Object? result = (() {
+          try {
+            return subject.subject_u3();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

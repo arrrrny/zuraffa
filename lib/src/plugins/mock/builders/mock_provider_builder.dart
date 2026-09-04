@@ -543,7 +543,8 @@ class MockProviderBuilder {
     // the RETURNS type whenever it names an entity — not from --name.
     // Service mode (Auth service, User returns) previously produced
     // `AuthMockData.sampleAuth`, a class that exists only as a phantom.
-    final targetEntity = config.returnsType != null &&
+    final targetEntity =
+        config.returnsType != null &&
             EntityUtils.extractEntityTypes(config.returnsType!).isNotEmpty
         ? EntityUtils.extractEntityTypes(config.returnsType!).first
         : config.name;

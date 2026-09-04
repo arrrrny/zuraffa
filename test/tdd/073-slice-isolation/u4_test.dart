@@ -18,15 +18,18 @@ import '../../../lib/tdd/073-slice-isolation/u4_subject.dart' as subject;
 
 void main() {
   group('U4 (FR-004)', () {
-    test('U4 — `zfa slice verify` MUST emit a machine-readable JSON verdict covering self-containment, mock certification, and suite state, exiting non-zero and naming the failing check and offending references on failure.', () {
-      final Object? result = (() {
-        try {
-          return subject.subject_u4();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U4 — `zfa slice verify` MUST emit a machine-readable JSON verdict covering self-containment, mock certification, and suite state, exiting non-zero and naming the failing check and offending references on failure.',
+      () {
+        final Object? result = (() {
+          try {
+            return subject.subject_u4();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

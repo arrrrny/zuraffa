@@ -13,12 +13,7 @@ import 'sandbox_fixture.dart';
 
 void subject_a12() {
   final host = writeHostProject();
-  final sandboxPath = p.join(
-    host.path,
-    '.zuraffa',
-    'slices',
-    fixtureFeature,
-  );
+  final sandboxPath = p.join(host.path, '.zuraffa', 'slices', fixtureFeature);
   // The sandbox receipt the loop advanced inside the sandbox.
   final sandboxSpec = Directory(
     p.join(sandboxPath, 'specs', fixtureFeature, 'tdd'),
@@ -54,8 +49,9 @@ void subject_a12() {
     contains('"a1"'),
   );
   expect(
-    File(p.join(host.path, 'specs', fixtureFeature, 'spec.md'))
-        .readAsStringSync(),
+    File(
+      p.join(host.path, 'specs', fixtureFeature, 'spec.md'),
+    ).readAsStringSync(),
     contains('sandbox-revised'),
   );
 }

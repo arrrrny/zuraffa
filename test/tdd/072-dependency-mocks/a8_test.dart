@@ -18,16 +18,19 @@ import '../../../lib/tdd/072-dependency-mocks/a8_subject.dart' as subject;
 
 void main() {
   group('A8 (AC-8)', () {
-    test('A8 — the behavior is NOT routed to a dependency mock (no prose sniffing).', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a8();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A8 — the behavior is NOT routed to a dependency mock (no prose sniffing).',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a8();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

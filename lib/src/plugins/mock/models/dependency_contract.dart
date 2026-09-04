@@ -63,9 +63,7 @@ class DependencySignature {
   factory DependencySignature.parse(String raw) {
     final m = _shape.firstMatch(raw);
     if (m == null) {
-      throw FormatException(
-        'not a `name(Params) -> Return` signature: $raw',
-      );
+      throw FormatException('not a `name(Params) -> Return` signature: $raw');
     }
     final params = m
         .group(2)!
@@ -146,9 +144,9 @@ class DependencyContract {
         'unknown mock priority "$priority" (expected P1, P2, or P3)',
       );
     }
-    final signatures = _splitMethods(contract)
-        .map(DependencySignature.parse)
-        .toList();
+    final signatures = _splitMethods(
+      contract,
+    ).map(DependencySignature.parse).toList();
     return DependencyContract(
       name: name,
       type: type,

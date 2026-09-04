@@ -18,15 +18,18 @@ import '../../../lib/tdd/073-slice-isolation/u3_subject.dart' as subject;
 
 void main() {
   group('U3 (FR-003)', () {
-    test('U3 — The tdd loop MUST run with the sandbox as project root, and its journal/registry evidence MUST live inside the sandbox.', () {
-      final Object? result = (() {
-        try {
-          return subject.subject_u3();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U3 — The tdd loop MUST run with the sandbox as project root, and its journal/registry evidence MUST live inside the sandbox.',
+      () {
+        final Object? result = (() {
+          try {
+            return subject.subject_u3();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

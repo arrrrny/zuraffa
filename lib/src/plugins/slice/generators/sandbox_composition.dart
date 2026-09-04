@@ -34,7 +34,8 @@ class SandboxComposition {
     required List<String> generatedFiles,
   }) {
     final scaffoldRoutes = [
-      for (final route in routes) SandboxRoute(path: route.path, page: route.page),
+      for (final route in routes)
+        SandboxRoute(path: route.path, page: route.page),
     ];
     final scaffoldBindings = [
       for (final dependency in dependencies)
@@ -141,7 +142,9 @@ class SandboxComposition {
           if (paren < 0) return (name: head, params: '');
           return (
             name: head.substring(0, paren).trim(),
-            params: head.substring(paren + 1).replaceFirst(RegExp(r'\)\s*$'), ''),
+            params: head
+                .substring(paren + 1)
+                .replaceFirst(RegExp(r'\)\s*$'), ''),
           );
         }(),
     ];
@@ -159,4 +162,3 @@ class SandboxComposition {
     generatedFiles.add(p.relative(file.path, from: sandboxDir));
   }
 }
-

@@ -28,9 +28,9 @@ const List<RouteDecl> featureRoutes = <RouteDecl>[
 /// The feature's declared DI bindings (both flavors).
 const List<({String token, List<String> flavors})> featureBindings =
     <({String token, List<String> flavors})>[
-  (token: 'dependencies/auth', flavors: <String>['mock', 'real']),
-  (token: 'dependencies/login_repo', flavors: <String>['mock', 'real']),
-];
+      (token: 'dependencies/auth', flavors: <String>['mock', 'real']),
+      (token: 'dependencies/login_repo', flavors: <String>['mock', 'real']),
+    ];
 
 /// A merged view that follows the host shell convention.
 const String conformingView = '''

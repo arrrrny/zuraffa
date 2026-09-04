@@ -18,16 +18,19 @@ import '../../../lib/tdd/072-dependency-mocks/a6_subject.dart' as subject;
 
 void main() {
   group('A6 (AC-6)', () {
-    test('A6 — the harness wires the generated `FirebaseAuth` mock and the behavior tests through it.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a6();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A6 — the harness wires the generated `FirebaseAuth` mock and the behavior tests through it.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a6();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

@@ -12,7 +12,11 @@ class RouteDecl {
   /// The feature module the route came from (conflict attribution).
   final String module;
 
-  const RouteDecl({required this.path, required this.page, this.module = 'feature'});
+  const RouteDecl({
+    required this.path,
+    required this.page,
+    this.module = 'feature',
+  });
 }
 
 /// The regenerated barrel plus any conflicts found.
@@ -82,9 +86,8 @@ abstract final class RouteBarrel {
     // Deterministic emission: existing lines verbatim (byte-stable for
     // a re-merge), then the additions sorted by path.
     final buffer = StringBuffer(barrelSource);
-    for (final addition in additions
-        .toList()
-      ..sort((a, b) => a.path.compareTo(b.path))) {
+    for (final addition
+        in additions.toList()..sort((a, b) => a.path.compareTo(b.path))) {
       buffer.writeln();
       buffer.write(
         "route('${addition.path}', page: ${addition.page}(), // module: $module",
@@ -102,8 +105,7 @@ abstract final class RouteBarrel {
     required List<RouteDecl> declared,
   }) {
     final table = <String, String>{
-      for (final m in _entry.allMatches(barrelSource))
-        m.group(1)!: m.group(2)!,
+      for (final m in _entry.allMatches(barrelSource)) m.group(1)!: m.group(2)!,
     };
     return [
       for (final route in declared)

@@ -114,7 +114,8 @@ class SandboxLocator {
 abstract final class SandboxScaffold {
   /// `lib/main.dart` — the shell bootstrap pumping the feature shell
   /// with mock DI.
-  static String main({required String feature}) => '''
+  static String main({required String feature}) =>
+      '''
 // GENERATED — slice sandbox for $feature (issue #961).
 //
 // Runnable on certified mocks alone: no host imports, no whole-app boot.
@@ -180,13 +181,15 @@ Widget pageFor(String path) {
   static String di({required List<SandboxBinding> bindings}) {
     final registrations = bindings
         .map(
-          (b) => "  sandbox.bind('${b.token}', build${pascalCase(b.dependency)});"
+          (b) =>
+              "  sandbox.bind('${b.token}', build${pascalCase(b.dependency)});"
               " // ${b.kind}: certified mock (${b.mockArtifact})",
         )
         .join('\n');
     final builders = bindings
         .map(
-          (b) => '''
+          (b) =>
+              '''
 /// Certified mock builder for ${b.dependency} — wired from
 /// `${b.mockArtifact}` (the 072 dependency-mock rail).
 Object build${pascalCase(b.dependency)}() =>
@@ -239,4 +242,3 @@ $builders
 ''';
   }
 }
-

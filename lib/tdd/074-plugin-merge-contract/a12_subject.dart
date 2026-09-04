@@ -17,23 +17,30 @@ void subject_a12() {
   final baseline = captureBaseline(host);
 
   // The merge mutates the host (regenerated barrel + a created file).
+  File(p.join(host.path, 'lib', 'router.dart')).writeAsStringSync(
+    '$hostBarrel\nroute(\'/login\', page: LoginPage(), // module: login)',
+  );
   File(
-    p.join(host.path, 'lib', 'router.dart'),
-  ).writeAsStringSync('$hostBarrel\nroute(\'/login\', page: LoginPage(), // module: login)');
-  File(p.join(host.path, 'lib', 'new_barrel.dart'))
-      .writeAsStringSync('// created by merge\n');
+    p.join(host.path, 'lib', 'new_barrel.dart'),
+  ).writeAsStringSync('// created by merge\n');
 
   final during = HostBaseline.fingerprint(host.path);
   expect(during, isNot(equals(before)), reason: 'the merge changed bytes');
 
   // Rollback restores EXACTLY the pre-merge bytes.
   final restored = baseline.restore(host.path);
-  expect(restored, containsAll(<String>['lib/router.dart', 'lib/new_barrel.dart']));
+  expect(
+    restored,
+    containsAll(<String>['lib/router.dart', 'lib/new_barrel.dart']),
+  );
   expect(HostBaseline.fingerprint(host.path), equals(before));
   expect(
     File(p.join(host.path, 'lib', 'router.dart')).readAsStringSync(),
     equals(hostBarrel),
   );
-  expect(File(p.join(host.path, 'lib', 'new_barrel.dart')).existsSync(), isFalse,
-      reason: 'merge-created files are removed on rollback');
+  expect(
+    File(p.join(host.path, 'lib', 'new_barrel.dart')).existsSync(),
+    isFalse,
+    reason: 'merge-created files are removed on rollback',
+  );
 }

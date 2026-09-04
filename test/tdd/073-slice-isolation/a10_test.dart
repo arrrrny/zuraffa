@@ -18,16 +18,19 @@ import '../../../lib/tdd/073-slice-isolation/a10_subject.dart' as subject;
 
 void main() {
   group('A10 (AC-10)', () {
-    test('A10 — it exits non-zero, its verdict marks self-containment failed, and the offending reference is named.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a10();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A10 — it exits non-zero, its verdict marks self-containment failed, and the offending reference is named.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a10();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

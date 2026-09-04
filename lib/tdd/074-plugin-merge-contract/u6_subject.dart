@@ -31,7 +31,10 @@ void subject_u6() {
     ),
   );
   expect(verdict.passed, isFalse);
-  expect(verdict.failures.map((c) => c.name), containsAll(<String>['views', 'featureSuite']));
+  expect(
+    verdict.failures.map((c) => c.name),
+    containsAll(<String>['views', 'featureSuite']),
+  );
 
   // Rollback the landing's bytes; the proof is the fingerprint.
   baseline.restore(host.path);
@@ -46,7 +49,9 @@ void subject_u6() {
     rolledBack: true,
   );
   expect(rolledBack.outcome(gateRan: true), equals('rolled-back'));
-  expect(rolledBack.summaryLine(host: '/host', gateRan: true),
-      contains('rolled-back=true'));
+  expect(
+    rolledBack.summaryLine(host: '/host', gateRan: true),
+    contains('rolled-back=true'),
+  );
   expect(rolledBack.encode(), contains('"offenders"'));
 }

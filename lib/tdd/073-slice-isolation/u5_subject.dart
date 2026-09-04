@@ -15,12 +15,7 @@ import 'sandbox_fixture.dart';
 
 Object? subject_u5() {
   final host = writeHostProject();
-  final sandboxPath = p.join(
-    host.path,
-    '.zuraffa',
-    'slices',
-    fixtureFeature,
-  );
+  final sandboxPath = p.join(host.path, '.zuraffa', 'slices', fixtureFeature);
   Directory(sandboxPath).createSync(recursive: true);
   final verdictPath = VerifySliceCapability.verdictPathFor(sandboxPath);
 

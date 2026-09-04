@@ -18,16 +18,19 @@ import '../../../lib/tdd/072-dependency-mocks/a2_subject.dart' as subject;
 
 void main() {
   group('A2 (AC-2)', () {
-    test('A2 — the fake returns exactly the scripted value and records the call (arguments and order) for later assertion.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a2();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A2 — the fake returns exactly the scripted value and records the call (arguments and order) for later assertion.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a2();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

@@ -23,8 +23,11 @@ void subject_u1() {
     incoming: featureRoutes,
   );
   expect(twice.passed, isTrue);
-  expect(twice.barrel, equals(once.barrel),
-      reason: 'regeneration is deterministic: re-merge is a byte no-op');
+  expect(
+    twice.barrel,
+    equals(once.barrel),
+    reason: 'regeneration is deterministic: re-merge is a byte no-op',
+  );
 
   // Existing host entries are preserved verbatim — no hand-editing of
   // host routing ever happens.

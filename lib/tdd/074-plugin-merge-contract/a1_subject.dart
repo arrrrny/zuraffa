@@ -14,10 +14,19 @@ void subject_a1() {
     incoming: featureRoutes,
   );
   expect(regenerated.passed, isTrue, reason: regenerated.conflicts.join('\n'));
-  expect(regenerated.barrel, contains("route('/login', page: LoginPage()"),
-      reason: 'the feature route is in the barrel');
-  expect(regenerated.barrel, contains("route('/register', page: RegisterPage()"));
+  expect(
+    regenerated.barrel,
+    contains("route('/login', page: LoginPage()"),
+    reason: 'the feature route is in the barrel',
+  );
+  expect(
+    regenerated.barrel,
+    contains("route('/register', page: RegisterPage()"),
+  );
   // Existing host entries survive verbatim (additive).
   expect(regenerated.barrel, contains("route('/home', page: HomePage()"));
-  expect(regenerated.barrel, contains("route('/settings', page: SettingsPage()"));
+  expect(
+    regenerated.barrel,
+    contains("route('/settings', page: SettingsPage()"),
+  );
 }

@@ -18,15 +18,18 @@ import '../../../lib/tdd/072-dependency-mocks/u8_subject.dart' as subject;
 
 void main() {
   group('U8 (FR-008)', () {
-    test('U8 — A declared row that is malformed (unparseable signatures, duplicate dependency name, unsupported kind) MUST cause a refusal naming the row and the defect — never a guessed or wrong-shaped mock.', () {
-      final Object? result = (() {
-        try {
-          return subject.subject_u8();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U8 — A declared row that is malformed (unparseable signatures, duplicate dependency name, unsupported kind) MUST cause a refusal naming the row and the defect — never a guessed or wrong-shaped mock.',
+      () {
+        final Object? result = (() {
+          try {
+            return subject.subject_u8();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

@@ -13,16 +13,19 @@ import '../../../lib/tdd/075-ui-coverage-ledger/u2_subject.dart' as subject;
 
 void main() {
   group('U2 (FR-002)', () {
-    test('U2 - A surface with no tracing behavior MUST appear in the ledger as unproven at plan time (visible, never omitted)..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_u2();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U2 - A surface with no tracing behavior MUST appear in the ledger as unproven at plan time (visible, never omitted)..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_u2();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

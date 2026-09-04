@@ -18,16 +18,19 @@ import '../../../lib/tdd/073-slice-isolation/a1_subject.dart' as subject;
 
 void main() {
   group('A1 (AC-1)', () {
-    test('A1 — the sandbox contains the feature\'s spec, tdd artifacts, an app shell, a router harness exposing exactly the feature\'s routes, and DI wiring binding certified mocks for every declared dependency.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a1();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A1 — the sandbox contains the feature\'s spec, tdd artifacts, an app shell, a router harness exposing exactly the feature\'s routes, and DI wiring binding certified mocks for every declared dependency.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a1();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

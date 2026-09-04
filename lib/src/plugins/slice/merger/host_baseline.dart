@@ -29,8 +29,7 @@ class HostSnapshot {
 
   /// True when the host tree still matches the snapshot (used after a
   /// rollback to prove the restore was byte-identical).
-  bool matchesHost(String projectRoot) =>
-      restore(projectRoot).isEmpty;
+  bool matchesHost(String projectRoot) => restore(projectRoot).isEmpty;
 
   /// Restores every snapshotted file into [projectRoot]; returns the
   /// relative paths that were restored. Files that did not exist at
@@ -92,12 +91,8 @@ abstract final class HostBaseline {
         ? Directory(projectRoot)
         : Directory(p.join(projectRoot, subPath));
     if (!root.existsSync()) return '';
-    final files =
-        root
-            .listSync(recursive: true)
-            .whereType<File>()
-            .toList()
-          ..sort((a, b) => a.path.compareTo(b.path));
+    final files = root.listSync(recursive: true).whereType<File>().toList()
+      ..sort((a, b) => a.path.compareTo(b.path));
     return sha256.convert([
       for (final file in files) ...[
         ...file.path.codeUnits,

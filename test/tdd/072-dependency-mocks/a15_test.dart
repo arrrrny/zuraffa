@@ -18,16 +18,19 @@ import '../../../lib/tdd/072-dependency-mocks/a15_subject.dart' as subject;
 
 void main() {
   group('A15 (AC-15)', () {
-    test('A15 — they run unchanged against the real adapter (same interface, same harness seam).', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a15();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A15 — they run unchanged against the real adapter (same interface, same harness seam).',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a15();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

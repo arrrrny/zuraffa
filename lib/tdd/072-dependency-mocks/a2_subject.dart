@@ -29,7 +29,10 @@ void subject_a2() {
   expect(fakeSource, contains('scriptSignOut'));
   // Call recording carries the method name and named arguments.
   expect(fakeSource, contains("_recorder.add('signIn'"));
-  expect(fakeSource, contains("arguments: {'email': email, 'password': password}"));
+  expect(
+    fakeSource,
+    contains("arguments: {'email': email, 'password': password}"),
+  );
   // Unscripted calls are NAMED errors, not silent defaults.
   expect(fakeSource, contains('unscripted call: FirebaseAuth.signIn'));
 }

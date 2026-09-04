@@ -55,7 +55,8 @@ class DependencyMockCapability implements ZuraffaCapability {
       },
       'feature': {
         'type': 'string',
-        'description': 'Feature directory under specs/ (resolved from '
+        'description':
+            'Feature directory under specs/ (resolved from '
             '.specify/feature.json when omitted)',
       },
       'project': {
@@ -75,7 +76,10 @@ class DependencyMockCapability implements ZuraffaCapability {
   JsonSchema get outputSchema => {
     'type': 'object',
     'properties': {
-      'files': {'type': 'array', 'items': {'type': 'string'}},
+      'files': {
+        'type': 'array',
+        'items': {'type': 'string'},
+      },
     },
   };
 
@@ -239,9 +243,7 @@ class DependencyMockCapability implements ZuraffaCapability {
 
     // 4. Kind gate.
     const supported = {'service', 'storage'};
-    final kindOk = supported.any(
-      (k) => row.type.toLowerCase().startsWith(k),
-    );
+    final kindOk = supported.any((k) => row.type.toLowerCase().startsWith(k));
     if (!kindOk) {
       stderr.writeln(
         'zfa mock dependency: declared kind "${row.type}" is not '
@@ -281,8 +283,8 @@ class DependencyMockCapability implements ZuraffaCapability {
     final outcome = !allExisted
         ? DependencyMockOutcome.generated
         : anyChanged
-            ? DependencyMockOutcome.regenerated
-            : DependencyMockOutcome.unchanged;
+        ? DependencyMockOutcome.regenerated
+        : DependencyMockOutcome.unchanged;
     stdout.writeln(
       'mock-dependency: name=${contract.name} kind=${contract.type} '
       'priority=${contract.priority.label} methods='
@@ -291,7 +293,6 @@ class DependencyMockCapability implements ZuraffaCapability {
     );
     return 0;
   }
-
 }
 
 class _ParsedArgs {

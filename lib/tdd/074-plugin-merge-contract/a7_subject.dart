@@ -14,10 +14,10 @@ void subject_a7() {
       'lib/src/presentation/pages/login/login_page.dart': conformingView,
       'lib/src/presentation/pages/login/register_page.dart':
           'class RegisterPage extends StatelessWidget {\n'
-              '  @override\n'
-              '  Widget build(BuildContext context) =>\n'
-              '      AdaptiveShell(child: RegisterView());\n'
-              '}',
+          '  @override\n'
+          '  Widget build(BuildContext context) =>\n'
+          '      AdaptiveShell(child: RegisterView());\n'
+          '}',
     },
     shellConvention: 'AdaptiveShell',
   );

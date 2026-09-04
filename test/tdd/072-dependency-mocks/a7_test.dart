@@ -18,16 +18,19 @@ import '../../../lib/tdd/072-dependency-mocks/a7_subject.dart' as subject;
 
 void main() {
   group('A7 (AC-7)', () {
-    test('A7 — it names the dependency row (dependency name + contract) as the consulted declaration.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a7();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A7 — it names the dependency row (dependency name + contract) as the consulted declaration.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a7();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

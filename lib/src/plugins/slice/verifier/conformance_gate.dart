@@ -51,8 +51,7 @@ class MergeVerdict {
     this.rolledBack = false,
   });
 
-  bool get passed =>
-      routes.pass && di.pass && views.pass && featureSuite.pass;
+  bool get passed => routes.pass && di.pass && views.pass && featureSuite.pass;
 
   /// The failing checks, in gate order.
   List<MergeCheck> get failures =>
@@ -116,8 +115,9 @@ class MergeVerdict {
     }
 
     final diNode = doc['di'];
-    final diTokens =
-        diNode is Map ? (diNode['tokensResolved'] as num? ?? 0).toInt() : 0;
+    final diTokens = diNode is Map
+        ? (diNode['tokensResolved'] as num? ?? 0).toInt()
+        : 0;
     return MergeVerdict(
       feature: doc['feature']?.toString() ?? '',
       routes: check('routes', evidenceKey: 'resolved'),
@@ -184,8 +184,7 @@ abstract final class ConformanceGate {
     final resolved = [
       for (final binding in bindings)
         for (final flavor in binding.flavors)
-          if (resolves(binding.token, flavor))
-            '${binding.token}@$flavor',
+          if (resolves(binding.token, flavor)) '${binding.token}@$flavor',
     ];
     return MergeCheck(
       name: 'di',
@@ -238,9 +237,7 @@ abstract final class ConformanceGate {
           '$failure --> fix: make the newly red behavior green '
               '(pre-existing reds are tolerated, new ones are not).',
       ],
-      evidence: currentFailures
-          .where((f) => !newFailures.contains(f))
-          .toList(),
+      evidence: currentFailures.where((f) => !newFailures.contains(f)).toList(),
     );
   }
 }

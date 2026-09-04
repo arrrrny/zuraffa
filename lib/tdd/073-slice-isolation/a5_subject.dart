@@ -34,6 +34,9 @@ Future<void> subject_a5() async {
     );
     compared++;
   }
-  expect(compared, greaterThanOrEqualTo(6),
-      reason: 'the whole wiring set is compared');
+  expect(
+    compared,
+    greaterThanOrEqualTo(6),
+    reason: 'the whole wiring set is compared',
+  );
 }

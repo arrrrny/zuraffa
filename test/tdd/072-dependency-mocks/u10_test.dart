@@ -18,15 +18,18 @@ import '../../../lib/tdd/072-dependency-mocks/u10_subject.dart' as subject;
 
 void main() {
   group('U10 (FR-010)', () {
-    test('U10 — Every generated dependency-mock artifact MUST be recorded in the artifact registry, traceable to its dependency row and feature.', () {
-      final Object? result = (() {
-        try {
-          return subject.subject_u10();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U10 — Every generated dependency-mock artifact MUST be recorded in the artifact registry, traceable to its dependency row and feature.',
+      () {
+        final Object? result = (() {
+          try {
+            return subject.subject_u10();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

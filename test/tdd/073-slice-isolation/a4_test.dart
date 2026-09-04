@@ -18,16 +18,19 @@ import '../../../lib/tdd/073-slice-isolation/a4_subject.dart' as subject;
 
 void main() {
   group('A4 (AC-4)', () {
-    test('A4 — the certified channel fake from the tdd plugin is installed in the sandbox\'s DI.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a4();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A4 — the certified channel fake from the tdd plugin is installed in the sandbox\'s DI.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a4();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

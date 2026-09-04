@@ -18,16 +18,19 @@ import '../../../lib/tdd/073-slice-isolation/a14_subject.dart' as subject;
 
 void main() {
   group('A14 (AC-14)', () {
-    test('A14 — it refuses naming the failed check (merge requires a verified slice).', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a14();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A14 — it refuses naming the failed check (merge requires a verified slice).',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a14();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

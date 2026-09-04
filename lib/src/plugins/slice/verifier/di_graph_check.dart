@@ -87,4 +87,3 @@ abstract final class DiGraphCheck {
     ];
   }
 }
-

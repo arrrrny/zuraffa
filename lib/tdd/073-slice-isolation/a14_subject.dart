@@ -15,12 +15,7 @@ import 'sandbox_fixture.dart';
 
 void subject_a14() {
   final host = writeHostProject();
-  final sandboxPath = p.join(
-    host.path,
-    '.zuraffa',
-    'slices',
-    fixtureFeature,
-  );
+  final sandboxPath = p.join(host.path, '.zuraffa', 'slices', fixtureFeature);
   Directory(sandboxPath).createSync(recursive: true);
 
   // Suite state failed: merge is refused naming that exact check.

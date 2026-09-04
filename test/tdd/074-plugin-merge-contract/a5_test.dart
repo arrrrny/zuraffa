@@ -13,16 +13,19 @@ import '../../../lib/tdd/074-plugin-merge-contract/a5_subject.dart' as subject;
 
 void main() {
   group('A5 (AC-5)', () {
-    test('A5 — every token the feature declares resolves (the graph constructs fully)..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a5();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A5 — every token the feature declares resolves (the graph constructs fully)..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a5();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

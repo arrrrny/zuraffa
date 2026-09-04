@@ -18,15 +18,18 @@ import '../../../lib/tdd/072-dependency-mocks/u7_subject.dart' as subject;
 
 void main() {
   group('U7 (FR-007)', () {
-    test('U7 — Mock priority (P1/P2/P3) MUST order dependency-mock materialization in the loop (P1 → P2 → P3 → unprioritized, declaration-order-stable within a tier), with the order visible in the plan artifact.', () {
-      final Object? result = (() {
-        try {
-          return subject.subject_u7();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U7 — Mock priority (P1/P2/P3) MUST order dependency-mock materialization in the loop (P1 → P2 → P3 → unprioritized, declaration-order-stable within a tier), with the order visible in the plan artifact.',
+      () {
+        final Object? result = (() {
+          try {
+            return subject.subject_u7();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

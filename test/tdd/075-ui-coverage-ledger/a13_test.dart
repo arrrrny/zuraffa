@@ -13,16 +13,19 @@ import '../../../lib/tdd/075-ui-coverage-ledger/a13_subject.dart' as subject;
 
 void main() {
   group('A13 (AC-13)', () {
-    test('A13 - the certified fake serves the scripted responses (the demo runs on the certification, not a parallel fake)..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a13();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A13 - the certified fake serves the scripted responses (the demo runs on the certification, not a parallel fake)..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a13();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

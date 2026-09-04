@@ -18,15 +18,18 @@ import '../../../lib/tdd/072-dependency-mocks/u2_subject.dart' as subject;
 
 void main() {
   group('U2 (FR-002)', () {
-    test('U2 — The generated mock package MUST expose exactly the declared contract\'s surface — method names, parameter lists, and return types as the row declares — with no invented, missing, or renamed members.', () {
-      final Object? result = (() {
-        try {
-          return subject.subject_u2();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U2 — The generated mock package MUST expose exactly the declared contract\'s surface — method names, parameter lists, and return types as the row declares — with no invented, missing, or renamed members.',
+      () {
+        final Object? result = (() {
+          try {
+            return subject.subject_u2();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

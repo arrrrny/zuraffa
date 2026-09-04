@@ -18,12 +18,7 @@ import 'sandbox_fixture.dart';
 
 Object? subject_u4() {
   final host = writeHostProject();
-  final sandboxPath = p.join(
-    host.path,
-    '.zuraffa',
-    'slices',
-    fixtureFeature,
-  );
+  final sandboxPath = p.join(host.path, '.zuraffa', 'slices', fixtureFeature);
   Directory(sandboxPath).createSync(recursive: true);
   final manifest = fixtureManifest(host);
   SandboxComposition().compose(
@@ -75,7 +70,11 @@ Object? subject_u4() {
   // JSON; exact formatting is not part of the contract — the decoded
   // values are).
   final failing = SliceVerdict(
-    selfContainment: const SliceCheck(name: 'selfContainment', pass: false, offenders: ['lib/x.dart:3: "/host"']),
+    selfContainment: const SliceCheck(
+      name: 'selfContainment',
+      pass: false,
+      offenders: ['lib/x.dart:3: "/host"'],
+    ),
     mockCertification: const SliceCheck(name: 'mockCertification', pass: true),
     suiteState: const SliceCheck(name: 'suiteState', pass: true),
   );
@@ -86,7 +85,10 @@ Object? subject_u4() {
     contains('lib/x.dart:3: "/host"'),
     reason: 'offender text must roundtrip exactly (issue #961 verdict)',
   );
-  expect(File(VerifySliceCapability.verdictPathFor(sandboxPath)).existsSync(), isFalse,
-      reason: 'only the verify capability writes the verdict file');
+  expect(
+    File(VerifySliceCapability.verdictPathFor(sandboxPath)).existsSync(),
+    isFalse,
+    reason: 'only the verify capability writes the verdict file',
+  );
   return null;
 }

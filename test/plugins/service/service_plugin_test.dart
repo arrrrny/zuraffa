@@ -157,7 +157,8 @@ void main() {
       expect(
         content.contains("'../domain/entities/"),
         isFalse,
-        reason: 'the flat services layout must not carry a domain segment '
+        reason:
+            'the flat services layout must not carry a domain segment '
             'in entity imports',
       );
     },

@@ -13,16 +13,19 @@ import '../../../lib/tdd/075-ui-coverage-ledger/u3_subject.dart' as subject;
 
 void main() {
   group('U3 (FR-003)', () {
-    test('U3 - Ledger state MUST derive from current evidence: a surface is DONE only when at least one of its provers is green; planned-but-red provers never count..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_u3();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U3 - Ledger state MUST derive from current evidence: a surface is DONE only when at least one of its provers is green; planned-but-red provers never count..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_u3();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

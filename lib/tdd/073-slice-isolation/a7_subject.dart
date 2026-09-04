@@ -32,8 +32,5 @@ Future<void> subject_a7() async {
     p.join(sandbox, 'specs', fixtureFeature, 'tdd', 'journal.json'),
   );
   expect(sandboxJournal.statSync().type, FileSystemEntityType.file);
-  expect(
-    sandboxJournal.readAsStringSync(),
-    contains('cycle'),
-  );
+  expect(sandboxJournal.readAsStringSync(), contains('cycle'));
 }

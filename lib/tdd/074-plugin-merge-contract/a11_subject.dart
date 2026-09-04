@@ -25,6 +25,9 @@ void subject_a11() {
 
   // The rollback restores the pre-merge host bytes.
   baseline.restore(host.path);
-  expect(baseline.matchesHost(host.path), isTrue,
-      reason: 'rollback is byte-identical');
+  expect(
+    baseline.matchesHost(host.path),
+    isTrue,
+    reason: 'rollback is byte-identical',
+  );
 }

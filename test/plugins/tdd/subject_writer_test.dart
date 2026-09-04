@@ -48,17 +48,15 @@ void main() {
       expect(
         body,
         isNot(contains('UnimplementedError')),
-        reason: 'a throwing stub certifies red at the guard and aborts the '
+        reason:
+            'a throwing stub certifies red at the guard and aborts the '
             'test before the authored finders execute (born-green defect)',
       );
     });
 
     test('the stub compiles with only the material import', () {
       final content = const SubjectWriter().render(behavior);
-      expect(
-        content,
-        contains("import 'package:flutter/material.dart';"),
-      );
+      expect(content, contains("import 'package:flutter/material.dart';"));
       expect(content, isNot(contains('shadcn_ui')));
     });
 
@@ -68,19 +66,16 @@ void main() {
       expect(content, contains('source_criterion: AC-1'));
     });
 
-    test('the stub doc comment names the inert red surface and the remedy',
-        () {
+    test('the stub doc comment names the inert red surface and the remedy', () {
       final content = const SubjectWriter().render(behavior);
       expect(
         content.toLowerCase(),
         contains('inert'),
-        reason: 'the doc comment must tell the implementer this body is the '
+        reason:
+            'the doc comment must tell the implementer this body is the '
             'deliberate red surface to be replaced by the real view builder',
       );
-      expect(
-        content.toLowerCase(),
-        contains('replace'),
-      );
+      expect(content.toLowerCase(), contains('replace'));
     });
   });
 }

@@ -210,10 +210,7 @@ class CutSliceCapability implements ZuraffaCapability {
       declaredRoutes = _parseRoutes(args['routes'] as List?);
       declaredDependencies = _parseDependencies(args['dependencies'] as List?);
     } on ArgumentError catch (e) {
-      return ExecutionResult(
-        success: false,
-        message: e.toString(),
-      );
+      return ExecutionResult(success: false, message: e.toString());
     }
     if ((declaredRoutes.isNotEmpty || declaredDependencies.isNotEmpty) &&
         (feature == null || feature.isEmpty)) {
@@ -515,7 +512,7 @@ class CutSliceCapability implements ZuraffaCapability {
                 entry,
                 'routes',
                 "must be '<path>:<Page>' --> fix: declare routes as "
-                "'/login:LoginPage' (issue #961)",
+                    "'/login:LoginPage' (issue #961)",
               );
             }
             return ManifestRoute(
@@ -540,8 +537,8 @@ class CutSliceCapability implements ZuraffaCapability {
                 entry,
                 'dependencies',
                 "must be '<Name>:<kind>:<contract>:<priority>:<artifact>' -- "
-                'fix: declare each dependency row with its contract and '
-                'certified mock path (issue #961)',
+                    'fix: declare each dependency row with its contract and '
+                    'certified mock path (issue #961)',
               );
             }
             return ManifestDependency(

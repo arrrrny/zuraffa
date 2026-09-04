@@ -13,16 +13,19 @@ import '../../../lib/tdd/074-plugin-merge-contract/u4_subject.dart' as subject;
 
 void main() {
   group('U4 (FR-004)', () {
-    test('U4 — Merged views MUST compose behind the host\'s adaptive shell convention; off-convention view artifacts MUST be refused naming the artifact..', () {
-      final Object? result = (() {
-        try {
-          subject.subject_u4();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U4 — Merged views MUST compose behind the host\'s adaptive shell convention; off-convention view artifacts MUST be refused naming the artifact..',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_u4();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }
