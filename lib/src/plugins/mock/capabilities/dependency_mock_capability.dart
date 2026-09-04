@@ -267,24 +267,14 @@ class DependencyMockCapability implements ZuraffaCapability {
         .map((a) => File(p.join(projectRoot, a.path)))
         .toList();
     final allExisted = preExisting.every((f) => f.existsSync());
-    var identical = true;
     var anyChanged = false;
     for (var i = 0; i < artifacts.length; i++) {
       final file = preExisting[i];
       final existed = file.existsSync();
       final same = existed && file.readAsStringSync() == artifacts[i].content;
-      if (!same) {
-        if (existed && !parsed.force) {
-          stderr.writeln(
-            'zfa mock dependency: artifact exists with different content: '
-            '${artifacts[i].path}',
-          );
-          stderr.writeln('--> fix: re-run with --force to regenerate.');
-          return exitMalformed;
-        }
-        anyChanged = true;
-      }
-      if (!same && identical) identical = false;
+      // FR-004: a changed row REGENERATES deterministically and the
+      // change is surfaced in the outcome — never refused, never silent.
+      if (!same) anyChanged = true;
       file.parent.createSync(recursive: true);
       file.writeAsStringSync(artifacts[i].content);
     }
