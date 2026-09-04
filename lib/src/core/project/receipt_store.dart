@@ -200,6 +200,10 @@ class ReceiptStore {
   /// name so latest-wins indexing is deterministic). Corrupted documents
   /// are skipped, not fatal — one broken receipt must not erase the
   /// provenance of every healthy artifact.
+  ///
+  /// Spec 980: `test-*.json` documents are the test plugin's `test.v1`
+  /// per-method receipts — a separate document kind parsed by
+  /// [TestReceiptStore] — and are deliberately skipped here.
   Future<List<ReceiptRecord>> loadAll() async {
     if (!directory.existsSync()) return const [];
     final files =
@@ -207,6 +211,7 @@ class ReceiptStore {
             .listSync()
             .whereType<File>()
             .where((f) => f.path.endsWith('.json'))
+            .where((f) => !p.basename(f.path).startsWith('test-'))
             .toList()
           ..sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
 
