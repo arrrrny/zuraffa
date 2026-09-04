@@ -47,6 +47,7 @@ contracts
 /apps/*
 !apps/zikzak_demo/
 pubspec_overrides.yaml
+pubspec.lock
 .worktrees/
 # Benchmark baseline stores (test pollution; user projects keep their own)
 benchmarks/

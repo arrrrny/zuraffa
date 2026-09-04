@@ -126,10 +126,12 @@ void main() {
       final lastLine = out.trim().split('\n').last;
       final verdict = jsonDecode(lastLine) as Map<String, dynamic>;
       expect(verdict['command'], 'gen');
-      expect(verdict['batch'], isTrue);
-      expect(verdict['behaviors'], 3);
-      expect(verdict['created'], 3);
-      expect(verdict['verdict'], 'created');
+      expect(verdict['schema'], 'verdict.v1');
+      final d1 = verdict['details'] as Map<String, dynamic>;
+      expect(d1['verdict'], 'created');
+      expect(d1['batch'], isTrue);
+      expect(d1['behaviors'], 3);
+      expect(d1['created'], 3);
     });
 
     test(
@@ -163,10 +165,11 @@ void main() {
         expect(await registryRecords(), hasLength(3), reason: out);
         final lastLine = out.trim().split('\n').last;
         final verdict = jsonDecode(lastLine) as Map<String, dynamic>;
-        expect(verdict['behaviors'], 3);
-        expect(verdict['reused'], 3);
-        expect(verdict['created'], 0);
-        expect(verdict['verdict'], 'reused');
+        final d2 = verdict['details'] as Map<String, dynamic>;
+        expect(d2['verdict'], 'reused');
+        expect(d2['behaviors'], 3);
+        expect(d2['reused'], 3);
+        expect(d2['created'], 0);
       },
     );
 
@@ -234,7 +237,9 @@ void main() {
       final lastLine = out.trim().split('\n').last;
       final verdict = jsonDecode(lastLine) as Map<String, dynamic>;
       expect(verdict['verdict'], 'stopped');
-      expect(verdict['stopped_at'], 'B-002');
+      final d3 = verdict['details'] as Map<String, dynamic>;
+      expect(d3['verdict'], 'stopped');
+      expect(d3['stopped_at'], 'B-002');
     });
 
     test('--all with an explicit behavior id is a usage error', () async {
@@ -283,10 +288,12 @@ void main() {
       final lastLine = out.trim().split('\n').last;
       final verdict = jsonDecode(lastLine) as Map<String, dynamic>;
       expect(verdict['command'], 'gen');
-      expect(verdict['batch'], isTrue);
       expect(verdict['verdict'], 'stopped');
-      expect(verdict['stopped_at'], 'B-001');
-      expect(verdict['behaviors'], 0, reason: out);
+      expect(verdict['schema'], 'verdict.v1');
+      final d4 = verdict['details'] as Map<String, dynamic>;
+      expect(d4['batch'], isTrue);
+      expect(d4['stopped_at'], 'B-001');
+      expect(d4['behaviors'], 0, reason: out);
       // Nothing was generated for any row.
       expect(await registryRecords(), isEmpty, reason: out);
       expect(

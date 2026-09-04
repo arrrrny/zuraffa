@@ -78,6 +78,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/channel_scenario.dart';
+import '../models/verdict_envelope.dart';
 import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/behavior_test_writer.dart';
@@ -550,19 +551,22 @@ class GenCommand extends Command<void> {
       );
       return;
     }
-    print(
-      jsonEncode({
-        'command': 'gen',
+    VerdictEnvelope.emit(
+      command: 'gen',
+      outcome: verdict == 'stopped'
+          ? VerdictOutcome.stopped
+          : VerdictOutcome.pass,
+      feature: feature,
+      details: <String, Object?>{
+        'verdict': verdict,
         'batch': true,
-        if (feature != null && feature.isNotEmpty) 'feature': feature,
         'behaviors': behaviors,
         'created': counts['created'] ?? 0,
         'reused': counts['reused'] ?? 0,
         'adopted': counts['adopted'] ?? 0,
         'planned': counts['planned'] ?? 0,
-        'verdict': verdict,
-        'stopped_at': ?stoppedAt,
-      }),
+        if (stoppedAt != null) 'stopped_at': stoppedAt,
+      },
     );
   }
 
@@ -1107,21 +1111,24 @@ class GenCommand extends Command<void> {
       );
       return;
     }
-    print(
-      jsonEncode({
-        'command': 'gen',
+    VerdictEnvelope.emit(
+      command: 'gen',
+      outcome: (verdict == 'refused' || verdict == 'foreign-owned')
+          ? VerdictOutcome.fail
+          : VerdictOutcome.pass,
+      details: <String, Object?>{
         'behavior': behaviorId,
         'verdict': verdict,
-        'reason': ?reason,
-        'kind': ?kind,
+        if (reason != null) 'reason': reason,
+        if (kind != null) 'kind': kind,
         if (golden) 'golden': true,
         if (adopted.isNotEmpty) 'adopted': adopted,
         if (created.isNotEmpty) 'created': created,
         if (adopted.isNotEmpty && featureName != null)
           'audit_log': p.join('specs', featureName, 'tdd', 'audit.log'),
-        'golden_test': ?goldenTestPath,
-        'golden_fixtures': ?goldenFixturesDir,
-      }),
+        if (goldenTestPath != null) 'golden_test': goldenTestPath,
+        if (goldenFixturesDir != null) 'golden_fixtures': goldenFixturesDir,
+      },
     );
   }
 
