@@ -263,6 +263,8 @@ abstract class AuthService {
         serviceDir.createSync(recursive: true);
         File('${serviceDir.path}/auth_service.dart').writeAsStringSync('''
 abstract class AuthService {
+  Future<User> auth(AuthRequest params);
+
   Future<User> login(AuthRequest params);
 }
 ''');
@@ -293,6 +295,12 @@ abstract class AuthService {
         final providerContent = providerPath.readAsStringSync();
         expect(providerContent.contains('implements AuthService'), isTrue);
         expect(providerContent.contains('login'), isTrue);
+
+        // Issue #1030 follow-up: the canned return must come from the
+        // RETURNS type's mock data (UserMockData.sampleUser), not from a
+        // phantom class named after --name (AuthMockData.sampleAuth).
+        expect(providerContent.contains('UserMockData.sampleUser'), isTrue);
+        expect(providerContent.contains('AuthMockData'), isFalse);
 
         // Entity mode: no --methods — the canonical CRUD default survives.
         await runner.run(['create', '--name', 'Product']);

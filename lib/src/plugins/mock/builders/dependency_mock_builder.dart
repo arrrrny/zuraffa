@@ -28,20 +28,65 @@ abstract final class DependencyMockBuilder {
     required String outDir,
   }) {
     final dirName = snake(contract.name);
+    // Issue #1030: the declared signatures reference project types the
+    // artifacts must import. Derived from the contract only, so the
+    // byte-identical regeneration guarantee holds.
+    final entityImports = _entityImports(contract, outDir);
     return [
       GeneratedDependencyArtifact(
         path: '$outDir/$dirName.dart',
-        content: _interface(contract),
+        content: _interface(contract, entityImports),
       ),
       GeneratedDependencyArtifact(
         path: '$outDir/${dirName}_fake.dart',
-        content: _fake(contract),
+        content: _fake(contract, entityImports),
       ),
       GeneratedDependencyArtifact(
         path: '$outDir/${dirName}_fixtures.dart',
-        content: _fixtures(contract),
+        content: _fixtures(contract, entityImports),
       ),
     ];
+  }
+
+  /// Contract-derived entity import block for the declared signatures:
+  /// every non-primitive PascalCase token in a parameter or return type
+  /// maps to `lib/src/domain/entities/<snake>/<snake>.dart`, relative to
+  /// the artifact directory. Empty when the contract only references
+  /// primitives. Same contract => same block (determinism).
+  static String _entityImports(DependencyContract c, String outDir) {
+    const primitives = {
+      'String', 'int', 'double', 'num', 'bool', 'void', 'DateTime',
+      'dynamic', 'Object', 'Map', 'List', 'Set', 'Iterable', 'Future',
+      'Stream', 'Function',
+    };
+    final typeToken = RegExp(r'\b[A-Z][A-Za-z0-9_]*\b');
+    final types = <String>{};
+    for (final s in c.signatures) {
+      final raws = [...s.parameters, s.returnType];
+      for (final raw in raws) {
+        for (final m in typeToken.allMatches(raw)) {
+          final t = m.group(0)!;
+          if (!primitives.contains(t)) types.add(t);
+        }
+      }
+    }
+    if (types.isEmpty) return '';
+    // Depth anchor (issue #1030 follow-up): outDir may be absolute or
+    // root-relative — count the hops from the artifact dir to the project
+    // root as the segments AFTER the `test` root segment (the directory
+    // that owns lib/). `test/mock/dependencies/x` -> 4 ups whether the
+    // outDir arrived as `test/mock/...` or `/home/u/proj/test/mock/...`.
+    final segments =
+        outDir.split('/').where((s) => s.isNotEmpty).toList();
+    final testIndex = segments.lastIndexOf('test');
+    final ups = testIndex == -1 ? segments.length : segments.length - testIndex;
+    final prefix = '../' * ups;
+    return types
+        .map(
+          (t) =>
+              "import '${prefix}lib/src/domain/entities/${snake(t)}/${snake(t)}.dart';",
+        )
+        .join('\n');
   }
 
   /// snake_case of a dependency name (`FirebaseAuth` → `firebase_auth`).
@@ -96,7 +141,7 @@ abstract final class DependencyMockBuilder {
       '// Declared: ${c.type} | priority: ${c.priority.label}'
       '${c.specLine == null ? '' : ' | spec line ${c.specLine}'}';
 
-  static String _interface(DependencyContract c) {
+  static String _interface(DependencyContract c, String entityImports) {
     final members = c.signatures
         .map(
           (s) => '  ${_returnType(s.returnType)} ${s.name}'
@@ -111,14 +156,14 @@ abstract final class DependencyMockBuilder {
 // Regenerating from an unchanged row is byte-for-byte identical.
 library;
 
-${_classDoc(c)}
+${entityImports.isEmpty ? '' : '$entityImports\n\n'}${_classDoc(c)}
 abstract class ${c.name} {
 $members
 }
 ''';
   }
 
-  static String _fake(DependencyContract c) {
+  static String _fake(DependencyContract c, String entityImports) {
     final dirName = snake(c.name);
     final slots = c.signatures
         .map(
@@ -176,7 +221,7 @@ $members
 // a green here means the staged scenario happened.
 
 ${_classDoc(c)}
-import '$dirName.dart';
+import '$dirName.dart';${entityImports.isEmpty ? '' : '\n$entityImports'}
 
 class ${c.name}Fake implements ${c.name} {
   final _CallRecorder _recorder = _CallRecorder();
@@ -202,7 +247,7 @@ class _CallRecorder {
 ''';
   }
 
-  static String _fixtures(DependencyContract c) {
+  static String _fixtures(DependencyContract c, String entityImports) {
     final dirName = snake(c.name);
     final scenarios = c.signatures
         .map(
@@ -222,7 +267,7 @@ class _CallRecorder {
 // GENERATED — fixture lane for ${c.name} (issue #960).
 
 ${_classDoc(c)}
-import '${dirName}_fake.dart';
+import '${dirName}_fake.dart';${entityImports.isEmpty ? '' : '\n$entityImports'}
 
 class ${c.name}Fixtures {
 $scenarios

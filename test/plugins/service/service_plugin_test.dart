@@ -147,8 +147,19 @@ void main() {
       );
       final content = serviceFile.readAsStringSync();
 
-      expect(content.contains("domain/entities/barcode/barcode.dart"), isTrue);
-      expect(content.contains("domain/entities/listing/listing.dart"), isTrue);
+      // Issue #1030: custom services write flat to domain/services/, so
+      // entity imports must resolve WITHOUT the extra `domain` segment.
+      // The old assertion (`contains('domain/entities/...')`) matched the
+      // broken `../domain/entities/...` import — a substring lie that
+      // never compiled.
+      expect(content.contains("'../entities/barcode/barcode.dart'"), isTrue);
+      expect(content.contains("'../entities/listing/listing.dart'"), isTrue);
+      expect(
+        content.contains("'../domain/entities/"),
+        isFalse,
+        reason: 'the flat services layout must not carry a domain segment '
+            'in entity imports',
+      );
     },
   );
 
@@ -181,13 +192,12 @@ void main() {
       );
       final content = serviceFile.readAsStringSync();
 
-      expect(content.contains("domain/entities/barcode/barcode.dart"), isTrue);
+      expect(content.contains("'../entities/barcode/barcode.dart'"), isTrue);
       expect(
-        content.contains(
-          "domain/entities/barcode_listing/barcode_listing.dart",
-        ),
+        content.contains("'../entities/barcode_listing/barcode_listing.dart'"),
         isTrue,
       );
+      expect(content.contains("'../domain/entities/"), isFalse);
     },
   );
 
