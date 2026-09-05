@@ -48,7 +48,10 @@ import '../services/cycle_log.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/red_classifier.dart';
 import '../services/runner.dart';
+import '../services/tdd_generation_receipt.dart';
 import '../services/tdd_timeout.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../services/widget_scaffold.dart' show contentIsScaffolded;
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
@@ -115,6 +118,9 @@ class VerifyRedCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'verify-red';
 
@@ -130,7 +136,9 @@ class VerifyRedCommand extends Command<void> {
       '[--project <path>]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     final behaviorId = rest.isNotEmpty ? rest.first : null;
     final rawFeatureFlag = argResults?['feature'] as String?;
@@ -383,6 +391,14 @@ class VerifyRedCommand extends Command<void> {
       print(
         '   red evidence appended to specs/${target.featureName}/tdd/'
         'cycle-log.md',
+      );
+      // Issue #969 T003: the red evidence becomes self-certifying.
+      await TddGenerationReceipts.writeBestEffort(
+        projectRoot: cwd,
+        command: 'tdd verify-red',
+        target: record.behaviorId,
+        feature: target.featureName,
+        files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
       );
       _printSummary(
         behavior: record.behaviorId,
@@ -850,6 +866,15 @@ class VerifyRedCommand extends Command<void> {
           '   red evidence appended to specs/${target.featureName}/tdd/'
           'cycle-log.md (${record.behaviorId})',
         );
+        // Issue #969 T003: the batched red evidence becomes
+        // self-certifying.
+        await TddGenerationReceipts.writeBestEffort(
+          projectRoot: cwd,
+          command: 'tdd verify-red',
+          target: record.behaviorId,
+          feature: target.featureName,
+          files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
+        );
         certifiedCount++;
       } else {
         failures.add((record.behaviorId, classification));
@@ -876,6 +901,13 @@ class VerifyRedCommand extends Command<void> {
       'classification=${allCertified ? 'batch' : 'mixed'} '
       'feature=$featureLabel',
     );
+    _verdict
+      ..exitClass = allCertified ? 'batch' : 'mixed'
+      ..outcome = allCertified ? VerdictOutcome.pass : VerdictOutcome.fail
+      ..details['batch'] = true
+      ..details['behaviors'] = targets.length
+      ..details['certified'] = certifiedCount
+      ..feature = featureLabel == '-' ? null : featureLabel;
     exitCode = allCertified ? 0 : 1;
   }
 
@@ -1019,6 +1051,13 @@ class VerifyRedCommand extends Command<void> {
       'verify-red: behavior=$behavior classification=$classification '
       'certified=$certified feature=$feature',
     );
+    // Issue #969: the classification IS the exit class (shipped
+    // taxonomy label, never changed).
+    _verdict
+      ..exitClass = classification
+      ..outcome = certified ? VerdictOutcome.pass : VerdictOutcome.fail
+      ..details['behavior'] = behavior
+      ..details['certified'] = certified;
   }
 }
 

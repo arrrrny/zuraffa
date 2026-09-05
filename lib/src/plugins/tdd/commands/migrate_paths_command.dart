@@ -58,11 +58,20 @@ import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
 import '../services/import_resolution.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
 class MigratePathsCommand extends Command<void> {
   MigratePathsCommand(this.plugin) {
+    argParser.addFlag(
+      'json',
+      help:
+          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'line (VISION §5, issue #969).',
+      negatable: false,
+    );
     argParser.addFlag(
       'dry-run',
       abbr: 'n',
@@ -89,6 +98,9 @@ class MigratePathsCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'migrate-paths';
 
@@ -104,7 +116,9 @@ class MigratePathsCommand extends Command<void> {
       'zfa tdd migrate-paths [--feature <name>] [--project <path>] [--dry-run]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
     final dryRun = argResults?['dry-run'] as bool? ?? false;
     final featureFlag = argResults?['feature'] as String?;
     final projectFlag = argResults?['project'] as String?;
@@ -488,6 +502,18 @@ class MigratePathsCommand extends Command<void> {
       'migrate-paths: migrated=$migrated refused=$refused missing=$missing '
       'feature=$featureLabel',
     );
+    // Issue #969: the counters ARE the exit taxonomy; label the class.
+    _verdict
+      ..exitClass = (refused > 0 || missing > 0) ? 'refused' : 'ok'
+      ..outcome = (refused > 0 || missing > 0)
+          ? VerdictOutcome.fail
+          : VerdictOutcome.pass;
+    _verdict.details
+      ..['migrated'] = migrated
+      ..['refused'] = refused
+      ..['missing'] = missing
+      ..['dry_run'] = dryRun;
+    _verdict.feature = featureLabel == 'all' ? null : featureLabel;
     exitCode = (refused > 0 || missing > 0) ? 1 : 0;
   }
 

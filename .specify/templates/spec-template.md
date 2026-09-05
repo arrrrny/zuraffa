@@ -103,6 +103,45 @@
 - **[Entity 1]**: [What it represents, key attributes without implementation]
 - **[Entity 2]**: [What it represents, relationships to other entities]
 
+## Lanes *(include when the feature splits engine vs. skin)*
+
+<!--
+  ACTION REQUIRED (engine/skin split, issue #1000): declare which behaviors
+  are pure Dart (CORE / engine), Flutter (SKIN / skin), or both (BOTH / the
+  shared seam). Behavior ids reference the acceptance scenarios (`A1`, ...)
+  and functional requirements (`U1`, ...) this spec derives; ranges like
+  `U1-U6` expand; an id only the skin owns (e.g. `W1-W4`) is a hand-declared
+  lane row — annotate it (`W1 (renders the login form)`) to give it a
+  description. `adaptive_slots` lists the adaptive-layout contract slots the
+  skin must provide.
+
+  A spec WITHOUT this section plans the legacy single-file test list; a spec
+  WITH it makes `zfa tdd plan` emit the split plan: `tdd/04-ENGINE.md`
+  (CORE + BOTH — pure Dart, the noFlutter guard rejects any Flutter
+  reference), `tdd/04-SKIN.md` (SKIN + BOTH + the AdaptiveViewSlots), and
+  `tdd/04-CONTRACT.md` (the engine/skin seam). `tdd/test-list.md` becomes
+  the lane meta-index. Every spec-derived behavior must be declared in a
+  lane — an undeclared behavior refuses the plan with the declaration to
+  add. Features planned before this grammar migrate with the one-shot
+  `zfa tdd split <feature>` (kind heuristic: widget/theme rows are SKIN,
+  the rest CORE) which records the classification in
+  `tdd/split-receipt.json`.
+-->
+
+```yaml
+Lanes:
+  - lane: CORE
+    behaviors: [A1, A2, U1-U6]
+    flutter_allowed: false
+  - lane: SKIN
+    behaviors: [W1-W4]
+    flutter_allowed: true
+    adaptive_slots: [mobile, ios, android, macos]
+  - lane: BOTH
+    behaviors: [A3 (acceptance: navigates to deal_list)]
+    flutter_allowed: conditionally
+```
+
 ## Success Criteria *(mandatory)*
 
 <!--

@@ -80,11 +80,14 @@ import '../services/entity_lookup.dart';
 import '../services/generation_planner.dart';
 import '../services/pipeline_runner.dart';
 import '../services/run_baseline_cache.dart';
+import '../services/tdd_generation_receipt.dart';
 import '../services/runner.dart';
 import '../services/spec_parser.dart';
 import '../services/test_list_reader.dart';
 import '../services/suite_guard.dart';
 import '../services/tdd_timeout.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../services/widget_scaffold.dart';
 import '../tdd_plugin.dart';
 import '../../../cli/plugin_loader.dart';
@@ -180,6 +183,9 @@ class MakeCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'make';
 
@@ -195,7 +201,9 @@ class MakeCommand extends Command<void> {
       '[--project <path>] [--zfa-bin <path>]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     final behaviorId = rest.isNotEmpty ? rest.first : null;
     final featureFlag = argResults?['feature'] as String?;
@@ -906,6 +914,14 @@ class MakeCommand extends Command<void> {
         suiteNewFailures: regressed,
       ),
     );
+    // Issue #969 T003: the green evidence becomes self-certifying.
+    await TddGenerationReceipts.writeBestEffort(
+      projectRoot: cwd,
+      command: 'tdd make',
+      target: record.behaviorId,
+      feature: target.featureName,
+      files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
+    );
     print(
       '   green evidence appended to specs/${target.featureName}/tdd/'
       'cycle-log.md',
@@ -1596,6 +1612,18 @@ class MakeCommand extends Command<void> {
     required String feature,
   }) {
     print('make: behavior=$behavior outcome=${outcome.label} feature=$feature');
+    // Issue #969: the outcome label IS the exit class (shipped
+    // taxonomy, carried verbatim into the envelope).
+    _verdict
+      ..exitClass = outcome.label
+      ..outcome = switch (outcome) {
+        MakeOutcome.green => VerdictOutcome.pass,
+        MakeOutcome.greenWithFailedBuild => VerdictOutcome.pass,
+        MakeOutcome.skipped => VerdictOutcome.stopped,
+        _ => VerdictOutcome.fail,
+      }
+      ..details['behavior'] = behavior
+      ..feature = feature == 'unknown' ? null : feature;
   }
 }
 

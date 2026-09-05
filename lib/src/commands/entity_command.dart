@@ -23,7 +23,11 @@ class EntityCommand {
   }) async {
     if (args.isEmpty) {
       _printHelp();
-      if (exitOnCompletion) exit(0);
+      // Issue #1059: bare `zfa entity` prints usage and did nothing — that is
+      // a usage error, not a success. Exit 64 (EX_USAGE), matching the #1039
+      // lying-success sweep convention (reportSubcommandUsage() -> exit 64).
+      exitCode = 64;
+      if (exitOnCompletion) exit(64);
       return;
     }
 
@@ -89,6 +93,10 @@ class EntityCommand {
         default:
           print('Unknown subcommand: $subCommand');
           _printHelp();
+          // Issue #1059 sweep: with exitOnCompletion=false (in-process/MCP
+          // embedding) this path used to fall through with exitCode still 0 —
+          // the same lying-success pattern. Propagate the failure code.
+          exitCode = 1;
           if (exitOnCompletion) exit(1);
       }
 
@@ -1276,7 +1284,11 @@ ${missing.map((d) => '   • $d').join('\n')}
 
   Future<void> _handleCli(List<String> subArgs) async {
     if (subArgs.isEmpty) {
-      print('Usage: zfa entity cli <EntityName>');
+      // Issue #1059: bare `zfa entity cli` printed usage and returned without
+      // setting exitCode — a command that did nothing exited 0. Usage errors
+      // go to stderr with exit 64, matching the #1039 fleet sweep convention.
+      stderr.writeln('Usage: zfa entity cli <EntityName>');
+      exitCode = 64;
       return;
     }
     // Delegate to the CliGeneratorPlugin which handles writing + receipts.

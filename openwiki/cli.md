@@ -57,6 +57,7 @@ zfa <command> [subcommand] [name] [options]
 | `graphql` / `gql` | GraphqlPlugin | Generate GraphQL operations |
 | `observer` | ObserverPlugin | Generate observer classes |
 | `feature` | FeaturePlugin | Generate full feature bundle (wrapper over `make --preset=feature`) |
+| `tdd` | TddPlugin | Drive the full TDD red→green→refactor loop (plan, gen, verify-red, make, verify) |
 
 ## `zfa entity create` — Entity Management
 
@@ -293,6 +294,43 @@ zfa doctor
 ```
 
 Displays installed tooling versions: Dart, Flutter, Zuraffa, build_runner, Zorphy annotation.
+
+## `zfa tdd` — TDD Loop Plugin
+
+The TDD plugin drives the whole red→green→refactor cycle against a
+feature's spec (`specs/<feature>/spec.md`). Every verb emits a versioned
+`verdict.v1` JSON envelope as its final stdout line when `--json` is
+passed (`zfa tdd verdicts --schema` prints the diff-stable schema), and
+every generation verb writes digest-bound proof.v1 receipts under
+`.zfa/receipts/` so `zfa proof check` can verify the cycle's artifacts.
+
+| Subcommand | Description |
+|---|---|
+| `init` | Ensure the TDD baseline (profile, dart_test.yaml, testing deps) |
+| `plan <feature>` | Read spec.md, emit tdd/test-list.md + traceability.md (coverage-gated) |
+| `gen <behavior-id>` | Generate a failing test + compiling stub pair (registry-owned) |
+| `fake <channel>` | Scaffold a channel-fake scenario (intent-committed) |
+| `verify-red [behavior-id]` | Prove the target test is honestly red and append red evidence |
+| `make <behavior-id>` | Generate the minimal implementation and certify green evidence |
+| `wire <behavior-id>` | Wire the subject to a real entity (DI binding) |
+| `compose <behavior-id>` | Compose the implementation from certified anchors |
+| `func <behavior-id>` | Scaffold the function body from its declared contract |
+| `view <behavior-id>` | Scaffold the view subject from its scenario |
+| `refactor` | Apply recorded refactors under a green suite preflight |
+| `run <feature>` | Drive every behavior through gen → verify-red → make → refactor (resumable) |
+| `replay <feature>` | Replay a feature's recorded cycle in a clean sandbox |
+| `verify` | Mutation audit + gate decision, writing tdd/verification.md (preflight: proof check) |
+| `migrate-paths` | Move legacy flat artifacts to the namespaced layout |
+| `corpus` | Corpus-level harness: run, status, audit, differential |
+| `referee` | CI referee: golden workflow verdict, publishing gate, rollup |
+| `diff-check` | Compare committed adapter contract fixtures |
+| `reset <feature>` | Revert a feature's TDD state (never deletes foreign files) |
+| `doctor <feature>` | Diagnose store drift and prescribe exactly one recovery action |
+| `realize <entity>` | Swap the mock adapter for a real one behind the contract suite |
+| `verdicts` | Print the versioned verdict envelope schema (`--schema`, diff-stable) |
+
+The cycle flow (what proves what, and which artifacts each step
+receipts) is described in [Testing](testing.md#tdd-cycle).
 
 ## MCP Server
 

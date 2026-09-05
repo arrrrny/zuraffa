@@ -3,14 +3,23 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../../../core/plugin_system/capability.dart';
-import '../provider_plugin.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
+import '../provider_plugin.dart';
+import '../provider_receipt.dart';
+import '../provider_verifier.dart';
 
 class CreateProviderCapability implements ZuraffaCapability {
   final ProviderPlugin plugin;
 
-  CreateProviderCapability(this.plugin);
+  /// Injectable project root for the deterministic receipt (spec #979
+  /// order 1). The CLI leaves it null and the receipt root is derived
+  /// from the plugin's outputDir (which resolves relative to the scoped
+  /// working directory); tests inject a temp root so they never write
+  /// receipts into the repo's own `.zfa/`.
+  final String? projectRoot;
+
+  CreateProviderCapability(this.plugin, {this.projectRoot});
 
   @override
   String get name => 'create';
@@ -36,9 +45,23 @@ class CreateProviderCapability implements ZuraffaCapability {
         'type': 'string',
         'description': 'Return type for the provider method',
       },
+      // Spec #979 (order 3, schema ≡ grammar): `type` carries the same
+      // enum the retired parent-level grammar allowed, and `init` is now
+      // declared — `zfa provider create --init` used to be a parse error
+      // because CapabilityCommand synthesizes subcommand flags from THIS
+      // schema while `init` was only read from args. No defaults are
+      // declared for params/returns on purpose: the interface-extraction
+      // path (the provider mirrors the Service interface it implements)
+      // is the live semantic — see the #768 fix note below.
       'type': {
         'type': 'string',
         'description': 'Provider method type (sync, stream, completable)',
+        'enum': ['sync', 'stream', 'completable', 'usecase'],
+      },
+      'init': {
+        'type': 'boolean',
+        'description': 'Generate initialization and disposal methods',
+        'default': false,
       },
       // Issue #768: MUST match the positional `zfa provider <Entity>` CLI
       // path (ProviderCommand defaults `data` to true). The previous schema
@@ -97,13 +120,105 @@ class CreateProviderCapability implements ZuraffaCapability {
 
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
-    final files = await _generateFiles(args, dryRun: args['dryRun'] ?? false);
+    final dryRun = args['dryRun'] ?? false;
+    final files = await _generateFiles(args, dryRun: dryRun);
+
+    // Spec #979 (order 1): persist the deterministic provider receipt —
+    // proof.v1 digests plus the interface/methods/stub-count ledger.
+    // Best-effort by design (entity_command precedent): the artifacts
+    // already exist, so a receipt failure degrades to a warning instead
+    // of failing the run. Dry runs never persist proofs.
+    if (!dryRun) {
+      await _emitReceipt(args, files);
+    }
 
     return ExecutionResult(
       success: true,
       files: files.map((f) => f.path).toList(),
       data: {'generatedFiles': files},
     );
+  }
+
+  /// The receipt root: the injected [projectRoot] when given (tests),
+  /// else derived from the plugin's outputDir — `<outputDir>/../..` is
+  /// the project root for both the relative ('lib/src') and absolute
+  /// (temp workspace) shapes.
+  String get _receiptRoot =>
+      projectRoot ??
+      p.normalize(p.join(p.absolute(plugin.outputDir), '..', '..'));
+
+  Future<void> _emitReceipt(
+    Map<String, dynamic> args,
+    List<GeneratedFile> files,
+  ) async {
+    try {
+      final name = args['name'] as String;
+      final entity = _pascalCase(name);
+      final written = files
+          .where(
+            (f) =>
+                f.action == 'created' ||
+                f.action == 'overwritten' ||
+                f.action == 'updated',
+          )
+          .toList();
+      if (written.isEmpty) return;
+
+      final providerFile = written.first;
+      final interface = _interfaceName(name);
+      final scan = const ProviderVerifier().scanSource(
+        providerFile.content ?? _readFile(providerFile.path),
+        '$entity${entity.endsWith('Provider') ? '' : 'Provider'}',
+      );
+
+      await ProviderReceiptWriter().write(
+        projectRoot: _receiptRoot,
+        entity: entity,
+        files: written,
+        interface: interface,
+        methods: scan?.methods ?? const <String>[],
+        stubCount: scan?.stubs.length ?? 0,
+        input: {
+          'name': name,
+          if (args['domain'] != null) 'domain': args['domain'],
+          if (args['params'] != null) 'params': args['params'],
+          if (args['returns'] != null) 'returns': args['returns'],
+          if (args['type'] != null) 'type': args['type'],
+          if (args['init'] == true) 'init': true,
+          'data': args['data'] ?? true,
+        },
+      );
+    } catch (e) {
+      print('⚠️  Provider receipt not written: $e');
+    }
+  }
+
+  static String _readFile(String path) {
+    try {
+      return File(path).readAsStringSync();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  static String _interfaceName(String name) {
+    final base = name.endsWith('Service')
+        ? name.substring(0, name.length - 7)
+        : name.endsWith('Provider')
+        ? name.substring(0, name.length - 8)
+        : name;
+    return '$base${base.endsWith('Service') ? '' : 'Service'}';
+  }
+
+  static String _pascalCase(String input) {
+    if (input.isEmpty) return input;
+    final base = input.endsWith('Service')
+        ? input.substring(0, input.length - 7)
+        : input.endsWith('Provider')
+        ? input.substring(0, input.length - 8)
+        : input;
+    if (base.isEmpty) return input;
+    return base[0].toUpperCase() + base.substring(1);
   }
 
   Future<List<GeneratedFile>> _generateFiles(
