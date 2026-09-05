@@ -1,11 +1,18 @@
-import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
+import 'cache_verify_command.dart';
 import '../plugins/cache/cache_plugin.dart';
-import '../plugins/cache/capabilities/create_cache_capability.dart';
 
 class CacheCommand extends PluginCommand {
   @override
   final CachePlugin plugin;
+
+  /// `CacheVerifyCommand` is registered manually below; if a future
+  /// capability with the same `verify` name is added, its auto-registered
+  /// `CapabilityCommand` must be skipped or the duplicate registration
+  /// would leave the manual command unparented and crash `cache verify
+  /// --help` (issue #761).
+  @override
+  Set<String> get manualSubcommandNames => const {'verify'};
 
   CacheCommand(this.plugin) : super(plugin) {
     argParser.addOption(
@@ -15,6 +22,7 @@ class CacheCommand extends PluginCommand {
     );
     argParser.addOption('storage', help: 'Storage backend (hive, etc.)');
     argParser.addOption('ttl', help: 'Time to live in minutes');
+    addSubcommand(CacheVerifyCommand(plugin));
   }
 
   @override
@@ -25,37 +33,15 @@ class CacheCommand extends PluginCommand {
 
   @override
   Future<void> run() async {
-    if (argResults?.rest.isEmpty ?? true) {
-      reportSubcommandUsage();
-      return;
-    }
-    final entityName = argResults!.rest.first;
-    final policy = argResults!['policy'] as String;
-    final storage = argResults!['storage'] as String?;
-    final ttlStr = argResults!['ttl'] as String?;
-    final ttl = ttlStr != null ? int.tryParse(ttlStr) : null;
-
-    final capability =
-        plugin.capabilities.firstWhere((c) => c is CreateCacheCapability)
-            as CreateCacheCapability;
-
-    final result = await capability.execute({
-      'name': entityName,
-      'policy': policy,
-      'storage': storage,
-      'ttl': ttl,
-      'dryRun': isDryRun,
-      'force': isForce,
-      'verbose': isVerbose,
-      'outputDir': outputDir,
-    });
-
-    if (result.success) {
-      final files =
-          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
-      logSummary(files);
-    } else {
-      print('Failed to generate cache');
-    }
+    // Spec #975 (mirrors state_command.dart:25-32 / bug #856): the
+    // positional grammar this command's usage strings once advertised
+    // (`zfa cache <EntityName>`) is unreachable through the CLI —
+    // package:args rejects a bare entity name as a subcommand attempt
+    // before run() ever executes. run() is only reachable through direct
+    // (programmatic) invocation, and its only honest behavior is to tell
+    // the truth about the grammar, never generate, and signal a usage
+    // error. The pre-#975 dead positional path (`argResults!.rest.first`,
+    // the RangeError source) is gone.
+    reportSubcommandUsage();
   }
 }
