@@ -2,7 +2,7 @@
   "ai": "zed",
   "ai_skills": true,
   "feature_numbering": "sequential",
-  "here": false,
+  "here": true,
   "integration": "zed",
   "script": "sh",
   "speckit_version": "1.0.5.dev0"

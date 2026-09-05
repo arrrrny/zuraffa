@@ -1,19 +1,25 @@
+import 'dart:io';
+
 import 'package:args/command_runner.dart';
+import 'package:analyzer/dart/ast/ast.dart' as ast;
 import 'package:path/path.dart' as path;
 
 import '../../commands/test_command.dart';
+import '../../core/ast/file_parser.dart';
 import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
 import '../../core/context/file_system.dart';
+import '../../core/project/test_receipt.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 import 'builders/test_builder.dart';
 import 'capabilities/create_test_capability.dart';
+import 'test_certifier.dart';
 
 /// Manages unit test generation for domain and data layers.
 class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
@@ -22,11 +28,22 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   late final TestBuilder testBuilder;
   final FileSystem fileSystem;
 
+  /// Spec 980: self-certification runner (scoped `dart analyze` on every
+  /// written test file). Injectable so tests can fake the analyzer.
+  final TestSelfCertifier certifier;
+
+  /// Machine verdict of the most recent real (non-dry-run) generation, or
+  /// null when nothing was certified. Read by [TestCommand] / the create
+  /// capability to fail non-compiling output.
+  TestCertification? lastCertification;
+
   TestPlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     FileSystem? fileSystem,
-  }) : fileSystem = fileSystem ?? FileSystem.create() {
+    TestSelfCertifier? certifier,
+  }) : certifier = certifier ?? TestSelfCertifier(),
+       fileSystem = fileSystem ?? FileSystem.create() {
     testBuilder = TestBuilder(
       outputDir: outputDir,
       options: options,
@@ -144,8 +161,15 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           revert: config.revert,
         ),
         fileSystem: context?.fileSystem,
+        // Spec 980: the delegated generation must self-certify through the
+        // same (possibly injected) analyzer, not silently fall back.
+        certifier: certifier,
       );
-      return delegator.generate(config, context: context);
+      final delegated = await delegator.generate(config, context: context);
+      // Surface the delegated run's verdict on this plugin too, so the
+      // command layer sees it without knowing about delegation.
+      lastCertification = delegator.lastCertification;
+      return delegated;
     }
 
     final fs = context?.fileSystem ?? fileSystem;
@@ -175,6 +199,7 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     final files = <GeneratedFile>[];
+    final receiptEntries = <TestReceiptEntry>[];
 
     if (config.isEntityBased) {
       final validMethods = [
@@ -190,25 +215,241 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       ];
       for (final method in config.methods) {
         if (!validMethods.contains(method)) continue;
-        files.add(await builder.generateForMethod(config, method));
+        final file = await builder.generateForMethod(config, method);
+        files.add(file);
+        receiptEntries.addAll(_entityReceiptEntries(config, method, file));
       }
     }
 
     if (config.isOrchestrator) {
-      files.add(await builder.generateOrchestrator(config));
+      final file = await builder.generateOrchestrator(config);
+      files.add(file);
+      if (file.action != 'skipped') {
+        receiptEntries.add(
+          _receiptEntry(
+            name: 'should orchestrate all usecases',
+            file: file,
+            method: 'execute',
+            acceptancePath: 'success',
+            usecaseFile: _useCaseFileName(config.name),
+          ),
+        );
+      }
     }
 
     if (config.isPolymorphic) {
-      files.addAll(await builder.generatePolymorphic(config));
+      final variantFiles = await builder.generatePolymorphic(config);
+      files.addAll(variantFiles);
+      for (final file in variantFiles) {
+        if (file.action == 'skipped') continue;
+        final variantSnake = path
+            .basenameWithoutExtension(path.basename(file.path))
+            .replaceAll('_usecase_test', '');
+        final usecaseFile = '${variantSnake}_usecase.dart';
+        receiptEntries.add(
+          _receiptEntry(
+            name: config.useCaseType == 'stream'
+                ? 'should emit values from stream'
+                : 'should return Success',
+            file: file,
+            method: 'execute',
+            acceptancePath: 'success',
+            usecaseFile: usecaseFile,
+          ),
+        );
+      }
     }
 
     if (config.isCustomUseCase &&
         !config.isPolymorphic &&
         !config.isOrchestrator) {
-      files.add(await builder.generateCustom(config));
+      final file = await builder.generateCustom(config);
+      files.add(file);
+      if (file.action != 'skipped') {
+        receiptEntries.add(
+          _receiptEntry(
+            name: config.useCaseType == 'stream'
+                ? 'should emit values from stream'
+                : 'should return Success',
+            file: file,
+            method: 'execute',
+            acceptancePath: 'success',
+            usecaseFile: _useCaseFileName(config.name),
+          ),
+        );
+      }
+    }
+
+    // Spec 980 — self-certification + per-method receipt, only for real
+    // (non-dry-run, non-revert) runs that actually wrote test files.
+    if (!config.dryRun && !config.revert && receiptEntries.isNotEmpty) {
+      final projectRoot = _projectRoot();
+      lastCertification = await certifier.certify(
+        entity: config.name,
+        projectRoot: projectRoot,
+        files: files,
+      );
+      if (lastCertification != null) {
+        print(lastCertification!.verdictLine);
+      }
+      await _writeTestReceipt(config, receiptEntries, projectRoot);
     }
 
     return files;
+  }
+
+  /// Project root convention shared with the test builders: the output
+  /// directory is `<root>/lib/src`.
+  String _projectRoot() => outputDir.replaceAll('lib/src', '');
+
+  /// Use case file name (snake) for [name] without the `_usecase` suffix —
+  /// e.g. `FetchUser` -> `fetch_user_usecase.dart`.
+  String _useCaseFileName(String name) =>
+      '${StringUtils.camelToSnake(name)}_usecase.dart';
+
+  /// Receipt entries for one entity method's generated file: the success
+  /// test and the failure test, both bound to that method's usecase
+  /// source with digests of the exact bytes on disk.
+  List<TestReceiptEntry> _entityReceiptEntries(
+    GeneratorConfig config,
+    String method,
+    GeneratedFile file,
+  ) {
+    if (file.action == 'skipped' || file.content == null) return const [];
+    final entitySnake = config.nameSnake;
+    final String useCaseFileName;
+    if (method == 'getList' || method == 'list') {
+      useCaseFileName = 'get_${entitySnake}_list_usecase.dart';
+    } else if (method == 'watchList') {
+      useCaseFileName = 'watch_${entitySnake}_list_usecase.dart';
+    } else {
+      useCaseFileName =
+          '${StringUtils.camelToSnake(method)}_${entitySnake}_usecase.dart';
+    }
+    return [
+      _receiptEntry(
+        name: 'should call repository.$method and return result',
+        file: file,
+        method: method,
+        acceptancePath: 'success',
+        usecaseFile: useCaseFileName,
+      ),
+      _receiptEntry(
+        name: 'should return Failure when repository throws',
+        file: file,
+        method: method,
+        acceptancePath: 'failure',
+        usecaseFile: useCaseFileName,
+      ),
+    ];
+  }
+
+  /// Builds one receipt entry, resolving the usecase file's real location
+  /// through the plugin's [FileSystem] and digesting both artifacts.
+  TestReceiptEntry _receiptEntry({
+    required String name,
+    required GeneratedFile file,
+    required String method,
+    required String acceptancePath,
+    required String usecaseFile,
+  }) {
+    final testDigest = TestReceipt.digestOf(file.content ?? '');
+    final usecasePath = _resolveUseCasePath(usecaseFile);
+    final usecaseDigest = usecasePath == null
+        ? null
+        : TestReceipt.digestOf(_readOrEmpty(usecasePath));
+    return TestReceiptEntry(
+      name: name,
+      testPath: _projectRelative(file.path),
+      method: method,
+      acceptancePath: acceptancePath,
+      testSha256: testDigest,
+      useCasePath: usecasePath,
+      useCaseSha256: usecaseDigest,
+    );
+  }
+
+  String _readOrEmpty(String projectRelativePath) {
+    try {
+      return fileSystem.readSync(
+        path.join(_projectRoot(), projectRelativePath),
+      );
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// Finds [usecaseFile] under the output tree and returns its
+  /// project-relative POSIX path (or null when not found).
+  String? _resolveUseCasePath(String usecaseFile) {
+    final root = _projectRoot();
+    final candidates = fileSystem.listSync(
+      path.join(outputDir, 'domain', 'usecases'),
+      recursive: true,
+    );
+    for (final candidate in candidates) {
+      if (path.basename(candidate) == usecaseFile) {
+        return _projectRelative(candidate);
+      }
+    }
+    // Fall back to the conventional location so the receipt still binds
+    // the pair even when the file is created after generation.
+    final conventional = path.join(
+      'lib',
+      'src',
+      'domain',
+      'usecases',
+      usecaseFile,
+    );
+    return root.isEmpty && !fileSystem.existsSync(conventional)
+        ? null
+        : conventional;
+  }
+
+  /// Normalizes an (absolute or root-relative) path to project-relative
+  /// POSIX form for receipt storage.
+  String _projectRelative(String filePath) {
+    final root = _projectRoot();
+    final posixPath = filePath.replaceAll('\\', '/');
+    if (root.isEmpty) {
+      final normalized = path.posix.normalize(posixPath);
+      if (!path.isAbsolute(normalized)) return normalized;
+      // Relative output dir (the CLI case): `-C` made the project root
+      // the process CWD, so absolutize against it to keep receipts
+      // portable when the project tree moves.
+      return path.posix
+          .normalize(path.relative(normalized, from: Directory.current.path))
+          .replaceAll('\\', '/');
+    }
+    if (path.isAbsolute(filePath) && !path.isAbsolute(root)) {
+      return path.posix
+          .normalize(path.relative(filePath, from: Directory.current.path))
+          .replaceAll('\\', '/');
+    }
+    return path.posix
+        .normalize(path.relative(filePath, from: root))
+        .replaceAll('\\', '/');
+  }
+
+  /// Writes the per-entity `test.v1` receipt for this generation run.
+  Future<void> _writeTestReceipt(
+    GeneratorConfig config,
+    List<TestReceiptEntry> entries,
+    String projectRoot,
+  ) async {
+    final receipt = TestReceipt(
+      entity: config.name,
+      command: 'zfa test create --name ${config.name}',
+      at: DateTime.now().toUtc(),
+      tests: entries,
+    );
+    try {
+      await TestReceiptStore(projectRoot: projectRoot).write(receipt);
+    } catch (e) {
+      // A receipt write failure must never mask a green generation, but
+      // it is never silent either.
+      print('  ⚠️  Failed to write test receipt for ${config.name}: $e');
+    }
   }
 
   /// Builds a [GeneratorConfig] by inspecting the existing usecase source.
@@ -310,45 +551,56 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   /// Parses a usecase file to extract dependencies and type metadata.
+  ///
+  /// Spec 980: uses the analyzer package AST (the established
+  /// `FileParser`/`AstHelper` pattern used by the method_append builders)
+  /// instead of regexes. Behavior-neutral on the existing fixtures: field
+  /// declarations typed `XxxRepository` / `XxxService` / `XxxUseCase` feed
+  /// repos/services/composed usecases exactly as the regex scan did; the
+  /// target class's `extends` clause decides the usecase flavor. Unlike a
+  /// text scan, local variables and comments can never masquerade as
+  /// dependencies. Unparseable sources degrade to an empty analysis —
+  /// there is deliberately no regex fallback.
   Map<String, dynamic> _parseUseCaseFile(
     String content,
     String className,
     String domain,
   ) {
-    final repoMatches = RegExp(
-      r'final\s+(\w+)Repository\s+(\w+)',
-    ).allMatches(content);
-    final repos = repoMatches
-        .map((m) => m.group(1))
-        .whereType<String>()
-        .toList();
+    final parseResult = const FileParser().parseSource(content);
+    final unit = parseResult.unit;
 
-    final serviceMatches = RegExp(
-      r'final\s+(\w+)Service\s+(\w+)',
-    ).allMatches(content);
-    final services = serviceMatches
-        .map((m) => m.group(1))
-        .whereType<String>()
-        .toList();
+    final repos = <String>[];
+    final services = <String>[];
+    final composedUsecases = <String>[];
 
-    final usecaseMatches = RegExp(
-      r'final\s+(\w+UseCase)\s+_(\w+)',
-    ).allMatches(content);
-    final composedUsecases = usecaseMatches
-        .map((m) {
-          final className = m.group(1);
-          if (className == null) return null;
-          return className.endsWith('UseCase')
-              ? className.substring(0, className.length - 7)
-              : className;
-        })
-        .whereType<String>()
-        .toList();
+    if (unit != null) {
+      for (final declaration in unit.declarations) {
+        if (declaration is! ast.ClassDeclaration) continue;
+        if (declaration.namePart.typeName.lexeme != className) continue;
+
+        for (final member in declaration.body.members) {
+          if (member is! ast.FieldDeclaration) continue;
+          final declaredType = member.fields.type;
+          if (declaredType == null) continue;
+          // The regexes matched `final XxxRepository _x;` field
+          // declarations; the AST reads the same declared type names,
+          // generics stripped (`UseCase<User, NoParams>` -> `UseCase`).
+          final typeName = declaredType.toSource().split('<').first.trim();
+          if (typeName.endsWith('Repository') && typeName != 'Repository') {
+            repos.add(typeName.substring(0, typeName.length - 10));
+          } else if (typeName.endsWith('Service') && typeName != 'Service') {
+            services.add(typeName.substring(0, typeName.length - 7));
+          } else if (typeName.endsWith('UseCase') && typeName != 'UseCase') {
+            composedUsecases.add(typeName.substring(0, typeName.length - 7));
+          }
+        }
+      }
+    }
 
     final isOrchestrator =
         composedUsecases.isNotEmpty && repos.isEmpty && services.isEmpty;
 
-    final useCaseType = _resolveUseCaseType(content);
+    final useCaseType = _resolveUseCaseType(unit, className);
 
     return {
       'className': className,
@@ -361,19 +613,24 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     };
   }
 
-  /// Determines usecase flavor based on inheritance in the source.
-  String _resolveUseCaseType(String content) {
-    if (content.contains('StreamUseCase')) {
-      return 'stream';
-    }
-    if (content.contains('SyncUseCase')) {
-      return 'sync';
-    }
-    if (content.contains('OsBackgroundTaskUseCase')) {
-      return 'os_background';
-    }
-    if (content.contains('BackgroundUseCase')) {
-      return 'background';
+  /// Determines the usecase flavor from the target class's `extends`
+  /// superclass name — exact match, so `OsBackgroundTaskUseCase` never
+  /// trips the `BackgroundUseCase` branch the way a substring scan could.
+  String _resolveUseCaseType(ast.CompilationUnit? unit, String className) {
+    if (unit == null) return 'usecase';
+    for (final declaration in unit.declarations) {
+      if (declaration is! ast.ClassDeclaration) continue;
+      if (declaration.namePart.typeName.lexeme != className) continue;
+      final superclass = declaration.extendsClause?.superclass;
+      if (superclass == null) return 'usecase';
+      final superName = superclass.toSource().split('<').first.trim();
+      return switch (superName) {
+        'StreamUseCase' => 'stream',
+        'SyncUseCase' => 'sync',
+        'OsBackgroundTaskUseCase' => 'os_background',
+        'BackgroundUseCase' => 'background',
+        _ => 'usecase',
+      };
     }
     return 'usecase';
   }

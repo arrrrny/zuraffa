@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import '../../../core/plugin_system/capability.dart';
 import '../mock_plugin.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
+import '../../../engine/mock_certifier.dart';
 import '../builders/simulation_fixture_writer.dart';
 
 class CreateMockCapability implements ZuraffaCapability {
@@ -50,6 +53,18 @@ class CreateMockCapability implements ZuraffaCapability {
             'Commit per-entity fixture data under this directory (e.g. '
             'specs/<feature>/tdd/fixtures) and re-certify it through the '
             '#832 fixture registry (spec 893)',
+      },
+      // Spec 1002 (engine preset): `mock create --certify` verifies every
+      // requested method landed on the generated mock datasource with
+      // seeded data present, reports the per-method outcome, and fails
+      // the execution when any method is uncertified.
+      'certify': {
+        'type': 'boolean',
+        'description':
+            'Certify every requested method on the generated mock '
+            '(implemented member + seeded mock data); fail when any '
+            'method is uncertified',
+        'default': false,
       },
       'dryRun': {
         'type': 'boolean',
@@ -115,6 +130,64 @@ class CreateMockCapability implements ZuraffaCapability {
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
     final files = await _generateFiles(args, dryRun: args['dryRun'] ?? false);
+
+    // Spec 1002: `zfa mock create <Entity> --certify` — verify every
+    // requested method after generation and report the per-method
+    // outcome. A method that did not land on the mock datasource (or a
+    // missing seeded data fixture) fails the execution so automation
+    // never reads an incomplete mock as a win.
+    final certify = args['certify'] == true;
+    if (certify && args['dryRun'] != true) {
+      final entityName = args['name'] as String;
+      final config = GeneratorConfig(
+        name: entityName,
+        outputDir: plugin.outputDir,
+        service: args['service'],
+      );
+      final certifiedEntity = config.repo != null
+          ? config.repo!.replaceAll('Repository', '')
+          : config.name;
+      final requested =
+          (args['methods'] as List?)?.cast<String>() ?? const <String>[];
+      final methods = requested.isEmpty
+          ? (args['service'] != null
+                ? const <String>[]
+                : const ['get', 'update', 'toggle'])
+          : requested;
+      final projectRoot = Directory.current.path;
+      final certification = MockCertifier.certify(
+        entity: certifiedEntity,
+        methods: methods,
+        projectRoot: projectRoot,
+      );
+      print('🔍 Mock certification for "$certifiedEntity":');
+      for (final entry in certification.methods.entries) {
+        print(
+          '  ${entry.value ? "✅" : "❌"} '
+          '${entry.key}: ${entry.value ? "certified" : "uncertified"}',
+        );
+      }
+      if (!certification.certified) {
+        return ExecutionResult(
+          success: false,
+          message:
+              'mock certification failed for "$certifiedEntity": '
+              '${certification.methods.entries.where((e) => !e.value).map((e) => e.key).join(", ")} '
+              'uncertified — regenerate with `zfa mock create '
+              '$certifiedEntity --methods=... --certify`',
+          files: files.map((f) => f.path).toList(),
+          data: {
+            'generatedFiles': files,
+            'mockCertified': certification.methods,
+          },
+        );
+      }
+      return ExecutionResult(
+        success: true,
+        files: files.map((f) => f.path).toList(),
+        data: {'generatedFiles': files, 'mockCertified': certification.methods},
+      );
+    }
 
     return ExecutionResult(
       success: true,
