@@ -62,8 +62,10 @@ class CliRunner {
   /// Guard against overlapping `run`/`runCapturing` calls on the same instance.
   /// The scoped chdir in [_withDirectory] mutates the process-wide
   /// `Directory.current`; concurrent invocations would race on it. We reject
-  /// re-entrancy with a clear error rather than serialize with a shared lock
-  /// (which risks deadlocks and does not coordinate across isolates).
+  /// same-instance re-entrancy with a clear error. Cross-ISOLATE overlaps
+  /// (two `dart test` suites, each driving its own [CliRunner] in one VM)
+  /// are handled by the lock file in [_withDirectory] — this per-instance
+  /// flag cannot see another suite's runner.
   bool _active = false;
 
   CliRunner({this.exitOnCompletion = true}) : _runner = _buildRunner();
@@ -285,6 +287,16 @@ class CliRunner {
   /// assigning `Directory.current` directly: the change is confined to this
   /// invocation and never leaks into the shared process-global CWD.
   ///
+  /// The whole chdir window (capture `saved` → chdir → body → restore) is
+  /// serialized across isolates through [_cwdLockFile] (issue #1096):
+  /// `dart test` runs suites as concurrent isolates of ONE process, and
+  /// `Directory.current` is process-wide. Without the lock, suite B can
+  /// capture `saved` while suite A's window is open (B then restores the
+  /// process into A's temp root), and every relative write A performs while
+  /// B's window overlaps lands in B's root — the observed service-verdict
+  /// flake. Suites that never pass `-C` never touch the lock, so parallel
+  /// execution of other suites is unaffected.
+  ///
   /// Crucially, command construction (`_ensureInitialized`) must happen
   /// *inside* this scope: commands resolve their project root from
   /// `Directory.current` in their constructors, so the chdir must be in
@@ -297,20 +309,89 @@ class CliRunner {
       await body();
       return;
     }
-    final saved = Directory.current;
-    Directory.current = p.absolute(directory);
+    await _acquireCwdLock();
     try {
-      await body();
+      final saved = Directory.current;
+      Directory.current = p.absolute(directory);
+      try {
+        await body();
+      } finally {
+        // `Directory.current` is PROCESS-WIDE while the test runner executes
+        // suites as concurrent isolates in one VM. Between the capture above
+        // and this restore, another isolate can legitimately delete the saved
+        // directory (its own temp-dir teardown) — restoring to it then throws
+        // PathNotFoundException inside an UNRELATED test (observed as a flaky
+        // U19 in setup_corpus_specs_test once the #767 suites changed suite
+        // scheduling). Walk up to the nearest ancestor that still exists
+        // instead of failing; the root always exists.
+        Directory.current = nearestExistingDirectory(saved.path);
+      }
     } finally {
-      // `Directory.current` is PROCESS-WIDE while the test runner executes
-      // suites as concurrent isolates in one VM. Between the capture above
-      // and this restore, another isolate can legitimately delete the saved
-      // directory (its own temp-dir teardown) — restoring to it then throws
-      // PathNotFoundException inside an UNRELATED test (observed as a flaky
-      // U19 in setup_corpus_specs_test once the #767 suites changed suite
-      // scheduling). Walk up to the nearest ancestor that still exists
-      // instead of failing; the root always exists.
-      Directory.current = nearestExistingDirectory(saved.path);
+      // Release only AFTER the restore so the next window captures a stable
+      // process CWD (the restore is part of the critical section).
+      _releaseCwdLock();
+    }
+  }
+
+  /// Cross-isolate lock guarding the [_withDirectory] chdir window.
+  ///
+  /// Keyed by PID on purpose: the race only exists WITHIN one process (each
+  /// process owns a private working directory), and all dart-test suite
+  /// isolates share the runner process's PID, so they contend on one file —
+  /// exactly the mutual exclusion needed. A spawned `zfa` CLI runs in its
+  /// own process, gets its own lock file, and can never deadlock against
+  /// its parent. The lock lives in the system temp dir so it works for any
+  /// checkout and needs no writable project state.
+  static File get _cwdLockFile =>
+      File(p.join(Directory.systemTemp.path, 'zfa_cwd_lock_$pid.lock'));
+
+  /// Acquires the cross-isolate chdir lock, waiting up to 30 seconds for the
+  /// current holder. Exclusive-create (`File.createSync(exclusive: true)`)
+  /// is the atomic serialization point; it works across isolates AND
+  /// processes, unlike `RandomAccessFile.lock` (POSIX fcntl locks are
+  /// per-process and cannot arbitrate between isolates of one VM).
+  static Future<void> _acquireCwdLock() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 30));
+    var lockBroken = false;
+    while (true) {
+      try {
+        _cwdLockFile.createSync(exclusive: true);
+        return;
+      } on FileSystemException {
+        final expired = DateTime.now().isAfter(deadline);
+        if (!expired) {
+          await Future<void>.delayed(const Duration(milliseconds: 2));
+          continue;
+        }
+        if (!lockBroken) {
+          // The holder most likely died mid-window (its isolate killed by a
+          // test timeout, leaving a stale file behind for every later
+          // window of this process). Break the stale lock once rather than
+          // stall the rest of the run.
+          lockBroken = true;
+          try {
+            _cwdLockFile.deleteSync();
+          } on FileSystemException {
+            // Unbreakable (e.g. a foreign user's file) — fall through to
+            // degraded mode below.
+          }
+          continue;
+        }
+        // Degraded mode: proceed without exclusivity (the pre-#1096
+        // behavior) instead of failing every later invocation forever.
+        return;
+      }
+    }
+  }
+
+  /// Releases the cross-isolate chdir lock. Best-effort: a lost release
+  /// only costs the next window one 30s wait before it breaks the stale
+  /// file.
+  static void _releaseCwdLock() {
+    try {
+      _cwdLockFile.deleteSync();
+    } on FileSystemException {
+      // Already gone (another waiter broke a stale lock).
     }
   }
 
