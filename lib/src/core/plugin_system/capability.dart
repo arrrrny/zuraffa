@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../../domain/entities/feature_contract/feature_contract.dart';
+
 /// A JSON Schema definition (represented as a Map).
 typedef JsonSchema = Map<String, dynamic>;
 
@@ -127,9 +129,25 @@ abstract class ZuraffaCapability {
   /// JSON Schema for output result.
   JsonSchema get outputSchema;
 
+  /// Feature scope (spec 1098, issue #1098): capabilities that need to
+  /// control which feature contracts they serve implement the
+  /// [FeatureScopedCapability] protocol below. Capabilities without it are
+  /// unscoped — they serve every feature. The plugin loader consults the
+  /// protocol when a typed FeatureContract is active: a plugin with any
+  /// protocol-declaring capability that refuses the feature is not loaded
+  /// for that feature.
+
   /// The AI can ask "What will this do?" before doing it.
   Future<EffectReport> plan(Map<String, dynamic> args);
 
   /// Execute the action.
   Future<ExecutionResult> execute(Map<String, dynamic> args);
+}
+
+/// Opt-in feature-scoping protocol (spec 1098, gap 8): the capability
+/// layer can DECLARE which features a capability serves, and the plugin
+/// loader VALIDATES it when loading feature-scoped registries.
+abstract interface class FeatureScopedCapability implements ZuraffaCapability {
+  /// Whether this capability serves [feature].
+  bool supportsFeature(FeatureContract feature);
 }

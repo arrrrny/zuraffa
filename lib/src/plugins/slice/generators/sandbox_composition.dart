@@ -14,6 +14,7 @@ import 'package:path/path.dart' as p;
 
 import '_pascal_case.dart';
 import 'sandbox_scaffold.dart';
+import '../../../domain/entities/feature_contract/feature_contract_decorators.dart';
 import '../models/slice_manifest.dart';
 
 /// Composes the runnable sandbox over a cut tree.
@@ -25,6 +26,12 @@ class SandboxComposition {
   /// certified fake per declared dependency, and the feature's receipts
   /// (`specs/<feature>/**`) into [sandboxDir]. Appends every written
   /// path to [generatedFiles] (manifest bookkeeping).
+  ///
+  /// Spec 1098: when [feature] is set, every emitted harness artifact is
+  /// stamped with the `@FeatureOwned('<feature>')` comment decorator so
+  /// the ownership knowledge survives round-trips through hand-edits,
+  /// re-generation and xray scans — read back by
+  /// `FeatureContractDecorators.scan`, not guessed from path conventions.
   void compose({
     required String projectRoot,
     required String sandboxDir,
@@ -49,19 +56,28 @@ class SandboxComposition {
     _write(
       sandboxDir: sandboxDir,
       path: p.join(sandboxDir, 'lib', 'main.dart'),
-      content: SandboxScaffold.main(feature: feature),
+      content: _withFeatureDecorator(
+        feature: feature,
+        source: SandboxScaffold.main(feature: feature),
+      ),
       generatedFiles: generatedFiles,
     );
     _write(
       sandboxDir: sandboxDir,
       path: p.join(sandboxDir, 'lib', 'router.dart'),
-      content: SandboxScaffold.router(routes: scaffoldRoutes),
+      content: _withFeatureDecorator(
+        feature: feature,
+        source: SandboxScaffold.router(routes: scaffoldRoutes),
+      ),
       generatedFiles: generatedFiles,
     );
     _write(
       sandboxDir: sandboxDir,
       path: p.join(sandboxDir, 'lib', 'di.dart'),
-      content: SandboxScaffold.di(bindings: scaffoldBindings),
+      content: _withFeatureDecorator(
+        feature: feature,
+        source: SandboxScaffold.di(bindings: scaffoldBindings),
+      ),
       generatedFiles: generatedFiles,
     );
 
@@ -92,6 +108,17 @@ class SandboxComposition {
         );
       }
     }
+  }
+
+  /// Stamps the `@FeatureOwned` decorator onto [source] when [feature] is
+  /// non-empty (spec 1098). Deterministic: identical inputs yield
+  /// byte-identical output (FR-007).
+  static String _withFeatureDecorator({
+    required String? feature,
+    required String source,
+  }) {
+    if (feature == null || feature.isEmpty) return source;
+    return '${FeatureContractDecorators.ownedLine(feature)}\n$source';
   }
 
   /// The certified fake installed for a declared dependency row —

@@ -5,6 +5,7 @@ import 'package:args/args.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as path;
 import '../../config/zfa_config.dart';
+import '../../domain/entities/feature_contract/feature_contract.dart';
 import '../../utils/string_utils.dart';
 import '../../cli/plugin_loader.dart';
 import '../../package/package_mode.dart';
@@ -137,6 +138,7 @@ class PluginManager {
     bool? overrideForce,
     bool? overrideVerbose,
     bool? overrideRevert,
+    FeatureContract? feature,
   }) {
     final core = CoreConfig(
       name: name,
@@ -146,6 +148,7 @@ class PluginManager {
       force: overrideForce ?? argResults?['force'] == true,
       verbose: overrideVerbose ?? argResults?['verbose'] == true,
       revert: overrideRevert ?? argResults?['revert'] == true,
+      feature: feature,
     );
 
     final data = <String, dynamic>{};

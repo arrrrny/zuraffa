@@ -1,3 +1,4 @@
+import '../../domain/entities/feature_contract/feature_contract.dart';
 import '../../models/generator_config.dart';
 import '../context/file_system.dart';
 import 'discovery_engine.dart';
@@ -6,6 +7,11 @@ import 'discovery_engine.dart';
 class CoreConfig {
   /// The name of the entity or target to generate.
   final String name;
+
+  /// The active typed feature contract (spec 1098, issue #1098), when the
+  /// command resolved one. Plugins read the active feature from here
+  /// instead of re-deriving it from raw string args.
+  final FeatureContract? feature;
 
   /// The base project root.
   final String projectRoot;
@@ -33,10 +39,15 @@ class CoreConfig {
     this.force = false,
     this.verbose = false,
     this.revert = false,
+    this.feature,
   });
 
   /// Temporary factory to bridge from the old [GeneratorConfig].
-  factory CoreConfig.fromOld(GeneratorConfig config, {String? projectRoot}) {
+  factory CoreConfig.fromOld(
+    GeneratorConfig config, {
+    String? projectRoot,
+    FeatureContract? feature,
+  }) {
     return CoreConfig(
       name: config.name,
       projectRoot: projectRoot ?? '',
@@ -45,6 +56,7 @@ class CoreConfig {
       force: config.force,
       verbose: config.verbose,
       revert: config.revert,
+      feature: feature,
     );
   }
 }

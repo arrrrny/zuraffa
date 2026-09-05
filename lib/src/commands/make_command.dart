@@ -1406,6 +1406,9 @@ class MakeCommand extends Command<void> {
       engineCheckPassed: checkResult.passed,
       engineCheckFailures: checkResult.failures,
       generatedFiles: files.map((file) => file.path).toList(),
+      // Spec 1098: attribute the receipt to the active feature contract
+      // when one is in play (grouped copy lands under .zfa/receipts/<id>/).
+      featureId: context.core.feature?.id,
     );
     final receiptPath = p.relative(receiptFile.path, from: projectRoot);
 

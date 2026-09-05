@@ -40,6 +40,11 @@ class XRayNode {
   /// At-a-glance SignalSlice state summary.
   final XRayStateSummary stateSummary;
 
+  /// The owning feature contract id (spec 1098, issue #1098), when the
+  /// node is attributed to a feature — the deck can then answer
+  /// file→feature, not only file→layer. Null on legacy nodes.
+  final String? featureId;
+
   /// Recursive child nodes (for the MCP tree).
   final List<XRayNode> children;
 
@@ -49,6 +54,7 @@ class XRayNode {
     required this.enabled,
     required this.stateSummary,
     this.boundAction,
+    this.featureId,
     this.children = const <XRayNode>[],
   });
 
@@ -59,6 +65,7 @@ class XRayNode {
     'viewType': viewType,
     'enabled': enabled,
     if (boundAction != null) 'boundAction': boundAction,
+    if (featureId != null) 'featureId': featureId,
     'stateSummary': stateSummary.toJson(),
     'children': children.map((c) => c.toJson()).toList(),
   };
@@ -73,6 +80,7 @@ class XRayNode {
       stateSummary: XRayStateSummary.fromJson(
         (json['stateSummary'] as Map<String, dynamic>?) ?? const {},
       ),
+      featureId: json['featureId'] as String?,
       children: ((json['children'] as List<dynamic>?) ?? const [])
           .map((c) => XRayNode.fromJson(c as Map<String, dynamic>))
           .toList(),

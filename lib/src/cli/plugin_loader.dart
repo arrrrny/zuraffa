@@ -1,9 +1,11 @@
 import 'dart:io';
 
 import '../config/zfa_config.dart';
+import '../core/plugin_system/capability.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/generator_options.dart';
+import '../domain/entities/feature_contract/feature_contract.dart';
 import '../plugins/controller/controller_plugin.dart';
 import '../plugins/datasource/datasource_plugin.dart';
 import '../plugins/di/di_plugin.dart';
@@ -77,17 +79,57 @@ class PluginLoader {
   final bool verbose;
   final PluginConfig config;
 
+  /// The active typed feature contract (spec 1098, issue #1098), when the
+  /// invocation resolved one. When set, [buildRegistry] re-resolves the
+  /// plugin set per feature: a plugin whose every capability refuses the
+  /// feature is not instantiated into the registry. `null` (the default)
+  /// keeps the historical global, unscoped behavior.
+  final FeatureContract? feature;
+
   PluginLoader({
     required this.outputDir,
     required this.dryRun,
     required this.force,
     required this.verbose,
     required this.config,
+    this.feature,
   });
 
+  /// Filters [plugins] down to those that serve [feature] (spec 1098).
+  ///
+  /// A plugin is dropped only when at least one of its capabilities
+  /// declares the [FeatureScopedCapability] protocol AND refuses the
+  /// feature. Plugins without capabilities, or whose capabilities don't
+  /// declare the protocol, are unscoped and always kept.
+  static List<ZuraffaPlugin> filterForFeature(
+    List<ZuraffaPlugin> plugins,
+    FeatureContract feature,
+  ) {
+    return [
+      for (final plugin in plugins)
+        if (_servesFeature(plugin, feature)) plugin,
+    ];
+  }
+
+  static bool _servesFeature(ZuraffaPlugin plugin, FeatureContract feature) {
+    final capabilities = plugin.capabilities;
+    if (capabilities.isEmpty) return true;
+    for (final capability in capabilities) {
+      final scoped = capability is FeatureScopedCapability ? capability : null;
+      if (scoped != null && !scoped.supportsFeature(feature)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   PluginRegistry buildRegistry() {
+    final candidates = _plugins();
+    final scoped = feature == null
+        ? candidates
+        : filterForFeature(candidates, feature!);
     final registry = PluginRegistry();
-    for (final plugin in _plugins()) {
+    for (final plugin in scoped) {
       if (!config.disabled.contains(plugin.id)) {
         registry.register(plugin);
       }

@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:path/path.dart' as path;
 import '../../../core/plugin_system/capability.dart';
+import '../../../domain/entities/feature_contract/feature_contract.dart';
+import '../../../domain/entities/feature_contract/feature_contract_registry.dart';
 import '../feature_plugin.dart';
 import '../../../models/generated_file.dart';
 import '../../../config/zfa_config.dart';
@@ -12,7 +14,14 @@ import '../../../utils/file_utils.dart';
 class ScaffoldFeatureCapability implements ZuraffaCapability {
   final FeaturePlugin plugin;
 
-  ScaffoldFeatureCapability(this.plugin);
+  /// Project root override (spec 1098): defaults to [Directory.current]
+  /// exactly as before; injectable so contract validation can run
+  /// hermetically against an explicit root.
+  final String? projectRoot;
+
+  ScaffoldFeatureCapability(this.plugin, {this.projectRoot});
+
+  String get _projectRoot => projectRoot ?? Directory.current.path;
 
   @override
   String get name => 'scaffold';
@@ -140,6 +149,22 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
 
   @override
   Future<EffectReport> plan(Map<String, dynamic> args) async {
+    // Spec 1098 (gap 5): validate the raw string name against the known
+    // feature contracts BEFORE planning. A project that declares no
+    // contracts keeps the historical unvalidated behavior.
+    final validation = _validateAgainstContracts(args);
+    if (validation != null) {
+      return EffectReport(
+        planId: 'plan_${DateTime.now().millisecondsSinceEpoch}',
+        pluginId: plugin.id,
+        capabilityName: name,
+        args: args,
+        changes: const [],
+        isValid: false,
+        message: validation,
+      );
+    }
+
     final files = await _generateFiles(args, dryRun: true);
 
     return EffectReport(
@@ -155,6 +180,11 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
 
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
+    final validation = _validateAgainstContracts(args);
+    if (validation != null) {
+      return ExecutionResult(success: false, message: validation);
+    }
+
     final files = await _generateFiles(args, dryRun: false);
 
     return ExecutionResult(
@@ -164,19 +194,53 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
     );
   }
 
+  /// Resolves [args] name against the project's declared feature
+  /// contracts (specs/*/contract.yaml).
+  ///
+  /// Returns `null` when scaffolding may proceed; otherwise the failure
+  /// message naming the unknown id and the known ids.
+  String? _validateAgainstContracts(Map<String, dynamic> args) {
+    final featureName = args['name'];
+    if (featureName is! String || featureName.isEmpty) return null;
+
+    final registry = FeatureContractRegistry.scanProject(_projectRoot);
+    if (!registry.isNotEmpty) return null;
+    if (registry.findById(featureName) != null) return null;
+
+    final known = registry.knownIds.toList()..sort();
+    return 'Unknown feature contract: "$featureName". '
+        'Known contracts: ${known.isEmpty ? "(none)" : known.join(", ")}. '
+        'Declare it at specs/<feature-id>/contract.yaml or use one of the '
+        'known ids (spec 1098).';
+  }
+
+  /// The contract resolved for this scaffold run, or null when the
+  /// project declares none matching the name (unscoped run).
+  FeatureContract? _resolveContract(Map<String, dynamic> args) {
+    final featureName = args['name'];
+    if (featureName is! String || featureName.isEmpty) return null;
+    final registry = FeatureContractRegistry.scanProject(_projectRoot);
+    return registry.findById(featureName);
+  }
+
   Future<List<GeneratedFile>> _generateFiles(
     Map<String, dynamic> args, {
     required bool dryRun,
   }) async {
     final featureName = args['name'] as String;
     final zfaConfig = ZfaConfig.load();
-    final projectRoot = Directory.current.path;
+    final projectRoot = _projectRoot;
 
     final manager = PluginManager(
       registry: PluginRegistry.instance,
       config: zfaConfig,
       projectRoot: projectRoot,
     );
+
+    // Spec 1098 (materialization step 5): pass the typed contract — not
+    // the raw string — into the context so plugins read the active
+    // feature from context.core.feature.
+    final activeContract = _resolveContract(args);
 
     final normalizedOptions = _normalizePlanOptions(args);
     final plan = manager.resolvePlan(
@@ -194,6 +258,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
       overrideForce: args['force'] == true,
       overrideVerbose: args['verbose'] == true,
       overrideRevert: args['revert'] == true,
+      feature: activeContract,
     );
 
     context.data.addAll(plan.normalizedOptions);
