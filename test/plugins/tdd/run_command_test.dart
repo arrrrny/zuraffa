@@ -18,7 +18,10 @@ void main() {
   late TddFixture fx;
   const feature = '090-run-driver';
 
-  Future<String> drive({String? zfaBin}) async {
+  Future<String> drive({
+    String? zfaBin,
+    List<String> extraArgs = const [],
+  }) async {
     final runner = CliRunner(exitOnCompletion: false);
     return runner.runCapturing([
       'tdd',
@@ -28,6 +31,7 @@ void main() {
       fx.root.path,
       '--zfa-bin',
       zfaBin ?? fx.fakeZfaBin,
+      ...extraArgs,
     ]);
   }
 
@@ -767,6 +771,78 @@ void main() {
       'B-002': 'done',
       'B-003': 'done',
     });
+  });
+
+  test('issue #992: --skip-widget continues past a refused widget gen — '
+      'the behavior keeps its state and the summary names the skip', () async {
+    // B-001 is widget-lane and its gen refuses on the #938 shadcn gate
+    // (the fake mirrors the real refusal shape: fix line + verdict JSON
+    // as the final stdout line, exit 1). With --skip-widget the refusal
+    // is per-behavior information: the run continues with B-002/B-003,
+    // B-001 keeps PENDING (never a fake DONE, FR-008), and the run ends
+    // honestly naming the skip and the resume path.
+    await fx.setStepOutcome('gen', 'B-001', 'refused-widget');
+
+    final out = await drive(extraArgs: const ['--skip-widget']);
+
+    expect(exitCode, 1, reason: out);
+    expect(
+      out,
+      contains(
+        '[run] B-001 gen -> skipped-widget '
+        '(--skip-widget; shadcn_ui not declared, issue #938)',
+      ),
+      reason: out,
+    );
+    // The run continued: B-002 and B-003 completed their full cycles.
+    expect(fx.stepInvocations(), containsAll(['gen B-002', 'gen B-003']));
+    expect(
+      out,
+      contains(
+        'zfa tdd run: widget-lane skipped for B-001 — '
+        'shadcn_ui not declared (issue #938)',
+      ),
+      reason: out,
+    );
+    expect(
+      out,
+      contains(
+        'resume: add shadcn_ui (flutter pub add shadcn_ui --dev) or '
+        'drop --skip-widget, then re-run',
+      ),
+      reason: out,
+    );
+    expect(
+      out,
+      contains(
+        'result=stopped pending=1 red=0 green=0 done=2 skipped-widget=1',
+      ),
+      reason: out,
+    );
+    expect(out, contains('stopped_at=B-001:gen'), reason: out);
+    final state = await readState();
+    expect(state['behavior_states'] as Map<String, dynamic>, {
+      'B-001': 'pending',
+      'B-002': 'done',
+      'B-003': 'done',
+    });
+  });
+
+  test('issue #992: without --skip-widget a refused widget gen still stops '
+      'the run (the default contract is unchanged)', () async {
+    await fx.setStepOutcome('gen', 'B-001', 'refused-widget');
+
+    final out = await drive();
+
+    expect(exitCode, isNot(0), reason: out);
+    expect(
+      out,
+      contains('step failed — behavior=B-001 step=gen outcome=refused'),
+      reason: out,
+    );
+    expect(out, contains('stopped_at=B-001:gen'), reason: out);
+    // No later behavior started.
+    expect(fx.stepInvocations(), isNot(contains('gen B-002')));
   });
 
   test(

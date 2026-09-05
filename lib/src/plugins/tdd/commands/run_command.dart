@@ -102,7 +102,8 @@
 /// `[run] <behavior> <step> -> <outcome>`, and every invocation ends with
 /// the final summary line
 /// `run: feature=<f> result=<r> pending=<n> red=<n> green=<n> done=<n>`
-/// plus ` stopped_at=<behavior>:<step>` when stopped. Exit codes:
+/// plus ` skipped-widget=<n>` when `--skip-widget` recorded skips (issue
+/// #992) and ` stopped_at=<behavior>:<step>` when stopped. Exit codes:
 /// 0 complete, 1 stopped, 2 runner-error, 3 corrupt-state,
 /// 4 concurrent-run — 0 means exactly "all DONE with complete evidence".
 library;
@@ -159,6 +160,16 @@ class RunCommand extends Command<void> {
           'Hard deadline in minutes for each spawned step command (bug #742; '
           'default 10). Fractions are allowed. On timeout the child is '
           'killed and the run stops with result=runner-error.',
+    );
+    argParser.addFlag(
+      'skip-widget',
+      help:
+          'Widget-lane behaviors whose gen refuses on the shadcn_ui gate '
+          '(issue #938) are skipped instead of stopping the run: each keeps '
+          'its current state — never a fake DONE — and the end-of-run '
+          'summary names the count (issue #992). Without the flag the '
+          'refusal still stops the run.',
+      negatable: false,
     );
   }
 
@@ -357,6 +368,13 @@ class RunCommand extends Command<void> {
     // child is killed and surfaces as a runner-error step result.
     final runner = StepRunner(zfaBin: zfaBin, timeout: timeoutOverride);
 
+    // Issue #992: --skip-widget turns a widget-lane gen refusal (#938
+    // shadcn gate) into a recorded per-behavior skip instead of a run
+    // stop. The map is keyed by behavior id (transcript + summary) and
+    // gates phases 2a/2b so a skipped behavior is never re-driven.
+    final skipWidget = argResults?['skip-widget'] as bool? ?? false;
+    final skippedWidgets = <String, String>{};
+
     String? suiteBaselinePath;
     final anyMakeOutstanding = rows.any(
       (r) => current.behaviorStates[r.id] != BehaviorState.done,
@@ -538,6 +556,8 @@ class RunCommand extends Command<void> {
         runner: runner,
         registry: registry,
         suiteBaselinePath: suiteBaselinePath,
+        skipWidget: skipWidget,
+        skippedWidgets: skippedWidgets,
       );
       if (result.stop != null) {
         applyStop(result.stop!, result.state);
@@ -559,6 +579,10 @@ class RunCommand extends Command<void> {
       // Only behaviors still sitting RED are here for their make; GREEN
       // behaviors are waiting on the phase-2 refactor pass instead.
       if (state == BehaviorState.green) continue;
+      // Issue #992: a widget-skipped behavior has no gen artifacts —
+      // re-driving its make would refuse "no gen artifacts" and stop the
+      // run for a behavior the operator already chose to skip.
+      if (skippedWidgets.containsKey(row.id)) continue;
 
       final inFlightStep = current.inFlightBehaviorId == row.id
           ? current.inFlightStep
@@ -577,6 +601,8 @@ class RunCommand extends Command<void> {
         runner: runner,
         registry: registry,
         suiteBaselinePath: suiteBaselinePath,
+        skipWidget: skipWidget,
+        skippedWidgets: skippedWidgets,
       );
       if (result.stop != null) {
         applyStop(result.stop!, result.state);
@@ -614,6 +640,8 @@ class RunCommand extends Command<void> {
     for (final row in rows) {
       final state = current.behaviorStates[row.id] ?? BehaviorState.pending;
       if (state != BehaviorState.green) continue;
+      // Issue #992: never re-drive a widget-skipped behavior.
+      if (skippedWidgets.containsKey(row.id)) continue;
 
       // Bug #734 per-behavior gate, decided BEFORE the spawn (the same
       // pre-spawn discipline as the bug #635/#734 deferrals): refactor
@@ -650,6 +678,8 @@ class RunCommand extends Command<void> {
         runner: runner,
         registry: registry,
         suiteBaselinePath: suiteBaselinePath,
+        skipWidget: skipWidget,
+        skippedWidgets: skippedWidgets,
       );
       if (result.stop != null) {
         applyStop(result.stop!, result.state);
@@ -695,6 +725,32 @@ class RunCommand extends Command<void> {
         rows,
         current,
         stoppedAt: '${skippedRefactors.keys.first}:refactor',
+      );
+      exitCode = _exitStopped;
+      return;
+    }
+    if (!allDone && skippedWidgets.isNotEmpty) {
+      // Issue #992: the pass completed for every non-widget behavior;
+      // the widget-lane skips stay at their last completed state with
+      // their generation outstanding — bounded, resumable progress
+      // (FR-007), never a fake DONE (FR-008). The run stops honestly,
+      // naming the skips, their reason, and both resume paths.
+      print(
+        'zfa tdd run: widget-lane skipped for '
+        '${skippedWidgets.keys.join(', ')} — '
+        '${skippedWidgets.values.toSet().join(' / ')}',
+      );
+      print(
+        '   resume: add shadcn_ui (flutter pub add shadcn_ui --dev) or '
+        'drop --skip-widget, then re-run `zfa tdd run $feature`',
+      );
+      _printSummary(
+        feature,
+        'stopped',
+        rows,
+        current,
+        stoppedAt: '${skippedWidgets.keys.first}:gen',
+        skippedWidgets: skippedWidgets,
       );
       exitCode = _exitStopped;
       return;
@@ -996,6 +1052,8 @@ class RunCommand extends Command<void> {
     required StepRunner runner,
     required ArtifactRegistry registry,
     String? suiteBaselinePath,
+    required bool skipWidget,
+    required Map<String, String> skippedWidgets,
   }) async {
     final feature = current.feature;
     var updated = current;
@@ -1175,6 +1233,28 @@ class RunCommand extends Command<void> {
           print('[run] ${row.id} refactor -> skipped (suite not green)');
           _printOutputExcerpt(result.output);
           return (state: updated, stop: null, refactorBlocked: true);
+        }
+        // Issue #992: a widget-lane gen refusal (#938 shadcn gate) is
+        // per-behavior information, not a run-fatal step failure — the
+        // refusal is side-effect-free (gen refuses BEFORE any artifact
+        // write, registry append, or re-render). With --skip-widget the
+        // behavior keeps its current state (FR-007: never a fake DONE),
+        // the skip is named in the transcript and the end-of-run summary,
+        // and the run continues with the remaining behaviors. Without
+        // the flag the honest stop below stands (the default contract).
+        if (step == 'gen' &&
+            result.outcome == 'refused' &&
+            result.verdictKind == 'widget' &&
+            skipWidget) {
+          updated = updated.advance(row.id, state);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
+          skippedWidgets[row.id] = 'shadcn_ui not declared (issue #938)';
+          print(
+            '[run] ${row.id} gen -> skipped-widget '
+            '(--skip-widget; shadcn_ui not declared, issue #938)',
+          );
+          return (state: updated, stop: null, refactorBlocked: false);
         }
         // Honest stop (FR-007): leave the behavior at its last completed
         // state, name what failed, never start later behaviors. A
@@ -1527,6 +1607,7 @@ class RunCommand extends Command<void> {
     List<BehaviorRow> rows,
     RunState? state, {
     String? stoppedAt,
+    Map<String, String> skippedWidgets = const {},
   }) {
     var pending = 0;
     var red = 0;
@@ -1548,6 +1629,7 @@ class RunCommand extends Command<void> {
     print(
       'run: feature=$feature result=$result pending=$pending red=$red '
       'green=$green done=$done'
+      '${skippedWidgets.isNotEmpty ? ' skipped-widget=${skippedWidgets.length}' : ''}'
       '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}',
     );
   }
