@@ -183,14 +183,40 @@ class ReceiptStore {
 
   Directory get directory => Directory(p.join(projectRoot, '.zfa', 'receipts'));
 
-  /// Persists [receipt] as a timestamped JSON document; returns the file.
-  Future<File> save(GenerationReceipt receipt) async {
+  /// Persists [receipt] as a JSON document; returns the file.
+  ///
+  /// By default the document name is timestamped
+  /// (`<stamp>-<command>-<target>.json`) so a project's generation
+  /// history is append-only. Pass [fileName] to write a STABLE name
+  /// instead (issue #976: `state-<entity>.json`) — the per-entity
+  /// verdict surface, refreshed in place on regeneration (the
+  /// latest-wins semantics `ProofChecker` already applies per artifact
+  /// path). The name must end in `.json` and must not escape the
+  /// receipts directory.
+  Future<File> save(GenerationReceipt receipt, {String? fileName}) async {
     await directory.create(recursive: true);
-    // Colons are illegal in Windows file names; keep every name portable.
-    final stamp = receipt.at.toUtc().toIso8601String().replaceAll(':', '-');
-    final cmd = _sanitize(receipt.command);
-    final target = _sanitize(receipt.target);
-    final file = File(p.join(directory.path, '$stamp-$cmd-$target.json'));
+    final String name;
+    if (fileName != null) {
+      if (!fileName.endsWith('.json') ||
+          fileName.contains('/') ||
+          fileName.contains('\\') ||
+          fileName.contains('..')) {
+        throw ArgumentError.value(
+          fileName,
+          'fileName',
+          'must be a bare <name>.json inside the receipts directory',
+        );
+      }
+      name = fileName;
+    } else {
+      // Colons are illegal in Windows file names; keep every name
+      // portable.
+      final stamp = receipt.at.toUtc().toIso8601String().replaceAll(':', '-');
+      final cmd = _sanitize(receipt.command);
+      final target = _sanitize(receipt.target);
+      name = '$stamp-$cmd-$target.json';
+    }
+    final file = File(p.join(directory.path, name));
     const encoder = JsonEncoder.withIndent('  ');
     await file.writeAsString(encoder.convert(receipt.toJson()));
     return file;

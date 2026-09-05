@@ -42,7 +42,7 @@ zfa <command> [subcommand] [name] [options]
 | `view` | ViewPlugin | Generate view files |
 | `controller` | ControllerPlugin | Generate controller files |
 | `presenter` | PresenterPlugin | Generate presenter files |
-| `state` | StatePlugin | Generate state classes |
+| `state` | StatePlugin | Generate state classes — `zfa state create --name <Entity> [--json]` (see [State Emission Modes](#zfa-state-create--state-classes)) |
 | `usecase` | UseCasePlugin | Generate use case files |
 | `repository` | RepositoryPlugin | Generate repository interface + impl |
 | `service` | ServicePlugin | Generate service classes |
@@ -183,6 +183,54 @@ zfa make Product --preset=crud --with=vpc --plan
 | `vpc` | view, presenter, controller |
 | `full-ui` | view, presenter, controller, state, route |
 | `quality` | test, mock, di |
+
+## `zfa state create` — State Classes
+
+### Signature
+
+```bash
+zfa state create --name <Entity> [--methods get,update] [--force] [--dry-run] [--json]
+```
+
+Generates `<EntityName>State` at
+`lib/src/presentation/pages/<domain>/<entity>_state.dart`. The import
+follows the target project's flavor: pure-Dart projects import
+`package:zuraffa/zuraffa.dart` (AppFailure comes from core), Flutter or
+unknown-flavor projects import `package:zuraffa_flutter/zuraffa_flutter.dart`.
+
+### State Emission Modes
+
+The builder emits one of three shapes, picked by the config:
+
+| Mode | Triggered by | Fields emitted |
+|---|---|---|
+| `entity` | methods list (default CRUD/watch sets) | `error`, the single `<entity>` field, the `<entity>List`/`offset`/`limit`/`hasMore` pagination window (getList/watchList), one `is<Method>Loading` boolean per method, an `isLoading` getter OR-ing them |
+| `orchestrator` | `usecases` list (via `zfa make <E> --state --usecases ...`) | `error`, the entity field, per-usecase `<usecase>Response` + `is<Usecase>Loading` pairs, an `isLoading` getter OR-ing every usecase flag |
+| `custom` | no methods / `--no-entity` (a single custom usecase shape, e.g. `zfa make SearchProducts usecase ...`) | `error`, `isLoading`, `data` typed by `returns` |
+
+Every mode emits value semantics: `copyWith`, `==`, `hashCode`, `toString`,
+and a `hasError` getter. The two entry points (`zfa state create` and
+`zfa make --state`) are drift-gated to produce byte-identical output for
+the same config.
+
+### `--json` verdict + receipt (issue #976)
+
+With `--json`, the LAST stdout line is a single-line envelope:
+
+```json
+{"path":"lib/src/presentation/pages/product/product_state.dart","fields":["error","productList","offset","limit","hasMore","product","isGetting","isGettingList"],"modes":["entity"],"flavor":"pureDart","schema":1}
+```
+
+* `path` — project-relative POSIX path of the artifact;
+* `fields` — the emitted state's field names (constructor order);
+* `modes` — emission mode list: `entity` | `orchestrator` | `custom`;
+* `flavor` — target flavor the import follows: `flutter` | `pureDart` | `unknown`;
+* `schema` — envelope version (integer 1).
+
+Every real generation also ships a `proof.v1` receipt at
+`.zfa/receipts/state-<Entity>.json` (via `ReceiptStore`) binding the
+final on-disk bytes, so `zfa proof check` verifies state artifacts like
+any other generated code.
 
 ## `zfa build` — Build Generated Code
 
