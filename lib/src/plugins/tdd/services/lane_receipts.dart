@@ -208,13 +208,15 @@ Map<String, int> laneCounts(
   List<BehaviorRow> rows,
   Map<String, BehaviorState> states,
 ) {
-  var pending = 0, red = 0, green = 0, done = 0;
+  var pending = 0, red = 0, green = 0, done = 0, blocked = 0;
   for (final row in rows) {
     switch (states[row.id] ?? BehaviorState.pending) {
       case BehaviorState.pending:
         pending++;
       case BehaviorState.red:
         red++;
+      case BehaviorState.blocked:
+        blocked++;
       case BehaviorState.mocked:
       case BehaviorState.green:
         green++;
@@ -228,6 +230,7 @@ Map<String, int> laneCounts(
     'red': red,
     'green': green,
     'done': done,
+    if (blocked > 0) 'blocked': blocked,
   };
 }
 

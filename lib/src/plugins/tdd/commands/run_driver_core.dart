@@ -896,6 +896,10 @@ class RunDriverCore {
     var start = switch (state) {
       BehaviorState.pending => 0,
       BehaviorState.red => 2,
+      // Spec 1007: a BLOCKED contract behavior re-enters at verify-red —
+      // an implemented contract either unblocks the cycle or keeps it
+      // honestly blocked.
+      BehaviorState.blocked => 1,
       BehaviorState.mocked || BehaviorState.green => 3,
       BehaviorState.done => 4,
     };
@@ -913,6 +917,7 @@ class RunDriverCore {
     var start = switch (state) {
       BehaviorState.pending => 0,
       BehaviorState.red => 0,
+      BehaviorState.blocked => 0,
       BehaviorState.mocked || BehaviorState.green => 1,
       BehaviorState.done => 1,
     };
@@ -931,6 +936,7 @@ class RunDriverCore {
     var start = switch (state) {
       BehaviorState.pending => 0,
       BehaviorState.red => 0,
+      BehaviorState.blocked => 0,
       BehaviorState.mocked || BehaviorState.green => 0,
       BehaviorState.done => 1,
     };
