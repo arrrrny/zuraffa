@@ -475,6 +475,7 @@ BOOTSTRAP:
   init                Alias of initialize — wire deps + scaffold a test entity
   package create <name>  Create a Zuraffa-native reusable package (spec 025)
   corpus import <dir> Import an extracted spec corpus (spec 050, issue #627)
+  corpus catalog      Classify a corpus target's specs CORE/SKIN (epic #1017)
 
 CORE COMMANDS:
   make <Name>         Canonical architecture/code generation command
