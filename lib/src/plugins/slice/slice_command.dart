@@ -1,7 +1,7 @@
 /// The `zfa slice` command: context-isolated codebase extraction (spec 043).
 ///
 /// Subcommands (see `_usage` for the rendered forms):
-///   cut, merge, list, inspect, verify, run, export, import
+///   cut, compose, merge, list, inspect, verify, run, export, import
 ///
 /// INV-1: every subcommand validates its arguments and fails with usage text,
 /// never a stack trace.
@@ -16,6 +16,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import 'capabilities/cut_slice_capability.dart';
+import 'capabilities/compose_slice_capability.dart';
 import '../../core/context/progress_reporter.dart';
 import 'capabilities/merge_slice_capability.dart';
 import 'capabilities/export_slice_capability.dart';
@@ -78,6 +79,7 @@ usage: zfa slice SUBCOMMAND [options]
 
 subcommands:
   cut <name>      Extract a runnable slice (see cut options below)
+  compose <id>    Resolve a feature contract → SliceBoundary plan (spec 1098)
   merge <name>    Merge agent changes from a slice back into the project
   list            List active slices
   inspect <name>  Show a slice's files, ownership, and modification status
@@ -118,6 +120,16 @@ options:
 example:
   zfa slice cut product_feature --entry product
   zfa slice cut checkout --entry cart --entry payment --depth full --verify''',
+    'compose': '''
+usage: zfa slice compose <feature-id>
+
+Resolves the feature's declared contract (specs/<feature-id>/contract.yaml)
+into a compose plan (specs/<feature-id>/compose.plan.json) carrying the
+resolved SliceBoundary, routes, entities, xray layer and the @FeatureOwned
+decorator — the minimal base an agent receives for that feature (spec 1098).
+
+example:
+  zfa slice compose login''',
     'merge': '''
 usage: zfa slice merge <name> [--yes] [--verbose]
 
@@ -212,6 +224,8 @@ example:
       switch (subcommand) {
         case 'cut':
           await _cut(rest);
+        case 'compose':
+          await _compose(rest);
         case 'merge':
           await _merge(rest);
         case 'list':
@@ -378,6 +392,33 @@ example:
         exitCode = 1;
       }
     }
+  }
+
+  /// Spec 1098 (materialization step 6): resolve a feature contract into
+  /// its SliceBoundary compose plan. INV-1: usage errors print text and
+  /// set [exitCode]; never a stack trace.
+  Future<void> _compose(List<String> rest) async {
+    final id = rest.isEmpty || rest.first.startsWith('-')
+        ? null
+        : rest.first.trim();
+    if (id == null || id.isEmpty) {
+      _usageError(
+        'Missing feature id: zfa slice compose <feature-id>\n'
+        'The feature must be declared at specs/<feature-id>/contract.yaml.',
+      );
+      return;
+    }
+
+    final result = await ComposeSliceCapability().execute(
+      projectRoot: projectRoot,
+      featureId: id,
+    );
+
+    print(result.message);
+    for (final file in result.files) {
+      print('  Wrote: $file');
+    }
+    exitCode = result.success ? 0 : 1;
   }
 
   Future<void> _merge(List<String> rest) async {
