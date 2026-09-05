@@ -1,0 +1,53 @@
+{
+  "schema": "world-diff.v1",
+  "spec": 968,
+  "world_hash": "33a393b3b92b0e63f2fd0a733db8f40c20a492d8134abb4c2ecb7c1495d99d2c",
+  "verdict": "pass",
+  "behaviors": 5,
+  "parity": 4,
+  "storm_proof": 1,
+  "drift": 0,
+  "unrehearsed_storms": [],
+  "rows": [
+    {
+      "behavior": "checkout-flow-signIn",
+      "class": "storm-proof",
+      "world_passed": true,
+      "real_passed": true,
+      "payloads_equal": false,
+      "detail": "storm rehearsed: world lane surfaced the declared honest red (auth-user-token-expired), real lane green"
+    },
+    {
+      "behavior": "checkout-flow-signOut",
+      "class": "parity",
+      "world_passed": true,
+      "real_passed": true,
+      "payloads_equal": true,
+      "detail": "green in both lanes, payloads identical (world attempts=1, real attempts=1)"
+    },
+    {
+      "behavior": "checkout-flow-push-retry-sync",
+      "class": "parity",
+      "world_passed": true,
+      "real_passed": true,
+      "payloads_equal": true,
+      "detail": "green in both lanes, payloads identical (world attempts=3, real attempts=1)"
+    },
+    {
+      "behavior": "checkout-flow-push-partial-write-repair",
+      "class": "parity",
+      "world_passed": true,
+      "real_passed": true,
+      "payloads_equal": true,
+      "detail": "green in both lanes, payloads identical (world attempts=2, real attempts=1)"
+    },
+    {
+      "behavior": "checkout-flow-pull",
+      "class": "parity",
+      "world_passed": true,
+      "real_passed": true,
+      "payloads_equal": true,
+      "detail": "green in both lanes, payloads identical (world attempts=1, real attempts=1)"
+    }
+  ]
+}
