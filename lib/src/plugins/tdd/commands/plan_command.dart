@@ -28,6 +28,7 @@ import '../services/tdd_generation_receipt.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
+import '../services/skin_contract_emit.dart';
 import '../../../core/project/project_root.dart';
 import '../../../utils/framework_export_surface.dart';
 
@@ -503,6 +504,20 @@ class PlanCommand extends Command<void> {
     }
 
     await outDir.create(recursive: true);
+    // Issue #1164: a spec declaring `## Skin Contract:` also emits the
+    // model-generated `04-skin-contract.schema.json` beside the lane
+    // plan — generated FROM the typed model so the two cannot drift.
+    // A spec without the section writes nothing.
+    final emittedSchema = await emitSkinContractSchema(
+      specMarkdown: specMd,
+      outDir: outDir,
+    );
+    if (emittedSchema != null) {
+      print(
+        'zfa tdd plan: wrote File: ${p.absolute(emittedSchema)} '
+        '(skin contract schema — issue #1164)',
+      );
+    }
     // The completeness proof (bug #846): behavior <-> FR/AC matrix with
     // the spec-contract hash, re-checked by verify/corpus for drift.
     // Written only AFTER the declarations parse and the strict gate

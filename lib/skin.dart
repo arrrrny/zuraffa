@@ -11,3 +11,7 @@
 library;
 
 export 'src/skin/skin_contract_kit.dart';
+// skin-contract.v1 (issue #1164): the typed declaration surface.
+export 'src/skin/contract/skin_contract.dart';
+export 'src/skin/contract/skin_contract_parser.dart';
+export 'src/skin/contract/skin_contract_schema.dart';

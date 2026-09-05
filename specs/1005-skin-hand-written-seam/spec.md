@@ -205,3 +205,31 @@ Lanes:
     behaviors: [A3 (acceptance: the skin seam accepts hand-written views)]
     flutter_allowed: conditionally
 ```
+
+## Skin Contract: login-hand-written-seam
+
+The first real customer of skin-contract.v1 (issue #1164): the hand-written seam's
+declared surface, validated by `test/plugins/skin_contract/schema_test.dart` and
+consumed by stages 2-4 of #1111.
+
+```json
+{
+  "schemaVersion": "1",
+  "routes": [
+    { "path": "/login", "view": "LoginPage" },
+    { "path": "/register", "view": "RegisterPage" }
+  ],
+  "states": [
+    { "view": "LoginPage", "loading": true, "error": "toaster", "empty": false },
+    { "view": "RegisterPage", "loading": true, "error": "inline", "empty": false }
+  ],
+  "platformRows": [
+    { "view": "LoginPage", "mobile": true, "ios": true, "android": true, "macos": false },
+    { "view": "RegisterPage", "mobile": true, "ios": true, "android": true, "macos": false }
+  ],
+  "stateRows": [
+    { "view": "LoginPage", "row": "error-toaster", "kind": "observer" },
+    { "view": "RegisterPage", "row": "error-inline", "kind": "listener" }
+  ]
+}
+```
