@@ -24,12 +24,16 @@ import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/state/builders/state_builder.dart';
 
+import '../helpers/project_root.dart';
+
 void main() {
   late Directory sandbox;
   late String outputDir;
 
   setUpAll(() async {
-    final repoRoot = Directory.current.path;
+    // CWD-independent: parallel test files may contaminate
+    // Directory.current (CliRunner mutates it process-globally).
+    final repoRoot = await findProjectRoot();
     sandbox = await Directory.systemTemp.createTemp('zfa_state_prop_');
     outputDir = p.join(sandbox.path, 'lib', 'src');
 
