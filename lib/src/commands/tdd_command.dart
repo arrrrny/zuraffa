@@ -16,6 +16,7 @@ import '../plugins/tdd/commands/migrate_paths_command.dart';
 import '../plugins/tdd/commands/plan_command.dart';
 import '../plugins/tdd/commands/replay_command.dart';
 import '../plugins/tdd/commands/realize_command.dart';
+import '../plugins/tdd/commands/realize_mock_command.dart';
 import '../plugins/tdd/commands/refactor_command.dart';
 import '../plugins/tdd/commands/referee_command.dart';
 import '../plugins/tdd/commands/reset_command.dart';
@@ -49,6 +50,7 @@ class TddCommand extends Command<void> {
     addSubcommand(ResetCommand(plugin));
     addSubcommand(DoctorCommand(plugin));
     addSubcommand(RealizeCommand(plugin));
+    addSubcommand(RealizeMockCommand(plugin));
   }
 
   final TddPlugin plugin;
