@@ -114,6 +114,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
 import '../services/cycle_evidence.dart';
+import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/corpus_baseline_cache.dart';
@@ -1096,6 +1097,54 @@ class RunCommand extends Command<void> {
       print('[run] ${row.id} $step -> ${result.outcome}$progressSuffix');
 
       if (!result.success) {
+        // Bug #986: `skipped` — make's issue #694 skip transition (the
+        // target test already passes, generation skipped by design) — is a
+        // TERMINAL make success, never a step failure. StepRunner grades
+        // the exit-0 skip as success; this mapping closes the fall-through
+        // for a skipped token whose exit code disagrees (binary skew, or
+        // the #657/#694-era drift contract where the already-green report
+        // exited non-zero): make's outcome token is the step's own
+        // terminal classification, and halting the feature on an
+        // already-green behavior is the #693/#694 deadlock family. Record
+        // the green evidence when make's write did not land (idempotent —
+        // never a duplicate, the #693 driver-recorded pattern), advance
+        // the behavior GREEN, and let refactor proceed as usual.
+        if (step == 'make' && result.outcome == 'skipped') {
+          if (!await _hasEvidence(evidence.greenEvidence, row.id)) {
+            await CycleLog(p.join(projectRoot, 'specs', feature)).append(
+              CycleLogEntry(
+                behaviorId: row.id,
+                kind: CycleEntryKind.green,
+                runnerCommand: 'zfa tdd make ${row.id} (skipped)',
+                exitCode: result.exitCode,
+                capturedOutput:
+                    'skipped — the target test already passes (issue #694 '
+                    'skip transition); green evidence recorded by the run '
+                    'driver (bug #986) because make did not write it. Exit '
+                    'code ${result.exitCode} disagrees with the outcome '
+                    'token; the token is the terminal classification.\n'
+                    '${result.output.split('\n').take(2).join('\n')}',
+                sourceCriterion: row.traces,
+                testPath: 'test/',
+                timestamp: DateTime.now().toUtc().toIso8601String(),
+              ),
+            );
+          }
+          final next = _maxState(state, _targetStateFor(step));
+          updated = updated.advance(row.id, next);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
+          state = next;
+          print('[run] ${row.id} make -> green (skipped)$progressSuffix');
+          if (result.exitCode != 0) {
+            print(
+              '   exit code ${result.exitCode} disagrees with '
+              'outcome=skipped — the token is the terminal skip transition '
+              '(issue #694); advancing (bug #986).',
+            );
+          }
+          continue;
+        }
         // Bug #625/#657 deferral: a make reporting `unexpressible` is the
         // planner's by-design refusal for descriptions no generator
         // surface maps — acceptance prose (bug #625) or a unit
