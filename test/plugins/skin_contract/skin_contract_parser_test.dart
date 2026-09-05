@@ -145,6 +145,29 @@ void main() {
     });
   });
 
+  group('079: declaration parsing (heading name + body)', () {
+    test('parses the heading name and the contract', () {
+      final declaration = parseSkinContractDeclaration(
+        '# S\n\n## Skin Contract: login-seam\n\n```json\n$validContractJson\n```\n',
+      );
+      expect(declaration.name, 'login-seam');
+      expect(declaration.contract.routes.single.path, '/login');
+    });
+
+    test('an unnamed heading fails', () {
+      expect(
+        () => parseSkinContractDeclaration('## Skin Contract:\n'),
+        throwsA(
+          isA<SkinContractParseException>().having(
+            (e) => e.message,
+            'message',
+            contains('must name the contract'),
+          ),
+        ),
+      );
+    });
+  });
+
   group('U3: round-trip is lossless', () {
     test('model -> JSON -> model is equal field-for-field', () {
       final contract = parseSkinContractJson(validContractJson);

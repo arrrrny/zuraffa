@@ -10,6 +10,16 @@ import 'dart:convert';
 
 import 'skin_contract.dart';
 
+/// A parsed `## Skin Contract: <name>` declaration: the heading name
+/// plus the parsed body. The name is declaration metadata — it never
+/// enters the JSON schema.
+class SkinContractDeclaration {
+  final String name;
+  final SkinContract contract;
+
+  const SkinContractDeclaration({required this.name, required this.contract});
+}
+
 /// A parse failure naming the offending section and key.
 class SkinContractParseException implements Exception {
   final String message;
@@ -35,6 +45,49 @@ SkinContract parseSkinContractJson(String source) {
     );
   }
   return parseSkinContract(decoded);
+}
+
+/// Parses a full `## Skin Contract: <name>` declaration from a spec
+/// markdown: the heading supplies the contract NAME (declaration
+/// metadata, never schema data) and the fenced JSON body the contract.
+SkinContractDeclaration parseSkinContractDeclaration(String markdown) {
+  final match = RegExp(
+    r'^## Skin Contract:(.*)$',
+    multiLine: true,
+  ).firstMatch(markdown);
+  if (match == null) {
+    throw SkinContractParseException(
+      'skin contract: no "## Skin Contract:" heading found',
+    );
+  }
+  final name = (match.group(1) ?? '').trim();
+  if (name.isEmpty) {
+    throw SkinContractParseException(
+      'skin contract: the heading must name the contract '
+      '("## Skin Contract: <name>")',
+    );
+  }
+  final bodyRegion = markdown.substring(match.end);
+  final open = RegExp(
+    '^\u0060\u0060\u0060json\\s*\$',
+    multiLine: true,
+  ).firstMatch(bodyRegion);
+  if (open == null) {
+    throw SkinContractParseException(
+      'skin contract: the "## Skin Contract:" section carries no fenced '
+      'JSON body — an empty contract is not a valid contract',
+    );
+  }
+  final close = bodyRegion.indexOf('```', open.end);
+  if (close < 0) {
+    throw SkinContractParseException(
+      'skin contract: the "## Skin Contract:" JSON fence is not closed',
+    );
+  }
+  final contract = parseSkinContractJson(
+    bodyRegion.substring(open.end, close).trim(),
+  );
+  return SkinContractDeclaration(name: name, contract: contract);
 }
 
 /// Parses decoded contract JSON into a [SkinContract].

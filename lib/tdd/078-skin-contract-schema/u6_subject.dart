@@ -9,7 +9,6 @@ library;
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/skin/contract/skin_contract_parser.dart';
-import 'package:zuraffa/src/plugins/tdd/services/skin_contract_emit.dart';
 import 'dart:io';
 
 const validContractJson = '''
@@ -47,9 +46,9 @@ Future<void> subject_u6() async {
       .toList();
   expect(specs, isNotEmpty);
   for (final file in specs) {
-    final contract = parseSkinContractJson(
-      skinContractJsonFromSpec(file.readAsStringSync())!,
-    );
+    final contract = parseSkinContractDeclaration(
+      file.readAsStringSync(),
+    ).contract;
     expect(contract.schemaVersion, '1', reason: file.path);
   }
 }
