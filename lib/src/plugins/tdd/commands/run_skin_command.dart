@@ -1,51 +1,65 @@
-/// `zfa tdd run-skin <feature>` — the skin-cycle driver (issue #1005,
-/// [ZIKZAK-REBUILD] skin hand-written seam).
+/// `zfa tdd run-skin <feature>` — the SKIN lane driver, gated on a green
+/// engine receipt (spec 1008, issue #1008), with TWO driving modes:
 ///
-/// The skin half may be hand-written (or AI-written); this cycle is the
-/// referee. For every SKIN-lane behavior (the `## Lanes` declaration of
-/// `spec.md`, issue #1000), the cycle accepts the hand-written
-/// implementation only if:
+/// 1. **Conformance mode (spec 1005, issue #1005)** — when the spec's
+///    `## Lanes` section declares SKIN lanes with `adaptive_slots`, the
+///    skin half may be hand-written (or AI-written); this cycle is the
+///    referee. For every SKIN behavior the cycle accepts the
+///    hand-written implementation only if:
 ///
-/// (a) the view renders the declared platform slots — verified from the
-///     SkinEvent stream the skin emits during the GREEN test run
-///     (`skin-event: behavior=W1 slot=mobile` lines in the runner
-///     transcript), never from source string matching;
-/// (b) the paired widget test exists and actually executes;
-/// (c) the tests go red before green — WITNESSED BY THE CYCLE through
-///     the stub-revert red witness (the mutation-audit pattern): capture
-///     the hand-written bytes, replace ONLY the view-builder function
-///     with the inert stub, run the paired test (it MUST fail), restore
-///     the file byte-exact (sha256-verified), run the test again (it
-///     MUST pass). The test file is never edited (spec 044 FR-022);
-/// (d) the implementation file carries a `_XRaySkinHandEdit(behavior:
-///     "W1", file: "lib/...", logged_at: ...)` annotation — scanned,
-///     parsed, and cross-checked by the cycle (behavior == the row id,
-///     file == the registry record's project-relative subject path,
-///     logged_at == ISO-8601), never trusted from the author.
+///    (a) the view renders the declared platform slots — verified from
+///        the SkinEvent stream the skin emits during the GREEN test run
+///        (`skin-event: behavior=W1 slot=mobile` lines in the runner
+///        transcript), never from source string matching;
+///    (b) the paired widget test exists and actually executes;
+///    (c) the tests go red before green — WITNESSED BY THE CYCLE through
+///        the stub-revert red witness (the mutation-audit pattern):
+///        capture the hand-written bytes, replace ONLY the view-builder
+///        function with the inert stub, run the paired test (it MUST
+///        fail), restore the file byte-exact (sha256-verified), run the
+///        test again (it MUST pass). The test file is never edited
+///        (spec 044 FR-022);
+///    (d) the implementation file carries a `_XRaySkinHandEdit(behavior:
+///        ...)` annotation with a valid timestamp.
 ///
-/// Every run writes `tdd/04-skin-receipt.json` (schema `skin.v1`) with
-/// the per-behavior conformance, the platform slot fills, the scanned
-/// hand edits, and the sha256 digest of the SkinEvent trace — green or
-/// stopped, so a stopped run records its honest partial state.
+///    Writes the `skin.v1` receipt (`tdd/04-skin-receipt.json`).
 ///
-/// Machine contract (the final stdout line):
-/// `run-skin: feature=<f> result=<complete|stopped> behaviors=<n>
-/// conformed=<n> slots=<fills>/<declared> hand_edits=<n>`; exit 0 iff
-/// every SKIN behavior conforms (a feature with no SKIN lane is an
-/// honest empty `complete`). `--json` emits the verdict.v1 envelope as
-/// the last line (VISION §5, issue #964).
+/// 2. **Lane mode (spec 1008)** — legacy SKIN lanes WITHOUT declared
+///    adaptive slots drive ONLY the SKIN + BOTH behaviors (the skin
+///    plan) through the shared two-phase driver core ([RunDriverCore]).
+///    BOTH behaviors already DONE by the engine lane are skipped, never
+///    re-driven from scratch — evidence beats state, FR-003. Writes the
+///    lane-schema receipt (`tdd/04-skin-receipt.json`).
+///
+/// In BOTH modes the engine gate (issue #1008) runs FIRST: until
+/// `tdd/04-engine-receipt.json` records `verdict: green`, the skin lane
+/// refuses to start — exit 2, zero steps, no skin receipt — naming the
+/// missing/not-green receipt and the remediation (`zfa tdd
+/// run-engine`). The skin binds the engine's certified mocks.
+///
+/// Machine contract — lane mode: the spec 049 exit codes (0 complete,
+/// 1 stopped, 2 runner-error, 3 corrupt-state, 4 concurrent-run) plus
+/// the gate refusal `result=engine-required` (also exit 2); the summary
+/// line is `run-skin: feature=<f> lane=skin result=<r> pending=<n>
+/// red=<n> green=<n> done=<n>` plus ` stopped_at=<behavior>:<step>`.
+/// Machine contract — conformance mode: exit 0 when every skin behavior
+/// conforms, 1 otherwise, 2 usage/runner errors; the summary line is
+/// `run-skin: feature=<f> result=<r> behaviors=<n> conformed=<n>
+/// slots=<fills>/<declared> hand_edits=<n>`.
 library;
 
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:crypto/crypto.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
+import '../../../core/project/project_root.dart';
 import '../models/red_classification.dart';
 import '../models/verdict_envelope.dart';
 import '../services/artifact_registry.dart';
 import '../services/cycle_log.dart';
+import '../services/lane_receipts.dart';
 import '../services/red_classifier.dart';
 import '../services/runner.dart';
 import '../services/skin_event_trace.dart';
@@ -55,15 +69,11 @@ import '../services/skin_stub_reverter.dart';
 import '../services/spec_parser.dart';
 import '../services/tdd_timeout.dart';
 import '../tdd_plugin.dart';
-import '../../../core/project/project_root.dart';
+import 'run_driver_core.dart';
 
-/// Outcome labels for the summary line.
+/// The conformance cycle's end-of-run outcome.
 enum RunSkinOutcome {
-  /// Every SKIN behavior conformed.
   complete('complete'),
-
-  /// One or more SKIN behaviors failed conformance (or the runner
-  /// misfired) — the receipt records the honest partial state.
   stopped('stopped');
 
   const RunSkinOutcome(this.label);
@@ -83,16 +93,35 @@ class RunSkinCommand extends Command<void> {
       'project',
       aliases: const ['project-root'],
       help:
-          'Project root containing specs/, test/, and lib/ (the fixture '
-          'or target project). When omitted, the current working '
-          'directory is used.',
+          'Project root containing specs/, test/, and .specify/ (the fixture '
+          'or target project). When omitted, the current working directory '
+          'is used. The driver never mutates the process-global working '
+          'directory.',
+    );
+    argParser.addOption(
+      'zfa-bin',
+      help:
+          'Path to the zfa CLI entrypoint used to spawn the step commands '
+          '(defaults to this package\'s bin/zfa.dart). Point this at a '
+          'scripted fake to drive the loop against stubbed steps.',
     );
     argParser.addOption(
       'timeout',
       valueHelp: 'minutes',
       help:
-          'Hard deadline in minutes for each spawned test run (default '
-          '10). Fractions are allowed.',
+          'Hard deadline in minutes for each spawned step command (bug #742; '
+          'default 10). Fractions are allowed. On timeout the child is '
+          'killed and the run stops with result=runner-error.',
+    );
+    argParser.addFlag(
+      'skip-widget',
+      help:
+          'Widget-lane behaviors whose gen refuses on the shadcn_ui gate '
+          '(issue #938) are skipped instead of stopping the run: each keeps '
+          'its current state — never a fake DONE — and the end-of-run '
+          'summary names the count (issue #992). Without the flag the '
+          'refusal still stops the run.',
+      negatable: false,
     );
   }
 
@@ -103,21 +132,23 @@ class RunSkinCommand extends Command<void> {
 
   @override
   String get description =>
-      'Drive every SKIN-lane behavior through the hand-written '
-      'conformance cycle — contract slots, red-before-green witness, '
-      '_XRaySkinHandEdit annotation — and write '
-      'tdd/04-skin-receipt.json (issue #1005).';
+      'Drive the SKIN lane, gated on a green engine receipt (spec 1008). '
+      'SKIN lanes with adaptive_slots run the hand-written conformance '
+      'cycle — contract slots, red-before-green witness, '
+      '_XRaySkinHandEdit annotation (spec 1005); others run '
+      'gen -> verify-red -> make -> refactor. Both write '
+      '04-skin-receipt.json.';
 
   @override
   String get invocation =>
-      'zfa tdd run-skin <feature> [--project <dir>] [--timeout <minutes>]';
+      'zfa tdd run-skin <feature> [--project <dir>] [--zfa-bin <path>]';
 
-  static const _exitComplete = 0;
-  static const _exitStopped = 1;
+  static const _exitEngineRequired = 2;
   static const _exitRunnerError = 2;
 
   @override
   Future<void> run() async {
+    const label = 'run-skin';
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       throw UsageException(
@@ -126,29 +157,23 @@ class RunSkinCommand extends Command<void> {
         invocation,
       );
     }
-    final feature = _stripSpecsPrefix(rest.first);
-    _validateFeatureSegment(feature);
+    final feature = stripSpecsPrefix(rest.first);
+    validateFeatureSegment(feature, invocation);
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
-        ? p.absolute(projectFlag)
+        ? projectFlag
         : ProjectRoot.find(anchorDir: 'specs');
+    final zfaBin = argResults?['zfa-bin'] as String?;
 
-    final Duration? timeoutOverride;
+    // Bug #742: the --timeout override for each spawned step command.
+    Duration? timeoutOverride;
     try {
       timeoutOverride = parseTddTimeoutMinutes(
         argResults?['timeout'] as String?,
       );
     } on TddTimeoutFormatException catch (e) {
-      print('zfa tdd run-skin: ${e.message}');
-      _printSummary(
-        feature: feature,
-        result: RunSkinOutcome.stopped,
-        behaviors: 0,
-        conformed: 0,
-        slotFills: 0,
-        slotDeclared: 0,
-        handEdits: 0,
-      );
+      print('zfa tdd $label: ${e.message}');
+      _printSummary(feature, 'runner-error', null);
       exitCode = _exitRunnerError;
       return;
     }
@@ -156,67 +181,88 @@ class RunSkinCommand extends Command<void> {
     final featureDir = p.join(projectRoot, 'specs', feature);
 
     // -----------------------------------------------------------------
-    // 1. Feature directory + spec (misfire-stop when absent).
+    // The engine gate (issue #1008): the skin lane requires a green
+    // engine receipt BEFORE any step is spawned. Missing, not-green, or
+    // corrupt receipt -> exit 2, zero steps, no skin receipt written.
     // -----------------------------------------------------------------
-    if (!await Directory(featureDir).exists()) {
-      print(
-        'zfa tdd run-skin: no feature directory at '
-        '${p.relative(featureDir, from: projectRoot)} (project root: '
-        '$projectRoot)',
-      );
-      _printSummary(
-        feature: feature,
-        result: RunSkinOutcome.stopped,
-        behaviors: 0,
-        conformed: 0,
-        slotFills: 0,
-        slotDeclared: 0,
-        handEdits: 0,
-      );
-      exitCode = _exitRunnerError;
-      return;
-    }
-    final specFile = File(p.join(featureDir, 'spec.md'));
-    if (!await specFile.exists()) {
-      print(
-        'zfa tdd run-skin: no spec.md at '
-        '${p.relative(specFile.path, from: projectRoot)} — the skin lane '
-        'is declared in the spec\'s ## Lanes section (issue #1000).',
-      );
-      _printSummary(
-        feature: feature,
-        result: RunSkinOutcome.stopped,
-        behaviors: 0,
-        conformed: 0,
-        slotFills: 0,
-        slotDeclared: 0,
-        handEdits: 0,
-      );
-      exitCode = _exitRunnerError;
+    final refusal = await LaneReceipts(featureDir).engineGateRefusal();
+    if (refusal != null) {
+      print('zfa tdd $label: $refusal');
+      _printSummary(feature, 'engine-required', null);
+      exitCode = _exitEngineRequired;
       return;
     }
 
     // -----------------------------------------------------------------
-    // 2. The SKIN lane declaration (issue #1000): behaviors + slots.
+    // Mode selection: SKIN lanes declaring adaptive_slots are hand-
+    // written seams (spec 1005) — the conformance cycle referees them.
+    // Legacy SKIN lanes without slots go through the shared two-phase
+    // driver core (spec 1008 lane mode).
     // -----------------------------------------------------------------
-    final lanes = SpecParser().parseLanes(await specFile.readAsString());
+    final specFile = File(p.join(featureDir, 'spec.md'));
+    var declaredSlots = const <String>[];
+    if (await specFile.exists()) {
+      final lanes = SpecParser().parseLanes(await specFile.readAsString());
+      declaredSlots = <String>[
+        for (final lane in lanes.where(
+          (l) => l.lane.trim().toUpperCase() == 'SKIN',
+        ))
+          ...lane.adaptiveSlots,
+      ];
+    }
+    if (declaredSlots.isNotEmpty) {
+      await _runConformanceMode(
+        feature: feature,
+        featureDir: featureDir,
+        projectRoot: projectRoot,
+        declaredSlots: declaredSlots,
+        timeout: timeoutOverride,
+      );
+      return;
+    }
+
+    final outcome = await RunDriverCore().drive(
+      feature: feature,
+      projectRoot: projectRoot,
+      zfaBin: zfaBin,
+      timeout: timeoutOverride,
+      lane: 'skin',
+      label: label,
+      skipWidget: argResults?['skip-widget'] as bool? ?? false,
+    );
+    if (outcome.message != null) print('zfa tdd $label: ${outcome.message}');
+    _printSummary(feature, outcome.result, outcome);
+    exitCode = outcome.exitCode;
+  }
+
+  // -------------------------------------------------------------------
+  // Conformance mode (spec 1005).
+  // -------------------------------------------------------------------
+
+  Future<void> _runConformanceMode({
+    required String feature,
+    required String featureDir,
+    required String projectRoot,
+    required List<String> declaredSlots,
+    required Duration? timeout,
+  }) async {
+    final lanes = SpecParser().parseLanes(
+      await File(p.join(featureDir, 'spec.md')).readAsString(),
+    );
     final skinLanes = lanes
         .where((l) => l.lane.trim().toUpperCase() == 'SKIN')
         .toList();
-    final declaredSlots = <String>[
-      for (final lane in skinLanes) ...lane.adaptiveSlots,
-    ];
     final skinBehaviorIds = <String>[
       for (final lane in skinLanes) ...lane.behaviorIds,
     ];
 
-    print('zfa tdd run-skin: feature $feature');
+    print('zfa tdd run-skin: feature $feature (conformance mode)');
     if (skinBehaviorIds.isEmpty) {
       print(
-        '   lane: no SKIN lane declared — nothing to drive '
+        '   lane: no SKIN behavior declared — nothing to drive '
         '(recorded as an honest empty cycle)',
       );
-      await _writeReceipt(
+      await _writeConformanceReceipt(
         featureDir: featureDir,
         feature: feature,
         behaviors: const [],
@@ -224,7 +270,7 @@ class RunSkinCommand extends Command<void> {
         trace: SkinEventTrace.merge(const []),
         redWitness: true,
       );
-      _printSummary(
+      _printConformanceSummary(
         feature: feature,
         result: RunSkinOutcome.complete,
         behaviors: 0,
@@ -233,18 +279,12 @@ class RunSkinCommand extends Command<void> {
         slotDeclared: 0,
         handEdits: 0,
       );
-      exitCode = _exitComplete;
+      exitCode = 0;
       return;
     }
     print('   lane: SKIN ${skinBehaviorIds.join(', ')}');
-    print(
-      '   slots: '
-      '${declaredSlots.isEmpty ? '(none declared)' : declaredSlots.join(', ')}',
-    );
+    print('   slots: ${declaredSlots.join(', ')}');
 
-    // -----------------------------------------------------------------
-    // 3. The registry + the single-test command template.
-    // -----------------------------------------------------------------
     final registry = ArtifactRegistry(featureDir: featureDir);
 
     final String singleTemplate;
@@ -254,7 +294,7 @@ class RunSkinCommand extends Command<void> {
       );
     } on StateError catch (e) {
       print('zfa tdd run-skin: $e');
-      _printSummary(
+      _printConformanceSummary(
         feature: feature,
         result: RunSkinOutcome.stopped,
         behaviors: skinBehaviorIds.length,
@@ -267,9 +307,6 @@ class RunSkinCommand extends Command<void> {
       return;
     }
 
-    // -----------------------------------------------------------------
-    // 4. Drive every skin behavior through the conformance cycle.
-    // -----------------------------------------------------------------
     final receipts = <SkinReceipt>[];
     final handEdits = <SkinHandEditRecord>[];
     final traces = <SkinEventTrace>[];
@@ -284,7 +321,7 @@ class RunSkinCommand extends Command<void> {
         registry: registry,
         declaredSlots: declaredSlots,
         singleTemplate: singleTemplate,
-        timeout: timeoutOverride,
+        timeout: timeout,
         traces: traces,
         handEdits: handEdits,
         onRedWitnessFailure: () => redWitnessAll = false,
@@ -293,7 +330,7 @@ class RunSkinCommand extends Command<void> {
     }
 
     final trace = SkinEventTrace.merge(traces);
-    await _writeReceipt(
+    await _writeConformanceReceipt(
       featureDir: featureDir,
       feature: feature,
       behaviors: receipts,
@@ -308,7 +345,7 @@ class RunSkinCommand extends Command<void> {
       (sum, r) => sum + r.platformSlotFills.length,
     );
     final allConformed = conformed == receipts.length;
-    _printSummary(
+    _printConformanceSummary(
       feature: feature,
       result: allConformed ? RunSkinOutcome.complete : RunSkinOutcome.stopped,
       behaviors: receipts.length,
@@ -317,13 +354,10 @@ class RunSkinCommand extends Command<void> {
       slotDeclared: declaredSlots.length * receipts.length,
       handEdits: handEdits.length,
     );
-    exitCode = allConformed ? _exitComplete : _exitStopped;
+    exitCode = allConformed ? 0 : 1;
   }
 
-  // -------------------------------------------------------------------
-  // The per-behavior conformance cycle (a) + (b) + (c) + (d).
-  // -------------------------------------------------------------------
-
+  /// The per-behavior conformance cycle (a) + (b) + (c) + (d).
   Future<SkinReceipt> _driveBehavior({
     required String featureDir,
     required String projectRoot,
@@ -404,7 +438,7 @@ class RunSkinCommand extends Command<void> {
     final testName = record.plainTestName;
     final runner = const SingleTestRunner();
     final subjectBytes = await subjectFile.readAsBytes();
-    final preSha = sha256.convert(subjectBytes).toString();
+    final preSha = crypto.sha256.convert(subjectBytes).toString();
 
     // The view-builder target comes from the IMMUTABLE test source —
     // `subject.<name>(` — never from the author's implementation.
@@ -468,7 +502,7 @@ class RunSkinCommand extends Command<void> {
           // RESTORE: byte-exact — even when the run misfired or threw.
           await subjectFile.writeAsBytes(subjectBytes);
         }
-        final postSha = sha256
+        final postSha = crypto.sha256
             .convert(await subjectFile.readAsBytes())
             .toString();
         if (postSha != preSha) {
@@ -563,11 +597,7 @@ class RunSkinCommand extends Command<void> {
     platformSlotFills: const [],
   );
 
-  // -------------------------------------------------------------------
-  // Receipt + summary.
-  // -------------------------------------------------------------------
-
-  Future<void> _writeReceipt({
+  Future<void> _writeConformanceReceipt({
     required String featureDir,
     required String feature,
     required List<SkinReceipt> behaviors,
@@ -590,7 +620,7 @@ class RunSkinCommand extends Command<void> {
     print('   receipt: ${p.relative(path, from: featureDir)}');
   }
 
-  void _printSummary({
+  void _printConformanceSummary({
     required String feature,
     required RunSkinOutcome result,
     required int behaviors,
@@ -633,30 +663,6 @@ class RunSkinCommand extends Command<void> {
     return p.normalize(abs).replaceAll('\\', '/');
   }
 
-  static String _stripSpecsPrefix(String feature) {
-    var f = feature.trim();
-    while (f.endsWith('/') || f.endsWith(p.separator)) {
-      f = f.substring(0, f.length - 1);
-    }
-    if (f.startsWith('specs/') || f.startsWith('specs${p.separator}')) {
-      f = f.substring('specs/'.length);
-    }
-    return f;
-  }
-
-  void _validateFeatureSegment(String feature) {
-    if (feature.isEmpty ||
-        feature.contains('/') ||
-        feature.contains('\\') ||
-        feature.contains('..')) {
-      throw UsageException(
-        '"$feature" is not a feature directory name — pass the bare '
-        'name such as 004-login-ui, not a path.',
-        invocation,
-      );
-    }
-  }
-
   /// The cycle-log failure class for a classified red run (the
   /// verify-red mapping: only an honest assertion red is recorded as
   /// one; every other class keeps its own name).
@@ -675,5 +681,20 @@ class RunSkinCommand extends Command<void> {
     if (lines.length <= maxLines) return output.trim();
     return '(… ${lines.length - maxLines} earlier lines …)\n'
         '${lines.sublist(lines.length - maxLines).join('\n')}';
+  }
+
+  void _printSummary(String feature, String result, RunDriverOutcome? outcome) {
+    print(
+      RunDriverCore.summaryLine(
+        label: 'run-skin',
+        feature: feature,
+        lane: 'skin',
+        result: result,
+        counts:
+            outcome?.counts ??
+            const {'total': 0, 'pending': 0, 'red': 0, 'green': 0, 'done': 0},
+        stoppedAt: outcome?.stoppedAt,
+      ),
+    );
   }
 }

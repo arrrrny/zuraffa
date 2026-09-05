@@ -158,6 +158,23 @@ Lanes:
     ).writeAsString(const JsonEncoder.withIndent('  ').convert(decoded));
     await File(subjectPath).parent.create(recursive: true);
     await File(subjectPath).writeAsString(fixtureLoginView);
+    // Spec 1008 engine gate: run-skin refuses (exit 2) without a green
+    // engine receipt — seed one so the fixture exercises the cycle.
+    final tddDir = Directory(p.join(fx.featureDir, 'tdd'));
+    await tddDir.create(recursive: true);
+    await File(
+      p.join(tddDir.path, '04-engine-receipt.json'),
+    ).writeAsString(const JsonEncoder.withIndent('  ').convert({
+      'schema': 1,
+      'feature': feature,
+      'lane': 'engine',
+      'verdict': 'green',
+      'result': 'complete',
+      'behaviors': <String>[],
+      'counts': {'total': 0, 'pending': 0, 'red': 0, 'green': 0, 'done': 0},
+      'stopped_at': null,
+      'at': '2026-09-05T00:00:00.000Z',
+    }));
   }
 
   Future<String> drive([List<String> extra = const []]) async {
@@ -321,7 +338,9 @@ Lanes:
   });
 
   test('a feature with no SKIN lane is an honest empty complete', () async {
-    // Rewrite the spec with no SKIN lane and drop the W1 row.
+    // Rewrite the spec with no SKIN lane and drop the W1 row. With no
+    // SKIN declaration (no adaptive slots) the composed driver runs the
+    // spec-1008 lane mode: a vacuous skin lane completes green.
     await File(p.join(fx.featureDir, 'spec.md')).writeAsString('''
 **Template Version**: `zuraffa-1.0`
 
@@ -347,7 +366,10 @@ Lanes:
     final out = await drive();
 
     expect(exitCode, 0, reason: out);
-    expect(out, contains('run-skin: feature=$feature result=complete'));
-    expect(out, contains('behaviors=0'));
+    expect(
+      out,
+      contains('run-skin: feature=$feature lane=skin result=complete'),
+    );
+    expect(out, contains('total=0'));
   });
 }

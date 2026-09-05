@@ -441,8 +441,19 @@ void main() {
         .where((r) => r.kind == 'widget')
         .map((r) => (r.id, r.description, r.traces, r.state))
         .toList();
+    // Issue #1007: contract-kind rows get the Contract loop section plan
+    // writes (the reader resolves their kind from the section header).
+    final contract = rows
+        .where((r) => r.kind == 'contract')
+        .map((r) => (r.id, r.description, r.traces, r.state))
+        .toList();
     final unit = rows
-        .where((r) => r.kind != 'acceptance' && r.kind != 'widget')
+        .where(
+          (r) =>
+              r.kind != 'acceptance' &&
+              r.kind != 'widget' &&
+              r.kind != 'contract',
+        )
         .map((r) => (r.id, r.description, r.traces, r.state))
         .toList();
     final buf = StringBuffer()
@@ -458,6 +469,11 @@ void main() {
     }
     if (unit.isNotEmpty) {
       buf.write(_renderTestListSection('Inner loop: unit behaviors', unit));
+    }
+    if (contract.isNotEmpty) {
+      buf.write(
+        _renderTestListSection('Contract loop: contract behaviors', contract),
+      );
     }
     await File(testListPath).writeAsString(buf.toString());
   }
