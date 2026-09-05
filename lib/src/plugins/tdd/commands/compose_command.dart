@@ -48,6 +48,9 @@ import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
 import '../services/composition_targets.dart';
+import '../services/tdd_generation_receipt.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -93,6 +96,9 @@ class ComposeCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'compose';
 
@@ -116,7 +122,9 @@ class ComposeCommand extends Command<void> {
   );
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     final behaviorId = rest.isNotEmpty ? rest.first : null;
     final featureFlag = argResults?['feature'] as String?;
@@ -355,6 +363,14 @@ class ComposeCommand extends Command<void> {
       exitCode = 1;
       return;
     }
+    // Issue #969 T003: the composed subject becomes self-certifying.
+    await TddGenerationReceipts.writeBestEffort(
+      projectRoot: resolvedCwd,
+      command: 'tdd compose',
+      target: record.behaviorId,
+      feature: target.featureName,
+      files: {resolvedSubjectPath: 'update'},
+    );
     print('   composed: $recordedSubject');
     _printSummary(
       behavior: record.behaviorId,
@@ -434,6 +450,12 @@ class ComposeCommand extends Command<void> {
 // real green transition lands when those unit subjects are filled with
 // business logic in later cycles. Extend the body with real behavior in
 // later cycles — the paired test file is immutable (044 ownership).
+//
+// The subject name is derived from the behavior id (`subject_${record.behaviorId.toLowerCase()}`) and is
+// deliberately snake_cased — the generator KNOWS the name it emits, so
+// the lint its shape provably trips is suppressed here rather than
+// renaming the contract surface (issue #1035).
+// ignore_for_file: non_constant_identifier_names
 library;
 
 $imports
@@ -631,6 +653,16 @@ $returnType $functionName() {$body}
     print(
       'compose: behavior=$behavior outcome=${outcome.label} feature=$feature',
     );
+    // Issue #969: the outcome label IS the exit class.
+    _verdict
+      ..exitClass = outcome.label
+      ..outcome = switch (outcome) {
+        ComposeOutcome.composed => VerdictOutcome.pass,
+        ComposeOutcome.alreadyComposed => VerdictOutcome.stopped,
+        _ => VerdictOutcome.fail,
+      }
+      ..details['behavior'] = behavior
+      ..feature = feature == 'unknown' ? null : feature;
   }
 }
 

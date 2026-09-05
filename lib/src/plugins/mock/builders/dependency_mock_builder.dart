@@ -26,15 +26,23 @@ class GeneratedDependencyArtifact {
 abstract final class DependencyMockBuilder {
   /// Emit the package for [contract] under [outDir] (e.g.
   /// `test/mock/dependencies/firebase_auth/`).
+  ///
+  /// [packageName] (issue #1035) is the enclosing project's pubspec
+  /// name; when provided, entity imports are emitted as `package:` URIs
+  /// — a relative import reaching into `lib/` from `test/` provably
+  /// trips `avoid_relative_lib_imports` in the generated artifacts. The
+  /// name is stable per project, so the byte-identical regeneration
+  /// guarantee holds. When omitted, the legacy relative shape is kept.
   static List<GeneratedDependencyArtifact> emit({
     required DependencyContract contract,
     required String outDir,
+    String? packageName,
   }) {
     final dirName = snake(contract.name);
     // Issue #1030: the declared signatures reference project types the
     // artifacts must import. Derived from the contract only, so the
     // byte-identical regeneration guarantee holds.
-    final entityImports = _entityImports(contract, outDir);
+    final entityImports = _entityImports(contract, outDir, packageName);
     return [
       GeneratedDependencyArtifact(
         path: '$outDir/$dirName.dart',
@@ -53,10 +61,17 @@ abstract final class DependencyMockBuilder {
 
   /// Contract-derived entity import block for the declared signatures:
   /// every non-primitive PascalCase token in a parameter or return type
-  /// maps to `lib/src/domain/entities/<snake>/<snake>.dart`, relative to
-  /// the artifact directory. Empty when the contract only references
-  /// primitives. Same contract => same block (determinism).
-  static String _entityImports(DependencyContract c, String outDir) {
+  /// maps to `lib/src/domain/entities/<snake>/<snake>.dart`. When
+  /// [packageName] is provided the import is a `package:` URI (issue
+  /// #1035 — relative lib imports trip avoid_relative_lib_imports);
+  /// otherwise it is relative to the artifact directory. Empty when the
+  /// contract only references primitives. Same contract => same block
+  /// (determinism).
+  static String _entityImports(
+    DependencyContract c,
+    String outDir,
+    String? packageName,
+  ) {
     const primitives = {
       'String',
       'int',
@@ -87,6 +102,17 @@ abstract final class DependencyMockBuilder {
       }
     }
     if (types.isEmpty) return '';
+    // Issue #1035: with the package name resolved, entity imports are
+    // `package:` URIs — never a relative path reaching into lib/ from
+    // the test-side artifact directory.
+    if (packageName != null && packageName.isNotEmpty) {
+      return types
+          .map(
+            (t) =>
+                "import 'package:$packageName/src/domain/entities/${snake(t)}/${snake(t)}.dart';",
+          )
+          .join('\n');
+    }
     // Depth anchor (issue #1030 follow-up): outDir may be absolute or
     // root-relative — count the hops from the artifact dir to the project
     // root as the segments AFTER the `test` root segment (the directory

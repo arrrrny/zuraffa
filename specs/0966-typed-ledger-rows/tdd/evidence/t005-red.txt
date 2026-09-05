@@ -1,0 +1,25 @@
+00:00 +0: loading test/tdd/0966-typed-ledger-rows/t005_xray_kind_coverage_test.dart
+00:00 +0 -1: loading test/tdd/0966-typed-ledger-rows/t005_xray_kind_coverage_test.dart [E]
+  Failed to load "test/tdd/0966-typed-ledger-rows/t005_xray_kind_coverage_test.dart":
+  lib/tdd/0966-typed-ledger-rows/t5_subject.dart:52:43: Error: Member not found: 'XrayLedgerOverlay.kindCoverage'.
+    final loginCoverage = XrayLedgerOverlay.kindCoverage(
+                                            ^^^^^^^^^^^^
+  lib/tdd/0966-typed-ledger-rows/t5_subject.dart:75:28: Error: Member not found: 'XrayLedgerOverlay.partiallyTraced'.
+    expect(XrayLedgerOverlay.partiallyTraced(loginCoverage), isTrue);
+                             ^^^^^^^^^^^^^^^
+  lib/tdd/0966-typed-ledger-rows/t5_subject.dart:95:38: Error: Member not found: 'XrayLedgerOverlay.kindCoverageByScreen'.
+    final byScreen = XrayLedgerOverlay.kindCoverageByScreen({
+                                       ^^^^^^^^^^^^^^^^^^^^
+  lib/tdd/0966-typed-ledger-rows/t5_subject.dart:111:23: Error: Member not found: 'XrayLedgerOverlay.untracedKindLabels'.
+      XrayLedgerOverlay.untracedKindLabels(byScreen['/login']!),
+                        ^^^^^^^^^^^^^^^^^^
+  lib/tdd/0966-typed-ledger-rows/t5_subject.dart:114:28: Error: Member not found: 'XrayLedgerOverlay.untracedKindLabels'.
+    expect(XrayLedgerOverlay.untracedKindLabels(byScreen['/deal_list']!), isEmpty);
+                             ^^^^^^^^^^^^^^^^^^
+  lib/tdd/0966-typed-ledger-rows/t5_subject.dart:117:38: Error: Member not found: 'XrayLedgerDeck.kindEntries'.
+    final deckEntries = XrayLedgerDeck.kindEntries(gamingLedger);
+                                       ^^^^^^^^^^^
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  test/tdd/0966-typed-ledger-rows/t005_xray_kind_coverage_test.dart: loading test/tdd/0966-typed-ledger-rows/t005_xray_kind_coverage_test.dart

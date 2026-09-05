@@ -306,10 +306,15 @@ extension RepositoryImplementationGeneratorSynced
   }
 
   /// Generates the `syncPending` method that delegates to the sync strategy.
+  ///
+  /// Spec 0973: carries `@override` — the interface declares `syncPending`
+  /// whenever `--sync` is on, so the generation-time conformance gate (and
+  /// the analyzer) expect the impl member to claim it.
   Method generateSyncPendingMethod() {
     return Method(
       (m) => m
         ..name = 'syncPending'
+        ..annotations.add(refer('override'))
         ..returns = refer('Future<void>')
         ..modifier = MethodModifier.async
         ..optionalParameters.add(
@@ -334,10 +339,13 @@ extension RepositoryImplementationGeneratorSynced
   }
 
   /// Generates the `pullRemote` method that delegates to the sync strategy.
+  ///
+  /// Spec 0973: carries `@override` — mirrors `syncPending` above.
   Method generatePullRemoteMethod() {
     return Method(
       (m) => m
         ..name = 'pullRemote'
+        ..annotations.add(refer('override'))
         ..returns = refer('Future<void>')
         ..modifier = MethodModifier.async
         ..optionalParameters.add(

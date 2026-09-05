@@ -282,7 +282,28 @@ zfa mock Product
 
 # Generate JSON mock data with fromJson-based helpers
 zfa mock json Product
+
+# Tier-1 certified mock: auto-generated contract test proven in a
+# throwaway sandbox (dart analyze + dart test) + per-method receipt
+zfa mock create Login --certify
+
+# Deterministic, replayable generation (same seed → byte-identical mocks)
+zfa mock create Login --seed=42
+
+# Re-certify live and register the mock in the #832 fixture registry
+zfa mock certify Login
 ```
+
+`--certify` (spec 1001, VISION §9 "mocks the framework certifies, not the
+agent") writes `test/mock/<snake>/<snake>_mock_contract_test.dart` — every
+interface method pinned through the interface type, so interface drift
+turns the certification red — plus a `mock-cert.<Entity>.json` receipt with
+per-method `satisfied` flags and the contract digest. `zfa mock certify
+<Entity>` re-proves the contract live and registers the receipt in the
+feature's `tdd/fixtures/` #832 manifest (`mocks:` provenance, hash-chained
+`kind: mock-cert` cycle evidence). `zfa tdd run-engine <feature>` (and the
+`zfa tdd run` preflight) refuse to proceed when any CORE (declared Key
+Entity) mock is present but uncertified.
 
 JSON mocks produce standalone JSON files under `data/mock_json/{domain}/` and Dart helpers that load them via `fromJson`. Swap JSON content for instant prototyping without code changes or regeneration.
 

@@ -82,8 +82,11 @@ import '../models/verdict_envelope.dart';
 import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/behavior_test_writer.dart';
+import '../services/contract_test_writer.dart';
 import '../services/generated_shape.dart';
+import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
+import '../services/tdd_generation_receipt.dart';
 import '../services/golden_harness_writer.dart';
 import '../services/platform_harness_context.dart';
 import '../services/platform_harness_subject_writer.dart';
@@ -94,6 +97,7 @@ import '../services/theme_harness_subject_writer.dart';
 import '../services/theme_harness_test_writer.dart';
 import '../tdd_plugin.dart';
 import '../services/tdd_timeout.dart';
+import '../services/verdict_emitter.dart';
 import '../services/widget_scaffold.dart';
 import '../../../config/zfa_config.dart';
 import '../../../core/project/project_root.dart';
@@ -116,13 +120,15 @@ class GenCommand extends Command<void> {
     );
     argParser.addOption(
       'kind',
-      allowed: ['acceptance', 'unit', 'widget'],
+      allowed: ['acceptance', 'unit', 'widget', 'contract'],
       help:
           'Override the subject kind taken from the test-list row (bug '
           '#830). `widget` emits a testWidgets pair: a view-builder subject '
           'stub plus a widget test that pumps the view inside an app shell '
-          'and asserts the acceptance scenario. Unknown values are a usage '
-          'error.',
+          'and asserts the acceptance scenario. `contract` (issue #1007) '
+          'emits the contract pair: a contract test scaffold that '
+          'enumerates the contract\'s cases plus a contract seam subject. '
+          'Unknown values are a usage error.',
     );
     argParser.addOption(
       'widget-shell',
@@ -194,11 +200,24 @@ class GenCommand extends Command<void> {
           'instead of hanging indefinitely (bug #744).',
       defaultsTo: '$defaultTimeoutMinutes',
     );
+    argParser.addOption(
+      'i18n-expansion',
+      help:
+          'Comma-separated expansion locales for the widget lane\'s '
+          'optional i18n tier (issue #965), e.g. "de" or "de,fr". The '
+          'generated widget test gains one expansion testWidgets per '
+          'locale re-asserting keyed surfaces under that locale. Overrides '
+          'the .zfa.json `tdd.i18nExpansion` default.',
+    );
   }
 
   bool _jsonMode = false;
 
   final TddPlugin plugin;
+
+  /// Issue #969: the envelope carrier the wrapper reads on exit (the
+  /// batch verdict folds into it — ONE final envelope, never two).
+  final VerdictContext _verdict = VerdictContext();
 
   @override
   String get name => 'gen';
@@ -225,7 +244,9 @@ class GenCommand extends Command<void> {
   );
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     _jsonMode = argResults?['json'] as bool? ?? false;
     final all = argResults!['all'] as bool;
@@ -267,6 +288,9 @@ class GenCommand extends Command<void> {
     // flag wins over the `.zfa.json` `tdd.widgetShell` project default;
     // the default is ShadApp (zuraffa apps are shadcn_ui apps).
     final widgetShell = _resolveWidgetShell(argResults, cwd);
+    // Issue #965: the optional i18n expansion tier — the explicit flag
+    // wins over the `.zfa.json` `tdd.i18nExpansion` project default.
+    final i18nExpansion = _resolveI18nExpansion(argResults, cwd);
     // Bug #742 unit contract: one shared parser for every TDD --timeout
     // (minutes, fractions allowed). A bad value is a usage error, exactly
     // like the other flags.
@@ -299,6 +323,7 @@ class GenCommand extends Command<void> {
           featureFlag: featureFlag,
           cwd: cwd,
           widgetShell: widgetShell,
+          i18nExpansion: i18nExpansion,
           budget: budget,
         );
         return;
@@ -312,6 +337,7 @@ class GenCommand extends Command<void> {
         featureFlag: featureFlag,
         cwd: cwd,
         widgetShell: widgetShell,
+        i18nExpansion: i18nExpansion,
         deadline: deadline,
       );
     } on _GenFlowTimeout catch (e) {
@@ -351,6 +377,7 @@ class GenCommand extends Command<void> {
     required String? featureFlag,
     required String cwd,
     required WidgetAppShell widgetShell,
+    required List<String> i18nExpansion,
     required Duration budget,
   }) async {
     // Resolve the target rows: (featureDir, featureName, behaviorId) in
@@ -440,6 +467,7 @@ class GenCommand extends Command<void> {
           featureFlag: featureName,
           cwd: cwd,
           widgetShell: widgetShell,
+          i18nExpansion: i18nExpansion,
           deadline: rowDeadline,
         );
       } on StateError {
@@ -551,23 +579,22 @@ class GenCommand extends Command<void> {
       );
       return;
     }
-    VerdictEnvelope.emit(
-      command: 'gen',
-      outcome: verdict == 'stopped'
+    // Issue #969: the batch verdict folds into the wrapper's context —
+    // the final envelope is emitted once, after the body returns.
+    _verdict
+      ..feature = feature
+      ..outcome = verdict == 'stopped'
           ? VerdictOutcome.stopped
-          : VerdictOutcome.pass,
-      feature: feature,
-      details: <String, Object?>{
-        'verdict': verdict,
-        'batch': true,
-        'behaviors': behaviors,
-        'created': counts['created'] ?? 0,
-        'reused': counts['reused'] ?? 0,
-        'adopted': counts['adopted'] ?? 0,
-        'planned': counts['planned'] ?? 0,
-        if (stoppedAt != null) 'stopped_at': stoppedAt,
-      },
-    );
+          : VerdictOutcome.pass;
+    _verdict.details
+      ..['verdict'] = verdict
+      ..['batch'] = true
+      ..['behaviors'] = behaviors
+      ..['created'] = counts['created'] ?? 0
+      ..['reused'] = counts['reused'] ?? 0
+      ..['adopted'] = counts['adopted'] ?? 0
+      ..['planned'] = counts['planned'] ?? 0;
+    if (stoppedAt != null) _verdict.details['stopped_at'] = stoppedAt;
   }
 
   /// The deadline-bounded flow body, verbatim the pre-#744 contract:
@@ -584,6 +611,7 @@ class GenCommand extends Command<void> {
     required String? featureFlag,
     required String cwd,
     required WidgetAppShell widgetShell,
+    required List<String> i18nExpansion,
     required _FlowDeadline deadline,
   }) async {
     // Every awaited stage runs under the shared deadline (bug #744). A
@@ -749,6 +777,33 @@ class GenCommand extends Command<void> {
     }
 
     final registry = ArtifactRegistry(featureDir: featureDir);
+
+    // The feature's declared i18n key contract (issue #965): the key is
+    // the contract, the literal is the anchor. A malformed `key:` token
+    // refuses BEFORE any artifact is written (errors-are-an-API — the
+    // same gate the #938 preflight sets). Keyed surfaces make the paired
+    // widget test boot the slang test shell and assert resolved keys.
+    final I18nKeyTable i18nKeys;
+    try {
+      i18nKeys = await I18nKeyTable.loadForFeature(featureDir);
+    } on I18nKeyContractParseException catch (error) {
+      print('zfa tdd gen: ${error.message}');
+      _printVerdict(
+        behaviorId: behavior.id,
+        verdict: 'refused',
+        reason: 'malformed i18n key contract (issue #965)',
+        featureName: featureName,
+        kind: effectiveBehavior.kind.name,
+      );
+      exitCode = 1;
+      return 'refused';
+    }
+    final i18nImport = i18nKeys.isEmpty
+        ? null
+        : I18nScaffold.accessorImport(
+            projectRoot: cwd,
+            fromDir: p.dirname(testPath),
+          );
 
     // Build the proposed record, then preflight ownership without changing
     // the registry. The record is appended only after both writes succeed.
@@ -916,6 +971,9 @@ class GenCommand extends Command<void> {
         behavior,
         platformContext: platformContext,
         widgetShell: widgetShell,
+        i18nKeys: i18nKeys,
+        i18nImport: i18nImport,
+        i18nExpansion: i18nExpansion,
       );
       try {
         if (!adoptTest) {
@@ -976,6 +1034,17 @@ class GenCommand extends Command<void> {
           createdPaths.addAll(golden.createdFiles);
           goldenPaths = golden;
         }
+        // Issue #969 T003: the pair (and any golden-lane files) becomes
+        // self-certifying — digest-bound proof.v1 receipts so
+        // `zfa proof check` and the verify preflight gate recognise
+        // every generated artifact.
+        await TddGenerationReceipts.writeBestEffort(
+          projectRoot: cwd,
+          command: 'tdd gen',
+          target: behavior.id,
+          feature: featureName,
+          files: {for (final path in createdPaths) path: 'create'},
+        );
         record = await bounded(registry.append(record), 'registry append');
       } catch (error, stackTrace) {
         // Transactional cleanup: remove what THIS attempt created. The
@@ -1033,6 +1102,9 @@ class GenCommand extends Command<void> {
         subjectPath: subjectPath,
         platformContext: platformContext,
         widgetShell: widgetShell,
+        i18nKeys: i18nKeys,
+        i18nImport: i18nImport,
+        i18nExpansion: i18nExpansion,
         bounded: bounded,
       );
     }
@@ -1086,6 +1158,11 @@ class GenCommand extends Command<void> {
   /// split and the audit-log location for adopt runs. Gated on [--json]
   /// (VISION §5, issue #964): when the flag is absent, the text
   /// `key=value` summary is the last line instead.
+  ///
+  /// Issue #969: under --json in SINGLE mode the verdict folds into the
+  /// wrapper's envelope context (ONE final machine line); in --all batch
+  /// mode each behavior keeps its own envelope line as mid-stream
+  /// progress above the final batch envelope.
   void _printVerdict({
     required String behaviorId,
     required String verdict,
@@ -1111,6 +1188,36 @@ class GenCommand extends Command<void> {
       );
       return;
     }
+    final batchMode = argResults?['all'] as bool? ?? false;
+    if (!batchMode) {
+      _verdict
+        ..feature = featureName ?? _verdict.feature
+        ..details['behavior'] = behaviorId
+        ..details['verdict'] = verdict;
+      if (reason != null) _verdict.details['reason'] = reason;
+      if (kind != null) _verdict.details['kind'] = kind;
+      if (golden) _verdict.details['golden'] = true;
+      if (adopted.isNotEmpty) _verdict.details['adopted'] = adopted;
+      if (created.isNotEmpty) _verdict.details['created'] = created;
+      if (adopted.isNotEmpty && featureName != null) {
+        _verdict.details['audit_log'] = p.join(
+          'specs',
+          featureName,
+          'tdd',
+          'audit.log',
+        );
+      }
+      if (goldenTestPath != null) {
+        _verdict.details['golden_test'] = goldenTestPath;
+      }
+      if (goldenFixturesDir != null) {
+        _verdict.details['golden_fixtures'] = goldenFixturesDir;
+      }
+      if (verdict == 'refused' || verdict == 'foreign-owned') {
+        _verdict.outcome = VerdictOutcome.fail;
+      }
+      return;
+    }
     VerdictEnvelope.emit(
       command: 'gen',
       outcome: (verdict == 'refused' || verdict == 'foreign-owned')
@@ -1119,34 +1226,42 @@ class GenCommand extends Command<void> {
       details: <String, Object?>{
         'behavior': behaviorId,
         'verdict': verdict,
-        if (reason != null) 'reason': reason,
-        if (kind != null) 'kind': kind,
+        'reason': ?reason,
+        'kind': ?kind,
         if (golden) 'golden': true,
         if (adopted.isNotEmpty) 'adopted': adopted,
         if (created.isNotEmpty) 'created': created,
         if (adopted.isNotEmpty && featureName != null)
           'audit_log': p.join('specs', featureName, 'tdd', 'audit.log'),
-        if (goldenTestPath != null) 'golden_test': goldenTestPath,
-        if (goldenFixturesDir != null) 'golden_fixtures': goldenFixturesDir,
+        'golden_test': ?goldenTestPath,
+        'golden_fixtures': ?goldenFixturesDir,
       },
     );
   }
 
-  /// Writer selection by behavior kind (issue #841, issue #831):
-  /// theme-kind behaviors get the theme-harness pair (`ThemeHarnessTestWriter`
-  /// emitting the four-proof widget test — ShadTheme assertions under both
-  /// ThemeModes, hardcoded-color audit, golden baselines, switch latency —
-  /// and `ThemeHarnessSubjectWriter` emitting the subject contract);
-  /// platform-kind behaviors (issue #831) get the platform-harness pair
-  /// (certified-fake channel test + platform-channel subject stub) built
-  /// from the resolved [PlatformHarnessContext]; every other kind gets the
-  /// plain-function pair (spec 044). All pairs share the same `write`
-  /// signatures so the transactional flow and the staleness re-render
-  /// treat them identically.
+  /// Writer selection by behavior kind (issue #841, issue #831, issue
+  /// #1007): theme-kind behaviors get the theme-harness pair
+  /// (`ThemeHarnessTestWriter` emitting the four-proof widget test —
+  /// ShadTheme assertions under both ThemeModes, hardcoded-color audit,
+  /// golden baselines, switch latency — and `ThemeHarnessSubjectWriter`
+  /// emitting the subject contract); platform-kind behaviors (issue
+  /// #831) get the platform-harness pair (certified-fake channel test +
+  /// platform-channel subject stub) built from the resolved
+  /// [PlatformHarnessContext]; contract-kind behaviors (issue #1007) get
+  /// the CONTRACT pair — `ContractTestWriter` emitting the contract test
+  /// scaffold that enumerates the contract's cases and
+  /// `ContractSubjectWriter` emitting the contract seam (NOT an
+  /// implementation test); every other kind gets the plain-function pair
+  /// (spec 044). All pairs share the same `write` signatures so the
+  /// transactional flow and the staleness re-render treat them
+  /// identically.
   static _GenWriterPair _writersFor(
     Behavior behavior, {
     PlatformHarnessContext? platformContext,
     WidgetAppShell widgetShell = WidgetAppShell.shadapp,
+    I18nKeyTable i18nKeys = I18nKeyTable.empty,
+    String? i18nImport,
+    List<String> i18nExpansion = const [],
   }) {
     if (behavior.kind == BehaviorKind.theme) {
       return (
@@ -1162,8 +1277,19 @@ class GenCommand extends Command<void> {
         ).write,
       );
     }
+    if (behavior.kind == BehaviorKind.contract) {
+      return (
+        writeTest: const ContractTestWriter().write,
+        writeSubject: const ContractSubjectWriter().write,
+      );
+    }
     return (
-      writeTest: BehaviorTestWriter(widgetShell: widgetShell).write,
+      writeTest: BehaviorTestWriter(
+        widgetShell: widgetShell,
+        i18nKeys: i18nKeys,
+        i18nImport: i18nImport,
+        i18nExpansion: i18nExpansion,
+      ).write,
       writeSubject: const SubjectWriter().write,
     );
   }
@@ -1180,6 +1306,22 @@ class GenCommand extends Command<void> {
     final configured = config?.tddWidgetShell;
     if (configured != null) return WidgetAppShell.parse(configured);
     return WidgetAppShell.shadapp;
+  }
+
+  /// Resolves the expansion locales for the optional i18n tier (issue
+  /// #965): the explicit `--i18n-expansion` flag wins over the `.zfa.json`
+  /// `tdd.i18nExpansion` project default; the fallback is no tier.
+  static List<String> _resolveI18nExpansion(dynamic args, String cwd) {
+    final flag = args?['i18n-expansion'] as String?;
+    final raw = (flag != null && flag.isNotEmpty)
+        ? flag
+        : ZfaConfig.load(projectRoot: cwd)?.tddI18nExpansion;
+    if (raw == null || raw.trim().isEmpty) return const [];
+    return raw
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList(growable: false);
   }
 
   /// Resolve the platform-harness context for a platform-kind behavior
@@ -1327,6 +1469,9 @@ class GenCommand extends Command<void> {
     required Future<T> Function<T>(Future<T> stage, String stageName) bounded,
     PlatformHarnessContext? platformContext,
     WidgetAppShell widgetShell = WidgetAppShell.shadapp,
+    I18nKeyTable i18nKeys = I18nKeyTable.empty,
+    String? i18nImport,
+    List<String> i18nExpansion = const [],
   }) async {
     // Bug #835: an ffi harness is NEVER auto-regenerated. Its contract
     // seams are the implementer's wiring point — partial wiring (the
@@ -1361,6 +1506,9 @@ class GenCommand extends Command<void> {
         behavior,
         platformContext: platformContext,
         widgetShell: widgetShell,
+        i18nKeys: i18nKeys,
+        i18nImport: i18nImport,
+        i18nExpansion: i18nExpansion,
       );
       final mirroredTest = p.join(
         mirror.path,
@@ -1541,15 +1689,25 @@ class GenCommand extends Command<void> {
 
   String _toSnakeCase(String s) {
     final out = StringBuffer();
+    var lastWasSeparator = false;
     for (var i = 0; i < s.length; i++) {
       final c = s[i];
-      if (c == '-' || c == ' ' || c == '_') {
-        out.write('_');
+      if (c == '-' || c == ' ' || c == '_' || c == ':') {
+        // Issue #1007: `:` folds too — the `contract:A1` ids plan writes
+        // must map to portable file names (`contract_a1_test.dart`, never
+        // `contract:a1_test.dart` — a Windows-illegal path). Consecutive
+        // separators collapse to ONE underscore (the run driver's
+        // disk-layout check `_snakeCase` already folds runs — this aligns
+        // gen with it; every canonical id shape `[A|U]\d+` is unchanged).
+        if (!lastWasSeparator) out.write('_');
+        lastWasSeparator = true;
       } else if (c.toUpperCase() == c && c.toLowerCase() != c && i > 0) {
-        out.write('_');
+        if (!lastWasSeparator) out.write('_');
         out.write(c.toLowerCase());
+        lastWasSeparator = false;
       } else {
         out.write(c.toLowerCase());
+        lastWasSeparator = false;
       }
     }
     return out.toString();

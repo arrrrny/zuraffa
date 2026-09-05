@@ -1,0 +1,34 @@
+// GENERATED - DO NOT EDIT
+import 'package:zuraffa/zuraffa.dart';
+
+class SessionState {
+  const SessionState({this.error, this.isLoading = false});
+
+  /// The current error, if any
+  final AppFailure? error;
+
+  /// Whether the operation is in progress
+  final bool isLoading;
+
+  SessionState copyWith({AppFailure? error, bool? isLoading}) => SessionState(
+    error: error ?? this.error,
+    isLoading: isLoading ?? this.isLoading,
+  );
+
+  bool get hasError => error != null;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SessionState &&
+          other.error == error &&
+          other.isLoading == isLoading;
+
+  @override
+  int get hashCode => error.hashCode + isLoading.hashCode;
+
+  @override
+  String toString() => 'SessionState(error: $error, isLoading: $isLoading)';
+}
+
+// END GENERATED

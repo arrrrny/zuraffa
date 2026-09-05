@@ -46,6 +46,9 @@ import '../models/routing.dart';
 import '../services/artifact_registry.dart';
 import '../services/declared_routing.dart';
 import '../services/subject_signature_deriver.dart';
+import '../services/tdd_generation_receipt.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -86,6 +89,9 @@ class FuncCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'func';
 
@@ -100,7 +106,9 @@ class FuncCommand extends Command<void> {
       'zfa tdd func <behavior-id> [--feature <name>] [--project <path>]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     final behaviorId = rest.isNotEmpty ? rest.first : null;
     if (behaviorId == null || behaviorId.isEmpty) {
@@ -277,6 +285,14 @@ class FuncCommand extends Command<void> {
     );
     final updated = raw.replaceRange(stub.start, stub.end, scaffolded);
     await subjectFile.writeAsString(updated);
+    // Issue #969 T003: the scaffolded subject becomes self-certifying.
+    await TddGenerationReceipts.writeBestEffort(
+      projectRoot: cwd,
+      command: 'tdd func',
+      target: record.behaviorId,
+      feature: resolved.featureName,
+      files: {subjectFile.path: 'update'},
+    );
     print('   scaffolded: $recordedSubject');
     _printSummary(
       behavior: record.behaviorId,
@@ -400,6 +416,16 @@ class FuncCommand extends Command<void> {
     required String feature,
   }) {
     print('func: behavior=$behavior outcome=${outcome.label} feature=$feature');
+    // Issue #969: the outcome label IS the exit class.
+    _verdict
+      ..exitClass = outcome.label
+      ..outcome = switch (outcome) {
+        FuncOutcome.scaffolded => VerdictOutcome.pass,
+        FuncOutcome.alreadyImplemented => VerdictOutcome.stopped,
+        FuncOutcome.runnerError => VerdictOutcome.fail,
+      }
+      ..details['behavior'] = behavior
+      ..feature = feature == 'unknown' ? null : feature;
   }
 }
 

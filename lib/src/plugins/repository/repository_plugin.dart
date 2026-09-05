@@ -1,5 +1,8 @@
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
+
 import '../../commands/repository_command.dart';
+import '../../core/context/file_system.dart';
 import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
@@ -7,12 +10,16 @@ import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../../version.dart' as cli_version;
 import '../datasource/builders/interface_generator.dart';
 import '../method_append/builders/method_append_builder.dart';
 import '../method_append/capabilities/method_capability.dart';
 import 'capabilities/create_repository_capability.dart';
+import 'conformance/repository_conformance_checker.dart';
+import 'contract/repository_contract_manifest.dart';
 import 'generators/implementation_generator.dart';
 import 'generators/interface_generator.dart';
+import 'plan/repository_emission_plan.dart';
 
 class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
@@ -90,10 +97,18 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   @override
   Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
-    final useService = context.get<bool>('use-service') ?? false;
-    if (useService) return [];
+    final config = configFromContext(context);
+    return generate(config, context: context);
+  }
 
-    final config = GeneratorConfig(
+  /// Builds the [GeneratorConfig] the plugin would run with, from the
+  /// resolved [PluginContext] — the single source of truth shared by
+  /// generation ([generateWithContext]) and explanation ([explainEmission]),
+  /// so `--explain` can never drift from what generation actually does.
+  static GeneratorConfig configFromContext(PluginContext context) {
+    final useService = context.get<bool>('use-service') ?? false;
+
+    return GeneratorConfig(
       name: context.core.name,
       outputDir: context.core.outputDir,
       dryRun: context.core.dryRun,
@@ -132,8 +147,21 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           (context.get<bool>('no-entity') == true &&
               context.data['repo'] != null),
     );
+  }
 
-    return generate(config, context: context);
+  /// Spec 0973: resolves the emission plan this plugin WOULD execute for
+  /// [context] — what gets emitted, which variant, which flags triggered
+  /// each decision. Used by `zfa make --explain` / `--json`; does not run
+  /// generation and does not change PluginManager activation order.
+  RepositoryEmissionPlan explainEmission(PluginContext context) {
+    final config = configFromContext(context);
+    final datasourceActive =
+        context.data['datasource'] == true ||
+        context.get<bool>('datasource') == true;
+    return const RepositoryEmissionPlanner().resolve(
+      config,
+      datasourcePluginActive: datasourceActive,
+    );
   }
 
   @override
@@ -246,7 +274,159 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           : DataSourceInterfaceBuilder(outputDir: outputDir, options: options);
       files.add(await datasourceInterfaceGen.generate(targetConfig));
     }
+
+    // Spec 0973: prove the emitted interface↔impl pair conforms before the
+    // run reports success. A mismatch fails the generation with `--> fix:`
+    // naming the method and side (the CLI exits 1) instead of shipping a
+    // pair that can only fail later at `zfa build`.
+    await _runConformanceGate(files, targetConfig, context);
+
     return files;
+  }
+
+  /// Spec 0973: generation-time interface↔impl conformance gate.
+  ///
+  /// Runs only when this run emitted BOTH sides of the pair (created,
+  /// overwritten or appended — skipped/deleted files are not this run's
+  /// claim). Fresh pairs are audited in full; append flows are audited in
+  /// delta scope: only the methods this run contributed, so hand-written
+  /// members that predate the run cannot fail it.
+  Future<void> _runConformanceGate(
+    List<GeneratedFile> files,
+    GeneratorConfig config,
+    PluginContext? context,
+  ) async {
+    if (config.dryRun || config.revert) return;
+
+    bool emitted(GeneratedFile f) =>
+        f.action != 'skipped' &&
+        f.action != 'deleted' &&
+        f.action != 'reverted';
+
+    final interfaceFile = files
+        .where((f) => f.type == 'repository' && emitted(f))
+        .toList();
+    final implFile = files
+        .where((f) => f.type == 'repository_implementation' && emitted(f))
+        .toList();
+    if (interfaceFile.isEmpty || implFile.isEmpty) return;
+
+    final fs = context?.fileSystem ?? const DefaultFileSystem();
+    final interfaceSource =
+        interfaceFile.first.content ?? await fs.read(interfaceFile.first.path);
+    final implSource =
+        implFile.first.content ?? await fs.read(implFile.first.path);
+
+    final freshPair =
+        _isFreshEmit(interfaceFile.first.action) &&
+        _isFreshEmit(implFile.first.action);
+    final contributed = RepositoryConformanceChecker.contributedMethodNames(
+      config,
+    );
+
+    final result = const RepositoryConformanceChecker().check(
+      interfaceSource: interfaceSource,
+      implementationSource: implSource,
+      interfaceClassName: '${config.name}Repository',
+      implementationClassName: 'Data${config.name}Repository',
+      requiredInterfaceMethods: freshPair ? const {} : contributed,
+      auditedImplementationMethods: freshPair ? const {} : contributed,
+    );
+
+    if (result.ok) {
+      if (config.verbose) {
+        print(
+          '  ✓ repository conformance: ${result.interfaceMethods.length} '
+          'interface method(s) ↔ ${result.implementationOverrides.length} '
+          'override(s) — ${config.name}Repository ↔ '
+          'Data${config.name}Repository',
+        );
+      }
+      await _persistContractManifest(
+        config: config,
+        context: context,
+        interfacePath: interfaceFile.first.path,
+        interfaceSource: interfaceSource,
+        implPath: implFile.first.path,
+        implSource: implSource,
+      );
+      return;
+    }
+
+    print(
+      '❌ Repository conformance gate failed for ${config.name} '
+      '(${result.failures.length} mismatch(es)):',
+    );
+    for (final failure in result.failures) {
+      print('  [${failure.side}] ${failure.message}');
+      print('    ${failure.fix}');
+    }
+    throw RepositoryConformanceException(result);
+  }
+
+  bool _isFreshEmit(String action) =>
+      action == 'created' || action == 'overwritten';
+
+  /// Spec 0973: writes the per-entity repository contract manifest
+  /// (`.zfa/receipts/repository-<entity>.json`) after the conformance gate
+  /// passed — a manifest asserts "this pair conformed when it was written".
+  /// Best-effort by design: the artifacts already exist, so a manifest
+  /// failure degrades to a warning instead of failing the run.
+  Future<void> _persistContractManifest({
+    required GeneratorConfig config,
+    required PluginContext? context,
+    required String interfacePath,
+    required String interfaceSource,
+    required String implPath,
+    required String implSource,
+  }) async {
+    try {
+      final projectRoot = repositoryProjectRootFor(
+        outputDir,
+        explicitProjectRoot: context?.core.projectRoot,
+      );
+      final methods = const RepositoryContractExtractor().extract(
+        interfaceSource: interfaceSource,
+        className: '${config.name}Repository',
+      );
+      final manifest = RepositoryContractManifest(
+        entity: config.name,
+        interface: RepositoryContractFile(
+          className: '${config.name}Repository',
+          path: _projectRelativePosix(interfacePath, projectRoot),
+          sha256: repositoryContractDigest(interfaceSource),
+        ),
+        implementation: RepositoryContractFile(
+          className: 'Data${config.name}Repository',
+          path: _projectRelativePosix(implPath, projectRoot),
+          sha256: repositoryContractDigest(implSource),
+        ),
+        methods: methods,
+        methodsSha256: RepositoryContractManifest.hashOfMethods(methods),
+        generatorVersion: cli_version.version,
+        at: DateTime.now().toUtc(),
+      );
+      await RepositoryContractManifestStore(
+        projectRoot: projectRoot,
+      ).save(manifest);
+      if (config.verbose) {
+        print(
+          '  ✓ repository contract manifest: '
+          '.zfa/receipts/repository-${config.nameSnake}.json',
+        );
+      }
+    } catch (e) {
+      print('⚠️  Repository contract manifest not written: $e');
+    }
+  }
+
+  /// Normalizes a generated-file path to a project-relative POSIX path.
+  String _projectRelativePosix(String filePath, String projectRoot) {
+    final absolute = p.isAbsolute(filePath)
+        ? filePath
+        : p.join(p.absolute(projectRoot), filePath);
+    final relative = p.relative(absolute, from: p.absolute(projectRoot));
+    return p.normalize(relative).replaceAll('\\', '/');
   }
 
   Future<GeneratedFile> generateInterface(GeneratorConfig config) {

@@ -50,6 +50,10 @@ class ParsedCycleEntry {
   /// The `- hash:` chain link, when present.
   final String? hash;
 
+  /// The `- subject-hash:` evidence field (issue #1036), when present:
+  /// the sha256 of the subject file at certification time.
+  final String? subjectHash;
+
   const ParsedCycleEntry({
     required this.behaviorId,
     required this.kind,
@@ -61,6 +65,7 @@ class ParsedCycleEntry {
     this.schema,
     this.prevHash,
     this.hash,
+    this.subjectHash,
   });
 
   /// Whether this entry participates in the evidence hash chain (bug
@@ -111,6 +116,24 @@ class CycleEvidence {
     return last;
   }
 
+  /// The LAST parsed entry of [kind] (`red` / `green` / `refactor`) for
+  /// [behaviorId] in file order, or `null` when the behavior has no
+  /// entry of that kind. The make skip transition reads the last red and
+  /// last green entries' `- subject-hash:` to refuse a skip on a subject
+  /// the certified evidence never exercised (issue #1036).
+  Future<ParsedCycleEntry?> lastEntryFor(
+    String behaviorId, {
+    required String kind,
+  }) async {
+    ParsedCycleEntry? last;
+    for (final entry in await entries()) {
+      if (entry.behaviorId == behaviorId && entry.kind == kind) {
+        last = entry;
+      }
+    }
+    return last;
+  }
+
   Future<Set<String>> _evidence(String kind) async {
     final file = File(p.join(featureDir, 'tdd', 'cycle-log.md'));
     if (!await file.exists()) return const {};
@@ -151,6 +174,9 @@ List<ParsedCycleEntry> parseEntries(String raw) {
     final schema = capture(RegExp(r'^- schema: (\d+)$', multiLine: true));
     final prevHash = capture(RegExp(r'^- prev-hash: (\S+)$', multiLine: true));
     final hash = capture(RegExp(r'^- hash: ([0-9a-f]{64})$', multiLine: true));
+    final subjectHash = capture(
+      RegExp(r'^- subject-hash: ([0-9a-f]{64})$', multiLine: true),
+    );
     entries.add(
       ParsedCycleEntry(
         behaviorId: behavior.group(1)!,
@@ -163,6 +189,7 @@ List<ParsedCycleEntry> parseEntries(String raw) {
         schema: schema,
         prevHash: prevHash,
         hash: hash,
+        subjectHash: subjectHash,
       ),
     );
   }

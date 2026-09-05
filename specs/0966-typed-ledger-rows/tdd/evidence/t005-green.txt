@@ -1,0 +1,3 @@
+00:00 +0: loading test/tdd/0966-typed-ledger-rows/t005_xray_kind_coverage_test.dart
+00:00 +0: T5 (FR-006) T5 - XRay overlay renders kind coverage per screen; the all-9-literals-Column view is partially traced (absence + sequence untraced); the deck lists kind entries.
+00:00 +1: All tests passed!

@@ -1,15 +1,18 @@
 import 'dart:io';
 
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as path;
 
 import '../../../core/constants/known_types.dart';
 import '../../../core/context/file_system.dart';
 import '../../../core/plugin_system/capability.dart';
+import '../../../core/project/receipt_store.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../version.dart';
 import '../cache_plugin.dart';
 
 /// Capability that registers Hive type adapters for an entity and all its
@@ -98,10 +101,8 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
     try {
-      final files = await _registerAdapter(
-        args,
-        dryRun: args['dryRun'] ?? false,
-      );
+      final dryRun = args['dryRun'] ?? false;
+      final files = await _registerAdapter(args, dryRun: dryRun);
 
       final registeredEntities =
           args['_discoveredEntities'] as List<String>? ?? [];
@@ -126,18 +127,181 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
         }
       }
 
+      // Spec #975, Order 2: persist a registrar receipt so
+      // `zfa proof check` can prove where the registrar came from and
+      // `zfa cache verify` can detect drift. Best-effort by design: the
+      // artifacts already exist, so a receipt failure degrades to a
+      // warning instead of failing the run. Dry runs write nothing and
+      // must not ship receipts.
+      if (!dryRun) {
+        await _emitReceipt(
+          entityName: args['name'] as String,
+          discoveredEntities: registeredEntities,
+          buildStatus: buildStatus,
+          wroteManualAdditions: args['_wroteManualAdditions'] == true,
+          entitySourcePath: args['_entitySourcePath'] as String?,
+          verbose: args['verbose'] == true,
+        );
+      }
+
       return ExecutionResult(
         success: true,
         files: files.map((f) => f.path).toList(),
         data: {
           'generatedFiles': files,
           'registeredEntities': registeredEntities,
-          'buildStatus': ?buildStatus,
+          'buildStatus': buildStatus,
         },
       );
     } catch (e) {
       return ExecutionResult(success: false, message: '$e');
     }
+  }
+
+  /// Spec #975, Order 2 — persists the registrar receipt through
+  /// [ReceiptStore] (schema `proof.v1`, command `cache-adapter`).
+  ///
+  /// The payload the adapter already computes — target entity, discovered
+  /// entities, the registrar digest, the optional build status — becomes
+  /// durable so `zfa proof check` can re-derive the digests and
+  /// `zfa cache verify` can gate on drift. Receipt file paths are
+  /// project-relative so they stay portable across machines.
+  ///
+  /// The project root is resolved as the nearest ancestor of the
+  /// registrar artifact that carries a `pubspec.yaml`; when the artifact
+  /// lives inside a project-less directory under the current working
+  /// directory, the CWD is used; otherwise no receipt is written (there
+  /// is no project to prove provenance for, and writing into an
+  /// unrelated CWD would pollute it).
+  Future<void> _emitReceipt({
+    required String entityName,
+    required List<String> discoveredEntities,
+    required String? buildStatus,
+    required bool wroteManualAdditions,
+    String? entitySourcePath,
+    bool verbose = false,
+  }) async {
+    try {
+      final outputDir = plugin.outputDir;
+      final registrarAbs = _absoluteOf(
+        path.join(outputDir, 'cache', 'hive_registrar.dart'),
+      );
+      final projectRoot = _resolveProjectRoot(registrarAbs);
+      if (projectRoot == null) {
+        if (verbose) {
+          print('  Receipt skipped: no project root for $registrarAbs');
+        }
+        return;
+      }
+
+      String projectRel(String absPath) => path
+          .normalize(path.relative(absPath, from: projectRoot))
+          .replaceAll('\\', '/');
+
+      final files = <GenerationReceiptFile>[];
+      String? registrarHash;
+
+      final registrarFile = File(registrarAbs);
+      if (registrarFile.existsSync()) {
+        final bytes = registrarFile.readAsBytesSync();
+        registrarHash = crypto.sha256.convert(bytes).toString();
+        final keepSnapshot = bytes.length <= ReceiptStore.maxSnapshotBytes;
+        files.add(
+          GenerationReceiptFile(
+            path: projectRel(registrarAbs),
+            action: 'update',
+            sha256: registrarHash,
+            bytes: bytes.length,
+            snapshot: keepSnapshot ? registrarFile.readAsStringSync() : null,
+          ),
+        );
+      }
+
+      if (wroteManualAdditions) {
+        final manualAbs = _absoluteOf(
+          path.join(outputDir, 'cache', 'hive_manual_additions.txt'),
+        );
+        final manualFile = File(manualAbs);
+        if (manualFile.existsSync()) {
+          final bytes = manualFile.readAsBytesSync();
+          final keepSnapshot = bytes.length <= ReceiptStore.maxSnapshotBytes;
+          files.add(
+            GenerationReceiptFile(
+              path: projectRel(manualAbs),
+              action: 'update',
+              sha256: crypto.sha256.convert(bytes).toString(),
+              bytes: bytes.length,
+              snapshot: keepSnapshot ? manualFile.readAsStringSync() : null,
+            ),
+          );
+        }
+      }
+
+      if (files.isEmpty) return;
+
+      // Spec binding: the entity source this run discovered FROM, so a
+      // later edit surfaces as a stale registration (not just a digest
+      // mismatch on the registrar).
+      GenerationReceiptSpec? spec;
+      if (entitySourcePath != null) {
+        final sourceAbs = _absoluteOf(entitySourcePath);
+        final sourceFile = File(sourceAbs);
+        if (sourceFile.existsSync()) {
+          final bytes = sourceFile.readAsBytesSync();
+          spec = GenerationReceiptSpec(
+            path: projectRel(sourceAbs),
+            sha256: crypto.sha256.convert(bytes).toString(),
+            snapshot: bytes.length <= ReceiptStore.maxSnapshotBytes
+                ? sourceFile.readAsStringSync()
+                : null,
+          );
+        }
+      }
+
+      await ReceiptStore(projectRoot: projectRoot).save(
+        GenerationReceipt(
+          command: 'cache-adapter',
+          target: entityName,
+          repro: 'zfa cache adapter $entityName',
+          at: DateTime.now().toUtc(),
+          generatorVersion: version,
+          input: {
+            'entity': entityName,
+            'discoveredEntities': discoveredEntities,
+            'registrarHash': registrarHash,
+            'buildStatus': buildStatus,
+          },
+          spec: spec,
+          files: files,
+        ),
+      );
+    } catch (e) {
+      print('⚠️  Generation receipt not written: $e');
+    }
+  }
+
+  /// Resolves [maybeRelative] against the CWD into a canonical absolute
+  /// path.
+  String _absoluteOf(String maybeRelative) =>
+      path.canonicalize(path.absolute(maybeRelative));
+
+  /// Nearest ancestor of [artifactAbs] containing `pubspec.yaml`; when
+  /// none exists and the artifact is under the CWD, the CWD wins; when
+  /// the artifact is outside any project, `null` (no receipt).
+  String? _resolveProjectRoot(String artifactAbs) {
+    var dir = Directory(artifactAbs).parent;
+    while (true) {
+      if (File(path.join(dir.path, 'pubspec.yaml')).existsSync()) {
+        return dir.path;
+      }
+      final parent = dir.parent;
+      if (parent.path == dir.path) break; // filesystem root
+      dir = parent;
+    }
+    final cwd = Directory.current.path;
+    return path.isWithin(path.canonicalize(cwd), artifactAbs)
+        ? path.canonicalize(cwd)
+        : null;
   }
 
   /// Core logic: discover entities, update manual additions, regenerate registrar.
@@ -397,7 +561,12 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
 
     mergedLines.addAll(newLines.map((l) => l));
 
-    if (newLines.isNotEmpty || !hasExistingFile) {
+    // Spec #975: report with verbs the CLI summary recognizes
+    // (`created`/`updated`). The pre-#975 code reported `modified` — a
+    // verb `CapabilityCommand` does not summarize, which made every
+    // adapter run a SILENT success (no output, exit 0).
+    final wroteManualAdditions = newLines.isNotEmpty || !hasExistingFile;
+    if (wroteManualAdditions) {
       // Write updated manual additions
       await FileUtils.writeFile(
         manualAdditionsPath,
@@ -409,15 +578,13 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
         fileSystem: fs,
       );
 
-      if (dryRun) {
-        files.add(
-          GeneratedFile(
-            path: manualAdditionsPath,
-            type: 'hive_manual_additions',
-            action: 'created',
-          ),
-        );
-      }
+      files.add(
+        GeneratedFile(
+          path: manualAdditionsPath,
+          type: 'hive_manual_additions',
+          action: hasExistingFile ? 'updated' : 'created',
+        ),
+      );
     }
 
     // Regenerate the hive registrar
@@ -432,22 +599,33 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
     );
 
     // The registrar regeneration reads cache files and manual additions,
-    // so it will pick up our newly added entities.
+    // so it will pick up our newly added entities. Capture the prior
+    // existence so the reported action is honest (created vs updated).
+    final registrarPath = path.join(cacheDir, 'hive_registrar.dart');
+    final registrarExistedBefore = await fs.exists(registrarPath);
+
     await plugin.cacheBuilder.regenerateHiveRegistrar(config);
 
     // Track the registrar file
-    final registrarPath = path.join(cacheDir, 'hive_registrar.dart');
     final registrarExists = await fs.exists(registrarPath);
     files.add(
       GeneratedFile(
         path: registrarPath,
         type: 'hive_registrar',
-        action: registrarExists ? 'modified' : 'created',
+        action: registrarExistedBefore
+            ? 'updated'
+            : (registrarExists ? 'created' : 'skipped'),
       ),
     );
 
     // Store discovered entities for execute() to use
     args['_discoveredEntities'] = adapterEntities;
+    args['_wroteManualAdditions'] = wroteManualAdditions;
+    args['_entitySourcePath'] = entityExists
+        ? entityFilePath
+        : (enumExists
+              ? (await fs.exists(enumFilePath) ? enumFilePath : enumIndexPath)
+              : null);
 
     if (verbose) {
       print('Adapter registration complete.');

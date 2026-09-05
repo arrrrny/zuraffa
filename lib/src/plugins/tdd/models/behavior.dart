@@ -25,9 +25,30 @@ library;
 /// location). Its gen pair is a channel test that installs the certified
 /// fake (`zfa tdd fake`) and asserts on the OBSERVED calls — arguments
 /// recorded, ordering preserved — plus a channel-calling subject stub.
-enum BehaviorKind { acceptance, unit, widget, theme, ffi, platform }
+///
+/// `contract` (issue #1007): a CONTRACT behavior — one declared entity
+/// method, controller method or usecase of the spec's Layer Contracts
+/// section, planned by `zfa tdd plan` as a `contract:<id>` row under the
+/// `## Contract loop:` section. Unlike every other kind its pair proves
+/// the implementation satisfies a DECLARED contract, not that a piece of
+/// code does what its author said: `zfa tdd gen` emits a contract test
+/// scaffold that enumerates the contract's cases plus a contract seam
+/// subject, and a failing contract test is graded BLOCKED (never RED) by
+/// `zfa tdd verify-red` — the substrate for `zfa dream`, where generated
+/// and hand-written code are graded by the same rules.
+enum BehaviorKind { acceptance, unit, widget, theme, ffi, platform, contract }
 
-enum BehaviorState { pending, red, green, mocked, done }
+/// The per-behavior cycle state the run driver advances through.
+///
+/// `blocked` (issue #1007): a CONTRACT behavior whose contract test
+/// failed — the declared contract is NOT satisfied by the implementation.
+/// Distinct from RED on purpose: RED is the honest first state of a unit
+/// or widget behavior (the TDD loop EXPECTS the failing test and proceeds
+/// to make/GREEN); BLOCKED refuses to proceed — the cycle cannot reach
+/// GREEN until the implementation satisfies the declared contract. The
+/// verdict carries its own receipt (`contract-blocked.<id>.json`) and the
+/// corpus-economics gap ledger records the stop at the highest severity.
+enum BehaviorState { pending, blocked, red, green, mocked, done }
 
 class Behavior {
   final String id;
