@@ -23,11 +23,12 @@ import '../plugins/tdd/commands/referee_command.dart';
 import '../plugins/tdd/commands/reset_command.dart';
 import '../plugins/tdd/commands/run_command.dart';
 import '../plugins/tdd/commands/run_engine_command.dart';
+import '../plugins/tdd/commands/run_skin_command.dart';
 import '../plugins/tdd/commands/split_command.dart';
+import '../plugins/tdd/commands/status_command.dart';
 import '../plugins/tdd/commands/theater_command.dart';
 import '../plugins/tdd/commands/verify_command.dart';
 import '../plugins/tdd/commands/verify_red_command.dart';
-import '../plugins/tdd/commands/verdicts_command.dart';
 import '../plugins/tdd/commands/view_command.dart';
 import '../plugins/tdd/commands/wire_command.dart';
 import '../plugins/tdd/tdd_plugin.dart';
@@ -47,8 +48,10 @@ class TddCommand extends Command<void> {
     addSubcommand(RefactorCommand(plugin));
     addSubcommand(RunCommand(plugin));
     addSubcommand(RunEngineCommand(plugin));
+    addSubcommand(RunSkinCommand(plugin));
     addSubcommand(SplitCommand(plugin));
     addSubcommand(IngestCommand(plugin));
+    addSubcommand(StatusCommand(plugin));
     addSubcommand(ReplayCommand(plugin));
     addSubcommand(TheaterCommand(plugin));
     addSubcommand(VerifyCommand(plugin));
@@ -59,7 +62,6 @@ class TddCommand extends Command<void> {
     addSubcommand(ResetCommand(plugin));
     addSubcommand(DoctorCommand(plugin));
     addSubcommand(RealizeCommand(plugin));
-    addSubcommand(VerdictsCommand(plugin));
     addSubcommand(RealizeMockCommand(plugin));
   }
 
@@ -71,8 +73,11 @@ class TddCommand extends Command<void> {
   @override
   String get description =>
       'Drive the full TDD red-green-refactor cycle (init, plan, gen, '
-      'verify-red, make, wire, func, refactor, run, split, verify). See '
-      'specs/041-tdd-setup-plugin/spec.md for the full contract.';
+      'verify-red, make, wire, func, refactor, run, run-engine, run-skin, '
+      'split, status, verify). See specs/041-tdd-setup-plugin/spec.md for '
+      'the full contract; specs/1000-spec-template-core-skin-lanes/spec.md '
+      'for the lane split and specs/1008-two-cycle-driver/spec.md for the '
+      'two-cycle runner.';
 
   @override
   String get invocation => 'zfa tdd <subcommand> [options]';
