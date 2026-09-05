@@ -90,7 +90,14 @@
 ///   left at its last fully-completed state, the failing step and outcome
 ///   are named, later behaviors never start, and resume instructions are
 ///   printed (FR-007). Bounded partial progress is the designed outcome of
-///   a stop; silently faking progress is the forbidden one.
+///   a stop; silently faking progress is the forbidden one. ONE designed
+///   exception (issue #1007): a CONTRACT behavior whose verify-red reports
+///   the `blocked` verdict stops the run with `result=blocked` — the
+///   behavior is marked BLOCKED (distinct from RED: a failing contract
+///   test means the declared contract is UNSATISFIED, so the cycle cannot
+///   proceed to GREEN) and the resume path re-enters at verify-red, where
+///   an implemented contract either unblocks the cycle or keeps it
+///   honestly blocked.
 /// - A corrupted state file stops the driver naming the corruption and the
 ///   recovery path; a second concurrent run is refused via the in-flight
 ///   marker (FR-006).
@@ -891,6 +898,11 @@ class RunCommand extends Command<void> {
     const full = ['gen', 'verify-red', 'make', 'refactor'];
     var start = switch (state) {
       BehaviorState.pending => 0,
+      // Issue #1007: a BLOCKED contract behavior re-enters at
+      // verify-red — the only step that can re-grade the verdict (the
+      // contract is either still unsatisfied or now satisfied; make
+      // never runs while it is blocked).
+      BehaviorState.blocked => 1,
       BehaviorState.red => 2,
       BehaviorState.mocked || BehaviorState.green => 3,
       BehaviorState.done => 4,
@@ -921,6 +933,9 @@ class RunCommand extends Command<void> {
       // red (or the run stopped). Defensive: treat as red.
       BehaviorState.pending => 0,
       BehaviorState.red => 0,
+      // Unreachable: a BLOCKED contract behavior stops the run before
+      // phase 2 (issue #1007) — its make never spawns. Defensive: skip.
+      BehaviorState.blocked => 1,
       BehaviorState.mocked || BehaviorState.green => 1,
       BehaviorState.done => 1,
     };
@@ -945,6 +960,10 @@ class RunCommand extends Command<void> {
       // Defensive: treat as green.
       BehaviorState.pending => 0,
       BehaviorState.red => 0,
+      // Unreachable: a BLOCKED contract behavior is never green (issue
+      // #1007). Defensive: skip — never a fake refactor for a blocked
+      // contract.
+      BehaviorState.blocked => 1,
       BehaviorState.mocked || BehaviorState.green => 0,
       BehaviorState.done => 1,
     };
@@ -1096,6 +1115,42 @@ class RunCommand extends Command<void> {
       print('[run] ${row.id} $step -> ${result.outcome}$progressSuffix');
 
       if (!result.success) {
+        // Issue #1007: a CONTRACT behavior whose verify-red reported the
+        // `blocked` verdict is BLOCKED — distinct from RED. RED is the
+        // honest first state of a unit/widget behavior (the loop EXPECTS
+        // the failing test and proceeds to make/GREEN); a failing
+        // CONTRACT test means the declared contract is unsatisfied, so
+        // the behavior is parked at BLOCKED, make/refactor NEVER spawn for
+        // it, and the run stops with `result=blocked` (the receipt lives
+        // at .zfa/receipts/contract-blocked.<id>.json — verify-red wrote
+        // it). Resume re-enters at verify-red: once the implementation
+        // satisfies the contract, the verdict flips (the unexpected-green
+        // skip transitions the behavior on) and the cycle proceeds.
+        if (step == 'verify-red' &&
+            result.outcome == 'blocked' &&
+            row.kind == BehaviorKind.contract) {
+          updated = updated.advance(row.id, BehaviorState.blocked);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
+          print(
+            '   the declared contract ${row.traces} is not satisfied — the '
+            'cycle is BLOCKED and cannot proceed to GREEN (issue #1007)',
+          );
+          print(
+            '   resume: implement the declared contract, then re-run '
+            '`zfa tdd run $feature`',
+          );
+          return (
+            state: updated,
+            stop: (
+              result: 'blocked',
+              stoppedAt: '${row.id}:verify-red',
+              exitCode: _exitStopped,
+              message: null,
+            ),
+            refactorBlocked: false,
+          );
+        }
         // Bug #625/#657 deferral: a make reporting `unexpressible` is the
         // planner's by-design refusal for descriptions no generator
         // surface maps — acceptance prose (bug #625) or a unit
@@ -1529,6 +1584,7 @@ class RunCommand extends Command<void> {
     String? stoppedAt,
   }) {
     var pending = 0;
+    var blocked = 0;
     var red = 0;
     var green = 0;
     var done = 0;
@@ -1536,6 +1592,10 @@ class RunCommand extends Command<void> {
       switch (state?.behaviorStates[row.id] ?? BehaviorState.pending) {
         case BehaviorState.pending:
           pending++;
+        // Issue #1007: the BLOCKED contract-lane verdict — counted on its
+        // own token, never folded into red.
+        case BehaviorState.blocked:
+          blocked++;
         case BehaviorState.red:
           red++;
         case BehaviorState.mocked:
@@ -1548,6 +1608,7 @@ class RunCommand extends Command<void> {
     print(
       'run: feature=$feature result=$result pending=$pending red=$red '
       'green=$green done=$done'
+      '${blocked > 0 ? ' blocked=$blocked' : ''}'
       '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}',
     );
   }

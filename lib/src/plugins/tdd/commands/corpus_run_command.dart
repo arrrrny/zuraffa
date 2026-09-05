@@ -22,8 +22,11 @@
 /// `[corpus] <feature> <step> -> <outcome>`, and every invocation ends
 /// with the final summary line
 /// `corpus: features=<n> done=<n> waived=<n> stopped=<n> not_ready=<n>
-/// pending=<n> dropped=<n> gaps=<n> result=<r>` plus ` stopped_at=<f>`
-/// when stopped. Exit codes: 0 complete (every manifest feature done or
+/// pending=<n> dropped=<n> gaps=<n> contract_gaps=<n> result=<r>` plus
+/// ` stopped_at=<f>` when stopped. `contract_gaps` (issue #1007) is
+/// present only when open contract-severity gaps exist — contract-test
+/// failures, the highest-severity class the corpus-economics gate
+/// treats. Exit codes: 0 complete (every manifest feature done or
 /// waived), 1 stopped/incomplete, 2 runner-error incl. no-manifest,
 /// 3 corrupt-state, 4 concurrent-run.
 library;
@@ -446,12 +449,17 @@ class CorpusRunCommand extends Command<void> {
         );
         print('[corpus] $name run -> ${runResult.outcome}');
         if (!runResult.success) {
-          final stoppedAtParts = runResult.stoppedAt?.split(':');
+          // Issue #1007: `stopped_at` is `<behavior>:<step>` and a
+          // contract behavior id ITSELF contains a colon
+          // (`contract:A1:verify-red`) — the step is the segment after
+          // the LAST colon, never `split(':')[1]` (which would read `A1`).
+          final stoppedAt = runResult.stoppedAt;
+          final step = stoppedAt != null && stoppedAt.contains(':')
+              ? stoppedAt.substring(stoppedAt.lastIndexOf(':') + 1)
+              : 'run';
           await _stopAtFeature(
             feature: name,
-            step: stoppedAtParts != null && stoppedAtParts.length > 1
-                ? stoppedAtParts[1]
-                : 'run',
+            step: step,
             outcome: runResult.outcome,
             expectedResult: 'complete',
             stoppedAt: runResult.stoppedAt,
@@ -571,14 +579,19 @@ class CorpusRunCommand extends Command<void> {
         // Bug #846: every feature done/waived is NOT enough — the corpus
         // refuses a `complete` verdict while open gaps exist in the
         // ledger (a done feature's gap is reported, never absorbed).
+        // Issue #1007: contract-severity gaps (contract-test failures)
+        // are named FIRST — the highest-severity class the gate treats.
         print(
           '   open gaps: ${totals.open.length} — corpus refuses '
           '`complete` while gaps are open:',
         );
         for (final gap in totals.open) {
+          final severityMark = gap.gapSeverity == GapSeverity.contract
+              ? ' [severity=contract (highest)]'
+              : '';
           print(
             '   open gap: ${gap.id} ${gap.feature} ${gap.step} '
-            '${gap.outcome}',
+            '${gap.outcome}$severityMark',
           );
         }
       }
@@ -624,6 +637,7 @@ class CorpusRunCommand extends Command<void> {
         progress: progress,
         manifest: manifest,
         gaps: totals.found,
+        contractGaps: totals.contractGaps,
         stoppedAt: stoppedAtFeature,
         order: plan != null ? 'topological' : null,
         shard: shardLabel,
@@ -678,9 +692,14 @@ class CorpusRunCommand extends Command<void> {
     required GapLedgerStore ledgerStore,
     required Future<void> Function() persist,
   }) async {
-    final behavior = stoppedAt?.contains(':') == true
-        ? stoppedAt!.split(':').first
+    final behavior = stoppedAt != null && stoppedAt.contains(':')
+        ? stoppedAt.substring(0, stoppedAt.lastIndexOf(':'))
         : null;
+    // Issue #1007 (corpus-economics gate): a contract-test failure — the
+    // inner run stopped with `result=blocked` — is the HIGHEST-severity
+    // gap. The ledger entry carries `severity: contract` and the final
+    // report names open contract gaps before every standard one.
+    final severity = outcome == 'blocked' ? 'contract' : null;
     await ledgerStore.appendGap(
       feature: feature,
       behavior: behavior,
@@ -688,6 +707,7 @@ class CorpusRunCommand extends Command<void> {
       outcome: outcome,
       expectedResult: expectedResult,
       failingCommand: failingCommand,
+      severity: severity,
     );
     progress.updateFeature(
       feature,
@@ -700,6 +720,13 @@ class CorpusRunCommand extends Command<void> {
     progress.inFlight = null;
     await persist();
     print('zfa tdd corpus run: stopped at $feature ($step: $outcome)');
+    if (severity == 'contract') {
+      print(
+        '   contract-test failure (issue #1007): the declared contract is '
+        'unsatisfied — recorded at the HIGHEST gap severity; generated and '
+        'hand-written code stay graded by different rules until it is fixed',
+      );
+    }
     print('   ${_firstLines(output, 3)}');
     print('   resume: fix the roadblock, then re-run `zfa tdd corpus run`');
   }
@@ -948,6 +975,7 @@ class CorpusRunCommand extends Command<void> {
     CorpusProgress? progress,
     CorpusManifest? manifest,
     int gaps = 0,
+    int contractGaps = 0,
     String? stoppedAt,
     String? order,
     String? shard,
@@ -984,6 +1012,9 @@ class CorpusRunCommand extends Command<void> {
     print(
       'corpus: features=$features done=$done waived=$waived stopped=$stopped '
       'not_ready=$notReady pending=$pending dropped=$dropped gaps=$gaps '
+      // Issue #1007: the corpus-economics gate counts open
+      // contract-severity gaps on their own token (highest severity).
+      '${contractGaps > 0 ? 'contract_gaps=$contractGaps ' : ''}'
       'result=$result'
       '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}'
       '${order != null ? ' order=$order' : ''}'
