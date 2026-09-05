@@ -87,6 +87,12 @@ class MockCertificationSandbox {
   /// under [projectRoot]/[outputDir]. [contractTestSource] is the exact
   /// file content also committed to the target project. [methods] is the
   /// pinned contract (names only are used here).
+  ///
+  /// [extraFiles] (spec 1009, issue #1009): additional project-root-
+  /// relative sources written into the sandbox BEFORE the run — the
+  /// differential gate uses it to add the Tier-2 Firestore-shaped
+  /// adapter next to the mock's import closure. Defaults to empty (the
+  /// spec-1001 certification semantics are unchanged).
   Future<MockCertificationRun> run({
     required String entityName,
     required String projectRoot,
@@ -94,6 +100,7 @@ class MockCertificationSandbox {
     required String contractTestSource,
     required List<ContractMethod> methods,
     bool verbose = false,
+    Map<String, String> extraFiles = const {},
   }) async {
     final sandbox = await Directory.systemTemp.createTemp('zfa_mock_cert_');
     final logs = <String>[];
@@ -141,6 +148,14 @@ dev_dependencies:
       final testFile = File(p.join(sandbox.path, testRel));
       await testFile.parent.create(recursive: true);
       await testFile.writeAsString(contractTestSource);
+
+      // 3b. Spec 1009: extra subject sources (e.g. the Tier-2
+      // Firestore-shaped adapter) at their project-relative positions.
+      for (final entry in extraFiles.entries) {
+        final extra = File(p.join(sandbox.path, entry.key));
+        await extra.parent.create(recursive: true);
+        await extra.writeAsString(entry.value);
+      }
 
       // 4. dart pub get (offline first — warm cache, no network).
       var pubGet = await _run(
