@@ -13,6 +13,14 @@
 ///     carries the label, it never changes a taxonomy);
 ///   - `fix` is the machine-actionable remediation line when there is
 ///     one (omitted from the JSON when absent);
+///   - `subject` (SPEC 1106 extension) identifies WHAT the verdict is
+///     about — e.g. `{kind: "di"}` or `{kind: "datasource", entity:
+///     "Product"}` — for gates whose verdict scope is an object rather
+///     than a feature (omitted from the JSON when absent; the tdd verbs
+///     never set it, so their emitted JSON is unchanged);
+///   - `findings` (SPEC 1106 extension) carries the structured finding
+///     records `{kind, file, member, fix}` for gates that report
+///     per-finding remediations (omitted from the JSON when absent);
 ///   - `drifts` lists drift/diff findings (empty when none);
 ///   - `details` carries every command-specific key/value the existing
 ///     `key=value` text summary produced (so consumers that switch
@@ -41,6 +49,8 @@ class VerdictEnvelope {
     List<String>? drifts,
     Map<String, Object?>? details,
     this.feature,
+    this.subject,
+    this.findings,
     DateTime? timestamp,
   }) : drifts = drifts ?? const <String>[],
        details = details ?? <String, Object?>{},
@@ -63,6 +73,16 @@ class VerdictEnvelope {
   /// The machine-actionable remediation (`--> fix:` content), when one
   /// exists.
   final String? fix;
+
+  /// WHAT the verdict is about (SPEC 1106 verify-gate extension), e.g.
+  /// `{kind: "di"}` or `{kind: "datasource", entity: "Product"}`. Null
+  /// omits the key from the JSON (tdd verbs never set it).
+  final Map<String, Object?>? subject;
+
+  /// Structured per-finding records (SPEC 1106 verify-gate extension),
+  /// each `{kind, file, member, fix}`. Null omits the key from the JSON
+  /// (tdd verbs never set it).
+  final List<Map<String, Object?>>? findings;
 
   /// Drift/diff findings the verdict is about (empty when none).
   final List<String> drifts;
@@ -91,6 +111,8 @@ class VerdictEnvelope {
       if (feature != null && feature!.isNotEmpty) 'feature': feature,
       'verdict': outcome.name,
       'exit_class': exitClass ?? defaultExitClass(outcome),
+      if (subject != null) 'subject': subject,
+      if (findings != null) 'findings': findings,
       if (fix != null && fix!.isNotEmpty) 'fix': fix,
       'drifts': drifts,
       'details': details,
@@ -109,6 +131,8 @@ class VerdictEnvelope {
     List<String> drifts = const <String>[],
     Map<String, Object?> details = const <String, Object?>{},
     String? feature,
+    Map<String, Object?>? subject,
+    List<Map<String, Object?>>? findings,
   }) {
     // ignore: avoid_print
     print(
@@ -120,6 +144,8 @@ class VerdictEnvelope {
         drifts: drifts,
         details: Map<String, Object?>.from(details),
         feature: feature,
+        subject: subject,
+        findings: findings,
       ).toJsonLine(),
     );
   }

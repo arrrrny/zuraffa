@@ -5,6 +5,7 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../plugins/tdd/models/verdict_envelope.dart';
 import '../utils/string_utils.dart';
 
 /// A method-parity divergence between the datasource interface and one
@@ -15,16 +16,25 @@ class _Divergence {
   final String interfaceFile;
   final String detail;
 
+  /// The machine-verdict taxonomy for the divergence (SPEC 1106):
+  /// `missing interface method` (an impl misses a method the interface
+  /// declares), `undeclared override` (an impl `@override`s a method the
+  /// interface does not declare) or `missing implementation class`.
+  final String kind;
+
   const _Divergence({
     required this.method,
     required this.implFile,
     required this.interfaceFile,
     required this.detail,
+    required this.kind,
   });
 
-  String get fixLine =>
-      '--> fix: $detail — method `$method`, file `$implFile` '
+  String get fix =>
+      '$detail — method `$method`, file `$implFile` '
       '(interface: `$interfaceFile`)';
+
+  String get fixLine => '--> fix: $fix';
 }
 
 /// `zfa datasource check <Entity>` (spec #977).
@@ -44,12 +54,28 @@ class _Divergence {
 /// Exit codes: 0 = parity, 1 = divergence or missing interface (always
 /// with a `--> fix:` line naming the method and the file), 64 = missing
 /// entity argument.
+///
+/// SPEC 1106 (issue #1106): `--json` emits exactly one canonical
+/// `verdict.v1` envelope as the LAST stdout line — `{schema, command,
+/// verdict, exit_class, subject, findings, drifts, details, timestamp}`
+/// with `subject: {kind: "datasource", entity: <Entity>}` and
+/// `findings: [{kind, file, member, fix}]` — and no prose. Without
+/// `--json` the human output (including every `--> fix:` line) is
+/// unchanged.
 class DataSourceCheckCommand extends Command<void> {
   /// Project root the datasources are resolved against. Defaults to the
   /// current working directory, mirroring the receipt store.
   final String? projectRoot;
 
-  DataSourceCheckCommand({this.projectRoot});
+  DataSourceCheckCommand({this.projectRoot}) {
+    argParser.addFlag(
+      'json',
+      negatable: false,
+      help:
+          'Emit a single canonical verdict.v1 envelope on stdout '
+          '(CI-able, SPEC 1106).',
+    );
+  }
 
   @override
   String get name => 'check';
@@ -61,9 +87,20 @@ class DataSourceCheckCommand extends Command<void> {
   @override
   Future<void> run() async {
     final rest = argResults?.rest ?? const [];
+    final jsonMode = argResults?['json'] == true;
     if (rest.isEmpty) {
-      print('❌ Usage: zfa datasource check <Entity>');
-      print('   Example: zfa datasource check Product');
+      if (jsonMode) {
+        VerdictEnvelope.emit(
+          command: 'datasource check',
+          outcome: VerdictOutcome.error,
+          exitClass: 'insufficient-input',
+          subject: const {'kind': 'datasource'},
+          details: const {'fix': 'zfa datasource check <Entity>'},
+        );
+      } else {
+        print('❌ Usage: zfa datasource check <Entity>');
+        print('   Example: zfa datasource check Product');
+      }
       exitCode = 64;
       return;
     }
@@ -81,15 +118,39 @@ class DataSourceCheckCommand extends Command<void> {
 
     final interfaceFile = File(p.join(dir.path, '${snake}_datasource.dart'));
     if (!interfaceFile.existsSync()) {
-      print(
-        '❌ datasource check failed: no interface at '
-        '`lib/src/data/datasources/$snake/${snake}_datasource.dart`.',
-      );
-      print(
-        '--> fix: generate the datasource first, e.g. '
-        '`zfa datasource create $entity`, then re-run '
-        '`zfa datasource check $entity`.',
-      );
+      final relInterface =
+          'lib/src/data/datasources/$snake/${snake}_datasource.dart';
+      if (jsonMode) {
+        VerdictEnvelope.emit(
+          command: 'datasource check',
+          outcome: VerdictOutcome.fail,
+          exitClass: 'fail',
+          subject: {'kind': 'datasource', 'entity': entity},
+          findings: [
+            {
+              'kind': 'missing interface',
+              'file': relInterface,
+              'member': interfaceName,
+              'fix':
+                  'generate the datasource first, e.g. '
+                  '`zfa datasource create $entity`, then re-run '
+                  '`zfa datasource check $entity`.',
+            },
+          ],
+          drifts: ['no interface at `$relInterface`'],
+          details: const {'implsChecked': 0},
+        );
+      } else {
+        print(
+          '❌ datasource check failed: no interface at '
+          '`lib/src/data/datasources/$snake/${snake}_datasource.dart`.',
+        );
+        print(
+          '--> fix: generate the datasource first, e.g. '
+          '`zfa datasource create $entity`, then re-run '
+          '`zfa datasource check $entity`.',
+        );
+      }
       exitCode = 1;
       return;
     }
@@ -100,14 +161,37 @@ class DataSourceCheckCommand extends Command<void> {
     );
 
     if (interface == null) {
-      print(
-        '❌ datasource check failed: no class `$interfaceName` found in '
-        '`$interfaceFile`.',
-      );
-      print(
-        '--> fix: the interface file is corrupted or was renamed — '
-        'regenerate it with `zfa datasource create $entity`.',
-      );
+      if (jsonMode) {
+        VerdictEnvelope.emit(
+          command: 'datasource check',
+          outcome: VerdictOutcome.fail,
+          exitClass: 'fail',
+          subject: {'kind': 'datasource', 'entity': entity},
+          findings: [
+            {
+              'kind': 'missing interface class',
+              'file': _rel(interfaceFile.path),
+              'member': interfaceName,
+              'fix':
+                  'the interface file is corrupted or was renamed — '
+                  'regenerate it with `zfa datasource create $entity`.',
+            },
+          ],
+          drifts: [
+            'no class `$interfaceName` in `${_rel(interfaceFile.path)}`',
+          ],
+          details: const {'implsChecked': 0},
+        );
+      } else {
+        print(
+          '❌ datasource check failed: no class `$interfaceName` found in '
+          '`$interfaceFile`.',
+        );
+        print(
+          '--> fix: the interface file is corrupted or was renamed — '
+          'regenerate it with `zfa datasource create $entity`.',
+        );
+      }
       exitCode = 1;
       return;
     }
@@ -150,6 +234,7 @@ class DataSourceCheckCommand extends Command<void> {
             implFile: relImpl,
             interfaceFile: _rel(interfaceFile.path),
             detail: 'no implementation class of `$interfaceName` found',
+            kind: 'missing implementation class',
           ),
         );
         continue;
@@ -167,6 +252,7 @@ class DataSourceCheckCommand extends Command<void> {
               detail:
                   'implementation `${impl.name}` is missing a method declared '
                   'in `$interfaceName`',
+              kind: 'missing interface method',
             ),
           );
         }
@@ -182,6 +268,7 @@ class DataSourceCheckCommand extends Command<void> {
               detail:
                   '`${impl.name}` marks `@override` for a method the '
                   'interface `$interfaceName` does not declare',
+              kind: 'undeclared override',
             ),
           );
         }
@@ -189,23 +276,65 @@ class DataSourceCheckCommand extends Command<void> {
     }
 
     if (divergences.isNotEmpty) {
-      print(
-        '❌ datasource check failed for `$entity`: '
-        '${divergences.length} parity divergence(s) '
-        'between `$interfaceName` and its implementations.',
-      );
-      for (final d in divergences) {
-        print(d.fixLine);
+      if (jsonMode) {
+        VerdictEnvelope.emit(
+          command: 'datasource check',
+          outcome: VerdictOutcome.fail,
+          exitClass: 'drift',
+          subject: {'kind': 'datasource', 'entity': entity},
+          findings: divergences
+              .map(
+                (d) => {
+                  'kind': d.kind,
+                  'file': d.implFile,
+                  'member': d.method,
+                  'fix': d.fix,
+                },
+              )
+              .toList(growable: false),
+          drifts: divergences
+              .map((d) => '${d.implFile}: ${d.detail}')
+              .toList(growable: false),
+          details: {
+            'interface': _rel(interfaceFile.path),
+            'implsChecked': checkedImpls.length,
+          },
+        );
+      } else {
+        print(
+          '❌ datasource check failed for `$entity`: '
+          '${divergences.length} parity divergence(s) '
+          'between `$interfaceName` and its implementations.',
+        );
+        for (final d in divergences) {
+          print(d.fixLine);
+        }
       }
       exitCode = 1;
       return;
     }
 
-    print(
-      '✅ datasource parity OK for `$entity`: `$interfaceName` vs '
-      '${checkedImpls.isEmpty ? '(no implementation files)' : checkedImpls.join(', ')} '
-      '— all public methods at parity.',
-    );
+    if (jsonMode) {
+      VerdictEnvelope.emit(
+        command: 'datasource check',
+        outcome: VerdictOutcome.pass,
+        exitClass: 'ok',
+        subject: {'kind': 'datasource', 'entity': entity},
+        findings: const [],
+        drifts: const [],
+        details: {
+          'interface': _rel(interfaceFile.path),
+          'implsChecked': checkedImpls.length,
+          'impls': checkedImpls,
+        },
+      );
+    } else {
+      print(
+        '✅ datasource parity OK for `$entity`: `$interfaceName` vs '
+        '${checkedImpls.isEmpty ? '(no implementation files)' : checkedImpls.join(', ')} '
+        '— all public methods at parity.',
+      );
+    }
     exitCode = 0;
   }
 

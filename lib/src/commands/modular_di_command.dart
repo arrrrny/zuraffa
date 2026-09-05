@@ -1,6 +1,16 @@
 import 'base_plugin_command.dart';
+import 'di_verify_command.dart';
+import '../plugins/di/di_plugin.dart';
 
 class ModularDiCommand extends PluginCommand {
+  /// SPEC 1106 (issue #1106): `verify` is registered manually — the gate
+  /// must own `--json` as *JSON output* (the canonical verdict.v1
+  /// envelope), while the generic `CapabilityCommand` owns `--json` as
+  /// *JSON input*. Same seam cache/route/provider verify took
+  /// (the `manualSubcommandNames` hook, issue #761).
+  @override
+  Set<String> get manualSubcommandNames => const {'verify'};
+
   ModularDiCommand(super.plugin) {
     argParser.addOption(
       'domain',
@@ -46,6 +56,10 @@ class ModularDiCommand extends PluginCommand {
       negatable: false,
       help: 'Use mock implementation for datasources',
     );
+
+    // SPEC 1106: the verify gate as a manual subcommand (see
+    // [manualSubcommandNames]).
+    addSubcommand(DiVerifyCommand(plugin as DiPlugin));
   }
 
   @override

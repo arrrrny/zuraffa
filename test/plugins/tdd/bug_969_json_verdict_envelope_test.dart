@@ -35,7 +35,16 @@ const Set<String> kRequiredEnvelopeKeys = {
 };
 
 /// The only keys allowed beyond the required set (optional fields).
-const Set<String> kOptionalEnvelopeKeys = {'feature', 'fix'};
+/// `subject` and `findings` are the SPEC 1106 verify-gate extension —
+/// the tdd verbs never set them (omitted from the JSON), so the verbs'
+/// emitted shapes are unchanged; the keys are legal envelope surface for
+/// verify-gate commands (`di verify`, `datasource check`).
+const Set<String> kOptionalEnvelopeKeys = {
+  'feature',
+  'fix',
+  'subject',
+  'findings',
+};
 
 /// The canonical schema name (never drifts).
 const String kSchemaName = 'verdict.v1';
