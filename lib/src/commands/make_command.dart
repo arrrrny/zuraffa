@@ -308,6 +308,14 @@ class MakeCommand extends Command<void> {
       negatable: false,
       help: 'Generate views with X-Ray scope/node decoration (issue #360)',
     );
+    argParser.addFlag(
+      'skin',
+      negatable: false,
+      help:
+          'Generate views with the runtime skin-contract auditor wrap '
+          '(issues #1102/#1166); the auditor kit file is emitted when '
+          'missing',
+    );
   }
 
   void _addPluginOptions() {
@@ -353,6 +361,7 @@ class MakeCommand extends Command<void> {
       'test',
       'append',
       'xray',
+      'skin',
     };
 
     for (final plugin in registry.plugins) {
