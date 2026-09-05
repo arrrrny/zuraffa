@@ -1,8 +1,10 @@
-/// `zfa corpus` — the corpus onboarding command family (spec
-/// 050-corpus-import, issue #627; epic #1017 CORPUS-WALK child #1015).
+/// `zfa corpus` — the corpus onboarding + walking command family (spec
+/// 050-corpus-import, issue #627; epic #1017 CORPUS-WALK).
 ///
 /// `corpus` hosts the corpus-level tooling as sibling subcommands:
-/// `import` (spec 050) and `catalog` (CORE/SKIN classification).
+/// `import` (spec 050), `catalog` (epic #1017 child #1015 — CORE/SKIN
+/// classification), and `run` (child #1016 — the walk with a
+/// configurable failure budget).
 library;
 
 import 'dart:io';
@@ -12,11 +14,14 @@ import 'package:path/path.dart' as p;
 
 import '../cli/services/corpus_catalog.dart';
 import '../cli/services/corpus_importer.dart';
+import '../cli/services/corpus_walker.dart';
+import '../plugins/tdd/services/tdd_timeout.dart';
 
 class CorpusCommand extends Command<void> {
   CorpusCommand() {
     addSubcommand(CorpusImportCommand());
     addSubcommand(CorpusCatalogCommand());
+    addSubcommand(CorpusRunCommand());
   }
 
   @override
@@ -24,9 +29,9 @@ class CorpusCommand extends Command<void> {
 
   @override
   String get description =>
-      'Import an extracted spec corpus and catalog its features '
-      '(CORE/SKIN classification). See specs/050-corpus-import and '
-      'specs/076-corpus-walk for the contracts.';
+      'Import and walk an extracted spec corpus: import, catalog '
+      '(CORE/SKIN), run (failure budget). See specs/050-corpus-import '
+      'and specs/076-corpus-walk for the contracts.';
 
   @override
   String get invocation => 'zfa corpus <subcommand> [options]';
@@ -224,5 +229,150 @@ class CorpusCatalogCommand extends Command<void> {
       print('zfa corpus catalog: $e');
       exitCode = _exitRunnerError;
     }
+  }
+}
+
+/// `zfa corpus run --target <name>` — the corpus WALK with a
+/// configurable failure budget (epic #1017, child #1016).
+///
+/// Drives EVERY cataloged feature through the loop runtime's per-feature
+/// steps (`zfa tdd run` + `zfa tdd verify`, the same spawn contract
+/// `zfa tdd corpus run` uses), classifying each green / partial /
+/// blocked — and NEVER stops at a failing feature: the budget is the
+/// gate. The walk finishes with the tallies and exits 0 exactly when
+/// partial + blocked <= --budget (default 5, the epic's exit criterion).
+///
+/// Machine contract: every feature prints
+/// `[corpus-walk] <name> -> green|partial|blocked (...)`, and the
+/// invocation ends with `corpus run: target=<t> features=<n> green=<g>
+/// partial=<m> blocked=<k> budget=<b> used=<u> result=<ok|over-budget>`.
+/// Exit 0 within budget; 1 over budget; 2 runner/usage errors (no
+/// catalog, empty catalog, invalid budget).
+class CorpusRunCommand extends Command<void> {
+  CorpusRunCommand() {
+    argParser.addOption('target', help: 'The corpus target being walked.');
+    argParser.addOption(
+      'budget',
+      valueHelp: 'n',
+      help:
+          'The configurable failure budget: the maximum non-green count '
+          '(partial + blocked) the walk tolerates (epic #1017 exit '
+          'criterion M+K <= 5; default 5).',
+    );
+    argParser.addOption(
+      'project',
+      aliases: const ['project-root'],
+      help: 'Project root of the driven app (containing .zfa/, specs/).',
+    );
+    argParser.addOption(
+      'zfa-bin',
+      help:
+          'Path to the zfa CLI entrypoint used to spawn the per-feature '
+          '`tdd run` / `tdd verify` commands (defaults to this package\'s '
+          'bin/zfa.dart). Point this at a scripted fake to drive the walk '
+          'against stubbed features.',
+    );
+    argParser.addOption(
+      'timeout',
+      valueHelp: 'minutes',
+      help:
+          'Hard deadline in minutes for each spawned per-feature command '
+          '(default 10). Fractions allowed.',
+    );
+  }
+
+  @override
+  String get name => 'run';
+
+  @override
+  String get description =>
+      'Walk every cataloged feature (green/partial/blocked) under the '
+      'failure budget — the walk finishes; the budget is the gate '
+      '(epic #1017, child #1016).';
+
+  @override
+  String get invocation =>
+      'zfa corpus run --target <name> [--budget <n>] [--project <dir>] '
+      '[--zfa-bin <path>]';
+
+  static const _exitOk = 0;
+  static const _exitOverBudget = 1;
+  static const _exitRunnerError = 2;
+
+  @override
+  Future<void> run() async {
+    final target = argResults?['target'] as String?;
+    if (target == null || target.isEmpty) {
+      print(
+        'zfa corpus run: --target is required (the corpus being walked, '
+        'e.g. zik_zak).',
+      );
+      exitCode = _exitRunnerError;
+      return;
+    }
+    final projectFlag = argResults?['project'] as String?;
+    final projectRoot = projectFlag != null && projectFlag.isNotEmpty
+        ? p.absolute(projectFlag)
+        : Directory.current.path;
+    final zfaBin = argResults?['zfa-bin'] as String?;
+
+    final int budget;
+    try {
+      budget = parseFailureBudget(argResults?['budget'] as String?);
+    } on CorpusWalkException catch (e) {
+      print('zfa corpus run: ${e.message}');
+      exitCode = _exitRunnerError;
+      return;
+    }
+
+    final CorpusCatalog catalog;
+    try {
+      catalog = requireCatalog(target: target, projectRoot: projectRoot);
+    } on CorpusCatalogException catch (e) {
+      print('zfa corpus run: $e');
+      exitCode = _exitRunnerError;
+      return;
+    } on CorpusWalkException catch (e) {
+      print('zfa corpus run: $e');
+      exitCode = _exitRunnerError;
+      return;
+    }
+
+    Duration? timeoutOverride;
+    try {
+      timeoutOverride = parseTddTimeoutMinutes(
+        argResults?['timeout'] as String?,
+      );
+    } on TddTimeoutFormatException catch (e) {
+      print('zfa corpus run: ${e.message}');
+      exitCode = _exitRunnerError;
+      return;
+    }
+
+    final walker = CorpusWalker(zfaBin: zfaBin, timeout: timeoutOverride);
+    final walk = await walker.walk(
+      catalog,
+      projectRoot: projectRoot,
+      printLine: print,
+    );
+    await persistWalkResult(projectRoot, walk);
+
+    if (walk.used > budget) {
+      final nonGreen = walk.results
+          .where((r) => r.verdict != WalkVerdict.green)
+          .map((r) => '${r.name} (${r.verdict.name})')
+          .join(', ');
+      print(
+        'zfa corpus run: over budget — ${walk.used} non-green '
+        '(budget: $budget): $nonGreen',
+      );
+    }
+    print(
+      'corpus run: target=${walk.target} features=${walk.results.length} '
+      'green=${walk.green} partial=${walk.partial} blocked=${walk.blocked} '
+      'budget=$budget used=${walk.used} '
+      'result=${walk.used > budget ? 'over-budget' : 'ok'}',
+    );
+    exitCode = walk.used > budget ? _exitOverBudget : _exitOk;
   }
 }
