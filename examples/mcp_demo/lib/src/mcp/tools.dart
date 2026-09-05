@@ -37,12 +37,12 @@ class FetchUrlTool implements McpTool {
 
   @override
   Map<String, dynamic> get inputSchema => const {
-    'type': 'object',
-    'properties': {
-      'url': {'type': 'string', 'description': 'HTTP(S) URL to fetch.'},
-    },
-    'required': ['url'],
-  };
+        'type': 'object',
+        'properties': {
+          'url': {'type': 'string', 'description': 'HTTP(S) URL to fetch.'},
+        },
+        'required': ['url'],
+      };
 
   @override
   Future<McpToolResult> call(Map<String, dynamic> arguments) async {
@@ -74,18 +74,21 @@ class PrintPdfTool implements McpTool {
 
   @override
   Map<String, dynamic> get inputSchema => const {
-    'type': 'object',
-    'properties': {
-      'url': {'type': 'string', 'description': 'HTTP(S) URL to render to PDF.'},
-      'format': {
-        'type': 'string',
-        'enum': ['a4', 'letter'],
-        'default': 'a4',
-        'description': 'Page format for the generated PDF.',
-      },
-    },
-    'required': ['url'],
-  };
+        'type': 'object',
+        'properties': {
+          'url': {
+            'type': 'string',
+            'description': 'HTTP(S) URL to render to PDF.'
+          },
+          'format': {
+            'type': 'string',
+            'enum': ['a4', 'letter'],
+            'default': 'a4',
+            'description': 'Page format for the generated PDF.',
+          },
+        },
+        'required': ['url'],
+      };
 
   @override
   Future<McpToolResult> call(Map<String, dynamic> arguments) async {
@@ -127,27 +130,30 @@ class TakeScreenshotTool implements McpTool {
 
   @override
   Map<String, dynamic> get inputSchema => const {
-    'type': 'object',
-    'properties': {
-      'url': {'type': 'string', 'description': 'HTTP(S) URL to screenshot.'},
-      'width': {
-        'type': 'integer',
-        'default': 1280,
-        'description': 'Viewport width in CSS pixels.',
-      },
-      'height': {
-        'type': 'integer',
-        'default': 800,
-        'description': 'Viewport height in CSS pixels.',
-      },
-      'fullPage': {
-        'type': 'boolean',
-        'default': false,
-        'description': 'Capture the full scrollable page.',
-      },
-    },
-    'required': ['url'],
-  };
+        'type': 'object',
+        'properties': {
+          'url': {
+            'type': 'string',
+            'description': 'HTTP(S) URL to screenshot.'
+          },
+          'width': {
+            'type': 'integer',
+            'default': 1280,
+            'description': 'Viewport width in CSS pixels.',
+          },
+          'height': {
+            'type': 'integer',
+            'default': 800,
+            'description': 'Viewport height in CSS pixels.',
+          },
+          'fullPage': {
+            'type': 'boolean',
+            'default': false,
+            'description': 'Capture the full scrollable page.',
+          },
+        },
+        'required': ['url'],
+      };
 
   @override
   Future<McpToolResult> call(Map<String, dynamic> arguments) async {
@@ -198,7 +204,7 @@ class TakeScreenshotTool implements McpTool {
 
 /// The list of MCP tools this app exposes.
 List<McpTool> get mcpTools => [
-  FetchUrlTool(),
-  PrintPdfTool(),
-  TakeScreenshotTool(),
-];
+      FetchUrlTool(),
+      PrintPdfTool(),
+      TakeScreenshotTool(),
+    ];
