@@ -32,6 +32,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/plugins/tdd/services/mutation_auditor.dart';
 
 /// A scope pair on disk (registered artifacts + existing subject) and an
@@ -237,4 +238,34 @@ suite: 'flutter test'
     expect(report.notAssessedReason, contains('--> fix:'));
     expect(h.spawns, isEmpty);
   });
+
+  group(
+    'CLI — the --runner flag validates before anything resolves (#1044)',
+    () {
+      test("a --runner value other than dart|flutter is a usage error "
+          "(exit 64) and never starts an audit", () async {
+        // The flag is the operator's override surface; a typo'd value must
+        // fail loudly at the boundary (exit 64 + the fix line on stderr)
+        // instead of falling through to a guessed runner or a profile
+        // resolution that could mask the mistake.
+        final tmpDir = Directory.systemTemp.createTempSync('bug1044_cli_');
+        addTearDown(() => tmpDir.deleteSync(recursive: true));
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'verify',
+          '--project',
+          tmpDir.path,
+          '--runner',
+          'flutter_test',
+        ]);
+
+        expect(exitCode, 64, reason: out);
+        // The audit never started: no scope derivation, no preflight, no
+        // report (the audit-start banner is the first observable step).
+        expect(out, isNot(contains('running mutation audit')), reason: out);
+      });
+    },
+  );
 }
