@@ -1,3 +1,5 @@
+import 'zuraffa_barrel_exports.dart';
+
 class EntityUtils {
   /// Extracts entity types from a field type string (e.g. List Product -> [Product])
   static List<String> extractEntityTypes(String fieldType) {
@@ -69,8 +71,11 @@ class EntityUtils {
   /// zorphy concrete class and its `Patch` pair — so the barrel import
   /// carries a `hide` clause for exactly those symbols, and the entity's
   /// own definitions win resolution.
-  static List<String> barrelHideNames(String entityName) => <String>[
-    entityName,
-    '${entityName}Patch',
-  ];
+  /// Issue #1176: the hide list is filtered to names the resolved
+  /// zuraffa barrel actually exports — hiding a name the barrel never
+  /// exports is an `undefined_hidden_name` warning, and `zfa build`'s
+  /// analyze gate fails on warnings. Unresolved (no seed) → legacy
+  /// unconditional hide.
+  static List<String> barrelHideNames(String entityName) =>
+      ZuraffaBarrelExports.filter(<String>[entityName, '${entityName}Patch']);
 }
