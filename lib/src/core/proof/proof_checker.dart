@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
+import '../../plugins/repository/contract/repository_contract_manifest.dart';
 import '../project/receipt_store.dart';
 import '../project/test_receipt.dart';
 
@@ -33,6 +34,10 @@ class ProofFinding {
   static const kindStaleSpec = 'stale_spec';
   static const kindStaleUsecase = 'stale_usecase';
   static const kindUnprovenanced = 'unprovenanced';
+
+  /// Spec 0973 — repository contract manifest findings.
+  static const kindManifestDrift = 'manifest_drift';
+  static const kindManifestCorrupt = 'manifest_corrupt';
 
   final String kind;
   final String path;
@@ -190,6 +195,35 @@ class ProofChecker {
           diff: _diffFor(spec.snapshot, specFile),
         ),
       );
+    }
+
+    // 2.5 Repository contract manifests (spec 0973): re-derive every
+    // manifest's method-table hash and re-check its interface/impl
+    // digests. A hand-edited artifact or a tampered method table makes
+    // the contract stale — the same green/red bar as proof receipts.
+    try {
+      final manifestStore = RepositoryContractManifestStore(
+        projectRoot: projectRoot,
+      );
+      for (final manifest in await manifestStore.loadAll()) {
+        final finding = manifestStore.verify(manifest);
+        if (finding == null) continue;
+        findings.add(
+          ProofFinding(
+            kind: finding.kind,
+            path: manifest.interface.path.isNotEmpty
+                ? manifest.interface.path
+                : manifest.entity,
+            receipt: RepositoryContractManifestStore.fileNameFor(
+              manifest.entity,
+            ),
+            detail: finding.detail,
+          ),
+        );
+      }
+    } catch (_) {
+      // Unreadable receipts tree — proof receipts above already handled
+      // what they can; never let manifest auditing crash the check.
     }
 
     // 3. Unprovenanced artifacts under audited coverage roots.
