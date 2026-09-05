@@ -219,6 +219,7 @@ class CapabilityInvocationWrapper {
   }) {
     final input = <String, dynamic>{'entity': entity};
     args.forEach((key, value) {
+      if (key == 'entity') return;
       if (key.startsWith('_')) {
         if (key == '_discoveredEntities') {
           input['discoveredEntities'] = value;

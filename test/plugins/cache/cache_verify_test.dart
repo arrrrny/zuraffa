@@ -4,6 +4,7 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/cache/cache_verify.dart';
@@ -149,6 +150,53 @@ extension HiveRegistrar on HiveInterface {}
         isA<List>().having((l) => l.length, 'count', greaterThanOrEqualTo(2)),
       );
     });
+
+    test(
+      'legacy cache-adapter receipt still detects registrar drift',
+      () async {
+        const registrarPath = 'lib/src/cache/hive_registrar.dart';
+        await writeRegistrar('''
+@GenerateAdapters([AdapterSpec<Product>(), AdapterSpec<Category>(), AdapterSpec<Tag>()])
+extension HiveRegistrar on HiveInterface {}
+''');
+        final registrar = File(p.join(workspace.path, registrarPath));
+        final receiptDir = Directory(
+          p.join(workspace.path, '.zfa', 'receipts'),
+        );
+        await receiptDir.create(recursive: true);
+        await File(
+          p.join(receiptDir.path, 'legacy-cache-adapter.json'),
+        ).writeAsString(
+          jsonEncode({
+            'command': 'cache-adapter',
+            'target': 'Product',
+            'at': DateTime.utc(2025).toIso8601String(),
+            'files': [
+              {
+                'path': registrarPath,
+                'sha256': crypto.sha256
+                    .convert(await registrar.readAsBytes())
+                    .toString(),
+              },
+            ],
+          }),
+        );
+        await registrar.writeAsString(
+          '${await registrar.readAsString()}\n// hand edit\n',
+        );
+
+        final report = await verifier().verify('Product');
+
+        expect(
+          report.findings,
+          contains(
+            isA<CacheVerifyFinding>()
+                .having((f) => f.kind, 'kind', CacheVerifyFinding.kindStale)
+                .having((f) => f.entity, 'entity', 'registrar'),
+          ),
+        );
+      },
+    );
   });
 
   group('zfa cache verify CLI (subprocess)', () {
