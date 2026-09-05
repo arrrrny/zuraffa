@@ -58,13 +58,17 @@ void main() {
 
   Future<Directory> makeWorkspace(String prefix) async {
     final ws = await Directory.systemTemp.createTemp(prefix);
-    await Directory(p.join(ws.path, 'lib', 'src')).create(recursive: true);
-    await File(p.join(ws.path, 'pubspec.yaml')).writeAsString('''
+    // macOS: systemTemp hands out `/var/folders/...` while
+    // `Directory.current` resolves symlinks to `/private/var/folders/...`
+    // — normalize so path comparisons below are apples to apples.
+    final resolved = ws.resolveSymbolicLinksSync();
+    await Directory(p.join(resolved, 'lib', 'src')).create(recursive: true);
+    await File(p.join(resolved, 'pubspec.yaml')).writeAsString('''
 name: ${prefix.replaceAll('_', '')}
 environment:
   sdk: ^3.11.0
 ''');
-    return ws;
+    return Directory(resolved);
   }
 
   /// Runs `zfa service create --json` against [ws] via [runner] and returns
@@ -238,7 +242,13 @@ Future<List<String>> isolateSuiteWorker({
   required int rounds,
 }) async {
   final failures = <String>[];
-  final ws = await Directory.systemTemp.createTemp('zfa_race_iso_${tag}_');
+  // Normalize symlinks (macOS `/var` → `/private/var`) so any path
+  // comparison against `Directory.current` is apples to apples.
+  final ws = Directory(
+    await Directory.systemTemp
+        .createTemp('zfa_race_iso_${tag}_')
+        .then((d) => d.resolveSymbolicLinksSync()),
+  );
   try {
     await Directory(p.join(ws.path, 'lib', 'src')).create(recursive: true);
     await File(p.join(ws.path, 'pubspec.yaml')).writeAsString('''
