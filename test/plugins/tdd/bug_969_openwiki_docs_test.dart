@@ -51,8 +51,7 @@ String _readRepoDoc(String rel) {
 }
 
 void main() {
-  test('openwiki/cli.md has a zfa tdd section with the command table',
-      () {
+  test('openwiki/cli.md has a zfa tdd section with the command table', () {
     final doc = _readRepoDoc('openwiki/cli.md');
     expect(doc, contains('## `zfa tdd` — TDD Loop Plugin'));
     for (final verb in kExpectedVerbs) {

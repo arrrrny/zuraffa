@@ -70,7 +70,12 @@ class CorpusStatusCommand extends Command<void> {
   static const _exitCorruptState = 3;
 
   @override
-  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run, commandOverride: 'corpus status');
+  Future<void> run() => runWithVerdictEnvelope(
+    this,
+    _verdict,
+    _run,
+    commandOverride: 'corpus status',
+  );
 
   Future<void> _run() async {
     final argResults = this.argResults;

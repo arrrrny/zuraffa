@@ -118,7 +118,12 @@ class CorpusDifferentialCommand extends Command<void> {
   static const _exitRunnerError = 2;
 
   @override
-  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run, commandOverride: 'corpus differential');
+  Future<void> run() => runWithVerdictEnvelope(
+    this,
+    _verdict,
+    _run,
+    commandOverride: 'corpus differential',
+  );
 
   Future<void> _run() async {
     final argResults = this.argResults;

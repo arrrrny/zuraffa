@@ -99,7 +99,8 @@ class ResetCommand extends Command<void> {
         verdict: 'refused',
         reason: 'no feature directory at specs/$feature',
       );
-      _verdict.fix = 'create the feature (zfa tdd init / a spec) or check '
+      _verdict.fix =
+          'create the feature (zfa tdd init / a spec) or check '
           'the feature name';
       exitCode = 1;
       return;
@@ -194,7 +195,9 @@ class ResetCommand extends Command<void> {
     }
     _verdict
       ..feature = feature
-      ..outcome = verdict == 'refused' ? VerdictOutcome.fail : VerdictOutcome.pass
+      ..outcome = verdict == 'refused'
+          ? VerdictOutcome.fail
+          : VerdictOutcome.pass
       ..exitClass = verdict == 'refused' ? 'refused' : 'ok';
     _verdict.details
       ..['verdict'] = verdict

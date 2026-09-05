@@ -216,7 +216,8 @@ class FakeCommand extends Command<void> {
         _verdict
           ..exitClass = 'refused'
           ..outcome = VerdictOutcome.fail
-          ..fix = 're-commit the scenario with --force if the channel drift '
+          ..fix =
+              're-commit the scenario with --force if the channel drift '
               'is intended'
           ..details['channel'] = channel
           ..details['slug'] = slug

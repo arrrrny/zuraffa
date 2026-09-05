@@ -66,7 +66,12 @@ class CorpusAuditCommand extends Command<void> {
   static const _exitRunnerError = 2;
 
   @override
-  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run, commandOverride: 'corpus audit');
+  Future<void> run() => runWithVerdictEnvelope(
+    this,
+    _verdict,
+    _run,
+    commandOverride: 'corpus audit',
+  );
 
   Future<void> _run() async {
     final argResults = this.argResults;

@@ -507,7 +507,9 @@ class DoctorCommand extends Command<void> {
       _verdict
         ..feature = feature
         ..exitClass = verdict
-        ..outcome = verdict == 'healthy' ? VerdictOutcome.pass : VerdictOutcome.fail
+        ..outcome = verdict == 'healthy'
+            ? VerdictOutcome.pass
+            : VerdictOutcome.fail
         ..fix = fix
         ..drifts.addAll(drifts)
         ..details['prescription'] = prescription;

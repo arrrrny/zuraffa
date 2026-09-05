@@ -398,9 +398,7 @@ class VerifyRedCommand extends Command<void> {
         command: 'tdd verify-red',
         target: record.behaviorId,
         feature: target.featureName,
-        files: {
-          p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update',
-        },
+        files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
       );
       _printSummary(
         behavior: record.behaviorId,
@@ -875,9 +873,7 @@ class VerifyRedCommand extends Command<void> {
           command: 'tdd verify-red',
           target: record.behaviorId,
           feature: target.featureName,
-          files: {
-            p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update',
-          },
+          files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
         );
         certifiedCount++;
       } else {

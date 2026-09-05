@@ -35,7 +35,8 @@ class VerdictsCommand extends Command<void> {
     argParser.addOption(
       'project',
       aliases: const ['project-root'],
-      help: 'Accepted for verb consistency; the schema is environment-'
+      help:
+          'Accepted for verb consistency; the schema is environment-'
           'independent and never reads the project.',
     );
   }
@@ -77,11 +78,15 @@ class VerdictsCommand extends Command<void> {
       'subcommand emits the versioned envelope as its FINAL stdout line '
       'when --json is passed.',
     );
-    print('  keys: schema, command, feature?, verdict, exit_class, fix?, '
-        'drifts, details, timestamp');
+    print(
+      '  keys: schema, command, feature?, verdict, exit_class, fix?, '
+      'drifts, details, timestamp',
+    );
     print('  verdicts: pass | fail | stopped | error');
-    print('  use `zfa tdd verdicts --schema` for the full machine '
-        'schema (diff-stable).');
+    print(
+      '  use `zfa tdd verdicts --schema` for the full machine '
+      'schema (diff-stable).',
+    );
     _verdict
       ..exitClass = 'ok'
       ..outcome = VerdictOutcome.pass;

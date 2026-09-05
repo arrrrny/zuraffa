@@ -169,10 +169,12 @@ class VerifyCommand extends Command<void> {
       _verdict
         ..exitClass = 'not-assessed'
         ..outcome = VerdictOutcome.error
-        ..fix = 'restore the receipted bytes by re-running the generating '
+        ..fix =
+            'restore the receipted bytes by re-running the generating '
             'verbs (zfa tdd plan / gen / make), then re-verify';
-      _verdict.drifts
-        .add('${proofDrift.kind}: ${proofDrift.path} — ${proofDrift.detail}');
+      _verdict.drifts.add(
+        '${proofDrift.kind}: ${proofDrift.path} — ${proofDrift.detail}',
+      );
       exitCode = 3;
       return;
     }

@@ -992,9 +992,7 @@ class GenCommand extends Command<void> {
           command: 'tdd gen',
           target: behavior.id,
           feature: featureName,
-          files: {
-            for (final path in createdPaths) path: 'create',
-          },
+          files: {for (final path in createdPaths) path: 'create'},
         );
         record = await bounded(registry.append(record), 'registry append');
       } catch (error, stackTrace) {
@@ -1106,6 +1104,11 @@ class GenCommand extends Command<void> {
   /// split and the audit-log location for adopt runs. Gated on [--json]
   /// (VISION §5, issue #964): when the flag is absent, the text
   /// `key=value` summary is the last line instead.
+  ///
+  /// Issue #969: under --json in SINGLE mode the verdict folds into the
+  /// wrapper's envelope context (ONE final machine line); in --all batch
+  /// mode each behavior keeps its own envelope line as mid-stream
+  /// progress above the final batch envelope.
   void _printVerdict({
     required String behaviorId,
     required String verdict,
@@ -1129,6 +1132,36 @@ class GenCommand extends Command<void> {
         '${adopted.isNotEmpty ? ' adopted=${adopted.length}' : ''}'
         '${created.isNotEmpty ? ' created=${created.length}' : ''}',
       );
+      return;
+    }
+    final batchMode = argResults?['all'] as bool? ?? false;
+    if (!batchMode) {
+      _verdict
+        ..feature = featureName ?? _verdict.feature
+        ..details['behavior'] = behaviorId
+        ..details['verdict'] = verdict;
+      if (reason != null) _verdict.details['reason'] = reason;
+      if (kind != null) _verdict.details['kind'] = kind;
+      if (golden) _verdict.details['golden'] = true;
+      if (adopted.isNotEmpty) _verdict.details['adopted'] = adopted;
+      if (created.isNotEmpty) _verdict.details['created'] = created;
+      if (adopted.isNotEmpty && featureName != null) {
+        _verdict.details['audit_log'] = p.join(
+          'specs',
+          featureName,
+          'tdd',
+          'audit.log',
+        );
+      }
+      if (goldenTestPath != null) {
+        _verdict.details['golden_test'] = goldenTestPath;
+      }
+      if (goldenFixturesDir != null) {
+        _verdict.details['golden_fixtures'] = goldenFixturesDir;
+      }
+      if (verdict == 'refused' || verdict == 'foreign-owned') {
+        _verdict.outcome = VerdictOutcome.fail;
+      }
       return;
     }
     VerdictEnvelope.emit(

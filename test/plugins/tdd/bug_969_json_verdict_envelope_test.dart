@@ -41,12 +41,7 @@ const Set<String> kOptionalEnvelopeKeys = {'feature', 'fix'};
 const String kSchemaName = 'verdict.v1';
 
 /// The allowed verdict categories.
-const Set<String> kVerdictCategories = {
-  'pass',
-  'fail',
-  'stopped',
-  'error',
-};
+const Set<String> kVerdictCategories = {'pass', 'fail', 'stopped', 'error'};
 
 /// The canonical envelope key set (required + optional).
 const Set<String> kCanonicalKeySet = {
@@ -122,42 +117,45 @@ void main() {
   }
 
   group('issue #969 T001 — --json verdict envelope on every verb', () {
-    test('plan emits the envelope on the contract-drift refusal path', () async {
-      await seedSpec('# Spec\n\nno template marker\n', marker: false);
-      final out = await runJson([
-        'tdd',
-        'plan',
-        feature,
-        '--json',
-        '--project',
-        tmp.path,
-      ]);
-      final envelope = _decodeEnvelope(out);
-      _expectEnvelopeShape(envelope, command: 'plan');
-      expect(envelope['feature'], feature);
-    });
+    test(
+      'plan emits the envelope on the contract-drift refusal path',
+      () async {
+        await seedSpec('# Spec\n\nno template marker\n', marker: false);
+        final out = await runJson([
+          'tdd',
+          'plan',
+          feature,
+          '--json',
+          '--project',
+          tmp.path,
+        ]);
+        final envelope = _decodeEnvelope(out);
+        _expectEnvelopeShape(envelope, command: 'plan');
+        expect(envelope['feature'], feature);
+      },
+    );
 
-    test('plan emits the envelope on the SUCCESS path (exact schema)', () async {
-      await seedSpec(kMinimalAcceptance);
-      final out = await runJson([
-        'tdd',
-        'plan',
-        feature,
-        '--json',
-        '--project',
-        tmp.path,
-      ]);
-      final envelope = _decodeEnvelope(out);
-      _expectEnvelopeShape(envelope, command: 'plan');
-      expect(envelope['verdict'], 'pass');
-      expect(envelope['exit_class'], 'ok');
-      // The exact-schema assertion the acceptance names for `plan`.
-      expect(envelope.keys.toSet(), containsAll(kRequiredEnvelopeKeys));
-      expect(
-        envelope.keys.toSet().difference(kCanonicalKeySet),
-        isEmpty,
-      );
-    });
+    test(
+      'plan emits the envelope on the SUCCESS path (exact schema)',
+      () async {
+        await seedSpec(kMinimalAcceptance);
+        final out = await runJson([
+          'tdd',
+          'plan',
+          feature,
+          '--json',
+          '--project',
+          tmp.path,
+        ]);
+        final envelope = _decodeEnvelope(out);
+        _expectEnvelopeShape(envelope, command: 'plan');
+        expect(envelope['verdict'], 'pass');
+        expect(envelope['exit_class'], 'ok');
+        // The exact-schema assertion the acceptance names for `plan`.
+        expect(envelope.keys.toSet(), containsAll(kRequiredEnvelopeKeys));
+        expect(envelope.keys.toSet().difference(kCanonicalKeySet), isEmpty);
+      },
+    );
 
     test('gen emits the envelope on the SUCCESS path (exact schema)', () async {
       final specDir = p.join(tmp.path, 'specs', feature);
@@ -195,38 +193,48 @@ void main() {
       expect(kRequiredEnvelopeKeys.difference(envelope.keys.toSet()), isEmpty);
     });
 
-    test('verify-red emits the envelope on the refusal path (exact schema)',
-        () async {
-      // No registry at all: verify-red refuses before any test run.
-      final out = await runJson([
-        'tdd',
-        'verify-red',
-        'U1',
-        '--json',
-        '--project',
-        tmp.path,
-        '--feature',
-        feature,
-      ]);
-      final envelope = _decodeEnvelope(out);
-      _expectEnvelopeShape(envelope, command: 'verify-red');
-      expect(kRequiredEnvelopeKeys.difference(envelope.keys.toSet()), isEmpty);
-    });
+    test(
+      'verify-red emits the envelope on the refusal path (exact schema)',
+      () async {
+        // No registry at all: verify-red refuses before any test run.
+        final out = await runJson([
+          'tdd',
+          'verify-red',
+          'U1',
+          '--json',
+          '--project',
+          tmp.path,
+          '--feature',
+          feature,
+        ]);
+        final envelope = _decodeEnvelope(out);
+        _expectEnvelopeShape(envelope, command: 'verify-red');
+        expect(
+          kRequiredEnvelopeKeys.difference(envelope.keys.toSet()),
+          isEmpty,
+        );
+      },
+    );
 
-    test('make emits the envelope on the resolution-error path (exact schema)',
-        () async {
-      final out = await runJson([
-        'tdd',
-        'make',
-        'U1',
-        '--json',
-        '--project',
-        tmp.path,
-      ]);
-      final envelope = _decodeEnvelope(out);
-      _expectEnvelopeShape(envelope, command: 'make');
-      expect(kRequiredEnvelopeKeys.difference(envelope.keys.toSet()), isEmpty);
-    });
+    test(
+      'make emits the envelope on the resolution-error path (exact schema)',
+      () async {
+        final out = await runJson([
+          'tdd',
+          'make',
+          'U1',
+          '--json',
+          '--project',
+          tmp.path,
+        ]);
+        final envelope = _decodeEnvelope(out);
+        _expectEnvelopeShape(envelope, command: 'make');
+        expect(
+          kRequiredEnvelopeKeys.difference(envelope.keys.toSet()),
+          isEmpty,
+        );
+      },
+    );
 
     test('run emits the envelope on the error path (exact schema)', () async {
       final out = await runJson([
@@ -242,22 +250,27 @@ void main() {
       expect(kRequiredEnvelopeKeys.difference(envelope.keys.toSet()), isEmpty);
     });
 
-    test('realize emits the envelope on the error path (exact schema)',
-        () async {
-      final out = await runJson([
-        'tdd',
-        'realize',
-        'Product',
-        '--adapter',
-        'RestProductAdapter',
-        '--json',
-        '--project',
-        tmp.path,
-      ]);
-      final envelope = _decodeEnvelope(out);
-      _expectEnvelopeShape(envelope, command: 'realize');
-      expect(kRequiredEnvelopeKeys.difference(envelope.keys.toSet()), isEmpty);
-    });
+    test(
+      'realize emits the envelope on the error path (exact schema)',
+      () async {
+        final out = await runJson([
+          'tdd',
+          'realize',
+          'Product',
+          '--adapter',
+          'RestProductAdapter',
+          '--json',
+          '--project',
+          tmp.path,
+        ]);
+        final envelope = _decodeEnvelope(out);
+        _expectEnvelopeShape(envelope, command: 'realize');
+        expect(
+          kRequiredEnvelopeKeys.difference(envelope.keys.toSet()),
+          isEmpty,
+        );
+      },
+    );
 
     test('verdicts emits the envelope; --schema is diff-stable', () async {
       final out1 = await runJson(['tdd', 'verdicts', '--schema', '--json']);
@@ -441,8 +454,10 @@ void main() {
         '--project',
         tmp.path,
       ]);
-      _expectEnvelopeShape(_decodeEnvelope(out),
-          command: 'corpus differential');
+      _expectEnvelopeShape(
+        _decodeEnvelope(out),
+        command: 'corpus differential',
+      );
     });
 
     test('referee gate emits the envelope', () async {
@@ -491,8 +506,9 @@ void main() {
     });
 
     test('doctor emits the envelope (unified single machine line)', () async {
-      Directory(p.join(tmp.path, 'specs', feature, 'tdd'))
-          .createSync(recursive: true);
+      Directory(
+        p.join(tmp.path, 'specs', feature, 'tdd'),
+      ).createSync(recursive: true);
       final out = await runJson([
         'tdd',
         'doctor',
@@ -510,7 +526,8 @@ void main() {
       expect(
         jsonLines,
         hasLength(1),
-        reason: 'doctor must emit ONE envelope line under --json, '
+        reason:
+            'doctor must emit ONE envelope line under --json, '
             'not a second raw verdict object',
       );
     });
@@ -529,20 +546,53 @@ void main() {
       ).createSync(recursive: true);
       await seedSpec('# Spec\n\nno marker\n', marker: false);
 
-      await probe('plan', ['tdd', 'plan', feature, '--json', '--project', tmp.path]);
-      await probe('make', ['tdd', 'make', 'U1', '--json', '--project', tmp.path]);
-      await probe('run', ['tdd', 'run', feature, '--json', '--project', tmp.path]);
-      await probe('reset', ['tdd', 'reset', feature, '--json', '--project', tmp.path]);
-      await probe(
+      await probe('plan', [
+        'tdd',
+        'plan',
+        feature,
+        '--json',
+        '--project',
+        tmp.path,
+      ]);
+      await probe('make', [
+        'tdd',
+        'make',
+        'U1',
+        '--json',
+        '--project',
+        tmp.path,
+      ]);
+      await probe('run', [
+        'tdd',
+        'run',
+        feature,
+        '--json',
+        '--project',
+        tmp.path,
+      ]);
+      await probe('reset', [
+        'tdd',
+        'reset',
+        feature,
+        '--json',
+        '--project',
+        tmp.path,
+      ]);
+      await probe('doctor', [
+        'tdd',
         'doctor',
-        ['tdd', 'doctor', feature, '--json', '--project', tmp.path],
-      );
+        feature,
+        '--json',
+        '--project',
+        tmp.path,
+      ]);
 
       for (final entry in observed.entries) {
         expect(
           kRequiredEnvelopeKeys.difference(entry.value),
           isEmpty,
-          reason: 'verb `${entry.key}` misses required keys: '
+          reason:
+              'verb `${entry.key}` misses required keys: '
               '${kRequiredEnvelopeKeys.difference(entry.value)}',
         );
       }
@@ -550,20 +600,18 @@ void main() {
   });
 
   group('issue #969 — no behavior change without --json', () {
-    test('plan without --json keeps the human last line (no envelope)',
-        () async {
-      await seedSpec(kMinimalAcceptance);
-      final out = await CliRunner(exitOnCompletion: false).runCapturing([
-        'tdd',
-        'plan',
-        feature,
-        '--project',
-        tmp.path,
-      ]);
-      final last = _lastNonEmptyLine(out);
-      expect(last.startsWith('{"schema"'), isFalse);
-      // The compact envelope encoding never appears in captured output.
-      expect(out, isNot(contains('"schema":"verdict.v1"')));
-    });
+    test(
+      'plan without --json keeps the human last line (no envelope)',
+      () async {
+        await seedSpec(kMinimalAcceptance);
+        final out = await CliRunner(
+          exitOnCompletion: false,
+        ).runCapturing(['tdd', 'plan', feature, '--project', tmp.path]);
+        final last = _lastNonEmptyLine(out);
+        expect(last.startsWith('{"schema"'), isFalse);
+        // The compact envelope encoding never appears in captured output.
+        expect(out, isNot(contains('"schema":"verdict.v1"')));
+      },
+    );
   });
 }

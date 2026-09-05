@@ -920,9 +920,7 @@ class MakeCommand extends Command<void> {
       command: 'tdd make',
       target: record.behaviorId,
       feature: target.featureName,
-      files: {
-        p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update',
-      },
+      files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
     );
     print(
       '   green evidence appended to specs/${target.featureName}/tdd/'

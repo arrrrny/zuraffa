@@ -192,9 +192,9 @@ class DiffCheckCommand extends Command<void> {
     if (result != 'ok') {
       _verdict.fix = result == 'drift'
           ? 're-run zfa tdd gen/realize to restore the contract fixtures '
-              '(or re-commit the intended fixtures)'
+                '(or re-commit the intended fixtures)'
           : 'commit the missing fixture lane (mock/real json) for every '
-              'incomplete contract';
+                'incomplete contract';
     }
     exitCode = switch (result) {
       'drift' => 2,

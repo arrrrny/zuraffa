@@ -100,6 +100,13 @@ Future<void> runWithVerdictEnvelope(
   String? commandOverride,
 }) async {
   final jsonMode = tddJsonMode(command);
+  // Command instances are REUSED across invocations on the same
+  // CliRunner (tests call runCapturing repeatedly) — never inherit the
+  // previous run's envelope state.
+  ctx
+    ..emitted = false
+    ..drifts.clear()
+    ..details.clear();
   Object? thrown;
   StackTrace? stack;
   try {
@@ -118,15 +125,18 @@ Future<void> runWithVerdictEnvelope(
         print('❌ Error: $thrown');
       }
       final exitCodeValue = thrown != null && exitCode == 0 ? 1 : exitCode;
-      final outcome = ctx.outcome ?? (exitCodeValue == 0
-          ? VerdictOutcome.pass
-          : exitCodeValue == 1
-          ? VerdictOutcome.fail
-          : VerdictOutcome.error);
+      final outcome =
+          ctx.outcome ??
+          (exitCodeValue == 0
+              ? VerdictOutcome.pass
+              : exitCodeValue == 1
+              ? VerdictOutcome.fail
+              : VerdictOutcome.error);
       VerdictEnvelope.emit(
         command: commandOverride ?? command.name,
         outcome: outcome,
-        exitClass: ctx.exitClass ??
+        exitClass:
+            ctx.exitClass ??
             (thrown != null
                 ? 'error'
                 : exitCodeValue == 0

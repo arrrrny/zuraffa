@@ -119,7 +119,8 @@ class PlanCommand extends Command<void> {
       _verdict
         ..outcome = VerdictOutcome.fail
         ..exitClass = 'contract-drift'
-        ..fix = 'author the spec from the zuraffa spec template so it pins '
+        ..fix =
+            'author the spec from the zuraffa spec template so it pins '
             'a known template version; re-run zfa tdd plan'
         ..details['spec'] = specPath;
       exitCode = 3;
@@ -166,7 +167,8 @@ class PlanCommand extends Command<void> {
       _verdict
         ..outcome = VerdictOutcome.fail
         ..exitClass = 'coverage-gate'
-        ..fix = 'map every requirement statement to a behavior row or a '
+        ..fix =
+            'map every requirement statement to a behavior row or a '
             '(manual: owner) declaration, then re-run zfa tdd plan'
         ..details['gaps'] = gaps.length;
       exitCode = 2;
@@ -211,7 +213,8 @@ class PlanCommand extends Command<void> {
       _verdict
         ..outcome = VerdictOutcome.fail
         ..exitClass = 'undeclared-dependency'
-        ..fix = 'add the referenced dependencies to the External '
+        ..fix =
+            'add the referenced dependencies to the External '
             'Dependencies & Contracts table (or drop the references), '
             'then re-run zfa tdd plan'
         ..details['undeclared'] = undeclared.length;
@@ -319,7 +322,8 @@ class PlanCommand extends Command<void> {
       _verdict
         ..outcome = VerdictOutcome.fail
         ..exitClass = 'declaration-refused'
-        ..fix = 'fix the malformed declaration named above, then re-run '
+        ..fix =
+            'fix the malformed declaration named above, then re-run '
             'zfa tdd plan'
         ..details['reason'] = e.message;
       exitCode = 2;
@@ -341,7 +345,8 @@ class PlanCommand extends Command<void> {
       _verdict
         ..outcome = VerdictOutcome.fail
         ..exitClass = 'routing-refused'
-        ..fix = 'declare the routing intent (Type marker / contract trace) '
+        ..fix =
+            'declare the routing intent (Type marker / contract trace) '
             'for every refused behavior, then re-run zfa tdd plan --strict-routing'
         ..details['strict'] = true;
       exitCode = 1;
