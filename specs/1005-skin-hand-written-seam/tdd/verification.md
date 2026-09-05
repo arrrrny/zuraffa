@@ -2,9 +2,10 @@
 
 RED → GREEN → verify, with REAL evidence from this branch's runs.
 Every count below comes from an actual `dart test` / `flutter test` /
-`zfa tdd run-skin` invocation; nothing is inferred. Baseline: master @
-`f2ca7fa9` (branch `spec/1005-skin-hand-written-seam`), Dart SDK
-3.13.2 (stable), Flutter 3.47.2 (stable).
+`zfa tdd run-skin` invocation; nothing is inferred. Final state after
+rebasing onto master @ `d4061d21` (spec 1001 merged mid-flight; the
+rebase kept both `RunEngineCommand` and `RunSkinCommand`
+registrations), Dart SDK 3.13.2 (stable), Flutter 3.47.2 (stable).
 
 ## 1. Root cause (TDD step 1)
 
@@ -256,3 +257,15 @@ tools/run_tests_chunked.sh
 dart format .
 git diff --stat   # zero remaining formatting diffs
 ```
+
+Post-rebase re-verification (master @ `d4061d21`): `dart analyze` 332
+issues = exactly the same-count pristine-master baseline (verified
+via a clean git worktree; 0 attributable to this branch);
+`dart format .` → 0 changed; the 29 fast + 5 slow skin tests green;
+the real acceptance re-run green (exit 0, slots=4/4). The original
+chunked-suite run (83/83 chunks, only `test/plugins/cache`
+`cache_adapter_receipt_test` failing `+44 -2`, identical on pristine
+master via a clean worktree, and `+644: All tests passed!` for the
+direct `test/plugins/tdd/services` files the chunked runner's
+over-threshold recursion skips) predates the rebase; the cache
+failure is a master pre-existing, not this branch's.
