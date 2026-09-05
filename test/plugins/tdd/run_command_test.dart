@@ -1843,9 +1843,11 @@ One per functional requirement in `spec.md`.
           expect(argv.first, contains('entity create -n User'));
           expect(argv.first, contains('--field name:String'));
           expect(argv.first, contains('--field email:String'));
-          expect(argv[1], 'build');
+          // Bug 991: the phase-0 build spawns with --no-analyze — analyze
+          // belongs in the verify/refactor steps, not the build gate.
+          expect(argv[1], 'build --no-analyze');
           expect(argv[2], contains('tdd gen'));
-          expect(argv.where((l) => l == 'build'), hasLength(1));
+          expect(argv.where((l) => l.startsWith('build')), hasLength(1));
         },
       );
 
@@ -1879,7 +1881,7 @@ One per functional requirement in `spec.md`.
         expect(out, contains('[run] phase-0 build -> skipped'));
         final argv = fx.stepArgvLog();
         expect(argv.where((l) => l.contains('entity create')), isEmpty);
-        expect(argv.where((l) => l == 'build'), isEmpty);
+        expect(argv.where((l) => l.startsWith('build')), isEmpty);
         expect(
           await entityFile.readAsString(),
           '// hand-tuned entity\n',
@@ -1917,8 +1919,75 @@ One per functional requirement in `spec.md`.
         expect(out, isNot(contains('[run] phase-0')));
         final argv = fx.stepArgvLog();
         expect(argv.where((l) => l.contains('entity create')), isEmpty);
-        expect(argv.where((l) => l == 'build'), isEmpty);
+        expect(argv.where((l) => l.startsWith('build')), isEmpty);
       });
+
+      test('U-991: the phase-0 build forwards --no-analyze so pre-existing '
+          'analyze warnings cannot stop the run', () async {
+        await seedEntitiesSection('''
+## Key entities
+
+| entity | fields |
+| ------ | ------ |
+| User | name: String |
+''');
+        // Script the real-world failure (bug 991): the target repo carries
+        // pre-existing `dart analyze` warnings (unused imports, dead code),
+        // so a phase-0 `zfa build` spawned under the default --analyze gate
+        // exits 1 even though everything compiles — the driver then stops
+        // with runner-error before any behavior is driven. The fake exits 1
+        // for the bare `build` invocation (config key `build-`) and exits 0
+        // for `build --no-analyze` (key `build---no-analyze`, unscripted).
+        await fx.setStepOutcome('build', '', 'analyze warnings reported');
+
+        final out = await drive();
+
+        expect(exitCode, 0, reason: out);
+        expect(out, contains('[run] phase-0 build -> ok'), reason: out);
+        // The build spawn carries --no-analyze (bug 991).
+        final argv = fx.stepArgvLog();
+        expect(
+          argv.where((l) => l.startsWith('build')),
+          contains('build --no-analyze'),
+        );
+        // The run continues past phase 0: behaviors were driven.
+        expect(fx.stepInvocations(), isNotEmpty);
+      });
+
+      test(
+        'U-991b: a genuine phase-0 build failure still stops the run '
+        '(--no-analyze removes only the analyze gate, not the stop)',
+        () async {
+          await seedEntitiesSection('''
+## Key entities
+
+| entity | fields |
+| ------ | ------ |
+| User | name: String |
+''');
+          // Script a REAL build failure on the --no-analyze invocation
+          // (config key `build---no-analyze`): build_runner itself failed,
+          // which is a generation gate the run must not paper over. The
+          // fix removes the analyze gate from the phase-0 build spawn —
+          // it must not weaken the honest-stop contract for actual
+          // build failures (bug 991's counterpart guarantee).
+          await fx.setStepOutcome(
+            'build',
+            '--no-analyze',
+            'build_runner exited 1',
+          );
+
+          final out = await drive();
+
+          expect(exitCode, 2, reason: out);
+          expect(out, contains('[run] phase-0 build -> failed'), reason: out);
+          expect(out, contains('build_runner exited 1'));
+          expect(out, contains('result=runner-error'), reason: out);
+          expect(out, contains('stopped_at=phase-0:build'));
+          // No behavior was ever driven.
+          expect(fx.stepInvocations(), isEmpty);
+        },
+      );
     },
   );
 }
