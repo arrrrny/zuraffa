@@ -14,19 +14,23 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/079-skin-contract-binding/u6_subject.dart' as subject;
+import 'package:zuraffa/tdd/079-skin-contract-binding/u6_subject.dart'
+    as subject;
 
 void main() {
   group('U6 (FR-006)', () {
-    test('U6 — The binding MUST stay free of any UI-framework dependency (engine lane, pure Dart).', () {
-      final result = (() {
-        try {
-          return subject.subject_u6();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U6 — The binding MUST stay free of any UI-framework dependency (engine lane, pure Dart).',
+      () {
+        final result = (() {
+          try {
+            return subject.subject_u6();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

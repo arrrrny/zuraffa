@@ -26,7 +26,9 @@ void main() {
     test('a group index stays reset-free of the fixed-name hook', () {
       final src = const RegistrationBuilder().buildIndexFile(
         functionName: 'registerAllUseCases',
-        registrations: [refer('registerAllProductUseCases').call([refer('getIt')]).statement],
+        registrations: [
+          refer('registerAllProductUseCases').call([refer('getIt')]).statement,
+        ],
       );
       expect(src, contains('resetregisterAllUseCases'));
       expect(src, isNot(contains('void resetDependencies(')));
@@ -35,7 +37,9 @@ void main() {
     test('the composition root keeps resetDependencies', () {
       final src = const RegistrationBuilder().buildIndexFile(
         functionName: 'setupDependencies',
-        registrations: [refer('setupProductDependencies').call([refer('getIt')]).statement],
+        registrations: [
+          refer('setupProductDependencies').call([refer('getIt')]).statement,
+        ],
       );
       expect(src, contains('void resetDependencies('));
     });

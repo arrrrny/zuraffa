@@ -9,7 +9,8 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/074-plugin-merge-contract/u5_subject.dart' as subject;
+import 'package:zuraffa/tdd/074-plugin-merge-contract/u5_subject.dart'
+    as subject;
 
 void main() {
   group('U5 (FR-005)', () {

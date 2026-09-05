@@ -14,19 +14,23 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/079-skin-contract-binding/u5_subject.dart' as subject;
+import 'package:zuraffa/tdd/079-skin-contract-binding/u5_subject.dart'
+    as subject;
 
 void main() {
   group('U5 (FR-005)', () {
-    test('U5 — The binding MUST carry the contract\'s declared name/identity so downstream violations and receipts can name their source.', () {
-      final result = (() {
-        try {
-          return subject.subject_u5();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U5 — The binding MUST carry the contract\'s declared name/identity so downstream violations and receipts can name their source.',
+      () {
+        final result = (() {
+          try {
+            return subject.subject_u5();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

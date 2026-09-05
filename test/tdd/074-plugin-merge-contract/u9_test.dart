@@ -9,7 +9,8 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/074-plugin-merge-contract/u9_subject.dart' as subject;
+import 'package:zuraffa/tdd/074-plugin-merge-contract/u9_subject.dart'
+    as subject;
 
 void main() {
   group('U9 (FR-009)', () {

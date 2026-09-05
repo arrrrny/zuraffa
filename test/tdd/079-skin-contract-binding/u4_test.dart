@@ -14,19 +14,23 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/079-skin-contract-binding/u4_subject.dart' as subject;
+import 'package:zuraffa/tdd/079-skin-contract-binding/u4_subject.dart'
+    as subject;
 
 void main() {
   group('U4 (FR-004)', () {
-    test('U4 — The binding MUST derive audit-row descriptors from `contract.stateRows` carrying the declared id and kind.', () {
-      final result = (() {
-        try {
-          return subject.subject_u4();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U4 — The binding MUST derive audit-row descriptors from `contract.stateRows` carrying the declared id and kind.',
+      () {
+        final result = (() {
+          try {
+            return subject.subject_u4();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }
