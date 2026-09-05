@@ -68,6 +68,21 @@ class CliRunner {
   /// flag cannot see another suite's runner.
   bool _active = false;
 
+  /// The exit code the LAST [runCapturing] invocation on this isolate
+  /// dispatched, snapshotted per-isolate.
+  ///
+  /// `dart:io exitCode` is PROCESS-GLOBAL — `dart test` runs test files
+  /// as concurrent isolates of one process, so a sibling suite's command
+  /// finishing between this run's teardown and the caller's
+  /// `expect(exitCode, ...)` read clobbers the value this invocation
+  /// produced (the same cross-suite shared-state family as the
+  /// `Directory.current` race, issue #1096). The `finally` re-apply
+  /// below narrows that window to a few instructions but cannot close
+  /// it. [lastDispatchedExitCode] is a Dart static — per-isolate
+  /// storage — so callers that need the HERMETIC value read this
+  /// instead of the global. Set on every [runCapturing] exit path.
+  static int lastDispatchedExitCode = 0;
+
   CliRunner({this.exitOnCompletion = true}) : _runner = _buildRunner();
 
   static CommandRunner<void> _buildRunner() =>
@@ -524,6 +539,9 @@ class CliRunner {
       // CWD restore, the zone unwind) — the narrowest window a sibling
       // isolate can clobber.
       exitCode = dispatchedExitCode;
+      // The hermetic snapshot: per-isolate static, immune to the sibling
+      // clobber the global re-apply above stays exposed to (bug #1107).
+      lastDispatchedExitCode = dispatchedExitCode;
     }
 
     return output.isEmpty ? '' : '${output.join('\n')}\n';

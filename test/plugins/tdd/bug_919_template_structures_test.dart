@@ -18,6 +18,20 @@ import 'package:zuraffa/src/plugins/tdd/services/test_list_reader.dart';
 
 import 'helpers/spec_fixture.dart';
 
+/// Reads the exit code the LAST [CliRunner.runCapturing] on THIS isolate
+/// dispatched, from the per-isolate static snapshot
+/// (`CliRunner.lastDispatchedExitCode`), NOT from the process-global
+/// `dart:io exitCode`.
+///
+/// `exitCode` is process-global across `dart test` suite isolates — a
+/// sibling suite finishing between this suite's runCapturing teardown and
+/// the assertion read clobbers the value this suite produced (the
+/// cross-suite shared-state family of issue #1096; observed live as the
+/// bug #1107 A10 flake, where a concurrent suite's exit-3 plan leaked
+/// into this file's exit-0 assertion). The snapshot is immune: a Dart
+/// static is per-isolate storage.
+int takeDispatchedExitCode() => CliRunner.lastDispatchedExitCode;
+
 void main() {
   late Directory tmpDir;
   late String featureDir;
@@ -65,7 +79,7 @@ $kMinimalAcceptance
 
     final out = await runPlan();
 
-    expect(exitCode, 0, reason: out);
+    expect(takeDispatchedExitCode(), 0, reason: out);
     final list = await readTestList();
     expect(
       list,
@@ -91,7 +105,7 @@ $kMinimalAcceptance
 
     final out = await runPlan();
 
-    expect(exitCode, 0, reason: out);
+    expect(takeDispatchedExitCode(), 0, reason: out);
     final list = await readTestList();
     expect(
       list,
@@ -115,7 +129,7 @@ $kMinimalAcceptance
 ''');
 
     final out = await runPlan();
-    expect(exitCode, 0, reason: out);
+    expect(takeDispatchedExitCode(), 0, reason: out);
 
     final entities = await TestListReader(
       p.join(tmpDir.path, 'specs', featureName),
@@ -138,7 +152,7 @@ $kMinimalAcceptance
 ''');
 
       final out = await runPlan();
-      expect(exitCode, 3, reason: out);
+      expect(takeDispatchedExitCode(), 3, reason: out);
       expect(out, contains('--> fix:'));
       expect(
         File(p.join(featureDir, 'tdd', 'test-list.md')).existsSync(),
@@ -159,7 +173,7 @@ $kMinimalAcceptance
 ''', versionMarker: '**Template Version**: `zuraffa-2.0`');
 
       final out = await runPlan();
-      expect(exitCode, 3, reason: out);
+      expect(takeDispatchedExitCode(), 3, reason: out);
       expect(out, contains('zuraffa-2.0'));
       expect(out, contains('--> fix:'));
       expect(
@@ -178,7 +192,7 @@ $kMinimalAcceptance
 ''');
 
     final out = await runPlan();
-    expect(exitCode, 0, reason: out);
+    expect(takeDispatchedExitCode(), 0, reason: out);
     expect(
       File(p.join(featureDir, 'tdd', 'test-list.md')).existsSync(),
       isTrue,
@@ -200,7 +214,7 @@ $kMinimalAcceptance
 ''');
 
     final out = await runPlan();
-    expect(exitCode, 0, reason: out);
+    expect(takeDispatchedExitCode(), 0, reason: out);
     final list = await readTestList();
     expect(list, contains('## External dependencies'));
     expect(
@@ -225,7 +239,7 @@ $kMinimalAcceptance
 ''');
 
       final out = await runPlan();
-      expect(exitCode, 0, reason: out);
+      expect(takeDispatchedExitCode(), 0, reason: out);
       final list = await readTestList();
       expect(list, contains('## Layer contracts'));
       expect(list, contains('### Domain'));
@@ -258,7 +272,7 @@ $kMinimalAcceptance
 ''');
 
     final out = await runPlan();
-    expect(exitCode, 2, reason: out);
+    expect(takeDispatchedExitCode(), 2, reason: out);
     expect(out, contains('Hive'));
     expect(out, contains('--> fix:'));
     expect(
@@ -276,7 +290,7 @@ $kMinimalAcceptance
 ''');
 
     final out = await runPlan();
-    expect(exitCode, 0, reason: out);
+    expect(takeDispatchedExitCode(), 0, reason: out);
     final list = await readTestList();
     expect(list, isNot(contains('## Key entities')));
   });
@@ -298,7 +312,7 @@ $kMinimalAcceptance
 ''');
 
     final out = await runPlan();
-    expect(exitCode, 0, reason: out);
+    expect(takeDispatchedExitCode(), 0, reason: out);
     final list = await readTestList();
     expect(
       list,
@@ -322,7 +336,7 @@ $kMinimalAcceptance
 ''');
 
       final out = await runPlan();
-      expect(exitCode, 0, reason: out);
+      expect(takeDispatchedExitCode(), 0, reason: out);
     },
   );
 
@@ -337,7 +351,7 @@ $kMinimalAcceptance
 ''');
 
     final out = await runPlan();
-    expect(exitCode, 3, reason: out);
+    expect(takeDispatchedExitCode(), 3, reason: out);
     expect(
       File(p.join(featureDir, 'tdd', 'test-list.md')).existsSync(),
       isFalse,
@@ -366,7 +380,7 @@ $kMinimalAcceptance
 ''');
 
     final out = await runPlan();
-    expect(exitCode, 0, reason: out);
+    expect(takeDispatchedExitCode(), 0, reason: out);
 
     // The reader side of A14 is asserted in bug_919_reader_test.dart
     // (split out so the CLI-driven plan test loads independently of the
@@ -400,7 +414,7 @@ and must not pin this spec.
 
     final out = await runPlan();
     expect(
-      exitCode,
+      takeDispatchedExitCode(),
       3,
       reason: 'marker inside a fenced code block must not count; out=$out',
     );
