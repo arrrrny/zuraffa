@@ -5,6 +5,7 @@ import 'package:args/args.dart';
 import 'package:path/path.dart' as p;
 import '../commands/schema_command.dart';
 import '../commands/simulate_command.dart';
+import '../commands/skin_command.dart';
 import '../commands/ui_command.dart';
 import '../commands/validate_command.dart';
 import '../commands/create_command.dart' as create;
@@ -189,6 +190,9 @@ class CliRunner {
     _runner.addCommand(UiCommand());
     _runner.addCommand(PackageCommand());
     _runner.addCommand(SimulateCommand());
+    // Issue #1102: runtime skin-contract auditor command group
+    // (skin kit / skin verify).
+    _runner.addCommand(SkinCommand());
     _runner.addCommand(AgentCommand());
     _runner.addCommand(ZapCommand());
   }

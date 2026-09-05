@@ -273,7 +273,18 @@ Future<void> _startXRayBridge() async {
   /// wrapped in `XRayScope(viewId: 'App', child: ...)` so the bridge
   /// server can serialize the widget tree. `XRayScope` is a no-op
   /// pass-through when X-Ray mode is disabled.
-  String buildMyApp({String? title, bool xray = false}) {
+  ///
+  /// When [skinAudit] is true (issue #1102), the router content is
+  /// wrapped in `SkinAuditChrome` through `MaterialApp.router`'s
+  /// `builder:` — the debug-only violation-banner mount. The chrome
+  /// is inert in release builds (kDebugMode guard inside the kit),
+  /// and without the flag the output is byte-identical to the
+  /// pre-1102 emission.
+  String buildMyApp({
+    String? title,
+    bool xray = false,
+    bool skinAudit = false,
+  }) {
     // No direct go_router import: MyApp never references a go_router
     // symbol (MaterialApp.router comes from material.dart; appRouter
     // arrives via ../routing/app_router.dart, which imports go_router
@@ -287,12 +298,38 @@ Future<void> _startXRayBridge() async {
       Directive.import('../routing/app_router.dart'),
       if (xray)
         Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
+      // #1102: the debug chrome (banner) comes from the emitted kit.
+      if (skinAudit) Directive.import('../skin/skin_contract_auditor.dart'),
     ];
 
     final materialApp = refer('MaterialApp').property('router').call([], {
       'title': literalString(title ?? 'Zuraffa App'),
       'routerConfig': refer('appRouter'),
       'debugShowCheckedModeBanner': literalFalse,
+      // #1102: the violation-banner mount. `builder` wraps the
+      // navigator; the chrome overlays the banner above it when live
+      // violations exist and passes through otherwise (the builder's
+      // child is nullable — error screens pass null — so the chrome
+      // falls back to an empty box, never a null crash).
+      if (skinAudit)
+        'builder': Method(
+          (m) => m
+            ..requiredParameters.add(Parameter((p) => p..name = 'context'))
+            ..requiredParameters.add(Parameter((p) => p..name = 'child'))
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('SkinAuditChrome')
+                      .call([], {
+                        'child': refer('child').ifNullThen(
+                          CodeExpression(Code('const SizedBox.shrink()')),
+                        ),
+                      })
+                      .returned
+                      .statement,
+                ),
+            ),
+        ).closure,
     });
 
     final returnedWidget = xray
@@ -357,7 +394,90 @@ Future<void> _startXRayBridge() async {
   /// Emits a top-level `final GoRouter appRouter = GoRouter(routes:
   /// getAllRoutes());` wired to the generated `getAllRoutes()` from
   /// `lib/src/routing/index.dart`.
-  String buildAppRouter() {
+  ///
+  /// When [skinAudit] is true (issue #1102), the router carries the
+  /// `SkinRouteContractObserver` (a `NavigatorObserver`) with a route
+  /// contract table built from `getAllRoutes()` — declared =
+  /// conforming; the navigator root `/` conforms by construction
+  /// (pilot lesson 3). Without the flag the output is byte-identical
+  /// to the pre-1102 emission.
+  String buildAppRouter({bool skinAudit = false}) {
+    if (!skinAudit) {
+      return _buildBareAppRouter();
+    }
+
+    final directives = [
+      Directive.import('package:go_router/go_router.dart'),
+      Directive.import('index.dart'),
+      // #1102: the route observer + the pure table type.
+      Directive.import('../skin/skin_contract_auditor.dart'),
+      Directive.import('package:zuraffa/skin.dart'),
+    ];
+
+    final appRouter = Field(
+      (f) => f
+        ..name = 'appRouter'
+        ..type = refer('GoRouter')
+        ..modifier = FieldModifier.final$
+        ..assignment = refer('GoRouter').call([], {
+          'routes': refer('getAllRoutes').call([]),
+          'observers': literalList([
+            refer('SkinRouteContractObserver').call([], {
+              // The contract table from the declared route barrel:
+              // every GoRoute the generated router declares conforms
+              // (name, else path); an undeclared push is the
+              // violation. The navigator root '/' conforms by
+              // construction (RouteContractTable.navigatorRootRoute —
+              // pilot lesson 3).
+              'table': refer('RouteContractTable')
+                  .property('fromRouteNames')
+                  .call([
+                    refer('getAllRoutes')
+                        .call([])
+                        .property('whereType')
+                        .call([], {}, [refer('GoRoute')])
+                        .property('map')
+                        .call([
+                          Method(
+                            (m) => m
+                              ..requiredParameters.add(
+                                Parameter((p) => p..name = 'route'),
+                              )
+                              ..lambda = true
+                              ..body = refer('route')
+                                  .property('name')
+                                  .ifNullThen(refer('route').property('path'))
+                                  .code,
+                          ).closure,
+                        ])
+                        .property('toSet')
+                        .call([]),
+                  ]),
+            }),
+          ]),
+        }).code,
+    );
+
+    final library = specLibrary.library(
+      specs: [appRouter],
+      directives: directives,
+    );
+
+    return specLibrary.emitLibrary(
+      library,
+      leadingComment:
+          '// Generated by zfa\n'
+          '//\n'
+          '// #1102: the SkinRouteContractObserver validates every push\n'
+          '// against the route contract table built from getAllRoutes()\n'
+          "// (declared = conforming). The navigator root '/' (\n"
+          '// RouteContractTable.navigatorRootRoute) conforms by\n'
+          '// construction, so cold start never flags a phantom violation.',
+      wrapWithGeneratedMarkers: false,
+    );
+  }
+
+  String _buildBareAppRouter() {
     final directives = [
       Directive.import('package:go_router/go_router.dart'),
       Directive.import('index.dart'),

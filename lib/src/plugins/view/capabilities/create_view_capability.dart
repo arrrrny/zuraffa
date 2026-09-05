@@ -122,6 +122,7 @@ class CreateViewCapability implements ZuraffaCapability {
     final generateV6State = args['v6-state'] ?? false;
     final generateRoute = args['route'] ?? false;
     final generateXRay = args['xray'] ?? false;
+    final generateSkin = args['skin'] ?? false;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 
@@ -145,6 +146,7 @@ class CreateViewCapability implements ZuraffaCapability {
       generateV6State: generateV6State,
       generateState: generateState,
       generateXRay: generateXRay,
+      generateSkin: generateSkin,
       idFieldType: idFieldType ?? 'String',
       dryRun: dryRun,
       force: force,

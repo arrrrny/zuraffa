@@ -375,6 +375,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$dataSourceName',
+      registeredTypes: [dataSourceName],
       imports: [
         'package:zuraffa/zuraffa.dart',
         // Spec 893: real adapters never register under the simulation
@@ -493,6 +494,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$dataSourceName',
+      registeredTypes: [dataSourceName],
       imports: imports
         ..add(
           // Spec 893: real adapters never register under the simulation
@@ -565,6 +567,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$dataSourceName',
+      registeredTypes: [dataSourceName],
       imports: [
         'package:zuraffa/zuraffa.dart',
         'package:sqlite3/sqlite3.dart',
@@ -621,6 +624,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$dataSourceName',
+      registeredTypes: [dataSourceName],
       imports: [
         'package:zuraffa/zuraffa.dart',
         '../../data/datasources/$baseSnake/${baseSnake}_mock_datasource.dart',
@@ -757,6 +761,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$repoName',
+      registeredTypes: [repoName],
       imports: imports,
       body: Block((b) => b..statements.add(registrationCall.statement)),
     );
@@ -829,6 +834,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$serviceName',
+      registeredTypes: [serviceName],
       imports: imports,
       body: Block(
         (b) => b
@@ -907,6 +913,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$mockProviderName',
+      registeredTypes: [mockProviderName],
       imports: ['package:zuraffa/zuraffa.dart', mockProviderImport],
       body: Block(
         (b) => b
@@ -962,6 +969,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$providerName',
+      registeredTypes: [providerName],
       imports: ['package:zuraffa/zuraffa.dart', providerImport],
       body: Block(
         (b) => b
@@ -1063,6 +1071,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$className',
+      registeredTypes: [className],
       imports: imports.toList(),
       body: Block((b) => b..statements.add(registrationCall.statement)),
     );
@@ -1186,6 +1195,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
       final content = registrationBuilder.buildRegistrationFile(
         functionName: 'register$className',
+        registeredTypes: [className],
         imports: imports,
         body: Block((b) => b..statements.add(registrationCall.statement)),
       );
@@ -1276,6 +1286,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$className',
+      registeredTypes: [className],
       imports: imports.toList(),
       body: Block((b) => b..statements.add(registrationCall.statement)),
     );
@@ -1660,7 +1671,36 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       content = result.source;
     }
 
+    // #1102: an index written before the reset hook existed keeps its
+    // merged shape — inject resetDependencies alongside setup when the
+    // function is missing (a no-op for already-1102 indices).
+    if (!revert) {
+      content = _ensureResetDependencies(content);
+    }
+
     return content;
+  }
+
+  /// #1102: appends the resetDependencies test-lane hook to an index
+  /// that lacks it (existing-file merge path; full regeneration emits
+  /// it through [RegistrationBuilder.buildIndexFile]). Inserted inside
+  /// the GENERATED markers so the AST merge engine keeps owning it.
+  String _ensureResetDependencies(String content) {
+    if (RegExp(r'void\s+resetDependencies\s*\(').hasMatch(content)) {
+      return content;
+    }
+    const resetFn = '''
+/// Test-lane hook (issue #1102): unregisters everything
+/// [setupDependencies] registered, so repeated setup in one process
+/// (and between test cases) is idempotent.
+void resetDependencies(GetIt getIt) {
+  getIt.reset();
+}
+''';
+    const marker = '// END GENERATED';
+    final index = content.indexOf(marker);
+    if (index == -1) return '$content\n$resetFn';
+    return content.replaceRange(index, index, '$resetFn\n');
   }
 
   /// Resolves the package name for package-mode emission by walking up
