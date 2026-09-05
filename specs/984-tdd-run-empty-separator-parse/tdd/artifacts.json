@@ -1,0 +1,82 @@
+{
+  "feature": "984-tdd-run-empty-separator-parse",
+  "records": [
+    {
+      "behavior_id": "U-984-1",
+      "feature": "984-tdd-run-empty-separator-parse",
+      "source_criterion": "BUG-984",
+      "test_path": "test/plugins/tdd/services/test_list_reader_984_test.dart",
+      "subject_path": "lib/src/plugins/tdd/services/test_list_reader.dart",
+      "runnable_test_name": "test/plugins/tdd/services/test_list_reader_984_test.dart::984::a bare \" |\" separator line between sections is skipped",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-04T21:30:00.000Z"
+    },
+    {
+      "behavior_id": "U-984-2",
+      "feature": "984-tdd-run-empty-separator-parse",
+      "source_criterion": "BUG-984",
+      "test_path": "test/plugins/tdd/services/test_list_reader_984_test.dart",
+      "subject_path": "lib/src/plugins/tdd/services/test_list_reader.dart",
+      "runnable_test_name": "test/plugins/tdd/services/test_list_reader_984_test.dart::984::genuine malformed rows still stop the reader honestly",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-04T21:30:00.000Z"
+    },
+    {
+      "behavior_id": "U-984-REG1",
+      "feature": "984-tdd-run-empty-separator-parse",
+      "source_criterion": "BUG-984.SC-1",
+      "test_path": "test/plugins/tdd/services/test_list_reader_test.dart",
+      "subject_path": "lib/src/plugins/tdd/services/test_list_reader.dart",
+      "runnable_test_name": "test/plugins/tdd/services/test_list_reader_test.dart::regression::existing committed test-lists keep resolving through the reader",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-04T21:40:00.000Z"
+    },
+    {
+      "behavior_id": "U-984-REG2",
+      "feature": "984-tdd-run-empty-separator-parse",
+      "source_criterion": "BUG-984.SC-1",
+      "test_path": "test/plugins/tdd/services/test_list_reader_persistence_833_test.dart",
+      "subject_path": "lib/src/plugins/tdd/services/test_list_reader.dart",
+      "runnable_test_name": "test/plugins/tdd/services/test_list_reader_persistence_833_test.dart::persistence::the [persistence] marker parses and strips",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-04T21:40:00.000Z"
+    },
+    {
+      "behavior_id": "U-984-REG3",
+      "feature": "984-tdd-run-empty-separator-parse",
+      "source_criterion": "BUG-984.SC-1",
+      "test_path": "test/plugins/tdd/services/test_list_reader_ffi_835_test.dart",
+      "subject_path": "lib/src/plugins/tdd/services/test_list_reader.dart",
+      "runnable_test_name": "test/plugins/tdd/services/test_list_reader_ffi_835_test.dart::native::native-loop section sets the ffi kind",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-04T21:40:00.000Z"
+    },
+    {
+      "behavior_id": "U-984-REG4",
+      "feature": "984-tdd-run-empty-separator-parse",
+      "source_criterion": "BUG-984.SC-1",
+      "test_path": "test/plugins/tdd/bug_937_reader_sections_test.dart",
+      "subject_path": "lib/src/plugins/tdd/services/test_list_reader.dart",
+      "runnable_test_name": "test/plugins/tdd/bug_937_reader_sections_test.dart::sections::declarative sections are skipped not rejected",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-04T21:40:00.000Z"
+    },
+    {
+      "behavior_id": "U-984-REG5",
+      "feature": "984-tdd-run-empty-separator-parse",
+      "source_criterion": "BUG-984.SC-1",
+      "test_path": "test/plugins/tdd/services/bug_919_reader_test.dart",
+      "subject_path": "lib/src/plugins/tdd/services/test_list_reader.dart",
+      "runnable_test_name": "test/plugins/tdd/services/bug_919_reader_test.dart::deps::dependency and layer-contract sections parse",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-04T21:40:00.000Z"
+    }
+  ]
+}

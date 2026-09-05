@@ -69,7 +69,10 @@ abstract class PluginCommand extends Command<void> {
     // [manualSubcommandNames] for why the duplicate must never happen).
     if (registerSubcommands) {
       for (final capability in plugin.capabilities) {
-        final subcommand = CapabilityCommand(capability);
+        // Issue #996: the plugin id rides along so every capability
+        // invocation can persist its receipt keyed
+        // <plugin>-<capability>-<entity>-<timestamp>.json.
+        final subcommand = CapabilityCommand(capability, pluginId: plugin.id);
         if (manualSubcommandNames.contains(subcommand.name)) {
           continue;
         }

@@ -12,6 +12,7 @@ import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/source_interface_guard.dart';
 import '../../../utils/string_utils.dart';
+import '../usecase_verdicts.dart';
 
 /// Generates entity-based use cases for the domain layer.
 class EntityUseCaseGenerator {
@@ -28,7 +29,27 @@ class EntityUseCaseGenerator {
   }) : fileSystem = fileSystem ?? FileSystem.create();
 
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+    final report = await generateWithVerdicts(config);
+    return report.files;
+  }
+
+  /// Spec #972 API: the same generation as [generate], plus per-method
+  /// verdicts and the same-plan interface expectation callback.
+  ///
+  /// [onInterfaceExpectation] fires exactly once when the source
+  /// interface was absent at generation time (the fail-open case) and at
+  /// least one method survived — the caller records it in the plan so
+  /// the `zfa make` post-pass can verify the responsible plugin declared
+  /// the methods.
+  Future<UsecaseGenerationReport> generateWithVerdicts(
+    GeneratorConfig config, {
+    void Function(UseCaseInterfaceExpectation expectation)?
+    onInterfaceExpectation,
+    bool quiet = false,
+  }) async {
     final files = <GeneratedFile>[];
+    final verdicts = <MethodVerdict>[];
+    final guardReasonCodes = <String, String>{};
     final validMethods = [
       'get',
       'getList',
@@ -48,6 +69,13 @@ class EntityUseCaseGenerator {
     final requestedMethods = <String>[];
     for (final method in config.methods) {
       if (!validMethods.contains(method)) {
+        verdicts.add(
+          MethodVerdict(
+            name: method,
+            action: MethodVerdict.actionSkipped,
+            reason: MethodVerdict.reasonUnknownMethod,
+          ),
+        );
         if (config.verbose) {
           print('  Skip unknown method: $method');
         }
@@ -55,14 +83,53 @@ class EntityUseCaseGenerator {
       }
       requestedMethods.add(method);
     }
-    final effectiveMethods = await const SourceInterfaceGuard().filterMethods(
+    final guard = await const SourceInterfaceGuard().evaluate(
       config,
       methods: requestedMethods,
       fileSystem: fileSystem,
     );
+    for (final drop in guard.dropped) {
+      if (!quiet) {
+        // Legacy parity: the skip notice is the only human explanation of
+        // a dropped usecase, so it keeps printing outside --json mode.
+        print(drop.notice);
+      }
+      guardReasonCodes[drop.method] = drop.code;
+      verdicts.add(
+        MethodVerdict(
+          name: drop.method,
+          action: MethodVerdict.actionSkipped,
+          reason: drop.code,
+        ),
+      );
+    }
 
-    for (final method in effectiveMethods) {
-      files.add(await _generateForMethod(config, method));
+    // Spec #972 FR-4: the interface was absent — record what this run
+    // assumes the same plan will declare.
+    if (guard.interfaceAbsent &&
+        guard.kept.isNotEmpty &&
+        guard.className != null &&
+        guard.interfacePath != null) {
+      onInterfaceExpectation?.call(
+        UseCaseInterfaceExpectation(
+          entity: config.name,
+          interfacePath: guard.interfacePath!,
+          className: guard.className!,
+          methods: List.unmodifiable(guard.kept),
+          viaService: config.hasService,
+        ),
+      );
+    }
+
+    final methodToFile = <String, GeneratedFile>{};
+    for (final method in guard.kept) {
+      final file = await _generateForMethod(config, method);
+      files.add(file);
+      methodToFile[method] = file;
+    }
+    for (final method in guard.kept) {
+      final file = methodToFile[method];
+      verdicts.add(_verdictForFile(method, file, revert: config.revert));
     }
     if (config.revert && config.methods.isEmpty) {
       final entitySnake = config.nameSnake;
@@ -84,19 +151,93 @@ class EntityUseCaseGenerator {
       for (final fileName in possibleFiles) {
         final filePath = path.join(usecaseDirPath, fileName);
         if (await fileSystem.exists(filePath)) {
-          files.add(
-            await FileUtils.deleteFile(
-              filePath,
-              'usecase',
-              dryRun: options.dryRun,
-              verbose: options.verbose,
-              fileSystem: fileSystem,
+          final file = await FileUtils.deleteFile(
+            filePath,
+            'usecase',
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+            fileSystem: fileSystem,
+          );
+          files.add(file);
+          verdicts.add(
+            _verdictForFile(
+              _methodFromCanonicalFile(fileName),
+              file,
+              revert: true,
             ),
           );
         }
       }
     }
-    return files;
+    // Request-order verdicts (stable machine contract).
+    final ordered = <MethodVerdict>[];
+    final requestedOrder = [...config.methods];
+    for (final method in requestedOrder) {
+      final match = verdicts.where((v) => v.name == method).toList();
+      ordered.addAll(match);
+      verdicts.removeWhere((v) => v.name == method);
+    }
+    // Canonical-file deletions (revert with an empty method set) have no
+    // requested order — append them after the requested ones.
+    ordered.addAll(verdicts);
+
+    return UsecaseGenerationReport(
+      files: files,
+      verdicts: ordered,
+      interfaceAbsent: guard.interfaceAbsent,
+      guardReasonCodes: guardReasonCodes,
+    );
+  }
+
+  /// Maps a [GeneratedFile] action to the spec #972 per-method verdict.
+  MethodVerdict _verdictForFile(
+    String method,
+    GeneratedFile? file, {
+    required bool revert,
+  }) {
+    if (file == null) {
+      return MethodVerdict(
+        name: method,
+        action: MethodVerdict.actionSkipped,
+        reason: MethodVerdict.reasonUnknownMethod,
+      );
+    }
+    switch (file.action) {
+      case 'created':
+        return MethodVerdict(name: method, action: MethodVerdict.actionCreated);
+      case 'overwritten':
+      case 'updated':
+        return MethodVerdict(
+          name: method,
+          action: MethodVerdict.actionAppended,
+        );
+      case 'deleted':
+      case 'reverted':
+        return MethodVerdict(name: method, action: MethodVerdict.actionDeleted);
+      case 'skipped':
+      default:
+        return MethodVerdict(
+          name: method,
+          action: MethodVerdict.actionSkipped,
+          reason: revert
+              ? MethodVerdict.reasonNothingToRevert
+              : MethodVerdict.reasonAlreadyPresent,
+        );
+    }
+  }
+
+  /// Recovers the method name from a canonical revert file name
+  /// (`get_product_usecase.dart` → `get`).
+  String _methodFromCanonicalFile(String fileName) {
+    final stem = fileName.replaceAll('_usecase.dart', '');
+    final parts = stem.split('_');
+    // <verb>_<entity...> — the verb is the first segment; watch_list and
+    // get_list collapse to their generating request names.
+    final verb = parts.first;
+    if (parts.length >= 3 && parts[parts.length - 2] == 'list') {
+      return '${parts.first}List';
+    }
+    return verb;
   }
 
   Future<GeneratedFile> _generateForMethod(

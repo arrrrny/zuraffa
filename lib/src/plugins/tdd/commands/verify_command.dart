@@ -29,10 +29,12 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/mutation_auditor.dart';
+import '../services/receipt_preflight.dart';
 import '../services/requirement_scan.dart';
 import '../services/tdd_timeout.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
+import '../services/mutation_scope.dart';
 
 class VerifyCommand extends Command<void> {
   VerifyCommand(this.plugin) {
@@ -66,6 +68,14 @@ class VerifyCommand extends Command<void> {
           'the mutation run (default 30). Fractions are allowed. On timeout '
           'the child is killed and the audit reports NOT_ASSESSED (bug '
           '#742).',
+    );
+    argParser.addOption(
+      'runner',
+      help:
+          "Override the test runner for this audit: 'dart' or 'flutter'. "
+          'Wins over the tdd-profile file: template; when omitted the '
+          'profile resolves the runner and a project without a profile '
+          'keeps the pure-Dart default (issue #1044).',
     );
   }
 
@@ -109,6 +119,28 @@ class VerifyCommand extends Command<void> {
       return;
     }
 
+    // Issue #1044: explicit runner override — wins over the profile's
+    // file: template. Anything other than dart|flutter is a usage error
+    // (exit 64) with the fix line, never a guessed runner.
+    final runnerFlag = argResults?['runner'] as String?;
+    String? runnerTemplate;
+    if (runnerFlag != null && runnerFlag.isNotEmpty) {
+      switch (runnerFlag) {
+        case 'dart':
+          runnerTemplate = 'dart test {file}';
+        case 'flutter':
+          runnerTemplate = 'flutter test {file}';
+        default:
+          stderr.writeln(
+            "zfa tdd verify: --runner accepts 'dart' or 'flutter' "
+            "(got '$runnerFlag') --> fix: pass dart|flutter, or set the "
+            'file: key in .specify/memory/tdd-profile.md and omit --runner',
+          );
+          exitCode = 64;
+          return;
+      }
+    }
+
     // Resolve the feature directory. Treat empty string as absent.
     final featureName = (feature != null && feature.isNotEmpty)
         ? feature
@@ -140,6 +172,45 @@ class VerifyCommand extends Command<void> {
       return;
     }
 
+    // Receipt preflight gate (spec 0996, issue #996): the audit step
+    // includes receipt-checking BEFORE the mutation audit runs. Every
+    // shipped receipt must validate, and — when the project ships
+    // receipts at all — every subject the audit is about to mutate must
+    // be covered by one (missing receipt = gate failure, exit 1, no
+    // audit). Projects without receipts keep working (vacuous gate).
+    final scope = await MutationScope.derive(featureDir: featureDir);
+    final receiptGate = await ReceiptPreflight(
+      projectRoot: cwd,
+    ).check(auditedPaths: scope.subjectPaths);
+    if (!receiptGate.ok) {
+      print('zfa tdd verify: receipt preflight — FAIL');
+      print(
+        '   receipts checked: ${receiptGate.receipts}, '
+        'findings: ${receiptGate.findings.length}',
+      );
+      for (final finding in receiptGate.findings) {
+        print('   ${finding.toString()}');
+      }
+      print(
+        '   --> fix: regenerate the receipted artifact with its '
+        'capability (e.g. `zfa di create <Entity>`) or restore the '
+        '.zfa/receipts/ entry, then re-verify.',
+      );
+      exitCode = 1;
+      return;
+    }
+    if (receiptGate.gateActive) {
+      print(
+        '   receipt preflight: ok (${receiptGate.receipts} receipt(s) '
+        'validated, ${scope.subjectPaths.length} audited subject(s))',
+      );
+    } else {
+      print(
+        '   receipt preflight: skipped (no receipts shipped — proof-'
+        'carrying generation not in use)',
+      );
+    }
+
     print('zfa tdd verify: running mutation audit...');
     print('   feature: $featureName');
     print('   feature_dir: $featureDir');
@@ -150,6 +221,7 @@ class VerifyCommand extends Command<void> {
       preflightTimeout: timeoutOverride,
       mutationTimeout: timeoutOverride,
       scoreThreshold: _readScoreThreshold(cwd),
+      runnerTemplate: runnerTemplate,
     );
     final report = await auditor.run();
 

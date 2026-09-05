@@ -10,12 +10,15 @@ import '../plugins/shadcn/vocabulary/ui_node_registry.dart';
 import '../config/zfa_config.dart';
 import '../cli/plugin_loader.dart';
 import '../core/branding/branding_writer.dart';
+import '../core/plugin_system/plugin_interface.dart';
+import '../core/plugin_system/plugin_context.dart';
 import '../core/project/project_root.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_manager.dart';
 import '../feature_flags/feature_flag.dart';
 import '../feature_flags/feature_flag_config.dart';
 import '../models/generated_file.dart';
+import '../plugins/usecase/usecase_expectation_post_pass.dart';
 import '../utils/entity_field_resolver.dart';
 
 /// Command to run multiple plugins explicitly.
@@ -697,6 +700,31 @@ class MakeCommand extends Command<void> {
 
     try {
       final files = await manager.run(context, activePlugins);
+
+      // Spec #972 FR-4 — same-plan interface-expectation post-pass.
+      //
+      // When the usecase plugin's source-interface guard failed open
+      // (the interface was absent at generation time), the run recorded
+      // what it ASSUMED the same plan would declare. Verify that now,
+      // against the tree as committed: if the responsible plugin
+      // (repository/service) did not declare the requested methods, the
+      // generated usecases cannot compile — fail the run loudly with the
+      // exact repair command instead of letting `zfa build` break later.
+      if (!isDryRun && !isRevert) {
+        final failures = await _verifyUsecaseExpectations(
+          context,
+          activePlugins,
+        );
+        if (failures.isNotEmpty) {
+          for (final failure in failures) {
+            print(failure.detail);
+            print('   ${failure.fixLine}');
+          }
+          exitCode = 1;
+          return;
+        }
+      }
+
       _logSummary(files, context.core.verbose, plan: plan);
     } catch (e) {
       print('❌ Generation failed: $e');
@@ -734,6 +762,24 @@ class MakeCommand extends Command<void> {
     if (argResults?['format'] != 'json') {
       print('✅ Done.');
     }
+  }
+
+  /// Spec #972 FR-4: runs the usecase interface-expectation post-pass
+  /// for the expectations this plan recorded (see
+  /// [UseCasePlugin.generateWithContext]). Failures mean a same-plan
+  /// misfire: the generated usecases call methods the responsible plugin
+  /// never declared.
+  Future<List<UsecaseExpectationFailure>> _verifyUsecaseExpectations(
+    PluginContext context,
+    List<ZuraffaPlugin> activePlugins,
+  ) async {
+    final expectations = expectationsFromContextData(context.data);
+    if (expectations.isEmpty) return const [];
+    return UsecaseExpectationPostPass().verify(
+      projectRoot: manager.projectRoot,
+      expectations: expectations,
+      activePluginIds: activePlugins.map((p) => p.id).toSet(),
+    );
   }
 
   Future<Map<String, dynamic>?> _loadJsonConfig() async {

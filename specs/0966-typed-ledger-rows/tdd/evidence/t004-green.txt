@@ -1,0 +1,3 @@
+00:00 +0: loading test/tdd/0966-typed-ledger-rows/t004_state_traced_test.dart
+00:00 +0: T4 (FR-004) T4 - state rows: the FR-005-class attribute (buttons disabled in flight) is traced end-to-end in 004-login-ui; an unrecorded attribute never counts as proof.
+00:00 +1: All tests passed!

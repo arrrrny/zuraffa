@@ -1,0 +1,3 @@
+00:00 +0: loading test/tdd/0966-typed-ledger-rows/t001_typed_row_schema_test.dart
+00:00 +0: T1 (FR-001) T1 - typed ledger row schema: kinds from scenario verbs at plan time; untraced kinds (absence + sequence) are gate gaps on the all-9-literals-Column view.
+00:00 +1: All tests passed!
