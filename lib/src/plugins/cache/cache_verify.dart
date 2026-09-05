@@ -302,7 +302,8 @@ class CacheAdapterVerifier {
 
   /// Receipt-based staleness: compares the current registrar bytes and
   /// the entity source against the digests the last `zfa cache adapter`
-  /// run recorded. Only `cache-adapter` receipts are consulted.
+  /// run recorded. Only `cache adapter` receipts are consulted (the
+  /// canonical `<plugin> <capability>` command format — issue #996).
   Future<List<CacheVerifyFinding>> _receiptDriftFindings(
     String entityName,
   ) async {
@@ -310,7 +311,7 @@ class CacheAdapterVerifier {
     final store = ReceiptStore(projectRoot: projectRoot);
     final records = await store.loadAll();
     final relevant = records
-        .where((r) => r.receipt.command == 'cache-adapter')
+        .where((r) => r.receipt.command == 'cache adapter')
         .toList();
     if (relevant.isEmpty) return findings;
 
