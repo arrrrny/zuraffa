@@ -36,12 +36,17 @@ class StateBinding {
 class SkinContractRuntimeBinding {
   final String name;
   final RouteContractTable routeTable;
+
+  /// The declared (path → view) pairs in contract order — what the
+  /// shell needs to populate its route table.
+  final List<ContractRoute> declaredRoutes;
   final Map<String, StateBinding> stateBindings;
   final List<ContractStateRow> auditRows;
 
   const SkinContractRuntimeBinding({
     required this.name,
     required this.routeTable,
+    required this.declaredRoutes,
     required this.stateBindings,
     required this.auditRows,
   });
@@ -56,6 +61,7 @@ class SkinContractRuntimeBinding {
       routeTable: RouteContractTable.fromRouteNames(
         contract.routes.map((r) => r.path),
       ),
+      declaredRoutes: List.of(contract.routes),
       stateBindings: {
         for (final state in contract.states)
           state.view: StateBinding(
