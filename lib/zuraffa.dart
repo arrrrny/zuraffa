@@ -464,9 +464,11 @@ export 'src/state/slices/signal_slice.dart';
 
 // SlicePresenter — manages multiple slices with backward-compatible state.
 export 'src/state/presenter/slice_presenter.dart';
-
-// FragmentBuilder — widget subscribing to a single slice.
-export 'src/state/widgets/fragment_builder.dart';
+// v6 state widgets (ControlledWidget, SignalBuilder, FragmentBuilder) and
+// their pure-Dart host machinery are owned solely by zuraffa_flutter and are
+// deliberately NOT exported here. Re-exporting same-named core copies makes
+// every Flutter package that depends on both packages fail `dart analyze`
+// with ambiguous_export (BUG-1173; spec 014 pure-dart-core-split).
 
 // StateMigrator — converts v5 .state.dart to v6 slice pattern.
 // The StateMigrator class is hidden from public API but remains accessible
@@ -496,15 +498,6 @@ export 'src/state/cache/cache_binding.dart';
 
 // CacheBindingPlugin — DDA plugin for @Cacheable processing.
 export 'src/state/generator/cache_binding_generator.dart';
-
-// WidgetHost — pure-Dart mount/lifecycle layer for ControlledWidget views.
-export 'src/state/widgets/widget_host.dart';
-
-// ControlledWidget — base widget with typed controller and lifecycle hooks.
-export 'src/state/widgets/controlled_widget.dart';
-
-// SignalBuilder — rebuilds on pure UI Signal changes.
-export 'src/state/widgets/signal_builder.dart';
 
 // ViewTemplateGenerator — generates ControlledWidget-based views.
 export 'src/state/generator/view_template_generator.dart';
