@@ -73,6 +73,16 @@ enum MakeOutcome {
   /// Non-zero exit, no green entry.
   regression('regression'),
 
+  /// The target test already passes but the subject file's shape no
+  /// longer matches the shape the certified evidence captured (issue
+  /// #1036): a skip here would certify green on a subject the red
+  /// evidence never exercised — the born-green placeholder class. The
+  /// behavior is EXCLUDED from contract-green accounting: non-zero
+  /// exit, no green entry; the remedy is to restore the subject to its
+  /// certified shape (or re-certify red), then re-run make. Same
+  /// honesty class as `scaffolded` (issue #912 defect 3).
+  subjectDrift('subject-drift'),
+
   /// The target test is a SCAFFOLDED widget test (issue #912 defect 3):
   /// its scenario assertions are placeholder finders (marked
   /// `zfa:tdd: scaffolded` by the widget template), so a green proves
