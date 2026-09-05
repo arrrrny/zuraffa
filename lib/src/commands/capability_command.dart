@@ -2,16 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:crypto/crypto.dart' as crypto;
-import 'package:path/path.dart' as path;
-import '../core/project/receipt_store.dart';
 import '../models/generated_file.dart';
 import '../core/plugin_system/capability.dart';
 import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/project/project_root.dart';
 import '../core/plugin_system/plan_store.dart';
 import '../utils/string_utils.dart';
-import '../version.dart';
 
 class CapabilityCommand extends Command<void> {
   final ZuraffaCapability capability;
@@ -373,10 +369,15 @@ class CapabilityCommand extends Command<void> {
         // `zfa di create`, `zfa cache adapter`, `zfa repository create`,
         // etc. produced artifacts with zero provenance — violating the
         // VISION's "every artifact ships a verifiable receipt" and the
-        // epic #1011 truth-floor exit criterion. Best-effort: a receipt
-        // failure degrades to a warning so a store hiccup never turns a
-        // successful generation into a CLI failure.
-        await _persistCapabilityReceipt(args: args, files: files);
+        // epic #1011 truth-floor exit criterion.
+        //
+        // Note: the receipt is already persisted by
+        // [CapabilityInvocationWrapper.execute] (issue #1130 — the wrapper
+        // is the single source of truth for standalone capability
+        // receipts; the previous second call here emitted a second
+        // receipt with the legacy space-separated command string and no
+        // spec binding, which then shadowed the hyphenated receipt the
+        // capability itself wrote).
       } else {
         print('❌ Failed: ${result.message}');
         // Issue #767: a failed capability execution must not report success
@@ -384,109 +385,6 @@ class CapabilityCommand extends Command<void> {
         // from the usage-error family (64) used for missing arguments.
         exitCode = 1;
       }
-    }
-  }
-
-  /// Issue #996: writes a `proof.v1` receipt binding every on-disk file
-  /// this standalone capability invocation committed. Mirrors the
-  /// make-path `PluginManager._persistGenerationReceipt` but for the
-  /// `zfa <plugin> <capability> <target>` standalone invocation path.
-  ///
-  /// Best-effort by design: the artifacts already exist on disk, so a
-  /// receipt failure degrades to a warning instead of failing the run.
-  /// Files that the capability reported but did not actually write
-  /// (e.g. `skipped`, or paths the capability emitted in-memory only)
-  /// are skipped via the `existsSync` guard — a receipt binds real
-  /// bytes, not intentions.
-  Future<void> _persistCapabilityReceipt({
-    required Map<String, dynamic> args,
-    required List<GeneratedFile> files,
-  }) async {
-    try {
-      final projectRoot = Directory.current.path;
-      final receiptFiles = <GenerationReceiptFile>[];
-      for (final f in files) {
-        // Skipped/deleted operations have no final bytes to bind.
-        if (f.action == 'skipped' || f.action == 'deleted') continue;
-        final abs = path.isAbsolute(f.path)
-            ? f.path
-            : path.join(projectRoot, f.path);
-        final file = File(abs);
-        if (!file.existsSync()) continue;
-        final bytes = file.readAsBytesSync();
-        final keepSnapshot = bytes.length <= ReceiptStore.maxSnapshotBytes;
-        receiptFiles.add(
-          GenerationReceiptFile(
-            path: f.path.replaceAll('\\', '/'),
-            action: f.action,
-            sha256: crypto.sha256.convert(bytes).toString(),
-            bytes: bytes.length,
-            snapshot: keepSnapshot && !_isLikelyBinary(bytes)
-                ? file.readAsStringSync()
-                : null,
-          ),
-        );
-      }
-      // Nothing provenance-worthy landed on disk — don't ship an empty
-      // receipt (it would certify nothing while looking like proof).
-      if (receiptFiles.isEmpty) return;
-      receiptFiles.sort((a, b) => a.path.compareTo(b.path));
-
-      // Derive names from the command hierarchy: `zfa <plugin> <verb>`
-      // where <plugin> = parent?.name (e.g. "di") and <verb> = this.name
-      // (e.g. "create"). For programmatic invocations without a parent
-      // (test harness), fall back to the capability name.
-      final pluginName = parent?.name ?? 'standalone';
-      final verb = name;
-      final target = _extractCapabilityTarget(args);
-      final repro =
-          'zfa $pluginName $verb'
-          '${target.isNotEmpty ? ' $target' : ''}';
-
-      await ReceiptStore(projectRoot: projectRoot).save(
-        GenerationReceipt(
-          command: '$pluginName $verb',
-          target: target,
-          repro: repro,
-          at: DateTime.now().toUtc(),
-          generatorVersion: version,
-          input: Map<String, dynamic>.from(args),
-          files: receiptFiles,
-        ),
-      );
-    } catch (e) {
-      print('⚠️  Capability receipt not written: $e');
-    }
-  }
-
-  /// Best-effort: pull the entity/target name out of [args] for the
-  /// receipt's `target` field. Capability schemas use a mix of `name`,
-  /// `entity_name`, `entityName`, `class_name` — try each in order and
-  /// return '' when none are present (the receipt still records the
-  /// full `input` map, so the target is recoverable from there).
-  String _extractCapabilityTarget(Map<String, dynamic> args) {
-    for (final key in [
-      'name',
-      'entity_name',
-      'entityName',
-      'class_name',
-      'className',
-    ]) {
-      final v = args[key];
-      if (v is String && v.isNotEmpty) return v;
-    }
-    return '';
-  }
-
-  /// Snapshots are diffed as text; refuse to store bytes that are not
-  /// valid UTF-8 (defensive — generated outputs are text).
-  bool _isLikelyBinary(List<int> bytes) {
-    final probe = bytes.length > 1024 ? bytes.sublist(0, 1024) : bytes;
-    try {
-      utf8.decode(probe);
-      return false;
-    } on FormatException {
-      return true;
     }
   }
 }
