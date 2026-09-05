@@ -27,6 +27,7 @@ import 'dart:async';
 import '../simulation_adapters.dart';
 import 'failure_schedule.dart';
 import 'virtual_clock.dart';
+import 'world_utils.dart';
 
 /// The retry policy: budget + exponential backoff shape.
 final class RetryPolicy {
@@ -53,16 +54,7 @@ final class RetryPolicy {
   /// (1-based).
   int backoffMsFor(int attempt) {
     final factor = backoffFactor <= 0 ? 1.0 : backoffFactor;
-    final wait = backoffBaseMs * _pow(factor, attempt - 1);
-    return wait.round();
-  }
-
-  static double _pow(double base, int exponent) {
-    var result = 1.0;
-    for (var i = 0; i < exponent; i++) {
-      result *= base;
-    }
-    return result;
+    return backoffBaseMs * powInt(factor, attempt - 1);
   }
 }
 

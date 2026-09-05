@@ -42,6 +42,7 @@ import 'latency_model.dart';
 import 'retry_sync_engine.dart';
 import 'virtual_clock.dart';
 import 'world_manifest.dart';
+import 'world_utils.dart';
 
 /// The execution binding: the simulated world or the direct real-adapter
 /// harness.
@@ -327,7 +328,7 @@ final class WorldRuntime {
         band: bandLabel,
         virtualMs: clock.nowMs,
         outcome: 'ok',
-        detail: 'served ${_shapeOf(result)}',
+        detail: 'served ${shapeOf(result)}',
       ),
     );
     return result;
@@ -505,7 +506,7 @@ final class WorldRuntime {
             'world': manifest.worldHash,
             'seed': manifest.seed,
             'binding': binding.name,
-            'plays': [for (final play in _plays) _canonical(play.toJson())],
+            'plays': [for (final play in _plays) canonical(play.toJson())],
           }),
         ),
       )
@@ -525,15 +526,6 @@ final class WorldRuntime {
     _ => 'POST',
   };
 
-  static String _shapeOf(dynamic value) => switch (value) {
-    null => 'void',
-    Map => 'map',
-    List => 'list',
-    String => 'string',
-    num || bool => 'scalar',
-    _ => 'value',
-  };
-
   static dynamic _deepCopy(dynamic value) {
     if (value is Map) {
       return {
@@ -541,15 +533,6 @@ final class WorldRuntime {
       };
     }
     if (value is List) return [for (final e in value) _deepCopy(e)];
-    return value;
-  }
-
-  static dynamic _canonical(dynamic value) {
-    if (value is Map) {
-      final keys = value.keys.map((k) => k.toString()).toList()..sort();
-      return {for (final k in keys) k: _canonical(value[k])};
-    }
-    if (value is List) return [for (final e in value) _canonical(e)];
     return value;
   }
 }

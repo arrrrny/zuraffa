@@ -30,6 +30,8 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart' as crypto;
 
+import 'world_utils.dart';
+
 /// Raised when a world manifest is structurally invalid. The message
 /// carries the machine-actionable `--> fix:` line (errors-are-an-API).
 final class WorldManifestError implements Exception {
@@ -552,25 +554,16 @@ final class WorldManifest {
   /// a pure function of the manifest's VALUE (not its construction
   /// order).
   String toCanonicalJson() =>
-      const JsonEncoder.withIndent('  ').convert(_canonical(toDocument()));
+      const JsonEncoder.withIndent('  ').convert(canonical(toDocument()));
 
   /// The world hash: SHA-256 of the canonical encoding (compact form —
   /// hashing ignores indentation so hand-formatting never lies).
   String get worldHash => crypto.sha256
-      .convert(utf8.encode(jsonEncode(_canonical(toDocument()))))
+      .convert(utf8.encode(jsonEncode(canonical(toDocument()))))
       .toString();
 
   /// Serialize to the committed, diffable document bytes.
   String toFileContents() => '${toCanonicalJson()}\n';
-
-  static dynamic _canonical(dynamic value) {
-    if (value is Map) {
-      final keys = value.keys.map((k) => k.toString()).toList()..sort();
-      return {for (final k in keys) k: _canonical(value[k])};
-    }
-    if (value is List) return [for (final e in value) _canonical(e)];
-    return value;
-  }
 
   /// Parse a manifest document. Throws [WorldManifestError] (with fix
   /// hints) on structural violations.

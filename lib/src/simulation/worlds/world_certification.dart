@@ -37,6 +37,7 @@ import 'package:path/path.dart' as p;
 
 import 'world_manifest.dart';
 import 'world_runtime.dart';
+import 'world_utils.dart';
 
 /// One method's proof outcome.
 final class WorldMethodProof {
@@ -152,7 +153,7 @@ final class WorldCertifier {
         method.name,
         _argsFor(touchpoint, method),
       );
-      final shape = _shapeOf(result);
+      final shape = shapeOf(result);
       if (method.returns == 'void') {
         return WorldMethodProof(
           touchpoint: touchpoint.name,
@@ -223,15 +224,6 @@ final class WorldCertifier {
         'batch' || 'items' || 'data' => const <String, dynamic>{},
         _ => 'placeholder:$param',
       };
-
-  static String _shapeOf(dynamic value) => switch (value) {
-    null => 'void',
-    Map => 'map',
-    List => 'list',
-    String => 'string',
-    num || bool => 'scalar',
-    _ => 'value',
-  };
 }
 
 /// Load the committed certification receipt for [scenario] under
