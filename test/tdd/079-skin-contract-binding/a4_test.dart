@@ -19,10 +19,10 @@ import 'package:zuraffa/tdd/079-skin-contract-binding/a4_subject.dart'
 
 void main() {
   group('A4 (AC-4)', () {
-    test('A4 — both descriptors carry their declared ids and kinds.', () {
-      final Object? result = (() {
+    test('A4 — both descriptors carry their declared ids and kinds.', () async {
+      final Object? result = await (() async {
         try {
-          subject.subject_a4();
+          await subject.subject_a4();
           return null;
         } on UnimplementedError catch (error) {
           return error;

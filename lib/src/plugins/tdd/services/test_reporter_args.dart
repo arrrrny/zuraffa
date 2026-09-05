@@ -26,6 +26,7 @@ List<String> withCompactReporter(List<String> tokens) {
     final arg = args[i];
     if (arg == '--reporter' || arg == '-r') return tokens;
     if (arg.startsWith('--reporter=')) return tokens;
+    if (arg.startsWith('-r') && arg.length > 2) return tokens;
     if (arg == '--') break; // everything after `--` is positional data
   }
   return [executable, command, '--reporter', 'compact', ...args];

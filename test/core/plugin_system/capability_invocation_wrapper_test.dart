@@ -469,11 +469,10 @@ void main() {
         final records = await ReceiptStore(
           projectRoot: workspace.path,
         ).loadAll();
-        expect(
-          records.single.receipt.methodset,
-          ['get', 'update'],
-          reason: 'the CLI delivers list flags as comma strings',
-        );
+        expect(records.single.receipt.methodset, [
+          'get',
+          'update',
+        ], reason: 'the CLI delivers list flags as comma strings');
       },
     );
 

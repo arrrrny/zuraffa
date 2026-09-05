@@ -249,9 +249,15 @@ List<VectorFinding> compareEntryVectors({
       String side(StepVector s) => s.passCount == null
           ? '(no counts)'
           : '+${s.passCount} -${s.failCount}';
+      final aFail = a.failCount ?? 0;
+      final bFail = b.failCount ?? 0;
+      final aPass = a.passCount ?? 0;
+      final bPass = b.passCount ?? 0;
+      final headWorse = (bFail > aFail) || (bFail == aFail && bPass < aPass);
       findings.add(
         VectorFinding(
           kind: 'counts',
+          regression: headWorse,
           detail: '${a.label}: ${side(a)} vs ${side(b)}',
         ),
       );

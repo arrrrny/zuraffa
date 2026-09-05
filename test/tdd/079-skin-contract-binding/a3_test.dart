@@ -21,10 +21,10 @@ void main() {
   group('A3 (AC-3)', () {
     test(
       'A3 — LoginPage maps to the toaster binding and RegisterPage to inline.',
-      () {
-        final Object? result = (() {
+      () async {
+        final Object? result = await (() async {
           try {
-            subject.subject_a3();
+            await subject.subject_a3();
             return null;
           } on UnimplementedError catch (error) {
             return error;

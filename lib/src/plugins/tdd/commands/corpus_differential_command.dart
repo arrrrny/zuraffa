@@ -382,6 +382,12 @@ class CorpusDifferentialCommand extends Command<void> {
       }
 
       final result = differing > 0 ? 'differ' : 'match';
+      if (improved > 0) {
+        print(
+          'differential: $improved entry(s) improved over $from '
+          '(baseline behavior repaired by $to) — gate passed',
+        );
+      }
       summary(
         entries: entries.length,
         compared: compared,
@@ -390,12 +396,6 @@ class CorpusDifferentialCommand extends Command<void> {
         result: result,
       );
       exitCode = differing > 0 ? _exitDiffer : _exitMatch;
-      if (improved > 0) {
-        print(
-          'differential: $improved entry(s) improved over $from '
-          '(baseline behavior repaired by HEAD) — gate passed',
-        );
-      }
     } finally {
       // Worktrees are always removed (metadata + dir via git); the
       // scratch dirs survive only under --keep-scratch.

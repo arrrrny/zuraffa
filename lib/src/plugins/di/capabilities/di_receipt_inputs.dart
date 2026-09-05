@@ -42,9 +42,10 @@ class DiReceiptInputs {
           : path.join(projectRoot, file.path);
       final f = File(absolute);
       if (!f.existsSync()) continue;
-      hashes[file.path.replaceAll('\\', '/')] = crypto.sha256
-          .convert(f.readAsBytesSync())
-          .toString();
+      final key = path.isAbsolute(file.path)
+          ? path.relative(file.path, from: projectRoot).replaceAll('\\', '/')
+          : file.path.replaceAll('\\', '/');
+      hashes[key] = crypto.sha256.convert(f.readAsBytesSync()).toString();
     }
     return hashes;
   }

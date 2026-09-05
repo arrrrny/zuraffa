@@ -21,10 +21,11 @@ void main() {
   group('U2 (FR-002)', () {
     test(
       'U2 — The binding MUST derive the runtime route table from `contract.routes`, preserving the navigator-root conforming-by-construction rule.',
-      () {
-        final result = (() {
+      () async {
+        final result = await (() async {
           try {
-            return subject.subject_u2();
+            await subject.subject_u2();
+            return null;
           } on UnimplementedError catch (error) {
             return error;
           }

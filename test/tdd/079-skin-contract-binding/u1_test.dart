@@ -21,10 +21,11 @@ void main() {
   group('U1 (FR-001)', () {
     test(
       'U1 — The system MUST provide a pure-Dart runtime binding built from a parsed `SkinContract` in one call.',
-      () {
-        final result = (() {
+      () async {
+        final result = await (() async {
           try {
-            return subject.subject_u1();
+            await subject.subject_u1();
+            return null;
           } on UnimplementedError catch (error) {
             return error;
           }

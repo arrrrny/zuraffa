@@ -21,10 +21,11 @@ void main() {
   group('U7 (FR-007)', () {
     test(
       'U7 — The binding MUST be exported from the skin barrel for the Flutter shell to consume across the package boundary.',
-      () {
-        final result = (() {
+      () async {
+        final result = await (() async {
           try {
-            return subject.subject_u7();
+            await subject.subject_u7();
+            return null;
           } on UnimplementedError catch (error) {
             return error;
           }
