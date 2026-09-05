@@ -24,8 +24,13 @@ class EntityCommand {
     if (args.isEmpty) {
       _printHelp();
       // Issue #1059: bare `zfa entity` prints usage and did nothing — that is
-      // a usage error, not a success. Exit 64 (EX_USAGE), matching the #1039
-      // lying-success sweep convention (reportSubcommandUsage() -> exit 64).
+      // a usage error, not a success. Exit 64 (EX_USAGE) with the ❌ banner,
+      // matching the #1039 lying-success sweep convention
+      // (reportSubcommandUsage() -> ❌ + exit 64). The banner goes to stderr
+      // so _printHelp() itself stays ❌-free — explicit `zfa entity --help`
+      // must stay exit 0 with clean help text (the #764 contract).
+      stderr.writeln('❌ Usage: zfa entity <subcommand> [arguments]');
+      stderr.writeln('   Run `zfa entity --help` to list subcommands.');
       exitCode = 64;
       if (exitOnCompletion) exit(64);
       return;
@@ -1286,8 +1291,12 @@ ${missing.map((d) => '   • $d').join('\n')}
     if (subArgs.isEmpty) {
       // Issue #1059: bare `zfa entity cli` printed usage and returned without
       // setting exitCode — a command that did nothing exited 0. Usage errors
-      // go to stderr with exit 64, matching the #1039 fleet sweep convention.
-      stderr.writeln('Usage: zfa entity cli <EntityName>');
+      // go to stderr with exit 64 and the ❌ banner (the #1039 fleet sweep
+      // convention shared with reportSubcommandUsage in
+      // base_plugin_command.dart) — a bare usage line with no error banner
+      // is the lying-success family bug #1107 pins.
+      stderr.writeln('❌ Usage: zfa entity cli <EntityName>');
+      stderr.writeln('   Run `zfa entity cli --help` for the full contract.');
       exitCode = 64;
       return;
     }
