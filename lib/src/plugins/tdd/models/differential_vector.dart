@@ -154,21 +154,52 @@ class EntryVector {
 /// One behavioral divergence between the two refs' vectors for an
 /// entry, already rendered for the report.
 class VectorFinding {
-  const VectorFinding({required this.kind, required this.detail});
+  const VectorFinding({
+    required this.kind,
+    required this.detail,
+    this.regression = true,
+  });
 
   /// `step` (outcome/token divergence or a step-shape change),
+  /// `step-improved` (an outcome that got BETTER on the head side),
   /// `counts` (pass/fail divergence), `artifact-added`, or
   /// `artifact-removed`.
   final String kind;
 
   final String detail;
 
+  /// Whether this finding is a REGRESSION (the head side behaves worse
+  /// than the baseline — the only class that fails the gate). A
+  /// behavior change in the improving direction (`failed` → `complete`,
+  /// a lost `hang`, a repaired artifact inventory) is reported but must
+  /// not block a PR whose whole point is to fix the generator.
+  final bool regression;
+
   @override
   String toString() => detail;
 }
 
+/// Severity rank of a step outcome: lower is better. `complete` (the
+/// generator contract held) < `failed` (reported failure) < `hang`
+/// (killed — the worst observable class).
+int _outcomeSeverity(DifferentialStepOutcome outcome) => switch (outcome) {
+  DifferentialStepOutcome.complete => 0,
+  DifferentialStepOutcome.failed => 1,
+  DifferentialStepOutcome.hang => 2,
+};
+
 /// Compares the two refs' vectors for one entry. Empty means the pair
 /// behaved identically in every recorded dimension.
+///
+/// Directional contract (issue #805, as amended): a finding is a
+/// REGRESSION — and fails the gate — only when the head side behaves
+/// WORSE than the baseline. A strictly better outcome (`failed` →
+/// `complete`, `hang` → `failed`/`complete`) is reported as a
+/// `step-improved` finding with [VectorFinding.regression] false; the
+/// improvement subsumes that step's token/count dimensions (they cannot
+/// be meaningfully compared across an outcome change). A lost artifact
+/// is a regression; a new artifact is reported but non-fatal (a fix
+/// legitimately emits files the broken baseline never produced).
 List<VectorFinding> compareEntryVectors({
   required EntryVector from,
   required EntryVector to,
@@ -193,9 +224,12 @@ List<VectorFinding> compareEntryVectors({
       continue;
     }
     if (a.outcome != b.outcome) {
+      final improved =
+          _outcomeSeverity(b.outcome) < _outcomeSeverity(a.outcome);
       findings.add(
         VectorFinding(
-          kind: 'step',
+          kind: improved ? 'step-improved' : 'step',
+          regression: !improved,
           detail: '${a.label}: ${a.outcome.name} vs ${b.outcome.name}',
         ),
       );
@@ -226,7 +260,9 @@ List<VectorFinding> compareEntryVectors({
   final fromArtifacts = from.artifacts.toSet();
   final toArtifacts = to.artifacts.toSet();
   for (final path in toArtifacts.difference(fromArtifacts)) {
-    findings.add(VectorFinding(kind: 'artifact-added', detail: path));
+    findings.add(
+      VectorFinding(kind: 'artifact-added', detail: path, regression: false),
+    );
   }
   for (final path in fromArtifacts.difference(toArtifacts)) {
     findings.add(VectorFinding(kind: 'artifact-removed', detail: path));
