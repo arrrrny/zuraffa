@@ -1,0 +1,62 @@
+// GENERATED - DO NOT EDIT
+import 'package:zuraffa_flutter/zuraffa_flutter.dart';
+
+import '../../../domain/entities/get_listing_by_barcode/get_listing_by_barcode.dart';
+import '../../../domain/entities/listing/listing.dart';
+
+class GetListingByBarcodeState {
+  const GetListingByBarcodeState({
+    this.error,
+    this.getListingByBarcode,
+    this.isLoading = false,
+    this.data,
+  });
+
+  /// The current error, if any
+  final AppFailure? error;
+
+  /// The single GetListingByBarcode entity
+  final GetListingByBarcode? getListingByBarcode;
+
+  /// Whether the operation is in progress
+  final bool isLoading;
+
+  /// The result data
+  final Listing? data;
+
+  GetListingByBarcodeState copyWith({
+    AppFailure? error,
+    GetListingByBarcode? getListingByBarcode,
+    bool? isLoading,
+    Listing? data,
+  }) => GetListingByBarcodeState(
+    error: error ?? this.error,
+    getListingByBarcode: getListingByBarcode ?? this.getListingByBarcode,
+    isLoading: isLoading ?? this.isLoading,
+    data: data ?? this.data,
+  );
+
+  bool get hasError => error != null;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GetListingByBarcodeState &&
+          other.error == error &&
+          other.getListingByBarcode == getListingByBarcode &&
+          other.isLoading == isLoading &&
+          other.data == data;
+
+  @override
+  int get hashCode =>
+      error.hashCode +
+      getListingByBarcode.hashCode +
+      isLoading.hashCode +
+      data.hashCode;
+
+  @override
+  String toString() =>
+      'GetListingByBarcodeState(error: $error, getListingByBarcode: $getListingByBarcode, isLoading: $isLoading, data: $data)';
+}
+
+// END GENERATED
