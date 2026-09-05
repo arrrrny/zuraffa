@@ -28,6 +28,7 @@ import '../commands/module_command.dart';
 import '../commands/xray_command.dart';
 import '../commands/setup_command.dart';
 import '../commands/replay_command.dart';
+import '../commands/spec_command.dart';
 import '../commands/tdd_command.dart';
 import '../commands/app_shell_command.dart';
 import '../commands/package_command.dart';
@@ -199,6 +200,9 @@ class CliRunner {
     _runner.addCommand(SetupCommand());
     _runner.addCommand(CorpusCommand());
     _runner.addCommand(TddCommand(TddPlugin()));
+    // Spec 0967: the spec-mutation arena (`zfa spec fuzz`) — the
+    // intent-layer referee round (VISION §7).
+    _runner.addCommand(SpecCommand());
     _runner.addCommand(ReplayCommand());
     _runner.addCommand(DreamCommand());
     _runner.addCommand(AppCommand());
