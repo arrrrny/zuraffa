@@ -54,6 +54,9 @@
     <file>lib/src/plugins/tdd/services/cycle_log.dart</file>
     <file>lib/src/plugins/tdd/services/mutation_verifier.dart</file>
     <file>lib/src/plugins/tdd/services/spec_parser.dart</file>
+    <file>lib/src/plugins/tdd/services/theater_data.dart</file>
+    <file>lib/src/plugins/tdd/widgets/theater_screen.dart</file>
+    <file>lib/src/plugins/tdd/commands/theater_command.dart</file>
     <file>lib/src/plugins/tdd/tdd_plugin.dart</file>
     <file>lib/src/commands/tdd_command.dart</file>
   </files>

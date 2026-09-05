@@ -22,6 +22,7 @@ import '../plugins/tdd/commands/referee_command.dart';
 import '../plugins/tdd/commands/reset_command.dart';
 import '../plugins/tdd/commands/run_command.dart';
 import '../plugins/tdd/commands/split_command.dart';
+import '../plugins/tdd/commands/theater_command.dart';
 import '../plugins/tdd/commands/verify_command.dart';
 import '../plugins/tdd/commands/verify_red_command.dart';
 import '../plugins/tdd/commands/view_command.dart';
@@ -44,6 +45,7 @@ class TddCommand extends Command<void> {
     addSubcommand(RunCommand(plugin));
     addSubcommand(SplitCommand(plugin));
     addSubcommand(ReplayCommand(plugin));
+    addSubcommand(TheaterCommand(plugin));
     addSubcommand(VerifyCommand(plugin));
     addSubcommand(MigratePathsCommand(plugin));
     addSubcommand(CorpusCommand(plugin));
