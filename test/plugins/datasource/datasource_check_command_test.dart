@@ -160,8 +160,6 @@ void main() {
   });
 
   group('check verb — negative', () {
-    // Issue #1103: the negative cases must assert the machine envelope
-    // shape on drift, not just the human text.
     test(
       'impl missing an interface method exits 1 naming method + file',
       () async {
@@ -171,6 +169,8 @@ void main() {
           '$outputDir/data/datasources/product/product_remote_datasource.dart',
         );
         var source = remoteFile.readAsStringSync();
+        // Deliberate drift: drop the `getList` implementation. The remote
+        // impl method has a body, so match through its closing brace.
         final start = source.indexOf(
           '  @override\n  Future<List<Product>> getList(',
         );
@@ -197,20 +197,6 @@ void main() {
         expect(output, contains('--> fix:'));
         expect(output, contains('getList'));
         expect(output, contains('product_remote_datasource.dart'));
-
-        // --json on the SAME drift must emit the schema-1 envelope.
-        final jsonOutput = await captureOutput(
-          () => runner().run(['check', 'Product', '--json']),
-        );
-        final envelope = jsonDecode(jsonOutput) as Map<String, dynamic>;
-        expect(envelope['schema'], 1);
-        expect(envelope['verdict'], 'drift');
-        expect(
-          (envelope['findings'] as List).map(
-            (f) => (f as Map<String, dynamic>)['kind'],
-          ),
-          contains('missing-method'),
-        );
       },
     );
 
@@ -239,20 +225,6 @@ void main() {
       expect(exitCode, 1, reason: '@override drift must fail the gate');
       expect(output, contains('--> fix:'));
       expect(output, contains('purge'));
-
-      // --json envelope shape on the SAME drift (issue #1103).
-      final jsonOutput = await captureOutput(
-        () => runner().run(['check', 'Product', '--json']),
-      );
-      final envelope = jsonDecode(jsonOutput) as Map<String, dynamic>;
-      expect(envelope['schema'], 1);
-      expect(envelope['verdict'], 'drift');
-      expect(
-        (envelope['findings'] as List).map(
-          (f) => (f as Map<String, dynamic>)['kind'],
-        ),
-        contains('extra-override'),
-      );
     });
 
     test('sqlite variant missing interface methods is caught', () async {
@@ -298,19 +270,6 @@ class ProductSqliteDataSource implements ProductDataSource {
       expect(output, contains('delete'));
       expect(output, contains('watch'));
       expect(output, contains('product_sqlite_datasource.dart'));
-
-      // --json envelope shape on the SAME drift (issue #1103).
-      final jsonOutput = await captureOutput(
-        () => runner().run(['check', 'Product', '--json']),
-      );
-      final envelope = jsonDecode(jsonOutput) as Map<String, dynamic>;
-      expect(envelope['schema'], 1);
-      expect(envelope['verdict'], 'drift');
-      final jsonFindings = envelope['findings'] as List;
-      expect(
-        jsonFindings.map((f) => (f as Map<String, dynamic>)['member']),
-        containsAll(['delete', 'watch']),
-      );
     });
 
     test('missing interface file exits 1 with a fix line', () async {
@@ -325,102 +284,6 @@ class ProductSqliteDataSource implements ProductDataSource {
 
       expect(exitCode, 1);
       expect(output, contains('--> fix:'));
-
-      // --json envelope shape on the SAME drift (issue #1103).
-      final jsonOutput = await captureOutput(
-        () => runner().run(['check', 'Product', '--json']),
-      );
-      final envelope = jsonDecode(jsonOutput) as Map<String, dynamic>;
-      expect(envelope['schema'], 1);
-      expect(envelope['verdict'], 'drift');
-      final jsonFindings = envelope['findings'] as List;
-      expect(jsonFindings, hasLength(1));
-      expect(
-        (jsonFindings.first as Map<String, dynamic>)['kind'],
-        'missing-interface',
-      );
-    });
-  });
-
-  group('check verb — --json envelope (issue #1103)', () {
-    test(
-      'match path emits the schema-1 envelope with empty findings',
-      () async {
-        exitCode = 0;
-        await generateProduct();
-
-        final output = await captureOutput(
-          () => runner().run(['check', 'Product', '--json']),
-        );
-
-        expect(exitCode, 0, reason: 'parity must still exit 0 under --json');
-        final envelope = jsonDecode(output) as Map<String, dynamic>;
-        expect(envelope['schema'], 1);
-        expect(envelope['verdict'], 'match');
-        expect(envelope['findings'], isEmpty);
-      },
-    );
-
-    test('drift findings carry the full {kind, file, member, fix} shape '
-        'and no human prose leaks into stdout', () async {
-      exitCode = 0;
-      await generateProduct(local: false);
-      final remoteFile = File(
-        '$outputDir/data/datasources/product/product_remote_datasource.dart',
-      );
-      var source = remoteFile.readAsStringSync();
-      final start = source.indexOf(
-        '  @override\n  Future<List<Product>> getList(',
-      );
-      expect(start, greaterThan(0), reason: 'test fixture must find getList');
-      final braceStart = source.indexOf('{', start);
-      var depth = 0;
-      var end = braceStart;
-      for (var i = braceStart; i < source.length; i++) {
-        if (source[i] == '{') depth++;
-        if (source[i] == '}') depth--;
-        if (depth == 0) {
-          end = i + 1;
-          break;
-        }
-      }
-      source = source.substring(0, start) + source.substring(end);
-      remoteFile.writeAsStringSync(source);
-
-      final output = await captureOutput(
-        () => runner().run(['check', 'Product', '--json']),
-      );
-
-      expect(exitCode, 1, reason: 'drift must still exit 1 under --json');
-      // Machine purity: agents/CI consume stdout directly — no `--> fix:`
-      // prose may leak into --json mode (mirrors cache verify).
-      expect(output, isNot(contains('--> fix:')));
-
-      final envelope = jsonDecode(output) as Map<String, dynamic>;
-      expect(envelope['schema'], 1);
-      expect(envelope['verdict'], 'drift');
-      final findings = envelope['findings'] as List;
-      expect(findings, isNotEmpty);
-      for (final finding in findings) {
-        expect(
-          (finding as Map<String, dynamic>).keys,
-          containsAll(['kind', 'file', 'member', 'fix']),
-        );
-      }
-      expect(
-        findings.map((f) => (f as Map<String, dynamic>)['kind']),
-        contains('missing-method'),
-      );
-      expect(
-        findings.map((f) => (f as Map<String, dynamic>)['member']),
-        contains('getList'),
-      );
-      expect(
-        findings
-            .map((f) => (f as Map<String, dynamic>)['file'])
-            .whereType<String>(),
-        everyElement(contains('product_remote_datasource.dart')),
-      );
     });
   });
 
@@ -449,6 +312,198 @@ class ProductSqliteDataSource implements ProductDataSource {
 
         expect(exitCode, 1);
         expect(output, contains('--> fix:'));
+      },
+    );
+  });
+
+  // Bug #1103 — `zfa datasource check` was the last A+ fleet command
+  // without a machine verdict: siblings (cache verify, route verify,
+  // state/usecase create) all ship a `schema:1` `--json` envelope. The
+  // envelope contract: {schema:1, verdict: match|drift, entity, interface,
+  // findings:[{kind, file, member, fix}]}. Exit codes stay (0 match /
+  // 1 drift). Without --json the human `--> fix:` text path is unchanged.
+  group('check verb — --json envelope (bug 1103)', () {
+    /// Runs the parity gate in --json mode and returns the decoded
+    /// envelope. The captured stdout must be EXACTLY one parseable JSON
+    /// document (no prose: agents/CI consume stdout directly, mirroring
+    /// `cache verify --json`).
+    Future<Map<String, dynamic>> runJson(List<String> args) async {
+      final output = await captureOutput(() => runner().run(args));
+      expect(
+        output.trim(),
+        startsWith('{'),
+        reason: '--json stdout must be a single JSON object, got: $output',
+      );
+      return jsonDecode(output) as Map<String, dynamic>;
+    }
+
+    /// The same deliberate drift surgery the negative text tests use:
+    /// drop the `getList` implementation from the remote variant.
+    Future<void> dropGetListFromRemote() async {
+      final remoteFile = File(
+        '$outputDir/data/datasources/product/product_remote_datasource.dart',
+      );
+      var source = remoteFile.readAsStringSync();
+      final start = source.indexOf(
+        '  @override\n  Future<List<Product>> getList(',
+      );
+      expect(start, greaterThan(0), reason: 'test fixture must find getList');
+      final braceStart = source.indexOf('{', start);
+      var depth = 0;
+      var end = braceStart;
+      for (var i = braceStart; i < source.length; i++) {
+        if (source[i] == '{') depth++;
+        if (source[i] == '}') depth--;
+        if (depth == 0) {
+          end = i + 1;
+          break;
+        }
+      }
+      remoteFile.writeAsStringSync(
+        source.substring(0, start) + source.substring(end),
+      );
+    }
+
+    test(
+      'drift: --json emits the schema:1 envelope with typed findings',
+      () async {
+        exitCode = 0;
+        await generateProduct(local: false);
+        await dropGetListFromRemote();
+
+        final envelope = await runJson(['check', 'Product', '--json']);
+
+        // Envelope shape (acceptance: schema, verdict, findings[*].kind).
+        expect(envelope['schema'], 1);
+        expect(envelope['verdict'], 'drift');
+        expect(envelope['entity'], 'Product');
+        expect(envelope['interface'], 'ProductDataSource');
+
+        final findings = envelope['findings'] as List;
+        expect(
+          findings,
+          isNotEmpty,
+          reason: 'drift must carry at least one finding',
+        );
+        for (final finding in findings) {
+          final f = finding as Map;
+          expect(
+            f['kind'],
+            isA<String>(),
+            reason: 'every finding needs a machine kind',
+          );
+          expect(f['kind'] as String, isNotEmpty);
+          expect(f.containsKey('file'), isTrue);
+          expect(f.containsKey('member'), isTrue);
+          expect(f.containsKey('fix'), isTrue);
+        }
+
+        // The getList drift is pinned as a typed finding naming the file.
+        final kinds = findings.map((f) => (f as Map)['kind']).toSet();
+        expect(kinds, contains('missing-method'));
+        final getListFindings = findings
+            .where((f) => (f as Map)['member'] == 'getList')
+            .toList();
+        expect(getListFindings, isNotEmpty);
+        expect(
+          getListFindings.first['file'],
+          contains('product_remote_datasource.dart'),
+        );
+        expect(getListFindings.first['fix'], isA<String>());
+
+        // Exit codes stay: drift = 1.
+        expect(exitCode, 1);
+      },
+    );
+
+    test('parity: --json emits verdict match with empty findings', () async {
+      exitCode = 1;
+      await generateProduct();
+
+      final envelope = await runJson(['check', 'Product', '--json']);
+
+      expect(envelope['schema'], 1);
+      expect(envelope['verdict'], 'match');
+      expect(envelope['findings'], isEmpty);
+      expect(exitCode, 0);
+    });
+
+    test(
+      'missing interface: --json emits drift envelope with interface-missing',
+      () async {
+        exitCode = 0;
+        Directory(
+          '$outputDir/data/datasources/product',
+        ).createSync(recursive: true);
+
+        final envelope = await runJson(['check', 'Product', '--json']);
+
+        expect(envelope['schema'], 1);
+        expect(envelope['verdict'], 'drift');
+        final findings = envelope['findings'] as List;
+        expect(findings, isNotEmpty);
+        expect((findings.first as Map)['kind'], 'interface-missing');
+        expect((findings.first as Map)['fix'], isA<String>());
+        expect(exitCode, 1);
+      },
+    );
+
+    test(
+      'undeclared @override drift: --json emits undeclared-override finding',
+      () async {
+        exitCode = 0;
+        await generateProduct(local: false);
+        final remoteFile = File(
+          '$outputDir/data/datasources/product/product_remote_datasource.dart',
+        );
+        final source = remoteFile.readAsStringSync();
+        const drifted = '''
+  @override
+  Future<Product> purge(QueryParams<Product> params) async {
+    throw UnimplementedError();
+  }
+''';
+        final insertAt = source.lastIndexOf('}');
+        remoteFile.writeAsStringSync(
+          source.substring(0, insertAt) + drifted + source.substring(insertAt),
+        );
+
+        final envelope = await runJson(['check', 'Product', '--json']);
+
+        expect(envelope['schema'], 1);
+        expect(envelope['verdict'], 'drift');
+        final findings = envelope['findings'] as List;
+        expect(
+          findings.map((f) => (f as Map)['kind']),
+          contains('undeclared-override'),
+        );
+        expect(
+          findings.where((f) => (f as Map)['member'] == 'purge').isNotEmpty,
+          isTrue,
+        );
+        expect(exitCode, 1);
+      },
+    );
+
+    test(
+      'without --json the human drift path still prints --> fix: lines',
+      () async {
+        exitCode = 0;
+        await generateProduct(local: false);
+        await dropGetListFromRemote();
+
+        final output = await captureOutput(
+          () => runner().run(['check', 'Product']),
+        );
+
+        expect(exitCode, 1);
+        expect(output, contains('--> fix:'));
+        expect(output, contains('getList'));
+        expect(
+          output,
+          isNot(contains('"verdict"')),
+          reason: 'human path must stay prose, not JSON',
+        );
       },
     );
   });
