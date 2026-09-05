@@ -21,6 +21,7 @@ import '../models/routing.dart';
 import '../services/lane_split.dart';
 import '../services/routing_resolver.dart';
 import '../services/requirement_scan.dart';
+import '../services/spec_migrator.dart';
 import '../services/spec_parser.dart';
 import '../services/test_list_reader.dart';
 import '../tdd_plugin.dart';
@@ -51,6 +52,16 @@ class PlanCommand extends Command<void> {
           'Project root containing specs/<feature>/spec.md. When omitted, the '
           'current working directory is used. Tests pass the temp fixture '
           'root here instead of mutating Directory.current.',
+    );
+    argParser.addFlag(
+      'migrate-spec',
+      help:
+          'Migrate the spec to the latest known template version (issue '
+          '#990): inject a missing **Template Version** marker, or refresh '
+          'a stale/unknown one in place, then continue planning. Without '
+          'this flag a missing/unknown marker stays contract drift (exit '
+          '3) and the spec is never touched.',
+      negatable: false,
     );
   }
 
@@ -86,7 +97,31 @@ class PlanCommand extends Command<void> {
       stderr.writeln('zfa tdd plan: spec not found at $specPath');
       throw StateError('zfa tdd plan: spec not found');
     }
-    final specMd = await specFile.readAsString();
+    var specMd = await specFile.readAsString();
+
+    // Issue #990: the migration path. `--migrate-spec` gives a
+    // non-conformant spec an escape hatch that changes ONE thing — the
+    // `**Template Version**` pin — and then lets the normal plan flow
+    // proceed (the gate below re-checks the migrated content, so a
+    // migration can never smuggle an unknown grammar past it). Without
+    // the flag the spec is never mutated: drift stays drift (exit 3).
+    if (argResults?['migrate-spec'] as bool? ?? false) {
+      final migration = const SpecMigrator().migrate(specMd);
+      if (migration.migrated) {
+        await specFile.writeAsString(migration.content);
+        final verb = migration.action == SpecMigrationAction.inserted
+            ? 'inserted'
+            : 'refreshed';
+        print(
+          'zfa tdd plan: migrated spec — $verb `**Template Version**: '
+          '`${SpecParser.latestTemplateVersion}`'
+          '${migration.previousVersion == null ? '' : ' (was: ${migration.previousVersion})'} '
+          '(spec: $specPath). Re-run `zfa tdd plan` without the flag any '
+          'time; the marker is persisted.',
+        );
+      }
+      specMd = migration.content;
+    }
 
     // Bug #919: the Template Version marker is the treaty pin. Missing or
     // unknown version = contract drift: exit 3 with a fix line, no
@@ -106,8 +141,10 @@ class PlanCommand extends Command<void> {
         'No test list was written.',
       );
       print(
-        '  --> fix: author the spec from the zuraffa spec template (zuraffa '
-        'speckit extension) so it pins a known template version; re-run '
+        '  --> fix: run `zfa tdd plan --migrate-spec` to inject the latest '
+        'template version marker into this spec (issue #990), or author '
+        'the spec from the zuraffa spec template (zuraffa speckit '
+        'extension) so it pins a known template version; re-run '
         '`zfa tdd plan`.',
       );
       exitCode = 3;
