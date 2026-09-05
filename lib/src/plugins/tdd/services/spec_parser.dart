@@ -10,6 +10,7 @@ library;
 
 import '../../../models/mock_priority.dart';
 import '../models/behavior.dart';
+import '../models/lane.dart';
 import '../models/routing.dart';
 
 /// One row of the zuraffa-1.0 template's `External Dependencies &
@@ -403,6 +404,189 @@ class SpecParser {
       );
     }
     return contracts;
+  }
+
+  /// The heading that opens the Lanes section (issue #1000): `## Lanes`
+  /// (any level, case-insensitive).
+  static final RegExp _lanesHeading = RegExp(
+    r'^#{1,6}\s+lanes\s*$',
+    caseSensitive: false,
+  );
+
+  /// A lane declaration line: `- lane: CORE` (the yaml block's list
+  /// item; the dash is optional so a bare `lane: CORE` also parses).
+  static final RegExp _laneLine = RegExp(
+    r'^\s*(?:-\s*)?lane:\s*(.+?)\s*$',
+    caseSensitive: false,
+  );
+
+  /// A behaviors line: `behaviors: [A1, A2, U1-U6]` (bracketed list or
+  /// bare comma list).
+  static final RegExp _laneBehaviorsLine = RegExp(
+    r'^\s*behaviors:\s*(.+?)\s*$',
+    caseSensitive: false,
+  );
+
+  /// A flutter-allowed line: `flutter_allowed: false`.
+  static final RegExp _laneFlutterAllowedLine = RegExp(
+    r'^\s*flutter_allowed:\s*(.+?)\s*$',
+    caseSensitive: false,
+  );
+
+  /// An adaptive-slots line: `adaptive_slots: [mobile, ios, android, macos]`.
+  static final RegExp _laneAdaptiveSlotsLine = RegExp(
+    r'^\s*adaptive_slots:\s*(.+?)\s*$',
+    caseSensitive: false,
+  );
+
+  /// Strip the optional brackets of a yaml list value
+  /// (`[a, b]` -> `a, b`); a bare comma list passes through.
+  static String _stripBrackets(String value) {
+    var v = value.trim();
+    if (v.startsWith('[')) v = v.substring(1);
+    if (v.endsWith(']')) v = v.substring(0, v.length - 1);
+    return v.trim();
+  }
+
+  /// Split a yaml list value into trimmed tokens, dropping empties.
+  static List<String> _listTokens(String value) => _stripBrackets(
+    value,
+  ).split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
+
+  /// Expand a behavior-list token (issue #1000): `U1-U6` ranges expand
+  /// to `U1 .. U6` (same alphabetic prefix, ascending integers); a
+  /// parenthetical annotation is stripped into [annotations]
+  /// (`A3 (acceptance: navigates to deal_list)` -> id `A3`, annotation
+  /// `acceptance: navigates to deal_list`); anything else is the id
+  /// verbatim.
+  static (List<String>, Map<String, String>) _expandBehaviorTokens(
+    List<String> tokens,
+  ) {
+    final ids = <String>[];
+    final annotations = <String, String>{};
+    for (final token in tokens) {
+      var t = token.trim();
+      final annotation = RegExp(r'\(([^)]*)\)\s*$').firstMatch(t);
+      if (annotation != null) {
+        final note = annotation.group(1)!.trim();
+        t = t.substring(0, annotation.start).trim();
+        if (note.isNotEmpty && t.isNotEmpty) annotations[t] = note;
+      }
+      if (t.isEmpty) continue;
+      final range = RegExp(
+        r'^([A-Za-z]+)(\d+)\s*-\s*[A-Za-z]*(\d+)$',
+      ).firstMatch(t);
+      if (range != null) {
+        final prefix = range.group(1)!;
+        final start = int.parse(range.group(2)!);
+        final end = int.parse(range.group(3)!);
+        if (end >= start && end - start < 1000) {
+          for (var n = start; n <= end; n++) {
+            ids.add('$prefix$n');
+          }
+          continue;
+        }
+      }
+      ids.add(t);
+    }
+    return (ids, annotations);
+  }
+
+  /// Extract the declared lanes (issue #1000): the spec's `## Lanes`
+  /// section, authored as a yaml block (fenced or bare):
+  ///
+  /// ```yaml
+  /// Lanes:
+  ///   - lane: CORE
+  ///     behaviors: [A1, A2, U1-U6]
+  ///     flutter_allowed: false
+  ///   - lane: SKIN
+  ///     behaviors: [W1-W4]
+  ///     flutter_allowed: true
+  ///     adaptive_slots: [mobile, ios, android, macos]
+  ///   - lane: BOTH
+  ///     behaviors: [A3 (acceptance: navigates to deal_list)]
+  ///     flutter_allowed: conditionally
+  /// ```
+  ///
+  /// Lenient by design (a spec without the section yields an empty list
+  /// — every pre-1000 spec): fence-marker lines are skipped so the block
+  /// parses fenced or bare, a `Lanes:` header line is skipped, and a
+  /// `lane:` line opens a new declaration whose `behaviors:` /
+  /// `flutter_allowed:` / `adaptive_slots:` continuation lines fill it.
+  /// Unknown lane names parse verbatim — plan refuses them (the grammar
+  /// is CORE/SKIN/BOTH).
+  List<LaneDeclaration> parseLanes(String specMd) {
+    final lanes = <LaneDeclaration>[];
+    var inSection = false;
+    String? currentLane;
+    var behaviorIds = <String>[];
+    var annotations = <String, String>{};
+    var flutterAllowed = '';
+    var adaptiveSlots = <String>[];
+
+    void flush() {
+      if (currentLane == null) return;
+      lanes.add(
+        LaneDeclaration(
+          lane: currentLane!,
+          behaviorIds: behaviorIds,
+          flutterAllowed: flutterAllowed,
+          adaptiveSlots: adaptiveSlots,
+          annotations: annotations,
+        ),
+      );
+      currentLane = null;
+      behaviorIds = <String>[];
+      annotations = <String, String>{};
+      flutterAllowed = '';
+      adaptiveSlots = <String>[];
+    }
+
+    for (final line in specMd.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('#')) {
+        final wasInSection = inSection;
+        inSection = _lanesHeading.hasMatch(trimmed);
+        if (wasInSection && !inSection) flush();
+        continue;
+      }
+      if (!inSection) continue;
+      // Fence markers (```yaml … ```): the block parses fenced or bare.
+      if (trimmed.startsWith('```')) continue;
+      // The `Lanes:` yaml header line — the declarations follow.
+      if (RegExp(r'^lanes:\s*$', caseSensitive: false).hasMatch(trimmed)) {
+        continue;
+      }
+      final laneM = _laneLine.firstMatch(trimmed);
+      if (laneM != null) {
+        flush();
+        currentLane = laneM.group(1)!.trim();
+        continue;
+      }
+      if (currentLane == null) continue;
+      final behaviorsM = _laneBehaviorsLine.firstMatch(trimmed);
+      if (behaviorsM != null) {
+        final (ids, notes) = _expandBehaviorTokens(
+          _listTokens(behaviorsM.group(1)!),
+        );
+        behaviorIds = ids;
+        annotations = notes;
+        continue;
+      }
+      final flutterM = _laneFlutterAllowedLine.firstMatch(trimmed);
+      if (flutterM != null) {
+        flutterAllowed = _stripBrackets(flutterM.group(1)!);
+        continue;
+      }
+      final slotsM = _laneAdaptiveSlotsLine.firstMatch(trimmed);
+      if (slotsM != null) {
+        adaptiveSlots = _listTokens(slotsM.group(1)!);
+        continue;
+      }
+    }
+    flush();
+    return lanes;
   }
 
   /// Extract the declared contract rows (feature 071): every row an

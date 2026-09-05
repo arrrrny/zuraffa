@@ -63,6 +63,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../models/behavior.dart';
+import 'lane_split.dart';
 import 'spec_parser.dart';
 
 /// One parsed test-list row.
@@ -196,6 +197,13 @@ class TestListReader {
   final String featureDir;
 
   /// Parse `tdd/test-list.md` into rows, in list order.
+  ///
+  /// Issue #1000: when the test list is a lane META-INDEX (a
+  /// `## Lane split` section pointing at the lane plans), the rows
+  /// resolve from `tdd/04-ENGINE.md` then `tdd/04-SKIN.md` — the
+  /// engine file first so a BOTH-lane behavior's id resolves exactly
+  /// once (its skin copy is skipped by id). Legacy lists parse exactly
+  /// as before — the split is transparent to every consumer.
   Future<List<BehaviorRow>> read() async {
     final file = File(p.join(featureDir, 'tdd', 'test-list.md'));
     if (!await file.exists()) {
@@ -203,7 +211,39 @@ class TestListReader {
         'no test list at ${file.path} — run `zfa tdd plan <feature>` first',
       );
     }
-    final lines = (await file.readAsString()).split('\n');
+    final content = await file.readAsString();
+    final split = LaneSplitFiles.find(content);
+    if (split == null) {
+      return _parseRows(content, path: file.path);
+    }
+    final rows = <BehaviorRow>[];
+    final seen = <String>{};
+    for (final name in [split.engine, split.skin]) {
+      final laneFile = File(p.join(featureDir, 'tdd', name));
+      if (!await laneFile.exists()) {
+        throw TestListReadException(
+          'lane split: plan file ${laneFile.path} (pointed at by '
+          '${file.path}) does not exist — re-run `zfa tdd plan <feature>`',
+        );
+      }
+      for (final row in _parseRows(
+        await laneFile.readAsString(),
+        path: laneFile.path,
+      )) {
+        // BOTH-lane behaviors appear in both files; the engine copy
+        // (read first) is the row of record.
+        if (seen.add(row.id)) rows.add(row);
+      }
+    }
+    return rows;
+  }
+
+  /// The single-file row parser (bug #617): the line walk every list
+  /// shape funnels through — section headers set the kind, declarative
+  /// sections are skipped, table rows parse in the canonical 4-column
+  /// or deprecated 6-column shapes.
+  List<BehaviorRow> _parseRows(String content, {required String path}) {
+    final lines = content.split('\n');
     final rows = <BehaviorRow>[];
     BehaviorKind? kind;
     var inDeclarativeSection = false;
@@ -247,10 +287,16 @@ class TestListReader {
         // their rows are declarations, not behaviors; parsing them as
         // behavior rows killed `zfa tdd run` (exit 2) on every
         // deps-declaring (zuraffa-1.0) spec.
+        // Issue #1000: the Lane split section of a meta-index carries
+        // the pointer table — declarations, not behaviors.
         inDeclarativeSection =
             header.startsWith('key entities') ||
             header.startsWith('external dependencies') ||
-            header.startsWith('layer contracts');
+            header.startsWith('layer contracts') ||
+            header.startsWith('lane split') ||
+            header.startsWith('adaptive view slots') ||
+            header.startsWith('boundary') ||
+            header.startsWith('shared seam behaviors');
         continue;
       }
       if (inDeclarativeSection) continue;
@@ -278,7 +324,7 @@ class TestListReader {
       if (dialect == _DeprecatedDialect.genLegacy && !deprecatedDialectWarned) {
         deprecatedDialectWarned = true;
         stderr.writeln(
-          'zfa: ${file.path}: deprecated 6-column test-list rows detected '
+          'zfa: $path: deprecated 6-column test-list rows detected '
           '(id/behavior/traces/kind/state/target). Migrate by manually '
           'converting tdd/test-list.md to the canonical 4-column shape '
           '(id/behavior/traces/state); the 6-column dialect is accepted '
@@ -289,15 +335,32 @@ class TestListReader {
     return rows;
   }
 
+  /// The content that carries the plan's declaration sections (Key
+  /// entities / External dependencies / Layer contracts): the test
+  /// list itself, or — for a lane-split feature (issue #1000) — the
+  /// ENGINE plan the meta-index points at (plan writes the spec-wide
+  /// declarations into the engine file). Empty when neither exists.
+  Future<String> _sectionsSource() async {
+    final file = File(p.join(featureDir, 'tdd', 'test-list.md'));
+    if (!await file.exists()) return '';
+    final content = await file.readAsString();
+    final split = LaneSplitFiles.find(content);
+    if (split != null) {
+      final engine = File(p.join(featureDir, 'tdd', split.engine));
+      if (await engine.exists()) return await engine.readAsString();
+    }
+    return content;
+  }
+
   /// Parse the `## Key entities` section plan writes (bug #829). Lenient
   /// by design: a list without the section yields an empty list (every
   /// pre-829 artifact), and rows that do not carry a name cell are
   /// skipped rather than rejected — the section is an extraction aid,
   /// not a behavior contract.
   Future<List<DeclaredEntity>> readEntities() async {
-    final file = File(p.join(featureDir, 'tdd', 'test-list.md'));
-    if (!await file.exists()) return const [];
-    final lines = (await file.readAsString()).split('\n');
+    final specMd = await _sectionsSource();
+    if (specMd.isEmpty) return const [];
+    final lines = specMd.split('\n');
     final entities = <DeclaredEntity>[];
     var inEntitySection = false;
     for (final raw in lines) {
@@ -343,9 +406,9 @@ class TestListReader {
   /// empty list (every pre-919 artifact); header/separator rows and rows
   /// without a dependency name are skipped rather than rejected.
   Future<List<SpecDependency>> readDependencies() async {
-    final file = File(p.join(featureDir, 'tdd', 'test-list.md'));
-    if (!await file.exists()) return const [];
-    final lines = (await file.readAsString()).split('\n');
+    final specMd = await _sectionsSource();
+    if (specMd.isEmpty) return const [];
+    final lines = specMd.split('\n');
     final dependencies = <SpecDependency>[];
     var inSection = false;
     for (final raw in lines) {
@@ -380,9 +443,9 @@ class TestListReader {
   /// `### <layer>` headings and `- `<interface>`: `sig1`, `sig2``
   /// bullets beneath them.
   Future<List<LayerContract>> readLayerContracts() async {
-    final file = File(p.join(featureDir, 'tdd', 'test-list.md'));
-    if (!await file.exists()) return const [];
-    final lines = (await file.readAsString()).split('\n');
+    final specMd = await _sectionsSource();
+    if (specMd.isEmpty) return const [];
+    final lines = specMd.split('\n');
     final contracts = <LayerContract>[];
     var inSection = false;
     var layer = '';
