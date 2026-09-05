@@ -77,3 +77,56 @@ re-run properly with copy-based backup/restore and asserted pattern
 matches — both killed cleanly. The final diff is byte-identical to the
 pre-incident GREEN state (4 files, +226/−12; confirmed via
 `dart format .` → 0 changed and full re-runs).
+
+## Cycle 2 — provider mirror of the service surface (2026-09-05, post-merge)
+
+The master merge (5196caf6) surfaced the second half of the triad contract:
+the service interface now declares the entity surface, but the PROVIDER
+generated in the same make run did not implement it — the #921 provider
+conformance guard (merged to master since the original GREEN) failed the run.
+
+### RED evidence (verbatim, `dart test test/plugins/service/make_service_triad_test.dart`)
+
+```
+❌ Provider conformance failed for "Product" — 3 finding(s):
+  [missing_method] ProductProvider does not implement ProductService.get ...
+  [missing_method] ProductProvider does not implement ProductService.update ...
+  [missing_method] ProductProvider does not implement ProductService.toggle ...
+```
+
+### Root cause (traced, three-link chain)
+
+1. `ProviderPlugin.generateWithContext` passed
+   `methods: data['methods'] ?? []` — no entity-methods default (the
+   service plugin got its default in cycle 1; the provider did not).
+2. `GeneratorConfig.isEntityBased => methods.isNotEmpty && !noEntity` —
+   with methods empty the provider config is NOT entity-based, so
+   `ProviderBuilder.generate` built the service lookup path as the FLAT
+   `domain/services/<name>_service.dart` while the service (entity-based
+   since cycle 1) wrote the ENTITY path
+   `domain/services/<domain>/<name>_service.dart`.
+3. Extraction returned 0 methods → the builder fell through to the
+   params/returns fallback and emitted the phantom
+   `Future<void> product(NoParams)` member.
+   Instrumented probe (temporary print, since removed) confirmed:
+   `servicePath=lib/src/domain/services/product_service.dart exists=false
+   extracted=0 configMethods=[]`.
+
+### GREEN changes
+
+1. `provider_plugin.dart` — generateWithContext mirrors the service's
+   entity-methods default (`['get','update','toggle']`), gated:
+   explicit `--methods` wins; `--no-entity` stays hollow; `use-service`
+   keeps the extraction-from-disk mirror semantic (#768/#979) because an
+   EXISTING interface may carry a custom surface.
+2. `provider_builder.dart` — `case 'toggle'` in `_buildEntityMethod`,
+   mirroring the service builder signature exactly
+   (`Future<E> toggle(ToggleParams<Id, Field<E, dynamic>>)`).
+
+### GREEN evidence
+
+- `make Product --service Product di` repro: provider now emits
+  `get`/`update`/`toggle` with signatures identical to the interface; the
+  conformance guard passes (`✅ Done.`).
+- `dart test test/plugins/service/ test/plugins/provider/` → 53/53 green.
+- Full fast suite: re-run at commit time (see verification.md).
