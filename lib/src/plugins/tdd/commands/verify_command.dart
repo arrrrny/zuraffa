@@ -31,6 +31,8 @@ import 'package:path/path.dart' as p;
 import '../services/mutation_auditor.dart';
 import '../services/requirement_scan.dart';
 import '../services/tdd_timeout.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -71,6 +73,9 @@ class VerifyCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'verify';
 
@@ -83,7 +88,9 @@ class VerifyCommand extends Command<void> {
   String get invocation => 'zfa tdd verify [--feature <name>]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
     final argResults = this.argResults;
     final feature = argResults?['feature'] as String?;
     if (feature != null && feature.isNotEmpty) {
@@ -202,6 +209,17 @@ class VerifyCommand extends Command<void> {
       'timed_out=${report.timedOutCount} '
       'mutation_was_run=${report.mutationWasRun}',
     );
+    // Issue #969: the gate label IS the exit class (shipped taxonomy).
+    _verdict
+      ..exitClass = report.gate.label
+      ..outcome = report.gate == MutationGateDecision.pass
+          ? VerdictOutcome.pass
+          : VerdictOutcome.fail
+      ..details['killed'] = report.killedCount
+      ..details['survived'] = report.survivedCount
+      ..details['timed_out'] = report.timedOutCount
+      ..details['mutation_was_run'] = report.mutationWasRun
+      ..feature = featureName;
 
     // Write verification.md from the REAL run (never a stale copy).
     await _writeVerificationMd(featureDir, report);

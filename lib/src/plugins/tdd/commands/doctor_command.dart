@@ -44,11 +44,20 @@ import '../services/generated_shape.dart';
 import '../services/import_resolution.dart';
 import '../services/import_resolution_checker.dart';
 import '../services/run_state_store.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
 class DoctorCommand extends Command<void> {
   DoctorCommand(this.plugin) {
+    argParser.addFlag(
+      'json',
+      help:
+          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'line (VISION §5, issue #969).',
+      negatable: false,
+    );
     argParser.addOption(
       'project',
       aliases: const ['project-root'],
@@ -59,6 +68,12 @@ class DoctorCommand extends Command<void> {
   }
 
   final TddPlugin plugin;
+
+  /// Issue #969: the envelope carrier the wrapper reads on exit (the
+  /// legacy raw-JSON verdict line folds into it under --json).
+  final VerdictContext _verdict = VerdictContext();
+
+  bool get _jsonMode => argResults?['json'] as bool? ?? false;
 
   @override
   String get name => 'doctor';
@@ -75,7 +90,10 @@ class DoctorCommand extends Command<void> {
   String get invocation => 'zfa tdd doctor <feature> [--project <path>]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() =>
+      runWithVerdictEnvelope(this, _verdict, _run, featureFromRest: true);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       usageException('Feature name is required: zfa tdd doctor <feature>');
@@ -483,6 +501,21 @@ class DoctorCommand extends Command<void> {
     List<String> drifts = const [],
     Map<String, String>? ownedBy,
   }) {
+    if (_jsonMode) {
+      // Issue #969: fold the verdict into the versioned envelope — the
+      // wrapper emits ONE machine line; the raw object disappears.
+      _verdict
+        ..feature = feature
+        ..exitClass = verdict
+        ..outcome = verdict == 'healthy' ? VerdictOutcome.pass : VerdictOutcome.fail
+        ..fix = fix
+        ..drifts.addAll(drifts)
+        ..details['prescription'] = prescription;
+      if (ownedBy != null && ownedBy.isNotEmpty) {
+        _verdict.details['owned_by'] = ownedBy;
+      }
+      return;
+    }
     print(
       jsonEncode({
         'command': 'doctor',

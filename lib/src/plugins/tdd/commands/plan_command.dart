@@ -21,6 +21,8 @@ import '../services/routing_resolver.dart';
 import '../services/requirement_scan.dart';
 import '../services/spec_parser.dart';
 import '../services/test_list_reader.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -53,6 +55,9 @@ class PlanCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'plan';
 
@@ -65,7 +70,10 @@ class PlanCommand extends Command<void> {
   String get invocation => 'zfa tdd plan <feature>';
 
   @override
-  Future<void> run() async {
+  Future<void> run() =>
+      runWithVerdictEnvelope(this, _verdict, _run, featureFromRest: true);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       usageException('Feature name is required: zfa tdd plan <feature>');
@@ -107,6 +115,12 @@ class PlanCommand extends Command<void> {
         'speckit extension) so it pins a known template version; re-run '
         '`zfa tdd plan`.',
       );
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'contract-drift'
+        ..fix = 'author the spec from the zuraffa spec template so it pins '
+            'a known template version; re-run zfa tdd plan'
+        ..details['spec'] = specPath;
       exitCode = 3;
       return;
     }
@@ -148,6 +162,12 @@ class PlanCommand extends Command<void> {
         );
         print('    ${gap.fix}');
       }
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'coverage-gate'
+        ..fix = 'map every requirement statement to a behavior row or a '
+            '(manual: owner) declaration, then re-run zfa tdd plan'
+        ..details['gaps'] = gaps.length;
       exitCode = 2;
       return;
     }
@@ -187,6 +207,13 @@ class PlanCommand extends Command<void> {
           'Dependencies & Contracts table (or drop the reference).',
         );
       });
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'undeclared-dependency'
+        ..fix = 'add the referenced dependencies to the External '
+            'Dependencies & Contracts table (or drop the references), '
+            'then re-run zfa tdd plan'
+        ..details['undeclared'] = undeclared.length;
       exitCode = 2;
       return;
     }
@@ -288,6 +315,12 @@ class PlanCommand extends Command<void> {
     } on StateError catch (e) {
       print('zfa tdd plan: declaration refused — ${e.message}');
       print('  no artifacts were written.');
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'declaration-refused'
+        ..fix = 'fix the malformed declaration named above, then re-run '
+            'zfa tdd plan'
+        ..details['reason'] = e.message;
       exitCode = 2;
       return;
     }
@@ -304,6 +337,12 @@ class PlanCommand extends Command<void> {
       for (final line in provenance.remove('__refused__')!) {
         print(line);
       }
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'routing-refused'
+        ..fix = 'declare the routing intent (Type marker / contract trace) '
+            'for every refused behavior, then re-run zfa tdd plan --strict-routing'
+        ..details['strict'] = true;
       exitCode = 1;
       return;
     }
@@ -356,6 +395,12 @@ class PlanCommand extends Command<void> {
         'ies): ${entities.map((e) => e.name).join(', ')}.',
       );
     }
+    _verdict
+      ..details['acceptance'] = aCount
+      ..details['unit'] = uCount
+      ..details['ffi'] = fCount
+      ..details['behaviors'] = total
+      ..details['test_list'] = outFile.path;
   }
 
   String _render(

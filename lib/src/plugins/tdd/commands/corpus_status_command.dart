@@ -18,6 +18,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../models/corpus_ledger.dart';
 import '../models/corpus_manifest.dart';
@@ -30,6 +32,13 @@ import '../../../core/project/project_root.dart';
 
 class CorpusStatusCommand extends Command<void> {
   CorpusStatusCommand(this.plugin) {
+    argParser.addFlag(
+      'json',
+      help:
+          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'line (VISION §5, issue #969).',
+      negatable: false,
+    );
     argParser.addOption(
       'project',
       aliases: const ['project-root'],
@@ -40,6 +49,9 @@ class CorpusStatusCommand extends Command<void> {
   }
 
   final TddPlugin plugin;
+
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
 
   @override
   String get name => 'status';
@@ -58,7 +70,9 @@ class CorpusStatusCommand extends Command<void> {
   static const _exitCorruptState = 3;
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run, commandOverride: 'corpus status');
+
+  Future<void> _run() async {
     final argResults = this.argResults;
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
@@ -271,6 +285,16 @@ class CorpusStatusCommand extends Command<void> {
     int gaps = 0,
     String? resumeAt,
   }) {
+    // Issue #969: the result label IS the exit class.
+    _verdict
+      ..exitClass = result
+      ..outcome = switch (result) {
+        'complete' => VerdictOutcome.pass,
+        'incomplete' => VerdictOutcome.fail,
+        _ => VerdictOutcome.error,
+      }
+      ..details['features'] = features
+      ..details['gaps'] = gaps;
     var done = 0;
     var waived = 0;
     var stopped = 0;

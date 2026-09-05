@@ -19,6 +19,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../services/adapter_parity_checker.dart';
 import '../services/corpus_manifest_store.dart';
@@ -27,6 +29,13 @@ import '../../../core/project/project_root.dart';
 
 class CorpusAuditCommand extends Command<void> {
   CorpusAuditCommand(this.plugin) {
+    argParser.addFlag(
+      'json',
+      help:
+          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'line (VISION §5, issue #969).',
+      negatable: false,
+    );
     argParser.addOption(
       'project',
       aliases: const ['project-root'],
@@ -37,6 +46,9 @@ class CorpusAuditCommand extends Command<void> {
   }
 
   final TddPlugin plugin;
+
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
 
   @override
   String get name => 'audit';
@@ -54,7 +66,9 @@ class CorpusAuditCommand extends Command<void> {
   static const _exitRunnerError = 2;
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run, commandOverride: 'corpus audit');
+
+  Future<void> _run() async {
     final argResults = this.argResults;
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
@@ -128,10 +142,18 @@ class CorpusAuditCommand extends Command<void> {
 
       _printSummary(report, result);
       exitCode = result == 'pass' ? _exitPass : _exitFail;
+      _verdict
+        ..exitClass = result
+        ..outcome = result == 'pass' ? VerdictOutcome.pass : VerdictOutcome.fail
+        ..details['files'] = report?.counts.files ?? 0
+        ..details['unattributed'] = report?.counts.unattributed ?? 0;
     } on IOException catch (e) {
       print('zfa tdd corpus audit: runner error: $e');
       _printSummary(report, 'runner-error');
       exitCode = _exitRunnerError;
+      _verdict
+        ..exitClass = 'runner-error'
+        ..outcome = VerdictOutcome.error;
     }
   }
 

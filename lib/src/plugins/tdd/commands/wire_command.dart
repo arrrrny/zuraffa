@@ -44,6 +44,8 @@ import 'package:path/path.dart' as p;
 import '../services/artifact_registry.dart';
 import '../services/entity_lookup.dart';
 import '../services/subject_signature_deriver.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -92,6 +94,9 @@ class WireCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'wire';
 
@@ -107,7 +112,9 @@ class WireCommand extends Command<void> {
       '[--project <path>]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     final behaviorId = rest.isNotEmpty ? rest.first : null;
     if (behaviorId == null || behaviorId.isEmpty) {
@@ -510,6 +517,16 @@ $effectiveReturnType $functionName() {$body}
     required String feature,
   }) {
     print('wire: behavior=$behavior outcome=${outcome.label} feature=$feature');
+    // Issue #969: the outcome label IS the exit class.
+    _verdict
+      ..exitClass = outcome.label
+      ..outcome = switch (outcome) {
+        WireOutcome.wired => VerdictOutcome.pass,
+        WireOutcome.alreadyWired => VerdictOutcome.stopped,
+        WireOutcome.runnerError => VerdictOutcome.fail,
+      }
+      ..details['behavior'] = behavior
+      ..feature = feature == 'unknown' ? null : feature;
   }
 }
 

@@ -94,6 +94,7 @@ import '../services/theme_harness_subject_writer.dart';
 import '../services/theme_harness_test_writer.dart';
 import '../tdd_plugin.dart';
 import '../services/tdd_timeout.dart';
+import '../services/verdict_emitter.dart';
 import '../services/widget_scaffold.dart';
 import '../../../config/zfa_config.dart';
 import '../../../core/project/project_root.dart';
@@ -200,6 +201,10 @@ class GenCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit (the
+  /// batch verdict folds into it — ONE final envelope, never two).
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'gen';
 
@@ -225,7 +230,9 @@ class GenCommand extends Command<void> {
   );
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     _jsonMode = argResults?['json'] as bool? ?? false;
     final all = argResults!['all'] as bool;
@@ -551,23 +558,22 @@ class GenCommand extends Command<void> {
       );
       return;
     }
-    VerdictEnvelope.emit(
-      command: 'gen',
-      outcome: verdict == 'stopped'
+    // Issue #969: the batch verdict folds into the wrapper's context —
+    // the final envelope is emitted once, after the body returns.
+    _verdict
+      ..feature = feature
+      ..outcome = verdict == 'stopped'
           ? VerdictOutcome.stopped
-          : VerdictOutcome.pass,
-      feature: feature,
-      details: <String, Object?>{
-        'verdict': verdict,
-        'batch': true,
-        'behaviors': behaviors,
-        'created': counts['created'] ?? 0,
-        'reused': counts['reused'] ?? 0,
-        'adopted': counts['adopted'] ?? 0,
-        'planned': counts['planned'] ?? 0,
-        if (stoppedAt != null) 'stopped_at': stoppedAt,
-      },
-    );
+          : VerdictOutcome.pass;
+    _verdict.details
+      ..['verdict'] = verdict
+      ..['batch'] = true
+      ..['behaviors'] = behaviors
+      ..['created'] = counts['created'] ?? 0
+      ..['reused'] = counts['reused'] ?? 0
+      ..['adopted'] = counts['adopted'] ?? 0
+      ..['planned'] = counts['planned'] ?? 0;
+    if (stoppedAt != null) _verdict.details['stopped_at'] = stoppedAt;
   }
 
   /// The deadline-bounded flow body, verbatim the pre-#744 contract:
