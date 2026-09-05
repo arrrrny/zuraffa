@@ -83,6 +83,13 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         'description':
             'Adaptive layout targets, e.g. mobile,tablet,desktop,macos',
       },
+      'skin': {
+        'type': 'boolean',
+        'default': false,
+        'description':
+            'Generate with the runtime skin-contract auditor wrap '
+            '(issues #1102/#1166)',
+      },
       'v6-state': {
         'type': 'boolean',
         'default': false,
