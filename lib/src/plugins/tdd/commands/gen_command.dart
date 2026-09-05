@@ -582,17 +582,16 @@ class GenCommand extends Command<void> {
       ..feature = feature
       ..outcome = verdict == 'stopped'
           ? VerdictOutcome.stopped
-          : VerdictOutcome.pass
-      ..details.addAll(<String, Object?>{
-        'verdict': verdict,
-        'batch': true,
-        'behaviors': behaviors,
-        'created': counts['created'] ?? 0,
-        'reused': counts['reused'] ?? 0,
-        'adopted': counts['adopted'] ?? 0,
-        'planned': counts['planned'] ?? 0,
-        'stopped_at': ?stoppedAt,
-      });
+          : VerdictOutcome.pass;
+    _verdict.details
+      ..['verdict'] = verdict
+      ..['batch'] = true
+      ..['behaviors'] = behaviors
+      ..['created'] = counts['created'] ?? 0
+      ..['reused'] = counts['reused'] ?? 0
+      ..['adopted'] = counts['adopted'] ?? 0
+      ..['planned'] = counts['planned'] ?? 0;
+    if (stoppedAt != null) _verdict.details['stopped_at'] = stoppedAt;
   }
 
   /// The deadline-bounded flow body, verbatim the pre-#744 contract:
