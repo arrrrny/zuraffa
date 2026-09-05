@@ -14,20 +14,24 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/079-skin-contract-binding/a1_subject.dart' as subject;
+import 'package:zuraffa/tdd/079-skin-contract-binding/a1_subject.dart'
+    as subject;
 
 void main() {
   group('A1 (AC-1)', () {
-    test('A1 — both are allowed, an undeclared `/settings` push violates, and the navigator root still conforms by construction.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a1();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A1 — both are allowed, an undeclared `/settings` push violates, and the navigator root still conforms by construction.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a1();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

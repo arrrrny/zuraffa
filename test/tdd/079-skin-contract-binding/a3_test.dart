@@ -14,20 +14,24 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/079-skin-contract-binding/a3_subject.dart' as subject;
+import 'package:zuraffa/tdd/079-skin-contract-binding/a3_subject.dart'
+    as subject;
 
 void main() {
   group('A3 (AC-3)', () {
-    test('A3 — LoginPage maps to the toaster binding and RegisterPage to inline.', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a3();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A3 — LoginPage maps to the toaster binding and RegisterPage to inline.',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a3();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }
