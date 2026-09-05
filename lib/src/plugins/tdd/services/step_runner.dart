@@ -272,6 +272,17 @@ class StepRunner {
         suiteBaselinePath.isNotEmpty) {
       argv.addAll(['--suite-baseline', suiteBaselinePath]);
     }
+    // Issue #1159: the driver's deadline is ONE uniform deadline (bug #742)
+    // — the spawned step child must inherit it, otherwise make/refactor
+    // fall back to their internal 10-minute defaults and their baseline
+    // suite is killed mid-run on repos whose fast suite runs long.
+    if (timeout != TddTimeouts.defaultStepProcess) {
+      argv.addAll([
+        '--timeout',
+        (timeout.inMicroseconds / Duration.microsecondsPerMinute)
+            .toStringAsFixed(4),
+      ]);
+    }
     final command = entry.endsWith('.dart')
         ? ['dart', entry, ...argv]
         : [entry, ...argv];

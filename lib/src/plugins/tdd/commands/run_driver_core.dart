@@ -406,6 +406,12 @@ class RunDriverCore {
           final baselineRecord = await const SingleTestRunner().runSuite(
             suiteTemplate: suiteTemplate,
             workingDirectory: projectRoot,
+            // Issue #1159: the run-level --timeout override is ONE uniform
+            // deadline for every spawned process (bug #742 contract) — the
+            // baseline suite included. Dropping it here left the hardcoded
+            // 10-minute defaultSuite in charge, killing the baseline (and
+            // with it every make step) on repos whose fast suite runs long.
+            timeout: timeout,
           );
           final snapshot = const SuiteGuard().fromRunRecord(
             record: baselineRecord,
