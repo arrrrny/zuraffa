@@ -48,6 +48,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
 import '../services/composition_targets.dart';
+import '../services/tdd_generation_receipt.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
@@ -362,6 +363,14 @@ class ComposeCommand extends Command<void> {
       exitCode = 1;
       return;
     }
+    // Issue #969 T003: the composed subject becomes self-certifying.
+    await TddGenerationReceipts.writeBestEffort(
+      projectRoot: resolvedCwd,
+      command: 'tdd compose',
+      target: record.behaviorId,
+      feature: target.featureName,
+      files: {resolvedSubjectPath: 'update'},
+    );
     print('   composed: $recordedSubject');
     _printSummary(
       behavior: record.behaviorId,

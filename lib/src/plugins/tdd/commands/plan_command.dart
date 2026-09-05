@@ -21,6 +21,7 @@ import '../services/routing_resolver.dart';
 import '../services/requirement_scan.dart';
 import '../services/spec_parser.dart';
 import '../services/test_list_reader.dart';
+import '../services/tdd_generation_receipt.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
@@ -369,6 +370,18 @@ class PlanCommand extends Command<void> {
         declarations.persistence,
         provenance,
       ),
+    );
+    // Issue #969 T003: the plan's artifacts become self-certifying —
+    // digest-bound receipts so the preflight gate can catch hand-edits.
+    await TddGenerationReceipts.writeBestEffort(
+      projectRoot: repoRoot,
+      command: 'tdd plan',
+      target: feature,
+      feature: feature,
+      files: {
+        outFile.path: 'update',
+        p.join(outDir.path, 'traceability.md'): 'update',
+      },
     );
     for (final line in provenance.values.expand((l) => l)) {
       // print (not stdout.writeln): the observable-CLI convention the

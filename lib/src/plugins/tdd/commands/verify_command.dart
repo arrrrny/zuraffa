@@ -28,6 +28,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../core/proof/proof_checker.dart';
+import '../../../core/project/receipt_store.dart';
 import '../services/mutation_auditor.dart';
 import '../services/requirement_scan.dart';
 import '../services/tdd_timeout.dart';
@@ -147,6 +149,34 @@ class VerifyCommand extends Command<void> {
       return;
     }
 
+    // Proof preflight gate (issue #969, T004): the feature's receipted
+    // artifacts must still match the bytes their generating verbs wrote.
+    // Digest drift means the mutation audit would assess unprovenanced
+    // bytes — refuse with NOT_ASSESSED, non-zero, and a fix line, BEFORE
+    // the mutation audit runs.
+    final proofDrift = await _proofPreflightDrift(cwd, featureName);
+    if (proofDrift != null) {
+      print(
+        'zfa tdd verify: NOT_ASSESSED — the feature\'s artifacts failed '
+        'the proof preflight (digest drift before the audit).',
+      );
+      print('   [${proofDrift.kind}] ${proofDrift.path}');
+      print('   ${proofDrift.detail}');
+      print(
+        '   --> fix: restore the receipted bytes by re-running the '
+        'generating verbs (zfa tdd plan / gen / make), then re-verify.',
+      );
+      _verdict
+        ..exitClass = 'not-assessed'
+        ..outcome = VerdictOutcome.error
+        ..fix = 'restore the receipted bytes by re-running the generating '
+            'verbs (zfa tdd plan / gen / make), then re-verify';
+      _verdict.drifts
+        .add('${proofDrift.kind}: ${proofDrift.path} — ${proofDrift.detail}');
+      exitCode = 3;
+      return;
+    }
+
     print('zfa tdd verify: running mutation audit...');
     print('   feature: $featureName');
     print('   feature_dir: $featureDir');
@@ -242,6 +272,39 @@ class VerifyCommand extends Command<void> {
       );
     }
   }
+}
+
+/// The proof preflight (issue #969, T004): re-derives the digests of the
+/// feature's receipted artifacts and returns the FIRST drift finding —
+/// modified, deleted, or stale-spec — scoped to receipts this feature's
+/// verbs wrote (`input.feature`) plus anything under the feature's spec
+/// directory. Null when the feature has no receipted artifacts or every
+/// digest still matches (nothing to gate on, nothing drifted).
+Future<ProofFinding?> _proofPreflightDrift(
+  String cwd,
+  String featureName,
+) async {
+  final records = await ReceiptStore(projectRoot: cwd).loadAll();
+  final featurePaths = <String>{};
+  for (final record in records) {
+    final input = record.receipt.input;
+    final feature = input['feature'];
+    final inScope =
+        (feature is String && feature == featureName) ||
+        record.receipt.files.any(
+          (entry) => entry.path.startsWith('specs/$featureName/'),
+        );
+    if (!inScope) continue;
+    for (final entry in record.receipt.files) {
+      featurePaths.add(entry.path);
+    }
+  }
+  if (featurePaths.isEmpty) return null;
+  final report = await ProofChecker(projectRoot: cwd).check();
+  for (final finding in report.findings) {
+    if (featurePaths.contains(finding.path)) return finding;
+  }
+  return null;
 }
 
 /// The traceability drift between the plan artifact and the current

@@ -66,6 +66,7 @@ import '../services/artifact_registry.dart';
 import '../services/behavior_test_writer.dart' show BehaviorTestWriter;
 import '../services/finder_taxonomy.dart';
 import '../services/nuance_receipts.dart';
+import '../services/tdd_generation_receipt.dart';
 import '../services/test_list_reader.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
@@ -318,6 +319,14 @@ class ViewCommand extends Command<void> {
     }
     final updated = raw.replaceRange(blockStart, stub.end, scaffolded);
     await subjectFile.writeAsString(updated);
+    // Issue #969 T003: the scaffolded subject becomes self-certifying.
+    await TddGenerationReceipts.writeBestEffort(
+      projectRoot: normalizedCwd,
+      command: 'tdd view',
+      target: record.behaviorId,
+      feature: resolved.featureName,
+      files: {subjectPath: 'update'},
+    );
     // #807 receipt: record the scaffolded file for the provenance
     // ledger so `zfa proof check` recognises it.
     try {

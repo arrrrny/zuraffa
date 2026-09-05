@@ -46,6 +46,7 @@ import '../models/routing.dart';
 import '../services/artifact_registry.dart';
 import '../services/declared_routing.dart';
 import '../services/subject_signature_deriver.dart';
+import '../services/tdd_generation_receipt.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
@@ -284,6 +285,14 @@ class FuncCommand extends Command<void> {
     );
     final updated = raw.replaceRange(stub.start, stub.end, scaffolded);
     await subjectFile.writeAsString(updated);
+    // Issue #969 T003: the scaffolded subject becomes self-certifying.
+    await TddGenerationReceipts.writeBestEffort(
+      projectRoot: cwd,
+      command: 'tdd func',
+      target: record.behaviorId,
+      feature: resolved.featureName,
+      files: {subjectFile.path: 'update'},
+    );
     print('   scaffolded: $recordedSubject');
     _printSummary(
       behavior: record.behaviorId,

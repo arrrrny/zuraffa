@@ -145,8 +145,8 @@ class CorpusAuditCommand extends Command<void> {
       _verdict
         ..exitClass = result
         ..outcome = result == 'pass' ? VerdictOutcome.pass : VerdictOutcome.fail
-        ..details['files'] = report?.counts.files ?? 0
-        ..details['unattributed'] = report?.counts.unattributed ?? 0;
+        ..details['files'] = report.counts.files
+        ..details['unattributed'] = report.counts.unattributed;
     } on IOException catch (e) {
       print('zfa tdd corpus audit: runner error: $e');
       _printSummary(report, 'runner-error');

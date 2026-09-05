@@ -44,6 +44,7 @@ import 'package:path/path.dart' as p;
 import '../services/artifact_registry.dart';
 import '../services/entity_lookup.dart';
 import '../services/subject_signature_deriver.dart';
+import '../services/tdd_generation_receipt.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
@@ -298,6 +299,14 @@ class WireCommand extends Command<void> {
       entityImport: _packageImportFor(cwd, entityFile),
     );
     await subjectFile.writeAsString(wired);
+    // Issue #969 T003: the wired subject becomes self-certifying.
+    await TddGenerationReceipts.writeBestEffort(
+      projectRoot: cwd,
+      command: 'tdd wire',
+      target: record.behaviorId,
+      feature: resolved.featureName,
+      files: {subjectFile.path: 'update'},
+    );
     print('   wired: $recordedSubject -> entity $entityName');
     _printSummary(
       behavior: record.behaviorId,

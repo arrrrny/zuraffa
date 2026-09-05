@@ -84,6 +84,7 @@ import '../services/cross_feature_ownership.dart';
 import '../services/behavior_test_writer.dart';
 import '../services/generated_shape.dart';
 import '../services/nuance_receipts.dart';
+import '../services/tdd_generation_receipt.dart';
 import '../services/golden_harness_writer.dart';
 import '../services/platform_harness_context.dart';
 import '../services/platform_harness_subject_writer.dart';
@@ -982,6 +983,19 @@ class GenCommand extends Command<void> {
           createdPaths.addAll(golden.createdFiles);
           goldenPaths = golden;
         }
+        // Issue #969 T003: the pair (and any golden-lane files) becomes
+        // self-certifying — digest-bound proof.v1 receipts so
+        // `zfa proof check` and the verify preflight gate recognise
+        // every generated artifact.
+        await TddGenerationReceipts.writeBestEffort(
+          projectRoot: cwd,
+          command: 'tdd gen',
+          target: behavior.id,
+          feature: featureName,
+          files: {
+            for (final path in createdPaths) path: 'create',
+          },
+        );
         record = await bounded(registry.append(record), 'registry append');
       } catch (error, stackTrace) {
         // Transactional cleanup: remove what THIS attempt created. The

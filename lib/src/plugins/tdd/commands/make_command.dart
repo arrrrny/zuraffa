@@ -80,6 +80,7 @@ import '../services/entity_lookup.dart';
 import '../services/generation_planner.dart';
 import '../services/pipeline_runner.dart';
 import '../services/run_baseline_cache.dart';
+import '../services/tdd_generation_receipt.dart';
 import '../services/runner.dart';
 import '../services/spec_parser.dart';
 import '../services/test_list_reader.dart';
@@ -912,6 +913,16 @@ class MakeCommand extends Command<void> {
         suiteGuardFailures: guardSnap?.failedTests.length ?? 0,
         suiteNewFailures: regressed,
       ),
+    );
+    // Issue #969 T003: the green evidence becomes self-certifying.
+    await TddGenerationReceipts.writeBestEffort(
+      projectRoot: cwd,
+      command: 'tdd make',
+      target: record.behaviorId,
+      feature: target.featureName,
+      files: {
+        p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update',
+      },
     );
     print(
       '   green evidence appended to specs/${target.featureName}/tdd/'

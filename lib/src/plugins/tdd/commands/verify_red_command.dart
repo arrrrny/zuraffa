@@ -48,6 +48,7 @@ import '../services/cycle_log.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/red_classifier.dart';
 import '../services/runner.dart';
+import '../services/tdd_generation_receipt.dart';
 import '../services/tdd_timeout.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
@@ -390,6 +391,16 @@ class VerifyRedCommand extends Command<void> {
       print(
         '   red evidence appended to specs/${target.featureName}/tdd/'
         'cycle-log.md',
+      );
+      // Issue #969 T003: the red evidence becomes self-certifying.
+      await TddGenerationReceipts.writeBestEffort(
+        projectRoot: cwd,
+        command: 'tdd verify-red',
+        target: record.behaviorId,
+        feature: target.featureName,
+        files: {
+          p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update',
+        },
       );
       _printSummary(
         behavior: record.behaviorId,
@@ -856,6 +867,17 @@ class VerifyRedCommand extends Command<void> {
         print(
           '   red evidence appended to specs/${target.featureName}/tdd/'
           'cycle-log.md (${record.behaviorId})',
+        );
+        // Issue #969 T003: the batched red evidence becomes
+        // self-certifying.
+        await TddGenerationReceipts.writeBestEffort(
+          projectRoot: cwd,
+          command: 'tdd verify-red',
+          target: record.behaviorId,
+          feature: target.featureName,
+          files: {
+            p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update',
+          },
         );
         certifiedCount++;
       } else {
