@@ -12,7 +12,6 @@ import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
-import '../../../version.dart';
 import '../cache_plugin.dart';
 
 /// Capability that registers Hive type adapters for an entity and all its
@@ -127,21 +126,31 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
         }
       }
 
-      // Spec #975, Order 2: persist a registrar receipt so
-      // `zfa proof check` can prove where the registrar came from and
-      // `zfa cache verify` can detect drift. Best-effort by design: the
-      // artifacts already exist, so a receipt failure degrades to a
-      // warning instead of failing the run. Dry runs write nothing and
-      // must not ship receipts.
+      // Spec #975, Order 2: expose receipt inputs for the wrapper
+      // ([CapabilityCommand._persistCapabilityReceipt]) to assemble the
+      // canonical proof.v1 receipt. The capability no longer writes its
+      // own receipt — the wrapper handles it (issue #1130).
       if (!dryRun) {
-        await _emitReceipt(
-          entityName: args['name'] as String,
-          discoveredEntities: registeredEntities,
-          buildStatus: buildStatus,
-          wroteManualAdditions: args['_wroteManualAdditions'] == true,
+        final spec = _buildReceiptSpec(
           entitySourcePath: args['_entitySourcePath'] as String?,
-          verbose: args['verbose'] == true,
         );
+        if (spec != null) args['_spec'] = spec;
+
+        // Registrar hash: sha256 of the final on-disk registrar, so
+        // the receipt can prove where it came from.
+        final outputDir = plugin.outputDir;
+        final regFile = File(
+          path.join(outputDir, 'cache', 'hive_registrar.dart'),
+        );
+        if (regFile.existsSync()) {
+          args['_registrarHash'] = crypto.sha256
+              .convert(regFile.readAsBytesSync())
+              .toString();
+        }
+
+        // Build status and discovered entities for the receipt input.
+        args['_buildStatus'] = buildStatus;
+        args['_discoveredEntities'] = registeredEntities;
       }
 
       return ExecutionResult(
@@ -158,126 +167,34 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
     }
   }
 
-  /// Spec #975, Order 2 — persists the registrar receipt through
-  /// [ReceiptStore] (schema `proof.v1`, command `cache-adapter`).
-  ///
-  /// The payload the adapter already computes — target entity, discovered
-  /// entities, the registrar digest, the optional build status — becomes
-  /// durable so `zfa proof check` can re-derive the digests and
-  /// `zfa cache verify` can gate on drift. Receipt file paths are
-  /// project-relative so they stay portable across machines.
-  ///
-  /// The project root is resolved as the nearest ancestor of the
-  /// registrar artifact that carries a `pubspec.yaml`; when the artifact
-  /// lives inside a project-less directory under the current working
-  /// directory, the CWD is used; otherwise no receipt is written (there
-  /// is no project to prove provenance for, and writing into an
-  /// unrelated CWD would pollute it).
-  Future<void> _emitReceipt({
-    required String entityName,
-    required List<String> discoveredEntities,
-    required String? buildStatus,
-    required bool wroteManualAdditions,
-    String? entitySourcePath,
-    bool verbose = false,
-  }) async {
-    try {
-      final outputDir = plugin.outputDir;
-      final registrarAbs = _absoluteOf(
-        path.join(outputDir, 'cache', 'hive_registrar.dart'),
-      );
-      final projectRoot = _resolveProjectRoot(registrarAbs);
-      if (projectRoot == null) {
-        if (verbose) {
-          print('  Receipt skipped: no project root for $registrarAbs');
-        }
-        return;
-      }
-
-      String projectRel(String absPath) => path
-          .normalize(path.relative(absPath, from: projectRoot))
-          .replaceAll('\\', '/');
-
-      final files = <GenerationReceiptFile>[];
-      String? registrarHash;
-
-      final registrarFile = File(registrarAbs);
-      if (registrarFile.existsSync()) {
-        final bytes = registrarFile.readAsBytesSync();
-        registrarHash = crypto.sha256.convert(bytes).toString();
-        final keepSnapshot = bytes.length <= ReceiptStore.maxSnapshotBytes;
-        files.add(
-          GenerationReceiptFile(
-            path: projectRel(registrarAbs),
-            action: 'update',
-            sha256: registrarHash,
-            bytes: bytes.length,
-            snapshot: keepSnapshot ? registrarFile.readAsStringSync() : null,
-          ),
-        );
-      }
-
-      if (wroteManualAdditions) {
-        final manualAbs = _absoluteOf(
-          path.join(outputDir, 'cache', 'hive_manual_additions.txt'),
-        );
-        final manualFile = File(manualAbs);
-        if (manualFile.existsSync()) {
-          final bytes = manualFile.readAsBytesSync();
-          final keepSnapshot = bytes.length <= ReceiptStore.maxSnapshotBytes;
-          files.add(
-            GenerationReceiptFile(
-              path: projectRel(manualAbs),
-              action: 'update',
-              sha256: crypto.sha256.convert(bytes).toString(),
-              bytes: bytes.length,
-              snapshot: keepSnapshot ? manualFile.readAsStringSync() : null,
-            ),
-          );
-        }
-      }
-
-      if (files.isEmpty) return;
-
-      // Spec binding: the entity source this run discovered FROM, so a
-      // later edit surfaces as a stale registration (not just a digest
-      // mismatch on the registrar).
-      GenerationReceiptSpec? spec;
-      if (entitySourcePath != null) {
-        final sourceAbs = _absoluteOf(entitySourcePath);
-        final sourceFile = File(sourceAbs);
-        if (sourceFile.existsSync()) {
-          final bytes = sourceFile.readAsBytesSync();
-          spec = GenerationReceiptSpec(
-            path: projectRel(sourceAbs),
-            sha256: crypto.sha256.convert(bytes).toString(),
-            snapshot: bytes.length <= ReceiptStore.maxSnapshotBytes
-                ? sourceFile.readAsStringSync()
-                : null,
-          );
-        }
-      }
-
-      await ReceiptStore(projectRoot: projectRoot).save(
-        GenerationReceipt(
-          command: 'cache-adapter',
-          target: entityName,
-          repro: 'zfa cache adapter $entityName',
-          at: DateTime.now().toUtc(),
-          generatorVersion: version,
-          input: {
-            'entity': entityName,
-            'discoveredEntities': discoveredEntities,
-            'registrarHash': registrarHash,
-            'buildStatus': buildStatus,
-          },
-          spec: spec,
-          files: files,
-        ),
-      );
-    } catch (e) {
-      print('⚠️  Generation receipt not written: $e');
-    }
+  /// Spec #975, Order 2 — Issue #1130: the receipt is now written by
+  /// [CapabilityCommand._persistCapabilityReceipt] (the wrapper that
+  /// calls [execute]). This helper only computes the spec binding so
+  /// the wrapper can attach it to the canonical receipt. The full
+  /// receipt (registrar hash, discovered entities, build status, files)
+  /// is assembled from `args` and `result.data` in the wrapper path.
+  GenerationReceiptSpec? _buildReceiptSpec({String? entitySourcePath}) {
+    if (entitySourcePath == null) return null;
+    final outputDir = plugin.outputDir;
+    final sourceAbs = _absoluteOf(entitySourcePath);
+    final sourceFile = File(sourceAbs);
+    if (!sourceFile.existsSync()) return null;
+    final bytes = sourceFile.readAsBytesSync();
+    final registrarAbs = _absoluteOf(
+      path.join(outputDir, 'cache', 'hive_registrar.dart'),
+    );
+    final projectRoot =
+        _resolveProjectRoot(registrarAbs) ?? Directory.current.path;
+    final rel = path
+        .normalize(path.relative(sourceAbs, from: projectRoot))
+        .replaceAll('\\', '/');
+    return GenerationReceiptSpec(
+      path: rel,
+      sha256: crypto.sha256.convert(bytes).toString(),
+      snapshot: bytes.length <= ReceiptStore.maxSnapshotBytes
+          ? sourceFile.readAsStringSync()
+          : null,
+    );
   }
 
   /// Resolves [maybeRelative] against the CWD into a canonical absolute
