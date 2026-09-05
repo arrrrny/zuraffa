@@ -51,11 +51,52 @@ class CreateStateCapability implements ZuraffaCapability {
 
   @override
   JsonSchema get outputSchema => {
+    // Issue #976: the schema now describes the ACTUAL return shape of
+    // execute() — an ExecutionResult whose files entry lists the
+    // written paths as strings AND whose data.generatedFiles carries
+    // the full GeneratedFile objects. The old schema declared only
+    // `files: string[]`, silently hiding the generatedFiles payload
+    // every manifest/AI consumer plans against.
     'type': 'object',
     'properties': {
+      'success': {
+        'type': 'boolean',
+        'description': 'Whether the state generation succeeded.',
+      },
       'files': {
         'type': 'array',
         'items': {'type': 'string'},
+        'description': 'Paths of the written state files.',
+      },
+      'data': {
+        'type': 'object',
+        'properties': {
+          'generatedFiles': {
+            'type': 'array',
+            'items': {
+              'type': 'object',
+              'properties': {
+                'path': {
+                  'type': 'string',
+                  'description': 'Path of the generated state file.',
+                },
+                'type': {
+                  'type': 'string',
+                  'description': 'Artifact type (state).',
+                },
+                'action': {
+                  'type': 'string',
+                  'description':
+                      'What the run did: create, update/modify or delete.',
+                },
+                'content': {
+                  'type': 'string',
+                  'description': 'Final emitted source of the artifact.',
+                },
+              },
+            },
+          },
+        },
       },
     },
   };

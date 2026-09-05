@@ -1,0 +1,322 @@
+# TDD Verification — feature `0966-typed-ledger-rows`
+
+Generated fresh by `zfa tdd verify --feature 0966-typed-ledger-rows`.
+
+## Gate
+
+- gate: `fail_survived`
+
+## Mutation buckets (FR-014)
+
+- killed: 238
+- survived: 124
+- timed_out: 0
+
+## Behavior scope (FR-018)
+
+- `T1` — traces: `FR-001`
+- `T2` — traces: `FR-002`
+- `T3` — traces: `FR-003`
+- `T4` — traces: `FR-004`
+- `T5` — traces: `FR-006`
+- `T6` — traces: `FR-007`
+- `T7` — traces: `FR-005`
+- `T8` — traces: `FR-006`
+
+## Restoration (FR-021)
+
+- restoration_verified: true
+- restoration_scope_count: 8
+- restoration_scope (subjects only, never tests):
+  - `/home/z/my-project/zuraffa/lib/tdd/0966-typed-ledger-rows/t1_subject.dart`
+  - `/home/z/my-project/zuraffa/lib/tdd/0966-typed-ledger-rows/t2_subject.dart`
+  - `/home/z/my-project/zuraffa/lib/tdd/0966-typed-ledger-rows/t3_subject.dart`
+  - `/home/z/my-project/zuraffa/lib/tdd/0966-typed-ledger-rows/t4_subject.dart`
+  - `/home/z/my-project/zuraffa/lib/tdd/0966-typed-ledger-rows/t5_subject.dart`
+  - `/home/z/my-project/zuraffa/lib/tdd/0966-typed-ledger-rows/t6_subject.dart`
+  - `/home/z/my-project/zuraffa/lib/tdd/0966-typed-ledger-rows/t7_subject.dart`
+  - `/home/z/my-project/zuraffa/lib/tdd/0966-typed-ledger-rows/t8_subject.dart`
+
+## Repro diagnostics (FR-020, non-sensitive)
+
+- runner_command: `dart run mutation_test`
+- exit_code: 255
+- elapsed_seconds: 512
+- report_path: `/home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md`
+- preflight_scope_ran (bug #924, per-behavior):
+  - `test/tdd/0966-typed-ledger-rows/t001_typed_row_schema_test.dart`
+  - `test/tdd/0966-typed-ledger-rows/t002_absence_traced_test.dart`
+  - `test/tdd/0966-typed-ledger-rows/t003_sequence_traced_test.dart`
+  - `test/tdd/0966-typed-ledger-rows/t004_state_traced_test.dart`
+  - `test/tdd/0966-typed-ledger-rows/t005_xray_kind_coverage_test.dart`
+  - `test/tdd/0966-typed-ledger-rows/t006_golden_advisory_test.dart`
+  - `test/tdd/0966-typed-ledger-rows/t007_verb_matrix_test.dart`
+  - `test/tdd/0966-typed-ledger-rows/t008_artifact_pins_test.dart`
+
+## Mutation run
+
+- mutation_was_run: true
+- mutation_score: 0.6575
+
+## Survived mutants (bug #837)
+
+- `lib/tdd/0966-typed-ledger-rows/t1_subject.dart:61`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t1_subject.dart:62`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t1_subject.dart:63`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t1_subject.dart:65`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t1_subject.dart:65`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t1_subject.dart:66`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t1_subject.dart:67`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t1_subject.dart:90`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t1_subject.dart:91`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t1_subject.dart:92`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t1_subject.dart:95`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t1_subject.dart:99`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t1_subject.dart:106`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t1_subject.dart:107`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t1_subject.dart:112`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:34`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:35`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:36`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:36`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:37`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:43`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:44`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:47`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:48`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:53`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:55`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:68`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:69`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:73`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:74`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:75`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:95`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:96`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:97`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:99`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:99`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t2_subject.dart:101`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:30`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:31`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:32`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:32`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:40`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:41`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:42`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:48`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:49`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:50`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:74`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:75`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:76`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:80`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:81`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:82`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:97`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t3_subject.dart:98`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:34`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:35`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:36`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:36`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:37`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:44`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:45`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:46`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:52`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:53`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:54`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:78`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:79`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:80`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:84`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:85`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:86`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:129`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:154`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:155`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t4_subject.dart:157`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t5_subject.dart:64`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t5_subject.dart:77`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t5_subject.dart:78`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t5_subject.dart:79`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t5_subject.dart:79`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t5_subject.dart:80`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t5_subject.dart:113`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t5_subject.dart:125`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t5_subject.dart:127`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t5_subject.dart:142`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t5_subject.dart:149`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t5_subject.dart:157`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t5_subject.dart:167`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t5_subject.dart:168`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t5_subject.dart:169`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:19`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:21`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:22`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:23`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:29`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:30`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:31`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:32`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:32`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:34`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:51`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:52`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:56`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:57`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:59`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:69`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:71`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t6_subject.dart:73`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t7_subject.dart:15`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t7_subject.dart:91`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t7_subject.dart:132`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t7_subject.dart:133`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t8_subject.dart:16`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t8_subject.dart:27`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t8_subject.dart:49`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t8_subject.dart:69`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t8_subject.dart:78`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t8_subject.dart:83`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t8_subject.dart:103`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t8_subject.dart:105`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t8_subject.dart:107`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t8_subject.dart:116`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/tdd/0966-typed-ledger-rows/t8_subject.dart:120`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+
+## Evidence binding (bug #837)
+
+- spec_hash: 9f6dd4ef437536f09bc9187fb598b62a770f9035e72ac79e5bc94b705009f984
+- subject_hash: `/home/z/my-project/zuraffa/lib/tdd/0966-typed-ledger-rows/t1_subject.dart` e864a880fec286d812febeba82cba5de684354637f983e04c333d352ce41df3b
+- subject_hash: `/home/z/my-project/zuraffa/lib/tdd/0966-typed-ledger-rows/t2_subject.dart` d49d933b6d8d29c169223f37147d92dca7cbef5e504740d0116852db44a4b4c1
+- subject_hash: `/home/z/my-project/zuraffa/lib/tdd/0966-typed-ledger-rows/t3_subject.dart` 49154f0c47048b53c88bdef94a66eaa12425943ed616718e55113d9117f5b9c9
+- subject_hash: `/home/z/my-project/zuraffa/lib/tdd/0966-typed-ledger-rows/t4_subject.dart` c5bf9182c70443bfad40e160a3a85526746e82a5b394db5d06594a7145b20961
+- subject_hash: `/home/z/my-project/zuraffa/lib/tdd/0966-typed-ledger-rows/t5_subject.dart` db2a7b50784558fcd858c0622242673406387442096b85d6d8532809874fbd65
+- subject_hash: `/home/z/my-project/zuraffa/lib/tdd/0966-typed-ledger-rows/t6_subject.dart` 2fd2102d24d61556c3a18c33f3a17be2745f3b5e52830a33da1933dc2c125d67
+- subject_hash: `/home/z/my-project/zuraffa/lib/tdd/0966-typed-ledger-rows/t7_subject.dart` efa66ab80a9d88a2d6d9d0e7b5a9c67b10e6c4a31be1c9e1af4cbfde29537fb0
+- subject_hash: `/home/z/my-project/zuraffa/lib/tdd/0966-typed-ledger-rows/t8_subject.dart` 532e74820e65fc30de834ed102dfedb234fa5baa7a86d52d7e12630472f8a093

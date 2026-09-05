@@ -10,6 +10,7 @@ import '../commands/validate_command.dart';
 import '../commands/create_command.dart' as create;
 import '../commands/config_command.dart' as config;
 import '../commands/corpus_command.dart';
+import '../commands/dream_command.dart';
 import '../commands/initialize_command.dart' as init;
 import '../commands/entity_command.dart';
 import '../commands/plugin_command.dart' as plugincmd;
@@ -29,6 +30,7 @@ import '../commands/replay_command.dart';
 import '../commands/tdd_command.dart';
 import '../commands/app_shell_command.dart';
 import '../commands/package_command.dart';
+import '../commands/engine_command.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../plugins/tdd/tdd_plugin.dart';
@@ -165,6 +167,7 @@ class CliRunner {
     _runner.addCommand(_EntityCommand());
     _runner.addCommand(_PluginCommand());
     _runner.addCommand(MakeCommand(registry));
+    _runner.addCommand(EngineCommand());
     _runner.addCommand(DoctorCommand());
     _runner.addCommand(ProofCommand());
     _runner.addCommand(MigrateCommand());
@@ -179,6 +182,7 @@ class CliRunner {
     _runner.addCommand(CorpusCommand());
     _runner.addCommand(TddCommand(TddPlugin()));
     _runner.addCommand(ReplayCommand());
+    _runner.addCommand(DreamCommand());
     _runner.addCommand(AppCommand());
     _runner.addCommand(UiCommand());
     _runner.addCommand(PackageCommand());
@@ -374,6 +378,15 @@ class CliRunner {
     // is preserved through the `_runDispatched` path, which uses its
     // own `_exit(exitCode)` to honor whatever the command set.
     exitCode = 0;
+    // Spec 1008: dart:io's exitCode is PROCESS-GLOBAL, not per-isolate —
+    // `dart test` runs test files as concurrent isolates of one process,
+    // so a sibling isolate's command finishing between this run's
+    // dispatch and the caller's `exitCode` read clobbers the value this
+    // invocation produced. Snapshot the dispatched code and re-apply it
+    // as the last operation before returning, restoring the hermeticity
+    // the reset above promises (the residual window is a few
+    // instructions instead of the whole teardown).
+    var dispatchedExitCode = 0;
     final output = <String>[];
     try {
       final directory = _extractDirectory(args);
@@ -403,15 +416,18 @@ class CliRunner {
           () async {
             try {
               await _runner.run(args);
+              dispatchedExitCode = exitCode;
             } on UsageException catch (e) {
               output.add('❌ ${e.message}');
               output.add(e.usage);
+              dispatchedExitCode = 64;
             } catch (e, stack) {
               output.add('❌ Error: $e');
               _addSuggestionsTo(output.add, e.toString());
               if (args.contains('--verbose') || args.contains('-v')) {
                 output.add('\nStack trace:\n$stack');
               }
+              dispatchedExitCode = 1;
             }
           },
           zoneSpecification: ZoneSpecification(
@@ -423,6 +439,10 @@ class CliRunner {
       });
     } finally {
       _active = false;
+      // Re-apply this invocation's own exit code AFTER the teardown (the
+      // CWD restore, the zone unwind) — the narrowest window a sibling
+      // isolate can clobber.
+      exitCode = dispatchedExitCode;
     }
 
     return output.isEmpty ? '' : '${output.join('\n')}\n';
@@ -475,6 +495,9 @@ BOOTSTRAP:
   init                Alias of initialize — wire deps + scaffold a test entity
   package create <name>  Create a Zuraffa-native reusable package (spec 025)
   corpus import <dir> Import an extracted spec corpus (spec 050, issue #627)
+  corpus catalog      Classify a corpus target's specs CORE/SKIN (epic #1017)
+  corpus run          Walk the corpus under a failure budget (epic #1017)
+  corpus ledger       Record the walk ledger; regressions are CI failures
 
 CORE COMMANDS:
   make <Name>         Canonical architecture/code generation command

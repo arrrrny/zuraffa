@@ -28,6 +28,7 @@ import 'package:path/path.dart' as p;
 import '../models/mutation_outcome.dart';
 import 'mutation_scope.dart';
 import 'mutation_verifier.dart';
+import 'runner.dart';
 import 'source_restorer.dart';
 import 'tdd_timeout.dart';
 
@@ -37,10 +38,11 @@ class PreflightResult {
     required this.exitCode,
     required this.output,
     this.timedOut = false,
+    this.failedToLoad = false,
     this.ranTestPaths = const [],
   });
 
-  /// 0 = green, non-zero = red.
+  /// 0 = green, non-zero = red or load failure.
   final int exitCode;
 
   /// Captured stdout from the preflight run.
@@ -50,6 +52,13 @@ class PreflightResult {
   /// (bug #742): an infrastructure failure — the tests never finished, so
   /// the audit is NOT_ASSESSED, never `preflight_red`.
   final bool timedOut;
+
+  /// True when the preflight child could not LOAD/COMPILE the test file
+  /// (issue #1045): the same infrastructure class as [timedOut] — the
+  /// tests never RAN, so the audit is NOT_ASSESSED with a `--> fix:` line,
+  /// never `preflight_red` (which would claim an honest red and mislead
+  /// downstream tooling in the wrong direction entirely).
+  final bool failedToLoad;
 
   /// The per-behavior test files actually executed before the verdict
   /// (bug #924). Empty when the preflight did not run any per-behavior
@@ -75,6 +84,19 @@ class PreflightResult {
   }) => PreflightResult(
     exitCode: exitCode,
     output: output,
+    ranTestPaths: ranTestPaths,
+  );
+
+  /// Issue #1045: the child reported a load/compile failure — the tests
+  /// never ran (infrastructure), which is NOT_ASSESSED, never a red.
+  factory PreflightResult.loadFailure({
+    required int exitCode,
+    required String output,
+    List<String> ranTestPaths = const [],
+  }) => PreflightResult(
+    exitCode: exitCode,
+    output: output,
+    failedToLoad: true,
     ranTestPaths: ranTestPaths,
   );
 }
@@ -307,12 +329,15 @@ class MutationAuditor {
     Duration? preflightTimeout,
     Duration? mutationTimeout,
     double? scoreThreshold,
+    String? runnerTemplate,
+    this.spawnTest,
   }) : _runPreflightOverride = runPreflight,
        _runPreflightBehaviorOverride = runPreflightBehavior,
        _runMutationOverride = runMutation,
        _preflightTimeout = preflightTimeout,
        _mutationTimeout = mutationTimeout,
-       _scoreThreshold = scoreThreshold;
+       _scoreThreshold = scoreThreshold,
+       _runnerTemplate = runnerTemplate;
 
   final String featureDir;
   final String workingDirectory;
@@ -334,6 +359,48 @@ class MutationAuditor {
   /// Mutation score threshold from `.zfa.json` (bug #837); `null` applies
   /// the strict policy (any survived or timed-out mutant fails the gate).
   final double? _scoreThreshold;
+
+  /// Explicit runner override (issue #1044 `--runner`): a whole-file
+  /// command template that wins over the profile's `file:` key. Null
+  /// resolves from the profile, falling back to the pure-Dart default
+  /// only when the project has no profile at all.
+  final String? _runnerTemplate;
+
+  /// Injectable preflight spawn (fast tier): records/executes the resolved
+  /// runner argv instead of a real process. Defaults to [runTimed].
+  final Future<ProcessResult> Function(
+    String executable,
+    List<String> args,
+    String workingDirectory,
+    Duration timeout,
+  )?
+  spawnTest;
+
+  /// The resolved whole-file runner template (issue #1044), cached per
+  /// audit. Resolution order: the explicit [_runnerTemplate] override
+  /// (`--runner`), the project profile's `file:` key, then — only when the
+  /// project has NO profile at all — the pure-Dart default (the pre-#1044
+  /// behavior). A profile present without a usable `file:` key throws
+  /// [StateError]: the caller grades that honestly (NOT_ASSESSED with a
+  /// `--> fix:` line) instead of silently running the wrong runner.
+  String? _resolvedFileTemplate;
+  Future<String> _fileTemplate() async {
+    final cached = _resolvedFileTemplate;
+    if (cached != null) return cached;
+    if (_runnerTemplate != null) {
+      return _resolvedFileTemplate = _runnerTemplate;
+    }
+    final profileFile = File(
+      p.join(workingDirectory, SingleTestRunner.defaultProfilePath),
+    );
+    if (!await profileFile.exists()) {
+      return _resolvedFileTemplate = 'dart test {file}';
+    }
+    final template = await SingleTestRunner().loadFileTemplate(
+      workingDirectory: workingDirectory,
+    );
+    return _resolvedFileTemplate = template;
+  }
 
   /// Run the audit. Returns a [MutationAuditReport].
   Future<MutationAuditReport> run() async {
@@ -371,10 +438,62 @@ class MutationAuditor {
     // in the issue's forklift repro) must surface `gate: not_assessed`
     // IMMEDIATELY — never after paying the full-suite preflight cost. The
     // default mutation phase reuses the config written here.
+    // Issue #1044: resolve the whole-file runner ONCE, before anything
+    // spawns — the preflight and the scoped mutation config's test
+    // command must run under the SAME runner (the profile's, not a
+    // hardcoded `dart test`). A broken profile is an honest NOT_ASSESSED
+    // with a `--> fix:` line — never a wrong-runner run, never a crash.
+    final String fileTemplate;
+    try {
+      fileTemplate = await _fileTemplate();
+    } on StateError catch (e) {
+      return MutationAuditReport(
+        feature: p.basename(featureDir),
+        gate: MutationGateDecision.notAssessed,
+        killedCount: 0,
+        survivedCount: 0,
+        timedOutCount: 0,
+        behaviorIds: scope.behaviorIds,
+        sourceCriteriaByBehavior: scope.sourceCriteriaByBehavior,
+        mutationWasRun: false,
+        restorationVerified: true,
+        restorationScope: const [],
+        notAssessedReason:
+            'test runner template: ${e.message} --> fix: add a `file:` key '
+            'with a {file} placeholder to .specify/memory/tdd-profile.md, '
+            'or pass --runner dart|flutter',
+        scoreThreshold: _scoreThreshold,
+        specHash: specHash,
+      );
+    }
+    if (!fileTemplate.contains('{file}')) {
+      return MutationAuditReport(
+        feature: p.basename(featureDir),
+        gate: MutationGateDecision.notAssessed,
+        killedCount: 0,
+        survivedCount: 0,
+        timedOutCount: 0,
+        behaviorIds: scope.behaviorIds,
+        sourceCriteriaByBehavior: scope.sourceCriteriaByBehavior,
+        mutationWasRun: false,
+        restorationVerified: true,
+        restorationScope: const [],
+        notAssessedReason:
+            "the resolved test runner template '$fileTemplate' carries no "
+            '{file} placeholder --> fix: add {file} to the `file:` key in '
+            '.specify/memory/tdd-profile.md or pass --runner dart|flutter',
+        scoreThreshold: _scoreThreshold,
+        specHash: specHash,
+      );
+    }
+
     String? ensuredConfigPath;
     if (_runMutationOverride == null) {
       try {
-        ensuredConfigPath = await _ensureScopedMutationConfig(scope);
+        ensuredConfigPath = await _ensureScopedMutationConfig(
+          scope,
+          fileTemplate,
+        );
       } on MutationConfigError catch (e) {
         return MutationAuditReport(
           feature: p.basename(featureDir),
@@ -399,9 +518,12 @@ class MutationAuditor {
     // would fail to load them as tests). Bug #924: the default preflight
     // runs the feature's own per-behavior test files individually
     // (fail-fast) instead of one full-suite baseline invocation.
-    final preflight = await (_runPreflightOverride ?? _defaultPreflight)(
-      scope.testPaths,
-    );
+    // Issue #1044: each file runs under the RESOLVED runner template —
+    // `flutter test <file>` for Flutter projects — never a literal
+    // `dart test`.
+    final preflight = _runPreflightOverride != null
+        ? await _runPreflightOverride(scope.testPaths)
+        : await _defaultPreflight(scope.testPaths, fileTemplate);
     if (preflight.timedOut) {
       // Bug #742: the preflight child outlived the deadline and was killed.
       // The tests never finished, so this is NOT_ASSESSED (infrastructure
@@ -418,6 +540,35 @@ class MutationAuditor {
         restorationVerified: true,
         restorationScope: const [],
         notAssessedReason: 'preflight timed out: ${preflight.output}',
+        runnerCommand: 'dart test ${scope.testPaths.join(' ')}',
+        preflightOutput: preflight.output,
+        preflightScopeRan: preflight.ranTestPaths,
+      );
+    }
+    if (preflight.failedToLoad) {
+      // Issue #1045: the preflight child could not LOAD/COMPILE the test
+      // files — infrastructure, the same class as the #742 timeout. The
+      // tests never ran, so this is NOT_ASSESSED: `preflight_red` would
+      // claim an honest red (and mislead downstream tooling in the wrong
+      // direction entirely — the suite may be green under the correct
+      // runner).
+      return MutationAuditReport(
+        feature: p.basename(featureDir),
+        gate: MutationGateDecision.notAssessed,
+        killedCount: 0,
+        survivedCount: 0,
+        timedOutCount: 0,
+        behaviorIds: scope.behaviorIds,
+        sourceCriteriaByBehavior: scope.sourceCriteriaByBehavior,
+        mutationWasRun: false,
+        restorationVerified: true,
+        restorationScope: const [],
+        notAssessedReason:
+            'preflight could not load/compile the test files — a '
+            'runner/compile problem, NOT an honest red --> fix: check the '
+            'named file and the runner (issue #1044: the runner resolves '
+            'from .specify/memory/tdd-profile.md; override with --runner '
+            'dart|flutter)',
         runnerCommand: 'dart test ${scope.testPaths.join(' ')}',
         preflightOutput: preflight.output,
         preflightScopeRan: preflight.ranTestPaths,
@@ -607,7 +758,10 @@ class MutationAuditor {
   /// the files actually executed are recorded in [PreflightResult.ranTestPaths]
   /// for the verification diagnostics. No own test files → green no-op:
   /// there is NO full-suite fallback.
-  Future<PreflightResult> _defaultPreflight(List<String> scopePaths) async {
+  Future<PreflightResult> _defaultPreflight(
+    List<String> scopePaths,
+    String fileTemplate,
+  ) async {
     if (scopePaths.isEmpty) {
       return PreflightResult.green(exitCode: 0, output: '(no scope)');
     }
@@ -632,7 +786,7 @@ class MutationAuditor {
                   .call(testPath)
                   .timeout(remaining)
             // Real spawn path: the child itself is killed at the budget.
-            : await _runPreflightTestFile(testPath, remaining);
+            : await _runPreflightTestFile(testPath, remaining, fileTemplate);
       } on TimeoutException {
         // The per-behavior run outlived the phase's remaining budget.
         ran.add(testPath);
@@ -658,7 +812,17 @@ class MutationAuditor {
       combined.write(fileResult.output);
       if (!fileResult.isGreen) {
         // Fail fast: the preflight only needs a green/red verdict, and
-        // the first red file already decides it (bug #924).
+        // the first red file already decides it (bug #924). Issue
+        // #1045: the CLASS travels — a load/compile failure is
+        // infrastructure (the tests never ran), not an honest red, and
+        // the phase verdict must say so.
+        if (fileResult.failedToLoad) {
+          return PreflightResult.loadFailure(
+            exitCode: fileResult.exitCode,
+            output: combined.toString(),
+            ranTestPaths: List.unmodifiable(ran),
+          );
+        }
         return PreflightResult.red(
           exitCode: fileResult.exitCode,
           output: combined.toString(),
@@ -682,19 +846,28 @@ class MutationAuditor {
       '(--timeout ${formatTddTimeout(_effectivePreflightTimeout)})';
 
   /// Runs one behavior's test file under [remaining] — the real spawn
-  /// path (`dart test <file>`, the profile's file template shape). The
-  /// child is killed (SIGKILL) if it outlives the remaining budget —
-  /// [runTimed] throws [ProcessTimeoutException] and the loop maps the
-  /// phase to timed out (NOT_ASSESSED, never preflight_red).
+  /// path. Issue #1044: the runner comes from the resolved whole-file
+  /// template (the profile's `file:` key; `flutter test {file}` for
+  /// Flutter projects), never a literal `dart test`. The child is killed
+  /// (SIGKILL) if it outlives the remaining budget — [runTimed] throws
+  /// [ProcessTimeoutException] and the loop maps the phase to timed out
+  /// (NOT_ASSESSED, never preflight_red).
   Future<PreflightResult> _runPreflightTestFile(
     String testPath,
     Duration remaining,
+    String fileTemplate,
   ) async {
-    final result = await runTimed(
-      'dart',
-      ['test', testPath],
-      workingDirectory: workingDirectory,
-      timeout: remaining,
+    final substituted = fileTemplate.replaceAll('{file}', testPath);
+    final tokens = SingleTestRunner.splitCommand(substituted);
+    final spawn =
+        spawnTest ??
+        (String executable, List<String> args, String wd, Duration timeout) =>
+            runTimed(executable, args, workingDirectory: wd, timeout: timeout);
+    final result = await spawn(
+      tokens.first,
+      tokens.sublist(1),
+      workingDirectory,
+      remaining,
     );
     final output = '${result.stdout}\n${result.stderr}';
     return preflightFileResultFromProcess(
@@ -732,7 +905,13 @@ class MutationAuditor {
   /// BEFORE the preflight so a missing/unwritable config yields
   /// `gate: not_assessed` without running any tests). Throws
   /// [MutationConfigError] when the config cannot be created.
-  Future<String> _ensureScopedMutationConfig(MutationScope scope) async {
+  /// Issue #1044: the mutant test command is built from [fileTemplate] —
+  /// the same resolved runner the preflight used — so mutants re-run
+  /// under the profile's runner.
+  Future<String> _ensureScopedMutationConfig(
+    MutationScope scope,
+    String fileTemplate,
+  ) async {
     final configPath = p.join(
       workingDirectory,
       '.dart_tool',
@@ -746,6 +925,7 @@ class MutationAuditor {
         buildScopedMutationConfig(
           subjectPaths: _relativeToWorkingDirectory(scope.subjectPaths),
           testPaths: _relativeToWorkingDirectory(scope.testPaths),
+          fileTemplate: fileTemplate,
         ),
       );
     } on IOException catch (e) {
@@ -771,12 +951,46 @@ class MutationAuditor {
 /// (bug #924, mutation finding M-1): factored out of the spawn path so the
 /// fast tier pins the green/red classification directly — the real spawn
 /// path is otherwise only driven by the integration tier.
+///
+/// Issue #1045: the classification is honest by construction — a non-zero
+/// exit is only an honest RED when the tests actually RAN and failed
+/// (`Some tests failed` / `[E]` lines, no load markers). A load/compile
+/// failure (`Failed to load`, `compilation failed`) is infrastructure —
+/// the same class as the #742 timeout — and an unrecognizable output is
+/// an honest unknown. Both surface as a load failure (NOT_ASSESSED),
+/// never as an invented red. Load markers win over the terminal
+/// `Some tests failed.` line: a child whose file failed to load prints
+/// BOTH.
 PreflightResult preflightFileResultFromProcess({
   required int exitCode,
   required String output,
-}) => exitCode == 0
-    ? PreflightResult.green(exitCode: 0, output: output)
-    : PreflightResult.red(exitCode: exitCode, output: output);
+}) {
+  if (exitCode == 0) {
+    return PreflightResult.green(exitCode: 0, output: output);
+  }
+  if (preflightOutputIndicatesLoadFailure(output)) {
+    return PreflightResult.loadFailure(exitCode: exitCode, output: output);
+  }
+  if (preflightOutputIndicatesAssertionsRan(output)) {
+    return PreflightResult.red(exitCode: exitCode, output: output);
+  }
+  // No recognizable signature: the tests' state is unknown — an honest
+  // NOT_ASSESSED beats an invented red (FR-008's spirit, at the verdict
+  // boundary).
+  return PreflightResult.loadFailure(exitCode: exitCode, output: output);
+}
+
+/// Load/compile failure signatures across the dart/flutter test runners.
+bool preflightOutputIndicatesLoadFailure(String output) {
+  final lower = output.toLowerCase();
+  return lower.contains('failed to load') ||
+      lower.contains('compilation failed') ||
+      lower.contains('error: compilation');
+}
+
+/// Assertion-failure signatures: the tests compiled, ran, and failed.
+bool preflightOutputIndicatesAssertionsRan(String output) =>
+    output.contains('Some tests failed') || output.contains('[E]');
 
 /// Builds the feature-scoped mutation_test config for `zfa tdd verify`
 /// (bug #837).
@@ -785,9 +999,17 @@ PreflightResult preflightFileResultFromProcess({
 /// (namespacing per #827) and the mutant test command runs ONLY the
 /// feature's scope tests, keeping the run bounded at corpus scale. Paths
 /// must already be project-relative.
+///
+/// Issue #1044: [fileTemplate] is the resolved whole-file runner (the
+/// profile's `file:` key, an explicit `--runner` override, or the
+/// pure-Dart default when no profile exists). The mutant command
+/// substitutes the FIRST test path and appends the rest — the same
+/// batch convention the profile template documents — so Flutter
+/// projects re-run mutants under `flutter test`, never `dart test`.
 String buildScopedMutationConfig({
   required List<String> subjectPaths,
   required List<String> testPaths,
+  required String fileTemplate,
 }) {
   String esc(String raw) => raw
       .replaceAll('&', '&amp;')
@@ -797,16 +1019,26 @@ String buildScopedMutationConfig({
   final files = subjectPaths
       .map((f) => '    <file>${esc(f)}</file>')
       .join('\n');
-  final command = testPaths.map(esc).join(' ');
+  final command = esc(mutantCommandFromTemplate(fileTemplate, testPaths));
   return '<mutations version="1.0">\n'
       '  <files>\n'
       '$files\n'
       '  </files>\n'
       '  <commands>\n'
       '    <command group="test" expected-return="0" '
-      'working-directory=".">dart test $command</command>\n'
+      'working-directory=".">$command</command>\n'
       '  </commands>\n'
       '</mutations>\n';
+}
+
+/// The mutant test command for a resolved whole-file [template] over
+/// [testPaths]: the template with the FIRST path substituted, the rest
+/// appended (the batch convention `loadFileTemplate` documents).
+String mutantCommandFromTemplate(String template, List<String> testPaths) {
+  if (testPaths.isEmpty) return template.replaceAll('{file}', '');
+  final first = template.replaceAll('{file}', testPaths.first);
+  final rest = testPaths.skip(1).join(' ');
+  return rest.isEmpty ? first : '$first $rest';
 }
 
 /// Extension to make hash-matching ergonomic on [SourceRestorer].

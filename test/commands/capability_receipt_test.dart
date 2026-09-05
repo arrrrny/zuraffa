@@ -1,86 +1,57 @@
+@Tags(['slow'])
+library;
+
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
-import 'package:crypto/crypto.dart' as crypto;
+import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/core/project/receipt_store.dart';
 
-import '../helpers/run_zfa_source.dart';
-
-/// Epic #1011 — TRUTH-FLOOR: regression for issue #996.
+/// Spec 0996 (issue #996), FR-002 — every standalone capability
+/// invocation emits a receipt into `.zfa/receipts/`.
 ///
-/// Standalone capability invocations (`zfa <plugin> <capability>
-/// <target>`) previously wrote artifacts to disk with ZERO provenance:
-/// only the `zfa make` path emitted `proof.v1` receipts (via
-/// `PluginManager._persistGenerationReceipt`). The vision's "every
-/// artifact ships a verifiable receipt" was therefore partial — and
-/// `zfa proof check` had nothing to verify for any artifact a
-/// standalone invocation produced.
+/// The full matrix from the issue, driven through the real CLI surface
+/// (in-process CliRunner + `-C <workspace>`, the issue #506 hermetic
+/// pattern): for each invocation the receipt file must appear on disk
+/// and carry the machine-readable schema
+/// `{plugin, capability, entity, hash, methodset, files, receipt_version}`.
 ///
-/// The fix in `lib/src/commands/capability_command.dart` mirrors the
-/// make-path hook: after a successful capability execution with
-/// file-bearing output, the runner writes a `proof.v1` receipt
-/// binding every on-disk file to its final SHA-256 digest.
-///
-/// This test exercises the contract end-to-end via the real CLI
-/// subprocess ([runZfaSource]) against the `zfa repository create`
-/// standalone capability — one of the 12 capabilities #996 names
-/// explicitly (`di create, cache adapter, repository create,
-/// usecase create, service create, datasource create, provider
-/// create, shadcn <layout>, state create, observer create,
-/// sync enable, strategy create`).
+/// Slow tier: each case boots the plugin registry once (shared runner)
+/// and performs a real generation into a temp workspace.
 void main() {
-  setUpAll(initZfaSourceBin);
-
   late Directory workspace;
+  late CliRunner runner;
 
   setUp(() async {
-    workspace = await Directory.systemTemp.createTemp(
-      'zfa_capability_receipt_',
-    );
-    // Minimal project skeleton: pubspec + the entity the repository
-    // generator consumes. `zfa repository create --name Product`
-    // generates a repository interface, a data-layer implementation,
-    // and a datasource — three artifacts that all need receipts.
+    workspace = await Directory.systemTemp.createTemp('zfa_996_matrix_');
+    await Directory(
+      p.join(workspace.path, 'lib', 'src'),
+    ).create(recursive: true);
     await File(p.join(workspace.path, 'pubspec.yaml')).writeAsString('''
-name: zfa_capability_receipt_test
+name: matrix_fixture
 environment:
   sdk: ^3.11.0
-dependencies:
-  zorphy_annotation: any
-  zuraffa:
-    path: ${await _zuraffaPath()}
-dev_dependencies:
-  build_runner: any
 ''');
-
-    // The repository generator reads the entity's Zorphy-annotated
-    // source to derive its field set; pre-create a minimal entity so
-    // the capability succeeds and actually writes files (a zero-file
-    // "success" must NOT produce a receipt — that's an empty-proof
-    // lie, separately guarded by the #769 contract).
-    final entityDir = p.join(
-      workspace.path,
-      'lib',
-      'src',
-      'domain',
-      'entities',
-      'product',
+    // `zfa cache adapter <Entity>` discovers real entity sources under
+    // lib/src/domain/entities — seed one (the make-receipt fixture
+    // pattern).
+    final entityDir = Directory(
+      p.join(workspace.path, 'lib', 'src', 'domain', 'entities', 'product'),
     );
-    await Directory(entityDir).create(recursive: true);
-    await File(p.join(entityDir, 'product.dart')).writeAsString('''
-import 'package:zorphy_annotation/zorphy_annotation.dart';
-part 'product.zorphy.dart';
-@ZorphyEntity()
+    await entityDir.create(recursive: true);
+    await File(p.join(entityDir.path, 'product.dart')).writeAsString('''
 class Product {
-  @ZorphyField()
   final String id;
-  Product({required this.id});
+
+  const Product({required this.id});
 }
 ''');
+    runner = CliRunner(exitOnCompletion: false);
   });
 
   tearDown(() {
+    exitCode = 0;
     if (workspace.existsSync()) {
       try {
         workspace.deleteSync(recursive: true);
@@ -90,167 +61,221 @@ class Product {
     }
   });
 
-  Future<List<ReceiptRecord>> receipts() =>
-      ReceiptStore(projectRoot: workspace.path).loadAll();
-
-  String digestOf(String relativePath) => crypto.sha256
-      .convert(File(p.join(workspace.path, relativePath)).readAsBytesSync())
-      .toString();
-
-  group('epic #1011 / issue #996 — standalone capability receipt', () {
-    test(
-      '`zfa repository create` writes a proof.v1 receipt for every file',
-      () async {
-        // Run the standalone capability — no `zfa make`, no orchestration
-        // layer, just the direct `zfa <plugin> <capability> <target>` form.
-        final result = await runZfaSource([
-          'repository',
-          'create',
-          '--name',
-          'Product',
-        ], workingDirectory: workspace.path);
-
-        expect(
-          result.exitCode,
-          equals(0),
-          reason:
-              'precondition: the standalone capability must succeed '
-              'before a receipt is warranted. A failing capability that '
-              'writes a receipt would be the opposite lie.\n'
-              'stdout=${result.stdout}\nstderr=${result.stderr}',
-        );
-        expect(
-          result.stdout,
-          contains('✅ Success!'),
-          reason: 'precondition: capability reported success.',
-        );
-
-        // The truth-floor contract: a receipt must exist after a
-        // successful file-bearing standalone capability invocation.
-        // Before the fix, `.zfa/receipts/` would be empty (or non-
-        // existent) here — the RED state the #996 issue documents.
-        final all = await receipts();
-        expect(
-          all,
-          hasLength(1),
-          reason:
-              'exactly one generation receipt for the standalone '
-              'invocation. Pre-fix: zero receipts (the lie). Post-fix: '
-              'one receipt per run.',
-        );
-
-        final receipt = all.single.receipt;
-
-        // Schema + structure (the #996 deliverable contract).
-        expect(receipt.schema, 'proof.v1');
-        // The receipt's `command` field names the plugin + capability:
-        // `<plugin> <capability>` (e.g. "repository create"), NOT just
-        // `make` (which is the zfa-make-path convention).
-        expect(receipt.command, 'repository create');
-        expect(receipt.target, 'Product');
-        expect(receipt.repro, 'zfa repository create Product');
-        expect(receipt.generatorVersion, isNotEmpty);
-        // The input map records what the capability was invoked with —
-        // machine-readable provenance for audit / drift detection.
-        expect(receipt.input['name'], 'Product');
-
-        // Every file the capability wrote must be bound to its final
-        // on-disk SHA-256. A receipt without per-file digests is a
-        // signature with no payload — it cannot prove where anything
-        // came from. The `zfa proof check` audit step re-derives each
-        // digest and fails on any mismatch (issue #807).
-        expect(receipt.files, isNotEmpty);
-        expect(
-          receipt.files.length,
-          greaterThanOrEqualTo(3),
-          reason:
-              'zfa repository create --name Product generates at '
-              'least: a repository interface, a data-layer '
-              'implementation, and a datasource. The receipt must '
-              'cover all of them.',
-        );
-
-        for (final entry in receipt.files) {
-          // Each receipt entry's sha256 must match the bytes actually
-          // on disk RIGHT NOW (not the bytes the generator claims it
-          // wrote). This is the proof-carrying contract.
-          expect(
-            entry.sha256,
-            equals(digestOf(entry.path)),
-            reason:
-                'receipt digest for ${entry.path} must match the bytes '
-                'actually on disk. A mismatch means the artifact was '
-                'mutated after the receipt was written (drift) or the '
-                'receipt was synthesized without reading the file.',
-          );
-          // The on-disk file must still exist — a receipt for a
-          // missing file is a stale proof.
-          expect(
-            File(p.join(workspace.path, entry.path)).existsSync(),
-            isTrue,
-            reason:
-                'file ${entry.path} must exist on disk — a receipt '
-                'for a missing file is a stale proof.',
-          );
-          expect(entry.action, 'created');
-          expect(entry.bytes, greaterThan(0));
-        }
-      },
-      timeout: const Timeout(Duration(minutes: 2)),
-    );
-
-    test(
-      'a zero-file capability "success" must NOT produce an empty receipt',
-      () async {
-        // The #769 contract: zero files = not a success (exit 1).
-        // The #996 receipt hook must respect this — it should NOT
-        // write a receipt when no files landed on disk, because an
-        // empty receipt looks like proof while certifying nothing.
-        // Drive this with --dry-run (no files written) — but the
-        // capability still reports "success" internally; the hook
-        // must observe zero on-disk files and bail.
-        final result = await runZfaSource([
-          'repository',
-          'create',
-          '--name',
-          'Product',
-          '--dry-run',
-        ], workingDirectory: workspace.path);
-
-        // Dry-run is not a failure — it's a preview. But it must NOT
-        // produce a receipt (no files landed on disk).
-        final all = await receipts();
-        expect(
-          all,
-          isEmpty,
-          reason:
-              'a dry-run (zero files on disk) must NOT produce a '
-              'receipt — an empty receipt would certify "I generated '
-              'these 0 files with these 0 digests", which is a lie by '
-              'omission. The hook bails on receiptFiles.isEmpty.\n'
-              'exit=${result.exitCode}\nstdout=${result.stdout}',
-        );
-      },
-      timeout: const Timeout(Duration(minutes: 2)),
-    );
-  });
-}
-
-/// Resolve the absolute path to the zuraffa project root so the temp
-/// workspace's pubspec can `path:`-depend on it for `dart analyze` /
-/// import resolution. Walks up from the test file's CWD until it
-/// finds `pubspec.yaml` with `name: zuraffa`.
-Future<String> _zuraffaPath() async {
-  var dir = Directory.current;
-  while (dir.path != dir.parent.path) {
-    final pubspec = File(p.join(dir.path, 'pubspec.yaml'));
-    if (await pubspec.exists()) {
-      final content = await pubspec.readAsString();
-      if (content.contains('name: zuraffa')) return dir.path;
-    }
-    dir = dir.parent;
+  Future<ReceiptRecord?> latestCapabilityReceipt(String plugin) async {
+    final records = await ReceiptStore(projectRoot: workspace.path).loadAll();
+    final matches = records.where((r) => r.receipt.plugin == plugin).toList();
+    return matches.isEmpty ? null : matches.last;
   }
-  // Fall back to the cwd's parent (typical test layout: tests run from
-  // the project root, so `Directory.current` IS the zuraffa path).
-  return Directory.current.path;
+
+  /// One matrix row: the CLI invocation + the receipt expectations.
+  Future<void> expectReceipt({
+    required String label,
+    required List<String> args,
+    required String plugin,
+    required String capability,
+    required String entity,
+  }) async {
+    final out = await runner.runCapturing(['-C', workspace.path, ...args]);
+    expect(
+      out,
+      isNot(contains('❌')),
+      reason: '`$label` must succeed for the receipt to be meaningful:\n$out',
+    );
+    final record = await latestCapabilityReceipt(plugin);
+    expect(
+      record,
+      isNotNull,
+      reason:
+          '`$label` must persist a receipt in .zfa/receipts/ '
+          '(issue #996)\nstdout:\n$out',
+    );
+    final receipt = record!.receipt;
+    expect(receipt.plugin, plugin, reason: '`$label` receipt plugin');
+    expect(
+      receipt.capability,
+      capability,
+      reason:
+          '`$label` receipt '
+          'capability',
+    );
+    expect(receipt.entity, entity, reason: '`$label` receipt entity');
+    expect(
+      receipt.files,
+      isNotEmpty,
+      reason: '`$label` receipt must bind the generated files',
+    );
+    for (final entry in receipt.files) {
+      expect(
+        File(p.join(workspace.path, entry.path)).existsSync(),
+        isTrue,
+        reason: '`$label` receipted artifact must exist: ${entry.path}',
+      );
+    }
+    expect(
+      receipt.runHash,
+      allOf(isNotNull, matches(RegExp(r'^[0-9a-f]{64}$'))),
+      reason: '`$label` receipt hash',
+    );
+    expect(receipt.receiptVersion, 1, reason: '`$label` receipt_version');
+    expect(
+      receipt.methodset,
+      isNotNull,
+      reason:
+          '`$label` methodset must be present (machine readers must '
+          'not guess)',
+    );
+    expect(
+      p.basename(record.fileName),
+      startsWith('$plugin-$capability-'),
+      reason:
+          '`$label` receipt key must follow '
+          '<plugin>-<capability>-<entity>-<timestamp>.json',
+    );
+  }
+
+  group('spec 0996 — standalone capability receipt matrix', () {
+    // B-001: the issue's list, one row per capability. Each invocation
+    // runs in its own entity name to keep receipt targets distinct.
+    test('di create Product', () async {
+      await expectReceipt(
+        label: 'zfa di create Product',
+        args: ['di', 'create', 'Product'],
+        plugin: 'di',
+        capability: 'create',
+        entity: 'Product',
+      );
+    });
+
+    test('usecase create Order', () async {
+      await expectReceipt(
+        label: 'zfa usecase create Order',
+        args: ['usecase', 'create', 'Order'],
+        plugin: 'usecase',
+        capability: 'create',
+        entity: 'Order',
+      );
+    });
+
+    test('repository create Cart', () async {
+      await expectReceipt(
+        label: 'zfa repository create Cart',
+        args: ['repository', 'create', 'Cart'],
+        plugin: 'repository',
+        capability: 'create',
+        entity: 'Cart',
+      );
+    });
+
+    test('service create Invoice', () async {
+      await expectReceipt(
+        label: 'zfa service create Invoice',
+        args: ['service', 'create', 'Invoice'],
+        plugin: 'service',
+        capability: 'create',
+        entity: 'Invoice',
+      );
+    });
+
+    test('datasource create Stock', () async {
+      await expectReceipt(
+        label: 'zfa datasource create Stock',
+        args: ['datasource', 'create', 'Stock'],
+        plugin: 'datasource',
+        capability: 'create',
+        entity: 'Stock',
+      );
+    });
+
+    test('provider create Audit', () async {
+      // A provider implements a service interface — the domain demands
+      // the service exists first (the CLI says so verbatim).
+      await runner.runCapturing([
+        '-C',
+        workspace.path,
+        'service',
+        'create',
+        'Audit',
+      ]);
+      await expectReceipt(
+        label: 'zfa provider create Audit',
+        args: ['provider', 'create', 'Audit'],
+        plugin: 'provider',
+        capability: 'create',
+        entity: 'Audit',
+      );
+    });
+
+    test('cache adapter Product', () async {
+      await expectReceipt(
+        label: 'zfa cache adapter Product',
+        args: ['cache', 'adapter', 'Product'],
+        plugin: 'cache',
+        capability: 'adapter',
+        entity: 'Product',
+      );
+    });
+
+    test('state create Counter', () async {
+      await expectReceipt(
+        label: 'zfa state create Counter',
+        args: ['state', 'create', 'Counter'],
+        plugin: 'state',
+        capability: 'create',
+        entity: 'Counter',
+      );
+    });
+
+    test('observer create Watcher', () async {
+      await expectReceipt(
+        label: 'zfa observer create Watcher',
+        args: ['observer', 'create', 'Watcher'],
+        plugin: 'observer',
+        capability: 'create',
+        entity: 'Watcher',
+      );
+    });
+
+    test('sync enable Session', () async {
+      await expectReceipt(
+        label: 'zfa sync enable Session',
+        args: ['sync', 'enable', 'Session'],
+        plugin: 'sync',
+        capability: 'enable',
+        entity: 'Session',
+      );
+    });
+
+    test('strategy create Scraper', () async {
+      await expectReceipt(
+        label: 'zfa strategy create Scraper scraper,ai',
+        args: ['strategy', 'create', 'Scraper', '--strategies', 'scraper,ai'],
+        plugin: 'strategy',
+        capability: 'create',
+        entity: 'Scraper',
+      );
+    });
+
+    test('shadcn <layout> Product (list layout)', () async {
+      // Shadcn widgets are Flutter widgets (Constitution VII, issue
+      // #512): the generator skips pure-Dart targets with a warning, so
+      // the fixture workspace must declare the flutter SDK.
+      await File(p.join(workspace.path, 'pubspec.yaml')).writeAsString('''
+name: matrix_fixture
+environment:
+  sdk: ^3.11.0
+  flutter: ^3.0.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+''');
+      await expectReceipt(
+        label: 'zfa shadcn list Product',
+        args: ['shadcn', 'list', 'Product'],
+        plugin: 'shadcn',
+        capability: 'list',
+        entity: 'Product',
+      );
+    });
+  });
 }

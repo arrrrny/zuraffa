@@ -56,6 +56,16 @@
 /// written by `zfa tdd fake <channel> --behavior <id>` — gen refuses a
 /// platform row whose scenario is missing. `zfa tdd make`/`run` stop
 /// honestly on platform ids (the planner does not express them yet).
+///
+/// CONTRACT KIND EXTENSION (issue #1007): a `## Contract loop:` section
+/// header marks CONTRACT rows — one declared entity method, controller
+/// method or usecase per row, written by `zfa tdd plan` from the spec's
+/// Layer Contracts section with `contract:<id>` row ids. The gen pair is
+/// a contract test scaffold (enumerating the contract's cases) + a
+/// contract seam subject, and a failing contract test is BLOCKED — never
+/// RED — so the row's state cell may also read BLOCKED (it parses to
+/// [BehaviorState.blocked], the state the run driver persists when
+/// verify-red reports the blocked verdict).
 library;
 
 import 'dart:io';
@@ -63,6 +73,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../models/behavior.dart';
+import 'lane_plans.dart';
+import 'lane_split.dart';
 import 'spec_parser.dart';
 
 /// One parsed test-list row.
@@ -75,6 +87,7 @@ class BehaviorRow {
     required this.kind,
     required this.target,
     this.persistence = false,
+    this.lane,
   });
 
   final String id;
@@ -82,6 +95,15 @@ class BehaviorRow {
   final String traces;
   final BehaviorState state;
   final BehaviorKind kind;
+
+  /// The two-cycle lane tag the row carries (spec 1008-two-cycle-driver,
+  /// issue #1008): `core`, `skin` or `both`, parsed from the ` [core]` /
+  /// ` [skin]` / ` [both]` tags in the behavior cell (stripped from
+  /// [description] exactly like `[persistence]`). Null = untagged — the
+  /// engine-lane (CORE) default of the pre-split world; the split
+  /// receipt and the 04-ENGINE.md / 04-SKIN.md plan pair (#1000)
+  /// override tags when present.
+  final String? lane;
 
   /// Whether the plan marked the behavior persistence-kind with the
   /// ` [persistence]` tag (bug #833). The tag is stripped from
@@ -96,7 +118,7 @@ class BehaviorRow {
   @override
   String toString() =>
       'BehaviorRow(id: $id, kind: ${kind.name}, state: ${state.name}, '
-      'persistence: $persistence, traces: $traces)';
+      'persistence: $persistence, lane: $lane, traces: $traces)';
 }
 
 /// The `[persistence]` marker contract (bug #833).
@@ -196,6 +218,13 @@ class TestListReader {
   final String featureDir;
 
   /// Parse `tdd/test-list.md` into rows, in list order.
+  ///
+  /// Issue #1000: when the test list is a lane META-INDEX (a
+  /// `## Lane split` section pointing at the lane plans), the rows
+  /// resolve from `tdd/04-ENGINE.md` then `tdd/04-SKIN.md` — the
+  /// engine file first so a BOTH-lane behavior's id resolves exactly
+  /// once (its skin copy is skipped by id). Legacy lists parse exactly
+  /// as before — the split is transparent to every consumer.
   Future<List<BehaviorRow>> read() async {
     final file = File(p.join(featureDir, 'tdd', 'test-list.md'));
     if (!await file.exists()) {
@@ -203,11 +232,48 @@ class TestListReader {
         'no test list at ${file.path} — run `zfa tdd plan <feature>` first',
       );
     }
-    final lines = (await file.readAsString()).split('\n');
+    final content = await file.readAsString();
+    final split = LaneSplitFiles.find(content);
+    if (split == null) {
+      return _parseRows(content, path: file.path);
+    }
+    final rows = <BehaviorRow>[];
+    final seen = <String>{};
+    for (final name in [split.engine, split.skin]) {
+      final laneFile = File(p.join(featureDir, 'tdd', name));
+      if (!await laneFile.exists()) {
+        throw TestListReadException(
+          'lane split: plan file ${laneFile.path} (pointed at by '
+          '${file.path}) does not exist — re-run `zfa tdd plan <feature>`',
+        );
+      }
+      for (final row in _parseRows(
+        await laneFile.readAsString(),
+        path: laneFile.path,
+      )) {
+        // BOTH-lane behaviors appear in both files; the engine copy
+        // (read first) is the row of record.
+        if (seen.add(row.id)) rows.add(row);
+      }
+    }
+    return rows;
+  }
+
+  /// The single-file row parser (bug #617): the line walk every list
+  /// shape funnels through — section headers set the kind, declarative
+  /// sections are skipped, table rows parse in the canonical 4-column
+  /// or deprecated 6-column shapes.
+  List<BehaviorRow> _parseRows(String content, {required String path}) {
+    final lines = content.split('\n');
     final rows = <BehaviorRow>[];
     BehaviorKind? kind;
     var inDeclarativeSection = false;
-    var deprecatedDialectWarned = false;
+    // Spec 1008 (two-cycle driver): the note is per-FILE guidance, and one
+    // CLI invocation may read the same list more than once (the meta
+    // `zfa tdd run` resolves lanes once per lane pass). Print it once per
+    // process per file — separate processes (separate commands) each
+    // print their own, exactly as before.
+    var deprecatedDialectWarned = _deprecationNotedFiles.contains(path);
     for (var i = 0; i < lines.length; i++) {
       final raw = lines[i];
       final trimmed = raw.trim();
@@ -235,6 +301,14 @@ class TestListReader {
           // whose gen pair drives a platform channel through the certified
           // fake + committed scenario written by `zfa tdd fake`.
           kind = BehaviorKind.platform;
+        } else if (header.startsWith('contract loop')) {
+          // Contract-loop section (issue #1007): CONTRACT-kind behaviors —
+          // one declared entity method, controller method or usecase per
+          // row, written by plan from the spec's Layer Contracts section.
+          // A failing contract test is BLOCKED (never RED), so this lane
+          // never feeds the red-evidence path (verify-red refuses to
+          // certify contract reds; the blocked receipt is the record).
+          kind = BehaviorKind.contract;
         } else {
           kind = null;
         }
@@ -247,15 +321,27 @@ class TestListReader {
         // their rows are declarations, not behaviors; parsing them as
         // behavior rows killed `zfa tdd run` (exit 2) on every
         // deps-declaring (zuraffa-1.0) spec.
+        // Issue #1000: the Lane split section of a meta-index carries
+        // the pointer table — declarations, not behaviors.
         inDeclarativeSection =
             header.startsWith('key entities') ||
             header.startsWith('external dependencies') ||
-            header.startsWith('layer contracts');
+            header.startsWith('layer contracts') ||
+            header.startsWith('lane split') ||
+            header.startsWith('adaptive view slots') ||
+            header.startsWith('boundary') ||
+            header.startsWith('shared seam behaviors');
         continue;
       }
       if (inDeclarativeSection) continue;
       if (!trimmed.startsWith('|')) continue;
       final cells = _splitRow(trimmed).map((c) => c.trim()).toList();
+      // Bug #984: a bare ` |` line between table groups (e.g. between a
+      // sub-heading and the next table) splits into all-empty cells. It
+      // is whitespace between sections, not a malformed row — skipping it
+      // keeps committed test-lists with this spacing running instead of
+      // stopping `zfa tdd run` with "expected 4 columns, found 0".
+      if (cells.every((c) => c.isEmpty)) continue;
       if (cells.length > 1 && cells.last.isEmpty) cells.removeLast();
       // Separator rows (`| -- | --- | ...`).
       final isSeparator = cells
@@ -277,8 +363,9 @@ class TestListReader {
       // did nothing wrong.
       if (dialect == _DeprecatedDialect.genLegacy && !deprecatedDialectWarned) {
         deprecatedDialectWarned = true;
+        _deprecationNotedFiles.add(path);
         stderr.writeln(
-          'zfa: ${file.path}: deprecated 6-column test-list rows detected '
+          'zfa: $path: deprecated 6-column test-list rows detected '
           '(id/behavior/traces/kind/state/target). Migrate by manually '
           'converting tdd/test-list.md to the canonical 4-column shape '
           '(id/behavior/traces/state); the 6-column dialect is accepted '
@@ -289,15 +376,32 @@ class TestListReader {
     return rows;
   }
 
+  /// The content that carries the plan's declaration sections (Key
+  /// entities / External dependencies / Layer contracts): the test
+  /// list itself, or — for a lane-split feature (issue #1000) — the
+  /// ENGINE plan the meta-index points at (plan writes the spec-wide
+  /// declarations into the engine file). Empty when neither exists.
+  Future<String> _sectionsSource() async {
+    final file = File(p.join(featureDir, 'tdd', 'test-list.md'));
+    if (!await file.exists()) return '';
+    final content = await file.readAsString();
+    final split = LaneSplitFiles.find(content);
+    if (split != null) {
+      final engine = File(p.join(featureDir, 'tdd', split.engine));
+      if (await engine.exists()) return await engine.readAsString();
+    }
+    return content;
+  }
+
   /// Parse the `## Key entities` section plan writes (bug #829). Lenient
   /// by design: a list without the section yields an empty list (every
   /// pre-829 artifact), and rows that do not carry a name cell are
   /// skipped rather than rejected — the section is an extraction aid,
   /// not a behavior contract.
   Future<List<DeclaredEntity>> readEntities() async {
-    final file = File(p.join(featureDir, 'tdd', 'test-list.md'));
-    if (!await file.exists()) return const [];
-    final lines = (await file.readAsString()).split('\n');
+    final specMd = await _sectionsSource();
+    if (specMd.isEmpty) return const [];
+    final lines = specMd.split('\n');
     final entities = <DeclaredEntity>[];
     var inEntitySection = false;
     for (final raw in lines) {
@@ -343,9 +447,9 @@ class TestListReader {
   /// empty list (every pre-919 artifact); header/separator rows and rows
   /// without a dependency name are skipped rather than rejected.
   Future<List<SpecDependency>> readDependencies() async {
-    final file = File(p.join(featureDir, 'tdd', 'test-list.md'));
-    if (!await file.exists()) return const [];
-    final lines = (await file.readAsString()).split('\n');
+    final specMd = await _sectionsSource();
+    if (specMd.isEmpty) return const [];
+    final lines = specMd.split('\n');
     final dependencies = <SpecDependency>[];
     var inSection = false;
     for (final raw in lines) {
@@ -380,9 +484,9 @@ class TestListReader {
   /// `### <layer>` headings and `- `<interface>`: `sig1`, `sig2``
   /// bullets beneath them.
   Future<List<LayerContract>> readLayerContracts() async {
-    final file = File(p.join(featureDir, 'tdd', 'test-list.md'));
-    if (!await file.exists()) return const [];
-    final lines = (await file.readAsString()).split('\n');
+    final specMd = await _sectionsSource();
+    if (specMd.isEmpty) return const [];
+    final lines = specMd.split('\n');
     final contracts = <LayerContract>[];
     var inSection = false;
     var layer = '';
@@ -445,15 +549,17 @@ class TestListReader {
       final state = _parseState(cells[4]);
       if (state == null) malformed('unknown state "${cells[4]}"');
       final (description, persistence) = PersistenceMarker.extract(cells[2]);
+      final (untagged, lane) = LaneMarker.extract(description);
       return (
         row: BehaviorRow(
           id: id,
-          description: description,
+          description: untagged,
           traces: cells[3],
           state: state,
           kind: kind,
           target: resolveDefaultTarget(id),
           persistence: persistence,
+          lane: lane,
         ),
         dialect: _DeprecatedDialect.none,
       );
@@ -472,15 +578,17 @@ class TestListReader {
         final state = _parseState(cells[5]);
         if (state == null) malformed('unknown state "${cells[5]}"');
         final (description, persistence) = PersistenceMarker.extract(cells[2]);
+        final (untagged, lane) = LaneMarker.extract(description);
         return (
           row: BehaviorRow(
             id: id,
-            description: description,
+            description: untagged,
             traces: cells[3],
             state: state,
             kind: kindFromCell,
             target: resolveDefaultTarget(id, cell: cells[6]),
             persistence: persistence,
+            lane: lane,
           ),
           dialect: _DeprecatedDialect.genLegacy,
         );
@@ -501,15 +609,17 @@ class TestListReader {
         final state = _parseState(cells[5]);
         if (state == null) malformed('unknown state "${cells[5]}"');
         final (description, persistence) = PersistenceMarker.extract(cells[2]);
+        final (untagged, lane) = LaneMarker.extract(description);
         return (
           row: BehaviorRow(
             id: id,
-            description: description,
+            description: untagged,
             traces: cells[3],
             state: state,
             kind: kind,
             target: resolveDefaultTarget(id, cell: cells[6]),
             persistence: persistence,
+            lane: lane,
           ),
           dialect: _DeprecatedDialect.extensionShape,
         );
@@ -525,13 +635,24 @@ class TestListReader {
   /// The subject function this behavior targets (moved from gen's private
   /// parser, bug #617): an explicit non-path cell wins; an empty or
   /// path-like cell (`/`, `::`, `$`) falls back to `subject_<snake-id>`.
+  ///
+  /// Issue #1007: the snake-id fold now covers EVERY non-alphanumeric
+  /// character (not just `-`), so the `contract:A1` ids plan writes for
+  /// contract rows resolve to a valid Dart identifier
+  /// (`subject_contract_a1`, never `subject_contract:a1` — the `:` leaked
+  /// into the generated subject's function name before, and the pair died
+  /// at compile). Existing id shapes (`A1`, `B-001`) fold identically to
+  /// the previous `replaceAll('-', '_')` behavior.
   static String resolveDefaultTarget(String id, {String cell = ''}) {
     final isPathLike =
         cell.isEmpty ||
         cell.contains('/') ||
         cell.contains('::') ||
         cell.contains(r'$');
-    if (isPathLike) return 'subject_${id.toLowerCase().replaceAll('-', '_')}';
+    if (isPathLike) {
+      final snakeId = id.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+      return 'subject_$snakeId';
+    }
     return cell;
   }
 
@@ -613,3 +734,8 @@ class TestListReader {
 /// (specs/044–049, spec 050 FR-007) is spec-sanctioned and reads
 /// silently.
 enum _DeprecatedDialect { none, genLegacy, extensionShape }
+
+/// The test-list/plan files this process already printed the gen-legacy
+/// deprecation note for (spec 1008: one note per file per process — the
+/// two-cycle driver reads the list once per lane pass).
+final Set<String> _deprecationNotedFiles = {};

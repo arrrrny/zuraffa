@@ -187,6 +187,24 @@ class ServiceInterfaceBuilder {
           ),
         );
         break;
+      // Issue #978 (make-triad consistency): `toggle` is part of the
+      // entity-methods default the usecase/repository plugins use
+      // (['get', 'update', 'toggle']), and the generated usecases call
+      // `_service.toggle(params)` with ToggleParams. The service interface
+      // builder used to throw ArgumentError('Unknown entity method:
+      // toggle') on it — mirroring the repository interface generator's
+      // signature here keeps the triad compilable.
+      case 'toggle':
+        returnType = 'Future<$entityName>';
+        final fieldEnum = 'Field<$entityName, dynamic>';
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer('ToggleParams<${config.idFieldType}, $fieldEnum>'),
+          ),
+        );
+        break;
       case 'watch':
         returnType = 'Stream<$entityName>';
         parameters.add(

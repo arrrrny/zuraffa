@@ -10,6 +10,8 @@ library;
 
 import 'package:args/command_runner.dart';
 
+import '../models/verdict_envelope.dart';
+import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
 import 'corpus_audit_command.dart';
 import 'corpus_differential_command.dart';
@@ -26,6 +28,10 @@ class CorpusCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: parents emit a usage envelope too — zero lying
+  /// surfaces means every verb answers the --json contract.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'corpus';
 
@@ -39,7 +45,12 @@ class CorpusCommand extends Command<void> {
   String get invocation => 'zfa tdd corpus <subcommand> [options]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
+    _verdict
+      ..outcome = VerdictOutcome.stopped
+      ..exitClass = 'usage';
     printUsage();
   }
 }

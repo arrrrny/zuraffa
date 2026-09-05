@@ -28,11 +28,17 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../core/proof/proof_checker.dart';
+import '../../../core/project/receipt_store.dart';
 import '../services/mutation_auditor.dart';
+import '../services/receipt_preflight.dart';
 import '../services/requirement_scan.dart';
 import '../services/tdd_timeout.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
+import '../services/mutation_scope.dart';
 
 class VerifyCommand extends Command<void> {
   VerifyCommand(this.plugin) {
@@ -67,9 +73,20 @@ class VerifyCommand extends Command<void> {
           'the child is killed and the audit reports NOT_ASSESSED (bug '
           '#742).',
     );
+    argParser.addOption(
+      'runner',
+      help:
+          "Override the test runner for this audit: 'dart' or 'flutter'. "
+          'Wins over the tdd-profile file: template; when omitted the '
+          'profile resolves the runner and a project without a profile '
+          'keeps the pure-Dart default (issue #1044).',
+    );
   }
 
   final TddPlugin plugin;
+
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
 
   @override
   String get name => 'verify';
@@ -83,7 +100,9 @@ class VerifyCommand extends Command<void> {
   String get invocation => 'zfa tdd verify [--feature <name>]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
     final argResults = this.argResults;
     final feature = argResults?['feature'] as String?;
     if (feature != null && feature.isNotEmpty) {
@@ -107,6 +126,28 @@ class VerifyCommand extends Command<void> {
       stderr.writeln('zfa tdd verify: ${e.message}');
       exitCode = 1;
       return;
+    }
+
+    // Issue #1044: explicit runner override — wins over the profile's
+    // file: template. Anything other than dart|flutter is a usage error
+    // (exit 64) with the fix line, never a guessed runner.
+    final runnerFlag = argResults?['runner'] as String?;
+    String? runnerTemplate;
+    if (runnerFlag != null && runnerFlag.isNotEmpty) {
+      switch (runnerFlag) {
+        case 'dart':
+          runnerTemplate = 'dart test {file}';
+        case 'flutter':
+          runnerTemplate = 'flutter test {file}';
+        default:
+          stderr.writeln(
+            "zfa tdd verify: --runner accepts 'dart' or 'flutter' "
+            "(got '$runnerFlag') --> fix: pass dart|flutter, or set the "
+            'file: key in .specify/memory/tdd-profile.md and omit --runner',
+          );
+          exitCode = 64;
+          return;
+      }
     }
 
     // Resolve the feature directory. Treat empty string as absent.
@@ -140,6 +181,75 @@ class VerifyCommand extends Command<void> {
       return;
     }
 
+    // Proof preflight gate (issue #969, T004): the feature's receipted
+    // artifacts must still match the bytes their generating verbs wrote.
+    // Digest drift means the mutation audit would assess unprovenanced
+    // bytes — refuse with NOT_ASSESSED, non-zero, and a fix line, BEFORE
+    // the mutation audit runs.
+    final proofDrift = await _proofPreflightDrift(cwd, featureName);
+    if (proofDrift != null) {
+      print(
+        'zfa tdd verify: NOT_ASSESSED — the feature\'s artifacts failed '
+        'the proof preflight (digest drift before the audit).',
+      );
+      print('   [${proofDrift.kind}] ${proofDrift.path}');
+      print('   ${proofDrift.detail}');
+      print(
+        '   --> fix: restore the receipted bytes by re-running the '
+        'generating verbs (zfa tdd plan / gen / make), then re-verify.',
+      );
+      _verdict
+        ..exitClass = 'not-assessed'
+        ..outcome = VerdictOutcome.error
+        ..fix =
+            'restore the receipted bytes by re-running the generating '
+            'verbs (zfa tdd plan / gen / make), then re-verify';
+      _verdict.drifts.add(
+        '${proofDrift.kind}: ${proofDrift.path} — ${proofDrift.detail}',
+      );
+      exitCode = 3;
+      return;
+    }
+
+    // Receipt preflight gate (spec 0996, issue #996): the audit step
+    // includes receipt-checking BEFORE the mutation audit runs. Every
+    // shipped receipt must validate, and — when the project ships
+    // receipts at all — every subject the audit is about to mutate must
+    // be covered by one (missing receipt = gate failure, exit 1, no
+    // audit). Projects without receipts keep working (vacuous gate).
+    final scope = await MutationScope.derive(featureDir: featureDir);
+    final receiptGate = await ReceiptPreflight(
+      projectRoot: cwd,
+    ).check(auditedPaths: scope.subjectPaths);
+    if (!receiptGate.ok) {
+      print('zfa tdd verify: receipt preflight — FAIL');
+      print(
+        '   receipts checked: ${receiptGate.receipts}, '
+        'findings: ${receiptGate.findings.length}',
+      );
+      for (final finding in receiptGate.findings) {
+        print('   ${finding.toString()}');
+      }
+      print(
+        '   --> fix: regenerate the receipted artifact with its '
+        'capability (e.g. `zfa di create <Entity>`) or restore the '
+        '.zfa/receipts/ entry, then re-verify.',
+      );
+      exitCode = 1;
+      return;
+    }
+    if (receiptGate.gateActive) {
+      print(
+        '   receipt preflight: ok (${receiptGate.receipts} receipt(s) '
+        'validated, ${scope.subjectPaths.length} audited subject(s))',
+      );
+    } else {
+      print(
+        '   receipt preflight: skipped (no receipts shipped — proof-'
+        'carrying generation not in use)',
+      );
+    }
+
     print('zfa tdd verify: running mutation audit...');
     print('   feature: $featureName');
     print('   feature_dir: $featureDir');
@@ -150,6 +260,7 @@ class VerifyCommand extends Command<void> {
       preflightTimeout: timeoutOverride,
       mutationTimeout: timeoutOverride,
       scoreThreshold: _readScoreThreshold(cwd),
+      runnerTemplate: runnerTemplate,
     );
     final report = await auditor.run();
 
@@ -202,6 +313,17 @@ class VerifyCommand extends Command<void> {
       'timed_out=${report.timedOutCount} '
       'mutation_was_run=${report.mutationWasRun}',
     );
+    // Issue #969: the gate label IS the exit class (shipped taxonomy).
+    _verdict
+      ..exitClass = report.gate.label
+      ..outcome = report.gate == MutationGateDecision.pass
+          ? VerdictOutcome.pass
+          : VerdictOutcome.fail
+      ..details['killed'] = report.killedCount
+      ..details['survived'] = report.survivedCount
+      ..details['timed_out'] = report.timedOutCount
+      ..details['mutation_was_run'] = report.mutationWasRun
+      ..feature = featureName;
 
     // Write verification.md from the REAL run (never a stale copy).
     await _writeVerificationMd(featureDir, report);
@@ -224,6 +346,39 @@ class VerifyCommand extends Command<void> {
       );
     }
   }
+}
+
+/// The proof preflight (issue #969, T004): re-derives the digests of the
+/// feature's receipted artifacts and returns the FIRST drift finding —
+/// modified, deleted, or stale-spec — scoped to receipts this feature's
+/// verbs wrote (`input.feature`) plus anything under the feature's spec
+/// directory. Null when the feature has no receipted artifacts or every
+/// digest still matches (nothing to gate on, nothing drifted).
+Future<ProofFinding?> _proofPreflightDrift(
+  String cwd,
+  String featureName,
+) async {
+  final records = await ReceiptStore(projectRoot: cwd).loadAll();
+  final featurePaths = <String>{};
+  for (final record in records) {
+    final input = record.receipt.input;
+    final feature = input['feature'];
+    final inScope =
+        (feature is String && feature == featureName) ||
+        record.receipt.files.any(
+          (entry) => entry.path.startsWith('specs/$featureName/'),
+        );
+    if (!inScope) continue;
+    for (final entry in record.receipt.files) {
+      featurePaths.add(entry.path);
+    }
+  }
+  if (featurePaths.isEmpty) return null;
+  final report = await ProofChecker(projectRoot: cwd).check();
+  for (final finding in report.findings) {
+    if (featurePaths.contains(finding.path)) return finding;
+  }
+  return null;
 }
 
 /// The traceability drift between the plan artifact and the current

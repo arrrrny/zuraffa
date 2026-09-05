@@ -1,0 +1,78 @@
+// GENERATED - DO NOT EDIT
+import 'package:zuraffa_flutter/zuraffa_flutter.dart';
+
+import '../../../domain/entities/product/product.dart';
+
+class ProductState {
+  const ProductState({
+    this.error,
+    this.product,
+    this.isGetting = false,
+    this.isCreating = false,
+    this.isUpdating = false,
+    this.isDeleting = false,
+  });
+
+  /// The current error, if any
+  final AppFailure? error;
+
+  /// The single Product entity
+  final Product? product;
+
+  /// Whether get is in progress
+  final bool isGetting;
+
+  /// Whether create is in progress
+  final bool isCreating;
+
+  /// Whether update is in progress
+  final bool isUpdating;
+
+  /// Whether delete is in progress
+  final bool isDeleting;
+
+  ProductState copyWith({
+    AppFailure? error,
+    Product? product,
+    bool? isGetting,
+    bool? isCreating,
+    bool? isUpdating,
+    bool? isDeleting,
+  }) => ProductState(
+    error: error ?? this.error,
+    product: product ?? this.product,
+    isGetting: isGetting ?? this.isGetting,
+    isCreating: isCreating ?? this.isCreating,
+    isUpdating: isUpdating ?? this.isUpdating,
+    isDeleting: isDeleting ?? this.isDeleting,
+  );
+
+  bool get isLoading => isGetting || isCreating || isUpdating || isDeleting;
+
+  bool get hasError => error != null;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ProductState &&
+          other.error == error &&
+          other.product == product &&
+          other.isGetting == isGetting &&
+          other.isCreating == isCreating &&
+          other.isUpdating == isUpdating &&
+          other.isDeleting == isDeleting;
+
+  @override
+  int get hashCode =>
+      error.hashCode +
+      product.hashCode +
+      isGetting.hashCode +
+      isCreating.hashCode +
+      isUpdating.hashCode +
+      isDeleting.hashCode;
+
+  @override
+  String toString() => 'ProductState(error: $error, product: $product)';
+}
+
+// END GENERATED

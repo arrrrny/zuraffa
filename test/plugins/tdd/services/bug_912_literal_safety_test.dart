@@ -139,7 +139,11 @@ void main() {
       final errors = syntaxErrorsOf("var s = '$escaped';");
       expect(errors, isEmpty, reason: 'escaped: $escaped');
       expect(escaped, contains(r"\'"));
-      expect(escaped, contains(r'\"'));
+      // Issue #1035: every interpolation site is a single-quoted literal,
+      // so a double quote needs NO escape — emitting `\"` would trip
+      // unnecessary_string_escapes in the generated artifact.
+      expect(escaped, contains('"'));
+      expect(escaped, isNot(contains(r'\"')));
       expect(escaped, contains(r'\\'));
       expect(escaped, contains(r'\$'));
       expect(escaped, contains(r'\n'));

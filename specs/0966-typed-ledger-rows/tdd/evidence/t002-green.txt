@@ -1,0 +1,3 @@
+00:00 +0: loading test/tdd/0966-typed-ledger-rows/t002_absence_traced_test.dart
+00:00 +0: T2 (FR-002) T2 - absence assertions: the error banner hidden initially is traced when hidden; a permanently-rendered banner cannot satisfy it; a malformed absence assertion never counts.
+00:00 +1: All tests passed!

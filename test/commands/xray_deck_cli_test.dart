@@ -64,20 +64,109 @@ void main() {
       expect(content, contains('XRayMockType.valid'));
       expect(content, contains("name: 'Invalid Barcode'"));
       expect(content, contains('XRayMockType.error'));
-      expect(content, contains("description: 'Triggers validation failure'"));
+      // Issue #1024: XRayMockEntry has no `description` parameter — the
+      // YAML description is preserved as a doc comment, not a named arg.
+      expect(content, contains('/// Triggers validation failure'));
+      expect(content, isNot(contains('description:')));
       expect(content, contains('registerScanBarcodeXRayDeck'));
-      // Issue #997 (TRUTH-FLOOR / epic #1011): the previous assertion
-      // `contains('XRayControlDeckRegistry.registerEntries')` certified
-      // output that could not compile — `XRayControlDeckRegistry` does
-      // not exist in the runtime (the registry is `XRayControlDeck.instance`,
-      // a singleton on the real class at lib/src/plugins/xray/xray_control_deck.dart:37).
-      // A green test manufacturing false confidence is worse than no test
-      // at all. Assert the real runtime API path so the test fails the
-      // next time the generator drifts off the real symbol.
+      // Issue #1024: the deck must call the REAL runtime API.
       expect(content, contains('XRayControlDeck.instance.registerEntries'));
-      // The generator must NOT emit the phantom symbol the previous test
-      // rubber-stamped.
       expect(content, isNot(contains('XRayControlDeckRegistry')));
+      expect(content, contains('kXrayReleaseMode'));
+      expect(content, isNot(contains("package:flutter/foundation.dart")));
+    });
+
+    test('compile gate: generated deck passes dart analyze in sandbox', () async {
+      // Issue #1024: string-match assertions pinned a non-compiling deck.
+      // The real contract is that `zfa xray deck` output COMPILES, proven
+      // here by running `dart analyze` in a pure-Dart temp sandbox that
+      // depends on this repo via a path dependency.
+      final yamlFile = File('${tempDir.path}/gate.yaml');
+      yamlFile.writeAsStringSync('''- name: Valid Product A
+  payload: "123456789"
+  type: valid
+- name: Invalid Barcode
+  payload: "000000"
+  type: error
+  description: Triggers validation failure
+- name: Weird Type
+  payload: "w"
+  type: nonsense
+''');
+
+      final outputFile = '${tempDir.path}/gate_xray_deck.dart';
+      await runCapturing([
+        'xray',
+        'deck',
+        '--root=${tempDir.path}',
+        '--yaml=${yamlFile.path}',
+        '--output=$outputFile',
+        '--usecase-name=GateCheck',
+        '--force',
+      ]);
+
+      final deckContent = File(outputFile).readAsStringSync();
+
+      // Unrecognized `type:` values must map to a REAL enum value so the
+      // deck still compiles (matches XRayMockType.fromString semantics).
+      expect(deckContent, contains("name: 'Weird Type'"));
+      expect(deckContent, contains('XRayMockType.unknown'));
+
+      // Issue #1024: a proof receipt is written per deck generation.
+      final receiptsDir = Directory('${tempDir.path}/.zfa/receipts');
+      expect(
+        receiptsDir.existsSync(),
+        isTrue,
+        reason: 'deck generation must record a proof.v1 receipt',
+      );
+      final receipts = receiptsDir
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.json'))
+          .toList();
+      expect(receipts, isNotEmpty);
+      final receiptText = receipts.first.readAsStringSync();
+      expect(receiptText, contains('"schema": "proof.v1"'));
+      expect(receiptText, contains('"command": "xray deck"'));
+      expect(receiptText, contains('"target": "GateCheck"'));
+      expect(receiptText, contains('XRayControlDeck.instance.registerEntries'));
+
+      final gateDir = Directory.systemTemp.createTempSync('xray_deck_gate_');
+      addTearDown(() => gateDir.deleteSync(recursive: true));
+      File('${gateDir.path}/pubspec.yaml').writeAsStringSync('''
+name: xray_deck_gate
+environment:
+  sdk: ^3.0.0
+dependencies:
+  zuraffa:
+    path: ${_zuraffaPackageRoot()}
+''');
+      Directory('${gateDir.path}/lib').createSync(recursive: true);
+      File(
+        '${gateDir.path}/lib/gate_xray_deck.dart',
+      ).writeAsStringSync(deckContent);
+
+      final dartBin = Platform.resolvedExecutable;
+      final pubGet = await Process.run(dartBin, [
+        'pub',
+        'get',
+        '--offline',
+      ], workingDirectory: gateDir.path);
+      expect(
+        pubGet.exitCode,
+        0,
+        reason: 'sandbox pub get failed:\n${pubGet.stdout}\n${pubGet.stderr}',
+      );
+
+      final analyze = await Process.run(dartBin, [
+        'analyze',
+      ], workingDirectory: gateDir.path);
+      expect(
+        analyze.exitCode,
+        0,
+        reason:
+            'generated deck does not compile:\n${analyze.stdout}\n${analyze.stderr}',
+      );
     });
 
     test('generates registration from annotated source', () async {
@@ -228,20 +317,111 @@ class ScanBarcodeUseCase {}
 
       final content = File(outputFile).readAsStringSync();
       expect(content, contains('registerScanBarcodeUseCaseXRayDeck'));
-      // Issue #997 (TRUTH-FLOOR / epic #1011): the previous assertion
-      // `contains("'ScanBarcodeUseCase'")` was tied to the broken
-      // emission `XRayControlDeckRegistry.registerEntries('$ucName', ...)`
-      // — the usecase name passed as a string arg to a registry call
-      // whose real signature is `registerEntries(List<XRayMockEntry>)`.
-      // The symbol `XRayControlDeckRegistry` did not exist in the
-      // runtime, the two-arg call shape did not match the real
-      // signature, and the import path was wrong. The casing contract
-      // this test was actually after is preserved by the function name
-      // (`registerScanBarcodeUseCaseXRayDeck`) AND the comment header
-      // (`// UseCase: ScanBarcodeUseCase`); assert those directly so
-      // the next drift off the real API surfaces, not the broken one.
-      expect(content, contains('ScanBarcodeUseCase'));
+      // Issue #997: the real registerEntries(List<XRayMockEntry>) API takes
+      // no usecase-name string. The auto-detected name still surfaces in
+      // the file header + register function name — the old assertion
+      // expected a quoted-name argument from the fictional two-arg call.
       expect(content, contains('// UseCase: ScanBarcodeUseCase'));
     });
+
+    // Issue #997 compile gate: the generated deck must actually compile
+    // against the published zuraffa package. The string assertions above
+    // can only certify *shape*; this test proves the output passes
+    // `dart analyze` in a self-contained sandbox (the old suite was green
+    // while every symbol in the emitted file was undefined).
+    test('#997: generated deck passes dart analyze (compile gate)', () async {
+      // Same YAML scenario as the first test, including a description
+      // (emitted as a comment) and an entry without a type (unknown).
+      final yamlFile = File('${tempDir.path}/compile_gate.yaml');
+      yamlFile.writeAsStringSync('''- name: Valid Product A
+  payload: "123456789"
+  type: valid
+- name: Invalid Barcode
+  payload: "000000"
+  type: error
+  description: Triggers validation failure
+- name: No Type Entry
+  payload: "42"
+''');
+
+      final outputFile = '${tempDir.path}/compile_gate_xray_deck.dart';
+
+      final output = await runCapturing([
+        'xray',
+        'deck',
+        '--root=${tempDir.path}',
+        '--yaml=${yamlFile.path}',
+        '--output=$outputFile',
+        '--usecase-name=ScanBarcode',
+        '--force',
+      ]);
+
+      expect(output, contains('Generated 3 mock entries'));
+      expect(File(outputFile).existsSync(), isTrue);
+
+      // Self-contained sandbox: a project that depends on zuraffa via
+      // path, with the generated deck inside it.
+      final sandboxPubspec = File('${tempDir.path}/pubspec.yaml');
+      await sandboxPubspec.writeAsString('''
+name: xray_deck_compile_gate
+environment:
+  sdk: ^3.11.0
+dependencies:
+  zuraffa:
+    path: ${Directory.current.path}
+''');
+
+      // Resolve the sandbox's dependencies so dart analyze can see
+      // package:zuraffa (warm pub cache in CI; network otherwise).
+      final pubResult = await Process.run('dart', [
+        'pub',
+        'get',
+      ], workingDirectory: tempDir.path);
+      expect(
+        pubResult.exitCode,
+        0,
+        reason:
+            'dart pub get failed in compile-gate sandbox.\n'
+            'stdout: ${pubResult.stdout}\nstderr: ${pubResult.stderr}',
+      );
+
+      final analyzeResult = await Process.run('dart', [
+        'analyze',
+        outputFile,
+      ], workingDirectory: tempDir.path);
+      expect(
+        analyzeResult.exitCode,
+        0,
+        reason:
+            'Generated deck must pass dart analyze (#997 compile gate).\n'
+            'stdout: ${analyzeResult.stdout}\n'
+            'stderr: ${analyzeResult.stderr}',
+      );
+    }, timeout: const Timeout(Duration(minutes: 2)));
   });
+}
+
+/// Locates the zuraffa package root by walking up from the current
+/// directory until a pubspec named `zuraffa` is found. Used by the
+/// compile gate to point the sandbox's path dependency at the repo.
+String _zuraffaPackageRoot() {
+  var dir = Directory.current.path;
+  while (true) {
+    final pubspec = File('$dir/pubspec.yaml');
+    if (pubspec.existsSync() &&
+        RegExp(
+          r'^name:\s*zuraffa\s*$',
+          multiLine: true,
+        ).hasMatch(pubspec.readAsStringSync())) {
+      return dir;
+    }
+    final parent = Directory(dir).parent.path;
+    if (parent == dir) {
+      throw StateError(
+        'Could not locate the zuraffa package root from '
+        '${Directory.current.path}',
+      );
+    }
+    dir = parent;
+  }
 }

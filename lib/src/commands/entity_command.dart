@@ -22,18 +22,12 @@ class EntityCommand {
     bool exitOnCompletion = true,
   }) async {
     if (args.isEmpty) {
-      // Bare `zfa entity` is a usage error, not a help request — exit 64
-      // per the #1039 / #1059 truth-floor convention (PR #1039 swept the
-      // PluginCommand fleet to exit 64 on bare invocation; `zfa entity`
-      // was missed because it predates the PluginCommand hierarchy and
-      // owns its own dispatcher). Help is intentional (`--help`/`-h`/help
-      // below); bare invocation is not — printing the full help text and
-      // exiting 0 certifies "nothing went wrong" when nothing happened.
-      // Print the short usage-error banner (NOT _printHelp) and exit 64.
-      print('❌ Usage: zfa entity <subcommand> [arguments]');
-      print('   Run `zfa entity --help` to list subcommands.');
-      if (exitOnCompletion) exit(64);
+      _printHelp();
+      // Issue #1059: bare `zfa entity` prints usage and did nothing — that is
+      // a usage error, not a success. Exit 64 (EX_USAGE), matching the #1039
+      // lying-success sweep convention (reportSubcommandUsage() -> exit 64).
       exitCode = 64;
+      if (exitOnCompletion) exit(64);
       return;
     }
 
@@ -99,6 +93,10 @@ class EntityCommand {
         default:
           print('Unknown subcommand: $subCommand');
           _printHelp();
+          // Issue #1059 sweep: with exitOnCompletion=false (in-process/MCP
+          // embedding) this path used to fall through with exitCode still 0 —
+          // the same lying-success pattern. Propagate the failure code.
+          exitCode = 1;
           if (exitOnCompletion) exit(1);
       }
 
@@ -1286,14 +1284,10 @@ ${missing.map((d) => '   • $d').join('\n')}
 
   Future<void> _handleCli(List<String> subArgs) async {
     if (subArgs.isEmpty) {
-      // Issue #1059: bare `zfa entity cli` previously printed usage and
-      // returned with exit 0 — a lying-success the #1039 sweep was meant
-      // to eliminate fleet-wide. Match the #1039 convention: print the
-      // short usage-error banner and set exitCode = 64 (usage-error
-      // family, distinct from 1 = runtime/generation failure). Do NOT
-      // call _printHelp() — that's for intentional help requests.
-      print('❌ Usage: zfa entity cli <EntityName>');
-      print('   Run `zfa entity cli --help` for options.');
+      // Issue #1059: bare `zfa entity cli` printed usage and returned without
+      // setting exitCode — a command that did nothing exited 0. Usage errors
+      // go to stderr with exit 64, matching the #1039 fleet sweep convention.
+      stderr.writeln('Usage: zfa entity cli <EntityName>');
       exitCode = 64;
       return;
     }

@@ -1,19 +1,25 @@
 import 'base_plugin_command.dart';
 import '../plugins/state/state_plugin.dart';
+import 'state_create_command.dart';
 
 class StateCommand extends PluginCommand {
   @override
   final StatePlugin plugin;
 
   StateCommand(this.plugin) : super(plugin) {
-    argParser.addOption(
-      'methods',
-      abbr: 'm',
-      help:
-          'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
-      defaultsTo: 'get,update',
-    );
+    // Issue #976: `create` is a first-party subcommand (verdict
+    // envelope + receipt) — declared here so the auto-registration in
+    // the super constructor skips it (manualSubcommandNames) and this
+    // registration cannot collide (issue #761).
+    addSubcommand(StateCreateCommand(plugin));
   }
+
+  /// The `create` subcommand is registered manually above — the
+  /// auto-registered generic [CapabilityCommand] would collide and
+  /// cannot carry the `--json` verdict flag (its `--json` is the
+  /// input-JSON option).
+  @override
+  Set<String> get manualSubcommandNames => const {'create'};
 
   @override
   String get name => 'state';

@@ -441,8 +441,19 @@ void main() {
         .where((r) => r.kind == 'widget')
         .map((r) => (r.id, r.description, r.traces, r.state))
         .toList();
+    // Issue #1007: contract-kind rows get the Contract loop section plan
+    // writes (the reader resolves their kind from the section header).
+    final contract = rows
+        .where((r) => r.kind == 'contract')
+        .map((r) => (r.id, r.description, r.traces, r.state))
+        .toList();
     final unit = rows
-        .where((r) => r.kind != 'acceptance' && r.kind != 'widget')
+        .where(
+          (r) =>
+              r.kind != 'acceptance' &&
+              r.kind != 'widget' &&
+              r.kind != 'contract',
+        )
         .map((r) => (r.id, r.description, r.traces, r.state))
         .toList();
     final buf = StringBuffer()
@@ -458,6 +469,11 @@ void main() {
     }
     if (unit.isNotEmpty) {
       buf.write(_renderTestListSection('Inner loop: unit behaviors', unit));
+    }
+    if (contract.isNotEmpty) {
+      buf.write(
+        _renderTestListSection('Contract loop: contract behaviors', contract),
+      );
     }
     await File(testListPath).writeAsString(buf.toString());
   }
@@ -574,6 +590,12 @@ case "$STEP" in
     case "$OUTCOME" in
       ok) exit 0 ;;
       exit0:*) echo "gen: behavior=$ID outcome=${OUTCOME#exit0:}"; exit 0 ;;
+      refused-widget)
+        # Issue #938 shape: the fix line, then the machine-parseable
+        # verdict JSON as the FINAL stdout line, exit 1.
+        echo "--> fix: add shadcn_ui (flutter pub add shadcn_ui --dev) or re-run with --skip-widget"
+        echo "{\"command\":\"gen\",\"behavior\":\"$ID\",\"verdict\":\"refused\",\"reason\":\"pubspec.yaml does not declare shadcn_ui - widget-lane behaviors boot a ShadApp shell whose import would die at compile (issue #938). Run: flutter pub add shadcn_ui\",\"kind\":\"widget\"}"
+        exit 1 ;;
       *) echo "zfa tdd gen: $OUTCOME"; exit 1 ;;
     esac
     ;;
