@@ -16,9 +16,13 @@ import '../../../skin/contract/skin_contract_schema.dart';
 /// The spec section marker the emitter looks for.
 const String skinContractSectionMarker = '## Skin Contract:';
 
-/// True when [specMarkdown] declares a skin contract.
-bool specDeclaresSkinContract(String specMarkdown) =>
-    specMarkdown.contains(skinContractSectionMarker);
+/// True when [specMarkdown] declares a skin contract — a `## Skin Contract:`
+/// HEADING, not an inline prose mention (the repo-wide walker in
+/// `schema_test.dart` uses the same line-start rule).
+bool specDeclaresSkinContract(String specMarkdown) => RegExp(
+  '^$skinContractSectionMarker',
+  multiLine: true,
+).hasMatch(specMarkdown);
 
 /// Extracts the contract JSON body from the spec's `## Skin Contract:`
 /// section — the first fenced ```json block after the marker. Returns
