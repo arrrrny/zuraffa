@@ -378,6 +378,15 @@ class CliRunner {
     // is preserved through the `_runDispatched` path, which uses its
     // own `_exit(exitCode)` to honor whatever the command set.
     exitCode = 0;
+    // Spec 1008: dart:io's exitCode is PROCESS-GLOBAL, not per-isolate —
+    // `dart test` runs test files as concurrent isolates of one process,
+    // so a sibling isolate's command finishing between this run's
+    // dispatch and the caller's `exitCode` read clobbers the value this
+    // invocation produced. Snapshot the dispatched code and re-apply it
+    // as the last operation before returning, restoring the hermeticity
+    // the reset above promises (the residual window is a few
+    // instructions instead of the whole teardown).
+    var dispatchedExitCode = 0;
     final output = <String>[];
     try {
       final directory = _extractDirectory(args);
@@ -407,15 +416,18 @@ class CliRunner {
           () async {
             try {
               await _runner.run(args);
+              dispatchedExitCode = exitCode;
             } on UsageException catch (e) {
               output.add('❌ ${e.message}');
               output.add(e.usage);
+              dispatchedExitCode = 64;
             } catch (e, stack) {
               output.add('❌ Error: $e');
               _addSuggestionsTo(output.add, e.toString());
               if (args.contains('--verbose') || args.contains('-v')) {
                 output.add('\nStack trace:\n$stack');
               }
+              dispatchedExitCode = 1;
             }
           },
           zoneSpecification: ZoneSpecification(
@@ -427,6 +439,10 @@ class CliRunner {
       });
     } finally {
       _active = false;
+      // Re-apply this invocation's own exit code AFTER the teardown (the
+      // CWD restore, the zone unwind) — the narrowest window a sibling
+      // isolate can clobber.
+      exitCode = dispatchedExitCode;
     }
 
     return output.isEmpty ? '' : '${output.join('\n')}\n';

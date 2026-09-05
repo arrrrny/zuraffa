@@ -117,3 +117,35 @@ None for this feature. Pre-existing repo failures surfaced by the
 regression gates (unchanged by this spec, verified at HEAD): bug #691
 (run_command_test), the doctor-tier bug_828 failures, sc_018's plan
 template-version drift (#1058), and the bug_801 integration-tier runtime.
+
+## Post-merge addendum (master 5159c68c merged into this branch)
+
+Master moved 31 commits during development — including spec(1000) (the
+lane split this driver consumes), fix(986/992/991) to the run driver, and
+spec(1002) (which landed broken: it imports
+lib/src/utils/stale_usecase_test_cleaner.dart without shipping the file,
+so master HEAD's test tree does not compile). The branch merged master
+and re-proved everything:
+
+- dart analyze: 0 errors.
+- New suite: +21 All tests passed (post-merge).
+- run_command_test: **+49 All tests passed** — master's #986/#992 tests
+  pass through the extracted RunDriverCore, and the pre-existing bug #691
+  failure is cured by master's #986 fix.
+- services +615, commands +227, path-format +5, reader +23, sc_019 +3.
+- Exit criteria re-proved via the real CLI on a post-#1000 split feature
+  (split-receipt.json + plan pair + meta-index): all five PROVED, exit
+  codes included.
+- The chunked fast suite on the merged tree: 79 of 83 chunks green; the
+  4 red folders (cache / controller / presenter / view) fail IDENTICALLY
+  on a pure-master worktree — pre-existing at master HEAD, not caused by
+  this branch (verified by direct comparison).
+- Two merge-necessity fixes, both documented in the merge commit:
+  the restored stale_usecase_test_cleaner.dart (master HEAD does not
+  compile without it) and the CliRunner.runCapturing exit-code snapshot
+  (dart:io exitCode is process-global; concurrent test isolates clobber
+  reads — the flake reproduces 1-in-7 on pure master with the same
+  signature).
+
+Gate: `passed` (with the pre-existing master-HEAD failures named above —
+they are this repo's, not this spec's, and predate the branch).

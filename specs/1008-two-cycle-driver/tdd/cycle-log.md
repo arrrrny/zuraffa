@@ -124,3 +124,67 @@ $ dart bin/zfa.dart tdd status 004-login-ui --project <demo>
 status: feature=004-login-ui engine=green skin=green
 EXIT=0                                    # exit criterion: status verdicts
 ```
+
+
+## Cycle: merge master (5159c68c) — post-merge re-verification
+
+- behavior: 1008-two-cycle-driver
+- kind: green
+- criterion: PR must be mergeable against CURRENT master
+- test: the full gate set re-run on the merged tree
+- exit: 0
+- at: 2026-09-05T02:30:00.000Z
+- output:
+```
+dart analyze lib test --no-fatal-warnings   -> 0 errors
+two_cycle_run_commands_test  --preset=all -t slow -> +21 All tests passed
+run_command_test              --preset=all -t slow -> +49 All tests passed
+  (master's #986 make=skipped and #992 --skip-widget tests included;
+   the pre-existing bug #691 failure is now CURED by master's #986 fix)
+test/plugins/tdd/services/                     -> +615 All tests passed
+test/plugins/tdd/commands/ (concurrency=2)     -> +227 All tests passed*
+test/plugins/tdd/run_command_path_format_test  -> +5 All tests passed
+test/plugins/tdd/services/test_list_reader_test -> +23 All tests passed
+sc_019_legacy_dialect_migration_test           -> +3 All tests passed
+dart format . -> idempotent (0 changed)
+```
+
+Exit criteria RE-PROVED post-merge via the real CLI on a post-#1000 split
+feature (split-receipt.json classification + 04-ENGINE.md/04-SKIN.md +
+lane meta-index test-list):
+
+```
+run-skin without engine receipt -> EXIT=2 (engine-required)
+run-engine -> EXIT=0, receipt green A1,U1,U2 (from split-receipt)
+run-skin   -> EXIT=0, receipt green A1,W1,W2 (A1 skipped, engine-certified)
+run        -> EXIT=0, done=5, both receipts green, unified journal entry
+status     -> EXIT=0, "status: feature=004-login-ui engine=green skin=green"
+```
+
+Merge-resolution notes (recorded in the merge commit):
+- master's #1000 lane split integrated: lane truth now prefers
+  split-receipt.json's classification, then the plan pair, then row tags,
+  then the legacy CORE default.
+- master's #986/#992/#991 run-driver fixes ported into the shared
+  RunDriverCore.
+- lib/src/utils/stale_usecase_test_cleaner.dart restored (content at
+  b6c26825): master HEAD 5159c68c (spec(1002)) imports it without
+  shipping the file — the whole test tree failed to compile at master
+  HEAD; verified with git cat-file / a master worktree.
+- CliRunner.runCapturing exit-code snapshot: dart:io's exitCode is
+  PROCESS-GLOBAL, and `dart test` runs files as concurrent isolates of
+  one process — a sibling isolate's command could clobber a test's
+  exitCode read (flaked 1-in-7 on PURE MASTER too, same signature:
+  "plan succeeded", Expected 0 Actual 1). runCapturing now snapshots the
+  dispatched code and re-applies it as its last operation, narrowing the
+  window from the whole teardown to a few instructions.
+
+Pre-existing master-HEAD failures surfaced by the chunked fast suite,
+each verified IDENTICAL on a pure-master worktree (with the file
+restore) — NOT caused by this branch:
+- test/plugins/cache (cache_adapter_receipt_test, 2 tests)
+- test/plugins/controller (controller_compile_test setUpAll)
+- test/plugins/presenter (presenter_compile_test setUpAll)
+- test/plugins/view (view_compile_test setUpAll)
+- The four no-test folders (benchmark, core/dependencies, integration,
+  tdd/scenarios) report exit 79 "No tests ran" identically at master.
