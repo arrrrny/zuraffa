@@ -123,4 +123,49 @@ void main() {
       }
     });
   });
+
+  group('issue #1035 — packageName emits package: entity imports', () {
+    test('every artifact imports entities through a package: URI', () {
+      final artifacts = DependencyMockBuilder.emit(
+        contract: contract(),
+        outDir: 'test/mock/dependencies/auth_service',
+        packageName: 'my_app',
+      );
+
+      for (final artifact in artifacts) {
+        expect(
+          artifact.content.contains(
+            "import 'package:my_app/src/domain/entities/user/user.dart';",
+          ),
+          isTrue,
+          reason:
+              '${artifact.path} must import User through the package URI — '
+              'a relative import reaching into lib/ from test/ trips '
+              'avoid_relative_lib_imports',
+        );
+        expect(
+          artifact.content.contains("'../../../../lib/"),
+          isFalse,
+          reason: '${artifact.path} must keep no relative lib import',
+        );
+      }
+    });
+
+    test('same contract + same package name stays byte-identical', () {
+      final first = DependencyMockBuilder.emit(
+        contract: contract(),
+        outDir: 'test/mock/dependencies/auth_service',
+        packageName: 'my_app',
+      );
+      final second = DependencyMockBuilder.emit(
+        contract: contract(),
+        outDir: 'test/mock/dependencies/auth_service',
+        packageName: 'my_app',
+      );
+
+      for (var i = 0; i < first.length; i++) {
+        expect(second[i].content, first[i].content);
+      }
+    });
+  });
 }

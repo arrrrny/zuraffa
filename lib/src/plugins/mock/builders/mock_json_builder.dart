@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io' as io;
 
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/builder/shared/spec_library.dart';
@@ -68,6 +69,13 @@ class MockJsonBuilder {
     final jsonValues = valueBuilder.generateMockValuesForJson(
       entityName,
       entityFields,
+      // Spec 1001: --seed drives the JSON record values AND pins the
+      // DateTime values to a seed-derived epoch, so a seeded JSON mock
+      // run is byte-identical on replay.
+      baseSeed: config.seed ?? 1,
+      deterministicEpochMillis: config.seed == null
+          ? null
+          : DateTime.utc(2026, 1, 1).millisecondsSinceEpoch,
     );
 
     final jsonContent = const JsonEncoder.withIndent('  ').convert(jsonValues);
@@ -86,7 +94,11 @@ class MockJsonBuilder {
     final helperPath = helperFilePathFor(entityName, domain);
     files.add(await _writeDartFile(helperPath, helperContent, config));
 
-    final metaContent = _buildMetaContent(jsonContent, entityFields);
+    final metaContent = _buildMetaContent(
+      jsonContent,
+      entityFields,
+      seed: config.seed,
+    );
     final metaPath = metaFilePathFor(entityName, domain);
 
     _checkFieldMismatch(metaPath, entityFields, config.verbose);
@@ -107,6 +119,7 @@ class MockJsonBuilder {
         dryRun: config.dryRun,
         force: config.force,
         verbose: config.verbose,
+        seed: config.seed,
       );
       files.addAll(await generate(nestedConfig));
     }
@@ -210,14 +223,29 @@ class MockJsonBuilder {
     );
   }
 
-  String _buildMetaContent(String jsonContent, Map<String, String> fields) {
-    final hash = jsonContent.hashCode.toRadixString(16);
+  String _buildMetaContent(
+    String jsonContent,
+    Map<String, String> fields, {
+    int? seed,
+  }) {
     final fieldSignature =
         fields.entries.map((e) => '${e.key}:${e.value}').toList()..sort();
     return const JsonEncoder.withIndent('  ').convert({
-      'generatedHash': hash,
-      'generatedAt': DateTime.now().toIso8601String(),
+      // Spec 1001: seeded generation must replay byte-identically — the
+      // per-run String.hashCode and wall-clock stamp are replaced with
+      // seed-derived deterministic values.
+      'generatedHash': seed == null
+          ? jsonContent.hashCode.toRadixString(16)
+          : sha256.convert(utf8.encode(jsonContent)).toString(),
+      'generatedAt': seed == null
+          ? DateTime.now().toIso8601String()
+          : DateTime.utc(
+              2026,
+              1,
+              1,
+            ).add(Duration(seconds: seed)).toIso8601String(),
       'fieldSignature': fieldSignature.join(','),
+      if (seed != null) 'seed': seed,
     });
   }
 

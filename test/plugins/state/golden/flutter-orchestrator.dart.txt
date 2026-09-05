@@ -1,0 +1,71 @@
+// GENERATED - DO NOT EDIT
+import 'package:zuraffa_flutter/zuraffa_flutter.dart';
+
+import '../../../domain/entities/shipment/shipment.dart';
+
+class ShipmentState {
+  const ShipmentState({
+    this.error,
+    this.shipment,
+    this.getShipmentResponse,
+    this.isGetShipmentLoading = false,
+    this.isSyncShipmentLoading = false,
+  });
+
+  /// The current error, if any
+  final AppFailure? error;
+
+  /// The single Shipment entity
+  final Shipment? shipment;
+
+  /// The result data for GetShipmentUseCase
+  final Shipment? getShipmentResponse;
+
+  /// Whether GetShipmentUseCase is in progress
+  final bool isGetShipmentLoading;
+
+  /// Whether SyncShipmentUseCase is in progress
+  final bool isSyncShipmentLoading;
+
+  ShipmentState copyWith({
+    AppFailure? error,
+    Shipment? shipment,
+    bool? isGetShipmentLoading,
+    Shipment? getShipmentResponse,
+    bool? isSyncShipmentLoading,
+  }) => ShipmentState(
+    error: error ?? this.error,
+    shipment: shipment ?? this.shipment,
+    isGetShipmentLoading: isGetShipmentLoading ?? this.isGetShipmentLoading,
+    getShipmentResponse: getShipmentResponse ?? this.getShipmentResponse,
+    isSyncShipmentLoading: isSyncShipmentLoading ?? this.isSyncShipmentLoading,
+  );
+
+  bool get isLoading => isGetShipmentLoading || isSyncShipmentLoading;
+
+  bool get hasError => error != null;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ShipmentState &&
+          other.error == error &&
+          other.shipment == shipment &&
+          other.getShipmentResponse == getShipmentResponse &&
+          other.isGetShipmentLoading == isGetShipmentLoading &&
+          other.isSyncShipmentLoading == isSyncShipmentLoading;
+
+  @override
+  int get hashCode =>
+      error.hashCode +
+      shipment.hashCode +
+      getShipmentResponse.hashCode +
+      isGetShipmentLoading.hashCode +
+      isSyncShipmentLoading.hashCode;
+
+  @override
+  String toString() =>
+      'ShipmentState(error: $error, shipment: $shipment, getShipmentResponse: $getShipmentResponse, isGetShipmentLoading: $isGetShipmentLoading, isSyncShipmentLoading: $isSyncShipmentLoading)';
+}
+
+// END GENERATED

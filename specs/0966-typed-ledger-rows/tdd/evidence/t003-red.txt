@@ -1,0 +1,23 @@
+00:00 +0: loading test/tdd/0966-typed-ledger-rows/t003_sequence_traced_test.dart
+00:00 +0: T3 (FR-003) T3 - sequence rows: tap → loading → resolve traced as a chain end-to-end; an unrecorded chain never counts as proof.
+00:00 +0 -1: T3 (FR-003) T3 - sequence rows: tap → loading → resolve traced as a chain end-to-end; an unrecorded chain never counts as proof. [E]
+  Expected: 'NOT-DONE'
+    Actual: 'DONE'
+     Which: is different.
+            Expected: NOT-DONE
+              Actual: DONE
+                      ^
+             Differ at offset 0
+  
+  package:matcher                                                       expect
+  lib/tdd/0966-typed-ledger-rows/t3_subject.dart 69:3                   subject_t3
+  test/tdd/0966-typed-ledger-rows/t003_sequence_traced_test.dart 21:21  main.<fn>.<fn>.<fn>
+  test/tdd/0966-typed-ledger-rows/t003_sequence_traced_test.dart 26:11  main.<fn>.<fn>
+  
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  test/tdd/0966-typed-ledger-rows/t003_sequence_traced_test.dart: T3 (FR-003) T3 - sequence rows: tap → loading → resolve traced as a chain end-to-end; an unrecorded chain never counts as proof.
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.

@@ -109,7 +109,8 @@
 /// `[run] <behavior> <step> -> <outcome>`, and every invocation ends with
 /// the final summary line
 /// `run: feature=<f> result=<r> pending=<n> red=<n> green=<n> done=<n>`
-/// plus ` stopped_at=<behavior>:<step>` when stopped. Exit codes:
+/// plus ` skipped-widget=<n>` when `--skip-widget` recorded skips (issue
+/// #992) and ` stopped_at=<behavior>:<step>` when stopped. Exit codes:
 /// 0 complete, 1 stopped, 2 runner-error, 3 corrupt-state,
 /// 4 concurrent-run — 0 means exactly "all DONE with complete evidence".
 library;
@@ -121,6 +122,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
 import '../services/cycle_evidence.dart';
+import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/corpus_baseline_cache.dart';
@@ -131,7 +133,10 @@ import '../services/suite_guard.dart';
 import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
 import '../services/tdd_transaction.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
+import 'run_engine_command.dart';
 import '../../../core/project/project_root.dart';
 
 class RunCommand extends Command<void> {
@@ -167,9 +172,22 @@ class RunCommand extends Command<void> {
           'default 10). Fractions are allowed. On timeout the child is '
           'killed and the run stops with result=runner-error.',
     );
+    argParser.addFlag(
+      'skip-widget',
+      help:
+          'Widget-lane behaviors whose gen refuses on the shadcn_ui gate '
+          '(issue #938) are skipped instead of stopping the run: each keeps '
+          'its current state — never a fake DONE — and the end-of-run '
+          'summary names the count (issue #992). Without the flag the '
+          'refusal still stops the run.',
+      negatable: false,
+    );
   }
 
   final TddPlugin plugin;
+
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
 
   @override
   String get name => 'run';
@@ -192,7 +210,10 @@ class RunCommand extends Command<void> {
   static const _exitConcurrentRun = 4;
 
   @override
-  Future<void> run() async {
+  Future<void> run() =>
+      runWithVerdictEnvelope(this, _verdict, _run, featureFromRest: true);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       throw UsageException(
@@ -239,6 +260,34 @@ class RunCommand extends Command<void> {
     }
 
     final store = RunStateStore(featureDir);
+
+    // -----------------------------------------------------------------
+    // 1b. Tier-1 mock certification preflight (spec 1001, issue #1001):
+    //     the run engine refuses to proceed when any CORE entity's mock
+    //     is present but uncertified — the same gate `zfa tdd
+    //     run-engine <feature>` exposes as a command. Mocks that do not
+    //     exist yet are not enforced (the loop generates them); only
+    //     present-but-uncertified mocks block the engine.
+    // -----------------------------------------------------------------
+    final gate = await RunEngineCommand.checkFeature(
+      projectRoot: projectRoot,
+      featureDir: featureDir,
+    );
+    if (!gate.ok) {
+      final entity = gate.blockedEntity!;
+      print(
+        'zfa tdd run: CORE entity "$entity" has a mock on disk that is '
+        'NOT certified — the engine refuses to proceed (spec 1001: '
+        'mocks the framework certifies, not the agent).',
+      );
+      print(
+        '--> fix: zfa mock certify $entity (or zfa mock create $entity '
+        '--certify), then re-run.',
+      );
+      _printSummary(feature, 'runner-error', const [], null);
+      exitCode = _exitRunnerError;
+      return;
+    }
 
     // -----------------------------------------------------------------
     // 2. Load state — corruption stops with the recovery path (FR-006).
@@ -364,6 +413,13 @@ class RunCommand extends Command<void> {
     // child is killed and surfaces as a runner-error step result.
     final runner = StepRunner(zfaBin: zfaBin, timeout: timeoutOverride);
 
+    // Issue #992: --skip-widget turns a widget-lane gen refusal (#938
+    // shadcn gate) into a recorded per-behavior skip instead of a run
+    // stop. The map is keyed by behavior id (transcript + summary) and
+    // gates phases 2a/2b so a skipped behavior is never re-driven.
+    final skipWidget = argResults?['skip-widget'] as bool? ?? false;
+    final skippedWidgets = <String, String>{};
+
     String? suiteBaselinePath;
     final anyMakeOutstanding = rows.any(
       (r) => current.behaviorStates[r.id] != BehaviorState.done,
@@ -377,6 +433,7 @@ class RunCommand extends Command<void> {
         rows,
         state,
         stoppedAt: stop.stoppedAt,
+        skippedWidgets: skippedWidgets,
       );
       exitCode = stop.exitCode;
     }
@@ -387,9 +444,11 @@ class RunCommand extends Command<void> {
     //     spec), the driver creates every entity that does not exist
     //     yet — idempotently: an existing entity file is REUSED, never
     //     regenerated over hand-tuned fields — and runs `zfa build`
-    //     ONCE, BEFORE any behavior is driven. A feature without
-    //     declared entities runs no phase-0 spawn at all (every pre-829
-    //     run is unchanged).
+    //     ONCE, BEFORE any behavior is driven (with --no-analyze, bug
+    //     #991: the target repo's pre-existing warnings are not this
+    //     run's verdict — analyze belongs in verify/refactor steps). A
+    //     feature without declared entities runs no phase-0 spawn at
+    //     all (every pre-829 run is unchanged).
     // ---------------------------------------------------------------
     if (anyMakeOutstanding) {
       final declaredEntities = await TestListReader(featureDir).readEntities();
@@ -545,6 +604,8 @@ class RunCommand extends Command<void> {
         runner: runner,
         registry: registry,
         suiteBaselinePath: suiteBaselinePath,
+        skipWidget: skipWidget,
+        skippedWidgets: skippedWidgets,
       );
       if (result.stop != null) {
         applyStop(result.stop!, result.state);
@@ -566,6 +627,10 @@ class RunCommand extends Command<void> {
       // Only behaviors still sitting RED are here for their make; GREEN
       // behaviors are waiting on the phase-2 refactor pass instead.
       if (state == BehaviorState.green) continue;
+      // Issue #992: a widget-skipped behavior has no gen artifacts —
+      // re-driving its make would refuse "no gen artifacts" and stop the
+      // run for a behavior the operator already chose to skip.
+      if (skippedWidgets.containsKey(row.id)) continue;
 
       final inFlightStep = current.inFlightBehaviorId == row.id
           ? current.inFlightStep
@@ -584,6 +649,8 @@ class RunCommand extends Command<void> {
         runner: runner,
         registry: registry,
         suiteBaselinePath: suiteBaselinePath,
+        skipWidget: skipWidget,
+        skippedWidgets: skippedWidgets,
       );
       if (result.stop != null) {
         applyStop(result.stop!, result.state);
@@ -621,6 +688,8 @@ class RunCommand extends Command<void> {
     for (final row in rows) {
       final state = current.behaviorStates[row.id] ?? BehaviorState.pending;
       if (state != BehaviorState.green) continue;
+      // Issue #992: never re-drive a widget-skipped behavior.
+      if (skippedWidgets.containsKey(row.id)) continue;
 
       // Bug #734 per-behavior gate, decided BEFORE the spawn (the same
       // pre-spawn discipline as the bug #635/#734 deferrals): refactor
@@ -657,6 +726,8 @@ class RunCommand extends Command<void> {
         runner: runner,
         registry: registry,
         suiteBaselinePath: suiteBaselinePath,
+        skipWidget: skipWidget,
+        skippedWidgets: skippedWidgets,
       );
       if (result.stop != null) {
         applyStop(result.stop!, result.state);
@@ -680,28 +751,47 @@ class RunCommand extends Command<void> {
     final allDone = rows.every(
       (r) => current.behaviorStates[r.id] == BehaviorState.done,
     );
-    if (!allDone && skippedRefactors.isNotEmpty) {
-      // Bug #734 per-behavior gate (+ v2 refusal skips): the pass
-      // completed for every behavior that could refactor; the rest stay
-      // GREEN with their refactor outstanding — bounded, resumable
-      // progress (FR-007), never a fake DONE (FR-008). The run stops
-      // honestly, naming the skips, their reasons, and the resume path.
-      print(
-        'zfa tdd run: refactor skipped for '
-        '${skippedRefactors.keys.join(', ')} — '
-        '${skippedRefactors.values.toSet().join(' / ')}',
-      );
-      print(
-        '   resume: restore the suite green (re-run make for behaviors '
-        'whose own test is red; fix the failing tests the preflight '
-        'named otherwise), then re-run `zfa tdd run $feature`',
-      );
+    if (!allDone &&
+        (skippedRefactors.isNotEmpty || skippedWidgets.isNotEmpty)) {
+      // Bug #734 per-behavior gate (+ v2 refusal skips, issue #992): the
+      // pass completed for every behavior that could proceed; the rest
+      // stay at their last completed state with their outstanding work
+      // named — bounded, resumable progress (FR-007), never a fake DONE
+      // (FR-008). One terminal block reports BOTH skip kinds: a stop can
+      // carry refactors and widget skips together, and the summary must
+      // name each with its resume path (review finding on #1071).
+      if (skippedRefactors.isNotEmpty) {
+        print(
+          'zfa tdd run: refactor skipped for '
+          '${skippedRefactors.keys.join(', ')} — '
+          '${skippedRefactors.values.toSet().join(' / ')}',
+        );
+        print(
+          '   resume: restore the suite green (re-run make for behaviors '
+          'whose own test is red; fix the failing tests the preflight '
+          'named otherwise), then re-run `zfa tdd run $feature`',
+        );
+      }
+      if (skippedWidgets.isNotEmpty) {
+        print(
+          'zfa tdd run: widget-lane skipped for '
+          '${skippedWidgets.keys.join(', ')} — '
+          '${skippedWidgets.values.toSet().join(' / ')}',
+        );
+        print(
+          '   resume: add shadcn_ui (flutter pub add shadcn_ui --dev) or '
+          'drop --skip-widget, then re-run `zfa tdd run $feature`',
+        );
+      }
       _printSummary(
         feature,
         'stopped',
         rows,
         current,
-        stoppedAt: '${skippedRefactors.keys.first}:refactor',
+        stoppedAt: skippedRefactors.isNotEmpty
+            ? '${skippedRefactors.keys.first}:refactor'
+            : '${skippedWidgets.keys.first}:gen',
+        skippedWidgets: skippedWidgets,
       );
       exitCode = _exitStopped;
       return;
@@ -1015,6 +1105,8 @@ class RunCommand extends Command<void> {
     required StepRunner runner,
     required ArtifactRegistry registry,
     String? suiteBaselinePath,
+    required bool skipWidget,
+    required Map<String, String> skippedWidgets,
   }) async {
     final feature = current.feature;
     var updated = current;
@@ -1151,6 +1243,55 @@ class RunCommand extends Command<void> {
             refactorBlocked: false,
           );
         }
+
+        // Bug #986: `skipped` — make's issue #694 skip transition (the
+        // target test already passes, generation skipped by design) — is a
+        // TERMINAL make success, never a step failure. StepRunner grades
+        // the exit-0 skip as success; this mapping closes the fall-through
+        // for a skipped token whose exit code disagrees (binary skew, or
+        // the #657/#694-era drift contract where the already-green report
+        // exited non-zero): make's outcome token is the step's own
+        // terminal classification, and halting the feature on an
+        // already-green behavior is the #693/#694 deadlock family. Record
+        // the green evidence when make's write did not land (idempotent —
+        // never a duplicate, the #693 driver-recorded pattern), advance
+        // the behavior GREEN, and let refactor proceed as usual.
+        if (step == 'make' && result.outcome == 'skipped') {
+          if (!await _hasEvidence(evidence.greenEvidence, row.id)) {
+            await CycleLog(p.join(projectRoot, 'specs', feature)).append(
+              CycleLogEntry(
+                behaviorId: row.id,
+                kind: CycleEntryKind.green,
+                runnerCommand: 'zfa tdd make ${row.id} (skipped)',
+                exitCode: result.exitCode,
+                capturedOutput:
+                    'skipped — the target test already passes (issue #694 '
+                    'skip transition); green evidence recorded by the run '
+                    'driver (bug #986) because make did not write it. Exit '
+                    'code ${result.exitCode} disagrees with the outcome '
+                    'token; the token is the terminal classification.\n'
+                    '${result.output.split('\n').take(2).join('\n')}',
+                sourceCriterion: row.traces,
+                testPath: 'test/',
+                timestamp: DateTime.now().toUtc().toIso8601String(),
+              ),
+            );
+          }
+          final next = _maxState(state, _targetStateFor(step));
+          updated = updated.advance(row.id, next);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
+          state = next;
+          print('[run] ${row.id} make -> green (skipped)$progressSuffix');
+          if (result.exitCode != 0) {
+            print(
+              '   exit code ${result.exitCode} disagrees with '
+              'outcome=skipped — the token is the terminal skip transition '
+              '(issue #694); advancing (bug #986).',
+            );
+          }
+          continue;
+        }
         // Bug #625/#657 deferral: a make reporting `unexpressible` is the
         // planner's by-design refusal for descriptions no generator
         // surface maps — acceptance prose (bug #625) or a unit
@@ -1230,6 +1371,28 @@ class RunCommand extends Command<void> {
           print('[run] ${row.id} refactor -> skipped (suite not green)');
           _printOutputExcerpt(result.output);
           return (state: updated, stop: null, refactorBlocked: true);
+        }
+        // Issue #992: a widget-lane gen refusal (#938 shadcn gate) is
+        // per-behavior information, not a run-fatal step failure — the
+        // refusal is side-effect-free (gen refuses BEFORE any artifact
+        // write, registry append, or re-render). With --skip-widget the
+        // behavior keeps its current state (FR-007: never a fake DONE),
+        // the skip is named in the transcript and the end-of-run summary,
+        // and the run continues with the remaining behaviors. Without
+        // the flag the honest stop below stands (the default contract).
+        if (step == 'gen' &&
+            result.outcome == 'refused' &&
+            result.verdictKind == 'widget' &&
+            skipWidget) {
+          updated = updated.advance(row.id, state);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
+          skippedWidgets[row.id] = 'shadcn_ui not declared (issue #938)';
+          print(
+            '[run] ${row.id} gen -> skipped-widget '
+            '(--skip-widget; shadcn_ui not declared, issue #938)',
+          );
+          return (state: updated, stop: null, refactorBlocked: false);
         }
         // Honest stop (FR-007): leave the behavior at its last completed
         // state, name what failed, never start later behaviors. A
@@ -1450,10 +1613,15 @@ class RunCommand extends Command<void> {
 
   /// Bug #829 phase 0 — create every declared entity that does not
   /// exist yet (idempotent reuse: an existing entity file is never
-  /// regenerated over hand-tuned fields), then run `zfa build` ONCE
-  /// when at least one entity was created. Returns the honest [_Stop]
-  /// when a spawn fails or hangs; null when phase 0 completed (or had
-  /// nothing to do).
+  /// regenerated over hand-tuned fields), then run `zfa build --no-analyze`
+  /// ONCE when at least one entity was created (bug #991: the default
+  /// `--analyze` gate makes the phase-0 build exit 1 on the target
+  /// repo's pre-existing analyze warnings — unused imports, dead code —
+  /// even when everything compiles, so the run dies with runner-error
+  /// before any behavior is driven; analyze is enforced by the
+  /// verify/refactor steps, not the phase-0 build gate). Returns the
+  /// honest [_Stop] when a spawn fails or hangs; null when phase 0
+  /// completed (or had nothing to do).
   Future<_Stop?> _runEntityPhaseZero({
     required String projectRoot,
     required List<DeclaredEntity> entities,
@@ -1543,7 +1711,11 @@ class RunCommand extends Command<void> {
     }
     ProcessResult build;
     try {
-      build = await spawn(const ['build']);
+      // Bug #991: --no-analyze — the phase-0 build is a generation gate,
+      // not an analysis gate. Pre-existing warnings in the target repo
+      // (unused imports, dead code) must not fail the run before any
+      // behavior is driven; verify/refactor keep their own analyze.
+      build = await spawn(const ['build', '--no-analyze']);
     } on ProcessTimeoutException {
       print(
         '[run] phase-0 build -> failed (timed out after '
@@ -1582,6 +1754,7 @@ class RunCommand extends Command<void> {
     List<BehaviorRow> rows,
     RunState? state, {
     String? stoppedAt,
+    Map<String, String> skippedWidgets = const {},
   }) {
     var pending = 0;
     var blocked = 0;
@@ -1609,8 +1782,23 @@ class RunCommand extends Command<void> {
       'run: feature=$feature result=$result pending=$pending red=$red '
       'green=$green done=$done'
       '${blocked > 0 ? ' blocked=$blocked' : ''}'
+      '${skippedWidgets.isNotEmpty ? ' skipped-widget=${skippedWidgets.length}' : ''}'
       '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}',
     );
+    // Issue #969: carry the shipped exit taxonomy into the envelope —
+    // the label IS the class; no taxonomy changes.
+    _verdict
+      ..exitClass = result
+      ..outcome = switch (result) {
+        'complete' => VerdictOutcome.pass,
+        'stopped' => VerdictOutcome.stopped,
+        _ => VerdictOutcome.error,
+      }
+      ..details['pending'] = pending
+      ..details['red'] = red
+      ..details['green'] = green
+      ..details['done'] = done;
+    if (stoppedAt != null) _verdict.details['stopped_at'] = stoppedAt;
   }
 
   void _printOutputExcerpt(String output) {

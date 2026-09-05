@@ -38,6 +38,14 @@
           "speckit.bug.fix",
           "speckit.bug.pr",
           "speckit.bug.test"
+        ],
+        "zed": [
+          "speckit.bug.assess",
+          "speckit.bug.issue",
+          "speckit.bug.fetch",
+          "speckit.bug.fix",
+          "speckit.bug.pr",
+          "speckit.bug.test"
         ]
       },
       "registered_skills": [],
@@ -51,6 +59,13 @@
       "priority": 10,
       "registered_commands": {
         "kimi": [
+          "speckit.git.feature",
+          "speckit.git.validate",
+          "speckit.git.remote",
+          "speckit.git.initialize",
+          "speckit.git.commit"
+        ],
+        "zed": [
           "speckit.git.feature",
           "speckit.git.validate",
           "speckit.git.remote",
@@ -71,6 +86,10 @@
         "kimi": [
           "speckit.gh-triage.triage",
           "speckit.gh-triage.feature"
+        ],
+        "zed": [
+          "speckit.gh-triage.triage",
+          "speckit.gh-triage.feature"
         ]
       },
       "registered_skills": [],
@@ -84,6 +103,13 @@
       "priority": 10,
       "registered_commands": {
         "kimi": [
+          "speckit.gym.init",
+          "speckit.gym.run",
+          "speckit.gym.warmup",
+          "speckit.gym.gate",
+          "speckit.gym.drop"
+        ],
+        "zed": [
           "speckit.gym.init",
           "speckit.gym.run",
           "speckit.gym.warmup",
@@ -106,6 +132,12 @@
           "speckit.tdd.plan",
           "speckit.tdd.run",
           "speckit.tdd.verify"
+        ],
+        "zed": [
+          "speckit.tdd.setup",
+          "speckit.tdd.plan",
+          "speckit.tdd.run",
+          "speckit.tdd.verify"
         ]
       },
       "registered_skills": [],
@@ -119,6 +151,13 @@
       "priority": 10,
       "registered_commands": {
         "kimi": [
+          "speckit.chore.assess",
+          "speckit.chore.issue",
+          "speckit.chore.fetch",
+          "speckit.chore.implement",
+          "speckit.chore.pr"
+        ],
+        "zed": [
           "speckit.chore.assess",
           "speckit.chore.issue",
           "speckit.chore.fetch",

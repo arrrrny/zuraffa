@@ -7,8 +7,6 @@ library;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/slice/generators/sandbox_scaffold.dart';
 
-import 'sandbox_fixture.dart';
-
 void subject_a3() {
   // The declared routes resolve to their pages, exactly.
   final routes = SliceRouteTable(const [

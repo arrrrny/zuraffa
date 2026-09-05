@@ -10,6 +10,7 @@ import '../commands/validate_command.dart';
 import '../commands/create_command.dart' as create;
 import '../commands/config_command.dart' as config;
 import '../commands/corpus_command.dart';
+import '../commands/dream_command.dart';
 import '../commands/initialize_command.dart' as init;
 import '../commands/entity_command.dart';
 import '../commands/plugin_command.dart' as plugincmd;
@@ -29,6 +30,7 @@ import '../commands/replay_command.dart';
 import '../commands/tdd_command.dart';
 import '../commands/app_shell_command.dart';
 import '../commands/package_command.dart';
+import '../commands/engine_command.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../plugins/tdd/tdd_plugin.dart';
@@ -165,6 +167,7 @@ class CliRunner {
     _runner.addCommand(_EntityCommand());
     _runner.addCommand(_PluginCommand());
     _runner.addCommand(MakeCommand(registry));
+    _runner.addCommand(EngineCommand());
     _runner.addCommand(DoctorCommand());
     _runner.addCommand(ProofCommand());
     _runner.addCommand(MigrateCommand());
@@ -179,6 +182,7 @@ class CliRunner {
     _runner.addCommand(CorpusCommand());
     _runner.addCommand(TddCommand(TddPlugin()));
     _runner.addCommand(ReplayCommand());
+    _runner.addCommand(DreamCommand());
     _runner.addCommand(AppCommand());
     _runner.addCommand(UiCommand());
     _runner.addCommand(PackageCommand());
@@ -475,6 +479,9 @@ BOOTSTRAP:
   init                Alias of initialize — wire deps + scaffold a test entity
   package create <name>  Create a Zuraffa-native reusable package (spec 025)
   corpus import <dir> Import an extracted spec corpus (spec 050, issue #627)
+  corpus catalog      Classify a corpus target's specs CORE/SKIN (epic #1017)
+  corpus run          Walk the corpus under a failure budget (epic #1017)
+  corpus ledger       Record the walk ledger; regressions are CI failures
 
 CORE COMMANDS:
   make <Name>         Canonical architecture/code generation command

@@ -598,10 +598,74 @@ Analyzing lib/...
       });
     });
 
-    group('verifyAnalyzeOrFail (issue #415 — invalid --fatal-infos flag)', () {
+    group('countAnalyzerIssues (issue #1035 — severity-filtered gate)', () {
+      test('counts each severity bucket from one output block', () {
+        const out = '''
+Analyzing lib/...
+   error - lib/src/a.dart:1:1 - Boom. - uri_does_not_exist
+   error - lib/src/b.dart:2:2 - Boom again. - undefined_class
+   warning - lib/src/c.dart:3:3 - Unused import. - unused_import
+   info - lib/tdd/1035-lint-repro/a1_subject.dart:18:6 - Snake name. - non_constant_identifier_names
+   info - lib/tdd/1035-lint-repro/u1_subject.dart:16:8 - Snake name. - non_constant_identifier_names
+5 issues found.''';
+        final counts = BuildCommand.countAnalyzerIssues(out);
+        expect(counts.errors, 2);
+        expect(counts.warnings, 1);
+        expect(counts.infos, 2);
+        expect(counts.blocksGate, isTrue);
+      });
+
+      test('info-only output never blocks the gate (info is style)', () {
+        const out = '''
+Analyzing lib/...
+   info - lib/tdd/1035-lint-repro/a1_subject.dart:18:6 - Snake name. - non_constant_identifier_names
+   info - test/tdd/1035-lint-repro/a1_test.dart:17:8 - Relative lib import. - avoid_relative_lib_imports
+39 issues found.''';
+        final counts = BuildCommand.countAnalyzerIssues(out);
+        expect(counts.errors, 0);
+        expect(counts.warnings, 0);
+        expect(counts.infos, 2);
+        expect(counts.blocksGate, isFalse);
+      });
+
+      test('a warning blocks the gate (error/warning are not style)', () {
+        const out = '''
+Analyzing lib/...
+   warning - lib/tdd/1035-lint-repro/u5_subject.dart:12:8 - Duplicate import. - duplicate_import
+1 issue found.''';
+        final counts = BuildCommand.countAnalyzerIssues(out);
+        expect(counts.blocksGate, isTrue);
+      });
+
+      test('severity words inside messages never count', () {
+        const out = '''
+Analyzing lib/...
+   info - lib/src/error_path.dart:1:1 - warning error info words in prose. - lint_code
+1 issue found.''';
+        final counts = BuildCommand.countAnalyzerIssues(out);
+        expect(counts.errors, 0);
+        expect(counts.warnings, 0);
+        expect(counts.infos, 1);
+      });
+
+      test('analyzeReportsError keeps the #942 error-only semantics on the '
+          'shared counter', () {
+        // The make tolerance gate reads the SAME line format through the
+        // SAME counter — warnings/infos alone must never read as a
+        // non-compiling tree.
+        const warnOnly = '''
+Analyzing lib/...
+   warning - lib/src/c.dart:3:3 - Unused import. - unused_import
+   info - lib/tdd/x_subject.dart:1:1 - Snake name. - non_constant_identifier_names''';
+        expect(BuildCommand.analyzeReportsError(warnOnly), isFalse);
+        expect(BuildCommand.countAnalyzerErrors(warnOnly), 0);
+      });
+    });
+
+    group('verifyAnalyzeOrFail (issue #415 flag; issue #1035 severity gate)', () {
       test(
         'runs `dart analyze lib` without the rejected --fatal-infos=value '
-        'flag and reports no errors on the current (warning/info-only) lib',
+        'flag and passes on the current info-only lib',
         // `dart analyze lib` over the whole package takes ~30s on this repo,
         // so the default 30s per-test timeout is too tight. Give it headroom.
         timeout: const Timeout(Duration(minutes: 2)),
@@ -611,6 +675,8 @@ Analyzing lib/...
           // at flag-parse ("Flag option should not be given a value", exit 64)
           // — producing empty stdout and a falsely-clean result. The fixed
           // invocation drops the flag (info is non-fatal by default).
+          // Issue #1035: the gate fails on error/warning only — the repo's
+          // own lib is warning-free, so the info-level style lints pass.
           final command = BuildCommand();
           // Run analysis against the real package root explicitly so the check
           // is hermetic and does not inherit a process-CWD that another

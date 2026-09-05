@@ -276,8 +276,13 @@ abstract class AuthService {
         // here as ['get','update','toggle'] and crashed service mode; with
         // the default removed it arrives as [] and must not strip the
         // entity-mode CRUD default (#770).
-        final runner = CommandRunner('zfa_test', 'capability command test')
-          ..addCommand(CapabilityCommand(capability));
+        // projectRoot pinned to the temp fixture: since spec 0996 the
+        // command persists a receipt into <projectRoot>/.zfa/receipts/ —
+        // without the pin it would pollute the repo working tree.
+        final runner = CommandRunner(
+          'zfa_test',
+          'capability command test',
+        )..addCommand(CapabilityCommand(capability, projectRoot: tempDir.path));
 
         // Service mode: no --methods — must conform to the interface.
         await runner.run([
@@ -332,4 +337,240 @@ abstract class AuthService {
       });
     },
   );
+
+  group('issue #1034 — provider threads the per-method fixture selector', () {
+    // Production repro shape (bug 1034):
+    //   zfa entity create AuthRequest --field method:AuthenticationMethod
+    //   zfa service create Auth --params AuthRequest --returns User
+    //   zfa mock <service-mode>  → AuthMockProvider.login returned
+    //     UserMockData.sampleUser for every call (apple, google, anonymous)
+    //     even though the augmented mock data class declared the
+    //     deterministic per-method selector
+    //     `static User forMethod(AuthenticationMethod method)`.
+    //
+    // The AUGMENTED escape hatch stays reserved for mock-data VALUES — the
+    // fixture below writes the generated base + the augmented selector, the
+    // exact state a user reaches after hand-augmenting a GENERATED-DO-NOT-
+    // EDIT mock data file (regeneration without --force skips it).
+    void seedAuthProject({required bool withSelector}) {
+      final enumsDir = Directory('$outputDir/domain/entities/enums');
+      enumsDir.createSync(recursive: true);
+      File('${enumsDir.path}/authentication_method.dart').writeAsStringSync('''
+enum AuthenticationMethod { apple, google, anonymous }
+''');
+
+      final userDir = Directory('$outputDir/domain/entities/user');
+      userDir.createSync(recursive: true);
+      File('${userDir.path}/user.dart').writeAsStringSync('''
+class User {
+  final String id;
+  final String name;
+  const User(this.id, this.name);
+}
+''');
+
+      final authRequestDir = Directory(
+        '$outputDir/domain/entities/auth_request',
+      );
+      authRequestDir.createSync(recursive: true);
+      File('${authRequestDir.path}/auth_request.dart').writeAsStringSync('''
+import '../enums/authentication_method.dart';
+
+class AuthRequest {
+  final AuthenticationMethod method;
+  const AuthRequest(this.method);
+}
+''');
+
+      final serviceDir = Directory('$outputDir/domain/services');
+      if (!serviceDir.existsSync()) serviceDir.createSync(recursive: true);
+      File('${serviceDir.path}/auth_service.dart').writeAsStringSync('''
+abstract class AuthService {
+  Future<User> login(AuthRequest params);
+}
+''');
+
+      final mockDir = Directory('$outputDir/data/mock');
+      mockDir.createSync(recursive: true);
+      final selector = withSelector
+          ? '''
+  // AUGMENTED (sanctioned escape hatch for mock-data VALUES, issue #1034):
+  // deterministic per-method fixture selector the provider must thread.
+  static User forMethod(AuthenticationMethod method) {
+    switch (method) {
+      case AuthenticationMethod.apple:
+        return users[0];
+      case AuthenticationMethod.google:
+        return users[1];
+      case AuthenticationMethod.anonymous:
+        return users[2];
+    }
+  }
+'''
+          : '';
+      File('${mockDir.path}/user_mock_data.dart').writeAsStringSync('''
+// GENERATED - zfa mock data for: User
+import '../../domain/entities/user/user.dart';
+import '../../domain/entities/enums/authentication_method.dart';
+
+/// Mock data for User
+class UserMockData {
+  static final List<User> users = [
+    User('u-1', 'Apple User'),
+    User('u-2', 'Google User'),
+    User('u-3', 'Anonymous User'),
+  ];
+
+  static User get sampleUser => users.first;
+  static List<User> get sampleList => users;
+  static List<User> get emptyList => <User>[];
+  static List<User> get largeUserList => List.generate(
+        100,
+        (i) => User('u-\$i', 'User \$i'),
+      );
+
+  static User _createUser(int seed) => User('u-\$seed', 'User \$seed');
+$selector
+}
+''');
+    }
+
+    // No --force: the augmented mock data file must survive regeneration
+    // (FileUtils skips existing files), mirroring the real round trip.
+    Future<CreateMockCapability> nonForcingCapability() async {
+      final nonForcingPlugin = MockPlugin(
+        outputDir: outputDir,
+        options: const GeneratorOptions(dryRun: false, force: false),
+      );
+      return CreateMockCapability(nonForcingPlugin);
+    }
+
+    Future<String> generateProviderContent() async {
+      final result = await (await nonForcingCapability()).execute({
+        'name': 'Auth',
+        'service': 'Auth',
+        'domain': 'auth',
+        'params': 'AuthRequest',
+        'returns': 'User',
+      });
+      expect(
+        result.success,
+        isTrue,
+        reason: 'service-mode generation succeeds',
+      );
+      final providerPath = result.files
+          .where((p) => p.contains('data/providers/'))
+          .firstOrNull;
+      expect(providerPath, isNotNull, reason: 'a mock provider is generated');
+      return File(providerPath!).readAsStringSync();
+    }
+
+    test('GREEN: selector + discriminator on params entity → '
+        'login returns UserMockData.forMethod(params.method)', () async {
+      seedAuthProject(withSelector: true);
+      final content = await generateProviderContent();
+
+      expect(
+        content.contains('UserMockData.forMethod(params.method)'),
+        isTrue,
+        reason:
+            'the provider template must thread the declared per-method '
+            'fixture selector instead of the single canned fixture',
+      );
+      expect(
+        content.contains('UserMockData.sampleUser'),
+        isFalse,
+        reason:
+            'the single-fixture shape must be replaced once the selector '
+            'and the discriminator field are both declared',
+      );
+    });
+
+    test(
+      'stream service methods thread the selector inside the stream closure',
+      () async {
+        seedAuthProject(withSelector: true);
+        File('$outputDir/domain/services/auth_service.dart').writeAsStringSync(
+          '''
+abstract class AuthService {
+  Stream<User> login(AuthRequest params);
+}
+''',
+        );
+        final content = await generateProviderContent();
+
+        expect(
+          content.contains('UserMockData.forMethod(params.method)'),
+          isTrue,
+          reason:
+              'the stream closure must thread the selector too — the '
+              'single-fixture shape must not survive in either emission site',
+        );
+        expect(content.contains('UserMockData.sampleUser'), isFalse);
+      },
+    );
+
+    test('no selector on the mock data class → single-fixture shape preserved '
+        '(#1030 invariant, no behavior change)', () async {
+      seedAuthProject(withSelector: false);
+      final content = await generateProviderContent();
+
+      expect(
+        content.contains('UserMockData.sampleUser'),
+        isTrue,
+        reason: 'without a selector the canned shape is unchanged',
+      );
+      expect(content.contains('forMethod'), isFalse);
+    });
+
+    test('selector declared but params entity carries no discriminator field → '
+        'falls back to the single-fixture shape', () async {
+      seedAuthProject(withSelector: true);
+      // Strip the discriminator: AuthRequest no longer carries the
+      // AuthenticationMethod field the selector switches on.
+      File(
+        '$outputDir/domain/entities/auth_request/auth_request.dart',
+      ).writeAsStringSync('''
+class AuthRequest {
+  final String nonce;
+  const AuthRequest(this.nonce);
+}
+''');
+      final content = await generateProviderContent();
+
+      expect(
+        content.contains('UserMockData.sampleUser'),
+        isTrue,
+        reason:
+            'threading requires BOTH the selector and a matching '
+            'discriminator field on the params entity',
+      );
+      expect(content.contains('forMethod'), isFalse);
+    });
+
+    test('selector declared but its parameter type matches no params field → '
+        'falls back to the single-fixture shape', () async {
+      seedAuthProject(withSelector: true);
+      // The selector switches on an unrelated type no params field has.
+      final mockDataPath = '$outputDir/data/mock/user_mock_data.dart';
+      final augmented = File(mockDataPath).readAsStringSync().replaceFirst(
+        'static User forMethod(AuthenticationMethod method) {',
+        'static User forMethod(UnrelatedDiscriminator discriminator) {',
+      );
+      File(mockDataPath).writeAsStringSync(augmented);
+      File(
+        '$outputDir/domain/entities/unrelated_discriminator.dart',
+      ).writeAsStringSync('class UnrelatedDiscriminator {}');
+      final content = await generateProviderContent();
+
+      expect(
+        content.contains('UserMockData.sampleUser'),
+        isTrue,
+        reason:
+            'a selector whose parameter type matches no params-entity '
+            'field must not be threaded blindly',
+      );
+      expect(content.contains('forMethod'), isFalse);
+    });
+  });
 }

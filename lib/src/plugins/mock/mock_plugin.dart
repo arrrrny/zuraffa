@@ -19,6 +19,7 @@ import '../method_append/capabilities/method_capability.dart';
 import '../di/builders/simulation_binding_builder.dart';
 import 'builders/mock_builder.dart';
 import 'capabilities/create_mock_capability.dart';
+import 'capabilities/certify_mock_capability.dart';
 import 'capabilities/dependency_mock_capability.dart';
 import 'capabilities/json_mock_capability.dart';
 
@@ -54,6 +55,7 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   @override
   List<ZuraffaCapability> get capabilities => [
     CreateMockCapability(this),
+    CertifyMockCapability(this),
     DependencyMockCapability(this),
     JsonMockCapability(this),
     MethodCapability(
@@ -151,8 +153,15 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     GeneratorConfig config, {
     PluginContext? context,
   }) async {
+    // Issue #970: a json-only config (`zfa mock json X`, spec 008) is an
+    // explicit mock request too — the old gate returned [] for it, so the
+    // CLI printed "✅ JSON mock data generated" while writing ZERO files
+    // (the exact lying-success class this spec kills). Every other caller
+    // (make pipeline) sets generateMock, so admitting json-only configs
+    // changes no working path's output.
     if (!config.generateMock &&
         !config.generateMockDataOnly &&
+        !config.generateMockJson &&
         !config.revert) {
       return [];
     }
@@ -186,14 +195,10 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     // If mocks were explicitly requested, always generate/append.
     //
     // Issue #770: an explicit mock request must never be a silent no-op.
-    // The stale presentation-only gate here returned [] when no data-layer
-    // plugin was active — even though the user explicitly asked for mocks —
-    // which made `zfa mock create --name X` (and the positional
-    // `zfa mock X`) generate zero files while reporting success. The builder
-    // itself is standalone-safe: #417 already made the mock-datasource path
-    // emit the datasource interface it needs, and the data-only path has
-    // always generated.
-    if (config.generateMock || config.generateMockDataOnly) {
+    // (Issue #970 adds the json-only request to that contract.)
+    if (config.generateMock ||
+        config.generateMockDataOnly ||
+        config.generateMockJson) {
       final files = await builder.generate(config);
 
       // Spec 893 (T002, FR-002): `zfa mock create` generates the DI
@@ -272,7 +277,54 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             options: options,
             fileSystem: fs,
           );
-          final binding = await emitter.emitBinding(entityName: entityName);
+          // Issue #1031: the simulation binding must follow the shape the
+          // mock lane actually generated. Service mode emits
+          // `<Name>Service` + `<Name>MockProvider` and never a datasource
+          // pair, so it gets the service-shaped binding
+          // (`<Name>Service` -> `<Name>MockProvider`); the datasource shape
+          // (`<Entity>DataSource` -> `<Entity>MockDataSource`) stays
+          // authoritative for the entity/datasource lane only.
+          final serviceName = config.effectiveService;
+          final serviceSnake = config.serviceSnake;
+          final providerName = config.effectiveProvider;
+          final GeneratedFile binding;
+          if (config.hasService &&
+              serviceName != null &&
+              serviceSnake != null &&
+              providerName != null) {
+            // Mirror DiPlugin._generateServiceDI's import resolution:
+            // prefer the domain-scoped service file when it exists on
+            // disk, else the domain-less layout.
+            final domainServicePath = path.join(
+              outputDir,
+              'domain',
+              'services',
+              config.effectiveDomain,
+              '${serviceSnake}_service.dart',
+            );
+            final serviceImport = await fs.exists(domainServicePath)
+                ? '../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
+                : '../../domain/services/${serviceSnake}_service.dart';
+            // MockProviderBuilder always writes the mock provider under
+            // data/providers/<domain>/ in service mode (`hasService`).
+            final mockProviderName = providerName.replaceAll(
+              'Provider',
+              'MockProvider',
+            );
+            final mockProviderSnake = StringUtils.camelToSnake(
+              mockProviderName,
+            );
+            final mockProviderImport =
+                '../../data/providers/${config.effectiveDomain}/$mockProviderSnake.dart';
+            binding = await emitter.emitServiceBinding(
+              serviceName: serviceName,
+              mockProviderName: mockProviderName,
+              serviceImport: serviceImport,
+              mockProviderImport: mockProviderImport,
+            );
+          } else {
+            binding = await emitter.emitBinding(entityName: entityName);
+          }
           files.add(binding);
           final simulationIndex = await emitter.regenerateIndex(
             pendingFiles: [binding],
@@ -282,9 +334,22 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           }
           // Keep an existing app-level composition root wired with
           // `registerSimulationBindings(getIt);` (idempotent append).
-          final mainIndex = await emitter.syncMainIndex();
-          if (mainIndex != null) {
-            files.add(mainIndex);
+          //
+          // Spec 1002: skip the append when the di plugin is co-active in
+          // THIS run — di runs after mock (DiPlugin.runAfter includes
+          // 'mock') and its own main-index regeneration already wires
+          // `registerSimulationBindings` via the simulation-index
+          // detection (spec 893 FR-002). Running the append here as well
+          // would create a second transaction operation for
+          // `di/index.dart` and fail the commit with "Multiple
+          // operations" — the di+mock-in-one-run conflict the engine
+          // preset had to fix.
+          final diCoActive = context?.isActive('di') ?? false;
+          if (!diCoActive) {
+            final mainIndex = await emitter.syncMainIndex();
+            if (mainIndex != null) {
+              files.add(mainIndex);
+            }
           }
         }
       }

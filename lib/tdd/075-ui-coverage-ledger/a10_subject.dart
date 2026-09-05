@@ -1,8 +1,6 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/src/tdd/services/ui_ledger_builder.dart';
-import 'package:zuraffa/src/tdd/services/xray_ledger_binding.dart';
 import 'sandbox_fixture.dart';
 
 Object? subject_a10() {

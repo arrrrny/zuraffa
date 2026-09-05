@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:args/args.dart';
 
@@ -28,6 +29,18 @@ class TestCommand extends PluginCommand {
       abbr: 'd',
       help: 'Domain folder for custom usecases',
       defaultsTo: 'general',
+    );
+    // Spec 980 / FR-002: machine-readable verdict envelope. When set, the
+    // command prints the single-line JSON envelope
+    // `{entity, tests, compile, errors[], schema:1}` for the self-certified
+    // compile verdict (real runs only — a dry run writes no files, so
+    // there is nothing to certify and no envelope is printed).
+    argParser.addFlag(
+      'json',
+      negatable: false,
+      help:
+          'Print the test self-certification envelope '
+          '{entity, tests, compile, errors[], schema:1} as JSON',
     );
   }
 
@@ -107,6 +120,7 @@ class TestCommand extends PluginCommand {
     final dryRun = results['dry-run'] == true;
     final force = results['force'] == true;
     final verbose = results['verbose'] == true;
+    final jsonMode = results['json'] == true;
 
     final analyzed = await plugin.buildConfigFromUseCase(
       entityName,
@@ -131,6 +145,34 @@ class TestCommand extends PluginCommand {
 
     try {
       final files = await plugin.generate(config);
+
+      // Spec 980 / FR-001: the plugin self-certified the generated tests
+      // (scoped dart analyze + machine verdict line, already printed by
+      // the plugin). Non-compiling output fails the command — never a
+      // silent success. A dry run (or nothing written) certifies nothing
+      // and keeps the previous success semantics.
+      final certification = plugin.lastCertification;
+      final compilePassed = certification?.compile ?? true;
+
+      if (jsonMode && certification != null) {
+        print(jsonEncode(certification.toJson()));
+      }
+
+      if (!compilePassed) {
+        final verdict = certification!.verdictLine;
+        print('❌ Generated tests do not compile: $verdict');
+        if (exitOnCompletion) exit(1);
+        return GeneratorResult(
+          name: entityName,
+          success: false,
+          files: files,
+          errors: [verdict],
+          nextSteps: [
+            'Fix the compile errors above (the first error is named in the verdict line)',
+          ],
+        );
+      }
+
       return GeneratorResult(
         name: entityName,
         success: true,

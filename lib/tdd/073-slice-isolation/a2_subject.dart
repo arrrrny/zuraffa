@@ -4,8 +4,6 @@
 // (no sandbox file references the host path).
 library;
 
-import 'dart:io';
-
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/slice/generators/sandbox_composition.dart';

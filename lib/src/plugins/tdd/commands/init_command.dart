@@ -11,6 +11,7 @@ import '../../../cli/writers/tdd/dart_test_yaml_writer.dart';
 import '../../../cli/writers/tdd/pubspec_dev_dependencies_patcher.dart';
 import '../../../cli/writers/tdd/smoke_test_writer.dart';
 import '../../../cli/writers/tdd/tdd_profile_writer.dart';
+import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -46,6 +47,9 @@ class InitCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'init';
 
@@ -59,7 +63,9 @@ class InitCommand extends Command<void> {
   String get invocation => 'zfa tdd init';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
     // Prefer an explicit --project root so the command never depends on the
     // process-global Directory.current. Falls back to CWD for real CLI use.
     final projectFlag = argResults?['project'] as String?;
@@ -175,6 +181,7 @@ class InitCommand extends Command<void> {
       '\nTDD baseline ensured. Run `flutter test` (or '
       '`dart test`) to confirm a green baseline.',
     );
+    _verdict.details['failures'] = 0;
   }
 
   Future<bool> _isFlutterProject(String cwd) async {

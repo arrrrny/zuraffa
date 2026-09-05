@@ -1,0 +1,10 @@
+00:00 +0: loading test/tdd/0966-typed-ledger-rows/t006_golden_advisory_test.dart
+00:00 +0 -1: loading test/tdd/0966-typed-ledger-rows/t006_golden_advisory_test.dart [E]
+  Failed to load "test/tdd/0966-typed-ledger-rows/t006_golden_advisory_test.dart":
+  lib/tdd/0966-typed-ledger-rows/t6_subject.dart:66:42: Error: Member not found: 'XrayLedgerDeck.advisoryEntries'.
+    final advisoryEntries = XrayLedgerDeck.advisoryEntries(ledger);
+                                           ^^^^^^^^^^^^^^^
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  test/tdd/0966-typed-ledger-rows/t006_golden_advisory_test.dart: loading test/tdd/0966-typed-ledger-rows/t006_golden_advisory_test.dart

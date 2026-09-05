@@ -12,11 +12,9 @@ library;
 
 import 'dart:io';
 
-import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/project/project_root.dart';
-import '../../../models/generated_file.dart';
 import '../../mock/mock_plugin.dart';
 import '../../../core/plugin_system/capability.dart';
 import '../builders/dependency_mock_builder.dart';
@@ -261,9 +259,14 @@ class DependencyMockCapability implements ZuraffaCapability {
     // generation is 'generated'; byte-identical re-run is 'unchanged';
     // an existing artifact whose content changed is 'regenerated'.
     final outDir = resolved.outDir(contract.name);
+    // Issue #1035: entity imports are emitted as `package:` URIs so the
+    // generated artifacts never trip avoid_relative_lib_imports; the
+    // name comes from the project's pubspec (stable per project, so the
+    // byte-identical regeneration guarantee holds).
     final artifacts = DependencyMockBuilder.emit(
       contract: contract,
       outDir: outDir,
+      packageName: pubspecPackageName(projectRoot),
     );
     final preExisting = artifacts
         .map((a) => File(p.join(projectRoot, a.path)))
@@ -328,4 +331,24 @@ class _Resolved {
     required this.feature,
     required this.outDir,
   });
+}
+
+/// The enclosing project's pubspec `name:`, or null when the pubspec is
+/// missing/unreadable/unparseable (issue #1035). Stable per project, so
+/// the mock artifacts' byte-identical regeneration guarantee holds.
+String? pubspecPackageName(String projectRoot) {
+  final file = File(p.join(projectRoot, 'pubspec.yaml'));
+  if (!file.existsSync()) return null;
+  final String pubspec;
+  try {
+    pubspec = file.readAsStringSync();
+  } catch (_) {
+    return null;
+  }
+  final match = RegExp(
+    r'^name:\s*(.+?)\s*$',
+    multiLine: true,
+  ).firstMatch(pubspec);
+  final name = match?.group(1)?.trim() ?? '';
+  return name.isEmpty ? null : name;
 }
