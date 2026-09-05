@@ -36,17 +36,6 @@ const _collidingNames = <String>{
   'FragmentBuilder',
 };
 
-/// Matches real declarations only — `class ControlledWidget<C> {`,
-/// `abstract class ControlledWidget`, `enum FragmentState`, etc. — and never
-/// generated-code template strings (`extends ControlledWidget<...>` inside
-/// string literals) or mentions in comments.
-final _declarationPattern = RegExp(
-  r'^\s*(abstract\s+|base\s+|final\s+|sealed\s+|interface\s+|mixin\s+)?'
-  r'(class|enum|mixin|typedef)\s+'
-  r'(ControlledWidget|SignalBuilder|FragmentBuilder)\b',
-  multiLine: true,
-);
-
 void main() {
   test(
     'BUG-1173: core must not own or export zuraffa_flutter state widgets',
@@ -95,11 +84,21 @@ void main() {
       final offenders = <String>[];
       for (final entity in Directory('lib').listSync(recursive: true)) {
         if (entity is! File || !entity.path.endsWith('.dart')) continue;
-        final content = entity.readAsStringSync();
-        for (final match in _declarationPattern.allMatches(content)) {
-          final name = match.group(3)!;
+        final unit = parseString(
+          content: entity.readAsStringSync(),
+          path: entity.path,
+          throwIfDiagnostics: false,
+        ).unit;
+        for (final declaration in unit.declarations) {
+          final name = switch (declaration) {
+            ClassDeclaration() => declaration.namePart.typeName.lexeme,
+            EnumDeclaration() => declaration.namePart.typeName.lexeme,
+            MixinDeclaration() => declaration.name.lexeme,
+            TypeAlias() => declaration.name.lexeme,
+            _ => null,
+          };
           if (_collidingNames.contains(name)) {
-            offenders.add('${entity.path}: ${match.group(0)!.trim()}');
+            offenders.add('${entity.path}: $name');
           }
         }
       }

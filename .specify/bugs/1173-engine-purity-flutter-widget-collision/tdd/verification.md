@@ -39,7 +39,7 @@ identical colliding exports). The PR #16 workaround hides
 to model a downstream consumer without the workaround, per the bug's
 repro contract.
 
-```
+```text
 $ dart analyze lib test        # cwd: zuraffa_flutter (pre-fix core)
 18 errors, exit 3. First three:
 error - lib/zuraffa_flutter.dart:57:8 - The name 'ControlledWidget' is defined
@@ -59,7 +59,7 @@ Matches the issue text byte-for-byte (`lib/zuraffa_flutter.dart:57:8`).
 
 ### 2.2 New regression guard (RED)
 
-```
+```text
 $ dart test test/regression/issue_1173_engine_purity_test.dart   # pre-fix
 00:00 +0 -1: Some tests failed.
 Expected: false
@@ -71,7 +71,7 @@ lib/src/state/widgets/ was moved to zuraffa_flutter (spec 014). ...
 
 ### 3.1 Downstream repro now clean — no workaround needed
 
-```
+```text
 $ flutter pub get   # override now: zuraffa -> path ../zuraffa (fixed)
 ! zuraffa 6.1.0 from path ../zuraffa (overridden)
 $ dart analyze lib test        # cwd: zuraffa_flutter, PR #16 hides REMOVED
@@ -82,14 +82,14 @@ exit 0
 
 ### 3.2 Guard test green
 
-```
+```text
 $ dart test test/regression/issue_1173_engine_purity_test.dart
 00:00 +1: All tests passed!
 ```
 
 ### 3.3 Core analyzer delta vs master baseline
 
-```
+```text
                        errors  warnings  infos
 master (git stash -u)      42         4    103
 this branch                42         4    103
