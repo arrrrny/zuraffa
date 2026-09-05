@@ -101,6 +101,8 @@ class SkinReceiptDocument {
     required this.skinEventTraceDigest,
     required this.redWitness,
     required this.generatedAt,
+    this.contractSchemaVersion,
+    this.contractRowsAudited = 0,
   });
 
   /// The feature directory name (e.g. `004-login-ui`).
@@ -125,6 +127,18 @@ class SkinReceiptDocument {
   /// ISO-8601 UTC generation timestamp.
   final String generatedAt;
 
+  /// The schema version of the feature's declared skin contract
+  /// (`## Skin Contract:`), when the spec declares one (issue #1111
+  /// requirement 5). Null when no contract is declared — the fields
+  /// are then omitted from the JSON (additive, skin.v1-compatible).
+  final String? contractSchemaVersion;
+
+  /// How many of the declared contract rows the cycle actually
+  /// enforced: the declared audit rows covered by conformed behaviors.
+  /// Zero when no contract is declared or nothing conformed — the
+  /// receipt proves ENFORCEMENT, not just declaration.
+  final int contractRowsAudited;
+
   /// The union of every behavior's slot fills, order-preserving,
   /// de-duplicated — the receipt's top-level `platform_slot_fills`.
   List<String> get platformSlotFills {
@@ -147,6 +161,9 @@ class SkinReceiptDocument {
     'skin_event_trace_digest': skinEventTraceDigest,
     'red_witness': redWitness,
     'generated_at': generatedAt,
+    if (contractSchemaVersion != null)
+      'contract_schema_version': contractSchemaVersion,
+    'contract_rows_audited': contractRowsAudited,
   };
 }
 

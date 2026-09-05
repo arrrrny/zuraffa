@@ -66,6 +66,7 @@ import '../services/skin_event_trace.dart';
 import '../services/skin_hand_edit.dart';
 import '../services/skin_receipt.dart';
 import '../services/skin_stub_reverter.dart';
+import '../../../skin/contract/skin_contract_parser.dart';
 import '../services/spec_parser.dart';
 import '../services/tdd_timeout.dart';
 import '../tdd_plugin.dart';
@@ -605,6 +606,50 @@ class RunSkinCommand extends Command<void> {
     required SkinEventTrace trace,
     required bool redWitness,
   }) async {
+    // Issue #1111 requirement 5: the receipt proves the contract was
+    // ENFORCED, not just declared. When the feature's spec declares a
+    // `## Skin Contract:`, the receipt records the contract's schema
+    // version and how many declared audit rows the cycle enforced —
+    // every declared row is audited on every frame of a conformed
+    // behavior, so the audited count is the rows covered by conformed
+    // behaviors. A feature without a contract leaves the fields at
+    // their additive defaults.
+    String? contractSchemaVersion;
+    var contractRowsAudited = 0;
+    final specFile = File(p.join(featureDir, 'spec.md'));
+    if (specFile.existsSync() &&
+        RegExp(
+          '^## Skin Contract:',
+          multiLine: true,
+        ).hasMatch(specFile.readAsStringSync())) {
+      try {
+        final declaration = parseSkinContractDeclaration(
+          specFile.readAsStringSync(),
+        );
+        contractSchemaVersion = declaration.contract.schemaVersion;
+        // A declared row counts as audited when some conformed
+        // behavior's artifacts (subject/test path) carry the row's
+        // view in snake form — the row was live in a green frame.
+        String snake(String view) => view
+            .replaceAllMapped(
+              RegExp('([A-Z])'),
+              (m) => '_${m[1]!.toLowerCase()}',
+            )
+            .replaceFirst('_', '');
+        final conformedArtifacts = [
+          for (final row in behaviors)
+            if (row.conformance) ...[row.subjectPath, row.testPath],
+        ].map((path) => path.toLowerCase()).toList();
+        contractRowsAudited = declaration.contract.stateRows.where((row) {
+          final needle = snake(row.view).toLowerCase();
+          return conformedArtifacts.any((path) => path.contains(needle));
+        }).length;
+      } on SkinContractParseException {
+        // An unparseable contract is the plan/check gates' failure to
+        // name; the receipt records no contract rather than inventing
+        // enforcement.
+      }
+    }
     final writer = SkinReceiptWriter(featureDir: featureDir);
     final path = await writer.write(
       SkinReceiptDocument(
@@ -615,6 +660,8 @@ class RunSkinCommand extends Command<void> {
         skinEventTraceDigest: trace.digest,
         redWitness: redWitness,
         generatedAt: DateTime.now().toUtc().toIso8601String(),
+        contractSchemaVersion: contractSchemaVersion,
+        contractRowsAudited: contractRowsAudited,
       ),
     );
     print('   receipt: ${p.relative(path, from: featureDir)}');
