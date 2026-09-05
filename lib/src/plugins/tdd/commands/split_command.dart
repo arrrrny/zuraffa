@@ -272,11 +272,13 @@ class SplitCommand extends Command<void> {
 
   /// The kind heuristic (issue #1000): widget/theme rows are SKIN (their
   /// gen pair — testWidgets + view builder / theme harness — imports
-  /// Flutter); acceptance/unit/ffi/platform rows are CORE.
+  /// Flutter); acceptance/unit/contract/ffi/platform rows are CORE
+  /// (spec 1007: a contract test is pure Dart, so it rides the engine).
   static Lane _heuristic(BehaviorRow row) => switch (row.kind) {
     BehaviorKind.widget || BehaviorKind.theme => Lane.skin,
     BehaviorKind.acceptance ||
     BehaviorKind.unit ||
+    BehaviorKind.contract ||
     BehaviorKind.ffi ||
     BehaviorKind.platform => Lane.core,
   };

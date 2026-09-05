@@ -67,6 +67,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/generation_plan.dart';
@@ -75,6 +76,7 @@ import '../models/routing.dart';
 import '../services/artifact_registry.dart';
 import '../services/composition_planner.dart';
 import '../services/composition_targets.dart';
+import '../services/cycle_evidence.dart';
 import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
 import '../services/generation_planner.dart';
@@ -390,6 +392,29 @@ class MakeCommand extends Command<void> {
     }
     final alreadyGreen = driftRun.exitCode == 0 && driftRun.startedProcess;
     if (alreadyGreen) {
+      // Issue #1036: the skip transition must verify the subject under
+      // test is the SAME shape the certified evidence captured. A make
+      // that rewrote the subject (the acceptance func-scaffold rewrite
+      // class) and then failed leaves a placeholder whose vacuous test
+      // passes — the drift check alone would certify green on a subject
+      // the red evidence never exercised. Refuse with the remedy
+      // instead; legacy hashless entries fail open (the pre-#1036
+      // behavior stands), so unit skip semantics are unchanged.
+      final driftRefusal = await _subjectDriftRefusal(
+        cwd,
+        target.featureDir,
+        record,
+      );
+      if (driftRefusal != null) {
+        print(driftRefusal);
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.subjectDrift,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
       print(
         '   target test already passes — skipping generation (issue #694 '
         'skip transition); the suite is not re-run (issue #741)',
@@ -627,6 +652,18 @@ class MakeCommand extends Command<void> {
       }
 
       // 7. Execute the plan via the pipeline (FR-006, US1 / U8-U13).
+      //     Issue #1036: snapshot the subject first — a FAILED make must
+      //     leave the subject byte-identical to what it found, so the
+      //     throwing stub survives a generation-error untouched and the
+      //     retry fails honestly instead of skipping green on a
+      //     placeholder the red evidence never exercised.
+      final subjectPath = p.isAbsolute(record.subjectPath)
+          ? record.subjectPath
+          : p.join(cwd, record.subjectPath);
+      final subjectFile = File(subjectPath);
+      final subjectSnapshot = await subjectFile.exists()
+          ? await subjectFile.readAsString()
+          : null;
       try {
         pipelineResult = await pipelineRunner.runPlan(
           plan: effectivePlan,
@@ -685,6 +722,11 @@ class MakeCommand extends Command<void> {
                       'then re-run this step; no state changed.',
           );
           print('   telemetry json: ${jsonEncode(failed.verdictJson())}');
+          await _restoreSubjectIfMutated(
+            subjectFile,
+            subjectSnapshot,
+            reason: 'the generation step was killed',
+          );
           _printSummary(
             behavior: record.behaviorId,
             outcome: killOutcome,
@@ -743,6 +785,18 @@ class MakeCommand extends Command<void> {
                 : failed.output;
             print(tail.split('\n').take(20).join('\n'));
           }
+          // Issue #1036: the make stops with a failure outcome — restore
+          // the subject so the certified-red shape survives the failed
+          // make and the retry fails honestly. (The #737/#942-tolerated
+          // path above keeps the generated implementation: that make
+          // completes green-with-failed-build; the `regression` guard
+          // below deliberately leaves generated source in place for
+          // inspection.)
+          await _restoreSubjectIfMutated(
+            subjectFile,
+            subjectSnapshot,
+            reason: 'the make stopped with a generation-error',
+          );
           _printSummary(
             behavior: record.behaviorId,
             outcome: MakeOutcome.generationError,
@@ -769,6 +823,13 @@ class MakeCommand extends Command<void> {
           print(
             'zfa tdd make: target test still fails after generation '
             '(exit ${postRun.exitCode}).',
+          );
+          // Issue #1036: same failed-make contract as the step-failure
+          // path — the certified-red subject shape survives untouched.
+          await _restoreSubjectIfMutated(
+            subjectFile,
+            subjectSnapshot,
+            reason: 'the make stopped with a generation-error',
           );
           _printSummary(
             behavior: record.behaviorId,
@@ -908,6 +969,7 @@ class MakeCommand extends Command<void> {
         sourceCriterion: record.sourceCriterion,
         testPath: record.testPath,
         timestamp: DateTime.now().toUtc().toIso8601String(),
+        subjectHash: await _subjectHashAt(cwd, record),
         generationSteps: pipelineResult?.steps ?? const [],
         suiteBaselineFailures: baseline?.failedTests.length ?? 0,
         suiteGuardFailures: guardSnap?.failedTests.length ?? 0,
@@ -1206,6 +1268,98 @@ class MakeCommand extends Command<void> {
   /// any legacy `<id> — ` echo stripped (bug #871), so both the legacy
   /// and the re-rendered test-file shapes substring-match.
   String _runnableNameOf(ArtifactRecord record) => record.plainTestName;
+
+  /// The skip transition's subject-identity check (issue #1036): returns
+  /// the refusal message when the subject file's CURRENT shape does not
+  /// match the shape the certified evidence captured, or null when the
+  /// skip may proceed.
+  ///
+  /// The rule:
+  ///   - a certified GREEN entry with a subject hash is authoritative —
+  ///     the current subject must match it (an honest #694 re-run after
+  ///     a certified make has the same subject; unit skip semantics are
+  ///     unchanged);
+  ///   - with no green entry (the #1036 bug state), the certified RED
+  ///     entry's subject hash is authoritative — the current subject
+  ///     must match it, so a subject a failed make rewrote to a
+  ///     placeholder can never take the skip;
+  ///   - hashless entries (legacy logs, or runs with no subject
+  ///     artifact) fail open — the pre-#1036 behavior stands — so
+  ///     existing logs and fixtures keep skipping exactly as before.
+  Future<String?> _subjectDriftRefusal(
+    String cwd,
+    String featureDir,
+    ArtifactRecord record,
+  ) async {
+    final currentHash = await _subjectHashAt(cwd, record);
+    if (currentHash == null) return null; // no subject artifact to verify
+    final evidence = CycleEvidence(featureDir);
+    final lastGreen = await evidence.lastEntryFor(
+      record.behaviorId,
+      kind: 'green',
+    );
+    final lastRed = await evidence.lastEntryFor(record.behaviorId, kind: 'red');
+    final String? certified;
+    final String basis;
+    if (lastGreen?.subjectHash != null) {
+      certified = lastGreen!.subjectHash;
+      basis = 'certified green evidence';
+    } else if (lastRed?.subjectHash != null) {
+      certified = lastRed!.subjectHash;
+      basis = 'certified red evidence';
+    } else {
+      return null; // legacy hashless evidence — fail open (pre-#1036)
+    }
+    if (currentHash == certified) return null;
+    final subjectPath = p.isAbsolute(record.subjectPath)
+        ? record.subjectPath
+        : p.join(cwd, record.subjectPath);
+    return 'zfa tdd make: behavior "${record.behaviorId}" — the target '
+        'test already passes, but the subject file at $subjectPath no '
+        'longer matches the shape the $basis captured (issue #1036): a '
+        'skip here would certify green on a subject the red evidence '
+        'never exercised — the born-green placeholder class.\n'
+        '   $basis subject-hash: $certified\n'
+        '   current subject-hash: $currentHash\n'
+        '--> fix: restore the subject to its certified shape '
+        '(git checkout $subjectPath) or re-certify red with '
+        '`zfa tdd verify-red ${record.behaviorId}`, then re-run make.';
+  }
+
+  /// The sha256 of the behavior's subject file at certification time
+  /// (issue #1036): binds green evidence to the EXACT subject shape it
+  /// exercised. Null when the subject artifact is missing — the field is
+  /// omitted and the skip validation fails open for that entry (legacy
+  /// tolerance).
+  Future<String?> _subjectHashAt(String cwd, ArtifactRecord record) async {
+    final subjectPath = p.isAbsolute(record.subjectPath)
+        ? record.subjectPath
+        : p.join(cwd, record.subjectPath);
+    final subjectFile = File(subjectPath);
+    if (!await subjectFile.exists()) return null;
+    return sha256.convert(await subjectFile.readAsBytes()).toString();
+  }
+
+  /// Issue #1036: a FAILED make must leave the subject file byte-identical
+  /// to what it found — restore the pre-pipeline snapshot when a
+  /// generation step mutated (or removed) it. The certified-red throwing
+  /// stub then survives the failed make untouched, so the retry fails
+  /// honestly instead of skipping green on a placeholder.
+  Future<void> _restoreSubjectIfMutated(
+    File subjectFile,
+    String? snapshot, {
+    required String reason,
+  }) async {
+    if (snapshot == null) return; // nothing to restore (subject was absent)
+    final exists = await subjectFile.exists();
+    if (exists && await subjectFile.readAsString() == snapshot) return;
+    await subjectFile.parent.create(recursive: true);
+    await subjectFile.writeAsString(snapshot);
+    print(
+      '   subject restored to its certified-red shape — $reason, and a '
+      'failed make leaves no subject mutation (issue #1036)',
+    );
+  }
 
   /// Bug #829: the spec Key Entity this UNIT behavior's FR traces to —
   /// the first declared entity (from the test list's Key entities

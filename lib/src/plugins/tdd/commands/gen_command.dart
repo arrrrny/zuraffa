@@ -82,6 +82,7 @@ import '../models/verdict_envelope.dart';
 import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/behavior_test_writer.dart';
+import '../services/contract_test_writer.dart';
 import '../services/generated_shape.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
@@ -119,13 +120,15 @@ class GenCommand extends Command<void> {
     );
     argParser.addOption(
       'kind',
-      allowed: ['acceptance', 'unit', 'widget'],
+      allowed: ['acceptance', 'unit', 'widget', 'contract'],
       help:
           'Override the subject kind taken from the test-list row (bug '
           '#830). `widget` emits a testWidgets pair: a view-builder subject '
           'stub plus a widget test that pumps the view inside an app shell '
-          'and asserts the acceptance scenario. Unknown values are a usage '
-          'error.',
+          'and asserts the acceptance scenario. `contract` (issue #1007) '
+          'emits the contract pair: a contract test scaffold that '
+          'enumerates the contract\'s cases plus a contract seam subject. '
+          'Unknown values are a usage error.',
     );
     argParser.addOption(
       'widget-shell',
@@ -1223,30 +1226,35 @@ class GenCommand extends Command<void> {
       details: <String, Object?>{
         'behavior': behaviorId,
         'verdict': verdict,
-        if (reason != null) 'reason': reason,
-        if (kind != null) 'kind': kind,
+        'reason': ?reason,
+        'kind': ?kind,
         if (golden) 'golden': true,
         if (adopted.isNotEmpty) 'adopted': adopted,
         if (created.isNotEmpty) 'created': created,
         if (adopted.isNotEmpty && featureName != null)
           'audit_log': p.join('specs', featureName, 'tdd', 'audit.log'),
-        if (goldenTestPath != null) 'golden_test': goldenTestPath,
-        if (goldenFixturesDir != null) 'golden_fixtures': goldenFixturesDir,
+        'golden_test': ?goldenTestPath,
+        'golden_fixtures': ?goldenFixturesDir,
       },
     );
   }
 
-  /// Writer selection by behavior kind (issue #841, issue #831):
-  /// theme-kind behaviors get the theme-harness pair (`ThemeHarnessTestWriter`
-  /// emitting the four-proof widget test — ShadTheme assertions under both
-  /// ThemeModes, hardcoded-color audit, golden baselines, switch latency —
-  /// and `ThemeHarnessSubjectWriter` emitting the subject contract);
-  /// platform-kind behaviors (issue #831) get the platform-harness pair
-  /// (certified-fake channel test + platform-channel subject stub) built
-  /// from the resolved [PlatformHarnessContext]; every other kind gets the
-  /// plain-function pair (spec 044). All pairs share the same `write`
-  /// signatures so the transactional flow and the staleness re-render
-  /// treat them identically.
+  /// Writer selection by behavior kind (issue #841, issue #831, issue
+  /// #1007): theme-kind behaviors get the theme-harness pair
+  /// (`ThemeHarnessTestWriter` emitting the four-proof widget test —
+  /// ShadTheme assertions under both ThemeModes, hardcoded-color audit,
+  /// golden baselines, switch latency — and `ThemeHarnessSubjectWriter`
+  /// emitting the subject contract); platform-kind behaviors (issue
+  /// #831) get the platform-harness pair (certified-fake channel test +
+  /// platform-channel subject stub) built from the resolved
+  /// [PlatformHarnessContext]; contract-kind behaviors (issue #1007) get
+  /// the CONTRACT pair — `ContractTestWriter` emitting the contract test
+  /// scaffold that enumerates the contract's cases and
+  /// `ContractSubjectWriter` emitting the contract seam (NOT an
+  /// implementation test); every other kind gets the plain-function pair
+  /// (spec 044). All pairs share the same `write` signatures so the
+  /// transactional flow and the staleness re-render treat them
+  /// identically.
   static _GenWriterPair _writersFor(
     Behavior behavior, {
     PlatformHarnessContext? platformContext,
@@ -1267,6 +1275,12 @@ class GenCommand extends Command<void> {
         writeSubject: PlatformHarnessSubjectWriter(
           context: platformContext,
         ).write,
+      );
+    }
+    if (behavior.kind == BehaviorKind.contract) {
+      return (
+        writeTest: const ContractTestWriter().write,
+        writeSubject: const ContractSubjectWriter().write,
       );
     }
     return (
@@ -1675,15 +1689,25 @@ class GenCommand extends Command<void> {
 
   String _toSnakeCase(String s) {
     final out = StringBuffer();
+    var lastWasSeparator = false;
     for (var i = 0; i < s.length; i++) {
       final c = s[i];
-      if (c == '-' || c == ' ' || c == '_') {
-        out.write('_');
+      if (c == '-' || c == ' ' || c == '_' || c == ':') {
+        // Issue #1007: `:` folds too — the `contract:A1` ids plan writes
+        // must map to portable file names (`contract_a1_test.dart`, never
+        // `contract:a1_test.dart` — a Windows-illegal path). Consecutive
+        // separators collapse to ONE underscore (the run driver's
+        // disk-layout check `_snakeCase` already folds runs — this aligns
+        // gen with it; every canonical id shape `[A|U]\d+` is unchanged).
+        if (!lastWasSeparator) out.write('_');
+        lastWasSeparator = true;
       } else if (c.toUpperCase() == c && c.toLowerCase() != c && i > 0) {
-        out.write('_');
+        if (!lastWasSeparator) out.write('_');
         out.write(c.toLowerCase());
+        lastWasSeparator = false;
       } else {
         out.write(c.toLowerCase());
+        lastWasSeparator = false;
       }
     }
     return out.toString();

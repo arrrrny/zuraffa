@@ -1,0 +1,16 @@
+{
+  "feature": "004-login-ui",
+  "records": [
+    {
+      "behavior_id": "W1",
+      "feature": "004-login-ui",
+      "source_criterion": "FR-001",
+      "test_path": "test/presentation/pages/login/login_view_test.dart",
+      "subject_path": "lib/src/presentation/pages/login/login_view.dart",
+      "runnable_test_name": "test/presentation/pages/login/login_view_test.dart::W1::the login view fills every declared platform slot",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T04:35:00.000Z"
+    }
+  ]
+}

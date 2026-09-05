@@ -4,7 +4,6 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/src/plugins/slice/verifier/route_barrel.dart';
 import 'package:zuraffa/src/plugins/slice/verifier/conformance_gate.dart';
 import 'package:zuraffa/src/plugins/slice/verifier/di_graph_check.dart';
 

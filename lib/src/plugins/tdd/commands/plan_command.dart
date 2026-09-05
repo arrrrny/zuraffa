@@ -182,7 +182,9 @@ class PlanCommand extends Command<void> {
 
     // Bug #919: extract the zuraffa-1.0 template's declared dependencies
     // and layer contracts into the plan artifact, so the mock-first make
-    // path (#909) and interface generation can consume them.
+    // path (#909) and interface generation can consume them. The Layer
+    // Contracts also drive the contract:<id> rows (issue #1007) — derived
+    // after the prior test list is read, so ids reconcile by traces.
     final dependencies = const SpecParser().parseDependencies(specMd);
     final layerContracts = const SpecParser().parseLayerContracts(specMd);
 
@@ -371,12 +373,21 @@ class PlanCommand extends Command<void> {
     // verbatim. An ffi row whose traces match a spec-derived criterion
     // WINS: the spec-derived behavior for that criterion is suppressed
     // (the explicit native declaration is the more specific contract).
+    //
+    // Issue #1007: the same pass harvests the prior CONTRACT rows — their
+    // (id, state) pairs reconcile the freshly derived contract behaviors
+    // by traces so `contract:<id>` ids stay stable across re-plans and a
+    // BLOCKED/DONE contract row keeps its recorded state.
     final preservedFfi = <BehaviorRow>[];
+    final priorContract = <String, (String, BehaviorState)>{};
     try {
       for (final row in await TestListReader(
         '$repoRoot/specs/$feature',
       ).read()) {
         if (row.kind == BehaviorKind.ffi) preservedFfi.add(row);
+        if (row.kind == BehaviorKind.contract) {
+          priorContract[row.traces] = (row.id, row.state);
+        }
       }
     } on TestListReadException catch (e) {
       stderr.writeln(
@@ -384,6 +395,14 @@ class PlanCommand extends Command<void> {
         'preserved (${e.message})',
       );
     }
+    final contractBehaviors = _reconcileContractBehaviors(
+      _deriveContractBehaviors(
+        feature,
+        layerContracts,
+        entities.map((e) => e.name).toSet(),
+      ),
+      priorContract,
+    );
     final ffiCriteria = preservedFfi.map((r) => r.traces).toSet();
     final expressible = reconciled
         .where((b) => !ffiCriteria.contains(b.sourceCriterion))
@@ -468,6 +487,19 @@ class PlanCommand extends Command<void> {
       }
       exitCode = 2;
       return;
+    }
+
+    // Issue #1007: contract rows carry their own declared lane in the
+    // provenance artifact (they are spec-DECLARED through the Layer
+    // Contracts section, like the ffi lane's native-loop declaration).
+    for (final b in contractBehaviors) {
+      provenance.putIfAbsent(
+        b.id,
+        () => [
+          'route: ${b.id} -> contract lane '
+              '[declared: layer contracts section]',
+        ],
+      );
     }
 
     await outDir.create(recursive: true);
@@ -574,6 +606,7 @@ class PlanCommand extends Command<void> {
       _render(
         feature,
         expressible,
+        contractBehaviors,
         entities,
         dependencies,
         layerContracts,
@@ -604,14 +637,17 @@ class PlanCommand extends Command<void> {
         .where((b) => b.kind == BehaviorKind.acceptance)
         .length;
     final uCount = expressible.where((b) => b.kind == BehaviorKind.unit).length;
+    final cCount = contractBehaviors.length;
     final fCount = preservedFfi.length;
-    final total = expressible.length + fCount;
+    final total = expressible.length + cCount + fCount;
+    final laneList = [
+      '$aCount acceptance',
+      '$uCount unit',
+      if (cCount > 0) '$cCount contract',
+      if (fCount > 0) '$fCount ffi',
+    ].join(' + ');
     stdout.writeln(
-      fCount > 0
-          ? 'zfa tdd plan: wrote $outFile with $aCount acceptance + $uCount '
-                'unit + $fCount ffi behaviors ($total total).'
-          : 'zfa tdd plan: wrote $outFile with $aCount acceptance + $uCount '
-                'unit behaviors (${expressible.length} total).',
+      'zfa tdd plan: wrote $outFile with $laneList behaviors ($total total).',
     );
     if (entities.isNotEmpty) {
       stdout.writeln(
@@ -630,6 +666,7 @@ class PlanCommand extends Command<void> {
   String _render(
     String feature,
     List<Behavior> behaviors,
+    List<Behavior> contractBehaviors,
     List<SpecEntity> entities,
     List<SpecDependency> dependencies,
     List<LayerContract> layerContracts,
@@ -691,6 +728,35 @@ class PlanCommand extends Command<void> {
       buf.writeln(
         '| ${b.id} | ${_marked(b, persistenceDeclarations)} | ${b.sourceCriterion} | PENDING |',
       );
+    }
+    // Issue #1007: the CONTRACT lane — one row per declared entity
+    // method, controller method and usecase of the spec's Layer
+    // Contracts section. Gen's pair for these rows is a contract test
+    // scaffold + contract seam (NOT an implementation test), and a
+    // failing contract test is BLOCKED (never RED) — the row's state
+    // column carries BLOCKED until the implementation satisfies the
+    // declared contract.
+    if (contractBehaviors.isNotEmpty) {
+      buf
+        ..writeln()
+        ..writeln('## Contract loop: contract behaviors')
+        ..writeln()
+        ..writeln(
+          'One per declared entity method, controller method and usecase '
+          'in `spec.md` Layer Contracts (issue #1007). A contract test '
+          'proves the implementation satisfies the DECLARED contract — '
+          'a failing contract test is BLOCKED (never RED) and blocks the '
+          'cycle from proceeding to GREEN.',
+        )
+        ..writeln()
+        ..writeln('| id | behavior | traces | state |')
+        ..writeln('| -- | -------- | ------ | ----- |');
+      for (final b in contractBehaviors) {
+        buf.writeln(
+          '| ${b.id} | ${b.description} | ${b.sourceCriterion} | '
+          '${b.state.name.toUpperCase()} |',
+        );
+      }
     }
     // Bug #829: the spec's Key Entities, extracted for the loop's
     // entity orchestration (run phase 0 + the make entity pipeline).
@@ -824,6 +890,7 @@ class PlanCommand extends Command<void> {
       BehaviorKind.ffi => 'ffi lane',
       BehaviorKind.platform => 'platform lane',
       BehaviorKind.theme => 'theme lane',
+      BehaviorKind.contract => 'contract lane',
     };
 
     void record(String id, List<String> entry) => lines[id] = entry;
@@ -914,6 +981,116 @@ class PlanCommand extends Command<void> {
   ) => persistenceDeclarations.containsKey(b.id)
       ? PersistenceMarker.mark(b.description)
       : b.description;
+
+  /// Issue #1007: derive one CONTRACT behavior per declared method of
+  /// the spec's Layer Contracts section — every entity method,
+  /// controller method and usecase the spec declares (plus any other
+  /// declared layer interface: a declared contract is a declared
+  /// contract, whatever its layer label).
+  ///
+  /// The row's description is the STRUCTURED contract carrier the
+  /// contract writers parse:
+  ///
+  ///     <Interface>.<method>(<params>) -> <Return> (<category>)
+  ///
+  /// and the traces column is the interface-qualified method name
+  /// (`User.validateEmail`) — unique per declared method, stable across
+  /// re-plans, and the reconciliation key for `contract:<id>` ids.
+  List<Behavior> _deriveContractBehaviors(
+    String feature,
+    List<LayerContract> layerContracts,
+    Set<String> entityNames,
+  ) {
+    final behaviors = <Behavior>[];
+    for (final contract in layerContracts) {
+      final category = _contractCategory(contract, entityNames);
+      for (final method in contract.methods) {
+        final methodName = _methodNameOf(method);
+        if (methodName.isEmpty) continue;
+        final traces = '${contract.interfaceName}.$methodName';
+        behaviors.add(
+          Behavior(
+            id: 'contract:A${behaviors.length + 1}',
+            feature: feature,
+            kind: BehaviorKind.contract,
+            description:
+                '${contract.interfaceName}.$method ($category contract)',
+            sourceCriterion: traces,
+            target: TestListReader.resolveDefaultTarget(
+              'contract:A${behaviors.length + 1}',
+            ),
+          ),
+        );
+      }
+    }
+    return behaviors;
+  }
+
+  /// The contract category for a declared layer interface: the layer
+  /// label classifies it (Entities/Entity, Presentation/Controller,
+  /// Domain/UseCase), with a declared Key Entity name winning for
+  /// interfaces declared under another label. Everything else is a
+  /// generic interface contract — still derived, still a contract row.
+  String _contractCategory(LayerContract contract, Set<String> entityNames) {
+    final layer = contract.layer.toLowerCase();
+    if (layer.contains('entit')) return 'entity method';
+    if (layer.contains('presentation') || layer.contains('controller')) {
+      return 'controller method';
+    }
+    if (layer.contains('domain') ||
+        layer.contains('usecase') ||
+        layer.contains('use case')) {
+      return 'usecase';
+    }
+    if (entityNames.contains(contract.interfaceName)) return 'entity method';
+    return 'interface method';
+  }
+
+  /// The method name of a declared signature (`validateEmail(String) ->
+  /// bool` -> `validateEmail`); empty when the declaration carries no
+  /// callable name.
+  static String _methodNameOf(String signature) {
+    final idx = signature.indexOf('(');
+    if (idx <= 0) return '';
+    return signature.substring(0, idx).trim();
+  }
+
+  /// Issue #1007: reconcile freshly derived contract behaviors against
+  /// the prior test list by TRACES — an unchanged spec keeps its
+  /// `contract:<id>` ids stable (and a BLOCKED/DONE row keeps its
+  /// recorded state), while new declarations take the next free id.
+  List<Behavior> _reconcileContractBehaviors(
+    List<Behavior> derived,
+    Map<String, (String, BehaviorState)> prior,
+  ) {
+    final taken = prior.values.map((v) => v.$1).toSet();
+    var counter = 1;
+    String nextId() {
+      while (taken.contains('contract:A$counter')) {
+        counter++;
+      }
+      final id = 'contract:A$counter';
+      taken.add(id);
+      counter++;
+      return id;
+    }
+
+    return [
+      for (final b in derived)
+        () {
+          final match = prior[b.sourceCriterion];
+          final id = match?.$1 ?? nextId();
+          return Behavior(
+            id: id,
+            feature: b.feature,
+            kind: b.kind,
+            description: b.description,
+            sourceCriterion: b.sourceCriterion,
+            target: TestListReader.resolveDefaultTarget(id),
+          )..state = match?.$2 ?? BehaviorState.pending;
+        }(),
+    ];
+  }
 
   /// The lane resolution result (issue #1000): every behavior's lane,
   /// the hand-declared lane rows (ids the declarations carry but the
