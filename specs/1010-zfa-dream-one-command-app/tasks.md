@@ -56,6 +56,6 @@
       by the fixture's fake zfa — labeled honestly).
 - [x] T014. Gates — `dart analyze` (zero new vs baseline), `dart format
       lib test` (zero diff), chunked fast suite green.
-- [ ] T015. `/speckit.tdd.verify` dispatch (`zfa tdd verify --feature
+- [x] T015. `/speckit.tdd.verify` dispatch (`zfa tdd verify --feature
       1010-zfa-dream-one-command-app`) + `tdd/verification.md` written
       from the REAL run; tasks ticked; commit + PR.
