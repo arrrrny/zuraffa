@@ -1597,6 +1597,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         functionName: 'setupDependencies',
         registrationCalls: registrationCalls,
         revert: false,
+        isMainIndex: true,
       );
     } else {
       final directives = [
@@ -1634,6 +1635,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     required String functionName,
     required List<String> registrationCalls,
     bool revert = false,
+    bool isMainIndex = false,
   }) {
     var content = existingContent;
 
@@ -1674,7 +1676,10 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     // #1102: an index written before the reset hook existed keeps its
     // merged shape — inject resetDependencies alongside setup when the
     // function is missing (a no-op for already-1102 indices).
-    if (!revert) {
+    // Issue #1176: the hook is the COMPOSITION ROOT's — injecting it
+    // into group indexes too made di/index.dart's re-exports collide
+    // (ambiguous_export: one resetDependencies per group index).
+    if (!revert && isMainIndex) {
       content = _ensureResetDependencies(content);
     }
 

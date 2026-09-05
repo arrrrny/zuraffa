@@ -15,6 +15,7 @@ Future<void> subject_u7() async {
   const binding = SkinContractRuntimeBinding(
     name: 'x',
     routeTable: RouteContractTable(allowedRoutes: {}),
+    declaredRoutes: const [],
     stateBindings: {},
     auditRows: [],
   );

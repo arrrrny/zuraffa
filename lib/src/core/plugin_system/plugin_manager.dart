@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../../utils/zuraffa_barrel_exports.dart';
 import 'dart:io';
 
 import 'package:args/args.dart';
@@ -152,6 +153,10 @@ class PluginManager {
     );
 
     final data = <String, dynamic>{};
+
+    // Issue #1176: resolve the target's zuraffa barrel exports once per
+    // generation so emitted `hide` clauses contain only real names.
+    ZuraffaBarrelExports.seed(projectRoot);
 
     // #346: Sync plugin activation flags into data FIRST, before merging
     // schema defaults below. Some schema properties share their name with a
