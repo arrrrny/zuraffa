@@ -99,6 +99,14 @@ void main() {
 
   tearDown(() {
     if (tmp.existsSync()) tmp.deleteSync(recursive: true);
+    // `dart:io exitCode` is process-global across suite isolates — the
+    // commands this suite drives stop with non-zero codes (the T005
+    // marker-less plan probe exits 3, the verdicts/refusal probes exit
+    // 64/2) and the value stands between invocations. Reset it here so a
+    // concurrent suite reading exitCode never sees this suite's last
+    // dispatched code (the cross-suite leak that flaked bug_919 A10,
+    // bug #1107; same hazard family as issue #1096).
+    exitCode = 0;
   });
 
   Future<String> runJson(List<String> args) {

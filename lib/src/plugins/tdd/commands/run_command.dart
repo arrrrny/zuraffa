@@ -39,8 +39,10 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../models/verdict_envelope.dart';
 import '../services/lane_receipts.dart';
 import '../services/tdd_timeout.dart';
+import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 import 'run_driver_core.dart';
@@ -93,6 +95,9 @@ class RunCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'run';
 
@@ -112,7 +117,10 @@ class RunCommand extends Command<void> {
   static const _exitRunnerError = 2;
 
   @override
-  Future<void> run() async {
+  Future<void> run() =>
+      runWithVerdictEnvelope(this, _verdict, _run, featureFromRest: true);
+
+  Future<void> _run() async {
     const label = 'run';
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
@@ -267,5 +275,24 @@ class RunCommand extends Command<void> {
         skippedWidgetIds: outcome.skippedWidgetIds,
       ),
     );
+    // Issue #969: carry the shipped exit taxonomy into the envelope —
+    // the label IS the class; no taxonomy changes. Restored from the
+    // pre-split single-run driver — the spec 1008 two-cycle refactor
+    // (issue #1092) dropped the wiring and the --json envelope vanished
+    // from every run error path (bug #1107).
+    _verdict
+      ..exitClass = outcome.result
+      ..outcome = switch (outcome.result) {
+        'complete' => VerdictOutcome.pass,
+        'stopped' => VerdictOutcome.stopped,
+        _ => VerdictOutcome.error,
+      }
+      ..details['pending'] = outcome.counts['pending']
+      ..details['red'] = outcome.counts['red']
+      ..details['green'] = outcome.counts['green']
+      ..details['done'] = outcome.counts['done'];
+    if (outcome.stoppedAt != null) {
+      _verdict.details['stopped_at'] = outcome.stoppedAt;
+    }
   }
 }

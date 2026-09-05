@@ -775,9 +775,17 @@ class RunDriverCore {
     List<String> skippedWidgetIds = const [],
   }) {
     final lanePart = lane == null ? '' : ' lane=$lane';
+    // Issue #1007: the BLOCKED contract verdict is counted on its own
+    // token, never folded into red (restored from the pre-split driver —
+    // the lane receipt's laneCounts() already emits it, bug #1107).
+    final blocked = counts['blocked'];
+    final blockedPart = (blocked == null || blocked == 0)
+        ? ''
+        : ' blocked=$blocked';
     return '$label: feature=$feature$lanePart result=$result '
         'pending=${counts['pending']} red=${counts['red']} '
         'green=${counts['green']} done=${counts['done']}'
+        '$blockedPart'
         '${skippedWidgetIds.isNotEmpty ? ' skipped-widget=${skippedWidgetIds.length}' : ''}'
         '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}';
   }
@@ -1155,6 +1163,46 @@ class RunDriverCore {
             '(--skip-widget; shadcn_ui not declared, issue #938)',
           );
           return (state: updated, stop: null, refactorBlocked: false);
+        }
+        // Issue #1007: a CONTRACT behavior whose verify-red reported the
+        // `blocked` verdict is BLOCKED — distinct from RED. RED is the
+        // honest first state of a unit/widget behavior (the loop EXPECTS
+        // the failing test and proceeds to make/GREEN); a failing
+        // CONTRACT test means the declared contract is unsatisfied, so
+        // the behavior is parked at BLOCKED, make/refactor NEVER spawn for
+        // it, and the run stops with `result=blocked` (the receipt lives
+        // at .zfa/receipts/contract-blocked.<id>.json — verify-red wrote
+        // it). Resume re-enters at verify-red: once the implementation
+        // satisfies the contract, the verdict flips (the unexpected-green
+        // skip transitions the behavior on) and the cycle proceeds.
+        // Restored verbatim from the pre-split single-run driver — the
+        // spec 1008 two-cycle refactor (issue #1092) dropped this arm and
+        // the blocked verdict degraded into a generic result=stopped
+        // (bug #1107).
+        if (step == 'verify-red' &&
+            result.outcome == 'blocked' &&
+            row.kind == BehaviorKind.contract) {
+          updated = updated.advance(row.id, BehaviorState.blocked);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
+          print(
+            '   the declared contract ${row.traces} is not satisfied — the '
+            'cycle is BLOCKED and cannot proceed to GREEN (issue #1007)',
+          );
+          print(
+            '   resume: implement the declared contract, then re-run '
+            '`zfa tdd $label $feature`',
+          );
+          return (
+            state: updated,
+            stop: (
+              result: 'blocked',
+              stoppedAt: '${row.id}:verify-red',
+              exitCode: _exitStopped,
+              message: null,
+            ),
+            refactorBlocked: false,
+          );
         }
         // Honest stop (FR-007).
         final isRunnerError = result.outcome == 'runner-error';
