@@ -291,15 +291,19 @@ class ReceiptStore {
   /// Persists [receipt] at a DETERMINISTIC path ([fileName], sanitized)
   /// instead of the timestamped run-scoped name, so a later consumer can
   /// find the latest state by name — e.g. the #963 route-coverage ledger
-  /// reads `.zfa/receipts/routes-<entity>.json` (issue #971 order 3)
-  /// instead of re-parsing Dart.
+  /// reads `.zfa/receipts/routes-<entity>.json` (issue #971 order 3),
+  /// spec #979 provider receipts use `provider-<entity>.json`, and spec
+  /// #970 mock-certification receipts use `mock-<entity>.json`.
   ///
-  /// [extra] fields are merged into the document on top of the proof.v1
-  /// payload: [GenerationReceipt.fromJson] ignores unknown keys, so the
-  /// document stays a parseable generation receipt for [loadAll] and
-  /// `zfa proof check` while carrying the route table as data for the
-  /// ledger. Deterministic names collide by design: the newest write
-  /// wins (latest-wins is already [loadAll]'s ordering contract).
+  /// Stable names make a receipt addressable per entity (the verify gates
+  /// and ledgers read them by path) instead of by timestamp scanning, and
+  /// regeneration supersedes the previous document in place (last write
+  /// wins — `loadAll` still sees exactly one current document per artifact
+  /// set). [extra] fields are merged into the document on top of the
+  /// proof.v1 payload: [GenerationReceipt.fromJson] ignores unknown keys,
+  /// so the document stays a parseable generation receipt for [loadAll]
+  /// and `zfa proof check` while carrying plugin-specific ledger data
+  /// (interface, methods, stub count) without forking the proof.v1 schema.
   Future<File> saveNamed(
     String fileName,
     GenerationReceipt receipt, {

@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
+import 'package:path/path.dart' as path;
 
 import '../plugins/shadcn/vocabulary/composite_scaffolder.dart';
 import '../plugins/shadcn/vocabulary/ui_node_registry.dart';
@@ -18,8 +19,11 @@ import '../core/plugin_system/plugin_manager.dart';
 import '../feature_flags/feature_flag.dart';
 import '../feature_flags/feature_flag_config.dart';
 import '../models/generated_file.dart';
+import '../plugins/provider/provider_receipt.dart';
+import '../plugins/provider/provider_verifier.dart';
 import '../plugins/usecase/usecase_expectation_post_pass.dart';
 import '../utils/entity_field_resolver.dart';
+import '../utils/string_utils.dart';
 
 /// Command to run multiple plugins explicitly.
 /// Usage: `zfa make <Name> <plugin1> <plugin2> ... [flags]`
@@ -725,6 +729,25 @@ class MakeCommand extends Command<void> {
         }
       }
 
+      // Spec #979 (orders 2 + 4) — provider post-pass hook: persist the
+      // deterministic provider receipt and run the stub-escape +
+      // conformance gates. Fresh stubs are RECORDED and NAMED (stub-first
+      // semantics preserved — the TDD flow fills them); a provider the run
+      // did not rewrite whose stubs survived, or a missing interface
+      // method, fails the run with --> fix: lines (a stub is not allowed
+      // to hide, and a hollow provider must not reach production).
+      if (!isDryRun && !isRevert) {
+        final providerGateFailed = await _providerPostPass(
+          entityName,
+          files,
+          activePlugins,
+        );
+        if (providerGateFailed) {
+          exitCode = 1;
+          return;
+        }
+      }
+
       _logSummary(files, context.core.verbose, plan: plan);
     } catch (e) {
       print('❌ Generation failed: $e');
@@ -780,6 +803,136 @@ class MakeCommand extends Command<void> {
       expectations: expectations,
       activePluginIds: activePlugins.map((p) => p.id).toSet(),
     );
+  }
+
+  /// Spec #979 (orders 2 + 4): the provider post-pass — receipt + gates.
+  ///
+  /// Returns true when the run must FAIL (committed stubs survived, or a
+  /// conformance miss). Fresh stubs (the provider this run just wrote —
+  /// stub-first semantics) are recorded in the deterministic receipt and
+  /// named in the output, and do NOT fail the run: stubs are allowed to
+  /// exist, never to hide.
+  Future<bool> _providerPostPass(
+    String entityName,
+    List<GeneratedFile> files,
+    List<ZuraffaPlugin> activePlugins,
+  ) async {
+    if (!activePlugins.any((p) => p.id == 'provider')) return false;
+
+    final entity = StringUtils.convertToPascalCase(entityName);
+    final report = await const ProviderVerifier().verify(
+      projectRoot: manager.projectRoot,
+      entity: entity,
+    );
+
+    // The provider plugin declined to generate (e.g. no service named —
+    // its own skip semantics, the #412 full-bundle shape): nothing was
+    // committed, nothing to gate.
+    if (report.providerFile == null) return false;
+
+    final providerFile = report.providerFile!;
+    final relative = _projectRelative(providerFile);
+
+    // Did THIS run (re)write the provider? (make reports paths relative
+    // to the project root, e.g. lib/src/data/providers/...)
+    final runEntry = files.where((f) {
+      final fRel = f.path.replaceAll('\\', '/');
+      return fRel == relative ||
+          fRel.endsWith('/$relative') ||
+          providerFile.endsWith('/${fRel.split('/').last}') &&
+              f.type == 'provider';
+    }).toList();
+    final fresh = runEntry.any(
+      (f) =>
+          f.action == 'created' ||
+          f.action == 'overwritten' ||
+          f.action == 'updated',
+    );
+
+    // Receipt: proof.v1 digests of the final bytes + the ledger data
+    // (interface / methods / stub count) — best-effort by design.
+    try {
+      await ProviderReceiptWriter().write(
+        projectRoot: manager.projectRoot,
+        entity: entity,
+        files: runEntry.isNotEmpty
+            ? runEntry
+            : [
+                // Committed, untouched by this run — digest the current
+                // bytes so the receipt stays truthful.
+                GeneratedFile(
+                  path: providerFile,
+                  type: 'provider',
+                  action: 'updated',
+                ),
+              ],
+        interface: report.interface,
+        methods: report.methods,
+        stubCount: report.stubCount,
+        input: {'name': entity, 'via': 'zfa make $entityName'},
+      );
+    } catch (e) {
+      print('⚠️  Provider receipt not written: $e');
+    }
+
+    // ── Conformance gate (order 4): always a failure ───────────────────
+    final conformance = report.findings
+        .where(
+          (f) =>
+              f.kind == ProviderVerifyFinding.kindMissingMethod ||
+              f.kind == ProviderVerifyFinding.kindMissingService,
+        )
+        .toList();
+    if (conformance.isNotEmpty) {
+      print(
+        '❌ Provider conformance failed for "$entity" — '
+        '${conformance.length} finding(s):',
+      );
+      for (final finding in conformance) {
+        print('  [${finding.kind}] ${finding.detail}');
+        print('    ${finding.fix}');
+      }
+      return true;
+    }
+
+    // ── Stub-escape gate (order 2) ────────────────────────────────────
+    final stubs = report.stubFindings.toList();
+    if (stubs.isEmpty) return false;
+
+    if (fresh) {
+      // Fresh stubs are the intended stub-first output: NAME them and
+      // record them (the receipt above carries the count), do not fail.
+      print(
+        'ℹ️  Provider $relative generated stub-first: '
+        '${stubs.length} method(s) still throw UnimplementedError '
+        '(recorded in .zfa/receipts/provider-$entity.json — the TDD '
+        'flow fills them):',
+      );
+      print('    ${stubs.map((s) => s.method).join(', ')}');
+      print(
+        '    --> fix: `zfa provider verify $entity` fails until every '
+        'stub is filled.',
+      );
+      return false;
+    }
+
+    print(
+      '❌ Provider stub-escape: the committed provider for "$entity" '
+      'still contains UnimplementedError method bodies — the skeleton '
+      'survived a full make run (spec 979):',
+    );
+    for (final finding in stubs) {
+      print('  [stub] ${finding.detail}');
+      print('    ${finding.fix}');
+    }
+    return true;
+  }
+
+  String _projectRelative(String absolutePath) {
+    final rel = path.isAbsolute(absolutePath)
+        ? path.relative(absolutePath, from: manager.projectRoot)
+        : absolutePath;
+    return rel.replaceAll('\\', '/');
   }
 
   Future<Map<String, dynamic>?> _loadJsonConfig() async {
