@@ -149,10 +149,9 @@ final class WorldRuntime {
   /// receipt records the seed; replay re-executes with it).
   WorldRuntime(
     this.manifest, {
-    WorldBinding binding = WorldBinding.world,
+    this.binding = WorldBinding.world,
     int? seedOverride,
-  }) : binding = binding,
-       clock = VirtualClock(seedOverride ?? manifest.seed),
+  }) : clock = VirtualClock(seedOverride ?? manifest.seed),
        _latency = LatencyModel(seed: (seedOverride ?? manifest.seed)),
        _authAdapter = _authAdapterFor(manifest);
 

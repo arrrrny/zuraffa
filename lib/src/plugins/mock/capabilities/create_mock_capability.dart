@@ -5,7 +5,6 @@ import 'package:path/path.dart' as p;
 import '../../../core/plugin_system/capability.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
-import '../../../engine/mock_certifier.dart' hide MockCertifier;
 import '../builders/simulation_fixture_writer.dart';
 import '../certification/mock_certifier.dart';
 import '../mock_plugin.dart';

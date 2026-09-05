@@ -63,13 +63,13 @@ dependencies:
 # overrides — CI has no sibling checkouts and every branch goes red when
 # they are present.
 
+  test: any
 executables:
   zuraffa:
   zfa:
   zuraffa_mcp_server:
 
 dev_dependencies:
-  test: ^1.25.0
   build_runner: ^2.15.2
   lints: ^6.0.0
   # mutation_test: wired in by spec 041 follow-up (Phase 11, tasks T077-T081)

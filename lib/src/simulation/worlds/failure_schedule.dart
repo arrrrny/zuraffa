@@ -67,8 +67,8 @@ final class StormFailure {
 
   /// Human-readable classification for ledgers and receipts.
   String get label => switch (kind) {
-    StormFailureKind.http => 'http-${httpStatus}',
-    StormFailureKind.auth => 'auth-${authCode}',
+    StormFailureKind.http => 'http-$httpStatus',
+    StormFailureKind.auth => 'auth-$authCode',
     StormFailureKind.partial => 'partial-write',
     StormFailureKind.unknown => storm.kind,
   };

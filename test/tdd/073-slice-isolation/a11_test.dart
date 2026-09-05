@@ -14,7 +14,7 @@
 library;
 
 import 'package:test/test.dart';
-import '../../../lib/tdd/073-slice-isolation/a11_subject.dart' as subject;
+import 'package:zuraffa/tdd/073-slice-isolation/a11_subject.dart' as subject;
 
 void main() {
   group('A11 (AC-11)', () {

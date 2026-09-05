@@ -6,7 +6,6 @@
 // into the world digest), and appends the hash-chained `kind: mock-cert`
 // cycle-log evidence. Byte drift on the receipt is caught by
 // verifyManifest — the registry entry is live.
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;

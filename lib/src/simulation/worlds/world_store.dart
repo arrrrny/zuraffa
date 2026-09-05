@@ -187,7 +187,7 @@ WorldManifest scaffoldWorld({
       if (isWrite) {
         behaviors.add(
           WorldBehavior(
-            id: '${scenario}-${method.name}-retry-sync',
+            id: '$scenario-${method.name}-retry-sync',
             driver: 'retry-sync',
             touchpoint: row.name,
             method: method.name,
@@ -199,7 +199,7 @@ WorldManifest scaffoldWorld({
         );
         behaviors.add(
           WorldBehavior(
-            id: '${scenario}-${method.name}-partial-write-repair',
+            id: '$scenario-${method.name}-partial-write-repair',
             driver: 'retry-sync',
             touchpoint: row.name,
             method: method.name,
@@ -212,7 +212,7 @@ WorldManifest scaffoldWorld({
       } else {
         behaviors.add(
           WorldBehavior(
-            id: '${scenario}-${method.name}',
+            id: '$scenario-${method.name}',
             driver: 'invoke',
             touchpoint: row.name,
             method: method.name,

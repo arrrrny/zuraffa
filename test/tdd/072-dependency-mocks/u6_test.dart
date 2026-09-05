@@ -14,7 +14,7 @@
 library;
 
 import 'package:test/test.dart';
-import '../../../lib/tdd/072-dependency-mocks/u6_subject.dart' as subject;
+import 'package:zuraffa/tdd/072-dependency-mocks/u6_subject.dart' as subject;
 
 void main() {
   group('U6 (FR-006)', () {

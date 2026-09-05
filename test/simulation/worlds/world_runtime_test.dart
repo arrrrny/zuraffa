@@ -379,7 +379,7 @@ void main() {
   });
 
   group('executeScenario (the behavior program)', () {
-    WorldManifest _programManifest() => _manifest(
+    WorldManifest programManifest() => _manifest(
       storms: const [
         WorldStorm(
           name: 'flap',
@@ -426,7 +426,7 @@ void main() {
     test(
       'the retry behavior survives the storm; the auth behavior lands its declared red',
       () async {
-        final runtime = WorldRuntime(_programManifest());
+        final runtime = WorldRuntime(programManifest());
         final results = await runtime.executeScenario();
 
         expect(results, hasLength(2));
@@ -449,17 +449,17 @@ void main() {
     );
 
     test('the run digest is deterministic for the same world + seed', () async {
-      final a = await WorldRuntime(_programManifest()).executeScenario();
+      final a = await WorldRuntime(programManifest()).executeScenario();
       expect(a, isNotEmpty); // run the program so the ledger fills.
-      final runtimeA = WorldRuntime(_programManifest());
+      final runtimeA = WorldRuntime(programManifest());
       await runtimeA.executeScenario();
-      final runtimeB = WorldRuntime(_programManifest());
+      final runtimeB = WorldRuntime(programManifest());
       await runtimeB.executeScenario();
       expect(runtimeA.runDigest, runtimeB.runDigest);
     });
 
     test('the run digest differs when the world differs', () async {
-      final runtimeA = WorldRuntime(_programManifest());
+      final runtimeA = WorldRuntime(programManifest());
       await runtimeA.executeScenario();
       final runtimeB = WorldRuntime(_manifest());
       await runtimeB.executeScenario();
@@ -467,9 +467,9 @@ void main() {
     });
 
     test('the run digest differs when the binding differs', () async {
-      final world = WorldRuntime(_programManifest());
+      final world = WorldRuntime(programManifest());
       await world.executeScenario();
-      final real = WorldRuntime(_programManifest(), binding: WorldBinding.real);
+      final real = WorldRuntime(programManifest(), binding: WorldBinding.real);
       await real.executeScenario();
       expect(world.runDigest, isNot(real.runDigest));
     });

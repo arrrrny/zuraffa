@@ -14,7 +14,7 @@
 library;
 
 import 'package:test/test.dart';
-import '../../../lib/tdd/072-dependency-mocks/a2_subject.dart' as subject;
+import 'package:zuraffa/tdd/072-dependency-mocks/a2_subject.dart' as subject;
 
 void main() {
   group('A2 (AC-2)', () {

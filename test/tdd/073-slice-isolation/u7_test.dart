@@ -14,14 +14,14 @@
 library;
 
 import 'package:test/test.dart';
-import '../../../lib/tdd/073-slice-isolation/u7_subject.dart' as subject;
+import 'package:zuraffa/tdd/073-slice-isolation/u7_subject.dart' as subject;
 
 void main() {
   group('U7 (FR-007)', () {
     test(
       'U7 — Cut scaffolding MUST be deterministic: unchanged inputs produce byte-identical wiring.',
       () {
-        final Object? result = (() {
+        final Object result = (() {
           try {
             return subject.subject_u7();
           } on UnimplementedError catch (error) {

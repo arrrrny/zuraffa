@@ -79,7 +79,7 @@ import 'package:get_it/get_it.dart';
 import '../presentation/pages/product/product_view.dart';
 ''');
 
-      final report = await verifier.verify(
+      final report = verifier.verify(
         sandboxDir: sandbox,
         projectRoot: projectRoot,
       );
@@ -102,7 +102,7 @@ import 'product_state.dart';
 class ProductView {}
 ''');
 
-        final report = await verifier.verify(
+        final report = verifier.verify(
           sandboxDir: sandbox,
           projectRoot: projectRoot,
         );
@@ -123,7 +123,7 @@ import 'dart:io';
 import 'package:not_in_pubspec/thing.dart';
 ''');
 
-      final report = await verifier.verify(
+      final report = verifier.verify(
         sandboxDir: sandbox,
         projectRoot: projectRoot,
       );
@@ -142,7 +142,7 @@ import 'package:not_in_pubspec/thing.dart';
 import 'package:flutter_test/flutter_test.dart';
 ''');
 
-      final report = await verifier.verify(
+      final report = verifier.verify(
         sandboxDir: sandbox,
         projectRoot: projectRoot,
       );
@@ -156,7 +156,7 @@ import 'package:zik_zak/src/thing.dart';
 ''');
       await put(sandbox, 'lib/src/thing.dart', 'class Thing {}\n');
 
-      final report = await verifier.verify(
+      final report = verifier.verify(
         sandboxDir: sandbox,
         projectRoot: projectRoot,
       );

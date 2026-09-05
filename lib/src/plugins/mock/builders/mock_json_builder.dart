@@ -245,7 +245,7 @@ class MockJsonBuilder {
               1,
             ).add(Duration(seconds: seed)).toIso8601String(),
       'fieldSignature': fieldSignature.join(','),
-      if (seed != null) 'seed': seed,
+      'seed': ?seed,
     });
   }
 

@@ -9,7 +9,7 @@
 library;
 
 import 'package:test/test.dart';
-import '../../../lib/tdd/0966-typed-ledger-rows/t4_subject.dart' as subject;
+import 'package:zuraffa/tdd/0966-typed-ledger-rows/t4_subject.dart' as subject;
 
 void main() {
   group('T4 (FR-004)', () {

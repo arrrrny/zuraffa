@@ -14,7 +14,7 @@
 library;
 
 import 'package:test/test.dart';
-import '../../../lib/tdd/072-dependency-mocks/u4_subject.dart' as subject;
+import 'package:zuraffa/tdd/072-dependency-mocks/u4_subject.dart' as subject;
 
 void main() {
   group('U4 (FR-004)', () {

@@ -9,7 +9,7 @@
 library;
 
 import 'package:test/test.dart';
-import '../../../lib/tdd/075-ui-coverage-ledger/u7_subject.dart' as subject;
+import 'package:zuraffa/tdd/075-ui-coverage-ledger/u7_subject.dart' as subject;
 
 void main() {
   group('U7 (FR-007)', () {

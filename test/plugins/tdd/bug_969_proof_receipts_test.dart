@@ -12,7 +12,6 @@
 ///   * a clean feature passes the preflight (the audit runs).
 library;
 
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;

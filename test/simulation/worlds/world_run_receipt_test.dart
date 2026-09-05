@@ -21,7 +21,7 @@ void main() {
     await project.delete(recursive: true);
   });
 
-  WorldRunReceipt _green(String worldHash) => WorldRunReceipt(
+  WorldRunReceipt green(String worldHash) => WorldRunReceipt(
     scenario: 'checkout-flow',
     feature: 'spec-968',
     worldHash: worldHash,
@@ -40,7 +40,7 @@ void main() {
     'save + load round-trips through .zfa/receipts/ (proof.v1-parseable)',
     () async {
       final store = WorldRunReceiptStore(projectRoot: project.path);
-      await store.save(_green('hash-aaa'));
+      await store.save(green('hash-aaa'));
 
       final receiptFile = io.File(
         p.join(
@@ -87,7 +87,7 @@ void main() {
     'a save supersedes the previous receipt in place (latest wins)',
     () async {
       final store = WorldRunReceiptStore(projectRoot: project.path);
-      await store.save(_green('hash-aaa'));
+      await store.save(green('hash-aaa'));
       await store.save(
         WorldRunReceipt(
           scenario: 'checkout-flow',
@@ -136,7 +136,7 @@ void main() {
     'the proof.v1 receipt verifies through the shared ReceiptStore',
     () async {
       final store = WorldRunReceiptStore(projectRoot: project.path);
-      final file = await store.save(_green('hash-ccc'));
+      final file = await store.save(green('hash-ccc'));
 
       // The shared loader (zfa proof check's reader) parses it.
       final records = await ReceiptStore(projectRoot: project.path).loadAll();

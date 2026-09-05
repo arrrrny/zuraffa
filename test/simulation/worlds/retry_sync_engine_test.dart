@@ -85,8 +85,9 @@ void main() {
       var calls = 0;
       await engine.sync('sync-push', () async {
         calls++;
-        if (calls < 3)
+        if (calls < 3) {
           throw const SimulatedHttpException(503, 'POST', '/', 'f');
+        }
         return {'ok': true};
       });
       wall.stop();
@@ -197,8 +198,9 @@ void main() {
       var calls = 0;
       final outcome = await engine.sync('ladder', () async {
         calls++;
-        if (calls < 4)
+        if (calls < 4) {
           throw const SimulatedHttpException(500, 'POST', '/', 'f');
+        }
         return {'done': true};
       });
       // Backoffs: 100 + 300 + 900 = 1300 virtual ms of waiting.
