@@ -29,7 +29,11 @@ import 'string_utils.dart';
 /// Fail-open by design: when the interface file does not exist (it will be
 /// created by the same generation plan), cannot be parsed, or the class
 /// cannot be located, the method set is returned unchanged and current
-/// behavior is preserved.
+/// behavior is preserved. Spec #972 closes the absent-interface hole one
+/// step further: [evaluate] reports [SourceInterfaceGuardResult.interfaceAbsent]
+/// so the caller can record an interface expectation in the plan and let
+/// the `zfa make` post-pass verify the responsible plugin declared the
+/// methods.
 class SourceInterfaceGuard {
   const SourceInterfaceGuard();
 
@@ -48,11 +52,48 @@ class SourceInterfaceGuard {
     List<String> methods = const [],
     FileSystem? fileSystem,
   }) async {
-    if (methods.isEmpty) return methods;
+    final result = await evaluate(
+      config,
+      methods: methods,
+      fileSystem: fileSystem,
+    );
+    for (final drop in result.dropped) {
+      print(drop.notice);
+    }
+    return result.kept;
+  }
+
+  /// Structured spec #972 API: the same filtering as [filterMethods] but
+  /// returns machine-readable verdicts (kept methods, per-drop reason
+  /// codes, and whether the interface file was absent — the same-plan
+  /// fail-open case the make post-pass must verify).
+  Future<SourceInterfaceGuardResult> evaluate(
+    GeneratorConfig config, {
+    List<String> methods = const [],
+    FileSystem? fileSystem,
+    bool quiet = false,
+  }) async {
+    if (methods.isEmpty) {
+      return const SourceInterfaceGuardResult(
+        kept: [],
+        dropped: [],
+        interfaceAbsent: false,
+      );
+    }
 
     final fs = fileSystem ?? const DefaultFileSystem();
     final interface = _resolveInterface(config);
-    if (interface == null) return methods;
+    if (interface == null) {
+      // No service/repository could be resolved for this config — there
+      // is no on-disk contract to filter against.
+      return SourceInterfaceGuardResult(
+        kept: List.of(methods),
+        dropped: const [],
+        interfaceAbsent: false,
+        interfacePath: null,
+        className: null,
+      );
+    }
 
     final filePath = interface.filePath;
     var className = interface.className;
@@ -70,8 +111,15 @@ class SourceInterfaceGuard {
     if (!await fs.exists(filePath)) {
       // The source interface will be created by this same generation plan
       // (repository/service plugin active in the plan) or does not exist
-      // yet — there is no on-disk contract to filter against.
-      return methods;
+      // yet — there is no on-disk contract to filter against. Spec #972:
+      // surface the absence so the caller can record an expectation.
+      return SourceInterfaceGuardResult(
+        kept: List.of(methods),
+        dropped: const [],
+        interfaceAbsent: true,
+        interfacePath: filePath,
+        className: className,
+      );
     }
 
     final parsed = await MethodExtractor.extractMethodsFromInterface(
@@ -81,8 +129,16 @@ class SourceInterfaceGuard {
     );
     if (parsed.isEmpty) {
       // Unparseable file or the referenced class was not found — fail open
-      // rather than silently dropping requested use cases.
-      return methods;
+      // rather than silently dropping requested use cases. This is NOT the
+      // same-plan case: the file exists, so no expectation is recorded
+      // (the post-pass would only re-trip on the same parse failure).
+      return SourceInterfaceGuardResult(
+        kept: List.of(methods),
+        dropped: const [],
+        interfaceAbsent: false,
+        interfacePath: filePath,
+        className: className,
+      );
     }
 
     final declared = parsed.map((m) => m.fieldName).toSet();
@@ -96,19 +152,31 @@ class SourceInterfaceGuard {
     GeneratorConfig config,
   ) {
     final filtered = <String>[];
+    final dropped = <SourceInterfaceDrop>[];
     for (final method in methods) {
       if (declared.contains(method)) {
         filtered.add(method);
       } else {
-        print(
-          "  Skip ${StringUtils.camelToSnake(method)}_${config.nameSnake} "
-          "usecase: $className has no '$method' method (issue #921) — pass "
-          '--methods to control the usecase set, or add \'$method\' to '
-          '$className.',
+        dropped.add(
+          SourceInterfaceDrop(
+            method: method,
+            code: 'interface_missing_method:$className.$method',
+            notice:
+                "  Skip ${StringUtils.camelToSnake(method)}_${config.nameSnake} "
+                "usecase: $className has no '$method' method (issue #921) — pass "
+                '--methods to control the usecase set, or add \'$method\' to '
+                '$className.',
+          ),
         );
       }
     }
-    return filtered;
+    return SourceInterfaceGuardResult(
+      kept: filtered,
+      dropped: dropped,
+      interfaceAbsent: false,
+      interfacePath: filePath,
+      className: className,
+    );
   }
 
   /// Loads the entity's repository contract manifest when it is fresh —
@@ -160,6 +228,55 @@ class SourceInterfaceGuard {
     );
     return _SourceInterface(filePath: filePath, className: repoName);
   }
+}
+
+/// Machine-readable outcome of the guard for one generation run.
+class SourceInterfaceGuardResult {
+  /// Requested methods that survive the filter (declared, or all of them
+  /// when the guard failed open).
+  final List<String> kept;
+
+  /// Requested methods dropped because the on-disk interface does not
+  /// declare them, each with a stable reason code.
+  final List<SourceInterfaceDrop> dropped;
+
+  /// True when the interface file did not exist at guard time — the
+  /// same-plan fail-open case. Callers record the kept set as an
+  /// interface expectation so the `zfa make` post-pass can verify the
+  /// responsible plugin declared the methods.
+  final bool interfaceAbsent;
+
+  /// The interface file path the guard resolved (null when no
+  /// service/repository could be resolved).
+  final String? interfacePath;
+
+  /// The interface class name the generated use cases call through.
+  final String? className;
+
+  const SourceInterfaceGuardResult({
+    required this.kept,
+    required this.dropped,
+    required this.interfaceAbsent,
+    this.interfacePath,
+    this.className,
+  });
+}
+
+/// One dropped method with its stable, machine-parseable reason code
+/// (`interface_missing_method:<Class>.<method>`).
+class SourceInterfaceDrop {
+  final String method;
+  final String code;
+
+  /// The human-facing skip notice (printed by [SourceInterfaceGuard.
+  /// filterMethods]).
+  final String notice;
+
+  const SourceInterfaceDrop({
+    required this.method,
+    required this.code,
+    required this.notice,
+  });
 }
 
 class _SourceInterface {

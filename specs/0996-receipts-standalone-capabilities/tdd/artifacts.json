@@ -1,0 +1,60 @@
+{
+  "feature": "0996-receipts-standalone-capabilities",
+  "records": [
+    {
+      "behavior_id": "B-001",
+      "feature": "0996-receipts-standalone-capabilities",
+      "source_criterion": "FR-001",
+      "test_path": "test/core/plugin_system/capability_invocation_wrapper_test.dart",
+      "subject_path": "lib/src/core/plugin_system/capability_invocation_wrapper.dart",
+      "runnable_test_name": "test/core/plugin_system/capability_invocation_wrapper_test.dart::B-001::a file appears in .zfa/receipts/ keyed <plugin>-<capability>-<entity>-<timestamp>.json",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T00:00:00.000Z"
+    },
+    {
+      "behavior_id": "B-002",
+      "feature": "0996-receipts-standalone-capabilities",
+      "source_criterion": "FR-003",
+      "test_path": "test/core/plugin_system/capability_invocation_wrapper_test.dart",
+      "subject_path": "lib/src/core/plugin_system/capability_invocation_wrapper.dart",
+      "runnable_test_name": "test/core/plugin_system/capability_invocation_wrapper_test.dart::B-002::receipt JSON carries {plugin, capability, entity, hash, methodset, files, receipt_version: 1}",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T00:00:00.000Z"
+    },
+    {
+      "behavior_id": "B-003",
+      "feature": "0996-receipts-standalone-capabilities",
+      "source_criterion": "FR-002",
+      "test_path": "test/commands/capability_command_receipt_hook_test.dart",
+      "subject_path": "lib/src/core/plugin_system/capability_invocation_wrapper.dart",
+      "runnable_test_name": "test/commands/capability_command_receipt_hook_test.dart::B-003::zfa <plugin> create <Entity> via CapabilityCommand persists a receipt for the run (issue #996)",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T00:00:00.000Z"
+    },
+    {
+      "behavior_id": "B-004",
+      "feature": "0996-receipts-standalone-capabilities",
+      "source_criterion": "FR-005",
+      "test_path": "test/plugins/tdd/services/receipt_preflight_test.dart",
+      "subject_path": "lib/src/plugins/tdd/services/receipt_preflight.dart",
+      "runnable_test_name": "test/plugins/tdd/services/receipt_preflight_test.dart::B-004::missing receipt for an audited subject \u2192 GATE FAILURE",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T00:00:00.000Z"
+    },
+    {
+      "behavior_id": "B-005",
+      "feature": "0996-receipts-standalone-capabilities",
+      "source_criterion": "FR-004",
+      "test_path": "test/core/plugin_system/capability_invocation_wrapper_test.dart",
+      "subject_path": "lib/src/core/plugin_system/capability_invocation_wrapper.dart",
+      "runnable_test_name": "test/core/plugin_system/capability_invocation_wrapper_test.dart::B-005::receipt files bind final on-disk digests so zfa proof check validates",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T00:00:00.000Z"
+    }
+  ]
+}

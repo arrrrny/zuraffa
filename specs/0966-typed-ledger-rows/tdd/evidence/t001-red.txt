@@ -1,0 +1,16 @@
+00:00 +0: loading test/tdd/0966-typed-ledger-rows/t001_typed_row_schema_test.dart
+00:00 +0: T1 (FR-001) T1 - typed ledger row schema: kinds from scenario verbs at plan time; untraced kinds (absence + sequence) are gate gaps on the all-9-literals-Column view.
+00:00 +0 -1: T1 (FR-001) T1 - typed ledger row schema: kinds from scenario verbs at plan time; untraced kinds (absence + sequence) are gate gaps on the all-9-literals-Column view. [E]
+  Expected: not <Instance of 'UnimplementedError'>
+    Actual: UnimplementedError:<UnimplementedError>
+  
+  package:matcher                                                       expect
+  test/tdd/0966-typed-ledger-rows/t001_typed_row_schema_test.dart 27:9  main.<fn>.<fn>
+  
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  test/tdd/0966-typed-ledger-rows/t001_typed_row_schema_test.dart: T1 (FR-001) T1 - typed ledger row schema: kinds from scenario verbs at plan time; untraced kinds (absence + sequence) are gate gaps on the all-9-literals-Column view.
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.

@@ -76,10 +76,48 @@ class ProviderPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   JsonSchema get configSchema => {
     'type': 'object',
     'properties': {
+      // Spec #979 (order 3, schema ≡ grammar): the provider grammar is
+      // domain/params/returns/type/init/data — the same knobs the create
+      // capability's inputSchema declares (what synthesizes
+      // `zfa provider create --<knob>`). configSchema is what JSON agents
+      // and `zfa make` synthesize their contract from, so every knob is
+      // advertised here too. No params/returns defaults on purpose: the
+      // interface-extraction path (the provider mirrors the Service
+      // interface) is the live semantic (#768/#979) — a default would
+      // force a phantom method onto every make-run provider.
+      'domain': {
+        'type': 'string',
+        'description': 'Domain folder for the provider',
+      },
+      'params': {
+        'type': 'string',
+        'description': 'Parameter type for the provider method',
+      },
+      'returns': {
+        'type': 'string',
+        'description': 'Return type for the provider method',
+      },
+      'type': {
+        // Plain string here (NOT the enum): `zfa make` synthesizes one
+        // shared --type option from the FIRST schema that declares it,
+        // and the provider registers before graphql — an enum here would
+        // reject graphql's legal values (query/mutation/...). The enum
+        // contract lives on the provider-scoped
+        // `zfa provider create --type` (the create inputSchema), where
+        // no other plugin competes for the name.
+        'type': 'string',
+        'description':
+            'Provider method type (sync, stream, completable, usecase)',
+      },
+      'init': {
+        'type': 'boolean',
+        'description': 'Generate initialization and disposal methods',
+        'default': false,
+      },
       'data': {
         'type': 'boolean',
-        'default': false,
         'description': 'Generate provider implementation',
+        'default': true,
       },
     },
   };
@@ -102,6 +140,26 @@ class ProviderPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       methods: context.data['methods']?.cast<String>().toList() ?? [],
       domain: context.data['domain'],
       noEntity: context.data['no-entity'] == true,
+      // Spec #979 (order 3): the schema-mapped knobs are readable from the
+      // make context (PluginManager.buildContext merges configSchema
+      // properties into context.data) — the make flow and the
+      // `zfa provider create` subcommand now drive the same grammar.
+      // `type` is gated to the provider's legal values because the
+      // make-level --type flag is SHARED context data (graphql passes
+      // query/mutation through it) — a non-provider value must not
+      // leak into _returnType.
+      paramsType: context.data['params'],
+      returnsType: context.data['returns'],
+      useCaseType:
+          const [
+            'sync',
+            'stream',
+            'completable',
+            'usecase',
+          ].contains(context.data['type'])
+          ? context.data['type'] as String
+          : 'usecase',
+      generateInit: context.get<bool>('init') ?? false,
     );
 
     return generate(config, context: context);

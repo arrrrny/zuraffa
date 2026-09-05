@@ -11,6 +11,21 @@ class PresetRegistry {
       'di',
       'test',
     ],
+    // Spec 1002: the engine slice — every generator EXCEPT the
+    // Flutter-importing presentation plugins. `zfa make engine <Entity>`
+    // (or `--preset=engine`) chains usecase → service → provider →
+    // repository → datasource → mock → di in one command, followed by
+    // the engine check + receipt tail the MakeCommand engine path runs.
+    // No view, no presenter, no controller, no state, no route.
+    'engine': [
+      'usecase',
+      'service',
+      'provider',
+      'repository',
+      'datasource',
+      'mock',
+      'di',
+    ],
     // #348: `di` is bundled with the data presets so the canonical
     // `zfa make X --preset=crud` (or `--preset=read-only`) produces a
     // runnable app without the `--with=di` crutch. Every other preset

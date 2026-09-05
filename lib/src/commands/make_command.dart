@@ -4,21 +4,36 @@ import 'dart:async';
 
 import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
+import 'package:path/path.dart' as path;
+import 'package:path/path.dart' as p;
+// Show-listed: the zorphy barrel also exports PluginRegistry and
+// PluginContext, which collide with zuraffa's own plugin-system types.
+import 'package:zorphy/zorphy.dart'
+    show EntityConfig, EntityCreator, FieldDefinition;
 
 import '../plugins/shadcn/vocabulary/composite_scaffolder.dart';
 import '../plugins/shadcn/vocabulary/ui_node_registry.dart';
 import '../config/zfa_config.dart';
 import '../cli/plugin_loader.dart';
 import '../core/branding/branding_writer.dart';
+import '../core/plugin_system/plugin_interface.dart';
+import '../core/plugin_system/plugin_context.dart';
 import '../core/project/project_root.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_manager.dart';
+import '../engine/engine_checker.dart';
+import '../engine/engine_receipt_writer.dart';
 import '../feature_flags/feature_flag.dart';
 import '../feature_flags/feature_flag_config.dart';
 import '../models/generated_file.dart';
+import '../plugins/provider/provider_receipt.dart';
+import '../plugins/provider/provider_verifier.dart';
 import '../plugins/repository/plan/repository_emission_plan.dart';
 import '../plugins/repository/repository_plugin.dart';
+import '../plugins/usecase/usecase_expectation_post_pass.dart';
 import '../utils/entity_field_resolver.dart';
+import '../utils/string_utils.dart';
+import '../utils/framework_export_surface.dart';
 
 /// Command to run multiple plugins explicitly.
 /// Usage: `zfa make <Name> <plugin1> <plugin2> ... [flags]`
@@ -98,6 +113,30 @@ class MakeCommand extends Command<void> {
     'useZorphy',
     'zorphy',
   };
+
+  /// Spec 1002: plugins the engine preset hard-excludes — every
+  /// Flutter-importing presentation plugin. The engine slice is pure
+  /// Dart (no view, no presenter, no controller, no state, no route, no
+  /// shadcn), so these are dropped with a notice even when a config
+  /// default or an alias pulled them into the plan.
+  static const Set<String> _engineExcludedPluginIds = {
+    'view',
+    'presenter',
+    'controller',
+    'state',
+    'route',
+    'shadcn',
+  };
+
+  /// Spec 1002: the default method set for `zfa make engine <Entity>`
+  /// when neither `--methods` nor a `--from-json` config supplies one.
+  static const List<String> _engineDefaultMethods = [
+    'get',
+    'getList',
+    'create',
+    'update',
+    'delete',
+  ];
 
   final PluginRegistry registry;
   late final PluginManager manager;
@@ -450,9 +489,44 @@ class MakeCommand extends Command<void> {
       exit(1);
     }
 
-    final entityName = rest.isNotEmpty
-        ? rest.first
-        : (jsonConfig?['name']?.toString() ?? '');
+    // ── Spec 1002: the `engine` mode token ────────────────────────────
+    // `zfa make engine <Entity> [plugins...] [options]` runs the engine
+    // preset in one shot: entity create (auto) → the engine plugin chain
+    // (usecase, service, provider, repository, datasource, mock, di) →
+    // mock certification → engine check → engine.receipt.json. The token
+    // is the exact lowercase `engine` in the entity position; an entity
+    // literally named `Engine` (PascalCase) still routes through the
+    // classic grammar, so no existing invocation changes meaning.
+    final engineMode = rest.isNotEmpty && rest.first == 'engine';
+    if (engineMode && rest.length < 2) {
+      print('❌ Usage: zfa make engine <Entity> [options]');
+      print(
+        'Example: zfa make engine Login '
+        '--methods=get,getList,create,update,delete',
+      );
+      exitCode = 64;
+      return;
+    }
+    if (engineMode) {
+      String? explicitPreset;
+      if (argResults?.wasParsed('preset') == true) {
+        explicitPreset = argResults?['preset'] as String?;
+      }
+      if (explicitPreset != null && explicitPreset != 'engine') {
+        print(
+          '❌ --preset=$explicitPreset conflicts with the `engine` mode '
+          'token (the engine preset is implied by the token itself).',
+        );
+        exitCode = 64;
+        return;
+      }
+    }
+
+    final entityName = engineMode
+        ? rest[1]
+        : (rest.isNotEmpty
+              ? rest.first
+              : (jsonConfig?['name']?.toString() ?? ''));
     if (entityName.isEmpty) {
       print('❌ Missing required feature/entity name.');
       exit(1);
@@ -469,14 +543,30 @@ class MakeCommand extends Command<void> {
       return;
     }
 
-    final explicitPluginIds = rest.skip(1).toList();
+    final explicitPluginIds = engineMode
+        ? rest.skip(2).toList()
+        : rest.skip(1).toList();
     final normalizedOptions = _normalizedOptions(jsonConfig);
+    if (engineMode) {
+      // The engine preset is implied by the mode token; the plan resolves
+      // through the same PresetRegistry entry `--preset=engine` uses.
+      normalizedOptions['preset'] = 'engine';
+      // Spec 1002 default method set — only when neither the CLI flag
+      // nor a --from-json config supplied one.
+      if (!argResults!.wasParsed('methods') &&
+          !normalizedOptions.containsKey('methods')) {
+        normalizedOptions['methods'] = List<String>.from(_engineDefaultMethods);
+      }
+    }
     final plan = manager.resolvePlan(
       name: entityName,
       explicitPluginIds: explicitPluginIds,
       argResults: argResults!,
       options: normalizedOptions,
     );
+
+    final planOnly =
+        argResults?['plan'] == true || argResults?['explain'] == true;
 
     // #496: fail fast when the entity source file is missing (and --no-entity
     // is not set). Without this guard `zfa make <NonExistentEntity>` resolves a
@@ -486,20 +576,32 @@ class MakeCommand extends Command<void> {
     // fails fast. Only the MISSING-FILE case fails here — when the file EXISTS
     // but has no id field, the no-id handling further down (#307/#508/#514)
     // still applies unchanged.
+    //
+    // Spec 1002 exception: the engine chain STARTS with `entity create` — a
+    // missing entity is generated (with a minimal `id: String` identity)
+    // instead of rejected, so `zfa make engine Login` is a true one-shot. In
+    // plan-only mode nothing is written, so the guard is simply skipped.
     if (argResults?['no-entity'] != true &&
         !EntityFieldResolver.entityFileExists(
           entityName: entityName,
           projectRoot: manager.projectRoot,
         )) {
-      throw MakeCommandException(
-        'Cannot run `zfa make` for "$entityName": no entity source file '
-        'was found. Create the entity first with '
-        '`zfa entity create -n $entityName` (or pass --no-entity if you '
-        'intentionally want to generate code without a backing entity).',
-      );
+      if (engineMode && planOnly) {
+        // Planning never writes files: the engine plan can be inspected
+        // before the entity exists (the generation path auto-creates it).
+      } else if (engineMode) {
+        await _createEngineEntity(entityName);
+      } else {
+        throw MakeCommandException(
+          'Cannot run `zfa make` for "$entityName": no entity source file '
+          'was found. Create the entity first with '
+          '`zfa entity create -n $entityName` (or pass --no-entity if you '
+          'intentionally want to generate code without a backing entity).',
+        );
+      }
     }
 
-    if (argResults?['plan'] == true || argResults?['explain'] == true) {
+    if (planOnly) {
       _printPlan(
         plan,
         emission: _repositoryEmissionSection(plan, normalizedOptions),
@@ -511,6 +613,28 @@ class MakeCommand extends Command<void> {
     if (activePlugins.isEmpty) {
       print('❌ No active plugins to run.');
       return;
+    }
+
+    // Spec 1002: the engine slice is pure Dart — drop every
+    // Flutter-importing presentation plugin with a notice, even when a
+    // config default, an alias, or a positional extra pulled it in.
+    if (engineMode) {
+      final flutterPlugins =
+          activePlugins
+              .where((plugin) => _engineExcludedPluginIds.contains(plugin.id))
+              .map((plugin) => plugin.id)
+              .toList()
+            ..sort();
+      if (flutterPlugins.isNotEmpty) {
+        print(
+          'ℹ️  engine preset: dropping Flutter-importing plugins '
+          '(${flutterPlugins.join(", ")}) — the engine slice stays pure '
+          'Dart (spec 1002).',
+        );
+        activePlugins.removeWhere(
+          (plugin) => _engineExcludedPluginIds.contains(plugin.id),
+        );
+      }
     }
 
     final context = manager.buildContext(
@@ -711,7 +835,68 @@ class MakeCommand extends Command<void> {
 
     try {
       final files = await manager.run(context, activePlugins);
+
+      // Spec #972 FR-4 — same-plan interface-expectation post-pass.
+      //
+      // When the usecase plugin's source-interface guard failed open
+      // (the interface was absent at generation time), the run recorded
+      // what it ASSUMED the same plan would declare. Verify that now,
+      // against the tree as committed: if the responsible plugin
+      // (repository/service) did not declare the requested methods, the
+      // generated usecases cannot compile — fail the run loudly with the
+      // exact repair command instead of letting `zfa build` break later.
+      if (!isDryRun && !isRevert) {
+        final failures = await _verifyUsecaseExpectations(
+          context,
+          activePlugins,
+        );
+        if (failures.isNotEmpty) {
+          for (final failure in failures) {
+            print(failure.detail);
+            print('   ${failure.fixLine}');
+          }
+          exitCode = 1;
+          return;
+        }
+      }
+
+      // Spec #979 (orders 2 + 4) — provider post-pass hook: persist the
+      // deterministic provider receipt and run the stub-escape +
+      // conformance gates. Fresh stubs are RECORDED and NAMED (stub-first
+      // semantics preserved — the TDD flow fills them); a provider the run
+      // did not rewrite whose stubs survived, or a missing interface
+      // method, fails the run with --> fix: lines (a stub is not allowed
+      // to hide, and a hollow provider must not reach production).
+      if (!isDryRun && !isRevert) {
+        final providerGateFailed = await _providerPostPass(
+          entityName,
+          files,
+          activePlugins,
+        );
+        if (providerGateFailed) {
+          exitCode = 1;
+          return;
+        }
+      }
+
       _logSummary(files, context.core.verbose, plan: plan);
+      // Spec 1002: the engine tail — mock certification, engine check,
+      // and the auto-receipt — runs after the generation transaction
+      // committed, so the checker reads the real on-disk tree.
+      var engineCheckPassed = true;
+      if (engineMode && !planOnly && !isRevert && !isDryRun) {
+        engineCheckPassed = await _runEngineTail(
+          entityName: entityName,
+          files: files,
+          context: context,
+        );
+      }
+      if (!engineCheckPassed) {
+        // The generation succeeded but the engine check found dangling
+        // wiring — report failure to automation (the receipt records the
+        // findings) and skip the success branding below.
+        return;
+      }
     } catch (e) {
       print('❌ Generation failed: $e');
       if (context.core.verbose) {
@@ -748,6 +933,154 @@ class MakeCommand extends Command<void> {
     if (argResults?['format'] != 'json') {
       print('✅ Done.');
     }
+  }
+
+  /// Spec #972 FR-4: runs the usecase interface-expectation post-pass
+  /// for the expectations this plan recorded (see
+  /// [UseCasePlugin.generateWithContext]). Failures mean a same-plan
+  /// misfire: the generated usecases call methods the responsible plugin
+  /// never declared.
+  Future<List<UsecaseExpectationFailure>> _verifyUsecaseExpectations(
+    PluginContext context,
+    List<ZuraffaPlugin> activePlugins,
+  ) async {
+    final expectations = expectationsFromContextData(context.data);
+    if (expectations.isEmpty) return const [];
+    return UsecaseExpectationPostPass().verify(
+      projectRoot: manager.projectRoot,
+      expectations: expectations,
+      activePluginIds: activePlugins.map((p) => p.id).toSet(),
+    );
+  }
+
+  /// Spec #979 (orders 2 + 4): the provider post-pass — receipt + gates.
+  ///
+  /// Returns true when the run must FAIL (committed stubs survived, or a
+  /// conformance miss). Fresh stubs (the provider this run just wrote —
+  /// stub-first semantics) are recorded in the deterministic receipt and
+  /// named in the output, and do NOT fail the run: stubs are allowed to
+  /// exist, never to hide.
+  Future<bool> _providerPostPass(
+    String entityName,
+    List<GeneratedFile> files,
+    List<ZuraffaPlugin> activePlugins,
+  ) async {
+    if (!activePlugins.any((p) => p.id == 'provider')) return false;
+
+    final entity = StringUtils.convertToPascalCase(entityName);
+    final report = await const ProviderVerifier().verify(
+      projectRoot: manager.projectRoot,
+      entity: entity,
+    );
+
+    // The provider plugin declined to generate (e.g. no service named —
+    // its own skip semantics, the #412 full-bundle shape): nothing was
+    // committed, nothing to gate.
+    if (report.providerFile == null) return false;
+
+    final providerFile = report.providerFile!;
+    final relative = _projectRelative(providerFile);
+
+    // Did THIS run (re)write the provider? (make reports paths relative
+    // to the project root, e.g. lib/src/data/providers/...)
+    final runEntry = files.where((f) {
+      final fRel = f.path.replaceAll('\\', '/');
+      return fRel == relative ||
+          fRel.endsWith('/$relative') ||
+          providerFile.endsWith('/${fRel.split('/').last}') &&
+              f.type == 'provider';
+    }).toList();
+    final fresh = runEntry.any(
+      (f) =>
+          f.action == 'created' ||
+          f.action == 'overwritten' ||
+          f.action == 'updated',
+    );
+
+    // Receipt: proof.v1 digests of the final bytes + the ledger data
+    // (interface / methods / stub count) — best-effort by design.
+    try {
+      await ProviderReceiptWriter().write(
+        projectRoot: manager.projectRoot,
+        entity: entity,
+        files: runEntry.isNotEmpty
+            ? runEntry
+            : [
+                // Committed, untouched by this run — digest the current
+                // bytes so the receipt stays truthful.
+                GeneratedFile(
+                  path: providerFile,
+                  type: 'provider',
+                  action: 'updated',
+                ),
+              ],
+        interface: report.interface,
+        methods: report.methods,
+        stubCount: report.stubCount,
+        input: {'name': entity, 'via': 'zfa make $entityName'},
+      );
+    } catch (e) {
+      print('⚠️  Provider receipt not written: $e');
+    }
+
+    // ── Conformance gate (order 4): always a failure ───────────────────
+    final conformance = report.findings
+        .where(
+          (f) =>
+              f.kind == ProviderVerifyFinding.kindMissingMethod ||
+              f.kind == ProviderVerifyFinding.kindMissingService,
+        )
+        .toList();
+    if (conformance.isNotEmpty) {
+      print(
+        '❌ Provider conformance failed for "$entity" — '
+        '${conformance.length} finding(s):',
+      );
+      for (final finding in conformance) {
+        print('  [${finding.kind}] ${finding.detail}');
+        print('    ${finding.fix}');
+      }
+      return true;
+    }
+
+    // ── Stub-escape gate (order 2) ────────────────────────────────────
+    final stubs = report.stubFindings.toList();
+    if (stubs.isEmpty) return false;
+
+    if (fresh) {
+      // Fresh stubs are the intended stub-first output: NAME them and
+      // record them (the receipt above carries the count), do not fail.
+      print(
+        'ℹ️  Provider $relative generated stub-first: '
+        '${stubs.length} method(s) still throw UnimplementedError '
+        '(recorded in .zfa/receipts/provider-$entity.json — the TDD '
+        'flow fills them):',
+      );
+      print('    ${stubs.map((s) => s.method).join(', ')}');
+      print(
+        '    --> fix: `zfa provider verify $entity` fails until every '
+        'stub is filled.',
+      );
+      return false;
+    }
+
+    print(
+      '❌ Provider stub-escape: the committed provider for "$entity" '
+      'still contains UnimplementedError method bodies — the skeleton '
+      'survived a full make run (spec 979):',
+    );
+    for (final finding in stubs) {
+      print('  [stub] ${finding.detail}');
+      print('    ${finding.fix}');
+    }
+    return true;
+  }
+
+  String _projectRelative(String absolutePath) {
+    final rel = path.isAbsolute(absolutePath)
+        ? path.relative(absolutePath, from: manager.projectRoot)
+        : absolutePath;
+    return rel.replaceAll('\\', '/');
   }
 
   Future<Map<String, dynamic>?> _loadJsonConfig() async {
@@ -988,6 +1321,152 @@ class MakeCommand extends Command<void> {
         }
       }
     }
+  }
+
+  /// Spec 1002: engine-chain step 1 — `entity create`. Generates the
+  /// entity via the same zorphy `EntityCreator` path `zfa entity create`
+  /// uses, with a minimal `id: String` identity so the id-dependent
+  /// generators (repository/usecase/datasource/mock signatures, seeded
+  /// mock data) have a real identity to reference.
+  Future<void> _createEngineEntity(String name) async {
+    // Issue #942 preflight (same guard as `zfa entity create`): an entity
+    // name colliding with a zuraffa framework export makes every
+    // generated file fail with ambiguous_import errors.
+    final surface = FrameworkExportSurface.tryResolve(
+      projectRoot: manager.projectRoot,
+    );
+    final collisionSource = surface?.lookup(name);
+    if (collisionSource != null) {
+      throw MakeCommandException(
+        'Cannot create entity "$name": the name collides with the zuraffa '
+        'framework export "$name" ($collisionSource).\n'
+        '--> fix: rename the entity, e.g. `zfa make engine ${name}Entity`.',
+      );
+    }
+
+    final outputDir = ZfaConfig.fixedEntityOutput;
+    final config = EntityConfig(
+      name: name,
+      outputDir: outputDir,
+      fields: const [FieldDefinition(name: 'id', type: 'String')],
+      generateJson: true,
+      generateCompareTo: true,
+    );
+    final creator = EntityCreator(baseOutputDir: outputDir);
+    final result = await creator.create(config);
+    if (!result.isSuccess) {
+      throw MakeCommandException(
+        'Engine chain step `entity create` failed for "$name": '
+        '${result.error ?? 'unknown zorphy error'}',
+      );
+    }
+    print('✨ Engine chain [entity create]: ${result.filePath}');
+  }
+
+  /// Spec 1002: the engine tail — mock certification (per-method),
+  /// `engine check` (getIt resolution + purity scan), and the
+  /// `engine.receipt.json` auto-receipt. Returns true when the engine
+  /// check passed.
+  Future<bool> _runEngineTail({
+    required String entityName,
+    required List<GeneratedFile> files,
+    required PluginContext context,
+  }) async {
+    final projectRoot = manager.projectRoot;
+    final methods =
+        (context.data['methods'] as List?)?.cast<String>() ?? const <String>[];
+    final format = (argResults?['format'] as String?) ?? 'text';
+
+    final checkResult = await EngineChecker.check(
+      entity: entityName,
+      projectRoot: projectRoot,
+      methods: methods,
+    );
+
+    final slice = EngineSlicePaths(
+      entity: entityName,
+      projectRoot: projectRoot,
+    );
+    final diFiles = slice
+        .entityDiFiles()
+        .map((file) => p.relative(file.path, from: projectRoot))
+        .toList();
+
+    final writer = EngineReceiptWriter(projectRoot: projectRoot);
+    final receiptFile = await writer.write(
+      command: 'zfa make engine $entityName',
+      entityName: entityName,
+      entityPath: slice.entityFile,
+      methods: methods,
+      mockCertified: checkResult.mockCertification?.methods ?? const {},
+      mockDatasourcePath: checkResult.mockCertification?.mockDatasourcePath,
+      mockDataPath: checkResult.mockCertification?.mockDataPath,
+      diFiles: diFiles,
+      getItTypes: checkResult.resolvedTypes,
+      engineCheckPassed: checkResult.passed,
+      engineCheckFailures: checkResult.failures,
+      generatedFiles: files.map((file) => file.path).toList(),
+    );
+    final receiptPath = p.relative(receiptFile.path, from: projectRoot);
+
+    if (format == 'json') {
+      print(
+        jsonEncode({
+          'engine_receipt': receiptPath,
+          'engine_check': {
+            'passed': checkResult.passed,
+            'getit_types': checkResult.resolutions.length,
+            'getit_types_resolved': checkResult.resolvedTypes.length,
+            'mock_certified': checkResult.mockCertification?.certified,
+            'failures': [
+              for (final failure in checkResult.failures) failure.toJson(),
+            ],
+          },
+        }),
+      );
+    } else {
+      print('\n🔍 Engine check: $entityName');
+      final certification = checkResult.mockCertification;
+      if (certification != null) {
+        for (final entry in certification.methods.entries) {
+          print(
+            '  ${entry.value ? "✅" : "❌"} mock ${entry.key} '
+            '${entry.value ? "certified" : "uncertified"}',
+          );
+        }
+      }
+      for (final resolution in checkResult.resolutions) {
+        final target =
+            resolution.diRegistrationFile ?? resolution.declaringFile;
+        print(
+          '  ${resolution.resolved ? "✅" : "❌"} '
+          'getIt<${resolution.typeName}> (${target ?? "dangling"})',
+        );
+      }
+      print('🧾 Engine receipt: $receiptPath');
+    }
+
+    if (checkResult.passed) {
+      if (format != 'json') {
+        print(
+          '✅ Engine check passed for "$entityName" '
+          '(${checkResult.resolvedTypes.length} getIt references resolved).',
+        );
+      }
+      return true;
+    }
+
+    if (format != 'json') {
+      print(
+        '❌ Engine check failed for "$entityName" '
+        '(${checkResult.failures.length} finding(s)):',
+      );
+      for (final failure in checkResult.failures) {
+        print('❌ ${failure.message}');
+      }
+    }
+    exitCode = 1;
+    return false;
   }
 
   /// Returns the skip reason when [entityName] normalizes to a feature

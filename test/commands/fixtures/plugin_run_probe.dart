@@ -19,6 +19,7 @@ import 'package:zuraffa/src/commands/service_command.dart';
 import 'package:zuraffa/src/commands/sqlite_command.dart';
 import 'package:zuraffa/src/commands/state_command.dart';
 import 'package:zuraffa/src/commands/test_command.dart';
+import 'package:zuraffa/src/commands/usecase_command.dart';
 import 'package:zuraffa/src/plugins/di/di_plugin.dart';
 import 'package:zuraffa/src/plugins/mock/mock_plugin.dart';
 import 'package:zuraffa/src/plugins/provider/provider_plugin.dart';
@@ -28,6 +29,7 @@ import 'package:zuraffa/src/plugins/service/service_plugin.dart';
 import 'package:zuraffa/src/plugins/sqlite/sqlite_plugin.dart';
 import 'package:zuraffa/src/plugins/state/state_plugin.dart';
 import 'package:zuraffa/src/plugins/test/test_plugin.dart';
+import 'package:zuraffa/src/plugins/usecase/usecase_plugin.dart';
 
 Future<void> main(List<String> args) async {
   const outputDir = 'lib/src';
@@ -50,6 +52,8 @@ Future<void> main(List<String> args) async {
       await RouteCommand(RoutePlugin(outputDir: outputDir)).run();
     case 'di':
       await ModularDiCommand(DiPlugin(outputDir: outputDir)).run();
+    case 'usecase':
+      await UseCaseCommand(UseCasePlugin(outputDir: outputDir)).run();
     default:
       throw StateError('unknown command: ${args.single}');
   }

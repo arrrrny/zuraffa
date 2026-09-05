@@ -26,6 +26,8 @@
 /// not happen, and passes only on the real outcome.
 library;
 
+import 'i18n_key_contract.dart';
+
 /// The assertion semantics a scenario verb demands (issue #964).
 enum ScenarioAssertionClass {
   /// The literal must be present on screen (`find.text` + findsOneWidget).
@@ -323,6 +325,49 @@ abstract final class FinderTaxonomy {
     );
   }
 
+  /// Issue #965: resolve declared i18n keys. A presence/enabled-state/
+  /// absence literal equal to a declared anchor becomes ONE literal kind —
+  /// [LiteralKind.key] (the kind issue #964 reserved for this contract) —
+  /// carrying the accessor (`t.auth.signIn`) as its literal, so the test
+  /// emitter and the view generator render code identity, never a quoted
+  /// EN literal. Route outcomes are NEVER mapped (a route literal is a
+  /// route name, not display text — mapping it would break the
+  /// NavigatorObserver assertion). An empty table returns [analysis]
+  /// untouched (zero drift for non-i18n hosts).
+  static ScenarioAnalysis resolveKeys(
+    ScenarioAnalysis analysis,
+    I18nKeyTable table,
+  ) {
+    if (table.isEmpty) return analysis;
+    var mappedAny = false;
+    final mapped = <ScenarioAssertion>[];
+    for (final assertion in analysis.assertions) {
+      final key =
+          assertion.assertionClass == ScenarioAssertionClass.routeOutcome
+          ? null
+          : table.keyOf(assertion.literal);
+      if (key == null) {
+        mapped.add(assertion);
+        continue;
+      }
+      mappedAny = true;
+      mapped.add(
+        ScenarioAssertion(
+          assertionClass: assertion.assertionClass,
+          literal: 't.$key',
+          kind: LiteralKind.key,
+          disabled: assertion.disabled,
+        ),
+      );
+    }
+    if (!mappedAny) return analysis;
+    return ScenarioAnalysis(
+      description: analysis.description,
+      assertions: mapped,
+      sequence: analysis.sequence,
+    );
+  }
+
   /// Emit the Dart assertion lines for [analysis], in scenario order.
   /// [escape] makes each literal safe inside a single-quoted Dart string
   /// (the writer passes [its own escaper]). Every line fails through an
@@ -345,11 +390,15 @@ abstract final class FinderTaxonomy {
     String Function(String raw) escape,
   ) {
     final literal = escape(assertion.literal);
+    // Issue #965: keyed surfaces assert through the RESOLVED accessor —
+    // the target is code identity (raw `t.auth.signIn`), never a quoted
+    // EN literal. Text-kind targets stay quoted string literals.
+    final target = assertion.kind == LiteralKind.key ? literal : "'$literal'";
     switch (assertion.assertionClass) {
       case ScenarioAssertionClass.presence:
-        return "expect(find.text('$literal'), findsOneWidget);";
+        return 'expect(find.text($target), findsOneWidget);';
       case ScenarioAssertionClass.absence:
-        return "expect(find.text('$literal'), findsNothing);";
+        return 'expect(find.text($target), findsNothing);';
       case ScenarioAssertionClass.routeOutcome:
         return "expect(observer.pushedNames, contains('$literal'),\n"
             '          reason: '
@@ -357,8 +406,8 @@ abstract final class FinderTaxonomy {
             "a rendered string is not a navigation');";
       case ScenarioAssertionClass.enabledState:
         return "{\n"
-            "        final buttonFinder = find.widgetWithText(ElevatedButton, "
-            "'$literal');\n"
+            '        final buttonFinder = find.widgetWithText(ElevatedButton, '
+            '$target);\n'
             '        expect(buttonFinder, findsOneWidget,\n'
             "          reason: 'the scenario asserts the $literal control "
             "exists');\n"

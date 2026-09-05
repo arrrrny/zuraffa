@@ -168,7 +168,14 @@ void registerProductUseCases(GetIt getIt) {
 | Generate DI registrations | `--di` |
 | Use mock implementations | `--use-mock` (inject mocks instead of real implementations) |
 | Modular DI files | `--modular-di` (per-domain DI files) |
-| Registration detection | `zfa di <UseCaseName>` — auto-detect dependencies from UseCase files |
+| Create registrations for an entity/usecase | `zfa di create <Name>` (auto-wires per-method usecases) |
+| Register an existing class | `zfa di register <ClassName>` (auto-detects the domain) |
+| Verify bindings | `zfa di verify` — dangling `getIt<T>()` registrations fail with a `--> fix:` hint |
+
+> The positional grammar `zfa di <UseCaseName>` was removed (#856): only the
+> subcommand grammar above is live. `zfa di create|register` ship a
+> `proof.v1` receipt under `.zfa/receipts/` (spec 0974) so `zfa proof
+> check` covers standalone runs.
 
 ### RegistrationDetector
 
