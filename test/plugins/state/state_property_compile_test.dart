@@ -24,7 +24,7 @@ import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/state/builders/state_builder.dart';
 
-import '../helpers/project_root.dart';
+import '../../helpers/project_root.dart';
 
 void main() {
   late Directory sandbox;
