@@ -388,6 +388,7 @@ class RunCommand extends Command<void> {
         rows,
         state,
         stoppedAt: stop.stoppedAt,
+        skippedWidgets: skippedWidgets,
       );
       exitCode = stop.exitCode;
     }
@@ -703,53 +704,46 @@ class RunCommand extends Command<void> {
     final allDone = rows.every(
       (r) => current.behaviorStates[r.id] == BehaviorState.done,
     );
-    if (!allDone && skippedRefactors.isNotEmpty) {
-      // Bug #734 per-behavior gate (+ v2 refusal skips): the pass
-      // completed for every behavior that could refactor; the rest stay
-      // GREEN with their refactor outstanding — bounded, resumable
-      // progress (FR-007), never a fake DONE (FR-008). The run stops
-      // honestly, naming the skips, their reasons, and the resume path.
-      print(
-        'zfa tdd run: refactor skipped for '
-        '${skippedRefactors.keys.join(', ')} — '
-        '${skippedRefactors.values.toSet().join(' / ')}',
-      );
-      print(
-        '   resume: restore the suite green (re-run make for behaviors '
-        'whose own test is red; fix the failing tests the preflight '
-        'named otherwise), then re-run `zfa tdd run $feature`',
-      );
+    if (!allDone &&
+        (skippedRefactors.isNotEmpty || skippedWidgets.isNotEmpty)) {
+      // Bug #734 per-behavior gate (+ v2 refusal skips, issue #992): the
+      // pass completed for every behavior that could proceed; the rest
+      // stay at their last completed state with their outstanding work
+      // named — bounded, resumable progress (FR-007), never a fake DONE
+      // (FR-008). One terminal block reports BOTH skip kinds: a stop can
+      // carry refactors and widget skips together, and the summary must
+      // name each with its resume path (review finding on #1071).
+      if (skippedRefactors.isNotEmpty) {
+        print(
+          'zfa tdd run: refactor skipped for '
+          '${skippedRefactors.keys.join(', ')} — '
+          '${skippedRefactors.values.toSet().join(' / ')}',
+        );
+        print(
+          '   resume: restore the suite green (re-run make for behaviors '
+          'whose own test is red; fix the failing tests the preflight '
+          'named otherwise), then re-run `zfa tdd run $feature`',
+        );
+      }
+      if (skippedWidgets.isNotEmpty) {
+        print(
+          'zfa tdd run: widget-lane skipped for '
+          '${skippedWidgets.keys.join(', ')} — '
+          '${skippedWidgets.values.toSet().join(' / ')}',
+        );
+        print(
+          '   resume: add shadcn_ui (flutter pub add shadcn_ui --dev) or '
+          'drop --skip-widget, then re-run `zfa tdd run $feature`',
+        );
+      }
       _printSummary(
         feature,
         'stopped',
         rows,
         current,
-        stoppedAt: '${skippedRefactors.keys.first}:refactor',
-      );
-      exitCode = _exitStopped;
-      return;
-    }
-    if (!allDone && skippedWidgets.isNotEmpty) {
-      // Issue #992: the pass completed for every non-widget behavior;
-      // the widget-lane skips stay at their last completed state with
-      // their generation outstanding — bounded, resumable progress
-      // (FR-007), never a fake DONE (FR-008). The run stops honestly,
-      // naming the skips, their reason, and both resume paths.
-      print(
-        'zfa tdd run: widget-lane skipped for '
-        '${skippedWidgets.keys.join(', ')} — '
-        '${skippedWidgets.values.toSet().join(' / ')}',
-      );
-      print(
-        '   resume: add shadcn_ui (flutter pub add shadcn_ui --dev) or '
-        'drop --skip-widget, then re-run `zfa tdd run $feature`',
-      );
-      _printSummary(
-        feature,
-        'stopped',
-        rows,
-        current,
-        stoppedAt: '${skippedWidgets.keys.first}:gen',
+        stoppedAt: skippedRefactors.isNotEmpty
+            ? '${skippedRefactors.keys.first}:refactor'
+            : '${skippedWidgets.keys.first}:gen',
         skippedWidgets: skippedWidgets,
       );
       exitCode = _exitStopped;

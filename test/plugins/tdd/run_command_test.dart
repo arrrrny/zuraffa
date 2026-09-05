@@ -845,6 +845,77 @@ void main() {
     expect(fx.stepInvocations(), isNot(contains('gen B-002')));
   });
 
+  test('issue #992 (review): a widget skip is still named when a later '
+      'behavior stops the run', () async {
+    // B-001 is skipped, then B-002's make fails plainly — the stop path
+    // (applyStop) must carry the recorded skip in its summary too, not
+    // only the skip-specific terminal branch.
+    await fx.setStepOutcome('gen', 'B-001', 'refused-widget');
+    await fx.setStepOutcome('make', 'B-002', 'boom');
+
+    final out = await drive(extraArgs: const ['--skip-widget']);
+
+    expect(exitCode, 1, reason: out);
+    expect(
+      out,
+      contains('step failed — behavior=B-002 step=make outcome=boom'),
+      reason: out,
+    );
+    expect(out, contains('stopped_at=B-002:make'), reason: out);
+    expect(out, contains('skipped-widget=1'), reason: out);
+    final state = await readState();
+    expect(state['behavior_states']['B-001'], 'pending', reason: out);
+  });
+
+  test('issue #992 (review): refactor skips and widget skips are reported '
+      'TOGETHER at the terminal summary', () async {
+    // A1 is green (certified) but its phase-2b refactor refuses; U2's
+    // gen refuses on the widget gate with --skip-widget. The terminal
+    // summary must name BOTH skips and carry skipped-widget=1 — not
+    // return at the refactor branch with the widget skip unreported.
+    await fx.seedTestList([
+      (
+        id: 'A1',
+        description: 'the entity exists and is buildable.',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'acceptance',
+      ),
+      (
+        id: 'U2',
+        description: 'widget-lane behavior',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+    ]);
+    await fx.registerBehavior(
+      id: 'A1',
+      description: 'the entity exists and is buildable.',
+      writeTestFile: false,
+    );
+    await fx.registerBehavior(id: 'U2', description: 'widget-lane behavior');
+    await fx.seedRedEvidence('A1');
+    await fx.seedGreenEvidence('A1');
+    await fx.seedRunState(states: {'A1': 'green', 'U2': 'pending'});
+    await fx.setStepOutcome('refactor', 'A1', 'not-green');
+    await fx.setStepOutcome('gen', 'U2', 'refused-widget');
+
+    final out = await drive(extraArgs: const ['--skip-widget']);
+
+    expect(exitCode, 1, reason: out);
+    expect(out, contains('refactor skipped for A1'), reason: out);
+    expect(out, contains('widget-lane skipped for U2'), reason: out);
+    expect(
+      out,
+      contains(
+        'result=stopped pending=1 red=0 green=1 done=0 skipped-widget=1',
+      ),
+      reason: out,
+    );
+    expect(out, contains('stopped_at=A1:refactor'), reason: out);
+  });
+
   test(
     'bug 734: refactor defers while a pending behavior carries generated '
     'stubs — the run drives it first, then refactors every behavior',
