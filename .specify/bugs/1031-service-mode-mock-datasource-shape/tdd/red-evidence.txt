@@ -1,0 +1,81 @@
+00:00 +0: loading test/plugins/di/simulation_service_binding_test.dart
+00:00 +0: #1031: service-mode simulation binding shape emits a service-shaped simulation binding, not datasource-shaped
+00:00 +0 -1: #1031: service-mode simulation binding shape emits a service-shaped simulation binding, not datasource-shaped [E]
+  Expected: true
+    Actual: <false>
+  service-mode mock create must emit the service-shaped simulation binding auth_simulation_service_di.dart
+  
+  package:matcher                                             expect
+  test/plugins/di/simulation_service_binding_test.dart 107:9  main.<fn>.<fn>
+  
+00:00 +0 -1: #1031: service-mode simulation binding shape does not also emit the datasource-shaped binding in service mode
+00:00 +0 -2: #1031: service-mode simulation binding shape does not also emit the datasource-shaped binding in service mode [E]
+  Expected: false
+    Actual: <true>
+  the datasource-shaped binding binds interfaces that were never generated — it must not be emitted in service mode
+  
+  package:matcher                                             expect
+  test/plugins/di/simulation_service_binding_test.dart 153:9  main.<fn>.<fn>
+  
+00:00 +0 -2: #1031: service-mode simulation binding shape resolves a domain-scoped service interface import
+00:00 +0 -3: #1031: service-mode simulation binding shape resolves a domain-scoped service interface import [E]
+  PathNotFoundException: Cannot open file, path = '/tmp/zuraffa_1031_HYDYJR/lib/src/di/simulation/auth_simulation_service_di.dart' (OS Error: No such file or directory, errno = 2)
+  dart:io                                                      _File.readAsStringSync
+  test/plugins/di/simulation_service_binding_test.dart 185:44  main.<fn>.<fn>
+  
+00:00 +0 -3: #1031: service-mode simulation binding shape wires the service binding into the simulation index
+00:00 +0 -4: #1031: service-mode simulation binding shape wires the service binding into the simulation index [E]
+  Expected: contains 'registerAuthSimulationService(getIt);'
+    Actual: '// GENERATED - DO NOT EDIT\n'
+              'import \'package:zuraffa/simulation.dart\';\n'
+              'import \'package:zuraffa/zuraffa.dart\';\n'
+              '\n'
+              'import \'auth_simulation_datasource_di.dart\';\n'
+              '\n'
+              'void registerSimulationBindings(GetIt getIt) {\n'
+              '  SimulationFlavor.checkFlagConflicts();\n'
+              '  registerAuthSimulationDataSource(getIt);\n'
+              '}\n'
+              '\n'
+              '// END GENERATED\n'
+              ''
+     Which: does not contain 'registerAuthSimulationService(getIt);'
+  
+  package:matcher                                             expect
+  test/plugins/di/simulation_service_binding_test.dart 203:7  main.<fn>.<fn>
+  
+00:00 +0 -4: #1031: service-mode simulation binding shape datasource mode is unchanged: entity mock create still emits the datasource-shaped binding
+00:00 +1 -4: #1031: service-mode simulation binding shape service and datasource bindings coexist in the simulation index
+00:00 +1 -5: #1031: service-mode simulation binding shape service and datasource bindings coexist in the simulation index [E]
+  Expected: contains 'registerAuthSimulationService(getIt);'
+    Actual: '// GENERATED - DO NOT EDIT\n'
+              'import \'package:zuraffa/simulation.dart\';\n'
+              'import \'package:zuraffa/zuraffa.dart\';\n'
+              '\n'
+              'import \'auth_simulation_datasource_di.dart\';\n'
+              'import \'todo_simulation_datasource_di.dart\';\n'
+              '\n'
+              'void registerSimulationBindings(GetIt getIt) {\n'
+              '  SimulationFlavor.checkFlagConflicts();\n'
+              '  registerAuthSimulationDataSource(getIt);\n'
+              '  registerTodoSimulationDataSource(getIt);\n'
+              '}\n'
+              '\n'
+              '// END GENERATED\n'
+              ''
+     Which: does not contain 'registerAuthSimulationService(getIt);'
+  
+  package:matcher                                             expect
+  test/plugins/di/simulation_service_binding_test.dart 238:7  main.<fn>.<fn>
+  
+00:00 +1 -5: Some tests failed.
+
+Failing tests:
+  test/plugins/di/simulation_service_binding_test.dart: #1031: service-mode simulation binding shape does not also emit the datasource-shaped binding in service mode
+  test/plugins/di/simulation_service_binding_test.dart: #1031: service-mode simulation binding shape emits a service-shaped simulation binding, not datasource-shaped
+  test/plugins/di/simulation_service_binding_test.dart: #1031: service-mode simulation binding shape resolves a domain-scoped service interface import
+  test/plugins/di/simulation_service_binding_test.dart: #1031: service-mode simulation binding shape service and datasource bindings coexist in the simulation index
+  test/plugins/di/simulation_service_binding_test.dart: #1031: service-mode simulation binding shape wires the service binding into the simulation index
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.

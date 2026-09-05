@@ -272,7 +272,23 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             options: options,
             fileSystem: fs,
           );
-          final binding = await emitter.emitBinding(entityName: entityName);
+          // Issue #1031: in service mode the mock lane generates
+          // `<Name>MockProvider` (data/providers/) implementing
+          // `<Name>Service` — no datasource classes exist — so the
+          // simulation binding must follow the service shape instead of
+          // the datasource shape.
+          final binding = config.hasService
+              ? await emitter.emitBinding(
+                  entityName: entityName,
+                  serviceInterfaceName: config.effectiveService,
+                  serviceMockProviderName: config.effectiveProvider?.replaceAll(
+                    'Provider',
+                    'MockProvider',
+                  ),
+                  serviceSnake: config.serviceSnake,
+                  serviceDomain: config.effectiveDomain,
+                )
+              : await emitter.emitBinding(entityName: entityName);
           files.add(binding);
           final simulationIndex = await emitter.regenerateIndex(
             pendingFiles: [binding],

@@ -165,9 +165,9 @@ void main() {
       // domain/services/<domain>/ — the binding must import that location.
       final entityDir = Directory('$outputDir/domain/entities/user');
       await entityDir.create(recursive: true);
-      await File('${entityDir.path}/user.dart').writeAsString(
-        'class User { final String id; const User(this.id); }',
-      );
+      await File(
+        '${entityDir.path}/user.dart',
+      ).writeAsString('class User { final String id; const User(this.id); }');
       await seedAuthService(domain: 'auth');
       await mockPlugin().generate(
         GeneratorConfig(
@@ -183,10 +183,7 @@ void main() {
       );
 
       final content = serviceBindingFile().readAsStringSync();
-      expect(
-        content,
-        contains('../../domain/services/auth/auth_service.dart'),
-      );
+      expect(content, contains('../../domain/services/auth/auth_service.dart'));
     });
 
     test('wires the service binding into the simulation index', () async {
@@ -196,10 +193,7 @@ void main() {
       final index = simulationIndexFile();
       expect(index.existsSync(), isTrue);
       final content = index.readAsStringSync();
-      expect(
-        content,
-        contains('void registerSimulationBindings(GetIt getIt)'),
-      );
+      expect(content, contains('void registerSimulationBindings(GetIt getIt)'));
       expect(content, contains('registerAuthSimulationService(getIt);'));
       expect(content, contains("import 'auth_simulation_service_di.dart';"));
     });
@@ -227,15 +221,17 @@ void main() {
       },
     );
 
-    test('service and datasource bindings coexist in the simulation index',
-        () async {
-      await runDatasourceMockCreate('Todo');
-      await seedAuthService();
-      await runServiceMockCreate();
+    test(
+      'service and datasource bindings coexist in the simulation index',
+      () async {
+        await runDatasourceMockCreate('Todo');
+        await seedAuthService();
+        await runServiceMockCreate();
 
-      final content = simulationIndexFile().readAsStringSync();
-      expect(content, contains('registerTodoSimulationDataSource(getIt);'));
-      expect(content, contains('registerAuthSimulationService(getIt);'));
-    });
+        final content = simulationIndexFile().readAsStringSync();
+        expect(content, contains('registerTodoSimulationDataSource(getIt);'));
+        expect(content, contains('registerAuthSimulationService(getIt);'));
+      },
+    );
   });
 }

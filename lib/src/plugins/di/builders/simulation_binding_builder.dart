@@ -47,18 +47,71 @@ class SimulationBindingBuilder {
       '// bindings live in di/simulation/ and are the only generated\n'
       '// bindings that switch on the SIMULATION flavor define.';
 
-  /// Emits `register<Entity>SimulationDataSource(GetIt getIt)`, which
-  /// binds `<Entity>DataSource` (the production interface) to
+  /// Emits the per-entity simulation binding file.
+  ///
+  /// Datasource mode (default): emits
+  /// `register<Entity>SimulationDataSource(GetIt getIt)`, which binds
+  /// `<Entity>DataSource` (the production interface) to
   /// `<Entity>MockDataSource` and no-ops unless the app was compiled with
   /// `--dart-define=SIMULATION=true`.
+  ///
+  /// Service mode (#1031): when [serviceInterfaceName] is non-null, emits
+  /// `register<Name>SimulationService(GetIt getIt)` instead, binding
+  /// `<Name>Service` (the production interface) to `<Name>MockProvider` —
+  /// the mock surface the service lane actually generates. The datasource
+  /// names/classes do not exist in service mode, so a datasource-shaped
+  /// binding there is a guaranteed `uri_does_not_exist`. [entityName] and
+  /// [entitySnake] are ignored by the service branch; [serviceImportPath]
+  /// and [mockProviderImportPath] carry the fs-resolved import paths the
+  /// emitter derived from where the service lane writes its files.
   String buildBindingFile({
     required String entityName,
     required String entitySnake,
+    String? serviceInterfaceName,
+    String? serviceMockProviderName,
+    String? serviceImportPath,
+    String? mockProviderImportPath,
+  }) {
+    if (serviceInterfaceName != null) {
+      // #1031: service-mode branch. The interface name is the normalized
+      // `<Name>Service`; the generated registration mirrors the datasource
+      // lane's `register<Entity>SimulationDataSource`.
+      final baseName = serviceInterfaceName.endsWith('Service')
+          ? serviceInterfaceName.substring(
+              0,
+              serviceInterfaceName.length - 'Service'.length,
+            )
+          : serviceInterfaceName;
+      return _buildBindingFile(
+        functionName: 'register${baseName}SimulationService',
+        interfaceName: serviceInterfaceName,
+        mockName: serviceMockProviderName ?? '${baseName}MockProvider',
+        interfaceImport: serviceImportPath!,
+        mockImport: mockProviderImportPath!,
+      );
+    }
+    return _buildBindingFile(
+      functionName: 'register${entityName}SimulationDataSource',
+      interfaceName: '${entityName}DataSource',
+      mockName: '${entityName}MockDataSource',
+      interfaceImport:
+          '../../data/datasources/$entitySnake/${entitySnake}_datasource.dart',
+      mockImport:
+          '../../data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart',
+    );
+  }
+
+  /// Shared emitter for both shapes: a single flavor-guarded
+  /// `registerLazySingleton<Interface>(() => Mock())` registration with the
+  /// generated-file markers. Only the names and imports differ per lane.
+  String _buildBindingFile({
+    required String functionName,
+    required String interfaceName,
+    required String mockName,
+    required String interfaceImport,
+    required String mockImport,
   }) {
     final specLibrary = const SpecLibrary();
-    final functionName = 'register${entityName}SimulationDataSource';
-    final interfaceName = '${entityName}DataSource';
-    final mockName = '${entityName}MockDataSource';
 
     final method = Method(
       (m) => m
@@ -98,12 +151,8 @@ class SimulationBindingBuilder {
     final directives = [
       Directive.import('package:zuraffa/zuraffa.dart'),
       Directive.import('package:zuraffa/simulation.dart'),
-      Directive.import(
-        '../../data/datasources/$entitySnake/${entitySnake}_datasource.dart',
-      ),
-      Directive.import(
-        '../../data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart',
-      ),
+      Directive.import(interfaceImport),
+      Directive.import(mockImport),
     ];
 
     final body = specLibrary.emitLibrary(
@@ -189,11 +238,32 @@ class SimulationBindingEmitter {
   String entityNameFor({String? repo, required String name}) =>
       repo?.replaceAll('Repository', '') ?? name;
 
-  /// Writes `di/simulation/<entity>_simulation_datasource_di.dart`.
+  /// Writes `di/simulation/<entity>_simulation_datasource_di.dart`, or —
+  /// in service mode (#1031) —
+  /// `di/simulation/<service>_simulation_service_di.dart`.
+  ///
+  /// Service mode is selected by passing [serviceInterfaceName] (the
+  /// normalized `<Name>Service`): the emitter resolves the service
+  /// interface and mock provider imports from where the service lane
+  /// actually writes those files before delegating to the builder's
+  /// service branch.
   Future<GeneratedFile> emitBinding({
     required String entityName,
     GeneratedFile? pendingBinding,
+    String? serviceInterfaceName,
+    String? serviceMockProviderName,
+    String? serviceSnake,
+    String? serviceDomain,
   }) async {
+    if (serviceInterfaceName != null) {
+      return _emitServiceBinding(
+        serviceInterfaceName: serviceInterfaceName,
+        serviceMockProviderName: serviceMockProviderName,
+        serviceSnake: serviceSnake,
+        serviceDomain: serviceDomain,
+      );
+    }
+
     final entitySnake = StringUtils.camelToSnake(entityName);
     final fileName = '${entitySnake}_simulation_datasource_di.dart';
     final bindingPath = path.join(simulationDir, fileName);
@@ -203,6 +273,70 @@ class SimulationBindingEmitter {
       builder.buildBindingFile(
         entityName: entityName,
         entitySnake: entitySnake,
+      ),
+      'di_simulation_binding',
+      force: true,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+      fileSystem: fileSystem,
+    );
+  }
+
+  /// #1031 service-mode emission: mirrors how the service lane lays out its
+  /// files so the generated binding imports classes that really exist —
+  ///
+  ///   * interface: `domain/services/<serviceSnake>_service.dart` (custom
+  ///     services, flat) or `domain/services/<domain>/<serviceSnake>_service.dart`
+  ///     (entity-based services) — resolved from disk exactly like
+  ///     `DiPlugin._generateServiceDI`;
+  ///   * mock: `data/providers/<effectiveDomain>/<mockSnake>.dart`, the same
+  ///     path `MockProviderBuilder.generateMockProvider` writes, where
+  ///     `effectiveDomain = domain ?? <name snake>` (GeneratorConfig).
+  Future<GeneratedFile> _emitServiceBinding({
+    required String serviceInterfaceName,
+    String? serviceMockProviderName,
+    String? serviceSnake,
+    String? serviceDomain,
+  }) async {
+    final baseName = serviceInterfaceName.endsWith('Service')
+        ? serviceInterfaceName.substring(
+            0,
+            serviceInterfaceName.length - 'Service'.length,
+          )
+        : serviceInterfaceName;
+    final snake = serviceSnake ?? StringUtils.camelToSnake(baseName);
+    final mockName = serviceMockProviderName ?? '${baseName}MockProvider';
+    final fileName = '${snake}_simulation_service_di.dart';
+    final bindingPath = path.join(simulationDir, fileName);
+
+    final domainScopedServiceFile = serviceDomain == null
+        ? null
+        : path.join(
+            outputDir,
+            'domain',
+            'services',
+            serviceDomain,
+            '${snake}_service.dart',
+          );
+    final serviceImportPath =
+        domainScopedServiceFile != null &&
+            await fileSystem.exists(domainScopedServiceFile)
+        ? '../../domain/services/$serviceDomain/${snake}_service.dart'
+        : '../../domain/services/${snake}_service.dart';
+
+    final providerDomain = serviceDomain ?? snake;
+    final mockProviderImportPath =
+        '../../data/providers/$providerDomain/${StringUtils.camelToSnake(mockName)}.dart';
+
+    return FileUtils.writeFile(
+      bindingPath,
+      builder.buildBindingFile(
+        entityName: serviceInterfaceName,
+        entitySnake: snake,
+        serviceInterfaceName: serviceInterfaceName,
+        serviceMockProviderName: mockName,
+        serviceImportPath: serviceImportPath,
+        mockProviderImportPath: mockProviderImportPath,
       ),
       'di_simulation_binding',
       force: true,

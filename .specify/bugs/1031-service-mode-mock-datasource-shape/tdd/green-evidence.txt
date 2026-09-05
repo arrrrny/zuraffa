@@ -1,0 +1,8 @@
+00:00 +0: loading test/plugins/di/simulation_service_binding_test.dart
+00:00 +0: #1031: service-mode simulation binding shape emits a service-shaped simulation binding, not datasource-shaped
+00:00 +1: #1031: service-mode simulation binding shape does not also emit the datasource-shaped binding in service mode
+00:00 +2: #1031: service-mode simulation binding shape resolves a domain-scoped service interface import
+00:00 +3: #1031: service-mode simulation binding shape wires the service binding into the simulation index
+00:00 +4: #1031: service-mode simulation binding shape datasource mode is unchanged: entity mock create still emits the datasource-shaped binding
+00:00 +5: #1031: service-mode simulation binding shape service and datasource bindings coexist in the simulation index
+00:00 +6: All tests passed!

@@ -1,0 +1,6 @@
+M1 KILLED (exit 1)
+M2 KILLED (exit 1)
+M3 KILLED (exit 1)
+M4 KILLED (exit 1)
+M5 KILLED (exit 1)
+M6 KILLED (exit 1)
