@@ -52,16 +52,19 @@ class CapabilityInvocationWrapper {
       _storeOverride ?? ReceiptStore(projectRoot: projectRoot);
 
   /// Executes the capability and, when the run succeeds, auto-persists
-  /// the proof receipt. The returned [ExecutionResult] is the wrapped
-  /// capability's own verdict — a receipt failure never rewrites it.
+  /// the proof receipt (issue #996). The returned [ExecutionResult] is
+  /// the wrapped capability's own verdict — a receipt failure never
+  /// rewrites it.
+  ///
+  /// This wrapper is the SOLE receipt writer on the standalone
+  /// invocation path: [CapabilityCommand] deliberately does not persist
+  /// its own receipt on top of this one (issue #1130 — a second writer
+  /// races this one and shadows the canonical document in `loadAll()`).
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
     final result = await capability.execute(args);
-    // Issue #1130: receipt persistence is now handled exclusively by
-    // CapabilityCommand._persistCapabilityReceipt, which runs after this
-    // wrapper returns. This wrapper is kept as the execution boundary
-    // but no longer writes its own receipt — the previous duplicate
-    // (space-separated command string) shadowed the capability's
-    // canonical receipt in loadAll().
+    if (result.success) {
+      await persistReceipt(args: args, result: result);
+    }
     return result;
   }
 
@@ -75,6 +78,12 @@ class CapabilityInvocationWrapper {
     required Map<String, dynamic> args,
     required ExecutionResult result,
   }) async {
+    // A run that commits no bytes receipts nothing (issue #769). The
+    // existsSync guard below already drops deleted/never-written files,
+    // but a dry-run against a pre-existing tree would still see real
+    // bytes behind reported artifacts — so dry-run/revert are refused
+    // up front.
+    if (args['dryRun'] == true || args['revert'] == true) return null;
     try {
       final files = _receiptFiles(result);
       if (files.isEmpty) return null;
@@ -89,12 +98,17 @@ class CapabilityInvocationWrapper {
       );
 
       final receipt = GenerationReceipt(
-        command: '$pluginId-${capability.name}',
+        // One canonical command format across every receipt writer: the
+        // CLI grammar form `<plugin> <capability>` (`zfa di create`).
+        // The receipt FILENAME is independent — `saveCapability` keys it
+        // `<plugin>-<capability>-<entity>-<timestamp>.json` from the
+        // structured fields, never from this string.
+        command: '$pluginId ${capability.name}',
         target: entity,
         repro: 'zfa $pluginId ${capability.name} $entity',
         at: DateTime.now().toUtc(),
         generatorVersion: version,
-        input: Map<String, dynamic>.from(args),
+        input: _canonicalInput(args, entity: entity),
         spec: spec,
         files: files,
         plugin: pluginId,
@@ -148,12 +162,13 @@ class CapabilityInvocationWrapper {
     return File(candidate);
   }
 
-  /// The entity the invocation operated on. Every standalone capability
-  /// in the issue's matrix takes `name` as its required entity argument;
-  /// the result payload is the fallback, the capability name the last
-  /// resort (never empty — the receipt key needs an entity segment).
+  /// The entity the invocation operated on. Standalone capabilities name
+  /// their target argument `name` (the issue-996 matrix) or `target`
+  /// (`zfa di register <Class>`); the result payload is the fallback and
+  /// the capability name the last resort (never empty — the receipt key
+  /// needs an entity segment).
   String _entityOf(Map<String, dynamic> args, ExecutionResult result) {
-    final fromArgs = args['name'];
+    final fromArgs = args['name'] ?? args['target'];
     if (fromArgs is String && fromArgs.isNotEmpty) return fromArgs;
     final fromResult = result.data?['name'];
     if (fromResult is String && fromResult.isNotEmpty) return fromResult;
@@ -162,13 +177,17 @@ class CapabilityInvocationWrapper {
 
   /// Spec binding for the standalone invocation receipt: the entity
   /// source file the capability discovered FROM (issue #1130). The
-  /// capability may set `args['_entitySourcePath']` (the v5 convention)
-  /// or surface it in `result.data['entitySourcePath']`. Returns null
-  /// when no source file exists at the resolved path.
+  /// capability may set `args['_spec']` to a ready [GenerationReceiptSpec]
+  /// (the cache-adapter convention), or point at the source file via
+  /// `args['_entitySourcePath']` (the v5 convention) or
+  /// `result.data['entitySourcePath']`. Returns null when no source file
+  /// exists at the resolved path.
   GenerationReceiptSpec? _specOf(
     Map<String, dynamic> args,
     ExecutionResult result,
   ) {
+    final ready = args['_spec'];
+    if (ready is GenerationReceiptSpec) return ready;
     final raw =
         args['_entitySourcePath'] ??
         args['entitySourcePath'] ??
@@ -186,6 +205,36 @@ class CapabilityInvocationWrapper {
           ? file.readAsStringSync()
           : null,
     );
+  }
+
+  /// The receipt's public `input` map: the invocation args with the
+  /// internal `_`-prefixed keys kept OUT of the proof.v1 document
+  /// (issue #1130) — except the ones capability contracts surface under
+  /// public aliases: the cache-adapter run context and the DI index
+  /// digest aggregate. The resolved entity is always present as
+  /// `entity`, whatever arg key carried it.
+  Map<String, dynamic> _canonicalInput(
+    Map<String, dynamic> args, {
+    required String entity,
+  }) {
+    final input = <String, dynamic>{'entity': entity};
+    args.forEach((key, value) {
+      if (key == 'entity') return;
+      if (key.startsWith('_')) {
+        if (key == '_discoveredEntities') {
+          input['discoveredEntities'] = value;
+        } else if (key == '_registrarHash') {
+          input['registrarHash'] = value;
+        } else if (key == '_buildStatus') {
+          input['buildStatus'] = value;
+        } else if (key == '_indexFiles') {
+          input['indexFiles'] = value;
+        }
+        return;
+      }
+      input[key] = value;
+    });
+    return input;
   }
 
   /// The methodset the invocation wired (issue #996): the `--methods`

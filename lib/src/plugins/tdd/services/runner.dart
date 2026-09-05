@@ -32,6 +32,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/red_classification.dart';
 import 'red_classifier.dart';
+import 'test_reporter_args.dart';
 import 'tdd_timeout.dart';
 
 /// Captured result of a `suite` command invocation. The full
@@ -354,7 +355,9 @@ class SingleTestRunner {
     Duration? timeout,
   }) async {
     final display = _substitute(singleTemplate, testPath, testName);
-    final tokens = _tokenize(singleTemplate, testPath, testName);
+    final tokens = withCompactReporter(
+      _tokenize(singleTemplate, testPath, testName),
+    );
     final executable = tokens.first;
     final args = tokens.skip(1).toList();
 
@@ -412,7 +415,7 @@ class SingleTestRunner {
     Duration? timeout,
   }) async {
     final command = suiteTemplate.trim();
-    final tokens = splitCommand(command);
+    final tokens = withCompactReporter(splitCommand(command));
     final executable = tokens.first;
     final args = tokens.skip(1).toList();
 

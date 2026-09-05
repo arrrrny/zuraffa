@@ -21,10 +21,11 @@ void main() {
   group('U6 (FR-006)', () {
     test(
       'U6 — The binding MUST stay free of any UI-framework dependency (engine lane, pure Dart).',
-      () {
-        final result = (() {
+      () async {
+        final result = await (() async {
           try {
-            return subject.subject_u6();
+            await subject.subject_u6();
+            return null;
           } on UnimplementedError catch (error) {
             return error;
           }

@@ -21,10 +21,11 @@ void main() {
   group('U5 (FR-005)', () {
     test(
       'U5 — The binding MUST carry the contract\'s declared name/identity so downstream violations and receipts can name their source.',
-      () {
-        final result = (() {
+      () async {
+        final result = await (() async {
           try {
-            return subject.subject_u5();
+            await subject.subject_u5();
+            return null;
           } on UnimplementedError catch (error) {
             return error;
           }

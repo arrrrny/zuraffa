@@ -18,6 +18,11 @@
 //      an honest certified green still skips (exit 0, outcome=skipped,
 //      green evidence appended) because the subject hash matches the
 //      certified green evidence.
+//
+// Slow tier: every behavior spawns the real `zfa tdd make` pipeline,
+// which runs full `dart test` baselines in a throwaway project — far
+// beyond the fast-tier budget on constrained machines.
+@Tags(['slow'])
 library;
 
 import 'dart:io';

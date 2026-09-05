@@ -21,10 +21,10 @@ void main() {
   group('A1 (AC-1)', () {
     test(
       'A1 — both are allowed, an undeclared `/settings` push violates, and the navigator root still conforms by construction.',
-      () {
-        final Object? result = (() {
+      () async {
+        final Object? result = await (() async {
           try {
-            subject.subject_a1();
+            await subject.subject_a1();
             return null;
           } on UnimplementedError catch (error) {
             return error;

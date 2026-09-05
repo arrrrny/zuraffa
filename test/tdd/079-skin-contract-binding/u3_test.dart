@@ -21,10 +21,11 @@ void main() {
   group('U3 (FR-003)', () {
     test(
       'U3 — The binding MUST derive per-view state bindings from `contract.states` distinguishing toaster, inline, and none error handling, plus empty-state declarations.',
-      () {
-        final result = (() {
+      () async {
+        final result = await (() async {
           try {
-            return subject.subject_u3();
+            await subject.subject_u3();
+            return null;
           } on UnimplementedError catch (error) {
             return error;
           }

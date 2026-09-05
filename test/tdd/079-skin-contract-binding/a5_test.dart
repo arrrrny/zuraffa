@@ -21,10 +21,10 @@ void main() {
   group('A5 (AC-5)', () {
     test(
       'A5 — it exposes the route table, the state bindings, and the contract name it was built from.',
-      () {
-        final Object? result = (() {
+      () async {
+        final Object? result = await (() async {
           try {
-            subject.subject_a5();
+            await subject.subject_a5();
             return null;
           } on UnimplementedError catch (error) {
             return error;

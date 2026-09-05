@@ -1,3 +1,6 @@
+@Tags(['slow'])
+library;
+
 import 'dart:io';
 
 import 'package:crypto/crypto.dart' as crypto;
@@ -115,7 +118,9 @@ class $pascal {
         reason: 'the adapter run must persist a generation receipt',
       );
       final receipt = all.last.receipt;
-      expect(receipt.command, 'cache-adapter');
+      // Canonical `<plugin> <capability>` command format (issue #996);
+      // the receipt FILENAME keeps the hyphenated plugin-capability key.
+      expect(receipt.command, 'cache adapter');
       expect(receipt.target, 'Product');
       expect(receipt.repro, contains('zfa cache adapter Product'));
 
@@ -208,7 +213,7 @@ class $pascal {
 
         final all = await receipts();
         expect(
-          all.where((r) => r.receipt.command == 'cache-adapter').length,
+          all.where((r) => r.receipt.command == 'cache adapter').length,
           2,
           reason: 'each run ships its own receipt',
         );

@@ -248,41 +248,100 @@ void main() {
     expect(exitCode, 0);
   });
 
-  test(
-    'a hang-vs-complete divergence: exit 1 with the named finding',
-    () async {
-      await writeCorpus();
-      final cmd = commandWith(
-        stepSpawn: (command, cwd, label) async {
-          final argv = command.join(' ');
-          if (label == 'wt-from' && argv.contains(' gen U2 ')) {
-            // The #744 class: the second gen never returns on the broken
-            // ref; the budget kills it and the vector records a hang.
-            throw ProcessTimeoutException(
-              executable: 'dart',
-              arguments: const [],
-              timeout: const Duration(seconds: 1),
-              workingDirectory: cwd,
-              output: '',
-            );
-          }
-          if (argv.contains(' gen U2 ')) {
-            return ok('{"behaviorId":"U2","verdict":"created"}\n');
-          }
+  test('a repaired hang (baseline hang → head complete): exit 0, '
+      'reported as an improvement, never a gate failure', () async {
+    await writeCorpus();
+    final cmd = commandWith(
+      stepSpawn: (command, cwd, label) async {
+        final argv = command.join(' ');
+        if (label == 'wt-from' && argv.contains(' gen U2 ')) {
+          // The #744 class: the second gen never returns on the broken
+          // baseline ref; the budget kills it and the vector records a
+          // hang. HEAD completes — the improvement direction.
+          throw ProcessTimeoutException(
+            executable: 'dart',
+            arguments: const [],
+            timeout: const Duration(seconds: 1),
+            workingDirectory: cwd,
+            output: '',
+          );
+        }
+        if (argv.contains(' gen U2 ')) {
+          return ok('{"behaviorId":"U2","verdict":"created"}\n');
+        }
+        return ok('{"behaviorId":"U1","verdict":"created"}\n');
+      },
+    );
+    final runner = CommandRunner('zfa-test', 'test')..addCommand(cmd);
+    await runner.run([
+      'differential',
+      '--from',
+      'origin/master',
+      '--project',
+      repoRoot.path,
+    ]);
+    expect(exitCode, 0);
+  });
+
+  test('a REGRESSED step (baseline complete → head failed): exit 1 with the '
+      'named finding', () async {
+    await writeCorpus();
+    final cmd = commandWith(
+      stepSpawn: (command, cwd, label) async {
+        final argv = command.join(' ');
+        if (label == 'wt-to' && argv.contains(' gen U2 ')) {
+          // The regression direction: the baseline completes the
+          // second gen, HEAD fails it.
+          return fail('', 'generation declined');
+        }
+        if (argv.contains(' gen U2 ')) {
+          return ok('{"behaviorId":"U2","verdict":"created"}\n');
+        }
+        return ok('{"behaviorId":"U1","verdict":"created"}\n');
+      },
+    );
+    final runner = CommandRunner('zfa-test', 'test')..addCommand(cmd);
+    await runner.run([
+      'differential',
+      '--from',
+      'origin/master',
+      '--project',
+      repoRoot.path,
+    ]);
+    expect(exitCode, 1);
+  });
+
+  test('a REGRESSED artifact inventory (baseline artifact lost on head): '
+      'exit 1', () async {
+    await writeCorpus();
+    final cmd = commandWith(
+      stepSpawn: (command, cwd, label) async {
+        final argv = command.join(' ');
+        if (label == 'wt-from' && argv.contains(' gen U1 ')) {
+          // The baseline emits an artifact HEAD no longer emits —
+          // the artifact-removed (regression) direction.
+          Directory(p.join(cwd, 'lib', 'tdd')).createSync(recursive: true);
+          File(
+            p.join(cwd, 'lib', 'tdd', 'legacy_extra.dart'),
+          ).writeAsStringSync('void m(){}');
           return ok('{"behaviorId":"U1","verdict":"created"}\n');
-        },
-      );
-      final runner = CommandRunner('zfa-test', 'test')..addCommand(cmd);
-      await runner.run([
-        'differential',
-        '--from',
-        'origin/master',
-        '--project',
-        repoRoot.path,
-      ]);
-      expect(exitCode, 1);
-    },
-  );
+        }
+        if (argv.contains(' gen U2 ')) {
+          return ok('{"behaviorId":"U2","verdict":"created"}\n');
+        }
+        return ok('{"behaviorId":"U1","verdict":"created"}\n');
+      },
+    );
+    final runner = CommandRunner('zfa-test', 'test')..addCommand(cmd);
+    await runner.run([
+      'differential',
+      '--from',
+      'origin/master',
+      '--project',
+      repoRoot.path,
+    ]);
+    expect(exitCode, 1);
+  });
 
   test('an artifact-inventory divergence is a differ verdict', () async {
     await writeCorpus();

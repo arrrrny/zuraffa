@@ -266,6 +266,18 @@ strong_out="$(zfa spec fuzz "$feature" --no-ledger 2>&1)" && strong_exit=0 || st
 if [ "$strong_exit" -ne 0 ]; then
   echo "✗ the strengthened spec must kill every mutant (exit 0), got $strong_exit" >&2
   echo "$strong_out" >&2
+  echo "--- notAssessed outcome evidence (spec-fuzz report) ---" >&2
+  python3 - "$sandbox/specs/$feature/tdd/spec-fuzz.json" >&2 <<'PYEOF' || cat "$sandbox/specs/$feature/tdd/spec-fuzz.json" >&2
+import json, sys
+with open(sys.argv[1]) as f:
+    report = json.load(f)
+for o in report.get('mutations', []):
+    if o.get('verdict') == 'notAssessed':
+        print(f"notAssessed mutation_id={o.get('mutation_id')} "
+              f"operator={o.get('operator')} behavior={o.get('behavior')}: "
+              f"{o.get('evidence', '')}")
+PYEOF
+  echo "--- end notAssessed evidence ---" >&2
   exit 1
 fi
 if ! echo "$strong_out" | grep -q "certified=true"; then

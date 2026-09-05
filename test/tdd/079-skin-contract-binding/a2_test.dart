@@ -19,10 +19,10 @@ import 'package:zuraffa/tdd/079-skin-contract-binding/a2_subject.dart'
 
 void main() {
   group('A2 (AC-2)', () {
-    test('A2 — no route except the root is allowed.', () {
-      final Object? result = (() {
+    test('A2 — no route except the root is allowed.', () async {
+      final Object? result = await (() async {
         try {
-          subject.subject_a2();
+          await subject.subject_a2();
           return null;
         } on UnimplementedError catch (error) {
           return error;

@@ -21,10 +21,11 @@ void main() {
   group('U4 (FR-004)', () {
     test(
       'U4 — The binding MUST derive audit-row descriptors from `contract.stateRows` carrying the declared id and kind.',
-      () {
-        final result = (() {
+      () async {
+        final result = await (() async {
           try {
-            return subject.subject_u4();
+            await subject.subject_u4();
+            return null;
           } on UnimplementedError catch (error) {
             return error;
           }

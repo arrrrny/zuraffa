@@ -40,13 +40,30 @@
 # `dart test --preset=all` completes green instead of running out of space or
 # memory. Lower this further (to 1) on very small disks / low-RAM agents.
 
-concurrency: 2
+# Global test timeout: 2x the 30s package default. Suites that spawn the
+# CLI in-process or touch the filesystem heavily (entity fixtures, state
+# receipts, CLI runners) brush the 30s ceiling on constrained machines
+# (2019 Intel Mac) while passing comfortably on CI — 2x removes the false
+# timeouts without materially slowing real-failure detection. Slow-tagged
+# tests get 4x below.
+timeout: 2x
+
+concurrency: 1
 
 # Declare every suite-level tag so a test using one never prints the
 # "A tag was used that wasn't specified in dart_test.yaml" warning. The default
 # run excludes `slow`; the slow tiers are selected by the presets below.
+#
+# Slow-tagged tests get a relaxed 4x timeout (4 × 30s = 120s): they spawn
+# `dart` subprocesses whose cold JIT compile can exceed the 30s default on
+# slower machines (2019 Intel Mac, loaded CI runners), and the relaxed
+# ceiling also keeps the helper's 75s child-guard (run_zfa_source.dart,
+# issue #531) SHORTER than the enclosing test timeout — with the bare 30s
+# default the test runner killed the test before the child guard could
+# fire its diagnostic.
 tags:
   slow:
+    timeout: 4x
   flutter:
   regression:
   integration:

@@ -21,10 +21,10 @@ void main() {
   group('A6 (AC-6)', () {
     test(
       'A6 — each keeps its own identity and route set (no cross-contamination).',
-      () {
-        final Object? result = (() {
+      () async {
+        final Object? result = await (() async {
           try {
-            subject.subject_a6();
+            await subject.subject_a6();
             return null;
           } on UnimplementedError catch (error) {
             return error;

@@ -182,7 +182,8 @@ void main() {
       expect(compareEntryVectors(from: from, to: to), isEmpty);
     });
 
-    test('a step outcome divergence is a step finding naming both sides', () {
+    test('a repaired step (baseline hang → head complete) is a '
+        'step-improved finding, NOT a regression', () {
       final from = EntryVector(
         entry: 'u2-flow',
         ref: 'broken',
@@ -217,10 +218,80 @@ void main() {
       );
       final findings = compareEntryVectors(from: from, to: to);
       expect(findings, hasLength(1));
-      expect(findings.single.kind, 'step');
+      expect(findings.single.kind, 'step-improved');
+      expect(findings.single.regression, isFalse);
       expect(findings.single.detail, contains('gen U2'));
       expect(findings.single.detail, contains('hang'));
       expect(findings.single.detail, contains('complete'));
+    });
+
+    test('a broken step (baseline complete → head failed) IS a regression '
+        'finding naming both sides', () {
+      final from = EntryVector(
+        entry: 'u2-flow',
+        ref: 'origin/master',
+        steps: [
+          StepVector(
+            label: 'gen U1',
+            exitCode: 0,
+            outcome: DifferentialStepOutcome.complete,
+          ),
+        ],
+      );
+      final to = EntryVector(
+        entry: 'u2-flow',
+        ref: 'HEAD',
+        steps: [
+          StepVector(
+            label: 'gen U1',
+            exitCode: 79,
+            outcome: DifferentialStepOutcome.failed,
+          ),
+        ],
+      );
+      final findings = compareEntryVectors(from: from, to: to);
+      expect(findings, hasLength(1));
+      expect(findings.single.kind, 'step');
+      expect(findings.single.regression, isTrue);
+      expect(findings.single.detail, contains('gen U1'));
+      expect(findings.single.detail, contains('complete'));
+      expect(findings.single.detail, contains('failed'));
+    });
+
+    test('a repaired step subsumes its token and count dimensions', () {
+      // The baseline step failed early (no token, no counts); the head
+      // side completes with a machine token and pass counts. The token/
+      // count deltas must NOT surface as extra regression findings —
+      // they are unreadable across an outcome change.
+      final from = EntryVector(
+        entry: 'e',
+        ref: 'a',
+        steps: [
+          StepVector(
+            label: 'make U1',
+            exitCode: 1,
+            outcome: DifferentialStepOutcome.failed,
+          ),
+        ],
+      );
+      final to = EntryVector(
+        entry: 'e',
+        ref: 'b',
+        steps: [
+          StepVector(
+            label: 'make U1',
+            exitCode: 0,
+            outcome: DifferentialStepOutcome.complete,
+            token: 'complete',
+            passCount: 3,
+            failCount: 0,
+          ),
+        ],
+      );
+      final findings = compareEntryVectors(from: from, to: to);
+      expect(findings, hasLength(1));
+      expect(findings.single.kind, 'step-improved');
+      expect(findings.single.regression, isFalse);
     });
 
     test('a machine-token divergence is a step finding even at exit 0', () {
