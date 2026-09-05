@@ -218,8 +218,11 @@ abstract class ProductRepository {
         // Fallback re-parses the drifted source: custom() is now declared,
         // and the un-declared ghost method is still dropped.
         expect(result, containsAll(['get', 'update', 'custom']));
-        expect(result, isNot(contains('ghost')),
-            reason: 'the parse fallback must still drop undeclared methods');
+        expect(
+          result,
+          isNot(contains('ghost')),
+          reason: 'the parse fallback must still drop undeclared methods',
+        );
       },
     );
 

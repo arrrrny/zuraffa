@@ -104,7 +104,7 @@ class SourceInterfaceGuard {
       if (contract != null) {
         final declared = contract.methodNames.toSet();
         className = contract.interface.className;
-        return _filterAgainst(methods, declared, className, config);
+        return _filterAgainst(methods, declared, className, filePath, config);
       }
     }
 
@@ -142,13 +142,14 @@ class SourceInterfaceGuard {
     }
 
     final declared = parsed.map((m) => m.fieldName).toSet();
-    return _filterAgainst(methods, declared, className, config);
+    return _filterAgainst(methods, declared, className, filePath, config);
   }
 
-  List<String> _filterAgainst(
+  SourceInterfaceGuardResult _filterAgainst(
     List<String> methods,
     Set<String> declared,
     String className,
+    String? filePath,
     GeneratorConfig config,
   ) {
     final filtered = <String>[];
