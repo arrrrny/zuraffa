@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
 import '../project/receipt_store.dart';
+import '../project/test_receipt.dart';
 
 /// Proof-carrying generation (issue #807).
 ///
@@ -16,6 +17,10 @@ import '../project/receipt_store.dart';
 ///   * `stale_spec`     — the spec an artifact was generated FROM has
 ///                        drifted since the run (the finding names the
 ///                        exact spec delta),
+///   * `stale_usecase`  — a test plugin `test.v1` receipt records a
+///                        usecase whose current bytes differ from the
+///                        digest at generation time: usecase/test drift
+///                        (spec 980),
 ///   * `unprovenanced`  — a file under an audited coverage root that no
 ///                        receipt can prove provenance for.
 
@@ -26,6 +31,7 @@ class ProofFinding {
   static const kindModified = 'modified';
   static const kindDeleted = 'deleted';
   static const kindStaleSpec = 'stale_spec';
+  static const kindStaleUsecase = 'stale_usecase';
   static const kindUnprovenanced = 'unprovenanced';
 
   final String kind;
@@ -72,6 +78,9 @@ class ProofReport {
   Map<String, dynamic> toJson() => {
     'schema': schema,
     'ok': ok,
+    // Issue #996: the machine verdict also speaks `valid` — agents and
+    // CI read one field for both proof families (make + capability).
+    'valid': ok,
     'receipts': receipts,
     'filesChecked': filesChecked,
     'findings': findings.map((f) => f.toJson()).toList(),
@@ -188,10 +197,101 @@ class ProofChecker {
       findings.addAll(_unprovenancedUnder(root, latest.keys.toSet()));
     }
 
+    // 4. Test plugin receipts (schema test.v1, spec 980): usecase/test
+    //    drift + integrity of the receipted test files themselves.
+    final testReceipts = await (TestReceiptStore(
+      projectRoot: projectRoot,
+    )).loadAll();
+    var testReceiptFiles = 0;
+    for (final receipt in testReceipts) {
+      final receiptName = TestReceiptStore.fileNameFor(receipt.entity);
+      // Latest test file state per path within this receipt.
+      final testStates = <String, TestReceiptEntry>{};
+      final usecaseBindings = <String, String>{};
+      for (final entry in receipt.tests) {
+        testStates[entry.testPath] = entry;
+        if (entry.useCasePath != null && entry.useCaseSha256 != null) {
+          usecaseBindings[entry.useCasePath!] = entry.useCaseSha256!;
+        }
+      }
+      testReceiptFiles += testStates.length;
+
+      // 4a. Integrity of the receipted test files.
+      for (final state in testStates.entries) {
+        final testFile = File(p.join(projectRoot, state.key));
+        if (!testFile.existsSync()) {
+          findings.add(
+            ProofFinding(
+              kind: ProofFinding.kindDeleted,
+              path: state.key,
+              receipt: receiptName,
+              detail:
+                  'receipted test is missing; regenerate with: '
+                  '${receipt.command}',
+            ),
+          );
+          continue;
+        }
+        final actual = _digestOf(testFile);
+        if (actual != state.value.testSha256) {
+          findings.add(
+            ProofFinding(
+              kind: ProofFinding.kindModified,
+              path: state.key,
+              receipt: receiptName,
+              detail:
+                  'digest mismatch: receipt says ${_short(state.value.testSha256)}, '
+                  'disk has ${_short(actual)}; regenerate with: '
+                  '${receipt.command}',
+            ),
+          );
+        }
+      }
+
+      // 4b. Usecase/test drift: the usecase source changed after the
+      //     tests were generated against it.
+      for (final binding in usecaseBindings.entries) {
+        final usecaseFile = File(p.join(projectRoot, binding.key));
+        if (!usecaseFile.existsSync()) {
+          findings.add(
+            ProofFinding(
+              kind: ProofFinding.kindStaleUsecase,
+              path: binding.key,
+              receipt: receiptName,
+              detail:
+                  'usecase bound to ${receipt.entity}\'s generated tests is '
+                  'gone; those tests have no source of truth; regenerate '
+                  'with: ${receipt.command}',
+            ),
+          );
+          continue;
+        }
+        final actual = _digestOf(usecaseFile);
+        if (actual == binding.value) continue;
+        final affected = receipt.tests
+            .where((t) => t.useCasePath == binding.key)
+            .map((t) => t.testPath)
+            .toSet()
+            .join(', ');
+        findings.add(
+          ProofFinding(
+            kind: ProofFinding.kindStaleUsecase,
+            path: binding.key,
+            receipt: receiptName,
+            detail:
+                'usecase/test drift: ${binding.key} changed after '
+                '$affected was generated for entity ${receipt.entity} '
+                '(receipt digest ${_short(binding.value)}, current '
+                '${_short(actual)}); regenerate with: ${receipt.command}',
+          ),
+        );
+      }
+    }
+
     return ProofReport(
       ok: findings.isEmpty,
-      receipts: records.length,
-      filesChecked: latest.length,
+      receipts: records.length + testReceipts.length,
+      filesChecked: latest.length + testReceiptFiles,
       findings: findings,
     );
   }

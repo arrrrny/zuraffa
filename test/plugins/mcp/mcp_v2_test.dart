@@ -87,9 +87,12 @@ void main() {
   });
 
   group('v2ToolDefinitions', () {
-    test('returns all 11 v2 tool definitions', () {
+    // Amended for spec 1010-zfa-dream-one-command-app: the v2 surface
+    // gained `dream_draft_spec` (12 tools) — the dream command's LLM
+    // integration seam.
+    test('returns all 12 v2 tool definitions', () {
       final tools = v2ToolDefinitions();
-      expect(tools.length, 11);
+      expect(tools.length, 12);
 
       final names = tools.map((t) => t['name'] as String).toList();
       expect(names, contains('arch_inspect'));
@@ -103,6 +106,7 @@ void main() {
       expect(names, contains('xray_triggerMock'));
       expect(names, contains('session_save'));
       expect(names, contains('session_restore'));
+      expect(names, contains('dream_draft_spec'));
     });
 
     test('each tool has required inputSchema', () {

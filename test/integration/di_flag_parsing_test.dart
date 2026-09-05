@@ -33,7 +33,10 @@ void main() {
     final capability = plugin.capabilities.firstWhere(
       (c) => c.name == 'create',
     );
-    final command = CapabilityCommand(capability);
+    // projectRoot pinned to the test workspace: since spec 0996 the
+    // command persists a receipt into <projectRoot>/.zfa/receipts/ —
+    // without the pin it would pollute the repo working tree.
+    final command = CapabilityCommand(capability, projectRoot: outputDir);
     final runner = CommandRunner<void>('zfa', 'CLI')..addCommand(command);
 
     // Run with --repo and --use-mock to ensure repository/datasource DI is generated
