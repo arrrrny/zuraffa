@@ -48,7 +48,7 @@ zfa <command> [subcommand] [name] [options]
 | `service` | ServicePlugin | Generate service classes |
 | `provider` | ProviderPlugin | Generate data providers |
 | `datasource` | DataSourcePlugin | Generate remote/local data sources |
-| `di` / `modular-di` | DiPlugin | Generate get_it DI registrations |
+| `di` / `modular-di` | DiPlugin | Generate get_it DI registrations — `zfa di verify <Entity>` dangling-`getIt<T>()` gate (exit 1 with `--> fix:` lines); `--json` emits the `zuraffa.verdict.v1` envelope (#1108) |
 | `route` | RoutePlugin | Generate route definitions |
 | `test` | TestPlugin | Generate unit tests |
 | `mock` | MockPlugin | Generate mock data and providers |

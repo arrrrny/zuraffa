@@ -187,6 +187,9 @@ class DiVerifyCapability implements ZuraffaCapability {
               file: relative,
               kind: 'dangling import',
               type: null,
+              // The import URI as written — the machine-facing member
+              // the #1108 envelope reports for this finding kind.
+              member: importUri,
               detail: "import '$importUri' points at a missing file",
               fix:
                   '--> fix: create ${_relative(root, target)} or fix the '
@@ -222,6 +225,7 @@ class DiVerifyCapability implements ZuraffaCapability {
             file: relative,
             kind: 'dangling binding',
             type: type,
+            member: type,
             detail:
                 'getIt<$type> in $relative binds a class that does not '
                 'exist on disk',
@@ -334,6 +338,12 @@ class _Finding {
   final String file;
   final String kind;
   final String? type;
+
+  /// The machine-facing member the finding is about (issue #1108): the
+  /// unresolved type name for a dangling binding, the import URI as
+  /// written for a dangling import. Additive to the JSON surface — the
+  /// text verdict is unchanged.
+  final String? member;
   final String detail;
   final String fix;
 
@@ -341,6 +351,7 @@ class _Finding {
     required this.file,
     required this.kind,
     required this.type,
+    required this.member,
     required this.detail,
     required this.fix,
   });
@@ -349,6 +360,7 @@ class _Finding {
     'file': file,
     'kind': kind,
     if (type != null) 'class': type,
+    if (member != null) 'member': member,
     'detail': detail,
     'fix': fix,
   };
@@ -432,7 +444,10 @@ class _PackageResolver {
       final library = path.canonicalize(
         path.joinAll([packageRoot, ...parts.skip(1)]),
       );
-      if (_libraryDeclares(library, type, const {}, 0)) return true;
+      // A fresh mutable set per lookup — `const {}` here crashed every
+      // real project (issue #1108 red evidence): _libraryDeclares memoizes
+      // into [visited], and a const set cannot be added to.
+      if (_libraryDeclares(library, type, <String>{}, 0)) return true;
     }
     return false;
   }

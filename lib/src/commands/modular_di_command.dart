@@ -1,7 +1,20 @@
 import 'base_plugin_command.dart';
+import 'di_verify_command.dart';
+import '../plugins/di/di_plugin.dart';
 
 class ModularDiCommand extends PluginCommand {
-  ModularDiCommand(super.plugin) {
+  /// `DiVerifyCommand` is registered manually below (issue #1108): the
+  /// verify gate ships `--json` as *JSON output* (the canonical
+  /// zuraffa.verdict.v1 envelope), while the auto-derived
+  /// `CapabilityCommand` owns `--json` as *JSON input*. The skip hook
+  /// below keeps the two from colliding (issue #761).
+  @override
+  Set<String> get manualSubcommandNames => const {'verify'};
+
+  ModularDiCommand(DiPlugin super.plugin) {
+    // The cast is honest: every construction path (DiPlugin.createCommand,
+    // tests) passes a DiPlugin; the base-class field is typed ZuraffaPlugin.
+    addSubcommand(DiVerifyCommand(plugin as DiPlugin));
     argParser.addOption(
       'domain',
       abbr: 'd',
