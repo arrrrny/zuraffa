@@ -22,8 +22,18 @@ class EntityCommand {
     bool exitOnCompletion = true,
   }) async {
     if (args.isEmpty) {
-      _printHelp();
-      if (exitOnCompletion) exit(0);
+      // Bare `zfa entity` is a usage error, not a help request — exit 64
+      // per the #1039 / #1059 truth-floor convention (PR #1039 swept the
+      // PluginCommand fleet to exit 64 on bare invocation; `zfa entity`
+      // was missed because it predates the PluginCommand hierarchy and
+      // owns its own dispatcher). Help is intentional (`--help`/`-h`/help
+      // below); bare invocation is not — printing the full help text and
+      // exiting 0 certifies "nothing went wrong" when nothing happened.
+      // Print the short usage-error banner (NOT _printHelp) and exit 64.
+      print('❌ Usage: zfa entity <subcommand> [arguments]');
+      print('   Run `zfa entity --help` to list subcommands.');
+      if (exitOnCompletion) exit(64);
+      exitCode = 64;
       return;
     }
 
@@ -1276,7 +1286,15 @@ ${missing.map((d) => '   • $d').join('\n')}
 
   Future<void> _handleCli(List<String> subArgs) async {
     if (subArgs.isEmpty) {
-      print('Usage: zfa entity cli <EntityName>');
+      // Issue #1059: bare `zfa entity cli` previously printed usage and
+      // returned with exit 0 — a lying-success the #1039 sweep was meant
+      // to eliminate fleet-wide. Match the #1039 convention: print the
+      // short usage-error banner and set exitCode = 64 (usage-error
+      // family, distinct from 1 = runtime/generation failure). Do NOT
+      // call _printHelp() — that's for intentional help requests.
+      print('❌ Usage: zfa entity cli <EntityName>');
+      print('   Run `zfa entity cli --help` for options.');
+      exitCode = 64;
       return;
     }
     // Delegate to the CliGeneratorPlugin which handles writing + receipts.

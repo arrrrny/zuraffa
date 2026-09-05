@@ -323,13 +323,26 @@ class XrayDeckCommand extends Command<void> {
       '// Mocks: ${entries.length}',
       '',
       "import 'package:flutter/foundation.dart';",
-      "import 'package:zuraffa/src/presentation/xray/xray_control_deck.dart';",
+      // Issue #997: the previous emission imported
+      // `package:zuraffa/src/presentation/xray/xray_control_deck.dart` —
+      // a path that does not exist in the runtime (the deck lives at
+      // `lib/src/plugins/xray/xray_control_deck.dart`). The test at
+      // `test/commands/xray_deck_cli_test.dart:69` certified the broken
+      // import + the non-existent `XRayControlDeckRegistry` symbol as
+      // correct output, so the suite was green for code that could not
+      // compile. Fixed to the real runtime path.
+      "import 'package:zuraffa/src/plugins/xray/xray_control_deck.dart';",
       '',
       '/// Registers mock entries for $ucName with the Control Deck.',
       'void register${ucName}XRayDeck() {',
       '  if (kReleaseMode) return;',
-      '  XRayControlDeckRegistry.registerEntries(',
-      "  '$ucName',",
+      // Issue #997: `XRayControlDeckRegistry` does not exist in the
+      // runtime — the real API is `XRayControlDeck.instance.registerEntries`
+      // (see lib/src/plugins/xray/xray_control_deck.dart:37,70). The
+      // previous two-arg call shape `(useCaseName, entries)` also did not
+      // match the real signature `registerEntries(List<XRayMockEntry>)`.
+      // Both fixed so the generated file compiles against the runtime.
+      '  XRayControlDeck.instance.registerEntries(',
       '    const [',
     ];
 

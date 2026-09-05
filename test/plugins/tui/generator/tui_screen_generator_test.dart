@@ -81,6 +81,57 @@ void main() {
       }
     });
 
+    // Issue #997 (TRUTH-FLOOR / epic #1011): the previous suite certified
+    // `package:zuraffa/domain/...` as the correct entity import. That import
+    // only resolves when the generated file lives INSIDE the zuraffa
+    // package — for any consumer project it is a broken import the test
+    // was rubber-stamping as correct. A green test manufacturing false
+    // confidence is worse than no test at all. The generator now emits a
+    // RELATIVE entity import (`../../../domain/<entity>/<entity>.dart`)
+    // that resolves regardless of the host package name; this test pins
+    // the honest contract so the next drift off it fails loudly.
+    test(
+      'U36 / #997: entity imports are RELATIVE — not package:zuraffa/...',
+      () {
+        final listSource = generator.generateListScreen(productSpec);
+        final detailSource = generator.generateDetailScreen(productSpec);
+
+        for (final source in [listSource, detailSource]) {
+          // The entity import must NOT use `package:zuraffa/domain/...`.
+          expect(
+            source.contains('package:zuraffa/domain/'),
+            isFalse,
+            reason:
+                'issue #997: generated entity imports must not reference '
+                'package:zuraffa/domain/... — that import only resolves '
+                'inside the zuraffa package itself. Consumer projects do '
+                'not have zuraffa as a runtime dep, so the import would '
+                'silently break at compile time while the test suite '
+                'certifies it as correct.',
+          );
+          // The entity import must be a relative path that resolves
+          // regardless of host package name.
+          expect(
+            source,
+            contains("'../../../domain/product/product.dart'"),
+            reason:
+                'issue #997: generated entity import must be the relative '
+                'path ../../../domain/<entity>/<entity>.dart (screens '
+                'live at lib/src/presentation/tui/, entities at '
+                'lib/domain/<entity>/).',
+          );
+          // The entity's usecase import is also relative.
+          expect(
+            source,
+            contains('../../../domain/product/usecases/'),
+            reason:
+                'issue #997: usecase imports must also be relative '
+                '(../../../domain/<entity>/usecases/<usecase>.dart).',
+          );
+        }
+      },
+    );
+
     test('A22 / SC-005: generated screens require zero manual wiring — they '
         'auto-resolve deps via ZuraffaDIContainer', () {
       final listSource = generator.generateListScreen(productSpec);

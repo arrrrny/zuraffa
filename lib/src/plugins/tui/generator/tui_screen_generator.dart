@@ -85,9 +85,23 @@ class TuiUseCaseSpec {
 
 /// Emits list/detail TUI screen Dart source for a Zuraffa entity.
 ///
-/// The emitted source is pure-Dart (FR-012): only `package:zuraffa/...`
-/// and `package:nocterm/...` imports — never `package:flutter`. The
+/// The emitted source is pure-Dart (FR-012): only `package:nocterm/...`
+/// imports plus the zuraffa TUI runtime — never `package:flutter`. The
 /// generator uses [DartFormatter] to produce idiomatic output.
+///
+/// Issue #997 (TRUTH-FLOOR / epic #1011): entity imports use a RELATIVE
+/// path (`../../../domain/<entity>/<entity>.dart`), not
+/// `package:zuraffa/domain/...`. The previous `package:zuraffa/...`
+/// emission only resolved when the generated file lived INSIDE the
+/// zuraffa package — for any consumer project it was a broken import
+/// the test suite was certifying as correct. The relative path works
+/// for both in-zuraffa generation and (with the zuraffa TUI runtime
+/// available) for consumer projects, because it does not depend on
+/// the host package name.
+/// The convention: screens are written to `lib/src/presentation/tui/`
+/// (see CreateTuiScreensCapability) and entities live at
+/// `lib/domain/<entity>/<entity>.dart`, so the relative offset is
+/// three levels up.
 class TuiScreenGenerator {
   TuiScreenGenerator({DartFormatter? formatter})
     : _formatter =
@@ -122,8 +136,8 @@ import 'package:zuraffa/src/plugins/tui/core/stateful_screen.dart';
 import 'package:zuraffa/src/plugins/tui/di/tui_di_resolver.dart';
 import 'package:zuraffa/src/plugins/tui/binding/binding.dart';
 import 'package:zuraffa/src/core/module/di_container.dart';
-import 'package:zuraffa/domain/${entity.name.toLowerCase()}/${entity.name.toLowerCase()}.dart';
-import 'package:zuraffa/domain/${entity.name.toLowerCase()}/usecases/${listUseCase.className.toLowerCase()}.dart';
+import '../../../domain/${entity.name.toLowerCase()}/${entity.name.toLowerCase()}.dart';
+import '../../../domain/${entity.name.toLowerCase()}/usecases/${listUseCase.className.toLowerCase()}.dart';
 
 class ${entity.name}ListScreen extends StatefulScreen {
   const ${entity.name}ListScreen({super.key});
@@ -206,8 +220,8 @@ import 'package:zuraffa/src/plugins/tui/di/tui_di_resolver.dart';
 import 'package:zuraffa/src/plugins/tui/binding/binding.dart';
 import 'package:zuraffa/src/core/module/di_container.dart';
 import 'package:zuraffa/src/plugins/tui/widgets/table.dart';
-import 'package:zuraffa/domain/${entity.name.toLowerCase()}/${entity.name.toLowerCase()}.dart';
-import 'package:zuraffa/domain/${entity.name.toLowerCase()}/usecases/${getUseCase.className.toLowerCase()}.dart';
+import '../../../domain/${entity.name.toLowerCase()}/${entity.name.toLowerCase()}.dart';
+import '../../../domain/${entity.name.toLowerCase()}/usecases/${getUseCase.className.toLowerCase()}.dart';
 
 class ${entity.name}DetailScreen extends StatefulScreen {
   const ${entity.name}DetailScreen({

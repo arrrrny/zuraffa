@@ -66,7 +66,18 @@ void main() {
       expect(content, contains('XRayMockType.error'));
       expect(content, contains("description: 'Triggers validation failure'"));
       expect(content, contains('registerScanBarcodeXRayDeck'));
-      expect(content, contains('XRayControlDeckRegistry.registerEntries'));
+      // Issue #997 (TRUTH-FLOOR / epic #1011): the previous assertion
+      // `contains('XRayControlDeckRegistry.registerEntries')` certified
+      // output that could not compile — `XRayControlDeckRegistry` does
+      // not exist in the runtime (the registry is `XRayControlDeck.instance`,
+      // a singleton on the real class at lib/src/plugins/xray/xray_control_deck.dart:37).
+      // A green test manufacturing false confidence is worse than no test
+      // at all. Assert the real runtime API path so the test fails the
+      // next time the generator drifts off the real symbol.
+      expect(content, contains('XRayControlDeck.instance.registerEntries'));
+      // The generator must NOT emit the phantom symbol the previous test
+      // rubber-stamped.
+      expect(content, isNot(contains('XRayControlDeckRegistry')));
     });
 
     test('generates registration from annotated source', () async {
@@ -217,7 +228,20 @@ class ScanBarcodeUseCase {}
 
       final content = File(outputFile).readAsStringSync();
       expect(content, contains('registerScanBarcodeUseCaseXRayDeck'));
-      expect(content, contains("'ScanBarcodeUseCase'"));
+      // Issue #997 (TRUTH-FLOOR / epic #1011): the previous assertion
+      // `contains("'ScanBarcodeUseCase'")` was tied to the broken
+      // emission `XRayControlDeckRegistry.registerEntries('$ucName', ...)`
+      // — the usecase name passed as a string arg to a registry call
+      // whose real signature is `registerEntries(List<XRayMockEntry>)`.
+      // The symbol `XRayControlDeckRegistry` did not exist in the
+      // runtime, the two-arg call shape did not match the real
+      // signature, and the import path was wrong. The casing contract
+      // this test was actually after is preserved by the function name
+      // (`registerScanBarcodeUseCaseXRayDeck`) AND the comment header
+      // (`// UseCase: ScanBarcodeUseCase`); assert those directly so
+      // the next drift off the real API surfaces, not the broken one.
+      expect(content, contains('ScanBarcodeUseCase'));
+      expect(content, contains('// UseCase: ScanBarcodeUseCase'));
     });
   });
 }
