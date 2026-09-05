@@ -30,6 +30,7 @@ import '../commands/replay_command.dart';
 import '../commands/tdd_command.dart';
 import '../commands/app_shell_command.dart';
 import '../commands/package_command.dart';
+import '../commands/engine_command.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../plugins/tdd/tdd_plugin.dart';
@@ -166,6 +167,7 @@ class CliRunner {
     _runner.addCommand(_EntityCommand());
     _runner.addCommand(_PluginCommand());
     _runner.addCommand(MakeCommand(registry));
+    _runner.addCommand(EngineCommand());
     _runner.addCommand(DoctorCommand());
     _runner.addCommand(ProofCommand());
     _runner.addCommand(MigrateCommand());

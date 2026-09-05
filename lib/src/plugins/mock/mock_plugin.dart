@@ -332,9 +332,22 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           }
           // Keep an existing app-level composition root wired with
           // `registerSimulationBindings(getIt);` (idempotent append).
-          final mainIndex = await emitter.syncMainIndex();
-          if (mainIndex != null) {
-            files.add(mainIndex);
+          //
+          // Spec 1002: skip the append when the di plugin is co-active in
+          // THIS run — di runs after mock (DiPlugin.runAfter includes
+          // 'mock') and its own main-index regeneration already wires
+          // `registerSimulationBindings` via the simulation-index
+          // detection (spec 893 FR-002). Running the append here as well
+          // would create a second transaction operation for
+          // `di/index.dart` and fail the commit with "Multiple
+          // operations" — the di+mock-in-one-run conflict the engine
+          // preset had to fix.
+          final diCoActive = context?.isActive('di') ?? false;
+          if (!diCoActive) {
+            final mainIndex = await emitter.syncMainIndex();
+            if (mainIndex != null) {
+              files.add(mainIndex);
+            }
           }
         }
       }
