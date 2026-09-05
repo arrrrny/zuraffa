@@ -456,6 +456,11 @@ class MakeCommand extends Command<void> {
         final baselineRun = await runner.runSuite(
           suiteTemplate: suiteTemplate,
           workingDirectory: cwd,
+          // Issue #1159: the --timeout override is ONE uniform deadline
+          // (bug #742 contract) — the fallback live baseline included.
+          // Without it the hardcoded 10-minute defaultSuite killed the
+          // baseline on repos whose fast suite runs long, and make refused.
+          timeout: timeoutOverride,
         );
         final live = guard.fromRunRecord(
           record: baselineRun,
