@@ -43,12 +43,11 @@ If no feature description is provided, **stop immediately** — do not ask the u
 When you encounter any ambiguity or missing information during any step:
 
 1. **Search the project**: Use `grep`, `find_path`, or `claude_context_search_code` to find existing patterns in the codebase.
-2. **Read the docs**: Check `docs/` and `openwiki/` for architecture documentation — these contain high-level system understanding.
+2. **Read the docs**: Check `docs/` for architecture documentation — these contain high-level system understanding.
 3. **Check existing specs**: Look at `specs/` directory for similar features to understand conventions.
 4. **Check existing implementations**: Look at the actual code in `lib/src/` for established patterns.
 5. **Scan `AGENTS.md`**: Contains project-specific rules and conventions for v5.
-6. **Read OpenWiki docs**: `openwiki/` contains canonical architecture, CLI, domain, presentation, data-layer, testing, integration, and operations documentation. Start with [quickstart.md](../openwiki/quickstart.md) then follow cross-references.
-7. **Use prior features**: Check `specs/` for closely related features — their specs, plans, and tasks.md files document existing patterns.
+6. **Use prior features**: Check `specs/` for closely related features — their specs, plans, and tasks.md files document existing patterns.
 8. **Check `.zfa/` memory**: The `.zfa/` directory contains project memory — plans, runs, decisions, blueprints, manifests, and context.
 
 Only if absolutely no information exists in the entire codebase should you make a reasonable default decision and document it. Never formulate a question to the user.
@@ -110,33 +109,22 @@ complexity to determine how much context gathering is needed.
    in the triage skill (scope, patterns, cross-cutting concerns, clarity, risk).
 3. **Determine depth**:
    - **Simple/Straightforward** → Skip deep docs reading. Proceed with light Pre-Flight and move to the speckit steps quickly.
-   - **Complex** or **Ambiguous** → Full deep-dive: read OpenWiki docs thoroughly, check AGENTS.md, read relevant `docs/` files, check existing specs for prior art before proceeding.
+   - **Complex** or **Ambiguous** → Full deep-dive: check AGENTS.md, read relevant `docs/` files, check existing specs for prior art before proceeding.
 
 Output the result so downstream steps can adjust:
 
 > **Triage Result**: {Bug Fix | New Feature | Change to Existing Feature}
 > **Complexity**: {Simple | Complex | Ambiguous}
 
-#### 2. Context Gathering — Docs, OpenWiki, Specs & Prior Art
+#### 2. Context Gathering — Docs, Specs & Prior Art
 
 **Depth depends on triage result.**
 
 - **If Simple/Straightforward** (regardless of classification):
   - Light docs skim is sufficient — read just enough to understand the area.
-  - Read `openwiki/quickstart.md` for the high-level picture.
   - Proceed quickly to implementation.
 
 - **If Complex or Ambiguous**:
-  - **Read OpenWiki docs deeply**: Start with `openwiki/quickstart.md`, then follow cross-references:
-    - [architecture.md](openwiki/architecture.md) — Plugin system, code generation pipeline, presets, aliases, plan resolution
-    - [cli.md](openwiki/cli.md) — All commands, configuration, MCP server, entity workflow
-    - [domain-layer.md](openwiki/domain-layer.md) — UseCase hierarchy, Result type, Failure types, Hook system
-    - [presentation-layer.md](openwiki/presentation-layer.md) — Controller, View, Presenter, responsive/adaptive layouts
-    - [data-layer.md](openwiki/data-layer.md) — Repository pattern, Dual DataSource caching, get_it DI, offline sync
-    - [testing.md](openwiki/testing.md) — Test structure, Result matchers, integration testing utilities
-    - [integrations.md](openwiki/integrations.md) — MCP server, GraphQL, Zed extension, OpenTelemetry
-    - [operations.md](openwiki/operations.md) — Configuration, debugging, CI/CD, caching, sync, migration
-    - [plugin-development.md](openwiki/plugin-development.md) — Plugin API, lifecycle, capability system
   - **Read `AGENTS.md`** for v5 contract, hard rules, and conventions.
   - **Read `CLI_GUIDE.md`** for the complete CLI reference.
   - **Check existing specs** in `specs/` for similar features — their design decisions, gotchas, and patterns inform your approach.
@@ -259,7 +247,6 @@ The implement step reads tasks.md and executes them one by one. If any task has 
 
 - Search the project for the relevant pattern
 - Check existing implementations for convention
-- Check OpenWiki docs for architecture guidance
 - Make a reasonable decision and continue
 
 ## Scope Handling
