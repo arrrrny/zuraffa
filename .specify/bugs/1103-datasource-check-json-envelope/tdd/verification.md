@@ -19,7 +19,7 @@ over three sequential runs to fit the session tool timeouts):
 | Suite | Result |
 |---|---|
 | bug repro folder `dart test test/plugins/datasource/ --exclude-tags flutter` | 31/31 passed |
-| full fast suite, 82 chunks | **3175 passed / 2 failed**; 81/82 chunks fully green; 4 chunks skip (no fast-tier tests) |
+| full fast suite, 82 chunks | **3175 passed / 2 failed**; 77/82 chunks fully green; 4 chunks skip (no fast-tier tests) |
 | failing chunk | `test/plugins/cache` only — 2 failures, both **pre-existing on master** (see §6) |
 
 `dart analyze`: 333 issues before and after the change — **identical
