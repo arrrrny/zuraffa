@@ -30,11 +30,20 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/adapter_parity_checker.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
 class DiffCheckCommand extends Command<void> {
   DiffCheckCommand(this.plugin) {
+    argParser.addFlag(
+      'json',
+      help:
+          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'line (VISION §5, issue #969).',
+      negatable: false,
+    );
     argParser.addOption(
       'feature',
       help:
@@ -67,6 +76,9 @@ class DiffCheckCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'diff-check';
 
@@ -81,7 +93,9 @@ class DiffCheckCommand extends Command<void> {
       'zfa tdd diff-check --feature <name> [--contract <name>] [--full]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
     final argResults = this.argResults;
     final feature = argResults?['feature'] as String?;
     if (feature == null || feature.isEmpty) {
@@ -158,6 +172,30 @@ class DiffCheckCommand extends Command<void> {
       'diff-check: contracts=${reports.length} matched=$matched '
       'drifted=$drifted incomplete=$incomplete result=$result',
     );
+    // Issue #969: the result label IS the exit class.
+    _verdict
+      ..exitClass = switch (result) {
+        'drift' => 'drift',
+        'incomplete' => 'incomplete',
+        _ => 'ok',
+      }
+      ..outcome = switch (result) {
+        'drift' => VerdictOutcome.fail,
+        'incomplete' => VerdictOutcome.fail,
+        _ => VerdictOutcome.pass,
+      };
+    _verdict.details
+      ..['contracts'] = reports.length
+      ..['matched'] = matched
+      ..['drifted'] = drifted
+      ..['incomplete'] = incomplete;
+    if (result != 'ok') {
+      _verdict.fix = result == 'drift'
+          ? 're-run zfa tdd gen/realize to restore the contract fixtures '
+                '(or re-commit the intended fixtures)'
+          : 'commit the missing fixture lane (mock/real json) for every '
+                'incomplete contract';
+    }
     exitCode = switch (result) {
       'drift' => 2,
       'incomplete' => 1,

@@ -126,6 +126,8 @@ import '../services/suite_guard.dart';
 import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
 import '../services/tdd_transaction.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -176,6 +178,9 @@ class RunCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'run';
 
@@ -197,7 +202,10 @@ class RunCommand extends Command<void> {
   static const _exitConcurrentRun = 4;
 
   @override
-  Future<void> run() async {
+  Future<void> run() =>
+      runWithVerdictEnvelope(this, _verdict, _run, featureFromRest: true);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       throw UsageException(
@@ -1686,6 +1694,20 @@ class RunCommand extends Command<void> {
       '${skippedWidgets.isNotEmpty ? ' skipped-widget=${skippedWidgets.length}' : ''}'
       '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}',
     );
+    // Issue #969: carry the shipped exit taxonomy into the envelope —
+    // the label IS the class; no taxonomy changes.
+    _verdict
+      ..exitClass = result
+      ..outcome = switch (result) {
+        'complete' => VerdictOutcome.pass,
+        'stopped' => VerdictOutcome.stopped,
+        _ => VerdictOutcome.error,
+      }
+      ..details['pending'] = pending
+      ..details['red'] = red
+      ..details['green'] = green
+      ..details['done'] = done;
+    if (stoppedAt != null) _verdict.details['stopped_at'] = stoppedAt;
   }
 
   void _printOutputExcerpt(String output) {

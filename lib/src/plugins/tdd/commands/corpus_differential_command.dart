@@ -30,6 +30,8 @@ import '../../../core/project/project_root.dart';
 import '../models/differential_vector.dart';
 import '../services/differential_corpus.dart';
 import '../services/differential_ref_runner.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 
 class CorpusDifferentialCommand extends Command<void> {
@@ -41,6 +43,13 @@ class CorpusDifferentialCommand extends Command<void> {
   }) : _spawnerOverride = spawner,
        _gitRunnerOverride = gitRunner,
        _scratchRootOverride = scratchRoot {
+    argParser.addFlag(
+      'json',
+      help:
+          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'line (VISION §5, issue #969).',
+      negatable: false,
+    );
     argParser.addOption(
       'from',
       help:
@@ -84,6 +93,9 @@ class CorpusDifferentialCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   final DifferentialSpawner? _spawnerOverride;
   final DifferentialGitRunner? _gitRunnerOverride;
   final Directory? _scratchRootOverride;
@@ -106,7 +118,14 @@ class CorpusDifferentialCommand extends Command<void> {
   static const _exitRunnerError = 2;
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(
+    this,
+    _verdict,
+    _run,
+    commandOverride: 'corpus differential',
+  );
+
+  Future<void> _run() async {
     final argResults = this.argResults;
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
@@ -128,6 +147,21 @@ class CorpusDifferentialCommand extends Command<void> {
         'differing=$differing errors=$errors from=${from ?? '-'} to=$to '
         'result=$result',
       );
+      // Issue #969: the result label IS the exit class.
+      _verdict
+        ..exitClass = result
+        ..outcome = switch (result) {
+          'match' => VerdictOutcome.pass,
+          'differ' => VerdictOutcome.fail,
+          _ => VerdictOutcome.error,
+        };
+      _verdict.details
+        ..['entries'] = entries
+        ..['compared'] = compared
+        ..['differing'] = differing
+        ..['errors'] = errors
+        ..['from'] = from ?? '-'
+        ..['to'] = to;
     }
 
     // The --from ref is the anchor of the whole comparison.

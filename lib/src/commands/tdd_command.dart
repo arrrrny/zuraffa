@@ -26,6 +26,7 @@ import '../plugins/tdd/commands/split_command.dart';
 import '../plugins/tdd/commands/theater_command.dart';
 import '../plugins/tdd/commands/verify_command.dart';
 import '../plugins/tdd/commands/verify_red_command.dart';
+import '../plugins/tdd/commands/verdicts_command.dart';
 import '../plugins/tdd/commands/view_command.dart';
 import '../plugins/tdd/commands/wire_command.dart';
 import '../plugins/tdd/tdd_plugin.dart';
@@ -56,6 +57,7 @@ class TddCommand extends Command<void> {
     addSubcommand(ResetCommand(plugin));
     addSubcommand(DoctorCommand(plugin));
     addSubcommand(RealizeCommand(plugin));
+    addSubcommand(VerdictsCommand(plugin));
     addSubcommand(RealizeMockCommand(plugin));
   }
 

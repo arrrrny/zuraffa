@@ -85,6 +85,7 @@ import '../services/behavior_test_writer.dart';
 import '../services/generated_shape.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
+import '../services/tdd_generation_receipt.dart';
 import '../services/golden_harness_writer.dart';
 import '../services/platform_harness_context.dart';
 import '../services/platform_harness_subject_writer.dart';
@@ -95,6 +96,7 @@ import '../services/theme_harness_subject_writer.dart';
 import '../services/theme_harness_test_writer.dart';
 import '../tdd_plugin.dart';
 import '../services/tdd_timeout.dart';
+import '../services/verdict_emitter.dart';
 import '../services/widget_scaffold.dart';
 import '../../../config/zfa_config.dart';
 import '../../../core/project/project_root.dart';
@@ -210,6 +212,10 @@ class GenCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit (the
+  /// batch verdict folds into it — ONE final envelope, never two).
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'gen';
 
@@ -235,7 +241,9 @@ class GenCommand extends Command<void> {
   );
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     _jsonMode = argResults?['json'] as bool? ?? false;
     final all = argResults!['all'] as bool;
@@ -568,23 +576,22 @@ class GenCommand extends Command<void> {
       );
       return;
     }
-    VerdictEnvelope.emit(
-      command: 'gen',
-      outcome: verdict == 'stopped'
+    // Issue #969: the batch verdict folds into the wrapper's context —
+    // the final envelope is emitted once, after the body returns.
+    _verdict
+      ..feature = feature
+      ..outcome = verdict == 'stopped'
           ? VerdictOutcome.stopped
-          : VerdictOutcome.pass,
-      feature: feature,
-      details: <String, Object?>{
-        'verdict': verdict,
-        'batch': true,
-        'behaviors': behaviors,
-        'created': counts['created'] ?? 0,
-        'reused': counts['reused'] ?? 0,
-        'adopted': counts['adopted'] ?? 0,
-        'planned': counts['planned'] ?? 0,
-        if (stoppedAt != null) 'stopped_at': stoppedAt,
-      },
-    );
+          : VerdictOutcome.pass;
+    _verdict.details
+      ..['verdict'] = verdict
+      ..['batch'] = true
+      ..['behaviors'] = behaviors
+      ..['created'] = counts['created'] ?? 0
+      ..['reused'] = counts['reused'] ?? 0
+      ..['adopted'] = counts['adopted'] ?? 0
+      ..['planned'] = counts['planned'] ?? 0;
+    if (stoppedAt != null) _verdict.details['stopped_at'] = stoppedAt;
   }
 
   /// The deadline-bounded flow body, verbatim the pre-#744 contract:
@@ -1024,6 +1031,17 @@ class GenCommand extends Command<void> {
           createdPaths.addAll(golden.createdFiles);
           goldenPaths = golden;
         }
+        // Issue #969 T003: the pair (and any golden-lane files) becomes
+        // self-certifying — digest-bound proof.v1 receipts so
+        // `zfa proof check` and the verify preflight gate recognise
+        // every generated artifact.
+        await TddGenerationReceipts.writeBestEffort(
+          projectRoot: cwd,
+          command: 'tdd gen',
+          target: behavior.id,
+          feature: featureName,
+          files: {for (final path in createdPaths) path: 'create'},
+        );
         record = await bounded(registry.append(record), 'registry append');
       } catch (error, stackTrace) {
         // Transactional cleanup: remove what THIS attempt created. The
@@ -1137,6 +1155,11 @@ class GenCommand extends Command<void> {
   /// split and the audit-log location for adopt runs. Gated on [--json]
   /// (VISION §5, issue #964): when the flag is absent, the text
   /// `key=value` summary is the last line instead.
+  ///
+  /// Issue #969: under --json in SINGLE mode the verdict folds into the
+  /// wrapper's envelope context (ONE final machine line); in --all batch
+  /// mode each behavior keeps its own envelope line as mid-stream
+  /// progress above the final batch envelope.
   void _printVerdict({
     required String behaviorId,
     required String verdict,
@@ -1160,6 +1183,36 @@ class GenCommand extends Command<void> {
         '${adopted.isNotEmpty ? ' adopted=${adopted.length}' : ''}'
         '${created.isNotEmpty ? ' created=${created.length}' : ''}',
       );
+      return;
+    }
+    final batchMode = argResults?['all'] as bool? ?? false;
+    if (!batchMode) {
+      _verdict
+        ..feature = featureName ?? _verdict.feature
+        ..details['behavior'] = behaviorId
+        ..details['verdict'] = verdict;
+      if (reason != null) _verdict.details['reason'] = reason;
+      if (kind != null) _verdict.details['kind'] = kind;
+      if (golden) _verdict.details['golden'] = true;
+      if (adopted.isNotEmpty) _verdict.details['adopted'] = adopted;
+      if (created.isNotEmpty) _verdict.details['created'] = created;
+      if (adopted.isNotEmpty && featureName != null) {
+        _verdict.details['audit_log'] = p.join(
+          'specs',
+          featureName,
+          'tdd',
+          'audit.log',
+        );
+      }
+      if (goldenTestPath != null) {
+        _verdict.details['golden_test'] = goldenTestPath;
+      }
+      if (goldenFixturesDir != null) {
+        _verdict.details['golden_fixtures'] = goldenFixturesDir;
+      }
+      if (verdict == 'refused' || verdict == 'foreign-owned') {
+        _verdict.outcome = VerdictOutcome.fail;
+      }
       return;
     }
     VerdictEnvelope.emit(

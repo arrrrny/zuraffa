@@ -67,7 +67,10 @@ import '../services/behavior_test_writer.dart' show BehaviorTestWriter;
 import '../services/finder_taxonomy.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
+import '../services/tdd_generation_receipt.dart';
 import '../services/test_list_reader.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../config/zfa_config.dart';
 import '../../../core/project/project_root.dart';
@@ -117,6 +120,9 @@ class ViewCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'view';
 
@@ -131,7 +137,9 @@ class ViewCommand extends Command<void> {
       'zfa tdd view <behavior-id> [--feature <name>] [--project <path>]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     final behaviorId = rest.isNotEmpty ? rest.first : null;
     if (behaviorId == null || behaviorId.isEmpty) {
@@ -394,6 +402,14 @@ class ViewCommand extends Command<void> {
             ),
           );
     await subjectFile.writeAsString(updatedWithImport);
+    // Issue #969 T003: the scaffolded subject becomes self-certifying.
+    await TddGenerationReceipts.writeBestEffort(
+      projectRoot: normalizedCwd,
+      command: 'tdd view',
+      target: record.behaviorId,
+      feature: resolved.featureName,
+      files: {subjectPath: 'update'},
+    );
     // #807 receipt: record the scaffolded file for the provenance
     // ledger so `zfa proof check` recognises it.
     try {
@@ -704,6 +720,16 @@ $body
     required String feature,
   }) {
     print('view: behavior=$behavior outcome=${outcome.label} feature=$feature');
+    // Issue #969: the outcome label IS the exit class.
+    _verdict
+      ..exitClass = outcome.label
+      ..outcome = switch (outcome) {
+        ViewOutcome.scaffolded => VerdictOutcome.pass,
+        ViewOutcome.alreadyImplemented => VerdictOutcome.stopped,
+        ViewOutcome.runnerError => VerdictOutcome.fail,
+      }
+      ..details['behavior'] = behavior
+      ..feature = feature == 'unknown' ? null : feature;
   }
 }
 
