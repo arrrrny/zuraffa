@@ -69,6 +69,14 @@ class VerifyCommand extends Command<void> {
           'the child is killed and the audit reports NOT_ASSESSED (bug '
           '#742).',
     );
+    argParser.addOption(
+      'runner',
+      help:
+          "Override the test runner for this audit: 'dart' or 'flutter'. "
+          'Wins over the tdd-profile file: template; when omitted the '
+          'profile resolves the runner and a project without a profile '
+          'keeps the pure-Dart default (issue #1044).',
+    );
   }
 
   final TddPlugin plugin;
@@ -109,6 +117,28 @@ class VerifyCommand extends Command<void> {
       stderr.writeln('zfa tdd verify: ${e.message}');
       exitCode = 1;
       return;
+    }
+
+    // Issue #1044: explicit runner override — wins over the profile's
+    // file: template. Anything other than dart|flutter is a usage error
+    // (exit 64) with the fix line, never a guessed runner.
+    final runnerFlag = argResults?['runner'] as String?;
+    String? runnerTemplate;
+    if (runnerFlag != null && runnerFlag.isNotEmpty) {
+      switch (runnerFlag) {
+        case 'dart':
+          runnerTemplate = 'dart test {file}';
+        case 'flutter':
+          runnerTemplate = 'flutter test {file}';
+        default:
+          stderr.writeln(
+            "zfa tdd verify: --runner accepts 'dart' or 'flutter' "
+            "(got '$runnerFlag') --> fix: pass dart|flutter, or set the "
+            'file: key in .specify/memory/tdd-profile.md and omit --runner',
+          );
+          exitCode = 64;
+          return;
+      }
     }
 
     // Resolve the feature directory. Treat empty string as absent.
@@ -191,6 +221,7 @@ class VerifyCommand extends Command<void> {
       preflightTimeout: timeoutOverride,
       mutationTimeout: timeoutOverride,
       scoreThreshold: _readScoreThreshold(cwd),
+      runnerTemplate: runnerTemplate,
     );
     final report = await auditor.run();
 
