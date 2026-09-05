@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:analyzer/dart/analysis/utilities.dart';
@@ -9,18 +10,54 @@ import '../utils/string_utils.dart';
 
 /// A method-parity divergence between the datasource interface and one
 /// implementation.
+///
+/// [kind] is the machine verdict class the `--json` envelope reports
+/// (issue #1103):
+///
+///  - `missing-interface` — the interface file or class is absent;
+///  - `missing-impl`      — an impl file declares no class implementing
+///                          the interface;
+///  - `missing-method`    — an impl is missing an interface method;
+///  - `extra-override`    — an impl marks `@override` for a method the
+///                          interface does not declare.
+enum _DivergenceKind {
+  missingInterface,
+  missingImpl,
+  missingMethod,
+  extraOverride;
+
+  String get label => switch (this) {
+    _DivergenceKind.missingInterface => 'missing-interface',
+    _DivergenceKind.missingImpl => 'missing-impl',
+    _DivergenceKind.missingMethod => 'missing-method',
+    _DivergenceKind.extraOverride => 'extra-override',
+  };
+}
+
 class _Divergence {
+  final _DivergenceKind kind;
   final String method;
   final String implFile;
   final String interfaceFile;
   final String detail;
 
   const _Divergence({
+    required this.kind,
     required this.method,
     required this.implFile,
     required this.interfaceFile,
     required this.detail,
   });
+
+  /// The `findings[]` entry the `--json` envelope reports (issue #1103).
+  /// Every field is structural: the human `--> fix:` prose stays on the
+  /// text path only.
+  Map<String, dynamic> toFinding() => {
+    'kind': kind.label,
+    'file': implFile,
+    'member': method,
+    'fix': detail,
+  };
 
   String get fixLine =>
       '--> fix: $detail — method `$method`, file `$implFile` '
@@ -44,12 +81,27 @@ class _Divergence {
 /// Exit codes: 0 = parity, 1 = divergence or missing interface (always
 /// with a `--> fix:` line naming the method and the file), 64 = missing
 /// entity argument.
+///
+/// `--json` (issue #1103) emits a single parseable schema-1 verdict
+/// envelope `{schema: 1, verdict: match|drift, entity, findings: [{kind,
+/// file, member, fix}]}` on stdout — no prose — so agents/CI consume the
+/// verdict directly, converging with `cache verify`, `route verify` and
+/// `state create`. Exit codes are unchanged; without `--json` the human
+/// text (including every `--> fix:` line) is printed as before.
 class DataSourceCheckCommand extends Command<void> {
   /// Project root the datasources are resolved against. Defaults to the
   /// current working directory, mirroring the receipt store.
   final String? projectRoot;
 
-  DataSourceCheckCommand({this.projectRoot});
+  DataSourceCheckCommand({this.projectRoot}) {
+    argParser.addFlag(
+      'json',
+      negatable: false,
+      help:
+          'Emit a single schema-1 verdict envelope on stdout '
+          '(CI-able; mirrors cache verify / route verify).',
+    );
+  }
 
   @override
   String get name => 'check';
@@ -68,6 +120,7 @@ class DataSourceCheckCommand extends Command<void> {
       return;
     }
 
+    final jsonMode = argResults?['json'] == true;
     final entity = rest.first;
     final capEntity = entity.isEmpty
         ? entity
@@ -81,15 +134,35 @@ class DataSourceCheckCommand extends Command<void> {
 
     final interfaceFile = File(p.join(dir.path, '${snake}_datasource.dart'));
     if (!interfaceFile.existsSync()) {
-      print(
-        '❌ datasource check failed: no interface at '
-        '`lib/src/data/datasources/$snake/${snake}_datasource.dart`.',
-      );
-      print(
-        '--> fix: generate the datasource first, e.g. '
-        '`zfa datasource create $entity`, then re-run '
-        '`zfa datasource check $entity`.',
-      );
+      if (jsonMode) {
+        // No prose: agents/CI consume stdout directly (issue #1103).
+        print(
+          jsonEncode(
+            _envelope(entity, [
+              {
+                'kind': _DivergenceKind.missingInterface.label,
+                'file':
+                    'lib/src/data/datasources/$snake/${snake}_datasource.dart',
+                'member': interfaceName,
+                'fix':
+                    'generate the datasource first, e.g. '
+                    '`zfa datasource create $entity`, then re-run '
+                    '`zfa datasource check $entity`.',
+              },
+            ]),
+          ),
+        );
+      } else {
+        print(
+          '❌ datasource check failed: no interface at '
+          '`lib/src/data/datasources/$snake/${snake}_datasource.dart`.',
+        );
+        print(
+          '--> fix: generate the datasource first, e.g. '
+          '`zfa datasource create $entity`, then re-run '
+          '`zfa datasource check $entity`.',
+        );
+      }
       exitCode = 1;
       return;
     }
@@ -100,14 +173,31 @@ class DataSourceCheckCommand extends Command<void> {
     );
 
     if (interface == null) {
-      print(
-        '❌ datasource check failed: no class `$interfaceName` found in '
-        '`$interfaceFile`.',
-      );
-      print(
-        '--> fix: the interface file is corrupted or was renamed — '
-        'regenerate it with `zfa datasource create $entity`.',
-      );
+      if (jsonMode) {
+        print(
+          jsonEncode(
+            _envelope(entity, [
+              {
+                'kind': _DivergenceKind.missingInterface.label,
+                'file': _rel(interfaceFile.path),
+                'member': interfaceName,
+                'fix':
+                    'the interface file is corrupted or was renamed — '
+                    'regenerate it with `zfa datasource create $entity`.',
+              },
+            ]),
+          ),
+        );
+      } else {
+        print(
+          '❌ datasource check failed: no class `$interfaceName` found in '
+          '`$interfaceFile`.',
+        );
+        print(
+          '--> fix: the interface file is corrupted or was renamed — '
+          'regenerate it with `zfa datasource create $entity`.',
+        );
+      }
       exitCode = 1;
       return;
     }
@@ -146,6 +236,7 @@ class DataSourceCheckCommand extends Command<void> {
       if (impl == null) {
         divergences.add(
           _Divergence(
+            kind: _DivergenceKind.missingImpl,
             method: interface.publicMethods.join(', '),
             implFile: relImpl,
             interfaceFile: _rel(interfaceFile.path),
@@ -161,6 +252,7 @@ class DataSourceCheckCommand extends Command<void> {
         if (!impl.declaredMethods.contains(method)) {
           divergences.add(
             _Divergence(
+              kind: _DivergenceKind.missingMethod,
               method: method,
               implFile: relImpl,
               interfaceFile: _rel(interfaceFile.path),
@@ -176,6 +268,7 @@ class DataSourceCheckCommand extends Command<void> {
         if (!interface.declaredMethods.contains(method)) {
           divergences.add(
             _Divergence(
+              kind: _DivergenceKind.extraOverride,
               method: method,
               implFile: relImpl,
               interfaceFile: _rel(interfaceFile.path),
@@ -189,25 +282,53 @@ class DataSourceCheckCommand extends Command<void> {
     }
 
     if (divergences.isNotEmpty) {
-      print(
-        '❌ datasource check failed for `$entity`: '
-        '${divergences.length} parity divergence(s) '
-        'between `$interfaceName` and its implementations.',
-      );
-      for (final d in divergences) {
-        print(d.fixLine);
+      if (jsonMode) {
+        // No prose: agents/CI consume stdout directly (issue #1103).
+        print(
+          jsonEncode(
+            _envelope(entity, divergences.map((d) => d.toFinding()).toList()),
+          ),
+        );
+      } else {
+        print(
+          '❌ datasource check failed for `$entity`: '
+          '${divergences.length} parity divergence(s) '
+          'between `$interfaceName` and its implementations.',
+        );
+        for (final d in divergences) {
+          print(d.fixLine);
+        }
       }
       exitCode = 1;
       return;
     }
 
-    print(
-      '✅ datasource parity OK for `$entity`: `$interfaceName` vs '
-      '${checkedImpls.isEmpty ? '(no implementation files)' : checkedImpls.join(', ')} '
-      '— all public methods at parity.',
-    );
+    if (jsonMode) {
+      print(jsonEncode(_envelope(entity, const [])));
+    } else {
+      print(
+        '✅ datasource parity OK for `$entity`: `$interfaceName` vs '
+        '${checkedImpls.isEmpty ? '(no implementation files)' : checkedImpls.join(', ')} '
+        '— all public methods at parity.',
+      );
+    }
     exitCode = 0;
   }
+
+  /// The schema-1 machine verdict envelope (issue #1103): converges with
+  /// the sibling fleet emitters (`route verify` entity envelope,
+  /// `state create --json`, integer `schema` key). [findings] empty means
+  /// parity (`match`); any finding means `drift`. Exit codes are set by
+  /// the caller and stay unchanged (0 match / 1 drift).
+  Map<String, dynamic> _envelope(
+    String entity,
+    List<Map<String, dynamic>> findings,
+  ) => <String, dynamic>{
+    'schema': 1,
+    'verdict': findings.isEmpty ? 'match' : 'drift',
+    'entity': entity,
+    'findings': findings,
+  };
 
   /// Parses [file] syntactically; an unparsable file yields an empty
   /// unit, which the parity logic reports as a divergence via the
