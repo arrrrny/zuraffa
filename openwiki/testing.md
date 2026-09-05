@@ -229,6 +229,46 @@ void main() {
 | `test/domain/usecase_hook_test.dart` | UseCase hook dispatch tests |
 | `test/presentation/stateful_controller_test.dart` | Controller state management tests |
 
+## TDD Cycle
+
+The `zfa tdd` plugin drives spec-driven test-first development end to
+end — see [CLI](cli.md#zfa-tdd--tdd-loop-plugin) for the full command
+table. The cycle flow:
+
+1. **`zfa tdd plan <feature>`** reads `specs/<feature>/spec.md` and
+   emits `tdd/test-list.md` (one behavior per FR/AC) plus
+   `tdd/traceability.md` (the behavior ↔ requirement matrix with the
+   spec-contract hash). A requirement statement with no behavior row
+   fails the coverage gate — no artifacts are written.
+2. **`zfa tdd gen <behavior-id>`** generates the failing test + compiling
+   subject stub pair and registers both in `tdd/artifacts.json` with
+   provenance headers and a `behavior_id` binding.
+3. **`zfa tdd verify-red <behavior-id>`** runs the pair's test, proves
+   the failure is an honest assertion failure, and appends the red
+   evidence entry to `tdd/cycle-log.md`.
+4. **`zfa tdd make <behavior-id>`** requires the certified red, plans the
+   minimal generation through the zuraffa pipeline, runs the target test
+   green, certifies the suite gained no NEW failures, and appends the
+   green evidence to the cycle log.
+5. **`zfa tdd refactor`** applies recorded refactors only under a green
+   suite preflight.
+6. **`zfa tdd verify --feature <feature>`** runs the mutation audit and
+   writes `tdd/verification.md` from the REAL run. The audit is gated
+   twice before it starts: the traceability hash must still match the
+   spec (drift = exit 3, re-plan), and the feature's receipted artifacts
+   must still match the bytes their generating verbs wrote (digest drift
+   = `NOT_ASSESSED`, exit 3, re-run the cycle).
+
+Every step writes machine-readable evidence: each verb emits the
+versioned `verdict.v1` envelope as its final stdout line under `--json`
+(`zfa tdd verdicts --schema` prints the diff-stable schema), and the
+cycle's artifacts are digest-bound as proof.v1 receipts under
+`.zfa/receipts/` — run `zfa proof check` to verify that every generated
+artifact still proves where it came from. Hand-editing a generated
+artifact is therefore always detected: the receipt digest drifts and
+both `zfa proof check` (exit 1) and `zfa tdd verify`'s preflight
+(NOT_ASSESSED) name it.
+
 ## Change Guidance
 
 - **Changing the Result type:** Update `test/core/result_test.dart` and the custom matchers in `test/test_matchers.dart`.
