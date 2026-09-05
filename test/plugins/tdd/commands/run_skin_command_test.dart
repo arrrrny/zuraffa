@@ -162,19 +162,19 @@ Lanes:
     // engine receipt — seed one so the fixture exercises the cycle.
     final tddDir = Directory(p.join(fx.featureDir, 'tdd'));
     await tddDir.create(recursive: true);
-    await File(
-      p.join(tddDir.path, '04-engine-receipt.json'),
-    ).writeAsString(const JsonEncoder.withIndent('  ').convert({
-      'schema': 1,
-      'feature': feature,
-      'lane': 'engine',
-      'verdict': 'green',
-      'result': 'complete',
-      'behaviors': <String>[],
-      'counts': {'total': 0, 'pending': 0, 'red': 0, 'green': 0, 'done': 0},
-      'stopped_at': null,
-      'at': '2026-09-05T00:00:00.000Z',
-    }));
+    await File(p.join(tddDir.path, '04-engine-receipt.json')).writeAsString(
+      const JsonEncoder.withIndent('  ').convert({
+        'schema': 1,
+        'feature': feature,
+        'lane': 'engine',
+        'verdict': 'green',
+        'result': 'complete',
+        'behaviors': <String>[],
+        'counts': {'total': 0, 'pending': 0, 'red': 0, 'green': 0, 'done': 0},
+        'stopped_at': null,
+        'at': '2026-09-05T00:00:00.000Z',
+      }),
+    );
   }
 
   Future<String> drive([List<String> extra = const []]) async {
@@ -370,6 +370,6 @@ Lanes:
       out,
       contains('run-skin: feature=$feature lane=skin result=complete'),
     );
-    expect(out, contains('total=0'));
+    expect(out, contains('done=0'));
   });
 }
