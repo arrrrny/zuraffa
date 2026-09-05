@@ -183,8 +183,8 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
     final registrarAbs = _absoluteOf(
       path.join(outputDir, 'cache', 'hive_registrar.dart'),
     );
-    final projectRoot =
-        _resolveProjectRoot(registrarAbs) ?? Directory.current.path;
+    final projectRoot = _resolveProjectRoot(registrarAbs);
+    if (projectRoot == null) return null;
     final rel = path
         .normalize(path.relative(sourceAbs, from: projectRoot))
         .replaceAll('\\', '/');

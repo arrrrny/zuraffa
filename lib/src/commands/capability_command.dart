@@ -460,7 +460,6 @@ class CapabilityCommand extends Command<void> {
       // Capabilities also surface _registrarHash and _buildStatus as
       // internal keys that need public-facing aliases in the receipt.
       final input = <String, dynamic>{
-        ...args,
         if (target.isNotEmpty) 'entity': target,
         if (args['_discoveredEntities'] is List)
           'discoveredEntities': args['_discoveredEntities'],

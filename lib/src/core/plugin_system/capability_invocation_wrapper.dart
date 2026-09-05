@@ -56,14 +56,12 @@ class CapabilityInvocationWrapper {
   /// capability's own verdict — a receipt failure never rewrites it.
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
     final result = await capability.execute(args);
-    // Issue #1130: the capability's own _emitReceipt (inside execute above)
-    // already writes the canonical proof.v1 receipt with the hyphenated
-    // command string and spec binding. This wrapper no longer writes a
-    // second receipt — the duplicate shadowed the capability's receipt
-    // (alphabetical filename sort put the wrapper's space-separated
-    // command name last, which loadAll().last returned). The wrapper is
-    // kept as the execution boundary but receipt persistence is the
-    // capability's responsibility.
+    // Issue #1130: receipt persistence is now handled exclusively by
+    // CapabilityCommand._persistCapabilityReceipt, which runs after this
+    // wrapper returns. This wrapper is kept as the execution boundary
+    // but no longer writes its own receipt — the previous duplicate
+    // (space-separated command string) shadowed the capability's
+    // canonical receipt in loadAll().
     return result;
   }
 
@@ -83,7 +81,7 @@ class CapabilityInvocationWrapper {
 
       final entity = _entityOf(args, result);
       final methodset = _methodsetOf(args);
-      final spec = _specOf(args, result, files);
+      final spec = _specOf(args, result);
       final runHash = _runHash(
         files: files,
         entity: entity,
@@ -170,7 +168,6 @@ class CapabilityInvocationWrapper {
   GenerationReceiptSpec? _specOf(
     Map<String, dynamic> args,
     ExecutionResult result,
-    List<GenerationReceiptFile> files,
   ) {
     final raw =
         args['_entitySourcePath'] ??
