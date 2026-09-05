@@ -70,39 +70,44 @@ void main() {
         expect(content, contains('extends StandardCommand'));
       });
 
-      test(
-        'U48: generated file passes dart analyze (no manual DI wiring)',
-        () async {
-          final file = plugin.generateForEntity('Product');
-          final content = file.content!;
+      // Issue #997: this test only checks string-level contract
+      // (content shape). The REAL dart analyze gate lives in the
+      // `disk write (issue #1022)` group below, which runs `dart analyze`
+      // against the file written to disk. The old name ("generated file
+      // passes dart analyze") claimed analyzer coverage this test never
+      // had.
+      test('generated file content contains no manual DI wiring and is '
+          'pure-Dart (string contract — see disk-write group for the '
+          'dart analyze gate)', () async {
+        final file = plugin.generateForEntity('Product');
+        final content = file.content!;
 
-          // The contract: the generated file must NOT contain any
-          // `GetIt.instance.registerSingleton` or similar manual DI wiring.
-          expect(
-            content.contains('GetIt.instance'),
-            isFalse,
-            reason:
-                'Generated CLI command must not contain manual DI wiring '
-                '(SC-005: zero manual wiring).',
-          );
-          expect(content.contains('registerSingleton'), isFalse);
-          expect(content.contains('registerFactory'), isFalse);
-          expect(content.contains('registerLazySingleton'), isFalse);
+        // The contract: the generated file must NOT contain any
+        // `GetIt.instance.registerSingleton` or similar manual DI wiring.
+        expect(
+          content.contains('GetIt.instance'),
+          isFalse,
+          reason:
+              'Generated CLI command must not contain manual DI wiring '
+              '(SC-005: zero manual wiring).',
+        );
+        expect(content.contains('registerSingleton'), isFalse);
+        expect(content.contains('registerFactory'), isFalse);
+        expect(content.contains('registerLazySingleton'), isFalse);
 
-          // The generated file must not import package:flutter.
-          expect(
-            content.contains('package:flutter'),
-            isFalse,
-            reason: 'Generated CLI command must be pure-Dart (FR-012).',
-          );
+        // The generated file must not import package:flutter.
+        expect(
+          content.contains('package:flutter'),
+          isFalse,
+          reason: 'Generated CLI command must be pure-Dart (FR-012).',
+        );
 
-          // The generated file declares a class named <Entity>Command.
-          expect(
-            content,
-            contains('class ProductCommand extends StandardCommand'),
-          );
-        },
-      );
+        // The generated file declares a class named <Entity>Command.
+        expect(
+          content,
+          contains('class ProductCommand extends StandardCommand'),
+        );
+      });
 
       test('PascalCase entity name produces correctly-named class', () {
         final file = plugin.generateForEntity('orderItem');
@@ -148,6 +153,13 @@ void main() {
       });
     });
 
+    // Issue #997 / #1022 / #1033 trail: `zfa cli Foo` used to be a
+    // phantom write (cli_plugin.dart never called writeFile — see #R7 in
+    // the ZIKZAK-REBUILD backlog). Fixed in #1033, which added the
+    // FileUtils.writeFile call + proof receipt; this group is the onDisk
+    // evidence that a file actually lands on the filesystem AND passes
+    // the dart analyze compile gate. The `cli` generator is NOT
+    // deprecated — it writes real files, proven below.
     group('disk write (issue #1022)', () {
       late Directory tmpDir;
       late String previousDir;

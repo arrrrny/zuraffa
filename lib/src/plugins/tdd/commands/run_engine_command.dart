@@ -61,6 +61,16 @@ class RunEngineCommand extends Command<void> {
           'default 10). Fractions are allowed. On timeout the child is '
           'killed and the run stops with result=runner-error.',
     );
+    argParser.addFlag(
+      'skip-widget',
+      help:
+          'Widget-lane behaviors whose gen refuses on the shadcn_ui gate '
+          '(issue #938) are skipped instead of stopping the run: each keeps '
+          'its current state — never a fake DONE — and the end-of-run '
+          'summary names the count (issue #992). Without the flag the '
+          'refusal still stops the run.',
+      negatable: false,
+    );
   }
 
   final TddPlugin plugin;
@@ -133,6 +143,7 @@ class RunEngineCommand extends Command<void> {
       timeout: timeoutOverride,
       lane: 'engine',
       label: label,
+      skipWidget: argResults?['skip-widget'] as bool? ?? false,
     );
     if (outcome.message != null) print('zfa tdd $label: ${outcome.message}');
     print(
@@ -143,6 +154,7 @@ class RunEngineCommand extends Command<void> {
         result: outcome.result,
         counts: outcome.counts,
         stoppedAt: outcome.stoppedAt,
+        skippedWidgetIds: outcome.skippedWidgetIds,
       ),
     );
     exitCode = outcome.exitCode;

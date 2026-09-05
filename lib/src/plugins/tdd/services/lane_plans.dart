@@ -2,28 +2,33 @@
 /// issue #1008): which behaviors belong to the ENGINE lane (CORE + BOTH)
 /// and which to the SKIN lane (SKIN + BOTH).
 ///
-/// #1000 (the plan split) is not merged yet, so lane truth comes from two
-/// sources, in priority order:
+/// #1000 (the plan split) has landed, so lane truth comes from its
+/// artifacts first, in priority order:
 ///
-/// 1. **Plan files** — `tdd/04-ENGINE.md` and `tdd/04-SKIN.md`, the split
-///    plan pair `zfa tdd plan` will emit per #1000. Behavior ids are parsed
-///    from markdown table data rows (first cell) and `- <id>` bullets. An
-///    id present in both files is a BOTH behavior (engine plan carries
-///    CORE+BOTH, skin plan SKIN+BOTH — the intersection IS the BOTH set).
-///    Ids in neither file default to the engine lane (CORE): the engine is
-///    the superset lane of the pre-split world.
-/// 2. **Row tags** — ` [core]` / ` [skin]` / ` [both]` tags in the test
-///    list's behavior cell, parsed and stripped by [TestListReader] exactly
-///    like `[persistence]` (the single-format-contract way, bug #617). A
-///    feature with no tags and no plan files is LEGACY: every behavior is
-///    engine-lane (CORE), the skin lane is empty, and `zfa tdd run` behaves
-///    byte-compatibly with the pre-split driver.
+/// 1. **The split receipt** — `tdd/split-receipt.json` (written by
+///    `zfa tdd split` / `zfa tdd plan`): the authoritative
+///    `classification` map (behavior id -> CORE | SKIN | BOTH).
+/// 2. **Plan files** — `tdd/04-ENGINE.md` and `tdd/04-SKIN.md`, the
+///    split plan pair. Behavior ids are parsed from markdown table data
+///    rows (first cell) and `- <id>` bullets. An id present in both
+///    files is a BOTH behavior (engine plan carries CORE+BOTH, skin
+///    plan SKIN+BOTH — the intersection IS the BOTH set). Ids in neither
+///    file default to the engine lane (CORE): the engine is the
+///    superset lane of the pre-split world.
+/// 3. **Row tags** — ` [core]` / ` [skin]` / ` [both]` tags in the test
+///    list's behavior cell, parsed and stripped by [TestListReader]
+///    exactly like `[persistence]` (the single-format-contract way, bug
+///    #617). A feature with no tags and no split artifacts is LEGACY:
+///    every behavior is engine-lane (CORE), the skin lane is empty, and
+///    `zfa tdd run` behaves byte-compatibly with the pre-split driver.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'lane_split.dart';
 import 'test_list_reader.dart';
 
 /// The lane marker contract for test-list behavior cells: ` [core]`,
@@ -88,8 +93,12 @@ class LanePlanReader {
   /// Resolve the lane assignment for [rows] (the full test list, in list
   /// order — ids not present in the rows are ignored by the callers).
   Future<LaneAssignment> resolve(List<BehaviorRow> rows) async {
-    final enginePlan = await _readPlanFile('04-ENGINE.md');
-    final skinPlan = await _readPlanFile('04-SKIN.md');
+    // 1. The split receipt (issue #1000): the authoritative classification.
+    final fromReceipt = await _readSplitReceipt();
+    if (fromReceipt != null) return fromReceipt;
+    // 2. The plan pair (issue #1000): ids in ENGINE.md / SKIN.md.
+    final enginePlan = await _readPlanFile(LaneSplitFiles.engine);
+    final skinPlan = await _readPlanFile(LaneSplitFiles.skin);
     if (enginePlan != null || skinPlan != null) {
       return LaneAssignment(
         engineIds: enginePlan ?? const {},
@@ -97,7 +106,7 @@ class LanePlanReader {
         fromPlanFiles: true,
       );
     }
-    // Row tags (or the legacy CORE default: untagged = engine).
+    // 3. Row tags (or the legacy CORE default: untagged = engine).
     final engine = <String>{};
     final skin = <String>{};
     for (final row in rows) {
@@ -116,6 +125,45 @@ class LanePlanReader {
       skinIds: skin,
       fromPlanFiles: false,
     );
+  }
+
+  /// The `classification` map from `tdd/split-receipt.json` (issue
+  /// #1000's `zfa tdd split`): behavior id -> CORE | SKIN | BOTH. Null
+  /// when the receipt is absent; a present-but-unreadable receipt is
+  /// ignored (the plan pair / tags / legacy default still resolve).
+  Future<LaneAssignment?> _readSplitReceipt() async {
+    final file = File(p.join(featureDir, 'tdd', LaneSplitFiles.receipt));
+    if (!await file.exists()) return null;
+    try {
+      final decoded = jsonDecode(await file.readAsString());
+      if (decoded is! Map<String, dynamic>) return null;
+      final classification = decoded['classification'];
+      if (classification is! Map) return null;
+      final engine = <String>{};
+      final skin = <String>{};
+      classification.forEach((id, lane) {
+        if (id is! String || lane is! String) return;
+        switch (lane.toUpperCase()) {
+          case 'CORE':
+            engine.add(id);
+          case 'SKIN':
+            skin.add(id);
+          case 'BOTH':
+            engine.add(id);
+            skin.add(id);
+        }
+      });
+      if (engine.isEmpty && skin.isEmpty) return null;
+      return LaneAssignment(
+        engineIds: engine,
+        skinIds: skin,
+        fromPlanFiles: true,
+      );
+    } on FormatException {
+      return null;
+    } on FileSystemException {
+      return null;
+    }
   }
 
   /// Behavior ids parsed from one plan file: markdown table data rows

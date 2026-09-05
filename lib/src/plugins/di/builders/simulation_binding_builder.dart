@@ -8,6 +8,12 @@
 /// FR-003, FR-013). Simulation bindings are distinguishable from
 /// hand-written bindings by their dedicated `di/simulation/` location and
 /// the `SIMULATION BINDING` generated-file markers (FR-011, SC-006).
+///
+/// Issue #1031: in service mode the mock lane generates
+/// `<Name>Service` + `<Name>MockProvider` and no datasource pair, so the
+/// simulation binding follows the service shape instead:
+/// `di/simulation/<name>_simulation_service_di.dart` binds
+/// `<Name>Service` -> `<Name>MockProvider` behind the same flavor switch.
 library;
 
 import 'package:code_builder/code_builder.dart';
@@ -55,12 +61,62 @@ class SimulationBindingBuilder {
     required String entityName,
     required String entitySnake,
   }) {
-    final specLibrary = const SpecLibrary();
-    final functionName = 'register${entityName}SimulationDataSource';
-    final interfaceName = '${entityName}DataSource';
-    final mockName = '${entityName}MockDataSource';
+    final method = _registrationFunction(
+      functionName: 'register${entityName}SimulationDataSource',
+      interfaceName: '${entityName}DataSource',
+      mockName: '${entityName}MockDataSource',
+    );
 
-    final method = Method(
+    final directives = _simulationDirectives([
+      '../../data/datasources/$entitySnake/${entitySnake}_datasource.dart',
+      '../../data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart',
+    ]);
+
+    return _wrapBinding(
+      const SpecLibrary().emitLibrary(
+        const SpecLibrary().library(specs: [method], directives: directives),
+        wrapWithGeneratedMarkers: false,
+      ),
+    );
+  }
+
+  /// Issue #1031: emits `register<Name>SimulationService(GetIt getIt)`,
+  /// which binds `<Name>Service` (the production service interface the
+  /// mock lane actually generated) to `<Name>MockProvider` behind the same
+  /// single `--dart-define=SIMULATION=true` flavor switch — the
+  /// service-mode counterpart of [buildBindingFile]. The datasource shape
+  /// must never be emitted in service mode: its imports would reference a
+  /// datasource pair that was never generated.
+  String buildServiceBindingFile({
+    required String serviceName,
+    required String mockProviderName,
+    required List<String> relativeImports,
+  }) {
+    final baseName = stripServiceSuffix(serviceName);
+    final method = _registrationFunction(
+      functionName: 'register${baseName}SimulationService',
+      interfaceName: serviceName,
+      mockName: mockProviderName,
+    );
+
+    final directives = _simulationDirectives(relativeImports);
+
+    return _wrapBinding(
+      const SpecLibrary().emitLibrary(
+        const SpecLibrary().library(specs: [method], directives: directives),
+        wrapWithGeneratedMarkers: false,
+      ),
+    );
+  }
+
+  /// The flavor-guarded `registerLazySingleton<interface>(() => mock)`
+  /// registration shared by both binding shapes (FR-001).
+  static Method _registrationFunction({
+    required String functionName,
+    required String interfaceName,
+    required String mockName,
+  }) {
+    return Method(
       (m) => m
         ..name = functionName
         ..returns = refer('void')
@@ -94,28 +150,27 @@ class SimulationBindingBuilder {
             ]),
         ),
     );
-
-    final directives = [
-      Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.import('package:zuraffa/simulation.dart'),
-      Directive.import(
-        '../../data/datasources/$entitySnake/${entitySnake}_datasource.dart',
-      ),
-      Directive.import(
-        '../../data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart',
-      ),
-    ];
-
-    final body = specLibrary.emitLibrary(
-      specLibrary.library(specs: [method], directives: directives),
-      wrapWithGeneratedMarkers: false,
-    );
-
-    return '// GENERATED - DO NOT EDIT\n'
-        '$bindingMarker\n'
-        '$body\n\n'
-        '// END GENERATED';
   }
+
+  static List<Directive> _simulationDirectives(List<String> relativeImports) =>
+      [
+        Directive.import('package:zuraffa/zuraffa.dart'),
+        Directive.import('package:zuraffa/simulation.dart'),
+        ...relativeImports.map(Directive.import),
+      ];
+
+  static String _wrapBinding(String body) =>
+      '// GENERATED - DO NOT EDIT\n'
+      '$bindingMarker\n'
+      '$body\n\n'
+      '// END GENERATED';
+
+  /// `AuthService` -> `Auth` (the `<Name>` of `<Name>Service ->
+  /// <Name>MockProvider` binding names).
+  static String stripServiceSuffix(String serviceName) =>
+      serviceName.endsWith('Service')
+      ? serviceName.substring(0, serviceName.length - 7)
+      : serviceName;
 
   /// Emits `di/simulation/index.dart` exposing
   /// `registerSimulationBindings(GetIt getIt)`, which runs the FR-012
@@ -203,6 +258,37 @@ class SimulationBindingEmitter {
       builder.buildBindingFile(
         entityName: entityName,
         entitySnake: entitySnake,
+      ),
+      'di_simulation_binding',
+      force: true,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+      fileSystem: fileSystem,
+    );
+  }
+
+  /// Issue #1031: writes
+  /// `di/simulation/<name>_simulation_service_di.dart` — the service-mode
+  /// counterpart of [emitBinding], binding the service interface the mock
+  /// lane actually generated (`<Name>Service`) to its mock provider.
+  Future<GeneratedFile> emitServiceBinding({
+    required String serviceName,
+    required String mockProviderName,
+    required String serviceImport,
+    required String mockProviderImport,
+  }) async {
+    final baseSnake = StringUtils.camelToSnake(
+      SimulationBindingBuilder.stripServiceSuffix(serviceName),
+    );
+    final fileName = '${baseSnake}_simulation_service_di.dart';
+    final bindingPath = path.join(simulationDir, fileName);
+
+    return FileUtils.writeFile(
+      bindingPath,
+      builder.buildServiceBindingFile(
+        serviceName: serviceName,
+        mockProviderName: mockProviderName,
+        relativeImports: [serviceImport, mockProviderImport],
       ),
       'di_simulation_binding',
       force: true,

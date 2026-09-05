@@ -83,6 +83,7 @@ import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/behavior_test_writer.dart';
 import '../services/generated_shape.dart';
+import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
 import '../services/golden_harness_writer.dart';
 import '../services/platform_harness_context.dart';
@@ -194,6 +195,15 @@ class GenCommand extends Command<void> {
           'instead of hanging indefinitely (bug #744).',
       defaultsTo: '$defaultTimeoutMinutes',
     );
+    argParser.addOption(
+      'i18n-expansion',
+      help:
+          'Comma-separated expansion locales for the widget lane\'s '
+          'optional i18n tier (issue #965), e.g. "de" or "de,fr". The '
+          'generated widget test gains one expansion testWidgets per '
+          'locale re-asserting keyed surfaces under that locale. Overrides '
+          'the .zfa.json `tdd.i18nExpansion` default.',
+    );
   }
 
   bool _jsonMode = false;
@@ -267,6 +277,9 @@ class GenCommand extends Command<void> {
     // flag wins over the `.zfa.json` `tdd.widgetShell` project default;
     // the default is ShadApp (zuraffa apps are shadcn_ui apps).
     final widgetShell = _resolveWidgetShell(argResults, cwd);
+    // Issue #965: the optional i18n expansion tier — the explicit flag
+    // wins over the `.zfa.json` `tdd.i18nExpansion` project default.
+    final i18nExpansion = _resolveI18nExpansion(argResults, cwd);
     // Bug #742 unit contract: one shared parser for every TDD --timeout
     // (minutes, fractions allowed). A bad value is a usage error, exactly
     // like the other flags.
@@ -299,6 +312,7 @@ class GenCommand extends Command<void> {
           featureFlag: featureFlag,
           cwd: cwd,
           widgetShell: widgetShell,
+          i18nExpansion: i18nExpansion,
           budget: budget,
         );
         return;
@@ -312,6 +326,7 @@ class GenCommand extends Command<void> {
         featureFlag: featureFlag,
         cwd: cwd,
         widgetShell: widgetShell,
+        i18nExpansion: i18nExpansion,
         deadline: deadline,
       );
     } on _GenFlowTimeout catch (e) {
@@ -351,6 +366,7 @@ class GenCommand extends Command<void> {
     required String? featureFlag,
     required String cwd,
     required WidgetAppShell widgetShell,
+    required List<String> i18nExpansion,
     required Duration budget,
   }) async {
     // Resolve the target rows: (featureDir, featureName, behaviorId) in
@@ -440,6 +456,7 @@ class GenCommand extends Command<void> {
           featureFlag: featureName,
           cwd: cwd,
           widgetShell: widgetShell,
+          i18nExpansion: i18nExpansion,
           deadline: rowDeadline,
         );
       } on StateError {
@@ -584,6 +601,7 @@ class GenCommand extends Command<void> {
     required String? featureFlag,
     required String cwd,
     required WidgetAppShell widgetShell,
+    required List<String> i18nExpansion,
     required _FlowDeadline deadline,
   }) async {
     // Every awaited stage runs under the shared deadline (bug #744). A
@@ -749,6 +767,33 @@ class GenCommand extends Command<void> {
     }
 
     final registry = ArtifactRegistry(featureDir: featureDir);
+
+    // The feature's declared i18n key contract (issue #965): the key is
+    // the contract, the literal is the anchor. A malformed `key:` token
+    // refuses BEFORE any artifact is written (errors-are-an-API — the
+    // same gate the #938 preflight sets). Keyed surfaces make the paired
+    // widget test boot the slang test shell and assert resolved keys.
+    final I18nKeyTable i18nKeys;
+    try {
+      i18nKeys = await I18nKeyTable.loadForFeature(featureDir);
+    } on I18nKeyContractParseException catch (error) {
+      print('zfa tdd gen: ${error.message}');
+      _printVerdict(
+        behaviorId: behavior.id,
+        verdict: 'refused',
+        reason: 'malformed i18n key contract (issue #965)',
+        featureName: featureName,
+        kind: effectiveBehavior.kind.name,
+      );
+      exitCode = 1;
+      return 'refused';
+    }
+    final i18nImport = i18nKeys.isEmpty
+        ? null
+        : I18nScaffold.accessorImport(
+            projectRoot: cwd,
+            fromDir: p.dirname(testPath),
+          );
 
     // Build the proposed record, then preflight ownership without changing
     // the registry. The record is appended only after both writes succeed.
@@ -916,6 +961,9 @@ class GenCommand extends Command<void> {
         behavior,
         platformContext: platformContext,
         widgetShell: widgetShell,
+        i18nKeys: i18nKeys,
+        i18nImport: i18nImport,
+        i18nExpansion: i18nExpansion,
       );
       try {
         if (!adoptTest) {
@@ -1033,6 +1081,9 @@ class GenCommand extends Command<void> {
         subjectPath: subjectPath,
         platformContext: platformContext,
         widgetShell: widgetShell,
+        i18nKeys: i18nKeys,
+        i18nImport: i18nImport,
+        i18nExpansion: i18nExpansion,
         bounded: bounded,
       );
     }
@@ -1147,6 +1198,9 @@ class GenCommand extends Command<void> {
     Behavior behavior, {
     PlatformHarnessContext? platformContext,
     WidgetAppShell widgetShell = WidgetAppShell.shadapp,
+    I18nKeyTable i18nKeys = I18nKeyTable.empty,
+    String? i18nImport,
+    List<String> i18nExpansion = const [],
   }) {
     if (behavior.kind == BehaviorKind.theme) {
       return (
@@ -1163,7 +1217,12 @@ class GenCommand extends Command<void> {
       );
     }
     return (
-      writeTest: BehaviorTestWriter(widgetShell: widgetShell).write,
+      writeTest: BehaviorTestWriter(
+        widgetShell: widgetShell,
+        i18nKeys: i18nKeys,
+        i18nImport: i18nImport,
+        i18nExpansion: i18nExpansion,
+      ).write,
       writeSubject: const SubjectWriter().write,
     );
   }
@@ -1180,6 +1239,22 @@ class GenCommand extends Command<void> {
     final configured = config?.tddWidgetShell;
     if (configured != null) return WidgetAppShell.parse(configured);
     return WidgetAppShell.shadapp;
+  }
+
+  /// Resolves the expansion locales for the optional i18n tier (issue
+  /// #965): the explicit `--i18n-expansion` flag wins over the `.zfa.json`
+  /// `tdd.i18nExpansion` project default; the fallback is no tier.
+  static List<String> _resolveI18nExpansion(dynamic args, String cwd) {
+    final flag = args?['i18n-expansion'] as String?;
+    final raw = (flag != null && flag.isNotEmpty)
+        ? flag
+        : ZfaConfig.load(projectRoot: cwd)?.tddI18nExpansion;
+    if (raw == null || raw.trim().isEmpty) return const [];
+    return raw
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList(growable: false);
   }
 
   /// Resolve the platform-harness context for a platform-kind behavior
@@ -1327,6 +1402,9 @@ class GenCommand extends Command<void> {
     required Future<T> Function<T>(Future<T> stage, String stageName) bounded,
     PlatformHarnessContext? platformContext,
     WidgetAppShell widgetShell = WidgetAppShell.shadapp,
+    I18nKeyTable i18nKeys = I18nKeyTable.empty,
+    String? i18nImport,
+    List<String> i18nExpansion = const [],
   }) async {
     // Bug #835: an ffi harness is NEVER auto-regenerated. Its contract
     // seams are the implementer's wiring point — partial wiring (the
@@ -1361,6 +1439,9 @@ class GenCommand extends Command<void> {
         behavior,
         platformContext: platformContext,
         widgetShell: widgetShell,
+        i18nKeys: i18nKeys,
+        i18nImport: i18nImport,
+        i18nExpansion: i18nExpansion,
       );
       final mirroredTest = p.join(
         mirror.path,

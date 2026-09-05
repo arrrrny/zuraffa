@@ -33,6 +33,20 @@ abstract class PluginCommand extends Command<void> {
   /// used on a null value" while normal dispatch keeps working.
   Set<String> get manualSubcommandNames => const {};
 
+  /// The plugin-specific, parent-level options this command's `run()`
+  /// actually CONSUMES (reads from its own argResults).
+  ///
+  /// Every other plugin-specific option registered on the parent parser is
+  /// dead — parsed, advertised by `--help`, never read (the #876 "flags
+  /// that lie" family: the subcommand dispatch path never sees parent-level
+  /// values). `zfa manifest --verify` certifies this: for each plugin
+  /// command, parent options outside this set are reported as dead-flag
+  /// findings. Commands whose run() reads their parent flags (e.g.
+  /// DataSourceCommand's positional programmatic path) declare them here;
+  /// commands that only dispatch (the #856 family) leave this empty and
+  /// must register nothing beyond the standard machinery (spec #979).
+  Set<String> get consumedParentFlags => const {};
+
   PluginCommand(this.plugin, {this.registerSubcommands = true}) {
     argParser.addOption(
       'output',
@@ -69,7 +83,10 @@ abstract class PluginCommand extends Command<void> {
     // [manualSubcommandNames] for why the duplicate must never happen).
     if (registerSubcommands) {
       for (final capability in plugin.capabilities) {
-        final subcommand = CapabilityCommand(capability);
+        // Issue #996: the plugin id rides along so every capability
+        // invocation can persist its receipt keyed
+        // <plugin>-<capability>-<entity>-<timestamp>.json.
+        final subcommand = CapabilityCommand(capability, pluginId: plugin.id);
         if (manualSubcommandNames.contains(subcommand.name)) {
           continue;
         }

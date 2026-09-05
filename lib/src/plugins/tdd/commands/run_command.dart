@@ -78,6 +78,16 @@ class RunCommand extends Command<void> {
           'default 10). Fractions are allowed. On timeout the child is '
           'killed and the run stops with result=runner-error.',
     );
+    argParser.addFlag(
+      'skip-widget',
+      help:
+          'Widget-lane behaviors whose gen refuses on the shadcn_ui gate '
+          '(issue #938) are skipped instead of stopping the run: each keeps '
+          'its current state — never a fake DONE — and the end-of-run '
+          'summary names the count (issue #992). Without the flag the '
+          'refusal still stops the run.',
+      negatable: false,
+    );
   }
 
   final TddPlugin plugin;
@@ -145,6 +155,7 @@ class RunCommand extends Command<void> {
       return;
     }
 
+    final skipWidget = argResults?['skip-widget'] as bool? ?? false;
     final core = RunDriverCore();
 
     // -----------------------------------------------------------------
@@ -160,6 +171,7 @@ class RunCommand extends Command<void> {
       lane: 'engine',
       label: label,
       announce: true,
+      skipWidget: skipWidget,
     );
 
     // Fail fast (issue #1008): the engine lane must be green before the
@@ -186,6 +198,7 @@ class RunCommand extends Command<void> {
       lane: 'skin',
       label: label,
       announce: false,
+      skipWidget: skipWidget,
     );
 
     if (skin.result != 'complete') {
@@ -225,6 +238,7 @@ class RunCommand extends Command<void> {
           outcome.state?.behaviorStates ?? const {},
         ),
         stoppedAt: outcome.stoppedAt,
+        skippedWidgetIds: outcome.skippedWidgetIds,
       ),
     );
   }

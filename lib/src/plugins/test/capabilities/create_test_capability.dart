@@ -79,10 +79,25 @@ class CreateTestCapability implements ZuraffaCapability {
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
     final files = await _generateFiles(args, dryRun: args['dryRun'] ?? false);
 
+    // Spec 980 / FR-001: self-certification gate. The plugin ran a scoped
+    // `dart analyze` on every written test file and printed the machine
+    // verdict line. Non-compiling output fails the capability — the
+    // `zfa test create` grammar exits 1 (never a silent success). Dry runs
+    // and empty generations certify nothing and keep the previous
+    // semantics.
+    final certification = plugin.lastCertification;
+    final compilePassed = certification?.compile ?? true;
+
     return ExecutionResult(
-      success: true,
+      success: compilePassed,
       files: files.map((f) => f.path).toList(),
-      data: {'generatedFiles': files},
+      data: {
+        'generatedFiles': files,
+        if (certification != null) 'certification': certification.toJson(),
+      },
+      message: compilePassed
+          ? null
+          : 'Generated tests do not compile: ${certification!.verdictLine}',
     );
   }
 

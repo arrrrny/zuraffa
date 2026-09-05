@@ -42,9 +42,11 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/behavior.dart';
+import '../models/cycle_entry.dart';
 import '../models/run_state.dart';
 import '../services/artifact_registry.dart';
 import '../services/cycle_evidence.dart';
+import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
 import '../services/lane_plans.dart';
 import '../services/lane_receipts.dart';
@@ -69,6 +71,7 @@ class RunDriverOutcome {
     required this.state,
     required this.drove,
     required this.counts,
+    required this.skippedWidgetIds,
     this.stoppedAt,
     this.message,
     this.lane,
@@ -99,6 +102,11 @@ class RunDriverOutcome {
 
   /// `behavior:step` when the run stopped, else null.
   final String? stoppedAt;
+
+  /// The behavior ids the run skipped via --skip-widget (issue #992:
+  /// widget-lane gen refusals the operator chose to skip); named in the
+  /// end-of-run summary (`skipped-widget=<n>`).
+  final List<String> skippedWidgetIds;
 
   /// A refusal/corruption message printed before the summary line (the
   /// concurrent-run refusal and the corruption recovery path name their
@@ -139,6 +147,7 @@ class RunDriverCore {
     String? lane,
     String label = 'run',
     bool announce = true,
+    bool skipWidget = false,
   }) async {
     final featureDir = p.join(projectRoot, 'specs', feature);
     final receipts = LaneReceipts(featureDir);
@@ -307,6 +316,12 @@ class RunDriverCore {
     // Bug #742: the step spawner carries the deadline.
     final runner = StepRunner(zfaBin: zfaBin, timeout: timeout);
 
+    // Issue #992: --skip-widget turns a widget-lane gen refusal (#938
+    // shadcn gate) into a recorded per-behavior skip instead of a run
+    // stop. The map is keyed by behavior id (transcript + summary) and
+    // gates phases 2a/2b so a skipped behavior is never re-driven.
+    final skippedWidgets = <String, String>{};
+
     String? suiteBaselinePath;
     final anyMakeOutstanding = rows.any(
       (r) => current.behaviorStates[r.id] != BehaviorState.done,
@@ -445,6 +460,8 @@ class RunDriverCore {
         runner: runner,
         registry: registry,
         suiteBaselinePath: suiteBaselinePath,
+        skipWidget: skipWidget,
+        skippedWidgets: skippedWidgets,
         label: label,
         feature: feature,
       );
@@ -458,6 +475,7 @@ class RunDriverCore {
           lane: lane,
           laneRows: rows,
           receipts: receipts,
+          skippedWidgets: skippedWidgets,
           stoppedAt: result.stop!.stoppedAt,
           message: result.stop!.message,
         );
@@ -470,6 +488,10 @@ class RunDriverCore {
       final state = current.behaviorStates[row.id] ?? BehaviorState.pending;
       if (state == BehaviorState.done) continue;
       if (state == BehaviorState.green) continue;
+      // Issue #992: a widget-skipped behavior has no gen artifacts —
+      // re-driving its make would refuse "no gen artifacts" and stop the
+      // run for a behavior the operator already chose to skip.
+      if (skippedWidgets.containsKey(row.id)) continue;
 
       final inFlightStep = current.inFlightBehaviorId == row.id
           ? current.inFlightStep
@@ -488,6 +510,8 @@ class RunDriverCore {
         runner: runner,
         registry: registry,
         suiteBaselinePath: suiteBaselinePath,
+        skipWidget: skipWidget,
+        skippedWidgets: skippedWidgets,
         label: label,
         feature: feature,
       );
@@ -501,6 +525,7 @@ class RunDriverCore {
           lane: lane,
           laneRows: rows,
           receipts: receipts,
+          skippedWidgets: skippedWidgets,
           stoppedAt: result.stop!.stoppedAt,
           message: result.stop!.message,
         );
@@ -514,6 +539,8 @@ class RunDriverCore {
     for (final row in rows) {
       final state = current.behaviorStates[row.id] ?? BehaviorState.pending;
       if (state != BehaviorState.green) continue;
+      // Issue #992: never re-drive a widget-skipped behavior.
+      if (skippedWidgets.containsKey(row.id)) continue;
 
       if (!certifiedGreen.contains(row.id)) {
         skippedRefactors[row.id] = 'own test not green';
@@ -543,6 +570,8 @@ class RunDriverCore {
         runner: runner,
         registry: registry,
         suiteBaselinePath: suiteBaselinePath,
+        skipWidget: skipWidget,
+        skippedWidgets: skippedWidgets,
         label: label,
         feature: feature,
       );
@@ -556,6 +585,7 @@ class RunDriverCore {
           lane: lane,
           laneRows: rows,
           receipts: receipts,
+          skippedWidgets: skippedWidgets,
           stoppedAt: result.stop!.stoppedAt,
           message: result.stop!.message,
         );
@@ -574,17 +604,38 @@ class RunDriverCore {
     final allDone = rows.every(
       (r) => current.behaviorStates[r.id] == BehaviorState.done,
     );
-    if (!allDone && skippedRefactors.isNotEmpty) {
-      print(
-        'zfa tdd $label: refactor skipped for '
-        '${skippedRefactors.keys.join(', ')} — '
-        '${skippedRefactors.values.toSet().join(' / ')}',
-      );
-      print(
-        '   resume: restore the suite green (re-run make for behaviors '
-        'whose own test is red; fix the failing tests the preflight '
-        'named otherwise), then re-run `zfa tdd $label $feature`',
-      );
+    if (!allDone &&
+        (skippedRefactors.isNotEmpty || skippedWidgets.isNotEmpty)) {
+      // Bug #734 per-behavior gate (+ v2 refusal skips, issue #992): the
+      // pass completed for every behavior that could proceed; the rest
+      // stay at their last completed state with their outstanding work
+      // named — bounded, resumable progress (FR-007), never a fake DONE
+      // (FR-008). One terminal block reports BOTH skip kinds: a stop can
+      // carry refactors and widget skips together, and the summary must
+      // name each with its resume path (review finding on #1071).
+      if (skippedRefactors.isNotEmpty) {
+        print(
+          'zfa tdd $label: refactor skipped for '
+          '${skippedRefactors.keys.join(', ')} — '
+          '${skippedRefactors.values.toSet().join(' / ')}',
+        );
+        print(
+          '   resume: restore the suite green (re-run make for behaviors '
+          'whose own test is red; fix the failing tests the preflight '
+          'named otherwise), then re-run `zfa tdd $label $feature`',
+        );
+      }
+      if (skippedWidgets.isNotEmpty) {
+        print(
+          'zfa tdd $label: widget-lane skipped for '
+          '${skippedWidgets.keys.join(', ')} — '
+          '${skippedWidgets.values.toSet().join(' / ')}',
+        );
+        print(
+          '   resume: add shadcn_ui (flutter pub add shadcn_ui --dev) or '
+          'drop --skip-widget, then re-run `zfa tdd $label $feature`',
+        );
+      }
       return _finish(
         result: 'stopped',
         exitCode: _exitStopped,
@@ -594,7 +645,10 @@ class RunDriverCore {
         lane: lane,
         laneRows: rows,
         receipts: receipts,
-        stoppedAt: '${skippedRefactors.keys.first}:refactor',
+        stoppedAt: skippedRefactors.isNotEmpty
+            ? '${skippedRefactors.keys.first}:refactor'
+            : '${skippedWidgets.keys.first}:gen',
+        skippedWidgets: skippedWidgets,
         message: null,
       );
     }
@@ -651,6 +705,7 @@ class RunDriverCore {
     state: state,
     drove: drove,
     counts: const {'total': 0, 'pending': 0, 'red': 0, 'green': 0, 'done': 0},
+    skippedWidgetIds: const [],
     stoppedAt: stoppedAt,
     message: message,
     lane: lane,
@@ -665,6 +720,7 @@ class RunDriverCore {
     required String? lane,
     required List<BehaviorRow> laneRows,
     required LaneReceipts receipts,
+    Map<String, String> skippedWidgets = const {},
     String? stoppedAt,
     String? message,
   }) async {
@@ -698,6 +754,7 @@ class RunDriverCore {
       state: state,
       drove: drove,
       counts: counts,
+      skippedWidgetIds: skippedWidgets.keys.toList(),
       stoppedAt: stoppedAt,
       message: message,
       lane: lane,
@@ -715,11 +772,13 @@ class RunDriverCore {
     required Map<String, int> counts,
     String? lane,
     String? stoppedAt,
+    List<String> skippedWidgetIds = const [],
   }) {
     final lanePart = lane == null ? '' : ' lane=$lane';
     return '$label: feature=$feature$lanePart result=$result '
         'pending=${counts['pending']} red=${counts['red']} '
         'green=${counts['green']} done=${counts['done']}'
+        '${skippedWidgetIds.isNotEmpty ? ' skipped-widget=${skippedWidgetIds.length}' : ''}'
         '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}';
   }
 
@@ -904,6 +963,8 @@ class RunDriverCore {
     required StepRunner runner,
     required ArtifactRegistry registry,
     String? suiteBaselinePath,
+    required bool skipWidget,
+    required Map<String, String> skippedWidgets,
     required String label,
     required String feature,
   }) async {
@@ -987,6 +1048,54 @@ class RunDriverCore {
       print('[run] ${row.id} $step -> ${result.outcome}$progressSuffix');
 
       if (!result.success) {
+        // Bug #986: `skipped` — make's issue #694 skip transition (the
+        // target test already passes, generation skipped by design) — is a
+        // TERMINAL make success, never a step failure. StepRunner grades
+        // the exit-0 skip as success; this mapping closes the fall-through
+        // for a skipped token whose exit code disagrees (binary skew, or
+        // the #657/#694-era drift contract where the already-green report
+        // exited non-zero): make's outcome token is the step's own
+        // terminal classification, and halting the feature on an
+        // already-green behavior is the #693/#694 deadlock family. Record
+        // the green evidence when make's write did not land (idempotent —
+        // never a duplicate, the #693 driver-recorded pattern), advance
+        // the behavior GREEN, and let refactor proceed as usual.
+        if (step == 'make' && result.outcome == 'skipped') {
+          if (!await _hasEvidence(evidence.greenEvidence, row.id)) {
+            await CycleLog(p.join(projectRoot, 'specs', feature)).append(
+              CycleLogEntry(
+                behaviorId: row.id,
+                kind: CycleEntryKind.green,
+                runnerCommand: 'zfa tdd make ${row.id} (skipped)',
+                exitCode: result.exitCode,
+                capturedOutput:
+                    'skipped — the target test already passes (issue #694 '
+                    'skip transition); green evidence recorded by the run '
+                    'driver (bug #986) because make did not write it. Exit '
+                    'code ${result.exitCode} disagrees with the outcome '
+                    'token; the token is the terminal classification.\n'
+                    '${result.output.split('\n').take(2).join('\n')}',
+                sourceCriterion: row.traces,
+                testPath: 'test/',
+                timestamp: DateTime.now().toUtc().toIso8601String(),
+              ),
+            );
+          }
+          final next = _maxState(state, _targetStateFor(step));
+          updated = updated.advance(row.id, next);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
+          state = next;
+          print('[run] ${row.id} make -> green (skipped)$progressSuffix');
+          if (result.exitCode != 0) {
+            print(
+              '   exit code ${result.exitCode} disagrees with '
+              'outcome=skipped — the token is the terminal skip transition '
+              '(issue #694); advancing (bug #986).',
+            );
+          }
+          continue;
+        }
         if (deferralAllowed &&
             step == 'make' &&
             (result.outcome == 'unexpressible' || result.outcome == 'no-op')) {
@@ -1018,6 +1127,28 @@ class RunDriverCore {
           print('[run] ${row.id} refactor -> skipped (suite not green)');
           _printOutputExcerpt(result.output);
           return (state: updated, stop: null, refactorBlocked: true);
+        }
+        // Issue #992: a widget-lane gen refusal (#938 shadcn gate) is
+        // per-behavior information, not a run-fatal step failure — the
+        // refusal is side-effect-free (gen refuses BEFORE any artifact
+        // write, registry append, or re-render). With --skip-widget the
+        // behavior keeps its current state (FR-007: never a fake DONE),
+        // the skip is named in the transcript and the end-of-run summary,
+        // and the run continues with the remaining behaviors. Without
+        // the flag the honest stop below stands (the default contract).
+        if (step == 'gen' &&
+            result.outcome == 'refused' &&
+            result.verdictKind == 'widget' &&
+            skipWidget) {
+          updated = updated.advance(row.id, state);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
+          skippedWidgets[row.id] = 'shadcn_ui not declared (issue #938)';
+          print(
+            '[run] ${row.id} gen -> skipped-widget '
+            '(--skip-widget; shadcn_ui not declared, issue #938)',
+          );
+          return (state: updated, stop: null, refactorBlocked: false);
         }
         // Honest stop (FR-007).
         final isRunnerError = result.outcome == 'runner-error';
@@ -1276,7 +1407,11 @@ class RunDriverCore {
     }
     ProcessResult build;
     try {
-      build = await spawn(const ['build']);
+      // Bug #991: --no-analyze — the phase-0 build is a generation gate,
+      // not an analysis gate. Pre-existing warnings in the target repo
+      // (unused imports, dead code) must not fail the run before any
+      // behavior is driven; verify/refactor keep their own analyze.
+      build = await spawn(const ['build', '--no-analyze']);
     } on ProcessTimeoutException {
       print(
         '[run] phase-0 build -> failed (timed out after '
