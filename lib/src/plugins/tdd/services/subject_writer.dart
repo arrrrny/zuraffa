@@ -77,6 +77,12 @@ class SubjectWriter {
 // does NOT satisfy the behavior described above — the paired test will
 // fail on first execution with an assertion-level failure (honest red).
 // Replace this stub body with real implementation to make the test pass.
+//
+// The subject name is derived from the behavior id (`subject_u1`) and is
+// deliberately snake_cased — the generator KNOWS the name it emits, so
+// the lint its shape provably trips is suppressed here rather than
+// renaming the contract surface (issue #1035).
+// ignore_for_file: non_constant_identifier_names
 library;
 
 /// Subject for behavior ${b.id}.
@@ -109,6 +115,12 @@ int $target() => throw UnimplementedError('$target not implemented');
 // red is certified ON the authored assertions, never at the guard.
 // Replace this stub body with the real view builder to make the test
 // pass (green needs zero edits to the assertions).
+//
+// The subject name is derived from the behavior id (`subject_a2`) and is
+// deliberately snake_cased — the generator KNOWS the name it emits, so
+// the lint its shape provably trips is suppressed here rather than
+// renaming the contract surface (issue #1035).
+// ignore_for_file: non_constant_identifier_names
 library;
 
 import 'package:flutter/material.dart';
@@ -135,6 +147,12 @@ Widget $target() => const SizedBox.shrink();
 // failure (honest red). The acceptance subject intentionally does NOT
 // reference any entity/use case/repository (FR-004): it stands alone.
 // Replace this stub body with real implementation to make the test pass.
+//
+// The subject name is derived from the behavior id (`subject_a1`) and is
+// deliberately snake_cased — the generator KNOWS the name it emits, so
+// the lint its shape provably trips is suppressed here rather than
+// renaming the contract surface (issue #1035).
+// ignore_for_file: non_constant_identifier_names
 library;
 
 /// Scenario runner for behavior ${b.id}.

@@ -582,16 +582,19 @@ class GenCommand extends Command<void> {
       ..feature = feature
       ..outcome = verdict == 'stopped'
           ? VerdictOutcome.stopped
-          : VerdictOutcome.pass;
-    _verdict.details
-      ..['verdict'] = verdict
-      ..['batch'] = true
-      ..['behaviors'] = behaviors
-      ..['created'] = counts['created'] ?? 0
-      ..['reused'] = counts['reused'] ?? 0
-      ..['adopted'] = counts['adopted'] ?? 0
-      ..['planned'] = counts['planned'] ?? 0;
-    if (stoppedAt != null) _verdict.details['stopped_at'] = stoppedAt;
+          : VerdictOutcome.pass,
+      feature: feature,
+      details: <String, Object?>{
+        'verdict': verdict,
+        'batch': true,
+        'behaviors': behaviors,
+        'created': counts['created'] ?? 0,
+        'reused': counts['reused'] ?? 0,
+        'adopted': counts['adopted'] ?? 0,
+        'planned': counts['planned'] ?? 0,
+        'stopped_at': ?stoppedAt,
+      },
+    );
   }
 
   /// The deadline-bounded flow body, verbatim the pre-#744 contract:
@@ -1223,15 +1226,15 @@ class GenCommand extends Command<void> {
       details: <String, Object?>{
         'behavior': behaviorId,
         'verdict': verdict,
-        if (reason != null) 'reason': reason,
-        if (kind != null) 'kind': kind,
+        'reason': ?reason,
+        'kind': ?kind,
         if (golden) 'golden': true,
         if (adopted.isNotEmpty) 'adopted': adopted,
         if (created.isNotEmpty) 'created': created,
         if (adopted.isNotEmpty && featureName != null)
           'audit_log': p.join('specs', featureName, 'tdd', 'audit.log'),
-        if (goldenTestPath != null) 'golden_test': goldenTestPath,
-        if (goldenFixturesDir != null) 'golden_fixtures': goldenFixturesDir,
+        'golden_test': ?goldenTestPath,
+        'golden_fixtures': ?goldenFixturesDir,
       },
     );
   }
