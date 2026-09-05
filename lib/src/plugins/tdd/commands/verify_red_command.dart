@@ -383,6 +383,7 @@ class VerifyRedCommand extends Command<void> {
           capturedOutput: run.output,
           classification: FailureClass.assertionFailure,
           redEvidence: evidence,
+          subjectHash: await _subjectHashAt(cwd, record),
           sourceCriterion: record.sourceCriterion,
           testPath: record.testPath,
           timestamp: DateTime.now().toUtc().toIso8601String(),
@@ -604,6 +605,22 @@ class VerifyRedCommand extends Command<void> {
   /// own contract ([ArtifactRecord.plainTestName]): the last segment with
   /// any legacy `<id> — ` echo stripped (bug #871).
   String _runnableNameOf(ArtifactRecord record) => record.plainTestName;
+
+  /// The sha256 of the behavior's subject file at certification time
+  /// (issue #1036): binds the red evidence to the EXACT subject shape it
+  /// exercised, so the make skip transition can refuse a skip on a
+  /// subject the certified evidence never captured (the born-green
+  /// placeholder class). Null when the subject artifact is missing —
+  /// the field is omitted and the downstream validation fails open for
+  /// that entry (legacy tolerance).
+  Future<String?> _subjectHashAt(String cwd, ArtifactRecord record) async {
+    final subjectPath = p.isAbsolute(record.subjectPath)
+        ? record.subjectPath
+        : p.join(cwd, record.subjectPath);
+    final subjectFile = File(subjectPath);
+    if (!await subjectFile.exists()) return null;
+    return sha256.convert(await subjectFile.readAsBytes()).toString();
+  }
 
   /// The issue #964 kind gate: re-derive the scenario's required
   /// assertion classes from the artifact record's scenario description
@@ -857,6 +874,7 @@ class VerifyRedCommand extends Command<void> {
                 '(batched red — one runner invocation for '
                 '${targets.length} behavior(s), spec 069 T002)',
             classification: FailureClass.assertionFailure,
+            subjectHash: await _subjectHashAt(cwd, record),
             sourceCriterion: record.sourceCriterion,
             testPath: record.testPath,
             timestamp: DateTime.now().toUtc().toIso8601String(),
