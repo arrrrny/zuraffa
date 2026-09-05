@@ -135,5 +135,55 @@ void main() {
         reason: 'subject must pass dart analyze cleanly',
       );
     }, timeout: const Timeout(Duration(minutes: 1)));
+
+    test('issue #1035 — stubs suppress the lint their id-derived snake_case '
+        'name provably trips, and never emit a named library', () {
+      const writer = SubjectWriter();
+      for (final kind in [
+        BehaviorKind.unit,
+        BehaviorKind.acceptance,
+        BehaviorKind.widget,
+      ]) {
+        final behavior = Behavior(
+          id: 'A1',
+          feature: '1035-lint-repro',
+          kind: kind,
+          description: 'the session starts.',
+          sourceCriterion: 'AC-1',
+          target: 'subject_a1',
+        );
+        final content = writer.render(behavior);
+        expect(
+          content,
+          contains('// ignore_for_file: non_constant_identifier_names'),
+          reason:
+              'kind=$kind emits `subject_a1` — the provable trip is '
+              'suppressed in the generated file, not renamed',
+        );
+        // Anonymous `library;` only — a named directive would trip
+        // unnecessary_library_name.
+        expect(content, contains('library;'));
+        expect(
+          RegExp(r'^library \S', multiLine: true).hasMatch(content),
+          isFalse,
+          reason: 'kind=$kind must not carry a named library directive',
+        );
+      }
+
+      // The FFI harness emits camelCase contract symbols only
+      // (kNativeLibrary, symbolResolved, …) — no provable trip, no
+      // suppression.
+      final ffi = writer.render(
+        Behavior(
+          id: 'A9',
+          feature: '1035-lint-repro',
+          kind: BehaviorKind.ffi,
+          description: 'binds the native library.',
+          sourceCriterion: 'AC-9',
+          target: 'subject_a9',
+        ),
+      );
+      expect(ffi, isNot(contains('ignore_for_file')));
+    });
   });
 }

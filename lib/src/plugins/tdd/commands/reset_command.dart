@@ -22,13 +22,14 @@
 /// intersected with what actually exists on disk.
 library;
 
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -54,6 +55,10 @@ class ResetCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit (the
+  /// legacy raw-JSON verdict line folds into it — ONE machine line).
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'reset';
 
@@ -68,7 +73,10 @@ class ResetCommand extends Command<void> {
   String get invocation => 'zfa tdd reset <feature> [--project <path>]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() =>
+      runWithVerdictEnvelope(this, _verdict, _run, featureFromRest: true);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     _jsonMode = argResults?['json'] as bool? ?? false;
     if (rest.isEmpty) {
@@ -91,6 +99,9 @@ class ResetCommand extends Command<void> {
         verdict: 'refused',
         reason: 'no feature directory at specs/$feature',
       );
+      _verdict.fix =
+          'create the feature (zfa tdd init / a spec) or check '
+          'the feature name';
       exitCode = 1;
       return;
     }
@@ -162,7 +173,9 @@ class ResetCommand extends Command<void> {
     return foreign;
   }
 
-  /// The machine-readable JSON verdict (bug #840) — the LAST stdout line.
+  /// The machine-readable verdict (bug #840) — text when --json is
+  /// absent; the envelope details when it is set (issue #969: ONE
+  /// versioned machine line, never a second raw object).
   void _printVerdict({
     required String feature,
     required String verdict,
@@ -180,16 +193,19 @@ class ResetCommand extends Command<void> {
       );
       return;
     }
-    print(
-      jsonEncode({
-        'command': 'reset',
-        'feature': feature,
-        'verdict': verdict,
-        'reason': ?reason,
-        if (droppedFiles.isNotEmpty) 'dropped_files': droppedFiles,
-        'dropped_records': droppedRecords,
-        'foreign_files_kept': foreignKept,
-      }),
-    );
+    _verdict
+      ..feature = feature
+      ..outcome = verdict == 'refused'
+          ? VerdictOutcome.fail
+          : VerdictOutcome.pass
+      ..exitClass = verdict == 'refused' ? 'refused' : 'ok';
+    _verdict.details
+      ..['verdict'] = verdict
+      ..['dropped_records'] = droppedRecords
+      ..['foreign_files_kept'] = foreignKept;
+    if (reason != null) _verdict.details['reason'] = reason;
+    if (droppedFiles.isNotEmpty) {
+      _verdict.details['dropped_files'] = droppedFiles;
+    }
   }
 }

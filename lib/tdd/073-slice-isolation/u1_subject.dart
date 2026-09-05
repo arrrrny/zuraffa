@@ -9,8 +9,6 @@
 // expect surfaces as an unhandled async error and fails the test.
 library;
 
-import 'dart:io';
-
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 

@@ -179,6 +179,26 @@ class ZfaConfig {
     return null;
   }
 
+  /// `.zfa.json` `tdd.i18nExpansion` (issue #965): the expansion locales
+  /// for the widget lane's optional i18n tier (e.g. `"de"` or `"de,fr"`,
+  /// a JSON string or array), or null when unset (no expansion tier).
+  String? get tddI18nExpansion {
+    final tdd = rawTdd;
+    if (tdd is! Map) return null;
+    for (final key in const ['i18nExpansion', 'i18n_expansion']) {
+      final value = tdd[key];
+      if (value is String && value.trim().isNotEmpty) return value.trim();
+      if (value is List && value.isNotEmpty) {
+        final joined = value
+            .map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .join(',');
+        if (joined.isNotEmpty) return joined;
+      }
+    }
+    return null;
+  }
+
   // Backward-compatible accessors while the rest of the codebase migrates.
   bool get zorphyByDefault => true;
   String get defaultEntityOutput => fixedEntityOutput;

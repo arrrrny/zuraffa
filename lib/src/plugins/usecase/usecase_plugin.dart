@@ -12,6 +12,7 @@ import 'generators/custom_usecase_generator.dart';
 import 'generators/entity_usecase_generator.dart';
 import 'generators/os_background_task_generator.dart';
 import 'generators/stream_usecase_generator.dart';
+import 'usecase_verdicts.dart';
 
 /// Manages use case generation for the domain layer.
 class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
@@ -116,7 +117,11 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           context.data['methods']?.cast<String>().toList() ??
           (context.get<bool>('no-entity') == true
               ? []
-              : ['get', 'update', 'toggle']),
+              // Spec #972 FR-5: toggle left the silent default vocabulary —
+              // it is generated only when explicitly requested via
+              // --methods (and only when the source-interface guard can
+              // see it declared).
+              : ['get', 'update']),
       useCaseType: context.get<String>('type') ?? 'usecase',
       domain: context.get<String>('domain'),
       repo: context.get<String>('repo'),
@@ -138,20 +143,63 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       generateRepository: context.data['repository'] == true,
     );
 
-    return generate(config, context: context);
+    // Spec #972 FR-4: collect the same-plan interface expectations the
+    // guard records on fail-open, so `zfa make`'s post-pass can verify the
+    // responsible plugin (repository/service) declared the requested
+    // methods before the plan is declared successful.
+    final expectations = <UseCaseInterfaceExpectation>[];
+    final files = await generate(
+      config,
+      context: context,
+      onInterfaceExpectation: expectations.add,
+    );
+    if (expectations.isNotEmpty) {
+      context.data['usecase_interface_expectations'] = expectations
+          .map((e) => e.toJson())
+          .toList();
+    }
+    return files;
   }
 
   @override
   Future<List<GeneratedFile>> generate(
     GeneratorConfig config, {
     PluginContext? context,
+    void Function(UseCaseInterfaceExpectation expectation)?
+    onInterfaceExpectation,
+    bool quiet = false,
+  }) async {
+    final report = await generateWithReport(
+      config,
+      context: context,
+      onInterfaceExpectation: onInterfaceExpectation,
+      quiet: quiet,
+    );
+    return report.files;
+  }
+
+  /// Spec #972 API: [generate] with the full machine report (per-method
+  /// verdicts + guard outcome) for entity-based runs. Custom-usecase
+  /// paths (orchestrator/polymorphic/stream/custom) carry no per-method
+  /// vocabulary — the report wraps their files with empty verdicts.
+  Future<UsecaseGenerationReport> generateWithReport(
+    GeneratorConfig config, {
+    PluginContext? context,
+    void Function(UseCaseInterfaceExpectation expectation)?
+    onInterfaceExpectation,
+    bool quiet = false,
   }) async {
     if (!config.generateUseCase && !config.revert) {
       if (!config.isEntityBased &&
           !config.isCustomUseCase &&
           !config.isOrchestrator &&
           !config.isPolymorphic) {
-        return [];
+        return const UsecaseGenerationReport(
+          files: [],
+          verdicts: [],
+          interfaceAbsent: false,
+          guardReasonCodes: {},
+        );
       }
     }
 
@@ -169,7 +217,12 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           revert: config.revert,
         ),
       );
-      return delegator.generate(config, context: context);
+      return delegator.generateWithReport(
+        config,
+        context: context,
+        onInterfaceExpectation: onInterfaceExpectation,
+        quiet: quiet,
+      );
     }
 
     final entityGen = context != null
@@ -205,23 +258,62 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         : osBackgroundGenerator;
 
     if (config.isEntityBased) {
-      return entityGen.generate(config);
+      return entityGen.generateWithVerdicts(
+        config,
+        onInterfaceExpectation: onInterfaceExpectation,
+        quiet: quiet,
+      );
     }
     if (config.isPolymorphic) {
-      return customGen.generatePolymorphic(config);
+      final files = await customGen.generatePolymorphic(config);
+      return UsecaseGenerationReport(
+        files: files,
+        verdicts: const [],
+        interfaceAbsent: false,
+        guardReasonCodes: const {},
+      );
     }
     if (config.isOrchestrator) {
-      return [await customGen.generateOrchestrator(config)];
+      final files = [await customGen.generateOrchestrator(config)];
+      return UsecaseGenerationReport(
+        files: files,
+        verdicts: const [],
+        interfaceAbsent: false,
+        guardReasonCodes: const {},
+      );
     }
     if (config.useCaseType == 'stream') {
-      return [await streamGen.generate(config)];
+      final files = [await streamGen.generate(config)];
+      return UsecaseGenerationReport(
+        files: files,
+        verdicts: const [],
+        interfaceAbsent: false,
+        guardReasonCodes: const {},
+      );
     }
     if (config.useCaseType == 'os_background') {
-      return [await osBackgroundGen.generate(config)];
+      final files = [await osBackgroundGen.generate(config)];
+      return UsecaseGenerationReport(
+        files: files,
+        verdicts: const [],
+        interfaceAbsent: false,
+        guardReasonCodes: const {},
+      );
     }
     if (config.isCustomUseCase) {
-      return [await customGen.generate(config)];
+      final files = [await customGen.generate(config)];
+      return UsecaseGenerationReport(
+        files: files,
+        verdicts: const [],
+        interfaceAbsent: false,
+        guardReasonCodes: const {},
+      );
     }
-    return [];
+    return const UsecaseGenerationReport(
+      files: [],
+      verdicts: [],
+      interfaceAbsent: false,
+      guardReasonCodes: {},
+    );
   }
 }

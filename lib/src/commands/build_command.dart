@@ -553,9 +553,10 @@ class BuildCommand extends Command {
   }
 
   /// Post-build guard (issue #395): runs `dart analyze` and returns `false`
-  /// when it reports any ERROR-severity issue. Only ERRORS fail the build;
-  /// warnings and info-level lints are surfaced but do not cause a non-zero
-  /// exit. Pass `--no-analyze` to skip this check entirely.
+  /// when it reports any ERROR- or WARNING-severity issue (issue #1035:
+  /// the gate fails on error/warning only — info lints are style, not
+  /// compilation). Info-level lints are surfaced but never cause a
+  /// non-zero exit. Pass `--no-analyze` to skip this check entirely.
   ///
   /// This catches non-compiling generated code (e.g. missing imports, wrong
   /// relative import depth) immediately after `zfa build` instead of letting
@@ -577,22 +578,57 @@ class BuildCommand extends Command {
       print(stderr.trim());
     }
     // `dart analyze` exit 0 = no issues; 1 = issues found; 2 = fatal error.
-    // We only fail on actual errors (lines whose severity is "error").
-    // Info-level lints are non-fatal by default (do NOT pass `--fatal-infos`,
-    // which is a boolean flag that rejects a `=false` value and would make the
-    // analyzer fail at flag-parse — see issue #415). We surface warnings/info
-    // above but only flip the exit code on real "error" severity lines.
-    final hasErrors = analyzeReportsError(stdout);
-    if (hasErrors) {
+    // The gate fails on ERROR/WARNING severity only (issue #1035): errors
+    // mean the tree does not compile and warnings are real defects, while
+    // info-level lints are style. Info-level lints are non-fatal by design
+    // (do NOT pass `--fatal-infos`, which is a boolean flag that rejects a
+    // `=false` value and would make the analyzer fail at flag-parse — see
+    // issue #415). We surface everything above but only flip the exit code
+    // on error/warning severity lines.
+    final counts = countAnalyzerIssues(stdout);
+    if (counts.errors > 0 || counts.warnings > 0) {
       print(
-        '\n❌ dart analyze reported errors — generated code does not compile.\n'
+        '\n❌ dart analyze reported ${counts.errors} error(s) and '
+        '${counts.warnings} warning(s) — generated code does not compile '
+        'cleanly.\n'
         '   Fix the generator or run with --no-analyze to skip this check.',
       );
       return false;
     }
+    if (counts.infos > 0) {
+      print(
+        '   ℹ️  dart analyze: ${counts.infos} info lints (style) — info '
+        'severity does not fail the analyze gate (issue #1035).',
+      );
+      return true;
+    }
     print('   ✅ dart analyze: no errors');
     return true;
   }
+
+  /// The analyzer severity buckets for [analyzeOutput], parsed from the
+  /// single `dart analyze` line format:
+  ///   `   error - path:line:col - message - code`
+  ///   `   warning - path:line:col - message - code`
+  ///   `   info - path:line:col - message - code`
+  /// Each severity is matched line-anchored (`^\s*<severity>\s*-\s`) so a
+  /// severity word inside a message or summary line can never be counted
+  /// (issue #1035).
+  static AnalyzerIssueCounts countAnalyzerIssues(String analyzeOutput) =>
+      AnalyzerIssueCounts(
+        errors: RegExp(
+          r'^\s*error\s*-\s',
+          multiLine: true,
+        ).allMatches(analyzeOutput).length,
+        warnings: RegExp(
+          r'^\s*warning\s*-\s',
+          multiLine: true,
+        ).allMatches(analyzeOutput).length,
+        infos: RegExp(
+          r'^\s*info\s*-\s',
+          multiLine: true,
+        ).allMatches(analyzeOutput).length,
+      );
 
   /// Returns true when [analyzeOutput] contains at least one line whose
   /// severity marker is `error`. `dart analyze` formats lines as:
@@ -605,20 +641,16 @@ class BuildCommand extends Command {
   /// noise) both read the same format through this parser, so the two
   /// verdicts can never drift apart. Also exposed for unit testing so
   /// the parser can be verified without spawning `dart analyze`.
-  static bool analyzeReportsError(String analyzeOutput) {
-    final errorLine = RegExp(r'^\s*error\s*-\s', multiLine: true);
-    return errorLine.hasMatch(analyzeOutput);
-  }
+  static bool analyzeReportsError(String analyzeOutput) =>
+      countAnalyzerIssues(analyzeOutput).errors > 0;
 
   /// Counts the `error -` severity lines in [analyzeOutput] — the same
   /// line format [analyzeReportsError] matches (see its doc). For
   /// verdicts that need the magnitude, not just the boolean: the TDD
   /// make's #942 refusal message reports how many analyzer errors made
   /// the failed build non-tolerable.
-  static int countAnalyzerErrors(String analyzeOutput) => RegExp(
-    r'^\s*error\s*-\s',
-    multiLine: true,
-  ).allMatches(analyzeOutput).length;
+  static int countAnalyzerErrors(String analyzeOutput) =>
+      countAnalyzerIssues(analyzeOutput).errors;
 
   Future<int> _runBuild() async {
     // `--delete-conflicting-outputs` was removed in build_runner 2.16.0 and
@@ -681,4 +713,30 @@ class BuildCommand extends Command {
     }
     return count;
   }
+}
+
+/// The analyzer severity buckets parsed from one `dart analyze` output
+/// (issue #1035): the gate needs the per-severity magnitudes, not just a
+/// boolean, so info-only trees can pass with an honest note while
+/// error/warning trees fail with the exact counts.
+@immutable
+class AnalyzerIssueCounts {
+  const AnalyzerIssueCounts({
+    required this.errors,
+    required this.warnings,
+    required this.infos,
+  });
+
+  final int errors;
+  final int warnings;
+  final int infos;
+
+  /// Info lints are style, not compilation (issue #1035): the gate's
+  /// blocking set is error/warning only.
+  bool get blocksGate => errors > 0 || warnings > 0;
+
+  @override
+  String toString() =>
+      'AnalyzerIssueCounts(errors: $errors, warnings: $warnings, '
+      'infos: $infos)';
 }

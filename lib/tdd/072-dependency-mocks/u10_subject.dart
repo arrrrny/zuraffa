@@ -34,4 +34,5 @@ Object? subject_u10() {
   expect(record['source_criterion'], equals('spec line 12'));
   expect(record['feature'], equals('072-dependency-mocks'));
   expect(record['test_path'], equals(artifacts.first.path));
+  return null;
 }

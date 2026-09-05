@@ -4,8 +4,6 @@
 // exits non-zero (2) with the row-to-add fix hint, instead of guessing.
 library;
 
-import 'dart:io';
-
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/mock/capabilities/dependency_mock_capability.dart';
 import 'package:zuraffa/src/plugins/mock/mock_plugin.dart';

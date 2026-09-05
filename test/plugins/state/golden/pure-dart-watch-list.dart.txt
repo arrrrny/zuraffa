@@ -1,0 +1,95 @@
+// GENERATED - DO NOT EDIT
+import 'package:zuraffa/zuraffa.dart';
+
+import '../../../domain/entities/task/task.dart';
+
+class TaskState {
+  const TaskState({
+    this.error,
+    this.taskList = const <Task>[],
+    this.offset = 0,
+    this.limit = 10,
+    this.hasMore = true,
+    this.task,
+    this.isWatchingList = false,
+    this.isWatching = false,
+  });
+
+  /// The current error, if any
+  final AppFailure? error;
+
+  /// The single Task entity
+  final Task? task;
+
+  /// The list of Task entities
+  final List<Task> taskList;
+
+  /// The current offset for pagination
+  final int offset;
+
+  /// The maximum number of items to fetch
+  final int limit;
+
+  /// Whether more items are available to fetch
+  final bool hasMore;
+
+  /// Whether watchList is in progress
+  final bool isWatchingList;
+
+  /// Whether watch is in progress
+  final bool isWatching;
+
+  TaskState copyWith({
+    AppFailure? error,
+    List<Task>? taskList,
+    int? offset,
+    int? limit,
+    bool? hasMore,
+    Task? task,
+    bool? isWatchingList,
+    bool? isWatching,
+  }) => TaskState(
+    error: error ?? this.error,
+    taskList: taskList ?? this.taskList,
+    offset: offset ?? this.offset,
+    limit: limit ?? this.limit,
+    hasMore: hasMore ?? this.hasMore,
+    task: task ?? this.task,
+    isWatchingList: isWatchingList ?? this.isWatchingList,
+    isWatching: isWatching ?? this.isWatching,
+  );
+
+  bool get isLoading => isWatchingList || isWatching;
+
+  bool get hasError => error != null;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TaskState &&
+          other.error == error &&
+          other.taskList == taskList &&
+          other.offset == offset &&
+          other.limit == limit &&
+          other.hasMore == hasMore &&
+          other.task == task &&
+          other.isWatchingList == isWatchingList &&
+          other.isWatching == isWatching;
+
+  @override
+  int get hashCode =>
+      error.hashCode +
+      taskList.hashCode +
+      offset.hashCode +
+      limit.hashCode +
+      hasMore.hashCode +
+      task.hashCode +
+      isWatchingList.hashCode +
+      isWatching.hashCode;
+
+  @override
+  String toString() =>
+      'TaskState(error: $error, taskList: $taskList, offset: $offset, limit: $limit, hasMore: $hasMore, task: $task)';
+}
+
+// END GENERATED

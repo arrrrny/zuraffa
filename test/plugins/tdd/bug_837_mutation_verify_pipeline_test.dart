@@ -48,6 +48,7 @@ void main() {
           'lib/tdd/b_002_subject.dart',
         ],
         testPaths: ['test/tdd/b_001_test.dart', 'test/tdd/b_002_test.dart'],
+        fileTemplate: 'dart test {file}',
       );
       expect(xml, contains('<mutations version="1.0">'));
       expect(xml, contains('<file>lib/tdd/b_001_subject.dart</file>'));
@@ -66,6 +67,7 @@ void main() {
       final xml = buildScopedMutationConfig(
         subjectPaths: ['lib/tdd/a&b<c>.dart'],
         testPaths: ['test/tdd/a&b<c>_test.dart'],
+        fileTemplate: 'dart test {file}',
       );
       expect(xml, contains('lib/tdd/a&amp;b&lt;c&gt;.dart'));
       expect(xml, isNot(contains('a&b<c>')));

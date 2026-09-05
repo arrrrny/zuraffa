@@ -25,10 +25,44 @@ class CreateDataSourceCapability implements ZuraffaCapability {
         'description': 'Generate local data source (instead of remote)',
         'default': false,
       },
+      'remote': {
+        'type': 'boolean',
+        'description': 'Generate remote data source (and API integration)',
+        'default': true,
+      },
       'cache': {
         'type': 'boolean',
         'description': 'Enable caching',
         'default': false,
+      },
+      'useService': {
+        'type': 'boolean',
+        'description':
+            'Request a service instead of a datasource. Supersedes '
+            'datasource generation: the request is declined with an '
+            'honest skip reason (spec #977).',
+        'default': false,
+      },
+      'id-field': {
+        'type': 'string',
+        'description':
+            'Entity id field name the datasource resolves (#294 audit '
+            'trail). Defaults to `id`.',
+        'default': 'id',
+      },
+      'id-field-type': {
+        'type': 'string',
+        'description': 'Entity id field type.',
+        'default': 'String',
+      },
+      'query-field': {
+        'type': 'string',
+        'description': 'Entity query field name. Defaults to `id`.',
+        'default': 'id',
+      },
+      'query-field-type': {
+        'type': 'string',
+        'description': 'Entity query field type.',
       },
       'dryRun': {
         'type': 'boolean',
@@ -77,42 +111,96 @@ class CreateDataSourceCapability implements ZuraffaCapability {
 
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
-    final files = await _generateFiles(args, dryRun: args['dryRun'] ?? false);
+    final config = _buildConfig(args, dryRun: args['dryRun'] ?? false);
 
-    return ExecutionResult(
-      success: true,
-      files: files.map((f) => f.path).toList(),
-      data: {'generatedFiles': files},
-    );
+    // Spec #977: a service request supersedes the datasource layer. The
+    // plugin's emission semantics are frozen (it still returns [] for
+    // `hasService`); the CONTRACT around it is what changed — the skip
+    // is reported as a structured failure with the reason so neither the
+    // #769 zero-files guard nor a host can mistake it for a success.
+    if (config.hasService) {
+      return ExecutionResult(
+        success: false,
+        files: const [],
+        message:
+            'datasource generation skipped: `${config.name}` requests a '
+            'service (use-service) — the service layer supersedes a '
+            'dedicated datasource, so nothing was emitted. Re-run without '
+            'the service request if a datasource is really wanted.',
+        data: const {
+          'generatedFiles': <GeneratedFile>[],
+          'skipReason': 'hasService',
+        },
+      );
+    }
+
+    try {
+      final files = await plugin.generate(config);
+
+      return ExecutionResult(
+        success: true,
+        files: files.map((f) => f.path).toList(),
+        data: {
+          'generatedFiles': files,
+          // #977: resolved input the generation consumed — shipped so the
+          // standalone receipt records the id-field / query-field
+          // resolution (#294 audit trail).
+          'input': {
+            'id-field': config.idField,
+            'id-field-type': config.idFieldType,
+            'query-field': config.queryField,
+            'query-field-type': config.queryFieldType,
+            'local': config.generateLocal,
+            'remote': config.generateRemote,
+            'cache': config.enableCache,
+            'init': config.generateInit,
+          },
+        },
+      );
+    } catch (e) {
+      // #977: a thrown generation is an honest failure with a reason,
+      // never an empty success.
+      return ExecutionResult(
+        success: false,
+        files: const [],
+        message: 'Failed: $e',
+      );
+    }
   }
 
   Future<List<GeneratedFile>> _generateFiles(
     Map<String, dynamic> args, {
     required bool dryRun,
-  }) async {
-    final name = args['name'];
-    final outputDir = plugin.outputDir;
-    final generateLocal = args['local'] ?? false;
-    final enableCache = args['cache'] ?? false;
-    final force = args['force'] ?? false;
-    final verbose = args['verbose'] ?? false;
+  }) {
+    return plugin.generate(_buildConfig(args, dryRun: dryRun));
+  }
 
-    final config = GeneratorConfig(
+  GeneratorConfig _buildConfig(
+    Map<String, dynamic> args, {
+    required bool dryRun,
+  }) {
+    final name = args['name'];
+    return GeneratorConfig(
       name: name,
-      outputDir: outputDir,
+      outputDir: plugin.outputDir,
       generateDataSource: true,
-      generateLocal: generateLocal,
-      enableCache: enableCache,
+      generateLocal: args['local'] ?? false,
+      generateRemote: args['remote'] ?? true,
+      enableCache: args['cache'] ?? false,
       methods: (args['methods'] as List?)?.cast<String>() ?? [],
       paramsType: args['params'],
       returnsType: args['returns'],
       useCaseType: args['type'] ?? 'usecase',
       generateInit: args['init'] == true,
+      useService: args['useService'] == true || args['use-service'] == true,
+      service: args['service'] as String?,
+      idField: args['id-field'] ?? 'id',
+      idFieldType: args['id-field-type'] ?? 'String',
+      queryField: args['query-field'] ?? 'id',
+      queryFieldType: args['query-field-type'] as String?,
       dryRun: dryRun,
-      force: force,
-      verbose: verbose,
+      force: args['force'] ?? false,
+      verbose: args['verbose'] ?? false,
     );
-
-    return await plugin.generate(config);
   }
 }

@@ -317,8 +317,87 @@ class ScanBarcodeUseCase {}
 
       final content = File(outputFile).readAsStringSync();
       expect(content, contains('registerScanBarcodeUseCaseXRayDeck'));
+      // Issue #997: the real registerEntries(List<XRayMockEntry>) API takes
+      // no usecase-name string. The auto-detected name still surfaces in
+      // the file header + register function name — the old assertion
+      // expected a quoted-name argument from the fictional two-arg call.
       expect(content, contains('// UseCase: ScanBarcodeUseCase'));
     });
+
+    // Issue #997 compile gate: the generated deck must actually compile
+    // against the published zuraffa package. The string assertions above
+    // can only certify *shape*; this test proves the output passes
+    // `dart analyze` in a self-contained sandbox (the old suite was green
+    // while every symbol in the emitted file was undefined).
+    test('#997: generated deck passes dart analyze (compile gate)', () async {
+      // Same YAML scenario as the first test, including a description
+      // (emitted as a comment) and an entry without a type (unknown).
+      final yamlFile = File('${tempDir.path}/compile_gate.yaml');
+      yamlFile.writeAsStringSync('''- name: Valid Product A
+  payload: "123456789"
+  type: valid
+- name: Invalid Barcode
+  payload: "000000"
+  type: error
+  description: Triggers validation failure
+- name: No Type Entry
+  payload: "42"
+''');
+
+      final outputFile = '${tempDir.path}/compile_gate_xray_deck.dart';
+
+      final output = await runCapturing([
+        'xray',
+        'deck',
+        '--root=${tempDir.path}',
+        '--yaml=${yamlFile.path}',
+        '--output=$outputFile',
+        '--usecase-name=ScanBarcode',
+        '--force',
+      ]);
+
+      expect(output, contains('Generated 3 mock entries'));
+      expect(File(outputFile).existsSync(), isTrue);
+
+      // Self-contained sandbox: a project that depends on zuraffa via
+      // path, with the generated deck inside it.
+      final sandboxPubspec = File('${tempDir.path}/pubspec.yaml');
+      await sandboxPubspec.writeAsString('''
+name: xray_deck_compile_gate
+environment:
+  sdk: ^3.11.0
+dependencies:
+  zuraffa:
+    path: ${Directory.current.path}
+''');
+
+      // Resolve the sandbox's dependencies so dart analyze can see
+      // package:zuraffa (warm pub cache in CI; network otherwise).
+      final pubResult = await Process.run('dart', [
+        'pub',
+        'get',
+      ], workingDirectory: tempDir.path);
+      expect(
+        pubResult.exitCode,
+        0,
+        reason:
+            'dart pub get failed in compile-gate sandbox.\n'
+            'stdout: ${pubResult.stdout}\nstderr: ${pubResult.stderr}',
+      );
+
+      final analyzeResult = await Process.run('dart', [
+        'analyze',
+        outputFile,
+      ], workingDirectory: tempDir.path);
+      expect(
+        analyzeResult.exitCode,
+        0,
+        reason:
+            'Generated deck must pass dart analyze (#997 compile gate).\n'
+            'stdout: ${analyzeResult.stdout}\n'
+            'stderr: ${analyzeResult.stderr}',
+      );
+    }, timeout: const Timeout(Duration(minutes: 2)));
   });
 }
 

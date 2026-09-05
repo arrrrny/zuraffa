@@ -2,8 +2,6 @@ library;
 
 import 'package:test/test.dart';
 import 'sandbox_fixture.dart';
-import 'package:zuraffa/src/tdd/services/coverage_gate.dart';
-import 'package:zuraffa/src/tdd/services/xray_ledger_binding.dart';
 
 Object? subject_u8() {
   final v = CoverageGate.evaluate(

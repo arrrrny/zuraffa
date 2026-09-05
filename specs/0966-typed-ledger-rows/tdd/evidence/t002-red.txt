@@ -1,0 +1,23 @@
+00:00 +0: loading test/tdd/0966-typed-ledger-rows/t002_absence_traced_test.dart
+00:00 +0: T2 (FR-002) T2 - absence assertions: the error banner hidden initially is traced when hidden; a permanently-rendered banner cannot satisfy it; a malformed absence assertion never counts.
+00:00 +0 -1: T2 (FR-002) T2 - absence assertions: the error banner hidden initially is traced when hidden; a permanently-rendered banner cannot satisfy it; a malformed absence assertion never counts. [E]
+  Expected: 'NOT-DONE'
+    Actual: 'DONE'
+     Which: is different.
+            Expected: NOT-DONE
+              Actual: DONE
+                      ^
+             Differ at offset 0
+  
+  package:matcher                                                      expect
+  lib/tdd/0966-typed-ledger-rows/t2_subject.dart 93:3                  subject_t2
+  test/tdd/0966-typed-ledger-rows/t002_absence_traced_test.dart 21:21  main.<fn>.<fn>.<fn>
+  test/tdd/0966-typed-ledger-rows/t002_absence_traced_test.dart 26:11  main.<fn>.<fn>
+  
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  test/tdd/0966-typed-ledger-rows/t002_absence_traced_test.dart: T2 (FR-002) T2 - absence assertions: the error banner hidden initially is traced when hidden; a permanently-rendered banner cannot satisfy it; a malformed absence assertion never counts.
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
