@@ -15,3 +15,4 @@ export 'src/skin/skin_contract_kit.dart';
 export 'src/skin/contract/skin_contract.dart';
 export 'src/skin/contract/skin_contract_parser.dart';
 export 'src/skin/contract/skin_contract_schema.dart';
+export 'src/skin/skin_contract_binding.dart';

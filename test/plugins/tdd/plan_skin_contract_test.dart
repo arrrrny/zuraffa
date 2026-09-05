@@ -9,6 +9,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/services/skin_contract_emit.dart';
 import 'package:zuraffa/src/skin/contract/skin_contract.dart';
+import 'package:zuraffa/src/skin/contract/skin_contract_parser.dart';
 import 'package:zuraffa/src/skin/contract/skin_contract_schema.dart';
 
 const contractSpec = '''
@@ -80,7 +81,7 @@ void main() {
         outDir: tmp,
       ),
       throwsA(
-        isA<StateError>().having(
+        isA<SkinContractParseException>().having(
           (e) => e.message,
           'message',
           contains('no fenced JSON body'),
