@@ -319,5 +319,9 @@ Future<void> appendWorldCycleEvidence({
   final prefix = existing.isEmpty
       ? '# Cycle log — ${p.basename(p.normalize(featureDir))}\n'
       : (existing.endsWith('\n') ? existing : '$existing\n');
-  file.writeAsStringSync('$prefix\n${buffer.toString()}');
+  // Atomic write: write to a temp file then rename to prevent torn reads
+  // on concurrent CI runs targeting the same world name.
+  final tmp = File('${file.path}.tmp');
+  tmp.writeAsStringSync('$prefix\n${buffer.toString()}');
+  tmp.renameSync(file.path);
 }

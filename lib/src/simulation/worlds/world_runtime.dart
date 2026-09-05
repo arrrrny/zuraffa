@@ -384,6 +384,7 @@ final class WorldRuntime {
   /// Execute the manifest's behavior program, returning per-behavior
   /// results in declared order.
   Future<List<BehaviorResult>> executeScenario() async {
+    _callCounts.clear();
     final results = <BehaviorResult>[];
     for (final behavior in manifest.behaviors) {
       results.add(await _executeBehavior(behavior));
