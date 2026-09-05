@@ -53,7 +53,9 @@ dev_dependencies:
       'pub',
       'get',
       '--no-example',
-    ], workingDirectory: root.path).catchError((_) {});
+    ], workingDirectory: root.path).catchError(
+      (_) => ProcessResult(0, 0, '', ''),
+    );
     if (writeProfile) {
       await fx._writeProfile(singleTemplate, suiteTemplate);
     }
