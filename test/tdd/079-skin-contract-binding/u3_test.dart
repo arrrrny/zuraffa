@@ -14,19 +14,23 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/079-skin-contract-binding/u3_subject.dart' as subject;
+import 'package:zuraffa/tdd/079-skin-contract-binding/u3_subject.dart'
+    as subject;
 
 void main() {
   group('U3 (FR-003)', () {
-    test('U3 — The binding MUST derive per-view state bindings from `contract.states` distinguishing toaster, inline, and none error handling, plus empty-state declarations.', () {
-      final result = (() {
-        try {
-          return subject.subject_u3();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U3 — The binding MUST derive per-view state bindings from `contract.states` distinguishing toaster, inline, and none error handling, plus empty-state declarations.',
+      () {
+        final result = (() {
+          try {
+            return subject.subject_u3();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

@@ -9,7 +9,8 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/074-plugin-merge-contract/a2_subject.dart' as subject;
+import 'package:zuraffa/tdd/074-plugin-merge-contract/a2_subject.dart'
+    as subject;
 
 void main() {
   group('A2 (AC-2)', () {

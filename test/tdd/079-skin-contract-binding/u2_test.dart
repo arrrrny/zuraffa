@@ -14,19 +14,23 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/079-skin-contract-binding/u2_subject.dart' as subject;
+import 'package:zuraffa/tdd/079-skin-contract-binding/u2_subject.dart'
+    as subject;
 
 void main() {
   group('U2 (FR-002)', () {
-    test('U2 — The binding MUST derive the runtime route table from `contract.routes`, preserving the navigator-root conforming-by-construction rule.', () {
-      final result = (() {
-        try {
-          return subject.subject_u2();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U2 — The binding MUST derive the runtime route table from `contract.routes`, preserving the navigator-root conforming-by-construction rule.',
+      () {
+        final result = (() {
+          try {
+            return subject.subject_u2();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

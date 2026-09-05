@@ -78,9 +78,9 @@ class SkinContractRuntimeBinding {
 
   /// The distinct view names the contract declares (routes + states).
   Iterable<String> get declaredViews => {
-        for (final route in declaredRoutes) route.view,
-        ...stateBindings.keys,
-      };
+    for (final route in declaredRoutes) route.view,
+    ...stateBindings.keys,
+  };
 
   /// The state binding for [view], or a neutral (none, no empty)
   /// binding when the view declares none — an undeclared view is not a

@@ -14,7 +14,8 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/079-skin-contract-binding/a2_subject.dart' as subject;
+import 'package:zuraffa/tdd/079-skin-contract-binding/a2_subject.dart'
+    as subject;
 
 void main() {
   group('A2 (AC-2)', () {

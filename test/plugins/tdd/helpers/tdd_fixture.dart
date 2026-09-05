@@ -49,11 +49,11 @@ dev_dependencies:
     // Resolve dependencies so `dart test` in the temp project succeeds even
     // when the host pub cache is cold (Linux CI).  Silently ignore errors —
     // tests that don't spawn `dart test` don't need deps.
-    await Process.run('dart', [
-      'pub',
-      'get',
-      '--no-example',
-    ], workingDirectory: root.path).catchError((_) {});
+    await Process.run(
+      'dart',
+      ['pub', 'get', '--no-example'],
+      workingDirectory: root.path,
+    ).catchError((_) => ProcessResult(0, 0, '', ''));
     if (writeProfile) {
       await fx._writeProfile(singleTemplate, suiteTemplate);
     }

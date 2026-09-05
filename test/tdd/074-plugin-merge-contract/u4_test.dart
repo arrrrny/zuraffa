@@ -9,7 +9,8 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/074-plugin-merge-contract/u4_subject.dart' as subject;
+import 'package:zuraffa/tdd/074-plugin-merge-contract/u4_subject.dart'
+    as subject;
 
 void main() {
   group('U4 (FR-004)', () {

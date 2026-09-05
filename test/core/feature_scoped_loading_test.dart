@@ -89,7 +89,6 @@ class _FakePlugin extends ZuraffaPlugin {
   @override
   String get version => '0.0.0';
 
-  @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async => [];
 }
 

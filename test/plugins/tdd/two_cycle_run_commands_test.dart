@@ -81,12 +81,6 @@ void main() {
   Future<Map<String, dynamic>> readReceipt(String path) async =>
       jsonDecode(await File(path).readAsString()) as Map<String, dynamic>;
 
-  Future<Map<String, dynamic>?> tryReadReceipt(String path) async {
-    final file = File(path);
-    if (!await file.exists()) return null;
-    return readReceipt(path);
-  }
-
   setUp(() async {
     fx = await TddFixture.create(featureName: feature);
     await fx.writeFakeZfa();

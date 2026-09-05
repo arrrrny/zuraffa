@@ -14,19 +14,23 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/079-skin-contract-binding/u1_subject.dart' as subject;
+import 'package:zuraffa/tdd/079-skin-contract-binding/u1_subject.dart'
+    as subject;
 
 void main() {
   group('U1 (FR-001)', () {
-    test('U1 — The system MUST provide a pure-Dart runtime binding built from a parsed `SkinContract` in one call.', () {
-      final result = (() {
-        try {
-          return subject.subject_u1();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U1 — The system MUST provide a pure-Dart runtime binding built from a parsed `SkinContract` in one call.',
+      () {
+        final result = (() {
+          try {
+            return subject.subject_u1();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

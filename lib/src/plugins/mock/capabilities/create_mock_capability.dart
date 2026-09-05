@@ -56,18 +56,6 @@ class CreateMockCapability implements ZuraffaCapability {
             'specs/<feature>/tdd/fixtures) and re-certify it through the '
             '#832 fixture registry (spec 893)',
       },
-      // Spec 1002 (engine preset): `mock create --certify` verifies every
-      // requested method landed on the generated mock datasource with
-      // seeded data present, reports the per-method outcome, and fails
-      // the execution when any method is uncertified.
-      'certify': {
-        'type': 'boolean',
-        'description':
-            'Certify every requested method on the generated mock '
-            '(implemented member + seeded mock data); fail when any '
-            'method is uncertified',
-        'default': false,
-      },
       'dryRun': {
         'type': 'boolean',
         'description': 'Run without writing files',
@@ -99,7 +87,9 @@ class CreateMockCapability implements ZuraffaCapability {
         'type': 'string',
         'description': 'Return type for mock methods',
       },
-      // Spec 1001 (issue #1001): Tier-1 certified mocks.
+      // Spec 1001 (issue #1001) Tier-1 certified mocks; spec 1002
+      // (engine preset): every requested method must land on the
+      // generated mock datasource with seeded data present.
       'certify': {
         'type': 'boolean',
         'description':
