@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -311,6 +312,214 @@ class ProductSqliteDataSource implements ProductDataSource {
 
         expect(exitCode, 1);
         expect(output, contains('--> fix:'));
+      },
+    );
+  });
+
+  group('SPEC 1106 — check verb --json canonical envelope', () {
+    Map<String, Object?> decodeEnvelope(String out) {
+      final lines = out.trimRight().split('\n');
+      final last = lines.isEmpty ? '' : lines.last;
+      final decoded = jsonDecode(last);
+      expect(
+        decoded,
+        isA<Map<String, Object?>>(),
+        reason: 'the FINAL stdout line must be a single JSON object: $last',
+      );
+      return decoded as Map<String, Object?>;
+    }
+
+    /// The exact top-level key set SPEC 1106 orders for the
+    /// datasource check envelope (plus the treaty-mandated `timestamp`).
+    const envelopeKeys = {
+      'schema',
+      'command',
+      'verdict',
+      'exit_class',
+      'subject',
+      'findings',
+      'drifts',
+      'details',
+      'timestamp',
+    };
+
+    test('parity: pass envelope with exact schema', () async {
+      exitCode = 0;
+      await generateProduct();
+
+      final output = await captureOutput(
+        () => runner().run(['check', 'Product', '--json']),
+      );
+
+      expect(exitCode, 0, reason: 'fresh generation must pass parity');
+      final envelope = decodeEnvelope(output);
+      expect(envelope.keys.toSet(), envelopeKeys);
+      expect(envelope['schema'], 'verdict.v1');
+      expect(envelope['command'], 'datasource check');
+      expect(envelope['verdict'], 'pass');
+      expect(envelope['exit_class'], 'ok');
+      expect((envelope['subject'] as Map)['kind'], 'datasource');
+      expect((envelope['subject'] as Map)['entity'], 'Product');
+      expect(envelope['findings'], isEmpty);
+      expect(envelope['drifts'], isEmpty);
+      expect(envelope['timestamp'], isA<String>());
+    });
+
+    test(
+      'drift: fail envelope carries findings[*].{kind,file,member,fix}',
+      () async {
+        exitCode = 0;
+        await generateProduct(local: false);
+        final remoteFile = File(
+          '$outputDir/data/datasources/product/product_remote_datasource.dart',
+        );
+        var source = remoteFile.readAsStringSync();
+        final start = source.indexOf(
+          '  @override\n  Future<List<Product>> getList(',
+        );
+        expect(start, greaterThan(0), reason: 'test fixture must find getList');
+        final braceStart = source.indexOf('{', start);
+        var depth = 0;
+        var end = braceStart;
+        for (var i = braceStart; i < source.length; i++) {
+          if (source[i] == '{') depth++;
+          if (source[i] == '}') depth--;
+          if (depth == 0) {
+            end = i + 1;
+            break;
+          }
+        }
+        source = source.substring(0, start) + source.substring(end);
+        remoteFile.writeAsStringSync(source);
+
+        final output = await captureOutput(
+          () => runner().run(['check', 'Product', '--json']),
+        );
+
+        expect(exitCode, 1, reason: 'diverged impl must fail the parity gate');
+        final envelope = decodeEnvelope(output);
+        expect(envelope.keys.toSet(), envelopeKeys);
+        expect(envelope['schema'], 'verdict.v1');
+        expect(envelope['command'], 'datasource check');
+        expect(envelope['verdict'], 'fail');
+        expect(envelope['exit_class'], 'drift');
+        expect((envelope['subject'] as Map)['kind'], 'datasource');
+        expect((envelope['subject'] as Map)['entity'], 'Product');
+
+        final findings = envelope['findings'] as List;
+        expect(findings, hasLength(1));
+        final finding = findings.first as Map;
+        expect(finding.keys.toSet(), {'kind', 'file', 'member', 'fix'});
+        expect(finding['kind'], 'missing interface method');
+        expect(finding['member'], 'getList');
+        expect(finding['file'], contains('product_remote_datasource.dart'));
+        expect(finding['fix'], isNotEmpty);
+        expect((envelope['drifts'] as List), isNotEmpty);
+      },
+    );
+
+    test('undeclared @override drift is enveloped too', () async {
+      exitCode = 0;
+      await generateProduct(local: false);
+      final remoteFile = File(
+        '$outputDir/data/datasources/product/product_remote_datasource.dart',
+      );
+      final source = remoteFile.readAsStringSync();
+      const drifted = '''
+  @override
+  Future<Product> purge(QueryParams<Product> params) async {
+    throw UnimplementedError();
+  }
+''';
+      final insertAt = source.lastIndexOf('}');
+      remoteFile.writeAsStringSync(
+        source.substring(0, insertAt) + drifted + source.substring(insertAt),
+      );
+
+      final output = await captureOutput(
+        () => runner().run(['check', 'Product', '--json']),
+      );
+
+      expect(exitCode, 1, reason: '@override drift must fail the gate');
+      final envelope = decodeEnvelope(output);
+      expect(envelope['verdict'], 'fail');
+      final findings = envelope['findings'] as List;
+      expect((findings.first as Map)['kind'], 'undeclared override');
+      expect((findings.first as Map)['member'], 'purge');
+    });
+
+    test('missing interface file: fail envelope with fix', () async {
+      exitCode = 0;
+      Directory(
+        '$outputDir/data/datasources/product',
+      ).createSync(recursive: true);
+
+      final output = await captureOutput(
+        () => runner().run(['check', 'Product', '--json']),
+      );
+
+      expect(exitCode, 1);
+      final envelope = decodeEnvelope(output);
+      expect(envelope.keys.toSet(), envelopeKeys);
+      expect(envelope['verdict'], 'fail');
+      expect(envelope['exit_class'], 'fail');
+      final findings = envelope['findings'] as List;
+      expect(findings, hasLength(1));
+      expect((findings.first as Map)['kind'], 'missing interface');
+      expect((findings.first as Map)['fix'], isNotEmpty);
+    });
+
+    test(
+      'usage refusal with --json emits an error envelope, exit 64',
+      () async {
+        exitCode = 0;
+
+        final output = await captureOutput(
+          () => runner().run(['check', '--json']),
+        );
+
+        expect(exitCode, 64, reason: 'missing args is a usage error');
+        final envelope = decodeEnvelope(output);
+        expect(envelope['schema'], 'verdict.v1');
+        expect(envelope['command'], 'datasource check');
+        expect(envelope['verdict'], 'error');
+        expect(envelope['exit_class'], 'insufficient-input');
+      },
+    );
+
+    test(
+      'without --json the prose path is unchanged and no envelope appears',
+      () async {
+        exitCode = 0;
+        await generateProduct(local: false);
+        final remoteFile = File(
+          '$outputDir/data/datasources/product/product_remote_datasource.dart',
+        );
+        var source = remoteFile.readAsStringSync();
+        final start = source.indexOf(
+          '  @override\n  Future<List<Product>> getList(',
+        );
+        final braceStart = source.indexOf('{', start);
+        var depth = 0;
+        var end = braceStart;
+        for (var i = braceStart; i < source.length; i++) {
+          if (source[i] == '{') depth++;
+          if (source[i] == '}') depth--;
+          if (depth == 0) {
+            end = i + 1;
+            break;
+          }
+        }
+        source = source.substring(0, start) + source.substring(end);
+        remoteFile.writeAsStringSync(source);
+
+        final output = await captureOutput(
+          () => runner().run(['check', 'Product']),
+        );
+
+        expect(exitCode, 1);
+        expect(output, contains('--> fix:'));
+        expect(output, isNot(contains('"schema":"verdict.v1"')));
       },
     );
   });
