@@ -4,7 +4,7 @@ import '../../../core/plugin_system/capability.dart';
 import '../di_plugin.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
-import 'di_receipt_writer.dart';
+import 'di_receipt_inputs.dart';
 
 class CreateDiCapability implements ZuraffaCapability {
   final DiPlugin plugin;
@@ -141,18 +141,16 @@ class CreateDiCapability implements ZuraffaCapability {
       );
     }
 
-    // Spec 0974 (issue #974, order 3): the standalone path ships proof —
-    // a `di-<target>` receipt binding the written registrations and the
-    // DI index hashes, so `zfa proof check` covers `zfa di create` runs
-    // exactly like `zfa make` runs (issue #807).
-    if (!dryRun && !revert && DiReceiptWriter.hasWritableOutput(files)) {
-      await DiReceiptWriter(
-        projectRoot: projectRoot ?? Directory.current.path,
-      ).writeReceipt(
-        capability: 'create',
-        target: target,
-        args: args,
-        files: files,
+    // Spec 0974 (issue #974, order 3): the standalone path ships proof.
+    // Issue #1130: the capability does NOT write its own receipt — the
+    // CapabilityInvocationWrapper is the sole receipt writer (a second
+    // writer races it and shadows the canonical document in loadAll()).
+    // The DI-specific payload (index digest aggregate) is exposed on
+    // args and the wrapper aliases it into the proof.v1 input map.
+    if (!dryRun && !revert && DiReceiptInputs.hasWritableOutput(files)) {
+      args['_indexFiles'] = DiReceiptInputs.indexHashes(
+        files,
+        projectRoot ?? Directory.current.path,
       );
     }
 
