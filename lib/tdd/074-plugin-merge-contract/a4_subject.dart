@@ -7,8 +7,6 @@ library;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/slice/verifier/di_graph_check.dart';
 
-import 'merge_fixture.dart';
-
 void subject_a4() {
   final bindings = const [
     DiBindingDecl(

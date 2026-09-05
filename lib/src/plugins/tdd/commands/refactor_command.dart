@@ -58,6 +58,8 @@ import '../services/runner.dart';
 import '../services/suite_guard.dart';
 import '../services/tdd_timeout.dart';
 import '../services/tree_snapshot.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 
@@ -136,6 +138,9 @@ class RefactorCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'refactor';
 
@@ -152,7 +157,9 @@ class RefactorCommand extends Command<void> {
       'zfa tdd refactor [--feature <name>] [--project <path>] [--zfa-bin <path>]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _runOnce);
+
+  Future<void> _runOnce() async {
     final featureFlag = argResults?['feature'] as String?;
     if (featureFlag != null && featureFlag.isNotEmpty) {
       _validateFeatureSegment(featureFlag);
@@ -715,6 +722,16 @@ class RefactorCommand extends Command<void> {
     print(
       'refactor: feature=$feature outcome=${outcome.label} applied=$applied',
     );
+    // Issue #969: the outcome label IS the exit class.
+    _verdict
+      ..exitClass = outcome.label
+      ..outcome = switch (outcome) {
+        RefactorOutcome.clean => VerdictOutcome.pass,
+        RefactorOutcome.refactored => VerdictOutcome.pass,
+        _ => VerdictOutcome.fail,
+      }
+      ..details['applied'] = applied
+      ..feature = feature == 'unknown' ? null : feature;
   }
 }
 

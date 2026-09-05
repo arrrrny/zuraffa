@@ -17,6 +17,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../models/verdict_envelope.dart';
+import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
 import '../services/ci_referee/failure_artifacts.dart';
 import '../services/ci_referee/feature_provenance.dart';
@@ -29,13 +31,23 @@ import '../services/ci_referee/verdict_comment.dart';
 import '../../../core/project/project_root.dart';
 
 class RefereeCommand extends Command<void> {
+  final TddPlugin plugin;
+
+  /// Issue #969: parents emit a usage envelope too.
+  final VerdictContext _verdict = VerdictContext();
+
   RefereeCommand(this.plugin) {
+    argParser.addFlag(
+      'json',
+      help:
+          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'line (VISION §5, issue #969).',
+      negatable: false,
+    );
     addSubcommand(RefereeRunCommand(plugin));
     addSubcommand(RefereeGateCommand(plugin));
     addSubcommand(RefereeRollupCommand(plugin));
   }
-
-  final TddPlugin plugin;
 
   @override
   String get name => 'referee';
@@ -49,7 +61,13 @@ class RefereeCommand extends Command<void> {
   String get invocation => 'zfa tdd referee <subcommand> [options]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() =>
+      runWithVerdictEnvelope(this, _verdict, _run, commandOverride: 'referee');
+
+  Future<void> _run() async {
+    _verdict
+      ..outcome = VerdictOutcome.stopped
+      ..exitClass = 'usage';
     printUsage();
   }
 }
@@ -65,6 +83,13 @@ String _resolveProject(Command<void> command) {
 
 class RefereeRunCommand extends Command<void> {
   RefereeRunCommand(this.plugin) {
+    argParser.addFlag(
+      'json',
+      help:
+          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'line (VISION §5, issue #969).',
+      negatable: false,
+    );
     argParser.addOption(
       'project',
       aliases: const ['project-root'],
@@ -95,6 +120,9 @@ class RefereeRunCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'run';
 
@@ -109,7 +137,14 @@ class RefereeRunCommand extends Command<void> {
       '[--pr <n> --repo <slug>] [--changed-files <file>] [--resume]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(
+    this,
+    _verdict,
+    _run,
+    commandOverride: 'referee run',
+  );
+
+  Future<void> _run() async {
     final projectRoot = _resolveProject(this);
     print('zfa tdd referee run: golden workflow (spec 070)...');
     print('   project: $projectRoot');
@@ -203,6 +238,15 @@ class RefereeRunCommand extends Command<void> {
       'result=${verdict.result} posted=$posted'
       '${verdict.resumedFrom == null ? '' : ' resumed-from=${verdict.resumedFrom}'}',
     );
+    // Issue #969: the result label IS the exit class.
+    _verdict
+      ..exitClass = verdict.result
+      ..outcome = verdict.result == 'pass' || verdict.result == 'empty'
+          ? VerdictOutcome.pass
+          : VerdictOutcome.fail
+      ..details['features'] = verdict.features.length
+      ..details['failures'] = failures.length
+      ..details['posted'] = posted;
     exitCode = verdict.result == 'pass' || verdict.result == 'empty' ? 0 : 1;
   }
 
@@ -218,6 +262,13 @@ class RefereeRunCommand extends Command<void> {
 
 class RefereeGateCommand extends Command<void> {
   RefereeGateCommand(this.plugin) {
+    argParser.addFlag(
+      'json',
+      help:
+          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'line (VISION §5, issue #969).',
+      negatable: false,
+    );
     argParser.addOption(
       'project',
       aliases: const ['project-root'],
@@ -226,6 +277,9 @@ class RefereeGateCommand extends Command<void> {
   }
 
   final TddPlugin plugin;
+
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
 
   @override
   String get name => 'gate';
@@ -239,7 +293,14 @@ class RefereeGateCommand extends Command<void> {
   String get invocation => 'zfa tdd referee gate [--project <dir>]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(
+    this,
+    _verdict,
+    _run,
+    commandOverride: 'referee gate',
+  );
+
+  Future<void> _run() async {
     final projectRoot = _resolveProject(this);
     print('zfa tdd referee gate: publishing gate...');
     print('   project: $projectRoot');
@@ -254,12 +315,26 @@ class RefereeGateCommand extends Command<void> {
     for (final blocker in decision.blockers) {
       print('   blocker: $blocker');
     }
+    // Issue #969: the gate outcome IS the exit class.
+    _verdict
+      ..exitClass = decision.outcome.name
+      ..outcome = decision.outcome == GateOutcome.production
+          ? VerdictOutcome.pass
+          : VerdictOutcome.fail
+      ..details['offered_build'] = decision.label;
     exitCode = decision.outcome == GateOutcome.production ? 0 : 1;
   }
 }
 
 class RefereeRollupCommand extends Command<void> {
   RefereeRollupCommand(this.plugin) {
+    argParser.addFlag(
+      'json',
+      help:
+          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'line (VISION §5, issue #969).',
+      negatable: false,
+    );
     argParser.addOption(
       'project',
       aliases: const ['project-root'],
@@ -268,6 +343,9 @@ class RefereeRollupCommand extends Command<void> {
   }
 
   final TddPlugin plugin;
+
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
 
   @override
   String get name => 'rollup';
@@ -281,7 +359,14 @@ class RefereeRollupCommand extends Command<void> {
   String get invocation => 'zfa tdd referee rollup [--project <dir>]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(
+    this,
+    _verdict,
+    _run,
+    commandOverride: 'referee rollup',
+  );
+
+  Future<void> _run() async {
     final projectRoot = _resolveProject(this);
     print('zfa tdd referee rollup: provenance rollup...');
     print('   project: $projectRoot');
@@ -295,6 +380,10 @@ class RefereeRollupCommand extends Command<void> {
       );
       print('   no features have been realized yet (empty state).');
       print('   report: ${rollup.path}');
+      _verdict
+        ..exitClass = 'empty'
+        ..outcome = VerdictOutcome.pass
+        ..details['features'] = 0;
       exitCode = 0;
       return;
     }
@@ -317,6 +406,10 @@ class RefereeRollupCommand extends Command<void> {
       );
     }
     print('   report: ${rollup.path}');
+    _verdict
+      ..exitClass = 'ok'
+      ..outcome = VerdictOutcome.pass
+      ..details['features'] = rollup.corpus.totalFeatures;
     exitCode = 0;
   }
 }

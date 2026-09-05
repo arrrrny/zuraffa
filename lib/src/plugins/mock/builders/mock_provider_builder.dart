@@ -451,6 +451,18 @@ class MockProviderBuilder {
         final mockDataClass = '${targetEntity}MockData';
         final sampleProperty = 'sample$targetEntity';
 
+        // Issue #1034: thread the per-method fixture selector when the
+        // mock data class exposes one and the params entity carries the
+        // discriminator it switches on. Deterministic, certified, and still
+        // 100% generated — the AUGMENTED escape hatch stays reserved for
+        // mock-data VALUES, never provider routing logic.
+        final perMethodCanned = (!isPrimitive && !isList)
+            ? _perMethodCannedValue(
+                mockDataClass: mockDataClass,
+                paramsType: params,
+              )
+            : null;
+
         methods.add(
           Method(
             (m) => m
@@ -492,9 +504,13 @@ class MockProviderBuilder {
                                             ? refer(
                                                 mockDataClass,
                                               ).property('sampleList').code
-                                            : refer(
-                                                mockDataClass,
-                                              ).property(sampleProperty).code),
+                                            : (perMethodCanned ??
+                                                      refer(
+                                                        mockDataClass,
+                                                      ).property(
+                                                        sampleProperty,
+                                                      ))
+                                                  .code),
                               ).closure,
                             ]),
                           ])
@@ -521,9 +537,10 @@ class MockProviderBuilder {
                             mockDataClass,
                           ).property('sampleList').returned.statement
                         else
-                          refer(
-                            mockDataClass,
-                          ).property(sampleProperty).returned.statement,
+                          (perMethodCanned ??
+                                  refer(mockDataClass).property(sampleProperty))
+                              .returned
+                              .statement,
                       ],
                     ],
                   ]),
@@ -571,6 +588,16 @@ class MockProviderBuilder {
     final mockDataClass = '${targetEntity}MockData';
     final sampleProperty = 'sample$targetEntity';
 
+    // Issue #1034: same threading for the default service-method shape —
+    // thread the per-method fixture selector when the mock data class
+    // declares one and the params entity carries the discriminator.
+    final perMethodCanned = (!isPrimitive && !isList)
+        ? _perMethodCannedValue(
+            mockDataClass: mockDataClass,
+            paramsType: config.paramsType ?? 'NoParams',
+          )
+        : null;
+
     final isStream = config.useCaseType == 'stream';
     final isSync = config.useCaseType == 'sync';
     final returnType = isStream ? 'Stream<$returns>' : 'Future<$returns>';
@@ -616,9 +643,11 @@ class MockProviderBuilder {
                                         ? refer(
                                             mockDataClass,
                                           ).property('sampleList').code
-                                        : refer(
-                                            mockDataClass,
-                                          ).property(sampleProperty).code),
+                                        : (perMethodCanned ??
+                                                  refer(
+                                                    mockDataClass,
+                                                  ).property(sampleProperty))
+                                              .code),
                           ).closure,
                         ]),
                       ])
@@ -642,9 +671,10 @@ class MockProviderBuilder {
                       mockDataClass,
                     ).property('sampleList').returned.statement,
                   ] else ...[
-                    refer(
-                      mockDataClass,
-                    ).property(sampleProperty).returned.statement,
+                    (perMethodCanned ??
+                            refer(mockDataClass).property(sampleProperty))
+                        .returned
+                        .statement,
                   ],
                 ],
               ]),
@@ -653,6 +683,97 @@ class MockProviderBuilder {
     );
 
     return methods;
+  }
+
+  /// Issue #1034: request-discriminated canned value —
+  /// `<T>MockData.forMethod(params.<discriminator>)` — when the target
+  /// entity's mock data class declares a deterministic per-method fixture
+  /// selector and the params entity carries the discriminator field the
+  /// selector switches on. Returns `null` otherwise; the caller keeps the
+  /// single-fixture shape (`<T>MockData.sample<T>`, issue #1030 lineage).
+  Expression? _perMethodCannedValue({
+    required String mockDataClass,
+    required String paramsType,
+  }) {
+    final selectorParamType = _forMethodSelectorParamType(mockDataClass);
+    if (selectorParamType == null) return null;
+    final field = _discriminatorField(paramsType, selectorParamType);
+    if (field == null) return null;
+    return refer(
+      mockDataClass,
+    ).property('forMethod').call([refer('params').property(field)]);
+  }
+
+  /// The discriminator parameter type of the per-method fixture selector
+  /// declared on [mockDataClass], or `null` when the class does not expose
+  /// a single-parameter `static ... forMethod(...)` selector. The selector
+  /// lives in the generated mock-data file through the sanctioned AUGMENTED
+  /// escape hatch (reserved for mock-data VALUES), so detection is
+  /// file-content-derived — same file ⇒ same decision (determinism).
+  String? _forMethodSelectorParamType(String mockDataClass) {
+    final entityName = mockDataClass.replaceAll(RegExp(r'MockData$'), '');
+    if (entityName.isEmpty) return null;
+    final entitySnake = StringUtils.camelToSnake(entityName);
+    final mockDataPath = path.join(
+      outputDir,
+      'data',
+      'mock',
+      '${entitySnake}_mock_data.dart',
+    );
+    if (!fileSystem.existsSync(mockDataPath)) return null;
+    final String content;
+    try {
+      content = fileSystem.readSync(mockDataPath);
+    } catch (_) {
+      return null;
+    }
+    final selectorRegex = RegExp(
+      r'static\s+[\w$<>?,\s]+?\sforMethod\s*\(([^)]*)\)',
+      multiLine: true,
+    );
+    final match = selectorRegex.firstMatch(content);
+    if (match == null) return null;
+    final parameterList = match.group(1)?.trim() ?? '';
+    if (parameterList.isEmpty) return null;
+    // Only a single positional parameter carries an unambiguous
+    // discriminator; multi-arg and named-parameter selectors are not
+    // threaded (fall back to the single-fixture shape).
+    if (parameterList.contains(',') ||
+        parameterList.contains('{') ||
+        parameterList.contains('}')) {
+      return null;
+    }
+    final tokens = parameterList.split(RegExp(r'\s+'));
+    if (tokens.length < 2) return null;
+    return tokens.sublist(0, tokens.length - 1).join(' ').trim();
+  }
+
+  /// The params-entity field whose declared type matches the selector's
+  /// discriminator parameter, or `null` when the params type names no
+  /// entity carrying such a field. Nullable spellings on either side
+  /// (`T` vs `T?`) are equivalent for matching.
+  String? _discriminatorField(String paramsType, String selectorParamType) {
+    final wanted = selectorParamType.replaceAll('?', '').trim();
+    if (paramsType.isEmpty || paramsType == 'NoParams' || wanted.isEmpty) {
+      return null;
+    }
+    // Only a bare identifier can name an entity; generic or otherwise
+    // compound params types have no analyzable discriminator surface.
+    if (!RegExp(r'^[A-Za-z_$][\w$]*$').hasMatch(paramsType)) return null;
+    final Map<String, String> fields;
+    try {
+      fields = EntityAnalyzer.analyzeEntity(
+        paramsType,
+        outputDir,
+        fileSystem: fileSystem,
+      );
+    } catch (_) {
+      return null;
+    }
+    for (final entry in fields.entries) {
+      if (entry.value.replaceAll('?', '').trim() == wanted) return entry.key;
+    }
+    return null;
   }
 
   Method _buildEntityMockMethod(GeneratorConfig config, String method) {

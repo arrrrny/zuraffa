@@ -45,6 +45,18 @@ class CycleLogEntry {
   /// evidence schema stays at v1.
   final String? redEvidence;
 
+  /// The sha256 of the subject file at certification time (issue #1036):
+  /// red entries record the subject shape the certified red exercised,
+  /// green entries the shape the certified green exercised. The make
+  /// skip transition compares the CURRENT subject hash against these to
+  /// refuse a skip on a subject the certified evidence never exercised
+  /// (the born-green placeholder class). Nullable — legacy entries and
+  /// runs with no subject artifact omit the field. Rendered as the
+  /// optional `- subject-hash:` field line, outside the chain-hash
+  /// payload, so the evidence schema stays at v1 (the `- evidence:`
+  /// precedent).
+  final String? subjectHash;
+
   /// The spec criterion the behavior traces to (e.g. `FR-006`).
   final String sourceCriterion;
 
@@ -96,6 +108,7 @@ class CycleLogEntry {
     required this.timestamp,
     this.classification,
     this.redEvidence,
+    this.subjectHash,
     this.refactorActions = const [],
     this.isNoOp = false,
     this.generationSteps = const [],
@@ -119,6 +132,9 @@ class CycleLogEntry {
     }
     if (redEvidence != null) {
       buf.writeln('- evidence: $redEvidence');
+    }
+    if (subjectHash != null) {
+      buf.writeln('- subject-hash: $subjectHash');
     }
     buf
       ..writeln('- criterion: $sourceCriterion')

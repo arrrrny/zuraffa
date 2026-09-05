@@ -46,6 +46,8 @@ import 'package:path/path.dart' as p;
 import '../../../core/project/project_root.dart';
 import '../models/channel_scenario.dart';
 import '../services/channel_fake_writer.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 
 class FakeCommand extends Command<void> {
@@ -95,6 +97,9 @@ class FakeCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   static String _sortedPlatforms() =>
       (ChannelScenario.supportedPlatforms.toList()..sort()).join(', ');
 
@@ -112,7 +117,9 @@ class FakeCommand extends Command<void> {
   String get invocation => 'zfa tdd fake <channel> [options]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
     // Fail fast on missing arguments.
     final rest = argResults!.rest;
     if (rest.isEmpty) {
@@ -206,6 +213,15 @@ class FakeCommand extends Command<void> {
           'fake: refused channel drift — channel=$channel '
           'feature=$feature slug=$slug scenario=$scenarioRelative',
         );
+        _verdict
+          ..exitClass = 'refused'
+          ..outcome = VerdictOutcome.fail
+          ..fix =
+              're-commit the scenario with --force if the channel drift '
+              'is intended'
+          ..details['channel'] = channel
+          ..details['slug'] = slug
+          ..feature = feature;
         return;
       }
       if (platforms.isNotEmpty &&
@@ -261,6 +277,14 @@ class FakeCommand extends Command<void> {
       'scenario=$scenarioRelative fake=$fakeRelative '
       'platforms=${fakePlatforms.join(',')} — scenario $scenarioStatus',
     );
+    // Issue #969: the scenario status IS the exit class.
+    _verdict
+      ..exitClass = scenarioStatus
+      ..outcome = VerdictOutcome.pass
+      ..details['channel'] = channel
+      ..details['slug'] = slug
+      ..details['scenario'] = scenarioRelative
+      ..feature = feature;
   }
 
   /// The starter scenario written for a fresh slug: one scripted method

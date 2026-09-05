@@ -34,13 +34,15 @@ test/
 │   ├── sync/
 │   ├── mock/
 │   ├── shadcn/
+│   ├── test/             # Test plugin suite (spec 980): builders,
+│   │                     # dispatch, self-certification, receipts,
+│   │                     # analyzer parsing, openwiki doc markers
 │   └── method_append/
 ├── commands/             # CLI command tests
 │   ├── capability_test.dart
 │   ├── feature_test.dart
 │   ├── make_test.dart
-│   ├── generate_test.dart
-│   └── test_command_test.dart
+│   └── generate_test.dart
 ├── cli/                  # CLI edge case tests
 ├── integration/          # End-to-end workflow tests
 │   ├── full_entity_workflow_test.dart
@@ -156,63 +158,196 @@ All generation tests create real files in `Directory.systemTemp.createTemp()` sa
 
 ## Running Tests
 
+Zuraffa itself is a pure-Dart package — run its suite with `dart test`
+(the slow tiers are excluded by default, see `dart_test.yaml`):
+
 ```bash
-# Run all tests
-flutter test
+# Run the fast suite
+dart test
 
 # Run specific test file
-flutter test test/core/result_test.dart
+dart test test/core/result_test.dart
 
-# Run integration tests only
-flutter test test/integration/
+# Run integration tests only (slow tier)
+dart test --preset=integration
 
 # Run plugin tests for a specific plugin
-flutter test test/plugins/di/
+dart test test/plugins/di/
 
 # Run with coverage
-flutter test --coverage
+dart test --coverage
 ```
 
 ## Generated Test Files
 
-When using `zfa make --test`, the `test` plugin generates unit tests:
+When using `zfa make --test` (or `zfa test create --name <Entity>`), the `test` plugin generates unit tests:
 
 ```bash
 zfa make Product --preset=crud --test
 ```
 
-Generated test structure:
+Generated test structure (one file per use case method, under the entity folder):
 
 ```
 test/
 └── domain/
     └── usecases/
-        ├── get_product_test.dart
-        ├── get_products_test.dart
-        ├── create_product_test.dart
-        ├── update_product_test.dart
-        └── delete_product_test.dart
+        └── product/
+            ├── get_product_usecase_test.dart
+            ├── create_product_usecase_test.dart
+            ├── update_product_usecase_test.dart
+            └── delete_product_usecase_test.dart
 ```
 
-Each generated test follows this structure (from `test_plugin.dart`):
+### Flavor detection (#354)
+
+The generated test imports depend on the target project's flavor, detected
+from its `pubspec.yaml`: when the dependencies declare `flutter:
+sdk: flutter` the project is a Flutter app, otherwise it is pure Dart.
+
+| Project flavor | Test framework import | Zuraffa core import |
+|---|---|---|
+| Pure Dart (`zfa setup --dart`) | `package:test/test.dart` | `package:zuraffa/mock.dart` |
+| Flutter (`flutter: sdk: flutter`) | `package:flutter_test/flutter_test.dart` | `package:zuraffa/mock.dart` |
+
+A missing or unreadable `pubspec.yaml` conservatively defaults to pure
+Dart. The zuraffa core import is `package:zuraffa/mock.dart` for every
+flavor — the canonical marker that re-exports the full zuraffa core
+surface (Result, the params family, Loggable, FailureHandler, ...) plus
+the `zuraffaMockLibrary` constant.
+
+### Native mocks — no mocktail
+
+Generated tests use **native zuraffa mocks**, never a third-party mocking
+library: a `Throwing{Entity}DataSource` (every datasource method throws)
+plus a wired `Data{Entity}Repository` backed by the generated
+`{Entity}MockDataSource` from `zfa make <Entity> --mock`. This lets a
+zuraffa app run end-to-end on full mock infrastructure without
+`package:mocktail`.
+
+Each generated test follows this structure (real output of
+`zfa test create --name Product`, `get` method):
 
 ```dart
-import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
-// ... imports ...
+// GENERATED - DO NOT EDIT
+import 'package:my_app/src/data/datasources/product/product_datasource.dart';
+import 'package:my_app/src/data/datasources/product/product_mock_datasource.dart';
+import 'package:my_app/src/data/mock/product_mock_data.dart';
+import 'package:my_app/src/domain/entities/product/product.dart';
+import 'package:my_app/src/domain/repositories/data_product_repository.dart';
+import 'package:my_app/src/domain/repositories/product_repository.dart';
+import 'package:my_app/src/domain/usecases/product/get_product_usecase.dart';
+import 'package:test/test.dart';
+import 'package:zuraffa/mock.dart';
+
+class ThrowingProductDataSource
+    with Loggable, FailureHandler
+    implements ProductDataSource {
+  @override
+  Future<Product> get(QueryParams<Product> params) {
+    throw (Exception('ThrowingProductDataSource.get'));
+  }
+
+  // ... the other seven canonical datasource methods, all throwing ...
+}
 
 void main() {
-  late MockProductRepository repository;
   late GetProductUseCase useCase;
-
+  late GetProductUseCase throwingUseCase;
+  late DataProductRepository repository;
+  late DataProductRepository throwingRepository;
+  late ProductMockDataSource mockDataSource;
+  late ThrowingProductDataSource throwingDataSource;
   setUp(() {
-    repository = MockProductRepository();
+    mockDataSource = ProductMockDataSource();
+    throwingDataSource = ThrowingProductDataSource();
+    repository = DataProductRepository(mockDataSource);
+    throwingRepository = DataProductRepository(throwingDataSource);
     useCase = GetProductUseCase(repository);
+    throwingUseCase = GetProductUseCase(throwingRepository);
   });
-
-  test('returns product when repository succeeds', () async { ... });
-  test('returns failure when repository throws', () async { ... });
+  group('GetProductUseCase', () {
+    final tProduct = ProductMockData.sampleProduct;
+    test('should call repository.get and return result', () async {
+      final result = await useCase.call(
+        QueryParams<Product>(filter: Eq(ProductFields.id, tProduct.id)),
+      );
+      expect(result.isSuccess, true);
+    });
+    test('should return Failure when repository throws', () async {
+      final result = await throwingUseCase.call(
+        QueryParams<Product>(filter: Eq(ProductFields.id, tProduct.id)),
+      );
+      expect(result.isFailure, true);
+    });
+  });
 }
+
+// END GENERATED
+```
+
+### Self-certification (compile verdict)
+
+The test plugin never emits a test it has not proven compiles. After
+writing each test file it runs a scoped `dart analyze` on that file and
+prints a machine verdict line in the format
+`test: entity=<X> tests=<N> compile=pass|fail --> fix: <first error>`:
+
+```
+test: entity=Product tests=2 compile=pass
+test: entity=Broken tests=2 compile=fail --> fix: <first error>
+```
+
+Non-compiling output fails the command with a non-zero exit — never a
+silent success. `zfa test create --name <Entity>` and the direct
+`zfa test <Entity>` grammar both gate on this verdict; with `--json` the
+direct grammar prints a single parseable envelope:
+
+```json
+{"entity": "Product", "tests": 2, "compile": "pass", "errors": [], "schema": 1}
+```
+
+### Per-method test receipts (`.zfa/receipts/test-<entity>.json`)
+
+Every generation writes a `test.v1` receipt mapping each generated test
+to its use case method, its covered acceptance path (`success` /
+`failure`), and the SHA-256 digests of the test file and the usecase
+source it was generated against:
+
+```json
+{
+  "schema": "test.v1",
+  "entity": "Product",
+  "command": "zfa test create --name Product",
+  "tests": [
+    {
+      "name": "should call repository.get and return result",
+      "test_path": "test/domain/usecases/product/get_product_usecase_test.dart",
+      "method": "get",
+      "acceptance_path": "success",
+      "test_sha256": "…",
+      "usecase_path": "lib/src/domain/usecases/product/get_product_usecase.dart",
+      "usecase_sha256": "…"
+    },
+    {
+      "name": "should return Failure when repository throws",
+      "test_path": "test/domain/usecases/product/get_product_usecase_test.dart",
+      "method": "get",
+      "acceptance_path": "failure",
+      "test_sha256": "…",
+      "usecase_path": "lib/src/domain/usecases/product/get_product_usecase.dart",
+      "usecase_sha256": "…"
+    }
+  ]
+}
+```
+
+`zfa proof check` re-derives every digest and fails with a
+`stale_usecase` finding when the usecase source drifted after the tests
+were generated (usecase/test drift) — the signal to regenerate:
+
+```bash
+zfa proof check   # flags usecase/test drift, tampered or deleted tests
 ```
 
 ## Key Testing Files
@@ -228,6 +363,46 @@ void main() {
 | `test/core/failure_test.dart` | AppFailure hierarchy tests |
 | `test/domain/usecase_hook_test.dart` | UseCase hook dispatch tests |
 | `test/presentation/stateful_controller_test.dart` | Controller state management tests |
+
+## TDD Cycle
+
+The `zfa tdd` plugin drives spec-driven test-first development end to
+end — see [CLI](cli.md#zfa-tdd--tdd-loop-plugin) for the full command
+table. The cycle flow:
+
+1. **`zfa tdd plan <feature>`** reads `specs/<feature>/spec.md` and
+   emits `tdd/test-list.md` (one behavior per FR/AC) plus
+   `tdd/traceability.md` (the behavior ↔ requirement matrix with the
+   spec-contract hash). A requirement statement with no behavior row
+   fails the coverage gate — no artifacts are written.
+2. **`zfa tdd gen <behavior-id>`** generates the failing test + compiling
+   subject stub pair and registers both in `tdd/artifacts.json` with
+   provenance headers and a `behavior_id` binding.
+3. **`zfa tdd verify-red <behavior-id>`** runs the pair's test, proves
+   the failure is an honest assertion failure, and appends the red
+   evidence entry to `tdd/cycle-log.md`.
+4. **`zfa tdd make <behavior-id>`** requires the certified red, plans the
+   minimal generation through the zuraffa pipeline, runs the target test
+   green, certifies the suite gained no NEW failures, and appends the
+   green evidence to the cycle log.
+5. **`zfa tdd refactor`** applies recorded refactors only under a green
+   suite preflight.
+6. **`zfa tdd verify --feature <feature>`** runs the mutation audit and
+   writes `tdd/verification.md` from the REAL run. The audit is gated
+   twice before it starts: the traceability hash must still match the
+   spec (drift = exit 3, re-plan), and the feature's receipted artifacts
+   must still match the bytes their generating verbs wrote (digest drift
+   = `NOT_ASSESSED`, exit 3, re-run the cycle).
+
+Every step writes machine-readable evidence: each verb emits the
+versioned `verdict.v1` envelope as its final stdout line under `--json`
+(`zfa tdd verdicts --schema` prints the diff-stable schema), and the
+cycle's artifacts are digest-bound as proof.v1 receipts under
+`.zfa/receipts/` — run `zfa proof check` to verify that every generated
+artifact still proves where it came from. Hand-editing a generated
+artifact is therefore always detected: the receipt digest drifts and
+both `zfa proof check` (exit 1) and `zfa tdd verify`'s preflight
+(NOT_ASSESSED) name it.
 
 ## Change Guidance
 

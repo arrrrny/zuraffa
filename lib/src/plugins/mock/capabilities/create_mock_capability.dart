@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import '../../../core/plugin_system/capability.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
+import '../../../engine/mock_certifier.dart' hide MockCertifier;
 import '../builders/simulation_fixture_writer.dart';
 import '../certification/mock_certifier.dart';
 import '../mock_plugin.dart';
@@ -55,6 +56,18 @@ class CreateMockCapability implements ZuraffaCapability {
             'Commit per-entity fixture data under this directory (e.g. '
             'specs/<feature>/tdd/fixtures) and re-certify it through the '
             '#832 fixture registry (spec 893)',
+      },
+      // Spec 1002 (engine preset): `mock create --certify` verifies every
+      // requested method landed on the generated mock datasource with
+      // seeded data present, reports the per-method outcome, and fails
+      // the execution when any method is uncertified.
+      'certify': {
+        'type': 'boolean',
+        'description':
+            'Certify every requested method on the generated mock '
+            '(implemented member + seeded mock data); fail when any '
+            'method is uncertified',
+        'default': false,
       },
       'dryRun': {
         'type': 'boolean',

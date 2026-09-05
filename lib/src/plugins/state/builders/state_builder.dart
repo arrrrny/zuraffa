@@ -44,22 +44,9 @@ class StateBuilder {
     final stateDirPath = path.joinAll(statePathParts);
     final filePath = path.join(stateDirPath, fileName);
 
-    final needsEntityListField =
-        !config.noEntity &&
-        config.methods.any((m) => ['getList', 'watchList'].contains(m));
-    final needsEntityField =
-        (!config.noEntity && (config.generateVpcs || config.generateState)) ||
-        (!config.noEntity &&
-            config.methods.any(
-              (m) => [
-                'get',
-                'watch',
-                'create',
-                'update',
-                'toggle',
-                'delete',
-              ].contains(m),
-            ));
+    final (:needsEntityField, :needsEntityListField) = _resolveEntityFieldNeeds(
+      config,
+    );
 
     // #512: The state import must follow the target project's flavor
     // (Constitution VII: Engine Purity). A pure-Dart target has no
@@ -344,22 +331,9 @@ class StateBuilder {
 
   Future<Constructor> _buildCustomConstructor(GeneratorConfig config) async {
     final entityCamel = config.nameCamel;
-    final needsEntityListField =
-        !config.noEntity &&
-        config.methods.any((m) => ['getList', 'watchList'].contains(m));
-    final needsEntityField =
-        (!config.noEntity && (config.generateVpcs || config.generateState)) ||
-        (!config.noEntity &&
-            config.methods.any(
-              (m) => [
-                'get',
-                'watch',
-                'create',
-                'update',
-                'toggle',
-                'delete',
-              ].contains(m),
-            ));
+    final (:needsEntityField, :needsEntityListField) = _resolveEntityFieldNeeds(
+      config,
+    );
 
     final params = <Parameter>[
       Parameter(
@@ -483,22 +457,9 @@ class StateBuilder {
   ) async {
     final entityName = config.name;
     final entityCamel = config.nameCamel;
-    final needsEntityListField =
-        !config.noEntity &&
-        config.methods.any((m) => ['getList', 'watchList'].contains(m));
-    final needsEntityField =
-        (!config.noEntity && (config.generateVpcs || config.generateState)) ||
-        (!config.noEntity &&
-            config.methods.any(
-              (m) => [
-                'get',
-                'watch',
-                'create',
-                'update',
-                'toggle',
-                'delete',
-              ].contains(m),
-            ));
+    final (:needsEntityField, :needsEntityListField) = _resolveEntityFieldNeeds(
+      config,
+    );
 
     final params = <Parameter>[
       Parameter(
@@ -662,22 +623,9 @@ class StateBuilder {
     final isType = other.isA(refer(stateName));
 
     final entityCamel = config.nameCamel;
-    final needsEntityListField =
-        !config.noEntity &&
-        config.methods.any((m) => ['getList', 'watchList'].contains(m));
-    final needsEntityField =
-        (!config.noEntity && (config.generateVpcs || config.generateState)) ||
-        (!config.noEntity &&
-            config.methods.any(
-              (m) => [
-                'get',
-                'watch',
-                'create',
-                'update',
-                'toggle',
-                'delete',
-              ].contains(m),
-            ));
+    final (:needsEntityField, :needsEntityListField) = _resolveEntityFieldNeeds(
+      config,
+    );
 
     final conditions = <Expression>[
       other.property('error').equalTo(refer('error')),
@@ -749,22 +697,9 @@ class StateBuilder {
 
   Future<Method> _buildCustomHashCodeGetter(GeneratorConfig config) async {
     final entityCamel = config.nameCamel;
-    final needsEntityListField =
-        !config.noEntity &&
-        config.methods.any((m) => ['getList', 'watchList'].contains(m));
-    final needsEntityField =
-        (!config.noEntity && (config.generateVpcs || config.generateState)) ||
-        (!config.noEntity &&
-            config.methods.any(
-              (m) => [
-                'get',
-                'watch',
-                'create',
-                'update',
-                'toggle',
-                'delete',
-              ].contains(m),
-            ));
+    final (:needsEntityField, :needsEntityListField) = _resolveEntityFieldNeeds(
+      config,
+    );
 
     final parts = <Expression>[refer('error').property('hashCode')];
 
@@ -827,22 +762,9 @@ class StateBuilder {
     GeneratorConfig config,
   ) async {
     final entityCamel = config.nameCamel;
-    final needsEntityListField =
-        !config.noEntity &&
-        config.methods.any((m) => ['getList', 'watchList'].contains(m));
-    final needsEntityField =
-        (!config.noEntity && (config.generateVpcs || config.generateState)) ||
-        (!config.noEntity &&
-            config.methods.any(
-              (m) => [
-                'get',
-                'watch',
-                'create',
-                'update',
-                'toggle',
-                'delete',
-              ].contains(m),
-            ));
+    final (:needsEntityField, :needsEntityListField) = _resolveEntityFieldNeeds(
+      config,
+    );
 
     final parts = <String>['error: \$error'];
 
@@ -1262,4 +1184,49 @@ class _BoolField {
   final String name;
   final String doc;
   _BoolField(this.name, this.doc);
+}
+
+/// Derives which entity-backed fields a state class must carry, as the
+/// single source of truth for every emission site (issue #976).
+///
+/// This derivation was repeated verbatim at SIX sites — `generate` plus
+/// the five custom-mode builders (`_buildCustomConstructor`,
+/// `_buildCustomCopyWith`, `_buildCustomEqualityOperator`,
+/// `_buildCustomHashCodeGetter`, `_buildCustomToString`) — a drift
+/// factory: a semantics edit applied at five sites and forgotten at the
+/// sixth silently forked emission between constructor, copyWith, ==,
+/// hashCode and toString. Every site resolves through this one function
+/// now; the collapse is provably behavior-neutral — the snapshot suite
+/// (`test/plugins/state/state_snapshot_test.dart`) byte-compares the
+/// fixture matrix against goldens captured from the pre-dedupe builder.
+///
+/// Semantics (unchanged from the six collapsed copies):
+///  * [needsEntityListField] — a list window (`getList`/`watchList`)
+///    against a real entity;
+///  * [needsEntityField] — the single-entity field when state emission
+///    is on for a real entity, or any single-entity method
+///    (get/watch/create/update/toggle/delete) is requested.
+({bool needsEntityField, bool needsEntityListField}) _resolveEntityFieldNeeds(
+  GeneratorConfig config,
+) {
+  final needsEntityListField =
+      !config.noEntity &&
+      config.methods.any((m) => ['getList', 'watchList'].contains(m));
+  final needsEntityField =
+      (!config.noEntity && (config.generateVpcs || config.generateState)) ||
+      (!config.noEntity &&
+          config.methods.any(
+            (m) => [
+              'get',
+              'watch',
+              'create',
+              'update',
+              'toggle',
+              'delete',
+            ].contains(m),
+          ));
+  return (
+    needsEntityField: needsEntityField,
+    needsEntityListField: needsEntityListField,
+  );
 }
