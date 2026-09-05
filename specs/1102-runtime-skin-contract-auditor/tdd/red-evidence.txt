@@ -1,0 +1,27 @@
+  test/commands/skin_command_test.dart:12:8: Error: Error when reading 'lib/src/commands/skin_command.dart': No such file or directory
+  test/skin/anchors_test.dart:6:8: Error: Error when reading 'lib/src/skin/anchors.dart': No such file or directory
+  test/skin/builders/skin_contract_kit_builder_test.dart:8:8: Error: Error when reading 'lib/src/skin/builders/skin_contract_kit_builder.dart': No such file or directory
+  test/skin/route_contract_table_test.dart:7:8: Error: Error when reading 'lib/src/skin/route_contract_table.dart': No such file or directory
+  test/skin/skin_audit_controller_test.dart:6:8: Error: Error when reading 'lib/src/skin/skin_audit_controller.dart': No such file or directory
+  test/skin/skin_audit_controller_test.dart:7:8: Error: Error when reading 'lib/src/skin/skin_violation.dart': No such file or directory
+  test/skin/skin_audit_scheduler_test.dart:8:8: Error: Error when reading 'lib/src/skin/skin_audit_scheduler.dart': No such file or directory
+  test/skin/skin_barrel_test.dart:6:8: Error: Error when reading 'lib/skin.dart': No such file or directory
+  test/skin/skin_contract_row_test.dart:6:8: Error: Error when reading 'lib/src/skin/skin_contract_row.dart': No such file or directory
+  test/skin/skin_contract_row_test.dart:7:8: Error: Error when reading 'lib/src/skin/tree_facts.dart': No such file or directory
+  test/skin/skin_violation_test.dart:6:8: Error: Error when reading 'lib/src/skin/skin_violation.dart': No such file or directory
+  test/skin/tree_facts_test.dart:6:8: Error: Error when reading 'lib/src/skin/tree_facts.dart': No such file or directory
+00:00 +0 -10: loading test/commands/skin_command_test.dart [E]
+00:00 +0 -11: loading test/plugins/view/view_skin_audit_wrap_test.dart [E]
+00:00 +0 -12: loading test/plugins/app_shell/app_shell_skin_audit_test.dart [E]
+00:00 +0 -13: Some tests failed.
+00:00 +0 -13: loading test/plugins/di/di_idempotent_test.dart [E]
+00:00 +0 -1: loading test/skin/skin_audit_scheduler_test.dart [E]
+00:00 +0 -2: loading test/skin/skin_violation_test.dart [E]
+00:00 +0 -3: loading test/skin/skin_audit_controller_test.dart [E]
+00:00 +0 -4: loading test/skin/route_contract_table_test.dart [E]
+00:00 +0 -5: loading test/skin/skin_contract_row_test.dart [E]
+00:00 +0 -6: loading test/skin/tree_facts_test.dart [E]
+00:00 +0 -7: loading test/skin/builders/skin_contract_kit_builder_test.dart [E]
+00:00 +0 -8: loading test/skin/skin_barrel_test.dart [E]
+00:00 +0 -9: loading test/skin/anchors_test.dart [E]
+00:00 +0: loading test/skin/skin_audit_scheduler_test.dart

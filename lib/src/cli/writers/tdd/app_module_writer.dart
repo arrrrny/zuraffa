@@ -128,10 +128,19 @@ class BootstrapDiIndexWriter {
 // Day-zero empty graph: `setupDependencies` registers nothing until
 // `zfa di <Entity>` / `zfa make <Entity> --with=di` generate the real
 // registrations (they append into this function). `zfa app shell` reads
-// this barrel to wire the generated entrypoint.
+// this barrel to wire the generated entrypoint. `resetDependencies`
+// (issue #1102) is the test-lane hook: it wipes the graph so repeated
+// setup in one process is idempotent.
 import 'package:zuraffa/zuraffa.dart';
 
 void setupDependencies(GetIt getIt) {}
+
+/// Test-lane hook (issue #1102): unregisters everything
+/// [setupDependencies] registered, so repeated setup in one process
+/// (and between test cases) is idempotent.
+void resetDependencies(GetIt getIt) {
+  getIt.reset();
+}
 ''';
   }
 

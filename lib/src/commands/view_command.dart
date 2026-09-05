@@ -43,6 +43,15 @@ class ViewCommand extends PluginCommand {
       help: 'Generate with X-Ray integration',
       defaultsTo: false,
     );
+    argParser.addFlag(
+      'skin',
+      help:
+          'Generate with the runtime skin-contract auditor wrap (issue '
+          '#1102): the view getter mounts SkinContractAuditor with a '
+          'starter k<ViewName>SkinRows contract, and the auditor kit '
+          '(skin/skin_contract_auditor.dart) is emitted when missing.',
+      defaultsTo: false,
+    );
   }
 
   @override
@@ -73,6 +82,7 @@ class ViewCommand extends PluginCommand {
     final generateXRay = argResults!.wasParsed('xray')
         ? (argResults?['xray'] as bool? ?? false)
         : (config?.xrayByDefault ?? false);
+    final generateSkin = argResults?['skin'] as bool? ?? false;
 
     final capability = plugin.capabilities.firstWhere(
       (c) => c.name == capabilityName,
@@ -109,6 +119,7 @@ class ViewCommand extends PluginCommand {
         'v6-state': generateV6State,
         'route': false, // Don't generate route in view capability
         'xray': generateXRay,
+        'skin': generateSkin,
         'dryRun': isDryRun,
         'force': isForce,
         'verbose': isVerbose,
@@ -136,6 +147,7 @@ class ViewCommand extends PluginCommand {
         'v6-state': generateV6State,
         'route': false,
         'xray': generateXRay,
+        'skin': generateSkin,
         'dryRun': isDryRun,
         'force': isForce,
         'verbose': isVerbose,

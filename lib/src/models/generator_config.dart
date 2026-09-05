@@ -75,6 +75,13 @@ class GeneratorConfig {
   final bool generateDi;
   final bool generateXRay;
 
+  /// Issue #1102: when true, the view plugin wraps the generated
+  /// view's `Widget get view` in the runtime skin-contract auditor
+  /// (`SkinContractAuditor`) with a starter `k<ViewName>SkinRows`
+  /// contract, and emits the auditor kit file when it is not already
+  /// present (skip-if-exists, the #1005 hand-written-seam precedent).
+  final bool generateSkin;
+
   /// Spec 1001 (issue #1001): deterministic mock generation seed. When
   /// non-null, every generated mock record derives from this seed, so
   /// the same seed + inputs reproduce byte-identical mocks (replayable
@@ -164,6 +171,7 @@ class GeneratorConfig {
     this.useMockInDi = false,
     this.generateDi = false,
     this.generateXRay = false,
+    this.generateSkin = false,
     this.seed,
     this.generateV6State = false,
     this.diFramework = 'get_it',
@@ -246,6 +254,7 @@ class GeneratorConfig {
       useMockInDi: json['use_mock'] == true || json['use_mock_in_di'] == true,
       generateDi: json['di'] == true || json['generate_di'] == true,
       generateXRay: json['xray'] == true || json['generate_xray'] == true,
+      generateSkin: json['skin'] == true || json['generate_skin'] == true,
       generateV6State:
           json['v6_state'] == true ||
           json['v6State'] == true ||
@@ -345,6 +354,7 @@ class GeneratorConfig {
     bool? useMockInDi,
     bool? generateDi,
     bool? generateXRay,
+    bool? generateSkin,
     int? seed,
     bool? generateV6State,
     String? diFramework,
@@ -420,6 +430,7 @@ class GeneratorConfig {
       useMockInDi: useMockInDi ?? this.useMockInDi,
       generateDi: generateDi ?? this.generateDi,
       generateXRay: generateXRay ?? this.generateXRay,
+      generateSkin: generateSkin ?? this.generateSkin,
       seed: seed ?? this.seed,
       generateV6State: generateV6State ?? this.generateV6State,
       diFramework: diFramework ?? this.diFramework,

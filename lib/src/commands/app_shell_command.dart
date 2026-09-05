@@ -8,6 +8,7 @@ import '../core/context/file_system.dart';
 import '../models/generated_file.dart';
 import '../package/package_mode.dart';
 import '../plugins/app_shell/builders/app_shell_builder.dart';
+import '../skin/builders/skin_contract_kit_builder.dart';
 import '../utils/file_utils.dart';
 import '../utils/project_flavor.dart';
 import '../core/project/project_root.dart';
@@ -66,6 +67,19 @@ class AppShellCommand extends Command<void> {
         help:
             'Wire the X-Ray bridge server into main.dart (debug mode) and wrap MyApp in XRayScope. Defaults to the xray key in .zfa.json plugins.defaults. Emits the <outputDir>/xray/xray_decks.dart barrel so the import in main.dart always resolves.',
       )
+      ..addFlag(
+        'skin-audit',
+        negatable: false,
+        help:
+            'Mount the runtime skin-contract auditor (issue #1102): the '
+            'GoRouter carries the SkinRouteContractObserver (route '
+            'contract from getAllRoutes(), navigator root conforms by '
+            'construction) and MyApp wraps the router in the '
+            'SkinAuditChrome violation banner via MaterialApp.builder '
+            '(debug-only). Emits the <outputDir>/skin/'
+            'skin_contract_auditor.dart kit when missing (hand edits are '
+            'preserved).',
+      )
       ..addOption('title', help: 'Application title (default: "Zuraffa App")')
       ..addOption(
         'output',
@@ -107,6 +121,7 @@ class AppShellCommand extends Command<void> {
     final title = argResults!['title'] as String?;
     final outputDir = argResults!['output'] as String;
     final xrayFlag = argResults!['xray'] as bool? ?? false;
+    final skinAudit = argResults!['skin-audit'] as bool? ?? false;
 
     // --output must live under lib/: main.dart (always at lib/main.dart)
     // imports the glue files via package: URIs, which only resolve inside
@@ -249,7 +264,7 @@ class AppShellCommand extends Command<void> {
     files.add(
       await FileUtils.writeFile(
         appRouterPath,
-        _builder.buildAppRouter(),
+        _builder.buildAppRouter(skinAudit: skinAudit),
         'app_router',
         force: true,
         dryRun: dryRun,
@@ -263,7 +278,7 @@ class AppShellCommand extends Command<void> {
     files.add(
       await FileUtils.writeFile(
         myAppPath,
-        _builder.buildMyApp(title: title, xray: xray),
+        _builder.buildMyApp(title: title, xray: xray, skinAudit: skinAudit),
         'my_app',
         force: true,
         dryRun: dryRun,
@@ -271,6 +286,37 @@ class AppShellCommand extends Command<void> {
         fileSystem: _fileSystem,
       ),
     );
+
+    // 2d. <outputDir>/skin/skin_contract_auditor.dart — the runtime
+    //     skin-contract auditor kit (issue #1102). Only emitted when
+    //     --skin-audit is set so the MyApp/app_router imports resolve;
+    //     existing kits are preserved (the #1005 hand-written-seam
+    //     precedent — hand edits survive regeneration; --force
+    //     regenerates main.dart but never needs a different kit).
+    if (skinAudit) {
+      final skinKitPath = p.join(
+        projectRoot,
+        outputDir,
+        SkinContractKitBuilder.kitDir,
+        SkinContractKitBuilder.kitFileName,
+      );
+      final skinKitExists = await _fileSystem.exists(skinKitPath);
+      if (!skinKitExists) {
+        files.add(
+          await FileUtils.writeFile(
+            skinKitPath,
+            const SkinContractKitBuilder().build(),
+            'skin_contract_kit',
+            force: true,
+            dryRun: dryRun,
+            verbose: verbose,
+            fileSystem: _fileSystem,
+          ),
+        );
+      } else if (verbose) {
+        print('  skipped: $skinKitPath already exists (hand edits preserved).');
+      }
+    }
 
     // 2b. <outputDir>/xray/xray_decks.dart - X-Ray Control Deck
     // registration barrel. Only emitted when --xray is set so the
