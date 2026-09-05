@@ -489,8 +489,9 @@ class SpecFuzzCommand extends Command<void> {
   }
 
   List<String> _operatorLabels(Set<SpecMutationOperator>? operators) {
-    final labels =
-        (operators ?? SpecMutationOperator.all).map((o) => o.label).toList();
+    final labels = (operators ?? SpecMutationOperator.all)
+        .map((o) => o.label)
+        .toList();
     labels.sort();
     return labels;
   }
