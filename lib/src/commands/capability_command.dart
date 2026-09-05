@@ -229,9 +229,15 @@ class CapabilityCommand extends Command<void> {
     } else {
       final result = await capability.execute(args);
       if (result.success) {
+        // Spec 0974: the #769 zero-files guard only applies to GENERATOR
+        // capabilities — the ones that report their artifacts under
+        // data['generatedFiles']. Read-only capabilities (e.g. the
+        // `zfa di verify` gate) ship a verdict message and no generated
+        // files by design; they must not trip a guard about generation.
+        final isGenerator = result.data?.containsKey('generatedFiles') == true;
         final files =
             result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
-        if (files.isEmpty) {
+        if (isGenerator && files.isEmpty) {
           // Issue #769: zero files means the request produced nothing —
           // e.g. a pure-Dart guard skipped presenter/controller/view
           // generation. That is not a success: claiming "✅ Success!"
@@ -247,6 +253,12 @@ class CapabilityCommand extends Command<void> {
           );
           exitCode = 1;
           return;
+        }
+
+        // Read-only capabilities (verify-style gates) carry their verdict
+        // in the message; surface it so a clean pass is not a silent exit 0.
+        if (!isGenerator && result.message != null) {
+          print('✅ ${result.message}');
         }
 
         final created = files.where((f) => f.action == 'created').toList();
