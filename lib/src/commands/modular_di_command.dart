@@ -52,7 +52,10 @@ class ModularDiCommand extends PluginCommand {
   String get name => 'di';
 
   @override
-  String get description => 'Generate DI registration for a UseCase or Entity.';
+  String get description =>
+      'Generate DI registration for a UseCase or Entity via subcommands: '
+      'zfa di create <Name> | zfa di register <ClassName> | zfa di verify '
+      '(dangling-binding gate).';
 
   @override
   Future<void> run() async {

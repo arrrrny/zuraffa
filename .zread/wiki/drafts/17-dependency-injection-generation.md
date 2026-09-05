@@ -147,7 +147,7 @@ The `register` capability solves the "I already wrote this class" case. It takes
 
 Sources: [register_capability.dart](lib/src/plugins/di/capabilities/register_capability.dart#L21-L146), [register_capability.dart](lib/src/plugins/di/capabilities/register_capability.dart#L148-L177)
 
-Both capabilities are routed through the `ModularDiCommand`, which adds `--domain`, `--service`, `--repo`, and `--use-mock` flags and delegates to `CreateDiCapability.execute` — this is the `zfa di <Name>` command advertised in the CLI help.
+Both capabilities are routed through the `ModularDiCommand`, which adds `--domain`, `--service`, `--repo`, and `--use-mock` flags and delegates to the capabilities — the live grammar is the subcommand form `zfa di create <Name>` / `zfa di register <ClassName>` (the positional `zfa di <Name>` form was removed in #856). Spec 0974 adds the `verify` capability as `zfa di verify`, the dangling-binding gate, and both standalone capabilities now ship a `proof.v1` receipt under `.zfa/receipts/` with real success verdicts.
 
 Sources: [modular_di_command.dart](lib/src/commands/modular_di_command.dart#L5-L74), [cli_runner.dart](lib/src/cli/cli_runner.dart#L224)
 

@@ -7,9 +7,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:zuraffa/src/agent/runtime/llm_client.dart';
 import 'package:zuraffa/src/mcp/auth.dart';
 import 'package:zuraffa/src/mcp/capabilities/arch_capability.dart';
 import 'package:zuraffa/src/mcp/capabilities/code_capability.dart';
+import 'package:zuraffa/src/mcp/capabilities/dream_capability.dart';
 import 'package:zuraffa/src/mcp/capabilities/test_capability.dart';
 import 'package:zuraffa/src/mcp/capabilities/xray_capability.dart';
 import 'package:zuraffa/src/mcp/file_watcher.dart';
@@ -33,6 +35,7 @@ List<Map<String, dynamic>> v2ToolDefinitions() {
     _xrayTriggerMockTool(),
     _sessionSaveTool(),
     _sessionRestoreTool(),
+    _dreamDraftSpecTool(),
   ];
 }
 
@@ -315,6 +318,40 @@ Map<String, dynamic> _sessionRestoreTool() {
   };
 }
 
+Map<String, dynamic> _dreamDraftSpecTool() {
+  return {
+    'name': 'dream_draft_spec',
+    'description':
+        'Draft a zuraffa spec.md + plan.md pair for a plain-'
+        'English feature description, constrained by the zfa tdd plan '
+        'schema (Template Version, FR/AC grammar, Key Entities, External '
+        'Dependencies & Contracts, Layer Contracts, AdaptiveViewSlots, '
+        'Skin Contract). The LLM integration seam of `zfa dream` (spec '
+        '1010, FR-010): pass the ingest refusal as `feedback` on '
+        'retries; the result reports which drafter produced the pair.',
+    'inputSchema': {
+      'type': 'object',
+      'properties': {
+        'feature': {
+          'type': 'string',
+          'description': 'The feature id (specs/<feature> directory name)',
+        },
+        'description': {
+          'type': 'string',
+          'description': 'The plain-English feature description',
+        },
+        'feedback': {
+          'type': 'string',
+          'description':
+              'The previous draft\'s ingest refusal output '
+              '(re-prompt payload; omit on the first attempt)',
+        },
+      },
+      'required': ['description'],
+    },
+  };
+}
+
 // ------------------------------------------------------------------
 // Tool handler
 // ------------------------------------------------------------------
@@ -328,6 +365,7 @@ Future<Map<String, dynamic>?> handleV2ToolCall({
   required Map<String, dynamic> args,
   required String projectRoot,
   McpSessionStore? sessionStore,
+  LlmClient? llmClient,
 }) async {
   final inspector = ArchInspector(projectRoot: projectRoot);
   final codeCap = CodeCapability(projectRoot: projectRoot);
@@ -424,6 +462,31 @@ Future<Map<String, dynamic>?> handleV2ToolCall({
           {'type': 'text', 'text': jsonEncode(result)},
         ],
         'isError': !(result['success'] as bool? ?? false),
+      };
+
+    case 'dream_draft_spec':
+      // Spec 1010-zfa-dream-one-command-app (FR-010): the dream
+      // command's LLM integration seam. A thin orchestrator calls this
+      // tool; the ONLY completion abstraction is the existing
+      // LlmClient (no new client). An absent/empty/unparseable
+      // completion falls back to the deterministic drafter, labeled.
+      final draft = await const DreamCapability().draftSpec(
+        feature: args['feature'] as String? ?? '',
+        description: args['description'] as String? ?? '',
+        feedback: args['feedback'] as String?,
+        llmClient: llmClient,
+      );
+      return {
+        'content': [
+          {
+            'type': 'text',
+            'text': jsonEncode({
+              'specMarkdown': draft.specMarkdown,
+              'planMarkdown': draft.planMarkdown,
+              'drafter': draft.drafter,
+            }),
+          },
+        ],
       };
 
     case 'session_save':

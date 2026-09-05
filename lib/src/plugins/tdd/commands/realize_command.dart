@@ -40,6 +40,8 @@ import '../services/differential_gate.dart';
 import '../services/era_tagged_log.dart';
 import '../services/nuance_receipts.dart';
 import '../services/realize_state.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 
 /// The contract-gate suite spawner (injectable for fast-tier tests — the
@@ -114,6 +116,9 @@ class RealizeCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   final RealizeSuiteRunner? _suiteRunnerOverride;
 
   final RealizeFixtureDriver? _fixtureDriverOverride;
@@ -132,7 +137,9 @@ class RealizeCommand extends Command<void> {
       'zfa tdd realize <entity|behavior> --adapter <real> [options]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     final target = rest.isNotEmpty ? rest.first.trim() : '';
     final adapter = (argResults?['adapter'] as String?)?.trim() ?? '';
@@ -739,6 +746,18 @@ class RealizeCommand extends Command<void> {
       'threshold=$threshold handDeltas=$handDeltas era=$era '
       'result=${outcome.label}',
     );
+    // Issue #969: the realize outcome label IS the exit class.
+    _verdict
+      ..exitClass = outcome.label
+      ..outcome = switch (outcome) {
+        RealizeOutcome.realized => VerdictOutcome.pass,
+        RealizeOutcome.alreadyReal => VerdictOutcome.pass,
+        _ => VerdictOutcome.fail,
+      }
+      ..details['entity'] = entity
+      ..details['adapter'] = adapter
+      ..details['hand_deltas'] = handDeltas
+      ..feature = feature == 'unknown' ? null : feature;
   }
 
   /// Write the #807 generation receipt covering the rebind's writes so

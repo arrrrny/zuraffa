@@ -30,6 +30,7 @@
 /// itself, when it is not the Dart VM).
 library;
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -55,6 +56,7 @@ class StepResult {
     required this.outcome,
     required this.success,
     required this.output,
+    this.verdictKind,
   });
 
   final String step;
@@ -67,6 +69,13 @@ class StepResult {
   /// otherwise.
   final String outcome;
   final bool success;
+
+  /// The step's own verdict kind when the child reported a machine-
+  /// parseable verdict (issue #992): gen refusals print the verdict JSON
+  /// as their final stdout line — `verdict:"refused"` plus the lane
+  /// `kind` — and the driver's per-kind degradation needs that kind.
+  /// Null when the step printed no verdict (the common case).
+  final String? verdictKind;
 
   /// The step's combined stdout + stderr (for failure reports).
   final String output;
@@ -309,11 +318,17 @@ class StepRunner {
 
     switch (step) {
       case 'gen':
+        // Issue #992: a refused child (issue #938 widget gate) reports
+        // its machine-parseable verdict JSON as the final stdout line —
+        // surface the verdict token and the lane kind so the driver can
+        // degrade per-kind instead of staring at a generic `error`.
+        final refusal = exitOk ? null : _parseGenVerdict(stdout);
         return StepResult(
           step: step,
           behaviorId: behaviorId,
           exitCode: process.exitCode,
-          outcome: exitOk ? 'ok' : 'error',
+          outcome: exitOk ? 'ok' : (refusal?['verdict'] ?? 'error'),
+          verdictKind: refusal?['kind'],
           success: exitOk,
           output: output,
         );
@@ -379,6 +394,32 @@ class StepRunner {
       last = fields;
     }
     return last;
+  }
+
+  /// The gen child's machine-parseable verdict, parsed from the LAST
+  /// stdout line that decodes as a JSON object naming `command:"gen"`
+  /// (issue #938's contract: the verdict JSON stays the final stdout
+  /// line). Returns null when stdout carries no gen verdict — the common
+  /// case for ok, and for failures that predate the verdict JSON.
+  static Map<String, String>? _parseGenVerdict(String stdout) {
+    for (final line in stdout.split('\n').reversed) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty || !trimmed.startsWith('{')) continue;
+      try {
+        final decoded = jsonDecode(trimmed);
+        if (decoded is Map<String, dynamic> &&
+            decoded['command'] == 'gen' &&
+            decoded['verdict'] is String) {
+          return {
+            'verdict': decoded['verdict'] as String,
+            if (decoded['kind'] is String) 'kind': decoded['kind'] as String,
+          };
+        }
+      } on FormatException {
+        // Not JSON — keep scanning (a child may print bracketed prose).
+      }
+    }
+    return null;
   }
 
   /// The default spawn path with a hard deadline (bug #742): the child is
