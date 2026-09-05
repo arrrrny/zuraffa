@@ -23,6 +23,7 @@ import '../services/spec_parser.dart';
 import '../services/test_list_reader.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
+import '../../../utils/framework_export_surface.dart';
 
 class PlanCommand extends Command<void> {
   PlanCommand(this.plugin) {
@@ -189,6 +190,48 @@ class PlanCommand extends Command<void> {
       });
       exitCode = 2;
       return;
+    }
+
+    // Bug #993: entity/zuraffa-export clash gate. The spec's Key
+    // Entities become phase-0 `entity create` spawns at run time; a name
+    // that matches a zuraffa export (e.g. `AgentState`) is refused there
+    // by the #942 preflight and the run stops before any behavior is
+    // driven. Plan catches the clash HERE — before any artifact is
+    // written — with the same `--> fix:` rename contract the run-time
+    // preflight carries. The run-time detection itself is untouched:
+    // this gate reuses the SAME export surface (FrameworkExportSurface,
+    // fail-open), so it is an earlier net, never a weaker one — an
+    // unresolvable surface skips the gate silently and can never
+    // produce a false refusal.
+    final surface = FrameworkExportSurface.tryResolve(projectRoot: repoRoot);
+    if (surface != null && entities.isNotEmpty) {
+      final clashes = <(SpecEntity, String)>[];
+      for (final entity in entities) {
+        final source = surface.lookup(entity.name);
+        if (source != null) clashes.add((entity, source));
+      }
+      if (clashes.isNotEmpty) {
+        print(
+          'zfa tdd plan: entity/export clash — ${clashes.length} Key '
+          'Entity(ies) collide with zuraffa framework exports (spec: '
+          '$specPath). No test list was written; phase-0 `entity create` '
+          'would refuse these names at run time and stop the loop before '
+          'any behavior is driven.',
+        );
+        for (final (entity, source) in clashes) {
+          print(
+            '  ${entity.name} collides with the zuraffa export '
+            '"${entity.name}" ($source).',
+          );
+          print(
+            "    --> fix: rename the entity in the spec's Key Entities "
+            'section, e.g. `${entity.name}Entity` — pick a name that does '
+            'not match a zuraffa export; re-run `zfa tdd plan`.',
+          );
+        }
+        exitCode = 2;
+        return;
+      }
     }
 
     final outDir = Directory('$repoRoot/specs/$feature/tdd');
