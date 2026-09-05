@@ -63,6 +63,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../models/behavior.dart';
+import 'lane_plans.dart';
 import 'spec_parser.dart';
 
 /// One parsed test-list row.
@@ -75,6 +76,7 @@ class BehaviorRow {
     required this.kind,
     required this.target,
     this.persistence = false,
+    this.lane,
   });
 
   final String id;
@@ -82,6 +84,14 @@ class BehaviorRow {
   final String traces;
   final BehaviorState state;
   final BehaviorKind kind;
+
+  /// The two-cycle lane tag the row carries (spec 1008-two-cycle-driver,
+  /// issue #1008): `core`, `skin` or `both`, parsed from the ` [core]` /
+  /// ` [skin]` / ` [both]` tags in the behavior cell (stripped from
+  /// [description] exactly like `[persistence]`). Null = untagged — the
+  /// engine-lane (CORE) default of the pre-split world; the 04-ENGINE.md /
+  /// 04-SKIN.md plan pair (#1000) overrides tags when present.
+  final String? lane;
 
   /// Whether the plan marked the behavior persistence-kind with the
   /// ` [persistence]` tag (bug #833). The tag is stripped from
@@ -96,7 +106,7 @@ class BehaviorRow {
   @override
   String toString() =>
       'BehaviorRow(id: $id, kind: ${kind.name}, state: ${state.name}, '
-      'persistence: $persistence, traces: $traces)';
+      'persistence: $persistence, lane: $lane, traces: $traces)';
 }
 
 /// The `[persistence]` marker contract (bug #833).
@@ -207,7 +217,13 @@ class TestListReader {
     final rows = <BehaviorRow>[];
     BehaviorKind? kind;
     var inDeclarativeSection = false;
-    var deprecatedDialectWarned = false;
+    // Spec 1008 (two-cycle driver): the note is per-FILE guidance, and one
+    // CLI invocation may read the same list more than once (the meta
+    // `zfa tdd run` resolves lanes once per lane pass). Print it once per
+    // process per file — separate processes (separate commands) each
+    // print their own, exactly as before.
+    final alreadyWarnedThisProcess = _deprecationNotedFiles.contains(file.path);
+    var deprecatedDialectWarned = alreadyWarnedThisProcess;
     for (var i = 0; i < lines.length; i++) {
       final raw = lines[i];
       final trimmed = raw.trim();
@@ -277,6 +293,7 @@ class TestListReader {
       // did nothing wrong.
       if (dialect == _DeprecatedDialect.genLegacy && !deprecatedDialectWarned) {
         deprecatedDialectWarned = true;
+        _deprecationNotedFiles.add(file.path);
         stderr.writeln(
           'zfa: ${file.path}: deprecated 6-column test-list rows detected '
           '(id/behavior/traces/kind/state/target). Migrate by manually '
@@ -445,15 +462,17 @@ class TestListReader {
       final state = _parseState(cells[4]);
       if (state == null) malformed('unknown state "${cells[4]}"');
       final (description, persistence) = PersistenceMarker.extract(cells[2]);
+      final (untagged, lane) = LaneMarker.extract(description);
       return (
         row: BehaviorRow(
           id: id,
-          description: description,
+          description: untagged,
           traces: cells[3],
           state: state,
           kind: kind,
           target: resolveDefaultTarget(id),
           persistence: persistence,
+          lane: lane,
         ),
         dialect: _DeprecatedDialect.none,
       );
@@ -472,15 +491,17 @@ class TestListReader {
         final state = _parseState(cells[5]);
         if (state == null) malformed('unknown state "${cells[5]}"');
         final (description, persistence) = PersistenceMarker.extract(cells[2]);
+        final (untagged, lane) = LaneMarker.extract(description);
         return (
           row: BehaviorRow(
             id: id,
-            description: description,
+            description: untagged,
             traces: cells[3],
             state: state,
             kind: kindFromCell,
             target: resolveDefaultTarget(id, cell: cells[6]),
             persistence: persistence,
+            lane: lane,
           ),
           dialect: _DeprecatedDialect.genLegacy,
         );
@@ -501,15 +522,17 @@ class TestListReader {
         final state = _parseState(cells[5]);
         if (state == null) malformed('unknown state "${cells[5]}"');
         final (description, persistence) = PersistenceMarker.extract(cells[2]);
+        final (untagged, lane) = LaneMarker.extract(description);
         return (
           row: BehaviorRow(
             id: id,
-            description: description,
+            description: untagged,
             traces: cells[3],
             state: state,
             kind: kind,
             target: resolveDefaultTarget(id, cell: cells[6]),
             persistence: persistence,
+            lane: lane,
           ),
           dialect: _DeprecatedDialect.extensionShape,
         );
@@ -613,3 +636,8 @@ class TestListReader {
 /// (specs/044–049, spec 050 FR-007) is spec-sanctioned and reads
 /// silently.
 enum _DeprecatedDialect { none, genLegacy, extensionShape }
+
+/// The test-list files this process already printed the gen-legacy
+/// deprecation note for (spec 1008: one note per file per process — the
+/// two-cycle driver reads the list once per lane pass).
+final Set<String> _deprecationNotedFiles = {};
