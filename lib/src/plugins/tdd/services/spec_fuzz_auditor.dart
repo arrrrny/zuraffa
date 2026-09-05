@@ -48,6 +48,7 @@ import 'spec_mutator.dart';
 import 'spec_parser.dart';
 import 'source_restorer.dart';
 import 'tdd_timeout.dart';
+import 'test_reporter_args.dart';
 import 'test_list_reader.dart';
 
 /// Runs the spec-mutation round for a feature.
@@ -517,10 +518,11 @@ class SpecFuzzAuditor {
     }
     final template = await _fileTemplate();
     final runner = template.split(' ').first;
-    final suite = await _spawn(runner, [
-      'test',
-      ...testPaths,
-    ], _spawnTimeout ?? TddTimeouts.defaultSuite);
+    final suite = await _spawn(
+      runner,
+      withCompactReporter([runner, 'test', ...testPaths]).skip(1).toList(),
+      _spawnTimeout ?? TddTimeouts.defaultSuite,
+    );
     if (suite.timedOut) {
       return PreflightResult(
         exitCode: suite.result.exitCode,
@@ -546,11 +548,13 @@ class SpecFuzzAuditor {
     String testPath,
   ) async {
     final template = await _fileTemplate();
-    final parts = template
-        .replaceAll('{file}', testPath)
-        .split(RegExp(r'\s+'))
-        .where((s) => s.isNotEmpty)
-        .toList();
+    final parts = withCompactReporter(
+      template
+          .replaceAll('{file}', testPath)
+          .split(RegExp(r'\s+'))
+          .where((s) => s.isNotEmpty)
+          .toList(),
+    );
     final executable = parts.first;
     final args = parts.skip(1).toList();
     return _spawn(
