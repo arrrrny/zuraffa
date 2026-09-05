@@ -20,6 +20,7 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
 import 'mock_cli_guard.dart';
+
 import 'package:zuraffa/src/plugins/mock/services/mock_certification.dart';
 
 void main() {

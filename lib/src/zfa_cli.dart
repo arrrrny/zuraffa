@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'cli/cli_runner.dart';
 
 /// Run CLI with arguments - main entry point.

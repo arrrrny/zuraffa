@@ -9,6 +9,7 @@
 library;
 
 import 'package:test/test.dart';
+
 import '../../../lib/tdd/074-plugin-merge-contract/a7_subject.dart' as subject;
 
 void main() {

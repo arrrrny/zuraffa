@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:args/args.dart';
 
 import '../models/generator_config.dart';

@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
+
 import '../../zuraffa.dart';
 
 /// Exports [LogRecord]s to an OpenTelemetry collector via OTLP/HTTP.

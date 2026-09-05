@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:path/path.dart' as p;
 
 /// Migrates v5 `.state.dart` files to v6 Signal Slice pattern.

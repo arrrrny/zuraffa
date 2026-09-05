@@ -5,6 +5,7 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/graphql/diff/schema_diff.dart';
 import 'package:zuraffa/src/graphql/graphql_schema.dart';
 import 'package:path/path.dart' as p;
+
 import '../helpers/project_root.dart';
 
 GqlSchema _load(String file) {

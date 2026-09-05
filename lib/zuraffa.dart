@@ -207,7 +207,9 @@ export 'src/core/failure_reporter_registry.dart' show FailureReporterRegistry;
 export 'src/core/otel_failure_reporter.dart' show OtelFailureReporter;
 export 'src/core/otel_log_exporter.dart' show OtelLogExporter;
 export 'src/core/otel_tracer.dart' show OtelTracer;
+
 export 'package:opentelemetry/api.dart' hide SpanStatus;
+
 export 'src/core/retry_policies.dart'
     show ExponentialBackoffRetryPolicy, FixedIntervalRetryPolicy, NoRetryPolicy;
 export 'src/core/retry_policy.dart' show ReportRetryPolicy;

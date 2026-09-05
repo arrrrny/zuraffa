@@ -22,8 +22,10 @@
 // and a non-zero exit code, and no entity file is written.
 
 import 'dart:io';
+
 import 'package:path/path.dart' as p;
 import 'package:zorphy/zorphy.dart' show FieldDefinition;
+
 import 'entity_utils.dart';
 import 'string_utils.dart';
 

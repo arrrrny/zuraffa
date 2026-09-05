@@ -2,6 +2,7 @@
 library;
 
 import 'dart:io';
+
 import 'package:test/test.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/usecase/usecase_plugin.dart';

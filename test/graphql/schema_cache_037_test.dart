@@ -5,6 +5,7 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/graphql/cache/schema_cache.dart';
 import 'package:zuraffa/src/graphql/introspection/introspection_client.dart';
 import 'package:path/path.dart' as p;
+
 import '../helpers/project_root.dart';
 
 Map<String, dynamic> _fixture(String name) {

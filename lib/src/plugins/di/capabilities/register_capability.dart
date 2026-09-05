@@ -1,5 +1,7 @@
 import 'dart:io';
+
 import 'package:path/path.dart' as path;
+
 import '../../../core/plugin_system/capability.dart';
 import '../di_plugin.dart';
 import '../../../models/generator_config.dart';

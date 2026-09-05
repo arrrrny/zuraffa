@@ -1,5 +1,6 @@
 import 'package:code_builder/code_builder.dart' as cb;
 import 'package:dart_style/dart_style.dart';
+
 import '../../models/zorphy_context.dart';
 
 /// Generates `lib/src/middleware/zfa_events.g.dart` from collected

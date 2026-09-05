@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:args/command_runner.dart';
 import 'package:args/args.dart';
 import 'package:path/path.dart' as p;
+
 import '../commands/schema_command.dart';
 import '../commands/simulate_command.dart';
 import '../commands/ui_command.dart';

@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:args/command_runner.dart';
 
 class SchemaCommand extends Command<void> {

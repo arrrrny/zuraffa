@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+
 import '../../helpers/project_root.dart';
 
 void main() {

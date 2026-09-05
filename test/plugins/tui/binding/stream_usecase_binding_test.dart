@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tui/binding/binding.dart';
 import 'package:zuraffa/src/core/cancel_token.dart';

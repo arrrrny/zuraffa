@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:args/command_runner.dart';
+
 import '../version.dart';
 
 /// CLI command to check for and apply updates to the zfa CLI.

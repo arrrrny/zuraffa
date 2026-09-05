@@ -1,6 +1,7 @@
 import '../core/plugin_system/discovery_engine.dart';
 import '../core/context/file_system.dart';
 import 'string_utils.dart';
+
 import 'package:path/path.dart' as p;
 
 class EntityAnalyzer {

@@ -3,6 +3,7 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:test/test.dart';
 import 'package:args/command_runner.dart';
 import 'package:zuraffa/src/commands/generate_commands_command.dart';
