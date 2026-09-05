@@ -11,6 +11,10 @@
 // assertion (not an uncaught error, compile/load error, skip, or
 // placeholder). Replace the subject's
 // stub body with real implementation to make this test pass.
+// Slow tier: spawns real `dart test` / zfa-pipeline subprocesses whose wall
+// time on constrained CI runners exceeds the fast-tier budget (and whose
+// verdicts depend on runner load, not product behavior).
+@Tags(['slow'])
 library;
 
 import 'package:test/test.dart';

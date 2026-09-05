@@ -15,6 +15,10 @@
 // Fast tier: runs a real `dart test` child inside a TddFixture (the bug IS
 // `dart test`'s regex semantics — it cannot be pinned with a fake), but
 // only two tiny single-file spawns with a warm pub cache, no build_runner.
+// Slow tier: spawns real `dart test` / zfa-pipeline subprocesses whose wall
+// time on constrained CI runners exceeds the fast-tier budget (and whose
+// verdicts depend on runner load, not product behavior).
+@Tags(['slow'])
 library;
 
 import 'package:test/test.dart';

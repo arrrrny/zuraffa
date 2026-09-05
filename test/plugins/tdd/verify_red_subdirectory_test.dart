@@ -11,6 +11,10 @@
 // CliRunner + cwd-rewrite variant did (that variant contaminated
 // test_list_reader_test.dart's repo-relative fixture reads under parallel
 // `dart test` and was rejected during development of this fix).
+// Slow tier: spawns real `dart test` / zfa-pipeline subprocesses whose wall
+// time on constrained CI runners exceeds the fast-tier budget (and whose
+// verdicts depend on runner load, not product behavior).
+@Tags(['slow'])
 library;
 
 import 'dart:io';

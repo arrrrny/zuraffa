@@ -14,6 +14,10 @@
 // The bug IS `dart test`'s matcher semantics — it cannot be pinned with a
 // fake — so these run a real `dart test` child inside a TddFixture, but only
 // tiny single-file spawns with a warm pub cache (fast tier, no build_runner).
+// Slow tier: spawns real `dart test` / zfa-pipeline subprocesses whose wall
+// time on constrained CI runners exceeds the fast-tier budget (and whose
+// verdicts depend on runner load, not product behavior).
+@Tags(['slow'])
 library;
 
 import 'dart:io';
