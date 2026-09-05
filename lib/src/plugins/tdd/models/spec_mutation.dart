@@ -67,6 +67,7 @@ enum SpecMutationOperator {
 
   /// Parse a comma-separated operator list. Unknown labels raise a
   /// [FormatException] naming the offender and the valid labels.
+  /// Duplicate labels are rejected explicitly to surface typos.
   static Set<SpecMutationOperator> parseList(String raw) {
     final out = <SpecMutationOperator>{};
     for (final token in raw.split(',')) {
@@ -77,6 +78,11 @@ enum SpecMutationOperator {
         throw FormatException(
           'unknown spec-mutation operator "$name" — valid operators: '
           '${all.map((op) => op.label).join(', ')}',
+        );
+      }
+      if (out.any((op) => op.label == name)) {
+        throw FormatException(
+          'duplicate spec-mutation operator "$name" in --operators list',
         );
       }
       out.add(match.single);

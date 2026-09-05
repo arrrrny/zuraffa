@@ -13,6 +13,7 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/models/spec_mutation.dart';
 import 'package:zuraffa/src/plugins/tdd/services/gap_ledger_store.dart';
 import 'package:zuraffa/src/plugins/tdd/services/mutation_auditor.dart';
+import 'package:zuraffa/src/plugins/tdd/services/source_restorer.dart';
 import 'package:zuraffa/src/plugins/tdd/services/spec_fuzz_auditor.dart';
 
 /// Builds the toy greeter fixture: a temp project with a spec, an
@@ -685,6 +686,36 @@ void main() {
           .convert(File(p.join(fx.featureDir, 'spec.md')).readAsBytesSync())
           .toString();
       expect(report.specHash, specHash);
+    });
+  });
+
+  group('restoration safety (SourceRestorer)', () {
+    test('uncaptured restorer reports restorationFailed', () async {
+      final tmpDir = Directory.systemTemp.createTempSync('restoration_test');
+      final testFile = File(p.join(tmpDir.path, 'test.txt'))
+        ..writeAsStringSync('original');
+      addTearDown(() => tmpDir.delete(recursive: true));
+
+      final restorer = SourceRestorer(paths: [testFile.path]);
+      // Deliberately skip capture().
+      final result = await restorer.restoreAndVerify();
+
+      expect(result.restorationVerified, isFalse);
+      expect(result.restorationFailed, isTrue);
+    });
+
+    test('captured restorer verifies successfully on identical file', () async {
+      final tmpDir = Directory.systemTemp.createTempSync('restoration_test');
+      final testFile = File(p.join(tmpDir.path, 'test.txt'))
+        ..writeAsStringSync('original content');
+      addTearDown(() => tmpDir.delete(recursive: true));
+
+      final restorer = SourceRestorer(paths: [testFile.path]);
+      await restorer.capture();
+      final result = await restorer.restoreAndVerify();
+
+      expect(result.restorationVerified, isTrue);
+      expect(result.restorationFailed, isFalse);
     });
   });
 }

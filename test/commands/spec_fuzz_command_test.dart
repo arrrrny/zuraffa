@@ -112,7 +112,7 @@ void main() {
     test('a feature name that is a path segment is refused', () async {
       final out = await drive(['fuzz', '../../etc', '--project', tmp.path]);
       expect(exitCode, 64);
-      expect(out, contains('single spec directory name'));
+      expect(out, contains('single directory name without path separators'));
     });
 
     test('a non-integer budget is refused', () async {

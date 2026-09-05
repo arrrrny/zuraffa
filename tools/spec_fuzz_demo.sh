@@ -171,7 +171,8 @@ generic_test u3
   test/tdd/$feature/u3_test.dart >/dev/null 2>&1)
 echo "✓ the weak feature is green (the loop machinery passes it)"
 
-weak_out="$(zfa spec fuzz "$feature" --no-ledger 2>&1)" && weak_exit=0 || weak_exit=$?
+weak_out="$(zfa spec fuzz "$feature" --no-ledger 2>&1)" || weak_exit=$?
+[ -z "${weak_exit:-}" ] && weak_exit=0
 
 if [ "$weak_exit" -ne 1 ]; then
   echo "✗ the weak spec round must exit 1 (survived mutants flagged), got $weak_exit" >&2

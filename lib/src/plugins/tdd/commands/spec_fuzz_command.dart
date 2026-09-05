@@ -488,9 +488,12 @@ class SpecFuzzCommand extends Command<void> {
     return failed > 0 ? 1 : 0;
   }
 
-  List<String> _operatorLabels(Set<SpecMutationOperator>? operators) =>
-      (operators ?? SpecMutationOperator.all).map((o) => o.label).toList()
-        ..sort();
+  List<String> _operatorLabels(Set<SpecMutationOperator>? operators) {
+    final labels =
+        (operators ?? SpecMutationOperator.all).map((o) => o.label).toList();
+    labels.sort();
+    return labels;
+  }
 }
 
 /// `--feature` lands in a filesystem path: keep it a single plain
@@ -501,8 +504,9 @@ void _validateFeatureSegment(String feature) {
       feature == '.' ||
       feature == '..') {
     throw UsageException(
-      'invalid feature "$feature": expected a single spec directory name '
-          'such as 0967-spec-mutation-arena, not a path.',
+      'invalid feature segment "$feature" (must be a single directory '
+          'name without path separators or . / ..) — '
+          'example: 0967-spec-mutation-arena',
       'zfa spec fuzz <feature> [options]',
     );
   }
