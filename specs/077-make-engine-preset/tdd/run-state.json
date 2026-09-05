@@ -1,0 +1,30 @@
+{
+  "feature": "077-make-engine-preset",
+  "behavior_states": {
+    "A1": "red",
+    "A2": "pending",
+    "A3": "pending",
+    "A4": "pending",
+    "A5": "pending",
+    "A6": "pending",
+    "A7": "pending",
+    "A8": "pending",
+    "A9": "pending",
+    "A10": "pending",
+    "A11": "pending",
+    "A12": "pending",
+    "U1": "pending",
+    "U2": "pending",
+    "U3": "pending",
+    "U4": "pending",
+    "U5": "pending",
+    "U6": "pending",
+    "U7": "pending",
+    "U8": "pending",
+    "U9": "pending",
+    "U10": "pending",
+    "U11": "pending",
+    "U12": "pending"
+  },
+  "dropped": []
+}
