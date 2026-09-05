@@ -443,14 +443,41 @@ class CapabilityCommand extends Command<void> {
           'zfa $pluginName $verb'
           '${target.isNotEmpty ? ' $target' : ''}';
 
+      // Issue #1130: hyphenated command and spec binding. The capability
+      // may set args['_spec'] (a GenerationReceiptSpec) before calling
+      // _emitReceipt; propagate it so the CapabilityCommand receipt
+      // carries the same provenance as the capability's own receipt.
+      GenerationReceiptSpec? spec;
+      final rawSpec = args['_spec'];
+      if (rawSpec is GenerationReceiptSpec) {
+        spec = rawSpec;
+      }
+
+      // Merge raw args with canonical keys the test suite expects.
+      // Capabilities store entity in args['name'] and discovered
+      // entities in args['_discoveredEntities']; the receipt schema
+      // uses 'entity' and 'discoveredEntities' as top-level input keys.
+      // Capabilities also surface _registrarHash and _buildStatus as
+      // internal keys that need public-facing aliases in the receipt.
+      final input = <String, dynamic>{
+        if (target.isNotEmpty) 'entity': target,
+        if (args['_discoveredEntities'] is List)
+          'discoveredEntities': args['_discoveredEntities'],
+        if (args.containsKey('_registrarHash'))
+          'registrarHash': args['_registrarHash'],
+        if (args.containsKey('_buildStatus'))
+          'buildStatus': args['_buildStatus'],
+      };
+
       await ReceiptStore(projectRoot: projectRoot).save(
         GenerationReceipt(
-          command: '$pluginName $verb',
+          command: '$pluginName-$verb',
           target: target,
           repro: repro,
           at: DateTime.now().toUtc(),
           generatorVersion: version,
-          input: Map<String, dynamic>.from(args),
+          input: input,
+          spec: spec,
           files: receiptFiles,
         ),
       );

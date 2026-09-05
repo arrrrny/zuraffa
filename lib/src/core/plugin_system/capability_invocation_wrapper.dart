@@ -56,9 +56,12 @@ class CapabilityInvocationWrapper {
   /// capability's own verdict — a receipt failure never rewrites it.
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
     final result = await capability.execute(args);
-    if (result.success) {
-      await persistReceipt(args: args, result: result);
-    }
+    // Issue #1130: receipt persistence is now handled exclusively by
+    // CapabilityCommand._persistCapabilityReceipt, which runs after this
+    // wrapper returns. This wrapper is kept as the execution boundary
+    // but no longer writes its own receipt — the previous duplicate
+    // (space-separated command string) shadowed the capability's
+    // canonical receipt in loadAll().
     return result;
   }
 
@@ -78,6 +81,7 @@ class CapabilityInvocationWrapper {
 
       final entity = _entityOf(args, result);
       final methodset = _methodsetOf(args);
+      final spec = _specOf(args, result);
       final runHash = _runHash(
         files: files,
         entity: entity,
@@ -85,12 +89,13 @@ class CapabilityInvocationWrapper {
       );
 
       final receipt = GenerationReceipt(
-        command: '$pluginId ${capability.name}',
+        command: '$pluginId-${capability.name}',
         target: entity,
         repro: 'zfa $pluginId ${capability.name} $entity',
         at: DateTime.now().toUtc(),
         generatorVersion: version,
         input: Map<String, dynamic>.from(args),
+        spec: spec,
         files: files,
         plugin: pluginId,
         capability: capability.name,
@@ -153,6 +158,34 @@ class CapabilityInvocationWrapper {
     final fromResult = result.data?['name'];
     if (fromResult is String && fromResult.isNotEmpty) return fromResult;
     return capability.name;
+  }
+
+  /// Spec binding for the standalone invocation receipt: the entity
+  /// source file the capability discovered FROM (issue #1130). The
+  /// capability may set `args['_entitySourcePath']` (the v5 convention)
+  /// or surface it in `result.data['entitySourcePath']`. Returns null
+  /// when no source file exists at the resolved path.
+  GenerationReceiptSpec? _specOf(
+    Map<String, dynamic> args,
+    ExecutionResult result,
+  ) {
+    final raw =
+        args['_entitySourcePath'] ??
+        args['entitySourcePath'] ??
+        result.data?['entitySourcePath'];
+    if (raw is! String || raw.isEmpty) return null;
+    final file = _resolve(raw);
+    if (file == null || !file.existsSync()) return null;
+    final bytes = file.readAsBytesSync();
+    return GenerationReceiptSpec(
+      path: _normalizeProjectPath(raw),
+      sha256: crypto.sha256.convert(bytes).toString(),
+      snapshot:
+          bytes.length <= ReceiptStore.maxSnapshotBytes &&
+              _isLikelyBinary(bytes) == false
+          ? file.readAsStringSync()
+          : null,
+    );
   }
 
   /// The methodset the invocation wired (issue #996): the `--methods`
