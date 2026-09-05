@@ -232,15 +232,30 @@ class ReceiptStore {
 
   /// Persists [receipt] as a JSON document; returns the file.
   ///
-  /// By default the document is timestamped (`$stamp-$cmd-$target.json`).
-  /// When [fileName] is provided (spec #977: standalone plugin receipts
-  /// such as `datasource-<entity>.json`), that name is used instead —
-  /// sanitized the same way, with a `.json` suffix ensured. `loadAll`
-  /// picks up both naming schemes, so `zfa proof check` verifies either.
+  /// By default the document is timestamped (`$stamp-$cmd-$target.json`)
+  /// so a project's generation history is append-only. Pass [fileName]
+  /// to write a STABLE name instead (issue #976: `state-<entity>.json`;
+  /// spec #977: standalone plugin receipts such as
+  /// `datasource-<entity>.json`) — a per-entity/per-plugin surface,
+  /// refreshed in place on regeneration (the latest-wins semantics
+  /// `ProofChecker` already applies per artifact path). The name must
+  /// be a bare file name inside the receipts directory (no path
+  /// separators, no `..`); its base is sanitized the same way as the
+  /// timestamped form, with a `.json` suffix ensured. `loadAll` picks
+  /// up both naming schemes, so `zfa proof check` verifies either.
   Future<File> save(GenerationReceipt receipt, {String? fileName}) async {
     await directory.create(recursive: true);
     final String resolvedName;
     if (fileName != null) {
+      if (fileName.contains('/') ||
+          fileName.contains('\\') ||
+          fileName.contains('..')) {
+        throw ArgumentError.value(
+          fileName,
+          'fileName',
+          'must be a bare <name>.json inside the receipts directory',
+        );
+      }
       final base = fileName.replaceAll(RegExp(r'\.json$'), '');
       resolvedName = '${_sanitize(base)}.json';
     } else {

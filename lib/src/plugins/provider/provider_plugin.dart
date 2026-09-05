@@ -137,7 +137,24 @@ class ProviderPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       useService:
           context.data['use-service'] == true ||
           context.data['useService'] == true,
-      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      // Issue #978 (make-triad consistency): mirror the service plugin's
+      // entity-methods default so the provider generated in the SAME make
+      // run implements the exact surface the service interface declares.
+      // Before this default the provider config carried methods: [] —
+      // isEntityBased was false, the disk-mirror extraction looked at the
+      // FLAT service path while the service wrote the ENTITY path, and the
+      // fallback emitted a phantom `<entity>(NoParams)` method that the
+      // #921 provider conformance guard rightly failed.
+      // The default is gated: --methods wins; --no-entity stays hollow;
+      // use-service attaches to an EXISTING interface whose surface may be
+      // custom, so it keeps the extraction-from-disk mirror semantic.
+      methods:
+          context.data['methods']?.cast<String>().toList() ??
+          (context.data['no-entity'] == true ||
+                  context.data['use-service'] == true ||
+                  context.data['useService'] == true
+              ? []
+              : ['get', 'update', 'toggle']),
       domain: context.data['domain'],
       noEntity: context.data['no-entity'] == true,
       // Spec #979 (order 3): the schema-mapped knobs are readable from the

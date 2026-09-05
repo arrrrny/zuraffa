@@ -79,9 +79,11 @@ class FixtureRegistry {
   }
 
   /// Write `manifest.json` for the current fixtures ([families] recorded
-  /// for provenance).
+  /// for provenance; [mocks] records the spec-1001 certified mock
+  /// entities whose receipts are committed as fixtures).
   Future<Map<String, dynamic>> writeManifest({
     List<String> families = const [],
+    List<String> mocks = const [],
   }) async {
     final hashes = await hashAll();
     if (hashes.isEmpty) {
@@ -91,6 +93,7 @@ class FixtureRegistry {
       'schema': 1,
       'bug': 832,
       'families': families,
+      if (mocks.isNotEmpty) 'mocks': mocks,
       'files': hashes,
       'digest': digestOf(hashes),
     };
@@ -196,6 +199,67 @@ class FixtureRegistry {
       ..writeln('- families: ${families.join(',')}');
     for (final relative in recorded.keys) {
       buffer.writeln('- fixtures: $relative=${recorded[relative]!['sha256']}');
+    }
+
+    final prefix = existing.isEmpty
+        ? '# Cycle log — $slug\n'
+        : (existing.endsWith('\n') ? existing : '$existing\n');
+    file.writeAsStringSync('$prefix\n${buffer.toString()}');
+  }
+
+  /// Append a hash-chained mock-certification evidence entry (spec 1001,
+  /// issue #1001) to the feature's cycle log, recording the world digest
+  /// under the `kind: mock-cert` behavior
+  /// `<featureSlug>-mock-cert-<entitySnake>`. Same schema-1 chain format
+  /// as [appendCycleEvidence] — the existing evidence tooling parses it
+  /// without changes.
+  Future<void> appendMockCertEvidence({
+    required String featureDir,
+    required String entityName,
+    required String commandLine,
+  }) async {
+    final manifest = await readManifest();
+    final digest = manifest['digest'] as String;
+    final slug = p.basename(p.normalize(featureDir));
+    final entitySnake = entityName
+        .replaceAllMapped(RegExp('[A-Z]'), (m) => '_${m[0]!.toLowerCase()}')
+        .replaceFirst(RegExp('^_'), '');
+    final behaviorId = '$slug-mock-cert-$entitySnake';
+    final tddDir = Directory(p.join(featureDir, 'tdd'));
+    if (!tddDir.existsSync()) tddDir.createSync(recursive: true);
+    final file = File(p.join(tddDir.path, 'cycle-log.md'));
+
+    final existing = file.existsSync() ? file.readAsStringSync() : '';
+    final cycleEvidence = CycleEvidence(featureDir);
+    final prev = await cycleEvidence.lastHashFor(behaviorId) ?? 'genesis';
+    final now = DateTime.now().toUtc().toIso8601String();
+
+    final recorded = (manifest['files'] as Map<String, dynamic>)
+        .cast<String, Map<String, dynamic>>();
+    final receiptRel = 'mock-cert.$entityName.json';
+    final buffer = StringBuffer()
+      ..writeln('## $now: certified mock $entityName (spec 1001)')
+      ..writeln('- behavior: $behaviorId')
+      ..writeln('- kind: mock-cert')
+      ..writeln('- at: $now')
+      ..writeln('- exit: 0')
+      ..writeln(
+        '- criterion: Tier-1 mock for $entityName satisfies its interface '
+        '(contract test green in sandbox) and is receipted under '
+        'tdd/fixtures/',
+      )
+      ..writeln('- command: `$commandLine`')
+      ..writeln('- schema: 1')
+      ..writeln('- prev-hash: $prev')
+      ..writeln('- hash: $digest');
+    final receiptHash = recorded[receiptRel]?['sha256'];
+    if (receiptHash != null) {
+      buffer.writeln('- receipt: $receiptRel=$receiptHash');
+    }
+    final mocks = (manifest['mocks'] as List<dynamic>? ?? const [])
+        .cast<String>();
+    if (mocks.isNotEmpty) {
+      buffer.writeln('- mocks: ${mocks.join(',')}');
     }
 
     final prefix = existing.isEmpty

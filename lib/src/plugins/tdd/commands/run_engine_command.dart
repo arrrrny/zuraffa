@@ -29,11 +29,45 @@ library;
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 
+import '../../../core/project/project_root.dart';
+import '../../mock/certification/mock_cert_receipt.dart';
+import '../services/entity_lookup.dart';
+import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
 import '../tdd_plugin.dart';
-import '../../../core/project/project_root.dart';
 import 'run_driver_core.dart';
+
+/// The certification gate's decision (spec 1001, issue #1001): "mocks the
+/// framework certifies, not the agent" — the engine refuses to proceed
+/// when a CORE entity's mock is present but uncertified.
+class RunEngineGateResult {
+  const RunEngineGateResult({
+    required this.coreEntities,
+    required this.mocks,
+    required this.certified,
+    required this.uncertified,
+    required this.blockedEntity,
+  });
+
+  /// The feature's declared Key Entities (CORE entities).
+  final List<String> coreEntities;
+
+  /// CORE entities that have a mock datasource on disk.
+  final List<String> mocks;
+
+  /// Mock-holding CORE entities with an all-satisfied receipt.
+  final List<String> certified;
+
+  /// Mock-holding CORE entities without a valid certification.
+  final List<String> uncertified;
+
+  /// The first uncertified entity (the refusal names it), or null.
+  final String? blockedEntity;
+
+  bool get ok => uncertified.isEmpty;
+}
 
 class RunEngineCommand extends Command<void> {
   RunEngineCommand(this.plugin) {
@@ -109,6 +143,29 @@ class RunEngineCommand extends Command<void> {
         : ProjectRoot.find(anchorDir: 'specs');
     final zfaBin = argResults?['zfa-bin'] as String?;
 
+    // Spec 1001 pre-start preflight: an uncertified CORE mock stops the
+    // lane before any step is spawned — the engine cannot bypass the
+    // certification gate ("mocks the framework certifies, not the agent").
+    final gate = await checkFeature(
+      projectRoot: projectRoot,
+      featureDir: p.join(projectRoot, 'specs', feature),
+    );
+    if (!gate.ok) {
+      final entity = gate.blockedEntity!;
+      stderr.writeln(
+        'zfa tdd run-engine: CORE entity "$entity" has a mock on disk '
+        'that is NOT certified — the engine refuses to proceed '
+        '(spec 1001: mocks the framework certifies, not the agent).',
+      );
+      stderr.writeln(
+        '--> fix: zfa mock certify $entity '
+        '(or zfa mock create $entity --certify), then re-run.',
+      );
+      _printGateSummary(feature: feature, result: gate);
+      exitCode = 1;
+      return;
+    }
+
     // Bug #742: the --timeout override for each spawned step command.
     Duration? timeoutOverride;
     try {
@@ -158,5 +215,61 @@ class RunEngineCommand extends Command<void> {
       ),
     );
     exitCode = outcome.exitCode;
+  }
+
+  /// The gate itself — also invoked by `zfa tdd run` as its pre-start
+  /// preflight (spec 1001, issue #1001).
+  static Future<RunEngineGateResult> checkFeature({
+    required String projectRoot,
+    required String featureDir,
+  }) async {
+    final entities = await TestListReader(featureDir).readEntities();
+    final coreEntities = entities.map((e) => e.name).toList();
+    final mocks = <String>[];
+    final certified = <String>[];
+    final uncertified = <String>[];
+
+    for (final name in coreEntities) {
+      final snake = toSnakeCase(name);
+      final mockPath = p.join(
+        projectRoot,
+        'lib',
+        'src',
+        'data',
+        'datasources',
+        snake,
+        '${snake}_mock_datasource.dart',
+      );
+      if (!File(mockPath).existsSync()) continue;
+      mocks.add(name);
+      final receipt = loadMockCertReceipt(projectRoot, name);
+      if (receipt != null && receipt.allSatisfied) {
+        certified.add(name);
+      } else {
+        uncertified.add(name);
+      }
+    }
+
+    return RunEngineGateResult(
+      coreEntities: coreEntities,
+      mocks: mocks,
+      certified: certified,
+      uncertified: uncertified,
+      blockedEntity: uncertified.isNotEmpty ? uncertified.first : null,
+    );
+  }
+
+  static void _printGateSummary({
+    required String feature,
+    required RunEngineGateResult result,
+  }) {
+    stdout.writeln(
+      'run-engine: feature=$feature '
+      'core-entities=${result.coreEntities.length} '
+      'mocks=${result.mocks.length} '
+      'certified=${result.certified.length} '
+      'uncertified=${result.uncertified.length}'
+      '${result.blockedEntity != null ? ' blocked=${result.blockedEntity}' : ''}',
+    );
   }
 }

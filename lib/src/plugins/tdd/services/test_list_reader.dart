@@ -56,6 +56,16 @@
 /// written by `zfa tdd fake <channel> --behavior <id>` — gen refuses a
 /// platform row whose scenario is missing. `zfa tdd make`/`run` stop
 /// honestly on platform ids (the planner does not express them yet).
+///
+/// CONTRACT KIND EXTENSION (issue #1007): a `## Contract loop:` section
+/// header marks CONTRACT rows — one declared entity method, controller
+/// method or usecase per row, written by `zfa tdd plan` from the spec's
+/// Layer Contracts section with `contract:<id>` row ids. The gen pair is
+/// a contract test scaffold (enumerating the contract's cases) + a
+/// contract seam subject, and a failing contract test is BLOCKED — never
+/// RED — so the row's state cell may also read BLOCKED (it parses to
+/// [BehaviorState.blocked], the state the run driver persists when
+/// verify-red reports the blocked verdict).
 library;
 
 import 'dart:io';
@@ -291,6 +301,14 @@ class TestListReader {
           // whose gen pair drives a platform channel through the certified
           // fake + committed scenario written by `zfa tdd fake`.
           kind = BehaviorKind.platform;
+        } else if (header.startsWith('contract loop')) {
+          // Contract-loop section (issue #1007): CONTRACT-kind behaviors —
+          // one declared entity method, controller method or usecase per
+          // row, written by plan from the spec's Layer Contracts section.
+          // A failing contract test is BLOCKED (never RED), so this lane
+          // never feeds the red-evidence path (verify-red refuses to
+          // certify contract reds; the blocked receipt is the record).
+          kind = BehaviorKind.contract;
         } else {
           kind = null;
         }
@@ -617,13 +635,24 @@ class TestListReader {
   /// The subject function this behavior targets (moved from gen's private
   /// parser, bug #617): an explicit non-path cell wins; an empty or
   /// path-like cell (`/`, `::`, `$`) falls back to `subject_<snake-id>`.
+  ///
+  /// Issue #1007: the snake-id fold now covers EVERY non-alphanumeric
+  /// character (not just `-`), so the `contract:A1` ids plan writes for
+  /// contract rows resolve to a valid Dart identifier
+  /// (`subject_contract_a1`, never `subject_contract:a1` — the `:` leaked
+  /// into the generated subject's function name before, and the pair died
+  /// at compile). Existing id shapes (`A1`, `B-001`) fold identically to
+  /// the previous `replaceAll('-', '_')` behavior.
   static String resolveDefaultTarget(String id, {String cell = ''}) {
     final isPathLike =
         cell.isEmpty ||
         cell.contains('/') ||
         cell.contains('::') ||
         cell.contains(r'$');
-    if (isPathLike) return 'subject_${id.toLowerCase().replaceAll('-', '_')}';
+    if (isPathLike) {
+      final snakeId = id.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+      return 'subject_$snakeId';
+    }
     return cell;
   }
 

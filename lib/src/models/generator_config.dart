@@ -75,6 +75,13 @@ class GeneratorConfig {
   final bool generateDi;
   final bool generateXRay;
 
+  /// Spec 1001 (issue #1001): deterministic mock generation seed. When
+  /// non-null, every generated mock record derives from this seed, so
+  /// the same seed + inputs reproduce byte-identical mocks (replayable
+  /// generation). Null keeps the historical default record seeds
+  /// (1, 2, 3).
+  final int? seed;
+
   /// When true, the view plugin generates v6 dual-layer state
   /// (DomainState + ViewState + DualLayerPresenter) and ControlledWidget /
   /// FragmentBuilder based views instead of the legacy v5 monolithic state.
@@ -157,6 +164,7 @@ class GeneratorConfig {
     this.useMockInDi = false,
     this.generateDi = false,
     this.generateXRay = false,
+    this.seed,
     this.generateV6State = false,
     this.diFramework = 'get_it',
     this.generateRoute = false,
@@ -234,6 +242,7 @@ class GeneratorConfig {
       generateMockJson:
           json['mock_json'] == true || json['generate_mock_json'] == true,
       mockJsonDomain: json['mock_json_domain'],
+      seed: json['seed'] is int ? json['seed'] as int : null,
       useMockInDi: json['use_mock'] == true || json['use_mock_in_di'] == true,
       generateDi: json['di'] == true || json['generate_di'] == true,
       generateXRay: json['xray'] == true || json['generate_xray'] == true,
@@ -336,6 +345,7 @@ class GeneratorConfig {
     bool? useMockInDi,
     bool? generateDi,
     bool? generateXRay,
+    int? seed,
     bool? generateV6State,
     String? diFramework,
     bool? generateRoute,
@@ -410,6 +420,7 @@ class GeneratorConfig {
       useMockInDi: useMockInDi ?? this.useMockInDi,
       generateDi: generateDi ?? this.generateDi,
       generateXRay: generateXRay ?? this.generateXRay,
+      seed: seed ?? this.seed,
       generateV6State: generateV6State ?? this.generateV6State,
       diFramework: diFramework ?? this.diFramework,
       generateRoute: generateRoute ?? this.generateRoute,
@@ -680,6 +691,7 @@ class GeneratorConfig {
     'mock_data_only': generateMockDataOnly,
     'mock_json': generateMockJson,
     'mock_json_domain': mockJsonDomain,
+    'seed': seed,
     'use_mock': useMockInDi,
     'di': generateDi,
     'di_framework': diFramework,

@@ -3,7 +3,6 @@ library;
 import 'dart:convert';
 import 'package:test/test.dart';
 import 'sandbox_fixture.dart';
-import 'package:zuraffa/src/tdd/services/coverage_gate.dart';
 
 Object? subject_u4() {
   final allGreen = UiLedgerBuilder.derive(

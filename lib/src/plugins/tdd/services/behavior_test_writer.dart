@@ -63,9 +63,13 @@ class BehaviorTestWriter {
   final List<String> i18nExpansion;
 
   /// Escapes [raw] for safe interpolation into a single-quoted Dart
-  /// string literal (issue #912 defect 1): backslash, both quote forms,
-  /// `$` (interpolation — a raw `${...}` in a behavior description must
-  /// never reach the generated source as code), and control characters.
+  /// string literal (issue #912 defect 1): backslash, the single quote
+  /// form, `$` (interpolation — a raw `${...}` in a behavior description
+  /// must never reach the generated source as code), and control
+  /// characters. A double quote is NOT escaped: every interpolation site
+  /// is a single-quoted literal, so `\"` would be an UNNECESSARY escape
+  /// that trips `unnecessary_string_escapes` in the generated artifact
+  /// (issue #1035).
   static String escapeDartString(String raw) {
     final out = StringBuffer();
     for (final code in raw.codeUnits) {
@@ -74,8 +78,6 @@ class BehaviorTestWriter {
           out.write(r'\\');
         case 0x27:
           out.write(r"\'");
-        case 0x22:
-          out.write(r'\"');
         case 0x24:
           out.write(r'\$');
         case 0x0A:
@@ -237,10 +239,21 @@ void main() {
   }
 
   String _captureInvocation(Behavior behavior, String target) {
+    // Issue #1035: the UNIT lane's capture initializer is provably
+    // non-nullable (the closure returns the subject's value or the
+    // caught UnimplementedError — never null), so an explicit `Object?`
+    // annotation trips unnecessary_nullable_for_final_variable_declarations
+    // in the generated test. Inference types the capture correctly for
+    // both the red stub (static return type) and the implemented subject;
+    // the acceptance lane's capture CAN be null (`return null;`), so it
+    // keeps the explicit nullable annotation its initializer matches.
+    final capture = behavior.kind == BehaviorKind.acceptance
+        ? 'final Object? result'
+        : 'final result';
     final invocation = behavior.kind == BehaviorKind.acceptance
         ? 'subject.$target();\n          return null;'
         : 'return subject.$target();';
-    return '''final Object? result = (() {
+    return '''$capture = (() {
         try {
           $invocation
         } on UnimplementedError catch (error) {
@@ -249,11 +262,21 @@ void main() {
       })();''';
   }
 
-  /// Compute the relative path from the test file's directory to the
-  /// subject file. We use a simple relative path so the generated test
-  /// file is portable.
+  /// Compute the import URI the generated test uses to reach the paired
+  /// subject file.
+  ///
+  /// Issue #1035: the emitted artifacts must be lint-clean, and a
+  /// relative import that reaches into the project's `lib/` from `test/`
+  /// provably trips `avoid_relative_lib_imports`. When the subject lives
+  /// under the project's `lib/` and the package name is resolvable from
+  /// the enclosing `pubspec.yaml`, the import is a `package:` URI
+  /// (`package:<name>/<path-under-lib>`). Otherwise (non-absolute fixture
+  /// paths, no pubspec), the legacy relative path is kept so the pair
+  /// still resolves — and so is portable.
   String _relativeSubjectPath(String testPath, String subjectPath) {
     if (p.isAbsolute(subjectPath) && p.isAbsolute(testPath)) {
+      final packageImport = _packageSubjectImport(testPath, subjectPath);
+      if (packageImport != null) return packageImport;
       // Compute the relative path from testPath's parent to subjectPath.
       final rel = p.relative(subjectPath, from: p.dirname(testPath));
       // Ensure it has a `./` or `../` prefix OR is just a relative path.
@@ -261,6 +284,42 @@ void main() {
     }
     // Otherwise, just return the subject path as-is.
     return subjectPath;
+  }
+
+  /// The `package:` import URI for [subjectPath] when it sits under the
+  /// enclosing project's `lib/` and the package name is resolvable from
+  /// the nearest `pubspec.yaml` (walked up from the test file's
+  /// directory); null otherwise (caller falls back to the relative shape).
+  String? _packageSubjectImport(String testPath, String subjectPath) {
+    var dir = p.dirname(testPath);
+    String? projectRoot;
+    for (var i = 0; i < 24; i++) {
+      final candidate = p.join(dir, 'pubspec.yaml');
+      if (File(candidate).existsSync()) {
+        projectRoot = dir;
+        break;
+      }
+      final parent = p.dirname(dir);
+      if (parent == dir) break;
+      dir = parent;
+    }
+    if (projectRoot == null) return null;
+    final String pubspec;
+    try {
+      pubspec = File(p.join(projectRoot, 'pubspec.yaml')).readAsStringSync();
+    } catch (_) {
+      return null;
+    }
+    final nameMatch = RegExp(
+      r'^name:\s*(.+?)\s*$',
+      multiLine: true,
+    ).firstMatch(pubspec);
+    final packageName = nameMatch?.group(1)?.trim() ?? '';
+    if (packageName.isEmpty) return null;
+    final libDir = p.join(projectRoot, 'lib');
+    if (!p.isWithin(libDir, subjectPath)) return null;
+    final underLib = p.relative(subjectPath, from: libDir);
+    return 'package:$packageName/$underLib';
   }
 
   /// Render the WIDGET test (bug #830): a `testWidgets` pair that boots

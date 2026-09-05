@@ -24,6 +24,9 @@ import '../services/requirement_scan.dart';
 import '../services/spec_migrator.dart';
 import '../services/spec_parser.dart';
 import '../services/test_list_reader.dart';
+import '../services/tdd_generation_receipt.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 import '../../../utils/framework_export_surface.dart';
@@ -67,6 +70,9 @@ class PlanCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'plan';
 
@@ -79,7 +85,10 @@ class PlanCommand extends Command<void> {
   String get invocation => 'zfa tdd plan <feature>';
 
   @override
-  Future<void> run() async {
+  Future<void> run() =>
+      runWithVerdictEnvelope(this, _verdict, _run, featureFromRest: true);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       usageException('Feature name is required: zfa tdd plan <feature>');
@@ -147,6 +156,13 @@ class PlanCommand extends Command<void> {
         'extension) so it pins a known template version; re-run '
         '`zfa tdd plan`.',
       );
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'contract-drift'
+        ..fix =
+            'author the spec from the zuraffa spec template so it pins '
+            'a known template version; re-run zfa tdd plan'
+        ..details['spec'] = specPath;
       exitCode = 3;
       return;
     }
@@ -166,7 +182,9 @@ class PlanCommand extends Command<void> {
 
     // Bug #919: extract the zuraffa-1.0 template's declared dependencies
     // and layer contracts into the plan artifact, so the mock-first make
-    // path (#909) and interface generation can consume them.
+    // path (#909) and interface generation can consume them. The Layer
+    // Contracts also drive the contract:<id> rows (issue #1007) — derived
+    // after the prior test list is read, so ids reconcile by traces.
     final dependencies = const SpecParser().parseDependencies(specMd);
     final layerContracts = const SpecParser().parseLayerContracts(specMd);
 
@@ -188,6 +206,13 @@ class PlanCommand extends Command<void> {
         );
         print('    ${gap.fix}');
       }
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'coverage-gate'
+        ..fix =
+            'map every requirement statement to a behavior row or a '
+            '(manual: owner) declaration, then re-run zfa tdd plan'
+        ..details['gaps'] = gaps.length;
       exitCode = 2;
       return;
     }
@@ -227,6 +252,14 @@ class PlanCommand extends Command<void> {
           'Dependencies & Contracts table (or drop the reference).',
         );
       });
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'undeclared-dependency'
+        ..fix =
+            'add the referenced dependencies to the External '
+            'Dependencies & Contracts table (or drop the references), '
+            'then re-run zfa tdd plan'
+        ..details['undeclared'] = undeclared.length;
       exitCode = 2;
       return;
     }
@@ -340,12 +373,21 @@ class PlanCommand extends Command<void> {
     // verbatim. An ffi row whose traces match a spec-derived criterion
     // WINS: the spec-derived behavior for that criterion is suppressed
     // (the explicit native declaration is the more specific contract).
+    //
+    // Issue #1007: the same pass harvests the prior CONTRACT rows — their
+    // (id, state) pairs reconcile the freshly derived contract behaviors
+    // by traces so `contract:<id>` ids stay stable across re-plans and a
+    // BLOCKED/DONE contract row keeps its recorded state.
     final preservedFfi = <BehaviorRow>[];
+    final priorContract = <String, (String, BehaviorState)>{};
     try {
       for (final row in await TestListReader(
         '$repoRoot/specs/$feature',
       ).read()) {
         if (row.kind == BehaviorKind.ffi) preservedFfi.add(row);
+        if (row.kind == BehaviorKind.contract) {
+          priorContract[row.traces] = (row.id, row.state);
+        }
       }
     } on TestListReadException catch (e) {
       stderr.writeln(
@@ -353,6 +395,14 @@ class PlanCommand extends Command<void> {
         'preserved (${e.message})',
       );
     }
+    final contractBehaviors = _reconcileContractBehaviors(
+      _deriveContractBehaviors(
+        feature,
+        layerContracts,
+        entities.map((e) => e.name).toSet(),
+      ),
+      priorContract,
+    );
     final ffiCriteria = preservedFfi.map((r) => r.traces).toSet();
     final expressible = reconciled
         .where((b) => !ffiCriteria.contains(b.sourceCriterion))
@@ -384,6 +434,13 @@ class PlanCommand extends Command<void> {
     } on StateError catch (e) {
       print('zfa tdd plan: declaration refused — ${e.message}');
       print('  no artifacts were written.');
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'declaration-refused'
+        ..fix =
+            'fix the malformed declaration named above, then re-run '
+            'zfa tdd plan'
+        ..details['reason'] = e.message;
       exitCode = 2;
       return;
     }
@@ -400,6 +457,13 @@ class PlanCommand extends Command<void> {
       for (final line in provenance.remove('__refused__')!) {
         print(line);
       }
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'routing-refused'
+        ..fix =
+            'declare the routing intent (Type marker / contract trace) '
+            'for every refused behavior, then re-run zfa tdd plan --strict-routing'
+        ..details['strict'] = true;
       exitCode = 1;
       return;
     }
@@ -423,6 +487,19 @@ class PlanCommand extends Command<void> {
       }
       exitCode = 2;
       return;
+    }
+
+    // Issue #1007: contract rows carry their own declared lane in the
+    // provenance artifact (they are spec-DECLARED through the Layer
+    // Contracts section, like the ffi lane's native-loop declaration).
+    for (final b in contractBehaviors) {
+      provenance.putIfAbsent(
+        b.id,
+        () => [
+          'route: ${b.id} -> contract lane '
+              '[declared: layer contracts section]',
+        ],
+      );
     }
 
     await outDir.create(recursive: true);
@@ -529,6 +606,7 @@ class PlanCommand extends Command<void> {
       _render(
         feature,
         expressible,
+        contractBehaviors,
         entities,
         dependencies,
         layerContracts,
@@ -536,6 +614,18 @@ class PlanCommand extends Command<void> {
         declarations.persistence,
         provenance,
       ),
+    );
+    // Issue #969 T003: the plan's artifacts become self-certifying —
+    // digest-bound receipts so the preflight gate can catch hand-edits.
+    await TddGenerationReceipts.writeBestEffort(
+      projectRoot: repoRoot,
+      command: 'tdd plan',
+      target: feature,
+      feature: feature,
+      files: {
+        outFile.path: 'update',
+        p.join(outDir.path, 'traceability.md'): 'update',
+      },
     );
     for (final line in provenance.values.expand((l) => l)) {
       // print (not stdout.writeln): the observable-CLI convention the
@@ -547,14 +637,17 @@ class PlanCommand extends Command<void> {
         .where((b) => b.kind == BehaviorKind.acceptance)
         .length;
     final uCount = expressible.where((b) => b.kind == BehaviorKind.unit).length;
+    final cCount = contractBehaviors.length;
     final fCount = preservedFfi.length;
-    final total = expressible.length + fCount;
+    final total = expressible.length + cCount + fCount;
+    final laneList = [
+      '$aCount acceptance',
+      '$uCount unit',
+      if (cCount > 0) '$cCount contract',
+      if (fCount > 0) '$fCount ffi',
+    ].join(' + ');
     stdout.writeln(
-      fCount > 0
-          ? 'zfa tdd plan: wrote $outFile with $aCount acceptance + $uCount '
-                'unit + $fCount ffi behaviors ($total total).'
-          : 'zfa tdd plan: wrote $outFile with $aCount acceptance + $uCount '
-                'unit behaviors (${expressible.length} total).',
+      'zfa tdd plan: wrote $outFile with $laneList behaviors ($total total).',
     );
     if (entities.isNotEmpty) {
       stdout.writeln(
@@ -562,11 +655,18 @@ class PlanCommand extends Command<void> {
         'ies): ${entities.map((e) => e.name).join(', ')}.',
       );
     }
+    _verdict
+      ..details['acceptance'] = aCount
+      ..details['unit'] = uCount
+      ..details['ffi'] = fCount
+      ..details['behaviors'] = total
+      ..details['test_list'] = outFile.path;
   }
 
   String _render(
     String feature,
     List<Behavior> behaviors,
+    List<Behavior> contractBehaviors,
     List<SpecEntity> entities,
     List<SpecDependency> dependencies,
     List<LayerContract> layerContracts,
@@ -628,6 +728,35 @@ class PlanCommand extends Command<void> {
       buf.writeln(
         '| ${b.id} | ${_marked(b, persistenceDeclarations)} | ${b.sourceCriterion} | PENDING |',
       );
+    }
+    // Issue #1007: the CONTRACT lane — one row per declared entity
+    // method, controller method and usecase of the spec's Layer
+    // Contracts section. Gen's pair for these rows is a contract test
+    // scaffold + contract seam (NOT an implementation test), and a
+    // failing contract test is BLOCKED (never RED) — the row's state
+    // column carries BLOCKED until the implementation satisfies the
+    // declared contract.
+    if (contractBehaviors.isNotEmpty) {
+      buf
+        ..writeln()
+        ..writeln('## Contract loop: contract behaviors')
+        ..writeln()
+        ..writeln(
+          'One per declared entity method, controller method and usecase '
+          'in `spec.md` Layer Contracts (issue #1007). A contract test '
+          'proves the implementation satisfies the DECLARED contract — '
+          'a failing contract test is BLOCKED (never RED) and blocks the '
+          'cycle from proceeding to GREEN.',
+        )
+        ..writeln()
+        ..writeln('| id | behavior | traces | state |')
+        ..writeln('| -- | -------- | ------ | ----- |');
+      for (final b in contractBehaviors) {
+        buf.writeln(
+          '| ${b.id} | ${b.description} | ${b.sourceCriterion} | '
+          '${b.state.name.toUpperCase()} |',
+        );
+      }
     }
     // Bug #829: the spec's Key Entities, extracted for the loop's
     // entity orchestration (run phase 0 + the make entity pipeline).
@@ -761,6 +890,7 @@ class PlanCommand extends Command<void> {
       BehaviorKind.ffi => 'ffi lane',
       BehaviorKind.platform => 'platform lane',
       BehaviorKind.theme => 'theme lane',
+      BehaviorKind.contract => 'contract lane',
     };
 
     void record(String id, List<String> entry) => lines[id] = entry;
@@ -851,6 +981,116 @@ class PlanCommand extends Command<void> {
   ) => persistenceDeclarations.containsKey(b.id)
       ? PersistenceMarker.mark(b.description)
       : b.description;
+
+  /// Issue #1007: derive one CONTRACT behavior per declared method of
+  /// the spec's Layer Contracts section — every entity method,
+  /// controller method and usecase the spec declares (plus any other
+  /// declared layer interface: a declared contract is a declared
+  /// contract, whatever its layer label).
+  ///
+  /// The row's description is the STRUCTURED contract carrier the
+  /// contract writers parse:
+  ///
+  ///     <Interface>.<method>(<params>) -> <Return> (<category>)
+  ///
+  /// and the traces column is the interface-qualified method name
+  /// (`User.validateEmail`) — unique per declared method, stable across
+  /// re-plans, and the reconciliation key for `contract:<id>` ids.
+  List<Behavior> _deriveContractBehaviors(
+    String feature,
+    List<LayerContract> layerContracts,
+    Set<String> entityNames,
+  ) {
+    final behaviors = <Behavior>[];
+    for (final contract in layerContracts) {
+      final category = _contractCategory(contract, entityNames);
+      for (final method in contract.methods) {
+        final methodName = _methodNameOf(method);
+        if (methodName.isEmpty) continue;
+        final traces = '${contract.interfaceName}.$methodName';
+        behaviors.add(
+          Behavior(
+            id: 'contract:A${behaviors.length + 1}',
+            feature: feature,
+            kind: BehaviorKind.contract,
+            description:
+                '${contract.interfaceName}.$method ($category contract)',
+            sourceCriterion: traces,
+            target: TestListReader.resolveDefaultTarget(
+              'contract:A${behaviors.length + 1}',
+            ),
+          ),
+        );
+      }
+    }
+    return behaviors;
+  }
+
+  /// The contract category for a declared layer interface: the layer
+  /// label classifies it (Entities/Entity, Presentation/Controller,
+  /// Domain/UseCase), with a declared Key Entity name winning for
+  /// interfaces declared under another label. Everything else is a
+  /// generic interface contract — still derived, still a contract row.
+  String _contractCategory(LayerContract contract, Set<String> entityNames) {
+    final layer = contract.layer.toLowerCase();
+    if (layer.contains('entit')) return 'entity method';
+    if (layer.contains('presentation') || layer.contains('controller')) {
+      return 'controller method';
+    }
+    if (layer.contains('domain') ||
+        layer.contains('usecase') ||
+        layer.contains('use case')) {
+      return 'usecase';
+    }
+    if (entityNames.contains(contract.interfaceName)) return 'entity method';
+    return 'interface method';
+  }
+
+  /// The method name of a declared signature (`validateEmail(String) ->
+  /// bool` -> `validateEmail`); empty when the declaration carries no
+  /// callable name.
+  static String _methodNameOf(String signature) {
+    final idx = signature.indexOf('(');
+    if (idx <= 0) return '';
+    return signature.substring(0, idx).trim();
+  }
+
+  /// Issue #1007: reconcile freshly derived contract behaviors against
+  /// the prior test list by TRACES — an unchanged spec keeps its
+  /// `contract:<id>` ids stable (and a BLOCKED/DONE row keeps its
+  /// recorded state), while new declarations take the next free id.
+  List<Behavior> _reconcileContractBehaviors(
+    List<Behavior> derived,
+    Map<String, (String, BehaviorState)> prior,
+  ) {
+    final taken = prior.values.map((v) => v.$1).toSet();
+    var counter = 1;
+    String nextId() {
+      while (taken.contains('contract:A$counter')) {
+        counter++;
+      }
+      final id = 'contract:A$counter';
+      taken.add(id);
+      counter++;
+      return id;
+    }
+
+    return [
+      for (final b in derived)
+        () {
+          final match = prior[b.sourceCriterion];
+          final id = match?.$1 ?? nextId();
+          return Behavior(
+            id: id,
+            feature: b.feature,
+            kind: b.kind,
+            description: b.description,
+            sourceCriterion: b.sourceCriterion,
+            target: TestListReader.resolveDefaultTarget(id),
+          )..state = match?.$2 ?? BehaviorState.pending;
+        }(),
+    ];
+  }
 
   /// The lane resolution result (issue #1000): every behavior's lane,
   /// the hand-declared lane rows (ids the declarations carry but the

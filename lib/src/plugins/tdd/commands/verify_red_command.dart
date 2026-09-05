@@ -44,11 +44,15 @@ import 'package:path/path.dart' as p;
 
 import '../models/red_classification.dart';
 import '../services/artifact_registry.dart';
+import '../services/contract_blocked_receipt.dart';
 import '../services/cycle_log.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/red_classifier.dart';
 import '../services/runner.dart';
+import '../services/tdd_generation_receipt.dart';
 import '../services/tdd_timeout.dart';
+import '../services/verdict_emitter.dart';
+import '../models/verdict_envelope.dart';
 import '../services/widget_scaffold.dart' show contentIsScaffolded;
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
@@ -115,6 +119,9 @@ class VerifyRedCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  /// Issue #969: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
   @override
   String get name => 'verify-red';
 
@@ -130,7 +137,9 @@ class VerifyRedCommand extends Command<void> {
       '[--project <path>]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     final behaviorId = rest.isNotEmpty ? rest.first : null;
     final rawFeatureFlag = argResults?['feature'] as String?;
@@ -305,6 +314,47 @@ class VerifyRedCommand extends Command<void> {
     print('   classification: ${classification.label}');
 
     // ---------------------------------------------------------------
+    // 4b. Issue #1007 — the CONTRACT lane: a failing contract test is
+    //     BLOCKED, never a certified red. A contract test proves the
+    //     implementation satisfies a DECLARED contract; its assertion
+    //     failure means the contract is UNSATISFIED — the opposite of
+    //     honest-red evidence (which certifies the loop may proceed to
+    //     make/GREEN). So: re-grade the verdict BLOCKED, write the
+    //     distinct receipt (contract-blocked.<id>.json), append NO red
+    //     evidence, and exit non-zero — the run driver marks the
+    //     behavior BLOCKED and the cycle cannot proceed to GREEN until
+    //     the implementation satisfies the contract.
+    // ---------------------------------------------------------------
+    if (classification == RedClassification.assertion &&
+        await _targetIsContractKind(cwd, record)) {
+      final receiptPath = await _writeBlockedReceipt(
+        cwd: cwd,
+        target: target,
+        record: record,
+        run: run,
+      );
+      print(
+        '   contract lane: re-graded BLOCKED (issue #1007) — the declared '
+        'contract is not satisfied; the cycle cannot proceed to GREEN',
+      );
+      print('   blocked receipt: $receiptPath');
+      stderr.writeln(
+        'zfa tdd verify-red: blocked — implement the declared contract '
+        '${record.sourceCriterion}, then re-run '
+        '`zfa tdd verify-red ${record.behaviorId}`',
+      );
+      stderr.writeln('   no red evidence written');
+      _printSummary(
+        behavior: record.behaviorId,
+        classification: 'blocked',
+        certified: false,
+        feature: target.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // ---------------------------------------------------------------
     // 5/6. Evidence on assertion only; rejection otherwise (FR-006/007).
     //      Issue #964 kind gate: BEFORE evidence, the test's assertion
     //      kinds must match the scenario verbs — a red from a presence
@@ -375,6 +425,7 @@ class VerifyRedCommand extends Command<void> {
           capturedOutput: run.output,
           classification: FailureClass.assertionFailure,
           redEvidence: evidence,
+          subjectHash: await _subjectHashAt(cwd, record),
           sourceCriterion: record.sourceCriterion,
           testPath: record.testPath,
           timestamp: DateTime.now().toUtc().toIso8601String(),
@@ -383,6 +434,14 @@ class VerifyRedCommand extends Command<void> {
       print(
         '   red evidence appended to specs/${target.featureName}/tdd/'
         'cycle-log.md',
+      );
+      // Issue #969 T003: the red evidence becomes self-certifying.
+      await TddGenerationReceipts.writeBestEffort(
+        projectRoot: cwd,
+        command: 'tdd verify-red',
+        target: record.behaviorId,
+        feature: target.featureName,
+        files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
       );
       _printSummary(
         behavior: record.behaviorId,
@@ -406,6 +465,50 @@ class VerifyRedCommand extends Command<void> {
       feature: target.featureName,
     );
     exitCode = 1;
+  }
+
+  /// Whether the target test is a CONTRACT-lane artifact (issue #1007):
+  /// the generated test carries `// kind: contract` in its provenance
+  /// header. The test file IS the artifact being verified, so the kind
+  /// travels with it (a re-planned test list cannot drift the verdict).
+  Future<bool> _targetIsContractKind(String cwd, ArtifactRecord record) async {
+    final testPath = p.isAbsolute(record.testPath)
+        ? record.testPath
+        : p.join(cwd, record.testPath);
+    try {
+      final content = await File(testPath).readAsString();
+      return RegExp(r'^// kind: contract$', multiLine: true).hasMatch(content);
+    } on FileSystemException {
+      return false;
+    }
+  }
+
+  /// Write the BLOCKED verdict's receipt (issue #1007):
+  /// `.zfa/receipts/contract-blocked.<id>.json`, schema
+  /// `contract-blocked.v1`.
+  Future<String> _writeBlockedReceipt({
+    required String cwd,
+    required _ResolvedTarget target,
+    required ArtifactRecord record,
+    required RunRecord run,
+  }) async {
+    final store = ContractBlockedReceiptStore(projectRoot: cwd);
+    return store.write(
+      ContractBlockedReceipt(
+        behavior: record.behaviorId,
+        feature: target.featureName,
+        contract: record.sourceCriterion,
+        command: run.command,
+        exitCode: run.exitCode,
+        outputExcerpt: run.output
+            .split('\n')
+            .map((l) => l.trimRight())
+            .where((l) => l.isNotEmpty)
+            .take(5)
+            .join('\n'),
+        blockedAt: DateTime.now().toUtc().toIso8601String(),
+      ),
+    );
   }
 
   // -------------------------------------------------------------------
@@ -588,6 +691,22 @@ class VerifyRedCommand extends Command<void> {
   /// own contract ([ArtifactRecord.plainTestName]): the last segment with
   /// any legacy `<id> — ` echo stripped (bug #871).
   String _runnableNameOf(ArtifactRecord record) => record.plainTestName;
+
+  /// The sha256 of the behavior's subject file at certification time
+  /// (issue #1036): binds the red evidence to the EXACT subject shape it
+  /// exercised, so the make skip transition can refuse a skip on a
+  /// subject the certified evidence never captured (the born-green
+  /// placeholder class). Null when the subject artifact is missing —
+  /// the field is omitted and the downstream validation fails open for
+  /// that entry (legacy tolerance).
+  Future<String?> _subjectHashAt(String cwd, ArtifactRecord record) async {
+    final subjectPath = p.isAbsolute(record.subjectPath)
+        ? record.subjectPath
+        : p.join(cwd, record.subjectPath);
+    final subjectFile = File(subjectPath);
+    if (!await subjectFile.exists()) return null;
+    return sha256.convert(await subjectFile.readAsBytes()).toString();
+  }
 
   /// The issue #964 kind gate: re-derive the scenario's required
   /// assertion classes from the artifact record's scenario description
@@ -841,6 +960,7 @@ class VerifyRedCommand extends Command<void> {
                 '(batched red — one runner invocation for '
                 '${targets.length} behavior(s), spec 069 T002)',
             classification: FailureClass.assertionFailure,
+            subjectHash: await _subjectHashAt(cwd, record),
             sourceCriterion: record.sourceCriterion,
             testPath: record.testPath,
             timestamp: DateTime.now().toUtc().toIso8601String(),
@@ -849,6 +969,15 @@ class VerifyRedCommand extends Command<void> {
         print(
           '   red evidence appended to specs/${target.featureName}/tdd/'
           'cycle-log.md (${record.behaviorId})',
+        );
+        // Issue #969 T003: the batched red evidence becomes
+        // self-certifying.
+        await TddGenerationReceipts.writeBestEffort(
+          projectRoot: cwd,
+          command: 'tdd verify-red',
+          target: record.behaviorId,
+          feature: target.featureName,
+          files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
         );
         certifiedCount++;
       } else {
@@ -876,6 +1005,13 @@ class VerifyRedCommand extends Command<void> {
       'classification=${allCertified ? 'batch' : 'mixed'} '
       'feature=$featureLabel',
     );
+    _verdict
+      ..exitClass = allCertified ? 'batch' : 'mixed'
+      ..outcome = allCertified ? VerdictOutcome.pass : VerdictOutcome.fail
+      ..details['batch'] = true
+      ..details['behaviors'] = targets.length
+      ..details['certified'] = certifiedCount
+      ..feature = featureLabel == '-' ? null : featureLabel;
     exitCode = allCertified ? 0 : 1;
   }
 
@@ -1019,6 +1155,13 @@ class VerifyRedCommand extends Command<void> {
       'verify-red: behavior=$behavior classification=$classification '
       'certified=$certified feature=$feature',
     );
+    // Issue #969: the classification IS the exit class (shipped
+    // taxonomy label, never changed).
+    _verdict
+      ..exitClass = classification
+      ..outcome = certified ? VerdictOutcome.pass : VerdictOutcome.fail
+      ..details['behavior'] = behavior
+      ..details['certified'] = certified;
   }
 }
 

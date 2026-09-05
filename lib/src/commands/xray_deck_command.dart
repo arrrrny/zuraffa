@@ -1,10 +1,13 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:yaml/yaml.dart';
 import 'package:path/path.dart' as p;
-import '../plugins/xray/xray_deck_barrel_writer.dart';
 import '../core/project/project_root.dart';
+import '../core/project/receipt_store.dart';
+import '../plugins/xray/xray_deck_barrel_writer.dart';
+import '../version.dart';
 
 /// CLI subcommand for generating X-Ray Control Deck code.
 class XrayDeckCommand extends Command<void> {
@@ -69,6 +72,20 @@ class XrayDeckCommand extends Command<void> {
     final entityName = argResults?["entity"] as String?;
     final projectRoot =
         (argResults?["root"] as String?) ?? ProjectRoot.safeCurrentPath();
+    // Issue #1024: keep the user-typed flags for the proof receipt's
+    // repro line before relative paths get resolved against the root.
+    final repro = [
+      'zfa',
+      'xray',
+      'deck',
+      if (argResults?["source"] != null) '--source=${argResults!["source"]}',
+      if (argResults?["yaml"] != null) '--yaml=${argResults!["yaml"]}',
+      if (argResults?["output"] != null) '--output=${argResults!["output"]}',
+      if (argResults?["usecase-name"] != null)
+        '--usecase-name=${argResults!["usecase-name"]}',
+      if (argResults?["entity"] != null) '--entity=${argResults!["entity"]}',
+      if (force) '--force',
+    ].join(' ');
     // Resolve relative source/yaml paths against the project root so the
     // command works hermetically (e.g. from an explicit --root sandbox).
     if (sourcePath != null && !p.isAbsolute(sourcePath)) {
@@ -155,7 +172,8 @@ class XrayDeckCommand extends Command<void> {
     final generated = _generateDeckFile(effectiveName, allEntries);
 
     final outFile = File(effectiveOutput);
-    if (outFile.existsSync() && !force) {
+    final existed = outFile.existsSync();
+    if (existed && !force) {
       print('Error: $effectiveOutput already exists. Use --force.');
       exitCode = 1;
       return;
@@ -168,6 +186,21 @@ class XrayDeckCommand extends Command<void> {
     final suffix = count == 1 ? 'y' : 'ies';
     print('Generated $count mock entr$suffix for $effectiveName');
     print('  Output: $effectiveOutput');
+
+    // Issue #1024: proof receipt per deck generation (proof.v1). Records
+    // the artifact digest under `<root>/.zfa/receipts/` so `zfa proof
+    // check` can verify where this deck came from.
+    await _emitDeckReceipt(
+      projectRoot: projectRoot,
+      useCaseName: effectiveName,
+      outputAbsolutePath: effectiveOutput,
+      created: !existed,
+      entryCount: count,
+      repro: repro,
+      sourcePath: sourcePath,
+      yamlPath: yamlPath,
+      entityName: entityName,
+    );
 
     // #360: update the registration barrel so main.dart's
     // `registerAllXRayDecks()` call wires this deck.
@@ -316,67 +349,141 @@ class XrayDeckCommand extends Command<void> {
         .replaceAll(r'$', r'\$');
   }
 
-  /// Emits the deck registration file (issue #997: honest output).
+  /// Emits the deck registration file.
   ///
-  /// The emitted source must compile against the published `zuraffa`
-  /// package (the compile gate is asserted by
-  /// `test/commands/xray_deck_cli_test.dart`):
-  ///
-  /// * imports point at the REAL runtime files under
-  ///   `package:zuraffa/src/plugins/xray/` (the old template imported
-  ///   `src/presentation/xray/`, which does not exist);
-  /// * registration goes through the real singleton API
-  ///   `XRayControlDeck.instance.registerEntries(...)` (the old template
-  ///   called `XRayControlDeckRegistry.registerEntries`, a symbol that
-  ///   never existed in the runtime);
-  /// * no `package:flutter` import — `zuraffa` is pure-Dart, so a
-  ///   `kReleaseMode` guard would be unresolvable. The runtime singleton
-  ///   already no-ops every method in release mode (see
-  ///   `xray_control_deck.dart`), which is the documented mirror of the
-  ///   old codegen guard;
-  /// * scenario descriptions are emitted as comments — [XRayMockEntry]
-  ///   has no `description` parameter, so emitting one as a named
-  ///   argument could never compile.
+  /// Issue #1024: the deck MUST compile against the real runtime API —
+  /// `XRayControlDeck.instance.registerEntries(List<XRayMockEntry>)` —
+  /// with imports that resolve inside the consuming package:
+  ///   - real runtime path `package:zuraffa/src/plugins/xray/…`
+  ///     (the old `src/presentation/xray/` path never existed);
+  ///   - explicit imports for [XRayMockEntry] / `XRayMockType`
+  ///     (`xray_control_deck.dart` imports them without re-exporting);
+  ///   - pure-Dart release guard `kXrayReleaseMode`
+  ///     (`bool.fromEnvironment('dart.vm.product')`, behaviorally
+  ///     identical to `kReleaseMode`) so the deck has no
+  ///     `package:flutter` dependency and passes a `dart analyze`
+  ///     compile gate in a plain-Dart sandbox;
+  ///   - no `description:` named argument — [XRayMockEntry] has no such
+  ///     parameter, so a YAML-provided description is preserved as a
+  ///     doc comment above the entry;
+  ///   - unrecognized `type:` values emit `XRayMockType.unknown`
+  ///     (matching `XRayMockType.fromString`) instead of emitting an
+  ///     enum value that does not exist.
   String _generateDeckFile(String ucName, List<Map<String, dynamic>> entries) {
     final lines = <String>[
       '// GENERATED BY zfa xray deck -- DO NOT EDIT.',
       '// UseCase: $ucName',
       '// Mocks: ${entries.length}',
       '',
+      "import 'package:zuraffa/src/core/xray_config.dart';",
       "import 'package:zuraffa/src/plugins/xray/xray_control_deck.dart';",
       "import 'package:zuraffa/src/plugins/xray/xray_mock_entry.dart';",
       "import 'package:zuraffa/src/plugins/xray/xray_mock_type.dart';",
       '',
       '/// Registers mock entries for $ucName with the Control Deck.',
-      '///',
-      '/// Release mode is handled by the runtime: every public method on',
-      '/// [XRayControlDeck] is a no-op when the VM runs in product mode, so',
-      '/// this registration needs no compile-time guard.',
       'void register${ucName}XRayDeck() {',
+      '  if (kXrayReleaseMode) return;',
       '  XRayControlDeck.instance.registerEntries(',
       '    const [',
     ];
 
     for (final entry in entries) {
-      final type = (entry['type'] ?? 'unknown').toString();
+      final type = (entry['type'] ?? 'unknown').toString().toLowerCase();
       final name = _escapeLiteral(entry['name'].toString());
       final payload = _escapeLiteral(entry['payload'].toString());
       final desc = entry['description'];
-      // XRayMockEntry has no description parameter — emit the scenario
-      // description as a comment so the entry still compiles (#997).
+      // Issue #1024: XRayMockEntry has no `description` parameter — keep
+      // the scenario description as a doc comment instead of emitting a
+      // named argument that fails `dart analyze`.
       if (desc != null) {
-        lines.add('      // ${desc.toString().replaceAll('\n', ' ')}');
+        lines.add('      /// ${_escapeLiteral(desc.toString())}');
       }
       lines.add('      XRayMockEntry(');
       lines.add("        name: '$name',");
       lines.add("        payload: '$payload',");
-      lines.add('        type: XRayMockType.$type,');
+      lines.add('        type: XRayMockType.${_safeMockType(type)},');
       lines.add('      ),');
     }
 
     lines.addAll(['    ],', '  );', '}']);
 
     return lines.join('\n');
+  }
+
+  /// Maps a requested mock type to a real `XRayMockType` enum name so the
+  /// generated deck always compiles (issue #1024 compile gate). Unknown
+  /// values fall back to `unknown`, matching `XRayMockType.fromString`.
+  String _safeMockType(String requested) {
+    const known = {'valid', 'error', 'unknown'};
+    if (known.contains(requested)) return requested;
+    if (requested.isNotEmpty) {
+      print(
+        'Warning: unknown mock type "$requested" — '
+        'emitting XRayMockType.unknown',
+      );
+    }
+    return 'unknown';
+  }
+
+  /// Issue #1024: emit a proof.v1 generation receipt for the deck file
+  /// this run wrote, digesting the final on-disk bytes.
+  ///
+  /// Best-effort by design (mirrors entity_command._emitReceipt): the
+  /// artifact already exists, so a receipt failure degrades to a warning.
+  Future<void> _emitDeckReceipt({
+    required String projectRoot,
+    required String useCaseName,
+    required String outputAbsolutePath,
+    required bool created,
+    required int entryCount,
+    required String repro,
+    String? sourcePath,
+    String? yamlPath,
+    String? entityName,
+  }) async {
+    try {
+      final file = File(outputAbsolutePath);
+      if (!file.existsSync()) return;
+      final bytes = file.readAsBytesSync();
+      final keepSnapshot = bytes.length <= ReceiptStore.maxSnapshotBytes;
+      await ReceiptStore(projectRoot: projectRoot).save(
+        GenerationReceipt(
+          command: 'xray deck',
+          target: useCaseName,
+          repro: repro,
+          at: DateTime.now().toUtc(),
+          generatorVersion: version,
+          input: {
+            'source': ?sourcePath,
+            'yaml': ?yamlPath,
+            'entity': ?entityName,
+            'entries': entryCount,
+            'api': 'XRayControlDeck.instance.registerEntries',
+          },
+          files: [
+            GenerationReceiptFile(
+              path: _projectRelativePosix(outputAbsolutePath, projectRoot),
+              action: created ? 'create' : 'modify',
+              sha256: crypto.sha256.convert(bytes).toString(),
+              bytes: bytes.length,
+              snapshot: keepSnapshot ? file.readAsStringSync() : null,
+            ),
+          ],
+        ),
+      );
+      print('  Proof: receipt written to .zfa/receipts/ (proof.v1)');
+    } catch (e) {
+      print('⚠️  Generation receipt not written: $e');
+    }
+  }
+
+  /// Normalizes a possibly-absolute artifact path to a project-relative
+  /// POSIX path so receipts stay portable across machines.
+  String _projectRelativePosix(String filePath, String projectRoot) {
+    final rel = p.isAbsolute(filePath)
+        ? p.relative(filePath, from: projectRoot)
+        : filePath;
+    return p.normalize(rel).replaceAll('\\', '/');
   }
 }
 

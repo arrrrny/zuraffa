@@ -44,6 +44,7 @@ import '../services/tdd_timeout.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 import 'run_driver_core.dart';
+import 'run_engine_command.dart';
 
 class RunCommand extends Command<void> {
   RunCommand(this.plugin) {
@@ -157,6 +158,31 @@ class RunCommand extends Command<void> {
 
     final skipWidget = argResults?['skip-widget'] as bool? ?? false;
     final core = RunDriverCore();
+
+    // -----------------------------------------------------------------
+    // Spec 1001 pre-start preflight: an uncertified CORE mock stops the
+    // meta run before the engine lane spawns any step ("mocks the
+    // framework certifies, not the agent" — the engine cannot bypass
+    // its own gate).
+    // -----------------------------------------------------------------
+    final gate = await RunEngineCommand.checkFeature(
+      projectRoot: projectRoot,
+      featureDir: p.join(projectRoot, 'specs', feature),
+    );
+    if (!gate.ok) {
+      final entity = gate.blockedEntity!;
+      stderr.writeln(
+        'zfa tdd $label: CORE entity "$entity" has a mock on disk '
+        'that is NOT certified — the engine refuses to proceed '
+        '(spec 1001: mocks the framework certifies, not the agent).',
+      );
+      stderr.writeln(
+        '--> fix: zfa mock certify $entity '
+        '(or zfa mock create $entity --certify), then re-run.',
+      );
+      exitCode = 1;
+      return;
+    }
 
     // -----------------------------------------------------------------
     // Lane 1 — the engine lane, announced and driven with the `run` label

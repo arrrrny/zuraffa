@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 
 import '../core/plugin_system/capability.dart';
 import '../models/generated_file.dart';
+import '../plugins/mock/capabilities/certify_mock_capability.dart';
 import '../plugins/mock/capabilities/create_mock_capability.dart';
 import '../plugins/mock/capabilities/dependency_mock_capability.dart';
 import '../plugins/mock/capabilities/json_mock_capability.dart';
@@ -23,15 +24,23 @@ class MockCommand extends PluginCommand {
   /// skipped, or the duplicate registration would leave `JsonMockCommand`
   /// unparented and crash `mock json --help` (issue #761). `create` is
   /// manual since issue #970: its `--json` is the OUTPUT envelope flag, not
-  /// CapabilityCommand's input-JSON option.
+  /// CapabilityCommand's input-JSON option. Same for `DependencyMockCommand`
+  /// (issue #960) and `CertifyMockCommand` (spec 1001) — both own CLI exit
+  /// codes.
   @override
-  Set<String> get manualSubcommandNames => {'create', 'json', 'dependency'};
+  Set<String> get manualSubcommandNames => {
+    'create',
+    'json',
+    'dependency',
+    'certify',
+  };
 
   MockCommand(this.plugin) : super(plugin) {
     addSubcommand(CreateMockCommand(plugin));
     addSubcommand(DataMockCommand(plugin));
     addSubcommand(JsonMockCommand(plugin));
     addSubcommand(DependencyMockCommand(plugin));
+    addSubcommand(CertifyMockCommand(plugin));
     argParser.addFlag(
       'data-only',
       help: 'Generate only mock data (fixtures)',
@@ -375,6 +384,80 @@ class JsonMockCommand extends Command<void> {
       jsonMock: true,
       domain: results['domain'] as String?,
     );
+  }
+}
+
+/// `zfa mock certify <Name>` (spec 1001, issue #1001): re-proves the
+/// mock's contract live and registers it in the #832 registry entry.
+/// The capability owns exit codes + the machine summary line.
+class CertifyMockCommand extends Command<void> {
+  final MockPlugin plugin;
+
+  CertifyMockCommand(this.plugin) {
+    argParser.addOption(
+      'feature',
+      help:
+          'Feature directory under specs/ (defaults to the pinned '
+          '.specify/feature.json)',
+    );
+    argParser.addOption(
+      'project',
+      help:
+          'Project root containing specs/ (defaults to the current '
+          'working directory)',
+    );
+    argParser.addOption(
+      'fixtures-dir',
+      help:
+          'Explicit fixtures directory for the #832 registry entry '
+          '(default: specs/<feature>/tdd/fixtures)',
+    );
+    argParser.addFlag(
+      'force',
+      abbr: 'f',
+      negatable: false,
+      help: 'Overwrite existing artifacts',
+    );
+    argParser.addFlag(
+      'verbose',
+      abbr: 'v',
+      negatable: false,
+      help: 'Enable detailed logging',
+    );
+  }
+
+  @override
+  String get name => 'certify';
+
+  @override
+  String get description =>
+      'Re-certify a mock live (contract test in a sandbox) and add it '
+      'to the #832 registry entry (spec 1001)';
+
+  @override
+  Future<void> run() async {
+    final results = argResults;
+    if (results == null || results.rest.isEmpty) {
+      print(
+        '❌ Usage: zfa mock certify <EntityName> [--feature <f>] '
+        '[--project <dir>] [--fixtures-dir <dir>]',
+      );
+      exitCode = CertifyMockCapability.exitUsage;
+      return;
+    }
+    final argv = <String>[
+      results.rest.first,
+      if (results['feature'] != null) ...['--feature', results['feature']!],
+      if (results['project'] != null) ...['--project', results['project']!],
+      if (results['fixtures-dir'] != null) ...[
+        '--fixtures-dir',
+        results['fixtures-dir']!,
+      ],
+      if (results['force'] == true) '--force',
+      if (results['verbose'] == true) '--verbose',
+    ];
+    final capability = CertifyMockCapability(plugin);
+    exitCode = await capability.run(argv);
   }
 }
 
