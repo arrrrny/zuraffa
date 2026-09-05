@@ -271,6 +271,7 @@ class _SkinContractAuditorState extends State<SkinContractAuditor> {
     if (!mounted) return;
     // State.context is always the StatefulElement (Flutter's own
     // State.context contract), so the walk can start from it.
+    if (context is! Element) return;
     final facts = inspectTree(context as Element);
     final violations = <SkinViolation>[];
     for (final row in widget.rows) {
@@ -330,8 +331,9 @@ class SkinRouteContractObserver extends NavigatorObserver {
     final violation = table.validatePush(route.settings.name);
     if (violation == null) return;
     onViolation?.call(violation);
-    if (skinAuditBusCore.violations.contains(violation)) return;
-    skinAuditBusCore.publish([...skinAuditBusCore.violations, violation]);
+    final violations = skinAuditBusCore.violations;
+    if (violations.contains(violation)) return;
+    skinAuditBusCore.publish([...violations, violation]);
   }
 }
 

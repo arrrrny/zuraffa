@@ -63,7 +63,7 @@ class SkinRouteSources {
     r"static\s+const\s+String\s+(\w+)\s*=\s*'([^']*)'",
   );
 
-  static final _goRoutePattern = RegExp(r"GoRoute\s*\((?:[^)]*)", dotAll: true);
+  static final _goRoutePattern = RegExp(r"GoRoute\s*\((?:[^)]*)\)", dotAll: true);
 
   static final _pathArgPattern = RegExp(
     r'''path\s*:\s*('([^']*)'|"([^"]*)"|([\w.]+))''',
