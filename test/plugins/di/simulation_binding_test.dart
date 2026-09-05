@@ -206,6 +206,109 @@ void main() {
     );
   });
 
+  group('Issue #1031: service-mode simulation binding shape', () {
+    /// Mirrors the issue repro:
+    /// `zfa mock create --name Auth --service Auth --params AuthRequest
+    ///  --returns User --domain auth` (service mode: no CRUD methods,
+    /// mock lane generates `AuthMockProvider`, no datasource pair).
+    Future<void> runServiceMockCreate() => mockPlugin().generate(
+      GeneratorConfig(
+        name: 'Auth',
+        service: 'Auth',
+        domain: 'auth',
+        paramsType: 'AuthRequest',
+        returnsType: 'User',
+        generateMock: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    test(
+      '#1031: service-mode mock create emits the service-shaped simulation binding, not the datasource shape',
+      () async {
+        await runServiceMockCreate();
+
+        final serviceBinding = File(
+          '$outputDir/di/simulation/auth_simulation_service_di.dart',
+        );
+        expect(
+          serviceBinding.existsSync(),
+          isTrue,
+          reason:
+              'service mode must emit <name>_simulation_service_di.dart '
+              '(#1031): the binding must follow the service shape the mock '
+              'lane actually generated',
+        );
+
+        final content = serviceBinding.readAsStringSync();
+        expect(
+          content,
+          contains('void registerAuthSimulationService(GetIt getIt)'),
+        );
+        // Single --dart-define flavor switch, same as the datasource lane.
+        expect(content, contains('if (!kSimulationMode) return;'));
+        // Interface binding to the production service interface, served by
+        // the generated mock provider.
+        expect(content, contains('registerLazySingleton<AuthService>'));
+        expect(content, contains('() => AuthMockProvider()'));
+        // Imports resolve to the files the service lane actually generated.
+        expect(
+          content,
+          contains("import '../../domain/services/auth_service.dart';"),
+        );
+        expect(
+          content,
+          contains(
+            "import '../../data/providers/auth/auth_mock_provider.dart';",
+          ),
+        );
+        expect(content, contains('package:zuraffa/simulation.dart'));
+
+        // The datasource-shaped binding references AuthDataSource /
+        // AuthMockDataSource, which are never generated in service mode —
+        // emitting it is the #1031 bug.
+        expect(
+          File(
+            '$outputDir/di/simulation/auth_simulation_datasource_di.dart',
+          ).existsSync(),
+          isFalse,
+          reason:
+              'service mode must not emit the datasource-shaped binding '
+              '(#1031): its imports cannot resolve there',
+        );
+      },
+    );
+
+    test(
+      '#1031: simulation index registers the service-shaped binding',
+      () async {
+        await runServiceMockCreate();
+
+        final index = simulationIndexFile();
+        expect(index.existsSync(), isTrue);
+        final content = index.readAsStringSync();
+        expect(content, contains('registerAuthSimulationService(getIt);'));
+        expect(content, contains("import 'auth_simulation_service_di.dart';"));
+      },
+    );
+
+    test(
+      '#1031: datasource lane unchanged — entity-mode mock create never emits the service shape',
+      () async {
+        await runMockCreate('Todo');
+
+        expect(simulationBindingFile('todo').existsSync(), isTrue);
+        expect(
+          File(
+            '$outputDir/di/simulation/todo_simulation_service_di.dart',
+          ).existsSync(),
+          isFalse,
+          reason: 'without a service the datasource shape stays authoritative',
+        );
+      },
+    );
+  });
+
   group('U5: real adapters under the simulation flavor', () {
     test(
       'U5: real datasource registration is guarded against the simulation flavor',

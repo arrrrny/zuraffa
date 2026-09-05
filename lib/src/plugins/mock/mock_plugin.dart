@@ -272,7 +272,54 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             options: options,
             fileSystem: fs,
           );
-          final binding = await emitter.emitBinding(entityName: entityName);
+          // Issue #1031: the simulation binding must follow the shape the
+          // mock lane actually generated. Service mode emits
+          // `<Name>Service` + `<Name>MockProvider` and never a datasource
+          // pair, so it gets the service-shaped binding
+          // (`<Name>Service` -> `<Name>MockProvider`); the datasource shape
+          // (`<Entity>DataSource` -> `<Entity>MockDataSource`) stays
+          // authoritative for the entity/datasource lane only.
+          final serviceName = config.effectiveService;
+          final serviceSnake = config.serviceSnake;
+          final providerName = config.effectiveProvider;
+          final GeneratedFile binding;
+          if (config.hasService &&
+              serviceName != null &&
+              serviceSnake != null &&
+              providerName != null) {
+            // Mirror DiPlugin._generateServiceDI's import resolution:
+            // prefer the domain-scoped service file when it exists on
+            // disk, else the domain-less layout.
+            final domainServicePath = path.join(
+              outputDir,
+              'domain',
+              'services',
+              config.effectiveDomain,
+              '${serviceSnake}_service.dart',
+            );
+            final serviceImport = await fs.exists(domainServicePath)
+                ? '../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
+                : '../../domain/services/${serviceSnake}_service.dart';
+            // MockProviderBuilder always writes the mock provider under
+            // data/providers/<domain>/ in service mode (`hasService`).
+            final mockProviderName = providerName.replaceAll(
+              'Provider',
+              'MockProvider',
+            );
+            final mockProviderSnake = StringUtils.camelToSnake(
+              mockProviderName,
+            );
+            final mockProviderImport =
+                '../../data/providers/${config.effectiveDomain}/$mockProviderSnake.dart';
+            binding = await emitter.emitServiceBinding(
+              serviceName: serviceName,
+              mockProviderName: mockProviderName,
+              serviceImport: serviceImport,
+              mockProviderImport: mockProviderImport,
+            );
+          } else {
+            binding = await emitter.emitBinding(entityName: entityName);
+          }
           files.add(binding);
           final simulationIndex = await emitter.regenerateIndex(
             pendingFiles: [binding],
