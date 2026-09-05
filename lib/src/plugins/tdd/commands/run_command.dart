@@ -114,6 +114,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
 import '../services/cycle_evidence.dart';
+import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/corpus_baseline_cache.dart';
@@ -380,9 +381,11 @@ class RunCommand extends Command<void> {
     //     spec), the driver creates every entity that does not exist
     //     yet — idempotently: an existing entity file is REUSED, never
     //     regenerated over hand-tuned fields — and runs `zfa build`
-    //     ONCE, BEFORE any behavior is driven. A feature without
-    //     declared entities runs no phase-0 spawn at all (every pre-829
-    //     run is unchanged).
+    //     ONCE, BEFORE any behavior is driven (with --no-analyze, bug
+    //     #991: the target repo's pre-existing warnings are not this
+    //     run's verdict — analyze belongs in verify/refactor steps). A
+    //     feature without declared entities runs no phase-0 spawn at
+    //     all (every pre-829 run is unchanged).
     // ---------------------------------------------------------------
     if (anyMakeOutstanding) {
       final declaredEntities = await TestListReader(featureDir).readEntities();
@@ -1096,6 +1099,54 @@ class RunCommand extends Command<void> {
       print('[run] ${row.id} $step -> ${result.outcome}$progressSuffix');
 
       if (!result.success) {
+        // Bug #986: `skipped` — make's issue #694 skip transition (the
+        // target test already passes, generation skipped by design) — is a
+        // TERMINAL make success, never a step failure. StepRunner grades
+        // the exit-0 skip as success; this mapping closes the fall-through
+        // for a skipped token whose exit code disagrees (binary skew, or
+        // the #657/#694-era drift contract where the already-green report
+        // exited non-zero): make's outcome token is the step's own
+        // terminal classification, and halting the feature on an
+        // already-green behavior is the #693/#694 deadlock family. Record
+        // the green evidence when make's write did not land (idempotent —
+        // never a duplicate, the #693 driver-recorded pattern), advance
+        // the behavior GREEN, and let refactor proceed as usual.
+        if (step == 'make' && result.outcome == 'skipped') {
+          if (!await _hasEvidence(evidence.greenEvidence, row.id)) {
+            await CycleLog(p.join(projectRoot, 'specs', feature)).append(
+              CycleLogEntry(
+                behaviorId: row.id,
+                kind: CycleEntryKind.green,
+                runnerCommand: 'zfa tdd make ${row.id} (skipped)',
+                exitCode: result.exitCode,
+                capturedOutput:
+                    'skipped — the target test already passes (issue #694 '
+                    'skip transition); green evidence recorded by the run '
+                    'driver (bug #986) because make did not write it. Exit '
+                    'code ${result.exitCode} disagrees with the outcome '
+                    'token; the token is the terminal classification.\n'
+                    '${result.output.split('\n').take(2).join('\n')}',
+                sourceCriterion: row.traces,
+                testPath: 'test/',
+                timestamp: DateTime.now().toUtc().toIso8601String(),
+              ),
+            );
+          }
+          final next = _maxState(state, _targetStateFor(step));
+          updated = updated.advance(row.id, next);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
+          state = next;
+          print('[run] ${row.id} make -> green (skipped)$progressSuffix');
+          if (result.exitCode != 0) {
+            print(
+              '   exit code ${result.exitCode} disagrees with '
+              'outcome=skipped — the token is the terminal skip transition '
+              '(issue #694); advancing (bug #986).',
+            );
+          }
+          continue;
+        }
         // Bug #625/#657 deferral: a make reporting `unexpressible` is the
         // planner's by-design refusal for descriptions no generator
         // surface maps — acceptance prose (bug #625) or a unit
@@ -1395,10 +1446,15 @@ class RunCommand extends Command<void> {
 
   /// Bug #829 phase 0 — create every declared entity that does not
   /// exist yet (idempotent reuse: an existing entity file is never
-  /// regenerated over hand-tuned fields), then run `zfa build` ONCE
-  /// when at least one entity was created. Returns the honest [_Stop]
-  /// when a spawn fails or hangs; null when phase 0 completed (or had
-  /// nothing to do).
+  /// regenerated over hand-tuned fields), then run `zfa build --no-analyze`
+  /// ONCE when at least one entity was created (bug #991: the default
+  /// `--analyze` gate makes the phase-0 build exit 1 on the target
+  /// repo's pre-existing analyze warnings — unused imports, dead code —
+  /// even when everything compiles, so the run dies with runner-error
+  /// before any behavior is driven; analyze is enforced by the
+  /// verify/refactor steps, not the phase-0 build gate). Returns the
+  /// honest [_Stop] when a spawn fails or hangs; null when phase 0
+  /// completed (or had nothing to do).
   Future<_Stop?> _runEntityPhaseZero({
     required String projectRoot,
     required List<DeclaredEntity> entities,
@@ -1488,7 +1544,11 @@ class RunCommand extends Command<void> {
     }
     ProcessResult build;
     try {
-      build = await spawn(const ['build']);
+      // Bug #991: --no-analyze — the phase-0 build is a generation gate,
+      // not an analysis gate. Pre-existing warnings in the target repo
+      // (unused imports, dead code) must not fail the run before any
+      // behavior is driven; verify/refactor keep their own analyze.
+      build = await spawn(const ['build', '--no-analyze']);
     } on ProcessTimeoutException {
       print(
         '[run] phase-0 build -> failed (timed out after '

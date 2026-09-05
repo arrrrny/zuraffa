@@ -22,6 +22,7 @@ import 'builders/service_locator_builder.dart';
 import 'builders/simulation_binding_builder.dart';
 import 'capabilities/create_di_capability.dart';
 import 'capabilities/register_capability.dart';
+import 'capabilities/verify_capability.dart';
 import 'detectors/registration_detector.dart';
 
 /// Configures dependency injection registrations for generated code.
@@ -51,6 +52,8 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   List<ZuraffaCapability> get capabilities => [
     CreateDiCapability(this),
     RegisterCapability(this),
+    // Spec 0974 (issue #974): the verify gate — `zfa di verify`.
+    DiVerifyCapability(this),
   ];
 
   @override
@@ -1775,7 +1778,16 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     if (await fileSystem.exists(serviceLocatorPath) && !options.force) {
-      return null;
+      // Spec 0974 (issue #974, order 4): a shared artifact kept from a
+      // previous run must be REPORTED as skipped, not silently dropped
+      // from the run's file list — capabilities surface it as a
+      // structured {target, reason} warning so callers can decide to
+      // re-run with --force.
+      return GeneratedFile(
+        path: serviceLocatorPath,
+        type: 'di_service_locator',
+        action: 'skipped',
+      );
     }
 
     final content = serviceLocatorBuilder.build();

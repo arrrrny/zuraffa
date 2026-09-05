@@ -1,0 +1,3 @@
+00:00 +0: loading test/tdd/0966-typed-ledger-rows/t007_verb_matrix_test.dart
+00:00 +0: T7 (FR-005) T7 - the full plan-time verb→kind matrix: every branch classifies and the precedence rules hold (sequence > navigation > absence > state > presence).
+00:00 +1: All tests passed!

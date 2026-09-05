@@ -1,0 +1,236 @@
+{
+  "feature": "0970-mock-a-plus-upgrade",
+  "records": [
+    {
+      "behavior_id": "A1",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "AC-1",
+      "test_path": "test/plugins/mock/mock_command_exit_test.dart",
+      "subject_path": "lib/src/commands/mock_command.dart",
+      "runnable_test_name": "test/plugins/mock/mock_command_exit_test.dart::A1::A1: zfa mock json with no entity survives in-process and sets exit 64",
+      "test_ownership": "created",
+      "subject_ownership": "reused",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "A1b",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "AC-1",
+      "test_path": "test/plugins/mock/mock_command_exit_test.dart",
+      "subject_path": "lib/src/commands/mock_command.dart",
+      "runnable_test_name": "test/plugins/mock/mock_command_exit_test.dart::A1b::A1b: a follow-up command still runs in the same host process after the usage refusal (no process death)",
+      "test_ownership": "created",
+      "subject_ownership": "reused",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "A2",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "AC-2",
+      "test_path": "test/plugins/mock/mock_json_output_test.dart",
+      "subject_path": "lib/src/commands/mock_command.dart",
+      "runnable_test_name": "test/plugins/mock/mock_json_output_test.dart::A2::A2: zfa mock create Product --json prints the exact envelope schema",
+      "test_ownership": "created",
+      "subject_ownership": "reused",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "A3a",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "AC-2",
+      "test_path": "test/plugins/mock/mock_json_output_test.dart",
+      "subject_path": "lib/src/commands/mock_command.dart",
+      "runnable_test_name": "test/plugins/mock/mock_json_output_test.dart::A3a::A3a: zfa mock data Product --json prints the same envelope schema",
+      "test_ownership": "created",
+      "subject_ownership": "reused",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "A3b",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "AC-2",
+      "test_path": "test/plugins/mock/mock_json_output_test.dart",
+      "subject_path": "lib/src/plugins/mock/mock_plugin.dart",
+      "runnable_test_name": "test/plugins/mock/mock_json_output_test.dart::A3b::A3b: zfa mock json Product --json prints the same envelope schema",
+      "test_ownership": "created",
+      "subject_ownership": "reused",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "A2b",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "AC-2",
+      "test_path": "test/plugins/mock/mock_json_output_test.dart",
+      "subject_path": "lib/src/commands/mock_command.dart",
+      "runnable_test_name": "test/plugins/mock/mock_json_output_test.dart::A2b::A2b: --json failure path keeps a non-zero exit code (no lying exit 0)",
+      "test_ownership": "created",
+      "subject_ownership": "reused",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "A4",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "AC-3",
+      "test_path": "test/plugins/mock/mock_certification_receipt_test.dart",
+      "subject_path": "lib/src/plugins/mock/services/mock_certification.dart",
+      "runnable_test_name": "test/plugins/mock/mock_certification_receipt_test.dart::A4::A4: zfa mock create Product writes .zfa/receipts/mock-product.json with methods-vs-interface, fixture hashes and the registry id",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "A4b",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "AC-3",
+      "test_path": "test/plugins/mock/mock_certification_receipt_test.dart",
+      "subject_path": "lib/src/core/project/receipt_store.dart",
+      "runnable_test_name": "test/plugins/mock/mock_certification_receipt_test.dart::A4b::A4b: mock data and mock json generations write their receipts too",
+      "test_ownership": "created",
+      "subject_ownership": "reused",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "A5",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "AC-3",
+      "test_path": "test/plugins/mock/mock_certification_receipt_test.dart",
+      "subject_path": "lib/src/core/project/receipt_store.dart",
+      "runnable_test_name": "test/plugins/mock/mock_certification_receipt_test.dart::A5::A5: zfa proof check is green on fresh generation and red on hand-edit",
+      "test_ownership": "created",
+      "subject_ownership": "reused",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "A5b",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "AC-3",
+      "test_path": "test/plugins/mock/mock_certification_receipt_test.dart",
+      "subject_path": "lib/src/commands/mock_command.dart",
+      "runnable_test_name": "test/plugins/mock/mock_certification_receipt_test.dart::A5b::A5b: the envelope certification.receipt names the receipt path",
+      "test_ownership": "created",
+      "subject_ownership": "reused",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "A6",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "AC-4",
+      "test_path": "test/plugins/mock/mock_certify_gate_test.dart",
+      "subject_path": "lib/src/plugins/mock/services/mock_certification.dart",
+      "runnable_test_name": "test/plugins/mock/mock_certify_gate_test.dart::A6::A6: --certify fails (exit 1 + --> fix:) on a deliberately drifted mock",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "A7",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "AC-4",
+      "test_path": "test/plugins/mock/mock_certify_gate_test.dart",
+      "subject_path": "lib/src/plugins/mock/services/mock_certification.dart",
+      "runnable_test_name": "test/plugins/mock/mock_certify_gate_test.dart::A7::A7: --certify passes (exit 0) on a conforming mock",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "U6",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "FR-004",
+      "test_path": "test/plugins/mock/mock_certify_gate_test.dart",
+      "subject_path": "lib/src/plugins/mock/services/mock_certification.dart",
+      "runnable_test_name": "test/plugins/mock/mock_certify_gate_test.dart::U6::U6: the gate surfaces scoped-analyze errors as fix lines even when the structural check passes",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "U5",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "FR-004",
+      "test_path": "test/plugins/mock/mock_certify_gate_test.dart",
+      "subject_path": "lib/src/plugins/mock/services/mock_certification.dart",
+      "runnable_test_name": "test/plugins/mock/mock_certify_gate_test.dart::U5::U5: the certifier names interface members missing from the mock class",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "A8",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "AC-5",
+      "test_path": "test/plugins/mock/mock_provider_builder_suite_test.dart",
+      "subject_path": "lib/src/plugins/mock/builders/mock_provider_builder.dart",
+      "runnable_test_name": "test/plugins/mock/mock_provider_builder_suite_test.dart::A8::the provider builder suite (10 behavioral tests, all asserting file content)",
+      "test_ownership": "created",
+      "subject_ownership": "reused",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "U7",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "FR-005",
+      "test_path": "test/plugins/mock/mock_provider_builder_suite_test.dart",
+      "subject_path": "lib/src/plugins/mock/builders/mock_provider_builder.dart",
+      "runnable_test_name": "test/plugins/mock/mock_provider_builder_suite_test.dart::U7::U7: service-mode conformance, primitives, DateTime",
+      "test_ownership": "created",
+      "subject_ownership": "reused",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "U8",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "FR-005",
+      "test_path": "test/plugins/mock/mock_provider_builder_suite_test.dart",
+      "subject_path": "lib/src/plugins/mock/builders/mock_provider_builder.dart",
+      "runnable_test_name": "test/plugins/mock/mock_provider_builder_suite_test.dart::U8::U8: entity-CRUD, append-to-existing, lifecycle, negatives",
+      "test_ownership": "created",
+      "subject_ownership": "reused",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "U1",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "FR-001",
+      "test_path": "test/plugins/mock/mock_command_exit_test.dart",
+      "subject_path": "lib/src/commands/mock_command.dart",
+      "runnable_test_name": "test/plugins/mock/mock_command_exit_test.dart::U1::U1: JsonMockCommand usage-error path sets exitCode = 64 and returns",
+      "test_ownership": "created",
+      "subject_ownership": "reused",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "U2",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "FR-002",
+      "test_path": "test/plugins/mock/mock_json_output_test.dart",
+      "subject_path": "lib/src/commands/mock_command.dart",
+      "runnable_test_name": "test/plugins/mock/mock_json_output_test.dart::U2::U2: the envelope files[] entries and actions counts",
+      "test_ownership": "created",
+      "subject_ownership": "reused",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "U3",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "FR-003",
+      "test_path": "test/plugins/mock/mock_certification_receipt_test.dart",
+      "subject_path": "lib/src/core/project/receipt_store.dart",
+      "runnable_test_name": "test/plugins/mock/mock_certification_receipt_test.dart::U3::U3: the certification receipt is a proof.v1 GenerationReceipt with sha256 digests of the final on-disk bytes",
+      "test_ownership": "created",
+      "subject_ownership": "reused",
+      "created_at": "2026-09-04T19:20:00Z"
+    },
+    {
+      "behavior_id": "U4",
+      "feature": "0970-mock-a-plus-upgrade",
+      "source_criterion": "FR-003",
+      "test_path": "test/plugins/mock/mock_certification_receipt_test.dart",
+      "subject_path": "lib/src/plugins/mock/services/mock_certification.dart",
+      "runnable_test_name": "test/plugins/mock/mock_certification_receipt_test.dart::U4::U4: the certification registry id derives from the certified surface",
+      "test_ownership": "created",
+      "subject_ownership": "reused",
+      "created_at": "2026-09-04T19:20:00Z"
+    }
+  ]
+}

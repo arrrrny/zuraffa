@@ -38,10 +38,11 @@ class PreflightResult {
     required this.exitCode,
     required this.output,
     this.timedOut = false,
+    this.failedToLoad = false,
     this.ranTestPaths = const [],
   });
 
-  /// 0 = green, non-zero = red.
+  /// 0 = green, non-zero = red or load failure.
   final int exitCode;
 
   /// Captured stdout from the preflight run.
@@ -51,6 +52,13 @@ class PreflightResult {
   /// (bug #742): an infrastructure failure — the tests never finished, so
   /// the audit is NOT_ASSESSED, never `preflight_red`.
   final bool timedOut;
+
+  /// True when the preflight child could not LOAD/COMPILE the test file
+  /// (issue #1045): the same infrastructure class as [timedOut] — the
+  /// tests never RAN, so the audit is NOT_ASSESSED with a `--> fix:` line,
+  /// never `preflight_red` (which would claim an honest red and mislead
+  /// downstream tooling in the wrong direction entirely).
+  final bool failedToLoad;
 
   /// The per-behavior test files actually executed before the verdict
   /// (bug #924). Empty when the preflight did not run any per-behavior
@@ -76,6 +84,19 @@ class PreflightResult {
   }) => PreflightResult(
     exitCode: exitCode,
     output: output,
+    ranTestPaths: ranTestPaths,
+  );
+
+  /// Issue #1045: the child reported a load/compile failure — the tests
+  /// never ran (infrastructure), which is NOT_ASSESSED, never a red.
+  factory PreflightResult.loadFailure({
+    required int exitCode,
+    required String output,
+    List<String> ranTestPaths = const [],
+  }) => PreflightResult(
+    exitCode: exitCode,
+    output: output,
+    failedToLoad: true,
     ranTestPaths: ranTestPaths,
   );
 }
@@ -524,6 +545,35 @@ class MutationAuditor {
         preflightScopeRan: preflight.ranTestPaths,
       );
     }
+    if (preflight.failedToLoad) {
+      // Issue #1045: the preflight child could not LOAD/COMPILE the test
+      // files — infrastructure, the same class as the #742 timeout. The
+      // tests never ran, so this is NOT_ASSESSED: `preflight_red` would
+      // claim an honest red (and mislead downstream tooling in the wrong
+      // direction entirely — the suite may be green under the correct
+      // runner).
+      return MutationAuditReport(
+        feature: p.basename(featureDir),
+        gate: MutationGateDecision.notAssessed,
+        killedCount: 0,
+        survivedCount: 0,
+        timedOutCount: 0,
+        behaviorIds: scope.behaviorIds,
+        sourceCriteriaByBehavior: scope.sourceCriteriaByBehavior,
+        mutationWasRun: false,
+        restorationVerified: true,
+        restorationScope: const [],
+        notAssessedReason:
+            'preflight could not load/compile the test files — a '
+            'runner/compile problem, NOT an honest red --> fix: check the '
+            'named file and the runner (issue #1044: the runner resolves '
+            'from .specify/memory/tdd-profile.md; override with --runner '
+            'dart|flutter)',
+        runnerCommand: 'dart test ${scope.testPaths.join(' ')}',
+        preflightOutput: preflight.output,
+        preflightScopeRan: preflight.ranTestPaths,
+      );
+    }
     if (!preflight.isGreen) {
       return MutationAuditReport(
         feature: p.basename(featureDir),
@@ -762,7 +812,17 @@ class MutationAuditor {
       combined.write(fileResult.output);
       if (!fileResult.isGreen) {
         // Fail fast: the preflight only needs a green/red verdict, and
-        // the first red file already decides it (bug #924).
+        // the first red file already decides it (bug #924). Issue
+        // #1045: the CLASS travels — a load/compile failure is
+        // infrastructure (the tests never ran), not an honest red, and
+        // the phase verdict must say so.
+        if (fileResult.failedToLoad) {
+          return PreflightResult.loadFailure(
+            exitCode: fileResult.exitCode,
+            output: combined.toString(),
+            ranTestPaths: List.unmodifiable(ran),
+          );
+        }
         return PreflightResult.red(
           exitCode: fileResult.exitCode,
           output: combined.toString(),
@@ -891,12 +951,46 @@ class MutationAuditor {
 /// (bug #924, mutation finding M-1): factored out of the spawn path so the
 /// fast tier pins the green/red classification directly — the real spawn
 /// path is otherwise only driven by the integration tier.
+///
+/// Issue #1045: the classification is honest by construction — a non-zero
+/// exit is only an honest RED when the tests actually RAN and failed
+/// (`Some tests failed` / `[E]` lines, no load markers). A load/compile
+/// failure (`Failed to load`, `compilation failed`) is infrastructure —
+/// the same class as the #742 timeout — and an unrecognizable output is
+/// an honest unknown. Both surface as a load failure (NOT_ASSESSED),
+/// never as an invented red. Load markers win over the terminal
+/// `Some tests failed.` line: a child whose file failed to load prints
+/// BOTH.
 PreflightResult preflightFileResultFromProcess({
   required int exitCode,
   required String output,
-}) => exitCode == 0
-    ? PreflightResult.green(exitCode: 0, output: output)
-    : PreflightResult.red(exitCode: exitCode, output: output);
+}) {
+  if (exitCode == 0) {
+    return PreflightResult.green(exitCode: 0, output: output);
+  }
+  if (preflightOutputIndicatesLoadFailure(output)) {
+    return PreflightResult.loadFailure(exitCode: exitCode, output: output);
+  }
+  if (preflightOutputIndicatesAssertionsRan(output)) {
+    return PreflightResult.red(exitCode: exitCode, output: output);
+  }
+  // No recognizable signature: the tests' state is unknown — an honest
+  // NOT_ASSESSED beats an invented red (FR-008's spirit, at the verdict
+  // boundary).
+  return PreflightResult.loadFailure(exitCode: exitCode, output: output);
+}
+
+/// Load/compile failure signatures across the dart/flutter test runners.
+bool preflightOutputIndicatesLoadFailure(String output) {
+  final lower = output.toLowerCase();
+  return lower.contains('failed to load') ||
+      lower.contains('compilation failed') ||
+      lower.contains('error: compilation');
+}
+
+/// Assertion-failure signatures: the tests compiled, ran, and failed.
+bool preflightOutputIndicatesAssertionsRan(String output) =>
+    output.contains('Some tests failed') || output.contains('[E]');
 
 /// Builds the feature-scoped mutation_test config for `zfa tdd verify`
 /// (bug #837).
