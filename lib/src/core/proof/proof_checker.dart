@@ -72,6 +72,9 @@ class ProofReport {
   Map<String, dynamic> toJson() => {
     'schema': schema,
     'ok': ok,
+    // Issue #996: the machine verdict also speaks `valid` — agents and
+    // CI read one field for both proof families (make + capability).
+    'valid': ok,
     'receipts': receipts,
     'filesChecked': filesChecked,
     'findings': findings.map((f) => f.toJson()).toList(),
