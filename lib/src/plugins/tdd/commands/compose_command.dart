@@ -434,6 +434,12 @@ class ComposeCommand extends Command<void> {
 // real green transition lands when those unit subjects are filled with
 // business logic in later cycles. Extend the body with real behavior in
 // later cycles — the paired test file is immutable (044 ownership).
+//
+// The subject name is derived from the behavior id (`subject_${record.behaviorId.toLowerCase()}`) and is
+// deliberately snake_cased — the generator KNOWS the name it emits, so
+// the lint its shape provably trips is suppressed here rather than
+// renaming the contract surface (issue #1035).
+// ignore_for_file: non_constant_identifier_names
 library;
 
 $imports

@@ -278,4 +278,155 @@ dependencies:
       }, timeout: const Timeout(Duration(minutes: 3)));
     }
   });
+
+  group('issue #1035 — generated tests are lint-clean', () {
+    test('unit-lane capture drops the explicit nullable annotation '
+        '(unnecessary_nullable_for_final_variable_declarations)', () async {
+      final behavior = Behavior(
+        id: 'U1',
+        feature: '1035-lint-repro',
+        kind: BehaviorKind.unit,
+        description: 'returns 42 when invoked with no args',
+        sourceCriterion: 'FR-007',
+        target: 'subject_u1',
+      );
+      final testPath = p.join(tmpDir.path, 'u1_test.dart');
+      final subjectPath = p.join(tmpDir.path, 'u1_subject.dart');
+      await const BehaviorTestWriter().write(
+        behavior: behavior,
+        testPath: testPath,
+        subjectPath: subjectPath,
+      );
+      final content = await File(testPath).readAsString();
+      // The unit capture's initializer is provably non-nullable, so the
+      // explicit `Object?` annotation trips the nullable-final lint.
+      expect(content, contains('final result = (() {'));
+      expect(content, isNot(contains('final Object? result')));
+    });
+
+    test('acceptance-lane capture keeps the nullable annotation its '
+        'initializer can match (the capture CAN be null)', () async {
+      final behavior = Behavior(
+        id: 'A1',
+        feature: '1035-lint-repro',
+        kind: BehaviorKind.acceptance,
+        description: 'the session starts.',
+        sourceCriterion: 'AC-1',
+        target: 'subject_a1',
+      );
+      final testPath = p.join(tmpDir.path, 'a1_test.dart');
+      final subjectPath = p.join(tmpDir.path, 'a1_subject.dart');
+      await const BehaviorTestWriter().write(
+        behavior: behavior,
+        testPath: testPath,
+        subjectPath: subjectPath,
+      );
+      final content = await File(testPath).readAsString();
+      expect(content, contains('final Object? result = (() {'));
+    });
+
+    test(
+      'test imports the subject through a package: URI when the '
+      'project pubspec names the package (avoid_relative_lib_imports)',
+      () async {
+        // A real project layout: pubspec at the root, the subject under
+        // lib/tdd/<feature>/, the test under test/tdd/<feature>/.
+        final projectRoot = tmpDir;
+        Directory(
+          p.join(projectRoot.path, 'lib', 'tdd', '1035-lint-repro'),
+        ).createSync(recursive: true);
+        final behavior = Behavior(
+          id: 'U1',
+          feature: '1035-lint-repro',
+          kind: BehaviorKind.unit,
+          description: 'returns 42 when invoked with no args',
+          sourceCriterion: 'FR-007',
+          target: 'subject_u1',
+        );
+        final subjectPath = p.join(
+          projectRoot.path,
+          'lib',
+          'tdd',
+          '1035-lint-repro',
+          'u1_subject.dart',
+        );
+        final testPath = p.join(
+          projectRoot.path,
+          'test',
+          'tdd',
+          '1035-lint-repro',
+          'u1_test.dart',
+        );
+        await const SubjectWriter().write(
+          behavior: behavior,
+          subjectPath: subjectPath,
+        );
+        await File(
+          p.join(projectRoot.path, 'pubspec.yaml'),
+        ).writeAsString('name: my_app\nenvironment:\n  sdk: ^3.11.0\n');
+        await const BehaviorTestWriter().write(
+          behavior: behavior,
+          testPath: testPath,
+          subjectPath: subjectPath,
+        );
+        final content = await File(testPath).readAsString();
+        expect(
+          content,
+          contains(
+            "import 'package:my_app/tdd/1035-lint-repro/u1_subject.dart' "
+            'as subject;',
+          ),
+        );
+        expect(content, isNot(contains("import '../../../lib/")));
+      },
+    );
+
+    test('falls back to the relative import when no pubspec names the '
+        'package (portable fixture shape)', () async {
+      final behavior = Behavior(
+        id: 'U2',
+        feature: '1035-lint-repro',
+        kind: BehaviorKind.unit,
+        description: 'returns 7 when invoked',
+        sourceCriterion: 'FR-008',
+        target: 'subject_u2',
+      );
+      final testPath = p.join(tmpDir.path, 'u2_test.dart');
+      final subjectPath = p.join(tmpDir.path, 'u2_subject.dart');
+      await const BehaviorTestWriter().write(
+        behavior: behavior,
+        testPath: testPath,
+        subjectPath: subjectPath,
+      );
+      final content = await File(testPath).readAsString();
+      // No pubspec.yaml anywhere above the tmp fixture — the legacy
+      // relative shape is kept so the pair still resolves.
+      expect(content, contains("import '"));
+      expect(content, contains('u2_subject.dart'));
+    });
+
+    test('a double quote in the description reaches the literal unescaped '
+        '(unnecessary_string_escapes)', () async {
+      final behavior = Behavior(
+        id: 'A2',
+        feature: '1035-lint-repro',
+        kind: BehaviorKind.acceptance,
+        description: 'shows the "quota exceeded" label.',
+        sourceCriterion: 'AC-2',
+        target: 'subject_a2',
+      );
+      final testPath = p.join(tmpDir.path, 'a2_test.dart');
+      final subjectPath = p.join(tmpDir.path, 'a2_subject.dart');
+      await const BehaviorTestWriter().write(
+        behavior: behavior,
+        testPath: testPath,
+        subjectPath: subjectPath,
+      );
+      final content = await File(testPath).readAsString();
+      // Inside a single-quoted literal a double quote needs no escape —
+      // emitting `\"` would trip unnecessary_string_escapes.
+      expect(content, contains('shows the "quota exceeded" label.'));
+      expect(content, isNot(contains(r'\"')));
+    });
+  });
 }

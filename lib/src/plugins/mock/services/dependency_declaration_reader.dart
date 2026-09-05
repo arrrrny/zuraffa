@@ -7,7 +7,6 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-import '../../tdd/models/behavior.dart' show SpecDependency;
 import '../../tdd/services/spec_parser.dart';
 import '../../tdd/services/test_list_reader.dart';
 

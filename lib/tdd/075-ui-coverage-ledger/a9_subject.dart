@@ -2,7 +2,6 @@ library;
 
 import 'package:test/test.dart';
 import 'sandbox_fixture.dart';
-import 'package:zuraffa/src/tdd/services/xray_ledger_binding.dart';
 
 Object? subject_a9() {
   final ledger = fixtureLedger();
