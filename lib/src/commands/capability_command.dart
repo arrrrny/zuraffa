@@ -220,7 +220,35 @@ class CapabilityCommand extends Command<void> {
         }
       }
       if (missing.isNotEmpty) {
-        print('❌ Error: Missing required arguments: ${missing.join(', ')}');
+        // Issue #978: error paths are machine-actionable. Every refusal
+        // ends with a `--> fix:` line naming the invocation + the missing
+        // required flags (the VISION.md verdict protocol), and machine
+        // mode (`--json`) gets a single parseable verdict object instead
+        // of prose (issue #778).
+        final fixFlags = missing
+            .map((key) {
+              final flag = key.contains('-')
+                  ? key
+                  : StringUtils.camelToSnake(key).replaceAll('_', '-');
+              return '--$flag <$flag>';
+            })
+            .join(' ');
+        final commandPath = parent != null ? '${parent!.name} $name' : name;
+        final fix = 'zfa $commandPath $fixFlags';
+        final machineMode = argResults?['json'] != null;
+        if (machineMode) {
+          print(
+            jsonEncode({
+              'schema': 1,
+              'ok': false,
+              'error': 'Missing required arguments: ${missing.join(', ')}',
+              'fix': fix,
+            }),
+          );
+        } else {
+          print('❌ Error: Missing required arguments: ${missing.join(', ')}');
+        }
+        print('   --> fix: $fix');
         exitCode = 64;
         return;
       }
@@ -250,6 +278,25 @@ class CapabilityCommand extends Command<void> {
       );
       final result = await wrapper.execute(args);
       if (result.success) {
+        // Issue #978: machine verdict mode. When the caller passed `--json`
+        // (the machine-input channel) and the capability returned a
+        // structured `verdict` in its result data, print exactly one
+        // parseable verdict object (issue #778 convention — no prose) and
+        // set the exit code from the verdict's own `ok` flag. Capabilities
+        // without a verdict keep the prose path unchanged.
+        final machineMode = argResults?['json'] != null;
+        final verdict = result.data?['verdict'];
+        if (machineMode && verdict is Map<String, dynamic>) {
+          print(jsonEncode(verdict));
+          final ok = verdict['ok'] == true;
+          if (!ok) {
+            final fix = verdict['fix'];
+            print('   --> fix: $fix');
+          }
+          exitCode = ok ? 0 : 1;
+          return;
+        }
+
         // Spec 0974: the #769 zero-files guard only applies to GENERATOR
         // capabilities — the ones that report their artifacts under
         // data['generatedFiles']. Read-only capabilities (e.g. the

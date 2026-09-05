@@ -443,6 +443,22 @@ class ProviderBuilder {
           ),
         );
         break;
+      // Issue #978 (make-triad consistency): `toggle` is part of the
+      // entity-methods default (['get', 'update', 'toggle']) the service
+      // interface builder mirrors — the provider implementation must carry
+      // the same member or the #921 conformance guard fails the make run.
+      // Signature mirrors the service builder's toggle case exactly.
+      case 'toggle':
+        returnType = refer('Future<$entityName>');
+        final fieldEnum = 'Field<$entityName, dynamic>';
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer('ToggleParams<${config.idFieldType}, $fieldEnum>'),
+          ),
+        );
+        break;
       case 'watch':
         returnType = refer('Stream<$entityName>');
         parameters.add(
