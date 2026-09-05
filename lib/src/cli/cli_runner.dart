@@ -10,6 +10,7 @@ import '../commands/validate_command.dart';
 import '../commands/create_command.dart' as create;
 import '../commands/config_command.dart' as config;
 import '../commands/corpus_command.dart';
+import '../commands/dream_command.dart';
 import '../commands/initialize_command.dart' as init;
 import '../commands/entity_command.dart';
 import '../commands/plugin_command.dart' as plugincmd;
@@ -179,6 +180,7 @@ class CliRunner {
     _runner.addCommand(CorpusCommand());
     _runner.addCommand(TddCommand(TddPlugin()));
     _runner.addCommand(ReplayCommand());
+    _runner.addCommand(DreamCommand());
     _runner.addCommand(AppCommand());
     _runner.addCommand(UiCommand());
     _runner.addCommand(PackageCommand());
