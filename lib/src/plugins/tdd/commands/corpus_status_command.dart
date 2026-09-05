@@ -216,10 +216,17 @@ class CorpusStatusCommand extends Command<void> {
     }
     print(
       '   ledger: found=${totals.found} filed=${totals.filed} '
-      'merged=${totals.merged} blocking=${totals.blocking.length}',
+      'merged=${totals.merged} blocking=${totals.blocking.length}'
+      // Issue #1007: contract-severity gaps are counted and ranked
+      // first — the highest-severity gaps head the blocking list.
+      '${totals.contract > 0 ? ' contract=${totals.contract}' : ''}',
     );
     for (final gap in totals.blocking) {
-      print('   blocking: ${gap.id} ${gap.feature} ${gap.step} ${gap.outcome}');
+      print(
+        '   blocking: ${gap.id} ${gap.feature} ${gap.step} '
+        '${gap.outcome}'
+        '${gap.severity != null ? ' [severity=${gap.severity!.label}]' : ''}',
+      );
     }
 
     // Per-feature coverage (bug #846): complete/total from the plan's

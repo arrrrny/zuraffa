@@ -103,8 +103,11 @@
 /// the final summary line
 /// `run: feature=<f> result=<r> pending=<n> red=<n> green=<n> done=<n>`
 /// plus ` skipped-widget=<n>` when `--skip-widget` recorded skips (issue
-/// #992) and ` stopped_at=<behavior>:<step>` when stopped. Exit codes:
-/// 0 complete, 1 stopped, 2 runner-error, 3 corrupt-state,
+/// #992) and ` stopped_at=<behavior>:<step>` when stopped. The result
+/// token `blocked` (issue #1007) is the contract-lane stop: a failing
+/// contract test is BLOCKED (not RED) and blocks the cycle from
+/// proceeding to GREEN. Exit codes:
+/// 0 complete, 1 stopped (and blocked), 2 runner-error, 3 corrupt-state,
 /// 4 concurrent-run — 0 means exactly "all DONE with complete evidence".
 library;
 
@@ -1309,6 +1312,41 @@ class RunCommand extends Command<void> {
           );
           return (state: updated, stop: null, refactorBlocked: false);
         }
+        // Issue #1007: a BLOCKED verify-red — the contract test failed
+        // through its case assertion, so the declared contract is
+        // unsatisfied. The stop is its own result token (`blocked`, the
+        // stopped exit class) because the semantics differ from a plain
+        // step stop: the cycle is BLOCKED FROM PROCEEDING TO GREEN —
+        // the behavior never reaches make while the contract is
+        // unsatisfied. The verify-red child already wrote the
+        // contract-blocked receipt and refused to certify a red (there
+        // is no honest red to certify); the run keeps the behavior at
+        // its pre-verify state (FR-007: never a fake state advance).
+        if (step == 'verify-red' && result.outcome == 'blocked') {
+          updated = updated.advance(row.id, state);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
+          print(
+            'zfa tdd run: contract blocked — behavior=${row.id} '
+            'step=verify-red outcome=blocked (issue #1007)',
+          );
+          print(
+            '   the declared contract is unsatisfied; the cycle cannot '
+            'proceed to GREEN. Implement the contract the behavior '
+            'declares (${row.traces}), then re-run `zfa tdd run $feature`.',
+          );
+          _printOutputExcerpt(result.output);
+          return (
+            state: updated,
+            stop: (
+              result: 'blocked',
+              stoppedAt: '${row.id}:$step',
+              exitCode: _exitStopped,
+              message: null,
+            ),
+            refactorBlocked: false,
+          );
+        }
         // Honest stop (FR-007): leave the behavior at its last completed
         // state, name what failed, never start later behaviors. A
         // runner-error outcome (spawn/tooling failure) is its own class
@@ -1701,6 +1739,9 @@ class RunCommand extends Command<void> {
       ..outcome = switch (result) {
         'complete' => VerdictOutcome.pass,
         'stopped' => VerdictOutcome.stopped,
+        // Issue #1007: the contract-lane block is a stop (the cycle
+        // cannot proceed to GREEN), never an error.
+        'blocked' => VerdictOutcome.stopped,
         _ => VerdictOutcome.error,
       }
       ..details['pending'] = pending

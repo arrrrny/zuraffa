@@ -56,6 +56,18 @@
 /// written by `zfa tdd fake <channel> --behavior <id>` — gen refuses a
 /// platform row whose scenario is missing. `zfa tdd make`/`run` stop
 /// honestly on platform ids (the planner does not express them yet).
+///
+/// CONTRACT KIND EXTENSION (issue #1007): a `## Contract loop:` section
+/// header marks CONTRACT TEST rows — one per declared entity method,
+/// controller method, or usecase. Plan derives them from the spec's
+/// Layer Contracts section (`contract:<L><n>` ids: A = entity method,
+/// C = controller method, U = usecase); the gen pair is a contract test
+/// scaffold enumerating the method cases. A `contract` kind cell on a
+/// deprecated 6-column row resolves through the enclosing Contract loop
+/// section (the extension test-shape cell `contract`, spec 050 FR-007,
+/// keeps its existing meaning everywhere else). The id's `:` separates
+/// the kind namespace from the contract number — a portable default
+/// target/file segment sanitizes it (`contract_a1`).
 library;
 
 import 'dart:io';
@@ -275,6 +287,12 @@ class TestListReader {
           // whose gen pair drives a platform channel through the certified
           // fake + committed scenario written by `zfa tdd fake`.
           kind = BehaviorKind.platform;
+        } else if (header.startsWith('contract loop')) {
+          // Contract-loop section (issue #1007): CONTRACT TEST behaviors —
+          // one row per declared entity method, controller method, or
+          // usecase. The gen pair enumerates the contract's cases; a
+          // failing case is BLOCKED, never RED.
+          kind = BehaviorKind.contract;
         } else {
           kind = null;
         }
@@ -594,15 +612,29 @@ class TestListReader {
   /// The subject function this behavior targets (moved from gen's private
   /// parser, bug #617): an explicit non-path cell wins; an empty or
   /// path-like cell (`/`, `::`, `$`) falls back to `subject_<snake-id>`.
+  ///
+  /// Issue #1007: contract ids carry the `contract:` kind namespace
+  /// (`contract:A1`), and `:` is neither a valid Dart identifier character
+  /// nor a portable file-name segment — the default target sanitizes it
+  /// (`subject_contract_a1`) so the generated pair compiles everywhere.
   static String resolveDefaultTarget(String id, {String cell = ''}) {
     final isPathLike =
         cell.isEmpty ||
         cell.contains('/') ||
         cell.contains('::') ||
         cell.contains(r'$');
-    if (isPathLike) return 'subject_${id.toLowerCase().replaceAll('-', '_')}';
+    if (isPathLike) {
+      return 'subject_${_sanitizeId(id)}';
+    }
     return cell;
   }
+
+  /// A behavior id sanitized into a portable identifier/file segment:
+  /// lowercase, `-`/space/`:` folded to `_` (issue #1007 — the `:` in
+  /// `contract:<id>` ids; no pre-1007 id could carry any of these,
+  /// so the mapping is purely additive).
+  static String _sanitizeId(String id) =>
+      id.toLowerCase().replaceAll('-', '_').replaceAll(':', '_');
 
   static BehaviorKind? _kindFromCell(String cell) {
     final kindStr = cell.toLowerCase();
@@ -622,6 +654,14 @@ class TestListReader {
     // Platform-harness kind cell (issue #831). Last: 'platform' shares no
     // substring with the kinds above, so ordering is purely cosmetic.
     if (kindStr.contains('platform')) return BehaviorKind.platform;
+    // Note (issue #1007): a `contract` kind cell is deliberately NOT
+    // matched here — the word collides with the tdd extension's
+    // test-SHAPE cell `contract` (spec 050 FR-007, specs/044-049), which
+    // the dialect-2 path must keep winning so those committed rows read
+    // silently exactly as before. The contract KIND is declared by the
+    // `## Contract loop:` section header (what plan writes); inside that
+    // section a 6-column extension-shape row already resolves as contract
+    // kind through the header.
     return null;
   }
 

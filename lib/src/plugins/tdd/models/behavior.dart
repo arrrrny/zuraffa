@@ -25,7 +25,16 @@ library;
 /// location). Its gen pair is a channel test that installs the certified
 /// fake (`zfa tdd fake`) and asserts on the OBSERVED calls — arguments
 /// recorded, ordering preserved — plus a channel-calling subject stub.
-enum BehaviorKind { acceptance, unit, widget, theme, ffi, platform }
+///
+/// `contract` (issue #1007): a CONTRACT TEST behavior — one declared
+/// entity method, controller method, or usecase, planned as a
+/// `contract:<id>` row from the spec's Layer Contracts section. Its gen
+/// pair is a contract test scaffold (NOT an implementation test): the
+/// test enumerates the contract's declared cases and asserts the
+/// implementation satisfies them. A failing case is a BLOCKED verdict
+/// (distinct from RED) — the cycle cannot proceed to GREEN while the
+/// declared contract is unsatisfied.
+enum BehaviorKind { acceptance, unit, widget, theme, ffi, platform, contract }
 
 enum BehaviorState { pending, red, green, mocked, done }
 

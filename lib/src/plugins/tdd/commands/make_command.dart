@@ -278,12 +278,20 @@ class MakeCommand extends Command<void> {
 
     // ---------------------------------------------------------------
     // 2. Precondition: certified-red evidence (FR-001, US2.AC1).
+    //    Issue #1007: the CONTRACT lane is exempt — a failing contract
+    //    test is BLOCKED (never a certified red; the
+    //    contract-blocked.<id>.json receipt is the evidence), so the
+    //    lane's rows carry no cycle-log red by design. The drift check
+    //    below (step 4) is the real gate: a satisfied contract takes
+    //    the issue #694 already-green skip transition, an unsatisfied
+    //    one fails it honestly.
     // ---------------------------------------------------------------
     final certifiedRed = await _hasCertifiedRed(
       target.featureDir,
       record.behaviorId,
     );
-    if (!certifiedRed) {
+    final isContract = await _isContractBehavior(cwd, record);
+    if (!certifiedRed && !isContract) {
       print(
         'zfa tdd make: behavior "${record.behaviorId}" has no certified-red '
         'evidence in cycle-log.md. Run `zfa tdd verify-red '
@@ -296,6 +304,13 @@ class MakeCommand extends Command<void> {
       );
       exitCode = 1;
       return;
+    }
+    if (!certifiedRed && isContract) {
+      print(
+        'zfa tdd make: behavior "${record.behaviorId}" is contract-kind — '
+        'the BLOCKED receipt (not a cycle-log red) is its evidence '
+        '(issue #1007); the drift check decides.',
+      );
     }
 
     // ---------------------------------------------------------------
@@ -1496,6 +1511,25 @@ class MakeCommand extends Command<void> {
 
   /// Whether [behaviorId] has a red entry in the feature's cycle-log
   /// (the precondition for `make` per FR-001).
+  /// Whether the behavior is contract-kind (issue #1007): the id's
+  /// `contract:` namespace or the generated pair's `// kind: contract`
+  /// header (the artifact declares its own kind).
+  Future<bool> _isContractBehavior(String cwd, ArtifactRecord record) async {
+    if (record.behaviorId.startsWith('contract:')) return true;
+    final testPath = p.isAbsolute(record.testPath)
+        ? record.testPath
+        : p.join(cwd, record.testPath);
+    try {
+      final content = await File(testPath).readAsString();
+      return RegExp(
+        r'^// kind: contract\s*$',
+        multiLine: true,
+      ).hasMatch(content);
+    } on FileSystemException {
+      return false;
+    }
+  }
+
   Future<bool> _hasCertifiedRed(String featureDir, String behaviorId) async {
     final file = File(p.join(featureDir, 'tdd', 'cycle-log.md'));
     if (!await file.exists()) return false;

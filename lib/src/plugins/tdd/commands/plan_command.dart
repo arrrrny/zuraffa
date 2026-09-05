@@ -372,11 +372,16 @@ class PlanCommand extends Command<void> {
     // WINS: the spec-derived behavior for that criterion is suppressed
     // (the explicit native declaration is the more specific contract).
     final preservedFfi = <BehaviorRow>[];
+    final preservedContract = <BehaviorRow>[];
     try {
       for (final row in await TestListReader(
         '$repoRoot/specs/$feature',
       ).read()) {
         if (row.kind == BehaviorKind.ffi) preservedFfi.add(row);
+        // Issue #1007: prior contract rows survive re-planning the same
+        // way — their state (RED/GREEN/DONE) is the implementer's
+        // progress against the declared contract and must never reset.
+        if (row.kind == BehaviorKind.contract) preservedContract.add(row);
       }
     } on TestListReadException catch (e) {
       stderr.writeln(
@@ -388,6 +393,14 @@ class PlanCommand extends Command<void> {
     final expressible = reconciled
         .where((b) => !ffiCriteria.contains(b.sourceCriterion))
         .toList();
+
+    // Issue #1007: the contract-test lane. One row per method declared in
+    // the spec's Layer Contracts section (`contract:<L><n>` ids); prior
+    // rows reconcile by traces so a progressed contract (a case the
+    // implementation already satisfies) keeps its id and state across
+    // re-planning, and a hand-added contract row whose criterion the
+    // spec no longer declares survives verbatim (the ffi-lane contract).
+    final contractRows = _contractRows(feature, specMd, preservedContract);
 
     // Feature 071 (issue #951): per-behavior routing provenance — the
     // resolver consults the parsed declarations; undeclared behaviors
@@ -456,7 +469,7 @@ class PlanCommand extends Command<void> {
     final lanes = const SpecParser().parseLanes(specMd);
     final laneResult = lanes.isEmpty
         ? null
-        : _resolveLanes(lanes, expressible, preservedFfi);
+        : _resolveLanes(lanes, expressible, preservedFfi, contractRows);
     if (laneResult != null && laneResult.refusals.isNotEmpty) {
       print(
         'zfa tdd plan: lane contract FAILED — ${laneResult.refusals.length} '
@@ -491,12 +504,14 @@ class PlanCommand extends Command<void> {
         for (final b in expressible)
           ..._derivedLaneRows(b, laneResult, declarations.persistence),
         ..._ffiLaneRows(preservedFfi, laneResult),
+        ..._contractLaneRows(contractRows, laneResult),
         ...laneResult.handRows,
       ].where((r) => r.lane.destinedForEngine).toList();
       final skinRows = <LaneRow>[
         for (final b in expressible)
           ..._derivedLaneRows(b, laneResult, declarations.persistence),
         ..._ffiLaneRows(preservedFfi, laneResult),
+        ..._contractLaneRows(contractRows, laneResult),
         ...laneResult.handRows,
       ].where((r) => r.lane.destinedForSkin).toList();
       final adaptiveSlots = lanes
@@ -506,6 +521,16 @@ class PlanCommand extends Command<void> {
 
       final engineProvenance = <String, List<String>>{};
       final skinProvenance = <String, List<String>>{};
+      // Issue #1007: contract rows render their own declared provenance
+      // — the Layer Contracts declaration IS the routing decision. Added
+      // BEFORE the lane split below so a lane-declared contract row's
+      // provenance follows its lane like every other row.
+      for (final row in contractRows) {
+        provenance[row.id] = [
+          'route: ${row.id} -> contract lane '
+              '[declared: layer contracts: ${row.sourceCriterion}]',
+        ];
+      }
       provenance.forEach((id, lines) {
         // Ffi rows and any unclassified id default engine-side (the
         // native boundary + routing bookkeeping are engine-owned).
@@ -578,6 +603,7 @@ class PlanCommand extends Command<void> {
         dependencies,
         layerContracts,
         preservedFfi,
+        contractRows,
         declarations.persistence,
         provenance,
       ),
@@ -594,6 +620,14 @@ class PlanCommand extends Command<void> {
         p.join(outDir.path, 'traceability.md'): 'update',
       },
     );
+    // Issue #1007: the contract rows' declared provenance (the Layer
+    // Contracts declaration IS the routing decision).
+    for (final row in contractRows) {
+      provenance[row.id] = [
+        'route: ${row.id} -> contract lane '
+            '[declared: layer contracts: ${row.sourceCriterion}]',
+      ];
+    }
     for (final line in provenance.values.expand((l) => l)) {
       // print (not stdout.writeln): the observable-CLI convention the
       // tdd command suites assert on (runCapturing intercepts print).
@@ -605,7 +639,11 @@ class PlanCommand extends Command<void> {
         .length;
     final uCount = expressible.where((b) => b.kind == BehaviorKind.unit).length;
     final fCount = preservedFfi.length;
-    final total = expressible.length + fCount;
+    final cCount = contractRows.length;
+    final total = expressible.length + fCount + cCount;
+    // The legacy summary line is byte-identical when no contract rows
+    // exist (the additive hard constraint); a contract-carrying plan
+    // names the contract lane on its own line.
     stdout.writeln(
       fCount > 0
           ? 'zfa tdd plan: wrote $outFile with $aCount acceptance + $uCount '
@@ -613,6 +651,13 @@ class PlanCommand extends Command<void> {
           : 'zfa tdd plan: wrote $outFile with $aCount acceptance + $uCount '
                 'unit behaviors (${expressible.length} total).',
     );
+    if (cCount > 0) {
+      stdout.writeln(
+        'zfa tdd plan: derived $cCount contract behavior(s) from the '
+        'spec\'s Layer Contracts (issue #1007): '
+        '${contractRows.map((b) => b.id).join(', ')}.',
+      );
+    }
     if (entities.isNotEmpty) {
       stdout.writeln(
         'zfa tdd plan: extracted ${entities.length} Key Entity('
@@ -624,6 +669,7 @@ class PlanCommand extends Command<void> {
       ..details['unit'] = uCount
       ..details['ffi'] = fCount
       ..details['behaviors'] = total
+      ..details['contract'] = cCount
       ..details['test_list'] = outFile.path;
   }
 
@@ -634,6 +680,7 @@ class PlanCommand extends Command<void> {
     List<SpecDependency> dependencies,
     List<LayerContract> layerContracts,
     List<BehaviorRow> preservedFfi,
+    List<Behavior> contractRows,
     Map<String, PersistenceDeclaration> persistenceDeclarations,
     Map<String, List<String>> provenanceLines,
   ) {
@@ -781,6 +828,31 @@ class PlanCommand extends Command<void> {
         );
       }
     }
+    // Issue #1007: the contract-test lane — one row per declared entity
+    // method, controller method, and usecase.
+    if (contractRows.isNotEmpty) {
+      buf
+        ..writeln()
+        ..writeln('## Contract loop: contract behaviors')
+        ..writeln()
+        ..writeln(
+          'Contract behaviors (issue #1007): one row per declared entity '
+          'method, controller method, and usecase. The gen pair is a '
+          'contract test scaffold that enumerates the method cases and '
+          'asserts the implementation satisfies them — a failing case '
+          'is BLOCKED, never RED, and blocks the cycle from proceeding '
+          'to GREEN.',
+        )
+        ..writeln()
+        ..writeln('| id | behavior | traces | state |')
+        ..writeln('| -- | -------- | ------ | ----- |');
+      for (final row in contractRows) {
+        buf.writeln(
+          '| ${row.id} | ${row.description} | '
+          '${row.sourceCriterion} | ${row.state.name.toUpperCase()} |',
+        );
+      }
+    }
     // Feature 071: the durable provenance artifact.
     if (provenanceLines.isNotEmpty) {
       buf
@@ -824,6 +896,7 @@ class PlanCommand extends Command<void> {
       BehaviorKind.ffi => 'ffi lane',
       BehaviorKind.platform => 'platform lane',
       BehaviorKind.theme => 'theme lane',
+      BehaviorKind.contract => 'contract lane',
     };
 
     void record(String id, List<String> entry) => lines[id] = entry;
@@ -931,6 +1004,7 @@ class PlanCommand extends Command<void> {
     List<LaneDeclaration> lanes,
     List<Behavior> expressible,
     List<BehaviorRow> preservedFfi,
+    List<Behavior> contractRows,
   ) {
     final classification = <String, Lane>{};
     final annotations = <String, String>{};
@@ -999,6 +1073,13 @@ class PlanCommand extends Command<void> {
       classification.putIfAbsent(row.id, () => Lane.core);
     }
 
+    // Issue #1007: contract rows default engine-side (the declared
+    // contract surface is engine territory) unless a lane declares
+    // otherwise — a lane MAY claim a contract row by its id.
+    for (final row in contractRows) {
+      classification.putIfAbsent(row.id, () => Lane.core);
+    }
+
     // Hand rows: ids the declarations carry but neither the spec prose
     // nor the prior list derives — the lane's own reservation (the
     // `W1-W4` skin slots), described by the lane annotation when the
@@ -1007,6 +1088,10 @@ class PlanCommand extends Command<void> {
     final derivedIds = {
       ...expressible.map((b) => b.id),
       ...preservedFfi.map((r) => r.id),
+      // Issue #1007: derived contract rows are NOT hand rows — a lane
+      // declaration naming a derived contract id classifies it above,
+      // it does not reserve a new row.
+      ...contractRows.map((b) => b.id),
     };
     for (final id in declaredHandIds.difference(derivedIds).toList()..sort()) {
       final lane = classification[id]!;
@@ -1077,6 +1162,75 @@ class PlanCommand extends Command<void> {
         lane: laneResult.classification[row.id] ?? Lane.core,
       ),
   ];
+
+  /// The contract-test lane rows (issue #1007): derived + preserved
+  /// contract behaviors as lane rows, defaulting CORE — the declared
+  /// contract surface is engine territory (a lane declaration can claim
+  /// a contract row by id).
+  List<LaneRow> _contractLaneRows(
+    List<Behavior> contractRows,
+    _LaneResult? laneResult,
+  ) => [
+    for (final row in contractRows)
+      LaneRow(
+        id: row.id,
+        description: row.description,
+        traces: row.sourceCriterion,
+        state: row.state.name.toUpperCase(),
+        kind: row.kind,
+        lane: laneResult?.classification[row.id] ?? Lane.core,
+      ),
+  ];
+
+  /// The contract-test lane's rows (issue #1007 FR-002): derived fresh
+  /// from the spec's Layer Contracts, reconciled with [preservedContract]
+  /// rows by traces so a progressed contract keeps its id and state, plus
+  /// hand-added contract rows whose criterion the spec no longer declares
+  /// (preserved verbatim, the ffi-lane contract).
+  List<Behavior> _contractRows(
+    String feature,
+    String specMd,
+    List<BehaviorRow> preservedContract,
+  ) {
+    final derived = const SpecParser().parseContractBehaviors(feature, specMd);
+    final rows = <Behavior>[];
+    for (final b in derived) {
+      final prior = preservedContract
+          .where((r) => r.traces == b.sourceCriterion)
+          .firstOrNull;
+      rows.add(
+        prior == null
+            ? b
+            : Behavior(
+                id: prior.id,
+                feature: feature,
+                kind: BehaviorKind.contract,
+                description: prior.description,
+                sourceCriterion: prior.traces,
+                target: prior.target,
+                state: prior.state,
+              ),
+      );
+    }
+    // Hand-added contract rows whose traces the spec does not (or no
+    // longer) declares survive verbatim.
+    final derivedTraces = derived.map((b) => b.sourceCriterion).toSet();
+    for (final prior in preservedContract) {
+      if (derivedTraces.contains(prior.traces)) continue;
+      rows.add(
+        Behavior(
+          id: prior.id,
+          feature: feature,
+          kind: BehaviorKind.contract,
+          description: prior.description,
+          sourceCriterion: prior.traces,
+          target: prior.target,
+          state: prior.state,
+        ),
+      );
+    }
+    return rows;
+  }
 }
 
 /// The plan-time lane resolution (issue #1000) — see

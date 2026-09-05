@@ -684,6 +684,12 @@ class CorpusRunCommand extends Command<void> {
 
   /// STOP-ON-ROADBLOCK bookkeeping (FR-002 + FR-007): ledger entry,
   /// stopped progress state, in-flight cleared, persist.
+  ///
+  /// Issue #1007: contract-test failures are the HIGHEST-severity gaps —
+  /// a stop whose behavior is a contract behavior (`contract:<id>`) or
+  /// whose outcome token is `blocked` (the BLOCKED verdict distinct from
+  /// RED) stamps `severity=contract` on the gap entry; every other stop
+  /// appends severity-free (the legacy serialization, byte-identical).
   Future<void> _stopAtFeature({
     required String feature,
     required String step,
@@ -700,6 +706,7 @@ class CorpusRunCommand extends Command<void> {
     final behavior = stoppedAt?.contains(':') == true
         ? stoppedAt!.split(':').first
         : null;
+    final severity = GapSeverity.forStop(behavior: behavior, outcome: outcome);
     await ledgerStore.appendGap(
       feature: feature,
       behavior: behavior,
@@ -707,6 +714,7 @@ class CorpusRunCommand extends Command<void> {
       outcome: outcome,
       expectedResult: expectedResult,
       failingCommand: failingCommand,
+      severity: severity == GapSeverity.contract ? severity : null,
     );
     progress.updateFeature(
       feature,
@@ -719,6 +727,12 @@ class CorpusRunCommand extends Command<void> {
     progress.inFlight = null;
     await persist();
     print('zfa tdd corpus run: stopped at $feature ($step: $outcome)');
+    if (severity == GapSeverity.contract) {
+      print(
+        '   severity=contract (issue #1007): the declared contract is '
+        'unsatisfied — the highest-severity gap class.',
+      );
+    }
     print('   ${_firstLines(output, 3)}');
     print('   resume: fix the roadblock, then re-run `zfa tdd corpus run`');
   }
@@ -951,12 +965,16 @@ class CorpusRunCommand extends Command<void> {
     }
     print(
       '   ledger: found=${totals.found} filed=${totals.filed} '
-      'merged=${totals.merged} blocking=${totals.blocking.length}',
+      'merged=${totals.merged} blocking=${totals.blocking.length}'
+      // Issue #1007: contract-severity gaps are counted and ranked
+      // first — the highest-severity gaps head the blocking list.
+      '${totals.contract > 0 ? ' contract=${totals.contract}' : ''}',
     );
     for (final gap in totals.blocking) {
       print(
         '   blocking: ${gap.id} ${gap.feature} ${gap.step} ${gap.outcome}'
-        '${gap.behavior != null ? ' (${gap.behavior})' : ''}',
+        '${gap.behavior != null ? ' (${gap.behavior})' : ''}'
+        '${gap.severity != null ? ' [severity=${gap.severity!.label}]' : ''}',
       );
     }
   }

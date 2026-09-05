@@ -82,6 +82,7 @@ import '../models/verdict_envelope.dart';
 import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/behavior_test_writer.dart';
+import '../services/contract_writer.dart';
 import '../services/generated_shape.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
@@ -119,13 +120,16 @@ class GenCommand extends Command<void> {
     );
     argParser.addOption(
       'kind',
-      allowed: ['acceptance', 'unit', 'widget'],
+      allowed: ['acceptance', 'unit', 'widget', 'contract'],
       help:
           'Override the subject kind taken from the test-list row (bug '
-          '#830). `widget` emits a testWidgets pair: a view-builder subject '
-          'stub plus a widget test that pumps the view inside an app shell '
-          'and asserts the acceptance scenario. Unknown values are a usage '
-          'error.',
+          '#830; the contract lane is issue #1007). `widget` emits a '
+          'testWidgets pair: a view-builder subject stub plus a widget '
+          'test that pumps the view inside an app shell and asserts the '
+          'acceptance scenario. `contract` emits the contract pair: a '
+          'test that enumerates the contract\'s declared method cases '
+          'plus the case-table subject harness. Unknown values are a '
+          'usage error.',
     );
     argParser.addOption(
       'widget-shell',
@@ -1261,6 +1265,14 @@ class GenCommand extends Command<void> {
         writeSubject: const ThemeHarnessSubjectWriter().write,
       );
     }
+    // Issue #1007: the contract pair — the test enumerates the declared
+    // method cases; the subject is the case-table harness.
+    if (behavior.kind == BehaviorKind.contract) {
+      return (
+        writeTest: const ContractTestWriter().write,
+        writeSubject: const ContractSubjectWriter().write,
+      );
+    }
     if (behavior.kind == BehaviorKind.platform && platformContext != null) {
       return (
         writeTest: PlatformHarnessTestWriter(context: platformContext).write,
@@ -1675,10 +1687,28 @@ class GenCommand extends Command<void> {
 
   String _toSnakeCase(String s) {
     final out = StringBuffer();
+    // Issue #1007: contract ids carry the `contract:` kind namespace —
+    // `:` is not a portable file-name segment (and is illegal in Windows
+    // paths), so it folds to `_` (`contract:A1` -> `contract_a1`). The
+    // fold skips its own underscore when the NEXT character writes one
+    // anyway (an uppercase letter), so `contract:A1` never produces a
+    // double underscore.
+    void foldColon(int i) {
+      final hasNext = i + 1 < s.length;
+      final next = hasNext ? s[i + 1] : '';
+      final nextWritesUnderscore =
+          next.isNotEmpty &&
+          next.toUpperCase() == next &&
+          next.toLowerCase() != next;
+      if (!nextWritesUnderscore) out.write('_');
+    }
+
     for (var i = 0; i < s.length; i++) {
       final c = s[i];
       if (c == '-' || c == ' ' || c == '_') {
         out.write('_');
+      } else if (c == ':') {
+        foldColon(i);
       } else if (c.toUpperCase() == c && c.toLowerCase() != c && i > 0) {
         out.write('_');
         out.write(c.toLowerCase());

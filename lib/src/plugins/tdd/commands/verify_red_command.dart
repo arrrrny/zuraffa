@@ -44,6 +44,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/red_classification.dart';
 import '../services/artifact_registry.dart';
+import '../services/contract_blocked_receipt.dart';
 import '../services/cycle_log.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/red_classifier.dart';
@@ -313,6 +314,60 @@ class VerifyRedCommand extends Command<void> {
     print('   classification: ${classification.label}');
 
     // ---------------------------------------------------------------
+    // 4b. Issue #1007: the contract lane's BLOCKED verdict. A CONTRACT
+    //     behavior whose test fails through an assertion is BLOCKED,
+    //     not RED — the declared contract is unsatisfied, so there is
+    //     no honest red to certify (the implementation, not the test,
+    //     is incomplete), the cycle must not proceed to GREEN, and the
+    //     distinct receipt `contract-blocked.<id>.json` is the
+    //     evidence. Non-assertion classes keep their existing
+    //     classifications — only an honest failing contract case is
+    //     BLOCKED.
+    // ---------------------------------------------------------------
+    if (classification == RedClassification.assertion &&
+        await _isContractTarget(cwd, target, record)) {
+      final cases = ContractBlockedReceipt.casesOf(run.output);
+      print(
+        '   blocked: the declared contract is unsatisfied '
+        '${cases.isEmpty ? '' : '— failing case(s): ${cases.join('; ')}'}',
+      );
+      print(
+        '   BLOCKED (issue #1007): a failing contract test is not a '
+        'certified red — implement the declared contract, then re-run '
+        '`zfa tdd verify-red ${record.behaviorId}`.',
+      );
+      try {
+        final receiptFile = await ContractBlockedReceipt(projectRoot: cwd)
+            .write(
+              behaviorId: record.behaviorId,
+              feature: target.featureName,
+              testPath: testPath,
+              command: run.command,
+              exitCode: run.exitCode,
+              output: run.output,
+              cases: cases,
+            );
+        print('   blocked receipt: ${p.relative(receiptFile.path, from: cwd)}');
+      } catch (e) {
+        // Best-effort, never fail the verdict on a receipt I/O error —
+        // the classification itself is the verdict.
+        stderr.writeln(
+          'zfa tdd verify-red: warning: contract-blocked receipt not '
+          'written ($e)',
+        );
+      }
+      print('   no red evidence written (BLOCKED is not a certified red)');
+      _printSummary(
+        behavior: record.behaviorId,
+        classification: 'blocked',
+        certified: false,
+        feature: target.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // ---------------------------------------------------------------
     // 5/6. Evidence on assertion only; rejection otherwise (FR-006/007).
     //      Issue #964 kind gate: BEFORE evidence, the test's assertion
     //      kinds must match the scenario verbs — a red from a presence
@@ -422,6 +477,32 @@ class VerifyRedCommand extends Command<void> {
       feature: target.featureName,
     );
     exitCode = 1;
+  }
+
+  /// Whether the resolved target is a CONTRACT-kind behavior (issue
+  /// #1007): the generated pair carries `// kind: contract` in its test
+  /// file header (the artifact declares its own kind — the same
+  /// read-the-file shape the finder-kind gate uses), and the
+  /// `contract:` id prefix is the belt-and-braces signal for
+  /// hand-registered pairs whose test file predates the marker.
+  Future<bool> _isContractTarget(
+    String cwd,
+    _ResolvedTarget target,
+    ArtifactRecord record,
+  ) async {
+    if (record.behaviorId.startsWith('contract:')) return true;
+    final testPath = p.isAbsolute(record.testPath)
+        ? record.testPath
+        : p.join(cwd, record.testPath);
+    try {
+      final content = await File(testPath).readAsString();
+      return RegExp(
+        r'^// kind: contract\s*$',
+        multiLine: true,
+      ).hasMatch(content);
+    } on FileSystemException {
+      return false;
+    }
   }
 
   // -------------------------------------------------------------------
@@ -843,6 +924,15 @@ class VerifyRedCommand extends Command<void> {
           classification = 'kind-mismatch';
         }
       }
+      // Issue #1007 (batch lane): a CONTRACT behavior whose assertion
+      // fired is BLOCKED, never a certified red — the receipt is the
+      // evidence, the cycle cannot proceed to GREEN.
+      var blocked = false;
+      if (classification == 'assertion' &&
+          await _isContractTarget(cwd, target, record)) {
+        classification = 'blocked';
+        blocked = true;
+      }
       if (classification == 'assertion') {
         final segment = _segmentFor(record.plainTestName, failingSegments);
         final log = CycleLog(target.featureDir);
@@ -876,6 +966,33 @@ class VerifyRedCommand extends Command<void> {
           files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
         );
         certifiedCount++;
+      } else if (blocked) {
+        final segment = _segmentFor(record.plainTestName, failingSegments);
+        try {
+          final receiptFile = await ContractBlockedReceipt(projectRoot: cwd)
+              .write(
+                behaviorId: record.behaviorId,
+                feature: target.featureName,
+                testPath: p.isAbsolute(record.testPath)
+                    ? record.testPath
+                    : p.join(cwd, record.testPath),
+                command: display,
+                exitCode: batch.exitCode,
+                output: segment ?? output,
+                cases: ContractBlockedReceipt.casesOf(segment ?? output),
+              );
+          print(
+            '   blocked receipt: ${p.relative(receiptFile.path, from: cwd)} '
+            '(${record.behaviorId}) — the declared contract is '
+            'unsatisfied (issue #1007); no red evidence written.',
+          );
+        } catch (e) {
+          stderr.writeln(
+            'zfa tdd verify-red: warning: contract-blocked receipt not '
+            'written for ${record.behaviorId} ($e)',
+          );
+        }
+        failures.add((record.behaviorId, classification));
       } else {
         failures.add((record.behaviorId, classification));
       }

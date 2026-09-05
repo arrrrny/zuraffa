@@ -87,6 +87,68 @@ class SpecEntity {
   String toString() => 'SpecEntity(name: $name, fields: $fields)';
 }
 
+/// One declared contract surface for the contract-test lane (issue
+/// #1007): a Layer Contracts interface plus its declared method
+/// signatures, categorized by zuraffa's naming conventions —
+/// `*UseCase` interfaces are usecases, `*Controller` interfaces are
+/// controller methods, and every other declared interface (entities,
+/// repositories, validators — the declared data contract an entity must
+/// satisfy) is an entity-method contract.
+class ContractDeclaration {
+  const ContractDeclaration({
+    required this.category,
+    required this.interfaceName,
+    required this.methods,
+    required this.specLine,
+  });
+
+  /// The contract's surface category (issue #1007's enumeration: entity
+  /// method, controller method, usecase).
+  final ContractCategory category;
+
+  /// The declared interface name (e.g. `Session`).
+  final String interfaceName;
+
+  /// The declared method signatures, verbatim (e.g.
+  /// `start(token) -> Result<void>`).
+  final List<String> methods;
+
+  /// The 1-based spec line of the interface's declaration bullet.
+  final int specLine;
+
+  @override
+  String toString() =>
+      'ContractDeclaration($interfaceName, ${category.name}, $methods)';
+}
+
+/// The three declared contract surfaces (issue #1007) and their row-id
+/// letters: `A` for entity methods (the entity/data contract is the
+/// acceptance substrate — the exit criterion's `contract:A1` is an
+/// entity method contract), `C` for controller methods (Presentation
+/// naming), `U` for usecases (the unit-level engine seam).
+enum ContractCategory {
+  entityMethod('A'),
+  controllerMethod('C'),
+  usecase('U');
+
+  const ContractCategory(this.idLetter);
+
+  /// The `contract:<L><n>` row-id letter for the category.
+  final String idLetter;
+
+  /// Categorize a declared interface by zuraffa's naming conventions.
+  static ContractCategory forInterface(String interfaceName) {
+    final lower = interfaceName.toLowerCase();
+    if (lower.endsWith('usecase') || lower.endsWith('use_case')) {
+      return ContractCategory.usecase;
+    }
+    if (lower.endsWith('controller')) {
+      return ContractCategory.controllerMethod;
+    }
+    return ContractCategory.entityMethod;
+  }
+}
+
 class SpecParser {
   const SpecParser();
 
@@ -801,6 +863,69 @@ class SpecParser {
       entities.add(SpecEntity(name: name, fields: fields));
     }
     return entities;
+  }
+
+  /// Extract the declared contract surfaces for the contract-test lane
+  /// (issue #1007): every Layer Contracts interface with its declared
+  /// method signatures, categorized by [ContractCategory.forInterface].
+  /// A spec without a Layer Contracts section yields an empty list —
+  /// every pre-#1007 spec — so the contract lane is purely additive.
+  List<ContractDeclaration> parseContractDeclarations(String specMd) {
+    return parseLayerContracts(
+      specMd,
+    ).map(_contractDeclarationOf).toList(growable: false);
+  }
+
+  /// One [ContractDeclaration] from a parsed [LayerContract] row (issue
+  /// #1007): the interface's category by naming convention, its methods
+  /// verbatim.
+  ContractDeclaration _contractDeclarationOf(LayerContract contract) =>
+      ContractDeclaration(
+        category: ContractCategory.forInterface(contract.interfaceName),
+        interfaceName: contract.interfaceName,
+        methods: contract.methods,
+        specLine: 0,
+      );
+
+  /// The contract-test lane's behavior rows (issue #1007 FR-002): one
+  /// [Behavior] per method declared in the spec's Layer Contracts
+  /// section, with `contract:<L><n>` ids (A = entity method, C =
+  /// controller method, U = usecase — per-category numbering in
+  /// declaration order) and `contract` kind. The description is the
+  /// declared interface method (`Session.start(token)`); the source
+  /// criterion is the `Interface.method` trace.
+  List<Behavior> parseContractBehaviors(String feature, String specMd) {
+    final counters = <ContractCategory, int>{};
+    final behaviors = <Behavior>[];
+    for (final declaration in parseContractDeclarations(specMd)) {
+      for (final method in declaration.methods) {
+        final n = (counters[declaration.category] ?? 0) + 1;
+        counters[declaration.category] = n;
+        final id = 'contract:${declaration.category.idLetter}$n';
+        final methodName = _methodNameOf(method);
+        behaviors.add(
+          Behavior(
+            id: id,
+            feature: feature,
+            kind: BehaviorKind.contract,
+            description:
+                '${declaration.interfaceName}.$methodName must satisfy '
+                'the declared contract `${method}`',
+            sourceCriterion: '${declaration.interfaceName}.$methodName',
+            target: '',
+          ),
+        );
+      }
+    }
+    return behaviors;
+  }
+
+  /// The bare method name of a declared signature
+  /// (`start(token) -> Result<void>` -> `start`).
+  static String _methodNameOf(String signature) {
+    final paren = signature.indexOf('(');
+    if (paren <= 0) return signature.trim();
+    return signature.substring(0, paren).trim();
   }
 
   List<Behavior> parse(String feature, String specMd) {

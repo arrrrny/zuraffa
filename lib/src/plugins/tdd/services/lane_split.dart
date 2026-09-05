@@ -126,6 +126,9 @@ String renderEnginePlan({
   final widget = rows.where((r) => r.kind == BehaviorKind.widget).toList();
   final unit = rows.where((r) => r.kind == BehaviorKind.unit).toList();
   final ffi = rows.where((r) => r.kind == BehaviorKind.ffi).toList();
+  // Issue #1007: the contract-test lane — engine-side by default (the
+  // declared contract surface is engine territory).
+  final contract = rows.where((r) => r.kind == BehaviorKind.contract).toList();
 
   final buf = StringBuffer()
     ..writeln('# Engine Plan: $feature (CORE + BOTH)')
@@ -163,6 +166,18 @@ String renderEnginePlan({
         'Native-boundary behaviors (bug #835) — engine-side by default '
         'lane assignment.',
     rows: ffi,
+  );
+  _section(
+    buf,
+    title: '## Contract loop: contract behaviors',
+    intro:
+        'Contract behaviors (issue #1007): one row per declared entity '
+        'method, controller method, and usecase. The gen pair is a '
+        'contract test scaffold that enumerates the method cases and '
+        'asserts the implementation satisfies them — a failing case is '
+        'BLOCKED, never RED, and blocks the cycle from proceeding to '
+        'GREEN.',
+    rows: contract,
   );
   _declarations(buf, entities, dependencies, layerContracts);
   _provenance(buf, provenance);

@@ -1,0 +1,148 @@
+{
+  "feature": "1007-contract-tests-first-class",
+  "records": [
+    {
+      "behavior_id": "A1",
+      "feature": "1007-contract-tests-first-class",
+      "source_criterion": "AC-1",
+      "test_path": "test/plugins/tdd/commands/plan_contract_kind_1007_test.dart",
+      "subject_path": "lib/src/plugins/tdd/commands/plan_command.dart",
+      "runnable_test_name": "test/plugins/tdd/commands/plan_contract_kind_1007_test.dart::A1::plan emits contract:A1 in the engine plan",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T05:30:00.000Z"
+    },
+    {
+      "behavior_id": "A2",
+      "feature": "1007-contract-tests-first-class",
+      "source_criterion": "AC-2",
+      "test_path": "test/plugins/tdd/commands/gen_contract_kind_1007_test.dart",
+      "subject_path": "lib/src/plugins/tdd/services/contract_writer.dart",
+      "runnable_test_name": "test/plugins/tdd/commands/gen_contract_kind_1007_test.dart::A2::gen contract:A1 produces a contract test that enumerates method cases",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T05:30:00.000Z"
+    },
+    {
+      "behavior_id": "A3",
+      "feature": "1007-contract-tests-first-class",
+      "source_criterion": "AC-3",
+      "test_path": "test/plugins/tdd/commands/verify_red_contract_blocked_1007_test.dart",
+      "subject_path": "lib/src/plugins/tdd/commands/verify_red_command.dart",
+      "runnable_test_name": "test/plugins/tdd/commands/verify_red_contract_blocked_1007_test.dart::A3::a deliberately unimplemented method is BLOCKED not RED",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T05:30:00.000Z"
+    },
+    {
+      "behavior_id": "A4",
+      "feature": "1007-contract-tests-first-class",
+      "source_criterion": "AC-4",
+      "test_path": "test/plugins/tdd/corpus_economics/contract_severity_1007_test.dart",
+      "subject_path": "lib/src/plugins/tdd/models/corpus_ledger.dart",
+      "runnable_test_name": "test/plugins/tdd/corpus_economics/contract_severity_1007_test.dart::A4::corpus gaps rank contract failures highest",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T05:30:00.000Z"
+    },
+    {
+      "behavior_id": "U1",
+      "feature": "1007-contract-tests-first-class",
+      "source_criterion": "FR-001",
+      "test_path": "test/plugins/tdd/commands/plan_contract_kind_1007_test.dart",
+      "subject_path": "lib/src/plugins/tdd/services/test_list_reader.dart",
+      "runnable_test_name": "test/plugins/tdd/commands/plan_contract_kind_1007_test.dart::U1::TestListReader resolves contract rows with BehaviorKind.contract",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T05:30:00.000Z"
+    },
+    {
+      "behavior_id": "U2",
+      "feature": "1007-contract-tests-first-class",
+      "source_criterion": "FR-002",
+      "test_path": "test/plugins/tdd/commands/plan_contract_kind_1007_test.dart",
+      "subject_path": "lib/src/plugins/tdd/services/spec_parser.dart",
+      "runnable_test_name": "test/plugins/tdd/commands/plan_contract_kind_1007_test.dart::U2::plan derives contract rows per declared method",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T05:30:00.000Z"
+    },
+    {
+      "behavior_id": "U3",
+      "feature": "1007-contract-tests-first-class",
+      "source_criterion": "FR-003",
+      "test_path": "test/plugins/tdd/commands/gen_contract_kind_1007_test.dart",
+      "subject_path": "lib/src/plugins/tdd/commands/gen_command.dart",
+      "runnable_test_name": "test/plugins/tdd/commands/gen_contract_kind_1007_test.dart::U3::gen writes the contract pair with a portable id segment",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T05:30:00.000Z"
+    },
+    {
+      "behavior_id": "U4",
+      "feature": "1007-contract-tests-first-class",
+      "source_criterion": "FR-004",
+      "test_path": "test/plugins/tdd/commands/verify_red_contract_blocked_1007_test.dart",
+      "subject_path": "lib/src/plugins/tdd/services/contract_blocked_receipt.dart",
+      "runnable_test_name": "test/plugins/tdd/commands/verify_red_contract_blocked_1007_test.dart::U4::the blocked verdict writes the distinct receipt",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T05:30:00.000Z"
+    },
+    {
+      "behavior_id": "U5",
+      "feature": "1007-contract-tests-first-class",
+      "source_criterion": "FR-005",
+      "test_path": "test/plugins/tdd/commands/verify_red_contract_blocked_1007_test.dart",
+      "subject_path": "lib/src/plugins/tdd/commands/run_command.dart",
+      "runnable_test_name": "test/plugins/tdd/commands/verify_red_contract_blocked_1007_test.dart::U5::a blocked verify-red stops the run before GREEN",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T05:30:00.000Z"
+    },
+    {
+      "behavior_id": "U6",
+      "feature": "1007-contract-tests-first-class",
+      "source_criterion": "FR-006",
+      "test_path": "test/plugins/tdd/corpus_economics/contract_severity_1007_test.dart",
+      "subject_path": "lib/src/plugins/tdd/commands/corpus_run_command.dart",
+      "runnable_test_name": "test/plugins/tdd/corpus_economics/contract_severity_1007_test.dart::U6::the corpus gate stamps and ranks contract severity",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T05:30:00.000Z"
+    },
+    {
+      "behavior_id": "contract:A1",
+      "feature": "1007-contract-tests-first-class",
+      "source_criterion": "SpecParser.parseContractBehaviors",
+      "test_path": "test/plugins/tdd/commands/plan_contract_kind_1007_test.dart",
+      "subject_path": "lib/src/plugins/tdd/services/spec_parser.dart",
+      "runnable_test_name": "test/plugins/tdd/commands/plan_contract_kind_1007_test.dart::contract:A1::SpecParser.parseContractBehaviors satisfies the declared contract",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T05:30:00.000Z"
+    },
+    {
+      "behavior_id": "contract:A2",
+      "feature": "1007-contract-tests-first-class",
+      "source_criterion": "ContractTestWriter.render",
+      "test_path": "test/plugins/tdd/commands/gen_contract_kind_1007_test.dart",
+      "subject_path": "lib/src/plugins/tdd/services/contract_writer.dart",
+      "runnable_test_name": "test/plugins/tdd/commands/gen_contract_kind_1007_test.dart::contract:A2::ContractTestWriter.render satisfies the declared contract",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T05:30:00.000Z"
+    },
+    {
+      "behavior_id": "contract:U1",
+      "feature": "1007-contract-tests-first-class",
+      "source_criterion": "ContractBlockedReceipt.write",
+      "test_path": "test/plugins/tdd/commands/verify_red_contract_blocked_1007_test.dart",
+      "subject_path": "lib/src/plugins/tdd/services/contract_blocked_receipt.dart",
+      "runnable_test_name": "test/plugins/tdd/commands/verify_red_contract_blocked_1007_test.dart::contract:U1::ContractBlockedReceipt.write satisfies the declared contract",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-05T05:30:00.000Z"
+    }
+  ]
+}

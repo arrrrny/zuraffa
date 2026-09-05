@@ -8,6 +8,42 @@ library;
 
 enum GapLedgerKind { gap, resolution }
 
+/// The severity of a gap entry (issue #1007): contract-test failures are
+/// the HIGHEST-severity gaps — they prove a declared contract is
+/// unsatisfied, which blocks the dream substrate itself, so they outrank
+/// every other open gap in the totals' ranking and head the blocking
+/// list the corpus surfaces.
+///
+/// Precedence (highest to lowest): `contract` > `standard`. Every gap
+/// appended before #1007 (and every non-contract stop after it) carries
+/// no severity field at all — legacy entries parse with `null` severity
+/// and rank as [standard].
+enum GapSeverity {
+  /// A contract-test failure: the stopped behavior is a contract
+  /// behavior (`contract:<id>`) or the stop's outcome token is `blocked`.
+  contract('contract'),
+
+  /// Every other gap (run stops, verify gates, plan gaps).
+  standard('standard');
+
+  const GapSeverity(this.label);
+
+  /// The serialized label.
+  final String label;
+
+  /// The classification rule for a corpus stop (issue #1007 FR-006): a
+  /// contract behavior id (the plan's `contract:<id>` grammar) or a
+  /// `blocked` outcome token — the BLOCKED verdict distinct from RED —
+  /// makes the gap contract-severity; everything else is standard.
+  static GapSeverity forStop({String? behavior, String? outcome}) {
+    if (outcome == 'blocked') return GapSeverity.contract;
+    if (behavior != null && behavior.startsWith('contract:')) {
+      return GapSeverity.contract;
+    }
+    return GapSeverity.standard;
+  }
+}
+
 class GapLedgerEntry {
   const GapLedgerEntry({
     required this.id,
@@ -22,6 +58,7 @@ class GapLedgerEntry {
     this.issueLink,
     this.status = 'open',
     this.resolves,
+    this.severity,
   });
 
   /// `gap-###` for gaps, `res-###` for resolutions (monotonic per series).
@@ -65,6 +102,14 @@ class GapLedgerEntry {
   /// Resolution entries only: the gap entry id this closes.
   final String? resolves;
 
+  /// The gap's severity (issue #1007): `contract` for contract-test
+  /// failures (the highest-severity gaps), null on every pre-#1007 and
+  /// non-contract entry (legacy entries parse with null severity and
+  /// rank as [GapSeverity.standard]). Serialized LAST — after the
+  /// existing keys — so previously-appended entries stay byte-identical
+  /// across appends (the U13 fixed-field-order contract).
+  final GapSeverity? severity;
+
   const GapLedgerEntry.gap({
     required this.id,
     required this.at,
@@ -76,6 +121,7 @@ class GapLedgerEntry {
     this.failingCommand,
     this.issueLink,
     this.status = 'open',
+    this.severity,
   }) : kind = GapLedgerKind.gap,
        resolves = null;
 
@@ -91,7 +137,8 @@ class GapLedgerEntry {
        expectedResult = null,
        failingCommand = null,
        issueLink = null,
-       status = 'resolved';
+       status = 'resolved',
+       severity = null;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -106,6 +153,9 @@ class GapLedgerEntry {
     if (issueLink != null) 'issue_link': issueLink,
     if (status != null) 'status': status,
     if (resolves != null) 'resolves': resolves,
+    // Issue #1007: appended AFTER the existing keys so previously
+    // appended entries serialize byte-identically (U13).
+    if (severity != null) 'severity': severity!.label,
   };
 
   static GapLedgerEntry fromJson(dynamic decoded) {
@@ -145,6 +195,14 @@ class GapLedgerEntry {
         'or "behavior" (a plan-gap entry — bug #836)',
       );
     }
+    // Issue #1007: null-tolerant severity — legacy entries carry none.
+    final severityRaw = map['severity'];
+    GapSeverity? severity;
+    if (severityRaw is String) {
+      severity = GapSeverity.values
+          .where((s) => s.label == severityRaw)
+          .firstOrNull;
+    }
     return GapLedgerEntry(
       id: id,
       kind: kind,
@@ -158,6 +216,7 @@ class GapLedgerEntry {
       issueLink: optionalString('issue_link'),
       status: optionalString('status'),
       resolves: optionalString('resolves'),
+      severity: severity,
     );
   }
 }
@@ -174,6 +233,7 @@ class GapLedgerTotals {
     required this.merged,
     required this.blocking,
     required this.open,
+    this.contract = 0,
   });
 
   /// Gap entries recorded (resolutions excluded).
@@ -193,9 +253,18 @@ class GapLedgerTotals {
   /// corpus refuses a `complete` verdict while ANY of these is open).
   final List<GapLedgerEntry> open;
 
+  /// Open gaps carrying contract severity (issue #1007) — the
+  /// highest-severity gaps, ranked first in [open] and [blocking].
+  final int contract;
+
   /// Compute totals from [entries]; [doneFeatures] are the features whose
   /// corpus state is done or waived. A gap is resolved when its status is
   /// `resolved`/`merged` or a resolution entry names it in `resolves`.
+  ///
+  /// Issue #1007: contract-severity gaps RANK FIRST — they head the open
+  /// and blocking lists (a stable sort: severity rank desc, then append
+  /// order), so the highest-severity gaps are always the first thing an
+  /// operator reads.
   static GapLedgerTotals fromEntries(
     List<GapLedgerEntry> entries, {
     required Set<String> doneFeatures,
@@ -212,7 +281,16 @@ class GapLedgerTotals {
         gap.status == 'merged' ||
         resolvedIds.contains(gap.id);
 
-    final open = gaps.where((gap) => !isResolved(gap)).toList();
+    int severityRank(GapLedgerEntry gap) =>
+        gap.severity == GapSeverity.contract ? 0 : 1;
+
+    final open = gaps.where((gap) => !isResolved(gap)).toList()
+      ..sort((a, b) {
+        final bySeverity = severityRank(a).compareTo(severityRank(b));
+        return bySeverity != 0
+            ? bySeverity
+            : gaps.indexOf(a).compareTo(gaps.indexOf(b));
+      });
     final blocking = open
         .where((gap) => !doneFeatures.contains(gap.feature))
         .toList();
@@ -223,6 +301,7 @@ class GapLedgerTotals {
       merged: gaps.where((g) => g.status == 'merged').length,
       blocking: blocking,
       open: open,
+      contract: open.where((g) => g.severity == GapSeverity.contract).length,
     );
   }
 }
