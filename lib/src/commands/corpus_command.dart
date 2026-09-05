@@ -3,8 +3,9 @@
 ///
 /// `corpus` hosts the corpus-level tooling as sibling subcommands:
 /// `import` (spec 050), `catalog` (epic #1017 child #1015 — CORE/SKIN
-/// classification), and `run` (child #1016 — the walk with a
-/// configurable failure budget).
+/// classification), `run` (child #1016 — the walk with a configurable
+/// failure budget), and `ledger` (child #1017 — the committed ledger as
+/// merge gate).
 library;
 
 import 'dart:io';
@@ -14,6 +15,7 @@ import 'package:path/path.dart' as p;
 
 import '../cli/services/corpus_catalog.dart';
 import '../cli/services/corpus_importer.dart';
+import '../cli/services/corpus_walk_ledger.dart';
 import '../cli/services/corpus_walker.dart';
 import '../plugins/tdd/services/tdd_timeout.dart';
 
@@ -22,6 +24,7 @@ class CorpusCommand extends Command<void> {
     addSubcommand(CorpusImportCommand());
     addSubcommand(CorpusCatalogCommand());
     addSubcommand(CorpusRunCommand());
+    addSubcommand(CorpusLedgerCommand());
   }
 
   @override
@@ -30,8 +33,9 @@ class CorpusCommand extends Command<void> {
   @override
   String get description =>
       'Import and walk an extracted spec corpus: import, catalog '
-      '(CORE/SKIN), run (failure budget). See specs/050-corpus-import '
-      'and specs/076-corpus-walk for the contracts.';
+      '(CORE/SKIN), run (failure budget), ledger (merge gate). See '
+      'specs/050-corpus-import and specs/076-corpus-walk for the '
+      'contracts.';
 
   @override
   String get invocation => 'zfa corpus <subcommand> [options]';
@@ -374,5 +378,170 @@ class CorpusRunCommand extends Command<void> {
       'result=${walk.used > budget ? 'over-budget' : 'ok'}',
     );
     exitCode = walk.used > budget ? _exitOverBudget : _exitOk;
+  }
+}
+
+/// `zfa corpus ledger --target <name>` — the ledger as merge gate
+/// (epic #1017, child #1017).
+///
+/// Walks the target (the same walk `corpus run` drives), then records
+/// the verdicts in the COMMITTED ledger `corpus/ledgers/<target>.json`.
+/// The first run writes the baseline (exit 0); every subsequent run is a
+/// DIFF against the committed ledger — additions and renewals are
+/// reported and recorded, while REGRESSIONS (a committed green contract
+/// now partial/blocked, or a green feature vanished) are CI failures
+/// (exit 1): a new feature that breaks an existing contract lands here.
+/// The committed ledger advances only on a clean diff — a break cannot
+/// be absorbed by the run that detected it.
+///
+/// Machine contract: ends with `corpus ledger: target=<t> features=<n>
+/// green=<g> partial=<m> blocked=<k> regressions=<r> added=<a>
+/// removed=<x> result=<baseline|clean|contract-break>`. Exit 0
+/// baseline/clean; 1 contract-break; 2 runner/usage errors.
+class CorpusLedgerCommand extends Command<void> {
+  CorpusLedgerCommand() {
+    argParser.addOption('target', help: 'The corpus target being walked.');
+    argParser.addOption(
+      'project',
+      aliases: const ['project-root'],
+      help: 'Project root of the driven app (containing .zfa/, specs/).',
+    );
+    argParser.addOption(
+      'zfa-bin',
+      help:
+          'Path to the zfa CLI entrypoint used to spawn the per-feature '
+          '`tdd run` / `tdd verify` commands (defaults to this package\'s '
+          'bin/zfa.dart).',
+    );
+    argParser.addOption(
+      'timeout',
+      valueHelp: 'minutes',
+      help:
+          'Hard deadline in minutes for each spawned per-feature command '
+          '(default 10). Fractions allowed.',
+    );
+  }
+
+  @override
+  String get name => 'ledger';
+
+  @override
+  String get description =>
+      'Record the walk verdicts in the committed ledger and diff against '
+      'it — regressions on existing contracts are CI failures (the merge '
+      'gate, epic #1017, child #1017).';
+
+  @override
+  String get invocation =>
+      'zfa corpus ledger --target <name> [--project <dir>] '
+      '[--zfa-bin <path>]';
+
+  static const _exitClean = 0;
+  static const _exitContractBreak = 1;
+  static const _exitRunnerError = 2;
+
+  @override
+  Future<void> run() async {
+    final target = argResults?['target'] as String?;
+    if (target == null || target.isEmpty) {
+      print(
+        'zfa corpus ledger: --target is required (the corpus being '
+        'walked, e.g. zik_zak).',
+      );
+      exitCode = _exitRunnerError;
+      return;
+    }
+    final projectFlag = argResults?['project'] as String?;
+    final projectRoot = projectFlag != null && projectFlag.isNotEmpty
+        ? p.absolute(projectFlag)
+        : Directory.current.path;
+    final zfaBin = argResults?['zfa-bin'] as String?;
+
+    final CorpusCatalog catalog;
+    try {
+      catalog = requireCatalog(target: target, projectRoot: projectRoot);
+    } on CorpusCatalogException catch (e) {
+      print('zfa corpus ledger: $e');
+      exitCode = _exitRunnerError;
+      return;
+    } on CorpusWalkException catch (e) {
+      print('zfa corpus ledger: $e');
+      exitCode = _exitRunnerError;
+      return;
+    }
+
+    Duration? timeoutOverride;
+    try {
+      timeoutOverride = parseTddTimeoutMinutes(
+        argResults?['timeout'] as String?,
+      );
+    } on TddTimeoutFormatException catch (e) {
+      print('zfa corpus ledger: ${e.message}');
+      exitCode = _exitRunnerError;
+      return;
+    }
+
+    // The committed ledger — read BEFORE the walk so a corrupt file
+    // stops honestly before anything is driven.
+    final WalkLedger? committed;
+    try {
+      committed = WalkLedgerStore(projectRoot).read(target);
+    } on WalkLedgerException catch (e) {
+      print('zfa corpus ledger: $e');
+      exitCode = _exitRunnerError;
+      return;
+    }
+
+    final walker = CorpusWalker(zfaBin: zfaBin, timeout: timeoutOverride);
+    final walk = await walker.walk(
+      catalog,
+      projectRoot: projectRoot,
+      printLine: print,
+    );
+    await persistWalkResult(projectRoot, walk);
+
+    if (committed == null) {
+      // Baseline: the first run records the contract state.
+      await WalkLedgerStore(projectRoot).write(ledgerFromWalk(walk));
+      print(
+        'corpus ledger: target=${walk.target} '
+        'features=${walk.results.length} green=${walk.green} '
+        'partial=${walk.partial} blocked=${walk.blocked} regressions=0 '
+        'added=0 removed=0 result=baseline',
+      );
+      exitCode = _exitClean;
+      return;
+    }
+
+    final diff = WalkLedgerDiff.of(walk, committed);
+    for (final line in diff.regressions) {
+      print(line);
+    }
+    for (final line in diff.renewed) {
+      print(line);
+    }
+    for (final line in diff.added) {
+      print(line);
+    }
+    for (final line in diff.removed) {
+      print(line);
+    }
+
+    // The ledger advances only on a clean diff: a contract-break leaves
+    // the committed ledger untouched so the break cannot be absorbed by
+    // the run that detected it.
+    if (!diff.contractBreak) {
+      await WalkLedgerStore(projectRoot).write(ledgerFromWalk(walk));
+    }
+
+    print(
+      'corpus ledger: target=${walk.target} '
+      'features=${walk.results.length} green=${walk.green} '
+      'partial=${walk.partial} blocked=${walk.blocked} '
+      'regressions=${diff.regressions.length} added=${diff.added.length} '
+      'removed=${diff.removed.length} '
+      'result=${diff.contractBreak ? 'contract-break' : 'clean'}',
+    );
+    exitCode = diff.contractBreak ? _exitContractBreak : _exitClean;
   }
 }
