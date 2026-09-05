@@ -281,6 +281,50 @@ void main() {
     expect(result.output, contains('ownership conflict'));
   });
 
+  test('U16b (issue #992): a refused gen carries its verdict JSON — '
+      'outcome=refused with the refusal kind, still a failure', () async {
+    // The real `zfa tdd gen` refuses the widget lane (issue #938) with
+    // the machine-parseable verdict JSON as the FINAL stdout line and
+    // exit 1. The driver can only degrade per-kind (issue #992) when the
+    // parsed StepResult names the refusal and its kind.
+    final spawner = _RecordingSpawner(
+      () => _result(
+        exitCode: 1,
+        stdout:
+            '--> fix: add shadcn_ui (flutter pub add shadcn_ui --dev) or '
+            're-run with --skip-widget\n'
+            '{"command":"gen","behavior":"A8","verdict":"refused",'
+            '"reason":"pubspec.yaml does not declare shadcn_ui",'
+            '"kind":"widget"}\n',
+      ),
+    );
+    final result = await runnerWith(spawner).run(
+      step: 'gen',
+      behaviorId: 'A8',
+      feature: feature,
+      projectRoot: projectRoot,
+    );
+    expect(result.success, isFalse);
+    expect(result.outcome, 'refused');
+    expect(result.verdictKind, 'widget');
+
+    // A non-JSON failure keeps the generic outcome and no kind.
+    final plain =
+        await runnerWith(
+          _RecordingSpawner(
+            () => _result(exitCode: 1, stderr: 'zfa tdd gen: boom'),
+          ),
+        ).run(
+          step: 'gen',
+          behaviorId: 'A8',
+          feature: feature,
+          projectRoot: projectRoot,
+        );
+    expect(plain.success, isFalse);
+    expect(plain.outcome, 'error');
+    expect(plain.verdictKind, isNull);
+  });
+
   test(
     'U17: a spawn failure yields a runner-error StepResult, not a crash',
     () async {
