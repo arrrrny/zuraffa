@@ -344,6 +344,44 @@ Use `feature scaffold` only when you want the wrapper semantics. Prefer `make` w
 
 ---
 
+## `zfa spec fuzz`
+
+Spec-mutation arena (spec 0967, VISION §7, issue #967): mutation testing for
+intent. Given a feature that is green (spec + passing behaviors + clean
+ledger), `zfa spec fuzz` applies deterministic spec mutations — weaken a
+Then clause, drop an edge-case scenario, swap a declared literal/route/key,
+widen a numeric range, drop a MUST NOT — and re-runs the loop's pins per
+mutant. A survived mutant is a proven spec weakness: the test suite does
+not pin the intent. The kill rate is the coverage metric presence counts
+cannot fake.
+
+```bash
+# Fuzz one feature (writes specs/<feature>/tdd/spec-fuzz.{json,md})
+zfa spec fuzz 044-test-tdd-generation
+
+# Cap the round and replay it deterministically
+zfa spec fuzz 044-test-tdd-generation --budget 20 --seed 967
+
+# Only the declared operators
+zfa spec fuzz 044-test-tdd-generation --operators weaken,drop,swap-literal
+
+# Corpus-wide against the cataloged corpus (#953 surface, one budget)
+zfa spec fuzz --corpus main --budget 500
+```
+
+Exit codes: `0` every mutant killed (the machine line reports
+`certified=true`), `1` survived > 0 (each survivor is a
+`severity: contract` gap-ledger entry — the corpus referee blocks
+production on open gaps), `2` corpus catalog misfire, `3` spec drift
+(re-plan first), `64` usage or honest not-assessed/preflight-red
+refusals. The machine summary line is the CI contract:
+
+```text
+spec-fuzz: feature=<f> mutations=<n> killed=<k> survived=<s> not_assessed=<x> budget=<b> seed=<seed> fuzz_was_run=<bool> certified=<bool>
+```
+
+---
+
 ## `zfa build`
 
 Use `zfa build` instead of calling `build_runner` directly in v5 docs.

@@ -56,6 +56,29 @@ jobs:
       - name: "Proof smoke (receipts + proof check gate)"
         run: bash tools/proof_smoke.sh
 
+  spec_fuzz:
+    # Issue #967 (spec-mutation arena, VISION §7): the seeded weakness
+    # demo as a CI gate — the weak toy spec MUST be flagged (the job
+    # fails if it is not) and the strengthened spec MUST kill every
+    # mutant (the job fails if any survive). This is the gate that
+    # blocks "certified" status on survived mutations; the survivors'
+    # severity:contract gap-ledger entries additionally block the
+    # corpus referee's production verdict.
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configuring Dart environment
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: "3.13.2"
+      - name: "Get dependencies"
+        run: dart pub get --no-example
+      - name: "Spec fuzz demo (seeded weakness: flagged weak, certified strong)"
+        run: bash tools/spec_fuzz_demo.sh
+
   analyze:
     timeout-minutes: 15
     runs-on: ubuntu-latest
