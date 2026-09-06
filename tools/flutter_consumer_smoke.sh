@@ -49,11 +49,9 @@ YAML
 cat > "$CONSUMER/lib/main.dart" <<'DART'
 import 'package:flutter/material.dart';
 import 'package:zuraffa/skin.dart';
-import 'package:zuraffa/zuraffa.dart';
 
-// Minimal Flutter consumer: exercises the core barrel AND the skin
-// barrel (the post-6.1.0 surface, issue #1197) inside a real Flutter
-// resolution.
+// Minimal Flutter consumer: exercises the skin barrel (the post-6.1.0
+// surface, issue #1197) inside a real Flutter resolution.
 void main() {
   final table = RouteContractTable.fromRouteNames(['home']);
   runApp(
