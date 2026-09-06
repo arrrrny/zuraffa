@@ -29,8 +29,8 @@ import '../plugins/repository/repository_plugin.dart';
 /// `manualSubcommandNames` seam, same as `StateCreateCommand`) and adds
 /// the machine channel:
 ///
-///  * `--json` emits the canonical `zuraffa.verdict.v1` envelope
-///    (issue #1105) as the LAST stdout line:
+///  * `--json` emits the canonical verdict envelope
+///    (ZuraffaVerdictEnvelope.schema, issue #1105) as the LAST stdout line:
 ///    `{schema, command, verdict, exit_class, subject: {kind: repository,
 ///    entity}, findings[], manifest: {path, sha256, methods}, drifts[],
 ///    details, timestamp}`;
@@ -112,8 +112,8 @@ class RepositoryCreateCommand extends Command<void> {
       'json',
       negatable: false,
       help:
-          'Emit the canonical zuraffa.verdict.v1 envelope on stdout '
-          '(SPEC 1124, issue #1105)',
+          'Emit the canonical ${ZuraffaVerdictEnvelope.schema} envelope '
+          'on stdout (SPEC 1124, issue #1105)',
     );
     argParser.addFlag(
       'explain',
