@@ -26,10 +26,14 @@ import 'capabilities/export_slice_capability.dart';
 import 'capabilities/verify_slice_capability.dart';
 import 'exporter/github_exporter.dart';
 import 'exporter/slice_importer.dart';
+import 'generators/feature_slice_composer.dart';
 import 'generators/manifest_writer.dart';
 import 'models/slice_file.dart';
 import 'models/slice_manifest.dart';
+import 'receipts/slice_receipt.dart' show slugFeatureId;
+import 'receipts/slice_receipt_aggregator.dart';
 import 'runner/slice_runner.dart';
+import 'services/feature_contract_resolution.dart' show resolveFeatureContract;
 
 /// The `zfa slice` command.
 class SliceCommand extends Command<void> {
@@ -84,11 +88,16 @@ subcommands:
   cut <name>      Extract a runnable slice (see cut options below)
   compose <id>    Resolve a feature contract → slice (engine/skin/contract/receipts)
   worktree <id>   Open a git worktree rooted at the slice (agent = the feature)
+  id <id>         Print the feature's stable slice id (the FeatureContract id)
   check <id>      Validate the slice against its contract (compliance report)
   merge <name>    Merge agent changes from a slice back into the project
   list            List active slices
   inspect <name>  Show a slice's files, ownership, and modification status
-  verify <name>   Check a slice's imports resolve (--analyze for dart analyze)
+  verify <name>   Full audit of a feature slice: aggregates the five
+                  sub-receipts (engine + skin + cert + xray + journal) into
+                  slice.receipt.json; exits 0 only when all are green — the
+                  merge gate (spec 1116). A cut slice keeps the import check
+                  (--analyze for dart analyze).
   run <name>      Launch the slice (flutter run -t <main_slice.dart>)
   export <name>   Export a slice (--format tar.gz|github [--repo <name>])
   import <name>   Pull an exported GitHub repo back (--from github)
@@ -150,6 +159,16 @@ when missing (spec 1114).
 example:
   zfa slice worktree login
   cd .zfa/slices/login && zfa tdd run login''',
+    'id': '''
+usage: zfa slice id <feature-id>
+
+Prints the feature's stable slice id — the resolved FeatureContract id
+(spec 1098) when a contract is declared, else the slug-normalized id.
+Stable across re-compositions.
+
+example:
+  zfa slice id login          # prints: login
+  zfa slice id 004-login-ui   # prints: 004-login-ui''',
     'check': '''
 usage: zfa slice check <feature-id>
 
@@ -167,6 +186,10 @@ usage: zfa slice merge <name> [--yes] [--verbose]
 options:
   --yes       Confirm shared-file overwrites without prompting
   --verbose   Print per-file merge decisions
+
+A FEATURE slice merges only through the receipt gate (spec 1116):
+slice.receipt.json must be green — run `zfa slice verify <feature-id>`
+first; a red or pending receipt refuses the merge.
 
 example:
   zfa slice merge product_feature
@@ -259,6 +282,8 @@ example:
           await _compose(rest);
         case 'worktree':
           await _worktree(rest);
+        case 'id':
+          await _id(rest);
         case 'check':
           await _check(rest);
         case 'merge':
@@ -483,6 +508,34 @@ example:
     exitCode = result.success ? 0 : 1;
   }
 
+  /// Spec 1116: print the feature's stable slice id — the resolved
+  /// FeatureContract id (spec 1098) when a contract is declared, else
+  /// the slug-normalized id. INV-1: usage errors print text and set
+  /// [exitCode]; never a stack trace.
+  Future<void> _id(List<String> rest) async {
+    final id = rest.isEmpty || rest.first.startsWith('-')
+        ? null
+        : rest.first.trim();
+    if (id == null || id.isEmpty) {
+      _usageError(
+        'Missing feature id: zfa slice id <feature-id>\n'
+        'The id is the FeatureContract id (spec 1098) when the feature '
+        'declares a contract, else the slug-normalized id.',
+      );
+      return;
+    }
+
+    final resolved = resolveFeatureContract(
+      projectRoot: projectRoot,
+      featureId: id,
+    );
+    // The declared contract is the definition; its id IS the slice id.
+    // An undeclared id still resolves — a pure function of the input,
+    // so it is stable across re-compositions.
+    print(resolved?.contract.id ?? slugFeatureId(id));
+    exitCode = 0;
+  }
+
   /// Spec 1114: the slice compliance check — the contract is the truth,
   /// the slice is the claim. INV-1: usage errors print text and set
   /// [exitCode]; never a stack trace.
@@ -553,6 +606,42 @@ example:
     final sliceName = results.rest.isNotEmpty
         ? results.rest.first
         : results['name'] as String;
+
+    // Spec 1116: the MERGE GATE. A feature slice merges only when its
+    // receipt is green — the receipt audit runs before any merge work
+    // and refuses red (or pending: the sub-receipts were never run).
+    final featureManifest = File(
+      p.join(
+        FeatureSliceComposer.sliceRootOf(projectRoot, sliceName),
+        'slice.yaml',
+      ),
+    );
+    if (featureManifest.existsSync()) {
+      final gate = await SliceReceiptAggregator().aggregate(
+        projectRoot: projectRoot,
+        featureId: sliceName,
+      );
+      if (gate.verdict != 'green') {
+        print(
+          'Merge refused: the slice receipt for "$sliceName" is '
+          '${gate.verdict} — the merge gate (spec 1116) requires a '
+          'green slice.receipt.json.',
+        );
+        print(gate.message);
+        print(
+          '--> fix: run `zfa slice verify $sliceName` and resolve every '
+          'red section, then merge (spec 1116).',
+        );
+        exitCode = 1;
+        return;
+      }
+      print(
+        'merge gate: slice "$sliceName" receipt is green — merge may '
+        'proceed (spec 1116).',
+      );
+      return;
+    }
+
     final reporter = CliProgressReporter();
     reporter.started('Merging slice "$sliceName"', 3);
     final capability = MergeSliceCapability();
@@ -733,9 +822,15 @@ example:
     }
   }
 
+  /// Spec 1116: the full receipt audit for a FEATURE slice — one
+  /// command, full audit. A feature slice (.zfa/slices/<id>/slice.yaml)
+  /// aggregates the five sub-receipts into slice.receipt.json and exits
+  /// 0 only when all are green (the merge gate). A cut slice keeps the
+  /// #961 import check. INV-1: usage errors print text and set
+  /// [exitCode]; never a stack trace.
   Future<void> _verify(List<String> rest) async {
     final parser = ArgParser()
-      ..addFlag('analyze', help: 'Run dart analyze')
+      ..addFlag('analyze', help: 'Run dart analyze (cut slices)')
       ..addOption(
         'name',
         help: 'Slice name (alternative to the positional argument)',
@@ -756,11 +851,34 @@ example:
       return;
     }
 
+    final sliceName = results.rest.isNotEmpty
+        ? results.rest.first
+        : results['name'] as String;
+
+    // The receipt audit path: the named slice is a FEATURE slice
+    // (composed at .zfa/slices/<feature-id>/). Spec 1116.
+    final featureManifest = File(
+      p.join(
+        FeatureSliceComposer.sliceRootOf(projectRoot, sliceName),
+        'slice.yaml',
+      ),
+    );
+    if (featureManifest.existsSync()) {
+      final aggregation = await SliceReceiptAggregator().aggregate(
+        projectRoot: projectRoot,
+        featureId: sliceName,
+      );
+      print(aggregation.message);
+      if (!aggregation.success || aggregation.verdict != 'green') {
+        exitCode = 1;
+      }
+      return;
+    }
+
+    // Legacy path: the cut-slice import check (#961).
     final capability = VerifySliceCapability();
     final result = await capability.execute({
-      'name': results.rest.isNotEmpty
-          ? results.rest.first
-          : results['name'] as String,
+      'name': sliceName,
       'projectRoot': projectRoot,
       'analyze': results['analyze'] as bool,
       'analyzeLauncher': analyzeLauncher,
