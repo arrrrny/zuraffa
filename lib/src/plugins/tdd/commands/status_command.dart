@@ -36,6 +36,7 @@ import 'package:path/path.dart' as p;
 import '../../../core/project/project_root.dart';
 import '../../../engine/engine_gate_receipt.dart';
 import '../models/verdict_envelope.dart';
+import '../services/explain_emitter.dart';
 import '../services/journal.dart';
 import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
@@ -53,6 +54,7 @@ class StatusCommand extends Command<void> {
           'is used.',
     );
     argParser.addFlag('json', help: kJsonFlagHelp, negatable: false);
+    argParser.addFlag('explain', help: kExplainFlagHelp, negatable: false);
   }
 
   final TddPlugin plugin;
@@ -166,6 +168,41 @@ class StatusCommand extends Command<void> {
             'drive the failing lane(s): `zfa tdd run-engine $feature` '
             'then `zfa tdd run-skin $feature`';
     }
+    // Issue #1125: the status explain block — every section reuses the
+    // journal stream this command already read (JournalReader, spec
+    // 1113): the lane verdicts from the receipts the entries reference,
+    // the refusal fix lines from the cert-gate receipts, never fresh
+    // facts. Status drives no lane — the block says so.
+    _verdict.explain = TddExplain(
+      command: 'status',
+      features: [feature],
+      lane:
+          'engine: ${verdict.engineVerdict} · skin: ${verdict.skinVerdict} '
+          '(read from the journal and its receipts — status drives no '
+          'lane)',
+      receipts: [
+        '${JournalWriter.engineReceiptRef} (verdict: '
+            '${verdict.engineVerdict})',
+        '${JournalWriter.skinReceiptRef} (verdict: '
+            '${verdict.skinVerdict})',
+        if (journal.journalPresent) 'tdd/journal.json (unified journal)',
+      ],
+      fixHints: [
+        for (final doc in refusals.values)
+          '${doc['fix']} (refused entity: ${doc['entity']})',
+        if (!bothGreen || gateBlocked)
+          'drive the failing lane(s): `zfa tdd run-engine $feature` '
+              'then `zfa tdd run-skin $feature`',
+      ],
+      summary:
+          'Status converged the unified journal for $feature into the '
+          'one-line verdict: ${verdict.oneLine}. '
+          '${journal.journalPresent ? 'The journal is present and its receipt refs resolved.' : 'No unified journal exists yet (tdd/journal.json absent — an honest pending state).'} '
+          'Exit 0 iff both lanes are green'
+          '${gateBlocked ? ' and no cert-gate refusal is on file' : ''}'
+          '; this status exits '
+          '${bothGreen && !gateBlocked ? 0 : 1}.',
+    );
     exitCode = bothGreen && !gateBlocked ? 0 : _exitNotGreen;
   }
 }
