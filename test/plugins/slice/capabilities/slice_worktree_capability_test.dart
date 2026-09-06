@@ -308,19 +308,16 @@ void main() {
       final sliceTx = TddTransaction(sliceFeatureDir);
       await sliceTx.begin(behavior: 'U1', step: 'red');
 
+      // Spec 1113 renamed the write-ahead record from journal.json to
+      // transaction.json — resolve both sides through [TddTransaction.path]
+      // so a future rename cannot stale this test again.
+      final parentTxPath = TddTransaction(parentFeatureDir).path;
+      final sliceTxPath = TddTransaction(sliceFeatureDir).path;
       final parentJournal =
-          jsonDecode(
-                File(
-                  p.join(parentFeatureDir, 'tdd', 'journal.json'),
-                ).readAsStringSync(),
-              )
+          jsonDecode(File(parentTxPath).readAsStringSync())
               as Map<String, dynamic>;
       final sliceJournal =
-          jsonDecode(
-                File(
-                  p.join(sliceFeatureDir, 'tdd', 'journal.json'),
-                ).readAsStringSync(),
-              )
+          jsonDecode(File(sliceTxPath).readAsStringSync())
               as Map<String, dynamic>;
 
       // Same journal record: the feature axis is identical.
@@ -330,16 +327,10 @@ void main() {
       expect(sliceJournal['step'], parentJournal['step']);
       expect(sliceJournal['status'], 'pending');
 
-      // Paths rewritten: the journal file sits at the same relative
-      // structure under each root (specs/<feature>/tdd/journal.json).
-      final parentRel = p.relative(
-        p.join(parentFeatureDir, 'tdd', 'journal.json'),
-        from: workspace.path,
-      );
-      final sliceRel = p.relative(
-        p.join(sliceFeatureDir, 'tdd', 'journal.json'),
-        from: sliceRoot(),
-      );
+      // Paths rewritten: the record sits at the same relative structure
+      // under each root (specs/<feature>/tdd/transaction.json).
+      final parentRel = p.relative(parentTxPath, from: workspace.path);
+      final sliceRel = p.relative(sliceTxPath, from: sliceRoot());
       expect(sliceRel, parentRel);
     });
 

@@ -19,6 +19,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/services/runner.dart';
+import 'package:zuraffa/src/plugins/tdd/services/test_reporter_args.dart';
 
 import 'project_root.dart';
 
@@ -139,6 +140,12 @@ $deps$devDeps
 /// [SingleTestRunner.splitCommand] tokenizes the result into an
 /// executable + argument list. Returns the argv so callers stay runner
 /// agnostic (dart or flutter).
+///
+/// The argv is pinned to the compact reporter ([withCompactReporter]):
+/// package:test silently switches to its `github` reporter when
+/// `GITHUB_ACTIONS=true` (every Actions runner), and the github reporter
+/// emits `🎉 N tests passed.` instead of the compact `+N: All tests
+/// passed!` the behavioral probes assert on.
 Future<List<String>> resolvedRunnerArgs({
   required String repoRoot,
   required String testPath,
@@ -155,7 +162,7 @@ Future<List<String>> resolvedRunnerArgs({
         'stop the run, not silently fall back)',
   );
   final command = template.replaceAll('{file}', testPath);
-  return SingleTestRunner.splitCommand(command);
+  return withCompactReporter(SingleTestRunner.splitCommand(command));
 }
 
 /// The login-pilot entity pair (005-login-engine): `AuthSession` is what
