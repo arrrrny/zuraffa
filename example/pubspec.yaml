@@ -38,34 +38,16 @@ dev_dependencies:
   json_serializable: ^6.13.2
   hive_ce_generator: ^1.11.1
 
-# Issue #891: the Flutter SDK pins meta to an exact version (1.17.0 on
-# 3.41.x) while the root package's analyzer constraint (analyzer ^14.3.0,
-# itself forced by dart_style 3.1.12 which requires analyzer >=13.1.0)
-# needs meta ^1.18.3. example/ depends on BOTH flutter from sdk and
-# zuraffa from path, so without this override the solver cannot close and
-# every `flutter pub get` / `flutter analyze` / `flutter test` that
-# recurses into example/ dies — including every CI job. This is a VERSION
-# override (the root pubspec's prohibition targets path: overrides from
-# sibling checkouts, which stays respected). meta is annotation-only and
-# source-stable across the range. Drop this once Flutter re-pins meta.
-  test: ^1.0.0
-  coverage: ^1.15.1
-  mutation_test: ^1.8.0
-dependency_overrides:
-  meta: ^1.18.3
-  # Issue #1133: the root package declares `test: any` (its self-hosted
-  # TDD corpora import package:test), so example's graph must resolve a
-  # `test` version too. With Flutter 3.47.x that solver cannot close on
-  # its own: flutter_test pins test_api 0.12.20/matcher 0.12.20-era
-  # exact versions while every `test` release reachable from `any` needs
-  # test_api >=0.7.14 or analyzer <14 (both conflict — test_api 0.7.14
-  # vs the SDK pin, analyzer <14 vs zuraffa's ^14.3.0). These are
-  # VERSION overrides (the root pubspec's prohibition targets path:
-  # overrides, which stays respected): force `test` to the newest line
-  # and hold test_api at the SDK-pinned version so flutter_test's exact
-  # pins stay untouched. Drop once the SDK re-pins a compatible pair.
-  test: ^1.32.0
-  test_api: 0.7.12
+# Issue #1189: this app now resolves with ZERO dependency_overrides.
+# The `meta: ^1.18.3` override from issue #891 was dropped: Flutter 3.47.x
+# re-pinned meta to ^1.18.3, so the conflict the override worked around is
+# gone (the old comment itself said to drop it once Flutter re-pins meta).
+# The zuraffa-side fix for #1189 — moving `test` out of zuraffa's regular
+# dependencies and widening analyzer to >=14.0.0 <15.0.0 — is what closes
+# the solver failure that used to kill every `flutter pub get` recursing
+# into this directory. tools/flutter_smoke_gate.sh re-proves this
+# resolution on every CI run so the next constraint bump cannot silently
+# break Flutter consumers again.
 
 flutter:
   uses-material-design: true
