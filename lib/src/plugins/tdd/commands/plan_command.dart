@@ -23,6 +23,7 @@ import '../services/i18n_key_contract.dart';
 import '../services/lane_split.dart';
 import '../services/routing_resolver.dart';
 import '../services/requirement_scan.dart';
+import '../services/spec_marker_emitter.dart';
 import '../services/spec_migrator.dart';
 import '../services/spec_parser.dart';
 import '../services/test_list_reader.dart';
@@ -52,7 +53,10 @@ class PlanCommand extends Command<void> {
       help:
           'Refuse undeclared routing intent instead of falling back to the '
           'legacy keyword classifiers. Undeclared behaviors exit 1 with the '
-          'spec line and the declaration to add (feature 071, issue #951).',
+          'spec line and the declaration to add (feature 071, issue #951). '
+          'Run a plain `zfa tdd plan` first (issue #1186): it emits the '
+          'classified `**Type**` markers into the spec, so the strict gate '
+          'passes on the re-run.',
       negatable: false,
     );
     argParser.addOption(
@@ -72,6 +76,18 @@ class PlanCommand extends Command<void> {
           'this flag a missing/unknown marker stays contract drift (exit '
           '3) and the spec is never touched.',
       negatable: false,
+    );
+    argParser.addFlag(
+      'emit-markers',
+      help:
+          'Emit the classified `**Type**` lane markers back into the spec '
+          'after a successful plan (issue #1186): the legacy classifier '
+          'fallback becomes a one-time migration instead of a per-run '
+          'warning, and `--strict-routing` becomes usable on '
+          'speckit-authored specs. Pass `--no-emit-markers` to leave the '
+          'spec untouched.',
+      defaultsTo: true,
+      negatable: true,
     );
   }
 
@@ -480,9 +496,10 @@ class PlanCommand extends Command<void> {
       scenarioMarkers,
       strict: strict,
     );
+    final provenanceLines = provenance.lines;
     // Strict gate (feature 071): a refusal writes no artifact.
-    if (strict && provenance.containsKey('__refused__')) {
-      for (final line in provenance.remove('__refused__')!) {
+    if (strict && provenanceLines.containsKey('__refused__')) {
+      for (final line in provenanceLines.remove('__refused__')!) {
         print(line);
       }
       _verdict
@@ -534,13 +551,42 @@ class PlanCommand extends Command<void> {
     // provenance artifact (they are spec-DECLARED through the Layer
     // Contracts section, like the ffi lane's native-loop declaration).
     for (final b in contractBehaviors) {
-      provenance.putIfAbsent(
+      provenanceLines.putIfAbsent(
         b.id,
         () => [
           'route: ${b.id} -> contract lane '
               '[declared: layer contracts section]',
         ],
       );
+    }
+
+    // Issue #1186: the one-time routing migration. Every behavior that
+    // routed via the labeled legacy fallback had its lane classified by
+    // the (accurate) description classifier — emitting the classified
+    // `**Type**` marker back into the spec turns the per-run fallback
+    // warning into a one-time migration, and makes `--strict-routing`
+    // usable on speckit-authored specs (whose templates never carried
+    // the markers). Emission happens only after every gate passed (a
+    // refused plan never touches the spec), is idempotent (a scenario
+    // already carrying a marker is never re-declared), and is skipped
+    // entirely under `--no-emit-markers`.
+    if (argResults?['emit-markers'] as bool? ?? true) {
+      final emission = const SpecMarkerEmitter().emit(
+        specMd,
+        provenance.fallbackKinds,
+      );
+      if (emission.migrated) {
+        await specFile.writeAsString(emission.content);
+        specMd = emission.content;
+        print(
+          'zfa tdd plan: emitted ${emission.emitted.length} `**Type**` '
+          'marker(s) into the spec — one-time routing migration (issue '
+          '#1186) for ${emission.emitted.keys.join(', ')} (spec: '
+          '$specPath). Re-run `zfa tdd plan`; the migrated scenarios now '
+          'carry their declared lane.',
+        );
+        _verdict.details['markers_emitted'] = emission.emitted.length;
+      }
     }
 
     await outDir.create(recursive: true);
@@ -593,7 +639,7 @@ class PlanCommand extends Command<void> {
 
       final engineProvenance = <String, List<String>>{};
       final skinProvenance = <String, List<String>>{};
-      provenance.forEach((id, lines) {
+      provenanceLines.forEach((id, lines) {
         // Ffi rows and any unclassified id default engine-side (the
         // native boundary + routing bookkeeping are engine-owned).
         final lane = laneResult.classification[id] ?? Lane.core;
@@ -636,7 +682,7 @@ class PlanCommand extends Command<void> {
         p.join(outDir.path, LaneSplitFiles.contract),
       ).writeAsString(contractMd);
       await outFile.writeAsString(metaMd);
-      for (final line in provenance.values.expand((l) => l)) {
+      for (final line in provenanceLines.values.expand((l) => l)) {
         print('   $line');
       }
       stdout.writeln(
@@ -680,7 +726,7 @@ class PlanCommand extends Command<void> {
         layerContracts,
         preservedFfi,
         declarations.persistence,
-        provenance,
+        provenanceLines,
       ),
     );
     // Issue #1141: the UI surface ledger artifact (the legacy single-file
@@ -709,7 +755,7 @@ class PlanCommand extends Command<void> {
         ...ledgerFiles,
       },
     );
-    for (final line in provenance.values.expand((l) => l)) {
+    for (final line in provenanceLines.values.expand((l) => l)) {
       // print (not stdout.writeln): the observable-CLI convention the
       // tdd command suites assert on (runCapturing intercepts print).
       print('   $line');
@@ -1119,7 +1165,14 @@ class PlanCommand extends Command<void> {
   /// the resolver consults the parsed declarations; undeclared
   /// behaviors render their LABELED legacy fallback (migration window;
   /// strict mode turns these into refusals).
-  Map<String, List<String>> _provenanceLines(
+  ///
+  /// Issue #1186: the fallback-routed behaviors' classified kinds also
+  /// come back (`fallbackKinds`, id → kind) so the plan can MIGRATE the
+  /// emittable ones (`**Type**` markers) into the spec post-derivation
+  /// — the one-time migration that makes the per-run fallback noise (and
+  /// the strict gate's refusal on speckit-authored specs) disappear.
+  ({Map<String, List<String>> lines, Map<String, BehaviorKind> fallbackKinds})
+  _provenanceLines(
     List<Behavior> behaviors,
     List<BehaviorRow> preservedFfi,
     SpecDeclarations declarations,
@@ -1129,6 +1182,7 @@ class PlanCommand extends Command<void> {
   }) {
     const resolver = RoutingResolver();
     final lines = <String, List<String>>{};
+    final fallbackKinds = <String, BehaviorKind>{};
     String lane(BehaviorKind kind) => switch (kind) {
       BehaviorKind.acceptance => 'acceptance lane',
       BehaviorKind.widget => 'widget lane',
@@ -1198,6 +1252,7 @@ class PlanCommand extends Command<void> {
           : decision == BehaviorKind.acceptance
           ? 'add `**Type**: acceptance` to the scenario'
           : 'trace FR to a declared contract row';
+      fallbackKinds[b.id] = decision;
       record(b.id, [
         'route: ${b.id} -> ${lane(decision)} '
             '[fallback: legacy description classifier matched — $hint]',
@@ -1209,7 +1264,7 @@ class PlanCommand extends Command<void> {
             '[declared: native loop section]',
       ]);
     }
-    return lines;
+    return (lines: lines, fallbackKinds: fallbackKinds);
   }
 
   /// Bug #833: the plan MARKS the behavior persistence-kind — the
