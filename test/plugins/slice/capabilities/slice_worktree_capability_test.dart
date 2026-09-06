@@ -17,6 +17,7 @@ import 'package:zuraffa/src/core/project/project_root.dart';
 import 'package:zuraffa/src/plugins/slice/capabilities/compose_slice_capability.dart';
 import 'package:zuraffa/src/plugins/slice/capabilities/slice_worktree_capability.dart';
 import 'package:zuraffa/src/plugins/tdd/services/journal.dart';
+import 'package:zuraffa/src/plugins/tdd/services/tdd_transaction.dart';
 
 import '../helpers/feature_slice_fixture.dart';
 
@@ -300,11 +301,15 @@ void main() {
       final parentTx = TddTransaction(parentFeatureDir);
       await parentTx.begin(behavior: 'U1', step: 'red');
 
-      // The SAME write driven from inside the slice worktree: the tdd
-      // mount is <sliceRoot()>/specs/login, so the transaction lands at
-      // <sliceRoot()>/specs/login/tdd/transaction.json — the same record,
-      // paths rewritten relative to the slice root.
+      // The SAME writes driven from inside the slice worktree: the tdd
+      // mount is <sliceRoot()>/specs/login, so the write-ahead
+      // transaction and the unified journal land at
+      // <sliceRoot()>/specs/login/tdd/ — the same records, paths
+      // rewritten relative to the slice root.
       final sliceFeatureDir = p.join(sliceRoot(), 'specs', 'login');
+      final sliceTx = TddTransaction(sliceFeatureDir);
+      await sliceTx.begin(behavior: 'U1', step: 'red');
+
       final now = DateTime.now().toUtc().toIso8601String();
       final entry = JournalEntry(
         feature: 'login',
@@ -319,10 +324,12 @@ void main() {
       await JournalWriter(sliceFeatureDir).append(entry);
 
       final parentJournal =
-          jsonDecode(File(parentTx.path).readAsStringSync())
+          jsonDecode(File(JournalWriter(parentFeatureDir).journalPath)
+                  .readAsStringSync())
               as Map<String, dynamic>;
       final sliceJournal =
-          jsonDecode(File(sliceTx.path).readAsStringSync())
+          jsonDecode(File(JournalWriter(sliceFeatureDir).journalPath)
+                  .readAsStringSync())
               as Map<String, dynamic>;
 
       // Same journal record: the feature axis is identical.
