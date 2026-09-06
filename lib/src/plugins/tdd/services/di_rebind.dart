@@ -59,6 +59,7 @@ class DiRebindResult {
     required this.sites,
     required this.interfaceFilesUntouched,
     required this.beforeBytes,
+    this.alreadyBound = false,
   });
 
   final String entity;
@@ -83,6 +84,12 @@ class DiRebindResult {
   /// Pre-swap bytes of every changed file, keyed by absolute path — the
   /// rollback payload the command restores when a gate blocks the swap.
   final Map<String, String> beforeBytes;
+
+  /// Issue #1193 (idempotent unregister-first): true when the tree
+  /// already binds [adapterClass] (a crash between rebind and state
+  /// save, or a re-run) — the rebind was a no-op with nothing to swap
+  /// and nothing to roll back.
+  final bool alreadyBound;
 }
 
 class DiRebinder {
@@ -110,14 +117,20 @@ class DiRebinder {
   /// text references the mock datasource class. Files that DECLARE the
   /// mock class (the mock implementation itself) are excluded — the
   /// mock is unbound, never rewritten or deleted.
-  Future<List<DiBindingSite>> scan({required String entity}) async {
-    final mockClass = mockClassFor(entity);
-    final decl = RegExp('class\\s+$mockClass\\b');
+  Future<List<DiBindingSite>> scan({required String entity}) =>
+      scanSymbol(mockClassFor(entity));
+
+  /// Find the binding sites referencing [symbol] under `lib/`: files
+  /// whose text references it, excluding the file(s) DECLARING it. The
+  /// generic form of [scan] — the #1193 re-realize swaps a previously
+  /// bound adapter class out the same way the mock class went.
+  Future<List<DiBindingSite>> scanSymbol(String symbol) async {
+    final decl = RegExp('class\\s+$symbol\\b');
     final sites = <DiBindingSite>[];
     for (final file in await _dartFiles()) {
       final raw = await File(file).readAsString();
       if (decl.hasMatch(raw)) continue;
-      final occurrences = _countSymbol(raw, mockClass);
+      final occurrences = _countSymbol(raw, symbol);
       if (occurrences > 0) {
         sites.add(DiBindingSite(file: file, occurrences: occurrences));
       }
@@ -128,9 +141,12 @@ class DiRebinder {
   /// Files that DECLARE the mock datasource class (the mock
   /// implementation itself). Part of the realization surface the nuance
   /// receipts gate watches, but never a binding site.
-  Future<List<String>> mockImplementationFiles({required String entity}) async {
-    final mockClass = mockClassFor(entity);
-    final decl = RegExp('class\\s+$mockClass\\b');
+  Future<List<String>> mockImplementationFiles({required String entity}) =>
+      _declarationFiles(mockClassFor(entity));
+
+  /// Files that DECLARE [symbol] (its implementation(s)).
+  Future<List<String>> _declarationFiles(String symbol) async {
+    final decl = RegExp('class\\s+$symbol\\b');
     final files = <String>[];
     for (final file in await _dartFiles()) {
       if (decl.hasMatch(await File(file).readAsString())) {
@@ -162,15 +178,47 @@ class DiRebinder {
     return candidates.first;
   }
 
-  /// Swap every mock binding site to the real adapter: symbol replacement
-  /// in the binding files, import fixup, and a byte-identity proof that no
-  /// `domain/` (interface) file changed.
+  /// Swap every binding site from the mock class (or an explicit
+  /// [fromClass] — a previously bound adapter being swapped out,
+  /// issue #1193's unregister-first) to the real adapter: symbol
+  /// replacement in the binding files, import fixup, and a byte-identity
+  /// proof that no `domain/` (interface) file changed.
+  ///
+  /// Idempotent (issue #1193): when the tree already references
+  /// [adapterClass] and nothing references the symbol being swapped
+  /// out, the rebind is an `alreadyBound` no-op — a re-run or a crash
+  /// recovery never re-swaps what is already bound.
   Future<DiRebindResult> rebind({
     required String entity,
     required String adapterClass,
+    String? fromClass,
   }) async {
-    final sites = await scan(entity: entity);
+    final mockClass = mockClassFor(entity);
+    final fromSymbol = fromClass ?? mockClass;
+    var sites = fromSymbol == mockClass
+        ? await scan(entity: entity)
+        : await scanSymbol(fromSymbol);
+    if (sites.isEmpty && fromSymbol != mockClass) {
+      // The fromClass swap found nothing — fall back to mock sites (a
+      // rolled-back rebind with persisted REAL state).
+      sites = await scan(entity: entity);
+    }
     if (sites.isEmpty) {
+      // Idempotency: already bound?
+      final adapterRefs = await scanSymbol(adapterClass);
+      if (adapterRefs.isNotEmpty) {
+        return DiRebindResult(
+          entity: entity,
+          mockClass: fromSymbol,
+          adapterClass: adapterClass,
+          adapterFile: await locateAdapter(adapterClass: adapterClass),
+          sites: const [],
+          interfaceFilesUntouched: (await _domainHashes()).keys.toList()
+            ..sort(),
+          beforeBytes: const {},
+          alreadyBound: true,
+        );
+      }
       throw DiRebindException(
         'no mock binding found for $entity (no reference to '
         '${mockClassFor(entity)} under lib/) — nothing to realize. Only a '
@@ -182,8 +230,12 @@ class DiRebinder {
     // The same-interface proof, part 1: hash every domain/ file before.
     final domainBefore = await _domainHashes();
 
-    final mockClass = mockClassFor(entity);
-    final mockImportSuffix = '${_snake(entity)}_mock_datasource.dart';
+    // The swapped-out symbol's import suffixes: the REAL basenames of
+    // its declaration files (a naive snake-case of the symbol splits
+    // `DataSource` into `data_source` and misses the import).
+    final fromSuffixes = {
+      for (final file in await _declarationFiles(fromSymbol)) p.basename(file),
+    };
     final beforeBytes = <String, String>{};
     final changedSites = <DiBindingSite>[];
 
@@ -192,11 +244,11 @@ class DiRebinder {
       final raw = await file.readAsString();
       beforeBytes[site.file] = raw;
 
-      var next = _replaceSymbol(raw, mockClass, adapterClass);
+      var next = _replaceSymbol(raw, fromSymbol, adapterClass);
 
-      // Import fixup: drop the mock datasource import (the symbol is
+      // Import fixup: drop the swapped-out class's import (the symbol is
       // gone from this file), add the adapter import when missing.
-      next = _dropImport(next, mockImportSuffix, mockClass);
+      next = _dropImportAny(next, fromSuffixes, fromSymbol);
       next = _ensureImport(next, site.file, adapterFile, adapterClass);
 
       await file.writeAsString(next);
@@ -226,7 +278,7 @@ class DiRebinder {
 
     return DiRebindResult(
       entity: entity,
-      mockClass: mockClass,
+      mockClass: fromSymbol,
       adapterClass: adapterClass,
       adapterFile: adapterFile,
       sites: changedSites,
@@ -275,17 +327,21 @@ class DiRebinder {
     return hashes;
   }
 
-  /// Remove an import line whose URL ends with [suffix] when [symbol] no
-  /// longer appears in the file body.
-  static String _dropImport(String text, String suffix, String symbol) {
-    if (suffix.isEmpty || _countSymbol(text, symbol) > 0) return text;
+  /// Remove an import line whose URL ends with any of [suffixes] when
+  /// [symbol] no longer appears in the file body.
+  static String _dropImportAny(
+    String text,
+    Set<String> suffixes,
+    String symbol,
+  ) {
+    if (suffixes.isEmpty || _countSymbol(text, symbol) > 0) return text;
     return text
         .split('\n')
         .where((line) {
           final trimmed = line.trim();
           final isImport =
               trimmed.startsWith("import '") || trimmed.startsWith('import "');
-          return !(isImport && trimmed.contains(suffix));
+          return !(isImport && suffixes.any(trimmed.contains));
         })
         .join('\n');
   }
@@ -317,21 +373,5 @@ class DiRebinder {
     if (lastImport < 0) return '$target\n$text';
     lines.insert(lastImport + 1, target);
     return lines.join('\n');
-  }
-
-  static String _snake(String s) {
-    final out = StringBuffer();
-    for (var i = 0; i < s.length; i++) {
-      final c = s[i];
-      if (c == '-' || c == ' ' || c == '_') {
-        out.write('_');
-      } else if (c.toUpperCase() == c && c.toLowerCase() != c && i > 0) {
-        out.write('_');
-        out.write(c.toLowerCase());
-      } else {
-        out.write(c.toLowerCase());
-      }
-    }
-    return out.toString();
   }
 }

@@ -217,6 +217,9 @@ Map<String, int> laneCounts(
         red++;
       case BehaviorState.blocked:
         blocked++;
+      // Issue #1193: a REAL-tier behavior counts in the green tier —
+      // the swap's gates verified the behavior against the real adapter.
+      case BehaviorState.real:
       case BehaviorState.mocked:
       case BehaviorState.green:
         green++;

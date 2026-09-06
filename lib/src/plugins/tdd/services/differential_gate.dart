@@ -79,6 +79,7 @@ class DifferentialGateResult {
     required this.diffs,
     required this.fixturesRun,
     this.error,
+    this.skippedFiles = 0,
   });
 
   final DifferentialVerdict verdict;
@@ -94,6 +95,13 @@ class DifferentialGateResult {
 
   /// The runner-error detail, when the verdict is runner-error.
   final String? error;
+
+  /// Issue #1193: metadata JSON files in the fixtures directory that
+  /// are not differential fixtures (the #832 `manifest.json`, the
+  /// `mock-cert.*` receipts) — skipped by the gate, never counted and
+  /// never a runner-error. A fixture directory legitimately carries
+  /// both kinds now that realize runs against the mock-era fixtures.
+  final int skippedFiles;
 
   /// The overall drift ratio: drifted fields / compared fields.
   double get drift {
@@ -156,6 +164,10 @@ class DifferentialGate {
   /// Run every committed fixture under `tdd/fixtures/` through both
   /// bindings and compare outputs per field. Writes
   /// `tdd/differential-report.json`.
+  ///
+  /// Issue #1193: JSON files that are registry metadata rather than
+  /// fixtures (`manifest.json`, `mock-cert.*`) are skipped — the gate
+  /// runs the INPUT-carrying fixture files only.
   Future<DifferentialGateResult> run({required String entity}) async {
     final fixturesDir = Directory(p.join(featureDir, 'tdd', 'fixtures'));
     if (!await fixturesDir.exists()) {
@@ -176,7 +188,30 @@ class DifferentialGate {
 
     final threshold = thresholdOf(projectRoot);
     final diffs = <FixtureDiff>[];
+    var skipped = 0;
     for (final file in files) {
+      // Metadata files (manifest/mock-cert receipts) are not fixtures:
+      // valid JSON objects without an `input` map. Corrupt JSON and
+      // non-objects stay runner-errors — a broken fixture is a real
+      // error, a registry file is not.
+      final classification = _classifyFixture(file);
+      if (classification == _FixtureFileKind.metadata) {
+        skipped++;
+        continue;
+      }
+      if (classification == _FixtureFileKind.corrupt) {
+        return DifferentialGateResult(
+          verdict: DifferentialVerdict.runnerError,
+          threshold: threshold,
+          diffs: diffs,
+          fixturesRun: diffs.length,
+          skippedFiles: skipped,
+          error:
+              'fixture ${p.basename(file.path)} could not execute '
+              'through both bindings — see the driver protocol in the '
+              'realize command docs.',
+        );
+      }
       final diff = await _runFixture(file, entity);
       if (diff == null) {
         return DifferentialGateResult(
@@ -184,6 +219,7 @@ class DifferentialGate {
           threshold: threshold,
           diffs: diffs,
           fixturesRun: diffs.length,
+          skippedFiles: skipped,
           error:
               'fixture ${p.basename(file.path)} could not execute '
               'through both bindings — see the driver protocol in the '
@@ -198,9 +234,28 @@ class DifferentialGate {
       threshold: threshold,
       diffs: diffs,
       fixturesRun: diffs.length,
+      skippedFiles: skipped,
     );
     await _writeReport(result);
     return result;
+  }
+
+  /// Issue #1193: classify one JSON file in the fixtures directory.
+  /// `fixture` — carries an `input` map (a differential case).
+  /// `metadata` — a valid JSON object without `input` (the #832
+  /// manifest, a mock-cert receipt): skipped. `corrupt` — unparseable
+  /// or a non-object: runner-error.
+  static _FixtureFileKind _classifyFixture(File file) {
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(file.readAsStringSync());
+    } on FormatException {
+      return _FixtureFileKind.corrupt;
+    }
+    if (decoded is! Map<String, dynamic>) return _FixtureFileKind.corrupt;
+    return decoded['input'] is Map<String, dynamic>
+        ? _FixtureFileKind.fixture
+        : _FixtureFileKind.metadata;
   }
 
   static DifferentialVerdict _verdictFor(
@@ -321,3 +376,7 @@ class DifferentialGate {
     ).writeAsString('${const JsonEncoder.withIndent('  ').convert(report)}\n');
   }
 }
+
+/// Issue #1193: the fixtures-directory JSON classification (see
+/// [DifferentialGate._classifyFixture]).
+enum _FixtureFileKind { fixture, metadata, corrupt }
