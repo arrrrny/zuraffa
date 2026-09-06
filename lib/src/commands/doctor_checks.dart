@@ -7,6 +7,9 @@
 ///
 /// - `deps`           — TDD dev-deps present (mocktail/coverage/mutation_test)
 ///                      + zuraffa pin vs CLI version (warn-only)
+/// - `generated-imports` — package imports under lib/ + test/ that the
+///                      pubspec doesn't declare (issue #1190); offers the
+///                      exact `pub add` one-liner and heals it under --fix
 /// - `artifacts`      — build_runner partial outputs (entity source without
 ///                      sibling `.g.dart`/`.zorphy.dart`)
 /// - `baseline-cache` — `specs/*/tdd/run-baseline.json` readable, schema-valid,
@@ -36,6 +39,7 @@ import 'package:yaml/yaml.dart';
 
 import '../config/zfa_config.dart';
 import '../cli/binary_staleness.dart';
+import '../core/dependencies/generated_import_scanner.dart';
 import '../plugins/tdd/tdd_plugin.dart';
 import '../skew/skew_contract.dart';
 import '../version.dart';
@@ -121,6 +125,7 @@ class DoctorChecksRunner {
   /// AFTER healing (fixed or honestly still failing).
   Future<List<DoctorCheckResult>> runAll({required bool fix}) async => [
     await _checkDeps(fix: fix),
+    await _checkGeneratedImports(fix: fix),
     await _checkArtifacts(fix: fix),
     await _checkBaselineCache(fix: fix),
     await _checkConfig(fix: fix),
@@ -228,6 +233,86 @@ class DoctorChecksRunner {
           detail: 'installed ${missing.join(', ')}',
           suggestedFix: suggested,
           fixedItems: missing,
+        );
+      }
+      return _fail(
+        id,
+        '$detail (pub add failed with exit ${result.exitCode})',
+        suggested,
+      );
+    }
+    return _fail(id, detail, suggested);
+  }
+
+  // ---------------------------------------------------------------------------
+  // generated-imports (issue #1190)
+  // ---------------------------------------------------------------------------
+
+  /// Issue #1190: generated code imports packages the target's pubspec
+  /// doesn't declare — the analyzer surfaces that as noisy
+  /// `depend_on_referenced_packages` infos and strict CI fails. This check
+  /// scans `lib/` + `test/` for `package:` imports and diffs them against
+  /// the pubspec declarations; the remedy is the exact `pub add` one-liner
+  /// (run under --fix via the injectable process runner, hermetic in tests).
+  Future<DoctorCheckResult> _checkGeneratedImports({required bool fix}) async {
+    const id = 'generated-imports';
+    final pubspecFile = File(p.join(_root, 'pubspec.yaml'));
+    if (!pubspecFile.existsSync()) {
+      return DoctorCheckResult(
+        id: id,
+        status: DoctorCheckStatus.skipped,
+        detail: 'no pubspec.yaml (not a Dart project)',
+      );
+    }
+
+    final gap = GeneratedImportScanner.scanProject(projectRoot: _root);
+    if (gap == null) {
+      return DoctorCheckResult(
+        id: id,
+        status: DoctorCheckStatus.skipped,
+        detail: 'pubspec.yaml unreadable (not diffable)',
+      );
+    }
+    if (gap.importedPackages.isEmpty) {
+      return _pass(id, 'no package imports under lib/ or test/');
+    }
+    if (!gap.hasMissing) {
+      return _pass(
+        id,
+        'all ${gap.importedPackages.length} imported package(s) declared '
+        'in pubspec.yaml',
+      );
+    }
+
+    final detail =
+        'generated code imports ${gap.missing.length} package(s) '
+        'pubspec.yaml doesn\'t declare: ${gap.missing.join(', ')}';
+    final oneLiner = gap.pubAddOneLiner;
+    // SDK-provided packages (flutter, flutter_test, ...) cannot be pub
+    // added — they need an `sdk: flutter` declaration instead.
+    final sdkNote = gap.sdkMissingPackages.isEmpty
+        ? null
+        : 'declare ${gap.sdkMissingPackages.join(', ')} with '
+              '`sdk: flutter` in pubspec.yaml';
+    final suggested = oneLiner ?? sdkNote;
+
+    if (fix && oneLiner != null) {
+      final exe = gap.isFlutterProject ? 'flutter' : 'dart';
+      final result = await _processRunner(exe, [
+        'pub',
+        'add',
+        ...gap.pubAddPackages,
+      ]);
+      if (result.exitCode == 0) {
+        return DoctorCheckResult(
+          id: id,
+          status: DoctorCheckStatus.fixed,
+          detail:
+              'pub add installed '
+              '${gap.pubAddPackages.join(', ')}'
+              '${sdkNote == null ? '' : '; $sdkNote'}',
+          suggestedFix: suggested,
+          fixedItems: gap.pubAddPackages,
         );
       }
       return _fail(

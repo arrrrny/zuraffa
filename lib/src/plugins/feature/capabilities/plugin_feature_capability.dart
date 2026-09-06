@@ -1,0 +1,146 @@
+import '../../../core/plugin_system/capability.dart';
+import '../feature_plugin.dart';
+import '../../../models/generated_file.dart';
+import '../../../config/zfa_config.dart';
+import '../../../core/plugin_system/plugin_manager.dart';
+import '../../../core/plugin_system/plugin_registry.dart';
+
+/// Issue #1149 (kill list — fix list): ONE parameterized capability that
+/// replaces the EIGHT copy-pasted `XxxFeatureCapability` classes
+/// (di / view / presenter / controller / route / state / mock / test).
+///
+/// The clones were line-for-line identical apart from the plugin id, the
+/// description and (for `di`) mapping the `mock` argument onto the
+/// `use-mock` context key. This class carries the shared body once; the
+/// MCP-visible capability NAME stays the plugin id, so the external
+/// contract is unchanged.
+class PluginFeatureCapability implements ZuraffaCapability {
+  final FeaturePlugin plugin;
+
+  @override
+  final String description;
+
+  /// The downstream generator plugin to run (also the capability name).
+  final String pluginId;
+
+  /// Whether the `mock` argument is additionally mirrored onto the
+  /// `use-mock` context key (only the `di` clone did this — mock
+  /// datasource selection inside DI registration).
+  final bool mapsMockArgToUseMock;
+
+  PluginFeatureCapability(
+    this.plugin, {
+    required this.pluginId,
+    required this.description,
+    this.mapsMockArgToUseMock = false,
+  });
+
+  @override
+  String get name => pluginId;
+
+  @override
+  JsonSchema get inputSchema => {
+    'type': 'object',
+    'properties': {
+      'name': {'type': 'string', 'description': 'Name of the feature'},
+      'methods': {
+        'type': 'array',
+        'items': {'type': 'string'},
+        'description': 'List of methods (e.g. get,create,update,delete)',
+      },
+      'id-field': {'type': 'string', 'default': 'id'},
+      'id-field-type': {'type': 'string', 'default': 'String'},
+      'query-field': {'type': 'string', 'default': 'id'},
+      'query-field-type': {'type': 'string', 'default': 'String'},
+      'mock': {
+        'type': 'boolean',
+        'description': 'Use mock datasource in DI',
+        'default': false,
+      },
+      'local': {
+        'type': 'boolean',
+        'description': 'Generate local data source instead of remote',
+        'default': false,
+      },
+      'dryRun': {'type': 'boolean', 'default': false},
+      'force': {'type': 'boolean', 'default': false},
+      'verbose': {'type': 'boolean', 'default': false},
+    },
+    'required': ['name'],
+  };
+
+  @override
+  JsonSchema get outputSchema => {
+    'type': 'object',
+    'properties': {
+      'files': {
+        'type': 'array',
+        'items': {'type': 'string'},
+      },
+    },
+  };
+
+  @override
+  Future<EffectReport> plan(Map<String, dynamic> args) async {
+    final files = await _generateFiles(args, dryRun: true);
+    return EffectReport(
+      planId: 'plan_${DateTime.now().millisecondsSinceEpoch}',
+      pluginId: plugin.id,
+      capabilityName: name,
+      args: args,
+      changes: files
+          .map((f) => Effect(file: f.path, action: f.action, diff: null))
+          .toList(),
+    );
+  }
+
+  @override
+  Future<ExecutionResult> execute(Map<String, dynamic> args) async {
+    final files = await _generateFiles(args, dryRun: false);
+    return ExecutionResult(
+      success: true,
+      files: files.map((f) => f.path).toList(),
+      data: {'generatedFiles': files},
+    );
+  }
+
+  Future<List<GeneratedFile>> _generateFiles(
+    Map<String, dynamic> args, {
+    required bool dryRun,
+  }) async {
+    final featureName = args['name'] as String;
+    final zfaConfig = ZfaConfig.load();
+    final projectRoot = plugin.outputDir.replaceAll('lib/src', '');
+
+    final manager = PluginManager(
+      registry: PluginRegistry.instance,
+      config: zfaConfig,
+      projectRoot: projectRoot,
+    );
+
+    final activePlugins = manager.resolveActivePlugins(
+      explicitPluginIds: [pluginId],
+      argResults: null,
+    );
+
+    final context = manager.buildContext(
+      name: featureName,
+      argResults: null,
+      activePlugins: activePlugins,
+    );
+
+    args.forEach((key, value) {
+      context.data[key] = value;
+    });
+
+    context.data['dry-run'] = dryRun;
+    context.data['force'] = args['force'] ?? false;
+    context.data['verbose'] = args['verbose'] ?? false;
+    context.data['revert'] = args['revert'] ?? false;
+    if (mapsMockArgToUseMock) {
+      context.data['use-mock'] = args['mock'] ?? false;
+    }
+
+    return await manager.run(context, activePlugins);
+  }
+}

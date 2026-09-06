@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -8,6 +7,7 @@ import 'package:path/path.dart' as p;
 import '../core/context/file_system.dart';
 import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/project/receipt_store.dart';
+import '../core/verdict_envelope.dart';
 import '../models/generated_file.dart';
 import '../models/generator_config.dart';
 import '../plugins/state/state_plugin.dart';
@@ -23,8 +23,9 @@ import '../cli/exit_protocol.dart';
 /// [StateCommand.manualSubcommandNames]) so the verb can grow a real
 /// verdict surface for automation:
 ///
-///  * `--json` emits a single-line envelope
-///    `{path, fields[], modes[], flavor, schema: 1}` as the LAST stdout
+///  * `--json` emits a single-line canonical verdict envelope
+///    (`zuraffa.verdict.v1`, SPEC 1105 — the state surface: path, fields[],
+///    modes[], flavor — lives in `details`) as the LAST stdout
 ///    line (human output stays above it, so the default path is
 ///    unchanged);
 ///  * every real generation ships a `proof.v1` receipt at
@@ -76,9 +77,9 @@ class StateCreateCommand extends Command<void> {
       'json',
       negatable: false,
       help:
-          'Emit the versioned state-create verdict envelope '
-          '{path, fields[], modes[], flavor, schema:1} as the final '
-          'stdout line (issue #976)',
+          'Emit the canonical zuraffa.verdict.v1 state-create verdict '
+          'envelope (state surface in details: path, fields[], modes[], '
+          'flavor) as the final stdout line (issue #976, SPEC 1105)',
     );
   }
 
@@ -156,8 +157,9 @@ class StateCreateCommand extends Command<void> {
     // not dry-run, not skipped — a skipped file's provenance stays with
     // the run that wrote it; binding old bytes to this run's input would
     // be a lie). Best-effort by design, matching entity create (#807).
+    String? receiptPath;
     if (!dryRun && (file.action == 'created' || file.action == 'overwritten')) {
-      await _emitReceipt(
+      receiptPath = await _emitReceipt(
         entityName: entityName,
         methods: methods,
         force: force,
@@ -171,14 +173,28 @@ class StateCreateCommand extends Command<void> {
         plugin.outputDir,
         FileSystem.create(),
       );
-      print(
-        jsonEncode(
-          StateCreateVerdict(
-            path: relativePath,
-            fields: _fieldNamesOf(file),
-            modes: [_emissionModeOf(config)],
-            flavor: flavor.name,
-          ).toJson(),
+      VerdictEnvelope.emit(
+        VerdictEnvelope(
+          command: 'zfa state create --name $entityName',
+          verdict: VerdictKind.pass,
+          exitClass: ExitProtocol.success,
+          subject: VerdictSubject(kind: 'state', id: entityName),
+          artifacts: VerdictArtifacts(
+            created: file.action == 'created'
+                ? [relativePath]
+                : const <String>[],
+            modified: file.action == 'created'
+                ? const <String>[]
+                : [relativePath],
+            deleted: file.action == 'deleted' ? [relativePath] : const [],
+          ),
+          receipts: receiptPath == null ? null : [receiptPath],
+          details: {
+            'path': relativePath,
+            'fields': _fieldNamesOf(file),
+            'modes': [_emissionModeOf(config)],
+            'flavor': flavor.name,
+          },
         ),
       );
     }
@@ -230,16 +246,20 @@ class StateCreateCommand extends Command<void> {
     return 'entity';
   }
 
-  Future<void> _emitReceipt({
+  /// Writes the proof receipt; returns the project-relative receipt path
+  /// (null when nothing was written — the envelope's `receipts` list only
+  /// lists receipts that exist).
+  Future<String?> _emitReceipt({
     required String entityName,
     required List<String> methods,
     required bool force,
     required GeneratedFile file,
     required String relativePath,
   }) async {
+    File? receiptFile;
     try {
       final artifact = File(file.path);
-      if (!artifact.existsSync()) return;
+      if (!artifact.existsSync()) return null;
       final bytes = artifact.readAsBytesSync();
       final receiptFiles = [
         GenerationReceiptFile(
@@ -257,36 +277,40 @@ class StateCreateCommand extends Command<void> {
       // receipts, keyed
       // state-create-<entity>-<timestamp>.json like every other
       // standalone capability receipt.
-      await ReceiptStore(projectRoot: Directory.current.path).saveCapability(
-        GenerationReceipt(
-          command: 'state create',
-          target: entityName,
-          repro: _reproCommand(entityName, methods, force),
-          at: DateTime.now().toUtc(),
-          generatorVersion: version,
-          input: {
-            'name': entityName,
-            'methods': methods,
-            if (force) 'force': true,
-          },
-          files: receiptFiles,
-          plugin: 'state',
-          capability: 'create',
-          entity: entityName,
-          methodset: methods,
-          runHash: CapabilityInvocationWrapper.computeRunHash(
-            files: receiptFiles,
-            entity: entityName,
-            methodset: methods,
-          ),
-          receiptVersion: CapabilityInvocationWrapper.receiptVersion,
-        ),
-      );
+      final written = await ReceiptStore(projectRoot: Directory.current.path)
+          .saveCapability(
+            GenerationReceipt(
+              command: 'state create',
+              target: entityName,
+              repro: _reproCommand(entityName, methods, force),
+              at: DateTime.now().toUtc(),
+              generatorVersion: version,
+              input: {
+                'name': entityName,
+                'methods': methods,
+                if (force) 'force': true,
+              },
+              files: receiptFiles,
+              plugin: 'state',
+              capability: 'create',
+              entity: entityName,
+              methodset: methods,
+              runHash: CapabilityInvocationWrapper.computeRunHash(
+                files: receiptFiles,
+                entity: entityName,
+                methodset: methods,
+              ),
+              receiptVersion: CapabilityInvocationWrapper.receiptVersion,
+            ),
+          );
+      receiptFile = written;
     } catch (e) {
       // Provenance is best-effort at this layer (the artifact already
       // exists); loud warning, never a failed generation.
       print('⚠️  Generation receipt not written: $e');
+      return null;
     }
+    return _projectRelativePosix(receiptFile.path, Directory.current.path);
   }
 
   String _reproCommand(String entityName, List<String> methods, bool force) {
@@ -304,38 +328,4 @@ class StateCreateCommand extends Command<void> {
         : p.normalize(path);
     return rel.replaceAll('\\', '/');
   }
-}
-
-/// The `zfa state create --json` verdict envelope (issue #976).
-///
-/// Contract (schema 1 — integer, stable key agents can switch on):
-///  * `path`     — project-relative POSIX path of the state artifact;
-///  * `fields`   — the emitted state's field names, declaration order;
-///  * `modes`    — emission mode list (`entity` | `orchestrator` |
-///                 `custom`);
-///  * `flavor`   — target-project flavor the import follows (#512):
-///                 `flutter` | `pureDart` | `unknown`;
-///  * `schema`   — this envelope's version.
-class StateCreateVerdict {
-  static const int schemaVersion = 1;
-
-  final String path;
-  final List<String> fields;
-  final List<String> modes;
-  final String flavor;
-
-  const StateCreateVerdict({
-    required this.path,
-    required this.fields,
-    required this.modes,
-    required this.flavor,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'path': path,
-    'fields': fields,
-    'modes': modes,
-    'flavor': flavor,
-    'schema': schemaVersion,
-  };
 }

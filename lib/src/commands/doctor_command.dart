@@ -24,7 +24,8 @@ class DoctorCommand extends Command<void> {
       negatable: false,
       help:
           'Automatically fix detected v5 patterns and heal environment '
-          'checks where possible (deps, artifacts, baseline cache, profile)',
+          'checks where possible (deps, generated-imports, artifacts, '
+          'baseline cache, profile)',
     );
     argParser.addOption(
       'format',

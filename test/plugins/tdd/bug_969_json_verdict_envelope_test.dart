@@ -47,7 +47,7 @@ const Set<String> kOptionalEnvelopeKeys = {
 };
 
 /// The canonical schema name (never drifts).
-const String kSchemaName = 'verdict.v1';
+const String kSchemaName = 'zuraffa.verdict.v1';
 
 /// The allowed verdict categories.
 const Set<String> kVerdictCategories = {'pass', 'fail', 'stopped', 'error'};
@@ -627,7 +627,7 @@ void main() {
         final last = _lastNonEmptyLine(out);
         expect(last.startsWith('{"schema"'), isFalse);
         // The compact envelope encoding never appears in captured output.
-        expect(out, isNot(contains('"schema":"verdict.v1"')));
+        expect(out, isNot(contains('"schema":"zuraffa.verdict.v1"')));
       },
     );
   });

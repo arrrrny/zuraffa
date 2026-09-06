@@ -6,10 +6,12 @@ import 'package:path/path.dart' as p;
 import '../../core/constants/known_types.dart';
 import '../../core/context/file_system.dart';
 import '../../core/project/receipt_store.dart';
+import '../../core/verdict_envelope.dart';
 import '../../utils/entity_analyzer.dart';
 import '../../utils/string_utils.dart';
 
-/// `zfa cache verify` (spec #975, Order 3) — the cache drift gate.
+/// `zfa cache verify` (spec #975, Order 3; envelope unified onto the
+/// canonical `zuraffa.verdict.v1` by SPEC 1105) — the cache drift gate.
 ///
 /// Reads the Hive registrar and the entity graph, and reports every
 /// entity whose adapter is **missing** (discovered by the graph but not
@@ -51,10 +53,11 @@ class CacheVerifyFinding {
 }
 
 /// Machine-verifiable verdict for one `zfa cache verify <Entity>`
-/// invocation (schema `cache.verify.v1`).
+/// invocation. SPEC 1105: the wire form is the canonical
+/// `zuraffa.verdict.v1` envelope — [toEnvelope] projects this domain
+/// report onto it (the cache surface lives in `details`, findings map
+/// onto the canonical finding records).
 class CacheVerifyReport {
-  static const schemaName = 'cache.verify.v1';
-
   final String entity;
 
   /// Every entity the current graph expects to have an adapter.
@@ -75,14 +78,23 @@ class CacheVerifyReport {
 
   bool get ok => findings.isEmpty;
 
-  Map<String, dynamic> toJson() => {
-    'schema': schemaName,
-    'entity': entity,
-    'ok': ok,
-    'expected': expectedEntities,
-    'registered': registeredEntities,
-    'findings': findings.map((f) => f.toJson()).toList(),
-  };
+  /// The canonical envelope this report projects onto (SPEC 1105).
+  VerdictEnvelope toEnvelope() => VerdictEnvelope(
+    command: 'zfa cache verify $entity',
+    verdict: ok ? VerdictKind.pass : VerdictKind.fail,
+    exitClass: ok ? 0 : 1,
+    subject: VerdictSubject(kind: 'cache', id: entity),
+    findings: [
+      for (final f in findings)
+        VerdictFinding(
+          kind: f.kind,
+          fix: f.fix,
+          member: f.entity,
+          extra: {'detail': f.detail},
+        ),
+    ],
+    details: {'expected': expectedEntities, 'registered': registeredEntities},
+  );
 }
 
 /// Thrown when the entity named on the command line does not exist —

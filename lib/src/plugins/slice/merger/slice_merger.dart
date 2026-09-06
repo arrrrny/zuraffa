@@ -161,6 +161,23 @@ class SliceMerger {
     // the README staged from SLICE.md by `slice export`) are generated, not
     // agent work — they must never be merged back over the project.
     const exportArtifacts = {'pubspec.yaml', 'README.md'};
+    // Ephemeral tooling state: a sandbox the agent ran `pub get` / tests in
+    // accumulates package-config and build caches at the same relative
+    // paths the host carries. They are not agent work and must never be
+    // scanned as creations (they would collide with the host's own copies
+    // and abort the merge — issue #1144).
+    const ephemeralSegments = {'.dart_tool', 'build'};
+    const ephemeralFiles = {
+      '.packages',
+      '.flutter-plugins',
+      '.flutter-plugins-dependencies',
+      // The dependency lockfile is pub's resolution state: the sandbox
+      // regenerates its own at `pub get`, and it must never collide with
+      // the host's (issue #1144).
+      'pubspec.lock',
+      // Pipeline state, not product code: the merge receipt itself.
+      'verify-verdict.json',
+    };
     final sandboxRoot = Directory(sandboxDir);
     if (await sandboxRoot.exists()) {
       for (final entity in sandboxRoot.listSync(
@@ -170,9 +187,19 @@ class SliceMerger {
         if (entity is! File) continue;
         final rel = p.relative(entity.path, from: sandboxDir);
         if (rel.split(p.separator).contains('.git')) continue;
+        final segments = rel.split(p.separator);
+        if (segments.any(ephemeralSegments.contains)) continue;
+        if (ephemeralFiles.contains(rel)) continue;
         if (known.contains(rel) || exportArtifacts.contains(rel)) continue;
         final target = p.join(projectRoot, rel);
         if (File(target).existsSync()) {
+          // A previous merge may have already landed this exact file (a
+          // retry after a partial failure, or a re-merge): content-
+          // identical is a no-op, not a conflict (issue #1144).
+          if (_hashIfExists(entity.path) == _hashIfExists(target)) {
+            skipped.add(rel);
+            continue;
+          }
           conflicts.add(rel);
           continue;
         }

@@ -133,23 +133,28 @@ environment:
         isNotNull,
         reason: 'the skip must be a JSON envelope, not a bare warning:\n$out',
       );
-      expect(envelope!['schema'], equals(1));
+      expect(
+        envelope!['schema'],
+        'zuraffa.verdict.v1',
+        reason: 'SPEC 1105: the ONE canonical schema identifier',
+      );
       expect(
         envelope['verdict'],
         equals('skip'),
         reason: 'order 5: the skip is a structured verdict',
       );
-      expect(envelope['skip'], isA<Map>());
+      final skipDetails = envelope['details'] as Map<String, dynamic>;
+      expect(skipDetails['skip'], isA<Map>());
       expect(
-        (envelope['skip'] as Map)['reason'],
+        (skipDetails['skip'] as Map)['reason'],
         isA<String>(),
-        reason: 'the skip reason rides in the envelope',
+        reason: 'the skip reason rides in the envelope (details)',
       );
-      expect((envelope['skip'] as Map)['reason'], contains('pure-Dart'));
-      // The five contract keys stay present even on skip.
-      expect(envelope['routes'], isA<List>());
-      expect(envelope['deepLinks'], isA<List>());
-      expect(envelope['schemeRegistrations'], isA<List>());
+      expect((skipDetails['skip'] as Map)['reason'], contains('pure-Dart'));
+      // The route surface keys stay present (in details) even on skip.
+      expect(skipDetails['routes'], isA<List>());
+      expect(skipDetails['deepLinks'], isA<List>());
+      expect(skipDetails['schemeRegistrations'], isA<List>());
       expect(
         exitCode,
         1,
@@ -190,8 +195,14 @@ dependencies:
       final envelope = envelopeFrom(out);
       expect(envelope, isNotNull);
       expect(envelope!['verdict'], equals('fail'));
+      final failFindings = envelope['findings'] as List;
       expect(
-        (envelope['error'] as Map)['fix'],
+        failFindings,
+        isNotEmpty,
+        reason: 'the failure envelope must carry the finding',
+      );
+      expect(
+        (failFindings.first as Map)['fix'],
         isA<String>(),
         reason: 'the failure envelope must carry the fix',
       );

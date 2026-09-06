@@ -22,6 +22,32 @@ class EntityUtils {
       baseType = baseType.substring(1);
     }
 
+    // #1198 follow-up (spec-1003 finding #7): strip framework param
+    // wrappers BEFORE flattening generics. `QueryParams<Product>` used to
+    // flatten to the phantom `QueryParamsProduct`, and generated code (mock
+    // provider in the service lane, triad lanes) emitted imports for a
+    // `query_params_product` entity file that does not exist — caught for
+    // real by the template self-hosting loop's compile tier while driving
+    // the canonical `zfa make` plugin order. A wrapper is a zuraffa
+    // param/contract type, not an entity; the entity is its type argument.
+    for (final wrapper in const [
+      'QueryParams',
+      'ListQueryParams',
+      'UpdateParams',
+      'DeleteParams',
+      'InitializationParams',
+      'Params',
+      'Filter',
+      'Sort',
+    ]) {
+      if (baseType.startsWith('$wrapper<') && baseType.endsWith('>')) {
+        baseType = baseType
+            .substring(wrapper.length + 1, baseType.length - 1)
+            .trim();
+        break;
+      }
+    }
+
     baseType = baseType
         .replaceAll('<', '')
         .replaceAll('>', '')

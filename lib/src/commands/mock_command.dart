@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../core/plugin_system/capability.dart';
+import '../core/verdict_envelope.dart';
 import '../models/generated_file.dart';
 import '../plugins/mock/capabilities/certify_mock_capability.dart';
 import '../plugins/mock/capabilities/create_mock_capability.dart';
@@ -701,12 +701,16 @@ Future<void> _runMockGeneration({
   }
 
   if (jsonMode) {
-    final envelope = _buildEnvelope(
-      files: files,
-      fixturesDir: _fixturesDirFor(files, jsonMock: jsonMock),
-      certification: certification?.withReceipt(receiptPath),
+    VerdictEnvelope.emit(
+      _buildEnvelope(
+        commandLine: commandLine,
+        entity: entity,
+        files: files,
+        fixturesDir: _fixturesDirFor(files, jsonMock: jsonMock),
+        certification: certification?.withReceipt(receiptPath),
+        receiptPath: receiptPath,
+      ),
     );
-    print(jsonEncode(envelope));
     return;
   }
 
@@ -750,12 +754,16 @@ Future<void> _runMockGeneration({
   }
 }
 
-/// The `--json` envelope (issue #970 order 2):
-/// `{files[], actions, fixturesDir, certification, schema:1}`.
-Map<String, dynamic> _buildEnvelope({
+/// The `--json` envelope (issue #970 order 2; SPEC 1105 canonical shape):
+/// the mock surface (files[], actions, fixturesDir, certification) lives
+/// in the canonical envelope's `details` map.
+VerdictEnvelope _buildEnvelope({
+  required String commandLine,
+  required String entity,
   required List<GeneratedFile> files,
   required String? fixturesDir,
   required MockCertification? certification,
+  required String? receiptPath,
 }) {
   final actions = <String, int>{
     'created': 0,
@@ -768,16 +776,37 @@ Map<String, dynamic> _buildEnvelope({
     final key = actions.containsKey(file.action) ? file.action : null;
     if (key != null) actions[key] = actions[key]! + 1;
   }
-  return {
-    'schema': 1,
-    'files': [
-      for (final file in files)
-        {'path': file.path, 'action': file.action, 'type': file.type},
-    ],
-    'actions': actions,
-    'fixturesDir': fixturesDir,
-    'certification': certification?.toEnvelopeJson(),
-  };
+  return VerdictEnvelope(
+    command: commandLine,
+    verdict: VerdictKind.pass,
+    exitClass: ExitProtocol.success,
+    subject: VerdictSubject(kind: 'mock', id: entity),
+    artifacts: VerdictArtifacts(
+      created: [
+        for (final file in files)
+          if (file.action == 'created') file.path,
+      ],
+      modified: [
+        for (final file in files)
+          if (file.action == 'overwritten' || file.action == 'updated')
+            file.path,
+      ],
+      deleted: [
+        for (final file in files)
+          if (file.action == 'deleted') file.path,
+      ],
+    ),
+    receipts: receiptPath == null ? null : [receiptPath],
+    details: {
+      'files': [
+        for (final file in files)
+          {'path': file.path, 'action': file.action, 'type': file.type},
+      ],
+      'actions': actions,
+      'fixturesDir': fixturesDir,
+      'certification': certification?.toEnvelopeJson(),
+    },
+  );
 }
 
 /// Where this run's mock fixtures landed: the directory of the first

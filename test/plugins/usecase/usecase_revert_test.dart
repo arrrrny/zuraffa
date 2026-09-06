@@ -84,8 +84,10 @@ environment:
     ]);
 
     final envelope = jsonDecode(output.trim()) as Map<String, dynamic>;
-    expect(envelope['schema'], 1);
-    final methods = (envelope['methods'] as List).cast<Map<String, dynamic>>();
+    expect(envelope['schema'], 'zuraffa.verdict.v1');
+    final methods =
+        ((envelope['details'] as Map<String, dynamic>)['methods'] as List)
+            .cast<Map<String, dynamic>>();
     expect(methods, isNotEmpty);
     for (final verdict in methods) {
       expect(
@@ -153,7 +155,9 @@ environment:
     ]);
 
     final envelope = jsonDecode(output.trim()) as Map<String, dynamic>;
-    final methods = (envelope['methods'] as List).cast<Map<String, dynamic>>();
+    final methods =
+        ((envelope['details'] as Map<String, dynamic>)['methods'] as List)
+            .cast<Map<String, dynamic>>();
     expect(methods, isNotEmpty);
     for (final verdict in methods) {
       expect(
