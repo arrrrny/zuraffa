@@ -50,6 +50,21 @@ cp build/zfa_bundle/bundle/bin/zfa "$INSTALL_DIR/zfa"
 chmod +x "$INSTALL_DIR/zfa" 2>/dev/null || true
 echo "  ✅ $INSTALL_DIR/zfa"
 
+# Record the source commit this binary was built from (issue #1184). The
+# installed CLI reads $INSTALL_DIR/zfa.build_commit at startup and warns —
+# "⚠️ installed zfa (<commit>) is older than this checkout (<commit>) — run
+# scripts/rebuild.sh" — when run inside a zuraffa worktree whose HEAD
+# differs from the recorded commit. No marker (pre-#1184 install) means the
+# CLI stays silent: staleness is unprovable without it.
+if BUILD_COMMIT=$(git rev-parse HEAD 2>/dev/null); then
+  printf '%s\n' "$BUILD_COMMIT" > "$INSTALL_DIR/zfa.build_commit"
+  printf '%s\n' "$BUILD_COMMIT" > build/zfa_bundle/bundle/bin/zfa.build_commit
+  echo "  ✅ recorded build commit ${BUILD_COMMIT:0:12} (zfa.build_commit)"
+else
+  rm -f "$INSTALL_DIR/zfa.build_commit"
+  echo "  ⚠️ not a git checkout — no build commit recorded (staleness warning disabled)"
+fi
+
 # Compile zuraffa_mcp_server — same error-surfacing pattern.
 echo "🔨 Compiling zuraffa_mcp_server..."
 rm -rf build/mcp_server_bundle

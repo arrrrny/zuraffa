@@ -38,6 +38,7 @@ import '../core/plugin_system/plugin_registry.dart';
 import '../plugins/tdd/tdd_plugin.dart';
 import '../core/error/suggestion_engine.dart';
 import '../version.dart';
+import 'binary_staleness.dart';
 import 'plugin_loader.dart';
 import '../commands/agent_command.dart';
 import '../commands/zap_command.dart';
@@ -70,6 +71,17 @@ class CliRunner {
   /// flag cannot see another suite's runner.
   bool _active = false;
 
+  /// Stale-binary probe (issue #1184): injectable so tests can point it at
+  /// a fake install dir; defaults to deriving from the running executable.
+  final BinaryStaleness _staleness;
+
+  /// Sink for the #1184 staleness warning. Defaults to stderr — a warning
+  /// must never pollute machine-parsed stdout (`zfa doctor --format json`).
+  final void Function(String message) _onStalenessWarning;
+
+  static void _defaultStalenessWarning(String message) =>
+      stderr.writeln(message);
+
   /// The exit code the LAST [runCapturing] invocation on this isolate
   /// dispatched, snapshotted per-isolate.
   ///
@@ -85,7 +97,13 @@ class CliRunner {
   /// instead of the global. Set on every [runCapturing] exit path.
   static int lastDispatchedExitCode = 0;
 
-  CliRunner({this.exitOnCompletion = true}) : _runner = _buildRunner();
+  CliRunner({
+    this.exitOnCompletion = true,
+    BinaryStaleness? staleness,
+    void Function(String message)? onStalenessWarning,
+  }) : _staleness = staleness ?? BinaryStaleness(),
+       _onStalenessWarning = onStalenessWarning ?? _defaultStalenessWarning,
+       _runner = _buildRunner();
 
   static CommandRunner<void> _buildRunner() =>
       CommandRunner<void>(
@@ -258,6 +276,15 @@ class CliRunner {
       await _withDirectory(directory, () async {
         _ensureInitialized(args, directory: directory);
 
+        // Issue #1184: the installed `zfa` binary is a compiled snapshot;
+        // when the enclosing zuraffa checkout's HEAD differs from the commit
+        // recorded at build time, every shell invocation silently ran stale
+        // code. Surface ONE advisory line BEFORE dispatching anything —
+        // including `--version`/help, since a false repro costs an operator
+        // (or agent) the same hour regardless of which subcommand it hit.
+        // See [_warnIfBinaryStale] for the silence rules.
+        await _warnIfBinaryStale();
+
         if (commandArgs.isEmpty) {
           _printHelp();
           _exit(0);
@@ -282,6 +309,28 @@ class CliRunner {
     } finally {
       _active = false;
     }
+  }
+
+  /// Issue #1184: emit the stale-binary warning when provably stale.
+  ///
+  /// Silence rules (see `BinaryStaleness`): running from source (no
+  /// installed binary), no build-commit marker, cwd outside a zuraffa
+  /// worktree, or an unresolvable worktree HEAD — an advisory must never
+  /// fire on unprovable input, and must never break the invocation.
+  ///
+  /// `runCapturing` (MCP-embedded) deliberately does NOT warn: its stdout
+  /// is machine-parsed protocol output, and the #1184 false-repro trap is
+  /// the interactive shell path.
+  Future<void> _warnIfBinaryStale() async {
+    final String? message;
+    try {
+      message = await _staleness.warningFor(cwd: Directory.current.path);
+    } on IOException {
+      return; // advisory only — never fail the CLI over it
+    } on FormatException {
+      return;
+    }
+    if (message != null) _onStalenessWarning(message);
   }
 
   /// Run the dispatched command, honoring a failure exit code set by the
