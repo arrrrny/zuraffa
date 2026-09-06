@@ -6,6 +6,7 @@ import '../core/plugin_system/plugin_registry.dart';
 import '../feature_flags/feature_flag_cli.dart';
 import '../plugins/feature/feature_plugin.dart';
 import 'make_command.dart';
+import '../cli/exit_protocol.dart';
 
 class FeatureCommand extends Command<void> {
   static const String fixedOutputDir = 'lib/src';
@@ -83,6 +84,18 @@ class FeatureCommand extends Command<void> {
     argParser.addFlag(
       'mock',
       help: 'Generate Mock data',
+      defaultsTo: false,
+      negatable: false,
+    );
+    // SPEC 917 / issue #904 (seed site 1): the manifest inputSchema
+    // declares the `use-mock` property — a manifest-driven client sends
+    // `--use-mock` and the CLI must accept it. --use-mock is an honest
+    // alias of the canonical --mock; the canonical flag keeps precedence
+    // when both are passed (same direction as the #902 required-property
+    // fix).
+    argParser.addFlag(
+      'use-mock',
+      help: 'Alias of --mock (the manifest inputSchema property name)',
       defaultsTo: false,
       negatable: false,
     );
@@ -181,7 +194,14 @@ class FeatureCommand extends Command<void> {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       printUsage();
-      exitCode = 64;
+      // SPEC 917: every non-zero exit ends with a machine-actionable fix line.
+      print(
+        ExitProtocol.fixLine(
+          'provide a feature name: `zfa feature <Name>` (or --name <value>) — '
+          '`zfa feature --help` lists the modes',
+        ),
+      );
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -209,7 +229,14 @@ class FeatureCommand extends Command<void> {
       // error, never a lying exit 0.
       print('❌ Missing feature name.');
       printUsage();
-      exitCode = 64;
+      // SPEC 917: errors are an API — close with the machine-actionable fix.
+      print(
+        ExitProtocol.fixLine(
+          'provide a feature name: `zfa feature $mode <Name>` (or --name '
+          '<value>)',
+        ),
+      );
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -232,8 +259,16 @@ class FeatureCommand extends Command<void> {
       case 'enable':
       case 'disable':
         if (rest.length < 2) {
+          // SPEC 917: missing required input is a usage error (canonical 2),
+          // closed with the machine-actionable fix line.
           print('❌ Usage: zfa feature ${rest.first} <name>');
-          exitCode = 1;
+          print(
+            ExitProtocol.fixLine(
+              'provide the feature-flag name: `zfa feature ${rest.first} '
+              '<name>`',
+            ),
+          );
+          exitCode = ExitProtocol.usage;
           return;
         }
         if (rest.first == 'enable') {
@@ -312,7 +347,11 @@ class FeatureCommand extends Command<void> {
           excluded.addAll(['repository', 'datasource']);
         }
         if (argResults!["local"] == true) args.add('--local');
-        if (argResults!["mock"] == true) args.add('--mock');
+        // SPEC 917/#904: --use-mock is an alias of --mock; the canonical
+        // flag wins when both are passed.
+        final mockRequested =
+            argResults!["mock"] == true || argResults!["use-mock"] == true;
+        if (mockRequested) args.add('--mock');
         if (argResults!["cache"] == true) args.add('--cache');
         if (argResults!["route"] == true) args.add('--route');
 

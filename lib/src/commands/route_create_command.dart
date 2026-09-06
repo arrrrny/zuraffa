@@ -18,6 +18,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/generated_file.dart';
+import '../cli/exit_protocol.dart';
 import '../plugins/route/route_plugin.dart';
 import '../plugins/route/builders/route_table_test_builder.dart';
 import '../plugins/route/route_receipt.dart';
@@ -30,6 +31,13 @@ const int routeEnvelopeSchema = 1;
 class RouteCreateCommand extends Command<void> {
   RouteCreateCommand(this.plugin, {String? projectRoot})
     : _projectRoot = projectRoot {
+    // SPEC 917 / #904: the capability inputSchema declares `name` as a
+    // required property — a manifest-driven client sends `--name <value>`
+    // and the CLI must accept it (the positional keeps precedence).
+    argParser.addOption(
+      'name',
+      help: 'Entity name (alternative to the positional argument)',
+    );
     argParser.addFlag(
       'json',
       negatable: false,
@@ -131,19 +139,23 @@ class RouteCreateCommand extends Command<void> {
     final plain = argResults?['plain'] == true;
 
     final rest = argResults?.rest ?? const <String>[];
-    if (rest.isEmpty) {
+    // SPEC 917 / #904: --name is the manifest-driven spelling of the
+    // positional EntityName (positional keeps precedence, issue #771).
+    final flaggedName = argResults?['name'] as String?;
+    if (rest.isEmpty && (flaggedName == null || flaggedName.isEmpty)) {
       _fail(
         'route create requires an entity name',
         fix:
-            'pass the entity as a positional argument, e.g. '
-            '`zfa route create Product`',
+            'pass the entity as a positional argument (or --name <value>), '
+            'e.g. `zfa route create Product`',
         asJson: asJson,
         entity: '',
-        code: 64,
+        // SPEC 917: the canonical usage code (the legacy 64 is retired).
+        code: ExitProtocol.usage,
       );
       return;
     }
-    final entityRaw = rest.first;
+    final entityRaw = rest.isNotEmpty ? rest.first : flaggedName!;
     final entity = _canonicalEntity(entityRaw);
 
     // Pure-Dart guard (order 5): the skip is a structured verdict in the

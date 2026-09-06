@@ -159,7 +159,13 @@ environment:
 
       expect(output, contains('--> fix:'));
       expect(output, isNot(contains('✅ Success!')));
-      expect(exitCode, equals(64), reason: 'usage error family (missing name)');
+      expect(
+        exitCode,
+        equals(2),
+        reason:
+            'usage error family (missing name) — SPEC 917 canonical 2, the '
+            'legacy 64 is retired',
+      );
     });
 
     test('prose mode (no --json) is unchanged: ✅ Success framing', () async {

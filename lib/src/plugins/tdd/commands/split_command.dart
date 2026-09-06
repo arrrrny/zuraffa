@@ -38,11 +38,14 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/lane.dart';
+import '../models/verdict_envelope.dart';
 import '../services/lane_split.dart';
 import '../services/spec_parser.dart';
 import '../services/test_list_reader.dart';
+import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
+import 'run_command.dart';
 
 class SplitCommand extends Command<void> {
   SplitCommand(this.plugin) {
@@ -54,9 +57,13 @@ class SplitCommand extends Command<void> {
           'current working directory is used. Tests pass the temp fixture '
           'root here instead of mutating Directory.current.',
     );
+    argParser.addFlag('json', help: kJsonFlagHelp, negatable: false);
   }
 
   final TddPlugin plugin;
+
+  /// SPEC 917/#838: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
 
   @override
   String get name => 'split';
@@ -73,7 +80,10 @@ class SplitCommand extends Command<void> {
   String get invocation => 'zfa tdd split <feature>';
 
   @override
-  Future<void> run() async {
+  Future<void> run() =>
+      runWithVerdictEnvelope(this, _verdict, _run, featureFromRest: true);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       usageException('Feature name is required: zfa tdd split <feature>');
@@ -96,6 +106,14 @@ class SplitCommand extends Command<void> {
         'the feature (`zfa tdd plan $feature`) rewrites the lane plans '
         'from the spec.',
       );
+      // SPEC 917/#838: the JSON verdict carries the remediation.
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'refused'
+        ..fix =
+            'the split is one-shot and $feature already has '
+            '${receiptFile.path} — re-plan with `zfa tdd plan $feature` '
+            'instead';
       exitCode = 1;
       return;
     }
@@ -105,6 +123,12 @@ class SplitCommand extends Command<void> {
         'zfa tdd split: REFUSED — no test list at ${listFile.path}. Run '
         '`zfa tdd plan $feature` first, then split.',
       );
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'refused'
+        ..fix =
+            'plan the feature first: `zfa tdd plan $feature` writes '
+            'tdd/test-list.md, then re-run split';
       exitCode = 1;
       return;
     }
@@ -116,6 +140,12 @@ class SplitCommand extends Command<void> {
         'restore it or re-run `zfa tdd plan $feature` to rewrite the '
         'lane plans from the spec).',
       );
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'refused'
+        ..fix =
+            're-run `zfa tdd plan $feature` to rewrite the lane plans '
+            'from the spec (the migration record was lost)';
       exitCode = 1;
       return;
     }
