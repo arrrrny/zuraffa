@@ -20,6 +20,7 @@ library;
 import '../../../tdd/services/ui_ledger_builder.dart';
 import 'finder_taxonomy.dart';
 import 'i18n_key_contract.dart';
+import 'platform_layout_contract.dart';
 import 'spec_parser.dart';
 
 /// One behavior row feeding the projection — the minimal shape both the
@@ -41,11 +42,18 @@ abstract final class UiLedgerProjection {
   /// The declared Presentation component tokens (the #939 stand-in
   /// labels): the non-`key:` method tokens of the Presentation layer
   /// contract, de-duplicated, order-preserving. Domain/Data rows never
-  /// contribute.
+  /// contribute. The #1142 platform-slot declaration bullets
+  /// (`adaptive_layouts` and aliases) are SLOT DECLARATIONS, not
+  /// components — their tokens never render as stand-in labels.
   static List<String> componentTokensOf(List<LayerContract> contracts) {
     final tokens = <String>[];
     for (final contract in contracts) {
       if (!contract.layer.toLowerCase().contains('presentation')) continue;
+      if (PlatformLayoutContract.declarationNames.contains(
+        contract.interfaceName.trim().toLowerCase(),
+      )) {
+        continue;
+      }
       for (final method in contract.methods) {
         final token = method.trim();
         if (token.isEmpty) continue;
