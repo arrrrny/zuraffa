@@ -1,13 +1,18 @@
-/// ComposeSliceCapability (spec 1098, materialization step 6): resolve a
-/// typed FeatureContract → SliceBoundary.
+/// ComposeSliceCapability (spec 1098 step 6 + spec 1114): resolve a
+/// typed FeatureContract and compose the feature's slice.
 ///
-/// `zfa slice compose <feature-id>` loads the feature's declared contract
-/// (`specs/<id>/contract.yaml`), validates the boundary against the real
-/// project, and persists `specs/<id>/compose.plan.json` — the resolved
-/// base plan (boundary, routes, entities, layer, decorator) that the
-/// sandbox/cut path can consume. No more re-deriving "what belongs to
-/// this feature" from string-path conventions: the contract is the single
-/// definition of the feature, shared with xray and the engine receipts.
+/// `zfa slice compose <feature-id>` resolves the feature's declared
+/// contract (`specs/<id>/contract.yaml`, or the spec's `## Skin
+/// Contract` JSON, or its `## Lanes` CORE block — spec 1114), validates
+/// the boundary against the real project, persists
+/// `specs/<id>/compose.plan.json` (the 1098 resolved base plan) AND
+/// writes the feature slice `.zfa/slices/<id>/` with engine/, skin/,
+/// contract/ and receipts/ (spec 1114) — the minimal base an agent
+/// receives for that feature, and only that feature.
+///
+/// The contract may arrive TYPED via [contract] (the PluginContext
+/// carrier, #1114 item 5): the capability then uses it instead of
+/// re-resolving the raw string id.
 library;
 
 import 'dart:convert';
@@ -18,6 +23,9 @@ import 'package:path/path.dart' as p;
 import '../../../domain/entities/feature_contract/feature_contract.dart';
 import '../../../domain/entities/feature_contract/feature_contract_decorators.dart';
 import '../../../domain/entities/feature_contract/feature_contract_registry.dart';
+import '../generators/feature_slice_composer.dart';
+import '../models/feature_slice_manifest.dart';
+import '../services/feature_contract_resolution.dart';
 
 /// The result of a compose resolution.
 class ComposeResult {
@@ -30,51 +38,88 @@ class ComposeResult {
   /// The resolved contract, when composition succeeded.
   final FeatureContract? contract;
 
-  /// Files written (the compose plan), project-relative.
+  /// Files written (the compose plan + the slice tree's top-level
+  /// records), project-relative.
   final List<String> files;
+
+  /// Absolute path to the composed slice root (spec 1114), on success.
+  final String? sliceRoot;
+
+  /// The feature-centric manifest of the composed slice (spec 1114).
+  final FeatureSliceManifest? manifest;
 
   const ComposeResult({
     required this.success,
     required this.message,
     this.contract,
     this.files = const [],
+    this.sliceRoot,
+    this.manifest,
   });
 }
 
-/// Resolves a feature contract into a compose plan.
+/// Resolves a feature contract and composes its slice.
 class ComposeSliceCapability {
   /// Resolves [featureId] against [projectRoot]'s declared contracts.
   ///
-  /// On success writes `specs/<featureId>/compose.plan.json` with the
-  /// resolved boundary and the `@FeatureOwned` decorator line.
+  /// On success writes `specs/<featureId>/compose.plan.json` (the 1098
+  /// plan) and `.zfa/slices/<featureId>/` (the 1114 slice: engine/,
+  /// skin/, contract/, receipts/, specs/ mount, slice.yaml).
+  ///
+  /// [contract] (spec 1114, item 5): the typed contract carried by the
+  /// PluginContext — when set, it is the resolution (the raw string id
+  /// is not re-resolved); its id must agree with [featureId].
   Future<ComposeResult> execute({
     required String projectRoot,
     required String featureId,
+    FeatureContract? contract,
   }) async {
-    final registry = FeatureContractRegistry.scanProject(projectRoot);
-    final contract = registry.findById(featureId);
-    if (contract == null) {
-      final known = registry.knownIds.toList()..sort();
+    // Spec 1114: the typed carrier wins; the string is only a fallback.
+    FeatureContract? typed = contract;
+    String origin = 'context';
+    if (typed != null && typed.id != featureId) {
+      return ComposeResult(
+        success: false,
+        message:
+            'Feature contract mismatch: the context carries '
+            '"${typed.id}" but the invocation asked for "$featureId". '
+            'The typed contract is the definition (spec 1114).',
+      );
+    }
+    if (typed == null) {
+      final resolved = resolveFeatureContract(
+        projectRoot: projectRoot,
+        featureId: featureId,
+      );
+      typed = resolved?.contract;
+      origin = resolved?.origin ?? 'context';
+    }
+
+    if (typed == null) {
+      final known = _knownFeatureIds(projectRoot);
       return ComposeResult(
         success: false,
         message:
             'Unknown feature contract: "$featureId". '
             'Known contracts: '
             '${known.isEmpty ? "(none)" : known.join(", ")}. '
-            'Declare it at specs/<feature-id>/contract.yaml (spec 1098).',
+            'Declare it at specs/<feature-id>/contract.yaml (spec 1098) '
+            'or in the spec\'s ## Skin Contract / ## Lanes section '
+            '(spec 1114).',
       );
     }
+    final feature = typed;
 
-    // Validate the boundary against the real project before declaring the
-    // composition resolved — a contract pointing at a file that does not
-    // exist is not a base an agent can receive.
-    final boundary = contract.boundary;
+    // Validate the boundary against the real project before declaring
+    // the composition resolved — a contract pointing at a file that
+    // does not exist is not a base an agent can receive.
+    final boundary = feature.boundary;
     if (boundary != null) {
       final boundaryFile = File(p.join(projectRoot, boundary.interfaceFile));
       if (!boundaryFile.existsSync()) {
         return ComposeResult(
           success: false,
-          contract: contract,
+          contract: feature,
           message:
               'Feature "$featureId" boundary is unresolved: interface file '
               '"${boundary.interfaceFile}" does not exist in the project. '
@@ -86,11 +131,11 @@ class ComposeSliceCapability {
 
     final plan = <String, dynamic>{
       'schema': 'compose.plan.v1',
-      'feature': contract.id,
-      'display_name': contract.displayName,
-      'entities': contract.entities ?? const <String>[],
-      'routes': (contract.routes ?? const <String>{}).toList(),
-      'xray_layer': contract.xrayLayer?.name,
+      'feature': feature.id,
+      'display_name': feature.displayName,
+      'entities': feature.entities ?? const <String>[],
+      'routes': (feature.routes ?? const <String>{}).toList(),
+      'xray_layer': feature.xrayLayer?.name,
       'resolved_boundary': boundary == null
           ? null
           : {
@@ -99,30 +144,73 @@ class ComposeSliceCapability {
               'di_registration_file': boundary.diRegistrationFile,
               'mock_strategy': boundary.mockStrategy,
             },
-      'decorator': FeatureContractDecorators.ownedLine(contract.id),
+      'decorator': FeatureContractDecorators.ownedLine(feature.id),
     };
 
+    // Spec 1114: compose the feature slice FIRST — engine/skin/
+    // contract/receipts at .zfa/slices/<id>/ — so the receipts copy
+    // exactly the feature's pre-existing spec tree (never this run's
+    // own plan output).
+    final composition = FeatureSliceComposer().compose(
+      projectRoot: projectRoot,
+      contract: feature,
+      origin: origin,
+    );
+
     final planFile = File(
-      p.join(projectRoot, 'specs', contract.id, 'compose.plan.json'),
+      p.join(projectRoot, 'specs', feature.id, 'compose.plan.json'),
     );
     await planFile.parent.create(recursive: true);
     const encoder = JsonEncoder.withIndent('  ');
     await planFile.writeAsString(encoder.convert(plan));
 
-    final routeCount = (contract.routes ?? const <String>{}).length;
+    final routeCount = (feature.routes ?? const <String>{}).length;
+    final entityCount = (feature.entities ?? const <String>[]).length;
     return ComposeResult(
       success: true,
-      contract: contract,
+      contract: feature,
+      sliceRoot: composition.sliceRoot,
+      manifest: composition.manifest,
       files: [
         p.relative(planFile.path, from: projectRoot).replaceAll('\\', '/'),
+        '${composition.manifest.sliceRoot}/slice.yaml',
+        '${composition.manifest.sliceRoot}/contract/contract.json',
       ],
       message:
-          'Resolved feature "${contract.id}" '
-          '(${contract.displayName}): '
+          'Resolved feature "${feature.id}" '
+          '(${feature.displayName}): '
           '${boundary == null ? "no boundary" : boundary.typeName} boundary, '
           '$routeCount route(s), '
-          '${(contract.entities ?? const <String>[]).length} entity(ies). '
-          'Plan written to specs/${contract.id}/compose.plan.json.',
+          '$entityCount entity(ies). '
+          'Plan written to specs/${feature.id}/compose.plan.json. '
+          'Slice written to ${composition.manifest.sliceRoot} '
+          '(${composition.manifest.engineFiles.length} engine file(s), '
+          '${composition.manifest.skinFiles.length} skin file(s), '
+          '${composition.manifest.receiptsFiles.length} receipt(s)) — '
+          'open it with `zfa slice worktree ${feature.id}` (spec 1114).',
     );
+  }
+
+  /// Every discoverable feature id: contract.yaml declarations plus
+  /// spec.md-only declarations (Skin Contract / Lanes CORE).
+  static List<String> _knownFeatureIds(String projectRoot) {
+    final registry = FeatureContractRegistry.scanProject(projectRoot);
+    final known = registry.knownIds.toSet();
+    final specsDir = Directory(p.join(projectRoot, 'specs'));
+    if (specsDir.existsSync()) {
+      for (final entity in specsDir.listSync()) {
+        if (entity is! Directory) continue;
+        final id = p.basename(entity.path);
+        if (known.contains(id)) continue;
+        final specFile = File(p.join(entity.path, 'spec.md'));
+        if (!specFile.existsSync()) continue;
+        if (resolveFeatureContract(projectRoot: projectRoot, featureId: id) !=
+            null) {
+          known.add(id);
+        }
+      }
+    }
+    final sorted = known.toList()..sort();
+    return sorted;
   }
 }
