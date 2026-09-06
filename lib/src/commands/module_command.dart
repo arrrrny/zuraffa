@@ -107,8 +107,12 @@ class ModuleCommand extends Command<void> {
 
     // Check if package already exists
     if (!force && Directory(packageDir).existsSync()) {
+      // Bug #1139 (exit-code sweep, #856 pattern): refusing to clobber an
+      // existing package without --force is a failure — never a lying
+      // exit 0.
       print('Error: Package directory already exists: $packageDir');
       print('Use --force to overwrite existing files.');
+      exitCode = 1;
       return;
     }
 

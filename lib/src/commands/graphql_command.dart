@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import 'graphql_diff_command.dart';
@@ -69,7 +71,13 @@ class GraphqlCommand extends PluginCommand {
           result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
-      print('Failed to generate graphql');
+      // Bug #1139 (exit-code sweep, #856 pattern): a failed generation is a
+      // failure — the process must never exit 0 after printing an error.
+      print(
+        '❌ Failed to generate graphql: '
+        '${result.message ?? "unknown error"}',
+      );
+      exitCode = 1;
     }
   }
 }

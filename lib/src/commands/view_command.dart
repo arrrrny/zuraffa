@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import '../models/generated_file.dart';
+import '../core/plugin_system/capability.dart';
 import 'base_plugin_command.dart';
 import '../plugins/view/view_plugin.dart';
 import '../plugins/route/route_plugin.dart';
@@ -128,11 +131,23 @@ class ViewCommand extends PluginCommand {
 
       // Combine results
       final allFiles = <GeneratedFile>[];
+      // Bug #1139 (exit-code sweep, #856 pattern): a failed capability run
+      // is a failure — the process must never exit 0 after reporting it.
+      final routeFailed =
+          routeResult is ExecutionResult && !routeResult.success;
+      if (!viewResult.success || routeFailed) {
+        print(
+          '❌ Failed to generate view and routes: '
+          '${viewResult.message ?? routeResult?.message ?? "unknown error"}',
+        );
+        exitCode = 1;
+        return;
+      }
       if (viewResult.data?['generatedFiles'] != null) {
         allFiles.addAll(viewResult.data!['generatedFiles']);
       }
-      if (routeResult.data?['generatedFiles'] != null) {
-        allFiles.addAll(routeResult.data!['generatedFiles']);
+      if (routeResult?.data?['generatedFiles'] != null) {
+        allFiles.addAll(routeResult?.data!['generatedFiles']);
       }
 
       print('\n✅ Generated view and routes successfully!');
@@ -153,6 +168,16 @@ class ViewCommand extends PluginCommand {
         'verbose': isVerbose,
         'outputDir': outputDir,
       });
+
+      // Bug #1139 (exit-code sweep, #856 pattern): a failed generation is a
+      // failure — the process must never exit 0 after printing an error.
+      if (!result.success) {
+        print(
+          '❌ Failed to generate view: ${result.message ?? "unknown error"}',
+        );
+        exitCode = 1;
+        return;
+      }
 
       final files =
           result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];

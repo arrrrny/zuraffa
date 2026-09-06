@@ -87,7 +87,10 @@ class IntrospectCommand extends Command<void> {
           (key, value) => MapEntry(key, value.toString()),
         );
       } catch (e) {
+        // Bug #1139 (exit-code sweep): malformed input is a usage error,
+        // never a lying exit 0.
         print('Error: --headers must be a valid JSON object. Got: $headersStr');
+        exitCode = 64;
         return;
       }
     }
@@ -95,7 +98,10 @@ class IntrospectCommand extends Command<void> {
     // Validate URL
     final uri = Uri.tryParse(endpoint);
     if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
+      // Bug #1139 (exit-code sweep): malformed input is a usage error,
+      // never a lying exit 0.
       print('Error: Invalid endpoint URL: $endpoint');
+      exitCode = 64;
       return;
     }
 
@@ -116,11 +122,14 @@ class IntrospectCommand extends Command<void> {
     );
 
     if (schema == null) {
+      // Bug #1139 (exit-code sweep, #856 pattern): an introspection
+      // failure is a real failure — never a lying exit 0.
       print('Failed to introspect schema from $endpoint.');
       print('Possible causes:');
       print('  - The endpoint is not reachable');
       print('  - The endpoint does not support GraphQL introspection');
       print('  - The server returned an error or non-200 status code');
+      exitCode = 1;
       return;
     }
 

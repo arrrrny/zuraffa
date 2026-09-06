@@ -205,8 +205,11 @@ class FeatureCommand extends Command<void> {
     // working). The positional argument keeps precedence.
     final flagName = argResults?['name'] as String?;
     if (rest.length <= nameIndex && (flagName == null || flagName.isEmpty)) {
+      // Bug #1139 (exit-code sweep): missing required input is a usage
+      // error, never a lying exit 0.
       print('❌ Missing feature name.');
       printUsage();
+      exitCode = 64;
       return;
     }
 
