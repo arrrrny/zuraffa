@@ -197,7 +197,11 @@ boundary:
       );
 
       expect(output, contains('usage'), reason: 'INV-1: usage, not stack');
-      expect(command.exitCode, 64);
+      expect(
+        command.exitCode,
+        2,
+        reason: 'SPEC 917: canonical usage code — the legacy 64 is retired',
+      );
     });
   });
 }

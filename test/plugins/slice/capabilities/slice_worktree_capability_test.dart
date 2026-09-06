@@ -3,7 +3,7 @@
 // `zfa slice worktree <feature-id>` creates a git worktree ROOTED AT THE
 // SLICE (`.zfa/slices/<id>`), so the agent's working tree is the feature
 // (not the whole repo). The worktree records its parent linkage
-// (`.slice/parent.json`) and the tdd transaction written inside it is the
+// (`.slice/parent.json`) and the tdd journal written inside it is the
 // same transaction.json as the parent repo's, with paths rewritten to the
 // slice root (the #1113 glue-back).
 library;
@@ -14,9 +14,10 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/core/project/project_root.dart';
-import 'package:zuraffa/src/plugins/tdd/services/tdd_transaction.dart';
 import 'package:zuraffa/src/plugins/slice/capabilities/compose_slice_capability.dart';
 import 'package:zuraffa/src/plugins/slice/capabilities/slice_worktree_capability.dart';
+import 'package:zuraffa/src/plugins/tdd/services/journal.dart';
+import 'package:zuraffa/src/plugins/tdd/services/tdd_transaction.dart';
 
 import '../helpers/feature_slice_fixture.dart';
 
@@ -287,9 +288,8 @@ void main() {
       },
     );
 
-    test('zfa tdd transaction equivalence: the transaction inside the '
-        'worktree is the parent transaction with paths rewritten '
-        '(#1113 glue-back)', () async {
+    test('zfa tdd run journal equivalence: the journal inside the worktree is '
+        'the parent journal with paths rewritten (#1113 glue-back)', () async {
       final result = await SliceWorktreeCapability().execute(
         projectRoot: workspace.path,
         featureId: 'login',
@@ -301,46 +301,59 @@ void main() {
       final parentTx = TddTransaction(parentFeatureDir);
       await parentTx.begin(behavior: 'U1', step: 'red');
 
-      // The SAME write driven from inside the slice worktree: the tdd
-      // mount is <sliceRoot()>/specs/login, so the transaction lands at
-      // <sliceRoot()>/specs/login/tdd/transaction.json — the same record,
-      // paths rewritten relative to the slice root.
+      // The SAME writes driven from inside the slice worktree: the tdd
+      // mount is <sliceRoot()>/specs/login, so the write-ahead
+      // transaction and the unified journal land at
+      // <sliceRoot()>/specs/login/tdd/ — the same records, paths
+      // rewritten relative to the slice root.
       final sliceFeatureDir = p.join(sliceRoot(), 'specs', 'login');
       final sliceTx = TddTransaction(sliceFeatureDir);
       await sliceTx.begin(behavior: 'U1', step: 'red');
 
+      final now = DateTime.now().toUtc().toIso8601String();
+      final entry = JournalEntry(
+        feature: 'login',
+        cycle: 'engine',
+        phase: 'drive',
+        startedAt: now,
+        finishedAt: now,
+        gateState: 'not_assessed',
+        behaviors: const ['U1'],
+      );
+      await JournalWriter(parentFeatureDir).append(entry);
+      await JournalWriter(sliceFeatureDir).append(entry);
+
       final parentJournal =
           jsonDecode(
                 File(
-                  p.join(parentFeatureDir, 'tdd', 'transaction.json'),
+                  JournalWriter(parentFeatureDir).journalPath,
                 ).readAsStringSync(),
               )
               as Map<String, dynamic>;
       final sliceJournal =
           jsonDecode(
                 File(
-                  p.join(sliceFeatureDir, 'tdd', 'transaction.json'),
+                  JournalWriter(sliceFeatureDir).journalPath,
                 ).readAsStringSync(),
               )
               as Map<String, dynamic>;
 
-      // Same transaction record: the feature axis is identical.
+      // Same journal record: the feature axis is identical.
       expect(sliceJournal['feature'], parentJournal['feature']);
       expect(sliceJournal['feature'], 'login');
-      expect(sliceJournal['behavior'], parentJournal['behavior']);
-      expect(sliceJournal['step'], parentJournal['step']);
-      expect(sliceJournal['status'], 'pending');
+      final parentEntry =
+          (parentJournal['entries'] as List).single as Map<String, dynamic>;
+      final sliceEntry =
+          (sliceJournal['entries'] as List).single as Map<String, dynamic>;
+      expect(sliceEntry['behaviors'], parentEntry['behaviors']);
+      expect(sliceEntry['behaviors'], ['U1']);
+      expect(sliceEntry['phase'], parentEntry['phase']);
+      expect(sliceEntry['gate_state'], 'not_assessed');
 
       // Paths rewritten: the transaction file sits at the same relative
       // structure under each root (specs/<feature>/tdd/transaction.json).
-      final parentRel = p.relative(
-        p.join(parentFeatureDir, 'tdd', 'transaction.json'),
-        from: workspace.path,
-      );
-      final sliceRel = p.relative(
-        p.join(sliceFeatureDir, 'tdd', 'transaction.json'),
-        from: sliceRoot(),
-      );
+      final parentRel = p.relative(parentTx.path, from: workspace.path);
+      final sliceRel = p.relative(sliceTx.path, from: sliceRoot());
       expect(sliceRel, parentRel);
     });
 

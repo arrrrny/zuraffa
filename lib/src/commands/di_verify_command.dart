@@ -46,6 +46,15 @@ class DiVerifyCommand extends Command<void> {
       negatable: false,
       help: 'Preview the gate verdict as a plan report without executing',
     );
+    // SPEC 917 / #904: the capability inputSchema declares `verbose` — the
+    // CLI must accept what the manifest advertises (it maps onto the
+    // command's own logging machinery even though the gate's output is
+    // verdict-shaped).
+    argParser.addFlag(
+      'verbose',
+      negatable: false,
+      help: 'Enable verbose logging',
+    );
   }
 
   @override

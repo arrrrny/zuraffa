@@ -12,6 +12,7 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+import '../../cli/exit_protocol.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
@@ -302,10 +303,10 @@ example:
         default:
           print('Unknown slice subcommand: $rawSubcommand');
           print(_usage);
-          // Issue #767: was `exit(64)` — a hard process exit that also
+          // Issue #767: was `exit(ExitProtocol.usage)` — a hard process exit that also
           // killed in-process test runners. Set the outcome and return;
           // the finally below publishes it to the process.
-          exitCode = 64;
+          exitCode = ExitProtocol.usage;
           return;
       }
     } finally {
@@ -317,7 +318,7 @@ example:
   void _usageError(String message) {
     print(message);
     print(_usage);
-    exitCode = 64;
+    exitCode = ExitProtocol.usage;
   }
 
   Future<void> _cut(List<String> rest) async {
