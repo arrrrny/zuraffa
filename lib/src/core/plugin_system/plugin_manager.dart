@@ -702,6 +702,16 @@ class PluginManager {
         rethrow;
       }
 
+      // Spec 1115 (issue #1115 item 2): an active feature contract means
+      // every generator emit carries the persisted cross-layer knowledge —
+      // the @XrayLayer + @FeatureOwned decorators ride the written files.
+      // Runs BEFORE commit so dry runs and receipts still observe the
+      // stamped content.
+      final activeFeature = context.core.feature;
+      if (activeFeature != null) {
+        transaction.stampFeatureOwnership(activeFeature);
+      }
+
       // Commit the transaction - MUST pass baseFileSystem (not transactional one to avoid recursion/confusion during final write)
       final baseFs = context.fileSystem is TransactionalFileSystem
           ? (context.fileSystem as TransactionalFileSystem).base
