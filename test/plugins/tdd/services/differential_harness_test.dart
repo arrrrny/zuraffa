@@ -21,6 +21,8 @@
 //   B-009: a driver failure is `runner-error` — the gate fails closed.
 //   B-010: fixture `clauses` / `contract` maps override attribution and
 //          comparison mode.
+//   B-011: runner-error fixture counts track completed fixtures, not rows.
+//   B-012: malformed optional fixture metadata fails closed.
 library;
 
 import 'dart:convert';
@@ -439,4 +441,68 @@ void main() {
     expect(row.detail, contains('a@b.c'));
     expect(row.detail, contains('real@z.c'));
   });
+
+  test('B-011: runner-error counts completed fixtures independently of '
+      'divergence rows', () async {
+    await writeFixture(
+      '01_clean.json',
+      fixture(
+        id: 'clean',
+        input: const {'op': 'clean'},
+        mockOutput: const {'id': 'u1'},
+      ),
+    );
+    await writeFixture(
+      '02_divergent.json',
+      fixture(
+        id: 'divergent',
+        input: const {'op': 'divergent'},
+        mockOutput: const {'state': 'ACTIVE', 'error': 'none'},
+      ),
+    );
+    await fixtureFile('03_broken.json').writeAsString('{not json');
+
+    final result = await harness(
+      driverFor(const {
+        'clean': {'id': 'u2'},
+        'divergent': {'state': 'PENDING', 'error': 'conflict'},
+      }),
+    ).run(entity: 'User');
+
+    expect(result.verdict, DifferentialVerdict.runnerError);
+    expect(result.replayed, 2);
+    expect(result.rows, hasLength(2));
+    expect(receipt()['fixtures']['count'], 2);
+    expect(receipt()['replayed'], 2);
+  });
+
+  for (final malformed in <String, Object>{
+    'id': 7,
+    'clauses': 'not-a-map',
+    'contract': <Object>[],
+  }.entries) {
+    test(
+      'B-012: malformed ${malformed.key} is a recorded runner-error',
+      () async {
+        await writeFixture('invalid.json', <String, dynamic>{
+          'schema': 'realize-diff.v1',
+          'id': 'valid-id',
+          'input': const {'op': 'getById'},
+          'mockOutput': const {'id': 'u1'},
+          malformed.key: malformed.value,
+        });
+        var driverCalls = 0;
+
+        final result = await harness((binding, entity, input) async {
+          driverCalls++;
+          return const {'id': 'u1'};
+        }).run(entity: 'User');
+
+        expect(result.verdict, DifferentialVerdict.runnerError);
+        expect(result.replayed, 0);
+        expect(driverCalls, 0);
+        expect(receipt()['journal']['gate_state'], 'red');
+      },
+    );
+  }
 }

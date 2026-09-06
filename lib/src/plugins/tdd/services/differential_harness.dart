@@ -302,13 +302,14 @@ class DifferentialHarness {
 
     final rows = <DifferentialRow>[];
     var compared = 0;
+    var completedFixtures = 0;
     for (final file in files) {
       final parsed = _parseFixture(file);
       if (parsed == null) {
         final failed = DifferentialHarnessResult(
           verdict: DifferentialVerdict.runnerError,
           threshold: threshold,
-          replayed: rows.isEmpty ? 0 : rows.length,
+          replayed: completedFixtures,
           compared: compared,
           rows: rows,
           fixturesDigest: digest,
@@ -326,7 +327,7 @@ class DifferentialHarness {
         final failed = DifferentialHarnessResult(
           verdict: DifferentialVerdict.runnerError,
           threshold: threshold,
-          replayed: rows.length,
+          replayed: completedFixtures,
           compared: compared,
           rows: rows,
           fixturesDigest: digest,
@@ -335,6 +336,7 @@ class DifferentialHarness {
         await _writeReceipt(entity: entity, adapter: adapter, result: failed);
         return failed;
       }
+      completedFixtures++;
       rows.addAll(run.rows);
     }
     rows.sort((a, b) {
@@ -348,7 +350,7 @@ class DifferentialHarness {
           ? DifferentialVerdict.pass
           : DifferentialVerdict.divergence,
       threshold: threshold,
-      replayed: files.length,
+      replayed: completedFixtures,
       compared: compared,
       rows: rows,
       fixturesDigest: digest,
@@ -388,12 +390,18 @@ class DifferentialHarness {
       if (decoded is! Map<String, dynamic>) return null;
       final input = decoded['input'];
       if (input is! Map<String, dynamic>) return null;
+      final id = decoded['id'];
+      if (id != null && id is! String) return null;
+      final clauses = decoded['clauses'];
+      if (clauses != null && clauses is! Map<String, dynamic>) return null;
+      final contract = decoded['contract'];
+      if (contract != null && contract is! Map<String, dynamic>) return null;
       return _ParsedFixture(
-        id: (decoded['id'] as String?) ?? p.basenameWithoutExtension(file.path),
+        id: (id as String?) ?? p.basenameWithoutExtension(file.path),
         input: input,
         mockOutput: decoded['mockOutput'],
-        clauses: decoded['clauses'],
-        contract: decoded['contract'],
+        clauses: clauses as Map<String, dynamic>?,
+        contract: contract as Map<String, dynamic>?,
       );
     } on FormatException {
       return null;

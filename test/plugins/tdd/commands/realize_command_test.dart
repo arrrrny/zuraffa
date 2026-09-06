@@ -305,6 +305,30 @@ void main() {
     },
   );
 
+  test('help distinguishes swap and standalone differential adapter rules', () {
+    final command = RealizeCommand(TddPlugin());
+
+    expect(
+      command.description,
+      contains('swap flow (spec 913; --adapter required)'),
+    );
+    expect(
+      command.description,
+      contains(
+        'standalone differential harness (spec 1195; --adapter optional)',
+      ),
+    );
+    expect(
+      command.argParser.options['adapter']!.help,
+      contains('Required for the swap flow'),
+    );
+    expect(
+      command.argParser.options['adapter']!.help,
+      contains('optional receipt metadata with --diff-only'),
+    );
+    expect(command.invocation, contains('[--adapter <real>] [--diff-only]'));
+  });
+
   test('A6: a behavior id target resolves through the registry', () async {
     final out = await runRealize(target: 'B-001', adapter: 'UserRealAdapter');
 

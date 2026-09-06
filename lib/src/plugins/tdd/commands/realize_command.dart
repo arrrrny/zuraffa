@@ -100,7 +100,8 @@ class RealizeCommand extends Command<void> {
       'adapter',
       help:
           'The real adapter class to bind (must already exist in lib/ — '
-          'realize never generates real implementations). Required.',
+          'realize never generates real implementations). Required for the '
+          'swap flow; optional receipt metadata with --diff-only.',
     );
     argParser.addOption(
       'feature',
@@ -146,14 +147,15 @@ class RealizeCommand extends Command<void> {
 
   @override
   String get description =>
-      'Swap the mock datasource for a real adapter behind the same '
-      'generated interface, gated by the contract suite and the '
-      'real-vs-mock differential (spec 913); --diff-only replays ONLY '
-      'the differential harness (spec 1195) without touching the tree.';
+      'Run the mock-to-real swap flow (spec 913; --adapter required), gated '
+      'by the contract suite and real-vs-mock differential; --diff-only '
+      'replays ONLY the standalone differential harness (spec 1195; '
+      '--adapter optional) without touching the tree.';
 
   @override
   String get invocation =>
-      'zfa tdd realize <entity|behavior> --adapter <real> [options]';
+      'zfa tdd realize <entity|behavior> [--adapter <real>] [--diff-only] '
+      '[options]';
 
   @override
   Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
