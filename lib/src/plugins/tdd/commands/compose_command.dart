@@ -259,6 +259,11 @@ class ComposeCommand extends Command<void> {
       projectRoot: resolvedCwd,
       featureDir: target.featureDir,
       behaviorId: record.behaviorId,
+      // Issue #1162: bug features may compose against stub-only unit
+      // subjects (honestly labeled `[stub]`) — the sanctioned path from
+      // a prose scenario's certified red to green. Non-bug features keep
+      // the strict no-green-units gate (unchanged).
+      allowStubAnchors: CompositionTargets.isBugFeatureDir(target.featureDir),
     );
     if (discovery is CompositionTargetFailure) {
       print('zfa tdd compose: ${discovery.message}');
@@ -275,14 +280,26 @@ class ComposeCommand extends Command<void> {
     }
     final anchors = (discovery as CompositionTargetResolved).anchors;
     // Issue #923: the anchor set may mix green subjects with entity-wired
-    // stubs — the audit line names both honestly.
+    // stubs — the audit line names both honestly. Issue #1162: it may
+    // also include stub-only subjects (bug features), labeled [stub].
     final wiredCount = anchors.where((a) => a.entityWired).length;
-    final anchorSummary = wiredCount == 0
-        ? '${anchors.length} green unit subject(s)'
-        : '${anchors.length - wiredCount} green, $wiredCount entity-wired '
-              'unit subject(s)';
+    final stubCount = anchors.where((a) => a.stubOnly).length;
+    final greenCount = anchors.length - wiredCount - stubCount;
+    final parts = <String>[
+      if (greenCount > 0) '$greenCount green',
+      if (wiredCount > 0) '$wiredCount entity-wired',
+      if (stubCount > 0) '$stubCount stub-only',
+    ];
+    final anchorSummary = '${parts.join(', ')} unit subject(s)';
     print(
-      '   anchors: ${anchors.map((a) => a.entityWired ? '${a.behaviorId} [entity-wired]' : a.behaviorId).join(', ')} '
+      '   anchors: ${anchors.map((a) {
+        final label = a.stubOnly
+            ? ' [stub]'
+            : a.entityWired
+            ? ' [entity-wired]'
+            : '';
+        return '${a.behaviorId}$label';
+      }).join(', ')} '
       '($anchorSummary)',
     );
 
@@ -411,11 +428,17 @@ class ComposeCommand extends Command<void> {
     }
     // Issue #923: the anchor list may include entity-wired subjects whose
     // behaviors are still stubs — name each anchor's status so the audit
-    // trail says exactly what the composition rests on.
+    // trail says exactly what the composition rests on. Issue #1162:
+    // stub-only anchors (bug features) carry the same honesty.
     final anchorList = anchors
         .map(
           (a) =>
-              '${a.behaviorId} (${a.subjectPath})${a.entityWired ? ' [entity-wired]' : ''}',
+              '${a.behaviorId} (${a.subjectPath})'
+              '${a.stubOnly
+                  ? ' [stub]'
+                  : a.entityWired
+                  ? ' [entity-wired]'
+                  : ''}',
         )
         .join(', ');
     final body = returnType == 'void'

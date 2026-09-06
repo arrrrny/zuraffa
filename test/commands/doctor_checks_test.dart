@@ -439,6 +439,10 @@ void main() {
           'baseline-cache',
           'config',
           'profile',
+          // Issue #1184: installed-binary staleness probe (skips silently
+          // when the CLI is not a marker-carrying installed binary, as in
+          // this in-process source run).
+          'binary-staleness',
         });
         expect(decoded['ok'], isTrue);
         // json mode suppresses prose sections entirely.

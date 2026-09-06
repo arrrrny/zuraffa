@@ -38,8 +38,8 @@ import 'artifact_registry.dart';
 import 'cycle_evidence.dart';
 import 'test_list_reader.dart';
 
-/// One anchor a composition may wire against: a green or entity-wired
-/// unit subject.
+/// One anchor a composition may wire against: a green, entity-wired, or
+/// (bug features, issue #1162) stub-only unit subject.
 ///
 /// Issue #923: an anchor no longer requires green cycle-log evidence —
 /// a unit subject the `zfa tdd wire` step implemented against its entity
@@ -49,6 +49,16 @@ import 'test_list_reader.dart';
 /// subject and defers the real green transition to when the unit
 /// subjects are filled with business logic; [entityWired] records which
 /// anchors carry only that wiring so the audit trail stays honest.
+///
+/// Issue #1162: [stubOnly] anchors go one honest step further for BUG
+/// features — a unit subject that exists on disk (gen wrote it) but is
+/// neither green nor wired is still a composable anchor, because compose
+/// REFERENCES anchor subjects without calling them: the composed
+/// scenario runner does not throw, the paired test's scenario assertions
+/// genuinely execute, and the composed skeleton's real green lands when
+/// the unit subjects are filled in later cycles. The audit trail labels
+/// these `[stub]` everywhere (discovery print, compose output, and the
+/// composed file header).
 class ComposableUnitSubject {
   final String behaviorId;
 
@@ -66,17 +76,24 @@ class ComposableUnitSubject {
   /// against wiring alone (no green cycle-log evidence yet, issue #923).
   final bool entityWired;
 
+  /// Issue #1162: true for anchors that are neither green nor wired —
+  /// the stub-only composition lane for bug features. The composed
+  /// scenario references the stub subject as an implementation anchor;
+  /// the audit trail labels it `[stub]` so the accounting stays honest.
+  final bool stubOnly;
+
   const ComposableUnitSubject({
     required this.behaviorId,
     required this.subjectPath,
     required this.symbol,
     this.entityWired = false,
+    this.stubOnly = false,
   });
 
   @override
   String toString() =>
       'ComposableUnitSubject($behaviorId: $subjectPath#$symbol'
-      '${entityWired ? ', entity-wired' : ''})';
+      '${entityWired ? ', entity-wired' : ''}${stubOnly ? ', stub' : ''})';
 }
 
 /// The result of a discovery run: either resolved anchors or a typed,
@@ -128,12 +145,36 @@ class CompositionTargets {
     return false;
   }
 
+  /// Whether [featureDir] is a BUG feature (issue #1162): the bug
+  /// extension's TDD lane drives features rooted at `.specify/bugs/<slug>`
+  /// (the bug.fix contract), bridged into the specs/ scan as a
+  /// `bug-<slug>` symlink. Both shapes detect: the bridge keeps the
+  /// `bug-` prefix in the directory's basename, and an unbridged
+  /// `feature_directory` pin resolves to the real `.specify/bugs/` path.
+  static bool isBugFeatureDir(String featureDir) {
+    if (p.basename(featureDir).startsWith('bug-')) return true;
+    final dir = Directory(featureDir);
+    final real = dir.existsSync() ? dir.resolveSymbolicLinksSync() : featureDir;
+    final segments = real.split(Platform.pathSeparator);
+    return segments.contains('.specify') && segments.contains('bugs');
+  }
+
   /// Discover the composable anchors for composing [behaviorId]'s subject
   /// in [featureDir] (a `specs/<feature>` path under [projectRoot]).
+  ///
+  /// Issue #1162: [allowStubAnchors] (bug features only — gate the flag
+  /// with [isBugFeatureDir] at the call site) extends the anchor search
+  /// with STUB-only unit subjects: unit-kind rows whose subject artifact
+  /// exists on disk (registry-recorded) but carries neither green
+  /// evidence nor the wire anchor. Such anchors are labeled [stubOnly]
+  /// so every audit surface stays honest about what the composition
+  /// rests on. Non-bug features keep the strict gate: their
+  /// `no-green-units` stop is unchanged.
   Future<CompositionTargetResult> discover({
     required String projectRoot,
     required String featureDir,
     required String behaviorId,
+    bool allowStubAnchors = false,
   }) async {
     // 1. The feature's test list — the kind source of truth. A missing or
     //    malformed list fails closed (the fallback must not guess kinds).
@@ -266,6 +307,32 @@ class CompositionTargets {
           entityWired: true,
         ),
       );
+    }
+
+    // Issue #1162: the bug-feature stub-only lane. Still no anchors after
+    // the green/wired scan, and the caller allowed stubs: unit rows whose
+    // subject artifact exists on disk become [stub] anchors (compose
+    // references anchors without calling them, so the composed scenario
+    // is non-throwing and the paired test's assertions genuinely run).
+    if (anchors.isEmpty && allowStubAnchors) {
+      for (final row in rows) {
+        if (row.kind != BehaviorKind.unit) continue;
+        if (row.id == behaviorId) continue; // never anchor against itself
+        final recorded = subjectPathById[row.id];
+        if (recorded == null) continue; // never gen'd — not on disk
+        final normalized = p.normalize(
+          p.isAbsolute(recorded) ? recorded : p.join(projectRoot, recorded),
+        );
+        if (!File(normalized).existsSync()) continue;
+        anchors.add(
+          ComposableUnitSubject(
+            behaviorId: row.id,
+            subjectPath: normalized,
+            symbol: row.target,
+            stubOnly: true,
+          ),
+        );
+      }
     }
 
     if (anchors.isEmpty) {
