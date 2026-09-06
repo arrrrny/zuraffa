@@ -39,6 +39,10 @@ typedef ZfaStalenessProcessRunner =
       String? workingDirectory,
     );
 
+/// Why a staleness probe returned no result — used by `zfa doctor` to
+/// emit honest skip messages without duplicating probe logic.
+enum StalenessSkipReason { sourceRun, noMarker, noCheckout, noHead }
+
 /// The verdict of one staleness probe. [warning] is non-null iff the
 /// installed binary's build commit differs from the enclosing zuraffa
 /// worktree's HEAD.
@@ -202,4 +206,52 @@ class BinaryStaleness {
   /// Short form for operator-facing messages (git's terminal convention).
   static String shortCommit(String commit) =>
       commit.length <= 12 ? commit : commit.substring(0, 12);
+
+  /// Like [probe], but also reports WHY the probe returned null.
+  /// Used by `zfa doctor` to emit honest skip messages.
+  Future<StalenessProbeResult> probeDetailed({String? cwd}) async {
+    final binDir = binaryDir;
+    if (binDir == null) {
+      return const StalenessProbeResult(
+        skipReason: StalenessSkipReason.sourceRun,
+      );
+    }
+    final buildCommit = readBuildCommit(binDir);
+    if (buildCommit == null) {
+      return const StalenessProbeResult(
+        skipReason: StalenessSkipReason.noMarker,
+      );
+    }
+    final checkout = BinaryStaleness.findZuraffaCheckout(
+      cwd ?? Directory.current.path,
+    );
+    if (checkout == null) {
+      return const StalenessProbeResult(
+        skipReason: StalenessSkipReason.noCheckout,
+      );
+    }
+    final head = await checkoutHead(checkout);
+    if (head == null) {
+      return const StalenessProbeResult(skipReason: StalenessSkipReason.noHead);
+    }
+    return StalenessProbeResult(
+      report: StalenessReport(
+        binaryDir: binDir,
+        buildCommit: buildCommit,
+        checkoutRoot: checkout,
+        checkoutHead: head,
+      ),
+    );
+  }
+}
+
+/// Result of a detailed staleness probe — carries either a report or a
+/// skip reason.
+class StalenessProbeResult {
+  const StalenessProbeResult({this.report, this.skipReason});
+
+  final StalenessReport? report;
+  final StalenessSkipReason? skipReason;
+
+  bool get isSkipped => report == null && skipReason != null;
 }

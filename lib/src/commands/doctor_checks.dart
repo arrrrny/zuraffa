@@ -529,62 +529,50 @@ class DoctorChecksRunner {
   /// HEAD) is a SKIP, never a false alarm.
   Future<DoctorCheckResult> _checkBinaryStaleness() async {
     const id = 'binary-staleness';
-    final staleness = BinaryStaleness(binaryDir: _binaryDir);
-    final binDir = staleness.binaryDir;
-    if (binDir == null) {
+    final result = await BinaryStaleness(
+      binaryDir: _binaryDir,
+    ).probeDetailed(cwd: _root);
+
+    if (result.isSkipped) {
       return DoctorCheckResult(
         id: id,
         status: DoctorCheckStatus.skipped,
-        detail:
-            'no installed binary (running from source — nothing to '
-            'staleness-check)',
+        detail: _skipDetail(result.skipReason!),
       );
     }
-    final buildCommit = staleness.readBuildCommit(binDir);
-    if (buildCommit == null) {
-      return DoctorCheckResult(
-        id: id,
-        status: DoctorCheckStatus.skipped,
-        detail:
-            'no $zfaBuildCommitMarker marker next to the installed '
-            'binary — rebuild once via scripts/rebuild.sh to enable '
-            'staleness checks',
-      );
-    }
-    final checkout = BinaryStaleness.findZuraffaCheckout(_root);
-    if (checkout == null) {
-      return DoctorCheckResult(
-        id: id,
-        status: DoctorCheckStatus.skipped,
-        detail: 'not inside a zuraffa checkout — staleness not applicable',
-      );
-    }
-    final head = await staleness.checkoutHead(checkout);
-    if (head == null) {
-      return DoctorCheckResult(
-        id: id,
-        status: DoctorCheckStatus.skipped,
-        detail:
-            'cannot resolve git HEAD for the zuraffa checkout at '
-            '$checkout',
-      );
-    }
-    if (head == buildCommit) {
+
+    final report = result.report!;
+    if (!report.isStale) {
       return _pass(
         id,
         'installed zfa matches this checkout '
-        '(${BinaryStaleness.shortCommit(buildCommit)})',
+        '(${BinaryStaleness.shortCommit(report.buildCommit)})',
       );
     }
     return DoctorCheckResult(
       id: id,
       status: DoctorCheckStatus.warn,
       detail:
-          'installed zfa (${BinaryStaleness.shortCommit(buildCommit)}) '
-          'is older than this checkout (${BinaryStaleness.shortCommit(head)})',
+          'installed zfa (${BinaryStaleness.shortCommit(report.buildCommit)}) '
+          'is older than this checkout '
+          '(${BinaryStaleness.shortCommit(report.checkoutHead)})',
       suggestedFix: 'scripts/rebuild.sh',
     );
   }
+
+  String _skipDetail(StalenessSkipReason reason) => switch (reason) {
+    StalenessSkipReason.sourceRun =>
+      'no installed binary (running from source — nothing to '
+          'staleness-check)',
+    StalenessSkipReason.noMarker =>
+      'no $zfaBuildCommitMarker marker next to the installed '
+          'binary — rebuild once via scripts/rebuild.sh to enable '
+          'staleness checks',
+    StalenessSkipReason.noCheckout =>
+      'not inside a zuraffa checkout — staleness not applicable',
+    StalenessSkipReason.noHead =>
+      'cannot resolve git HEAD for the zuraffa checkout',
+  };
 }
 
 /// The `--format json` verdict object for the named environment checks:

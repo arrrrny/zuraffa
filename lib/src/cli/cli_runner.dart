@@ -325,8 +325,10 @@ class CliRunner {
     final String? message;
     try {
       message = await _staleness.warningFor(cwd: Directory.current.path);
-    } catch (_) {
+    } on IOException {
       return; // advisory only — never fail the CLI over it
+    } on FormatException {
+      return;
     }
     if (message != null) _onStalenessWarning(message);
   }
