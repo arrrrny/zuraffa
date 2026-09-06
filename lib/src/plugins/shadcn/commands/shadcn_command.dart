@@ -49,7 +49,9 @@ class ShadcnCommand extends Command<void> {
     argParser.addOption(
       'layout',
       help: 'UI layout type',
-      allowed: ['list', 'grid', 'table', 'form'],
+      // Issue #1149 (kill list — fix list): only implemented layouts are
+      // allowed — grid/table were advertised but never implemented.
+      allowed: ['list', 'form'],
       defaultsTo: 'list',
     );
     // PluginManager.buildContext reads the standard PluginCommand flags
@@ -160,13 +162,25 @@ class ShadcnCommand extends Command<void> {
     // usage error, not a silent generation of a bogus template. The
     // layout's argParser `allowed` set only guards --layout, never the
     // positional form, so the command itself must refuse here.
-    const knownLayouts = {'list', 'grid', 'table', 'form'};
+    // Issue #1149 (kill list — fix list): only the implemented layouts are
+    // accepted. grid/table used to be admitted here and then fell through
+    // to the list template — a mislabeled widget that lied about its shape.
+    const knownLayouts = {'list', 'form'};
+    const unimplementedAdvertised = {'grid', 'table'};
     if (!knownLayouts.contains(layout)) {
       print('❌ Usage: zfa shadcn <layout> <Entity> [options]');
-      print(
-        'Unknown layout: "$layout". '
-        'Available layouts: list, form, grid, table',
-      );
+      if (unimplementedAdvertised.contains(layout)) {
+        print(
+          'Layout "$layout" is not implemented (issue #1149): the old '
+          'generator silently emitted a list widget instead. Available '
+          'layouts: list, form',
+        );
+      } else {
+        print(
+          'Unknown layout: "$layout". '
+          'Available layouts: list, form',
+        );
+      }
       exitCode = ExitProtocol.usage;
       return;
     }
