@@ -55,6 +55,12 @@ dependencies:
   # 020-skeleton-plugin: tar.gz export for bone artifacts (FR-006).
   archive: ^4.0.0
 
+  # Issue #1112 (`zfa skin drive`): the VM-service client the skin
+  # driver wraps — evaluates the emitted debugTapAnchor seam against a
+  # LIVE debug app. Pure Dart (no Flutter dependency), so the CLI and
+  # its tests run on every host platform.
+  vm_service: ^15.3.0
+
   # TUI plugin (specs/017-tui-plugin): pure-Dart terminal UI engine.
   # nocterm has NO package:flutter dependency (verified via pub.dev metadata).
   # Any future Flutter-only rendering path MUST live in zuraffa_flutter, never
