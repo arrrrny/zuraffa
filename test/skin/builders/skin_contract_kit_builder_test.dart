@@ -78,7 +78,8 @@ void main() {
 
     test('emits the debugTapAnchor VM-service driver seam (lesson 7)', () {
       final src = builder.build();
-      expect(src, contains('Future<bool> debugTapAnchor(String zfaKey)'));
+      // Issue #1112: the seam answers the rich TapResult now, not a bool.
+      expect(src, contains('Future<TapResult> debugTapAnchor(String zfaKey)'));
       expect(src, contains('zfaAnchorRegistry'));
     });
 

@@ -62,6 +62,8 @@ class SkinContractKitBuilder {
 // k<ViewName>SkinRows seam) — this kit is regenerated, your rows are
 // yours.
 
+import 'dart:convert';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -483,7 +485,13 @@ class _ZfaButtonState extends State<ZfaButton> {
 
   void _register() {
     if (!kDebugMode) return;
-    zfaAnchorRegistry.register(widget.contractId, _invoke);
+    // Issue #1112: the registry records the LIVE enabled state, so the
+    // driver can answer `disabled` instead of a lying no-op.
+    zfaAnchorRegistry.register(
+      widget.contractId,
+      _invoke,
+      enabled: widget.contractEnabled,
+    );
   }
 
   void _invoke() {
@@ -512,15 +520,77 @@ class _ZfaButtonState extends State<ZfaButton> {
   }
 }
 
-/// The VM-service driver seam (pilot lesson 7): invokes the REAL
-/// onPressed registered under [zfaKey] (accepts both
-/// 'zfa:signin-guest' and 'signin-guest'). Returns whether the
-/// anchor was found and tapped — an unknown anchor refuses
-/// honestly, so a driver harness can never silently no-op.
-Future<bool> debugTapAnchor(String zfaKey) async {
-  if (!kDebugMode) return false;
-  return zfaAnchorRegistry.tap(zfaKey);
+/// The VM-service driver seam (pilot lesson 7), issue #1112 — the
+/// pilot's element walk, productized: find the element carrying
+/// `ValueKey('zfa:<id>')` under the render view, walk up to the owning
+/// [ZfaButton], and invoke its REAL onPressed. Accepts both
+/// 'zfa:signin-guest' and 'signin-guest'. The verdict is rich
+/// (found / disabled / notFound / error) — a driver harness can never
+/// silently no-op, and a disabled anchor answers honestly.
+TapResult debugTapAnchorSync(String zfaKey) {
+  if (!kDebugMode) {
+    return TapResult.error('debugTapAnchor requires kDebugMode');
+  }
+  final wanted = ZfaAnchors.keyFor(ZfaAnchors.normalize(zfaKey));
+  final root = WidgetsBinding.instance.renderViewElement;
+  if (root == null) return TapResult.notFound;
+
+  Element? keyed;
+  void search(Element element) {
+    if (keyed != null) return;
+    final key = element.widget.key;
+    if (key is ValueKey<String> && key.value == wanted) {
+      keyed = element;
+      return;
+    }
+    element.visitChildElements(search);
+  }
+
+  root.visitChildElements(search);
+  if (keyed == null) return TapResult.notFound;
+
+  // The key sits on the KeyedSubtree INSIDE the owning button's
+  // build — walk up to the ZfaButton.
+  Element? current = keyed;
+  while (current != null) {
+    final widget = current.widget;
+    if (widget is ZfaButton) {
+      final onPressed = widget.onPressed;
+      if (!widget.contractEnabled || onPressed == null) {
+        return TapResult.disabled;
+      }
+      try {
+        onPressed();
+        return TapResult.found;
+      } catch (e) {
+        return TapResult.error('onPressed threw: \$e');
+      }
+    }
+    current = current.parent;
+  }
+
+  // A keyed anchor nobody owns: a custom anchor may have registered
+  // itself into the registry — honor that, else refuse honestly.
+  final registered = zfaAnchorRegistry.tapResult(wanted);
+  if (registered is TapFound) return registered;
+  return TapResult.error(
+    'anchor key \$wanted is mounted but no ZfaButton owns it',
+  );
 }
+
+/// The issue's signature — tap the anchor by key. The result is
+/// computed synchronously (the walk cannot await anything); the
+/// Future keeps the documented async contract so callers can await
+/// uniformly across the driver, the bridge, and the simulator.
+Future<TapResult> debugTapAnchor(String zfaKey) async {
+  return debugTapAnchorSync(zfaKey);
+}
+
+/// The string the VM-service driver evaluates: `zfa skin drive` runs
+/// `debugTapAnchorJson('<anchor>')` against this library and prints
+/// the result — the same JSON on every host OS (issue #1112).
+String debugTapAnchorJson(String zfaKey) =>
+    jsonEncode(debugTapAnchorSync(zfaKey).toJson());
 
 // END GENERATED
 ''';
