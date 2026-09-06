@@ -512,12 +512,14 @@ dependencies:
       );
       final envelope = _envelopeFrom(out);
 
-      // The five contract keys of issue #971 order 2 stay intact.
-      expect(envelope['schema'], equals(1));
-      expect(envelope['routes'], isA<List>());
-      expect(envelope['deepLinks'], isA<List>());
-      expect(envelope['schemeRegistrations'], isA<List>());
-      expect(envelope['routeTableTestPath'], isNotNull);
+      // The canonical frame (SPEC 1105) plus the route surface in `details`
+      // (issue #971 order 2 keys stay intact).
+      expect(envelope['schema'], 'zuraffa.verdict.v1');
+      final details = envelope['details'] as Map<String, dynamic>;
+      expect(details['routes'], isA<List>());
+      expect(details['deepLinks'], isA<List>());
+      expect(details['schemeRegistrations'], isA<List>());
+      expect(details['routeTableTestPath'], isNotNull);
       // The additive explain block.
       final explain = envelope['explain'] as Map<String, dynamic>;
       expect(explain['routes'], isA<List>());
