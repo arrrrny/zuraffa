@@ -61,9 +61,7 @@ void main() {
         '--project',
         tmpDir.path,
       ]);
-      return File(
-        p.join(featureDir, 'tdd', 'test-list.md'),
-      ).readAsString();
+      return File(p.join(featureDir, 'tdd', 'test-list.md')).readAsString();
     }
 
     test('every scenario verb class lands in the kind column', () async {
@@ -79,7 +77,7 @@ void main() {
    **Type**: widget
 2. **Given** valid credentials **When** the user submits **Then** the app navigates to the route 'deal_list'
    **Type**: widget
-3. **Given** a slow network **When** sign-in is in flight **Then** shows 'Signing in' and disables the 'Sign in' button
+3. **Given** a slow network **When** the user submits **Then** while sign-in is in flight, shows 'Signing in' and disables the 'Sign in' button
    **Type**: widget
 4. **Given** a rendered form **When** the user reviews it **Then** the 'Sign in' button is disabled
    **Type**: widget
@@ -236,8 +234,13 @@ $widgetRows
       'materialapp',
     ];
 
-    String testFileOf(String id) =>
-        p.join(tmpDir.path, 'test', 'tdd', featureName, '${id.toLowerCase()}_test.dart');
+    String testFileOf(String id) => p.join(
+      tmpDir.path,
+      'test',
+      'tdd',
+      featureName,
+      '${id.toLowerCase()}_test.dart',
+    );
 
     test('a route-outcome row generates the pushed-routes assertion, '
         'never find.text of the route name', () async {
@@ -249,7 +252,10 @@ $widgetRows
       final out = await runner.runCapturing(genArgs('A2'));
       expect(exitCode, 0, reason: 'out: $out');
       final content = await File(testFileOf('a2')).readAsString();
-      expect(content, contains("expect(observer.pushedNames, contains('deal_list'),"));
+      expect(
+        content,
+        contains("expect(observer.pushedNames, contains('deal_list'),"),
+      );
       expect(
         content,
         isNot(contains("find.text('deal_list')")),
@@ -273,7 +279,9 @@ $widgetRows
     });
 
     test('a `none` row stays an honest scaffolded placeholder', () async {
-      await seedList('| A5 | renders the brand theme | none | AC-5 | PENDING |');
+      await seedList(
+        '| A5 | renders the brand theme | none | AC-5 | PENDING |',
+      );
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(genArgs('A5'));
       expect(exitCode, 0, reason: 'out: $out');
@@ -319,16 +327,19 @@ $widgetRows
       expect(File(testFileOf('a2')).existsSync(), isFalse);
     });
 
-    test('an unknown kind token is a malformed cell naming the token', () async {
-      await seedList(
-        "| A2 | the app navigates to the route 'deal_list' "
-        '| bogus | AC-2 | PENDING |',
-      );
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(genArgs('A2'));
-      expect(exitCode, isNot(0), reason: 'out: $out');
-      expect(out, contains('bogus'));
-    });
+    test(
+      'an unknown kind token is a malformed cell naming the token',
+      () async {
+        await seedList(
+          "| A2 | the app navigates to the route 'deal_list' "
+          '| bogus | AC-2 | PENDING |',
+        );
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing(genArgs('A2'));
+        expect(exitCode, isNot(0), reason: 'out: $out');
+        expect(out, contains('bogus'));
+      },
+    );
 
     test('legacy 4-column rows keep generating (back-compat pin)', () async {
       Directory(p.join(featureDir, 'tdd')).createSync(recursive: true);
@@ -413,7 +424,7 @@ Some tests failed.
       final testFile = File(
         p.join(fx.root.path, 'test', 'tdd', featureName, 'a2_test.dart'),
       );
-      expect(await testFile.existsSync(), isTrue);
+      expect(testFile.existsSync(), isTrue);
       final content = await testFile.readAsString();
       expect(content, contains('pushedNames'));
 
