@@ -448,7 +448,7 @@ class RouteVerifyCommand extends Command<void> {
       },
     );
 
-final encoded = envelope.toJsonLine();
+    final encoded = envelope.toJsonLine();
     if (outPath != null) {
       await File(outPath).writeAsString('$encoded\n');
     } else if (asJson) {

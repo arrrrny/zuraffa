@@ -310,8 +310,7 @@ class RouteCreateCommand extends Command<void> {
             await _buildExplain(
               entity: entity,
               files: files,
-              envelope:
-                  envelope.toJson()['details'] as Map<String, dynamic>,
+              envelope: envelope.toJson()['details'] as Map<String, dynamic>,
             ),
           )
         : envelope;

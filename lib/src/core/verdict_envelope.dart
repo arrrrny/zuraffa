@@ -268,23 +268,22 @@ class VerdictEnvelope {
 
   /// Returns a copy carrying the additive `--explain` block (issue
   /// #1122) without mutating the base envelope.
-  VerdictEnvelope withExplain(Map<String, dynamic> explain) =>
-      VerdictEnvelope(
-        command: command,
-        verdict: verdict,
-        exitClass: exitClass,
-        exitClassLabel: exitClassLabel,
-        feature: feature,
-        fix: fix,
-        subject: subject,
-        artifacts: artifacts,
-        receipts: receipts,
-        findings: findings,
-        drifts: drifts,
-        details: details,
-        explain: explain,
-        timestamp: timestamp,
-      );
+  VerdictEnvelope withExplain(Map<String, dynamic> explain) => VerdictEnvelope(
+    command: command,
+    verdict: verdict,
+    exitClass: exitClass,
+    exitClassLabel: exitClassLabel,
+    feature: feature,
+    fix: fix,
+    subject: subject,
+    artifacts: artifacts,
+    receipts: receipts,
+    findings: findings,
+    drifts: drifts,
+    details: details,
+    explain: explain,
+    timestamp: timestamp,
+  );
 
   /// The default ExitProtocol code for a verdict when the emitter does
   /// not declare one: pass exits 0, everything else exits 1.

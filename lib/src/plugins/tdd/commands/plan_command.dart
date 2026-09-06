@@ -787,7 +787,7 @@ class PlanCommand extends Command<void> {
         keys: i18nKeys,
         layoutSlots: layoutSlots,
       );
-await persistMarkerEmission();
+      await persistMarkerEmission();
       // Issue #1125: the laned plan's explain block — the lane split is
       // the artifact set here, the summary names exactly what was written.
       _verdict.explain = TddExplain(
