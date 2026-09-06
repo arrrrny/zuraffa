@@ -82,6 +82,16 @@ class GeneratorConfig {
   /// present (skip-if-exists, the #1005 hand-written-seam precedent).
   final bool generateSkin;
 
+  /// Spec 1110 (issue #1110): the mock failure preset. When true, the
+  /// mock chain additionally emits a `<Entity>FailingMockProvider` whose
+  /// every method throws the framework's sealed failure type (a
+  /// `ServerFailure`, an `AppFailure` subtype) — the framework feature
+  /// that replaces the pilot's hand-written `_FailingAuthService`
+  /// (005-login-engine). The succeeding (certifiable) mock artifacts are
+  /// still generated: the failure-path double is a twin, not a
+  /// replacement.
+  final bool failMock;
+
   /// Spec 1001 (issue #1001): deterministic mock generation seed. When
   /// non-null, every generated mock record derives from this seed, so
   /// the same seed + inputs reproduce byte-identical mocks (replayable
@@ -172,6 +182,7 @@ class GeneratorConfig {
     this.generateDi = false,
     this.generateXRay = false,
     this.generateSkin = false,
+    this.failMock = false,
     this.seed,
     this.generateV6State = false,
     this.diFramework = 'get_it',
@@ -355,6 +366,7 @@ class GeneratorConfig {
     bool? generateDi,
     bool? generateXRay,
     bool? generateSkin,
+    bool? failMock,
     int? seed,
     bool? generateV6State,
     String? diFramework,
@@ -431,6 +443,7 @@ class GeneratorConfig {
       generateDi: generateDi ?? this.generateDi,
       generateXRay: generateXRay ?? this.generateXRay,
       generateSkin: generateSkin ?? this.generateSkin,
+      failMock: failMock ?? this.failMock,
       seed: seed ?? this.seed,
       generateV6State: generateV6State ?? this.generateV6State,
       diFramework: diFramework ?? this.diFramework,

@@ -4,15 +4,19 @@ library;
 // Spec 1002 — `zfa make engine Login` end-to-end (slow tier, real CLI
 // subprocess per issue #506 pattern).
 //
-// Exit criteria under test (issue #1002):
+// Exit criteria under test (issue #1002 + spec 1110's cert-gate):
 //   1. `zfa make engine Login` produces a runnable engine slice in a
 //      single command (entity auto-created, no transaction conflict on
 //      di/index.dart — the di+mock ordering fix).
-//   2. `zfa engine check Login` exits 0.
+//   2. `zfa engine check Login` exits 0 — AFTER `zfa mock create Login
+//      --certify` (spec 1110: the cert-gate refuses an uncertified CORE
+//      entity first, then the certify receipt unblocks it).
 //   3. The engine slice's test tree contains zero package:flutter
 //      references (and neither does the lib tree).
-//   4. engine.receipt.json lists all methods with mock_certified: true.
-//   5. `zfa mock create Login --certify` certifies per-method.
+//   4. engine.receipt.json lists all methods with mock_certified: true
+//      (structural) and records failure_mode.
+//   5. `zfa mock create Login --certify` certifies per-method (exit 0
+//      with the mock-cert.Login.json receipt).
 
 import 'dart:convert';
 import 'dart:io';
@@ -52,7 +56,8 @@ dependencies:
   });
 
   test(
-    '`zfa make engine Login` generates + checks + receipts in one shot',
+    '`zfa make engine Login` generates the slice; the cert-gate refuses '
+    'the uncertified CORE entity (spec 1110)',
     timeout: const Timeout(Duration(minutes: 4)),
     () async {
       final result = await runZfaSource(
@@ -74,7 +79,26 @@ dependencies:
         isNot(contains('Generation failed')),
         reason: 'stdout: ${result.stdout}',
       );
-      expect(result.exitCode, 0, reason: 'stdout: ${result.stdout}');
+      // Spec 1110: the engine pipeline REFUSES to proceed on an
+      // uncertified CORE entity — the tail check fails with the
+      // refusal receipt naming the fix. The slice itself is generated.
+      expect(
+        result.exitCode,
+        1,
+        reason:
+            'the cert-gate must fail the make-engine tail check '
+            '(exit 1, refusal receipt); stdout: ${result.stdout}',
+      );
+      expect(
+        result.stdout as String,
+        allOf(
+          contains('--> fix:'),
+          contains('zfa mock create Login --certify'),
+        ),
+        reason:
+            'the refusal names the exact cert command; '
+            'stdout: ${result.stdout}',
+      );
 
       // 2. Entity auto-created in the same command (with an id identity).
       final entityFile = File(
@@ -132,7 +156,8 @@ dependencies:
         }
       }
 
-      // 5. Receipt: all methods certified.
+      // 5. Receipt: all methods structurally certified; the gate's
+      //    failure is recorded; failure_mode defaults to succeeding.
       final receiptFile = File(
         p.join(workspace.path, '.zfa', 'engine.receipt.json'),
       );
@@ -142,6 +167,8 @@ dependencies:
       expect(receipt['schema'], 'engine.v1');
       expect(receipt['command'], 'zfa make engine Login');
       expect(receipt['target'], 'Login');
+      // Spec 1110: which mock double the cycle targets.
+      expect(receipt['failure_mode'], 'succeeding');
       final methods = (receipt['methods'] as List).cast<Map<String, dynamic>>();
       expect(methods.map((m) => m['method']).toSet(), {
         'get',
@@ -166,12 +193,24 @@ dependencies:
         (receipt['di_wired'] as Map<String, dynamic>)['getit_types'],
         contains('LoginRepository'),
       );
+      // Spec 1110: the tail check REFUSED — the receipt records the
+      // gate failure honestly, with the cert fix.
       expect(
         (receipt['engine_check'] as Map<String, dynamic>)['passed'],
-        isTrue,
+        isFalse,
+      );
+      final receiptFailures =
+          ((receipt['engine_check'] as Map<String, dynamic>)['failures']
+                  as List)
+              .cast<Map<String, dynamic>>();
+      expect(
+        receiptFailures.map((f) => f['code']),
+        contains('uncertifiedCoreEntity'),
       );
 
-      // 6. The standalone verb exits 0 against the generated tree.
+      // 6. Spec 1110 success criterion 1: the standalone verb exits
+      //    NON-ZERO with the refusal receipt naming Login as
+      //    uncertified.
       final check = await runZfaSource([
         'engine',
         'check',
@@ -179,9 +218,29 @@ dependencies:
       ], workingDirectory: workspace.path);
       expect(
         check.exitCode,
-        0,
-        reason: 'zfa engine check Login exits 0; stdout: ${check.stdout}',
+        1,
+        reason:
+            'uncertified CORE entity must fail the engine check; '
+            'stdout: ${check.stdout}',
       );
+      expect(check.stdout as String, contains('Uncertified CORE entity'));
+      expect(
+        check.stdout as String,
+        contains('zfa mock create Login --certify'),
+      );
+      expect(
+        check.stdout as String,
+        contains('engine.gate.Login.refused.json'),
+        reason: 'the refusal receipt path is surfaced',
+      );
+      final refused = File(
+        p.join(workspace.path, '.zfa', 'engine.gate.Login.refused.json'),
+      );
+      expect(refused.existsSync(), isTrue);
+      final refusal =
+          jsonDecode(refused.readAsStringSync()) as Map<String, dynamic>;
+      expect(refusal['entity'], 'Login');
+      expect(refusal['fix'], 'zfa mock create Login --certify');
     },
   );
 
@@ -218,31 +277,93 @@ dependencies:
   );
 
   test(
-    'mock create --certify certifies per-method and exits 0',
-    timeout: const Timeout(Duration(minutes: 3)),
+    'spec 1110 criterion 2: mock create --certify unblocks engine check '
+    '(build → certify → check exits 0)',
+    timeout: const Timeout(Duration(minutes: 12)),
     () async {
-      // Generate the engine slice first (mock included).
-      await runZfaSource(
+      // The canonical #1109 acceptance sequence: make engine → build
+      // (the entity's zorphy parts) → certify → engine check. The
+      // certification sandbox compiles the subject tree, so the entity
+      // part files must exist first.
+      final projectRoot = await findProjectRoot();
+      await File(p.join(workspace.path, 'pubspec.yaml')).writeAsString('''
+name: make_engine_cert_test
+environment:
+  sdk: ^3.11.0
+dependencies:
+  zuraffa:
+    path: ${jsonEncode(projectRoot)}
+  zorphy_annotation: ^2.3.0
+dev_dependencies:
+  build_runner: ^2.15.2
+''');
+
+      final pubGet = await Process.run('dart', [
+        'pub',
+        'get',
+      ], workingDirectory: workspace.path);
+      expect(
+        pubGet.exitCode,
+        0,
+        reason: 'stdout: ${pubGet.stdout}\nstderr: ${pubGet.stderr}',
+      );
+
+      final make = await runZfaSource(
         ['make', 'engine', 'Login', '--methods=get,update'],
         workingDirectory: workspace.path,
         timeout: const Duration(minutes: 2),
       );
+      // The slice generates; the cert-gate refuses (exit 1) — the
+      // criterion-1 contract, proven above in detail.
+      expect(
+        make.stdout as String,
+        contains('zfa mock create Login --certify'),
+        reason: 'the refusal names the fix; stdout: ${make.stdout}',
+      );
 
-      // Re-run the mock create capability with --certify.
+      final build = await runZfaSource(
+        ['build', '--no-analyze'],
+        workingDirectory: workspace.path,
+        timeout: const Duration(minutes: 4),
+      );
+      expect(
+        build.exitCode,
+        0,
+        reason: 'zfa build failed; stdout: ${build.stdout}',
+      );
+
+      // The fix: certify (exit 0, receipt written).
       final result = await runZfaSource([
         'mock',
         'create',
         'Login',
         '--methods=get,update',
         '--certify',
+        '--force',
       ], workingDirectory: workspace.path);
-
       expect(
-        result.stdout as String,
-        contains('certified'),
-        reason: 'stdout: ${result.stdout}',
+        result.exitCode,
+        0,
+        reason: 'certify must exit 0; stdout: ${result.stdout}',
       );
-      expect(result.exitCode, 0, reason: 'certified mocks exit 0');
+      final receipt = File(
+        p.join(workspace.path, 'test', 'mock', 'login', 'mock-cert.Login.json'),
+      );
+      expect(receipt.existsSync(), isTrue, reason: 'the cert receipt exists');
+
+      // The gate heals: engine check exits 0.
+      final check = await runZfaSource([
+        'engine',
+        'check',
+        'Login',
+      ], workingDirectory: workspace.path);
+      expect(
+        check.exitCode,
+        0,
+        reason:
+            'zfa engine check Login exits 0 after --certify; '
+            'stdout: ${check.stdout}',
+      );
     },
   );
 
@@ -284,7 +405,16 @@ dev_dependencies:
         workingDirectory: workspace.path,
         timeout: const Duration(minutes: 2),
       );
-      expect(make.exitCode, 0, reason: 'stdout: ${make.stdout}');
+      // Spec 1110: the cert-gate refuses the tail check (exit 1 — the
+      // refusal receipt names the fix); the acceptance under test here
+      // is the generated tree's analyze-cleanliness, not the gate.
+      expect(
+        make.exitCode,
+        1,
+        reason:
+            'the cert-gate fails the tail check on the uncertified '
+            'mock; stdout: ${make.stdout}',
+      );
 
       final build = await runZfaSource(
         ['build', '--no-analyze'],

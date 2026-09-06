@@ -90,6 +90,15 @@ class EngineCheckCommand extends Command<void> {
           'getit_types': result.resolutions.length,
           'getit_types_resolved': result.resolvedTypes.length,
           'mock_certified': result.mockCertification?.certified,
+          // Spec 1110: the refusal receipt path when the cert gate
+          // blocked — a real exit code plus a machine-readable receipt,
+          // not stdout noise.
+          if (result.certGateReceiptPath != null)
+            'cert_gate': {
+              'blocked': true,
+              'entity': result.entity,
+              'refused_receipt': result.certGateReceiptPath,
+            },
           'failures': [for (final failure in result.failures) failure.toJson()],
         }),
       );
@@ -131,6 +140,13 @@ class EngineCheckCommand extends Command<void> {
       );
       for (final failure in result.failures) {
         buffer.writeln('❌ ${failure.message}');
+      }
+      // Spec 1110: the cert-gate refusal names its receipt — the fix
+      // path is machine-checkable, not buried in prose.
+      if (result.certGateReceiptPath != null) {
+        buffer.writeln(
+          '🧾 Cert-gate refusal receipt: ${result.certGateReceiptPath}',
+        );
       }
     }
     return buffer.toString();

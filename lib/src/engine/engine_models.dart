@@ -29,6 +29,11 @@ enum EngineFindingCode {
 
   /// A requested method is not certified on the generated mock.
   uncertifiedMock,
+
+  /// Spec 1110: a CORE entity referenced by the engine tree is
+  /// uncertified — no fresh, all-satisfied `mock-cert.<Entity>.json`
+  /// receipt (missing / unsatisfied / corrupt / stale).
+  uncertifiedCoreEntity,
 }
 
 /// One engine-check failure, always carrying an actionable `--> fix:`
@@ -127,12 +132,20 @@ class EngineCheckResult {
   /// Mock certification outcome, when methods were supplied to check.
   final MockCertificationResult? mockCertification;
 
+  /// Spec 1110: the project-root-relative path of the written
+  /// `engine.gate.<Entity>.refused.json` refusal receipt, set when the
+  /// certification-registry gate blocked this entity. Null when the
+  /// gate passed (or did not apply — the entity is not wired into the
+  /// engine tree).
+  final String? certGateReceiptPath;
+
   const EngineCheckResult({
     required this.entity,
     required this.projectRoot,
     required this.resolutions,
     required this.failures,
     this.mockCertification,
+    this.certGateReceiptPath,
   });
 
   /// Names of the getIt lookups that resolved.

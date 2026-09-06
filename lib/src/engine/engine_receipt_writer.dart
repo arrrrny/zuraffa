@@ -34,6 +34,11 @@ class EngineReceiptWriter {
   /// `feature.id`, AND a grouped copy is mirrored under
   /// `.zfa/receipts/<featureId>/engine.receipt.json` so "what did feature
   /// X generate?" is answerable via [loadForFeature]/[groupByFeature].
+  ///
+  /// [failureMode] (spec 1110): 'failing' when the run generated the
+  /// `--fail` preset's FailingMockProvider (the cycle targets a
+  /// failure-path behavior), 'succeeding' for the default certified-mock
+  /// cycle.
   Future<File> write({
     required String command,
     required String entityName,
@@ -49,6 +54,7 @@ class EngineReceiptWriter {
     required List<String> generatedFiles,
     Map<String, dynamic>? options,
     String? featureId,
+    String failureMode = 'succeeding',
   }) async {
     final digest = _entityDigest(entityPath);
     final receipt = <String, dynamic>{
@@ -59,6 +65,9 @@ class EngineReceiptWriter {
       'generator_version': version,
       'entity': {'name': entityName, 'path': entityPath, 'digest': digest},
       if (featureId != null) 'feature': {'id': featureId},
+      // Spec 1110: which mock double the cycle targets — 'failing' when
+      // the --fail preset generated a FailingMockProvider.
+      'failure_mode': failureMode,
       'methods': [
         for (final method in methods)
           {'method': method, 'mock_certified': mockCertified[method] ?? false},
