@@ -294,8 +294,9 @@ void main() {
     });
 
     // 'observer exits 1 when generation fails' removed (issue #1149): the
-    // observer plugin is gone; the command name now delivers an exit-64
-    // removal verdict — covered in test/commands/observer_removed_test.dart.
+    // observer plugin is gone; the command name now delivers an exit-2
+    // removal verdict (legacy 64 canonicalized, SPEC 917) — covered in
+    // test/commands/observer_removed_test.dart.
 
     test('sync exits 1 when generation fails', () async {
       final command = _InjectableSyncCommand(
