@@ -131,7 +131,7 @@ void main() {
               orElse: () => fail('no verdict.v1 envelope on stdout'),
             );
         final verdict = jsonDecode(verdictLine) as Map<String, dynamic>;
-        expect(verdict['schema'], 'verdict.v1');
+        expect(verdict['schema'], 'zuraffa.verdict.v1');
         final details = verdict['details'] as Map<String, dynamic>;
         final spec = details['spec'] as String?;
         expect(spec, isNotNull, reason: 'the envelope carries the spec path');

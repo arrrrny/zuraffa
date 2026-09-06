@@ -214,7 +214,7 @@ void main() {
       final envelope = decodeEnvelope(output);
       expect(envelope.keys.toSet(), envelopeKeys);
       expect(envelope['schema'], VerdictEnvelope.schema);
-      expect(envelope['schema'], 'verdict.v1');
+      expect(envelope['schema'], 'zuraffa.verdict.v1');
       expect(envelope['command'], 'di verify');
       expect(envelope['verdict'], 'pass');
       expect(envelope['exit_class'], 'ok');
@@ -248,7 +248,7 @@ void main() {
         expect(exitCode, 1);
         final envelope = decodeEnvelope(output);
         expect(envelope.keys.toSet(), envelopeKeys);
-        expect(envelope['schema'], 'verdict.v1');
+        expect(envelope['schema'], 'zuraffa.verdict.v1');
         expect(envelope['command'], 'di verify');
         expect(envelope['verdict'], 'fail');
         expect(envelope['exit_class'], 'fail');
@@ -348,7 +348,7 @@ void main() {
 
         expect(exitCode, 1);
         expect(output, contains('--> fix:'));
-        expect(output, isNot(contains('"schema":"verdict.v1"')));
+        expect(output, isNot(contains('"schema":"zuraffa.verdict.v1"')));
       },
     );
   });

@@ -271,7 +271,11 @@ void main() {
       final out = await runCli(['mock', 'create', 'Product', '--json']);
       exitCode = exitCodeAtEntry;
       final envelope = jsonDecode(out) as Map<String, dynamic>;
-      final cert = envelope['certification']! as Map<String, dynamic>;
+      // SPEC 1105: the certification record rides in the envelope's
+      // details map.
+      final cert =
+          (envelope['details']! as Map<String, dynamic>)['certification']!
+              as Map<String, dynamic>;
       expect(cert['receipt'], '.zfa/receipts/mock-product.json');
     },
     timeout: const Timeout(Duration(minutes: 3)),
