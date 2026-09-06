@@ -9,7 +9,6 @@ import 'package:zuraffa/src/commands/controller_command.dart';
 import 'package:zuraffa/src/commands/feature_command.dart';
 import 'package:zuraffa/src/commands/graphql_command.dart';
 import 'package:zuraffa/src/commands/gym_command.dart';
-import 'package:zuraffa/src/commands/observer_command.dart';
 import 'package:zuraffa/src/commands/presenter_command.dart';
 import 'package:zuraffa/src/commands/sync_command.dart';
 import 'package:zuraffa/src/commands/view_command.dart';
@@ -23,8 +22,6 @@ import 'package:zuraffa/src/plugins/graphql/capabilities/create_graphql_capabili
 import 'package:zuraffa/src/plugins/graphql/graphql_plugin.dart';
 import 'package:zuraffa/src/plugins/gym/capabilities/create_gym_capability.dart';
 import 'package:zuraffa/src/plugins/gym/gym_plugin.dart';
-import 'package:zuraffa/src/plugins/observer/capabilities/create_observer_capability.dart';
-import 'package:zuraffa/src/plugins/observer/observer_plugin.dart';
 import 'package:zuraffa/src/plugins/presenter/capabilities/create_presenter_capability.dart';
 import 'package:zuraffa/src/plugins/presenter/presenter_plugin.dart';
 import 'package:zuraffa/src/plugins/shadcn/commands/shadcn_command.dart';
@@ -97,14 +94,6 @@ class _FailingGymCapability extends CreateGymCapability {
       ExecutionResult(success: false, files: const []);
 }
 
-class _FailingObserverCapability extends CreateObserverCapability {
-  _FailingObserverCapability(super.plugin);
-
-  @override
-  Future<ExecutionResult> execute(Map<String, dynamic> args) async =>
-      ExecutionResult(success: false, files: const []);
-}
-
 class _FailingSyncCapability extends CreateSyncCapability {
   _FailingSyncCapability(super.plugin);
 
@@ -157,15 +146,6 @@ class _FailingGymPlugin extends GymPlugin {
 
   @override
   List<ZuraffaCapability> get capabilities => [_FailingGymCapability(this)];
-}
-
-class _FailingObserverPlugin extends ObserverPlugin {
-  _FailingObserverPlugin({required super.outputDir});
-
-  @override
-  List<ZuraffaCapability> get capabilities => [
-    _FailingObserverCapability(this),
-  ];
 }
 
 class _FailingSyncPlugin extends SyncPlugin {
@@ -233,13 +213,6 @@ class _InjectableGraphqlCommand extends GraphqlCommand with _InjectableArgs {
 
 class _InjectableGymCommand extends GymCommand with _InjectableArgs {
   _InjectableGymCommand(super.plugin);
-
-  @override
-  ArgResults? get argResults => injected ?? super.argResults;
-}
-
-class _InjectableObserverCommand extends ObserverCommand with _InjectableArgs {
-  _InjectableObserverCommand(super.plugin);
 
   @override
   ArgResults? get argResults => injected ?? super.argResults;
@@ -319,12 +292,9 @@ void main() {
       await expectFailureExit1(command);
     });
 
-    test('observer exits 1 when generation fails', () async {
-      final command = _InjectableObserverCommand(
-        _FailingObserverPlugin(outputDir: 'lib/src'),
-      );
-      await expectFailureExit1(command);
-    });
+    // 'observer exits 1 when generation fails' removed (issue #1149): the
+    // observer plugin is gone; the command name now delivers an exit-64
+    // removal verdict — covered in test/commands/observer_removed_test.dart.
 
     test('sync exits 1 when generation fails', () async {
       final command = _InjectableSyncCommand(
