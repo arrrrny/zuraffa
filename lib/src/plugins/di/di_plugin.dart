@@ -11,9 +11,11 @@ import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
 import '../../core/context/file_system.dart';
+import '../../core/project/project_root.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../package/package_mode.dart';
+import '../../skew/skew_contract.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 import 'builders/package_registrar_builder.dart';
@@ -198,6 +200,23 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }) async {
     if (!config.generateDi && !config.revert) {
       return [];
+    }
+
+    // Issue #1197: the datasource DI registration files and the
+    // simulation binding import package:zuraffa/simulation.dart
+    // (spec 893). When the target's resolved core predates the
+    // simulation barrel, refuse up front — the two-end floor — instead
+    // of emitting DI files that cannot compile on the consumer.
+    if (!config.hasService &&
+        !config.isOrchestrator &&
+        (config.generateDataSource ||
+            config.generateData ||
+            config.useMockInDi)) {
+      SkewContract.requireSurfaces(
+        projectRoot: _skewProjectRoot(context),
+        command: 'zfa di (simulation-coupled DI)',
+        requiredUris: ['simulation.dart'],
+      );
     }
 
     if (config.outputDir != outputDir ||
@@ -1726,6 +1745,14 @@ void resetDependencies(GetIt getIt) {
       if (parent == current) return null;
       current = parent;
     }
+  }
+
+  /// The skew gate's project root (issue #1197): the generation
+  /// target when the plugin context carries one, else the working
+  /// directory — matching where the package config is resolved from.
+  String _skewProjectRoot(PluginContext? context) {
+    final root = context?.core.projectRoot ?? '';
+    return root.isNotEmpty ? root : ProjectRoot.safeCurrentPath();
   }
 
   /// Whether the DI category index at [dirPath] exists on disk or was just
