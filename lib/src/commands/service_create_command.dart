@@ -24,7 +24,7 @@ import '../utils/string_utils.dart';
 ///
 ///   * `--json` (a bare FLAG — the machine-OUTPUT seam `zfa state create`
 ///     and `zfa usecase create` took) emits ONE canonical
-///     `zuraffa.verdict.v1` envelope (issue #1105) as the last stdout line,
+///     canonical verdict envelope (issue #1105) as the last stdout line,
 ///     listing the generated service class, the bound provider, the methods
 ///     created, and the grammar/schema conformance verdict;
 ///   * `--explain` describes the service shape, the provider binding and
@@ -94,8 +94,8 @@ class ServiceCreateCommand extends Command<void> {
       'json',
       negatable: false,
       help:
-          'Emit one canonical zuraffa.verdict.v1 envelope on stdout '
-          '(CI-able, issue #1105)',
+          'Emit one canonical ${VerdictEnvelope.canonicalSchema} envelope '
+          'on stdout (CI-able, issue #1105)',
     );
     argParser.addFlag(
       'explain',

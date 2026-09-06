@@ -195,7 +195,7 @@ class CreateServiceCapability implements ZuraffaCapability {
 
   /// Issue #978 (order 5) — the machine verdict for direct capability
   /// callers (MCP / make-context consumers). The CLI's `--json` surface
-  /// upgrades to the canonical `zuraffa.verdict.v1` envelope (SPEC 1127,
+  /// upgrades to the canonical verdict envelope (SPEC 1127,
   /// issue #1105) in [ServiceCreateCommand]; this inner verdict keeps the
   /// single-object `{schema:1, ok, ...}` shape those callers read.
   ///

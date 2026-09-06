@@ -17,7 +17,7 @@ class ServiceCommand extends PluginCommand {
 
     // SPEC 1127 (issue #1127): `create` and `verify` are first-party
     // subcommands — `create` upgrades `--json` to the canonical
-    // zuraffa.verdict.v1 envelope (issue #1105), adds `--explain`, and
+    // canonical verdict envelope (issue #1105), adds `--explain`, and
     // proves receipts + conformance; `verify` is the grammar gate.
     // Declared here so the auto-registration in the super constructor
     // skips them (manualSubcommandNames) and the registration cannot

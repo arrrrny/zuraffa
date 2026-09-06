@@ -24,7 +24,7 @@ import '../utils/string_utils.dart';
 /// (`.zfa/receipts/service-<Entity>.json`, SPEC 1127 order 3) and can be
 /// overridden per flag — the receipt-then-flags resolution
 /// `zfa provider verify` uses. `--json` emits one canonical
-/// `zuraffa.verdict.v1` envelope (issue #1105). Exit codes: 0 = conforms,
+/// canonical verdict envelope (issue #1105). Exit codes: 0 = conforms,
 /// 1 = findings, 2 = usage.
 class ServiceVerifyCommand extends Command<void> {
   final ServicePlugin plugin;
@@ -69,8 +69,8 @@ class ServiceVerifyCommand extends Command<void> {
       'json',
       negatable: false,
       help:
-          'Emit one canonical zuraffa.verdict.v1 envelope on stdout '
-          '(CI-able, issue #1105)',
+          'Emit one canonical ${VerdictEnvelope.canonicalSchema} envelope '
+          'on stdout (CI-able, issue #1105)',
     );
   }
 
