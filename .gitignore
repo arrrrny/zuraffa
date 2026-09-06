@@ -9,7 +9,11 @@
 .packages
 pubspec.lock
 .pub/
-apps/
+# BUG-1188: a bare `apps/` rule is FORBIDDEN here — it excludes the parent
+# directory itself, and git cannot re-include paths under an excluded parent,
+# so it silently defeats the !apps/zikzak_demo/ negation below and makes the
+# AGENTS.md-mandated apps/zikzak_demo/PROGRESS.md stop record uncommittable.
+# Scratch apps are ignored by the /apps/* + !apps/zikzak_demo/ block instead.
 build/
 ios/.generated/
 ios/Flutter/Generated.xcconfig

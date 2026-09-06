@@ -56,7 +56,11 @@ class ShadcnPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     'properties': {
       'layout': {
         'type': 'string',
-        'enum': ['list', 'grid', 'table', 'form'],
+        // Issue #1149 (kill list — fix list): `grid` and `table` were
+        // advertised but never implemented — the builder's switch falls
+        // through to the list template, emitting a mislabeled widget.
+        // Advertise exactly what exists; the command refuses the rest.
+        'enum': ['list', 'form'],
         'default': 'list',
         'description': 'UI layout type',
       },

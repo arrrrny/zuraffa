@@ -27,6 +27,7 @@ import '../models/slice_verdict.dart';
 import '../verifier/conformance_gate.dart';
 import '../verifier/di_graph_check.dart';
 import '../verifier/route_barrel.dart';
+import '../verifier/suite_command.dart';
 
 /// Outcome of one host suite run (injectable seam).
 class HostSuiteOutcome {
@@ -371,8 +372,12 @@ class MergeSliceCapability implements ZuraffaCapability {
   static Future<HostSuiteOutcome> _defaultHostSuiteRunner(
     String projectRoot,
   ) async {
+    // Issue #1144: a Flutter host (e.g. zik_zak) tests under
+    // `flutter test`; `dart test` cannot resolve flutter_test from the
+    // SDK. Pure-Dart hosts keep `dart test`.
+    final driver = suiteCommandFor(projectRoot);
     final result = await Process.run(
-      'dart',
+      driver,
       ['test'],
       workingDirectory: projectRoot,
       runInShell: true,

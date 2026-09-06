@@ -55,10 +55,14 @@ void main() {
       final result = await plugin.listBenchmarks();
       expect(result.success, isTrue);
       final scenarios = result.data!['scenarios'] as List<Map<String, dynamic>>;
-      expect(scenarios, hasLength(1));
-      expect(scenarios.first['id'], 'list-scenario');
-      expect(scenarios.first['version'], '1.0.0');
-      expect(scenarios.first, containsPair('tags', isEmpty));
+      // Issue #1149: the plugin now ships first-party scenarios, so the
+      // registry holds the fake provider's scenarios PLUS the built-ins.
+      final listed = scenarios
+          .where((s) => s['id'] == 'list-scenario')
+          .toList(growable: false);
+      expect(listed, hasLength(1));
+      expect(listed.first['version'], '1.0.0');
+      expect(listed.first, containsPair('tags', isEmpty));
     });
 
     test('run capability', () async {
@@ -77,7 +81,9 @@ void main() {
       final suite = BenchmarkSuiteResult.fromJson(
         result.data!['suite'] as Map<String, dynamic>,
       );
-      expect(suite.results, hasLength(2));
+      // Issue #1149: the run includes the 2 shipped first-party scenarios
+      // alongside the fake provider's two — assert on the fakes by id.
+      expect(suite.results, hasLength(greaterThanOrEqualTo(2)));
       expect(
         suite.results.map((r) => r.scenarioId),
         containsAll(['run-scenario', 'run-broken']),

@@ -25,6 +25,22 @@ class FileOperation {
     this.force = false,
   });
 
+  /// A copy of this operation with [content] replaced (spec 1115: the
+  /// feature-decorator stamping pass rewrites pending writes before the
+  /// transaction applies them — type/previousContent/expectedHash are
+  /// preserved so conflict detection and rollback keep working).
+  FileOperation withContent(String content) {
+    return FileOperation._(
+      type: type,
+      path: path,
+      content: content,
+      previousContent: previousContent,
+      expectedHash: expectedHash,
+      existedAtPlan: existedAtPlan,
+      force: force,
+    );
+  }
+
   factory FileOperation.create({
     required String path,
     required String content,

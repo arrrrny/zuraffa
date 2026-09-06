@@ -19,6 +19,9 @@
 library;
 
 import 'package:dart_style/dart_style.dart';
+import 'package:path/path.dart' as p;
+
+import '../../core/context/file_system.dart';
 
 /// Route names the emitted kit's contract table allows.
 ///
@@ -43,11 +46,136 @@ class SkinContractKitBuilder {
     ).format(src);
   }
 
+  /// Emits the widget-test bridge (issue #1112): the target project's
+  /// `package:zuraffa_test` surface — `zfaAnchorTapped(tester,
+  /// zfaKey)` drives the SAME anchor-by-key lookup the VM service
+  /// does, then `pumpAndSettle`s (safe: the test-tree anchor can't
+  /// reschedule itself — subscribe-don't-poll, pilot lesson 5).
+  ///
+  /// The bridge imports `flutter_test`, which is a dev-dependency —
+  /// so the file lands under `test/skin/` (never `lib/`), and only
+  /// widget tests import it.
+  ///
+  /// [kitImportPath] is the relative (or package) import of the
+  /// emitted kit file from the bridge's location; [SkinKitCommand]
+  /// computes it from the two on-disk paths.
+  String buildBridge({String kitImportPath = defaultBridgeKitImport}) {
+    final src = _bridgeTemplate.replaceAll('__KIT_IMPORT__', kitImportPath);
+    return DartFormatter(
+      languageVersion: DartFormatter.latestLanguageVersion,
+    ).format(src);
+  }
+
   /// The file name the kit lands under (relative to the output dir).
   static const String kitFileName = 'skin_contract_auditor.dart';
 
   /// The kit directory (relative to the output dir).
   static const String kitDir = 'skin';
+
+  /// The bridge file name — under `<root>/test/skin/` (issue #1112).
+  static const String bridgeFileName = 'zfa_anchor_test_bridge.dart';
+
+  /// The bridge directory, project-root-relative.
+  static const String bridgeDir = 'test/skin';
+
+  /// The default relative import the bridge emits when the caller
+  /// doesn't compute one (the standard `lib/src` kit layout).
+  static const String defaultBridgeKitImport =
+      '../../lib/src/skin/skin_contract_auditor.dart';
+
+  /// Computes the bridge's kit import for [kitPath] living in the
+  /// target project rooted at [projectRoot].
+  ///
+  /// IMPORTANT: the bridge MUST import the kit through the app's
+  /// `package:<name>/` URI when possible. Importing the same file via
+  /// BOTH a package: URI (the app) and a relative URI (the bridge)
+  /// compiles TWO distinct library instances — two registries, two
+  /// private `_ZfaButtonState` types — and the element walk could
+  /// never recognize the app's anchors (found the hard way in the
+  /// scratch-app proof). The relative path is only the fallback for
+  /// targets without a readable pubspec.
+  static String bridgeKitImport({
+    required String projectRoot,
+    required String kitPath,
+    FileSystem? fileSystem,
+  }) {
+    final fs = fileSystem ?? const DefaultFileSystem();
+    final pubspecPath = p.join(projectRoot, 'pubspec.yaml');
+    if (fs.existsSync(pubspecPath)) {
+      final name = pubspecName(fs.readSync(pubspecPath));
+      if (name != null && name.isNotEmpty) {
+        final underLib = p.relative(kitPath, from: p.join(projectRoot, 'lib'));
+        if (!underLib.startsWith('..')) {
+          return 'package:$name/$underLib';
+        }
+      }
+    }
+    return p.relative(kitPath, from: p.join(projectRoot, bridgeDir));
+  }
+
+  /// Resolves WHERE the bridge lands and WHAT it imports, from the
+  /// kit's absolute path alone: walk up from the kit to the enclosing
+  /// project's `pubspec.yaml` (bounded), place the bridge under
+  /// `<project>/test/skin/`, and compute the canonical kit import.
+  ///
+  /// Never derives paths from the CWD — a generation run whose
+  /// outputDir points at a temp fixture must never leak the bridge
+  /// into the running process's own repo (found in the #1112 view
+  /// plugin tests).
+  static ({String bridgeDirPath, String bridgeImport}) bridgeTarget({
+    required String kitPath,
+    String? projectRootHint,
+    FileSystem? fileSystem,
+  }) {
+    final fs = fileSystem ?? const DefaultFileSystem();
+    final absKit = p.isAbsolute(kitPath)
+        ? p.normalize(kitPath)
+        : p.normalize(p.join(projectRootHint ?? p.current, kitPath));
+
+    String? root;
+    if (projectRootHint != null &&
+        fs.existsSync(p.join(projectRootHint, 'pubspec.yaml'))) {
+      root = projectRootHint;
+    } else {
+      var dir = p.dirname(absKit);
+      for (var i = 0; i < 8 && dir != p.dirname(dir); i++) {
+        if (fs.existsSync(p.join(dir, 'pubspec.yaml'))) {
+          root = dir;
+          break;
+        }
+        dir = p.dirname(dir);
+      }
+    }
+
+    if (root == null) {
+      // No enclosing project — keep the bridge beside the kit rather
+      // than inventing a location (never leak into the CWD).
+      final kitDir = p.dirname(absKit);
+      final bridgeDirPath = p.join(kitDir, bridgeDir);
+      return (
+        bridgeDirPath: bridgeDirPath,
+        bridgeImport: p.relative(absKit, from: bridgeDirPath),
+      );
+    }
+    final bridgeDirPath = p.join(root, bridgeDir);
+    return (
+      bridgeDirPath: bridgeDirPath,
+      bridgeImport: bridgeKitImport(
+        projectRoot: root,
+        kitPath: absKit,
+        fileSystem: fs,
+      ),
+    );
+  }
+
+  /// The `name:` of a pubspec source (null when absent).
+  static String? pubspecName(String pubspecSource) {
+    final match = RegExp(
+      r'^name:\s*(\S+)',
+      multiLine: true,
+    ).firstMatch(pubspecSource);
+    return match?.group(1);
+  }
 
   static const String _template = '''
 // GENERATED - DO NOT EDIT — runtime skin-contract auditor (issue
@@ -65,6 +193,8 @@ class SkinContractKitBuilder {
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import 'dart:convert';
 
 import 'package:zuraffa/skin.dart';
 
@@ -512,14 +642,140 @@ class _ZfaButtonState extends State<ZfaButton> {
   }
 }
 
-/// The VM-service driver seam (pilot lesson 7): invokes the REAL
-/// onPressed registered under [zfaKey] (accepts both
-/// 'zfa:signin-guest' and 'signin-guest'). Returns whether the
-/// anchor was found and tapped — an unknown anchor refuses
-/// honestly, so a driver harness can never silently no-op.
-Future<bool> debugTapAnchor(String zfaKey) async {
-  if (!kDebugMode) return false;
-  return zfaAnchorRegistry.tap(zfaKey);
+/// The VM-service driver seam (pilot lesson 7, issue #1112): walks
+/// the LIVE element tree, finds the anchor by its `zfa:<id>` key —
+/// the exact pattern the pilot proved (`renderViewElement` +
+/// `visitChildElements`) — and invokes the REAL `onPressed`. Returns
+/// the typed verdict: [TapFound] (tapped), [TapDisabled] (present
+/// but refusing), [TapNotFound] (unknown anchor), or [TapError]
+/// (walk/invoke failure). Never silently no-ops.
+///
+/// kDebugMode-only: release builds refuse with [TapError].
+Future<TapResult> debugTapAnchor(String zfaKey) async {
+  return _tapAnchorSync(zfaKey);
+}
+
+/// The synchronous core of the seam — the pilot's element walk is
+/// synchronous by nature (find by key, invoke the real onPressed);
+/// the async facade keeps the issue signature
+/// `Future<TapResult> debugTapAnchor(String)`.
+TapResult _tapAnchorSync(String zfaKey) {
+  if (!kDebugMode) {
+    return const TapError(
+      'debugTapAnchor is kDebugMode-only (release builds refuse to drive)',
+    );
+  }
+  final id = ZfaAnchors.normalize(zfaKey);
+  // rootElement (the post-3.9 replacement for the deprecated
+  // renderViewElement): null until the tree is mounted.
+  final rootElement = WidgetsBinding.instance.rootElement;
+  if (rootElement == null) {
+    return const TapError(
+      'no live element tree (rootElement is null) — is the app booted?',
+    );
+  }
+
+  _ZfaButtonState? matched;
+  var sawKeyOnly = false;
+  try {
+    void search(Element element) {
+      if (matched != null) return;
+      final widget = element.widget;
+      if (widget is ZfaButton &&
+          ZfaAnchors.normalize(widget.contractId) == id) {
+        if (element is StatefulElement && element.state is _ZfaButtonState) {
+          matched = element.state as _ZfaButtonState;
+        }
+        return;
+      }
+      final key = widget.key;
+      if (key is ValueKey<String> &&
+          ZfaAnchors.isAnchorKey(key.value) &&
+          ZfaAnchors.normalize(key.value) == id) {
+        // The pilot found the anchor BY KEY; a raw keyed subtree with
+        // no ZfaButton above it is not a drivable anchor.
+        sawKeyOnly = true;
+      }
+      element.visitChildElements(search);
+    }
+
+    search(rootElement);
+  } catch (e) {
+    return TapError('element walk failed: \$e');
+  }
+
+  final state = matched;
+  if (state == null) {
+    return sawKeyOnly
+        ? const TapError(
+            'anchor key present but no ZfaButton carries it (protocol breach)',
+          )
+        : const TapNotFound();
+  }
+
+  final button = state.widget;
+  final onPressed = button.onPressed;
+  if (onPressed == null || !button.contractEnabled) {
+    return const TapDisabled();
+  }
+  try {
+    onPressed();
+  } catch (e) {
+    return TapError('onPressed threw: \$e');
+  }
+  return const TapFound();
+}
+
+/// The evaluate facade the `zfa skin drive` CLI drives (issue #1112):
+/// a SYNCHRONOUS string-returning entry point, so a
+/// `package:vm_service.evaluate` against this library gets a plain
+/// String payload it prints verbatim — the TapResult JSON, byte-identical
+/// on macOS/Linux/iOS/Android/Windows. Sub-agent friendly.
+String debugTapAnchorJson(String zfaKey) => _tapAnchorSync(zfaKey).toJsonString();
+
+/// The registered-anchor diagnostics (the registry remains the
+/// "which anchors are mounted" surface; the element walk is the tap).
+String debugRegisteredAnchors() => jsonEncode(zfaAnchorRegistry.registered);
+
+// END GENERATED
+''';
+
+  /// The widget-test bridge template (issue #1112) — lands under
+  /// `test/skin/` in the target project, where the `flutter_test`
+  /// import is legitimate.
+  static const String _bridgeTemplate = '''
+// GENERATED - DO NOT EDIT — widget test bridge (issue #1112, the
+// package:zuraffa_test surface for this project). Drives the SAME
+// anchor-by-key lookup the VM service does (`debugTapAnchor`'s
+// element walk), so a skin behavior behaves identically in a widget
+// test and under `zfa skin drive` — the same TapResult JSON verdict.
+//
+// Regeneration: `zfa skin kit --force` rewrites this file.
+// Hand-written tests import it; they are yours.
+
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:zuraffa/skin.dart';
+
+import '__KIT_IMPORT__';
+
+/// Drives the anchor named [zfaKey] (both 'zfa:signin-guest' and
+/// 'signin-guest' accepted) in the widget tree [tester] is pumping,
+/// then settles one post-tap frame.
+///
+/// `pumpAndSettle` is SAFE here: the test-tree anchor can't
+/// reschedule itself (the auditor subscribes — never polls — pilot
+/// lesson 5), so the settle always terminates.
+///
+/// Verdicts (the TapResult JSON the VM-service lane prints):
+/// found / disabled / notFound / error — assert with
+/// `expect(result, const TapFound())` or on `result.label`.
+Future<TapResult> zfaAnchorTapped(WidgetTester tester, String zfaKey) async {
+  final result = await debugTapAnchor(zfaKey);
+  if (result is TapFound) {
+    await tester.pumpAndSettle();
+  }
+  return result;
 }
 
 // END GENERATED

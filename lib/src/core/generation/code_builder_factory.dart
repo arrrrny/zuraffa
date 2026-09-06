@@ -1,7 +1,6 @@
 import '../../plugins/cache/builders/cache_builder.dart';
 import '../../plugins/graphql/builders/graphql_builder.dart';
 import '../../plugins/method_append/builders/method_append_builder.dart';
-import '../../plugins/observer/builders/observer_builder.dart';
 import '../../plugins/provider/builders/provider_builder.dart';
 import '../../plugins/route/builders/route_builder.dart';
 import '../../plugins/state/builders/state_builder.dart';
@@ -24,15 +23,6 @@ class CodeBuilderFactory {
   );
 
   StateBuilder state() => StateBuilder(
-    outputDir: context.outputDir,
-    options: GeneratorOptions(
-      dryRun: context.dryRun,
-      force: context.force,
-      verbose: context.verbose,
-    ),
-  );
-
-  ObserverBuilder observer() => ObserverBuilder(
     outputDir: context.outputDir,
     options: GeneratorOptions(
       dryRun: context.dryRun,
