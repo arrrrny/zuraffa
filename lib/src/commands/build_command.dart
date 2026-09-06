@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
+import 'build_slang_stage.dart';
 import 'build_yaml_guard.dart';
 import '../core/ast/file_parser.dart';
 import '../core/project/project_root.dart';
@@ -147,6 +148,12 @@ class BuildCommand extends Command {
         );
       }
       reportBuildYamlDryRun();
+      // Issue #1141 (criterion 3): the slang codegen stage previews when
+      // translation sources exist — a dry-run never invokes codegen.
+      await SlangBuildStage(
+        projectRoot: ProjectRoot.safeCurrentPath(),
+        dryRun: true,
+      ).run();
       print('');
     } else {
       print('   Entities: $entityCount, Dart files: $dartFileCount');
@@ -156,6 +163,20 @@ class BuildCommand extends Command {
       final guardResult = await ensureBuildYaml();
       if (!guardResult) {
         // ensureBuildYaml already printed an actionable error.
+        exit(1);
+      }
+      // Issue #1141 (criterion 3, extending #834): the slang codegen
+      // stage runs BEFORE build_runner when lib/i18n translation
+      // sources exist, so the generated view's accessor import
+      // resolves at build time — no manual i18n edits. Skipped
+      // (zero drift) without sources; deferred when build.yaml wires
+      // slang_build_runner; refused with a fix line when the toolchain
+      // is unresolvable.
+      final slangStage = await SlangBuildStage(
+        projectRoot: ProjectRoot.safeCurrentPath(),
+      ).run();
+      if (!slangStage.success) {
+        // The stage already printed the failure + fix line.
         exit(1);
       }
       print('🔨 Running build_runner build...');
