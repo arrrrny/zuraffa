@@ -8,7 +8,6 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/commands/cache_command.dart';
 import 'package:zuraffa/src/commands/controller_command.dart';
 import 'package:zuraffa/src/commands/datasource_command.dart';
-import 'package:zuraffa/src/commands/gql_command.dart';
 import 'package:zuraffa/src/commands/graphql_command.dart';
 import 'package:zuraffa/src/commands/gym_command.dart';
 import 'package:zuraffa/src/commands/presenter_command.dart';
@@ -17,7 +16,6 @@ import 'package:zuraffa/src/commands/view_command.dart';
 import 'package:zuraffa/src/plugins/cache/cache_plugin.dart';
 import 'package:zuraffa/src/plugins/controller/controller_plugin.dart';
 import 'package:zuraffa/src/plugins/datasource/datasource_plugin.dart';
-import 'package:zuraffa/src/plugins/gql/gql_plugin.dart';
 import 'package:zuraffa/src/plugins/graphql/graphql_plugin.dart';
 import 'package:zuraffa/src/plugins/gym/gym_plugin.dart';
 import 'package:zuraffa/src/plugins/presenter/presenter_plugin.dart';
@@ -44,7 +42,6 @@ void main() {
     runner.addCommand(DataSourceCommand(DataSourcePlugin(outputDir: out)));
     runner.addCommand(GymCommand(GymPlugin(outputDir: out)));
     runner.addCommand(PresenterCommand(PresenterPlugin(outputDir: out)));
-    runner.addCommand(GqlCommand(GqlPlugin(outputDir: out)));
     runner.addCommand(GraphqlCommand(GraphqlPlugin(outputDir: out)));
     runner.addCommand(CacheCommand(CachePlugin(outputDir: out)));
     runner.addCommand(SyncCommand(SyncPlugin(outputDir: out)));
@@ -56,7 +53,8 @@ void main() {
     'datasource',
     'gym',
     'presenter',
-    'gql',
+    // 'gql' removed (issue #1149): the gql command was deleted with its
+    // plugin; `--with=gql` aliases to graphql for one deprecation cycle.
     'graphql',
     // 'observer' removed (issue #1149): the observer plugin is gone; the
     // command name now delivers an exit-64 removal verdict — covered in

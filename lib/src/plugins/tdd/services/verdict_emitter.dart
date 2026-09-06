@@ -20,6 +20,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../../../cli/exit_protocol.dart';
 import '../models/verdict_envelope.dart';
 
 /// Mutable carrier a command body populates with its envelope fields.
@@ -92,14 +93,18 @@ String? tddResolveFeature(
 /// `feature` then defaults to it when the body did not set one.
 /// [commandOverride] names the FULL verb path for family subcommands
 /// (`corpus status`, `referee gate`) so the envelope is unambiguous.
+/// [envelopeEnabled] (SPEC 917) overrides the default `--json`-only gate:
+/// the driving verbs also close with the envelope when `--stream` is set
+/// (the streamed NDJSON events are terminated by the final verdict).
 Future<void> runWithVerdictEnvelope(
   Command<void> command,
   VerdictContext ctx,
   Future<void> Function() body, {
   bool featureFromRest = false,
   String? commandOverride,
+  bool Function()? envelopeEnabled,
 }) async {
-  final jsonMode = tddJsonMode(command);
+  final jsonMode = envelopeEnabled?.call() ?? tddJsonMode(command);
   // Command instances are REUSED across invocations on the same
   // CliRunner (tests call runCapturing repeatedly) — never inherit the
   // previous run's envelope state.
@@ -157,8 +162,12 @@ Future<void> runWithVerdictEnvelope(
   if (thrown != null) {
     if (jsonMode) {
       // JSON mode consumed the error (printed + enveloped above): force
-      // the non-zero exit the runner's own catch would have produced.
-      if (exitCode == 0) exitCode = thrown is UsageException ? 64 : 1;
+      // the non-zero exit the runner's own catch would have produced —
+      // usage errors exit the CANONICAL 2 (SPEC 917; the legacy 64 is
+      // retired, ExitProtocol.canonicalize).
+      if (exitCode == 0) {
+        exitCode = thrown is UsageException ? ExitProtocol.usage : 1;
+      }
       return;
     }
     // Flag absent: propagate untouched (legacy behavior).

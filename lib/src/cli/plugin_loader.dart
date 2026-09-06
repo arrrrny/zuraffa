@@ -9,7 +9,6 @@ import '../domain/entities/feature_contract/feature_contract.dart';
 import '../plugins/controller/controller_plugin.dart';
 import '../plugins/datasource/datasource_plugin.dart';
 import '../plugins/di/di_plugin.dart';
-import '../plugins/gql/gql_plugin.dart';
 import '../plugins/graphql/graphql_plugin.dart';
 import '../plugins/cache/cache_plugin.dart';
 import '../plugins/sqlite/sqlite_plugin.dart';
@@ -176,7 +175,11 @@ class PluginLoader {
       CachePlugin(outputDir: outputDir, options: options),
       SqlitePlugin(outputDir: outputDir, options: options),
       SyncPlugin(outputDir: outputDir, options: options),
-      GqlPlugin(outputDir: outputDir, options: options),
+      // Issue #1149 (kill list): GqlPlugin deleted — it was a duplicate of
+      // GraphqlPlugin sharing the same output paths. The correct getList
+      // operation naming and FileSystem injection were folded into
+      // GraphqlBuilder, and `--with=gql` aliases to graphql (see
+      // PluginAliasResolver) for one deprecation cycle.
       GraphqlPlugin(outputDir: outputDir, options: options),
       ShadcnPlugin(outputDir: outputDir, options: options),
       StrategyPlugin(outputDir: outputDir, options: options),

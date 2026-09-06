@@ -12,6 +12,7 @@ import '../plugins/usecase/usecase_plugin.dart';
 import '../plugins/usecase/usecase_verdicts.dart';
 import '../utils/string_utils.dart';
 import '../version.dart';
+import '../cli/exit_protocol.dart';
 
 /// Spec #972 — the first-party `zfa usecase create` subcommand.
 ///
@@ -139,7 +140,7 @@ class UseCaseCreateCommand extends Command<void> {
   Future<void> run() async {
     final results = argResults;
     if (results == null) {
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -149,7 +150,7 @@ class UseCaseCreateCommand extends Command<void> {
     if (entityName == null || entityName.trim().isEmpty) {
       print('❌ Usage: zfa usecase create <EntityName> [options]');
       print('   Run `zfa usecase create --help` for the full grammar.');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 

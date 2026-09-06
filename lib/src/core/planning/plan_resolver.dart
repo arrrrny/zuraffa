@@ -87,6 +87,14 @@ class PlanResolver {
           excluded.add(plugin.id);
         }
       }
+      // Issue #1149 (kill list): `--no-gql` was a per-plugin mute for the
+      // deleted gql plugin. During the deprecation cycle it keeps muting
+      // the surviving graphql plugin.
+      if (argResults.options.contains('gql') &&
+          argResults.wasParsed('gql') &&
+          argResults['gql'] == false) {
+        excluded.add('graphql');
+      }
     }
 
     final filteredPluginIds = expandedPluginIds

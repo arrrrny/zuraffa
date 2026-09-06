@@ -7,7 +7,6 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/commands/api_command.dart';
 import 'package:zuraffa/src/commands/controller_command.dart';
 import 'package:zuraffa/src/commands/feature_command.dart';
-import 'package:zuraffa/src/commands/gql_command.dart';
 import 'package:zuraffa/src/commands/graphql_command.dart';
 import 'package:zuraffa/src/commands/gym_command.dart';
 import 'package:zuraffa/src/commands/presenter_command.dart';
@@ -19,8 +18,6 @@ import 'package:zuraffa/src/plugins/api/api_plugin.dart';
 import 'package:zuraffa/src/plugins/api/capabilities/create_api_bridge_capability.dart';
 import 'package:zuraffa/src/plugins/controller/capabilities/create_controller_capability.dart';
 import 'package:zuraffa/src/plugins/controller/controller_plugin.dart';
-import 'package:zuraffa/src/plugins/gql/capabilities/create_gql_capability.dart';
-import 'package:zuraffa/src/plugins/gql/gql_plugin.dart';
 import 'package:zuraffa/src/plugins/graphql/capabilities/create_graphql_capability.dart';
 import 'package:zuraffa/src/plugins/graphql/graphql_plugin.dart';
 import 'package:zuraffa/src/plugins/gym/capabilities/create_gym_capability.dart';
@@ -34,14 +31,15 @@ import 'package:zuraffa/src/plugins/sync/sync_plugin.dart';
 import 'package:zuraffa/src/plugins/view/capabilities/create_view_capability.dart';
 import 'package:zuraffa/src/plugins/view/view_plugin.dart';
 import 'package:zuraffa/src/plugins/feature/feature_plugin.dart';
+import 'package:zuraffa/src/cli/exit_protocol.dart';
 
 /// Bug #1139 — exit-code sweep (part of EPIC #1132: Machine Contract).
 ///
 /// The CLI's "errors are an API" contract: a command body that reports a
 /// failure must never exit 0, and a command body handed bad input must
-/// signal a usage error (64). The #856 fix (state/service/repository/
+/// signal a usage error (2). The #856 fix (state/service/repository/
 /// provider/sqlite/test) established the pattern — bare invocation reports
-/// subcommand usage with exitCode = 64, failure paths exitCode = 1.
+/// subcommand usage with exitCode = 2, failure paths exitCode = 1.
 ///
 /// This suite pins the same honesty onto every command body the bug
 /// record names whose failure paths still lie. Bare-invocation guards for
@@ -75,14 +73,6 @@ class _FailingCapability extends CreateControllerCapability {
 
 class _FailingPresenterCapability extends CreatePresenterCapability {
   _FailingPresenterCapability(super.plugin);
-
-  @override
-  Future<ExecutionResult> execute(Map<String, dynamic> args) async =>
-      ExecutionResult(success: false, files: const []);
-}
-
-class _FailingGqlCapability extends CreateGqlCapability {
-  _FailingGqlCapability(super.plugin);
 
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async =>
@@ -143,13 +133,6 @@ class _FailingPresenterPlugin extends PresenterPlugin {
   List<ZuraffaCapability> get capabilities => [
     _FailingPresenterCapability(this),
   ];
-}
-
-class _FailingGqlPlugin extends GqlPlugin {
-  _FailingGqlPlugin({required super.outputDir});
-
-  @override
-  List<ZuraffaCapability> get capabilities => [_FailingGqlCapability(this)];
 }
 
 class _FailingGraphqlPlugin extends GraphqlPlugin {
@@ -217,13 +200,6 @@ class _InjectableControllerCommand extends ControllerCommand
 class _InjectablePresenterCommand extends PresenterCommand
     with _InjectableArgs {
   _InjectablePresenterCommand(super.plugin);
-
-  @override
-  ArgResults? get argResults => injected ?? super.argResults;
-}
-
-class _InjectableGqlCommand extends GqlCommand with _InjectableArgs {
-  _InjectableGqlCommand(super.plugin);
 
   @override
   ArgResults? get argResults => injected ?? super.argResults;
@@ -299,12 +275,9 @@ void main() {
       await expectFailureExit1(command);
     });
 
-    test('gql exits 1 when generation fails', () async {
-      final command = _InjectableGqlCommand(
-        _FailingGqlPlugin(outputDir: 'lib/src'),
-      );
-      await expectFailureExit1(command);
-    });
+    // 'gql exits 1 when generation fails' removed (issue #1149): the gql
+    // command was deleted with its plugin. The surviving graphql command
+    // carries the same exit-contract below.
 
     test('graphql exits 1 when generation fails', () async {
       final command = _InjectableGraphqlCommand(
@@ -364,7 +337,7 @@ void main() {
     );
   });
 
-  group('#1139 usage errors exit 64 (dispatch level)', () {
+  group('#1139 usage errors exit 2 (dispatch level)', () {
     late CommandRunner<void> runner;
     late CommandRunner<void> featureRunner;
 
@@ -390,7 +363,7 @@ void main() {
       );
     });
 
-    test('shadcn rejects an unknown layout positional with exit 64', () async {
+    test('shadcn rejects an unknown layout positional with exit 2', () async {
       exitCode = 0;
       // Invalid layout: the command must refuse before generating.
       // The zuraffa repo itself is a pure-Dart package, so the builder's
@@ -398,13 +371,13 @@ void main() {
       await runner.run(['shadcn', 'banana', 'Product']);
       expect(
         exitCode,
-        64,
+        ExitProtocol.usage,
         reason: 'an unknown layout is a usage error, not a silent generation',
       );
     });
 
     test(
-      'graphql introspect rejects malformed --headers JSON with exit 64',
+      'graphql introspect rejects malformed --headers JSON with exit 2',
       () async {
         exitCode = 0;
         await runner.run([
@@ -415,26 +388,26 @@ void main() {
         ]);
         expect(
           exitCode,
-          64,
+          ExitProtocol.usage,
           reason: 'malformed --headers JSON is a usage error, not exit 0',
         );
       },
     );
 
     test(
-      'graphql introspect rejects a URL-less endpoint with exit 64',
+      'graphql introspect rejects a URL-less endpoint with exit 2',
       () async {
         exitCode = 0;
         await runner.run(['graphql', 'introspect', 'not-a-url']);
         expect(
           exitCode,
-          64,
+          ExitProtocol.usage,
           reason: 'an endpoint without scheme/authority is a usage error',
         );
       },
     );
 
-    test('feature exits 64 when a mode is given without a name', () async {
+    test('feature exits 2 when a mode is given without a name', () async {
       exitCode = 0;
       final output = <String>[];
       await runZoned(
@@ -445,7 +418,7 @@ void main() {
       );
       expect(
         exitCode,
-        64,
+        ExitProtocol.usage,
         reason: 'missing feature name must be a usage error, not exit 0',
       );
       expect(output.join('\n'), contains('Missing feature name'));
