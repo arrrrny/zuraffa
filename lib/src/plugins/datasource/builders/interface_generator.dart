@@ -12,6 +12,7 @@ import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../datasource_provenance.dart';
 
 /// Generates data source interfaces for domain and data layers.
 class DataSourceInterfaceBuilder {
@@ -430,9 +431,16 @@ class DataSourceInterfaceBuilder {
       specLibrary.library(specs: [clazz], directives: directives),
     );
 
+    // Spec #1131 (order 5): the GENERATED provenance header rides ABOVE
+    // the emitted library (before the imports); dart_style keeps it in
+    // place through FileUtils.writeFile's format pass.
+    final withHeader =
+        '${DatasourceProvenance.headerFor(entityName, 'datasource interface')}'
+        '$content';
+
     return FileUtils.writeFile(
       filePath,
-      content,
+      withHeader,
       'datasource',
       force: options.force,
       dryRun: options.dryRun,

@@ -337,6 +337,14 @@ class CapabilityCommand extends Command<void> {
           print('✅ ${result.message}');
         }
 
+        // Spec #1131: `--explain` — a capability may answer with a
+        // human-readable explanation instead of artifacts (read-only).
+        // Print it verbatim; the exit stays 0.
+        final explain = result.data?['explain'];
+        if (explain is String && explain.isNotEmpty) {
+          print(explain);
+        }
+
         final created = files.where((f) => f.action == 'created').toList();
         final overwritten = files
             .where((f) => f.action == 'overwritten')
