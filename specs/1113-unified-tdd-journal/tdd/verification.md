@@ -132,3 +132,20 @@ Flutter project (`~/zik_zak_test` is not present in this environment) —
 the command-level coverage drives the real commands in-process over the
 canonical `004-login-ui` fixture with the scripted fake zfa binary, the
 same convention PR #1092's exit criteria used.
+
+## Post-merge re-proof (master moved mid-PR)
+
+Master advanced past this branch's clone base (PRs #1220, #1213, #1212,
+#1205 — 122 files, no overlap with this spec's files). The branch merged
+master (`00e0b6f7`) and re-proved the spec's gates after the merge:
+
+- `dart analyze lib test` → 0 errors, 0 warnings (104 pre-existing
+  info lints, unchanged)
+- combined spec suites (`unified_journal_commands_test` +
+  `journal_test` + `theater/` + `two_cycle_run_commands_test`) →
+  **65/65 passed** (03:04, "All tests passed!")
+- driver suites (`run_command_test` + `commands/run_engine_command_test`
+  + `commands/run_skin_command_test`) → **66/66 passed** (05:31, "All
+  tests passed!")
+- `dart format .` → `Formatted 2411 files (0 changed)` (idempotent;
+  zero remaining formatting diffs)
