@@ -12,6 +12,7 @@ import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
+import '../datasource_provenance.dart';
 
 part 'local_crud_methods.dart';
 part 'local_generator_impl.dart';
@@ -413,9 +414,16 @@ class LocalDataSourceBuilder {
       specLibrary.library(specs: [clazz], directives: directives),
     );
 
+    // Spec #1131 (order 5): the GENERATED provenance header rides ABOVE
+    // the emitted library (before the imports); dart_style keeps it in
+    // place through FileUtils.writeFile's format pass.
+    final withHeader =
+        '${DatasourceProvenance.headerFor(entityName, 'local datasource')}'
+        '$content';
+
     return FileUtils.writeFile(
       filePath,
-      content,
+      withHeader,
       'local_datasource',
       force: options.force,
       dryRun: options.dryRun,
