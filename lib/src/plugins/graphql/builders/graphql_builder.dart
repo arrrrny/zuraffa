@@ -3,6 +3,7 @@ import 'package:path/path.dart' as path;
 
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -26,11 +27,18 @@ class GraphqlBuilder {
   final GeneratorOptions options;
   final SpecLibrary specLibrary;
 
+  /// Injectable filesystem (issue #1149): folded in from the deleted gql
+  /// plugin so tests and embedders can capture writes without touching
+  /// disk. Defaults to the real filesystem.
+  final FileSystem fileSystem;
+
   GraphqlBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
-  }) : specLibrary = specLibrary ?? const SpecLibrary();
+    FileSystem? fileSystem,
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
+       fileSystem = fileSystem ?? FileSystem.create();
 
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     final files = <GeneratedFile>[];
@@ -89,6 +97,7 @@ class GraphqlBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 
@@ -132,6 +141,7 @@ class GraphqlBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 
@@ -173,6 +183,10 @@ class GraphqlBuilder {
       case 'get':
         return 'Get$entityName';
       case 'getList':
+        // Issue #1149: the correct `Get<Entity>List` naming, folded in from
+        // the deleted gql plugin. The pre-fold fallthrough emitted
+        // `Create<Entity>` for getList.
+        return 'Get${entityName}List';
       case 'create':
         return 'Create$entityName';
       case 'update':

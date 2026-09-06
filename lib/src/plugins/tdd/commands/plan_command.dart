@@ -19,6 +19,7 @@ import 'package:path/path.dart' as p;
 import '../models/lane.dart';
 import '../models/routing.dart';
 import '../services/finder_taxonomy.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/lane_split.dart';
 import '../services/routing_resolver.dart';
@@ -101,8 +102,10 @@ class PlanCommand extends Command<void> {
 
   @override
   String get description =>
-      'Read specs/<feature>/spec.md and emit '
-      'specs/<feature>/tdd/test-list.md (one behavior per criterion).';
+      'Read <feature>/spec.md and emit <feature>/tdd/test-list.md (one '
+      'behavior per criterion). <feature> is a plain specs/ feature name, '
+      'a specs/<feature> path, a .specify/bugs/<slug> bug directory, or '
+      'an absolute path (issue #1182).';
 
   @override
   String get invocation => 'zfa tdd plan <feature>';
@@ -116,17 +119,36 @@ class PlanCommand extends Command<void> {
     if (rest.isEmpty) {
       usageException('Feature name is required: zfa tdd plan <feature>');
     }
-    final feature = rest.first;
+    final rawRef = rest.first;
     // Prefer an explicit --project root so the command never depends on the
     // process-global Directory.current. Falls back to CWD for real CLI use.
     final projectFlag = argResults?['project'] as String?;
     final repoRoot = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find(anchorDir: 'specs');
-    final specPath = '$repoRoot/specs/$feature/spec.md';
+    // Issue #1182: route the feature reference through the single TDD
+    // feature resolver — a plain name keeps the legacy specs/ location, a
+    // `specs/<name>`, `.specify/bugs/<slug>` or absolute reference resolves
+    // to that directory directly (no symlink bridge needed). Artifacts
+    // land BESIDE the resolved spec, and the "spec not found" error names
+    // the resolved path.
+    final resolved = TddFeaturePaths.resolve(
+      projectRoot: repoRoot,
+      featureRef: rawRef,
+    );
+    final feature = resolved.name;
+    final featureDir = resolved.dir;
+    final specPath = p.join(featureDir, 'spec.md');
     final specFile = File(specPath);
     if (!await specFile.exists()) {
       stderr.writeln('zfa tdd plan: spec not found at $specPath');
+      // Issue #1182: the envelope carries the RESOLVED path — a tool
+      // reading the verdict must see the path the command actually
+      // referenced, not a specs/-relative guess.
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'spec-not-found'
+        ..details['spec'] = specPath;
       throw StateError('zfa tdd plan: spec not found');
     }
     var specMd = await specFile.readAsString();
@@ -350,7 +372,7 @@ class PlanCommand extends Command<void> {
       }
     }
 
-    final outDir = Directory('$repoRoot/specs/$feature/tdd');
+    final outDir = Directory(p.join(featureDir, 'tdd'));
     final outFile = File('${outDir.path}/test-list.md');
     final existing = <String, Behavior>{};
     if (await outFile.exists()) {
@@ -425,9 +447,7 @@ class PlanCommand extends Command<void> {
     final preservedFfi = <BehaviorRow>[];
     final priorContract = <String, (String, BehaviorState)>{};
     try {
-      for (final row in await TestListReader(
-        '$repoRoot/specs/$feature',
-      ).read()) {
+      for (final row in await TestListReader(featureDir).read()) {
         if (row.kind == BehaviorKind.ffi) preservedFfi.add(row);
         if (row.kind == BehaviorKind.contract) {
           priorContract[row.traces] = (row.id, row.state);

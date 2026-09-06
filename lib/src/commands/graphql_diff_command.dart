@@ -6,6 +6,7 @@ import 'package:args/command_runner.dart';
 import '../graphql/cache/schema_cache.dart';
 import '../graphql/diff/schema_diff.dart';
 import '../graphql/graphql_schema.dart';
+import '../cli/exit_protocol.dart';
 
 /// `zfa graphql diff <name>` — compare the freshly cached schema for
 /// `<name>` against the previously cached version and report breaking vs
@@ -56,7 +57,7 @@ class DiffCommand extends Command<void> {
         'Usage: zfa graphql diff <name> [--dir=<cache-dir>]',
       );
       print(usage);
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final schemaName = rest.first;
@@ -84,7 +85,7 @@ class DiffCommand extends Command<void> {
     } else {
       if (oldPath != null || newPath != null) {
         print('❌ Error: --old and --new must be provided together.');
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
 

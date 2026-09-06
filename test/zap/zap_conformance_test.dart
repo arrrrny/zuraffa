@@ -183,7 +183,13 @@ void main() {
         '--type',
         'telepathy',
       ]);
-      expect(exitCode, 64, reason: out);
+      expect(
+        exitCode,
+        2,
+        reason:
+            'SPEC 917: canonical usage code — the legacy 64 is retired. '
+            '$out',
+      );
     });
   });
 }

@@ -46,6 +46,11 @@ clean_kernel() {
 
 # Recursively emit test directories, splitting any dir heavier than THRESHOLD
 # into its subfolders. Directories with no test files are skipped.
+#
+# Bug fix (SPEC 917): a dir heavier than THRESHOLD whose SUBDIRS carry no
+# test files (test/commands: 62 files, 2 test-free subdirs; test/regression:
+# 59 files) used to emit NOTHING — 121 fast-suite files silently skipped.
+# Now the dir emits itself when the recursion yields no test-bearing chunk.
 emit_chunks() {
   local dir="$1"
   local count
@@ -54,10 +59,18 @@ emit_chunks() {
     return
   fi
   if [ "$count" -gt "$THRESHOLD" ]; then
-    local sub
+    local sub emitted=0
     while IFS= read -r sub; do
-      [ -d "$sub" ] && emit_chunks "$sub"
+      [ -d "$sub" ] || continue
+      emit_chunks "$sub"
+      # did the recursion emit anything for this subdir?
+      if [ "$(find "$sub" -name '*_test.dart' 2>/dev/null | wc -l)" -gt 0 ]; then
+        emitted=1
+      fi
     done < <(find "$dir" -mindepth 1 -maxdepth 1 -type d | sort)
+    if [ "$emitted" -eq 0 ]; then
+      echo "$dir"
+    fi
   else
     echo "$dir"
   fi

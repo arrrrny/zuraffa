@@ -6,6 +6,7 @@ import 'package:args/command_runner.dart';
 import '../graphql/graphql_introspection_service.dart';
 import '../graphql/graphql_schema_translator.dart';
 import '../graphql/graphql_schema.dart';
+import '../cli/exit_protocol.dart';
 
 /// CLI command for introspecting a remote GraphQL endpoint and printing
 /// a generation plan (entities, enums, input types).
@@ -58,7 +59,7 @@ class IntrospectCommand extends Command<void> {
   @override
   Future<void> run() async {
     if (argResults!.rest.isEmpty) {
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       print('Usage: zfa graphql introspect <endpoint-url> [options]');
       print('  endpoint-url    The GraphQL endpoint URL to introspect');
       print('');
@@ -90,7 +91,7 @@ class IntrospectCommand extends Command<void> {
         // Bug #1139 (exit-code sweep): malformed input is a usage error,
         // never a lying exit 0.
         print('Error: --headers must be a valid JSON object. Got: $headersStr');
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
     }
@@ -101,7 +102,7 @@ class IntrospectCommand extends Command<void> {
       // Bug #1139 (exit-code sweep): malformed input is a usage error,
       // never a lying exit 0.
       print('Error: Invalid endpoint URL: $endpoint');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 

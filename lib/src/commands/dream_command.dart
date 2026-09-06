@@ -14,6 +14,7 @@ import 'package:args/command_runner.dart';
 
 import '../plugins/tdd/models/verdict_envelope.dart';
 import '../plugins/tdd/services/dream_runner.dart';
+import '../cli/exit_protocol.dart';
 
 class DreamCommand extends Command<void> {
   DreamCommand() {
@@ -85,7 +86,7 @@ class DreamCommand extends Command<void> {
       // the zap command's pattern).
       print('A feature description is required: $invocation');
       print(usage);
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final description = rest.first;
@@ -101,7 +102,7 @@ class DreamCommand extends Command<void> {
         (argResults?['max-retries'] as String).isNotEmpty &&
         maxRetries == null) {
       print('--max-retries must be an integer');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final engineAttempts = parseInt('engine-attempts');
@@ -109,7 +110,7 @@ class DreamCommand extends Command<void> {
         (argResults?['engine-attempts'] as String).isNotEmpty &&
         engineAttempts == null) {
       print('--engine-attempts must be an integer');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
