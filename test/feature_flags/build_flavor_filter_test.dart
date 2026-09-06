@@ -8,6 +8,16 @@ import 'package:test/test.dart';
 
 import '../helpers/run_zfa_source.dart';
 
+/// Enclosing-test ceiling for this suite, stretched by
+/// `ZFA_TEST_TIMEOUT_SCALE` (issue #1187). Replaces the previous fixed
+/// `const Timeout(Duration(minutes: 3))` declarations so the ceiling grows
+/// with the helper's 75s child guard / 100s AOT compile budget on slow
+/// machines (2019 Intel Mac baseline) instead of staying fixed regardless
+/// of hardware. These tests drive multi-spawn `zfa build` runs.
+final Timeout kZfaScaledSuiteTimeout = Timeout(
+  scaleDuration(const Duration(minutes: 3)),
+);
+
 /// A7, A8 — `zfa build --flavor <name>` end-to-end through the real CLI
 /// subprocess (precompiled AOT via the shared helper; `--dda-routes-only`
 /// keeps each run inside the route stage + registry emission, no
@@ -119,7 +129,7 @@ class HomeView {}
       expect(proRegistry, contains("'pro-analytics'"));
       expect(proRegistry, contains("'notes'"));
     },
-    timeout: const Timeout(Duration(minutes: 3)),
+    timeout: kZfaScaledSuiteTimeout,
   );
 
   test(
@@ -159,7 +169,7 @@ class HomeView {}
       final allRouter = File(routerPath()).readAsStringSync();
       expect(allRouter, equals(plainRouter));
     },
-    timeout: const Timeout(Duration(minutes: 3)),
+    timeout: kZfaScaledSuiteTimeout,
   );
 
   test('unknown flavor fails naming it', () async {
@@ -181,7 +191,7 @@ class HomeView {}
     expect(result.exitCode, isNot(0));
     final combined = '${result.stdout}\n${result.stderr}';
     expect(combined, contains('nightly'));
-  }, timeout: const Timeout(Duration(minutes: 3)));
+  }, timeout: kZfaScaledSuiteTimeout);
 
   test(
     'dry-run route-only build does not write the feature registry',
@@ -205,7 +215,7 @@ class HomeView {}
       expect(result.exitCode, 0);
       expect(File(registryPath()).existsSync(), isFalse);
     },
-    timeout: const Timeout(Duration(minutes: 3)),
+    timeout: kZfaScaledSuiteTimeout,
   );
 
   test('dry-run full build does not write the feature registry', () async {
@@ -226,5 +236,5 @@ class HomeView {}
 
     expect(result.exitCode, 0);
     expect(File(registryPath()).existsSync(), isFalse);
-  }, timeout: const Timeout(Duration(minutes: 3)));
+  }, timeout: kZfaScaledSuiteTimeout);
 }
