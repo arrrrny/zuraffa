@@ -129,80 +129,24 @@ get_highest_from_specs() {
     echo "$highest"
 }
 
-# Function to get highest number from git branches
-get_highest_from_branches() {
-    local scope_prefix="${1:-}"
-    git branch -a 2>/dev/null | sed -E 's/^[+*][[:space:]]+//; s/^[[:space:]]+//; s|^remotes/[^/]*/||' | _extract_highest_number "$scope_prefix"
-}
-
-# Extract the highest sequential feature number from a list of ref names (one per line).
-_extract_highest_number() {
-    local scope_prefix="${1:-}"
-    local highest=0
-    while IFS= read -r name; do
-        [ -z "$name" ] && continue
-        if [ -n "$scope_prefix" ]; then
-            case "$name" in
-                "$scope_prefix"*) name="${name#"$scope_prefix"}" ;;
-                *) continue ;;
-            esac
-        fi
-        name="${name##*/}"
-        if echo "$name" | grep -Eq '^[0-9]{3,}-' \
-            && ! echo "$name" | grep -Eq '^[0-9]{8}-[0-9]{6}-' \
-            && ! echo "$name" | grep -Eq '^[0-9]{7}-[0-9]{6}-' \
-            && ! echo "$name" | grep -Eq '^[0-9]{7,8}-[0-9]{6}$'; then
-            number=$(echo "$name" | grep -Eo '^[0-9]{3,}-' | sed -E 's/-$//' || echo "0")
-            number=$((10#$number))
-            if [ "$number" -gt "$highest" ]; then
-                highest=$number
-            fi
-        fi
-    done
-    echo "$highest"
-}
-
-# Function to get highest number from remote branches without fetching (side-effect-free)
-get_highest_from_remote_refs() {
-    local scope_prefix="${1:-}"
-    local highest=0
-
+# True when the exact branch name already exists locally or on any remote.
+# Used only to step past an exact name collision. Numbers are NEVER harvested
+# from these refs: repos routinely name non-feature branches after GitHub
+# issues (fix/1108-...), and ingesting those numbers inflated the feature
+# counter past the spec tree so the branch disagreed with the spec directory
+# (issue #1181).
+_branch_name_exists() {
+    local name="$1"
+    local remote
+    if git branch --list "$name" 2>/dev/null | grep -q .; then
+        return 0
+    fi
     for remote in $(git remote 2>/dev/null); do
-        local remote_highest
-        remote_highest=$(GIT_TERMINAL_PROMPT=0 git ls-remote --heads "$remote" 2>/dev/null | sed 's|.*refs/heads/||' | _extract_highest_number "$scope_prefix")
-        if [ "$remote_highest" -gt "$highest" ]; then
-            highest=$remote_highest
+        if GIT_TERMINAL_PROMPT=0 git ls-remote --heads "$remote" "refs/heads/$name" 2>/dev/null | grep -q .; then
+            return 0
         fi
     done
-
-    echo "$highest"
-}
-
-# Function to check existing branches and return next available number.
-check_existing_branches() {
-    local specs_dir="$1"
-    local skip_fetch="${2:-false}"
-    local scope_prefix="${3:-}"
-
-    if [ "$skip_fetch" = true ]; then
-        local highest_remote=$(get_highest_from_remote_refs "$scope_prefix")
-        local highest_branch=$(get_highest_from_branches "$scope_prefix")
-        if [ "$highest_remote" -gt "$highest_branch" ]; then
-            highest_branch=$highest_remote
-        fi
-    else
-        git fetch --all --prune >/dev/null 2>&1 || true
-        local highest_branch=$(get_highest_from_branches "$scope_prefix")
-    fi
-
-    local highest_spec=$(get_highest_from_specs "$specs_dir")
-
-    local max_num=$highest_branch
-    if [ "$highest_spec" -gt "$max_num" ]; then
-        max_num=$highest_spec
-    fi
-
-    echo $((max_num + 1))
+    return 1
 }
 
 # Function to clean and format a branch name
@@ -538,16 +482,20 @@ else
     else
         BRANCH_SCOPE_PREFIX=$(branch_scope_prefix "$BRANCH_TEMPLATE")
         if [ -z "$BRANCH_NUMBER" ]; then
-            if [ "$DRY_RUN" = true ] && [ "$HAS_GIT" = true ]; then
-                BRANCH_NUMBER=$(check_existing_branches "$SPECS_DIR" true "$BRANCH_SCOPE_PREFIX")
-            elif [ "$DRY_RUN" = true ]; then
-                HIGHEST=$(get_highest_from_specs "$SPECS_DIR")
-                BRANCH_NUMBER=$((HIGHEST + 1))
-            elif [ "$HAS_GIT" = true ]; then
-                BRANCH_NUMBER=$(check_existing_branches "$SPECS_DIR" false "$BRANCH_SCOPE_PREFIX")
-            else
-                HIGHEST=$(get_highest_from_specs "$SPECS_DIR")
-                BRANCH_NUMBER=$((HIGHEST + 1))
+            # Allocate from the SAME counter the spec-directory resolution
+            # (create-new-feature.sh) uses: 1 + the highest specs/ directory
+            # number. Branch/ref names are never parsed for numbers — they
+            # carry foreign numbering schemes (e.g. GitHub-issue-numbered
+            # fix/1108-... branches) that made the branch disagree with the
+            # spec directory (issue #1181). Only an exact branch-name
+            # collision bumps the allocation, so branch-only repos without a
+            # spec tree keep working.
+            HIGHEST=$(get_highest_from_specs "$SPECS_DIR")
+            BRANCH_NUMBER=$((HIGHEST + 1))
+            if [ "$HAS_GIT" = true ]; then
+                while _branch_name_exists "$(build_branch_name "$(printf '%03d' "$((10#$BRANCH_NUMBER))")" "$BRANCH_SUFFIX")"; do
+                    BRANCH_NUMBER=$((BRANCH_NUMBER + 1))
+                done
             fi
         fi
 
@@ -590,6 +538,37 @@ if [ "$CREATE_WORKTREE" = true ]; then
         WORKTREE_PATH="$REPO_ROOT/.worktrees/$BRANCH_NAME"
     fi
 fi
+
+# Emit the allocated feature number into .specify/feature.json so downstream
+# commands and agents agree on the number the branch was created with
+# (issue #1181). Best-effort: merges into an existing file (preserving keys
+# like feature_directory), creates one when absent, and never fails the
+# branch creation itself. Mirrors common.sh's jq-then-printf convention.
+_emit_feature_number() {
+    local fj="$REPO_ROOT/.specify/feature.json"
+    mkdir -p "$REPO_ROOT/.specify"
+    if command -v jq >/dev/null 2>&1; then
+        if [ -f "$fj" ]; then
+            jq -c --arg n "$FEATURE_NUM" '. + {feature_number:$n}' "$fj" > "$fj.tmp" 2>/dev/null \
+                && mv -f "$fj.tmp" "$fj" && return 0
+        else
+            jq -cn --arg n "$FEATURE_NUM" '{feature_number:$n}' > "$fj" 2>/dev/null && return 0
+        fi
+    fi
+    # No jq: best-effort fallback on compact single-line JSON only; leave the
+    # file untouched on any doubt.
+    if [ -f "$fj" ] && [ "$(wc -l < "$fj" | tr -d ' ')" -le 1 ]; then
+        if grep -q '"feature_number"' "$fj" 2>/dev/null; then
+            sed -E 's/"feature_number"[[:space:]]*:[[:space:]]*[^,}]*/"feature_number":"'"$FEATURE_NUM"'"/' "$fj" > "$fj.tmp" 2>/dev/null \
+                && mv -f "$fj.tmp" "$fj" || rm -f "$fj.tmp"
+        elif grep -q '}[[:space:]]*$' "$fj" 2>/dev/null; then
+            sed -E 's/}[[:space:]]*$/,"feature_number":"'"$FEATURE_NUM"'"}/' "$fj" > "$fj.tmp" 2>/dev/null \
+                && mv -f "$fj.tmp" "$fj" || rm -f "$fj.tmp"
+        fi
+    else
+        printf '{"feature_number":"%s"}\n' "$FEATURE_NUM" > "$fj"
+    fi
+}
 
 if [ "$DRY_RUN" != true ]; then
     if [ "$CREATE_WORKTREE" = true ] && [ "$HAS_GIT" = true ]; then
@@ -668,6 +647,9 @@ if [ "$DRY_RUN" != true ]; then
     else
         >&2 echo "[specify] Warning: Git repository not detected; skipped branch creation for $BRANCH_NAME"
     fi
+
+    # Record the number this run allocated so downstream agrees (issue #1181).
+    _emit_feature_number || true
 
     printf '# To persist: export SPECIFY_FEATURE=%q\n' "$BRANCH_NAME" >&2
 fi
