@@ -12,6 +12,10 @@ import 'capabilities/scaffold_feature_capability.dart';
 // replaces the eight copy-pasted per-plugin clones. The MCP-visible
 // capability names are unchanged.
 import 'capabilities/plugin_feature_capability.dart';
+// Spec 1115 (merged from master): the xray capability is NOT one of the
+// 8 parameterized clones — its `feature` argument is a TYPED FeatureId
+// validated against registered contracts, so it keeps its own class.
+import 'xray_feature_capability.dart';
 
 /// Manages high-level feature scaffolding.
 ///
@@ -79,6 +83,10 @@ class FeaturePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       pluginId: 'state',
       description: 'Add state to an existing feature',
     ),
+    // Spec 1115 (issue #1115 item 6): the xray capability — its `feature`
+    // argument is a TYPED FeatureId validated against the registered
+    // contracts.
+    XrayFeatureCapability(this),
   ];
 
   @override

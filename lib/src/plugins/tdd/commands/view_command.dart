@@ -79,6 +79,7 @@ import '../services/behavior_test_writer.dart' show BehaviorTestWriter;
 import '../services/finder_taxonomy.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
+import '../services/platform_layout_contract.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/test_list_reader.dart';
 import '../services/ui_ledger_projection.dart';
@@ -319,6 +320,38 @@ class ViewCommand extends Command<void> {
       print('   contract: ${components.join(', ')}');
     }
 
+    // Declared source 4 — the platform layout contract (issue #1142,
+    // extending #1004's adaptive slots and #1102's runtime auditor):
+    // the Presentation table declares the platform layout slots per
+    // feature with an `adaptive_layouts` bullet. A feature that declares
+    // no slots keeps the single-layout skeleton (zero drift); a feature
+    // that declares slots gets the AdaptiveViewState skeleton with one
+    // layout stub per slot, each traced independently in the coverage
+    // ledger. A malformed declaration refuses BEFORE any write
+    // (errors-are-an-API).
+    List<String> layoutSlots;
+    try {
+      layoutSlots =
+          (await _platformLayoutContract(featureDir))?.slots ?? const [];
+    } on PlatformLayoutContractException catch (error) {
+      print('zfa tdd view: ${error.message}');
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: ViewOutcome.runnerError,
+        feature: resolved.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+    if (layoutSlots.isEmpty) {
+      print('   layouts: no platform slots declared — single-layout view');
+    } else {
+      print(
+        '   layouts: ${layoutSlots.join(', ')} — AdaptiveViewState with '
+        'one layout stub per slot (issue #1142)',
+      );
+    }
+
     // Declared source 3 — the i18n key contract (issue #965): the key is
     // the contract, the literal is the anchor. Anchored scenario literals
     // render the slang accessor `t.<key>`; missing declared keys are
@@ -373,6 +406,7 @@ class ViewCommand extends Command<void> {
       viewClass: viewClass,
       analysis: keyedAnalysis,
       components: components,
+      layoutSlots: layoutSlots,
     );
     // The gen'd stub carries a doc-comment block immediately above the
     // declaration ("Throws [UnimplementedError] until the real
@@ -424,7 +458,13 @@ class ViewCommand extends Command<void> {
       viewSource: updatedWithImport,
       ledger: auditLedger,
       anchorToKey: i18nKeys.anchorToKey,
-      markerLiterals: [record.behaviorId],
+      // The behavior-id marker (#939) plus the #1142 per-platform TODO
+      // placeholders — the adaptive_layout_scaffold_builder seam markers
+      // are generator identity, never user-facing copy.
+      markerLiterals: [
+        record.behaviorId,
+        ..._todoMarkers(viewClass: viewClass, slots: layoutSlots),
+      ],
     );
     if (!audit.isClean) {
       print(
@@ -528,23 +568,19 @@ class ViewCommand extends Command<void> {
   /// The declared component tokens of the feature's Presentation layer
   /// contract, de-duplicated order-preservingly. `key:` tokens (issue
   /// #965) are i18n SURFACES, not components — they never render as
-  /// labeled stand-ins. Empty when the feature's test list declares no
+  /// labeled stand-ins. The #1142 platform-slot declaration bullets
+  /// (`adaptive_layouts` and aliases) are SLOT declarations, not
+  /// components — their tokens never render as stand-ins either.
+  /// Empty when the feature's test list declares no
   /// `Presentation` section (the view then composes the scenario
   /// assertions only — still deterministic).
   static Future<List<String>> _presentationComponents(String featureDir) async {
     try {
       final contracts = await TestListReader(featureDir).readLayerContracts();
-      final tokens = <String>[];
-      for (final contract in contracts) {
-        if (!contract.layer.toLowerCase().contains('presentation')) continue;
-        for (final method in contract.methods) {
-          final token = method.trim();
-          if (token.isEmpty) continue;
-          if (I18nKeyContract.isKeyToken(token)) continue;
-          if (!tokens.contains(token)) tokens.add(token);
-        }
-      }
-      return tokens;
+      // The single derivation (issue #1142): the same component-token
+      // extraction plan's ledger projection uses, so the skeleton and
+      // the ledger can never disagree on what a component IS.
+      return UiLedgerProjection.componentTokensOf(contracts);
     } on TestListReadException {
       // An unreadable list degrades to the literal-only composition —
       // the same fail-open note discipline _rowKind applies to kinds
@@ -669,12 +705,76 @@ class ViewCommand extends Command<void> {
   /// (navigation, validation, state) is the sanctioned handcraft seam —
   /// the header comment names it, the loop only certifies compile +
   /// verb-matched assertions.
+  ///
+  /// Issue #1142: a feature whose Presentation contract declares
+  /// platform layout slots renders the ADAPTIVE shape — an
+  /// `AdaptiveViewState` skeleton with one layout stub per declared
+  /// slot (the production ZikZak login shape), each stub carrying the
+  /// composed surfaces plus the adaptive_layout_scaffold_builder TODO
+  /// placeholder. An empty [layoutSlots] keeps the single-layout
+  /// skeleton (zero drift for features that never declare slots).
   static String _renderView({
     required String behaviorId,
     required String criterion,
     required String description,
     required String functionName,
     required String viewClass,
+    required ScenarioAnalysis analysis,
+    required List<String> components,
+    List<String> layoutSlots = const [],
+  }) {
+    final children = _composedChildren(
+      behaviorId: behaviorId,
+      analysis: analysis,
+      components: components,
+    );
+    final body = children.join('\n');
+    final header = _commentSafe(description);
+    if (layoutSlots.isEmpty) {
+      return '''
+/// View-builder subject for behavior $behaviorId (issue #939): returns
+/// the deterministic minimal view composed from the declared Presentation
+/// layer contract and the scenario assertions of the behavior description
+/// (issue #964 finder-kind taxonomy: presence literals render as Text,
+/// route/enabled-state literals as a labeled affordance, absence literals
+/// render nothing). Scenario-specific behavior (navigation, validation,
+/// state) is the sanctioned handcraft seam — implement it in [$viewClass].
+Widget $functionName() => $viewClass();
+
+/// The minimal view for behavior $behaviorId (issue #939 skeleton).
+///
+/// $header
+class $viewClass extends StatelessWidget {
+  const $viewClass({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+$body
+      ],
+    );
+  }
+}''';
+    }
+    return _renderAdaptiveView(
+      behaviorId: behaviorId,
+      description: description,
+      functionName: functionName,
+      viewClass: viewClass,
+      header: header,
+      body: body,
+      slots: layoutSlots,
+    );
+  }
+
+  /// The composed child lines of the minimal view — the shared
+  /// derivation the single-layout (#939) and adaptive (#1142) shapes
+  /// both render, so a slot's layout stub satisfies the SAME declared
+  /// surfaces the paired widget test asserts.
+  static List<String> _composedChildren({
+    required String behaviorId,
     required ScenarioAnalysis analysis,
     required List<String> components,
   }) {
@@ -704,34 +804,172 @@ class ViewCommand extends Command<void> {
         "            Text('${BehaviorTestWriter.escapeDartString(behaviorId)}'),",
       );
     }
-    final body = children.join('\n');
-    final header = _commentSafe(description);
+    return children;
+  }
+
+  /// The per-platform TODO placeholder literals (#1142): the
+  /// adaptive_layout_scaffold_builder seam marker per declared slot —
+  /// `TODO: Implement <view> <slot> layout`. Generator identity, allow-
+  /// listed in the localization audit and emitted inside every layout
+  /// stub.
+  static List<String> _todoMarkers({
+    required String viewClass,
+    required List<String> slots,
+  }) => [for (final slot in slots) 'TODO: Implement $viewClass $slot layout'];
+
+  /// The snake identifier the per-slot keys use (`A001View` → `a001`,
+  /// the same `View`-suffix strip the adaptive_layout_scaffold_builder
+  /// applies to the view name).
+  static String _slotKeyPrefix(String viewClass) =>
+      viewClass.replaceAll('View', '').toLowerCase();
+
+  /// The AdaptiveViewState skeleton (issue #1142): a StatefulWidget whose
+  /// state resolves the declared platform slot in build (the production
+  /// login's `_resolveSlot` shape) and renders THAT slot's layout stub,
+  /// one per declared slot, each carrying the composed surfaces plus the
+  /// adaptive_layout_scaffold_builder TODO placeholder. The per-slot key
+  /// (`<snake>-slot-<slot>`) is the branch identity the paired test and
+  /// the #1102 runtime auditor resolve — a layout that never renders is
+  /// a coverage gap the ledger names per platform.
+  static String _renderAdaptiveView({
+    required String behaviorId,
+    required String description,
+    required String functionName,
+    required String viewClass,
+    required String header,
+    required String body,
+    required List<String> slots,
+  }) {
+    final snake = _slotKeyPrefix(viewClass);
+    final narrowSlot = slots.first;
+    // The wide-surface branch cases: the host-platform mappings the
+    // production login resolves (ios/android/macos), emitted ONLY for
+    // declared slots, in the canonical TargetPlatform order.
+    final platformCases = <String>[
+      if (slots.contains('ios'))
+        "      case TargetPlatform.iOS:\n        return 'ios';",
+      if (slots.contains('android'))
+        "      case TargetPlatform.android:\n        return 'android';",
+      if (slots.contains('macos'))
+        "      case TargetPlatform.macOS:\n        return 'macos';",
+    ];
+    final resolveSwitch = platformCases.isEmpty
+        ? "    return '$narrowSlot';"
+        : '    switch (Theme.of(context).platform) {\n'
+              '${platformCases.join('\n')}\n'
+              "      default:\n        return '$narrowSlot';\n    }";
+    // The build switch: one case per non-default slot (declaration
+    // order), the FIRST declared slot as the `_` fallback — the branch
+    // the test environment resolves when no platform case matches.
+    String layoutClassOf(String slot) =>
+        '$viewClass${PlatformLayoutContract.classSuffix(slot)}Layout';
+    final cases = <String>[
+      for (final slot in slots.skip(1))
+        "        '$slot' => const ${layoutClassOf(slot)}("
+            "slotKey: Key('$snake-slot-$slot')),",
+    ];
+    final buildSwitch =
+        '        ${cases.isEmpty ? '' : '${cases.join('\n')}\n'}'
+        '_ => const ${layoutClassOf(narrowSlot)}('
+        "slotKey: Key('$snake-slot-$narrowSlot')),";
+
+    final layoutStubs = [
+      for (final slot in slots)
+        '''
+/// The `$slot` slot layout stub for behavior $behaviorId (issue #1142):
+/// the platform layout the skin fills — the TODO placeholder follows the
+/// adaptive_layout_scaffold_builder pattern (spec 1004's platform
+/// matrix; the #1102 runtime auditor reads the live branch through the
+/// slot key). Traced independently in the coverage ledger: a slot no
+/// green behavior exercised stays NOT-DONE there.
+class ${layoutClassOf(slot)} extends StatelessWidget {
+  const ${layoutClassOf(slot)}({super.key, required this.slotKey});
+
+  /// The slot-identifying key (`$snake-slot-$slot`).
+  final Key slotKey;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          // TODO: Implement $viewClass $slot layout — the sanctioned
+          // handcraft seam (the loop certifies compile + assertions).
+          Text('TODO: Implement $viewClass $slot layout',
+              textAlign: TextAlign.center),
+$body
+        ],
+      ),
+    );
+  }
+}''',
+    ].join('\n\n');
+
     return '''
 /// View-builder subject for behavior $behaviorId (issue #939): returns
 /// the deterministic minimal view composed from the declared Presentation
 /// layer contract and the scenario assertions of the behavior description
-/// (issue #964 finder-kind taxonomy: presence literals render as Text,
-/// route/enabled-state literals as a labeled affordance, absence literals
-/// render nothing). Scenario-specific behavior (navigation, validation,
-/// state) is the sanctioned handcraft seam — implement it in [$viewClass].
+/// (issue #964 finder-kind taxonomy). Scenario-specific behavior
+/// (navigation, validation, state) is the sanctioned handcraft seam —
+/// implement it in [$viewClass] and its per-slot layouts.
 Widget $functionName() => $viewClass();
 
-/// The minimal view for behavior $behaviorId (issue #939 skeleton).
+/// The minimal adaptive view for behavior $behaviorId (issue #1142
+/// skeleton): an AdaptiveViewState with one layout stub per declared
+/// platform slot — the production shape the single-layout Column could
+/// never be.
 ///
 /// $header
-class $viewClass extends StatelessWidget {
+class $viewClass extends StatefulWidget {
   const $viewClass({super.key});
 
   @override
+  State<$viewClass> createState() => _${viewClass}State();
+}
+
+/// The AdaptiveViewState (issue #1142): platform slot resolution in
+/// build, one branch per declared slot.
+class _${viewClass}State extends State<$viewClass> {
+  /// Resolves the platform slot for the current build: a phone-width
+  /// surface is the `$narrowSlot` slot on every platform; wider surfaces
+  /// branch on the host platform (declared slots only).
+  String _resolveSlot(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (width < 600) return '$narrowSlot';
+$resolveSwitch
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-$body
-      ],
+    final slot = _resolveSlot(context);
+    return Scaffold(
+      body: switch (slot) {
+$buildSwitch
+      },
     );
   }
-}''';
+}
+
+$layoutStubs''';
+  }
+
+  /// The declared platform layout contract of the feature (issue #1142):
+  /// the Presentation table's `adaptive_layouts` bullet, parsed through
+  /// [PlatformLayoutContract]. Null when the feature declares no slots.
+  static Future<PlatformLayoutContract?> _platformLayoutContract(
+    String featureDir,
+  ) async {
+    try {
+      final contracts = await TestListReader(featureDir).readLayerContracts();
+      return PlatformLayoutContract.fromContracts(contracts);
+    } on TestListReadException {
+      // An unreadable list degrades to no declaration — the same
+      // fail-open note discipline _presentationComponents applies (the
+      // kind/contract is an optimization over the deterministic default;
+      // other steps re-surface malformation honestly).
+      return null;
+    }
   }
 
   /// The deterministic always-compiling core-Flutter stand-in for a
