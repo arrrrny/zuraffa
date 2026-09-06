@@ -17,7 +17,6 @@ import '../plugins/sync/sync_plugin.dart';
 import '../plugins/route/route_plugin.dart';
 import '../plugins/provider/provider_plugin.dart';
 import '../plugins/state/state_plugin.dart';
-import '../plugins/observer/observer_plugin.dart';
 import '../plugins/test/test_plugin.dart';
 import '../plugins/gym/gym_plugin.dart';
 import '../plugins/mock/mock_plugin.dart';
@@ -166,7 +165,6 @@ class PluginLoader {
       ViewPlugin(outputDir: outputDir, options: options),
       FeaturePlugin(outputDir: outputDir, options: options),
       StatePlugin(outputDir: outputDir, options: options),
-      ObserverPlugin(outputDir: outputDir, options: options),
       TestPlugin(outputDir: outputDir, options: options),
       GymPlugin(outputDir: outputDir, options: options),
       MockPlugin(outputDir: outputDir, options: options),
