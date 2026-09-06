@@ -136,6 +136,11 @@ void main() {
         contains('cancelToken?.throwIfCancelled();'),
         reason: 'the cancellation guard must precede the delegation',
       );
+      expect(
+        content.indexOf('cancelToken?.throwIfCancelled();'),
+        lessThan(content.indexOf('return await _authService.login(params);')),
+        reason: 'the cancellation guard must occur before service delegation',
+      );
     },
   );
 
@@ -192,6 +197,18 @@ void main() {
         content,
         contains('getIt.registerLazySingleton<LoginUseCase>('),
         reason: 'the lazy singleton registration must be emitted',
+      );
+      expect(
+        content.indexOf('getIt.unregister<LoginUseCase>();'),
+        lessThan(content.indexOf('getIt.registerLazySingleton<LoginUseCase>(')),
+        reason:
+            'the unregister action in the guard must occur before DI '
+            'registration',
+      );
+      expect(
+        content.indexOf('if (getIt.isRegistered<LoginUseCase>())'),
+        lessThan(content.indexOf('getIt.registerLazySingleton<LoginUseCase>(')),
+        reason: 'the unregister-first guard must occur before DI registration',
       );
       expect(
         content,

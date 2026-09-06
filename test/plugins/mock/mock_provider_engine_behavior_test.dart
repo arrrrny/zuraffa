@@ -7,7 +7,7 @@
 //   (a) every method satisfies the contract — the provider IS an
 //       AuthService and login returns the entity;
 //   (b) the delay constructor parameter is honored — the certified
-//       100 ms default, and Duration.zero short-circuits it;
+//       100 ms default, custom durations, and Duration.zero short-circuiting;
 //   (c) the per-method fixture selector works (#1034): the params'
 //       discriminator field routes to the matching canned fixture.
 //
@@ -117,7 +117,8 @@ void main() {
   });
 
   test('(b) the delay constructor parameter is honored (the certified '
-      '100 ms default; Duration.zero short-circuits it)', () async {
+      '100 ms default; custom delays are honored; Duration.zero short-circuits '
+      'it)', () async {
     final defaultProvider = AuthMockProvider();
     final sw = Stopwatch()..start();
     await defaultProvider.login(const LoginParams(kind: 'admin'));
@@ -126,6 +127,17 @@ void main() {
       sw.elapsedMilliseconds,
       greaterThanOrEqualTo(100),
       reason: 'the default delay is the certified 100 ms',
+    );
+
+    const customDelay = Duration(milliseconds: 150);
+    final customProvider = AuthMockProvider(customDelay);
+    final customSw = Stopwatch()..start();
+    await customProvider.login(const LoginParams(kind: 'admin'));
+    customSw.stop();
+    expect(
+      customSw.elapsed,
+      greaterThanOrEqualTo(customDelay),
+      reason: 'the constructor parameter must honor a custom delay',
     );
 
     final fastProvider = AuthMockProvider(Duration.zero);
@@ -168,7 +180,7 @@ void main() {
   });
 
   test('the generated AuthMockProvider passes the behavioral suite '
-      '(contract, 100 ms delay default, #1034 fixture selector) under the '
+      '(contract, configured delays, #1034 fixture selector) under the '
       'profile-resolved runner', () async {
     // Issue #1044: the runner argv resolves from the repo's TDD
     // profile — never a literal dart test.
