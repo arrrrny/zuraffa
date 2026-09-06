@@ -86,6 +86,22 @@ void registerLoginRepository(GetIt getIt) {
 }
 }
 ''');
+    // Spec 1110: a clean engine slice is a CERTIFIED slice — commit the
+    // all-satisfied mock-cert receipt (fresh: written after the entity).
+    await writeFile('test/mock/login/mock-cert.Login.json', '''
+{
+  "schema": 1,
+  "spec": 1001,
+  "entity": "Login",
+  "interface": "LoginDataSource",
+  "contract_digest": "fixture",
+  "methods": [
+    {"name": "get", "satisfied": true}
+  ],
+  "sandbox": {"runner": "dart", "analyze_issues": 0, "analyze_errors": 0},
+  "certified_at": "2026-09-05T00:00:00.000Z"
+}
+''');
     // Issue #1109: `engine check` hard-requires the v2 engine receipt
     // (specs/<feature>/tdd/engine.receipt.json) that the make-engine tail
     // writes — a clean slice includes it.

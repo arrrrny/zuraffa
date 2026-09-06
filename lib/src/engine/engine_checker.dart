@@ -15,7 +15,9 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../plugins/mock/certification/cert_registry.dart';
 import '../plugins/slice/engine/service_locator_analyzer.dart';
+import 'engine_gate_receipt.dart';
 import 'engine_receipt_writer.dart';
 import 'mock_certifier.dart';
 export 'engine_models.dart';
@@ -251,12 +253,50 @@ class EngineChecker {
       }
     }
 
+    // 6. Spec 1110: the certification-registry gate — a hard block at
+    //    the engine-slice boundary. Any CORE entity referenced by the
+    //    engine tree (a mock datasource wired on disk, or a committed
+    //    certification receipt) must have a FRESH, all-satisfied
+    //    mock-cert.<Entity>.json. The refusal is a receipt, not an
+    //    exception: the block writes .zfa/engine.gate.<Entity>.refused.json
+    //    with the exact cert command, and the failure carries the receipt
+    //    path so the CLI can surface it. No warning, no skip, no flag.
+    String? certGateReceiptPath;
+    final gateEntry = CertRegistry.checkEntity(
+      entity: entity,
+      projectRoot: projectRoot,
+    );
+    if (gateEntry.blocked) {
+      certGateReceiptPath = await EngineGateReceipt.write(
+        projectRoot: projectRoot,
+        entity: entity,
+        reason: gateEntry.reason,
+        fix: gateEntry.fix,
+        command: 'zfa engine check $entity',
+      );
+      failures.add(
+        EngineCheckFailure(
+          code: EngineFindingCode.uncertifiedCoreEntity,
+          typeName: entity,
+          file: certGateReceiptPath,
+          message:
+              'Uncertified CORE entity: ${gateEntry.reason}\n'
+              '   --> fix: ${gateEntry.fix}\n'
+              '   refusal receipt: $certGateReceiptPath',
+        ),
+      );
+    } else {
+      // Gate healed: ensure a previous refusal receipt doesn't outlive the block.
+      EngineGateReceipt.clear(projectRoot: projectRoot, entity: entity);
+    }
+
     return EngineCheckResult(
       entity: entity,
       projectRoot: projectRoot,
       resolutions: resolutions,
       failures: failures,
       mockCertification: certification,
+      certGateReceiptPath: certGateReceiptPath,
       analyzedFiles: analyzedFiles,
     );
   }

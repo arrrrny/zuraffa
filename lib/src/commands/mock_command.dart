@@ -149,6 +149,16 @@ class CreateMockCommand extends Command<void> {
           'interface (scoped dart analyze); drift exits 1 with a '
           '`--> fix:` line naming the missing/incorrect members',
     );
+    argParser.addFlag(
+      'fail',
+      negatable: false,
+      help:
+          'Mock failure preset (spec 1110): additionally emit a '
+          '<Entity>FailingMockProvider — a throwing double whose every '
+          'method throws the sealed failure type — for failure-path '
+          'behaviors (the framework twin of the pilot hand-rolled '
+          '_FailingAuthService)',
+    );
   }
 
   @override
@@ -206,6 +216,14 @@ class CreateMockCommand extends Command<void> {
       'domain': ?domain,
       'params': ?results['params'],
       'returns': ?results['returns'],
+      // Spec 1110: the --fail preset flows into the generation chain.
+      'fail': results['fail'] == true,
+      // Spec 1001 / 1110: --certify routes into CreateMockCapability's
+      // sandbox certification (the contract test + mock-cert.<Entity>.json
+      // receipt) — the receipt the engine cert-gate requires. The manual
+      // command must forward the flag explicitly: the auto-registered
+      // CapabilityCommand (issue #970 bypass) never runs here.
+      'certify': results['certify'] == true,
     };
 
     await _runMockGeneration(

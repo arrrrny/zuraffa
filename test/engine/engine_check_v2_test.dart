@@ -109,6 +109,23 @@ void setupDependencies(GetIt getIt) {
   registerLoginRepository(getIt);
 }
 ''');
+    // Spec 1110: the cert-gate leg blocks any CORE entity without a
+    // fresh, all-satisfied mock-cert receipt — a healthy canonical slice
+    // carries one (written after the entity so freshness holds).
+    await writeFile('test/mock/login/mock-cert.Login.json', '''
+{
+  "schema": 1,
+  "spec": 1001,
+  "entity": "Login",
+  "interface": "LoginDataSource",
+  "contract_digest": "fixture",
+  "methods": [
+    {"name": "get", "satisfied": true}
+  ],
+  "sandbox": {"runner": "dart", "analyze_issues": 0, "analyze_errors": 0},
+  "certified_at": "2026-09-05T00:00:00.000Z"
+}
+''');
   }
 
   Future<void> writeV2Receipt({

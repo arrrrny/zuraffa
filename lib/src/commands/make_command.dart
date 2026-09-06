@@ -1439,6 +1439,10 @@ class MakeCommand extends Command<void> {
       // Spec 1098: attribute the receipt to the active feature contract
       // when one is in play (grouped copy lands under .zfa/receipts/<id>/).
       featureId: context.core.feature?.id,
+      // Spec 1110: record which mock double the cycle targets — the
+      // --fail preset's throwing twin ('failing') vs the certified mock
+      // ('succeeding', the default).
+      failureMode: context.data['fail'] == true ? 'failing' : 'succeeding',
     );
     final receiptPath = p.relative(receiptFile.path, from: projectRoot);
 

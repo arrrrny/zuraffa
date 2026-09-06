@@ -30,6 +30,11 @@ enum EngineFindingCode {
   /// A requested method is not certified on the generated mock.
   uncertifiedMock,
 
+  /// Spec 1110: a CORE entity referenced by the engine tree is
+  /// uncertified — no fresh, all-satisfied `mock-cert.<Entity>.json`
+  /// receipt (missing / unsatisfied / corrupt / stale).
+  uncertifiedCoreEntity,
+
   /// Issue #1109: a `dart analyze` finding in the entity's engine-tree
   /// files (the static-analysis leg of `zfa engine check`).
   staticAnalysis,
@@ -145,6 +150,13 @@ class EngineCheckResult {
   /// Mock certification outcome, when methods were supplied to check.
   final MockCertificationResult? mockCertification;
 
+  /// Spec 1110: the project-root-relative path of the written
+  /// `engine.gate.<Entity>.refused.json` refusal receipt, set when the
+  /// certification-registry gate blocked this entity. Null when the
+  /// gate passed (or did not apply — the entity is not wired into the
+  /// engine tree).
+  final String? certGateReceiptPath;
+
   /// Issue #1109: the slice files the static-analysis leg ran over
   /// (project-root relative). Empty when the leg was skipped (no slice
   /// files, or no package config to resolve imports against) or not
@@ -157,6 +169,7 @@ class EngineCheckResult {
     required this.resolutions,
     required this.failures,
     this.mockCertification,
+    this.certGateReceiptPath,
     this.analyzedFiles = const [],
   });
 
