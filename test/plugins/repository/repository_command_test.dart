@@ -24,6 +24,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
@@ -144,6 +145,18 @@ environment:
         manifest['methods'],
         containsAll(<String>['get', 'update']),
         reason: 'the manifest carries the interface method set',
+      );
+
+      // The digest is PROVABLE: sha256(manifest bytes) must equal the
+      // envelope's manifest.sha256 — a consumer verifies the receipt
+      // against `path` without knowing the manifest schema.
+      final manifestBytes = File(
+        p.join(workspace.path, '.zfa', 'receipts', 'repository-product.json'),
+      ).readAsBytesSync();
+      expect(
+        crypto.sha256.convert(manifestBytes).toString(),
+        manifest['sha256'],
+        reason: 'manifest.sha256 is the digest of the manifest file itself',
       );
 
       // The generated artifacts really landed (not just envelope prose).
@@ -300,7 +313,13 @@ environment:
       expect(findings, hasLength(1));
       final finding = findings.single as Map<String, dynamic>;
       expect(finding['side'], 'implementation');
-      expect(finding['kind'], 'conformance_mismatch');
+      expect(
+        finding['kind'],
+        'missing_implementation',
+        reason:
+            'stable finding vocabulary classified from the failure '
+            'shape the checker reports',
+      );
       expect(finding['method'], 'update');
       expect(finding['fix'], contains('--> fix:'));
 
@@ -358,6 +377,52 @@ environment:
             'human-readable channel (the CLI runner catch-all prints it '
             'and exits 1)',
       );
+    });
+
+    test('SC-7 explain: --explain resolves the explainEmission planner '
+        'and never generates', () async {
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
+        'repository',
+        'create',
+        'Product',
+        '--explain',
+      ]);
+
+      expect(
+        output,
+        contains('Emission plan'),
+        reason:
+            'the same RepositoryEmissionPlanner explainEmission serves '
+            'to zfa make --explain renders the resolved plan',
+      );
+      expect(
+        output,
+        contains('interface'),
+        reason: 'the plan names the interface emission decision',
+      );
+      expect(
+        output,
+        contains('datasource_interface'),
+        reason:
+            'on the direct path the datasource plugin is never active '
+            '— the plugin emits the interface itself (#406); the plan '
+            'must not lie about it',
+      );
+      expect(
+        output,
+        isNot(contains('skip   data/datasources')),
+        reason: 'the datasource interface is emitted, not skipped',
+      );
+      expect(
+        Directory(
+          p.join(workspace.path, 'lib', 'src', 'domain', 'repositories'),
+        ).existsSync(),
+        isFalse,
+        reason: '--explain plans; it never generates',
+      );
+      expect(exitCode, ExitProtocol.success);
     });
   });
 }

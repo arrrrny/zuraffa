@@ -11,9 +11,11 @@ import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/project/project_root.dart';
 import '../core/verdict_envelope.dart';
 import '../models/generated_file.dart';
+import '../models/generator_config.dart';
 import '../plugins/repository/capabilities/create_repository_capability.dart';
 import '../plugins/repository/conformance/repository_conformance_checker.dart';
 import '../plugins/repository/contract/repository_contract_manifest.dart';
+import '../plugins/repository/plan/repository_emission_plan.dart';
 import '../plugins/repository/repository_plugin.dart';
 
 /// `zfa repository create` — the first-party create verb for the
@@ -37,8 +39,13 @@ import '../plugins/repository/repository_plugin.dart';
 ///    in `details` — the gate's SEMANTICS are untouched, only the output
 ///    channel gains a machine surface;
 ///  * without `--json` the existing human-readable output is unchanged;
-///  * `--explain` on `zfa make` keeps consuming `explainEmission` — this
-///    command does not touch the emission-plan surface;
+///  * `--explain` resolves the SAME [RepositoryEmissionPlanner]
+///    `RepositoryPlugin.explainEmission` serves to `zfa make --explain` —
+///    the plan is a pure function of the resolved config, so the direct
+///    entry point and the orchestrated make flow can never disagree about
+///    what would be emitted (on the direct path the datasource plugin is
+///    never active — the plugin emits the datasource interface itself,
+///    #406);
 ///  * execution flows through [CapabilityInvocationWrapper] so the
 ///    standalone proof receipt (issue #996/#1130) keeps shipping exactly
 ///    as before.
@@ -108,6 +115,13 @@ class RepositoryCreateCommand extends Command<void> {
           'Emit the canonical zuraffa.verdict.v1 envelope on stdout '
           '(SPEC 1124, issue #1105)',
     );
+    argParser.addFlag(
+      'explain',
+      negatable: false,
+      help:
+          'Print the resolved emission plan (the explainEmission planner) '
+          'without generating',
+    );
   }
 
   @override
@@ -122,6 +136,7 @@ class RepositoryCreateCommand extends Command<void> {
   Future<void> run() async {
     final entityName = _resolveEntityName();
     final jsonMode = argResults?['json'] == true;
+    final explainMode = argResults?['explain'] == true;
 
     if (entityName == null || entityName.isEmpty) {
       final fix = 'zfa repository create --name <Entity>';
@@ -151,6 +166,37 @@ class RepositoryCreateCommand extends Command<void> {
         print('   --> fix: $fix');
       }
       exitCode = ExitProtocol.usage;
+      return;
+    }
+
+    // ── --explain: the explainEmission planner, zero generation ────────
+    // Mirrors [RepositoryPlugin.explainEmission]: configFromContext builds
+    // the config the plugin WOULD run with and the planner resolves the
+    // emission decisions. The direct path's context is null, so the
+    // datasource plugin is never active here — when --datasource is
+    // requested the repository plugin emits the interface itself (#406).
+    if (explainMode) {
+      final config = GeneratorConfig(
+        name: entityName,
+        outputDir: plugin.outputDir,
+        generateRepository: true,
+        generateData: argResults?['data'] != false,
+        generateDataSource: argResults?['datasource'] != false,
+        methods: _resolveMethods(),
+        dryRun: true,
+        force: argResults?['force'] == true,
+        verbose: argResults?['verbose'] == true,
+      );
+      final plan = const RepositoryEmissionPlanner().resolve(
+        config,
+        datasourcePluginActive: false,
+      );
+      if (jsonMode) {
+        print(jsonEncode(plan.toJson()));
+      } else {
+        print(plan.renderText());
+      }
+      exitCode = plan.valid ? ExitProtocol.success : ExitProtocol.failure;
       return;
     }
 
@@ -280,6 +326,20 @@ class RepositoryCreateCommand extends Command<void> {
 
   String get _commandLabel => 'zfa ${plugin.id} create';
 
+  /// Stable machine vocabulary for a conformance mismatch, classified
+  /// from the side + failure shape the checker already reports (output-
+  /// channel classification only — the gate itself is untouched).
+  static String _findingKind(ConformanceFailure failure) {
+    if (failure.side == 'interface') return 'override_without_declaration';
+    if (failure.message.contains('missing @override')) {
+      return 'missing_override';
+    }
+    if (failure.message.contains('no implementation')) {
+      return 'missing_implementation';
+    }
+    return 'conformance_mismatch';
+  }
+
   String? _resolveEntityName() {
     final viaOption = argResults?['name'] as String?;
     if (viaOption != null && viaOption.isNotEmpty) return viaOption;
@@ -312,7 +372,7 @@ class RepositoryCreateCommand extends Command<void> {
           .map(
             (f) => {
               'side': f.side,
-              'kind': 'conformance_mismatch',
+              'kind': _findingKind(f),
               'method': f.method,
               'message': f.message,
               'fix': f.fix,
