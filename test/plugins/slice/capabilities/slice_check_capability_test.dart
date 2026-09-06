@@ -37,7 +37,15 @@ void main() {
         'prune',
       ], workingDirectory: workspace.path);
       try {
-        await workspace.delete(recursive: true);
+        for (var attempt = 0; attempt < 3; attempt++) {
+          try {
+            await workspace.delete(recursive: true);
+            return;
+          } on FileSystemException {
+            if (attempt == 2) rethrow;
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+        }
       } on PathNotFoundException {
         // Already gone.
       }
