@@ -67,9 +67,7 @@ sealed class TapResult {
   @override
   String toString() {
     final message = this is TapError ? (this as TapError).message : null;
-    return message == null
-        ? 'TapResult.${name}'
-        : 'TapResult.${name}($message)';
+    return message == null ? 'TapResult.$name' : 'TapResult.$name($message)';
   }
 }
 

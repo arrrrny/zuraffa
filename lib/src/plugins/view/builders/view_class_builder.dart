@@ -211,10 +211,12 @@ final List<SkinContractRow> $rowsName = [
     final buffer = StringBuffer();
     buffer
       ..writeln('')
-      ..writeln('// The per-view VM-service driver seam (issue #1112): '
-          'one function per `zfa:` anchor — the function lookup is just '
-          '`debugTap<PascalAnchor>()`. Driven by `zfa skin drive` or the '
-          'widget-test bridge.');
+      ..writeln(
+        '// The per-view VM-service driver seam (issue #1112): '
+        'one function per `zfa:` anchor — the function lookup is just '
+        '`debugTap<PascalAnchor>()`. Driven by `zfa skin drive` or the '
+        'widget-test bridge.',
+      );
     final seen = <String>{};
     for (final anchor in spec.skinAnchors) {
       if (anchor.trim().isEmpty) continue;
@@ -222,8 +224,10 @@ final List<SkinContractRow> $rowsName = [
       if (!seen.add(functionName)) continue;
       buffer
         ..writeln('')
-        ..writeln("Future<TapResult> $functionName() => "
-            "debugTapAnchor('zfa:${anchor.trim()}');");
+        ..writeln(
+          "Future<TapResult> $functionName() => "
+          "debugTapAnchor('zfa:${anchor.trim()}');",
+        );
     }
     return buffer.toString();
   }
@@ -232,9 +236,7 @@ final List<SkinContractRow> $rowsName = [
   /// `checkout` → `Checkout`.
   static String _pascalAnchor(String anchor) {
     final id = anchor.trim();
-    final remainder = id.contains('-')
-        ? id.substring(id.indexOf('-') + 1)
-        : id;
+    final remainder = id.contains('-') ? id.substring(id.indexOf('-') + 1) : id;
     return remainder
         .split('-')
         .where((part) => part.isNotEmpty)

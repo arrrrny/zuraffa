@@ -72,15 +72,10 @@ void main() {
       // make schema walk maps its `skin-anchor` array property to a
       // repeatable multi-option.
       final registry = PluginRegistry();
-      registry.register(
-        ViewPlugin(outputDir: Directory.systemTemp.path),
-      );
+      registry.register(ViewPlugin(outputDir: Directory.systemTemp.path));
       final command = MakeCommand(registry);
       expect(command.argParser.options, contains('skin-anchor'));
-      expect(
-        command.argParser.options['skin-anchor']!.isMultiple,
-        isTrue,
-      );
+      expect(command.argParser.options['skin-anchor']!.isMultiple, isTrue);
     });
 
     test('T5.2 the config carries skinAnchors from the parsed flags', () {

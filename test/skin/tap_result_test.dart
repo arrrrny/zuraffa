@@ -73,10 +73,7 @@ void main() {
 
     test('T1.8 toString names the verdict (diagnostics)', () {
       expect(TapResult.found.toString(), 'TapResult.found');
-      expect(
-        TapResult.error('boom').toString(),
-        'TapResult.error(boom)',
-      );
+      expect(TapResult.error('boom').toString(), 'TapResult.error(boom)');
     });
   });
 }

@@ -40,66 +40,68 @@ void main() {
     });
 
     test('T7.2 one TapResult JSON line per tap (same protocol)', () async {
-      writeManifest(const JsonEncoder().convert({
-        'scenario': 'signin-guest-flow',
-        'anchors': [
-          {'id': 'signin-guest', 'enabled': true},
-        ],
-        'taps': ['zfa:signin-guest'],
-      }));
+      writeManifest(
+        const JsonEncoder().convert({
+          'scenario': 'signin-guest-flow',
+          'anchors': [
+            {'id': 'signin-guest', 'enabled': true},
+          ],
+          'taps': ['zfa:signin-guest'],
+        }),
+      );
       final out = <String>[];
       final code = await sim().simulate(
         manifestPath: manifestPath,
         sink: out.add,
       );
       expect(code, 0);
-      expect(
-        out.where((line) => line.startsWith('{')).toList(),
-        ['{"result":"found","tapped":true}'],
-      );
+      expect(out.where((line) => line.startsWith('{')).toList(), [
+        '{"result":"found","tapped":true}',
+      ]);
       expect(out.last, contains('skin sim:'));
     });
 
     test('T7.3 declared expectations met → summary + exit 0', () async {
-      writeManifest(const JsonEncoder().convert({
-        'scenario': 'mixed',
-        'anchors': [
-          {'id': 'signin-guest', 'enabled': true},
-          {'id': 'signin-log-out', 'enabled': false},
-        ],
-        'taps': [
-          {'tap': 'zfa:signin-guest', 'expect': 'found'},
-          {'tap': 'zfa:signin-log-out', 'expect': 'disabled'},
-        ],
-      }));
+      writeManifest(
+        const JsonEncoder().convert({
+          'scenario': 'mixed',
+          'anchors': [
+            {'id': 'signin-guest', 'enabled': true},
+            {'id': 'signin-log-out', 'enabled': false},
+          ],
+          'taps': [
+            {'tap': 'zfa:signin-guest', 'expect': 'found'},
+            {'tap': 'zfa:signin-log-out', 'expect': 'disabled'},
+          ],
+        }),
+      );
       final out = <String>[];
       final code = await sim().simulate(
         manifestPath: manifestPath,
         sink: out.add,
       );
       expect(code, 0);
-      expect(
-        out.where((line) => line.startsWith('{')).toList(),
-        [
-          '{"result":"found","tapped":true}',
-          '{"result":"disabled","tapped":false}',
-        ],
-      );
+      expect(out.where((line) => line.startsWith('{')).toList(), [
+        '{"result":"found","tapped":true}',
+        '{"result":"disabled","tapped":false}',
+      ]);
       expect(out.last, contains('scenario=mixed'));
       expect(out.last, contains('found=1'));
       expect(out.last, contains('disabled=1'));
     });
 
     test('T7.4 expectation drift → drift lines + exit 1', () async {
-      writeManifest(const JsonEncoder().convert({
-        'scenario': 'drifty',
-        'anchors': [
-          {'id': 'signin-guest', 'enabled': true},
-        ],
-        'taps': [
-          {'tap': 'zfa:signin-guest', 'expect': 'disabled'},
-        ],
-      }));
+      writeManifest(
+        const JsonEncoder().convert({
+          'scenario': 'drifty',
+          'anchors': [
+            {'id': 'signin-guest', 'enabled': true},
+          ],
+          'taps': [
+            {'tap': 'zfa:signin-guest', 'expect': 'disabled'},
+          ],
+        }),
+      );
       final out = <String>[];
       final code = await sim().simulate(
         manifestPath: manifestPath,

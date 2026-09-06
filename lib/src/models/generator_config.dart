@@ -281,9 +281,10 @@ class GeneratorConfig {
       generateDi: json['di'] == true || json['generate_di'] == true,
       generateXRay: json['xray'] == true || json['generate_xray'] == true,
       generateSkin: json['skin'] == true || json['generate_skin'] == true,
-      skinAnchors: (json['skin_anchor'] as List<dynamic>?)
-              ?.whereType<String>()
-              .toList(growable: false) ??
+      skinAnchors:
+          (json['skin_anchor'] as List<dynamic>?)?.whereType<String>().toList(
+            growable: false,
+          ) ??
           const [],
       generateV6State:
           json['v6_state'] == true ||

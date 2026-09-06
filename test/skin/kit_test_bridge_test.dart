@@ -9,17 +9,16 @@ import 'package:zuraffa/src/skin/builders/skin_contract_kit_builder.dart';
 
 void main() {
   group('issue #1112 — zfaAnchorTapped (emitted widget-test bridge)', () {
-    test('T6.1 the kit emits the bridge file (deterministic, skip-if-exists)',
-        () {
-      final bridge = const SkinAnchorTestBridgeBuilder().build();
-      expect(bridge, contains('Future<TapResult> zfaAnchorTapped('));
-      expect(bridge, contains('GENERATED - DO NOT EDIT'));
-      // Deterministic: same bytes on the second emission.
-      expect(
-        const SkinAnchorTestBridgeBuilder().build(),
-        bridge,
-      );
-    });
+    test(
+      'T6.1 the kit emits the bridge file (deterministic, skip-if-exists)',
+      () {
+        final bridge = const SkinAnchorTestBridgeBuilder().build();
+        expect(bridge, contains('Future<TapResult> zfaAnchorTapped('));
+        expect(bridge, contains('GENERATED - DO NOT EDIT'));
+        // Deterministic: same bytes on the second emission.
+        expect(const SkinAnchorTestBridgeBuilder().build(), bridge);
+      },
+    );
 
     test('T6.2 the bridge signature matches the issue', () {
       final bridge = const SkinAnchorTestBridgeBuilder().build();
@@ -45,7 +44,10 @@ void main() {
     test('T6.4 the bridge returns TapResult (same JSON shape as drive)', () {
       final bridge = const SkinAnchorTestBridgeBuilder().build();
       expect(bridge, contains('Future<TapResult>'));
-      expect(bridge, contains("import 'package:flutter_test/flutter_test.dart'"));
+      expect(
+        bridge,
+        contains("import 'package:flutter_test/flutter_test.dart'"),
+      );
     });
   });
 }

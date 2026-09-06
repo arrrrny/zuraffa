@@ -1,0 +1,27 @@
+{
+  "feature": "1112-zfa-skin-drive",
+  "records": [
+    {
+      "behavior_id": "B-001",
+      "feature": "1112-zfa-skin-drive",
+      "source_criterion": "FR-1",
+      "test_path": "test/skin/tap_result_test.dart",
+      "subject_path": "lib/src/skin/anchors.dart",
+      "runnable_test_name": "test/skin/tap_result_test.dart::B-001::TapResult verdict JSON contract",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-07T00:00:00.000"
+    },
+    {
+      "behavior_id": "B-002",
+      "feature": "1112-zfa-skin-drive",
+      "source_criterion": "FR-1",
+      "test_path": "test/skin/anchors_tap_result_test.dart",
+      "subject_path": "lib/src/skin/anchors.dart",
+      "runnable_test_name": "test/skin/anchors_tap_result_test.dart::B-002::registry rich verdicts found/disabled/notFound",
+      "test_ownership": "created",
+      "subject_ownership": "created",
+      "created_at": "2026-09-07T00:00:00.000"
+    }
+  ]
+}

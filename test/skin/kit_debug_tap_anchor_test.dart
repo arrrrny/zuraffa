@@ -22,13 +22,16 @@ void main() {
       expect(src, isNot(contains('Future<bool> debugTapAnchor')));
     });
 
-    test('T3.2 kDebugMode-only: release path refuses with an error verdict', () {
-      expect(src, contains('if (!kDebugMode)'));
-      expect(
-        src,
-        contains("TapResult.error('debugTapAnchor requires kDebugMode')"),
-      );
-    });
+    test(
+      'T3.2 kDebugMode-only: release path refuses with an error verdict',
+      () {
+        expect(src, contains('if (!kDebugMode)'));
+        expect(
+          src,
+          contains("TapResult.error('debugTapAnchor requires kDebugMode')"),
+        );
+      },
+    );
 
     test('T3.3 uses the pilot-proven element walk', () {
       expect(src, contains('renderViewElement'));
@@ -46,10 +49,13 @@ void main() {
       expect(src, contains('TapResult.error'));
     });
 
-    test('T3.5 debugTapAnchorJson is the sync String the VM evaluate calls', () {
-      expect(src, contains("String debugTapAnchorJson(String zfaKey)"));
-      expect(src, contains('jsonEncode('));
-    });
+    test(
+      'T3.5 debugTapAnchorJson is the sync String the VM evaluate calls',
+      () {
+        expect(src, contains("String debugTapAnchorJson(String zfaKey)"));
+        expect(src, contains('jsonEncode('));
+      },
+    );
 
     test('T3.6 ZfaButton registers its LIVE enabled state', () {
       expect(src, contains('zfaAnchorRegistry.register('));

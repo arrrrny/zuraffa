@@ -193,8 +193,10 @@ class SkinDriveCommand extends Command<void> {
     String? isolateId,
   }) async {
     if (dartUri == null || dartUri.isEmpty) {
-      return _usage('missing --dart-uri (the VM-service URI of the '
-          'running app — flutter run --print-dtd)');
+      return _usage(
+        'missing --dart-uri (the VM-service URI of the '
+        'running app — flutter run --print-dtd)',
+      );
     }
     if (anchor == null || anchor.isEmpty) {
       return _usage('missing --anchor (e.g. zfa:signin-guest)');
@@ -210,19 +212,21 @@ class SkinDriveCommand extends Command<void> {
     // Resolve the isolate.
     final ids = await client.isolateIds();
     if (ids.isEmpty) {
-      return _failure('no isolates are visible at $dartUri (is the app '
-          'a DEBUG build?)');
+      return _failure(
+        'no isolates are visible at $dartUri (is the app '
+        'a DEBUG build?)',
+      );
     }
-    final resolvedIsolate =
-        (isolateId != null && isolateId.isNotEmpty) ? isolateId : ids.first;
+    final resolvedIsolate = (isolateId != null && isolateId.isNotEmpty)
+        ? isolateId
+        : ids.first;
 
     // Resolve the seam library: explicit --library, else the emitted
     // skin kit.
     final libraries = await client.isolateLibraries(resolvedIsolate);
     final skinKitLibraries = libraries.where(_isSkinKitLibrary).toList();
-    final target = library ?? (skinKitLibraries.isEmpty
-        ? null
-        : skinKitLibraries.first);
+    final target =
+        library ?? (skinKitLibraries.isEmpty ? null : skinKitLibraries.first);
     if (target == null) {
       return _failure(
         'no skin_contract_auditor.dart library is loaded in isolate '
@@ -249,12 +253,16 @@ class SkinDriveCommand extends Command<void> {
 
     final normalized = _normalizeEnvelope(answer);
     if (normalized == null) {
-      return _failure('the evaluation result is not a TapResult JSON '
-          'envelope: $answer');
+      return _failure(
+        'the evaluation result is not a TapResult JSON '
+        'envelope: $answer',
+      );
     }
 
-    _sink('zfa skin drive: isolate=$resolvedIsolate library=$target '
-        'anchor=$anchor');
+    _sink(
+      'zfa skin drive: isolate=$resolvedIsolate library=$target '
+      'anchor=$anchor',
+    );
     _sink(normalized.json);
     return switch (normalized.verdict) {
       TapVerdict.found => 0,
@@ -301,13 +309,17 @@ class SkinDriveCommand extends Command<void> {
 
   int _failure(String reason) {
     _sink('zfa skin drive: $reason');
-    _sink('   --> fix: rebuild the app with the emitted skin kit and a '
-        'DEBUG VM uri, then retry.');
-    _sink(_encodeJson(<String, Object?>{
-      'result': 'error',
-      'tapped': false,
-      'message': reason,
-    }));
+    _sink(
+      '   --> fix: rebuild the app with the emitted skin kit and a '
+      'DEBUG VM uri, then retry.',
+    );
+    _sink(
+      _encodeJson(<String, Object?>{
+        'result': 'error',
+        'tapped': false,
+        'message': reason,
+      }),
+    );
     return 2;
   }
 

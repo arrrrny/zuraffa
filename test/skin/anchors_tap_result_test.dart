@@ -18,15 +18,18 @@ void main() {
       expect(tapped, 1);
     });
 
-    test('T2.2 a registered disabled anchor refuses: disabled, NOT invoked', () {
-      final registry = ZfaAnchorRegistry();
-      var tapped = 0;
-      registry.register('signin-log-out', () => tapped++, enabled: false);
-      final result = registry.tapResult('signin-log-out');
-      expect(result, TapResult.disabled);
-      expect(result.tapped, isFalse);
-      expect(tapped, 0);
-    });
+    test(
+      'T2.2 a registered disabled anchor refuses: disabled, NOT invoked',
+      () {
+        final registry = ZfaAnchorRegistry();
+        var tapped = 0;
+        registry.register('signin-log-out', () => tapped++, enabled: false);
+        final result = registry.tapResult('signin-log-out');
+        expect(result, TapResult.disabled);
+        expect(result.tapped, isFalse);
+        expect(tapped, 0);
+      },
+    );
 
     test('T2.3 an unknown anchor is notFound', () {
       final registry = ZfaAnchorRegistry();
@@ -69,8 +72,11 @@ void main() {
       // mutant and the negated-startsWith mutant).
       expect(ZfaAnchors.isAnchorKey('signinguest'), isFalse);
       expect(ZfaAnchors.isAnchorKey('zfa:'), isFalse);
-      expect(ZfaAnchors.isAnchorKey('zfa:'), isFalse,
-          reason: 'the bare prefix is not an anchor');
+      expect(
+        ZfaAnchors.isAnchorKey('zfa:'),
+        isFalse,
+        reason: 'the bare prefix is not an anchor',
+      );
       // Prefix without length still does not qualify alone.
       expect(ZfaAnchors.isAnchorKey('zfa:g'), isTrue);
     });

@@ -97,8 +97,10 @@ class SkinSimCommand extends Command<void> {
     final file = File(path);
     if (!file.existsSync()) {
       emit('zfa skin sim: manifest not found: $path');
-      emit('   --> fix: commit a skin sim manifest (scenario, anchors, '
-          'taps) next to the feature\'s tdd/ artifacts.');
+      emit(
+        '   --> fix: commit a skin sim manifest (scenario, anchors, '
+        'taps) next to the feature\'s tdd/ artifacts.',
+      );
       emit(_errorEnvelope('manifest not found: $path'));
       return 2;
     }
@@ -110,8 +112,10 @@ class SkinSimCommand extends Command<void> {
       manifest = decoded;
     } on FormatException {
       emit('zfa skin sim: the manifest at $path is malformed');
-      emit('   --> fix: the manifest is JSON — scenario, anchors '
-          '[{id, enabled}], taps (a zfa: key or {tap, expect}).');
+      emit(
+        '   --> fix: the manifest is JSON — scenario, anchors '
+        '[{id, enabled}], taps (a zfa: key or {tap, expect}).',
+      );
       emit(_errorEnvelope('invalid JSON'));
       return 2;
     }
@@ -166,9 +170,7 @@ class SkinSimCommand extends Command<void> {
       }
       if (result.name != expect) {
         drift++;
-        emit(
-          '   [drift] $key — expected $expect, observed ${result.name}',
-        );
+        emit('   [drift] $key — expected $expect, observed ${result.name}');
       }
     }
 
