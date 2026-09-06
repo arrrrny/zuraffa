@@ -1,0 +1,117 @@
+// Issue #1112 — the REAL Flutter proof of the driver seam: the
+// element walk (renderViewElement + visitChildElements) finding the
+// anchor by key and invoking the REAL onPressed, the disabled and
+// notFound verdicts, the JSON facade the CLI evaluates, and the
+// zfaAnchorTapped test bridge — on Flutter 3.47.2.
+library;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:skin_drive_app/src/skin/skin_contract_auditor.dart';
+import 'package:zuraffa/skin.dart';
+
+import 'zfa_anchor_test_bridge.dart';
+
+void main() {
+  var guestTaps = 0;
+  var logoutTaps = 0;
+
+  Future<void> pumpApp(WidgetTester tester) async {
+    guestTaps = 0;
+    logoutTaps = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              ZfaButton(
+                contractId: 'signin-guest',
+                onPressed: () => guestTaps++,
+                child: const Text('Continue as Guest'),
+              ),
+              ZfaButton(
+                contractId: 'log-out',
+                contractEnabled: false,
+                onPressed: () => logoutTaps++,
+                child: const Text('Log Out'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+  }
+
+  testWidgets('debugTapAnchor finds the anchor by key and invokes the REAL onPressed', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    final result = await debugTapAnchor('zfa:signin-guest');
+    expect(result, const TapFound());
+    expect(result.toJsonString(), '{"result":"found","tapped":true}');
+    expect(guestTaps, 1, reason: 'the real onPressed must have run');
+  });
+
+  testWidgets('the bare anchor id works too (normalize both forms)', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    final result = await debugTapAnchor('signin-guest');
+    expect(result, const TapFound());
+    expect(guestTaps, 1);
+  });
+
+  testWidgets('a disabled anchor stays discoverable but refuses (disabled)', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    final result = await debugTapAnchor('zfa:log-out');
+    expect(result, const TapDisabled());
+    expect(logoutTaps, 0, reason: 'a disabled anchor never fires');
+  });
+
+  testWidgets('an unknown anchor is notFound (never a silent no-op)', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    final result = await debugTapAnchor('zfa:never-declared');
+    expect(result, const TapNotFound());
+  });
+
+  testWidgets('debugTapAnchorJson is the evaluate facade (canonical bytes)', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    expect(
+      debugTapAnchorJson('zfa:signin-guest'),
+      '{"result":"found","tapped":true}',
+    );
+    expect(
+      debugTapAnchorJson('zfa:log-out'),
+      '{"result":"disabled","tapped":false}',
+    );
+    expect(
+      debugTapAnchorJson('zfa:never-declared'),
+      '{"result":"notFound","tapped":false}',
+    );
+  });
+
+  testWidgets('zfaAnchorTapped drives the bridge and pumpAndSettle settles', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    final result = await zfaAnchorTapped(tester, 'zfa:signin-guest');
+    expect(result, const TapFound());
+    expect(guestTaps, 1);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('the anchor registers into the registry while mounted', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    expect(zfaAnchorRegistry.registered, contains('signin-guest'));
+    expect(zfaAnchorRegistry.registered, contains('log-out'));
+  });
+}

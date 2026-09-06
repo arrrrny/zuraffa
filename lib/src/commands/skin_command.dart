@@ -1,12 +1,13 @@
 /// `zfa skin` — the runtime skin-contract auditor command group
-/// (issue #1102).
+/// (issue #1102, #1112).
 ///
 /// * `zfa skin kit [--route <name>]...` — emits the Flutter glue of
 ///   the auditor (`<output>/skin/skin_contract_auditor.dart`) into
 ///   the target project, with the `kSkinRouteContract` table built
 ///   from the `--route` flags or, when none are given, from the
 ///   routing barrel's declared routes (the static manifest side of
-///   the route contract).
+///   the route contract). Also emits the widget-test bridge
+///   (`test/skin/zfa_anchor_test_bridge.dart`, issue #1112).
 /// * `zfa skin verify` — statically reconciles the kit's route
 ///   contract table against the routing barrel. Honest verdicts
 ///   (the route-verify precedent): `match` (exit 0), `drift`
@@ -14,6 +15,12 @@
 ///   `insufficient-input` (exit 2 — the kit or the barrel is
 ///   missing; never a fake pass). `--json` emits the machine
 ///   envelope as the final stdout line.
+/// * `zfa skin drive --dart-uri=<vm-service-uri> --anchor=<key>` —
+///   drives the LIVE app (or widget-test runner) through the VM
+///   service: evaluates the emitted kit's `debugTapAnchorJson` seam
+///   and prints the TapResult JSON as the final stdout line
+///   (issue #1112 — replaces synthetic clicks; pilot lesson 7).
+///   Exit codes: found 0 / disabled 1 / notFound 2 / error 3.
 library;
 
 import 'dart:convert';
@@ -24,6 +31,8 @@ import 'package:path/path.dart' as p;
 
 import '../core/context/file_system.dart';
 import '../skin/builders/skin_contract_kit_builder.dart';
+import '../skin/driver/vm_tap_driver.dart';
+import '../skin/tap_result.dart';
 import '../skew/skew_contract.dart';
 import '../utils/file_utils.dart';
 import '../core/project/project_root.dart';
@@ -167,6 +176,7 @@ class SkinCommand extends Command<void> {
     addSubcommand(
       SkinVerifyCommand(projectRoot: projectRoot, fileSystem: _fileSystem),
     );
+    addSubcommand(SkinDriveCommand());
   }
 
   final FileSystem _fileSystem;
@@ -177,8 +187,10 @@ class SkinCommand extends Command<void> {
   @override
   String get description =>
       'Runtime skin-contract auditor (issue #1102): emit the kit '
-      '(skin kit) and statically verify the route-contract table '
-      'against the routing barrel (skin verify).';
+      '(skin kit), statically verify the route-contract table '
+      'against the routing barrel (skin verify), and drive the live '
+      'app through the VM-service tapAnchor seam (skin drive, '
+      'issue #1112).';
 
   @override
   String get invocation => 'zfa skin <subcommand> [options]';
@@ -298,13 +310,44 @@ class SkinKitCommand extends Command<void> {
       fileSystem: _fileSystem,
     );
 
+    // Issue #1112: the widget-test bridge lands beside the kit (under
+    // test/, where the flutter_test import is legitimate) — the
+    // target project's package:zuraffa_test surface
+    // (zfaAnchorTapped). Same skip-if-exists policy: hand-written
+    // tests keep importing it across regenerations.
+    final bridgeTarget = SkinContractKitBuilder.bridgeTarget(
+      kitPath: kitPath,
+      projectRootHint: projectRoot,
+      fileSystem: _fileSystem,
+    );
+    final bridgePath = p.join(
+      bridgeTarget.bridgeDirPath,
+      SkinContractKitBuilder.bridgeFileName,
+    );
+    final bridgeContent = const SkinContractKitBuilder().buildBridge(
+      kitImportPath: bridgeTarget.bridgeImport,
+    );
+    if (!force && await _fileSystem.exists(bridgePath)) {
+      print('  skipped: $bridgePath already exists (use --force to overwrite)');
+    } else {
+      await FileUtils.writeFile(
+        bridgePath,
+        bridgeContent,
+        'skin_anchor_test_bridge',
+        force: force,
+        dryRun: dryRun,
+        verbose: verbose,
+        fileSystem: _fileSystem,
+      );
+    }
+
     print(
       'skin kit: wrote $kitPath '
       '(routes: ${routes.isEmpty ? 0 : routes.length} from $routeSource)',
     );
     print(
       '   mount points: view getter wrap (--skin), app shell '
-      '(--skin-audit), zfa skin verify',
+      '(--skin-audit), zfa skin verify, zfa skin drive',
     );
   }
 }
@@ -449,3 +492,147 @@ class SkinVerifyCommand extends Command<void> {
     exitCode = SkinVerifyVerdict.drift.exitCode;
   }
 }
+
+/// `zfa skin drive` — the VM-service tapAnchor driver (issue #1112).
+///
+/// Connects to the live app's Dart VM service (the URI `flutter run`
+/// prints, or the widget-test runner's), evaluates the emitted kit's
+/// `debugTapAnchorJson('<anchor>')` seam, and prints the parsed
+/// TapResult JSON as the FINAL stdout line — the same envelope on
+/// every host OS, sub-agent friendly:
+///
+/// ```text
+/// zfa skin drive --dart-uri=http://127.0.0.1:8181/abc=/ \
+///                --anchor=zfa:signin-guest
+/// {"result":"found","tapped":true}
+/// ```
+///
+/// Exit codes (the honest verdict ladder, the route-verify
+/// precedent): found 0 / disabled 1 / notFound 2 / error 3.
+class SkinDriveCommand extends Command<void> {
+  SkinDriveCommand({this.driver = VmTapDriver.drive}) {
+    argParser
+      ..addOption(
+        'dart-uri',
+        valueHelp: 'vm-service-uri',
+        mandatory: true,
+        help:
+            'The live app\'s Dart VM service URI (http:// or ws:// — the '
+            'one `flutter run` / the widget-test runner prints, e.g. via '
+            '`flutter run --print-dtd`).',
+      )
+      ..addOption(
+        'anchor',
+        valueHelp: 'zfa-key',
+        mandatory: true,
+        help:
+            'The anchor key to tap — \'zfa:signin-guest\' or the bare id '
+            '\'signin-guest\'.',
+      )
+      ..addOption(
+        'timeout',
+        valueHelp: 'seconds',
+        help:
+            'Deadline for the whole drive (default 20). The driver '
+            'resumes a paused-at-start runner and polls until the '
+            'anchor answers — a booting test runner pumps late.',
+        defaultsTo: '20',
+      )
+      ..addFlag('verbose', abbr: 'v', negatable: false);
+  }
+
+  /// The drive function (injectable so tests can stub the VM lane;
+  /// production always evaluates a REAL vm_service connection).
+  final SkinDriveFn driver;
+
+  @override
+  String get name => 'drive';
+
+  @override
+  String get description =>
+      'Drive an anchor in the LIVE app through the VM service '
+      '(debugTapAnchorJson evaluate); prints the TapResult JSON as '
+      'the final stdout line — replaces synthetic clicks (issue #1112).';
+
+  @override
+  String get invocation =>
+      'zfa skin drive --dart-uri=<vm-service-uri> --anchor=<zfa-key>';
+
+  @override
+  Future<void> run() async {
+    final parsed = argResults!;
+    final dartUri = parsed.wasParsed('dart-uri')
+        ? parsed['dart-uri'] as String?
+        : null;
+    final anchor = parsed.wasParsed('anchor')
+        ? parsed['anchor'] as String?
+        : null;
+    if (dartUri == null || dartUri.isEmpty) {
+      print(
+        'zfa skin drive: missing --dart-uri — the VM service URI the '
+        'live app printed (flutter run --print-dtd).',
+      );
+      print('   --> fix: $invocation');
+      exitCode = SkinDriveExitCode.error;
+      return;
+    }
+    if (anchor == null || anchor.isEmpty) {
+      print(
+        'zfa skin drive: missing --anchor — the zfa: key to tap '
+        '(e.g. zfa:signin-guest).',
+      );
+      print('   --> fix: $invocation');
+      exitCode = SkinDriveExitCode.error;
+      return;
+    }
+    final timeoutSeconds =
+        int.tryParse(argResults!['timeout'] as String? ?? '20') ?? 20;
+
+    final result = await driver(
+      dartUri: dartUri,
+      anchor: anchor,
+      connectTimeout: Duration(seconds: timeoutSeconds),
+      driveTimeout: Duration(seconds: timeoutSeconds),
+      log: (argResults!['verbose'] as bool)
+          ? (line) => print('   $line')
+          : null,
+    );
+
+    // Human line first; the machine envelope is ALWAYS the final
+    // stdout line (the route-verify --json precedent).
+    print(
+      'zfa skin drive: anchor=$anchor verdict=${result.label} '
+      '(exit ${exitCodeForLabel(result.label)})',
+    );
+    print(result.toJsonString());
+
+    exitCode = exitCodeForLabel(result.label);
+  }
+
+  /// The exit code for a TapResult [label] (the documented ladder).
+  static int exitCodeForLabel(String label) => switch (label) {
+    'found' => 0,
+    'disabled' => 1,
+    'notFound' => 2,
+    _ => 3,
+  };
+}
+
+/// The drive verdict ladder (found / disabled / notFound / error).
+abstract final class SkinDriveExitCode {
+  static const int found = 0;
+  static const int disabled = 1;
+  static const int notFound = 2;
+  static const int error = 3;
+}
+
+/// The injectable drive seam — [VmTapDriver.drive] in production; a
+/// stub in tests. Keep the signature in sync with the real driver.
+typedef SkinDriveFn =
+    Future<TapResult> Function({
+      required String dartUri,
+      required String anchor,
+      Duration connectTimeout,
+      Duration driveTimeout,
+      void Function(String line)? log,
+    });
