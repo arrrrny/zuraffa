@@ -163,6 +163,10 @@ class SliceCheckCapability {
     final allowedRootFiles = <String>{
       'slice.yaml',
       'receipts/slice-check.json',
+      // Spec 1116: the slice receipt + the unified journal are the
+      // feature's own record — receipt artifacts, not slice source.
+      'slice.receipt.json',
+      'journal.json',
     };
     final sliceDir = Directory(sliceRoot);
     for (final entity in sliceDir.listSync(recursive: true)) {
@@ -172,6 +176,11 @@ class SliceCheckCapability {
           .replaceAll('\\', '/');
       if (rel.startsWith('.git/') || rel.startsWith('.git\\')) continue;
       if (rel.startsWith('.slice/')) continue;
+      // Spec 1116: the sub-receipt family (engine receipt, mock certs,
+      // skin receipt, contract schema, slice receipt, journal) is the
+      // slice's own record — never engine/skin source, never a
+      // violation. The layer audit still walks the real sources.
+      if (_isReceiptArtifact(rel)) continue;
       checked++;
       if (rel.startsWith('engine/')) {
         engineDisk.add(rel);
@@ -321,6 +330,20 @@ class SliceCheckCapability {
   // ------------------------------------------------------------------
   // compliance rules
   // ------------------------------------------------------------------
+
+  /// Rule 0 (spec 1116): the receipt artifacts the pipeline writes into
+  /// the slice are its own record — exempt from the boundary rules the
+  /// way receipts/ and specs/ are.
+  static bool _isReceiptArtifact(String rel) {
+    if (rel == 'slice.receipt.json' || rel == 'journal.json') return true;
+    if (rel == 'skin/skin.receipt.json' || rel == 'skin/contract-schema.json') {
+      return true;
+    }
+    if (rel.startsWith('engine/mock-cert/')) return true;
+    final name = p.basename(rel);
+    return rel.startsWith('engine/') &&
+        RegExp(r'^engine\.receipt(-\d+)?\.json$').hasMatch(name);
+  }
 
   /// Rule 1: an engine file is in the contract's entities when it
   /// lives under an entity subtree (`engine/entities/<E>/`), mentions a
