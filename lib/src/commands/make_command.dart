@@ -367,6 +367,19 @@ class MakeCommand extends Command<void> {
           'default (boots on certified mocks via '
           '--dart-define=SIMULATION=true).',
     );
+    // Issue #1149 (kill list): the gql plugin was deleted and `--with=gql`
+    // aliases to `graphql` for one deprecation cycle. The boolean flag
+    // used to be auto-registered from the (now gone) plugin id, so it is
+    // declared here explicitly to keep `--gql` / `--no-gql` scripts
+    // working during that cycle. PlanResolver maps it onto graphql.
+    argParser.addFlag(
+      'gql',
+      help:
+          'Deprecated alias for --graphql (issue #1149): the gql plugin '
+          'was folded into graphql. Use --graphql instead.',
+      defaultsTo: true,
+      negatable: true,
+    );
   }
 
   void _addPluginOptions() {

@@ -203,8 +203,18 @@ class ZfaConfig {
   bool get zorphyByDefault => true;
   String get defaultEntityOutput => fixedEntityOutput;
 
-  bool isPluginEnabledByDefault(String pluginId) =>
-      pluginDefaults[pluginId] ?? false;
+  /// Issue #1149 (kill list): the gql plugin was deleted and `--with=gql`
+  /// aliases to `graphql` for one deprecation cycle. A config file that
+  /// still carries the legacy `gql` key (`.zfa.json` `gqlByDefault` /
+  /// pluginDefaults['gql']) keeps enabling the surviving graphql plugin
+  /// during that cycle. Builtins always populate both keys, so the legacy
+  /// key acts as an explicit opt-IN fallback (`true` wins).
+  bool isPluginEnabledByDefault(String pluginId) {
+    if (pluginId == 'graphql') {
+      return pluginDefaults['graphql'] == true || pluginDefaults['gql'] == true;
+    }
+    return pluginDefaults[pluginId] ?? false;
+  }
 
   ZfaConfig copyWith({
     Map<String, bool>? pluginDefaults,
