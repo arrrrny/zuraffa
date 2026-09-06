@@ -149,6 +149,15 @@ class RouteVerifyCommand extends Command<void> {
           'artifact; entity mode: the schema-1 verdict envelope).',
     );
     argParser.addFlag(
+      'explain',
+      negatable: false,
+      help:
+          'After the verdict, describe it in prose (issue #1122): what the '
+          'drift verdict means, which systems were reconciled and which '
+          'paths drifted. With --json the artifact gains an additive '
+          '`explain` key.',
+    );
+    argParser.addFlag(
       'plain',
       negatable: false,
       help: 'Strip emoji and color from output (CI-friendly).',
@@ -424,6 +433,20 @@ class RouteVerifyCommand extends Command<void> {
       'findings': findings,
     };
 
+    // Issue #1122: the explain prose is strictly additive — the base
+    // envelope stays byte-compatible; `explain` exists only when the
+    // flag was requested.
+    if (argResults?['explain'] == true) {
+      envelope['explain'] = _entityExplainProse(
+        entity: entity,
+        ok: ok,
+        declaredRoutes: declaredRoutes,
+        declaredLinks: declaredLinks,
+        testRun: testRun,
+        findings: findings,
+      );
+    }
+
     final encoded = jsonEncode(envelope);
     if (outPath != null) {
       await File(outPath).writeAsString('$encoded\n');
@@ -431,6 +454,10 @@ class RouteVerifyCommand extends Command<void> {
       print(encoded);
     } else {
       _printEntityVerdict(entity, ok, findings, testRun, plain: plain);
+      if (envelope['explain'] case final Map<String, dynamic> explain) {
+        print('explain:');
+        print('  ${explain['prose']}');
+      }
     }
 
     exitCode = ok ? 0 : 1;
@@ -644,6 +671,37 @@ class RouteVerifyCommand extends Command<void> {
     }
   }
 
+  /// Issue #1122: the entity-mode explain prose — what the verdict
+  /// means for this entity's declared table, in one sentence.
+  Map<String, dynamic> _entityExplainProse({
+    required String entity,
+    required bool ok,
+    required List<Map<String, dynamic>> declaredRoutes,
+    required List<Map<String, dynamic>> declaredLinks,
+    required Map<String, dynamic>? testRun,
+    required List<Map<String, dynamic>> findings,
+  }) {
+    final testRunSummary = testRun == null
+        ? 'not run'
+        : switch (testRun['status'] as String? ?? '') {
+            'pass' => 'passed',
+            'failed' => 'FAILED (exit ${testRun['exitCode']})',
+            'unavailable' =>
+              'unavailable (${testRun['reason'] ?? 'no runner on PATH'})',
+            _ => 'unknown',
+          };
+    final prose = ok
+        ? 'verdict: pass — the declared table for $entity is proven: '
+              '${declaredRoutes.length} route(s), ${declaredLinks.length} '
+              'deep link(s); route-table test $testRunSummary; no findings '
+              '(exit 0).'
+        : 'verdict: fail — the declared table for $entity has '
+              '${findings.length} finding(s): '
+              '${findings.map((f) => f['kind']).join(', ')}. Route-table '
+              'test $testRunSummary (exit 1).';
+    return {'verdict': ok ? 'pass' : 'fail', 'prose': prose};
+  }
+
   // ---------------------------------------------------------------------------
   // Drift mode (pre-existing semantics — bug route-dual-system-unreconciled)
   // ---------------------------------------------------------------------------
@@ -656,6 +714,7 @@ class RouteVerifyCommand extends Command<void> {
 
     final table = _readRouteTable();
     final result = _assess(table);
+    final explain = argResults?['explain'] == true;
 
     if (json) {
       final payload = {
@@ -664,6 +723,13 @@ class RouteVerifyCommand extends Command<void> {
         'routes': canonicalRouteEntries(
           table.routes,
         ).map((e) => e.toJson()).toList(),
+        // Issue #1122: additive prose block — the base artifact keys are
+        // unchanged.
+        if (explain)
+          'explain': {
+            'verdict': result.verdict.label,
+            'prose': _driftVerdictProse(table, result, strict: strict),
+          },
       };
       final encoded = jsonEncode(payload);
       if (outPath != null) {
@@ -688,11 +754,43 @@ class RouteVerifyCommand extends Command<void> {
           sourceIndent: plain ? '  ' : '    ',
         ),
       );
+      // Issue #1122: describe the drift verdict in prose, after the
+      // machine-verdict block.
+      if (explain) {
+        buf.writeln('explain:');
+        buf.writeln('  ${_driftVerdictProse(table, result, strict: strict)}');
+      }
       stdout.write(buf.toString());
     }
 
     exitCode = result.verdict.exitCode(strict: strict);
   }
+
+  /// Issue #1122: the drift-mode `--explain` prose — the verdict
+  /// described in a sentence that names the reconciled systems, the
+  /// drifted paths, and the exit code.
+  String _driftVerdictProse(
+    RouteTable table,
+    RouteVerifyResult result, {
+    required bool strict,
+  }) => switch (result.verdict) {
+    RouteVerifyVerdict.match =>
+      'verdict: match — both route systems (the CLI `*_routes.dart` / '
+          '`*_shell.dart` modules and the DDA `zfa_router.g.dart`) declare '
+          'the same ${table.routes.map((e) => e.path).toSet().length} '
+          'path(s); nothing to reconcile (exit 0).',
+    RouteVerifyVerdict.drift =>
+      'verdict: drift — the CLI modules and the DDA router disagree: '
+          '${result.overlaps.length} overlap finding(s) and '
+          '${result.oneSided.length} one-sided path(s): '
+          '${result.oneSided.map((d) => d.path).join(', ')}. Reconcile the '
+          'two systems by regenerating the drifted side (exit 1).',
+    RouteVerifyVerdict.insufficientInput =>
+      'verdict: insufficient-input — ${result.missingInput ?? 'a route '
+                  'system contributed no entries'}; the systems cannot be '
+          'reconciled (exit ${RouteVerifyVerdict.insufficientInput.exitCode(strict: strict)}'
+          '${strict ? '' : '; 1 with --strict'}).',
+  };
 
   /// Pure: computes the honest verdict from the walked route table. The
   /// [RouteDriftDetector] stays untouched — overlap findings come from it;

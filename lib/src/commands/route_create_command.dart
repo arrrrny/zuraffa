@@ -47,6 +47,24 @@ class RouteCreateCommand extends Command<void> {
           'schema:1}) instead of the emoji file list.',
     );
     argParser.addFlag(
+      'explain',
+      negatable: false,
+      help:
+          'After the verdict, emit the explain block (issue #1122): which '
+          'routes are emitted, which platform slots each route targets, '
+          'which shell/guard binding is used, and which state machine is '
+          'referenced. With --json the envelope gains an additive '
+          '`explain` key.',
+    );
+    argParser.addOption(
+      'shell',
+      help:
+          'Shell binding for the route: none, bottom-nav, rail or adaptive. '
+          'Validated against the route config schema; unknown shell names '
+          'are a usage error (issue #1122).',
+      defaultsTo: 'none',
+    );
+    argParser.addFlag(
       'plain',
       negatable: false,
       help: 'Strip emoji from the text output (CI-friendly).',
@@ -137,6 +155,30 @@ class RouteCreateCommand extends Command<void> {
   Future<void> run() async {
     final asJson = argResults?['json'] == true;
     final plain = argResults?['plain'] == true;
+
+    // Issue #1122: the shell binding is route CONFIG, so it validates
+    // against the plugin's configSchema before anything runs. An unknown
+    // shell name is a usage-class rejection: the issue's "exit 64" —
+    // which SPEC 917 canonicalized onto ExitProtocol.usage (the golden
+    // test retires the legacy literal; canonicalize(64) == usage).
+    final shell = (argResults?['shell'] as String?) ?? 'none';
+    final shellViolations = validateRouteConfig({'shell': shell});
+    if (shellViolations.isNotEmpty) {
+      final rest0 = argResults?.rest ?? const <String>[];
+      final entity0 = rest0.isNotEmpty
+          ? _canonicalEntity(rest0.first)
+          : (argResults?['name'] as String? ?? '');
+      _fail(
+        shellViolations.join('; '),
+        fix:
+            'pass one of the known route shell kinds: bottom-nav, rail, '
+            'adaptive (or omit --shell for none)',
+        asJson: asJson,
+        entity: entity0,
+        code: ExitProtocol.usage,
+      );
+      return;
+    }
 
     final rest = argResults?.rest ?? const <String>[];
     // SPEC 917 / #904: --name is the manifest-driven spelling of the
@@ -245,6 +287,7 @@ class RouteCreateCommand extends Command<void> {
             'methods':
                 (argResults?['methods'] as List?)?.cast<String>() ??
                 const ['get', 'update'],
+            if (shell != 'none') 'shell': shell,
             if (argResults?['scheme'] != null) 'scheme': argResults!['scheme'],
             if (argResults?['host'] != null) 'host': argResults!['host'],
             if (argResults?['auto-verify'] == true) 'autoVerify': true,
@@ -257,10 +300,24 @@ class RouteCreateCommand extends Command<void> {
       }
     }
 
+    // Issue #1122: the explain block is strictly additive — the base
+    // envelope (and the receipt digest above) stay byte-compatible; the
+    // `explain` key exists only when --explain was requested.
+    if (argResults?['explain'] == true) {
+      envelope['explain'] = await _buildExplain(
+        entity: entity,
+        files: files,
+        envelope: envelope,
+      );
+    }
+
     if (asJson) {
       print(jsonEncode(envelope));
     } else {
       _printTextSummary(files, envelope, plain: plain);
+      if (envelope['explain'] case final Map<String, dynamic> explain) {
+        _printExplain(explain);
+      }
     }
   }
 
@@ -348,6 +405,197 @@ class RouteCreateCommand extends Command<void> {
           ? null
           : _projectRelative(routeTableTest.first.path),
     };
+  }
+
+  /// Builds the `--explain` block (issue #1122): which routes are
+  /// emitted, which platform slots each route targets, which shell/guard
+  /// binding is used, which state machine is referenced. Everything is
+  /// discovered from what this run actually produced plus the routing
+  /// tree on disk — the block never invents a binding.
+  Future<Map<String, dynamic>> _buildExplain({
+    required String entity,
+    required List<GeneratedFile> files,
+    required Map<String, dynamic> envelope,
+  }) async {
+    final slots = <Map<String, dynamic>>[
+      {
+        'slot': 'routing-index',
+        'path': _projectRelative(
+          p.join(_absoluteOutputDir, 'routing', 'index.dart'),
+        ),
+      },
+    ];
+    final testPath = envelope['routeTableTestPath'] as String?;
+    if (testPath != null) {
+      slots.add({'slot': 'route-table-test', 'path': testPath});
+    }
+    for (final f in files) {
+      if (f.type == 'android_manifest') {
+        slots.add({
+          'slot': 'android-scheme',
+          'path': _projectRelative(f.path),
+          if (argResults?['scheme'] != null) 'scheme': argResults!['scheme'],
+        });
+      } else if (f.type == 'ios_plist') {
+        slots.add({
+          'slot': 'ios-scheme',
+          'path': _projectRelative(f.path),
+          if (argResults?['scheme'] != null) 'scheme': argResults!['scheme'],
+        });
+      }
+    }
+
+    return {
+      'routes': envelope['routes'],
+      'platformSlots': slots,
+      'shell': await _discoverShellBinding(envelope),
+      'guard': {
+        // Guard probe scope: only the ENTITY route modules this run wrote.
+        // app_routes.dart is excluded — its global unknown-path `redirect:`
+        // (the 404 seam) is not a route guard binding.
+        'guard':
+            files
+                .where(
+                  (f) =>
+                      p.basename(f.path).endsWith('_routes.dart') &&
+                      p.basename(f.path) != 'app_routes.dart',
+                )
+                .any(
+                  (f) =>
+                      f.content?.contains(RegExp(r'\bredirect\s*:')) ?? false,
+                )
+            ? 'redirect'
+            : 'none',
+      },
+      'stateMachine': _discoverStateMachine(entity),
+    };
+  }
+
+  /// Scans `<outputDir>/routing/*_shell.dart` for the shell module whose
+  /// branch root path covers one of this run's emitted routes (a shell
+  /// path is a segment-wise prefix of the route path). Returns
+  /// `{shell: 'none'}` when no shell module covers the routes.
+  Future<Map<String, dynamic>> _discoverShellBinding(
+    Map<String, dynamic> envelope,
+  ) async {
+    final routingDir = Directory(p.join(_absoluteOutputDir, 'routing'));
+    if (!routingDir.existsSync()) return const {'shell': 'none'};
+    final routes = (envelope['routes'] as List).cast<Map<String, dynamic>>();
+    final shellFiles =
+        routingDir
+            .listSync(recursive: false, followLinks: false)
+            .whereType<File>()
+            .where((f) => p.basename(f.path).endsWith('_shell.dart'))
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
+
+    for (final file in shellFiles) {
+      final source = file.readAsStringSync();
+      final shellPaths = RegExp(r'''\bpath\s*:\s*(r?['"][^'"]+['"])''')
+          .allMatches(source)
+          .map((m) => _stringLiteral(m.group(1)!))
+          .whereType<String>()
+          .toSet();
+      for (final route in routes) {
+        final routePath = route['path'] as String?;
+        if (routePath == null) continue;
+        final covered = shellPaths.any(
+          (shellPath) => _coversPath(shellPath, routePath),
+        );
+        if (covered) {
+          return {
+            'shell': p.basename(file.path),
+            'module': _projectRelative(file.path),
+            'kind': source.contains('StatefulShellRoute.indexedStack')
+                ? 'StatefulShellRoute.indexedStack'
+                : 'unknown',
+            'covers': routePath,
+          };
+        }
+      }
+    }
+    return const {'shell': 'none'};
+  }
+
+  /// True when [shellPath] is a segment-wise prefix of [routePath] —
+  /// `/product` covers `/product` and `/product/:id` but not `/products`.
+  bool _coversPath(String shellPath, String routePath) {
+    if (!routePath.startsWith(shellPath)) return false;
+    if (routePath.length == shellPath.length) return true;
+    return routePath[shellPath.length] == '/';
+  }
+
+  String? _stringLiteral(String expression) {
+    var literal = expression;
+    final raw = literal.startsWith('r');
+    if (raw) literal = literal.substring(1);
+    if (literal.length < 2) return null;
+    final quote = literal[0];
+    if ((quote != "'" && quote != '"') ||
+        literal[literal.length - 1] != quote) {
+      return null;
+    }
+    return literal.substring(1, literal.length - 1);
+  }
+
+  /// Probes the output tree for the state plugin's artifact
+  /// (`<entity_snake>_state.dart` carrying `class <Entity>State`) and
+  /// reports the referenced state machine, or `none`.
+  Map<String, dynamic> _discoverStateMachine(String entity) {
+    final outputDir = Directory(_absoluteOutputDir);
+    if (!outputDir.existsSync()) return const {'stateMachine': 'none'};
+    final fileName = '${StringUtils.camelToSnake(entity)}_state.dart';
+    final matches =
+        outputDir
+            .listSync(recursive: true, followLinks: false)
+            .whereType<File>()
+            .where((f) => p.basename(f.path) == fileName)
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
+    if (matches.isEmpty) return const {'stateMachine': 'none'};
+    final file = matches.first;
+    final className = RegExp(
+      r'\bclass\s+(\w+)',
+    ).firstMatch(file.readAsStringSync())?.group(1);
+    return {
+      'stateMachine': className ?? '${entity}State',
+      'path': _projectRelative(file.path),
+    };
+  }
+
+  /// Renders the explain block as prose (text mode). The JSON mode emits
+  /// the same structure under the envelope's `explain` key.
+  void _printExplain(Map<String, dynamic> explain) {
+    print('explain:');
+    final routes = (explain['routes'] as List).cast<Map<String, dynamic>>();
+    print('  routes emitted:');
+    if (routes.isEmpty) print('    - (none)');
+    for (final route in routes) {
+      print('    - ${route['path']} (${route['owner']})');
+    }
+    print('  platform slots:');
+    for (final slot
+        in (explain['platformSlots'] as List).cast<Map<String, dynamic>>()) {
+      final scheme = slot['scheme'];
+      print(
+        '    - ${slot['slot']}: ${slot['path']}'
+        '${scheme == null ? '' : ' (scheme: $scheme)'}',
+      );
+    }
+    final shell = explain['shell'] as Map<String, dynamic>;
+    print(
+      shell['shell'] == 'none'
+          ? '  shell binding: none'
+          : '  shell binding: ${shell['shell']} '
+                '(${shell['kind']} covers ${shell['covers']})',
+    );
+    print('  guard binding: ${(explain['guard'] as Map)['guard']}');
+    final machine = explain['stateMachine'] as Map<String, dynamic>;
+    print(
+      machine['stateMachine'] == 'none'
+          ? '  state machine: none'
+          : '  state machine: ${machine['stateMachine']} (${machine['path']})',
+    );
   }
 
   void _emitSkip(
