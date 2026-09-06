@@ -10,7 +10,7 @@ it against the declared contract.
 
 1. **Given** valid credentials **When** the user submits the login form **Then** the session starts with the authenticated user
 2. **Given** invalid credentials **When** the login attempt fails **Then** the error is reported to the caller
-3. **Given** a completed login **When** the session is active **Then** the app navigates to deal_list
+3. **Given** a completed login **When** the session is active **Then** the app navigates to 'deal_list'
 
 ## Functional Requirements
 
@@ -50,3 +50,17 @@ Skin Contract:
   states: [initial, loading, data, error, empty]
   routes: [login, deal_list, settings]
 ```
+
+## Layer Contracts
+
+The i18n-keyed presentation contract (issue #1141, extending #965): the
+login surfaces the production ZikZak view renders through slang keys
+(`t.auth.signIn`, …) are declared as `key:` tokens with the EN literal
+as the human-readable anchor and the non-i18n fallback — the contract a
+regenerated view (or the hand-written seam below it) is audited
+against. Every quoted user-facing string must trace to one of these
+rows; a declared anchor renders through the accessor, never the EN
+literal.
+
+**Presentation**:
+- `LoginForm`: `ShadInput` for email and password, `key: auth.signIn -> 'Sign in'`, `key: auth.email -> 'Email'`, `key: auth.password -> 'Password'`, `key: auth.sessionStarted -> 'Session started'`

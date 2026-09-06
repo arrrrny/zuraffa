@@ -566,7 +566,13 @@ void _declarations(
         ..writeln('### ${entry.key}')
         ..writeln();
       for (final c in entry.value) {
-        buf.writeln('- `${c.interfaceName}`: ${c.methods.join(', ')}');
+        // Bug #919 (fixed by #1141): methods stay BACKTICKED so
+        // TestListReader.readLayerContracts round-trips the contract
+        // (components + key: tokens survive the plan → test-list leg).
+        buf.writeln(
+          '- `${c.interfaceName}`: '
+          '${c.methods.map((m) => '`$m`').join(', ')}',
+        );
       }
     }
     buf.writeln();
