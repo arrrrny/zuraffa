@@ -17,6 +17,10 @@ library;
 //   - unknown subcommand with exitOnCompletion=false fell through with
 //     exitCode 0 -> now propagates exitCode = 1
 // while legitimate help (`zfa entity --help`) still exits 0.
+//
+// SPEC 917 (issue #917): the exit-code protocol retires the legacy 64 —
+// usage errors exit the CANONICAL 2. The pins below follow the treaty
+// (test/commands/exit_protocol_golden_test.dart is the golden table).
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -25,7 +29,7 @@ import 'package:test/test.dart';
 import '../helpers/run_zfa_source.dart';
 
 void main() {
-  group('#1059 — zfa entity cli bare invocation must exit 64, not 0', () {
+  group('#1059 — zfa entity cli bare invocation must exit 2 (usage), not 0', () {
     late Directory workspace;
 
     Future<ProcessResult> runZfa(List<String> args) {
@@ -57,15 +61,16 @@ dev_dependencies:
       }
     });
 
-    test('bare `zfa entity cli` exits 64 with usage on stderr', () async {
+    test('bare `zfa entity cli` exits 2 with usage on stderr', () async {
       final result = await runZfa(['entity', 'cli']);
 
       expect(
         result.exitCode,
-        equals(64),
+        equals(2),
         reason:
             'zfa entity cli with no EntityName is a usage error and must '
-            'exit 64 (EX_USAGE), not 0 (issue #1059: lying-success)',
+            'exit the CANONICAL 2 (SPEC 917; legacy 64 retired), not 0 '
+            '(issue #1059: lying-success)',
       );
       expect(
         result.stderr,
@@ -79,20 +84,18 @@ dev_dependencies:
       );
     });
 
-    test(
-      'bare `zfa entity` exits 64 (same lie, entity family sweep)',
-      () async {
-        final result = await runZfa(['entity']);
+    test('bare `zfa entity` exits 2 (same lie, entity family sweep)', () async {
+      final result = await runZfa(['entity']);
 
-        expect(
-          result.exitCode,
-          equals(64),
-          reason:
-              'bare zfa entity prints help and runs no subcommand — a usage '
-              'error that used to exit 0 (issue #1059 sweep)',
-        );
-      },
-    );
+      expect(
+        result.exitCode,
+        equals(2),
+        reason:
+            'bare zfa entity prints help and runs no subcommand — a usage '
+            'error that used to exit 0 (issue #1059 sweep; SPEC 917 '
+            'canonicalizes the code to 2)',
+      );
+    });
 
     test('unknown entity subcommand exits non-zero', () async {
       final result = await runZfa(['entity', 'definitely-not-a-subcommand']);

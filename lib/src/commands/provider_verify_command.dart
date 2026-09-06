@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 
 import '../plugins/provider/provider_verifier.dart';
 import '../utils/string_utils.dart';
+import '../cli/exit_protocol.dart';
 
 /// Spec 979, orders 2 + 4 — `zfa provider verify <Entity>`.
 ///
@@ -53,7 +54,7 @@ class ProviderVerifyCommand extends Command<void> {
         '❌ Usage: zfa provider verify <Entity> [--service <Interface>] '
         '[--json]',
       );
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 

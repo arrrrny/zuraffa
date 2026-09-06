@@ -93,7 +93,7 @@ void main() {
   }
 
   group('spec 0971 T005: fix lines + structured skip verdicts', () {
-    test('route create with no entity: error + fix line + exit 64', () async {
+    test('route create with no entity: error + fix line + exit 2', () async {
       // A Flutter-flavored project so the failure is the missing entity,
       // not the flavor guard.
       await File(p.join(projectRoot, 'pubspec.yaml')).writeAsString('''
@@ -109,8 +109,10 @@ dependencies:
       expect(out, contains('zfa route create'));
       expect(
         exitCode,
-        64,
-        reason: 'a usage error must stay a usage error (exit 64 family)',
+        2,
+        reason:
+            'a usage error must stay a usage error (SPEC 917: the canonical '
+            '2 — the legacy 64 is retired)',
       );
     });
 

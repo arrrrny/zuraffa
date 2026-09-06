@@ -62,7 +62,9 @@ void main() {
     final code = exitCode;
     exitCode = 0;
 
-    expect(code, equals(1));
+    // SPEC 917: contract drift exits the CANONICAL 3 (the pre-protocol
+    // gate exited 1 — the golden table is the treaty).
+    expect(code, equals(3));
     final text = lines.join('\n');
     expect(
       text,
@@ -93,8 +95,8 @@ void main() {
       final code = exitCode;
       exitCode = 0;
 
-      // The dead probe is found without scoping.
-      expect(code, equals(1));
+      // The dead probe is found without scoping. SPEC 917: drift exits 3.
+      expect(code, equals(3));
       expect(lines.join('\n'), contains('--fake-methods'));
     },
   );
