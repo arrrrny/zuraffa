@@ -1,5 +1,7 @@
 import 'base_plugin_command.dart';
 import '../plugins/service/service_plugin.dart';
+import 'service_create_command.dart';
+import 'service_verify_command.dart';
 
 class ServiceCommand extends PluginCommand {
   @override
@@ -9,10 +11,28 @@ class ServiceCommand extends PluginCommand {
     // SPEC 917 / #876 sweep: the parent-level generator flags
     // (--params/--returns/--type/--init) were parsed and advertised but
     // NEVER read — run() is dispatch-only (the live surface is
-    // `zfa service create ...` from the capability schema). Silent parent
-    // options are the #876 "flags that lie" family; they are gone and
-    // `zfa manifest --verify` certifies the parent surface (spec #979).
+    // `zfa service create ...`). Silent parent options are the #876
+    // "flags that lie" family; they are gone and `zfa manifest --verify`
+    // certifies the parent surface (spec #979).
+
+    // SPEC 1127 (issue #1127): `create` and `verify` are first-party
+    // subcommands — `create` upgrades `--json` to the canonical
+    // zuraffa.verdict.v1 envelope (issue #1105), adds `--explain`, and
+    // proves receipts + conformance; `verify` is the grammar gate.
+    // Declared here so the auto-registration in the super constructor
+    // skips them (manualSubcommandNames) and the registration cannot
+    // collide (issue #761).
+    addSubcommand(ServiceCreateCommand(plugin));
+    addSubcommand(ServiceVerifyCommand(plugin));
   }
+
+  /// `create` and `verify` are registered manually above — the
+  /// auto-registered generic [CapabilityCommand] for `create` cannot
+  /// carry the machine surface (its `--json` is the input-JSON option,
+  /// not the output-envelope flag), and the generic runner has no
+  /// `verify` verb at all.
+  @override
+  Set<String> get manualSubcommandNames => const {'create', 'verify'};
 
   @override
   String get name => 'service';

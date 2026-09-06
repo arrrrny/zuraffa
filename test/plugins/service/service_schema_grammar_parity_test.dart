@@ -157,9 +157,10 @@ void main() {
     // command grammar ⊆ configSchema — every CLI GENERATION KNOB must be
     // visible to JSON agents / make. Not knobs: --name (the #771/#904
     // manifest-driven spelling of the `service` name-slot's positional
-    // entity) and --json (the #970-class OUTPUT envelope flag, not a
-    // generation input).
-    const nonKnobs = {'name', 'json'};
+    // entity), --json (the #970-class OUTPUT envelope flag, not a
+    // generation input) and --explain (the SPEC 1127 explanation flag —
+    // pure output, generation-free).
+    const nonKnobs = {'name', 'json', 'explain'};
     final grammarOnly = commandFlags.difference({...schemaProps, ...nonKnobs});
     expect(
       grammarOnly,
