@@ -65,7 +65,10 @@ abstract class LoginDataSource {}
     );
     await writeFile(
       'lib/src/data/datasources/login/login_mock_datasource.dart',
-      'class LoginMockDataSource implements LoginDataSource {}',
+      'class LoginMockDataSource implements LoginDataSource {\n'
+          '  @override\n'
+          '  Future<Login?> get(String id) async => null;\n'
+          '}',
     );
     await writeFile('lib/src/data/mock/login_mock_data.dart', '''
 class LoginMockData {}
@@ -81,7 +84,17 @@ void registerLoginRepository(GetIt getIt) {
     () => DataLoginRepository(getIt<LoginRemoteDataSource>()),
   );
 }
+}
 ''');
+    // Issue #1109: `engine check` hard-requires the v2 engine receipt
+    // (specs/<feature>/tdd/engine.receipt.json) that the make-engine tail
+    // writes — a clean slice includes it.
+    await writeFile(
+      'specs/000-default/tdd/engine.receipt.json',
+      '{"schema":"engine.receipt.v2","entity":"Login","methods":['
+          '{"name":"get","mock_certified":true,"mock_class":"LoginMockDataSource"}'
+          '],"source_files":[]}',
+    );
   }
 
   test('exits 0 on a clean engine slice', () async {

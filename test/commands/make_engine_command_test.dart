@@ -88,9 +88,10 @@ dependencies:
       expect(entityFile.readAsStringSync(), contains('id'));
 
       // 3. The engine slice: per-method usecases, repository, datasource,
-      //    mock, DI. (The service/provider chain steps generate nothing for
-      //    a bare entity — they activate when a service is named; the
-      //    engine preset keeps them in the plan per the spec chain.)
+      //    mock, DI, test scaffold. (The service/provider chain steps
+      //    generate nothing for a bare entity — they activate when a
+      //    service is named; the engine preset keeps them in the plan per
+      //    the spec chain.)
       final slice = <String>[
         'lib/src/domain/usecases/login/get_login_usecase.dart',
         'lib/src/domain/usecases/login/get_login_list_usecase.dart',
@@ -112,6 +113,29 @@ dependencies:
           File(p.join(workspace.path, rel)).existsSync(),
           isTrue,
           reason: 'missing engine slice file: $rel',
+        );
+      }
+
+      // 3b. Test scaffold (issue #1109 FR-001: the chain ends with the
+      // test plugin; the engine lane forces the pure-Dart `package:test`
+      // framework import even in Flutter projects — zero flutter_test in
+      // the engine test tree).
+      final testScaffold = <String>[
+        'test/domain/usecases/login/get_login_usecase_test.dart',
+        'test/domain/usecases/login/create_login_usecase_test.dart',
+      ];
+      for (final rel in testScaffold) {
+        expect(
+          File(p.join(workspace.path, rel)).existsSync(),
+          isTrue,
+          reason: 'missing engine test scaffold file: $rel',
+        );
+      }
+      for (final rel in testScaffold) {
+        expect(
+          File(p.join(workspace.path, rel)).readAsStringSync(),
+          isNot(contains('package:flutter_test')),
+          reason: '$rel must import package:test (engine lane purity)',
         );
       }
 
@@ -170,6 +194,48 @@ dependencies:
         (receipt['engine_check'] as Map<String, dynamic>)['passed'],
         isTrue,
       );
+
+      // 5b. Receipt v2 (issue #1109): specs/<feature>/tdd/engine.receipt.json
+      // with the CERT-GATE shape — methods[].{name, mock_certified,
+      // mock_class} + sorted source_files. Fresh project, no pinned
+      // feature: the entity-derived fallback dir (specs/login/tdd/).
+      final v2ReceiptFile = File(
+        p.join(workspace.path, 'specs', 'login', 'tdd', 'engine.receipt.json'),
+      );
+      expect(
+        v2ReceiptFile.existsSync(),
+        isTrue,
+        reason: 'v2 receipt written under specs/<feature>/tdd/',
+      );
+      final v2Receipt =
+          jsonDecode(v2ReceiptFile.readAsStringSync()) as Map<String, dynamic>;
+      expect(v2Receipt['schema'], 'engine.receipt.v2');
+      expect(v2Receipt['entity'], 'Login');
+      final v2Methods = (v2Receipt['methods'] as List)
+          .cast<Map<String, dynamic>>();
+      expect(v2Methods.map((m) => m['name']).toSet(), {
+        'get',
+        'getList',
+        'create',
+        'update',
+        'delete',
+      });
+      for (final method in v2Methods) {
+        expect(
+          method['mock_certified'],
+          isTrue,
+          reason: 'v2: method ${method["name"]} must be certified',
+        );
+        expect(
+          method['mock_class'],
+          isNotNull,
+          reason: 'v2: method ${method["name"]} must carry its mock class',
+        );
+      }
+      final v2Sources = (v2Receipt['source_files'] as List).cast<String>();
+      expect(v2Sources, isNotEmpty);
+      expect(v2Sources, equals([...v2Sources]..sort()));
+      expect(v2Sources, contains('lib/src/domain/entities/login/login.dart'));
 
       // 6. The standalone verb exits 0 against the generated tree.
       final check = await runZfaSource([
