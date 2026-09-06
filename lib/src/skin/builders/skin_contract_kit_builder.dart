@@ -595,3 +595,53 @@ String debugTapAnchorJson(String zfaKey) =>
 // END GENERATED
 ''';
 }
+
+/// SkinAnchorTestBridgeBuilder — emits the widget-test bridge of the
+/// skin driver (issue #1112) into the target project's test tree at
+/// `test/skin/zfa_anchor_test_bridge.dart`.
+///
+/// `zfaAnchorTapped(tester, zfaKey)` performs the SAME anchor-by-key
+/// lookup the live driver seam performs, then `pumpAndSettle`s —
+/// safe in the test lane because the test-tree anchor cannot
+/// reschedule itself (subscribe-don't-poll, pilot lesson 5). The
+/// returned [TapResult] carries the same JSON envelope the CLI
+/// prints, so widget tests and host-driven runs assert on ONE
+/// contract. The bridge lives under test/ (never lib/) because it
+/// imports package:flutter_test.
+class SkinAnchorTestBridgeBuilder {
+  const SkinAnchorTestBridgeBuilder();
+
+  /// The bridge file name (relative to the test directory).
+  static const String bridgeFileName = 'zfa_anchor_test_bridge.dart';
+
+  /// The bridge directory (relative to the project root).
+  static const String bridgeDir = 'test/skin';
+
+  /// Emits the complete bridge source.
+  String build() => _bridgeTemplate;
+
+  static const String _bridgeTemplate = '''
+// GENERATED - DO NOT EDIT — the widget-test bridge of the skin
+// driver (issue #1112). `zfaAnchorTapped(tester, zfaKey)` drives the
+// SAME anchor-by-key protocol as `zfa skin drive` and the emitted
+// debugTapAnchor seam, then settles the tree — pumpAndSettle is safe
+// here because the test-tree anchor cannot reschedule itself
+// (subscribe-don't-poll, pilot lesson 5).
+
+import 'package:flutter_test/flutter_test.dart';
+
+import '../../lib/src/skin/skin_contract_auditor.dart';
+
+/// Taps the anchor [zfaKey] ('zfa:signin-guest' or 'signin-guest')
+/// in the widget test's live tree and returns the SAME TapResult the
+/// driver CLI prints — widget tests and host runs assert on ONE
+/// JSON contract ({"result":"found","tapped":true}, ...).
+Future<TapResult> zfaAnchorTapped(WidgetTester tester, String zfaKey) async {
+  final result = debugTapAnchorSync(zfaKey);
+  await tester.pumpAndSettle();
+  return result;
+}
+
+// END GENERATED
+''';
+}

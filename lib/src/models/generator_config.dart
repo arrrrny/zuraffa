@@ -88,6 +88,12 @@ class GeneratorConfig {
   /// present (skip-if-exists, the #1005 hand-written-seam precedent).
   final bool generateSkin;
 
+  /// Issue #1112: the view's ZfaButton anchor contract ids (the
+  /// `--skin-anchor` values, bare ids like `signin-guest`). One
+  /// `debugTap<PascalAnchor>()` seam function is emitted per anchor
+  /// — the per-view function-lookup half of the VM-service driver.
+  final List<String> skinAnchors;
+
   /// Spec 1110 (issue #1110): the mock failure preset. When true, the
   /// mock chain additionally emits a `<Entity>FailingMockProvider` whose
   /// every method throws the framework's sealed failure type (a
@@ -189,6 +195,7 @@ class GeneratorConfig {
     this.engineSlice = false,
     this.generateXRay = false,
     this.generateSkin = false,
+    this.skinAnchors = const [],
     this.failMock = false,
     this.seed,
     this.generateV6State = false,
@@ -274,6 +281,10 @@ class GeneratorConfig {
       generateDi: json['di'] == true || json['generate_di'] == true,
       generateXRay: json['xray'] == true || json['generate_xray'] == true,
       generateSkin: json['skin'] == true || json['generate_skin'] == true,
+      skinAnchors: (json['skin_anchor'] as List<dynamic>?)
+              ?.whereType<String>()
+              .toList(growable: false) ??
+          const [],
       generateV6State:
           json['v6_state'] == true ||
           json['v6State'] == true ||
@@ -375,6 +386,7 @@ class GeneratorConfig {
     bool? engineSlice,
     bool? generateXRay,
     bool? generateSkin,
+    List<String>? skinAnchors,
     bool? failMock,
     int? seed,
     bool? generateV6State,
@@ -453,6 +465,7 @@ class GeneratorConfig {
       generateDi: generateDi ?? this.generateDi,
       generateXRay: generateXRay ?? this.generateXRay,
       generateSkin: generateSkin ?? this.generateSkin,
+      skinAnchors: skinAnchors ?? this.skinAnchors,
       failMock: failMock ?? this.failMock,
       seed: seed ?? this.seed,
       generateV6State: generateV6State ?? this.generateV6State,

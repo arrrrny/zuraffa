@@ -349,8 +349,12 @@ class MakeCommand extends Command<void> {
       help:
           'Generate views with the runtime skin-contract auditor wrap '
           '(issues #1102/#1166); the auditor kit file is emitted when '
-          'missing',
+          'it is not already present',
     );
+    // Issue #1112: --skin-anchor is declared through the VIEW PLUGIN's
+    // schema (type: array → addMultiOption in _addPluginOptions) — the
+    // single source of truth; declaring it here too would crash every
+    // runner rebuild with a duplicate option.
     // Issue #1194 (part of #908 P0 "make-default→mock + mocked tier"):
     // the mocked tier is the DEFAULT — a fresh data-preset slice boots on
     // certified mocks (--dart-define=SIMULATION=true). This flag opts

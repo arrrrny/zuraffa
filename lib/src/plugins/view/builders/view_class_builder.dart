@@ -35,6 +35,12 @@ class ViewClassSpec {
   // present on disk — the view falls back to Container() with a TODO.
   final String? mockDataImportPath;
 
+  /// Issue #1112: the view's ZfaButton anchor contract ids (bare ids,
+  /// e.g. `signin-guest`). One `debugTap<PascalAnchor>()` seam function
+  /// is emitted per anchor — the per-view function-lookup half of the
+  /// VM-service driver. Empty (the default) emits no seam functions.
+  final List<String> skinAnchors;
+
   const ViewClassSpec({
     required this.viewName,
     required this.controllerName,
@@ -52,6 +58,7 @@ class ViewClassSpec {
     this.isStateful = false,
     this.withXRay = false,
     this.withSkinAudit = false,
+    this.skinAnchors = const [],
     this.stateClassName,
     this.mockDataImportPath,
   });
@@ -148,6 +155,16 @@ class ViewClassBuilder {
         languageVersion: DartFormatter.latestLanguageVersion,
       ).format(rowsRaw);
       formatted = '$formatted\n$rowsFormatted';
+
+      // #1112: the per-view tap seam — one debugTap<PascalAnchor>()
+      // per declared anchor, right after the contract rows.
+      final seamsRaw = _buildSkinTapSeamsSource(spec);
+      if (seamsRaw != null) {
+        final seamsFormatted = DartFormatter(
+          languageVersion: DartFormatter.latestLanguageVersion,
+        ).format(seamsRaw);
+        formatted = '$formatted\n$seamsFormatted';
+      }
     }
 
     return formatted;
@@ -179,6 +196,53 @@ final List<SkinContractRow> $rowsName = [
   ),
 ];
 ''';
+  }
+
+  /// #1112: the per-view tap seam — `Future<TapResult>
+  /// debugTapGuest() => debugTapAnchor('zfa:signin-guest');` per
+  /// anchor. The function-lookup half of the VM-service driver: a
+  /// sub-agent (or a person) calls `debugTapGuest()` instead of
+  /// remembering the key. Naming: the anchor's first segment is the
+  /// view/route prefix (`signin`), the remainder Pascal-cases
+  /// (`signin-guest` → `debugTapGuest`, `signin-log-out` →
+  /// `debugTapLogOut`); a single-segment id Pascal-cases whole.
+  String? _buildSkinTapSeamsSource(ViewClassSpec spec) {
+    if (spec.skinAnchors.isEmpty) return null;
+    final buffer = StringBuffer();
+    buffer
+      ..writeln('')
+      ..writeln('// The per-view VM-service driver seam (issue #1112): '
+          'one function per `zfa:` anchor — the function lookup is just '
+          '`debugTap<PascalAnchor>()`. Driven by `zfa skin drive` or the '
+          'widget-test bridge.');
+    final seen = <String>{};
+    for (final anchor in spec.skinAnchors) {
+      if (anchor.trim().isEmpty) continue;
+      final functionName = 'debugTap${_pascalAnchor(anchor)}';
+      if (!seen.add(functionName)) continue;
+      buffer
+        ..writeln('')
+        ..writeln("Future<TapResult> $functionName() => "
+            "debugTapAnchor('zfa:${anchor.trim()}');");
+    }
+    return buffer.toString();
+  }
+
+  /// `signin-guest` → `Guest`, `signin-log-out` → `LogOut`,
+  /// `checkout` → `Checkout`.
+  static String _pascalAnchor(String anchor) {
+    final id = anchor.trim();
+    final remainder = id.contains('-')
+        ? id.substring(id.indexOf('-') + 1)
+        : id;
+    return remainder
+        .split('-')
+        .where((part) => part.isNotEmpty)
+        .map(
+          (part) =>
+              '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+        )
+        .join();
   }
 
   String _buildCustomView(ViewClassSpec spec, {String? leadingComment}) {

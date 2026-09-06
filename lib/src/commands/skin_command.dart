@@ -28,6 +28,7 @@ import '../skew/skew_contract.dart';
 import '../utils/file_utils.dart';
 import '../core/project/project_root.dart';
 import 'skin_drive_command.dart';
+import 'skin_sim_command.dart';
 
 /// The honest verdict of a `zfa skin verify` reconciliation. Never
 /// collapse a missing input into a pass (the route-verify contract).
@@ -171,6 +172,9 @@ class SkinCommand extends Command<void> {
     // Issue #1112: the VM-service driver — the seam that replaces the
     // pilot's synthetic clicks (which never reached the Flutter view).
     addSubcommand(SkinDriveCommand());
+    // Issue #1112: the deterministic simulate lane — the same anchor
+    // protocol, no VM and no device (the zfa simulate integration).
+    addSubcommand(SkinSimCommand());
   }
 
   final FileSystem _fileSystem;
@@ -303,6 +307,28 @@ class SkinKitCommand extends Command<void> {
       fileSystem: _fileSystem,
     );
 
+    // Issue #1112: the widget-test bridge lands beside the kit —
+    // under test/ (it imports package:flutter_test), skip-if-exists
+    // like the kit, deterministic bytes.
+    final bridgePath = p.join(
+      projectRoot,
+      SkinAnchorTestBridgeBuilder.bridgeDir,
+      SkinAnchorTestBridgeBuilder.bridgeFileName,
+    );
+    if (!force && await _fileSystem.exists(bridgePath)) {
+      print('  skipped: $bridgePath already exists (use --force to overwrite)');
+    } else {
+      await FileUtils.writeFile(
+        bridgePath,
+        const SkinAnchorTestBridgeBuilder().build(),
+        'zfa_anchor_test_bridge',
+        force: force,
+        dryRun: dryRun,
+        verbose: verbose,
+        fileSystem: _fileSystem,
+      );
+    }
+
     print(
       'skin kit: wrote $kitPath '
       '(routes: ${routes.isEmpty ? 0 : routes.length} from $routeSource)',
@@ -310,6 +336,11 @@ class SkinKitCommand extends Command<void> {
     print(
       '   mount points: view getter wrap (--skin), app shell '
       '(--skin-audit), zfa skin verify',
+    );
+    print(
+      '   driver seam: zfa skin drive --dart-uri=<vm-uri> '
+      '--anchor=<zfa-key> (issue #1112); widget tests import the '
+      'emitted zfa_anchor_test_bridge.dart',
     );
   }
 }
