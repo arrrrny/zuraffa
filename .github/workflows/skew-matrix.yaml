@@ -29,6 +29,9 @@ on:
       - ".github/workflows/skew-matrix.yaml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   flutter_version: "3.47.x"
   java_version: "21.x"
