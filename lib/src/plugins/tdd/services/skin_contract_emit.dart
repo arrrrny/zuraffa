@@ -11,6 +11,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../../../skin/contract/adaptive_skin_contract_parser.dart';
 import '../../../skin/contract/skin_contract_parser.dart';
 import '../../../skin/contract/skin_contract_schema.dart';
 
@@ -33,6 +34,14 @@ Future<String?> emitSkinContractSchema({
   required Directory outDir,
 }) async {
   if (!specDeclaresSkinContract(specMarkdown)) return null;
+  // Issue #1004 coexistence: a `## Skin Contract:` section whose body
+  // is the adaptive yaml declaration is NOT the skin-contract.v1
+  // typed JSON form — the schema emitter is a no-op for it (the plan
+  // renders the adaptive contract rows into 04-SKIN.md instead). Only
+  // the json-fenced form (or a section with no parseable declaration)
+  // is ours; the declaration parser below still throws loudly for a
+  // colon-heading section that carries neither form.
+  if (parseAdaptiveSkinContract(specMarkdown) != null) return null;
   // A declared section must carry a parseable contract — the
   // declaration parser throws loudly (no fenced body / unclosed fence /
   // unnamed heading) rather than emitting a schema for an empty

@@ -323,6 +323,9 @@ class TestListReader {
         // deps-declaring (zuraffa-1.0) spec.
         // Issue #1000: the Lane split section of a meta-index carries
         // the pointer table — declarations, not behaviors.
+        // Issue #1004: the Skin Contract rows (platform matrix, state
+        // machine, routes) are the typed contract the loop referees
+        // the skin against — declarations, not behaviors.
         inDeclarativeSection =
             header.startsWith('key entities') ||
             header.startsWith('external dependencies') ||
@@ -330,7 +333,11 @@ class TestListReader {
             header.startsWith('lane split') ||
             header.startsWith('adaptive view slots') ||
             header.startsWith('boundary') ||
-            header.startsWith('shared seam behaviors');
+            header.startsWith('shared seam behaviors') ||
+            header.startsWith('platform contract') ||
+            header.startsWith('state machine contract') ||
+            header.startsWith('route contract') ||
+            header.startsWith('skin contract');
         continue;
       }
       if (inDeclarativeSection) continue;

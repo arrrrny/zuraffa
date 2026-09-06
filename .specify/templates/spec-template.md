@@ -142,6 +142,33 @@ Lanes:
     flutter_allowed: conditionally
 ```
 
+## Skin Contract *(include when the skin surface needs a declared contract)*
+
+<!--
+  ACTION REQUIRED (issue #1004, adaptive-layout platform matrix):
+  declare the skin's typed contract — the adaptive platform slots, the
+  per-platform overrides, the view state machine, and the routes the
+  skin can navigate to. `zfa tdd plan` renders these into `tdd/04-SKIN.md`
+  as typed rows (the platform matrix, the state machine, the route
+  table) plus a machine-parseable JSON contract the loop referees the
+  skin against — never prose. Requires a `## Lanes` section (the
+  contract rides the SKIN lane), and the `adaptive_slots` declared here
+  must match the SKIN lane's. Unknown keys, duplicates, and slot/override
+  drift refuse the plan naming the offending key.
+-->
+
+```yaml
+Skin Contract:
+  adaptive_slots: [mobile, ios, android, macos]
+  platform_overrides:
+    ios:
+      home_indicator_safe_area: required
+    macos:
+      title_bar_alignment: trailing
+  states: [initial, loading, data, error, empty]
+  routes: [login, deal_list, settings]
+```
+
 ## Success Criteria *(mandatory)*
 
 <!--

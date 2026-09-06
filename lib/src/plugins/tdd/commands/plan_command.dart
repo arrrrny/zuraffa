@@ -29,6 +29,8 @@ import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../services/skin_contract_emit.dart';
+import '../../../skin/contract/adaptive_skin_contract.dart';
+import '../../../skin/contract/adaptive_skin_contract_parser.dart';
 import '../../../core/project/project_root.dart';
 import '../../../utils/framework_export_surface.dart';
 
@@ -490,6 +492,19 @@ class PlanCommand extends Command<void> {
       return;
     }
 
+    // Issue #1004: the skin contract. A spec declaring the adaptive
+    // `## Skin Contract` section (yaml body) gets typed contract rows
+    // in 04-SKIN.md: the platform matrix, the state machine, the
+    // routes — plus the machine JSON contract. The parse is strict
+    // (an unknown key is contract drift, not future proofing) and a
+    // declaration without the lane split refuses: the contract rides
+    // the SKIN lane, and a legacy single-file plan has no skin file
+    // to referee against.
+    final adaptiveSkinContract = _resolveSkinContract(specMd, lanes, specPath);
+    if (identical(adaptiveSkinContract, _skinContractRefused)) {
+      return;
+    }
+
     // Issue #1007: contract rows carry their own declared lane in the
     // provenance artifact (they are spec-DECLARED through the Layer
     // Contracts section, like the ffi lane's native-loop declaration).
@@ -574,6 +589,7 @@ class PlanCommand extends Command<void> {
         rows: skinRows,
         adaptiveSlots: adaptiveSlots,
         provenance: skinProvenance,
+        skinContract: adaptiveSkinContract,
       );
       final contractMd = renderContractPlan(
         feature: feature,
@@ -882,6 +898,117 @@ class PlanCommand extends Command<void> {
     }
     buf.writeln();
     return buf.toString();
+  }
+
+  /// The refusal sentinel [_resolveSkinContract] returns when the
+  /// skin contract refused the plan (the command already printed the
+  /// fix lines and set the exit code — the caller just returns).
+  static const AdaptiveSkinContract _skinContractRefused = AdaptiveSkinContract(
+    adaptiveSlots: <String>[],
+    platformOverrides: <String, Map<String, String>>{},
+    states: <String>[],
+    routeNames: <String>[],
+  );
+
+  /// Issue #1004: resolves the spec's adaptive `## Skin Contract`
+  /// declaration. Returns the parsed contract (null when the spec
+  /// declares none — including the json-fenced skin-contract.v1 form,
+  /// issue #1164, which the schema emitter owns), or the
+  /// [_skinContractRefused] sentinel after printing a refusal (exit 2,
+  /// no artifacts — errors are an API, the fix line names the drift).
+  AdaptiveSkinContract? _resolveSkinContract(
+    String specMd,
+    List<LaneDeclaration> lanes,
+    String specPath,
+  ) {
+    final AdaptiveSkinContract? parsed;
+    try {
+      parsed = parseAdaptiveSkinContract(specMd);
+    } on AdaptiveSkinContractParseException catch (e) {
+      print('zfa tdd plan: skin contract refused — ${e.message}');
+      print('  (spec: $specPath). No test list was written.');
+      print(
+        '  --> fix: correct the `## Skin Contract` yaml section named '
+        'above, then re-run `zfa tdd plan`.',
+      );
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'skin-contract-refused'
+        ..fix =
+            'fix the `## Skin Contract` section named in the refusal, '
+            'then re-run zfa tdd plan'
+        ..details['reason'] = e.message;
+      exitCode = 2;
+      return _skinContractRefused;
+    }
+    if (parsed == null) return null;
+    final contract = parsed;
+
+    // The contract rides the SKIN lane: a declaration without the
+    // lane split has no skin plan to referee against.
+    if (lanes.isEmpty) {
+      print(
+        'zfa tdd plan: skin contract refused — the `## Skin Contract` '
+        'section declares a skin contract, but the spec declares no '
+        '`## Lanes` section (spec: $specPath). The contract rides the '
+        'SKIN lane: without the lane split there is no 04-SKIN.md to '
+        'referee. No test list was written.',
+      );
+      print(
+        '  --> fix: declare `## Lanes` (CORE/SKIN/BOTH) alongside the '
+        'Skin Contract, or drop the `## Skin Contract` section; re-run '
+        '`zfa tdd plan`.',
+      );
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'skin-contract-without-lanes'
+        ..fix =
+            'declare `## Lanes` alongside `## Skin Contract`, then '
+            're-run zfa tdd plan'
+        ..details['lanes'] = 0;
+      exitCode = 2;
+      return _skinContractRefused;
+    }
+
+    // The adaptive_slots cross-check (issue #1004): the contract's
+    // platform matrix and the SKIN lane's declared slots are the SAME
+    // declaration in two places — a disagreement is drift naming both
+    // sides, never a silent winner.
+    final laneSlots = lanes
+        .where((l) => l.lane.toUpperCase() == 'SKIN')
+        .expand((l) => l.adaptiveSlots)
+        .toSet();
+    if (laneSlots.isNotEmpty) {
+      final contractSlots = contract.adaptiveSlots.toSet();
+      final drift =
+          laneSlots.length != contractSlots.length ||
+          !laneSlots.containsAll(contractSlots);
+      if (drift) {
+        print(
+          'zfa tdd plan: skin contract refused — adaptive_slots drift: '
+          'the `## Skin Contract` declares '
+          '[${contract.adaptiveSlots.join(', ')}] but the SKIN lane '
+          'declares [${laneSlots.join(', ')}] (spec: $specPath). The '
+          'contract and the lane must declare the same platform '
+          'matrix. No test list was written.',
+        );
+        print(
+          '  --> fix: align `adaptive_slots` in `## Skin Contract` and '
+          'the SKIN lane\'s `adaptive_slots`; re-run `zfa tdd plan`.',
+        );
+        _verdict
+          ..outcome = VerdictOutcome.fail
+          ..exitClass = 'skin-contract-slot-drift'
+          ..fix =
+              'align adaptive_slots between `## Skin Contract` and the '
+              'SKIN lane, then re-run zfa tdd plan'
+          ..details['contract_slots'] = contract.adaptiveSlots.length
+          ..details['lane_slots'] = laneSlots.length;
+        exitCode = 2;
+        return _skinContractRefused;
+      }
+    }
+    return contract;
   }
 
   /// Feature 071 (issue #951): the per-behavior routing provenance —
