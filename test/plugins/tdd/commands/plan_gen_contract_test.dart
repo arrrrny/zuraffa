@@ -76,7 +76,15 @@ void main() {
     // via stdout.writeln, which the CliRunner zone does not capture — the
     // file is the contract, so assert on it.)
     expect(list, contains('| id | behavior | traces | state |'));
-    expect(list, isNot(contains('kind')));
+    // Issue #1140: the widget behavior table carries the finder-kind
+    // column — the acceptance and unit tables stay canonical 4-column,
+    // and the deprecated gen 6-column dialect still leaks nowhere.
+    expect(list, contains('| id | behavior | kind | traces | state |'));
+    expect(
+      RegExp(r'\| id \| behavior \| traces \| state \|').allMatches(list),
+      hasLength(2),
+      reason: 'exactly the acceptance + unit tables keep 4 columns',
+    );
     expect(list, contains('## Outer loop: acceptance behaviors'));
     expect(list, contains('## Inner loop: unit behaviors'));
   });

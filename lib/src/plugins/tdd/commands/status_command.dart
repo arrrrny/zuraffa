@@ -1,16 +1,31 @@
-/// `zfa tdd status <feature>` — read the two lane receipts and print a
-/// one-line verdict (spec 1008-two-cycle-driver, issue #1008).
+/// `zfa tdd status <feature>` — the one-line verdict (spec
+/// 1008-two-cycle-driver, issue #1008), now sourced from the unified
+/// journal via [JournalReader] (spec 1113-unified-tdd-journal, issue
+/// #1113).
 ///
-/// Reads `tdd/04-engine-receipt.json` and `tdd/04-skin-receipt.json` and
-/// prints exactly one line:
+/// Prints exactly two lines:
 ///
 ///     status: feature=<f> engine=<verdict> skin=<verdict>
+///     <f> | engine ✅ <done>/<total> | skin ✅ <done>/<total> (<n>
+///     platforms) | mocks <c>/<t> certified | <n> violations
 ///
-/// with each verdict green | red | error | absent (no receipt). Exit 0
-/// iff both lanes are green; any other combination exits 1 — a script
-/// can gate on the command without parsing the journal. A missing
-/// feature directory refuses with the run commands' misfire semantics
-/// (exit 2, the location named).
+/// The first is the merged spec-1008 machine line (verdict vocabulary
+/// green | red | error | absent — a script can gate on it without
+/// parsing anything else). The second is the journal's one-line verdict
+/// (issue #1113's shape): per-lane receipt counts, the platforms the
+/// skin receipt observed, the cert-gate's mock accounting, and the
+/// journal's violation count — everything derived from the ONE
+/// canonical stream, no journal file I/O in this command.
+///
+/// Exit 0 iff both lanes are green; any other combination exits 1 — a
+/// script can gate on the command without parsing the journal. A
+/// missing feature directory refuses with the run commands' misfire
+/// semantics (exit 2, the location named). A present-but-corrupt
+/// journal is an honest error (exit 2, the recovery path named) — never
+/// a silent green.
+///
+/// Spec 1110 (issue #1110): a cert-gate refusal receipt under the
+/// feature's tdd dir renders its exact fix line after the verdict.
 library;
 
 import 'dart:io';
@@ -18,11 +33,12 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
-import '../services/lane_receipts.dart';
+import '../../../core/project/project_root.dart';
+import '../../../engine/engine_gate_receipt.dart';
 import '../models/verdict_envelope.dart';
+import '../services/journal.dart';
 import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
-import '../../../core/project/project_root.dart';
 import 'run_command.dart';
 import 'run_driver_core.dart';
 
@@ -53,9 +69,10 @@ class StatusCommand extends Command<void> {
 
   @override
   String get description =>
-      'Read the engine and skin lane receipts and print a one-line verdict: '
-      'status: feature=<f> engine=<verdict> skin=<verdict> (exit 0 iff '
-      'both green; spec 1008, issue #1008).';
+      'Read the unified journal (via JournalReader) and print the one-line '
+      'verdicts: status: feature=<f> engine=<verdict> skin=<verdict> plus '
+      'the journal verdict line <f> | engine ✅ d/t | skin ✅ d/t | mocks '
+      'c/t | n violations (exit 0 iff both green; spec 1008 + spec 1113).';
 
   @override
   String get invocation => 'zfa tdd status <feature> [--project <dir>]';
@@ -97,17 +114,51 @@ class StatusCommand extends Command<void> {
       return;
     }
 
+    // Spec 1113: the ONE canonical stream — the journal entries, the
+    // refs-followed receipts, and the derived verdict all come from
+    // JournalReader; this command never opens a journal file itself.
     // A corrupt receipt is an honest `error` verdict, never a silent
     // green: the line names it and the exit code stays non-zero.
-    final line = await LaneReceipts(featureDir).statusLine(feature);
-    print(line);
-    final bothGreen = line.endsWith('engine=green skin=green');
+    final journal = await const JournalReader().read(
+      feature: feature,
+      projectRoot: projectRoot,
+    );
+    final verdict = journal.verdict;
+    print(
+      'status: feature=$feature engine=${verdict.engineVerdict} '
+      'skin=${verdict.skinVerdict}',
+    );
+    // The journal's one-line verdict (issue #1113): counts, platforms,
+    // mocks, violations — from the journal stream only.
+    print(verdict.oneLine);
+    for (final note in verdict.notes) {
+      print('note: $note');
+    }
+
+    // Spec 1110 (issue #1110): render the cert-gate refusal's exact fix.
+    // A blocked engine lane is not just "red" — the refusal receipt
+    // names the entity, the reason, and the recovery command; surfacing
+    // it here is the whole point of the block being a receipt.
+    final refusals = EngineGateReceipt.loadAllInFeature(featureDir);
+    var gateBlocked = false;
+    for (final doc in refusals.values) {
+      gateBlocked = true;
+      print(
+        'gate: entity=${doc['entity']} refused — '
+        '${doc['reason']}\n'
+        '  --> fix: ${doc['fix']} '
+        '(${p.relative(EngineGateReceipt.refusedPathInFeature(featureDir, doc['entity'] as String), from: projectRoot)})',
+      );
+    }
+
+    final bothGreen =
+        verdict.engineVerdict == 'green' && verdict.skinVerdict == 'green';
     // SPEC 917/#838: the machine verdict mirrors the text verdict — the
     // lane tokens ride in `details`, and a not-green status names the fix.
     _verdict
-      ..details['engine'] = _verdictToken(line, 'engine')
-      ..details['skin'] = _verdictToken(line, 'skin');
-    if (!bothGreen) {
+      ..details['engine'] = verdict.engineVerdict
+      ..details['skin'] = verdict.skinVerdict;
+    if (!bothGreen || gateBlocked) {
       _verdict
         ..outcome = VerdictOutcome.fail
         ..exitClass = 'fail'
@@ -115,12 +166,6 @@ class StatusCommand extends Command<void> {
             'drive the failing lane(s): `zfa tdd run-engine $feature` '
             'then `zfa tdd run-skin $feature`';
     }
-    exitCode = bothGreen ? 0 : _exitNotGreen;
-  }
-
-  /// Extracts `<key>=<token>` from the status line (e.g. `engine=absent`).
-  static String? _verdictToken(String line, String key) {
-    final match = RegExp('$key=([a-z]+)').firstMatch(line);
-    return match?.group(1);
+    exitCode = bothGreen && !gateBlocked ? 0 : _exitNotGreen;
   }
 }

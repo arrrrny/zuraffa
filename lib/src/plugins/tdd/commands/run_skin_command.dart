@@ -59,6 +59,7 @@ import '../models/red_classification.dart';
 import '../models/verdict_envelope.dart';
 import '../services/artifact_registry.dart';
 import '../services/cycle_log.dart';
+import '../services/journal.dart';
 import '../services/lane_receipts.dart';
 import '../services/red_classifier.dart';
 import '../services/runner.dart';
@@ -152,6 +153,7 @@ class RunSkinCommand extends Command<void> {
   @override
   Future<void> run() async {
     const label = 'run-skin';
+    final journalStartedAt = DateTime.now().toUtc().toIso8601String();
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       throw UsageException(
@@ -191,6 +193,36 @@ class RunSkinCommand extends Command<void> {
     final refusal = await LaneReceipts(featureDir).engineGateRefusal();
     if (refusal != null) {
       print('zfa tdd $label: $refusal');
+      // Spec 1113: the engine-gate refusal is journaled preflight_red —
+      // the skin cycle never started, and `zfa tdd status` reads the
+      // same record.
+      try {
+        final writer = JournalWriter(featureDir);
+        final refs = await writer.resolveRefs();
+        await writer.append(
+          JournalEntry(
+            feature: feature,
+            cycle: 'skin',
+            phase: 'gate',
+            startedAt: journalStartedAt,
+            finishedAt: DateTime.now().toUtc().toIso8601String(),
+            gateState: 'preflight_red',
+            receipts: const [],
+            violations: ['engine-gate: $refusal'],
+            engineReceipt: refs.engine,
+            skinReceipt: refs.skin,
+            contractSchema: refs.contract,
+            result: 'engine-required',
+          ),
+        );
+      } on FileSystemException {
+        // A record, never a gate — the refusal stands on its stdout;
+        // a failed journal write is only reported.
+        stderr.writeln(
+          'zfa tdd run-skin: failed to write the engine-gate journal '
+          'entry at ${p.join(featureDir, 'tdd', 'journal.json')}',
+        );
+      }
       _printSummary(feature, 'engine-required', null);
       exitCode = _exitEngineRequired;
       return;
@@ -220,6 +252,7 @@ class RunSkinCommand extends Command<void> {
         projectRoot: projectRoot,
         declaredSlots: declaredSlots,
         timeout: timeoutOverride,
+        journalStartedAt: journalStartedAt,
       );
       return;
     }
@@ -254,6 +287,7 @@ class RunSkinCommand extends Command<void> {
     required String projectRoot,
     required List<String> declaredSlots,
     required Duration? timeout,
+    required String journalStartedAt,
   }) async {
     final lanes = SpecParser().parseLanes(
       await File(p.join(featureDir, 'spec.md')).readAsString(),
@@ -279,6 +313,36 @@ class RunSkinCommand extends Command<void> {
         trace: SkinEventTrace.merge(const []),
         redWitness: true,
       );
+      // Spec 1113: the honest empty cycle is journaled green (cycle=skin,
+      // phase=drive, zero behaviors) — the same record a real cycle
+      // writes, so status/prove/theater never special-case emptiness.
+      try {
+        final writer = JournalWriter(featureDir);
+        final refs = await writer.resolveRefs(
+          skinOverride: JournalWriter.skinReceiptRef,
+        );
+        await writer.append(
+          JournalEntry(
+            feature: feature,
+            cycle: 'skin',
+            phase: 'drive',
+            startedAt: journalStartedAt,
+            finishedAt: DateTime.now().toUtc().toIso8601String(),
+            gateState: 'green',
+            receipts: [JournalWriter.skinReceiptRef],
+            engineReceipt: refs.engine,
+            skinReceipt: refs.skin,
+            contractSchema: refs.contract,
+            result: RunSkinOutcome.complete.label,
+            behaviors: const [],
+          ),
+        );
+      } on FileSystemException {
+        stderr.writeln(
+          'zfa tdd run-skin: failed to write the skin journal entry at '
+          '${p.join(featureDir, 'tdd', 'journal.json')}',
+        );
+      }
       _printConformanceSummary(
         feature: feature,
         result: RunSkinOutcome.complete,
@@ -354,6 +418,45 @@ class RunSkinCommand extends Command<void> {
       (sum, r) => sum + r.platformSlotFills.length,
     );
     final allConformed = conformed == receipts.length;
+
+    // Spec 1113: the conformance-mode skin cycle is journaled like the
+    // lane-mode one — cycle=skin, phase=drive, the skin.v1 receipt
+    // named in refs and receipts.
+    try {
+      final writer = JournalWriter(featureDir);
+      final refs = await writer.resolveRefs(
+        skinOverride: JournalWriter.skinReceiptRef,
+      );
+      await writer.append(
+        JournalEntry(
+          feature: feature,
+          cycle: 'skin',
+          phase: 'drive',
+          startedAt: journalStartedAt,
+          finishedAt: DateTime.now().toUtc().toIso8601String(),
+          gateState: allConformed ? 'green' : 'red',
+          receipts: [JournalWriter.skinReceiptRef],
+          violations: [
+            for (final receipt in receipts.where((r) => !r.conformance))
+              'skin ${receipt.behavior} did not conform',
+            if (!redWitnessAll) 'red witness failed for at least one behavior',
+          ],
+          engineReceipt: refs.engine,
+          skinReceipt: refs.skin,
+          contractSchema: refs.contract,
+          result: allConformed
+              ? RunSkinOutcome.complete.label
+              : RunSkinOutcome.stopped.label,
+          behaviors: [for (final r in receipts) r.behavior],
+        ),
+      );
+    } on FileSystemException {
+      stderr.writeln(
+        'zfa tdd run-skin: failed to write the skin journal entry at '
+        '${p.join(featureDir, 'tdd', 'journal.json')}',
+      );
+    }
+
     _printConformanceSummary(
       feature: feature,
       result: allConformed ? RunSkinOutcome.complete : RunSkinOutcome.stopped,

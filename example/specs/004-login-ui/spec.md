@@ -6,11 +6,34 @@ The login skin of the ZIKZAK rebuild fleet, re-split under the issue
 #1005 hand-written seam: the view is hand-written, the loop referees
 it against the declared contract.
 
+EPIC 1133 (TDD Loop Completeness): the acceptance corpus now carries the
+full finder-kind taxonomy (issue #964) — every scenario verb maps to a
+machine-certified assertion kind (`shows` → presence, `navigates` →
+route outcome, `is not shown` → absence, `is disabled` → enabled-state,
+`while … in flight` → sequence) — and the i18n-keyed widget contract
+(issue #965): every user-facing surface declares a slang key with the EN
+literal as the anchor, never a pinned EN literal.
+
 ## Acceptance Scenarios
 
 1. **Given** valid credentials **When** the user submits the login form **Then** the session starts with the authenticated user
+
 2. **Given** invalid credentials **When** the login attempt fails **Then** the error is reported to the caller
-3. **Given** a completed login **When** the session is active **Then** the app navigates to deal_list
+
+3. **Given** the login view **When** it renders **Then** the app shows 'Sign in'
+   **Type**: widget
+
+4. **Given** a completed sign-in **When** the user signs in **Then** the app navigates to the route 'deal_list'
+   **Type**: widget
+
+5. **Given** a fresh login view **When** no sign-in attempt has failed **Then** the 'Sign in failed' banner is not shown
+   **Type**: widget
+
+6. **Given** an empty form **When** validation runs **Then** the 'Sign in' button is disabled
+   **Type**: widget
+
+7. **Given** a submitted form **Then** while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'
+   **Type**: widget
 
 ## Functional Requirements
 
@@ -24,13 +47,16 @@ Lanes:
     behaviors: [A1, A2, U1]
     flutter_allowed: false
   - lane: SKIN
-    behaviors: [W1]
+    behaviors: [W1, A3, A4, A5, A6, A7]
     flutter_allowed: true
     adaptive_slots: [mobile, ios, android, macos]
-  - lane: BOTH
-    behaviors: [A3 (acceptance: navigates to deal_list)]
-    flutter_allowed: conditionally
 ```
+
+## Layer Contracts
+
+**Presentation**:
+
+- `LoginView`: `key: auth.signIn -> 'Sign in'`, `key: auth.error -> 'Sign in failed'`, `key: auth.working -> 'Signing in…'`
 
 ## Skin Contract
 
@@ -50,3 +76,17 @@ Skin Contract:
   states: [initial, loading, data, error, empty]
   routes: [login, deal_list, settings]
 ```
+
+## Layer Contracts
+
+The i18n-keyed presentation contract (issue #1141, extending #965): the
+login surfaces the production ZikZak view renders through slang keys
+(`t.auth.signIn`, …) are declared as `key:` tokens with the EN literal
+as the human-readable anchor and the non-i18n fallback — the contract a
+regenerated view (or the hand-written seam below it) is audited
+against. Every quoted user-facing string must trace to one of these
+rows; a declared anchor renders through the accessor, never the EN
+literal.
+
+**Presentation**:
+- `LoginForm`: `ShadInput` for email and password, `key: auth.signIn -> 'Sign in'`, `key: auth.email -> 'Email'`, `key: auth.password -> 'Password'`, `key: auth.sessionStarted -> 'Session started'`

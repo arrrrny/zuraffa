@@ -18,6 +18,8 @@ import 'package:path/path.dart' as p;
 
 import 'capabilities/cut_slice_capability.dart';
 import 'capabilities/compose_slice_capability.dart';
+import 'capabilities/slice_check_capability.dart';
+import 'capabilities/slice_worktree_capability.dart';
 import '../../core/context/progress_reporter.dart';
 import 'capabilities/merge_slice_capability.dart';
 import 'capabilities/export_slice_capability.dart';
@@ -80,7 +82,9 @@ usage: zfa slice SUBCOMMAND [options]
 
 subcommands:
   cut <name>      Extract a runnable slice (see cut options below)
-  compose <id>    Resolve a feature contract → SliceBoundary plan (spec 1098)
+  compose <id>    Resolve a feature contract → slice (engine/skin/contract/receipts)
+  worktree <id>   Open a git worktree rooted at the slice (agent = the feature)
+  check <id>      Validate the slice against its contract (compliance report)
   merge <name>    Merge agent changes from a slice back into the project
   list            List active slices
   inspect <name>  Show a slice's files, ownership, and modification status
@@ -122,15 +126,41 @@ example:
   zfa slice cut product_feature --entry product
   zfa slice cut checkout --entry cart --entry payment --depth full --verify''',
     'compose': '''
-usage: zfa slice compose <feature-id>
+usage: zfa slice compose <feature-id> [--force]
 
-Resolves the feature's declared contract (specs/<feature-id>/contract.yaml)
-into a compose plan (specs/<feature-id>/compose.plan.json) carrying the
-resolved SliceBoundary, routes, entities, xray layer and the @FeatureOwned
-decorator — the minimal base an agent receives for that feature (spec 1098).
+Resolves the feature's declared contract (specs/<feature-id>/contract.yaml,
+or the spec's ## Skin Contract JSON, or its ## Lanes CORE block) into
+specs/<feature-id>/compose.plan.json AND the feature slice
+.zfa/slices/<feature-id>/ — engine/ (the contract's entities), skin/ (the
+contract's routes), contract/ (the contract JSON), receipts/ (the feature's
+spec receipts) plus the specs/ mount the tdd cycles run against (spec 1114).
 
 example:
-  zfa slice compose login''',
+  zfa slice compose login
+  zfa slice compose login --force''',
+    'worktree': '''
+usage: zfa slice worktree <feature-id>
+
+Opens a git worktree ROOTED AT the slice (.zfa/slices/<feature-id>) on
+branch slice/<feature-id>: the agent's working tree is the feature —
+engine/skin/contract/receipts — not the whole repo. Records the parent
+linkage (.slice/parent.json) for the merge-back. Auto-composes the slice
+when missing (spec 1114).
+
+example:
+  zfa slice worktree login
+  cd .zfa/slices/login && zfa tdd run login''',
+    'check': '''
+usage: zfa slice check <feature-id>
+
+Validates the slice against its contract: every engine file is in the
+contract's entities, every view in skin/ is in the contract's routes,
+every layer is in xrayLayer, and no file outside the slice exists.
+Exit 0 with a compliance report (receipts/slice-check.json) when clean;
+exit 1 naming the offending files otherwise (spec 1114).
+
+example:
+  zfa slice check login''',
     'merge': '''
 usage: zfa slice merge <name> [--yes] [--verbose]
 
@@ -227,6 +257,10 @@ example:
           await _cut(rest);
         case 'compose':
           await _compose(rest);
+        case 'worktree':
+          await _worktree(rest);
+        case 'check':
+          await _check(rest);
         case 'merge':
           await _merge(rest);
         case 'list':
@@ -413,11 +447,66 @@ example:
     final result = await ComposeSliceCapability().execute(
       projectRoot: projectRoot,
       featureId: id,
+      force: rest.contains('--force'),
     );
 
     print(result.message);
     for (final file in result.files) {
       print('  Wrote: $file');
+    }
+    exitCode = result.success ? 0 : 1;
+  }
+
+  /// Spec 1114: open a git worktree rooted at the feature's slice —
+  /// the agent's working tree becomes the feature, not the whole repo.
+  /// INV-1: usage errors print text and set [exitCode]; never a stack
+  /// trace.
+  Future<void> _worktree(List<String> rest) async {
+    final id = rest.isEmpty || rest.first.startsWith('-')
+        ? null
+        : rest.first.trim();
+    if (id == null || id.isEmpty) {
+      _usageError(
+        'Missing feature id: zfa slice worktree <feature-id>\n'
+        'The feature must be declared at specs/<feature-id>/contract.yaml '
+        '(or its spec.md Skin Contract / Lanes section).',
+      );
+      return;
+    }
+
+    final result = await SliceWorktreeCapability().execute(
+      projectRoot: projectRoot,
+      featureId: id,
+    );
+
+    print(result.message);
+    exitCode = result.success ? 0 : 1;
+  }
+
+  /// Spec 1114: the slice compliance check — the contract is the truth,
+  /// the slice is the claim. INV-1: usage errors print text and set
+  /// [exitCode]; never a stack trace.
+  Future<void> _check(List<String> rest) async {
+    final id = rest.isEmpty || rest.first.startsWith('-')
+        ? null
+        : rest.first.trim();
+    if (id == null || id.isEmpty) {
+      _usageError(
+        'Missing feature id: zfa slice check <feature-id>\n'
+        'The slice must exist (run zfa slice compose <feature-id> first).',
+      );
+      return;
+    }
+
+    final result = await SliceCheckCapability().execute(
+      projectRoot: projectRoot,
+      featureId: id,
+    );
+
+    print(result.message);
+    for (final violation in result.violations) {
+      print('  violation [${violation.kind}]: ${violation.file}');
+      print('    ${violation.message}');
     }
     exitCode = result.success ? 0 : 1;
   }

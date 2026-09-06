@@ -32,9 +32,12 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/project/project_root.dart';
+import '../../../engine/engine_gate_receipt.dart';
+import '../../mock/certification/cert_registry.dart';
 import '../../mock/certification/mock_cert_receipt.dart';
 import '../models/verdict_envelope.dart';
 import '../services/entity_lookup.dart';
+import '../services/journal.dart';
 import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
 import '../services/verdict_emitter.dart';
@@ -42,9 +45,10 @@ import '../tdd_plugin.dart';
 import 'run_command.dart';
 import 'run_driver_core.dart';
 
-/// The certification gate's decision (spec 1001, issue #1001): "mocks the
-/// framework certifies, not the agent" — the engine refuses to proceed
-/// when a CORE entity's mock is present but uncertified.
+/// The certification gate's decision (spec 1001, issue #1001; hardened
+/// by spec 1110, issue #1110): "mocks the framework certifies, not the
+/// agent" — the engine refuses to proceed when a CORE entity's mock is
+/// present but uncertified, unsatisfied, or stale.
 class RunEngineGateResult {
   const RunEngineGateResult({
     required this.coreEntities,
@@ -52,6 +56,9 @@ class RunEngineGateResult {
     required this.certified,
     required this.uncertified,
     required this.blockedEntity,
+    this.blockedReason,
+    this.blockedFix,
+    this.refusedReceiptPath,
   });
 
   /// The feature's declared Key Entities (CORE entities).
@@ -68,6 +75,18 @@ class RunEngineGateResult {
 
   /// The first uncertified entity (the refusal names it), or null.
   final String? blockedEntity;
+
+  /// Spec 1110: the blocked entity's reason (missing / unsatisfied /
+  /// corrupt / stale), when a block fired.
+  final String? blockedReason;
+
+  /// Spec 1110: the exact cert command for the blocked entity.
+  final String? blockedFix;
+
+  /// Spec 1110: the feature-tdd-relative path of the written
+  /// `engine.gate.<Entity>.refused.json` refusal receipt, when the gate
+  /// blocked. Null when the gate is clean.
+  final String? refusedReceiptPath;
 
   bool get ok => uncertified.isEmpty;
 }
@@ -145,6 +164,7 @@ class RunEngineCommand extends Command<void> {
 
   Future<void> _run() async {
     const label = 'run-engine';
+    final journalStartedAt = DateTime.now().toUtc().toIso8601String();
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       throw UsageException(
@@ -161,9 +181,11 @@ class RunEngineCommand extends Command<void> {
         : ProjectRoot.find(anchorDir: 'specs');
     final zfaBin = argResults?['zfa-bin'] as String?;
 
-    // Spec 1001 pre-start preflight: an uncertified CORE mock stops the
-    // lane before any step is spawned — the engine cannot bypass the
-    // certification gate ("mocks the framework certifies, not the agent").
+    // Spec 1001 pre-start preflight — hardened by spec 1110 (issue
+    // #1110): an uncertified OR STALE CORE mock stops the lane before
+    // any step is spawned, and the block is a receipt, not an
+    // exception: engine.gate.<entity>.refused.json lands in the
+    // feature's tdd dir with the exact fix command.
     final gate = await checkFeature(
       projectRoot: projectRoot,
       featureDir: p.join(projectRoot, 'specs', feature),
@@ -175,10 +197,53 @@ class RunEngineCommand extends Command<void> {
         'that is NOT certified — the engine refuses to proceed '
         '(spec 1001: mocks the framework certifies, not the agent).',
       );
+      if (gate.blockedReason != null) {
+        stderr.writeln('   ${gate.blockedReason}');
+      }
       stderr.writeln(
-        '--> fix: zfa mock certify $entity '
+        '--> fix: ${gate.blockedFix ?? 'zfa mock certify $entity'} '
         '(or zfa mock create $entity --certify), then re-run.',
       );
+      if (gate.refusedReceiptPath != null) {
+        stderr.writeln('🧾 refusal receipt: ${gate.refusedReceiptPath}');
+      }
+      // Spec 1113: the cert-gate refusal is journaled preflight_red —
+      // the skin lane and `zfa tdd status` read the same record.
+      try {
+        final writer = JournalWriter(p.join(projectRoot, 'specs', feature));
+        final refs = await writer.resolveRefs();
+        await writer.append(
+          JournalEntry(
+            feature: feature,
+            cycle: 'engine',
+            phase: 'gate',
+            startedAt: journalStartedAt,
+            finishedAt: DateTime.now().toUtc().toIso8601String(),
+            gateState: 'preflight_red',
+            receipts: const [],
+            violations: [
+              'cert-gate: entity=$entity refused '
+                  '(${gate.blockedReason ?? 'uncertified CORE mock'})',
+            ],
+            engineReceipt: refs.engine,
+            skinReceipt: refs.skin,
+            contractSchema: refs.contract,
+            result: 'preflight-refused',
+            mocks: {
+              'total': gate.mocks.length,
+              'certified': gate.certified.length,
+            },
+          ),
+        );
+      } on FileSystemException {
+        // A record, never a gate — the refusal stands on its stderr +
+        // refusal receipt; a failed journal write is only reported.
+        stderr.writeln(
+          'zfa tdd run-engine: failed to write the preflight journal '
+          'entry at '
+          '${p.join(projectRoot, 'specs', feature, 'tdd', 'journal.json')}',
+        );
+      }
       _printGateSummary(feature: feature, result: gate);
       // SPEC 917/#838: the JSON verdict carries the same remediation.
       _verdict
@@ -238,6 +303,12 @@ class RunEngineCommand extends Command<void> {
       lane: 'engine',
       label: label,
       skipWidget: argResults?['skip-widget'] as bool? ?? false,
+      // Spec 1113: the gate's mock accounting rides the engine entry
+      // (the status verdict's `mocks c/t` segment).
+      mockCounts: {
+        'total': gate.mocks.length,
+        'certified': gate.certified.length,
+      },
     );
     _collectVerdict(outcome);
     if (outcome.message != null) print('zfa tdd $label: ${outcome.message}');
@@ -293,7 +364,8 @@ class RunEngineCommand extends Command<void> {
   }
 
   /// The gate itself — also invoked by `zfa tdd run` as its pre-start
-  /// preflight (spec 1001, issue #1001).
+  /// preflight (spec 1001, issue #1001; spec 1110 adds the freshness
+  /// check and the refusal receipt).
   static Future<RunEngineGateResult> checkFeature({
     required String projectRoot,
     required String featureDir,
@@ -303,6 +375,10 @@ class RunEngineCommand extends Command<void> {
     final mocks = <String>[];
     final certified = <String>[];
     final uncertified = <String>[];
+    String? blockedEntity;
+    String? blockedReason;
+    String? blockedFix;
+    String? refusedReceiptPath;
 
     for (final name in coreEntities) {
       final snake = toSnakeCase(name);
@@ -317,11 +393,55 @@ class RunEngineCommand extends Command<void> {
       );
       if (!File(mockPath).existsSync()) continue;
       mocks.add(name);
+      // Spec 1110: the gate walks the certification REGISTRY — one
+      // check for existence (receipt present, all methods satisfied)
+      // AND freshness (receipt written after the entity source's last
+      // change). A stale certification no longer describes the entity
+      // on disk; it blocks exactly like a missing one.
+      final entry = CertRegistry.checkEntity(
+        entity: name,
+        projectRoot: projectRoot,
+      );
       final receipt = loadMockCertReceipt(projectRoot, name);
-      if (receipt != null && receipt.allSatisfied) {
+      if (receipt != null && receipt.allSatisfied && !entry.blocked) {
         certified.add(name);
       } else {
         uncertified.add(name);
+        if (blockedEntity == null) {
+          blockedEntity = name;
+          final reason = entry.blocked
+              ? entry.reason
+              : 'mock-cert.$name.json is not an all-satisfied '
+                    'certification';
+          final fix = entry.fix.isNotEmpty
+              ? entry.fix
+              : CertRegistry.certifyFixCommand(name);
+          blockedReason = reason;
+          blockedFix = fix;
+          // The refusal receipt (spec 1110): a receipt, not an
+          // exception — written into the feature's tdd dir where
+          // `zfa tdd status` reads it.
+          refusedReceiptPath = await EngineGateReceipt.write(
+            projectRoot: projectRoot,
+            entity: name,
+            reason: reason,
+            fix: fix,
+            command: 'zfa tdd run-engine ${p.basename(featureDir)}',
+            featureDir: featureDir,
+          );
+        }
+      }
+    }
+
+    // The gate healed: every wired CORE entity certified — a prior
+    // refusal receipt must not outlive its block (spec 1110).
+    if (uncertified.isEmpty) {
+      for (final name in coreEntities) {
+        EngineGateReceipt.clear(
+          projectRoot: projectRoot,
+          entity: name,
+          featureDir: featureDir,
+        );
       }
     }
 
@@ -330,7 +450,10 @@ class RunEngineCommand extends Command<void> {
       mocks: mocks,
       certified: certified,
       uncertified: uncertified,
-      blockedEntity: uncertified.isNotEmpty ? uncertified.first : null,
+      blockedEntity: blockedEntity,
+      blockedReason: blockedReason,
+      blockedFix: blockedFix,
+      refusedReceiptPath: refusedReceiptPath,
     );
   }
 

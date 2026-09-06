@@ -73,6 +73,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../models/behavior.dart';
+import 'finder_taxonomy.dart';
 import 'lane_plans.dart';
 import 'lane_split.dart';
 import 'spec_parser.dart';
@@ -88,6 +89,7 @@ class BehaviorRow {
     required this.target,
     this.persistence = false,
     this.lane,
+    this.finderKinds,
   });
 
   final String id;
@@ -110,6 +112,16 @@ class BehaviorRow {
   /// [description] so generated assertion prose never leaks it.
   final bool persistence;
 
+  /// The finder-kind column the plan writes for WIDGET rows (issue
+  /// #1140): the scenario verbs' predicted assertion classes, parsed
+  /// from the 5-data-column shape `| id | behavior | kind | traces |
+  /// state |`. Null = the row carries NO kind column (every legacy
+  /// 4-column list) — gen then re-derives from the description as
+  /// before. Empty = the plan declared `none` (no derivable finder).
+  /// Non-empty = a declared contract gen reconciles against the
+  /// description and refuses on drift.
+  final List<ScenarioAssertionClass>? finderKinds;
+
   /// The subject function this behavior targets. Never empty: rows
   /// without an explicit target resolve to `subject_<snake-id>`
   /// (moved here from gen's private parser, bug #617).
@@ -118,7 +130,8 @@ class BehaviorRow {
   @override
   String toString() =>
       'BehaviorRow(id: $id, kind: ${kind.name}, state: ${state.name}, '
-      'persistence: $persistence, lane: $lane, traces: $traces)';
+      'persistence: $persistence, lane: $lane, traces: $traces, '
+      'finderKinds: $finderKinds)';
 }
 
 /// The `[persistence]` marker contract (bug #833).
@@ -567,6 +580,46 @@ class TestListReader {
           target: resolveDefaultTarget(id),
           persistence: persistence,
           lane: lane,
+        ),
+        dialect: _DeprecatedDialect.none,
+      );
+    }
+
+    // Finder-kind row (issue #1140): the plan's WIDGET table shape
+    // `| id | behavior | kind | traces | state |` — five data columns
+    // (six cells). The kind cell must parse as taxonomy labels
+    // (comma-joined, or `none`); anything else in a 6-cell row is a
+    // malformed line naming the offending cell — never a silent
+    // positional mis-read of a shape the reader does not speak.
+    if (cells.length == 6) {
+      final declaredKinds = FinderTaxonomy.tryParseKindCell(cells[3]);
+      if (declaredKinds == null) {
+        malformed(
+          'unparseable finder-kind cell "${cells[3]}" (issue #1140 '
+          'vocabulary: ${ScenarioAssertionClass.values.map((c) => c.label).join(', ')}, '
+          'or `none`)',
+        );
+      }
+      if (kind == null) {
+        malformed('table row outside an outer/inner loop behavior section');
+      }
+      final id = cells[1];
+      if (id.isEmpty) malformed('empty behavior id');
+      final state = _parseState(cells[5]);
+      if (state == null) malformed('unknown state "${cells[5]}"');
+      final (description, persistence) = PersistenceMarker.extract(cells[2]);
+      final (untagged, lane) = LaneMarker.extract(description);
+      return (
+        row: BehaviorRow(
+          id: id,
+          description: untagged,
+          traces: cells[4],
+          state: state,
+          kind: kind,
+          target: resolveDefaultTarget(id),
+          persistence: persistence,
+          lane: lane,
+          finderKinds: declaredKinds.toList(growable: false),
         ),
         dialect: _DeprecatedDialect.none,
       );

@@ -92,6 +92,28 @@ auto_commit:
 
 For simple namespace-only customization, `branch_prefix` is also accepted as a shorthand and expands to `<branch_prefix>/{number}-{slug}`.
 
+## Escape Hatch: Exact Branch Name (`GIT_BRANCH_NAME`)
+
+When a run must use a specific branch name — for example, re-attaching the
+workflow to an existing issue branch — set `GIT_BRANCH_NAME` and the script
+uses that exact value, bypassing all prefix/suffix generation:
+
+```bash
+GIT_BRANCH_NAME=077-make-engine-preset \
+  .specify/extensions/git/scripts/bash/create-new-feature-branch.sh --json "<description>"
+```
+
+When `GIT_BRANCH_NAME` is set, `--short-name`, `--number`, and `--timestamp`
+are ignored, and `FEATURE_NUM` is extracted from the name when its final path
+segment starts with a numeric or timestamp feature marker (e.g. `042-name`),
+otherwise it equals the full branch name. Treat this as an explicit,
+deliberate override only: automatic runs allocate the next sequential number
+from the same counter the spec-directory resolution uses (the highest
+`specs/NNN-*` directory + 1) and never parse numbers out of branch names or
+description text. The allocated feature number and final feature segment align
+with the eventual spec directory; with the default `{number}-{slug}` template,
+the complete branch name matches the directory name.
+
 ## Installation
 
 ```bash

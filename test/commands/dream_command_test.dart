@@ -314,7 +314,11 @@ A page that lists the user's favorite deals, sorted by expiration.
       isNot(contains('Could not find a command named "dream"')),
       reason: out,
     );
-    expect(exitCode, ExitProtocol.usage, reason: 'a missing description is a usage error');
+    expect(
+      exitCode,
+      ExitProtocol.usage,
+      reason: 'a missing description is a usage error',
+    );
     expect(out, contains('A feature description is required'));
 
     exitCode = 0;

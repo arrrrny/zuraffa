@@ -212,21 +212,24 @@ open-gaps: 0
       expect(out, contains('re-plan'));
     });
 
-    test('missing spec.md is not_assessed (exit 2 (legacy 64), honest refusal)', () async {
-      final feature = 'no-spec-fixture';
-      await Directory(
-        p.join(tmp.path, 'specs', feature, 'tdd'),
-      ).create(recursive: true);
-      final out = await drive([
-        'fuzz',
-        feature,
-        '--project',
-        tmp.path,
-        '--no-ledger',
-      ]);
-      expect(exitCode, ExitProtocol.usage);
-      expect(out, contains('not_assessed'));
-    });
+    test(
+      'missing spec.md is not_assessed (exit 2 (legacy 64), honest refusal)',
+      () async {
+        final feature = 'no-spec-fixture';
+        await Directory(
+          p.join(tmp.path, 'specs', feature, 'tdd'),
+        ).create(recursive: true);
+        final out = await drive([
+          'fuzz',
+          feature,
+          '--project',
+          tmp.path,
+          '--no-ledger',
+        ]);
+        expect(exitCode, ExitProtocol.usage);
+        expect(out, contains('not_assessed'));
+      },
+    );
   });
 
   group('corpus mode', () {
