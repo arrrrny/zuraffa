@@ -45,6 +45,7 @@ import 'package:path/path.dart' as p;
 import '../models/red_classification.dart';
 import '../services/artifact_registry.dart';
 import '../services/contract_blocked_receipt.dart';
+import '../services/cycle_evidence.dart';
 import '../services/cycle_log.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/red_classifier.dart';
@@ -88,6 +89,19 @@ class VerifyRedCommand extends Command<void> {
           'single-test spawn per behavior. Exit 0 only when every '
           'behavior certifies an honest assertion red; evidence is '
           'appended per certified behavior.',
+    );
+    argParser.addFlag(
+      're-certify',
+      negatable: false,
+      help:
+          'The issue #1162 re-certification transition: when the target '
+          'test PASSES (the subject was hand-implemented after the red '
+          'was certified — exactly what the gen\'d test header '
+          'instructs), append GREEN evidence binding the CURRENT subject '
+          'hash and the passing transcript. Requires certified red '
+          'evidence and a subject hash that differs from it — a '
+          'born-green behavior (no red evidence, or a green against the '
+          'certified red shape itself) is still refused, no evidence.',
     );
     argParser.addOption(
       'feature',
@@ -134,7 +148,7 @@ class VerifyRedCommand extends Command<void> {
   @override
   String get invocation =>
       'zfa tdd verify-red [<behavior-id>] [--feature <name>] '
-      '[--project <path>]';
+      '[--re-certify] [--project <path>]';
 
   @override
   Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
@@ -187,6 +201,13 @@ class VerifyRedCommand extends Command<void> {
           'zfa tdd verify-red --all takes no behavior id — it targets '
           'every behavior lacking red evidence (drop "$behaviorId" or '
           'drop --all).',
+        );
+      }
+      if (argResults?['re-certify'] as bool? ?? false) {
+        usageException(
+          'zfa tdd verify-red --all takes no --re-certify — the '
+          'transition re-binds ONE behavior\'s evidence after its subject '
+          'was hand-implemented (drop --re-certify or drop --all).',
         );
       }
       await _runBatch(
@@ -351,6 +372,104 @@ class VerifyRedCommand extends Command<void> {
         feature: target.featureName,
       );
       exitCode = 1;
+      return;
+    }
+
+    // ---------------------------------------------------------------
+    // 4c. Issue #1162 — the --re-certify transition: the sanctioned
+    //     path from certified red -> hand-implemented subject -> green
+    //     evidence. The generated test header instructs the developer to
+    //     replace the stub body; when the test then PASSES, plain
+    //     verify-red grades unexpected-green (no evidence) and make's
+    //     #1036 guard refuses the skip — the bug loop could never close.
+    //     The transition re-binds the evidence honestly: certified red
+    //     evidence must exist (the born-green precondition), the subject
+    //     hash must have CHANGED since it (a green against the certified
+    //     red shape itself is the born-green vacuity — refused), and the
+    //     passing transcript becomes the green evidence bound to the
+    //     CURRENT subject hash.
+    // ---------------------------------------------------------------
+    if (classification == RedClassification.unexpectedGreen &&
+        (argResults?['re-certify'] as bool? ?? false)) {
+      final lastRed = await CycleEvidence(
+        target.featureDir,
+      ).lastEntryFor(record.behaviorId, kind: 'red');
+      if (lastRed == null) {
+        print(
+          'zfa tdd verify-red: behavior "${record.behaviorId}" passes but '
+          'has no certified red evidence in cycle-log.md — re-certifying '
+          'it would certify the born-green class (issue #1036). Certify '
+          'the honest red first (`zfa tdd verify-red '
+          '${record.behaviorId}` against the failing subject).',
+        );
+        stderr.writeln('   no evidence written');
+        _printSummary(
+          behavior: record.behaviorId,
+          classification: RedClassification.unexpectedGreen.label,
+          certified: false,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+      final currentHash = await _subjectHashAt(cwd, record);
+      if (lastRed.subjectHash != null && lastRed.subjectHash == currentHash) {
+        print(
+          'zfa tdd verify-red: behavior "${record.behaviorId}" passes '
+          'against the SAME subject shape the certified red captured '
+          '(issue #1036) — the test passes on its certified red subject, '
+          'the born-green vacuity; there is nothing to re-certify.',
+        );
+        stderr.writeln('   no evidence written');
+        _printSummary(
+          behavior: record.behaviorId,
+          classification: RedClassification.unexpectedGreen.label,
+          certified: false,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+      final log = CycleLog(target.featureDir);
+      await log.append(
+        CycleLogEntry(
+          behaviorId: record.behaviorId,
+          kind: CycleEntryKind.green,
+          runnerCommand: run.command,
+          exitCode: run.exitCode,
+          capturedOutput: run.output,
+          redEvidence:
+              'issue #1162 re-certification — the subject was '
+              'hand-implemented after the certified red; this green '
+              'evidence binds the NEW subject shape with the passing '
+              'transcript',
+          subjectHash: currentHash,
+          sourceCriterion: record.sourceCriterion,
+          testPath: record.testPath,
+          timestamp: DateTime.now().toUtc().toIso8601String(),
+        ),
+      );
+      print(
+        '   re-certified: green evidence appended to '
+        'specs/${target.featureName}/tdd/cycle-log.md (issue #1162) — '
+        'the new subject hash is bound to the passing transcript',
+      );
+      // Issue #969 T003: the re-certified evidence becomes
+      // self-certifying.
+      await TddGenerationReceipts.writeBestEffort(
+        projectRoot: cwd,
+        command: 'tdd verify-red --re-certify',
+        target: record.behaviorId,
+        feature: target.featureName,
+        files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
+      );
+      _printSummary(
+        behavior: record.behaviorId,
+        classification: 're-certified',
+        certified: true,
+        feature: target.featureName,
+      );
+      exitCode = 0;
       return;
     }
 
