@@ -16,6 +16,7 @@ import 'capabilities/view_feature_capability.dart';
 import 'capabilities/presenter_feature_capability.dart';
 import 'capabilities/controller_feature_capability.dart';
 import 'capabilities/state_feature_capability.dart';
+import 'xray_feature_capability.dart';
 
 /// Manages high-level feature scaffolding.
 ///
@@ -50,6 +51,10 @@ class FeaturePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     PresenterFeatureCapability(this),
     ControllerFeatureCapability(this),
     StateFeatureCapability(this),
+    // Spec 1115 (issue #1115 item 6): the xray capability — its `feature`
+    // argument is a TYPED FeatureId validated against the registered
+    // contracts.
+    XrayFeatureCapability(this),
   ];
 
   @override

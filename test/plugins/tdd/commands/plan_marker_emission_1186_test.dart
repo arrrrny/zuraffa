@@ -334,8 +334,9 @@ Skin Contract:
             p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
           );
           final before = await specFile.readAsString();
-          await File(p.join(tmp.path, 'specs', '1186-prov', 'tdd'))
-              .writeAsString('blocks output directory creation');
+          await File(
+            p.join(tmp.path, 'specs', '1186-prov', 'tdd'),
+          ).writeAsString('blocks output directory creation');
 
           final out = await _plan(tmp);
           expect(exitCode, 1, reason: out);
