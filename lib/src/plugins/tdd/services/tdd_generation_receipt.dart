@@ -15,6 +15,8 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
 import '../../../core/project/receipt_store.dart';
+import '../../../skew/skew_contract.dart' show SkewContract, supportedCoreFloor;
+import '../../../version.dart';
 
 class TddGenerationReceipts {
   /// Persists one proof.v1 receipt covering [files] (absolute paths the
@@ -53,7 +55,11 @@ class TddGenerationReceipts {
         target: target,
         repro: 'zfa $command',
         at: DateTime.now().toUtc(),
-        generatorVersion: '6.1.0',
+        generatorVersion: version,
+        // Issue #1197: stamp the skew contract alongside the generator
+        // version — declared floor + the core the run resolved.
+        minCoreVersion: supportedCoreFloor,
+        generatedAgainstCore: SkewContract.resolveCore(projectRoot)?.version,
         input: {
           ...input,
           if (feature != null && feature.isNotEmpty) 'feature': feature,

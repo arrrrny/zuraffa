@@ -1,0 +1,13 @@
+== skew matrix: generator=2026-09-06T10:24:29Z tag=v6.1.0 work=/tmp/zfa1197_matrix.9sv5IR
+old core: /tmp/zfa1197_matrix.9sv5IR/old-core (v6.1.0, pubspec 6.0.1)
+compiling generator...
+-- leg [old]: core=/tmp/zfa1197_matrix.9sv5IR/old-core
+   receipt stamp ok: min_core_version=6.0.0 generated_against_core=6.0.1
+   dart analyze: CLEAN against old core
+-- leg [master]: core=/home/z/my-project/zuraffa
+   receipt stamp ok: min_core_version=6.0.0 generated_against_core=6.1.0
+   dart analyze: CLEAN against master core
+-- leg [skin-refusal]: refused on v6.1.0 (exit 1) with prescription, no files written
+-- leg [di-refusal]: refused on v6.1.0 (exit 1) with prescription
+-- leg [skin-master]: kit emitted on master (compile covered by flutter-smoke-gate)
+== skew matrix: GREEN — slice compiles on both ends; floor gates live

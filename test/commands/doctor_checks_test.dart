@@ -439,6 +439,7 @@ void main() {
           'baseline-cache',
           'config',
           'profile',
+          'runtime-skew', // issue #1197
           // Issue #1184: installed-binary staleness probe (skips silently
           // when the CLI is not a marker-carrying installed binary, as in
           // this in-process source run).
