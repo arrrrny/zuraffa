@@ -24,6 +24,7 @@ import 'package:path/path.dart' as p;
 
 import '../core/context/file_system.dart';
 import '../skin/builders/skin_contract_kit_builder.dart';
+import '../skew/skew_contract.dart';
 import '../utils/file_utils.dart';
 import '../core/project/project_root.dart';
 
@@ -268,6 +269,22 @@ class SkinKitCommand extends Command<void> {
 
     if (!force && await _fileSystem.exists(kitPath)) {
       print('  skipped: $kitPath already exists (use --force to overwrite)');
+      return;
+    }
+
+    // Issue #1197: the kit imports package:zuraffa/skin.dart — refuse
+    // to emit into a target whose resolved core predates the skin
+    // barrel (the two-end floor), instead of writing artifacts that
+    // cannot compile.
+    try {
+      SkewContract.requireSurfaces(
+        projectRoot: projectRoot,
+        command: 'zfa skin kit',
+        requiredUris: ['skin.dart'],
+      );
+    } on VersionSkewException catch (e) {
+      stderr.writeln(e.toString());
+      exitCode = 1;
       return;
     }
 

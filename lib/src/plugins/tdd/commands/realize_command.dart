@@ -32,6 +32,7 @@ import 'package:path/path.dart' as p;
 
 import '../../../core/project/project_root.dart';
 import '../../../core/project/receipt_store.dart';
+import '../../../version.dart';
 import '../services/artifact_registry.dart';
 import '../services/entity_lookup.dart' show toSnakeCase;
 import '../services/contract_gate.dart';
@@ -783,7 +784,7 @@ class RealizeCommand extends Command<void> {
             'zfa tdd realize ${rebind.entity} '
             '--adapter ${rebind.adapterClass}',
         at: DateTime.now().toUtc(),
-        generatorVersion: '6.1.0',
+        generatorVersion: version,
         input: {
           'entity': rebind.entity,
           'mockClass': rebind.mockClass,

@@ -1,0 +1,26 @@
+{
+  "schema": "proof.v1",
+  "command": "tdd gen",
+  "target": "A7",
+  "repro": "zfa tdd gen",
+  "at": "2026-09-06T11:08:51.052652Z",
+  "generator_version": "6.1.0",
+  "input": {
+    "feature": "004-login-ui"
+  },
+  "files": [
+    {
+      "path": "test/tdd/004-login-ui/a7_test.dart",
+      "action": "create",
+      "sha256": "bc116a5e892f35d20fa60e9175a35a073de52f461a83f453ff9dc002b9b0a7c6",
+      "bytes": 5992
+    },
+    {
+      "path": "lib/tdd/004-login-ui/a7_subject.dart",
+      "action": "create",
+      "sha256": "0c87aeda07a86c1144989acafd7b609a471800eec0b6f00f7a313e5fa05a8f59",
+      "bytes": 1275
+    }
+  ],
+  "receipt_version": 1
+}
