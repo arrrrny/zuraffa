@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../core/proof/proof_checker.dart';
+import '../cli/exit_protocol.dart';
 
 /// Proof-carrying generation (issue #807): every generated artifact ships
 /// a verifiable receipt, and `zfa proof check` re-derives the proof.
@@ -31,7 +32,7 @@ class ProofCommand extends Command<void> {
       '  check    Verify every receipt in .zfa/receipts/ against the '
       'current tree',
     );
-    exitCode = 64;
+    exitCode = ExitProtocol.usage;
   }
 }
 

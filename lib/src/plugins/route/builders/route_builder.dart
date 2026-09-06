@@ -787,11 +787,26 @@ class RouteBuilder {
     ];
 
     final entityImport = '../domain/entities/$entitySnake/$entitySnake.dart';
+    // Bug 1198: when any emitted route satisfies the view's repository
+    // constructor arg (getIt<ProductRepository>()), the routes file must
+    // import the repository interface — same #341 on-disk contract that
+    // drives the arg emission below.
+    final repositoryParam = '${entityCamel}Repository';
+    final repositoryImport =
+        '../domain/repositories/${entitySnake}_repository.dart';
+    bool viewAcceptsRepository(Set<String>? viewParams) =>
+        viewParams == null || viewParams.contains(repositoryParam);
+    final passesRepository =
+        !config.isCustomUseCase &&
+        !config.generateDi &&
+        (viewAcceptsRepository(mainViewParams) ||
+            (hasDetailView && viewAcceptsRepository(detailViewParams)));
     final imports = [
       'package:go_router/go_router.dart',
       'package:zuraffa/zuraffa.dart',
       '../presentation/pages/$domainSnake/${entitySnake}_view.dart',
       if (hasDetailView) detailViewImport,
+      if (passesRepository) repositoryImport,
       // #341: only import the entity when some emitted route actually
       // references it (the entity named-param). Otherwise the import is
       // dead code and analyze flags it as unused.
@@ -1092,11 +1107,28 @@ class RouteBuilder {
   }) {
     final viewArgs = <String, Expression>{};
     final effectiveViewName = viewName ?? '${entityName}View';
+    final repositoryParam =
+        '${StringUtils.pascalToCamel(entityName)}Repository';
 
-    if (viewParam.isNotEmpty && !config.generateDi) {
-      viewArgs[viewParam] = refer(
-        'getIt',
-      ).call([], {}, [refer('${entityName}Repository')]);
+    // Bug 1198 (downstream-compile gate): the repository param the route
+    // passes used to be driven by `_resolveDependencyInfo`, which always
+    // returned an empty viewParam — a dead branch — so the route never
+    // satisfied the generated view's `required productRepository`
+    // constructor arg (a compile error at the consumer, previously caught
+    // at app level only). Drive it off the view-on-disk contract instead
+    // (#341 doctrine): pass `GetIt.instance<ProductRepository>()` when the
+    // view accepts the param, or when no view file exists yet (the
+    // historical entity-view contract), unless DI-mode owns the wiring.
+    // Custom-usecase views (HomeView et al.) take no repository — same
+    // guard as the entity param below.
+    if (!config.isCustomUseCase &&
+        !config.generateDi &&
+        (viewParams == null || viewParams.contains(repositoryParam))) {
+      // get_it 9 removed the global `getIt`; `GetIt.instance` is the
+      // callable singleton the emitted route relies on.
+      viewArgs[repositoryParam] = refer(
+        'GetIt',
+      ).property('instance').call([], {}, [refer('${entityName}Repository')]);
     }
 
     if (withId) {

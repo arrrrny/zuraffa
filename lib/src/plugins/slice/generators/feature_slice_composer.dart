@@ -54,6 +54,8 @@ import '../../../domain/entities/feature_contract/feature_contract.dart';
 import '../../../domain/entities/feature_contract/feature_contract_decorators.dart';
 import '../../../domain/entities/feature_contract/xray_layer_decorators.dart';
 import '../models/feature_slice_manifest.dart';
+import '../receipts/slice_receipt.dart'
+    show sliceReceiptFileName, sliceReceiptSkeleton;
 import '_pascal_case.dart';
 
 /// The result of composing a slice.
@@ -280,6 +282,18 @@ class FeatureSliceComposer {
         written.add(mountRel);
       }
     }
+
+    // — receipt: the slice receipt SKELETON (spec 1116) — every
+    // section `pending`; `zfa slice verify` fills it with the
+    // aggregation and is the merge gate.
+    const receiptRel = sliceReceiptFileName;
+    _writeGenerated(
+      p.join(sliceRoot, receiptRel),
+      const JsonEncoder.withIndent(
+        '  ',
+      ).convert(sliceReceiptSkeleton(contract.id)),
+    );
+    written.add(receiptRel);
 
     // — manifest: the feature-centric record —
     final (parentBranch, parentHead) = _gitFacts(projectRoot);

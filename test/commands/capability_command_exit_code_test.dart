@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import 'package:zuraffa/src/commands/capability_command.dart';
 import 'package:zuraffa/src/core/plugin_system/capability.dart';
 import 'package:zuraffa/src/models/generated_file.dart';
+import 'package:zuraffa/src/cli/exit_protocol.dart';
 
 /// Issue #767 — systemic exit-code contract of the SHARED capability
 /// runner (every manifest-driven generator command routes through
@@ -15,7 +16,7 @@ import 'package:zuraffa/src/models/generated_file.dart';
 /// process exit code; an ❌-prefixed error printed while exiting 0 tells
 /// them a failed invocation succeeded. The contract:
 ///
-///   FR-1: missing required arguments → exit 64 (usage-error family;
+///   FR-1: missing required arguments → exit 2 (usage-error family;
 ///         already implemented — regression-guarded here).
 ///   FR-2: capability execute() reports success: false (capability-owned
 ///         validation, e.g. "Entity not found") → `❌ Failed:` printed
@@ -26,7 +27,7 @@ import 'package:zuraffa/src/models/generated_file.dart';
 /// Fast tier: pure in-memory mocks, no filesystem, no temp projects.
 void main() {
   test(
-    'FR-1 — missing required arguments exits 64 (usage-error family)',
+    'FR-1 — missing required arguments exits 2 (usage-error family)',
     () async {
       final command = CapabilityCommand(RequiredNameCapability());
       final runner = CommandRunner<void>('test', 'test')..addCommand(command);
@@ -45,7 +46,7 @@ void main() {
       exitCode = 0; // hermetic: never leak a failure code into the suite
       expect(
         code,
-        equals(64),
+        equals(ExitProtocol.usage),
         reason:
             'usage errors exit 64 — the missing-args contract predates '
             '#767 and must not regress while the failure paths are fixed',
@@ -135,7 +136,7 @@ class FailingCapability implements ZuraffaCapability {
 }
 
 /// Capability declaring a required `name` property — the missing-args
-/// path of the shared runner (usage-error family, exit 64).
+/// path of the shared runner (usage-error family, exit 2).
 class RequiredNameCapability implements ZuraffaCapability {
   @override
   String get name => 'req_cap';

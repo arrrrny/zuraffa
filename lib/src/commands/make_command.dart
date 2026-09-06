@@ -35,6 +35,7 @@ import '../plugins/usecase/usecase_expectation_post_pass.dart';
 import '../utils/entity_field_resolver.dart';
 import '../utils/string_utils.dart';
 import '../utils/framework_export_surface.dart';
+import '../cli/exit_protocol.dart';
 
 /// Command to run multiple plugins explicitly.
 /// Usage: `zfa make <Name> <plugin1> <plugin2> ... [flags]`
@@ -365,6 +366,19 @@ class MakeCommand extends Command<void> {
           'default (boots on certified mocks via '
           '--dart-define=SIMULATION=true).',
     );
+    // Issue #1149 (kill list): the gql plugin was deleted and `--with=gql`
+    // aliases to `graphql` for one deprecation cycle. The boolean flag
+    // used to be auto-registered from the (now gone) plugin id, so it is
+    // declared here explicitly to keep `--gql` / `--no-gql` scripts
+    // working during that cycle. PlanResolver maps it onto graphql.
+    argParser.addFlag(
+      'gql',
+      help:
+          'Deprecated alias for --graphql (issue #1149): the gql plugin '
+          'was folded into graphql. Use --graphql instead.',
+      defaultsTo: true,
+      negatable: true,
+    );
   }
 
   void _addPluginOptions() {
@@ -545,7 +559,7 @@ class MakeCommand extends Command<void> {
     if (argResults?['ui'] == true) {
       if (rest.isEmpty) {
         print('❌ Usage: zfa make <Name> --ui');
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
       await _scaffoldComposite(rest.first);
@@ -573,7 +587,7 @@ class MakeCommand extends Command<void> {
         'Example: zfa make engine Login '
         '--methods=get,getList,create,update,delete',
       );
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     if (engineMode) {
@@ -586,7 +600,7 @@ class MakeCommand extends Command<void> {
           '❌ --preset=$explicitPreset conflicts with the `engine` mode '
           'token (the engine preset is implied by the token itself).',
         );
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
     }
