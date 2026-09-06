@@ -18,9 +18,10 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../core/project/project_root.dart';
+import '../../../engine/engine_gate_receipt.dart';
 import '../services/lane_receipts.dart';
 import '../tdd_plugin.dart';
-import '../../../core/project/project_root.dart';
 import 'run_driver_core.dart';
 
 class StatusCommand extends Command<void> {
@@ -84,7 +85,24 @@ class StatusCommand extends Command<void> {
     // green: the line names it and the exit code stays non-zero.
     final line = await LaneReceipts(featureDir).statusLine(feature);
     print(line);
+
+    // Spec 1110 (issue #1110): render the cert-gate refusal's exact fix.
+    // A blocked engine lane is not just "red" — the refusal receipt
+    // names the entity, the reason, and the recovery command; surfacing
+    // it here is the whole point of the block being a receipt.
+    final refusals = EngineGateReceipt.loadAllInFeature(featureDir);
+    var gateBlocked = false;
+    for (final doc in refusals.values) {
+      gateBlocked = true;
+      print(
+        'gate: entity=${doc['entity']} refused — '
+        '${doc['reason']}\n'
+        '  --> fix: ${doc['fix']} '
+        '(${p.relative(EngineGateReceipt.refusedPathInFeature(featureDir, doc['entity'] as String), from: projectRoot)})',
+      );
+    }
+
     final bothGreen = line.endsWith('engine=green skin=green');
-    exitCode = bothGreen ? 0 : _exitNotGreen;
+    exitCode = bothGreen && !gateBlocked ? 0 : _exitNotGreen;
   }
 }

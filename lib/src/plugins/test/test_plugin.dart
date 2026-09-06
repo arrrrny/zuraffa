@@ -133,6 +133,11 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       generateRepository:
           context.data['repository'] == true ||
           context.data['generateRepository'] == true,
+      // Issue #1109: the engine preset's test scaffold stays pure Dart —
+      // `package:test`, never `flutter_test` — so the engine test tree
+      // passes the zero-Flutter-imports boundary even in Flutter host
+      // projects.
+      engineSlice: context.data['engine'] == true,
     );
 
     return generate(config, context: context);
