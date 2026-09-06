@@ -10,6 +10,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/cli/exit_protocol.dart';
 
 void main() {
   late CliRunner runner;
@@ -95,7 +96,7 @@ void main() {
     });
   });
 
-  group('usage errors (exit 64)', () {
+  group('usage errors (exit 2)', () {
     test('unknown operator name is refused with the fix line', () async {
       final out = await drive([
         'fuzz',
@@ -105,13 +106,13 @@ void main() {
         '--project',
         tmp.path,
       ]);
-      expect(exitCode, 64);
+      expect(exitCode, ExitProtocol.usage);
       expect(out, contains('nuke'));
     });
 
     test('a feature name that is a path segment is refused', () async {
       final out = await drive(['fuzz', '../../etc', '--project', tmp.path]);
-      expect(exitCode, 64);
+      expect(exitCode, ExitProtocol.usage);
       expect(out, contains('single directory name without path separators'));
     });
 
@@ -124,7 +125,7 @@ void main() {
         '--project',
         tmp.path,
       ]);
-      expect(exitCode, 64);
+      expect(exitCode, ExitProtocol.usage);
       expect(out, contains('--budget'));
     });
 
@@ -137,7 +138,7 @@ void main() {
         '--project',
         tmp.path,
       ]);
-      expect(exitCode, 64);
+      expect(exitCode, ExitProtocol.usage);
       expect(out, contains('--seed'));
     });
 
@@ -150,7 +151,7 @@ void main() {
         '--project',
         tmp.path,
       ]);
-      expect(exitCode, 64);
+      expect(exitCode, ExitProtocol.usage);
       expect(out, contains('--budget'));
     });
 
@@ -163,7 +164,7 @@ void main() {
         '--project',
         tmp.path,
       ]);
-      expect(exitCode, 64);
+      expect(exitCode, ExitProtocol.usage);
       expect(out, contains("--runner accepts 'dart' or 'flutter'"));
     });
 
@@ -177,7 +178,7 @@ void main() {
         '--project',
         tmp.path,
       ]);
-      expect(exitCode, 64);
+      expect(exitCode, ExitProtocol.usage);
       expect(out, contains('either'));
     });
   });
@@ -211,7 +212,7 @@ open-gaps: 0
       expect(out, contains('re-plan'));
     });
 
-    test('missing spec.md is not_assessed (exit 64, honest refusal)', () async {
+    test('missing spec.md is not_assessed (exit 2 (legacy 64), honest refusal)', () async {
       final feature = 'no-spec-fixture';
       await Directory(
         p.join(tmp.path, 'specs', feature, 'tdd'),
@@ -223,7 +224,7 @@ open-gaps: 0
         tmp.path,
         '--no-ledger',
       ]);
-      expect(exitCode, 64);
+      expect(exitCode, ExitProtocol.usage);
       expect(out, contains('not_assessed'));
     });
   });

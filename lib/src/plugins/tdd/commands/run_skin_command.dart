@@ -70,6 +70,7 @@ import '../../../skin/contract/skin_contract_parser.dart';
 import '../services/spec_parser.dart';
 import '../services/tdd_timeout.dart';
 import '../tdd_plugin.dart';
+import 'run_command.dart';
 import 'run_driver_core.dart';
 
 /// The conformance cycle's end-of-run outcome.
@@ -124,6 +125,7 @@ class RunSkinCommand extends Command<void> {
           'refusal still stops the run.',
       negatable: false,
     );
+    argParser.addFlag('stream', help: kStreamFlagHelp, negatable: false);
   }
 
   final TddPlugin plugin;
@@ -222,7 +224,13 @@ class RunSkinCommand extends Command<void> {
       return;
     }
 
-    final outcome = await RunDriverCore().drive(
+    final driver = RunDriverCore();
+    // SPEC 917 (--stream): one NDJSON step-verdict.v1 event per completed
+    // step while the lane drives.
+    if (argResults?['stream'] as bool? ?? false) {
+      driver.onStepEvent = (event) => print(event.toNdjsonLine());
+    }
+    final outcome = await driver.drive(
       feature: feature,
       projectRoot: projectRoot,
       zfaBin: zfaBin,

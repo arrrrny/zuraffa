@@ -34,6 +34,7 @@ import '../plugins/usecase/usecase_expectation_post_pass.dart';
 import '../utils/entity_field_resolver.dart';
 import '../utils/string_utils.dart';
 import '../utils/framework_export_surface.dart';
+import '../cli/exit_protocol.dart';
 
 /// Command to run multiple plugins explicitly.
 /// Usage: `zfa make <Name> <plugin1> <plugin2> ... [flags]`
@@ -485,7 +486,7 @@ class MakeCommand extends Command<void> {
     if (argResults?['ui'] == true) {
       if (rest.isEmpty) {
         print('❌ Usage: zfa make <Name> --ui');
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
       await _scaffoldComposite(rest.first);
@@ -513,7 +514,7 @@ class MakeCommand extends Command<void> {
         'Example: zfa make engine Login '
         '--methods=get,getList,create,update,delete',
       );
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     if (engineMode) {
@@ -526,7 +527,7 @@ class MakeCommand extends Command<void> {
           '❌ --preset=$explicitPreset conflicts with the `engine` mode '
           'token (the engine preset is implied by the token itself).',
         );
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
     }

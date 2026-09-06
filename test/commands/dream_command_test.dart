@@ -21,6 +21,7 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/agent/runtime/llm_client.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/plugins/tdd/services/dream_runner.dart';
+import 'package:zuraffa/src/cli/exit_protocol.dart';
 
 void main() {
   late Directory tmp;
@@ -305,7 +306,7 @@ A page that lists the user's favorite deals, sorted by expiration.
       'argument validation', () async {
     final runner = CliRunner(exitOnCompletion: false);
 
-    // RED on master: "Could not find a command named dream" (exit 64).
+    // RED on master: "Could not find a command named dream" (exit 2).
     final out = await runner.runCapturing(['dream']);
     expect(out, contains('dream'));
     expect(
@@ -313,7 +314,7 @@ A page that lists the user's favorite deals, sorted by expiration.
       isNot(contains('Could not find a command named "dream"')),
       reason: out,
     );
-    expect(exitCode, 64, reason: 'a missing description is a usage error');
+    expect(exitCode, ExitProtocol.usage, reason: 'a missing description is a usage error');
     expect(out, contains('A feature description is required'));
 
     exitCode = 0;
@@ -326,7 +327,7 @@ A page that lists the user's favorite deals, sorted by expiration.
       'not-a-number',
     ]);
     expect(out2, contains('--max-retries must be an integer'));
-    expect(exitCode, 64);
+    expect(exitCode, ExitProtocol.usage);
   });
 }
 

@@ -27,6 +27,7 @@ import '../../../core/benchmark/baseline_store.dart';
 import '../../../core/benchmark/isolate_benchmark_runner.dart';
 import '../benchmark_plugin.dart';
 import '../capabilities/register_benchmark_capability.dart';
+import '../../../cli/exit_protocol.dart';
 
 /// The `zfa benchmark` command (FR-011).
 class BenchmarkCommand extends Command<void> {
@@ -36,9 +37,10 @@ class BenchmarkCommand extends Command<void> {
   /// The benchmark plugin providing registry + runner.
   final BenchmarkPlugin plugin;
 
-  /// Exit code of the last invocation: 0 on success, 1 on benchmark
-  /// failure/regression, 64 on usage errors.
-  int exitCode = 0;
+  /// SPEC 917: the shadowing `int exitCode` instance field is gone — the
+  /// command publishes through the dart:io global `exitCode` (honored by
+  /// CliRunner._runDispatched), never through a field that silences it
+  /// (the #767 "instance field shadows the global" bug class).
 
   @override
   String get name => 'benchmark';
@@ -104,7 +106,8 @@ run options:
       default:
         print('Unknown benchmark subcommand: $subcommand');
         print(_usage);
-        exit(64);
+        exitCode = ExitProtocol.usage;
+        return;
     }
   }
 
@@ -125,7 +128,8 @@ run options:
         .toList();
     if (registerCaps.isEmpty) {
       print('❌ RegisterBenchmarkCapability not available');
-      exit(1);
+      exitCode = ExitProtocol.failure;
+      return;
     }
 
     final result = await registerCaps.first.execute({
@@ -133,7 +137,8 @@ run options:
     });
     if (!result.success) {
       print('❌ Failed to register benchmark scenarios: ${result.message}');
-      exit(1);
+      exitCode = ExitProtocol.failure;
+      return;
     }
 
     final scenarios = await plugin.registry.getAll();
@@ -158,7 +163,7 @@ run options:
         config = jsonDecode(configJson) as Map<String, dynamic>;
       } catch (error) {
         print('Invalid --config JSON: $error');
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
     }
@@ -194,7 +199,7 @@ run options:
 
     if (selected.isEmpty) {
       print('No benchmark scenarios registered.');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -279,7 +284,7 @@ run options:
   Future<void> _baseline(List<String> rest) async {
     if (rest.isEmpty) {
       print(_usage);
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final action = rest.first;
@@ -297,7 +302,7 @@ run options:
       default:
         print('Unknown baseline action: $action');
         print(_usage);
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
     }
   }
 
@@ -312,7 +317,7 @@ run options:
     final scenario = await plugin.registry.get(scenarioId);
     if (scenario == null) {
       print('Unknown scenario: $scenarioId');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -361,7 +366,7 @@ run options:
       print(
         'No baseline found for $scenarioId${label == null ? '' : ' (label: $label)'}',
       );
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -398,7 +403,7 @@ run options:
       print(
         'No baseline found for $scenarioId${label == null ? '' : ' (label: $label)'}',
       );
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -406,7 +411,7 @@ run options:
     final scenario = await plugin.registry.get(scenarioId);
     if (scenario == null) {
       print('Unknown scenario: $scenarioId');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -493,7 +498,7 @@ run options:
     final reportFile = File('${_storeDir(results)}/last-report.json');
     if (!await reportFile.exists()) {
       print('No benchmark report found. Run `zfa benchmark run` first.');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final suite = BenchmarkSuiteResult.fromJson(
@@ -549,7 +554,7 @@ run options:
     } on FormatException catch (error) {
       print(error.message);
       print(_usage);
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return null;
     }
   }
@@ -558,7 +563,7 @@ run options:
     if (results.rest.isEmpty) {
       print('Missing $name');
       print(_usage);
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return false;
     }
     return true;

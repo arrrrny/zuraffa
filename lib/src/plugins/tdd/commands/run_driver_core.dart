@@ -36,6 +36,7 @@
 /// (exit 2, handled by the command before the core is invoked).
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -120,12 +121,99 @@ class RunDriverOutcome {
   String get verdict => verdictForDriverResult(result);
 }
 
+/// SPEC 917 (`--stream`, issue #838): one COMPLETED loop step, streamed
+/// as NDJSON the moment it finishes — schema_versioned `step-verdict.v1`.
+/// The invocation's final `verdict.v1` envelope still closes the output.
+class StepStreamEvent {
+  const StepStreamEvent({
+    required this.command,
+    required this.feature,
+    required this.behavior,
+    required this.step,
+    required this.outcome,
+    required this.exitCode,
+    this.lane,
+  });
+
+  /// The driving command's label (`run`, `run-engine`, `run-skin`).
+  final String command;
+
+  final String feature;
+
+  final String behavior;
+
+  /// `gen` | `verify-red` | `make` | `refactor`.
+  final String step;
+
+  /// The step's outcome token (`green`, `red`, `deferred`, `skipped`, ...).
+  final String outcome;
+
+  /// The step process's exit code (0 for transitions without a spawn).
+  final int exitCode;
+
+  /// `engine` | `skin` | null (legacy full-list drive).
+  final String? lane;
+
+  Map<String, dynamic> toJson() => {
+    'schema_version': 'step-verdict.v1',
+    'command': command,
+    'feature': feature,
+    'behavior': behavior,
+    'step': step,
+    'outcome': outcome,
+    'exit_code': exitCode,
+    if (lane != null) 'lane': lane,
+    'timestamp': DateTime.now().toUtc().toIso8601String(),
+  };
+
+  /// One NDJSON line — flushable as-is.
+  String toNdjsonLine() => jsonEncode(toJson());
+}
+
 class RunDriverCore {
   static const _exitComplete = 0;
   static const _exitStopped = 1;
   static const _exitRunnerError = 2;
   static const _exitCorruptState = 3;
   static const _exitConcurrentRun = 4;
+
+  /// SPEC 917 (`--stream`, issue #838): the per-step stream hook. When
+  /// set, the driver fires one [StepStreamEvent] per COMPLETED step as
+  /// soon as it completes — the NDJSON `step-verdict.v1` events stream
+  /// while the run drives, and the final `verdict.v1` envelope still
+  /// closes the output. Null (the default): no events, legacy output.
+  void Function(StepStreamEvent event)? onStepEvent;
+
+  // The active invocation's stream context, set by [drive] (the hook is
+  // instance-level so the per-behavior helpers can fire it too; drive is
+  // non-reentrant on one instance, so no cross-call interference).
+  String? _streamCommand;
+  String? _streamFeature;
+  String? _streamLane;
+
+  /// Fires one step-verdict.v1 event for a completed step (a no-op when
+  /// the hook is unset — the legacy byte-identical output path).
+  void _emitStep(
+    String behavior,
+    String step,
+    String outcome, {
+    int exitCode = 0,
+  }) {
+    final cb = onStepEvent;
+    final feature = _streamFeature;
+    if (cb == null || feature == null) return;
+    cb(
+      StepStreamEvent(
+        command: _streamCommand ?? 'run',
+        feature: feature,
+        behavior: behavior,
+        step: step,
+        outcome: outcome,
+        exitCode: exitCode,
+        lane: _streamLane,
+      ),
+    );
+  }
 
   /// Drive [feature]'s lane through the two-phase loop.
   ///
@@ -151,6 +239,12 @@ class RunDriverCore {
   }) async {
     final featureDir = p.join(projectRoot, 'specs', feature);
     final receipts = LaneReceipts(featureDir);
+
+    // SPEC 917 (--stream): publish this invocation's stream context for
+    // the instance-level _emitStep (drive is non-reentrant per instance).
+    _streamCommand = label;
+    _streamFeature = feature;
+    _streamLane = lane;
 
     // -----------------------------------------------------------------
     // 1. Feature directory (misfire-stop when absent).
@@ -551,6 +645,7 @@ class RunDriverCore {
       if (!certifiedGreen.contains(row.id)) {
         skippedRefactors[row.id] = 'own test not green';
         print('[run] ${row.id} refactor -> skipped (own test not green)');
+        _emitStep(row.id, 'refactor', 'skipped');
         print(
           '   no green evidence entry for "${row.id}" in tdd/cycle-log.md '
           '— make must certify the behavior\'s own test green before '
@@ -819,6 +914,7 @@ class RunDriverCore {
     final landed = await _stepEvidenceLanded(evidence, step, journal);
     if (!landed) return state;
     print('[run] $behavior $step -> replayed (write-ahead journal, bug #828)');
+    _emitStep(behavior, step, 'replayed');
     return state.advance(behavior, target);
   }
 
@@ -1005,6 +1101,7 @@ class RunDriverCore {
         updated = updated.advance(row.id, state);
         await store.save(updated, activeBehaviorIds: activeIds);
         print('[run] ${row.id} refactor -> deferred (phase 2)');
+        _emitStep(row.id, 'refactor', 'deferred');
         return (state: updated, stop: null, refactorBlocked: false);
       }
       // mark -> save -> spawn -> advance -> save: an interruption loses
@@ -1066,6 +1163,7 @@ class RunDriverCore {
       }
 
       print('[run] ${row.id} $step -> ${result.outcome}$progressSuffix');
+      _emitStep(row.id, step, result.outcome, exitCode: result.exitCode);
 
       if (!result.success) {
         // Bug #986: `skipped` — make's issue #694 skip transition (the
@@ -1107,6 +1205,7 @@ class RunDriverCore {
           await tx.clear();
           state = next;
           print('[run] ${row.id} make -> green (skipped)$progressSuffix');
+          _emitStep(row.id, 'make', 'green', exitCode: result.exitCode);
           if (result.exitCode != 0) {
             print(
               '   exit code ${result.exitCode} disagrees with '
@@ -1123,6 +1222,7 @@ class RunDriverCore {
           await store.save(updated, activeBehaviorIds: activeIds);
           await tx.clear();
           print('[run] ${row.id} make -> deferred (phase 2)');
+          _emitStep(row.id, 'make', 'deferred');
           return (state: updated, stop: null, refactorBlocked: false);
         }
         if (step == 'verify-red' && result.outcome == 'unexpected-green') {
@@ -1130,6 +1230,7 @@ class RunDriverCore {
           await store.save(updated, activeBehaviorIds: activeIds);
           await tx.clear();
           print('[run] ${row.id} verify-red -> skipped (already green)');
+          _emitStep(row.id, 'verify-red', 'skipped');
           continue;
         }
         if (step == 'refactor' && result.outcome == 'not-green') {
@@ -1138,6 +1239,7 @@ class RunDriverCore {
           await tx.clear();
           if (deferralAllowed) {
             print('[run] ${row.id} refactor -> deferred (phase 2)');
+            _emitStep(row.id, 'refactor', 'deferred');
             print(
               '   preflight refused (suite not green) — the deferred '
               'refactor re-runs in the phase-2 refactor pass',
@@ -1145,6 +1247,7 @@ class RunDriverCore {
             return (state: updated, stop: null, refactorBlocked: false);
           }
           print('[run] ${row.id} refactor -> skipped (suite not green)');
+          _emitStep(row.id, 'refactor', 'skipped');
           _printOutputExcerpt(result.output);
           return (state: updated, stop: null, refactorBlocked: true);
         }

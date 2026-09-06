@@ -1,0 +1,58 @@
+# SPEC 917 — the conformance gate (issue #917, VISION §3+§4 made mechanical).
+#
+# The treaty is enforced in CI on every push and PR to master:
+#   1. `zfa manifest --verify` certifies manifest inputSchemas ↔ CLI flags ↔
+#      help text across every CLI-aware plugin (drift exits 3 — the canonical
+#      contract-drift code).
+#   2. The golden-table test asserts the exit-code protocol (0/1/2/3/4) and
+#      the machine-actionable `--> fix:` line contract against the LIVE CLI.
+#   3. `--json`/`--stream` machine-verdict coverage is asserted for every
+#      tdd/corpus verb (the four laggards included).
+#
+# The exit-code golden table is asserted by the test suite, not greps — the
+# gate runs the same tests CI already runs, plus the live gate itself.
+name: conformance
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  treaty:
+    name: manifest --verify + exit protocol golden table
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Analyze
+        run: dart analyze
+
+      - name: The treaty gate — manifest --verify (drift exits 3)
+        run: dart run bin/zfa.dart manifest --verify
+
+      - name: The treaty gate in JSON (manifest-verify.v1, ok:true, exit 0)
+        run: |
+          dart run bin/zfa.dart manifest --verify --format json > verify.json
+          cat verify.json
+          # One machine-verifiable document: schema + ok + exit_code 0.
+          grep -q '"schema":"manifest-verify.v1"' verify.json
+          grep -q '"ok":true' verify.json
+          grep -q '"exit_code":0' verify.json
+
+      - name: Exit-code protocol — the golden table (0/1/2/3/4)
+        run: dart test test/commands/exit_protocol_golden_test.dart
+
+      - name: Manifest gate tests (#904 seed fixtures, drift = 3)
+        run: dart test test/commands/manifest_verify_gate_test.dart
+
+      - name: Machine verdicts — --json everywhere + --stream NDJSON
+        run: dart test test/commands/tdd_json_stream_test.dart

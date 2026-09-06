@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import '../cli/exit_protocol.dart';
 
 import '../core/context/file_system.dart';
 import '../utils/project_flavor.dart';
@@ -66,7 +67,7 @@ class ModuleCommand extends Command<void> {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       printUsage();
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 

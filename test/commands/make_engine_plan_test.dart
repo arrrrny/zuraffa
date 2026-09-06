@@ -18,6 +18,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../helpers/run_zfa_source.dart';
+import 'package:zuraffa/src/cli/exit_protocol.dart';
 
 void main() {
   setUpAll(initZfaSourceBin);
@@ -153,7 +154,7 @@ class $name {
       '--preset=crud',
     ], workingDirectory: workspace.path);
 
-    expect(result.exitCode, 64, reason: 'conflicting preset is a usage error');
+    expect(result.exitCode, ExitProtocol.usage, reason: 'conflicting preset is a usage error');
     expect(result.stdout as String, contains('conflicts'));
   });
 }

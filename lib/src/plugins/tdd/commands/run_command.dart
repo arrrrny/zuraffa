@@ -48,15 +48,22 @@ import '../../../core/project/project_root.dart';
 import 'run_driver_core.dart';
 import 'run_engine_command.dart';
 
+/// The `--stream` flag's help text — shared by the three driving commands
+/// (run / run-engine / run-skin) so the flag surface stays in lockstep.
+const String kStreamFlagHelp =
+    'Stream one NDJSON `step-verdict.v1` event per completed loop step as '
+    'it happens (SPEC 917, issue #838); the final verdict.v1 envelope '
+    'still closes the output.';
+
+/// The `--json` flag's help text for the driving commands.
+const String kJsonFlagHelp =
+    'Emit a versioned verdict.v1 JSON envelope as the final stdout line '
+    '(VISION §5, issue #964/#838).';
+
 class RunCommand extends Command<void> {
   RunCommand(this.plugin) {
-    argParser.addFlag(
-      'json',
-      help:
-          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
-          'line (VISION §5, issue #964).',
-      negatable: false,
-    );
+    argParser.addFlag('json', help: kJsonFlagHelp, negatable: false);
+    argParser.addFlag('stream', help: kStreamFlagHelp, negatable: false);
     argParser.addOption(
       'project',
       aliases: const ['project-root'],
@@ -117,8 +124,16 @@ class RunCommand extends Command<void> {
   static const _exitRunnerError = 2;
 
   @override
-  Future<void> run() =>
-      runWithVerdictEnvelope(this, _verdict, _run, featureFromRest: true);
+  Future<void> run() => runWithVerdictEnvelope(
+    this,
+    _verdict,
+    _run,
+    featureFromRest: true,
+    // SPEC 917: --stream also closes with the envelope — the streamed
+    // step-verdict.v1 events are terminated by the final verdict.
+    envelopeEnabled: () =>
+        tddJsonMode(this) || (argResults?['stream'] as bool? ?? false),
+  );
 
   Future<void> _run() async {
     const label = 'run';
@@ -166,6 +181,11 @@ class RunCommand extends Command<void> {
 
     final skipWidget = argResults?['skip-widget'] as bool? ?? false;
     final core = RunDriverCore();
+    // SPEC 917 (--stream): when set, every completed step streams one
+    // NDJSON step-verdict.v1 event while the run drives.
+    if (argResults?['stream'] as bool? ?? false) {
+      core.onStepEvent = (event) => print(event.toNdjsonLine());
+    }
 
     // -----------------------------------------------------------------
     // Spec 1001 pre-start preflight: an uncertified CORE mock stops the

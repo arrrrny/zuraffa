@@ -10,6 +10,7 @@ import '../domain/entities/feature_contract/feature_contract.dart';
 import '../domain/entities/feature_contract/feature_contract_registry.dart';
 import '../plugins/xray/xray_deck_barrel_writer.dart';
 import '../version.dart';
+import '../cli/exit_protocol.dart';
 
 /// CLI subcommand for generating X-Ray Control Deck code.
 class XrayDeckCommand extends Command<void> {
@@ -151,7 +152,7 @@ class XrayDeckCommand extends Command<void> {
 
     if (sourcePath == null && yamlPath == null) {
       print('Error: provide --source and/or --yaml');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -170,7 +171,7 @@ class XrayDeckCommand extends Command<void> {
           '${known.isEmpty ? "(none)" : known.join(", ")}. '
           'Declare it at specs/<feature-id>/contract.yaml (spec 1098).',
         );
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
     }
