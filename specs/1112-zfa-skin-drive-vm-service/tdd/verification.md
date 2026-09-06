@@ -319,3 +319,78 @@ flutter test --start-paused test/skin/drive_target_test.dart &  # (restore from 
 dart run zuraffa:zfa skin drive --dart-uri=<vm-uri> --anchor=zfa:signin-guest
 # → {"result":"found","tapped":true}
 ```
+
+## 11. Addendum — follow-up commit: `zfa simulate skin` (the literal verb) + independent re-verification
+
+A follow-up session independently re-verified this branch's lanes in a
+fresh sandbox (Dart 3.13.3 stable, no Flutter SDK) and closed the one
+remaining literal-reading gap of spec item 4 ("zfa simulate
+integration. Skin behaviors driven through debugTapAnchor"): the
+`zfa simulate` surface now carries the dedicated skin-behavior verb.
+
+**Added (follow-up commit):**
+
+- `zfa simulate skin --dart-uri=<uri> --behaviors zfa:signin-guest,…`
+  (`SimulateSkinCommand`, parser-only registration per the bug #856
+  lesson): drives every behavior through the SAME [SkinDriveFn] seam
+  (`VmTapDriver.drive` in production — one verdict vocabulary, one
+  JSON shape), prints one JSON verdict line per behavior plus a
+  summary line, and exits with the most severe verdict on the
+  [SkinDriveExitCode] ladder (found 0 < disabled 1 < notFound 2 <
+  error 3).
+- `test/commands/simulate_skin_command_test.dart` — 5 tests (order +
+  JSON lines, severity ladder, error verdict, usage verdict, legacy
+  flag-mode regression guard).
+
+**Independent re-verification (REAL runs, fresh sandbox, this branch
++ follow-up commit):**
+
+```text
+$ dart test test/skin/
+114 passed, 0 failed   (incl. the 5 REAL vm_service E2E tests)
+
+$ dart test test/commands/skin_command_test.dart \
+            test/commands/skin_drive_command_test.dart \
+            test/commands/make_skin_flag_test.dart
+56 passed, 0 failed
+
+$ dart test test/commands/ test/skin/
+410 passed, 0 failed   (whole CLI surface, exit-protocol golden included;
+                        the only excluded lane is test/plugins/view/
+                        view_compile_test.dart — environment-blocked
+                        here: no Flutter SDK, same pre-existing failure)
+
+$ dart analyze lib/src/commands/simulate_command.dart \
+               test/commands/simulate_skin_command_test.dart
+No issues found!
+```
+
+**LIVE CLI proof (real VM service, the integrated surface):**
+
+```text
+subject: dart --enable-vm-service=28195 test/fixtures/vm_tap_driver/seam_app.dart
+
+$ zfa skin drive --dart-uri=http://127.0.0.1:28195/ --anchor=zfa:signin-guest
+zfa skin drive: anchor=zfa:signin-guest verdict=found (exit 0)
+{"result":"found","tapped":true}
+exit=0
+
+$ zfa skin drive --dart-uri=… --anchor=zfa:signin-ghost
+zfa skin drive: anchor=zfa:signin-ghost verdict=notFound (exit 2)
+{"result":"notFound","tapped":false}
+
+$ zfa simulate skin --dart-uri=http://127.0.0.1:28195/ \
+    --behaviors zfa:signin-guest,zfa:signin-logOut
+{"behavior":"zfa:signin-guest","result":"found","tapped":true}
+{"behavior":"zfa:signin-logOut","result":"notFound","tapped":false}
+simulate skin: behaviors=2 found=1 disabled=0 notFound=1 error=0
+exit=2
+
+subject stdout: TAPPED:signin-guest (×2 — the REAL onPressed ran in the
+live VM once per verb: drive + simulate skin)
+```
+
+Provenance note: §1–§10 are the original branch session's evidence
+(Dart 3.13.2 / Flutter 3.47.2). This §11 addendum is a second, independent
+session's verification of the same branch plus the `zfa simulate skin`
+follow-up — every count and transcript above it is from an actual run.
