@@ -1,0 +1,107 @@
+RED-phase evidence — spec 1004-skin-contract-adaptive-slots
+Captured 2026-09-06, pristine clone master @ f9f9bc5a
+("Merge pull request #1175"), Dart SDK 3.13.3 (stable) linux-x64,
+BEFORE any implementation of this spec landed.
+
+================================================================
+1. The reproduce: plan ignores the Skin Contract section
+================================================================
+
+Fixture: temp project <tmp>/specs/004-login-ui/spec.md carrying
+`## Lanes` (CORE [A1, A2, U1], SKIN [W1] with adaptive_slots, BOTH
+[A3]) and the `## Skin Contract` yaml block exactly as the issue's
+deliverable shapes it (adaptive_slots, platform_overrides ios/macos,
+states, routes).
+
+$ dart run bin/zfa.dart tdd plan --project <tmp> 004-login-ui
+   route: A1 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
+   route: A2 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
+   route: A3 -> widget lane [fallback: legacy description classifier matched — add `**Type**: widget` to the scenario]
+   route: U1 -> unit lane [fallback: legacy description classifier matched — trace FR to a declared contract row]
+zfa tdd plan: wrote /tmp/1004-red/specs/004-login-ui/tdd/04-ENGINE.md (3 CORE behaviors), /tmp/1004-red/specs/004-login-ui/tdd/04-SKIN.md (1 SKIN behaviors), /tmp/1004-red/specs/004-login-ui/tdd/04-CONTRACT.md; test-list.md is the lane meta-index (5 behaviors, 1 BOTH).
+EXIT: 0
+
+Emitted 04-SKIN.md (full):
+
+# Skin Plan: 004-login-ui (SKIN + BOTH)
+
+The skin lane (issue #1000): Flutter allowed — behaviors whose lane
+is SKIN or BOTH, plus the AdaptiveViewSlots the spec declares (the
+adaptive-layout contract slots the skin must provide).
+
+## Adaptive view slots
+
+| slot |
+| ---- |
+| mobile |
+| ios |
+| android |
+| macos |
+
+## Outer loop: widget behaviors
+
+Skin behaviors (bug #830 / issue #1000): asserted through a testWidgets pair — includes the hand-declared lane rows (the `W` ids the `## Lanes` section reserves).
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| A3 | the app navigates to deal_list | AC-3 | PENDING |
+| W1 | skin behavior declared in `## Lanes` | LANE:SKIN | PENDING |
+
+## Routing provenance
+
+Per-behavior routing decisions (issue #951): what each decision consulted — a declared marker/contract row, or the labeled legacy fallback to migrate.
+
+route: A3 -> widget lane [fallback: legacy description classifier matched — add `**Type**: widget` to the scenario]
+
+
+$ grep -c "Platform contract\|State machine contract\|Route contract\|Skin contract (machine)" <tmp>/specs/004-login-ui/tdd/04-SKIN.md
+0
+
+→ The `## Skin Contract` section is completely ignored: no platform
+  rows, no state-machine rows, no route rows, no machine JSON.
+
+================================================================
+2. The RED tests (written first, run against master)
+================================================================
+
+$ dart test test/plugins/tdd/commands/plan_skin_contract_1004_test.dart
+00:00 +1 -10: Some tests failed.
+
+Failing tests:
+  issue #1004 — plan renders the skin contract rows 04-SKIN.md carries the platform, state-machine, and route contract sections
+    Expected: true / Actual: <false> — "the platform-contract section is present"
+  issue #1004 — plan renders the skin contract rows platform rows: every adaptive slot with its overrides, tied to the skin behaviors
+    Expected: true / Actual: <false> — "the ios override renders: | ios |" (the row exists in the Adaptive view slots table only, without the override statement)
+  issue #1004 — plan renders the skin contract rows state-machine rows: initial -> loading -> data with error/empty alternates
+    Bad state: No element (no `| initial |` row anywhere)
+  issue #1004 — plan renders the skin contract rows route rows: navigation target, screen class, route path
+    Expected: true / Actual: <false> (no `| login | LoginScreen | /login |`)
+  issue #1004 — plan renders the skin contract rows the machine contract is JSON-parseable and schema-validated
+    Expected: not null / Actual: <null> — "the fenced JSON block exists"
+  issue #1004 — plan refuses a broken skin contract a Skin Contract with no ## Lanes section refuses (the contract rides the SKIN lane)
+    Expected: 2 / Actual: <0> — plan succeeds where it must refuse
+  issue #1004 — plan refuses a broken skin contract an unknown contract key refuses naming the key
+    Expected: 2 / Actual: <0>
+  issue #1004 — plan refuses a broken skin contract adaptive_slots disagreeing with the SKIN lane refuses naming the drift
+    Expected: 2 / Actual: <0>
+  issue #1004 — the real 004-login-ui spec and the template the spec for 004-login-ui contains the explicit Skin Contract section and plans green
+    Expected: true / Actual: <false> — "the spec declares `home_indicator_safe_area: required`" (the committed spec carried a prose table)
+  issue #1004 — the real 004-login-ui spec and the template the spec template documents the Skin Contract grammar
+    Expected: true / Actual: <false> — "the template documents `## Skin Contract`"
+
+(+1 passing: the TestListReader regression guard — the reader already
+resolves the W rows; it is the baseline the new sections must not
+break.)
+
+$ dart test test/plugins/skin_contract/adaptive_skin_contract_test.dart
+Failed to load "test/plugins/skin_contract/adaptive_skin_contract_test.dart":
+  lib/src/skin/contract/adaptive_skin_contract.dart: No such file or directory
+  lib/src/skin/contract/adaptive_skin_contract_parser.dart: No such file or directory
+  lib/src/skin/contract/adaptive_skin_contract_schema.dart: No such file or directory
+  Error: Method not found: 'parseAdaptiveSkinContract'.
+  Error: Undefined name 'AdaptiveSkinContract'.
+
+→ RED: +1 -10 at the CLI behavior level, compile red at the module
+  level. The failure modes are exactly the ones the issue predicts:
+  the spec has no Skin Contract grammar, and plan produces SKIN.md
+  without platform/state-machine/route rows.

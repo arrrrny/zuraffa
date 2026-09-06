@@ -21,21 +21,32 @@ it against the declared contract.
 ```yaml
 Lanes:
   - lane: CORE
-    behaviors: [U1]
+    behaviors: [A1, A2, U1]
     flutter_allowed: false
   - lane: SKIN
     behaviors: [W1]
     flutter_allowed: true
     adaptive_slots: [mobile, ios, android, macos]
   - lane: BOTH
-    behaviors: [A3]
+    behaviors: [A3 (acceptance: navigates to deal_list)]
     flutter_allowed: conditionally
 ```
 
 ## Skin Contract
 
-| Token | Value | Source |
-|-------|-------|--------|
-| adaptive_slots | mobile, ios, android, macos | Lanes SKIN lane |
-| home_indicator_safe_area | required (ios) | platform_overrides |
-| title_bar_alignment | trailing (macos) | platform_overrides |
+The declared skin contract (issue #1004): the adaptive-layout platform
+matrix, the per-platform overrides, the view state machine, and the
+routes the skin can navigate to — the typed declaration the loop
+referees the skin against.
+
+```yaml
+Skin Contract:
+  adaptive_slots: [mobile, ios, android, macos]
+  platform_overrides:
+    ios:
+      home_indicator_safe_area: required
+    macos:
+      title_bar_alignment: trailing
+  states: [initial, loading, data, error, empty]
+  routes: [login, deal_list, settings]
+```

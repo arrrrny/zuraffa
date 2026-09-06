@@ -19,6 +19,9 @@
 /// split files, so gen/make/run keep working unmodified.
 library;
 
+import 'dart:convert';
+
+import '../../../skin/contract/adaptive_skin_contract.dart';
 import '../models/behavior.dart';
 import '../models/lane.dart';
 import 'spec_parser.dart';
@@ -171,11 +174,19 @@ String renderEnginePlan({
 }
 
 /// Render the SKIN plan (`04-SKIN.md`).
+///
+/// Issue #1004: a spec declaring the adaptive `## Skin Contract`
+/// section additionally renders the typed contract rows — the
+/// platform matrix, the state machine, the route table — plus the
+/// machine-parseable JSON contract block the loop referees the skin
+/// against. A spec without the declaration ([skinContract] null)
+/// renders exactly the pre-1004 shape.
 String renderSkinPlan({
   required String feature,
   required List<LaneRow> rows,
   required List<String> adaptiveSlots,
   Map<String, List<String>> provenance = const {},
+  AdaptiveSkinContract? skinContract,
 }) {
   final acceptance = rows
       .where((r) => r.kind == BehaviorKind.acceptance)
@@ -203,6 +214,9 @@ String renderSkinPlan({
       buf.writeln('| $slot |');
     }
     buf.writeln();
+  }
+  if (skinContract != null) {
+    _renderSkinContract(buf, skinContract, rows);
   }
   _section(
     buf,
@@ -343,6 +357,108 @@ String _planColumn(String laneName) {
     Lane.skin => '`${LaneSplitFiles.skin}`',
     Lane.both => '`${LaneSplitFiles.engine}` + `${LaneSplitFiles.skin}`',
   };
+}
+
+/// Renders the #1004 skin-contract sections into the SKIN plan: the
+/// platform matrix, the state machine, the route table — each as
+/// declarative rows [TestListReader] skips (declarations, not
+/// behaviors) — plus the machine-parseable JSON contract block
+/// generated from the typed model.
+void _renderSkinContract(
+  StringBuffer buf,
+  AdaptiveSkinContract contract,
+  List<LaneRow> skinRows,
+) {
+  final behaviors = skinRows.map((r) => r.id).join(', ');
+
+  // -- Platform contract: the adaptive-layout platform matrix ------
+  buf
+    ..writeln('## Platform contract')
+    ..writeln()
+    ..writeln(
+      'The adaptive-layout platform matrix (issue #1004): every SKIN '
+      'behavior renders the declared slots on every adaptive '
+      'platform; platform overrides refine the contract per platform.',
+    )
+    ..writeln()
+    ..writeln('| platform | contract | behaviors | source |')
+    ..writeln('| -------- | -------- | --------- | ------ |');
+  for (final platform in contract.adaptiveSlots) {
+    final overrides = contract.platformOverrides[platform];
+    final statement = overrides == null || overrides.isEmpty
+        ? 'renders the adaptive slots'
+        : 'renders the adaptive slots; '
+              '${overrides.entries.map((e) => '${e.key}: ${e.value}').join('; ')}';
+    final source = overrides == null || overrides.isEmpty
+        ? 'adaptive_slots'
+        : 'adaptive_slots, platform_overrides.$platform';
+    buf.writeln('| $platform | $statement | $behaviors | $source |');
+  }
+  buf.writeln();
+
+  // -- State machine contract ---------------------------------------
+  final happy = contract.happyPathStates;
+  final alternates = contract.alternateStates;
+  buf
+    ..writeln('## State machine contract')
+    ..writeln()
+    ..writeln(
+      'The declared state machine (issue #1004): the happy path runs '
+      'the declared states in order — states: '
+      '${happy.join(' -> ')}'
+      '${alternates.isEmpty ? '' : ' (alternate states: ${alternates.join(', ')})'}.',
+    )
+    ..writeln()
+    ..writeln('| state | transition | source |')
+    ..writeln('| ----- | ---------- | ------ |');
+  for (var i = 0; i < happy.length; i++) {
+    final transition = i < happy.length - 1
+        ? '${happy[i]} -> ${happy[i + 1]}'
+        : 'terminal';
+    buf.writeln('| ${happy[i]} | $transition | states |');
+  }
+  for (final state in alternates) {
+    buf.writeln('| $state | alternate | states |');
+  }
+  buf.writeln();
+
+  // -- Route contract ------------------------------------------------
+  buf
+    ..writeln('## Route contract')
+    ..writeln()
+    ..writeln(
+      'The declared routes (issue #1004): navigation target, screen '
+      'class, and route path for every route the skin can navigate '
+      'to.',
+    )
+    ..writeln()
+    ..writeln('| navigation target | screen class | route path | source |')
+    ..writeln('| ----------------- | ------------ | ---------- | ------ |');
+  for (final route in contract.routeContracts) {
+    buf.writeln(
+      '| ${route.target} | ${route.screenClass} | ${route.path} '
+      '| routes |',
+    );
+  }
+  buf.writeln();
+
+  // -- The machine contract -------------------------------------------
+  // Generated from the typed model (`toJson`), never hand-written:
+  // the loop referees the skin against this block, not prose.
+  const encoder = JsonEncoder.withIndent('  ');
+  buf
+    ..writeln('## Skin contract (machine)')
+    ..writeln()
+    ..writeln(
+      'The typed contract (issue #1004): machine-parseable JSON '
+      'generated from the typed model — schema-validated, never '
+      'prose.',
+    )
+    ..writeln()
+    ..writeln('```json')
+    ..writeln(encoder.convert(contract.toJson()))
+    ..writeln('```')
+    ..writeln();
 }
 
 void _section(
