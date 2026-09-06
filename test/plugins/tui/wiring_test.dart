@@ -10,7 +10,6 @@
 import 'dart:io';
 
 import 'package:test/test.dart';
-import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_interface.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_manager.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_registry.dart';
@@ -41,12 +40,13 @@ void main() {
       );
     });
 
-    test('generateWithContext derives specs and PERSISTS both screens',
-        () async {
-      // A real entity so EntityAnalyzer can derive fields.
-      final entityDir = Directory('$outputDir/domain/entities/product');
-      entityDir.createSync(recursive: true);
-      File('${entityDir.path}/product.dart').writeAsStringSync('''
+    test(
+      'generateWithContext derives specs and PERSISTS both screens',
+      () async {
+        // A real entity so EntityAnalyzer can derive fields.
+        final entityDir = Directory('$outputDir/domain/entities/product');
+        entityDir.createSync(recursive: true);
+        File('${entityDir.path}/product.dart').writeAsStringSync('''
 class Product {
   final String id;
   final String name;
@@ -54,45 +54,46 @@ class Product {
 }
 ''');
 
-      final plugin = TuiPlugin(outputDir: outputDir);
-      final manager = PluginManager(
-        registry: PluginRegistry(),
-        projectRoot: tempDir.path,
-      );
-      final context = manager.buildContext(
-        name: 'Product',
-        argResults: null,
-        activePlugins: [plugin],
-        overrideOutputDir: outputDir,
-        overrideForce: true,
-      );
-      context.data['methods'] = ['get', 'getList'];
-
-      final files = await plugin.generateWithContext(context);
-
-      expect(
-        files,
-        hasLength(2),
-        reason: 'list + detail screens must be emitted',
-      );
-      for (final file in files) {
-        expect(
-          File(file.path).existsSync(),
-          isTrue,
-          reason:
-              '${file.path} must exist on disk — the pre-wiring plugin '
-              'returned content nobody persisted (silent no-op).',
+        final plugin = TuiPlugin(outputDir: outputDir);
+        final manager = PluginManager(
+          registry: PluginRegistry(),
+          projectRoot: tempDir.path,
         );
-      }
-      expect(
-        files.firstWhere((f) => f.path.contains('list_screen')).path,
-        endsWith('product_list_screen.dart'),
-      );
-      expect(
-        files.firstWhere((f) => f.path.contains('detail_screen')).path,
-        endsWith('product_detail_screen.dart'),
-      );
-    });
+        final context = manager.buildContext(
+          name: 'Product',
+          argResults: null,
+          activePlugins: [plugin],
+          overrideOutputDir: outputDir,
+          overrideForce: true,
+        );
+        context.data['methods'] = ['get', 'getList'];
+
+        final files = await plugin.generateWithContext(context);
+
+        expect(
+          files,
+          hasLength(2),
+          reason: 'list + detail screens must be emitted',
+        );
+        for (final file in files) {
+          expect(
+            File(file.path).existsSync(),
+            isTrue,
+            reason:
+                '${file.path} must exist on disk — the pre-wiring plugin '
+                'returned content nobody persisted (silent no-op).',
+          );
+        }
+        expect(
+          files.firstWhere((f) => f.path.contains('list_screen')).path,
+          endsWith('product_list_screen.dart'),
+        );
+        expect(
+          files.firstWhere((f) => f.path.contains('detail_screen')).path,
+          endsWith('product_detail_screen.dart'),
+        );
+      },
+    );
 
     test('generated screens use relative entity/use-case imports', () async {
       final entityDir = Directory('$outputDir/domain/entities/product');

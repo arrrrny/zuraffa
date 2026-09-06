@@ -42,7 +42,11 @@ class SandboxComposition {
   }) {
     final scaffoldRoutes = [
       for (final route in routes)
-        SandboxRoute(path: route.path, page: route.page),
+        SandboxRoute(
+          path: route.path,
+          page: route.page,
+          import: _resolvePageImport(sandboxDir, route.page),
+        ),
     ];
     final scaffoldBindings = [
       for (final dependency in dependencies)
@@ -58,7 +62,7 @@ class SandboxComposition {
       path: p.join(sandboxDir, 'lib', 'main.dart'),
       content: _withFeatureDecorator(
         feature: feature,
-        source: SandboxScaffold.main(feature: feature),
+        source: SandboxScaffold.main(feature: feature, routes: scaffoldRoutes),
       ),
       generatedFiles: generatedFiles,
     );
@@ -175,6 +179,31 @@ class SandboxComposition {
           );
         }(),
     ];
+  }
+
+  /// Resolves the file in the mirrored slice tree that declares
+  /// `class [page]`, as an import path relative to `lib/` (the router
+  /// harness lives at `lib/router.dart`). Deterministic: lexically first
+  /// declaring file wins. Null when no mirrored file declares the class —
+  /// the router then keeps the bare symbol so the analyzer names the
+  /// declared-but-missing page (issue #1144).
+  static String? _resolvePageImport(String sandboxDir, String page) {
+    final libDir = Directory(p.join(sandboxDir, 'lib'));
+    if (!libDir.existsSync()) return null;
+    if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(page)) return null;
+    final pattern = RegExp('class\\s+$page\\b');
+    final declaringFiles = <String>[];
+    for (final entity in libDir.listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      if (pattern.hasMatch(entity.readAsStringSync())) {
+        declaringFiles.add(entity.path);
+      }
+    }
+    if (declaringFiles.isEmpty) return null;
+    declaringFiles.sort();
+    return p
+        .relative(declaringFiles.first, from: p.join(sandboxDir, 'lib'))
+        .replaceAll('\\', '/');
   }
 
   static void _write({

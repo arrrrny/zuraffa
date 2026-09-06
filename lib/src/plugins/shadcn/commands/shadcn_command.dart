@@ -181,7 +181,6 @@ class ShadcnCommand extends Command<void> {
           'Available layouts: list, form',
         );
       }
-      // SPEC 917 canonical usage code (the legacy 64, canonicalized).
       exitCode = ExitProtocol.usage;
       return;
     }
