@@ -33,6 +33,7 @@ import 'package:yaml/yaml.dart';
 
 import '../config/zfa_config.dart';
 import '../plugins/tdd/tdd_plugin.dart';
+import '../skew/skew_contract.dart';
 import '../version.dart';
 import 'tdd_command.dart';
 
@@ -111,6 +112,7 @@ class DoctorChecksRunner {
     await _checkBaselineCache(fix: fix),
     await _checkConfig(fix: fix),
     await _checkProfile(fix: fix),
+    await _checkRuntimeSkew(),
   ];
 
   DoctorCheckResult _pass(String id, String detail) =>
@@ -498,6 +500,153 @@ class DoctorChecksRunner {
       );
     }
     return _fail(id, 'missing .specify/memory/tdd-profile.md', suggested);
+  }
+
+  // ---------------------------------------------------------------------------
+  // runtime-skew (issue #1197)
+  // ---------------------------------------------------------------------------
+
+  /// The generator/runtime version-skew triangle (issue #1197, feeding
+  /// #1184's staleness check): target pubspec pin vs installed core
+  /// (what the package config resolves to) vs the running generator.
+  /// Also enforces the floors stamped into generation receipts
+  /// (`min_core_version`): a receipt generated against a newer core
+  /// than the installed one is a diagnosed downgrade, not a mystery.
+  Future<DoctorCheckResult> _checkRuntimeSkew() async {
+    const id = 'runtime-skew';
+    final pubspecFile = File(p.join(_root, 'pubspec.yaml'));
+    if (!pubspecFile.existsSync()) {
+      return DoctorCheckResult(
+        id: id,
+        status: DoctorCheckStatus.skipped,
+        detail: 'no pubspec.yaml (not a Dart project)',
+      );
+    }
+
+    String? pin;
+    try {
+      final doc = loadYaml(pubspecFile.readAsStringSync()) as YamlMap;
+      final pinValue = (doc['dependencies'] as YamlMap?)?['zuraffa'];
+      if (pinValue is String) pin = pinValue;
+    } catch (_) {
+      // The deps check already reports pubspec problems — stay silent.
+    }
+
+    final core = SkewContract.resolveCore(_root);
+    if (core == null) {
+      return DoctorCheckResult(
+        id: id,
+        status: DoctorCheckStatus.warn,
+        detail:
+            'installed zuraffa core not resolved (no pub get?); skew vs '
+            'generator v$version unknown — pin: ${pin ?? 'none'}',
+        suggestedFix: 'dart pub get',
+      );
+    }
+
+    final notes = <String>[
+      'generator v$version | installed core v${core.version ?? 'unknown'}'
+          '${core.fromPackageConfig ? '' : ' (generator checkout)'}'
+          ' | pin: ${pin ?? 'none'}',
+    ];
+
+    // Advisory triangle drift (warn-only — availability is enforced at
+    // the emission sites and via receipt floors below).
+    var warn = false;
+    if (pin != null) {
+      final pinMajor = int.tryParse(
+        RegExp(r'\d+').firstMatch(pin)?.group(0) ?? '',
+      );
+      final cliMajor = int.tryParse(version.split('.').first);
+      if (pinMajor != null && cliMajor != null && pinMajor < cliMajor) {
+        notes.add('pubspec pin $pin is behind CLI v$version');
+        warn = true;
+      }
+      // Installed vs pin: a stale `pub upgrade` (the #1184 staleness
+      // case) leaves the package config behind the declared pin.
+      final pinMin = _pinMinVersion(pin);
+      if (pinMin != null &&
+          core.version != null &&
+          compareVersions(core.version!, pinMin) < 0) {
+        notes.add('installed core v${core.version} is older than the pin $pin');
+        warn = true;
+      }
+      if (core.version != null &&
+          compareVersions(core.version!, supportedCoreFloor) < 0) {
+        notes.add(
+          'installed core v${core.version} predates the supported floor '
+          'v$supportedCoreFloor',
+        );
+        warn = true;
+      }
+    }
+
+    // Receipt floors: a generation stamped against a newer core than
+    // the installed one is a real skew (the #1197 downgrade case).
+    final receiptViolations = _receiptFloorViolations(core);
+    if (receiptViolations.isNotEmpty) {
+      notes.addAll(receiptViolations);
+      return _fail(id, notes.join('; '), 'dart pub upgrade zuraffa');
+    }
+
+    if (warn) {
+      return DoctorCheckResult(
+        id: id,
+        status: DoctorCheckStatus.warn,
+        detail: notes.join('; '),
+        suggestedFix: 'dart pub upgrade zuraffa',
+      );
+    }
+    return _pass(id, notes.single);
+  }
+
+  /// Strips the constraint characters off a pubspec version pin
+  /// (`^6.1.0`, `>=6.0.0 <7.0.0` → first bare version) and returns it,
+  /// or null when the pin carries no parseable version ('any').
+  String? _pinMinVersion(String pin) {
+    final cleaned = pin.replaceAll(RegExp(r'[\^~><=\[\]]'), '').trim();
+    for (final token in cleaned.split(RegExp(r'\s+'))) {
+      if (token.isEmpty) continue;
+      if (RegExp(r'^\d+(\.\d+){0,2}$').hasMatch(token)) return token;
+      return null;
+    }
+    return null;
+  }
+
+  /// Scans `.zfa/receipts/**` for stamps the installed core no longer
+  /// satisfies. Returns human-readable violation lines (empty = ok).
+  List<String> _receiptFloorViolations(InstalledCore core) {
+    final violations = <String>[];
+    final receiptsDir = Directory(p.join(_root, '.zfa', 'receipts'));
+    if (!receiptsDir.existsSync()) return violations;
+    final files =
+        receiptsDir
+            .listSync(recursive: true, followLinks: false)
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.json'))
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
+    for (final file in files) {
+      Object? json;
+      try {
+        json = jsonDecode(file.readAsStringSync());
+      } catch (_) {
+        continue; // unreadable receipts are not a skew problem
+      }
+      if (json is! Map) continue;
+      final floor = json['min_core_version'];
+      if (floor is! String) continue;
+      final installed = core.version;
+      if (installed == null) continue; // advisory only when unknown
+      if (compareVersions(installed, floor) < 0) {
+        violations.add(
+          '${p.relative(file.path, from: _root)}: min_core_version $floor '
+          'exceeds installed core v$installed (receipt generated against '
+          'a newer core — generated artifacts may not resolve)',
+        );
+      }
+    }
+    return violations;
   }
 }
 

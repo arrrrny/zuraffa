@@ -439,6 +439,7 @@ void main() {
           'baseline-cache',
           'config',
           'profile',
+          'runtime-skew', // issue #1197
         });
         expect(decoded['ok'], isTrue);
         // json mode suppresses prose sections entirely.
