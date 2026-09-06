@@ -18,6 +18,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/lane.dart';
 import '../models/routing.dart';
+import '../services/finder_taxonomy.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/lane_split.dart';
 import '../services/routing_resolver.dart';
@@ -790,11 +791,25 @@ class PlanCommand extends Command<void> {
         'the view and asserts the scenario.',
       )
       ..writeln()
-      ..writeln('| id | behavior | traces | state |')
-      ..writeln('| -- | -------- | ------ | ----- |');
+      ..writeln(
+        'The `kind` cell is the finder-kind taxonomy (issue #1140): the '
+        'scenario verbs\' predicted assertion classes — presence, absence, '
+        'route-outcome, enabled-state, sequence — or `none` when no finder '
+        'is derivable. `zfa tdd gen` selects the assertion template by it '
+        'and refuses a row whose kind column drifted from the scenario '
+        'prose; verify-red\'s kind gate (issue #959/#964) certifies on the '
+        'same vocabulary.',
+      )
+      ..writeln()
+      ..writeln('| id | behavior | kind | traces | state |')
+      ..writeln('| -- | -------- | ---- | ------ | ----- |');
     for (final b in widget) {
+      // Issue #1140: the finder-kind column — the plan's prediction of
+      // the assertion classes gen will emit, derived from the same
+      // taxonomy the writer and the verify-red gate speak.
+      final kindCell = FinderTaxonomy.kindCellFor(b.description);
       buf.writeln(
-        '| ${b.id} | ${b.description} | ${b.sourceCriterion} | PENDING |',
+        '| ${b.id} | ${b.description} | $kindCell | ${b.sourceCriterion} | PENDING |',
       );
     }
     buf
