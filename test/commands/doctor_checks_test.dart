@@ -435,6 +435,7 @@ void main() {
         final checks = decoded['checks'] as List;
         expect(checks.map((c) => c['id']).toSet(), {
           'deps',
+          'generated-imports', // issue #1190
           'artifacts',
           'baseline-cache',
           'config',
