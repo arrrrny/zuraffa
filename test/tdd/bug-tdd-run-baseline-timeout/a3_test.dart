@@ -14,7 +14,8 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/bug-tdd-run-baseline-timeout/a3_subject.dart' as subject;
+import 'package:zuraffa/tdd/bug-tdd-run-baseline-timeout/a3_subject.dart'
+    as subject;
 
 void main() {
   group('A3 (AC-1)', () {

@@ -23,11 +23,13 @@
 // ignore_for_file: non_constant_identifier_names
 library;
 
-import 'package:zuraffa/tdd/bug-tdd-run-baseline-timeout/u1_subject.dart' as anchor0;
+import 'package:zuraffa/tdd/bug-tdd-run-baseline-timeout/u1_subject.dart'
+    as anchor0;
 
 /// Subject for behavior A3, composed against the
 /// feature's unit subject anchors by the generation pipeline.
-void subject_a3() {  // Composition anchor: references the feature's green / entity-wired unit
+void subject_a3() {
+  // Composition anchor: references the feature's green / entity-wired unit
   // subjects this behavior builds on.
   // ignore: unused_local_variable
   final composedUnitAnchors = <Function>[anchor0.subject_u1];

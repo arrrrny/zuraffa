@@ -14,19 +14,23 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/bug-tdd-run-baseline-timeout/u1_subject.dart' as subject;
+import 'package:zuraffa/tdd/bug-tdd-run-baseline-timeout/u1_subject.dart'
+    as subject;
 
 void main() {
   group('U1 (FR-001)', () {
-    test('U1 — The TDD driver MUST forward its `--timeout` override to the run-level suite baseline process.', () {
-      final result = (() {
-        try {
-          return subject.subject_u1();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U1 — The TDD driver MUST forward its `--timeout` override to the run-level suite baseline process.',
+      () {
+        final result = (() {
+          try {
+            return subject.subject_u1();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }
