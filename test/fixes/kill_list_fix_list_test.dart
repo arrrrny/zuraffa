@@ -9,13 +9,16 @@
 // 3. feature: the eight copy-pasted `XxxFeatureCapability` clones are one
 //    parameterized `PluginFeatureCapability`; MCP capability names
 //    unchanged.
+import 'dart:io';
+
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/cli/exit_protocol.dart';
 import 'package:zuraffa/src/plugins/benchmark/benchmark_plugin.dart';
 import 'package:zuraffa/src/plugins/feature/feature_plugin.dart';
 import 'package:zuraffa/src/plugins/feature/capabilities/plugin_feature_capability.dart';
 import 'package:zuraffa/src/plugins/feature/capabilities/scaffold_feature_capability.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
-import 'package:zuraffa/src/core/benchmark/benchmark_contract.dart';
 import 'package:zuraffa/src/plugins/shadcn/shadcn_plugin.dart';
 import 'package:zuraffa/src/plugins/benchmark/first_party_scenarios.dart';
 
@@ -27,6 +30,25 @@ void main() {
       final layout = schema['properties']['layout'] as Map;
       expect(layout['enum'], ['list', 'form']);
     });
+
+    test(
+      'zfa shadcn grid refuses loudly (post-merge: SPEC 917 usage code)',
+      () async {
+        final runner = CliRunner(exitOnCompletion: false);
+        exitCode = 0;
+        final output = await runner.runCapturing(['shadcn', 'grid', 'Product']);
+        expect(
+          exitCode,
+          ExitProtocol.usage,
+          reason:
+              'an unimplemented-but-formerly-advertised layout must fail '
+              'honestly with the canonical usage code (the legacy 64 '
+              'canonicalized by SPEC 917), never exit 0',
+        );
+        expect(output, contains('not implemented'));
+        expect(output, contains('#1149'));
+      },
+    );
   });
 
   group('first-party benchmark scenarios (fix 2)', () {
