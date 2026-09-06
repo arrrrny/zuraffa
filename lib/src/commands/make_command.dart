@@ -236,6 +236,17 @@ class MakeCommand extends Command<void> {
     );
 
     argParser.addMultiOption('methods', help: 'Entity methods to generate');
+    // Named --engine-feature, not --feature: the `feature` plugin id
+    // already occupies the --feature flag (enable/disable that plugin)
+    // in _addPluginOptions.
+    argParser.addOption(
+      'engine-feature',
+      help:
+          'Feature directory the engine receipt is written to '
+          '(specs/<feature>/tdd/engine.receipt.json; issue #1109). '
+          'Defaults to the active feature contract, the pinned '
+          '.specify/feature.json, or the entity snake name.',
+    );
     argParser.addMultiOption(
       'usecases',
       help: 'UseCases to inject into presenter/controller',
@@ -560,6 +571,16 @@ class MakeCommand extends Command<void> {
       // The engine preset is implied by the mode token; the plan resolves
       // through the same PresetRegistry entry `--preset=engine` uses.
       normalizedOptions['preset'] = 'engine';
+      // Issue #1109 markers read downstream:
+      //   - 'engine': the test plugin forces the pure-Dart `package:test`
+      //     framework import (the engine lane is CORE — zero flutter_test,
+      //     even when the host project is a Flutter app).
+      //   - 'feature': the explicit --engine-feature override for the v2
+      //     engine receipt's specs/<feature>/tdd/ location.
+      normalizedOptions['engine'] = true;
+      if (argResults?.wasParsed('engine-feature') == true) {
+        normalizedOptions['feature'] = argResults?['engine-feature'] as String?;
+      }
       // Spec 1002 default method set — only when neither the CLI flag
       // nor a --from-json config supplied one.
       if (!argResults!.wasParsed('methods') &&
@@ -1425,10 +1446,54 @@ class MakeCommand extends Command<void> {
     );
     final receiptPath = p.relative(receiptFile.path, from: projectRoot);
 
+    // Issue #1109: the v2 engine receipt — specs/<feature>/tdd/
+    // engine.receipt.json with the CERT-GATE shape (per-method
+    // mock_certified + mock_class, sorted source_files). Resolution:
+    // explicit --engine-feature → active feature contract → pinned
+    // .specify/feature.json → the entity snake (fresh projects).
+    // Written even when some methods are uncertified — the `false`
+    // values are the #1014 CERT-GATE signal.
+    final v2Feature = (context.data['feature'] as String?)?.isNotEmpty == true
+        ? context.data['feature'] as String
+        : context.core.feature?.id ??
+              EngineReceiptWriter.pinnedFeature(projectRoot) ??
+              EngineReceiptWriter.engineFeatureFallback(entityName);
+    final v2ReceiptFile = await writer.writeV2(
+      projectRoot: projectRoot,
+      feature: v2Feature,
+      entityName: entityName,
+      methods: [
+        for (final method in methods)
+          EngineReceiptMethod(
+            name: method,
+            mockCertified:
+                checkResult.mockCertification?.methods[method] == true,
+            mockClass: checkResult.mockCertification?.mockClass,
+          ),
+      ],
+      // Contract: project-root relative, deduped, sorted (the writer
+      // sorts; generators may report absolute or relative paths). The
+      // entity file is included — the chain's `entity create` step
+      // writes it before the plugin transaction, so it never appears in
+      // the transaction's generated-file list.
+      sourceFiles: [
+        slice.entityFile,
+        ...files
+            .map((file) => file.path)
+            .map(
+              (path) => p.isAbsolute(path)
+                  ? p.relative(path, from: projectRoot)
+                  : path,
+            ),
+      ].toSet().toList(),
+    );
+    final v2ReceiptPath = p.relative(v2ReceiptFile.path, from: projectRoot);
+
     if (format == 'json') {
       print(
         jsonEncode({
           'engine_receipt': receiptPath,
+          'engine_receipt_v2': v2ReceiptPath,
           'engine_check': {
             'passed': checkResult.passed,
             'getit_types': checkResult.resolutions.length,
@@ -1460,6 +1525,7 @@ class MakeCommand extends Command<void> {
         );
       }
       print('🧾 Engine receipt: $receiptPath');
+      print('🧾 Engine receipt v2: $v2ReceiptPath');
     }
 
     if (checkResult.passed) {

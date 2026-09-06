@@ -34,6 +34,18 @@ enum EngineFindingCode {
   /// uncertified — no fresh, all-satisfied `mock-cert.<Entity>.json`
   /// receipt (missing / unsatisfied / corrupt / stale).
   uncertifiedCoreEntity,
+
+  /// Issue #1109: a `dart analyze` finding in the entity's engine-tree
+  /// files (the static-analysis leg of `zfa engine check`).
+  staticAnalysis,
+
+  /// Issue #1109: `specs/<feature>/tdd/engine.receipt.json` is missing
+  /// for the entity (the receipt leg of `zfa engine check`).
+  missingReceipt,
+
+  /// Issue #1109: the v2 engine receipt records a method with
+  /// `mock_certified: false` (the CERT-GATE #1014 signal).
+  receiptUncertified,
 }
 
 /// One engine-check failure, always carrying an actionable `--> fix:`
@@ -98,6 +110,11 @@ class MockCertificationResult {
   /// The seeded mock data file, project-root relative, or null.
   final String? mockDataPath;
 
+  /// The class name of the generated mock datasource (issue #1109:
+  /// the `mock_class` the engine receipt records per method), or null
+  /// when the mock datasource was never generated.
+  final String? mockClass;
+
   /// Per-requested-method certification: true when the method is
   /// implemented on the mock datasource AND the seeded data fixture
   /// exists.
@@ -106,6 +123,7 @@ class MockCertificationResult {
   const MockCertificationResult({
     this.mockDatasourcePath,
     this.mockDataPath,
+    this.mockClass,
     this.methods = const {},
   });
 
@@ -139,6 +157,12 @@ class EngineCheckResult {
   /// engine tree).
   final String? certGateReceiptPath;
 
+  /// Issue #1109: the slice files the static-analysis leg ran over
+  /// (project-root relative). Empty when the leg was skipped (no slice
+  /// files, or no package config to resolve imports against) or not
+  /// requested.
+  final List<String> analyzedFiles;
+
   const EngineCheckResult({
     required this.entity,
     required this.projectRoot,
@@ -146,6 +170,7 @@ class EngineCheckResult {
     required this.failures,
     this.mockCertification,
     this.certGateReceiptPath,
+    this.analyzedFiles = const [],
   });
 
   /// Names of the getIt lookups that resolved.
@@ -153,6 +178,45 @@ class EngineCheckResult {
       resolutions.where((r) => r.resolved).map((r) => r.typeName).toList();
 
   bool get passed => failures.isEmpty;
+}
+
+/// One method entry of the v2 engine receipt (issue #1109 /
+/// #1014 CERT-GATE): `{name, mock_certified, mock_class}`.
+class EngineReceiptMethod {
+  /// The method name (get, getList, create, update, delete, ...).
+  final String name;
+
+  /// True only when the certifier verified the method on the mock
+  /// datasource AND the seeded data fixture exists.
+  final bool mockCertified;
+
+  /// The mock class certified for the method (e.g. `UserMockDataSource`).
+  final String? mockClass;
+
+  const EngineReceiptMethod({
+    required this.name,
+    required this.mockCertified,
+    this.mockClass,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'mock_certified': mockCertified,
+    if (mockClass != null) 'mock_class': mockClass,
+  };
+
+  static EngineReceiptMethod? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final name = json['name'] ?? json['method'];
+    if (name is! String) return null;
+    return EngineReceiptMethod(
+      name: name,
+      mockCertified: json['mock_certified'] == true,
+      mockClass: json['mock_class'] is String
+          ? json['mock_class'] as String
+          : null,
+    );
+  }
 }
 
 /// Top-level declared type names in a Dart source (classes, mixins,
