@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import '../models/generated_file.dart';
 import '../plugins/api/api_plugin.dart';
 import '../plugins/api/capabilities/create_api_bridge_capability.dart';
@@ -63,7 +65,10 @@ class ApiCommand extends PluginCommand {
         .whereType<CreateApiBridgeCapability>()
         .firstOrNull;
     if (capability == null) {
+      // Bug #1139 (exit-code sweep, #856 pattern): an internal error is a
+      // failure — never a lying exit 0.
       print('❌ Internal error: CreateApiBridgeCapability not found');
+      exitCode = 1;
       return;
     }
 
@@ -81,7 +86,10 @@ class ApiCommand extends PluginCommand {
           result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
+      // Bug #1139 (exit-code sweep, #856 pattern): a failed generation is a
+      // failure — the process must never exit 0 after printing an error.
       print('❌ Failed to generate API bridge: ${result.message}');
+      exitCode = 1;
     }
   }
 }

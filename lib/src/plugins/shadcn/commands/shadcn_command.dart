@@ -122,6 +122,21 @@ class ShadcnCommand extends Command<void> {
     final layout = rest[0];
     final entityName = rest[1];
 
+    // Bug #1139 (exit-code sweep, #856 pattern): an unknown layout is a
+    // usage error, not a silent generation of a bogus template. The
+    // layout's argParser `allowed` set only guards --layout, never the
+    // positional form, so the command itself must refuse here.
+    const knownLayouts = {'list', 'grid', 'table', 'form'};
+    if (!knownLayouts.contains(layout)) {
+      print('❌ Usage: zfa shadcn <layout> <Entity> [options]');
+      print(
+        'Unknown layout: "$layout". '
+        'Available layouts: list, form, grid, table',
+      );
+      exitCode = 64;
+      return;
+    }
+
     final registry = PluginRegistry.instance;
     final projectRoot = _findProjectRoot('lib/src');
     final manager = PluginManager(
@@ -169,7 +184,10 @@ class ShadcnCommand extends Command<void> {
       }
       print('✅ Done.');
     } catch (e) {
+      // Bug #1139 (exit-code sweep, #856 pattern): a generation failure is
+      // a failure — the process must never exit 0 after printing an error.
       print('❌ Failed to generate widget: $e');
+      exitCode = 1;
     }
   }
 

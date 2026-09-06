@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/observer/observer_plugin.dart';
@@ -40,7 +42,13 @@ class ObserverCommand extends PluginCommand {
           result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
-      print('Failed to generate observer');
+      // Bug #1139 (exit-code sweep, #856 pattern): a failed generation is a
+      // failure — the process must never exit 0 after printing an error.
+      print(
+        '❌ Failed to generate observer: '
+        '${result.message ?? "unknown error"}',
+      );
+      exitCode = 1;
     }
   }
 }

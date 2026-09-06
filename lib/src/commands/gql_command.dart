@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/gql/gql_plugin.dart';
@@ -52,7 +54,10 @@ class GqlCommand extends PluginCommand {
           result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
-      print('Failed to generate gql');
+      // Bug #1139 (exit-code sweep, #856 pattern): a failed generation is a
+      // failure — the process must never exit 0 after printing an error.
+      print('❌ Failed to generate gql: ${result.message ?? "unknown error"}');
+      exitCode = 1;
     }
   }
 }
