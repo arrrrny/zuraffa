@@ -48,8 +48,7 @@ void main() {
       );
     });
 
-    test('zfa make --with=observer surfaces the honest removal warning',
-        () {
+    test('zfa make --with=observer surfaces the honest removal warning', () {
       final loader = PluginLoader(
         outputDir: 'lib/src',
         dryRun: false,
@@ -58,16 +57,17 @@ void main() {
         config: PluginConfig(),
       );
       final registry = loader.buildRegistry();
-      final plan = PlanResolver(
-        registry: registry,
-        config: null,
-        pluginConfig: null,
-      ).resolve(
-        name: 'Product',
-        options: const {
-          'with': ['observer'],
-        },
-      );
+      final plan =
+          PlanResolver(
+            registry: registry,
+            config: null,
+            pluginConfig: null,
+          ).resolve(
+            name: 'Product',
+            options: const {
+              'with': ['observer'],
+            },
+          );
       expect(
         plan.warnings.join('\n'),
         contains('removed'),
