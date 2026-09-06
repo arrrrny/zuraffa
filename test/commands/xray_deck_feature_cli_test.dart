@@ -141,6 +141,43 @@ routes:
       );
     });
 
+    test('known ids include spec.md-only declarations', () async {
+      final skinDir = Directory(p.join(tempDir.path, 'specs', 'skin-only'))
+        ..createSync(recursive: true);
+      File(p.join(skinDir.path, 'spec.md')).writeAsStringSync('''
+# Skin only
+## Skin Contract: skin-only
+```json
+{"schemaVersion":"1","routes":[{"path":"/skin","view":"SkinView"}],"states":[],"platformRows":[],"stateRows":[]}
+```
+''');
+      final lanesDir = Directory(p.join(tempDir.path, 'specs', 'lanes-only'))
+        ..createSync(recursive: true);
+      File(p.join(lanesDir.path, 'spec.md')).writeAsStringSync('''
+# Lanes only
+## Lanes
+```yaml
+Lanes:
+  - lane: CORE
+    behaviors: [U1]
+    flutter_allowed: false
+```
+''');
+      final yamlFile = yamlMock('known_ids');
+
+      final outputLog = await runCapturing(
+        deckArgs(
+          yamlFile: yamlFile,
+          output: p.join(tempDir.path, 'unused.dart'),
+          usecase: 'KnownIds',
+          feature: 'missing',
+        ),
+      );
+
+      expect(outputLog, contains('skin-only'));
+      expect(outputLog, contains('lanes-only'));
+    });
+
     test(
       'without --feature the deck generates as before (back-compat)',
       () async {

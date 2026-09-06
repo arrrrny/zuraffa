@@ -61,6 +61,20 @@ class CoreConfig {
   }
 }
 
+/// Spec 1114 (issue #1114, per #1098): the active feature contract the
+/// context carries.
+///
+/// Slice, xray and FeaturePlugin read the active contract from HERE —
+/// `context.activeFeatureContract` — not from raw string args. The
+/// contract is resolved once (registry / spec fallbacks) upstream and
+/// rides the context; every consumer downstream shares one typed
+/// definition of the feature.
+extension PluginContextFeatureContract on PluginContext {
+  /// The active typed feature contract, or `null` on an unscoped run
+  /// (no contract was resolved — validation off, back-compat).
+  FeatureContract? get activeFeatureContract => core.feature;
+}
+
 /// A shared context providing configuration and shared data to plugins.
 class PluginContext {
   /// The core configuration.

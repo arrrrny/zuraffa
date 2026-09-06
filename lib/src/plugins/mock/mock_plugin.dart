@@ -7,8 +7,10 @@ import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
 import '../../core/context/file_system.dart';
+import '../../core/project/project_root.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../../skew/skew_contract.dart';
 import '../../utils/entity_analyzer.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
@@ -291,6 +293,17 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             outputDir: outputDir,
             options: options,
             fileSystem: fs,
+          );
+          // Issue #1197: the simulation binding imports
+          // package:zuraffa/simulation.dart (spec 893). Refuse when the
+          // target's resolved core predates the simulation barrel
+          // instead of emitting a binding that cannot compile.
+          SkewContract.requireSurfaces(
+            projectRoot: context?.core.projectRoot.isNotEmpty == true
+                ? context!.core.projectRoot
+                : ProjectRoot.safeCurrentPath(),
+            command: 'zfa mock (simulation binding)',
+            requiredUris: ['simulation.dart'],
           );
           // Issue #1031: the simulation binding must follow the shape the
           // mock lane actually generated. Service mode emits
