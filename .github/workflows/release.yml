@@ -47,6 +47,13 @@ jobs:
       - name: Install deps
         run: flutter pub get
 
+      - name: Template publish gate (bug 1198 — the loop is the referee)
+        # Bug 1198 (part of #908 P0): every generator template must pass
+        # its TDD loop (structural + compile + behavioral + diff guard)
+        # BEFORE anything is built/published. A failing template blocks
+        # the release.
+        run: tools/template_publish_gate.sh
+
       - name: Build MCP Server
         run: dart build cli --target=bin/zuraffa_mcp_server.dart -o build/mcp
 
