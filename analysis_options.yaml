@@ -37,6 +37,12 @@ analyzer:
     # context, producing false-positive override warnings. Analyzed and tested
     # from inside its own directory, excluded from the root analyze pass.
     - example/**
+    # todo_tdd: standalone TDD example package (own pubspec, depends on the
+    # published `zuraffa` package rather than a path dep). The root context
+    # cannot resolve its package: URIs, surfacing as uri_does_not_exist /
+    # undefined_function errors. Analyzed and tested from inside its own
+    # directory, excluded from the root analyze pass.
+    - examples/todo_tdd/**
     # Slice plugin fixture (spec 043): a standalone Flutter-convention app
     # (imports package:flutter / package:get_it the root context cannot
     # resolve). It is test DATA read by the slice engine, never compiled or
