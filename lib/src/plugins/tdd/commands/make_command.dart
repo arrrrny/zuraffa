@@ -77,6 +77,7 @@ import '../services/artifact_registry.dart';
 import '../services/composition_planner.dart';
 import '../services/composition_targets.dart';
 import '../services/cycle_evidence.dart';
+import '../services/subject_shape.dart';
 import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
 import '../services/generation_planner.dart';
@@ -1157,6 +1158,11 @@ class MakeCommand extends Command<void> {
       projectRoot: cwd,
       featureDir: featureDir,
       behaviorId: record.behaviorId,
+      // Issue #1162: bug features may compose against stub-only unit
+      // subjects — the bug extension's sanctioned path from a prose
+      // scenario's unexpressible plan to green. Non-bug features keep
+      // the strict no-green-units stop (unchanged).
+      allowStubAnchors: CompositionTargets.isBugFeatureDir(featureDir),
     );
     if (discovery is CompositionTargetFailure) {
       // Fail-closed: name the disengagement reason, keep the honest stop.
@@ -1165,12 +1171,16 @@ class MakeCommand extends Command<void> {
     }
     final anchors = (discovery as CompositionTargetResolved).anchors;
     // Issue #923: the anchors may mix green subjects with entity-wired
-    // stubs — name both so the fallback's report stays honest.
+    // stubs — name both so the fallback's report stays honest. Issue
+    // #1162: they may also include stub-only subjects (bug features).
     final wiredCount = anchors.where((a) => a.entityWired).length;
-    final anchorSummary = wiredCount == 0
-        ? '${anchors.length} green unit subject(s)'
-        : '${anchors.length - wiredCount} green, $wiredCount entity-wired '
-              'unit subject(s)';
+    final stubCount = anchors.where((a) => a.stubOnly).length;
+    final greenCount = anchors.length - wiredCount - stubCount;
+    final anchorSummary =
+        '${greenCount > 0 ? '$greenCount green' : ''}'
+        '${wiredCount > 0 ? '${greenCount > 0 ? ', ' : ''}$wiredCount entity-wired' : ''}'
+        '${stubCount > 0 ? '${greenCount > 0 || wiredCount > 0 ? ', ' : ''}$stubCount stub-only' : ''}'
+        ' unit subject(s)';
     print(
       '   composition fallback: $anchorSummary '
       '(${anchors.map((a) => a.behaviorId).join(', ')})',
@@ -1285,9 +1295,13 @@ class MakeCommand extends Command<void> {
   ///     a certified make has the same subject; unit skip semantics are
   ///     unchanged);
   ///   - with no green entry (the #1036 bug state), the certified RED
-  ///     entry's subject hash is authoritative — the current subject
-  ///     must match it, so a subject a failed make rewrote to a
-  ///     placeholder can never take the skip;
+  ///     entry's subject hash is authoritative — a subject a failed make
+  ///     rewrote to a placeholder can never take the skip. Issue #1162:
+  ///     the red-basis rule FAILS OPEN when the drifted subject is a real
+  ///     hand implementation ([_acceptImplementedSubjectDrift]) — the
+  ///     gen'd test header's own sanctioned transition — so a bug subject
+  ///     can certify green; the born-green placeholder classes
+  ///     ([subjectIsBornGreenPlaceholder]) keep refusing;
   ///   - hashless entries (legacy logs, or runs with no subject
   ///     artifact) fail open — the pre-#1036 behavior stands — so
   ///     existing logs and fixtures keep skipping exactly as before.
@@ -1316,6 +1330,16 @@ class MakeCommand extends Command<void> {
       return null; // legacy hashless evidence — fail open (pre-#1036)
     }
     if (currentHash == certified) return null;
+    // Issue #1162: a red-basis drift is the hand-implementation
+    // transition when the subject is not a born-green placeholder — the
+    // drift check just proved the target test passes with its scenario
+    // assertions genuinely executing. Fail open; the skip transition's
+    // green evidence re-binds to the current subject shape. A green-basis
+    // drift (a post-green rewrite) and every placeholder class keep the
+    // refusal.
+    if (lastGreen?.subjectHash == null && lastRed != null) {
+      if (await _acceptImplementedSubjectDrift(cwd, record)) return null;
+    }
     final subjectPath = p.isAbsolute(record.subjectPath)
         ? record.subjectPath
         : p.join(cwd, record.subjectPath);
@@ -1327,8 +1351,51 @@ class MakeCommand extends Command<void> {
         '   $basis subject-hash: $certified\n'
         '   current subject-hash: $currentHash\n'
         '--> fix: restore the subject to its certified shape '
-        '(git checkout $subjectPath) or re-certify red with '
-        '`zfa tdd verify-red ${record.behaviorId}`, then re-run make.';
+        '(git checkout $subjectPath), or — when the subject was '
+        'hand-implemented and the passing test genuinely exercises it — '
+        're-certify the transition with `zfa tdd verify-red '
+        '${record.behaviorId} --re-certify` (issue #1162), then re-run '
+        'make.';
+  }
+
+  /// Issue #1162: whether a red-basis drift is the SANCTIONED
+  /// hand-implementation transition — the subject on disk is not one of
+  /// the pipeline's born-green placeholder shapes, i.e. it was
+  /// hand-implemented, exactly what the generated test header's own
+  /// instruction produces ("Replace the subject's stub body with real
+  /// implementation"). The drift check has already proven the target test
+  /// passes right now: the scenario assertions the certified red
+  /// exercised genuinely execute against the implemented subject, so the
+  /// #694 skip transition may re-bind the green evidence to the new
+  /// shape. The born-green classes (scaffolded marker, still-throwing
+  /// stubs, the func-scaffold vacuous bodies — issue #1036) keep refusing
+  /// via [subjectIsBornGreenPlaceholder].
+  ///
+  /// Returns true when the drift is ACCEPTED (the acceptance note is
+  /// printed); false when the refusal stands (unreadable subject or a
+  /// recognized placeholder shape — safe failure, never a silent pass).
+  Future<bool> _acceptImplementedSubjectDrift(
+    String cwd,
+    ArtifactRecord record,
+  ) async {
+    final subjectPath = p.isAbsolute(record.subjectPath)
+        ? record.subjectPath
+        : p.join(cwd, record.subjectPath);
+    String raw;
+    try {
+      raw = await File(subjectPath).readAsString();
+    } on FileSystemException {
+      return false; // unreadable subject — keep the refusal (safe failure)
+    }
+    if (subjectIsBornGreenPlaceholder(raw)) return false; // #1036 stands
+    print(
+      '   subject drift accepted (issue #1162): the target test passes '
+      'with its scenario assertions genuinely executing against the '
+      'hand-implemented subject (not a pipeline placeholder) — the skip '
+      'transition re-binds the green evidence to the current subject '
+      'shape.',
+    );
+    return true;
   }
 
   /// The sha256 of the behavior's subject file at certification time
