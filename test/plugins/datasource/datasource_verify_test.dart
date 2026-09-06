@@ -18,7 +18,7 @@ import 'package:zuraffa/src/utils/string_utils.dart';
 /// ToggleParams must be the type the entity actually declares, and every
 /// standard CRUD method the interface declares must reference the entity
 /// type it serves. Exit 0 on clean; exit 1 with `--> fix:` on drift;
-/// `--json` emits the single canonical verdict.v1 envelope (issue #1105).
+/// `--json` emits the single canonical zuraffa.verdict.v1 envelope (issue #1105).
 void main() {
   late Directory tempDir;
   late String originalCwd;
@@ -154,7 +154,7 @@ void main() {
   });
 
   test(
-    '--json: exactly one canonical verdict.v1 envelope, pass shape',
+    '--json: exactly one canonical zuraffa.verdict.v1 envelope, pass shape',
     () async {
       writeEntity(
         'Product',
@@ -171,7 +171,7 @@ void main() {
       ]);
       expect(result.exitCode, 0, reason: result.output);
       final envelope = jsonDecode(result.output) as Map<String, dynamic>;
-      expect(envelope['schema'], 'verdict.v1');
+      expect(envelope['schema'], 'zuraffa.verdict.v1');
       expect(envelope['verdict'], 'pass');
       expect((envelope['subject'] as Map)['kind'], 'datasource');
       expect((envelope['subject'] as Map)['entity'], 'Product');
@@ -196,7 +196,7 @@ void main() {
       ]);
       expect(result.exitCode, 1);
       final envelope = jsonDecode(result.output) as Map<String, dynamic>;
-      expect(envelope['schema'], 'verdict.v1');
+      expect(envelope['schema'], 'zuraffa.verdict.v1');
       expect(envelope['verdict'], 'fail');
       final findings = (envelope['findings'] as List)
           .cast<Map<String, dynamic>>();
@@ -221,7 +221,7 @@ void main() {
       ]);
       expect(result.exitCode, 1);
       final envelope = jsonDecode(result.output) as Map<String, dynamic>;
-      expect(envelope['schema'], 'verdict.v1');
+      expect(envelope['schema'], 'zuraffa.verdict.v1');
       expect(envelope['verdict'], 'fail');
     },
   );
