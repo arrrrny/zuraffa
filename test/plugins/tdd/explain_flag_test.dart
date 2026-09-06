@@ -55,8 +55,8 @@ void _expectExplainSections(String out) {
   expect(out, contains(kExplainSeparatorPrefix), reason: out);
 }
 
-/// The last JSON object line of [out] (the verdict.v1 envelope when
-/// `--json` is set).
+/// The last JSON object line of [out] (the zuraffa.verdict.v1 envelope
+/// when `--json` is set — the canonical schema from the #1105 sweep).
 Map<String, Object?>? _tryDecodeEnvelope(String out) {
   for (final line in out.trimRight().split('\n').reversed) {
     final trimmed = line.trim();
@@ -64,7 +64,7 @@ Map<String, Object?>? _tryDecodeEnvelope(String out) {
     try {
       final decoded = jsonDecode(trimmed);
       if (decoded is Map<String, Object?> &&
-          decoded['schema'] == 'verdict.v1') {
+          decoded['schema'] == 'zuraffa.verdict.v1') {
         return decoded;
       }
     } on FormatException {
@@ -413,7 +413,7 @@ void main() {
       expect(envelope, isNotNull, reason: out);
       expect(envelope!['command'], 'plan', reason: out);
       // The ORDER: JSON first, separator, then the explanation.
-      final jsonIndex = _indexOf(out, '"schema":"verdict.v1"');
+      final jsonIndex = _indexOf(out, '"schema":"zuraffa.verdict.v1"');
       final separatorIndex = _indexOf(out, kExplainSeparatorPrefix);
       final summaryIndex = _indexOf(out, kSummarySection);
       expect(jsonIndex, greaterThanOrEqualTo(0), reason: out);
@@ -460,7 +460,7 @@ void main() {
         expect(decoded, isA<Map<String, Object?>>(), reason: out);
         expect(
           (decoded as Map<String, Object?>)['schema'],
-          'verdict.v1',
+          'zuraffa.verdict.v1',
           reason: out,
         );
         // No explain block anywhere.
