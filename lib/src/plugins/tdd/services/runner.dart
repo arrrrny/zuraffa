@@ -368,7 +368,7 @@ class SingleTestRunner {
         workingDirectory: workingDirectory,
         timeout: timeout ?? TddTimeouts.defaultSingleTest,
       );
-      final output = '${result.stdout}${result.stderr}';
+      final output = '${result.stdout}${result.stderr}'.replaceAll('\r', '\n');
       return RunRecord(
         command: display,
         exitCode: result.exitCode,
@@ -426,7 +426,7 @@ class SingleTestRunner {
         workingDirectory: workingDirectory,
         timeout: timeout ?? TddTimeouts.defaultSuite,
       );
-      final output = '${result.stdout}${result.stderr}';
+      final output = '${result.stdout}${result.stderr}'.replaceAll('\r', '\n');
       return SuiteRunRecord(
         command: command,
         exitCode: result.exitCode,
