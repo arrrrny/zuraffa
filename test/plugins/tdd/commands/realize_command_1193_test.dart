@@ -181,6 +181,7 @@ void main() {
     bool dryRun = false,
     bool diffOnly = false,
     bool writeFixtures = true,
+    int suiteExitCode = 0,
   }) async {
     if (withAdapter) {
       _write(
@@ -206,7 +207,10 @@ void main() {
     }
     final cmd = RealizeCommand(
       TddPlugin(),
-      suiteRunner: (paths, cwd) async => (exitCode: 0, output: 'suite green'),
+      suiteRunner: (paths, cwd) async => (
+        exitCode: suiteExitCode,
+        output: suiteExitCode == 0 ? 'suite green' : 'suite red',
+      ),
       fixtureDriver: (binding, entity, input) async => {
         'id': 'u1',
         'email': 'a@b.c',
@@ -406,6 +410,32 @@ void main() {
     );
     expect(
       File(p.join(fx.featureDir, 'tdd', 'realize-state.json')).existsSync(),
+      isFalse,
+    );
+  });
+
+  test('SCAF-3: a refused scaffold leaves no adapter or ledger receipt',
+      () async {
+    final out = await runRealize(
+      adapter: 'UserRealAdapter',
+      scaffold: true,
+      suiteExitCode: 1,
+    );
+
+    expect(exitCode, 1, reason: 'out: $out');
+    expect(out, contains('contract gate RED'));
+    expect(
+      File(
+        p.join(
+          fx.root.path,
+          'lib/src/data/datasources/user',
+          'user_real_adapter.dart',
+        ),
+      ).existsSync(),
+      isFalse,
+    );
+    expect(
+      File(p.join(fx.featureDir, 'tdd', 'provenance-ledger.json')).existsSync(),
       isFalse,
     );
   });

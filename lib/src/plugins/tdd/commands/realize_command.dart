@@ -540,6 +540,17 @@ class RealizeCommand extends Command<void> {
     // keeps the spec 913 refusal.
     // ---------------------------------------------------------------
     ScaffoldResult? scaffoldResult;
+    final scaffoldLedgerBefore = await _ledgerBytes(receipts.path);
+    Future<void> rollbackScaffold() async {
+      if (scaffoldResult?.created != true) return;
+      await File(scaffoldResult!.file).delete();
+      final ledgerFile = File(receipts.path);
+      if (scaffoldLedgerBefore == null) {
+        if (await ledgerFile.exists()) await ledgerFile.delete();
+      } else {
+        await ledgerFile.writeAsBytes(scaffoldLedgerBefore);
+      }
+    }
     try {
       await rebinder.locateAdapter(adapterClass: adapter);
     } on DiRebindException catch (_) {
@@ -627,6 +638,7 @@ class RealizeCommand extends Command<void> {
       realRun: const ContractRun(exitCode: 0, output: '(not yet run)'),
     );
     if (baselineGate.verdict == ContractVerdict.mockBrokeContract) {
+      await rollbackScaffold();
       print('   contract gate RED (baseline): ${baselineGate.attribution}');
       _printSummary(
         entity: entity,
@@ -685,6 +697,7 @@ class RealizeCommand extends Command<void> {
       print('   contract gate RED: ${gate.attribution}');
       if (gate.verdict == ContractVerdict.realBrokeContract) {
         await DiRebinder(projectRoot: cwd).rollback(rebind);
+        await rollbackScaffold();
         print(
           '   rolled back: ${rebind.sites.length} binding file(s) '
           'restored to the mock-era bytes',
@@ -738,6 +751,7 @@ class RealizeCommand extends Command<void> {
         _printNamedRows(differential, withinThreshold: true);
       case DifferentialVerdict.divergence:
         await DiRebinder(projectRoot: cwd).rollback(rebind);
+        await rollbackScaffold();
         print(
           '   differential gate DIVERGENCE: ${differential.rows.length} '
           'named row(s) — the rebind was rolled back. The mock and the '
@@ -761,6 +775,7 @@ class RealizeCommand extends Command<void> {
         return;
       case DifferentialVerdict.runnerError:
         await DiRebinder(projectRoot: cwd).rollback(rebind);
+        await rollbackScaffold();
         print(
           '   differential gate RUNNER-ERROR: ${differential.error} — the '
           'rebind was rolled back (the gate fails closed).',
@@ -1561,6 +1576,11 @@ class RealizeCommand extends Command<void> {
 
   String _sha256(List<int> bytes) {
     return crypto.sha256.convert(bytes).toString();
+  }
+
+  Future<List<int>?> _ledgerBytes(String path) async {
+    final file = File(path);
+    return await file.exists() ? file.readAsBytes() : null;
   }
 
   static String _normalizeRel(String rel) =>
