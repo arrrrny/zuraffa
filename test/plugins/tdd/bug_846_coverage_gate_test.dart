@@ -117,7 +117,15 @@ void main() {
       },
     );
 
-    test('RED: table-format MUST requirement exits 2', () async {
+    test('GREEN since #1196: table-format MUST requirement routes', () async {
+      // Issue #1196 (part of #908 P0) SUPERSEDES the #846-era contract
+      // here: the 120-spec ZikZak corpus really contains FR tables with
+      // variants, and the parser now derives unit behaviors from
+      // FR-table rows (`| FR-002 | The system MUST ... |`) exactly like
+      // bullet FRs — so the table edge is ROUTED, never silently
+      // dropped. The coverage gate stays intact for every requirement
+      // that produces no behavior row (proven by the cases below);
+      // this case now proves the table FR lands on the test list.
       await writeSpec('''
 # Spec: 001-demo
 
@@ -136,11 +144,20 @@ void main() {
 
       expect(
         exitCode,
-        2,
-        reason: 'table-format edge was silently dropped:\n$out',
+        0,
+        reason: 'table-format FR routes (issue #1196):\n$out',
       );
-      expect(out, contains('FR-002'), reason: out);
-      expect(out, contains('| FR-002 |'), reason: 'offending line: $out');
+      // The proof is the artifact: the table FR lands on the test list
+      // as a unit row (stdout route lines print behavior ids, not FR
+      // ids).
+      final list = await File(
+        p.join(featureDir, 'tdd', 'test-list.md'),
+      ).readAsString();
+      expect(
+        list,
+        contains('FR-002'),
+        reason: 'the table FR must land on the test list',
+      );
     });
 
     test(

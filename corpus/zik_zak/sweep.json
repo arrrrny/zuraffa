@@ -1,0 +1,1586 @@
+{
+  "schema": "zikzak-sweep.v1",
+  "corpus": "corpus/zik_zak",
+  "specs": 120,
+  "parse": {
+    "clean": 113,
+    "refused": 7,
+    "crashed": 0
+  },
+  "plan": {
+    "clean": 98,
+    "refused": 22,
+    "declaredRoutes": 410,
+    "fallbackRoutes": 199,
+    "exitClasses": {
+      "exit0": 98,
+      "exit3": 14,
+      "exit1": 4,
+      "exit2": 4
+    }
+  },
+  "specRows": [
+    {
+      "feature": "001-login",
+      "shape": "modern",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "002-signup",
+      "shape": "modern",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "003-onboarding",
+      "shape": "modern",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "004-deal-feed",
+      "shape": "modern",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "005-deal-detail",
+      "shape": "modern",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "006-deal-search",
+      "shape": "modern",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "007-deal-bookmark",
+      "shape": "modern",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "008-deal-share",
+      "shape": "modern",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "009-price-alerts",
+      "shape": "modern",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "010-coupon-vault",
+      "shape": "modern",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "011-barcode-scan",
+      "shape": "modern",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "012-qr-scan",
+      "shape": "modern",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "013-nearby-deals",
+      "shape": "modern",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "014-map-view",
+      "shape": "modern",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "015-category-browse",
+      "shape": "modern",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "016-trending",
+      "shape": "modern",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "017-flash-sales",
+      "shape": "modern-no-lanes",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "018-price-history",
+      "shape": "modern-no-lanes",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "019-review-feed",
+      "shape": "modern-no-lanes",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "020-ratings",
+      "shape": "modern-no-lanes",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "021-photos-upload",
+      "shape": "modern-no-lanes",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "022-video-reviews",
+      "shape": "modern-no-lanes",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "023-comment-thread",
+      "shape": "modern-no-lanes",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "024-reactions",
+      "shape": "modern-no-lanes",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "025-user-profile",
+      "shape": "modern-no-lanes",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "026-profile-edit",
+      "shape": "modern-no-lanes",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "027-avatar-crop",
+      "shape": "modern-no-lanes",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "028-follow-system",
+      "shape": "modern-no-lanes",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "029-block-user",
+      "shape": "modern-undeclared",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "030-report-content",
+      "shape": "modern-undeclared",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "031-chat-list",
+      "shape": "modern-undeclared",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "032-chat-thread",
+      "shape": "modern-undeclared",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "033-typing-indicator",
+      "shape": "modern-undeclared",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "034-push-notifications",
+      "shape": "modern-undeclared",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "035-notification-center",
+      "shape": "modern-undeclared",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "036-mute-settings",
+      "shape": "modern-undeclared",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "037-wallet-balance",
+      "shape": "modern-undeclared",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "038-wallet-topup",
+      "shape": "modern-undeclared",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "039-wallet-withdrawal",
+      "shape": "modern-undeclared",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "040-transaction-history",
+      "shape": "modern-undeclared",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "041-payment-methods",
+      "shape": "legacy-002",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "042-checkout",
+      "shape": "legacy-002",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "043-order-tracking",
+      "shape": "legacy-002",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "044-refunds",
+      "shape": "legacy-002",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "045-invoices",
+      "shape": "legacy-002",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "046-loyalty-points",
+      "shape": "legacy-002",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "047-referral-code",
+      "shape": "legacy-002",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "048-credits",
+      "shape": "legacy-002",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "049-gift-cards",
+      "shape": "legacy-002",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "050-splits",
+      "shape": "legacy-002",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "051-dark-mode",
+      "shape": "crlf",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "052-theme-picker",
+      "shape": "crlf",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "053-language-settings",
+      "shape": "crlf",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "054-currency-settings",
+      "shape": "crlf",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "055-regional-pricing",
+      "shape": "crlf",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "056-offline-cache",
+      "shape": "crlf",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "057-sync-engine",
+      "shape": "crlf",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "058-conflict-resolution",
+      "shape": "crlf",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "059-delta-sync",
+      "shape": "html-entities",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "060-attachment-pipeline",
+      "shape": "html-entities",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "061-image-compression",
+      "shape": "html-entities",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "062-cdn-client",
+      "shape": "html-entities",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "063-upload-queue",
+      "shape": "html-entities",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "064-download-manager",
+      "shape": "html-entities",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "065-deep-links",
+      "shape": "html-entities",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "066-universal-links",
+      "shape": "html-entities",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "067-app-shortcuts",
+      "shape": "non-english",
+      "parse": "clean",
+      "behaviors": 4
+    },
+    {
+      "feature": "068-widget-home",
+      "shape": "non-english",
+      "parse": "clean",
+      "behaviors": 4
+    },
+    {
+      "feature": "069-watch-companion",
+      "shape": "non-english",
+      "parse": "clean",
+      "behaviors": 4
+    },
+    {
+      "feature": "070-tablet-layout",
+      "shape": "non-english",
+      "parse": "clean",
+      "behaviors": 4
+    },
+    {
+      "feature": "071-adaptive-grid",
+      "shape": "non-english",
+      "parse": "clean",
+      "behaviors": 4
+    },
+    {
+      "feature": "072-twin-turbo-cache",
+      "shape": "non-english",
+      "parse": "clean",
+      "behaviors": 4
+    },
+    {
+      "feature": "073-prefetcher",
+      "shape": "non-english",
+      "parse": "clean",
+      "behaviors": 4
+    },
+    {
+      "feature": "074-memory-budget",
+      "shape": "non-english",
+      "parse": "clean",
+      "behaviors": 4
+    },
+    {
+      "feature": "075-battery-saver",
+      "shape": "fr-table",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "076-analytics-tap",
+      "shape": "fr-table",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "077-funnel-events",
+      "shape": "fr-table",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "078-cohort-queries",
+      "shape": "fr-table",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "079-crash-reporting",
+      "shape": "fr-table",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "080-perf-tracing",
+      "shape": "fr-table",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "081-ab-flags",
+      "shape": "fr-table",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "082-remote-config",
+      "shape": "fr-table",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "083-feature-toggles",
+      "shape": "nested-ac",
+      "parse": "clean",
+      "behaviors": 6
+    },
+    {
+      "feature": "084-kill-switch",
+      "shape": "nested-ac",
+      "parse": "clean",
+      "behaviors": 6
+    },
+    {
+      "feature": "085-session-tokens",
+      "shape": "nested-ac",
+      "parse": "clean",
+      "behaviors": 6
+    },
+    {
+      "feature": "086-biometric-unlock",
+      "shape": "nested-ac",
+      "parse": "clean",
+      "behaviors": 6
+    },
+    {
+      "feature": "087-pin-lock",
+      "shape": "nested-ac",
+      "parse": "clean",
+      "behaviors": 6
+    },
+    {
+      "feature": "088-device-management",
+      "shape": "nested-ac",
+      "parse": "clean",
+      "behaviors": 6
+    },
+    {
+      "feature": "089-account-deletion",
+      "shape": "nested-ac",
+      "parse": "clean",
+      "behaviors": 6
+    },
+    {
+      "feature": "090-data-export",
+      "shape": "nested-ac",
+      "parse": "clean",
+      "behaviors": 6
+    },
+    {
+      "feature": "091-privacy-dashboard",
+      "shape": "inline-prose",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "092-consent-center",
+      "shape": "inline-prose",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "093-cookie-banner",
+      "shape": "inline-prose",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "094-gdpr-requests",
+      "shape": "inline-prose",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "095-support-tickets",
+      "shape": "inline-prose",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "096-faq-search",
+      "shape": "inline-prose",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "097-feedback-form",
+      "shape": "inline-prose",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "098-rate-app-prompt",
+      "shape": "inline-prose",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "099-updates-check",
+      "shape": "epic-contracts",
+      "parse": "clean",
+      "behaviors": 2
+    },
+    {
+      "feature": "100-migration-assistant",
+      "shape": "epic-contracts",
+      "parse": "clean",
+      "behaviors": 2
+    },
+    {
+      "feature": "101-backup-restore",
+      "shape": "epic-contracts",
+      "parse": "clean",
+      "behaviors": 2
+    },
+    {
+      "feature": "102-import-bookmarks",
+      "shape": "epic-contracts",
+      "parse": "clean",
+      "behaviors": 2
+    },
+    {
+      "feature": "103-csv-export",
+      "shape": "epic-contracts",
+      "parse": "clean",
+      "behaviors": 2
+    },
+    {
+      "feature": "104-calendar-sync",
+      "shape": "epic-contracts",
+      "parse": "clean",
+      "behaviors": 2
+    },
+    {
+      "feature": "105-reminders",
+      "shape": "pathological",
+      "parse": "refused",
+      "refusal": "spec line 8 declares an unknown scenario type \"**Type**: integration\"."
+    },
+    {
+      "feature": "106-geofence-deals",
+      "shape": "pathological",
+      "parse": "refused",
+      "refusal": "duplicate `**Type**` markers for scenario A1 (first at line 8, duplicate at line 9)."
+    },
+    {
+      "feature": "107-location-history",
+      "shape": "pathological",
+      "parse": "refused",
+      "refusal": "spec line 7 carries a `**Type**` marker outside any numbered scenario block."
+    },
+    {
+      "feature": "108-ble-beacons",
+      "shape": "pathological",
+      "parse": "refused",
+      "refusal": "contract row \"Broken\" declares a malformed signature \"computeWithoutReturn(x)\" — declared signatures must be `name(Params) -> Return` (spec line 8)."
+    },
+    {
+      "feature": "109-nfc-tap",
+      "shape": "pathological",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "110-ar-preview",
+      "shape": "pathological",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "111-3d-viewer",
+      "shape": "pathological",
+      "parse": "refused",
+      "refusal": "spec.md for feature \"111-3d-viewer\" contains no acceptance scenarios (`Given ... When ... Then ...` blocks) — first content line is spec line 1. Cannot derive a TDD test list from a spec with no acceptance criteria. See FR-012."
+    },
+    {
+      "feature": "112-color-matcher",
+      "shape": "pathological",
+      "parse": "refused",
+      "refusal": "spec.md for feature \"112-color-matcher\" contains no acceptance scenarios (`Given ... When ... Then ...` blocks) — first content line is spec line 1. Cannot derive a TDD test list from a spec with no acceptance criteria. See FR-012."
+    },
+    {
+      "feature": "113-size-finder",
+      "shape": "pathological",
+      "parse": "clean",
+      "behaviors": 5
+    },
+    {
+      "feature": "114-style-profile",
+      "shape": "pathological",
+      "parse": "refused",
+      "refusal": "spec.md for feature \"114-style-profile\" contains no acceptance scenarios (`Given ... When ... Then ...` blocks) — first content line is spec line 1. Cannot derive a TDD test list from a spec with no acceptance criteria. See FR-012."
+    },
+    {
+      "feature": "115-brand-pages",
+      "shape": "manual",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "116-store-locator",
+      "shape": "manual",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "117-queue-tickets",
+      "shape": "manual",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "118-returns-label",
+      "shape": "manual",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "119-warranty-vault",
+      "shape": "manual",
+      "parse": "clean",
+      "behaviors": 3
+    },
+    {
+      "feature": "120-beta-signup",
+      "shape": "manual",
+      "parse": "clean",
+      "behaviors": 3
+    }
+  ],
+  "planRows": [
+    {
+      "feature": "001-login",
+      "shape": "modern",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "002-signup",
+      "shape": "modern",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "003-onboarding",
+      "shape": "modern",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "004-deal-feed",
+      "shape": "modern",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "005-deal-detail",
+      "shape": "modern",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "006-deal-search",
+      "shape": "modern",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "007-deal-bookmark",
+      "shape": "modern",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "008-deal-share",
+      "shape": "modern",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "009-price-alerts",
+      "shape": "modern",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "010-coupon-vault",
+      "shape": "modern",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "011-barcode-scan",
+      "shape": "modern",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "012-qr-scan",
+      "shape": "modern",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "013-nearby-deals",
+      "shape": "modern",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "014-map-view",
+      "shape": "modern",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "015-category-browse",
+      "shape": "modern",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "016-trending",
+      "shape": "modern",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "017-flash-sales",
+      "shape": "modern-no-lanes",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "018-price-history",
+      "shape": "modern-no-lanes",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "019-review-feed",
+      "shape": "modern-no-lanes",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "020-ratings",
+      "shape": "modern-no-lanes",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "021-photos-upload",
+      "shape": "modern-no-lanes",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "022-video-reviews",
+      "shape": "modern-no-lanes",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "023-comment-thread",
+      "shape": "modern-no-lanes",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "024-reactions",
+      "shape": "modern-no-lanes",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "025-user-profile",
+      "shape": "modern-no-lanes",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "026-profile-edit",
+      "shape": "modern-no-lanes",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "027-avatar-crop",
+      "shape": "modern-no-lanes",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "028-follow-system",
+      "shape": "modern-no-lanes",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "029-block-user",
+      "shape": "modern-undeclared",
+      "planExit": 0,
+      "declaredRoutes": 3,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "030-report-content",
+      "shape": "modern-undeclared",
+      "planExit": 0,
+      "declaredRoutes": 3,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "031-chat-list",
+      "shape": "modern-undeclared",
+      "planExit": 0,
+      "declaredRoutes": 3,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "032-chat-thread",
+      "shape": "modern-undeclared",
+      "planExit": 0,
+      "declaredRoutes": 3,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "033-typing-indicator",
+      "shape": "modern-undeclared",
+      "planExit": 0,
+      "declaredRoutes": 3,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "034-push-notifications",
+      "shape": "modern-undeclared",
+      "planExit": 0,
+      "declaredRoutes": 3,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "035-notification-center",
+      "shape": "modern-undeclared",
+      "planExit": 0,
+      "declaredRoutes": 3,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "036-mute-settings",
+      "shape": "modern-undeclared",
+      "planExit": 0,
+      "declaredRoutes": 3,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "037-wallet-balance",
+      "shape": "modern-undeclared",
+      "planExit": 0,
+      "declaredRoutes": 3,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "038-wallet-topup",
+      "shape": "modern-undeclared",
+      "planExit": 0,
+      "declaredRoutes": 3,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "039-wallet-withdrawal",
+      "shape": "modern-undeclared",
+      "planExit": 0,
+      "declaredRoutes": 3,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "040-transaction-history",
+      "shape": "modern-undeclared",
+      "planExit": 0,
+      "declaredRoutes": 3,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "041-payment-methods",
+      "shape": "legacy-002",
+      "planExit": 3,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "042-checkout",
+      "shape": "legacy-002",
+      "planExit": 3,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "043-order-tracking",
+      "shape": "legacy-002",
+      "planExit": 3,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "044-refunds",
+      "shape": "legacy-002",
+      "planExit": 3,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "045-invoices",
+      "shape": "legacy-002",
+      "planExit": 3,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "046-loyalty-points",
+      "shape": "legacy-002",
+      "planExit": 3,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "047-referral-code",
+      "shape": "legacy-002",
+      "planExit": 3,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "048-credits",
+      "shape": "legacy-002",
+      "planExit": 3,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "049-gift-cards",
+      "shape": "legacy-002",
+      "planExit": 3,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "050-splits",
+      "shape": "legacy-002",
+      "planExit": 3,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "051-dark-mode",
+      "shape": "crlf",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "052-theme-picker",
+      "shape": "crlf",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "053-language-settings",
+      "shape": "crlf",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "054-currency-settings",
+      "shape": "crlf",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "055-regional-pricing",
+      "shape": "crlf",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "056-offline-cache",
+      "shape": "crlf",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "057-sync-engine",
+      "shape": "crlf",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "058-conflict-resolution",
+      "shape": "crlf",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "059-delta-sync",
+      "shape": "html-entities",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "060-attachment-pipeline",
+      "shape": "html-entities",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "061-image-compression",
+      "shape": "html-entities",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "062-cdn-client",
+      "shape": "html-entities",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "063-upload-queue",
+      "shape": "html-entities",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "064-download-manager",
+      "shape": "html-entities",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "065-deep-links",
+      "shape": "html-entities",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "066-universal-links",
+      "shape": "html-entities",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "067-app-shortcuts",
+      "shape": "non-english",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "068-widget-home",
+      "shape": "non-english",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "069-watch-companion",
+      "shape": "non-english",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "070-tablet-layout",
+      "shape": "non-english",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "071-adaptive-grid",
+      "shape": "non-english",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "072-twin-turbo-cache",
+      "shape": "non-english",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "073-prefetcher",
+      "shape": "non-english",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "074-memory-budget",
+      "shape": "non-english",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "075-battery-saver",
+      "shape": "fr-table",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "076-analytics-tap",
+      "shape": "fr-table",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "077-funnel-events",
+      "shape": "fr-table",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "078-cohort-queries",
+      "shape": "fr-table",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "079-crash-reporting",
+      "shape": "fr-table",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "080-perf-tracing",
+      "shape": "fr-table",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "081-ab-flags",
+      "shape": "fr-table",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "082-remote-config",
+      "shape": "fr-table",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 2
+    },
+    {
+      "feature": "083-feature-toggles",
+      "shape": "nested-ac",
+      "planExit": 0,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 6
+    },
+    {
+      "feature": "084-kill-switch",
+      "shape": "nested-ac",
+      "planExit": 0,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 6
+    },
+    {
+      "feature": "085-session-tokens",
+      "shape": "nested-ac",
+      "planExit": 0,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 6
+    },
+    {
+      "feature": "086-biometric-unlock",
+      "shape": "nested-ac",
+      "planExit": 0,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 6
+    },
+    {
+      "feature": "087-pin-lock",
+      "shape": "nested-ac",
+      "planExit": 0,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 6
+    },
+    {
+      "feature": "088-device-management",
+      "shape": "nested-ac",
+      "planExit": 0,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 6
+    },
+    {
+      "feature": "089-account-deletion",
+      "shape": "nested-ac",
+      "planExit": 0,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 6
+    },
+    {
+      "feature": "090-data-export",
+      "shape": "nested-ac",
+      "planExit": 0,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 6
+    },
+    {
+      "feature": "091-privacy-dashboard",
+      "shape": "inline-prose",
+      "planExit": 0,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "092-consent-center",
+      "shape": "inline-prose",
+      "planExit": 0,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "093-cookie-banner",
+      "shape": "inline-prose",
+      "planExit": 0,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "094-gdpr-requests",
+      "shape": "inline-prose",
+      "planExit": 0,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "095-support-tickets",
+      "shape": "inline-prose",
+      "planExit": 0,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "096-faq-search",
+      "shape": "inline-prose",
+      "planExit": 0,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "097-feedback-form",
+      "shape": "inline-prose",
+      "planExit": 0,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "098-rate-app-prompt",
+      "shape": "inline-prose",
+      "planExit": 0,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 5
+    },
+    {
+      "feature": "099-updates-check",
+      "shape": "epic-contracts",
+      "planExit": 0,
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "100-migration-assistant",
+      "shape": "epic-contracts",
+      "planExit": 0,
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "101-backup-restore",
+      "shape": "epic-contracts",
+      "planExit": 0,
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "102-import-bookmarks",
+      "shape": "epic-contracts",
+      "planExit": 0,
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "103-csv-export",
+      "shape": "epic-contracts",
+      "planExit": 0,
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "104-calendar-sync",
+      "shape": "epic-contracts",
+      "planExit": 0,
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "105-reminders",
+      "shape": "pathological",
+      "planExit": 1,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "106-geofence-deals",
+      "shape": "pathological",
+      "planExit": 1,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "107-location-history",
+      "shape": "pathological",
+      "planExit": 1,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "108-ble-beacons",
+      "shape": "pathological",
+      "planExit": 2,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "109-nfc-tap",
+      "shape": "pathological",
+      "planExit": 3,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "110-ar-preview",
+      "shape": "pathological",
+      "planExit": 3,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "111-3d-viewer",
+      "shape": "pathological",
+      "planExit": 3,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "112-color-matcher",
+      "shape": "pathological",
+      "planExit": 3,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "113-size-finder",
+      "shape": "pathological",
+      "planExit": 0,
+      "declaredRoutes": 8,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "114-style-profile",
+      "shape": "pathological",
+      "planExit": 1,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "115-brand-pages",
+      "shape": "manual",
+      "planExit": 2,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "116-store-locator",
+      "shape": "manual",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 1
+    },
+    {
+      "feature": "117-queue-tickets",
+      "shape": "manual",
+      "planExit": 2,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "118-returns-label",
+      "shape": "manual",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 1
+    },
+    {
+      "feature": "119-warranty-vault",
+      "shape": "manual",
+      "planExit": 2,
+      "declaredRoutes": 0,
+      "fallbackRoutes": 0
+    },
+    {
+      "feature": "120-beta-signup",
+      "shape": "manual",
+      "planExit": 0,
+      "declaredRoutes": 2,
+      "fallbackRoutes": 1
+    }
+  ]
+}

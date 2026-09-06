@@ -90,9 +90,16 @@ class CoverageGapException implements Exception {
 class RequirementScanner {
   const RequirementScanner();
 
-  /// A strict acceptance scenario header: `1. **Given** ...` — the ONLY
-  /// form the behavior-row parser accepts.
-  static final RegExp _scenarioHeader = RegExp(r'^\s*(\d+)\.\s*\*\*Given\*\*');
+  /// A strict acceptance scenario header: `1. **Given** ...` — the
+  /// ONLY form the behavior-row parser accepts. Issue #1196: the
+  /// grammar now also accepts dotted/nested numbering (`1.1.`) and
+  /// unbolded markers (`1. Given` — inline-prose specs); the scanner
+  /// and the parser share this exact pattern so the document-wide AC
+  /// ids stay aligned with the behavior rows (a drift between the two
+  /// walks would surface as phantom coverage gaps).
+  static final RegExp _scenarioHeader = RegExp(
+    r'^\s*(\d+(?:\.\d+)*)\.?\s*(?:\*\*)?Given(?:\*\*)?',
+  );
 
   /// Statement position: the id must come first after optional list
   /// (`-`, `*`, `+`, `>`), heading (`#`), table (`|`), bold (`**`), and
