@@ -253,6 +253,48 @@ class UserMockDataSource implements UserDataSource {
     expect(EngineReceiptWriter.engineFeatureFallback('User'), 'user');
     expect(EngineReceiptWriter.engineFeatureFallback('Login'), 'login');
   });
+
+  test('pinnedFeature normalizes spec-kit style pins (specs/ prefix, '
+      'trailing slash) so receipts land at specs/<slug>/tdd/', () {
+    final dir = Directory.systemTemp.createTempSync('zfa_pin_norm_');
+    addTearDown(() {
+      if (dir.existsSync()) dir.deleteSync(recursive: true);
+    });
+    Directory(p.join(dir.path, '.specify')).createSync(recursive: true);
+
+    // The pin shapes spec-kit writes (see
+    // bone_command._resolveActiveFeature: "specs/020-foo/" -> "020-foo").
+    final pins = <String, String>{
+      '"specs/1109-x"': '1109-x',
+      '"specs/1109-x/"': '1109-x',
+      '"1109-x"': '1109-x',
+    };
+    pins.forEach((pin, expected) {
+      File(
+        p.join(dir.path, '.specify', 'feature.json'),
+      ).writeAsStringSync('{"feature_directory":$pin}');
+      expect(
+        EngineReceiptWriter.pinnedFeature(dir.path),
+        expected,
+        reason: 'pin $pin must normalize to $expected',
+      );
+    });
+
+    // And the normalized pin round-trips: writeV2 + a one-level entity
+    // scan agree on the same receipt file.
+    File(
+      p.join(dir.path, '.specify', 'feature.json'),
+    ).writeAsStringSync('{"feature_directory":"specs/1109-x"}');
+    final feature = EngineReceiptWriter.pinnedFeature(dir.path)!;
+    final file = File(
+      p.join(dir.path, 'specs', feature, 'tdd', 'engine.receipt.json'),
+    );
+    expect(
+      file.parent.path,
+      isNot(contains('specs/specs')),
+      reason: 'a specs/ prefix must not double up in the receipt path',
+    );
+  });
 }
 
 dynamic jsonFileDecode(File file) {

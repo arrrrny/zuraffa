@@ -191,6 +191,12 @@ class EngineChecker {
             .whereType<EngineReceiptMethod>()
             .toList();
         for (final method in recorded.where((m) => !m.mockCertified)) {
+          // When live certification already ran and failed this method,
+          // its uncertifiedMock failure is the actionable finding —
+          // don't double-report the same root cause. A live PASS against
+          // a false record is kept: the receipt is stale and CERT-GATE
+          // still reads the false.
+          if (certification?.methods[method.name] == false) continue;
           failures.add(
             EngineCheckFailure(
               code: EngineFindingCode.receiptUncertified,

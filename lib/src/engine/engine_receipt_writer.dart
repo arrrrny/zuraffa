@@ -204,9 +204,13 @@ class EngineReceiptWriter {
     final target = receiptV2File(projectRoot, feature);
     await target.parent.create(recursive: true);
     final encoded = const JsonEncoder.withIndent('  ').convert(receipt);
-    // Atomic overwrite: write a temp sibling, then rename over the
-    // target — a crashed run never leaves a half-written receipt.
-    final temp = File('${target.path}.tmp');
+    // Atomic overwrite: write a temp sibling (uniquely named — two
+    // concurrent runs must never interleave into the same temp file),
+    // then rename over the target — a crashed run never leaves a
+    // half-written receipt.
+    final temp = File(
+      '${target.path}.${DateTime.now().microsecondsSinceEpoch}.tmp',
+    );
     await temp.writeAsString(encoded);
     await temp.rename(target.path);
     return target;
@@ -249,7 +253,9 @@ class EngineReceiptWriter {
       }
     }
     if (candidates.isEmpty) return null;
-    // Newest first; alphabetical as the deterministic tie-breaker.
+    // Newest first; alphabetical path as the deterministic tie-breaker
+    // (Dart's sort is not stable — equal mtimes, e.g. after a fresh
+    // clone, must not resolve arbitrarily).
     candidates.sort((a, b) {
       final byMtime = b.lastModifiedSync().compareTo(a.lastModifiedSync());
       if (byMtime != 0) return byMtime;
@@ -272,14 +278,20 @@ class EngineReceiptWriter {
 
   /// The feature pinned by `.specify/feature.json`, when one exists
   /// (the same convention `zfa mock certify` resolves #832 fixture
-  /// directories by).
+  /// directories by). Spec-kit pins carry the `specs/` prefix and
+  /// sometimes a trailing slash (`"specs/020-foo/"`) — normalized to the
+  /// bare slug here so `receiptV2File` doesn't build `specs/specs/…`.
   static String? pinnedFeature(String projectRoot) {
     final f = File(p.join(projectRoot, '.specify', 'feature.json'));
     if (!f.existsSync()) return null;
     try {
       final json = f.readAsStringSync();
       final m = RegExp(r'"feature_directory"\s*:\s*"([^"]+)"').firstMatch(json);
-      return m?.group(1);
+      var dir = m?.group(1);
+      if (dir == null) return null;
+      if (dir.endsWith('/')) dir = dir.substring(0, dir.length - 1);
+      if (dir.startsWith('specs/')) dir = dir.substring('specs/'.length);
+      return dir.isEmpty ? null : dir;
     } on FileSystemException {
       return null;
     }
