@@ -51,36 +51,14 @@ void main() {
 
     // The #1034 sanctioned AUGMENTED mock data: values hand-augmented
     // (forMethod selector + fixtures); provider routing stays generated.
+    // The literals are single-sourced in the shared engine-tier fixture.
     await fx.write(
       'lib/src/data/mock/auth_session_mock_data.dart',
-      "import '../../domain/entities/auth_session/auth_session.dart';\n"
-          'class AuthSessionMockData {\n'
-          "  static const _adminSession = AuthSession(token: 'admin-token');\n"
-          "  static const _guestSession = AuthSession(token: 'guest-token');\n"
-          "  static const _defaultSession = AuthSession(token: 'default-token');\n"
-          '  static AuthSession get sampleAuthSession => _defaultSession;\n'
-          '  static List<AuthSession> get sampleList => [_defaultSession];\n'
-          '  static AuthSession forMethod(String kind) {\n'
-          '    switch (kind) {\n'
-          "      case 'admin':\n"
-          '        return _adminSession;\n'
-          "      case 'guest':\n"
-          '        return _guestSession;\n'
-          '      default:\n'
-          '        return _defaultSession;\n'
-          '    }\n'
-          '  }\n'
-          '}\n',
+      authSessionMockData(),
     );
     await fx.write(
       'lib/src/data/mock/login_params_mock_data.dart',
-      "import '../../domain/entities/login_params/login_params.dart';\n"
-          'class LoginParamsMockData {\n'
-          "  static const _admin = LoginParams(kind: 'admin');\n"
-          "  static const _guest = LoginParams(kind: 'guest');\n"
-          '  static LoginParams get sampleLoginParams => _admin;\n'
-          '  static List<LoginParams> get sampleList => [_admin, _guest];\n'
-          '}\n',
+      loginParamsMockDataSource,
     );
 
     await MockPlugin(outputDir: fx.libSrc, options: opts).generate(
@@ -140,16 +118,24 @@ void main() {
       reason: 'the constructor parameter must honor a custom delay',
     );
 
+    // Deterministic short-circuit check: Dart timers fire in due-time
+    // order, so the Duration.zero login always completes before the
+    // 100 ms default one - no wall-clock upper bound to flake on.
     final fastProvider = AuthMockProvider(Duration.zero);
-    final sw2 = Stopwatch()..start();
+    final slowProvider = AuthMockProvider();
+    var slowCompleted = false;
+    final slowDone = slowProvider
+        .login(const LoginParams(kind: 'admin'))
+        .then((_) => slowCompleted = true);
     await fastProvider.login(const LoginParams(kind: 'admin'));
-    sw2.stop();
     expect(
-      sw2.elapsedMilliseconds,
-      lessThan(100),
+      slowCompleted,
+      isFalse,
       reason: 'the constructor parameter must be honored - Duration.zero '
-          'short-circuits the delay',
+          'short-circuits the delay (the zero-delay login lands while the '
+          '100 ms default one is still pending)',
     );
+    await slowDone;
   });
 
   test('(c) the per-method fixture selector routes on the params '
@@ -209,7 +195,7 @@ void main() {
     );
     expect(
       output,
-      contains('+4'),
+      matches(RegExp(r'\+4: All tests passed')),
       reason: 'all four behaviors (a)-(d) must run green; output:\n$output',
     );
   }, timeout: const Timeout(Duration(minutes: 4)));

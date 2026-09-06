@@ -179,7 +179,7 @@ void main() {
     );
     expect(
       output,
-      contains('+4'),
+      matches(RegExp(r'\+4: All tests passed')),
       reason: 'all four behaviors (a)-(d) must run green; output:\n$output',
     );
   }, timeout: const Timeout(Duration(minutes: 4)));

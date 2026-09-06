@@ -191,3 +191,56 @@ Future<void> writeLoginPilotEntities(EngineTierFixture fx) async {
     loginParamsEntitySource,
   );
 }
+
+/// The `AuthSessionMockData` source every mock suite seeds as pre-existing
+/// project state — the sanctioned AUGMENTED escape hatch (#1034):
+/// mock-data VALUES may be hand-written; provider ROUTING stays 100%
+/// generated.
+///
+/// `withSelector: true` (default) declares the per-method fixture
+/// selector the provider threads (`forMethod(params.kind)`); `false`
+/// emits the single-fixture shape so the structural suite can pin the
+/// fallback routing too.
+String authSessionMockData({bool withSelector = true}) {
+  final fixtures = withSelector
+      ? "  static const _adminSession = AuthSession(token: 'admin-token');\n"
+            "  static const _guestSession = AuthSession(token: 'guest-token');\n"
+      : '';
+  final selector = withSelector
+      ? '\n'
+            '  static AuthSession forMethod(String kind) {\n'
+            "    switch (kind) {\n"
+            "      case 'admin':\n"
+            '        return _adminSession;\n'
+            "      case 'guest':\n"
+            '        return _guestSession;\n'
+            '      default:\n'
+            '        return _defaultSession;\n'
+            '    }\n'
+            '  }\n'
+      : '';
+  return '''
+import '../../domain/entities/auth_session/auth_session.dart';
+
+/// Mock data for AuthSession (the sanctioned AUGMENTED escape hatch:
+/// mock-data VALUES may be hand-written; provider routing stays 100%
+/// generated).
+class AuthSessionMockData {
+$fixtures  static const _defaultSession = AuthSession(token: 'default-token');
+  static AuthSession get sampleAuthSession => _defaultSession;
+  static List<AuthSession> get sampleList => [_defaultSession];$selector
+}
+''';
+}
+
+/// The params entity's mock data — fixture pre-existing state that
+/// satisfies the provider's entity-graph import.
+const String loginParamsMockDataSource = '''
+import '../../domain/entities/login_params/login_params.dart';
+class LoginParamsMockData {
+  static const _admin = LoginParams(kind: 'admin');
+  static const _guest = LoginParams(kind: 'guest');
+  static LoginParams get sampleLoginParams => _admin;
+  static List<LoginParams> get sampleList => [_admin, _guest];
+}
+''';

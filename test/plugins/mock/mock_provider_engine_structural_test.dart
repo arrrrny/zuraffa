@@ -18,6 +18,9 @@ import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/mock/mock_plugin.dart';
 import 'package:zuraffa/src/plugins/service/service_plugin.dart';
 
+import '../../helpers/engine_tier_fixture.dart'
+    show authSessionMockData, loginParamsMockDataSource;
+
 void main() {
   late Directory tempDir;
   late String outputDir;
@@ -77,13 +80,7 @@ void main() {
     // satisfies the provider's entity-graph import.
     await _write(
       p.join(outputDir, 'data', 'mock', 'login_params_mock_data.dart'),
-      "import '../../domain/entities/login_params/login_params.dart';\n"
-      'class LoginParamsMockData {\n'
-      "  static const _admin = LoginParams(kind: 'admin');\n"
-      "  static const _guest = LoginParams(kind: 'guest');\n"
-      '  static LoginParams get sampleLoginParams => _admin;\n'
-      '  static List<LoginParams> get sampleList => [_admin, _guest];\n'
-      '}\n',
+      loginParamsMockDataSource,
     );
     final files = await MockPlugin(
       outputDir: outputDir,
@@ -102,7 +99,9 @@ void main() {
 
   test('generates AuthMockProvider implementing the service with the '
       'certified 100 ms delay default and the expected stub body', () async {
-    final content = await generateProvider(mockDataSource: _mockDataNoSelector);
+    final content = await generateProvider(
+      mockDataSource: authSessionMockData(withSelector: false),
+    );
 
     // Class + contract: implements the service the DI binds it to.
     expect(
@@ -186,7 +185,7 @@ void main() {
     'class declares one and the params entity carries the discriminator',
     () async {
       final content = await generateProvider(
-        mockDataSource: _mockDataWithSelector,
+        mockDataSource: authSessionMockData(),
       );
 
       expect(
@@ -207,43 +206,6 @@ void main() {
     },
   );
 }
-
-String get _mockDataNoSelector => '''
-import '../../domain/entities/auth_session/auth_session.dart';
-
-/// Mock data for AuthSession (no per-method selector declared: the
-/// provider keeps the single-fixture shape).
-class AuthSessionMockData {
-  static const _defaultSession = AuthSession(token: 'default-token');
-  static AuthSession get sampleAuthSession => _defaultSession;
-  static List<AuthSession> get sampleList => [_defaultSession];
-}
-''';
-
-String get _mockDataWithSelector => '''
-import '../../domain/entities/auth_session/auth_session.dart';
-
-/// Mock data for AuthSession, hand-augmented with the #1034 per-method
-/// fixture selector (the sanctioned AUGMENTED escape hatch: mock-data
-/// VALUES may be hand-written; provider routing stays generated).
-class AuthSessionMockData {
-  static const _adminSession = AuthSession(token: 'admin-token');
-  static const _guestSession = AuthSession(token: 'guest-token');
-  static const _defaultSession = AuthSession(token: 'default-token');
-  static AuthSession get sampleAuthSession => _defaultSession;
-  static List<AuthSession> get sampleList => [_defaultSession];
-  static AuthSession forMethod(String kind) {
-    switch (kind) {
-      case 'admin':
-        return _adminSession;
-      case 'guest':
-        return _guestSession;
-      default:
-        return _defaultSession;
-    }
-  }
-}
-''';
 
 Future<void> _writeEntity(
   String outputDir,

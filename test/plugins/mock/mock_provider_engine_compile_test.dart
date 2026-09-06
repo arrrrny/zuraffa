@@ -38,37 +38,15 @@ void main() {
     // Fixture pre-existing state: the mock-data pair the provider
     // imports (target entity + params entity), hand-augmented with the
     // #1034 selector so the compile bar covers the selector-threaded
-    // body too.
+    // body too. The literals are single-sourced in the shared engine-tier
+    // fixture.
     await fx.write(
       'lib/src/data/mock/auth_session_mock_data.dart',
-      "import '../../domain/entities/auth_session/auth_session.dart';\n"
-          'class AuthSessionMockData {\n'
-          "  static const _adminSession = AuthSession(token: 'admin-token');\n"
-          "  static const _guestSession = AuthSession(token: 'guest-token');\n"
-          "  static const _defaultSession = AuthSession(token: 'default-token');\n"
-          '  static AuthSession get sampleAuthSession => _defaultSession;\n'
-          '  static List<AuthSession> get sampleList => [_defaultSession];\n'
-          '  static AuthSession forMethod(String kind) {\n'
-          '    switch (kind) {\n'
-          "      case 'admin':\n"
-          '        return _adminSession;\n'
-          "      case 'guest':\n"
-          '        return _guestSession;\n'
-          '      default:\n'
-          '        return _defaultSession;\n'
-          '    }\n'
-          '  }\n'
-          '}\n',
+      authSessionMockData(),
     );
     await fx.write(
       'lib/src/data/mock/login_params_mock_data.dart',
-      "import '../../domain/entities/login_params/login_params.dart';\n"
-          'class LoginParamsMockData {\n'
-          "  static const _admin = LoginParams(kind: 'admin');\n"
-          "  static const _guest = LoginParams(kind: 'guest');\n"
-          '  static LoginParams get sampleLoginParams => _admin;\n'
-          '  static List<LoginParams> get sampleList => [_admin, _guest];\n'
-          '}\n',
+      loginParamsMockDataSource,
     );
 
     await MockPlugin(outputDir: fx.libSrc, options: opts).generate(
