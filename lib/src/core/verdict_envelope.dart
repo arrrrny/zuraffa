@@ -208,6 +208,7 @@ class VerdictEnvelope {
     List<VerdictFinding>? findings,
     List<String>? drifts,
     Map<String, Object?>? details,
+    this.explain,
     DateTime? timestamp,
   }) : artifacts = artifacts ?? const VerdictArtifacts.empty(),
        receipts = receipts ?? <String>[],
@@ -257,8 +258,33 @@ class VerdictEnvelope {
   /// Plugin-specific extras — the only free-form surface of the schema.
   final Map<String, Object?> details;
 
+  /// The additive `--explain` block (issue #1122): a plugin-defined
+  /// structure describing what the run did. Absent unless the emitter
+  /// set it — the base envelope is byte-compatible either way.
+  final Map<String, dynamic>? explain;
+
   /// ISO 8601 UTC timestamp; injected in tests for determinism.
   final DateTime timestamp;
+
+  /// Returns a copy carrying the additive `--explain` block (issue
+  /// #1122) without mutating the base envelope.
+  VerdictEnvelope withExplain(Map<String, dynamic> explain) =>
+      VerdictEnvelope(
+        command: command,
+        verdict: verdict,
+        exitClass: exitClass,
+        exitClassLabel: exitClassLabel,
+        feature: feature,
+        fix: fix,
+        subject: subject,
+        artifacts: artifacts,
+        receipts: receipts,
+        findings: findings,
+        drifts: drifts,
+        details: details,
+        explain: explain,
+        timestamp: timestamp,
+      );
 
   /// The default ExitProtocol code for a verdict when the emitter does
   /// not declare one: pass exits 0, everything else exits 1.
@@ -281,6 +307,10 @@ class VerdictEnvelope {
     'drifts': drifts,
     if (fix != null && fix!.isNotEmpty) 'fix': fix,
     'details': details,
+    // Issue #1122: the additive `--explain` block — absent unless the
+    // flag was requested (route create/verify); the base envelope is
+    // byte-compatible either way.
+    if (explain != null) 'explain': explain,
     'timestamp': timestamp.toIso8601String(),
   };
 
