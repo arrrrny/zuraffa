@@ -31,6 +31,7 @@ import 'package:path/path.dart' as p;
 import '../../../core/proof/proof_checker.dart';
 import '../../../core/project/receipt_store.dart';
 import '../services/mutation_auditor.dart';
+import '../services/explain_emitter.dart';
 import '../services/receipt_preflight.dart';
 import '../services/requirement_scan.dart';
 import '../services/tdd_timeout.dart';
@@ -50,6 +51,7 @@ class VerifyCommand extends Command<void> {
           'line (VISION §5, issue #964).',
       negatable: false,
     );
+    argParser.addFlag('explain', help: kExplainFlagHelp, negatable: false);
     argParser.addOption(
       'feature',
       help:
@@ -328,6 +330,42 @@ class VerifyCommand extends Command<void> {
 
     // Write verification.md from the REAL run (never a stale copy).
     await _writeVerificationMd(featureDir, report);
+
+    // Issue #1125: the audit's explain block — the gate decision, the
+    // mutation counts the summary line names, the preflight's receipt
+    // accounting, and the fix hints the report printed. Populated AFTER
+    // verification.md is written so the artifacts list is honest.
+    _verdict.explain = TddExplain(
+      command: 'verify',
+      features: [featureName],
+      lane: 'none — the audit assesses evidence, it drives no lane',
+      receipts: [
+        if (receiptGate.gateActive)
+          '${receiptGate.receipts} shipped receipt(s) validated '
+              '(receipt preflight, .zfa/receipts/)'
+        else
+          'none shipped — proof-carrying generation not in use',
+      ],
+      fixHints: [
+        for (final s in report.survivors)
+          'add or strengthen a scope test that fails on the mutant at '
+              '${s.file}:${s.line} '
+              '(${report.reportPath ?? 'see the mutation report for the diff'})',
+        if (report.notAssessedReason != null)
+          'make the mutation phase runnable — add mutation_test to '
+              'dev_dependencies (dart pub add dev:mutation_test) and '
+              're-run',
+      ],
+      summary:
+          'Verify ran the mutation audit for $featureName: '
+          'gate=${report.gate.label}, killed=${report.killedCount}, '
+          'survived=${report.survivedCount}, '
+          'timed_out=${report.timedOutCount}, '
+          'mutation_was_run=${report.mutationWasRun}'
+          '${report.notAssessedReason == null ? '' : ' — not assessed: ${report.notAssessedReason}'}'
+          '. The full report is '
+          '${p.join('specs', featureName, 'tdd', 'verification.md')}.',
+    );
 
     // Bug #837 exit protocol: a quality failure (survived or timed-out
     // mutants) is a real gate verdict — exit 1 with the per-mutant report

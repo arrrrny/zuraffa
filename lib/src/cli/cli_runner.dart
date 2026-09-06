@@ -217,8 +217,9 @@ class CliRunner {
     _runner.addCommand(ModuleCommand());
     _runner.addCommand(XrayCommand());
     // Issue #1149 (kill list): the observer plugin is gone; the command
-    // name now delivers an honest removal verdict (exit 64) instead of
-    // silently vanishing or — worse — lying about generation.
+    // name now delivers an honest removal verdict (exit 2 — the legacy 64
+    // canonicalized by SPEC 917) instead of silently vanishing or —
+    // worse — lying about generation.
     _runner.addCommand(ObserverRemovedCommand());
     _runner.addCommand(UpdateCommand());
     _runner.addCommand(SetupCommand());

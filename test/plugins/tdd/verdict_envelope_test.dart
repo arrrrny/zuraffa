@@ -23,7 +23,7 @@ void main() {
         );
         final line = envelope.toJsonLine();
         final decoded = jsonDecode(line) as Map<String, Object?>;
-        expect(decoded['schema'], 'verdict.v1');
+        expect(decoded['schema'], 'zuraffa.verdict.v1');
         expect(decoded['command'], 'run');
         expect(decoded['verdict'], 'pass');
         expect(decoded['feature'], '073-slice-isolation');
@@ -49,8 +49,8 @@ void main() {
       expect(details['reused'], 1);
     });
 
-    test('U3: schema name is exactly "verdict.v1" (no drift)', () {
-      expect(VerdictEnvelope.schema, 'verdict.v1');
+    test('U3: schema name is exactly "zuraffa.verdict.v1" (no drift)', () {
+      expect(VerdictEnvelope.schema, 'zuraffa.verdict.v1');
     });
 
     test('U3b: every verdict enum is preserved in JSON', () {

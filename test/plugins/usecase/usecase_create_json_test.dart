@@ -1,10 +1,13 @@
 // Spec #972 — `zfa usecase create --json` per-method verdicts (FR-2) and
 // the generation receipt (FR-3).
 //
-// The --json envelope is the machine contract:
-//   {"schema": 1, "entity": ..., "methods": [
-//      {"name": "get", "action": "created"},
-//      {"name": "toggle", "action": "skipped", "reason": "..."}]}
+// The --json envelope is the machine contract — the ONE canonical frame
+// (SPEC 1105):
+//   {"schema": "zuraffa.verdict.v1", "command": "zfa usecase create <Entity>",
+//    "verdict": "pass", "subject": {"kind": "usecase", "id": "<Entity>"},
+//    "details": {"methods": [
+//       {"name": "get", "action": "created"},
+//       {"name": "toggle", "action": "skipped", "reason": "..."}]}}
 // with action ∈ {created, appended, skipped} (deleted on the revert path).
 //
 // Issue #1138: the receipt is keyed
@@ -60,10 +63,14 @@ environment:
     ]);
 
     final envelope = _parseEnvelope(output);
-    expect(envelope['schema'], 1);
-    expect(envelope['entity'], 'Product');
+    expect(envelope['schema'], 'zuraffa.verdict.v1');
+    expect(envelope['command'], 'zfa usecase create Product');
+    expect(envelope['verdict'], 'pass');
+    expect((envelope['subject'] as Map)['id'], 'Product');
 
-    final methods = (envelope['methods'] as List).cast<Map<String, dynamic>>();
+    final methods =
+        ((envelope['details'] as Map<String, dynamic>)['methods'] as List)
+            .cast<Map<String, dynamic>>();
     expect(methods, hasLength(2), reason: 'default methods: get, update');
     expect(
       methods.first['name'],
@@ -150,7 +157,9 @@ environment:
     ]);
 
     final envelope = _parseEnvelope(output);
-    final methods = (envelope['methods'] as List).cast<Map<String, dynamic>>();
+    final methods =
+        ((envelope['details'] as Map<String, dynamic>)['methods'] as List)
+            .cast<Map<String, dynamic>>();
     expect(methods, hasLength(2));
     for (final verdict in methods) {
       expect(
@@ -183,7 +192,9 @@ environment:
     ]);
 
     final envelope = _parseEnvelope(output);
-    final methods = (envelope['methods'] as List).cast<Map<String, dynamic>>();
+    final methods =
+        ((envelope['details'] as Map<String, dynamic>)['methods'] as List)
+            .cast<Map<String, dynamic>>();
     expect(methods, hasLength(2));
 
     final get = methods.firstWhere((m) => m['name'] == 'get');
