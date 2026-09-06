@@ -43,6 +43,18 @@ class StrategyCommand extends PluginCommand {
   String get description =>
       'Generate FetchStrategy abstract base, concrete variants, and StrategySelector';
 
+  /// SPEC 917 / #876 sweep: run()'s programmatic positional path reads
+  /// every parent-level flag listed below — they are LIVE, declared here so
+  /// `zfa manifest --verify` certifies them instead of flagging them dead
+  /// (spec #979).
+  @override
+  Set<String> get consumedParentFlags => const {
+    'domain',
+    'params',
+    'returns',
+    'strategies',
+  };
+
   @override
   Future<void> run() async {
     // Delegate to subcommand (e.g. `zfa strategy create`) if one was given.
