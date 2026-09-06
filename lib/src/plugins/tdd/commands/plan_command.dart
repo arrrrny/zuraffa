@@ -11,6 +11,7 @@
 /// report drift (exit 3) when the spec is edited after planning.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -25,6 +26,8 @@ import '../services/routing_resolver.dart';
 import '../services/requirement_scan.dart';
 import '../services/spec_migrator.dart';
 import '../services/spec_parser.dart';
+import '../services/platform_layout_contract.dart';
+import '../services/platform_coverage_ledger.dart';
 import '../services/test_list_reader.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/ui_ledger_projection.dart';
@@ -211,6 +214,30 @@ class PlanCommand extends Command<void> {
         ..fix =
             'fix the malformed `key:` token in the Presentation layer '
             'contract, then re-run zfa tdd plan'
+        ..details['spec'] = specPath;
+      exitCode = 2;
+      return;
+    }
+
+    // Issue #1142 (extending #1004/#1102): the platform layout contract
+    // is a DECLARED contract — the Presentation table's
+    // `adaptive_layouts` bullet. A malformed slot name refuses the plan
+    // before any artifact is written (the same errors-are-an-API
+    // discipline the i18n contract applies above).
+    List<String> layoutSlots = const [];
+    try {
+      layoutSlots =
+          PlatformLayoutContract.fromContracts(layerContracts)?.slots ??
+          const [];
+    } on PlatformLayoutContractException catch (error) {
+      print('zfa tdd plan: layout contract refused — ${error.message}');
+      print('   no artifacts were written.');
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'layout-contract'
+        ..fix =
+            'fix the malformed slot name in the `adaptive_layouts` '
+            'Presentation bullet, then re-run zfa tdd plan'
         ..details['spec'] = specPath;
       exitCode = 2;
       return;
@@ -666,6 +693,7 @@ class PlanCommand extends Command<void> {
         ],
         componentTokens: UiLedgerProjection.componentTokensOf(layerContracts),
         keys: i18nKeys,
+        layoutSlots: layoutSlots,
       );
       return;
     }
@@ -695,6 +723,7 @@ class PlanCommand extends Command<void> {
       ],
       componentTokens: UiLedgerProjection.componentTokensOf(layerContracts),
       keys: i18nKeys,
+      layoutSlots: layoutSlots,
     );
     // Issue #969 T003: the plan's artifacts become self-certifying —
     // digest-bound receipts so the preflight gate can catch hand-edits.
@@ -979,27 +1008,50 @@ class PlanCommand extends Command<void> {
   /// the Presentation component tokens, `t.<key>` key rows whose provers
   /// are the behaviors quoting the anchor. Planned provers are NOT-DONE
   /// at plan time (state recomputes on read — a stored state is a cache,
-  /// never the truth). Returns the written paths (for the plan's
-  /// digest-bound receipts).
+  /// never the truth). Issue #1142: when the Presentation contract
+  /// declares platform layout slots, the ledger additionally renders the
+  /// PER-PLATFORM coverage (surfaces × slots, plan-time evidence empty ⇒
+  /// every per-slot row NOT-DONE — visible, never omitted) and the
+  /// per-platform kind-coverage heatmap. Returns the written paths (for
+  /// the plan's digest-bound receipts).
   Future<Map<String, String>> _writeUiLedger(
     Directory outDir, {
     required List<LedgerBehaviorInput> behaviors,
     required List<String> componentTokens,
     required I18nKeyTable keys,
+    List<String> layoutSlots = const [],
   }) async {
     final rows = UiLedgerProjection.rows(
       behaviors: behaviors,
       keys: keys,
       componentTokens: componentTokens,
     );
+    final mdBody = UiLedgerBuilder.toMarkdown(rows);
+    final platformRows = layoutSlots.isEmpty
+        ? const <PlatformSurfaceRow>[]
+        : PlatformCoverageLedger.derive(aggregate: rows, slots: layoutSlots);
+    final md = layoutSlots.isEmpty
+        ? mdBody
+        : '$mdBody\n${PlatformCoverageLedger.toMarkdown(platformRows)}';
+    final json = layoutSlots.isEmpty
+        ? UiLedgerBuilder.toJson(rows)
+        : jsonEncode([
+            ...jsonDecode(UiLedgerBuilder.toJson(rows)) as List<dynamic>,
+            ...jsonDecode(PlatformCoverageLedger.toJson(platformRows))
+                as List<dynamic>,
+          ]);
     final mdPath = p.join(outDir.path, 'ui-ledger.md');
     final jsonPath = p.join(outDir.path, 'ui-ledger.json');
-    await File(mdPath).writeAsString(UiLedgerBuilder.toMarkdown(rows));
-    await File(jsonPath).writeAsString(UiLedgerBuilder.toJson(rows));
+    await File(mdPath).writeAsString(md);
+    await File(jsonPath).writeAsString(json);
     final keyRows = rows.where((r) => r.kind == UiSurfaceKind.key).length;
+    final platformNote = layoutSlots.isEmpty
+        ? ''
+        : ', ${layoutSlots.length} platform slot(s) heatmap (issue #1142)';
     print(
       'zfa tdd plan: wrote $mdPath (${rows.length} row(s), '
-      '$keyRows key row(s)) — the UI surface ledger (issue #1141)',
+      '$keyRows key row(s)$platformNote) — the UI surface ledger '
+      '(issue #1141)',
     );
     return {mdPath: 'update', jsonPath: 'update'};
   }
