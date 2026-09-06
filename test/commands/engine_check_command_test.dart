@@ -5,7 +5,7 @@
 // Exit 0 on a clean engine, exit 1 + fix hints on a broken one.
 //
 // Driven through a real subprocess ([runZfaSource]) so the exit-code
-// protocol (0 green / 1 findings / 64 usage) is exercised exactly as CI
+// protocol (0 green / 1 findings / 2 usage) is exercised exactly as CI
 // consumes it, and the process-global `Directory.current` that `-C`
 // mutates never races between parallel test files (issue #506 pattern).
 
@@ -13,6 +13,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/exit_protocol.dart';
 
 import '../helpers/run_zfa_source.dart';
 
@@ -65,7 +66,10 @@ abstract class LoginDataSource {}
     );
     await writeFile(
       'lib/src/data/datasources/login/login_mock_datasource.dart',
-      'class LoginMockDataSource implements LoginDataSource {}',
+      'class LoginMockDataSource implements LoginDataSource {\n'
+          '  @override\n'
+          '  Future<Login?> get(String id) async => null;\n'
+          '}',
     );
     await writeFile('lib/src/data/mock/login_mock_data.dart', '''
 class LoginMockData {}
@@ -81,7 +85,33 @@ void registerLoginRepository(GetIt getIt) {
     () => DataLoginRepository(getIt<LoginRemoteDataSource>()),
   );
 }
+}
 ''');
+    // Spec 1110: a clean engine slice is a CERTIFIED slice — commit the
+    // all-satisfied mock-cert receipt (fresh: written after the entity).
+    await writeFile('test/mock/login/mock-cert.Login.json', '''
+{
+  "schema": 1,
+  "spec": 1001,
+  "entity": "Login",
+  "interface": "LoginDataSource",
+  "contract_digest": "fixture",
+  "methods": [
+    {"name": "get", "satisfied": true}
+  ],
+  "sandbox": {"runner": "dart", "analyze_issues": 0, "analyze_errors": 0},
+  "certified_at": "2026-09-05T00:00:00.000Z"
+}
+''');
+    // Issue #1109: `engine check` hard-requires the v2 engine receipt
+    // (specs/<feature>/tdd/engine.receipt.json) that the make-engine tail
+    // writes — a clean slice includes it.
+    await writeFile(
+      'specs/000-default/tdd/engine.receipt.json',
+      '{"schema":"engine.receipt.v2","entity":"Login","methods":['
+          '{"name":"get","mock_certified":true,"mock_class":"LoginMockDataSource"}'
+          '],"source_files":[]}',
+    );
   }
 
   test('exits 0 on a clean engine slice', () async {
@@ -137,13 +167,17 @@ void registerLoginRepository(GetIt getIt) {
     expect(result.stdout as String, contains('--> fix:'));
   });
 
-  test('usage error (exit 64) when the entity name is missing', () async {
+  test('usage error (exit 2) when the entity name is missing', () async {
     final result = await runZfaSource([
       'engine',
       'check',
     ], workingDirectory: workspace.path);
 
-    expect(result.exitCode, 64, reason: 'missing entity is a usage error');
+    expect(
+      result.exitCode,
+      ExitProtocol.usage,
+      reason: 'missing entity is a usage error',
+    );
     expect(result.stdout as String, contains('Usage'));
   });
 }

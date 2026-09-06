@@ -234,6 +234,24 @@ export 'src/core/failure_hooks.dart'
 /// Lightweight S3-compatible MinIO client with AWS Signature V4.
 export 'src/core/minio_client.dart' show MinioClient;
 
+/// Unified TDD journal (spec 1113, issue #1113): the one machine-
+/// parseable record of run-engine then run-skin. `JournalReader` is the
+/// ONE canonical read API any tool (theater, status, prove, simulate)
+/// consumes — journal entries, the refs-followed lane receipts, the
+/// cycle-log content, the per-behavior green evidence, and the derived
+/// one-line verdict.
+export 'src/plugins/tdd/services/journal.dart'
+    show
+        JournalReader,
+        JournalWriter,
+        JournalEntry,
+        JournalSchema,
+        JournalException,
+        FeatureJournal,
+        JournalVerdict,
+        JournalBehavior,
+        journalFileFingerprint;
+
 export 'src/core/generation/generation_context.dart';
 export 'src/core/context/file_system.dart';
 export 'src/core/context/context_store.dart';

@@ -18,6 +18,9 @@ import 'package:path/path.dart' as p;
 
 import '../models/lane.dart';
 import '../models/routing.dart';
+import '../services/finder_taxonomy.dart';
+import '../services/feature_path_resolver.dart';
+import '../services/i18n_key_contract.dart';
 import '../services/lane_split.dart';
 import '../services/routing_resolver.dart';
 import '../services/requirement_scan.dart';
@@ -25,10 +28,12 @@ import '../services/spec_migrator.dart';
 import '../services/spec_parser.dart';
 import '../services/test_list_reader.dart';
 import '../services/tdd_generation_receipt.dart';
+import '../services/ui_ledger_projection.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../services/skin_contract_emit.dart';
+import '../../../tdd/services/ui_ledger_builder.dart';
 import '../../../skin/contract/adaptive_skin_contract.dart';
 import '../../../skin/contract/adaptive_skin_contract_parser.dart';
 import '../../../core/project/project_root.dart';
@@ -81,8 +86,10 @@ class PlanCommand extends Command<void> {
 
   @override
   String get description =>
-      'Read specs/<feature>/spec.md and emit '
-      'specs/<feature>/tdd/test-list.md (one behavior per criterion).';
+      'Read <feature>/spec.md and emit <feature>/tdd/test-list.md (one '
+      'behavior per criterion). <feature> is a plain specs/ feature name, '
+      'a specs/<feature> path, a .specify/bugs/<slug> bug directory, or '
+      'an absolute path (issue #1182).';
 
   @override
   String get invocation => 'zfa tdd plan <feature>';
@@ -96,17 +103,36 @@ class PlanCommand extends Command<void> {
     if (rest.isEmpty) {
       usageException('Feature name is required: zfa tdd plan <feature>');
     }
-    final feature = rest.first;
+    final rawRef = rest.first;
     // Prefer an explicit --project root so the command never depends on the
     // process-global Directory.current. Falls back to CWD for real CLI use.
     final projectFlag = argResults?['project'] as String?;
     final repoRoot = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find(anchorDir: 'specs');
-    final specPath = '$repoRoot/specs/$feature/spec.md';
+    // Issue #1182: route the feature reference through the single TDD
+    // feature resolver — a plain name keeps the legacy specs/ location, a
+    // `specs/<name>`, `.specify/bugs/<slug>` or absolute reference resolves
+    // to that directory directly (no symlink bridge needed). Artifacts
+    // land BESIDE the resolved spec, and the "spec not found" error names
+    // the resolved path.
+    final resolved = TddFeaturePaths.resolve(
+      projectRoot: repoRoot,
+      featureRef: rawRef,
+    );
+    final feature = resolved.name;
+    final featureDir = resolved.dir;
+    final specPath = p.join(featureDir, 'spec.md');
     final specFile = File(specPath);
     if (!await specFile.exists()) {
       stderr.writeln('zfa tdd plan: spec not found at $specPath');
+      // Issue #1182: the envelope carries the RESOLVED path — a tool
+      // reading the verdict must see the path the command actually
+      // referenced, not a specs/-relative guess.
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'spec-not-found'
+        ..details['spec'] = specPath;
       throw StateError('zfa tdd plan: spec not found');
     }
     var specMd = await specFile.readAsString();
@@ -190,6 +216,27 @@ class PlanCommand extends Command<void> {
     // after the prior test list is read, so ids reconcile by traces.
     final dependencies = const SpecParser().parseDependencies(specMd);
     final layerContracts = const SpecParser().parseLayerContracts(specMd);
+
+    // Issue #1141 (extending #965): the spec's i18n key contract is a
+    // DECLARED contract — a malformed `key:` token refuses the plan
+    // before any artifact is written (errors-are-an-API, the same
+    // refusal gen/view apply), with the row named and the fix line.
+    final I18nKeyTable i18nKeys;
+    try {
+      i18nKeys = I18nKeyTable.fromLayerContracts(layerContracts);
+    } on I18nKeyContractParseException catch (error) {
+      print('zfa tdd plan: i18n contract refused — ${error.message}');
+      print('   no artifacts were written.');
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'i18n-contract'
+        ..fix =
+            'fix the malformed `key:` token in the Presentation layer '
+            'contract, then re-run zfa tdd plan'
+        ..details['spec'] = specPath;
+      exitCode = 2;
+      return;
+    }
 
     // Coverage gate (bug #846): every FR/AC requirement statement must
     // map to a behavior row or to a valid `(manual: owner)` declaration.
@@ -309,7 +356,7 @@ class PlanCommand extends Command<void> {
       }
     }
 
-    final outDir = Directory('$repoRoot/specs/$feature/tdd');
+    final outDir = Directory(p.join(featureDir, 'tdd'));
     final outFile = File('${outDir.path}/test-list.md');
     final existing = <String, Behavior>{};
     if (await outFile.exists()) {
@@ -384,9 +431,7 @@ class PlanCommand extends Command<void> {
     final preservedFfi = <BehaviorRow>[];
     final priorContract = <String, (String, BehaviorState)>{};
     try {
-      for (final row in await TestListReader(
-        '$repoRoot/specs/$feature',
-      ).read()) {
+      for (final row in await TestListReader(featureDir).read()) {
         if (row.kind == BehaviorKind.ffi) preservedFfi.add(row);
         if (row.kind == BehaviorKind.contract) {
           priorContract[row.traces] = (row.id, row.state);
@@ -630,6 +675,18 @@ class PlanCommand extends Command<void> {
           'ies): ${entities.map((e) => e.name).join(', ')}.',
         );
       }
+      // Issue #1141: the UI surface ledger artifact — one row per
+      // declared surface, `t.<key>` key rows traced per row (both lanes'
+      // rows feed the single feature-wide derivation).
+      await _writeUiLedger(
+        outDir,
+        behaviors: [
+          for (final row in [...engineRows, ...skinRows])
+            LedgerBehaviorInput(id: row.id, description: row.description),
+        ],
+        componentTokens: UiLedgerProjection.componentTokensOf(layerContracts),
+        keys: i18nKeys,
+      );
       return;
     }
 
@@ -646,6 +703,19 @@ class PlanCommand extends Command<void> {
         provenance,
       ),
     );
+    // Issue #1141: the UI surface ledger artifact (the legacy single-file
+    // plan path derives from the same row set the test list carries).
+    final ledgerFiles = await _writeUiLedger(
+      outDir,
+      behaviors: [
+        for (final b in [...expressible, ...contractBehaviors])
+          LedgerBehaviorInput(id: b.id, description: b.description),
+        for (final row in preservedFfi)
+          LedgerBehaviorInput(id: row.id, description: row.description),
+      ],
+      componentTokens: UiLedgerProjection.componentTokensOf(layerContracts),
+      keys: i18nKeys,
+    );
     // Issue #969 T003: the plan's artifacts become self-certifying —
     // digest-bound receipts so the preflight gate can catch hand-edits.
     await TddGenerationReceipts.writeBestEffort(
@@ -656,6 +726,7 @@ class PlanCommand extends Command<void> {
       files: {
         outFile.path: 'update',
         p.join(outDir.path, 'traceability.md'): 'update',
+        ...ledgerFiles,
       },
     );
     for (final line in provenance.values.expand((l) => l)) {
@@ -740,11 +811,25 @@ class PlanCommand extends Command<void> {
         'the view and asserts the scenario.',
       )
       ..writeln()
-      ..writeln('| id | behavior | traces | state |')
-      ..writeln('| -- | -------- | ------ | ----- |');
+      ..writeln(
+        'The `kind` cell is the finder-kind taxonomy (issue #1140): the '
+        'scenario verbs\' predicted assertion classes — presence, absence, '
+        'route-outcome, enabled-state, sequence — or `none` when no finder '
+        'is derivable. `zfa tdd gen` selects the assertion template by it '
+        'and refuses a row whose kind column drifted from the scenario '
+        'prose; verify-red\'s kind gate (issue #959/#964) certifies on the '
+        'same vocabulary.',
+      )
+      ..writeln()
+      ..writeln('| id | behavior | kind | traces | state |')
+      ..writeln('| -- | -------- | ---- | ------ | ----- |');
     for (final b in widget) {
+      // Issue #1140: the finder-kind column — the plan's prediction of
+      // the assertion classes gen will emit, derived from the same
+      // taxonomy the writer and the verify-red gate speak.
+      final kindCell = FinderTaxonomy.kindCellFor(b.description);
       buf.writeln(
-        '| ${b.id} | ${b.description} | ${b.sourceCriterion} | PENDING |',
+        '| ${b.id} | ${b.description} | $kindCell | ${b.sourceCriterion} | PENDING |',
       );
     }
     buf
@@ -852,7 +937,15 @@ class PlanCommand extends Command<void> {
           ..writeln('### ${entry.key}')
           ..writeln();
         for (final c in entry.value) {
-          buf.writeln('- `${c.interfaceName}`: ${c.methods.join(', ')}');
+          // Bug #919 (fixed by #1141): every method stays BACKTICKED so
+          // TestListReader.readLayerContracts round-trips the contract —
+          // the reader's extraction is backtick-based, and the unbackticked
+          // rendering dropped the whole contract (components + key: tokens)
+          // on the plan → test-list leg of the loop.
+          buf.writeln(
+            '- `${c.interfaceName}`: '
+            '${c.methods.map((m) => '`$m`').join(', ')}',
+          );
         }
       }
     }
@@ -898,6 +991,37 @@ class PlanCommand extends Command<void> {
     }
     buf.writeln();
     return buf.toString();
+  }
+
+  /// Issue #1141: derive and write the UI surface ledger artifact pair
+  /// (`tdd/ui-ledger.md` + `tdd/ui-ledger.json`) — one row per declared
+  /// surface: text/route/affordance rows from the behavior scenarios and
+  /// the Presentation component tokens, `t.<key>` key rows whose provers
+  /// are the behaviors quoting the anchor. Planned provers are NOT-DONE
+  /// at plan time (state recomputes on read — a stored state is a cache,
+  /// never the truth). Returns the written paths (for the plan's
+  /// digest-bound receipts).
+  Future<Map<String, String>> _writeUiLedger(
+    Directory outDir, {
+    required List<LedgerBehaviorInput> behaviors,
+    required List<String> componentTokens,
+    required I18nKeyTable keys,
+  }) async {
+    final rows = UiLedgerProjection.rows(
+      behaviors: behaviors,
+      keys: keys,
+      componentTokens: componentTokens,
+    );
+    final mdPath = p.join(outDir.path, 'ui-ledger.md');
+    final jsonPath = p.join(outDir.path, 'ui-ledger.json');
+    await File(mdPath).writeAsString(UiLedgerBuilder.toMarkdown(rows));
+    await File(jsonPath).writeAsString(UiLedgerBuilder.toJson(rows));
+    final keyRows = rows.where((r) => r.kind == UiSurfaceKind.key).length;
+    print(
+      'zfa tdd plan: wrote $mdPath (${rows.length} row(s), '
+      '$keyRows key row(s)) — the UI surface ledger (issue #1141)',
+    );
+    return {mdPath: 'update', jsonPath: 'update'};
   }
 
   /// The refusal sentinel [_resolveSkinContract] returns when the

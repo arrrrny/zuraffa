@@ -8,8 +8,10 @@ import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
 import '../../core/context/file_system.dart';
+import '../../core/project/project_root.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../../skew/skew_contract.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/flutter_symbols.dart';
 import '../../utils/string_utils.dart';
@@ -317,6 +319,22 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     // v6 dual-layer state path: generate DomainState + ViewState +
     // DualLayerPresenter + ControlledWidget/FragmentBuilder-based view.
+    // Issue #1197: --skin emits imports of package:zuraffa/skin.dart —
+    // refuse up front when the target's resolved core predates the
+    // skin barrel, before any file is written.
+    if (config.generateSkin) {
+      final contextRoot = context?.core.projectRoot ?? '';
+      final projectRoot = contextRoot.isNotEmpty
+          ? contextRoot
+          : ProjectRoot.safeCurrentPath();
+      // Throws VersionSkewException — the CLI runner prints the skew
+      // report and exits 1 (issue #1197: refuse before any write).
+      SkewContract.requireSurfaces(
+        projectRoot: projectRoot,
+        command: 'zfa view --skin',
+        requiredUris: ['skin.dart'],
+      );
+    }
     if (config.generateV6State) {
       return _generateV6State(config, context: context);
     }

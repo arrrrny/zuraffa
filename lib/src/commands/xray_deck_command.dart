@@ -7,9 +7,12 @@ import 'package:path/path.dart' as p;
 import '../core/project/project_root.dart';
 import '../core/project/receipt_store.dart';
 import '../domain/entities/feature_contract/feature_contract.dart';
-import '../domain/entities/feature_contract/feature_contract_registry.dart';
+import '../domain/entities/feature_contract/feature_contract_decorators.dart';
+import '../domain/entities/feature_contract/xray_layer_decorators.dart';
+import '../plugins/slice/services/feature_contract_resolution.dart';
 import '../plugins/xray/xray_deck_barrel_writer.dart';
 import '../version.dart';
+import '../cli/exit_protocol.dart';
 
 /// CLI subcommand for generating X-Ray Control Deck code.
 class XrayDeckCommand extends Command<void> {
@@ -151,26 +154,33 @@ class XrayDeckCommand extends Command<void> {
 
     if (sourcePath == null && yamlPath == null) {
       print('Error: provide --source and/or --yaml');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
-    // Spec 1098: resolve the feature contract BEFORE generating — an
+    // Spec 1098/1114: resolve the feature contract BEFORE generating — an
     // unresolvable feature id must fail loudly, never stamp a deck with a
-    // fabricated ownership anchor.
+    // fabricated ownership anchor. Resolution runs through the shared
+    // typed resolver (the SAME definition slice composes from — contract.yaml,
+    // the spec's ## Skin Contract, or its ## Lanes CORE block), so xray and
+    // slice can never disagree about what a feature is.
     FeatureContract? featureContract;
     if (featureId != null && featureId.isNotEmpty) {
-      final registry = FeatureContractRegistry.scanProject(projectRoot);
-      featureContract = registry.findById(featureId);
+      final resolved = resolveFeatureContract(
+        projectRoot: projectRoot,
+        featureId: featureId,
+      );
+      featureContract = resolved?.contract;
       if (featureContract == null) {
-        final known = registry.knownIds.toList()..sort();
+        final known = knownFeatureContractIds(projectRoot);
         print(
           'Error: unknown feature contract: "$featureId". '
           'Known contracts: '
           '${known.isEmpty ? "(none)" : known.join(", ")}. '
-          'Declare it at specs/<feature-id>/contract.yaml (spec 1098).',
+          'Declare it at specs/<feature-id>/contract.yaml (spec 1098) '
+          'or in the spec\'s ## Skin Contract / ## Lanes section (spec 1114).',
         );
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
     }
@@ -202,11 +212,18 @@ class XrayDeckCommand extends Command<void> {
       return;
     }
 
-    final generated = _generateDeckFile(
-      effectiveName,
-      allEntries,
-      featureId: featureContract?.id,
-    );
+    final generated = _generateDeckFile(effectiveName, allEntries);
+    // Spec 1115 (issue #1115): the deck artifact carries the persisted
+    // cross-layer knowledge too — @FeatureOwned + @XrayLayer mapped from
+    // the contract's deck layer (presentation → skin, domain/data →
+    // engine), so xray scans attribute the deck without path guessing.
+    final stamped = featureContract == null
+        ? generated
+        : XrayLayerDecorators.stampSplit(
+            source: generated,
+            split: XrayLayerDecorators.forContract(featureContract),
+            featureId: featureContract.id,
+          );
 
     final outFile = File(effectiveOutput);
     final existed = outFile.existsSync();
@@ -217,12 +234,19 @@ class XrayDeckCommand extends Command<void> {
     }
 
     outFile.parent.createSync(recursive: true);
-    outFile.writeAsStringSync(generated);
+    outFile.writeAsStringSync(stamped);
 
     final count = allEntries.length;
     final suffix = count == 1 ? 'y' : 'ies';
     print('Generated $count mock entr$suffix for $effectiveName');
     print('  Output: $effectiveOutput');
+
+    if (featureContract != null) {
+      _printFeatureLayerBreakdown(
+        projectRoot: projectRoot,
+        contract: featureContract,
+      );
+    }
 
     // Issue #1024: proof receipt per deck generation (proof.v1). Records
     // the artifact digest under `<root>/.zfa/receipts/` so `zfa proof
@@ -257,6 +281,39 @@ class XrayDeckCommand extends Command<void> {
           '    (run `zfa app shell --xray --force` to wire into main.dart)',
         );
       }
+    }
+  }
+
+  /// Spec 1115 (issue #1115): the deck is FEATURE-GROUPED — with a
+  /// resolved contract, the feature's nodes (its xray-attributed files)
+  /// are grouped by feature and reported as a layer breakdown (what code
+  /// is in which layer for which feature), not a flat path list.
+  void _printFeatureLayerBreakdown({
+    required String projectRoot,
+    required FeatureContract contract,
+  }) {
+    final owned =
+        FeatureContractDecorators.scan(projectRoot)[contract.id] ??
+        const <String>{};
+    final counts = <XraySplit, int>{
+      for (final split in XraySplit.values) split: 0,
+    };
+    for (final rel in owned) {
+      final file = File(p.join(projectRoot, rel));
+      if (!file.existsSync()) continue;
+      // The anchor is the knowledge; the path derivation is the fallback.
+      final split =
+          XrayLayerDecorators.scan(file.readAsStringSync()) ??
+          XrayLayerDecorators.forPath(rel);
+      counts[split] = counts[split]! + 1;
+    }
+    print(
+      'Feature: ${contract.id} '
+      '(${contract.xrayLayer?.name ?? 'undeclared'} xray layer)',
+    );
+    print('Layer breakdown (nodes grouped by feature):');
+    for (final split in XraySplit.values) {
+      print('  ${split.name}: ${counts[split]} file(s)');
     }
   }
 
@@ -407,16 +464,8 @@ class XrayDeckCommand extends Command<void> {
   ///   - unrecognized `type:` values emit `XRayMockType.unknown`
   ///     (matching `XRayMockType.fromString`) instead of emitting an
   ///     enum value that does not exist.
-  String _generateDeckFile(
-    String ucName,
-    List<Map<String, dynamic>> entries, {
-    String? featureId,
-  }) {
+  String _generateDeckFile(String ucName, List<Map<String, dynamic>> entries) {
     final lines = <String>[
-      // Spec 1098: the ownership anchor rides in the generated header so
-      // the deck answers file→feature via the same annotation the slice
-      // layer emits (read back by FeatureContractDecorators.scan).
-      if (featureId != null) "// @FeatureOwned('$featureId')",
       '// GENERATED BY zfa xray deck -- DO NOT EDIT.',
       '// UseCase: $ucName',
       '// Mocks: ${entries.length}',

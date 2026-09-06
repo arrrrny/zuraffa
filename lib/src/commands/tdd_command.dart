@@ -15,6 +15,7 @@ import '../plugins/tdd/commands/init_command.dart';
 import '../plugins/tdd/commands/make_command.dart';
 import '../plugins/tdd/commands/migrate_paths_command.dart';
 import '../plugins/tdd/commands/plan_command.dart';
+import '../plugins/tdd/commands/prove_command.dart';
 import '../plugins/tdd/commands/replay_command.dart';
 import '../plugins/tdd/commands/realize_command.dart';
 import '../plugins/tdd/commands/realize_mock_command.dart';
@@ -53,6 +54,7 @@ class TddCommand extends Command<void> {
     addSubcommand(SplitCommand(plugin));
     addSubcommand(IngestCommand(plugin));
     addSubcommand(StatusCommand(plugin));
+    addSubcommand(ProveCommand(plugin));
     addSubcommand(ReplayCommand(plugin));
     addSubcommand(TheaterCommand(plugin));
     addSubcommand(VerifyCommand(plugin));
@@ -76,10 +78,11 @@ class TddCommand extends Command<void> {
   String get description =>
       'Drive the full TDD red-green-refactor cycle (init, plan, gen, '
       'verify-red, make, wire, func, refactor, run, run-engine, run-skin, '
-      'split, status, verify). See specs/041-tdd-setup-plugin/spec.md for '
-      'the full contract; specs/1000-spec-template-core-skin-lanes/spec.md '
-      'for the lane split and specs/1008-two-cycle-driver/spec.md for the '
-      'two-cycle runner.';
+      'split, status, prove, verify). See specs/041-tdd-setup-plugin/spec.md '
+      'for the full contract; specs/1000-spec-template-core-skin-lanes/spec.md '
+      'for the lane split, specs/1008-two-cycle-driver/spec.md for the '
+      'two-cycle runner, and specs/1113-unified-tdd-journal/spec.md for the '
+      'unified journal.';
 
   @override
   String get invocation => 'zfa tdd <subcommand> [options]';

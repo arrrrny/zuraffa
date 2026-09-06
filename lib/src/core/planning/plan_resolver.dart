@@ -61,6 +61,24 @@ class PlanResolver {
       customAliases: config?.customAliases,
     ).toSet();
 
+    // Issue #1194 (part of #908 P0): `--compile-only` is the opt-out for
+    // the make-default mocked tier. The mocked tier (mock plugin →
+    // certified mock datasource + simulation binding + seeds) is the
+    // DEFAULT for the data presets; teams who want compile-only slices
+    // (generate the real-adapter skeleton, boot nothing) exclude the mock
+    // plugin here — uniformly across every preset (crud, read-only,
+    // engine) and with precedence over an explicit --mock/--with=mock,
+    // because the opt-out is the explicit intent.
+    if (normalizedOptions['compile-only'] == true) {
+      excluded.add('mock');
+      if (requestedPluginIds.contains('mock')) {
+        warnings.add(
+          'compile-only: dropping the mock plugin — the slice will be '
+          'compile-only, not demo-green (issue #1194 opt-out).',
+        );
+      }
+    }
+
     if (argResults != null) {
       for (final plugin in registry.plugins) {
         if (argResults.options.contains(plugin.id) &&
@@ -68,6 +86,14 @@ class PlanResolver {
             argResults[plugin.id] == false) {
           excluded.add(plugin.id);
         }
+      }
+      // Issue #1149 (kill list): `--no-gql` was a per-plugin mute for the
+      // deleted gql plugin. During the deprecation cycle it keeps muting
+      // the surviving graphql plugin.
+      if (argResults.options.contains('gql') &&
+          argResults.wasParsed('gql') &&
+          argResults['gql'] == false) {
+        excluded.add('graphql');
       }
     }
 

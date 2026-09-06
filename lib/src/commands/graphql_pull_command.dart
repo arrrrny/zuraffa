@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 
 import '../graphql/cache/schema_cache.dart';
 import '../graphql/introspection/introspection_client.dart';
+import '../cli/exit_protocol.dart';
 
 /// `zfa graphql pull` — fetch a GraphQL schema via introspection and cache
 /// it locally (spec 037 FR-001).
@@ -51,14 +52,14 @@ class PullCommand extends Command<void> {
         'Usage: zfa graphql pull --endpoint=<url> [--name=<name>]',
       );
       print(usage);
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
     final endpoint = Uri.tryParse(endpointArg);
     if (endpoint == null || !endpoint.hasScheme || !endpoint.hasAuthority) {
       print('❌ Error: invalid endpoint URL: $endpointArg');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -73,7 +74,7 @@ class PullCommand extends Command<void> {
           '❌ Error: --headers must be a valid JSON object. '
           'Got: $headersArg',
         );
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
     }

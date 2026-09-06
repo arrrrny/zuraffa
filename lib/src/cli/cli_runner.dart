@@ -38,6 +38,8 @@ import '../core/plugin_system/plugin_registry.dart';
 import '../plugins/tdd/tdd_plugin.dart';
 import '../core/error/suggestion_engine.dart';
 import '../version.dart';
+import 'exit_protocol.dart';
+import 'binary_staleness.dart';
 import 'plugin_loader.dart';
 import '../commands/agent_command.dart';
 import '../commands/zap_command.dart';
@@ -70,6 +72,17 @@ class CliRunner {
   /// flag cannot see another suite's runner.
   bool _active = false;
 
+  /// Stale-binary probe (issue #1184): injectable so tests can point it at
+  /// a fake install dir; defaults to deriving from the running executable.
+  final BinaryStaleness _staleness;
+
+  /// Sink for the #1184 staleness warning. Defaults to stderr — a warning
+  /// must never pollute machine-parsed stdout (`zfa doctor --format json`).
+  final void Function(String message) _onStalenessWarning;
+
+  static void _defaultStalenessWarning(String message) =>
+      stderr.writeln(message);
+
   /// The exit code the LAST [runCapturing] invocation on this isolate
   /// dispatched, snapshotted per-isolate.
   ///
@@ -85,7 +98,13 @@ class CliRunner {
   /// instead of the global. Set on every [runCapturing] exit path.
   static int lastDispatchedExitCode = 0;
 
-  CliRunner({this.exitOnCompletion = true}) : _runner = _buildRunner();
+  CliRunner({
+    this.exitOnCompletion = true,
+    BinaryStaleness? staleness,
+    void Function(String message)? onStalenessWarning,
+  }) : _staleness = staleness ?? BinaryStaleness(),
+       _onStalenessWarning = onStalenessWarning ?? _defaultStalenessWarning,
+       _runner = _buildRunner();
 
   static CommandRunner<void> _buildRunner() =>
       CommandRunner<void>(
@@ -258,6 +277,15 @@ class CliRunner {
       await _withDirectory(directory, () async {
         _ensureInitialized(args, directory: directory);
 
+        // Issue #1184: the installed `zfa` binary is a compiled snapshot;
+        // when the enclosing zuraffa checkout's HEAD differs from the commit
+        // recorded at build time, every shell invocation silently ran stale
+        // code. Surface ONE advisory line BEFORE dispatching anything —
+        // including `--version`/help, since a false repro costs an operator
+        // (or agent) the same hour regardless of which subcommand it hit.
+        // See [_warnIfBinaryStale] for the silence rules.
+        await _warnIfBinaryStale();
+
         if (commandArgs.isEmpty) {
           _printHelp();
           _exit(0);
@@ -273,7 +301,7 @@ class CliRunner {
 
         if (_isRemovedGenerateCommand(commandArgs)) {
           _printRemovedGenerateMessage();
-          _exit(64);
+          _exit(ExitProtocol.usage);
           return;
         }
 
@@ -284,9 +312,36 @@ class CliRunner {
     }
   }
 
+  /// Issue #1184: emit the stale-binary warning when provably stale.
+  ///
+  /// Silence rules (see `BinaryStaleness`): running from source (no
+  /// installed binary), no build-commit marker, cwd outside a zuraffa
+  /// worktree, or an unresolvable worktree HEAD — an advisory must never
+  /// fire on unprovable input, and must never break the invocation.
+  ///
+  /// `runCapturing` (MCP-embedded) deliberately does NOT warn: its stdout
+  /// is machine-parsed protocol output, and the #1184 false-repro trap is
+  /// the interactive shell path.
+  Future<void> _warnIfBinaryStale() async {
+    final String? message;
+    try {
+      message = await _staleness.warningFor(cwd: Directory.current.path);
+    } on IOException {
+      return; // advisory only — never fail the CLI over it
+    } on FormatException {
+      return;
+    }
+    if (message != null) _onStalenessWarning(message);
+  }
+
   /// Run the dispatched command, honoring a failure exit code set by the
   /// command (dart:io `exitCode`); calling `exit(0)` unconditionally would
   /// clobber it.
+  ///
+  /// SPEC 917 (the ratified exit protocol): usage errors exit the canonical
+  /// 2 (the legacy 64 is retired — [ExitProtocol.canonicalize]), and EVERY
+  /// non-zero exit ends with a machine-actionable `--> fix:` line (VISION
+  /// §4: errors are an API, not an apology).
   Future<void> _runDispatched(List<String> args) async {
     try {
       await _runner.run(args);
@@ -294,15 +349,35 @@ class CliRunner {
     } on UsageException catch (e) {
       print('❌ ${e.message}');
       print(e.usage);
-      _exit(64);
+      print(ExitProtocol.fixLine(_usageFixFor(e.message)));
+      _exit(ExitProtocol.usage);
     } catch (e, stack) {
       print('❌ Error: $e');
       _addSuggestions(e.toString());
       if (args.contains('--verbose') || args.contains('-v')) {
         print('\nStack trace:\n$stack');
       }
-      _exit(1);
+      print(
+        ExitProtocol.fixLine(
+          "re-run with --verbose to capture the stack trace, then run "
+          '`zfa doctor`',
+        ),
+      );
+      _exit(ExitProtocol.failure);
     }
+  }
+
+  /// The machine-actionable remediation for a usage error: the invocation
+  /// grammar lives in the command's help, so that is the fix every
+  /// "could not run as invoked" failure points at.
+  String _usageFixFor(String message) {
+    if (message.contains('Could not find an option') ||
+        message.contains('Could not find a subcommand')) {
+      return "re-run with --help to list the valid flags and subcommands, "
+          "then re-invoke";
+    }
+    return "re-run with --help to check the invocation grammar, then "
+        "re-invoke";
   }
 
   /// If [directory] is non-null, scope [body] to a temporary working
@@ -513,6 +588,9 @@ class CliRunner {
 
         if (_isRemovedGenerateCommand(commandArgs)) {
           _printRemovedGenerateMessageTo(output.add);
+          // SPEC 917: the removed verb is a usage error — the canonical 2,
+          // mirroring the run() pre-dispatch path.
+          dispatchedExitCode = ExitProtocol.usage;
           return;
         }
 
@@ -524,14 +602,21 @@ class CliRunner {
             } on UsageException catch (e) {
               output.add('❌ ${e.message}');
               output.add(e.usage);
-              dispatchedExitCode = 64;
+              output.add(ExitProtocol.fixLine(_usageFixFor(e.message)));
+              dispatchedExitCode = ExitProtocol.usage;
             } catch (e, stack) {
               output.add('❌ Error: $e');
               _addSuggestionsTo(output.add, e.toString());
               if (args.contains('--verbose') || args.contains('-v')) {
                 output.add('\nStack trace:\n$stack');
               }
-              dispatchedExitCode = 1;
+              output.add(
+                ExitProtocol.fixLine(
+                  "re-run with --verbose to capture the stack trace, then "
+                  "run `zfa doctor`",
+                ),
+              );
+              dispatchedExitCode = ExitProtocol.failure;
             }
           },
           zoneSpecification: ZoneSpecification(
@@ -632,6 +717,10 @@ OPTIONS:
   -v, --version       Print version
   -h, --help          Show help
 
+EXIT CODES (the ratified protocol, SPEC 917 / VISION §4):
+${ExitProtocol.tableDoc.split('\n').map((l) => '  $l').join('\n')}
+  Every non-zero exit ends with a machine-actionable `--> fix:` line.
+
 Run "zfa <command> --help" for more information.
 ''');
   }
@@ -645,6 +734,12 @@ Run "zfa <command> --help" for more information.
     printFn('   Use `zfa make <Name> ...` for canonical generation.');
     printFn(
       '   Use `zfa feature <Name>` or `zfa feature scaffold <Name>` for the feature wrapper.',
+    );
+    printFn(
+      ExitProtocol.fixLine(
+        'zfa make <Name> [options] (or `zfa feature '
+        'scaffold <Name>`)',
+      ),
     );
   }
 
@@ -739,6 +834,8 @@ class _EntityCommand extends Command<void> {
   @override
   Future<void> run() async {
     final allArgs = argResults!.arguments;
-    await EntityCommand().execute(allArgs);
+    // SPEC 917: embedded dispatch must unwind (EntityCommand._bail →
+    // exitCode), never raw-exit mid-suite — the runner dispatches the exit.
+    await EntityCommand().execute(allArgs, exitOnCompletion: false);
   }
 }

@@ -10,6 +10,7 @@ import '../../domain/entities/feature_contract/feature_contract.dart';
 import '../../utils/string_utils.dart';
 import '../../cli/plugin_loader.dart';
 import '../../package/package_mode.dart';
+import '../../skew/skew_contract.dart' show SkewContract, supportedCoreFloor;
 import '../../version.dart';
 import '../context/file_system.dart';
 import '../context/progress_reporter.dart';
@@ -701,6 +702,16 @@ class PluginManager {
         rethrow;
       }
 
+      // Spec 1115 (issue #1115 item 2): an active feature contract means
+      // every generator emit carries the persisted cross-layer knowledge —
+      // the @XrayLayer + @FeatureOwned decorators ride the written files.
+      // Runs BEFORE commit so dry runs and receipts still observe the
+      // stamped content.
+      final activeFeature = context.core.feature;
+      if (activeFeature != null) {
+        transaction.stampFeatureOwnership(activeFeature);
+      }
+
       // Commit the transaction - MUST pass baseFileSystem (not transactional one to avoid recursion/confusion during final write)
       final baseFs = context.fileSystem is TransactionalFileSystem
           ? (context.fileSystem as TransactionalFileSystem).base
@@ -846,6 +857,11 @@ class PluginManager {
           repro: 'zfa make ${context.core.name}',
           at: DateTime.now().toUtc(),
           generatorVersion: version,
+          // Issue #1197: stamp the skew contract — the declared floor
+          // and the core the run actually generated against — so
+          // `zfa doctor` can diagnose a consumer left behind.
+          minCoreVersion: supportedCoreFloor,
+          generatedAgainstCore: SkewContract.resolveCore(projectRoot)?.version,
           input: normalizedArgs,
           spec: _entitySpecReceipt(context.core.name),
           files: files,
