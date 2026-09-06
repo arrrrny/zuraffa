@@ -19,6 +19,15 @@ dependencies:
   json_annotation: ^4.12.0
   hive_ce: ^2.19.0
   hive_ce_flutter: ^2.3.4
+  # Issue #965/#1133: the i18n-keyed widget contract — generated views
+  # render through slang keys (t.auth.signIn) and the generated tests boot
+  # the slang test shell (LocaleSettings + t accessor). slang's codegen
+  # produces lib/i18n/strings.g.dart from the scaffolded
+  # strings*.i18n.json files.
+  slang: ^4.19.1
+  # slang 4.x runtime split: the generated strings.g.dart imports
+  # slang_flutter for LocaleSettings/TranslationProvider widgets.
+  slang_flutter: ^4.19.0
 
 dev_dependencies:
   flutter_test:
@@ -39,8 +48,25 @@ dev_dependencies:
 # override (the root pubspec's prohibition targets path: overrides from
 # sibling checkouts, which stays respected). meta is annotation-only and
 # source-stable across the range. Drop this once Flutter re-pins meta.
+  test: ^1.0.0
+  coverage: ^1.15.1
+  mutation_test: ^1.8.0
 dependency_overrides:
   meta: ^1.18.3
+  # Issue #1133: the root package declares `test: any` (its self-hosted
+  # TDD corpora import package:test), so example's graph must resolve a
+  # `test` version too. With Flutter 3.47.x that solver cannot close on
+  # its own: flutter_test pins test_api 0.12.20/matcher 0.12.20-era
+  # exact versions while every `test` release reachable from `any` needs
+  # test_api >=0.7.14 or analyzer <14 (both conflict — test_api 0.7.14
+  # vs the SDK pin, analyzer <14 vs zuraffa's ^14.3.0). These are
+  # VERSION overrides (the root pubspec's prohibition targets path:
+  # overrides, which stays respected): force `test` to the newest line
+  # and hold test_api at the SDK-pinned version so flutter_test's exact
+  # pins stay untouched. Drop once the SDK re-pins a compatible pair.
+  test: ^1.32.0
+  test_api: 0.7.12
 
 flutter:
   uses-material-design: true
+
