@@ -193,6 +193,9 @@ class EngineChecker {
               '   refusal receipt: $certGateReceiptPath',
         ),
       );
+    } else {
+      // Gate healed: ensure a previous refusal receipt doesn't outlive the block.
+      EngineGateReceipt.clear(projectRoot: projectRoot, entity: entity);
     }
 
     return EngineCheckResult(
