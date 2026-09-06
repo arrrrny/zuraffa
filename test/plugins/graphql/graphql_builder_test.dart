@@ -65,33 +65,32 @@ class _CapturingFileSystem implements FileSystem {
 }
 
 GeneratorConfig _entityConfig({List<String>? methods}) => GeneratorConfig(
-      name: 'Product',
-      outputDir: '/tmp/graphql_test',
-      generateGql: true,
-      methods: methods ?? ['getList'],
-    );
+  name: 'Product',
+  outputDir: '/tmp/graphql_test',
+  generateGql: true,
+  methods: methods ?? ['getList'],
+);
 
 void main() {
   group('GraphqlBuilder operation naming (issue #1149 fold-in)', () {
-    test('getList emits a query named Get<Entity>List (not Create<Entity>)',
-        () async {
-      final builder = GraphqlBuilder(outputDir: '/tmp/graphql_test');
-      final files = await builder.generate(_entityConfig());
+    test(
+      'getList emits a query named Get<Entity>List (not Create<Entity>)',
+      () async {
+        final builder = GraphqlBuilder(outputDir: '/tmp/graphql_test');
+        final files = await builder.generate(_entityConfig());
 
-      expect(files, hasLength(1));
-      final content = files.first.content!;
-      expect(
-        content,
-        contains('query GetProductList'),
-        reason:
-            'getList must produce the Get<Entity>List operation. The '
-            'pre-fold fallthrough emitted `CreateProduct`.',
-      );
-      expect(
-        files.first.path,
-        contains('get_product_list_query.dart'),
-      );
-    });
+        expect(files, hasLength(1));
+        final content = files.first.content!;
+        expect(
+          content,
+          contains('query GetProductList'),
+          reason:
+              'getList must produce the Get<Entity>List operation. The '
+              'pre-fold fallthrough emitted `CreateProduct`.',
+        );
+        expect(files.first.path, contains('get_product_list_query.dart'));
+      },
+    );
 
     test('every CRUD method keeps its canonical operation name', () async {
       final expected = <String, String>{
@@ -104,14 +103,18 @@ void main() {
         'watchList': 'WatchProductList',
       };
       final builder = GraphqlBuilder(outputDir: '/tmp/graphql_test');
-      final files = await builder
-          .generate(_entityConfig(methods: expected.keys.toList()));
+      final files = await builder.generate(
+        _entityConfig(methods: expected.keys.toList()),
+      );
 
       expect(files, hasLength(expected.length));
       final all = files.map((f) => f.content ?? '').join('\n');
       for (final entry in expected.entries) {
-        expect(all, contains(entry.value),
-            reason: '${entry.key} must name its operation ${entry.value}');
+        expect(
+          all,
+          contains(entry.value),
+          reason: '${entry.key} must name its operation ${entry.value}',
+        );
       }
     });
   });
@@ -163,10 +166,7 @@ void main() {
           'with': ['gql'],
         },
       );
-      expect(
-        plan.activePlugins.map((p) => p.id),
-        contains('graphql'),
-      );
+      expect(plan.activePlugins.map((p) => p.id), contains('graphql'));
       expect(
         plan.warnings.where((w) => w.contains('"gql"')),
         isEmpty,
@@ -177,10 +177,11 @@ void main() {
     });
 
     test(
-        "ZfaConfig.isPluginEnabledByDefault('graphql') honors the legacy gql key",
-        () {
-      final config = ZfaConfig(pluginDefaults: {'gql': true});
-      expect(config.isPluginEnabledByDefault('graphql'), isTrue);
-    });
+      "ZfaConfig.isPluginEnabledByDefault('graphql') honors the legacy gql key",
+      () {
+        final config = ZfaConfig(pluginDefaults: {'gql': true});
+        expect(config.isPluginEnabledByDefault('graphql'), isTrue);
+      },
+    );
   });
 }

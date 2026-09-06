@@ -324,12 +324,18 @@ void main() {
       await JournalWriter(sliceFeatureDir).append(entry);
 
       final parentJournal =
-          jsonDecode(File(JournalWriter(parentFeatureDir).journalPath)
-                  .readAsStringSync())
+          jsonDecode(
+                File(
+                  JournalWriter(parentFeatureDir).journalPath,
+                ).readAsStringSync(),
+              )
               as Map<String, dynamic>;
       final sliceJournal =
-          jsonDecode(File(JournalWriter(sliceFeatureDir).journalPath)
-                  .readAsStringSync())
+          jsonDecode(
+                File(
+                  JournalWriter(sliceFeatureDir).journalPath,
+                ).readAsStringSync(),
+              )
               as Map<String, dynamic>;
 
       // Same journal record: the feature axis is identical.
@@ -346,14 +352,8 @@ void main() {
 
       // Paths rewritten: the transaction file sits at the same relative
       // structure under each root (specs/<feature>/tdd/transaction.json).
-      final parentRel = p.relative(
-        parentTx.path,
-        from: workspace.path,
-      );
-      final sliceRel = p.relative(
-        sliceTx.path,
-        from: sliceRoot(),
-      );
+      final parentRel = p.relative(parentTx.path, from: workspace.path);
+      final sliceRel = p.relative(sliceTx.path, from: sliceRoot());
       expect(sliceRel, parentRel);
     });
 
