@@ -39,7 +39,7 @@ dependencies:
   flutter:
     sdk: flutter
   # Path dependency on the CURRENT core: what a release candidate
-  # would resolve to. `flutter pub get` here is the #1189 tripwire —
+  # would resolve to. flutter pub get here is the #1189 tripwire —
   # an analyzer-family regular dep that breaks Flutter solve fails
   # THIS step, not a published consumer's.
   zuraffa:
