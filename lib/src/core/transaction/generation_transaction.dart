@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../../domain/entities/feature_contract/feature_contract.dart';
+import '../../domain/entities/feature_contract/xray_layer_decorators.dart';
 import '../context/file_system.dart';
 import 'file_operation.dart';
 import 'transaction_result.dart';
@@ -21,6 +23,33 @@ class GenerationTransaction {
 
   void addOperation(FileOperation operation) {
     _operations.add(operation);
+  }
+
+  /// Spec 1115 (issue #1115 item 2): stamps the `@XrayLayer` +
+  /// `@FeatureOwned` decorators onto EVERY pending `.dart` create/update
+  /// operation — the codegen is the WRITER of the persisted cross-layer
+  /// knowledge (UseCase, Service, Repository, DataSource, View, Widget,
+  /// Route emits all pass through here when a feature contract is
+  /// active). The split derives from the file's project path
+  /// ([XrayLayerDecorators.forPath]): presentation → skin, domain/data →
+  /// engine, cross-cutting → shared. Idempotent — an anchor already
+  /// present is kept as-is.
+  void stampFeatureOwnership(FeatureContract feature) {
+    for (var i = 0; i < _operations.length; i++) {
+      final op = _operations[i];
+      if (op.type == FileOperationType.delete) continue;
+      if (!op.path.endsWith('.dart')) continue;
+      final content = op.content;
+      if (content == null) continue;
+      final stamped = XrayLayerDecorators.stamp(
+        source: content,
+        filePath: op.path,
+        featureId: feature.id,
+      );
+      if (stamped != content) {
+        _operations[i] = op.withContent(stamped);
+      }
+    }
   }
 
   Future<TransactionResult> validate(FileSystem fileSystem) async {
