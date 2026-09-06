@@ -124,7 +124,7 @@ void main() {
         ).runCapturing(['-C', tmp.path, 'di', 'verify', '--json']);
 
         final envelope = decodeLastLine(out);
-        expect(envelope['schema'], 'verdict.v1');
+        expect(envelope['schema'], 'zuraffa.verdict.v1');
         expect(envelope['command'], 'di verify');
         expect(envelope['verdict'], 'pass');
         expect((envelope['subject'] as Map)['kind'], 'di');
@@ -143,7 +143,7 @@ void main() {
           ]);
 
           final envelope = decodeLastLine(out);
-          expect(envelope['schema'], 'verdict.v1');
+          expect(envelope['schema'], 'zuraffa.verdict.v1');
           expect(envelope['command'], 'datasource check');
           expect(envelope['verdict'], 'fail');
           expect((envelope['subject'] as Map)['kind'], 'datasource');

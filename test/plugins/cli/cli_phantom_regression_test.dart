@@ -32,44 +32,46 @@ void main() {
   });
 
   group('CliGeneratorPlugin.generateWithContext persists output', () {
-    test('writes <entity>_command.dart under <outputDir>/cli/commands',
-        () async {
-      final plugin = CliGeneratorPlugin(
-        outputDir: outputDir,
-        options: const GeneratorOptions(force: true),
-      );
+    test(
+      'writes <entity>_command.dart under <outputDir>/cli/commands',
+      () async {
+        final plugin = CliGeneratorPlugin(
+          outputDir: outputDir,
+          options: const GeneratorOptions(force: true),
+        );
 
-      // Build a real context through the manager so the transactional
-      // filesystem and core flags behave exactly like the make pipeline.
-      final manager = PluginManager(
-        registry: PluginRegistry(),
-        projectRoot: tempDir.path,
-      );
-      final activePlugins = <dynamic>[plugin];
-      final context = manager.buildContext(
-        name: 'Product',
-        argResults: null,
-        activePlugins: activePlugins.cast(),
-        overrideOutputDir: outputDir,
-        overrideForce: true,
-      );
+        // Build a real context through the manager so the transactional
+        // filesystem and core flags behave exactly like the make pipeline.
+        final manager = PluginManager(
+          registry: PluginRegistry(),
+          projectRoot: tempDir.path,
+        );
+        final activePlugins = <dynamic>[plugin];
+        final context = manager.buildContext(
+          name: 'Product',
+          argResults: null,
+          activePlugins: activePlugins.cast(),
+          overrideOutputDir: outputDir,
+          overrideForce: true,
+        );
 
-      final files = await plugin.generateWithContext(context);
+        final files = await plugin.generateWithContext(context);
 
-      expect(files, hasLength(1));
-      final onDisk = File(files.first.path);
-      expect(
-        onDisk.existsSync(),
-        isTrue,
-        reason:
-            'The generated CLI command file must exist on disk. Pre-fix, '
-            'generateWithContext returned content nobody persisted — the '
-            'CLI printed "Generated:" for a phantom file.',
-      );
-      expect(files.first.path, endsWith('product_command.dart'));
-      expect(files.first.path, contains('$outputDir/cli/commands'));
-      expect(onDisk.readAsStringSync(), contains('class ProductCommand'));
-    });
+        expect(files, hasLength(1));
+        final onDisk = File(files.first.path);
+        expect(
+          onDisk.existsSync(),
+          isTrue,
+          reason:
+              'The generated CLI command file must exist on disk. Pre-fix, '
+              'generateWithContext returned content nobody persisted — the '
+              'CLI printed "Generated:" for a phantom file.',
+        );
+        expect(files.first.path, endsWith('product_command.dart'));
+        expect(files.first.path, contains('$outputDir/cli/commands'));
+        expect(onDisk.readAsStringSync(), contains('class ProductCommand'));
+      },
+    );
 
     test('dry-run does not write', () async {
       final plugin = CliGeneratorPlugin(
@@ -98,24 +100,29 @@ void main() {
       );
     });
 
-    test('standalone generate(config) also persists (legacy entry point)',
-        () async {
-      final plugin = CliGeneratorPlugin(
-        outputDir: outputDir,
-        options: const GeneratorOptions(force: true),
-      );
+    test(
+      'standalone generate(config) also persists (legacy entry point)',
+      () async {
+        final plugin = CliGeneratorPlugin(
+          outputDir: outputDir,
+          options: const GeneratorOptions(force: true),
+        );
 
-      final files = await plugin.generate(
-        GeneratorConfig(name: 'Product', outputDir: outputDir, force: true),
-      );
+        final files = await plugin.generate(
+          GeneratorConfig(name: 'Product', outputDir: outputDir, force: true),
+        );
 
-      expect(files, hasLength(1));
-      expect(File(files.first.path).existsSync(), isTrue,
-          reason: 'the legacy generate() path must not regress to phantom');
-      expect(
-        File(files.first.path).readAsStringSync(),
-        contains('extends StandardCommand'),
-      );
-    });
+        expect(files, hasLength(1));
+        expect(
+          File(files.first.path).existsSync(),
+          isTrue,
+          reason: 'the legacy generate() path must not regress to phantom',
+        );
+        expect(
+          File(files.first.path).readAsStringSync(),
+          contains('extends StandardCommand'),
+        );
+      },
+    );
   });
 }

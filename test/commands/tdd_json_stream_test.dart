@@ -61,7 +61,7 @@ void main() {
       expect(code, isNot(0), reason: out); // empty feature: honest failure
       final envelope = lastJsonLine(out);
       expect(envelope, isNotNull, reason: out);
-      expect(envelope!['schema'], 'verdict.v1');
+      expect(envelope!['schema'], 'zuraffa.verdict.v1');
       expect(envelope['command'], 'run-engine');
       expect(envelope['verdict'], isNot('pass'));
       // Errors are an API: a failing envelope carries the fix.
@@ -80,7 +80,7 @@ void main() {
       expect(code, 1, reason: out); // both lanes absent → not green
       final envelope = lastJsonLine(out);
       expect(envelope, isNotNull, reason: out);
-      expect(envelope!['schema'], 'verdict.v1');
+      expect(envelope!['schema'], 'zuraffa.verdict.v1');
       expect(envelope['command'], 'status');
       expect(envelope['verdict'], 'fail');
       expect(envelope['details']['engine'], 'absent');
@@ -123,7 +123,7 @@ void main() {
       expect(code, isNot(0), reason: out);
       final envelope = lastJsonLine(out);
       expect(envelope, isNotNull, reason: out);
-      expect(envelope!['schema'], 'verdict.v1');
+      expect(envelope!['schema'], 'zuraffa.verdict.v1');
       expect(envelope['command'], 'split');
     });
 
@@ -132,7 +132,7 @@ void main() {
       expect(code, isNot(0), reason: out);
       final envelope = lastJsonLine(out);
       expect(envelope, isNotNull, reason: out);
-      expect(envelope!['schema'], 'verdict.v1');
+      expect(envelope!['schema'], 'zuraffa.verdict.v1');
       expect(envelope['command'], 'theater');
     });
   });
@@ -175,7 +175,7 @@ void main() {
       expect(code, isNot(0), reason: out);
       final envelope = lastJsonLine(out);
       expect(envelope, isNotNull, reason: out);
-      expect(envelope!['schema'], 'verdict.v1');
+      expect(envelope!['schema'], 'zuraffa.verdict.v1');
       expect(envelope['command'], 'corpus catalog');
       expect(envelope['fix'], isNotNull, reason: out);
     });
@@ -191,7 +191,7 @@ void main() {
       expect(code, isNot(0), reason: out);
       final envelope = lastJsonLine(out);
       expect(envelope, isNotNull, reason: out);
-      expect(envelope!['schema'], 'verdict.v1');
+      expect(envelope!['schema'], 'zuraffa.verdict.v1');
       expect(envelope['command'], 'corpus run');
     });
 
@@ -206,7 +206,7 @@ void main() {
       expect(code, isNot(0), reason: out);
       final envelope = lastJsonLine(out);
       expect(envelope, isNotNull, reason: out);
-      expect(envelope!['schema'], 'verdict.v1');
+      expect(envelope!['schema'], 'zuraffa.verdict.v1');
       expect(envelope['command'], 'corpus ledger');
     });
 
@@ -216,7 +216,7 @@ void main() {
       expect(code, isNot(0), reason: out);
       final envelope = lastJsonLine(out);
       expect(envelope, isNotNull, reason: out);
-      expect(envelope!['schema'], 'verdict.v1');
+      expect(envelope!['schema'], 'zuraffa.verdict.v1');
       expect(envelope['command'], 'corpus import');
     });
   });
@@ -308,7 +308,7 @@ void main() {
         expect(behaviorOrder, ['B-001', 'B-002']);
         // The final envelope still closes the output.
         final last = lines.last;
-        expect(last['schema'], 'verdict.v1');
+        expect(last['schema'], 'zuraffa.verdict.v1');
       },
     );
 
@@ -336,7 +336,7 @@ void main() {
             .where((j) => j['schema_version'] == 'step-verdict.v1')
             .length;
         expect(stepCount, 8, reason: out);
-        expect(lines.last['schema'], 'verdict.v1');
+        expect(lines.last['schema'], 'zuraffa.verdict.v1');
         expect(lines.last['command'], 'run');
       },
     );

@@ -22,6 +22,7 @@ import '../models/routing.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/feature_path_resolver.dart';
 import '../services/i18n_key_contract.dart';
+import '../services/explain_emitter.dart';
 import '../services/lane_split.dart';
 import '../services/routing_resolver.dart';
 import '../services/requirement_scan.dart';
@@ -52,6 +53,7 @@ class PlanCommand extends Command<void> {
           'line (VISION §5, issue #964).',
       negatable: false,
     );
+    argParser.addFlag('explain', help: kExplainFlagHelp, negatable: false);
     argParser.addFlag(
       'strict-routing',
       help:
@@ -306,6 +308,22 @@ class PlanCommand extends Command<void> {
             'map every requirement statement to a behavior row or a '
             '(manual: owner) declaration, then re-run zfa tdd plan'
         ..details['gaps'] = gaps.length;
+      // Issue #1125: the refusal's explain block — the per-gap fix lines
+      // the gate printed, and the honest no-artifacts receipt section.
+      _verdict.explain = TddExplain(
+        command: 'plan',
+        features: [feature],
+        lane: 'none — plan does not drive the engine/skin lanes',
+        fixHints: [for (final gap in gaps) gap.fix],
+        summary:
+            'Plan refused $feature at the coverage gate (bug #846): '
+            '${gaps.length} requirement statement(s) produce no '
+            'behavior row (spec: '
+            '${p.relative(specPath, from: repoRoot)}). No test list '
+            'was written — an incomplete plan never emits an artifact '
+            'that would silently claim completeness. Fix the named '
+            'statements and re-run `zfa tdd plan`.',
+      );
       exitCode = 2;
       return;
     }
@@ -770,6 +788,28 @@ class PlanCommand extends Command<void> {
         layoutSlots: layoutSlots,
       );
       await persistMarkerEmission();
+      // Issue #1125: the laned plan's explain block — the lane split is
+      // the artifact set here, the summary names exactly what was written.
+      _verdict.explain = TddExplain(
+        command: 'plan',
+        features: [feature],
+        lane: 'none — plan does not drive the engine/skin lanes',
+        summary:
+            'Plan parsed ${p.relative(specPath, from: repoRoot)} (template '
+            '$templateVersion), proved the coverage gate, and split the '
+            'plan into lanes: '
+            '${p.relative(p.join(outDir.path, LaneSplitFiles.engine), from: repoRoot)} '
+            '(${engineRows.where((r) => r.lane == Lane.core).length} CORE '
+            'behaviors), '
+            '${p.relative(p.join(outDir.path, LaneSplitFiles.skin), from: repoRoot)} '
+            '(${skinRows.where((r) => r.lane == Lane.skin).length} SKIN '
+            'behaviors), the engine/skin contract plan, and the '
+            'meta-index test-list.md '
+            '(${laneResult.classification.length} behaviors, '
+            '${engineRows.where((r) => r.lane == Lane.both).length} BOTH), '
+            'with the traceability matrix beside them. Next: '
+            '`zfa tdd run $feature` drives the engine lane first.',
+      );
       return;
     }
 
@@ -848,6 +888,26 @@ class PlanCommand extends Command<void> {
       ..details['ffi'] = fCount
       ..details['behaviors'] = total
       ..details['test_list'] = outFile.path;
+    // Issue #1125: the plan's explain block — the sections reuse the
+    // receipt record the verb just wrote (TddGenerationReceipts) and the
+    // artifacts the summary line names, never fresh facts.
+    _verdict.explain = TddExplain(
+      command: 'plan',
+      features: [feature],
+      lane: 'none — plan does not drive the engine/skin lanes',
+      receipts: [
+        '1 proof.v1 generation receipt for tdd plan (under '
+            '.zfa/receipts/, best effort)',
+      ],
+      summary:
+          'Plan parsed ${p.relative(specPath, from: repoRoot)} (template '
+          '$templateVersion), proved the coverage gate — every '
+          'requirement statement maps to a behavior row — and wrote '
+          '${p.relative(outFile.path, from: repoRoot)} with $laneList '
+          'behaviors ($total total) plus the traceability matrix '
+          '(tdd/traceability.md). Next: `zfa tdd run $feature` drives '
+          'the behaviors red → green.',
+    );
   }
 
   String _render(

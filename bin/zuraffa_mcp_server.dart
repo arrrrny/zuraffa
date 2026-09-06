@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:zuraffa/src/cli/plugin_loader.dart';
 import 'package:zuraffa/src/config/zfa_config.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_registry.dart';
+import 'package:zuraffa/src/core/verdict_envelope.dart';
 import 'package:zuraffa/src/mcp/v2_tools.dart'
     show v2ToolDefinitions, handleV2ToolCall, startWebSocketServer;
 import 'package:zuraffa/src/mcp/session_store.dart' show McpSessionStore;
@@ -701,6 +702,11 @@ All v5 generation uses the fixed lib/src and lib/src/domain layout.''',
           'content': [
             {'type': 'text', 'text': result},
           ],
+          // SPEC 1105 (issue #1105): when the tool's output carries the
+          // canonical verdict envelope, it crosses the wire as a
+          // STRUCTURED object too — never just a text blob.
+          if (VerdictEnvelope.tryParse(result) != null)
+            'structuredContent': VerdictEnvelope.tryParse(result)!.toJson(),
         },
         'id': id,
       };
@@ -1851,7 +1857,27 @@ Use quick for fast diagnostics, full for troubleshooting.''',
           if (result.data != null) {
             buffer.add('Data: ${jsonEncode(result.data)}');
           }
-          return buffer.isEmpty ? '' : '${buffer.join('\n')}\n';
+          // SPEC 1105 (issue #1105): every zuraffa_<plugin>_<capability>
+          // tool call closes with the canonical verdict envelope as the
+          // LAST line — the tool-call boundary lifts it into
+          // structuredContent (the CLI envelope convention).
+          buffer.add(
+            VerdictEnvelope(
+              command: 'zfa ${plugin.id} ${capability.name}',
+              verdict: result.success ? VerdictKind.pass : VerdictKind.fail,
+              exitClass: result.success ? 0 : 1,
+              subject: VerdictSubject(
+                kind: plugin.id,
+                id: args['name']?.toString(),
+              ),
+              details: {
+                if (result.message != null) 'message': result.message!,
+                if (result.files.isNotEmpty) 'files': result.files,
+                if (result.warnings.isNotEmpty) 'warnings': result.warnings,
+              },
+            ).toJsonLine(),
+          );
+          return '${buffer.join('\n')}\n';
         }
       }
     }

@@ -8,9 +8,10 @@ class RepositoryCommand extends PluginCommand {
 
   RepositoryCommand(this.plugin) : super(plugin) {
     // SPEC 1124 (issue #1124): `create` is a first-party subcommand —
-    // [RepositoryCreateCommand] carries the canonical `zuraffa.verdict.v1`
-    // `--json` envelope. Declared here so the auto-registration in the
-    // super constructor skips it (manualSubcommandNames) and this
+    // [RepositoryCreateCommand] carries the canonical `--json` verdict
+    // envelope (ZuraffaVerdictEnvelope.schema). Declared
+    // here so the auto-registration in the super constructor skips it
+    // (manualSubcommandNames) and this
     // registration cannot collide (issue #761).
     addSubcommand(RepositoryCreateCommand(plugin));
   }

@@ -41,6 +41,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/verdict_envelope.dart';
 import '../services/journal.dart';
+import '../services/explain_emitter.dart';
 import '../services/lane_receipts.dart';
 import '../services/tdd_timeout.dart';
 import '../services/verdict_emitter.dart';
@@ -64,6 +65,7 @@ const String kJsonFlagHelp =
 class RunCommand extends Command<void> {
   RunCommand(this.plugin) {
     argParser.addFlag('json', help: kJsonFlagHelp, negatable: false);
+    argParser.addFlag('explain', help: kExplainFlagHelp, negatable: false);
     argParser.addFlag('stream', help: kStreamFlagHelp, negatable: false);
     argParser.addOption(
       'project',
@@ -232,6 +234,26 @@ class RunCommand extends Command<void> {
               '(${gate.blockedReason ?? 'uncertified CORE mock'})',
         ],
       );
+      // Issue #1125: the preflight refusal's explain block — the cert
+      // gate refused BEFORE any lane drove, the fix line is the gate's
+      // own (mock certify).
+      _verdict.explain = TddExplain(
+        command: 'run',
+        features: [feature],
+        lane:
+            'none — the cert gate refused before any lane drove '
+            '(preflight red)',
+        fixHints: [
+          'zfa mock certify $entity (or zfa mock create $entity '
+              '--certify), then re-run',
+        ],
+        summary:
+            'Run stopped at the spec-1001 pre-start preflight: CORE entity '
+            '"$entity" has a mock on disk that is NOT certified '
+            '(${gate.blockedReason ?? 'uncertified CORE mock'}). No '
+            'step was spawned and no receipt was written; the refusal '
+            'is journaled preflight_red in tdd/journal.json.',
+      );
       exitCode = 1;
       return;
     }
@@ -275,7 +297,12 @@ class RunCommand extends Command<void> {
               'spawned',
         ],
       );
-      _printSummary(feature, engine);
+      _printSummary(
+        feature,
+        engine,
+        lane: 'engine (fail fast — no skin step spawned)',
+        receipts: [JournalWriter.engineReceiptRef],
+      );
       exitCode = engine.exitCode;
       return;
     }
@@ -318,7 +345,15 @@ class RunCommand extends Command<void> {
           'skin lane result=${skin.result}',
         ],
       );
-      _printSummary(feature, skin);
+      _printSummary(
+        feature,
+        skin,
+        lane: 'engine (green) + skin',
+        receipts: [
+          JournalWriter.engineReceiptRef,
+          JournalWriter.skinReceiptRef,
+        ],
+      );
       exitCode = skin.exitCode;
       return;
     }
@@ -348,7 +383,16 @@ class RunCommand extends Command<void> {
                 ..addAll(skin.rows.map((r) => r.id)))
               .toList(),
     );
-    _printSummary(feature, skin);
+    _printSummary(
+      feature,
+      skin,
+      lane: 'engine + skin',
+      receipts: [
+        JournalWriter.engineReceiptRef,
+        JournalWriter.skinReceiptRef,
+        'tdd/journal.json (unified meta entry, spec 1113)',
+      ],
+    );
     exitCode = _exitComplete;
   }
 
@@ -400,7 +444,16 @@ class RunCommand extends Command<void> {
   /// union of the lanes) — the pre-split driver's exact shape (FR-009 /
   /// FR-010: `run: feature=<f> result=<r> pending=<n> red=<n> green=<n>
   /// done=<n>` plus ` stopped_at=...` when stopped).
-  void _printSummary(String feature, RunDriverOutcome outcome) {
+  ///
+  /// Issue #1125: the call site's lane/receipts facts also populate the
+  /// `--explain` block — the receipts are the journal's own refs
+  /// (JournalWriter), never fresh strings.
+  void _printSummary(
+    String feature,
+    RunDriverOutcome outcome, {
+    String? lane,
+    List<String> receipts = const <String>[],
+  }) {
     print(
       RunDriverCore.summaryLine(
         label: 'run',
@@ -433,5 +486,23 @@ class RunCommand extends Command<void> {
     if (outcome.stoppedAt != null) {
       _verdict.details['stopped_at'] = outcome.stoppedAt;
     }
+    // Issue #1125: the run's explain block — the counts reuse the
+    // summary line's numbers, the receipts the journal's refs, the
+    // narrative the terminal outcome the two-cycle driver recorded.
+    _verdict.explain = TddExplain(
+      command: 'run',
+      features: [feature],
+      lane: lane,
+      receipts: receipts,
+      summary:
+          'Run drove $feature through the two-cycle runner '
+          '(spec 1008): result=${outcome.result}, '
+          'pending=${outcome.counts['pending']}, '
+          'red=${outcome.counts['red']}, '
+          'green=${outcome.counts['green']}, '
+          'done=${outcome.counts['done']}'
+          '${outcome.stoppedAt == null ? '' : ', stopped_at=${outcome.stoppedAt}'}'
+          '. ${outcome.result == 'complete' ? 'Both lanes are green — the receipts and the unified journal entry record the evidence.' : 'The run stopped honestly at the first red; resume by re-running `zfa tdd run $feature` — completed behaviors are skipped (evidence beats state).'}',
+    );
   }
 }

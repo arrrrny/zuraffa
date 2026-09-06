@@ -7,10 +7,11 @@
 // `data` and `json` have no `--json` flag at all. No envelope is ever
 // printed.
 //
-// Contract pinned here (remediation): on success the `--json` invocation
-// prints EXACTLY one machine envelope on stdout — every other diagnostic
-// goes to stderr — with the exact key set
-// `{files, actions, fixturesDir, certification, schema}` and `schema == 1`.
+// Contract pinned here (remediation; SPEC 1105 canonical shape): on
+// success the `--json` invocation prints EXACTLY one machine envelope on
+// stdout — every other diagnostic goes to stderr — the ONE canonical
+// `zuraffa.verdict.v1` frame, with the mock surface
+// `{files, actions, fixturesDir, certification}` living in `details`.
 library;
 
 import 'dart:convert';
@@ -49,8 +50,8 @@ void main() {
     );
   }
 
-  /// The exact envelope contract (issue #970 order 2):
-  /// `{files[], actions, fixturesDir, certification, schema:1}`.
+  /// The exact envelope contract (issue #970 order 2, SPEC 1105 frame):
+  /// the canonical frame with the mock surface in `details`.
   void expectEnvelope(Object? decoded) {
     expect(
       decoded,
@@ -60,15 +61,38 @@ void main() {
     final envelope = decoded! as Map<String, dynamic>;
     expect(envelope.keys.toSet(), {
       'schema',
+      'command',
+      'verdict',
+      'exit_class',
+      'subject',
+      'artifacts',
+      'receipts',
+      'findings',
+      'drifts',
+      'details',
+      'timestamp',
+    }, reason: 'the canonical frame key set is the published contract');
+    expect(
+      envelope['schema'],
+      'zuraffa.verdict.v1',
+      reason: 'SPEC 1105: the ONE canonical schema identifier',
+    );
+    expect(envelope['command'], isA<String>());
+    expect(envelope['verdict'], 'pass');
+    expect(envelope['exit_class'], 0);
+    expect(envelope['subject'], {'kind': 'mock', 'id': 'Product'});
+
+    // The mock surface lives in details — the only plugin-specific area.
+    final details = envelope['details'] as Map<String, dynamic>;
+    expect(details.keys.toSet(), {
       'files',
       'actions',
       'fixturesDir',
       'certification',
-    }, reason: 'the envelope key set is the published contract');
-    expect(envelope['schema'], 1, reason: 'envelope schema version is 1');
+    }, reason: 'the mock details key set is the published contract');
 
     // files[]: one entry per emitted file, exactly {path, action, type}.
-    final files = envelope['files'];
+    final files = details['files'];
     expect(files, isA<List<dynamic>>());
     expect(
       (files! as List).isNotEmpty,
@@ -85,7 +109,7 @@ void main() {
     }
 
     // actions: per-action counts.
-    final actions = envelope['actions'];
+    final actions = details['actions'];
     expect(actions, isA<Map<String, dynamic>>());
     expect((actions! as Map).keys.toSet(), {
       'created',
@@ -99,10 +123,10 @@ void main() {
     }
 
     // fixturesDir: where the mock fixtures for this run live.
-    expect(envelope['fixturesDir'], isA<String>());
+    expect(details['fixturesDir'], isA<String>());
 
     // certification: the mock-certification record (issue #970 order 3).
-    final certification = envelope['certification'];
+    final certification = details['certification'];
     expect(certification, isA<Map<String, dynamic>>());
     expect((certification! as Map).keys.toSet(), {
       'registryId',
@@ -137,7 +161,8 @@ void main() {
       expectEnvelope(decoded);
 
       final envelope = decoded! as Map<String, dynamic>;
-      final files = (envelope['files']! as List).cast<Map<String, dynamic>>();
+      final details = envelope['details'] as Map<String, dynamic>;
+      final files = (details['files']! as List).cast<Map<String, dynamic>>();
       expect(
         files.any(
           (f) =>
@@ -147,8 +172,8 @@ void main() {
         isTrue,
         reason: 'the Product fixture is in the envelope',
       );
-      expect(envelope['fixturesDir'], 'lib/src/data/mock');
-      final cert = envelope['certification']! as Map<String, dynamic>;
+      expect(details['fixturesDir'], 'lib/src/data/mock');
+      final cert = details['certification']! as Map<String, dynamic>;
       expect(
         cert['interface'],
         'lib/src/data/datasources/product/product_datasource.dart',
@@ -179,8 +204,9 @@ void main() {
       final decoded = jsonDecode(out);
       expectEnvelope(decoded);
       final envelope = decoded! as Map<String, dynamic>;
-      expect(envelope['fixturesDir'], 'lib/src/data/mock');
-      final cert = envelope['certification']! as Map<String, dynamic>;
+      final details = envelope['details'] as Map<String, dynamic>;
+      expect(details['fixturesDir'], 'lib/src/data/mock');
+      final cert = details['certification']! as Map<String, dynamic>;
       expect(
         cert['interface'],
         isNull,
@@ -205,12 +231,13 @@ void main() {
       final decoded = jsonDecode(out);
       expectEnvelope(decoded);
       final envelope = decoded! as Map<String, dynamic>;
+      final details = envelope['details'] as Map<String, dynamic>;
       expect(
-        envelope['fixturesDir'],
+        details['fixturesDir'],
         'lib/src/data/mock_json/product',
         reason: 'json mode fixtures land under data/mock_json/<domain>',
       );
-      final files = (envelope['files']! as List).cast<Map<String, dynamic>>();
+      final files = (details['files']! as List).cast<Map<String, dynamic>>();
       expect(
         files.any(
           (f) =>
@@ -220,7 +247,7 @@ void main() {
         isTrue,
         reason: 'the .mock.json fixture is in the envelope',
       );
-      final cert = envelope['certification']! as Map<String, dynamic>;
+      final cert = details['certification']! as Map<String, dynamic>;
       expect(cert['conformance'], isTrue);
     },
     timeout: const Timeout(Duration(minutes: 3)),
@@ -235,7 +262,7 @@ void main() {
       expect(exitCode, 1, reason: 'a failed generation exits 1');
       expect(
         out,
-        isNot(contains('"schema": 1')),
+        isNot(contains('"schema"')),
         reason: 'no success envelope on failure',
       );
       exitCode = exitCodeAtEntry;

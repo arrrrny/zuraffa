@@ -82,5 +82,34 @@ class Product {
         expect(featurePlan, equals(makePlan));
       },
     );
+
+    test('feature forwards feature scope and project root to make', () async {
+      final caller = await Directory.systemTemp.createTemp(
+        'zfa_feature_command_caller_',
+      );
+      await File(path.join(caller.path, 'pubspec.yaml')).writeAsString('''
+name: zuraffa_feature_caller
+environment:
+  sdk: ^3.11.0
+''');
+
+      try {
+        final output = await CliRunner(exitOnCompletion: false).runCapturing([
+          '-C',
+          caller.path,
+          'feature',
+          'scaffold',
+          'Product',
+          '--feature=004-login-ui',
+          '--project-root=${workspace.path}',
+          '--plan',
+          '--format=json',
+        ]);
+
+        expect((jsonDecode(output) as Map<String, dynamic>)['success'], isTrue);
+      } finally {
+        await caller.delete(recursive: true);
+      }
+    });
   });
 }
