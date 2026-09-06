@@ -17,6 +17,11 @@ class TestCommand extends PluginCommand {
 
   /// Creates a command bound to the provided [plugin].
   TestCommand(this.plugin) : super(plugin) {
+    // SPEC 917 / #876 classification: these parent-level flags ARE live —
+    // [execute] (the programmatic/MCP path) parses the shared parent
+    // grammar below. run() is dispatch-only, so the gate certifies them
+    // through [consumedParentFlags] (spec #979) instead of flagging them
+    // dead: they are parsed, advertised, and read.
     argParser.addOption(
       'methods',
       abbr: 'm',
@@ -43,6 +48,12 @@ class TestCommand extends PluginCommand {
           '{entity, tests, compile, errors[], schema:1} as JSON',
     );
   }
+
+  /// SPEC 917 / #876: [execute] reads --methods/--domain/--json off the
+  /// parent grammar (see the constructor); declared so
+  /// `zfa manifest --verify` certifies them as live.
+  @override
+  Set<String> get consumedParentFlags => const {'methods', 'domain', 'json'};
 
   @override
   /// Command identifier used by the CLI registry.

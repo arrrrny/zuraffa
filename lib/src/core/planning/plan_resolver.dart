@@ -87,6 +87,14 @@ class PlanResolver {
           excluded.add(plugin.id);
         }
       }
+      // Issue #1149 (kill list): `--no-gql` was a per-plugin mute for the
+      // deleted gql plugin. During the deprecation cycle it keeps muting
+      // the surviving graphql plugin.
+      if (argResults.options.contains('gql') &&
+          argResults.wasParsed('gql') &&
+          argResults['gql'] == false) {
+        excluded.add('graphql');
+      }
     }
 
     final filteredPluginIds = expandedPluginIds
@@ -98,7 +106,16 @@ class PlanResolver {
     for (final id in filteredPluginIds) {
       final plugin = registry.getById(id);
       if (plugin == null) {
-        warnings.add('Unknown plugin "$id" ignored.');
+        // Issue #1149 (kill list): a REMOVED plugin gets a verdict, not a
+        // generic "unknown" shrug — the plan must say WHY it is gone.
+        if (id == 'observer') {
+          warnings.add(
+            'The observer plugin was removed (issue #1149) — subscribe '
+            'directly to the UseCase result stream instead.',
+          );
+        } else {
+          warnings.add('Unknown plugin "$id" ignored.');
+        }
         continue;
       }
       activePlugins.add(plugin);
@@ -183,9 +200,10 @@ class PlanResolver {
     if (_isTrue(options['controller'])) {
       selection.add('controller');
     }
-    if (_isTrue(options['observer'])) {
-      selection.add('observer');
-    }
+    // Issue #1149 (kill list): the observer plugin was REMOVED — the
+    // `--observer` boolean branch no longer routes into the plan. A
+    // request that still names `observer` (e.g. --with=observer) gets the
+    // honest removal verdict in the unknown-plugin handling below.
     if (_isTrue(options['vpc']) || _isTrue(options['vpcs'])) {
       selection.addAll(['view', 'presenter', 'controller', 'state']);
     }

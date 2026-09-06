@@ -79,6 +79,30 @@ jobs:
       - name: "Spec fuzz demo (seeded weakness: flagged weak, certified strong)"
         run: bash tools/spec_fuzz_demo.sh
 
+  template_publish_gate:
+    # Bug 1198 (part of #908 P0): the loop is the template's referee.
+    # Every generator template (usecase, service, repository, datasource,
+    # mock, di, view/skin, state, route) must pass its TDD-loop trust-tier
+    # suite (structural + compile + behavioral + byte-stability diff
+    # guard). A failing template blocks the pipeline; the release workflow
+    # runs the same gate before publishing.
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configuring Dart environment
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: "3.13.2"
+      - name: "Get dependencies"
+        run: dart pub get --no-example
+      - name: "Template self-hosting gate (pure-Dart lane)"
+        # Pure-Dart lane here; the flutter lane (downstream-compile gate)
+        # runs in the `test` job below via `flutter test --tags flutter`.
+        run: SKIP_FLUTTER_LANE=1 bash tools/template_publish_gate.sh
+
   analyze:
     timeout-minutes: 15
     runs-on: ubuntu-latest
