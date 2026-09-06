@@ -139,6 +139,16 @@ class GenerationReceipt {
   /// `receipt_version`). 1 for both capability and make-path receipts.
   final int receiptVersion;
 
+  /// The declared core floor this run generated under (issue #1197):
+  /// the oldest core the emitted artifacts are guaranteed to compile
+  /// against. Null on legacy receipts.
+  final String? minCoreVersion;
+
+  /// The zuraffa core version the run actually resolved and generated
+  /// against (issue #1197). Null when no core was resolvable (scaffold
+  /// runs) — doctor treats that as unknown, never a false claim.
+  final String? generatedAgainstCore;
+
   const GenerationReceipt({
     this.schema = 'proof.v1',
     required this.command,
@@ -155,6 +165,8 @@ class GenerationReceipt {
     this.methodset,
     this.runHash,
     this.receiptVersion = 1,
+    this.minCoreVersion,
+    this.generatedAgainstCore,
   });
 
   Map<String, dynamic> toJson() => {
@@ -173,6 +185,9 @@ class GenerationReceipt {
     if (methodset != null) 'methodset': methodset,
     if (runHash != null) 'hash': runHash,
     'receipt_version': receiptVersion,
+    if (minCoreVersion != null) 'min_core_version': minCoreVersion,
+    if (generatedAgainstCore != null)
+      'generated_against_core': generatedAgainstCore,
   };
 
   factory GenerationReceipt.fromJson(Map<String, dynamic> json) =>
@@ -206,6 +221,8 @@ class GenerationReceipt {
             .toList(growable: false),
         runHash: json['hash'] as String?,
         receiptVersion: json['receipt_version'] as int? ?? 1,
+        minCoreVersion: json['min_core_version'] as String?,
+        generatedAgainstCore: json['generated_against_core'] as String?,
       );
 }
 

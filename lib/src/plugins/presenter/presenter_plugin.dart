@@ -446,7 +446,16 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         );
         methods.add(_buildCustomMethod(config, info));
       }
-    } else if (config.isCustomUseCase && config.methods.isEmpty) {
+    } else if (config.isCustomUseCase &&
+        config.methods.isEmpty &&
+        // Issue #1185: `useCases` is legitimately empty for --no-entity runs
+        // with no method set — _buildUseCaseInfo skips entity-based usecases
+        // (noEntity) and its synthetic custom-usecase branch requires
+        // `!config.noEntity`. The unguarded `useCases.first` crashed such
+        // runs with "Bad state: No element". Skip the custom method when
+        // there is no usecase info to build from; the emitted bare
+        // presenter matches the accepted `--methods=get --no-entity` shape.
+        useCases.isNotEmpty) {
       methods.add(_buildCustomMethod(config, useCases.first));
     }
 
