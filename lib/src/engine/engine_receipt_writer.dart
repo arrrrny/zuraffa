@@ -250,9 +250,11 @@ class EngineReceiptWriter {
     }
     if (candidates.isEmpty) return null;
     // Newest first; alphabetical as the deterministic tie-breaker.
-    candidates.sort(
-      (a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()),
-    );
+    candidates.sort((a, b) {
+      final byMtime = b.lastModifiedSync().compareTo(a.lastModifiedSync());
+      if (byMtime != 0) return byMtime;
+      return a.path.compareTo(b.path);
+    });
     return _readReceiptJson(candidates.first);
   }
 
