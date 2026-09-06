@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../helpers/run_zfa_source.dart';
+import 'package:zuraffa/src/cli/exit_protocol.dart';
 
 /// Epic #1011 — TRUTH-FLOOR: regression for issue #1059.
 ///
@@ -12,7 +13,7 @@ import '../helpers/run_zfa_source.dart';
 /// #1039 sweep was merged to eliminate fleet-wide. The `entity` family
 /// was missed because `EntityCommand` predates the `PluginCommand`
 /// hierarchy and owns its own dispatcher. PR #1039's convention is:
-/// usage errors print a short `❌` banner and set `exitCode = 64`
+/// usage errors print a short `❌` banner and set `exitCode = 2`
 /// (distinct from 1 = runtime failure). This test pins the contract
 /// so the next drift off it fails loudly.
 ///
@@ -56,21 +57,21 @@ dev_dependencies:
   });
 
   group('epic #1011 / issue #1059 — entity cli bare invocation', () {
-    test('`zfa entity cli` with no entity name exits 64 (not 0)', () async {
+    test('`zfa entity cli` with no entity name exits 2 (not 0)', () async {
       final result = await runZfaSource([
         'entity',
         'cli',
       ], workingDirectory: workspace.path);
 
-      // Truth-floor contract: usage errors exit 64, not 0. A 0 here is
+      // Truth-floor contract: usage errors exit 2, not 0. A 0 here is
       // the lying-success the #1039 sweep was meant to eliminate; this
       // is the exact regression #1059 names ("the one command the #995
       // sweep missed").
       expect(
         result.exitCode,
-        equals(64),
+        equals(ExitProtocol.usage),
         reason:
-            'zfa entity cli with no entity name must exit 64 (usage-error '
+            'zfa entity cli with no entity name must exit 2 (usage-error '
             'family), not 0. exit=0 certifies "nothing went wrong" when '
             'nothing happened — the exact lie the TRUTH-FLOOR epic '
             '(#1011) forbids.\n'
@@ -109,7 +110,7 @@ dev_dependencies:
   });
 
   group('epic #1011 / issue #1059 — sweep: `zfa entity` bare', () {
-    test('`zfa entity` with no subcommand exits 64 (not 0)', () async {
+    test('`zfa entity` with no subcommand exits 2 (not 0)', () async {
       final result = await runZfaSource([
         'entity',
       ], workingDirectory: workspace.path);
@@ -121,9 +122,9 @@ dev_dependencies:
       // void — fix all occurrences in the same PR").
       expect(
         result.exitCode,
-        equals(64),
+        equals(ExitProtocol.usage),
         reason:
-            'zfa entity with no subcommand must exit 64 (usage-error '
+            'zfa entity with no subcommand must exit 2 (usage-error '
             'family). Help is intentional (`--help`/`-h`/`help`); bare '
             'invocation is not — printing the full help and exiting 0 '
             'certifies "nothing went wrong" when nothing happened.\n'

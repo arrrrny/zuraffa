@@ -12,50 +12,13 @@ class ModularDiCommand extends PluginCommand {
   Set<String> get manualSubcommandNames => const {'verify'};
 
   ModularDiCommand(super.plugin) {
-    argParser.addOption(
-      'domain',
-      abbr: 'd',
-      help: 'Domain name for the usecase/entity',
-    );
-    argParser.addOption(
-      'service',
-      abbr: 's',
-      help: 'Service name for custom usecases',
-    );
-    argParser.addOption(
-      'repo',
-      abbr: 'r',
-      help: 'Repository name for custom usecases',
-    );
-    argParser.addOption(
-      'methods',
-      abbr: 'm',
-      help:
-          'Comma-separated list of entity methods to wire '
-          '(get,create,update,delete,list,watch,getList,watchList). '
-          'Defaults to "get,update" for entity-based generation, matching '
-          '`zfa usecase create <Entity>`.',
-      defaultsTo: 'get,update',
-    );
-    argParser.addMultiOption(
-      'usecases',
-      abbr: 'u',
-      help: 'List of usecases to orchestrate (e.g. GetUser,GetProfile)',
-      splitCommas: true,
-    );
-    argParser.addFlag(
-      'no-entity',
-      negatable: false,
-      help:
-          'Treat as a custom (non-entity) usecase — emit a single '
-          '<name>_usecase_di.dart referencing <Name>UseCase '
-          '(for hand-written usecases)',
-    );
-    argParser.addFlag(
-      'use-mock',
-      negatable: false,
-      help: 'Use mock implementation for datasources',
-    );
+    // SPEC 917 / #876 sweep: the parent-level generator flags
+    // (--domain/--service/--repo/--methods/--usecases/--no-entity/
+    // --use-mock) were parsed and advertised but NEVER read — run() is
+    // dispatch-only (the live surfaces are `zfa di generate ...` and
+    // `zfa di verify`, whose parsers own their flags). Silent parent
+    // options are the #876 "flags that lie" family; gone and certified by
+    // `zfa manifest --verify` (spec #979).
 
     // SPEC 1106: the verify gate as a manual subcommand (see
     // [manualSubcommandNames]).

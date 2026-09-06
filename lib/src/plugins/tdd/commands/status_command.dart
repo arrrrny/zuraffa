@@ -35,8 +35,11 @@ import 'package:path/path.dart' as p;
 
 import '../../../core/project/project_root.dart';
 import '../../../engine/engine_gate_receipt.dart';
+import '../models/verdict_envelope.dart';
 import '../services/journal.dart';
+import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
+import 'run_command.dart';
 import 'run_driver_core.dart';
 
 class StatusCommand extends Command<void> {
@@ -49,9 +52,17 @@ class StatusCommand extends Command<void> {
           'or target project). When omitted, the current working directory '
           'is used.',
     );
+    argParser.addFlag('json', help: kJsonFlagHelp, negatable: false);
   }
 
   final TddPlugin plugin;
+
+  /// SPEC 917/#838: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
+
+  @override
+  Future<void> run() =>
+      runWithVerdictEnvelope(this, _verdict, _run, featureFromRest: true);
 
   @override
   String get name => 'status';
@@ -69,8 +80,7 @@ class StatusCommand extends Command<void> {
   static const _exitNotGreen = 1;
   static const _exitRunnerError = 2;
 
-  @override
-  Future<void> run() async {
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       throw UsageException(
@@ -93,6 +103,13 @@ class StatusCommand extends Command<void> {
         '${p.relative(featureDir, from: projectRoot)} (project root: '
         '$projectRoot)',
       );
+      // SPEC 917/#838: the JSON verdict carries the remediation.
+      _verdict
+        ..outcome = VerdictOutcome.error
+        ..exitClass = 'runner-error'
+        ..fix =
+            'create the feature (zfa tdd init <feature> / zfa specify '
+            '<feature>) or pass --project with the right root, then re-run';
       exitCode = _exitRunnerError;
       return;
     }
@@ -136,6 +153,19 @@ class StatusCommand extends Command<void> {
 
     final bothGreen =
         verdict.engineVerdict == 'green' && verdict.skinVerdict == 'green';
+    // SPEC 917/#838: the machine verdict mirrors the text verdict — the
+    // lane tokens ride in `details`, and a not-green status names the fix.
+    _verdict
+      ..details['engine'] = verdict.engineVerdict
+      ..details['skin'] = verdict.skinVerdict;
+    if (!bothGreen || gateBlocked) {
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'fail'
+        ..fix =
+            'drive the failing lane(s): `zfa tdd run-engine $feature` '
+            'then `zfa tdd run-skin $feature`';
+    }
     exitCode = bothGreen && !gateBlocked ? 0 : _exitNotGreen;
   }
 }
