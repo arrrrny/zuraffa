@@ -16,7 +16,9 @@ void main() {
     await plugin.discoverAndRegisterScenarios();
 
     final all = await plugin.registry.getAll();
-    expect(all, hasLength(4));
+    // Issue #1149: +2 shipped first-party scenarios alongside the three
+    // "plugins" contributing their four.
+    expect(all, hasLength(6));
     expect(
       all.map((s) => s.id),
       containsAll([
