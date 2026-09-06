@@ -7,7 +7,6 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/commands/api_command.dart';
 import 'package:zuraffa/src/commands/controller_command.dart';
 import 'package:zuraffa/src/commands/feature_command.dart';
-import 'package:zuraffa/src/commands/gql_command.dart';
 import 'package:zuraffa/src/commands/graphql_command.dart';
 import 'package:zuraffa/src/commands/gym_command.dart';
 import 'package:zuraffa/src/commands/observer_command.dart';
@@ -20,8 +19,6 @@ import 'package:zuraffa/src/plugins/api/api_plugin.dart';
 import 'package:zuraffa/src/plugins/api/capabilities/create_api_bridge_capability.dart';
 import 'package:zuraffa/src/plugins/controller/capabilities/create_controller_capability.dart';
 import 'package:zuraffa/src/plugins/controller/controller_plugin.dart';
-import 'package:zuraffa/src/plugins/gql/capabilities/create_gql_capability.dart';
-import 'package:zuraffa/src/plugins/gql/gql_plugin.dart';
 import 'package:zuraffa/src/plugins/graphql/capabilities/create_graphql_capability.dart';
 import 'package:zuraffa/src/plugins/graphql/graphql_plugin.dart';
 import 'package:zuraffa/src/plugins/gym/capabilities/create_gym_capability.dart';
@@ -79,14 +76,6 @@ class _FailingCapability extends CreateControllerCapability {
 
 class _FailingPresenterCapability extends CreatePresenterCapability {
   _FailingPresenterCapability(super.plugin);
-
-  @override
-  Future<ExecutionResult> execute(Map<String, dynamic> args) async =>
-      ExecutionResult(success: false, files: const []);
-}
-
-class _FailingGqlCapability extends CreateGqlCapability {
-  _FailingGqlCapability(super.plugin);
 
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async =>
@@ -155,13 +144,6 @@ class _FailingPresenterPlugin extends PresenterPlugin {
   List<ZuraffaCapability> get capabilities => [
     _FailingPresenterCapability(this),
   ];
-}
-
-class _FailingGqlPlugin extends GqlPlugin {
-  _FailingGqlPlugin({required super.outputDir});
-
-  @override
-  List<ZuraffaCapability> get capabilities => [_FailingGqlCapability(this)];
 }
 
 class _FailingGraphqlPlugin extends GraphqlPlugin {
@@ -238,13 +220,6 @@ class _InjectableControllerCommand extends ControllerCommand
 class _InjectablePresenterCommand extends PresenterCommand
     with _InjectableArgs {
   _InjectablePresenterCommand(super.plugin);
-
-  @override
-  ArgResults? get argResults => injected ?? super.argResults;
-}
-
-class _InjectableGqlCommand extends GqlCommand with _InjectableArgs {
-  _InjectableGqlCommand(super.plugin);
 
   @override
   ArgResults? get argResults => injected ?? super.argResults;
@@ -327,12 +302,9 @@ void main() {
       await expectFailureExit1(command);
     });
 
-    test('gql exits 1 when generation fails', () async {
-      final command = _InjectableGqlCommand(
-        _FailingGqlPlugin(outputDir: 'lib/src'),
-      );
-      await expectFailureExit1(command);
-    });
+    // 'gql exits 1 when generation fails' removed (issue #1149): the gql
+    // command was deleted with its plugin. The surviving graphql command
+    // carries the same exit-contract below.
 
     test('graphql exits 1 when generation fails', () async {
       final command = _InjectableGraphqlCommand(
