@@ -9,6 +9,7 @@ import '../../../utils/entity_analyzer.dart';
 import '../../../utils/entity_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../datasource/builders/interface_generator.dart';
+import 'failing_mock_provider_builder.dart';
 import 'mock_data_builder.dart';
 import 'mock_datasource_builder.dart';
 import 'mock_provider_builder.dart';
@@ -29,6 +30,8 @@ class MockBuilder {
   // (uri_does_not_exist + implements_non_class).
   final DataSourceInterfaceBuilder interfaceBuilder;
   final MockProviderBuilder providerBuilder;
+  // Spec 1110: the `--fail` preset's throwing double.
+  final FailingMockProviderBuilder failingProviderBuilder;
   final MockEntityGraphBuilder entityGraphBuilder;
   final MockJsonBuilder jsonBuilder;
   final FileSystem fileSystem;
@@ -42,6 +45,7 @@ class MockBuilder {
     MockDataSourceBuilder? dataSourceBuilder,
     DataSourceInterfaceBuilder? interfaceBuilder,
     MockProviderBuilder? providerBuilder,
+    FailingMockProviderBuilder? failingProviderBuilder,
     MockEntityGraphBuilder? entityGraphBuilder,
     MockJsonBuilder? jsonBuilder,
     FileSystem? fileSystem,
@@ -76,6 +80,13 @@ class MockBuilder {
              outputDir: outputDir,
              options: options,
              specLibrary: specLibrary ?? const SpecLibrary(),
+             fileSystem: fileSystem ?? FileSystem.create(),
+           ),
+       failingProviderBuilder =
+           failingProviderBuilder ??
+           FailingMockProviderBuilder(
+             outputDir: outputDir,
+             options: options,
              fileSystem: fileSystem ?? FileSystem.create(),
            ),
        entityGraphBuilder =
@@ -210,9 +221,30 @@ class MockBuilder {
           files.add(await interfaceBuilder.generate(config));
         }
         files.add(await dataSourceBuilder.generateMockDataSource(config));
+        // Spec 1110 (issue #1110): the `--fail` preset — a throwing twin
+        // of the certified mock, emitted beside the mock datasource
+        // (same interface, every method throws the sealed failure type).
+        // The succeeding mock artifacts above are still generated: the
+        // pair (succeeding + failing) is the feature.
+        if (config.failMock) {
+          files.add(
+            await failingProviderBuilder.generateFailingMockProvider(config),
+          );
+        }
       }
       if (config.hasService) {
         files.add(await providerBuilder.generateMockProvider(config));
+        if (config.failMock) {
+          // Honest scope notice (never a silent skip): the failure preset
+          // targets the entity datasource seam; the service-mode provider
+          // twin is future work.
+          print(
+            '⚠️  --fail preset: the failing provider is emitted for the '
+            'entity datasource interface; the service-mode failing '
+            'provider (spec 1110) is not generated for '
+            '"${config.effectiveService}".',
+          );
+        }
       }
     }
 

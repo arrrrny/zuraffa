@@ -496,6 +496,14 @@ class MockCertifier {
       (files, workingDirectory) async {
         final result = await Process.run('dart', [
           'analyze',
+          // Spec 1110: warnings are not drift. `dart analyze` over
+          // explicit file args treats warnings as fatal by default
+          // (exit 2), so a clean mock with cosmetic warnings (e.g.
+          // issue #942's undefined_hidden_name when the barrel hide
+          // list is unseeded) failed the gate — the same errors-only
+          // policy the spec 1001 sandbox and the CI dart lane apply.
+          // Errors still exit non-zero and block.
+          '--no-fatal-warnings',
           ...files,
         ], workingDirectory: workingDirectory);
         return (

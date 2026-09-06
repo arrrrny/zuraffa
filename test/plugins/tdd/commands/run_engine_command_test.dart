@@ -199,4 +199,154 @@ void main() {
       },
     );
   });
+
+  group('run-engine gate (spec 1110: freshness + refusal receipt)', () {
+    test(
+      'stale receipt (entity changed after certification) → refuses',
+      () async {
+        writeTestList(['Login']);
+        writeMockDatasource('Login');
+        writeReceipt('Login', allSatisfied: true);
+        // The entity source changes AFTER the certification was written —
+        // the receipt no longer describes the entity on disk.
+        final entityFile = File(
+          p.join(
+            projectRoot,
+            'lib',
+            'src',
+            'domain',
+            'entities',
+            'login',
+            'login.dart',
+          ),
+        );
+        entityFile.createSync(recursive: true);
+        entityFile.writeAsStringSync('class Login { final String id; }\n');
+        await entityFile.setLastModified(
+          DateTime.now().add(const Duration(hours: 1)),
+        );
+
+        final result = await RunEngineCommand.checkFeature(
+          projectRoot: projectRoot,
+          featureDir: featureDir,
+        );
+
+        expect(result.ok, isFalse);
+        expect(result.uncertified, ['Login']);
+        expect(result.blockedEntity, 'Login');
+        expect(result.blockedReason, isNotNull);
+        expect(result.blockedReason, contains('stale'));
+        expect(result.blockedFix, 'zfa mock create Login --certify');
+      },
+    );
+
+    test('fresh receipt newer than the entity file → gate ok', () async {
+      writeTestList(['Login']);
+      writeMockDatasource('Login');
+      writeReceipt('Login', allSatisfied: true);
+      final entityFile = File(
+        p.join(
+          projectRoot,
+          'lib',
+          'src',
+          'domain',
+          'entities',
+          'login',
+          'login.dart',
+        ),
+      );
+      entityFile.createSync(recursive: true);
+      entityFile.writeAsStringSync('class Login { final String id; }\n');
+      // Entity written an hour BEFORE the receipt — fresh.
+      await entityFile.setLastModified(
+        DateTime.now().subtract(const Duration(hours: 1)),
+      );
+
+      final result = await RunEngineCommand.checkFeature(
+        projectRoot: projectRoot,
+        featureDir: featureDir,
+      );
+
+      expect(result.ok, isTrue);
+      expect(result.certified, ['Login']);
+    });
+
+    test('the block writes engine.gate.<entity>.refused.json into the '
+        'feature tdd dir with the fix contract', () async {
+      writeTestList(['Login']);
+      writeMockDatasource('Login');
+      // No receipt at all → missing, not stale.
+      final result = await RunEngineCommand.checkFeature(
+        projectRoot: projectRoot,
+        featureDir: featureDir,
+      );
+
+      expect(result.ok, isFalse);
+      final refused = File(
+        p.join(featureDir, 'tdd', 'engine.gate.Login.refused.json'),
+      );
+      expect(refused.existsSync(), isTrue, reason: 'refusal receipt written');
+      final doc =
+          jsonDecode(refused.readAsStringSync()) as Map<String, dynamic>;
+      expect(doc['schema'], 'engine.gate.v1');
+      expect(doc['entity'], 'Login');
+      expect(doc['reason'], isNotEmpty);
+      expect(doc['fix'], 'zfa mock create Login --certify');
+      expect(doc['refs'], isA<List<dynamic>>());
+      // The receipt path is surfaced so tooling can render it.
+      expect(result.refusedReceiptPath, isNotNull);
+      expect(
+        result.refusedReceiptPath,
+        endsWith('engine.gate.Login.refused.json'),
+      );
+    });
+
+    test('a clean gate leaves no refusal receipt behind', () async {
+      writeTestList(['Login']);
+      writeMockDatasource('Login');
+      writeReceipt('Login', allSatisfied: true);
+
+      final result = await RunEngineCommand.checkFeature(
+        projectRoot: projectRoot,
+        featureDir: featureDir,
+      );
+
+      expect(result.ok, isTrue);
+      expect(result.refusedReceiptPath, isNull);
+      expect(
+        File(
+          p.join(featureDir, 'tdd', 'engine.gate.Login.refused.json'),
+        ).existsSync(),
+        isFalse,
+      );
+    });
+
+    test('certified entities do not re-block a previously refused gate '
+        '(the receipt heals)', () async {
+      writeTestList(['Login']);
+      writeMockDatasource('Login');
+      // First run: refused (receipt missing), refusal receipt written.
+      final first = await RunEngineCommand.checkFeature(
+        projectRoot: projectRoot,
+        featureDir: featureDir,
+      );
+      expect(first.ok, isFalse);
+      expect(
+        File(
+          p.join(featureDir, 'tdd', 'engine.gate.Login.refused.json'),
+        ).existsSync(),
+        isTrue,
+      );
+
+      // The fix lands: the certification receipt appears.
+      writeReceipt('Login', allSatisfied: true);
+      final second = await RunEngineCommand.checkFeature(
+        projectRoot: projectRoot,
+        featureDir: featureDir,
+      );
+
+      expect(second.ok, isTrue);
+      expect(second.refusedReceiptPath, isNull);
+    });
+  });
 }
