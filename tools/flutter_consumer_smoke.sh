@@ -55,11 +55,13 @@ import 'package:zuraffa/zuraffa.dart';
 // barrel (the post-6.1.0 surface, issue #1197) inside a real Flutter
 // resolution.
 void main() {
-  const table = RouteContractTable.fromRouteNames(['home']);
+  final table = RouteContractTable.fromRouteNames(['home']);
   runApp(
     MaterialApp(
       home: Scaffold(
-        body: Center(child: Text('skew gate: ${table.routes.length} route(s)')),
+        body: Center(
+          child: Text('skew gate: ${table.allowedRoutes.length} route(s)'),
+        ),
       ),
     ),
   );
