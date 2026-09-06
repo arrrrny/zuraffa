@@ -22,6 +22,11 @@
 ///   dependency table (issue #960's output), certifies it
 ///   (framework-executed contract proof), and writes the committed
 ///   manifest + certification receipt.
+/// - SKIN behaviors are driven through the anchor-tap protocol —
+///   NEVER synthetic clicks (issue #1112): live apps through
+///   `zfa skin drive` (VM service), deterministic CI replays through
+///   `zfa skin sim` (the same registry protocol, no device). Both
+///   speak the identical TapResult JSON envelope.
 /// - `run` executes the scenario's behavior program against the world
 ///   (virtual time, latency bands, failure storms), runs the
 ///   differential gate (#915 composes), and writes the proof-carrying
