@@ -18,9 +18,13 @@
 /// The command:
 ///   1. Resolves the behavior's registry record (same resolution rules
 ///      as `func`/`wire`/`make`) and its `subject_path` artifact.
-///   2. Parses the gen'd view-builder stub — the exact
+///   2. Parses the gen'd view-builder stub — the
 ///      `Widget <name>() => throw UnimplementedError(...);` shape
-///      SubjectWriter emits for widget-kind rows (bug #830).
+///      (bug #830) OR the `Widget <name>() => const SizedBox.shrink();`
+///      INERT shape (issue #959) SubjectWriter emits for widget-kind
+///      rows — the view step rewrites either red surface to the
+///      composed view (issue #1141: the regeneration loop must run
+///      gen → view end-to-end on fresh stubs).
 ///   3. Derives the minimal view composition from two DECLARED sources,
 ///      never from the test (044 ownership contract):
 ///        - the behavior description's scenario assertions (issue #964
@@ -36,6 +40,14 @@
 ///          the same information `zfa make --with=vpc` uses for
 ///          presenters): each declared component token maps to a
 ///          deterministic always-compiling core-Flutter stand-in.
+///   3b. Issue #1141 — the localization audit: the RENDERED view is
+///      audited BEFORE any write (errors-are-an-API). Every quoted
+///      user-facing string must trace to a ledger surface (derived from
+///      the declared test list rows + Presentation contract + key
+///      table); a declared key's anchor may never render as a quoted
+///      literal (the key is the contract). Violations refuse the write
+///      with `--> fix:` lines — a machine-generated view that would
+///      fail the host's 100% localization gate never lands.
 ///   4. Replaces ONLY the stub declaration with the minimal view: a
 ///      private-ish `StatelessWidget` skeleton plus the view-builder
 ///      returning it. Scenario-specific behavior inside the view
@@ -69,6 +81,8 @@ import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/test_list_reader.dart';
+import '../services/ui_ledger_projection.dart';
+import '../../../tdd/services/ui_ledger_builder.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
@@ -241,7 +255,14 @@ class ViewCommand extends Command<void> {
     // 3. Parse the stub and gather the declared composition inputs.
     // -------------------------------------------------------------
     final raw = await subjectFile.readAsString();
-    final stub = _stubSignature.firstMatch(raw);
+    // Issue #1141: SubjectWriter emits TWO red shapes for widget-kind
+    // rows — the throwing stub (bug #830) and, since issue #959, the
+    // INERT stub (`Widget <name>() => const SizedBox.shrink();`). The
+    // view step rewrites either; anything else is a hand-written file
+    // this command refuses to guess at (or an already-implemented view
+    // on a resumed pipeline).
+    final stub =
+        _stubSignature.firstMatch(raw) ?? _inertStubSignature.firstMatch(raw);
     if (stub == null) {
       final hasUnimplementedError = raw.contains('UnimplementedError');
       if (hasUnimplementedError) {
@@ -337,27 +358,8 @@ class ViewCommand extends Command<void> {
     // clobbered) even when THIS behavior's literals are unkeyed — the
     // localization gate needs every declared key present. Expansion
     // locales (issue #965 optional tier) scaffold alongside the base.
-    if (i18nKeys.isNotEmpty) {
-      final scaffolded = I18nScaffold.ensure(
-        I18nScaffold.baseFilePath(normalizedCwd),
-        i18nKeys.contracts,
-      );
-      print(
-        '   scaffold: lib/i18n/strings.i18n.json '
-        '(${scaffolded ? 'missing keys scaffolded' : 'already complete'})',
-      );
-      final expansionLocales = _resolveI18nExpansion(argResults, normalizedCwd);
-      for (final locale in expansionLocales) {
-        final expanded = I18nScaffold.ensure(
-          I18nScaffold.expansionFilePath(normalizedCwd, locale),
-          i18nKeys.contracts,
-        );
-        print(
-          '   scaffold: lib/i18n/strings_$locale.i18n.json '
-          '(${expanded ? 'missing keys scaffolded' : 'already complete'})',
-        );
-      }
-    }
+    // Issue #1141: the scaffold runs only AFTER the pre-write audit
+    // passes (errors-are-an-API — a refused view writes nothing).
 
     // -------------------------------------------------------------
     // 4. Emit the deterministic minimal view (issue #939 remediation).
@@ -401,6 +403,73 @@ class ViewCommand extends Command<void> {
               fromDir: p.dirname(subjectPath),
             ),
           );
+
+    // -------------------------------------------------------------
+    // 4b. Issue #1141 — the localization audit (BEFORE any write).
+    // -------------------------------------------------------------
+    // Every quoted user-facing string in the rendered view must trace
+    // to a ledger surface (the declared test list rows + Presentation
+    // contract + key table), and a declared key's anchor may never
+    // render as a quoted literal. A violation refuses the write with
+    // per-violation `--> fix:` lines — the machine-generated view that
+    // would fail the host's 100% localization gate never lands.
+    final auditLedger = await _auditLedger(
+      featureDir: featureDir,
+      fallbackBehaviorId: record.behaviorId,
+      fallbackDescription: description,
+      components: components,
+      keys: i18nKeys,
+    );
+    final audit = UiViewAudit.audit(
+      viewSource: updatedWithImport,
+      ledger: auditLedger,
+      anchorToKey: i18nKeys.anchorToKey,
+      markerLiterals: [record.behaviorId],
+    );
+    if (!audit.isClean) {
+      print(
+        'zfa tdd view: i18n audit FAILED — '
+        '${audit.violations.length} violation(s); no artifacts written:',
+      );
+      for (final violation in audit.violations) {
+        print('   - ${violation.message}');
+      }
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: ViewOutcome.runnerError,
+        feature: resolved.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+    print(
+      '   i18n audit: clean — ${audit.ledgerRowCount} surface(s) '
+      'declared, 0 violation(s) (issue #1141)',
+    );
+
+    // The scaffold (post-audit): missing declared keys land in lib/i18n.
+    if (i18nKeys.isNotEmpty) {
+      final scaffolded = I18nScaffold.ensure(
+        I18nScaffold.baseFilePath(normalizedCwd),
+        i18nKeys.contracts,
+      );
+      print(
+        '   scaffold: lib/i18n/strings.i18n.json '
+        '(${scaffolded ? 'missing keys scaffolded' : 'already complete'})',
+      );
+      final expansionLocales = _resolveI18nExpansion(argResults, normalizedCwd);
+      for (final locale in expansionLocales) {
+        final expanded = I18nScaffold.ensure(
+          I18nScaffold.expansionFilePath(normalizedCwd, locale),
+          i18nKeys.contracts,
+        );
+        print(
+          '   scaffold: lib/i18n/strings_$locale.i18n.json '
+          '(${expanded ? 'missing keys scaffolded' : 'already complete'})',
+        );
+      }
+    }
+
     await subjectFile.writeAsString(updatedWithImport);
     // Issue #969 T003: the scaffolded subject becomes self-certifying.
     await TddGenerationReceipts.writeBestEffort(
@@ -445,6 +514,17 @@ class ViewCommand extends Command<void> {
     multiLine: true,
   );
 
+  /// The INERT widget-stub shape SubjectWriter emits since issue #959:
+  /// `Widget <name>() => const SizedBox.shrink();` — a valid widget that
+  /// displays nothing (red is certified on the authored assertions, not
+  /// the guard). Issue #1141: the view step rewrites this shape too, so
+  /// the regeneration loop runs gen → view end-to-end on fresh stubs.
+  static final RegExp _inertStubSignature = RegExp(
+    r'^(Widget)[ \t]+([A-Za-z_][A-Za-z0-9_]*)\(\)[ \t]*=>[ \t]*'
+    r'const[ \t]+SizedBox\.shrink\(\);[ \t]*$',
+    multiLine: true,
+  );
+
   /// The declared component tokens of the feature's Presentation layer
   /// contract, de-duplicated order-preservingly. `key:` tokens (issue
   /// #965) are i18n SURFACES, not components — they never render as
@@ -481,6 +561,42 @@ class ViewCommand extends Command<void> {
   /// the component tokens above).
   static Future<I18nKeyTable> _loadI18nKeys(String featureDir) =>
       I18nKeyTable.loadForFeature(featureDir);
+
+  /// Issue #1141: the audit's ledger rows — derived from the DECLARED
+  /// test list rows (the plan artifact is the ledger of record; a view
+  /// whose literals drift from the declared rows surfaces as untraced)
+  /// plus the Presentation component tokens and the key table. When no
+  /// list is readable (a fixture, or a pre-plan edge), the composition's
+  /// own record is the fallback source — the non-i18n zero-drift world
+  /// (a behavior's own scenario literals are always declared rows of
+  /// their view).
+  static Future<List<UiSurfaceRow>> _auditLedger({
+    required String featureDir,
+    required String fallbackBehaviorId,
+    required String fallbackDescription,
+    required List<String> components,
+    required I18nKeyTable keys,
+  }) async {
+    List<LedgerBehaviorInput> behaviors;
+    try {
+      behaviors = [
+        for (final row in await TestListReader(featureDir).read())
+          LedgerBehaviorInput(id: row.id, description: row.description),
+      ];
+    } on TestListReadException {
+      behaviors = [
+        LedgerBehaviorInput(
+          id: fallbackBehaviorId,
+          description: fallbackDescription,
+        ),
+      ];
+    }
+    return UiLedgerProjection.rows(
+      behaviors: behaviors,
+      keys: keys,
+      componentTokens: components,
+    );
+  }
 
   /// Resolves the expansion locales for the optional i18n tier (issue
   /// #965): the explicit `--i18n-expansion` flag wins over the `.zfa.json`

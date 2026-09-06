@@ -165,12 +165,15 @@ void main() {
         id: 'A-001',
         description: 'the login page renders',
       );
+      // An IMPLEMENTED builder (issue #1141: the inert `SizedBox.shrink`
+      // shape IS the gen'd stub since #959, so the view step rewrites it;
+      // a genuinely implemented view is any other non-stub shape).
       await File(fx.subjectPathOf('A-001')).writeAsString('''
 library;
 
 import 'package:flutter/material.dart';
 
-Widget subject_a_001() => const SizedBox.shrink();
+Widget subject_a_001() => const Placeholder();
 ''');
       final before = await File(fx.subjectPathOf('A-001')).readAsString();
 
