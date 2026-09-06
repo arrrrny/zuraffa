@@ -1,0 +1,23 @@
+$ dart test test/plugins/tdd/commands/realize_command_1193_test.dart
+00:03 +0 -10: Some tests failed.
+
+Failing tests (10/10 — the pre-change tree cannot satisfy any of them):
+  CERT-1: a certified mock is located and counted in the receipt
+  CERT-2: a RED certification blocks the swap (the swap PROCEEDED on an
+          unsatisfied mock-cert — output showed result=realized)
+  DRY-1: --dry-run previews the swap and leaves the tree untouched
+  DRY-2: --dry-run and --diff-only are mutually exclusive
+  DRY-3: a dry-run that would be refused exits 1 and names why
+  JRN-1: a realized swap appends the unified journal entry and advances
+         the behavior ladder to DONE
+  JRN-2: only mocked behaviors advance — pending stays honest
+  RCPT-1: the swap writes realize-receipt.json (files, digests, gate
+          outcome, generated/mock/hand ratios)
+  SCAF-1: --scaffold scaffolds the real adapter behind the SAME interface
+  SCAF-2: a missing adapter WITHOUT --scaffold is still refused
+
+Root causes:
+  - "Could not find an option named \"--dry-run\"." / "--scaffold" (UsageException)
+  - no certified-mock lookup (CertRegistry never consulted)
+  - no journal.json append, no run-state mocked->done advance
+  - no realize-receipt.v1 hand-delta receipt with ratios

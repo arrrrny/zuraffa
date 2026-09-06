@@ -395,6 +395,14 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final dataSourceName = '${baseName}RemoteDataSource';
     final fileName = '${baseSnake}_remote_datasource_di.dart';
     final diPath = path.join(outputDir, 'di', 'datasources', fileName);
+    // Issue #1176-family (mocked tier, #1194): the REPOSITORY resolves
+    // the ABSTRACT datasource, and the simulation binding registers the
+    // mock under that abstract. Real mode must therefore expose the
+    // remote impl under the abstract too — registering only the
+    // concrete made `--dart-define=SIMULATION=true` boots crash with
+    // `DealRemoteDataSource is not registered` while the abstract sat
+    // on the mock.
+    final abstractDataSourceName = '${baseName}DataSource';
     final registrationCall = refer('getIt')
         .property('registerLazySingleton')
         .call(
@@ -408,22 +416,39 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           {},
           [refer(dataSourceName)],
         );
+    final abstractRegistrationCall = refer('getIt')
+        .property('registerLazySingleton')
+        .call(
+          [
+            Method(
+              (m) => m
+                ..lambda = true
+                ..body = refer(
+                  'getIt',
+                ).call([], {}, [refer(dataSourceName)]).code,
+            ).closure,
+          ],
+          {},
+          [refer(abstractDataSourceName)],
+        );
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$dataSourceName',
-      registeredTypes: [dataSourceName],
+      registeredTypes: [dataSourceName, abstractDataSourceName],
       imports: [
         'package:zuraffa/zuraffa.dart',
         // Spec 893: real adapters never register under the simulation
         // flavor — mocks are served exclusively in simulation mode.
         'package:zuraffa/simulation.dart',
         '../../data/datasources/$baseSnake/${baseSnake}_remote_datasource.dart',
+        '../../data/datasources/$baseSnake/${baseSnake}_datasource.dart',
       ],
       body: Block(
         (b) => b
           ..statements.addAll([
             Code('if (kSimulationMode) return;'),
             registrationCall.statement,
+            abstractRegistrationCall.statement,
           ]),
       ),
     );
@@ -772,9 +797,12 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         dataSourceImport =
             '../../data/datasources/$baseSnake/${baseSnake}_local_datasource.dart';
       } else {
-        dataSourceName = '${baseName}RemoteDataSource';
+        // Issue #1194 mocked tier: the flavor decides WHICH impl serves
+        // the abstract (remote in real mode, certified mock in
+        // simulation) — the repository must not pin the concrete.
+        dataSourceName = '${baseName}DataSource';
         dataSourceImport =
-            '../../data/datasources/$baseSnake/${baseSnake}_remote_datasource.dart';
+            '../../data/datasources/$baseSnake/${baseSnake}_datasource.dart';
       }
       imports.add(dataSourceImport);
       constructorCall = refer(dataRepoName).call([
