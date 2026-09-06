@@ -14,6 +14,11 @@ import '../helpers/run_zfa_source.dart';
 /// (worst case: cold source fallback on old hardware) and grows with the
 /// guard at any scale. These tests exercise flag plumbing, not speed
 /// (issue #1187).
+///
+/// Note: an explicit `Timeout(Duration)` constructor bypasses
+/// `dart_test.yaml`'s `slow: timeout: 4x` factor — the override is
+/// intentional so the ceiling can stretch together with the child guard at
+/// any scale.
 final Timeout kZfaScaledSuiteTimeout = Timeout(
   scaleDuration(const Duration(minutes: 3)),
 );

@@ -97,6 +97,10 @@ ZFA_TEST_TIMEOUT_SCALE=2 dart test test/feature_flags --preset=all
   3-minute base ceilings so they grow together with the child guard — the
   guard must stay shorter than the enclosing test ceiling for its
   fail-fast diagnostic to fire first).
+- Explicit `timeout:` arguments passed to `runZfaSource(...)` are NOT
+  auto-scaled (only the default scales). Callers that want their custom
+  budgets to follow the env must pass them through `scaleDuration(...)`
+  themselves.
 - The mechanism is covered by the fast-tier unit tests in
   `test/helpers/zfa_test_timeout_scale_test.dart` (run with the variable
   unset and with a scaled value to prove the plumbing both ways).

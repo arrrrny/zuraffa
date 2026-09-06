@@ -26,7 +26,7 @@ Fast-tier suite state at audit time (chunked runner semantics,
 | scale mechanism (fast tier) | `dart test test/helpers/zfa_test_timeout_scale_test.dart` | 9/9 passed, ×5 environment values (unset, `4`, `abc`, `0.5`, `2.5`) |
 | full fast suite | chunked runner semantics, resumed via identical-semantics driver (`run_chunked_resume_1187.sh`: same per-chunk command `dart test "$d" --exclude-tags flutter < /dev/null`, same `clean_kernel`) | **90/90 chunks: 83 PASS + 7 SKIP** (folders whose tests are all slow-tagged — by-design skips, e.g. `test/benchmark`, `test/integration`, `test/tdd/077-make-engine-preset`) |
 | `dart analyze` | `dart analyze` | 0 issues in the changed files; all 31 errors are pre-existing `uri_does_not_exist` in `examples/todo_tdd/` (missing generated artifacts, needs Flutter; unchanged from baseline) |
-| `dart format .` | `dart format .` | 2333 files formatted, 3 changed: the new test file + 2 edited suite files (committed with the fix) and 1 pre-existing drift file (`examples/mcp_demo/lib/src/mcp/tools.dart`, committed separately as `style:` so the gate "zero remaining formatting diffs after `dart format .`" holds) |
+| `dart format .` | `dart format .` | 2333 files formatted, 4 changed: the new test file + 2 edited suite files (committed with the fix) and 1 pre-existing drift file (`examples/mcp_demo/lib/src/mcp/tools.dart`, committed separately as `style:` so the gate "zero remaining formatting diffs after `dart format .`" holds) |
 
 ## 2. Test-first evidence
 
