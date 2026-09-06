@@ -18,12 +18,26 @@
 ///   4. records hand-written deltas as nuance receipts in the feature's
 ///      provenance ledger (legal gated; ungated blocked),
 ///   5. transitions the state MOCKED → REAL with era-tagged cycle-log
-///      evidence.
+///      evidence,
+///   6. LOCATES the certified mock behind the interface (the #1110 cert
+///      registry — a red certification blocks the crossing; the honest
+///      ladder never lies about which tier it is in),
+///   7. SCAFFOLDS a missing real adapter behind the SAME interface with
+///      --scaffold (the hand-delta seam: stamped and receipted in the
+///      provenance ledger, NEVER pretended generated),
+///   8. advances the behavior's ladder state MOCKED → REAL → DONE in the
+///      unified journal (#1113) — behavior states to `done` in
+///      tdd/run-state.json, the era to REAL in realize-state.json, a
+///      schema-valid meta entry in tdd/journal.json,
+///   9. writes the hand-delta receipt (`tdd/realize-receipt.v1`): files,
+///      digests, gate outcomes, and the generated/mock/hand ratios,
+///  10. previews the ENTIRE swap with --dry-run — every write named,
+///      nothing written.
 ///
 /// Summary (house convention): the LAST stdout line is machine-readable:
 ///
 ///     realize: entity=<E> adapter=<A> feature=<F> contract=<verdict>
-///              era=MOCKED->REAL result=<realized|blocked|runner-error>
+///              era=MOCKED->REAL result=<realized|blocked|dry-run|...>
 library;
 
 import 'dart:convert';
@@ -36,13 +50,18 @@ import 'package:path/path.dart' as p;
 import '../../../core/project/project_root.dart';
 import '../../../core/project/receipt_store.dart';
 import '../../../version.dart';
+import '../../mock/certification/cert_registry.dart';
 import '../services/artifact_registry.dart';
 import '../services/entity_lookup.dart' show toSnakeCase;
+import '../services/adapter_scaffolder.dart';
 import '../services/contract_gate.dart';
 import '../services/di_rebind.dart';
 import '../services/era_tagged_log.dart';
+import '../services/journal.dart';
 import '../services/nuance_receipts.dart';
+import '../services/realize_receipt.dart';
 import '../services/realize_state.dart';
+import '../services/run_state_store.dart';
 import '../services/differential_harness.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
@@ -65,7 +84,11 @@ enum RealizeOutcome {
   runnerError('runner-error'),
   diffClean('diff-clean'),
   diffDivergence('diff-divergence'),
-  diffSkipped('diff-skipped');
+  diffSkipped('diff-skipped'),
+
+  /// The --dry-run preview (spec 1193): the plan was named, nothing was
+  /// written. Exit code carries the would-refuse verdict.
+  dryRun('dry-run');
 
   const RealizeOutcome(this.label);
   final String label;
@@ -96,6 +119,27 @@ class RealizeCommand extends Command<void> {
           'deterministic, journal-consumable receipt. Nothing is '
           'rebound, no suite runs, no state transitions — the receipt '
           'and an era-tagged entry are the only writes.',
+    );
+    argParser.addFlag(
+      'dry-run',
+      negatable: false,
+      help:
+          'Preview the swap (spec 1193): name every write the swap would '
+          'make — the rebinding sites, the contract suite, the '
+          'differential replay, the scaffold plan, the journal advance '
+          'and its hand-delta receipt — and write NOTHING. Exit 0 when '
+          'the swap would proceed, 1 with the reason named when it would '
+          'be refused.',
+    );
+    argParser.addFlag(
+      'scaffold',
+      negatable: false,
+      help:
+          'Scaffold a MISSING real adapter behind the SAME interface the '
+          'certified mock implements (spec 1193): an UnimplementedError '
+          'stub stamped as the hand-delta seam and receipted in the '
+          'provenance ledger — never pretended generated. Without this '
+          'flag a missing adapter class is still a refusal.',
     );
     argParser.addOption(
       'adapter',
@@ -151,23 +195,30 @@ class RealizeCommand extends Command<void> {
       'Run the mock-to-real swap flow (spec 913; --adapter required), gated '
       'by the contract suite and real-vs-mock differential; --diff-only '
       'replays ONLY the standalone differential harness (spec 1195; '
-      '--adapter optional) without touching the tree.';
+      '--adapter optional) without touching the tree. Spec 1193 adds the '
+      'certified-mock location, --scaffold (the hand-delta seam), '
+      '--dry-run (preview, zero writes), the unified-journal ladder '
+      'advance MOCKED->REAL->DONE, and the realize hand-delta receipt '
+      'with generated/mock/hand ratios.';
 
   @override
   String get invocation =>
       'zfa tdd realize <entity|behavior> [--adapter <real>] [--diff-only] '
-      '[options]';
+      '[--dry-run] [--scaffold] [options]';
 
   @override
   Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
 
   Future<void> _run() async {
+    final startedAt = DateTime.now().toUtc().toIso8601String();
     final rest = argResults?.rest ?? const <String>[];
     final target = rest.isNotEmpty ? rest.first.trim() : '';
     final adapter = (argResults?['adapter'] as String?)?.trim() ?? '';
     final featureFlag = (argResults?['feature'] as String?)?.trim() ?? '';
     final projectFlag = (argResults?['project'] as String?)?.trim() ?? '';
     final diffOnly = (argResults?['diff-only'] as bool? ?? false);
+    final dryRun = (argResults?['dry-run'] as bool? ?? false);
+    final scaffold = (argResults?['scaffold'] as bool? ?? false);
 
     // ---------------------------------------------------------------
     // Argument validation (misfire-stop, never a guess).
@@ -192,6 +243,20 @@ class RealizeCommand extends Command<void> {
         '(realize never generates real implementations).',
         entity: target,
         adapter: '-',
+        feature: featureFlag,
+      );
+      return;
+    }
+    // --dry-run previews the SWAP; --diff-only replays the standalone
+    // differential. Both are read-only, but they are different lenses —
+    // one invocation, one lens (misfire-stop, never a guess).
+    if (dryRun && diffOnly) {
+      _fail(
+        'zfa tdd realize: --dry-run and --diff-only are mutually exclusive '
+        '— --dry-run previews the swap, --diff-only replays the standalone '
+        'differential. Pick one.',
+        entity: target,
+        adapter: adapter,
         feature: featureFlag,
       );
       return;
@@ -240,11 +305,19 @@ class RealizeCommand extends Command<void> {
     final entity = resolved.entity;
     final featureDir = p.join(cwd, 'specs', feature);
     print(
-      'zfa tdd realize${diffOnly ? ' --diff-only' : ''}: entity $entity '
+      'zfa tdd realize${diffOnly
+          ? ' --diff-only'
+          : dryRun
+          ? ' --dry-run'
+          : ''}: '
+      'entity $entity '
       '${diffOnly ? 'replayed against' : '-> adapter'} '
       '${adapter.isEmpty ? 'the real binding' : adapter}',
     );
     print('   feature: $feature');
+    if (dryRun) {
+      print('   mode: dry-run (preview — nothing will be written)');
+    }
 
     // ---------------------------------------------------------------
     // Era state: MOCKED is the default (mock-first realization).
@@ -274,6 +347,75 @@ class RealizeCommand extends Command<void> {
       );
       return;
     }
+
+    // ---------------------------------------------------------------
+    // The certified-mock location (spec 1193, step 1): the #1110 cert
+    // registry answers whether the mock behind the interface is
+    // certified. A RED certification (unsatisfied/corrupt/stale) blocks
+    // the crossing — the honest ladder never crosses on a mock whose own
+    // certification is red. A MISSING certification is named, never
+    // silently assumed.
+    // ---------------------------------------------------------------
+    final rebinder = DiRebinder(projectRoot: cwd);
+    final receipts = NuanceReceipts(featureDir: featureDir, projectRoot: cwd);
+    final certEntry = CertRegistry.checkEntity(
+      entity: entity,
+      projectRoot: cwd,
+    );
+    final mockImplFiles = await rebinder.mockImplementationFiles(
+      entity: entity,
+    );
+    final mocksTotal = mockImplFiles.length;
+    final mocksCertified = certEntry.status == CertRegistryStatus.certified
+        ? 1
+        : 0;
+    switch (certEntry.status) {
+      case CertRegistryStatus.certified:
+        print('   certified mock located: mocks $mocksCertified/$mocksTotal');
+      case CertRegistryStatus.missing:
+      case CertRegistryStatus.notReferenced:
+        print(
+          '   mock not certified (${certEntry.status.name}): mocks '
+          '$mocksCertified/$mocksTotal — named, never assumed. '
+          'Fix: ${certEntry.fix.isEmpty ? CertRegistry.certifyFixCommand(entity) : certEntry.fix}',
+        );
+      case CertRegistryStatus.unsatisfied:
+      case CertRegistryStatus.corrupt:
+      case CertRegistryStatus.stale:
+        print('   mock certification is RED: ${certEntry.reason}');
+        if (dryRun) {
+          print(
+            '   would refuse: the certified mock behind the interface is '
+            'red — a red certification never crosses to REAL.',
+          );
+          _printSummary(
+            entity: entity,
+            adapter: adapter,
+            feature: feature,
+            contract: '-',
+            mocks: '$mocksCertified/$mocksTotal',
+            era: state.era.name.toUpperCase(),
+            outcome: RealizeOutcome.dryRun,
+          );
+          exitCode = 1;
+          return;
+        }
+        print(
+          '   Fix: ${certEntry.fix} — a red certification never crosses to REAL.',
+        );
+        _printSummary(
+          entity: entity,
+          adapter: adapter,
+          feature: feature,
+          contract: '-',
+          mocks: '$mocksCertified/$mocksTotal',
+          era: state.era.name.toUpperCase(),
+          outcome: RealizeOutcome.blocked,
+        );
+        exitCode = 1;
+        return;
+    }
+
     if (state.era == RealizeEra.real && state.adapter == adapter) {
       print(
         '   already realized: $entity is bound to $adapter — nothing to '
@@ -298,16 +440,39 @@ class RealizeCommand extends Command<void> {
     // against its last provenance baseline; every drift must be
     // recorded with --hand-delta <file> --reason <text> or reverted.
     // ---------------------------------------------------------------
-    final rebinder = DiRebinder(projectRoot: cwd);
-    final receipts = NuanceReceipts(featureDir: featureDir, projectRoot: cwd);
+    final sites = await rebinder.scan(entity: entity);
     final surface = <String>[
-      for (final site in await rebinder.scan(entity: entity)) site.file,
-      ...await rebinder.mockImplementationFiles(entity: entity),
+      for (final site in sites) site.file,
+      ...mockImplFiles,
     ].map((f) => _normalizeRel(p.relative(f, from: cwd))).toList();
     final unrecorded = await receipts.detect(files: surface);
     final ungated = unrecorded
         .where((d) => !handDeltaFlags.contains(d.file))
         .toList();
+
+    // ---------------------------------------------------------------
+    // The --dry-run preview (spec 1193): name every write the swap
+    // would make — and make NONE. Runs AFTER the read-only nuance
+    // detection so a would-be refusal is part of the preview.
+    // ---------------------------------------------------------------
+    if (dryRun) {
+      await _runDryRun(
+        cwd: cwd,
+        entity: entity,
+        adapter: adapter,
+        feature: feature,
+        featureDir: featureDir,
+        state: state,
+        scaffold: scaffold,
+        sites: sites,
+        mockImplFiles: mockImplFiles,
+        suitePaths: await _mockEraSuitePaths(cwd, featureDir),
+        ungated: ungated,
+        mocksCertified: mocksCertified,
+        mocksTotal: mocksTotal,
+      );
+      return;
+    }
     if (ungated.isNotEmpty) {
       print(
         '   nuance gate BLOCKED: ${ungated.length} unrecorded '
@@ -364,6 +529,85 @@ class RealizeCommand extends Command<void> {
         '(diff-hash ${entry.diffHash.substring(0, 12)}...) — '
         '"$handDeltaReason"',
       );
+    }
+
+    // ---------------------------------------------------------------
+    // The adapter seam (spec 1193, step 2): the swap binds a named real
+    // adapter class. A missing class WITH --scaffold is scaffolded
+    // behind the SAME interface the certified mock implements — the
+    // hand-delta seam, stamped and receipted in the provenance ledger,
+    // never pretended generated. A missing class WITHOUT --scaffold
+    // keeps the spec 913 refusal.
+    // ---------------------------------------------------------------
+    ScaffoldResult? scaffoldResult;
+    try {
+      await rebinder.locateAdapter(adapterClass: adapter);
+    } on DiRebindException catch (_) {
+      if (!scaffold) {
+        _fail(
+          'zfa tdd realize: no file under lib/ declares "class $adapter" — '
+          'pass --scaffold to scaffold it as the hand-delta seam behind the '
+          'SAME interface (receipted in the provenance ledger, never '
+          'pretended generated), or write the adapter first. Realize never '
+          'silently generates real implementations.',
+          entity: entity,
+          adapter: adapter,
+          feature: feature,
+        );
+        return;
+      }
+      if (mockImplFiles.isEmpty) {
+        _fail(
+          'zfa tdd realize: cannot scaffold $adapter — no mock '
+          'implementation file declares the interface to scaffold behind. '
+          'Write the adapter by hand.',
+          entity: entity,
+          adapter: adapter,
+          feature: feature,
+        );
+        return;
+      }
+      try {
+        scaffoldResult = await AdapterScaffolder(
+          projectRoot: cwd,
+        ).scaffold(adapterClass: adapter, mockFile: mockImplFiles.first);
+      } on ScaffoldException catch (e) {
+        _fail(
+          'zfa tdd realize: ${e.message}',
+          entity: entity,
+          adapter: adapter,
+          feature: feature,
+        );
+        return;
+      }
+      final scaffoldRel = _normalizeRel(
+        p.relative(scaffoldResult.file, from: cwd),
+      );
+      if (scaffoldResult.created) {
+        print(
+          '   scaffolded: $scaffoldRel behind ${scaffoldResult.interfaceName} '
+          '(${scaffoldResult.methods.length} method(s), hand-delta seam — '
+          'receipted, never pretended generated)',
+        );
+        final scaffoldEntry = await receipts.record(
+          file: scaffoldRel,
+          reason:
+              'scaffolded by zfa tdd realize (spec 1193) — the hand-delta '
+              'seam behind ${scaffoldResult.interfaceName}; fill in the '
+              'real implementation. Never pretended generated.',
+          adapter: adapter,
+          recordedBy: 'zfa tdd realize --scaffold',
+        );
+        print(
+          '   nuance receipt: $scaffoldRel recorded as the hand-delta seam '
+          '(diff-hash ${scaffoldEntry.diffHash.substring(0, 12)}...)',
+        );
+      } else {
+        print(
+          '   scaffold exists: $scaffoldRel (left untouched — a re-scaffold '
+          'never clobbers filled-in work)',
+        );
+      }
     }
 
     // ---------------------------------------------------------------
@@ -562,6 +806,145 @@ class RealizeCommand extends Command<void> {
     await stateStore.save(next);
     print('   state: MOCKED -> REAL (${stateStore.path})');
 
+    // ---------------------------------------------------------------
+    // The journal advance (spec 1193, step 6): the behavior's ladder
+    // state MOCKED → (era REAL) → DONE in the unified journal — the
+    // behavior states advance in tdd/run-state.json (only behaviors in
+    // the mocked state; pending/red stay honest) and a schema-valid
+    // meta entry records the advance in tdd/journal.json (#1113).
+    // ---------------------------------------------------------------
+    final behaviorIds = await _collectBehaviorIds(featureDir, entity, target);
+    final advanced = await _advanceBehaviorStates(featureDir, behaviorIds);
+    if (behaviorIds.isNotEmpty) {
+      print(
+        '   ladder: ${behaviorIds.length} behavior(s) MOCKED -> DONE'
+        '${advanced.isEmpty ? '' : ' (${advanced.join(', ')})'}',
+      );
+    }
+
+    // The hand-delta receipt (spec 1193): files, digests, gate outcomes,
+    // and the generated/mock/hand ratios over the swap's surface. The
+    // rebind's writes are bucketed `generated` (they carry the #807
+    // receipt), the mock's own files `mock`, the adapter seam and the
+    // gated deltas `hand`.
+    Future<RealizeReceiptFile> receiptFile(
+      String absPath,
+      String action,
+      RealizeFileBucket bucket,
+    ) async {
+      final bytes = await File(absPath).readAsBytes();
+      return RealizeReceiptFile(
+        path: _normalizeRel(p.relative(absPath, from: cwd)),
+        action: action,
+        bucket: bucket,
+        sha256: _sha256(bytes),
+        bytes: bytes.length,
+      );
+    }
+
+    final receiptFiles = <RealizeReceiptFile>[
+      for (final site in rebind.sites)
+        await receiptFile(site.file, 'update', RealizeFileBucket.generated),
+      for (final mockFile in mockImplFiles)
+        await receiptFile(mockFile, 'mock', RealizeFileBucket.mock),
+      if (scaffoldResult != null)
+        await receiptFile(
+          scaffoldResult.file,
+          scaffoldResult.created ? 'scaffold' : 'adapter',
+          RealizeFileBucket.hand,
+        )
+      else
+        await receiptFile(
+          rebind.adapterFile,
+          'adapter',
+          RealizeFileBucket.hand,
+        ),
+      for (final delta in gatedDeltas)
+        RealizeReceiptFile(
+          path: delta.file,
+          action: 'hand-delta',
+          bucket: RealizeFileBucket.hand,
+          sha256: delta.actualHash ?? '-',
+          bytes: 0,
+        ),
+    ];
+    final ratios = RealizeRatios(
+      generated: receiptFiles
+          .where((f) => f.bucket == RealizeFileBucket.generated)
+          .length,
+      mock: receiptFiles
+          .where((f) => f.bucket == RealizeFileBucket.mock)
+          .length,
+      hand: receiptFiles
+          .where((f) => f.bucket == RealizeFileBucket.hand)
+          .length,
+    );
+    final swapReceipt = RealizeReceipt(
+      feature: feature,
+      entity: entity,
+      adapter: adapter,
+      ladderFrom: 'MOCKED',
+      ladderTo: 'REAL',
+      behaviorState: behaviorIds.isEmpty ? null : 'done',
+      contract: _contractLabel(gate.verdict),
+      differential: differential.verdict.name,
+      threshold: '${differential.threshold}',
+      rows: differential.rows.length,
+      compared: differential.compared,
+      handDeltas: gatedDeltas.length,
+      files: receiptFiles,
+      ratios: ratios,
+      mocksTotal: mocksTotal,
+      mocksCertified: mocksCertified,
+      scaffolded: (scaffoldResult?.created ?? false)
+          ? _normalizeRel(p.relative(scaffoldResult!.file, from: cwd))
+          : null,
+      at: DateTime.now().toUtc(),
+    );
+    await RealizeReceiptStore(featureDir).save(swapReceipt);
+    print(
+      '   receipt: specs/$feature/tdd/${RealizeReceiptStore.fileName} '
+      '(files ${receiptFiles.length}, ratios ${ratios.cell})',
+    );
+
+    // The unified journal entry (#1113): cycle meta, phase aggregate,
+    // gate green, result realized — the machine-parseable record of the
+    // MOCKED → REAL → DONE advance, referencing the receipts.
+    final journalWriter = JournalWriter(featureDir);
+    final refs = await journalWriter.resolveRefs();
+    const differentialReceiptRel = 'tdd/differential-receipt.json';
+    await journalWriter.append(
+      JournalEntry(
+        feature: feature,
+        cycle: 'meta',
+        phase: 'aggregate',
+        startedAt: startedAt,
+        finishedAt: DateTime.now().toUtc().toIso8601String(),
+        gateState: 'green',
+        receipts: [
+          'tdd/${RealizeReceiptStore.fileName}',
+          if (File(p.join(featureDir, differentialReceiptRel)).existsSync())
+            differentialReceiptRel,
+        ],
+        violations: const [],
+        engineReceipt: refs.engine,
+        skinReceipt: refs.skin,
+        contractSchema: refs.contract,
+        result: 'realized',
+        behaviors: behaviorIds,
+        counts: {
+          'behaviors': behaviorIds.length,
+          'advanced': advanced.length,
+          'handDeltas': gatedDeltas.length,
+        },
+        mocks: {'total': mocksTotal, 'certified': mocksCertified},
+      ),
+    );
+    print(
+      '   journal: unified journal entry appended (#1113) — MOCKED -> '
+      'REAL -> DONE',
+    );
+
     await EraTaggedLog(featureDir).append(
       EraTaggedLogEntry(
         behaviorId: '${toSnakeCase(entity)}-realize',
@@ -594,6 +977,11 @@ class RealizeCommand extends Command<void> {
       differential: differential.verdict.name,
       drift: differential.divergenceLabel,
       threshold: '${differential.threshold}',
+      handDeltas: gatedDeltas.length,
+      mocks: '$mocksCertified/$mocksTotal',
+      scaffold: scaffoldResult == null
+          ? '-'
+          : _normalizeRel(p.relative(scaffoldResult.file, from: cwd)),
       era: 'MOCKED->REAL',
       outcome: RealizeOutcome.realized,
     );
@@ -714,6 +1102,176 @@ class RealizeCommand extends Command<void> {
       DifferentialVerdict.runnerError => 1,
       _ => 0,
     };
+  }
+
+  /// The --dry-run preview (spec 1193): name every write the swap would
+  /// make — and make NONE. Reads only: the binding scan, the cert
+  /// registry, the nuance detection, the suite/fixture census, and the
+  /// scaffold plan (validated, never written). Exit 0 when the swap
+  /// would proceed; 1 with the would-refuse reason named when it would
+  /// not.
+  Future<void> _runDryRun({
+    required String cwd,
+    required String entity,
+    required String adapter,
+    required String feature,
+    required String featureDir,
+    required RealizeState state,
+    required bool scaffold,
+    required List<DiBindingSite> sites,
+    required List<String> mockImplFiles,
+    required List<String> suitePaths,
+    required List<HandDelta> ungated,
+    required int mocksCertified,
+    required int mocksTotal,
+  }) async {
+    print(
+      '   dry-run: preview of `zfa tdd realize $entity --adapter $adapter` '
+      '— nothing was written',
+    );
+    final refusals = <String>[];
+    for (final site in sites) {
+      print(
+        '   would rebind: ${_normalizeRel(p.relative(site.file, from: cwd))} '
+        '(${site.occurrences} site(s))',
+      );
+    }
+    print(
+      '   would run: the mock-era suite (${suitePaths.length} file(s)) '
+      'UNCHANGED against the real binding — the contract gate',
+    );
+    print(
+      '   would replay: ${await _fixtureCount(featureDir)} committed '
+      'fixture(s) through the differential harness (#1195)',
+    );
+    if (sites.isEmpty) {
+      refusals.add(
+        'no mock binding found for $entity — only a mock-era project can '
+        'be realized',
+      );
+    }
+    // The scaffold plan: validated, NOT written (write: false).
+    final adapterPresent = await _adapterExists(cwd, adapter);
+    if (!adapterPresent && scaffold) {
+      if (mockImplFiles.isEmpty) {
+        refusals.add(
+          'cannot scaffold $adapter — no mock implementation file '
+          'declares the interface to scaffold behind',
+        );
+      } else {
+        try {
+          final plan = await AdapterScaffolder(projectRoot: cwd).scaffold(
+            adapterClass: adapter,
+            mockFile: mockImplFiles.first,
+            write: false,
+          );
+          print(
+            '   would scaffold: '
+            '${_normalizeRel(p.relative(plan.file, from: cwd))} behind '
+            '${plan.interfaceName} (${plan.methods.length} method(s), '
+            'hand-delta seam, receipted — never pretended generated)',
+          );
+        } on ScaffoldException catch (e) {
+          refusals.add(e.message);
+        }
+      }
+    } else if (!adapterPresent) {
+      refusals.add(
+        'no file under lib/ declares "class $adapter" — pass --scaffold '
+        'to scaffold the hand-delta seam or write the adapter first',
+      );
+    }
+    if (ungated.isNotEmpty) {
+      refusals.add(
+        '${ungated.length} unrecorded hand-delta(s) on the realization '
+        'surface — record them with --hand-delta/--reason or revert them',
+      );
+      for (final delta in ungated) {
+        print('   hand-delta: ${delta.file} (${delta.detail})');
+      }
+    }
+    print(
+      '   would advance: MOCKED -> REAL (era) with the behavior ladder to '
+      'DONE in the unified journal (#1113) + the hand-delta receipt '
+      '(generated/mock/hand ratios)',
+    );
+    for (final refusal in refusals) {
+      print('   would refuse: $refusal');
+    }
+    _printSummary(
+      entity: entity,
+      adapter: adapter,
+      feature: feature,
+      contract: '-',
+      mocks: '$mocksCertified/$mocksTotal',
+      era: state.era.name.toUpperCase(),
+      outcome: RealizeOutcome.dryRun,
+    );
+    exitCode = refusals.isEmpty ? 0 : 1;
+  }
+
+  /// The registry behavior ids the swap covers: every record whose
+  /// description names the entity (the planner convention), plus the
+  /// target itself when it was a registered behavior id.
+  Future<List<String>> _collectBehaviorIds(
+    String featureDir,
+    String entity,
+    String target,
+  ) async {
+    final registry = ArtifactRegistry(featureDir: featureDir);
+    final ids = <String>{};
+    for (final record in await registry.loadAll()) {
+      if (record.behaviorId == target ||
+          _entityFromDescription(record.descriptionSegment) == entity) {
+        ids.add(record.behaviorId);
+      }
+    }
+    return ids.toList()..sort();
+  }
+
+  /// The behavior-state half of the ladder advance (spec 1193): every
+  /// behavior the swap covers that sits in the `mocked` state advances
+  /// to `done` in tdd/run-state.json. Pending/red/green behaviors are
+  /// never touched — the ladder is honest about what it advanced.
+  Future<List<String>> _advanceBehaviorStates(
+    String featureDir,
+    List<String> behaviorIds,
+  ) async {
+    if (behaviorIds.isEmpty) return const [];
+    final store = RunStateStore(featureDir);
+    final state = await store.load();
+    if (state == null) return const [];
+    var next = state;
+    final advanced = <String>[];
+    for (final id in behaviorIds) {
+      if (next.behaviorStates[id] == BehaviorState.mocked) {
+        next = next.advance(id, BehaviorState.done);
+        advanced.add(id);
+      }
+    }
+    if (advanced.isNotEmpty) await store.save(next);
+    return advanced;
+  }
+
+  /// The committed fixture census for the preview (read-only).
+  Future<int> _fixtureCount(String featureDir) async {
+    final dir = Directory(p.join(featureDir, 'tdd', 'fixtures'));
+    if (!await dir.exists()) return 0;
+    return dir
+        .listSync(recursive: true, followLinks: false)
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.json'))
+        .length;
+  }
+
+  /// Whether any file under lib/ declares the adapter class.
+  Future<bool> _adapterExists(String cwd, String adapter) async {
+    try {
+      await DiRebinder(projectRoot: cwd).locateAdapter(adapterClass: adapter);
+      return true;
+    } on DiRebindException {
+      return false;
+    }
   }
 
   /// Print the harness's named rows: the row id, its contract clause,
@@ -937,14 +1495,16 @@ class RealizeCommand extends Command<void> {
     String drift = '-',
     String threshold = '-',
     int handDeltas = 0,
+    String mocks = '-',
+    String scaffold = '-',
     required String era,
     required RealizeOutcome outcome,
   }) {
     print(
       'realize: entity=$entity adapter=$adapter feature=$feature '
       'contract=$contract differential=$differential drift=$drift '
-      'threshold=$threshold handDeltas=$handDeltas era=$era '
-      'result=${outcome.label}',
+      'threshold=$threshold handDeltas=$handDeltas mocks=$mocks '
+      'scaffold=$scaffold era=$era result=${outcome.label}',
     );
     // Issue #969: the realize outcome label IS the exit class.
     _verdict
@@ -954,11 +1514,14 @@ class RealizeCommand extends Command<void> {
         RealizeOutcome.alreadyReal => VerdictOutcome.pass,
         RealizeOutcome.diffClean => VerdictOutcome.pass,
         RealizeOutcome.diffSkipped => VerdictOutcome.pass,
+        RealizeOutcome.dryRun => VerdictOutcome.pass,
         _ => VerdictOutcome.fail,
       }
       ..details['entity'] = entity
       ..details['adapter'] = adapter
       ..details['hand_deltas'] = handDeltas
+      ..details['mocks'] = mocks
+      ..details['scaffold'] = scaffold
       ..feature = feature == 'unknown' ? null : feature;
   }
 
