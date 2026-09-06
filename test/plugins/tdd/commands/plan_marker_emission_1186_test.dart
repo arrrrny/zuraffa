@@ -59,6 +59,18 @@ Future<String> _plan(Directory tmp, [List<String> extra = const []]) async {
   return out;
 }
 
+String _scenarioBlock(String spec, int scenarioIndex) {
+  final headers = RegExp(
+    r'^\s*\d+\.\s*\*\*Given\*\*',
+    multiLine: true,
+  ).allMatches(spec).toList();
+  final start = headers[scenarioIndex - 1].start;
+  final end = scenarioIndex < headers.length
+      ? headers[scenarioIndex].start
+      : spec.length;
+  return spec.substring(start, end);
+}
+
 void main() {
   group(
     '#1186: plan emits markers back into the spec (one-time migration)',
@@ -183,12 +195,61 @@ void main() {
           final spec = await File(
             p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
           ).readAsString();
+          final a1 = _scenarioBlock(spec, 1);
+          final a2 = _scenarioBlock(spec, 2);
           expect(
-            '**Type**: acceptance'.allMatches(spec).length,
+            '**Type**:'.allMatches(a1).length,
             1,
-            reason: 'A1 kept its declared marker; only A2 was migrated',
+            reason: 'A1 must retain only its declared marker',
           );
-          expect(spec, contains('**Type**: widget'));
+          expect(a1, contains('**Type**: acceptance'));
+          expect(a1, isNot(contains('**Type**: widget')));
+          expect(a2, contains('**Type**: widget'));
+        } finally {
+          tmp.deleteSync(recursive: true);
+        }
+      });
+
+      test('marker emission uses current scenario ids after test-list id '
+          'reconciliation', () async {
+        final tmp = await _featureDir('''
+**Template Version**: `zuraffa-1.0`
+
+# Spec: 1186-prov
+
+## Functional Requirements
+
+- **FR-001**: returns 42 when invoked with no args
+
+## Acceptance Scenarios
+
+1. **Given** the app **When** the total is requested **Then** the total equals the sum of items.
+   **Type**: acceptance
+2. **Given** the app **When** another total is requested **Then** the other total equals the sum of items.
+''');
+        try {
+          final tddDir = Directory(
+            p.join(tmp.path, 'specs', '1186-prov', 'tdd'),
+          );
+          await tddDir.create();
+          await File(p.join(tddDir.path, 'test-list.md')).writeAsString('''
+## Outer loop: acceptance behaviors
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| A9 | old first scenario | AC-1 | PENDING |
+| A8 | old second scenario | AC-2 | PENDING |
+''');
+
+          final out = await _plan(tmp);
+          expect(exitCode, 0, reason: out);
+          final spec = await File(
+            p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
+          ).readAsString();
+          final a1 = _scenarioBlock(spec, 1);
+          final a2 = _scenarioBlock(spec, 2);
+          expect('**Type**:'.allMatches(a1), hasLength(1));
+          expect(a2, contains('**Type**: acceptance'));
         } finally {
           tmp.deleteSync(recursive: true);
         }
@@ -261,6 +322,25 @@ Skin Contract:
                 'round-2 fix 3a: a refusal mutates nothing — the '
                 'migration only ever rides a SUCCESSFUL plan',
           );
+        } finally {
+          tmp.deleteSync(recursive: true);
+        }
+      });
+
+      test('a plan output failure does not migrate the spec', () async {
+        final tmp = await _featureDir(_speckitShapedSpec);
+        try {
+          final specFile = File(
+            p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
+          );
+          final before = await specFile.readAsString();
+          await File(p.join(tmp.path, 'specs', '1186-prov', 'tdd'))
+              .writeAsString('blocks output directory creation');
+
+          final out = await _plan(tmp);
+          expect(exitCode, 1, reason: out);
+          expect(out, contains('FileSystemException'));
+          expect(await specFile.readAsString(), before);
         } finally {
           tmp.deleteSync(recursive: true);
         }
@@ -356,13 +436,14 @@ How to write a scenario:
             final spec = await File(
               p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
             ).readAsString();
-            // A1 is manual (no row, no declaration); A2 is migrated.
-            final markerLines = spec
-                .split('\n')
-                .where((l) => l.trim().startsWith('**Type**:'))
-                .toList();
-            expect(markerLines.length, 1, reason: spec);
-            expect(markerLines.single, contains('acceptance'));
+            final a1 = _scenarioBlock(spec, 1);
+            final a2 = _scenarioBlock(spec, 2);
+            expect(
+              a1,
+              isNot(contains('**Type**:')),
+              reason: 'A1 is manual and must remain marker-free',
+            );
+            expect(a2, contains('**Type**: acceptance'));
           } finally {
             tmp.deleteSync(recursive: true);
           }

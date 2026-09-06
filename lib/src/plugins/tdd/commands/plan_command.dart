@@ -412,12 +412,15 @@ class PlanCommand extends Command<void> {
       }
     }
 
-    final reconciled = <Behavior>[];
+    // The rendered row may keep its historical test-list id, but spec
+    // declarations and marker emission remain keyed by the parser's current
+    // id. Preserve both through provenance resolution.
+    final reconciledEntries = <({Behavior behavior, String currentId})>[];
     for (final b in behaviors) {
       final prior = existing[b.sourceCriterion];
       if (prior != null && prior.kind == b.kind) {
-        reconciled.add(
-          Behavior(
+        reconciledEntries.add((
+          behavior: Behavior(
             id: prior.id,
             feature: b.feature,
             kind: b.kind,
@@ -425,11 +428,13 @@ class PlanCommand extends Command<void> {
             sourceCriterion: b.sourceCriterion,
             target: b.target,
           ),
-        );
+          currentId: b.id,
+        ));
       } else {
-        reconciled.add(b);
+        reconciledEntries.add((behavior: b, currentId: b.id));
       }
     }
+    final reconciled = [for (final entry in reconciledEntries) entry.behavior];
 
     // Bug #835: hand-written ffi (native-boundary) rows survive
     // re-planning. Plan derives only acceptance/unit behaviors from
@@ -468,8 +473,11 @@ class PlanCommand extends Command<void> {
       priorContract,
     );
     final ffiCriteria = preservedFfi.map((r) => r.traces).toSet();
-    final expressible = reconciled
-        .where((b) => !ffiCriteria.contains(b.sourceCriterion))
+    final expressibleEntries = reconciledEntries
+        .where((entry) => !ffiCriteria.contains(entry.behavior.sourceCriterion))
+        .toList();
+    final expressible = expressibleEntries
+        .map((entry) => entry.behavior)
         .toList();
 
     // Feature 071 (issue #951): per-behavior routing provenance — the
@@ -509,7 +517,7 @@ class PlanCommand extends Command<void> {
       return;
     }
     final provenance = _provenanceLines(
-      expressible,
+      expressibleEntries,
       preservedFfi,
       declarations,
       frTraces,
@@ -586,27 +594,27 @@ class PlanCommand extends Command<void> {
     // `**Type**` marker back into the spec turns the per-run fallback
     // warning into a one-time migration, and makes `--strict-routing`
     // usable on speckit-authored specs (whose templates never carried
-    // the markers). Emission happens only after every gate passed (a
-    // refused plan never touches the spec), is idempotent (a scenario
-    // already carrying a marker is never re-declared), and is skipped
+    // the markers). The emitted content stays in memory until every plan
+    // artifact has been written successfully, so an output failure never
+    // leaves spec.md migrated ahead of an incomplete plan. The operation is
+    // idempotent (a declared scenario is never re-declared) and is skipped
     // entirely under `--no-emit-markers`.
-    if (argResults?['emit-markers'] as bool? ?? true) {
-      final emission = const SpecMarkerEmitter().emit(
-        specMd,
-        provenance.fallbackKinds,
+    final markerEmission = argResults?['emit-markers'] as bool? ?? true
+        ? const SpecMarkerEmitter().emit(specMd, provenance.fallbackKinds)
+        : null;
+
+    Future<void> persistMarkerEmission() async {
+      final emission = markerEmission;
+      if (emission == null || !emission.migrated) return;
+      await specFile.writeAsString(emission.content);
+      print(
+        'zfa tdd plan: emitted ${emission.emitted.length} `**Type**` '
+        'marker(s) into the spec — one-time routing migration (issue '
+        '#1186) for ${emission.emitted.keys.join(', ')} (spec: '
+        '$specPath). Re-run `zfa tdd plan`; the migrated scenarios now '
+        'carry their declared lane.',
       );
-      if (emission.migrated) {
-        await specFile.writeAsString(emission.content);
-        specMd = emission.content;
-        print(
-          'zfa tdd plan: emitted ${emission.emitted.length} `**Type**` '
-          'marker(s) into the spec — one-time routing migration (issue '
-          '#1186) for ${emission.emitted.keys.join(', ')} (spec: '
-          '$specPath). Re-run `zfa tdd plan`; the migrated scenarios now '
-          'carry their declared lane.',
-        );
-        _verdict.details['markers_emitted'] = emission.emitted.length;
-      }
+      _verdict.details['markers_emitted'] = emission.emitted.length;
     }
 
     await outDir.create(recursive: true);
@@ -733,6 +741,7 @@ class PlanCommand extends Command<void> {
         componentTokens: UiLedgerProjection.componentTokensOf(layerContracts),
         keys: i18nKeys,
       );
+      await persistMarkerEmission();
       return;
     }
 
@@ -775,6 +784,7 @@ class PlanCommand extends Command<void> {
         ...ledgerFiles,
       },
     );
+    await persistMarkerEmission();
     for (final line in provenanceLines.values.expand((l) => l)) {
       // print (not stdout.writeln): the observable-CLI convention the
       // tdd command suites assert on (runCapturing intercepts print).
@@ -1193,7 +1203,7 @@ class PlanCommand extends Command<void> {
   /// the strict gate's refusal on speckit-authored specs) disappear.
   ({Map<String, List<String>> lines, Map<String, BehaviorKind> fallbackKinds})
   _provenanceLines(
-    List<Behavior> behaviors,
+    List<({Behavior behavior, String currentId})> behaviors,
     List<BehaviorRow> preservedFfi,
     SpecDeclarations declarations,
     Map<String, List<String>> frTraces,
@@ -1215,15 +1225,17 @@ class PlanCommand extends Command<void> {
 
     void record(String id, List<String> entry) => lines[id] = entry;
 
-    for (final b in behaviors) {
+    for (final entry in behaviors) {
+      final b = entry.behavior;
+      final currentId = entry.currentId;
       // Rung-3 kind for spec-parsed behaviors is DECLARED only via the
       // `**Type**` marker — the parse-time sniffer kind is precisely the
       // legacy fallback being labeled, so it is NOT passed as declared.
       final result = resolver.resolve(
         row: RoutingRow(
-          behaviorId: b.id,
-          kind: scenarioMarkers[b.id]?.declaredType,
-          traces: frTraces[b.id] ?? const [],
+          behaviorId: currentId,
+          kind: scenarioMarkers[currentId]?.declaredType,
+          traces: frTraces[currentId] ?? const [],
         ),
         declarations: declarations,
         strict: strict,
@@ -1272,7 +1284,7 @@ class PlanCommand extends Command<void> {
           : decision == BehaviorKind.acceptance
           ? 'add `**Type**: acceptance` to the scenario'
           : 'trace FR to a declared contract row';
-      fallbackKinds[b.id] = decision;
+      fallbackKinds[currentId] = decision;
       record(b.id, [
         'route: ${b.id} -> ${lane(decision)} '
             '[fallback: legacy description classifier matched — $hint]',

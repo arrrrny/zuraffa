@@ -39,11 +39,11 @@ specs.
 | B2 — the migration is one-time: the re-run routes `[declared: type marker]` with zero fallback lines | PROVEN | Second plan run: exit 0, `isNot(contains('[fallback:'))`, `contains('[declared: type marker')`, and exactly one `**Type**: widget` in the spec (idempotent — never a duplicate). |
 | B3 — strict-routing becomes usable: plan (migration) then `--strict-routing` exits 0 on the same spec | PROVEN | Run 3 (live CLI + test B3): exit 0, every route `[declared:]`, no fallback. Without B1's migration run this is exactly the issue's symptom: `undeclaredStrict for behavior "A1" (strict mode)` (exit 1, asserted by B6). |
 | B4 — acceptance-lane scenarios emit `**Type**: acceptance` (the classified lane, not a guess) | PROVEN | A plain business-outcome scenario (no UI verbs → acceptance lane) emits `**Type**: acceptance`. Mutant M2 (kind hard-coded to `acceptance`) killed by B1/B4 — the widget tests fail. |
-| B5 — scenarios already carrying a marker are never re-declared | PROVEN | A1 keeps its pre-existing `**Type**: acceptance` (exactly 1 match), only A2 migrates (`**Type**: widget` appears). No duplicate-marker refusal (that refusal would exit 2). |
+| B5 — scenarios already carrying a marker are never re-declared | PROVEN | Block-level assertions prove A1 keeps only its pre-existing `**Type**: acceptance` and contains no widget marker, while A2 contains the migrated `**Type**: widget`. No duplicate-marker refusal (that refusal would exit 2). |
 | B6/B7 — a refused plan never touches the spec (strict gate exit 1; skin-contract gate exit 2) | PROVEN | Byte-equality of spec.md before/after each refusal. Mutant M4 (emission hoisted above the gates) killed by B7 — the skin-contract refusal mutated the spec first. The migration only ever rides a SUCCESSFUL plan. |
 | B8 — fenced scenario examples are documentation, never marked | PROVEN | A spec whose `Acceptance Scenarios` embed a fenced ```markdown example migrates only the real scenario; the fence stays marker-free across re-runs (marker count stays 1, positioned before the fence). Mutant M7 (fence check removed) killed by B8. |
 | B9 — `--no-emit-markers` leaves the spec untouched | PROVEN | Byte-equality with the flag; output still labels the fallback (the labeling is unchanged — only the migration is skipped). Mutant M3 (flag ignored) killed by B9. |
-| B10 — manual scenarios consume their AC number and are never marked | PROVEN | `(manual: QA)` scenario produces no marker; only the automated scenario migrates (exactly 1 marker line). |
+| B10 — manual scenarios consume their AC number and are never marked | PROVEN | Block-level assertions prove the A1 `(manual: QA)` block contains no marker and the automated A2 block contains the migrated `**Type**: acceptance` marker. |
 | T1–T4 — the speckit spec template emits the strict grammar | PROVEN | RED captured pre-fix (all 4 failed against the old template). GREEN: the template's scenario examples carry `**Type**: acceptance` with routing guidance; `## Layer Contracts` exists (bare heading — the parser's `layer contracts$` regex); the Key Entities heading is bare `### Key Entities` (the suffixed `*(include if...)*` form never matched `key entities$` — same drift family as #1183) and uses the 3-column table so entity rows register as contract rows; the FR section demonstrates `traces:` continuations. The template's own placeholder pair (FR-002 `traces: Validator` ↔ Function row `Validator`) resolves — the template is strictly routable by construction. |
 
 ## Red-phase evidence (verbatim, pre-fix tree)
@@ -167,9 +167,9 @@ exact.
   text are untouched; 071's provenance suite passes 28/28. The migration is
   strictly additive: ONE inserted line per undeclared scenario, everything
   else byte-preserved.
-- **Errors-are-an-API preserved**: a refusal (strict, coverage, lane, skin,
-  declaration) happens BEFORE any write — the spec now provably included
-  (B6/B7).
+- **Errors-are-an-API preserved for the exercised refusal paths**: the strict
+  and skin-contract refusals happen before any write, and B6/B7 prove byte
+  equality of spec.md before and after those refusals.
 - **U-lane honesty**: unit behaviors are NOT migrated (a classifier cannot
   invent a contract-row name — a wrong guess would dangle or misroute);
   their fallback line keeps the `trace FR to a declared contract row` hint,
@@ -177,7 +177,8 @@ exact.
 
 ## Suite health (this session)
 
-- `plan_marker_emission_1186_test.dart`: **14/14**.
+- `plan_marker_emission_1186_test.dart`: **16/16** (14 original checks plus
+  output-failure and reconciled-ID regressions).
 - `plan_routing_provenance_test.dart` + `plan_gen_contract_test.dart` +
   `plan_lanes_1000_test.dart` (the 071 regression core): **28/28**.
 - `tools/run_tests_chunked.sh` (fast suite, run chunk-wise): **90/90 chunks
