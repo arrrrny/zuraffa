@@ -70,8 +70,11 @@ class $name {
       reason: 'stdout=${result.stdout}\nstderr=${result.stderr}',
     );
     final decoded = jsonDecode(result.stdout as String) as Map<String, dynamic>;
-    expect(decoded['success'], isTrue);
-    return decoded['plan'] as Map<String, dynamic>;
+    // EPIC 1150: the envelope wraps the plan payload inside `data`.
+    expect(decoded['schema'], 'zuraffa.verdict.v1');
+    final payload = decoded['data'] as Map<String, dynamic>;
+    expect(payload['success'], isTrue);
+    return payload['plan'] as Map<String, dynamic>;
   }
 
   test('`make engine Login` parses Login as the entity', () async {

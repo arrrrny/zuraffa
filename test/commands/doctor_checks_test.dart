@@ -428,11 +428,17 @@ void main() {
         });
 
         final trimmed = out.trim();
-        expect(trimmed, startsWith('{'));
-        expect(trimmed, endsWith('}'));
-        final decoded = jsonDecode(trimmed) as Map<String, dynamic>;
-        expect(decoded['schema'], 'doctor.v1');
-        final checks = decoded['checks'] as List;
+        // EPIC 1150: the last line is the canonical zuraffa.verdict.v1
+        // envelope; the doctor.v1 payload (schema/checks/ok) lives
+        // inside `data`.
+        final decoded =
+            jsonDecode(trimmed.split('\n').last) as Map<String, dynamic>;
+        expect(decoded['schema'], 'zuraffa.verdict.v1');
+        expect(decoded['command'], 'zfa doctor');
+        expect(decoded['result'], 'ok');
+        final doctorData = decoded['data'] as Map<String, dynamic>;
+        expect(doctorData['schema'], 'doctor.v1');
+        final checks = doctorData['checks'] as List;
         expect(checks.map((c) => c['id']).toSet(), {
           'deps',
           'generated-imports', // issue #1190
@@ -446,7 +452,7 @@ void main() {
           // this in-process source run).
           'binary-staleness',
         });
-        expect(decoded['ok'], isTrue);
+        expect(doctorData['ok'], isTrue);
         // json mode suppresses prose sections entirely.
         expect(trimmed.contains('v5 Migration'), isFalse);
         expect(trimmed.contains('Zuraffa Doctor'), isFalse);

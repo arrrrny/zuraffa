@@ -28,6 +28,7 @@ import '../../../core/benchmark/isolate_benchmark_runner.dart';
 import '../benchmark_plugin.dart';
 import '../capabilities/register_benchmark_capability.dart';
 import '../../../cli/exit_protocol.dart';
+import '../../../core/verdict/verdict_envelope.dart';
 
 /// The `zfa benchmark` command (FR-011).
 class BenchmarkCommand extends Command<void> {
@@ -183,7 +184,18 @@ run options:
         dryRuns.add(dry.toJson());
       }
       if (asJson) {
-        print(jsonEncode({'dryRuns': dryRuns}));
+        // EPIC 1150: canonical envelope — dry-run payloads inside `data`.
+        final allValid = dryRuns.every((d) => d['valid'] == true);
+        emitVerdict(
+          command: 'zfa benchmark run',
+          result: allValid ? VerdictResult.ok : VerdictResult.error,
+          exitCode: allValid ? 0 : 1,
+          message: allValid
+              ? '${dryRuns.length} dry-run(s): all valid'
+              : '${dryRuns.where((d) => d['valid'] != true).length} of '
+                    '${dryRuns.length} dry-run(s) INVALID',
+          data: {'dryRuns': dryRuns},
+        );
       } else {
         for (final dry in dryRuns) {
           final verdict = dry['valid'] as bool ? 'valid' : 'INVALID';
@@ -211,7 +223,18 @@ run options:
     );
 
     if (asJson) {
-      print(jsonEncode(suite.toJson()));
+      // EPIC 1150: canonical envelope — the suite report lives inside
+      // `data` (legacy key surface preserved verbatim).
+      final passed = suite.overallStatus == BenchmarkStatus.passed;
+      emitVerdict(
+        command: 'zfa benchmark run',
+        result: passed ? VerdictResult.ok : VerdictResult.error,
+        exitCode: passed ? 0 : 1,
+        message:
+            'suite ${suite.overallStatus.name}: '
+            '${suite.results.length} scenario result(s)',
+        data: {'suite': suite.toJson()},
+      );
     } else {
       _printSuiteReport(suite);
     }
@@ -240,8 +263,16 @@ run options:
     final scenarios = await plugin.registry.getAll();
 
     if (results['json'] as bool) {
-      print(
-        jsonEncode({
+      // EPIC 1150: canonical zuraffa.verdict.v1 envelope — the legacy
+      // {scenarios: [...]} payload lives inside `data` verbatim.
+      emitVerdict(
+        command: 'zfa benchmark list',
+        result: VerdictResult.ok,
+        message: scenarios.isEmpty
+            ? 'No benchmark scenarios registered.'
+            : '${scenarios.length} benchmark scenario(s) registered',
+        data: {
+          'count': scenarios.length,
           'scenarios': [
             for (final scenario in scenarios)
               {
@@ -256,7 +287,7 @@ run options:
                 },
               },
           ],
-        }),
+        },
       );
       return;
     }

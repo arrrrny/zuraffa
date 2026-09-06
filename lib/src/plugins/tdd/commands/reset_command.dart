@@ -38,7 +38,7 @@ class ResetCommand extends Command<void> {
     argParser.addFlag(
       'json',
       help:
-          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'Emit a canonical zuraffa.verdict.v1 JSON envelope as the final stdout '
           'line (VISION §5, issue #964).',
       negatable: false,
     );

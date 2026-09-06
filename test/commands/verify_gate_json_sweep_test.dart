@@ -17,7 +17,9 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 ///
 /// 2. **Live spot-checks** for the two gates this spec repaired: the flag
 ///    must be USABLE (bare `--json`, no value), and the run must end with
-///    the canonical `verdict.v1` envelope as the last stdout line.
+///    the canonical `zuraffa.verdict.v1` envelope as the last stdout line
+///    (EPIC 1150 migration: the legacy verdict.v1 shape is superseded;
+///    subject/verdict now live inside `data`).
 void main() {
   group('SPEC 1106 sweep — every verify-gate command file ships --json', () {
     const commandDirs = ['lib/src/commands', 'lib/src/plugins/tdd/commands'];
@@ -125,9 +127,12 @@ void main() {
 
         final envelope = decodeLastLine(out);
         expect(envelope['schema'], 'zuraffa.verdict.v1');
-        expect(envelope['command'], 'di verify');
-        expect(envelope['verdict'], 'pass');
-        expect((envelope['subject'] as Map)['kind'], 'di');
+        expect(envelope['command'], 'zfa di verify');
+        expect(envelope['result'], 'ok');
+        expect(envelope['exit_class'], 0);
+        final data = envelope['data'] as Map<String, Object?>;
+        expect((data['subject'] as Map)['kind'], 'di');
+        expect(data['verdict'], 'pass');
       });
 
       test(
@@ -144,10 +149,12 @@ void main() {
 
           final envelope = decodeLastLine(out);
           expect(envelope['schema'], 'zuraffa.verdict.v1');
-          expect(envelope['command'], 'datasource check');
-          expect(envelope['verdict'], 'fail');
-          expect((envelope['subject'] as Map)['kind'], 'datasource');
-          expect((envelope['subject'] as Map)['entity'], 'Product');
+          expect(envelope['command'], 'zfa datasource check');
+          expect(envelope['result'], 'error');
+          final data = envelope['data'] as Map<String, Object?>;
+          expect(data['verdict'], 'fail');
+          expect((data['subject'] as Map)['kind'], 'datasource');
+          expect((data['subject'] as Map)['entity'], 'Product');
         },
       );
     },

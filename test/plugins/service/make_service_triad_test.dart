@@ -208,9 +208,15 @@ class Product {
         'check',
         '--format=json',
       ]);
+      // EPIC 1150: the envelope wraps the proof.v1 payload inside `data`.
       final proofJson = jsonDecode(proofOutput) as Map<String, dynamic>;
       expect(
-        proofJson['ok'],
+        proofJson['schema'],
+        'zuraffa.verdict.v1',
+        reason: 'fresh triad generation must ship the canonical envelope',
+      );
+      expect(
+        (proofJson['data'] as Map<String, dynamic>)['ok'],
         isTrue,
         reason: 'fresh triad generation must be provable:\n$proofOutput',
       );

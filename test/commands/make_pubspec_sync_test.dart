@@ -126,8 +126,11 @@ dev_dependencies:
         final jsonStart = output.indexOf('{');
         expect(jsonStart, isNonNegative, reason: 'no JSON in output: $output');
         final decoded = jsonDecodeLoose(output.substring(jsonStart));
-        expect(decoded['success'], isTrue);
-        final gap = decoded['missing_pubspec_deps'] as Map<String, dynamic>?;
+        // EPIC 1150: the envelope wraps the make payload inside `data`.
+        expect(decoded['schema'], 'zuraffa.verdict.v1');
+        final payload = decoded['data'] as Map<String, dynamic>;
+        expect(payload['success'], isTrue);
+        final gap = payload['missing_pubspec_deps'] as Map<String, dynamic>?;
         expect(gap, isNotNull, reason: 'gap must be reported in json mode');
         expect((gap!['packages'] as List).cast<String>(), contains('zuraffa'));
         final fix = gap['suggested_fix'] as String?;

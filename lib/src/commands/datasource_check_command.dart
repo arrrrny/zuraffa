@@ -93,7 +93,8 @@ class DataSourceCheckCommand extends Command<void> {
       if (jsonMode) {
         VerdictEnvelope.emit(
           command: 'datasource check',
-          outcome: VerdictOutcome.error,
+          commandPrefix: 'zfa',
+          outcome: VerdictOutcome.refused,
           exitClass: 'insufficient-input',
           subject: const {'kind': 'datasource'},
           details: const {'fix': 'zfa datasource check <Entity>'},
@@ -124,6 +125,7 @@ class DataSourceCheckCommand extends Command<void> {
       if (jsonMode) {
         VerdictEnvelope.emit(
           command: 'datasource check',
+          commandPrefix: 'zfa',
           outcome: VerdictOutcome.fail,
           exitClass: 'fail',
           subject: {'kind': 'datasource', 'entity': entity},
@@ -165,6 +167,7 @@ class DataSourceCheckCommand extends Command<void> {
       if (jsonMode) {
         VerdictEnvelope.emit(
           command: 'datasource check',
+          commandPrefix: 'zfa',
           outcome: VerdictOutcome.fail,
           exitClass: 'fail',
           subject: {'kind': 'datasource', 'entity': entity},
@@ -280,6 +283,7 @@ class DataSourceCheckCommand extends Command<void> {
       if (jsonMode) {
         VerdictEnvelope.emit(
           command: 'datasource check',
+          commandPrefix: 'zfa',
           outcome: VerdictOutcome.fail,
           exitClass: 'drift',
           subject: {'kind': 'datasource', 'entity': entity},
@@ -318,6 +322,7 @@ class DataSourceCheckCommand extends Command<void> {
     if (jsonMode) {
       VerdictEnvelope.emit(
         command: 'datasource check',
+        commandPrefix: 'zfa',
         outcome: VerdictOutcome.pass,
         exitClass: 'ok',
         subject: {'kind': 'datasource', 'entity': entity},

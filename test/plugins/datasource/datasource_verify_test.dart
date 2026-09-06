@@ -172,10 +172,11 @@ void main() {
       expect(result.exitCode, 0, reason: result.output);
       final envelope = jsonDecode(result.output) as Map<String, dynamic>;
       expect(envelope['schema'], 'zuraffa.verdict.v1');
-      expect(envelope['verdict'], 'pass');
-      expect((envelope['subject'] as Map)['kind'], 'datasource');
-      expect((envelope['subject'] as Map)['entity'], 'Product');
-      expect(envelope['details'], isA<Map>());
+      expect(envelope['result'], 'ok');
+      expect(envelope['exit_class'], 0);
+      final data = envelope['data'] as Map;
+      expect((data['subject'] as Map)['kind'], 'datasource');
+      expect((data['subject'] as Map)['entity'], 'Product');
     },
   );
 
@@ -197,9 +198,9 @@ void main() {
       expect(result.exitCode, 1);
       final envelope = jsonDecode(result.output) as Map<String, dynamic>;
       expect(envelope['schema'], 'zuraffa.verdict.v1');
-      expect(envelope['verdict'], 'fail');
-      final findings = (envelope['findings'] as List)
-          .cast<Map<String, dynamic>>();
+      expect(envelope['result'], 'error');
+      final data = envelope['data'] as Map;
+      final findings = (data['findings'] as List).cast<Map<String, dynamic>>();
       expect(findings, isNotEmpty);
       expect(findings.first['kind'], isA<String>());
       expect(findings.first['fix'], isA<String>());
@@ -222,7 +223,7 @@ void main() {
       expect(result.exitCode, 1);
       final envelope = jsonDecode(result.output) as Map<String, dynamic>;
       expect(envelope['schema'], 'zuraffa.verdict.v1');
-      expect(envelope['verdict'], 'fail');
+      expect(envelope['result'], 'error');
     },
   );
 

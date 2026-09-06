@@ -9,7 +9,6 @@ import 'package:zuraffa/src/commands/di_verify_command.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/plugins/di/di_plugin.dart';
 import 'package:zuraffa/src/plugins/di/capabilities/verify_capability.dart';
-import 'package:zuraffa/src/plugins/tdd/models/verdict_envelope.dart';
 
 /// SPEC 0974 (issue #974, order 2): `zfa di verify` resolves every
 /// `getIt<T>()` / `getIt.registerXxx<T>()` call in generated registrations
@@ -177,18 +176,17 @@ void main() {
       return decoded as Map<String, Object?>;
     }
 
-    /// The exact top-level key set SPEC 1106 orders for the di envelope
-    /// (plus the treaty-mandated `timestamp`).
+    /// The exact top-level key set the canonical zuraffa.verdict.v1
+    /// envelope orders (EPIC 1150).
     const envelopeKeys = {
       'schema',
       'command',
-      'verdict',
+      'result',
       'exit_class',
-      'subject',
-      'findings',
+      'message',
+      'data',
       'drifts',
-      'details',
-      'timestamp',
+      'ts',
     };
 
     test('clean tree: pass envelope with exact schema', () async {
@@ -213,18 +211,18 @@ void main() {
       expect(exitCode, 0);
       final envelope = decodeEnvelope(output);
       expect(envelope.keys.toSet(), envelopeKeys);
-      expect(envelope['schema'], VerdictEnvelope.schema);
       expect(envelope['schema'], 'zuraffa.verdict.v1');
-      expect(envelope['command'], 'di verify');
-      expect(envelope['verdict'], 'pass');
-      expect(envelope['exit_class'], 'ok');
-      expect((envelope['subject'] as Map)['kind'], 'di');
-      expect(envelope['findings'], isEmpty);
+      expect(envelope['command'], 'zfa di verify');
+      expect(envelope['result'], 'ok');
+      expect(envelope['exit_class'], 0);
+      final data = envelope['data'] as Map<String, Object?>;
+      expect((data['subject'] as Map)['kind'], 'di');
+      expect(data['verdict'], 'pass');
+      expect(data['findings'], isEmpty);
       expect(envelope['drifts'], isEmpty);
-      final details = envelope['details'] as Map;
-      expect(details['danglingClasses'], isEmpty);
-      expect(details['deadImports'], isEmpty);
-      expect(envelope['timestamp'], isA<String>());
+      expect(data['danglingClasses'], isEmpty);
+      expect(data['deadImports'], isEmpty);
+      expect(envelope['ts'], isA<String>());
     });
 
     test(
@@ -249,12 +247,14 @@ void main() {
         final envelope = decodeEnvelope(output);
         expect(envelope.keys.toSet(), envelopeKeys);
         expect(envelope['schema'], 'zuraffa.verdict.v1');
-        expect(envelope['command'], 'di verify');
-        expect(envelope['verdict'], 'fail');
-        expect(envelope['exit_class'], 'fail');
-        expect((envelope['subject'] as Map)['kind'], 'di');
+        expect(envelope['command'], 'zfa di verify');
+        expect(envelope['result'], 'error');
+        final data = envelope['data'] as Map<String, Object?>;
+        expect(data['verdict'], 'fail');
+        expect(data['exit_label'], 'fail');
+        expect((data['subject'] as Map)['kind'], 'di');
 
-        final findings = envelope['findings'] as List;
+        final findings = data['findings'] as List;
         expect(findings, hasLength(2));
         for (final finding in findings) {
           expect((finding as Map).keys.toSet(), {
@@ -273,12 +273,11 @@ void main() {
           containsAll(<String>['MissingUseCase', 'MissingRepository']),
         );
 
-        final details = envelope['details'] as Map;
         expect(
-          (details['danglingClasses'] as List).toSet(),
+          (data['danglingClasses'] as List).toSet(),
           containsAll(<String>['MissingUseCase', 'MissingRepository']),
         );
-        expect(details['deadImports'], isEmpty);
+        expect(data['deadImports'], isEmpty);
         expect((envelope['drifts'] as List), isNotEmpty);
       },
     );
@@ -302,20 +301,20 @@ void main() {
 
       expect(exitCode, 1);
       final envelope = decodeEnvelope(output);
-      expect(envelope['verdict'], 'fail');
+      final data = envelope['data'] as Map<String, Object?>;
+      expect(data['verdict'], 'fail');
       // The dead import makes the class unresolvable too, so the gate
       // reports BOTH drift classes for this fixture.
-      final findings = envelope['findings'] as List;
+      final findings = data['findings'] as List;
       expect(
         findings.map((f) => (f as Map)['kind']),
         containsAll(<String>['dangling import', 'dangling binding']),
       );
-      final details = envelope['details'] as Map;
       expect(
-        (details['deadImports'] as List).first,
+        (data['deadImports'] as List).first,
         contains('order_repository.dart'),
       );
-      expect((details['danglingClasses'] as List).first, 'OrderRepository');
+      expect((data['danglingClasses'] as List).first, 'OrderRepository');
     });
 
     test('missing di/ tree: pass envelope (nothing to verify)', () async {
@@ -325,9 +324,9 @@ void main() {
 
       expect(exitCode, 0);
       final envelope = decodeEnvelope(output);
-      expect(envelope['verdict'], 'pass');
-      expect(envelope['exit_class'], 'ok');
-      expect(envelope['findings'], isEmpty);
+      expect(envelope['result'], 'ok');
+      expect(envelope['exit_class'], 0);
+      expect((envelope['data'] as Map<String, Object?>)['findings'], isEmpty);
     });
 
     test(

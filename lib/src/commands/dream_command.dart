@@ -127,6 +127,7 @@ class DreamCommand extends Command<void> {
     if ((argResults?['json'] as bool?) ?? false) {
       VerdictEnvelope.emit(
         command: 'dream',
+        commandPrefix: 'zfa',
         outcome: code == 0 ? VerdictOutcome.pass : VerdictOutcome.stopped,
         details: {'description': description},
       );

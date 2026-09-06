@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import '../cli/exit_protocol.dart';
 import '../core/plugin_system/cli_flag_surface.dart';
+import '../core/verdict/verdict_envelope.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../utils/string_utils.dart';
@@ -105,11 +106,16 @@ class ManifestCommand extends Command<void> {
       // a registered command (internal orchestrators) are unreachable from
       // the CLI and would mislead MCP/tooling clients that auto-resolve
       // names against this list.
-      final output = <Map<String, dynamic>>[];
+      //
+      // EPIC 1150: this used to be a BARE JSON ARRAY — no schema, no
+      // envelope, nothing an agent could parse uniformly. It is now the
+      // canonical zuraffa.verdict.v1 envelope with the tool list inside
+      // `data` (legacy key surface preserved verbatim).
+      final tools = <Map<String, dynamic>>[];
       for (final plugin in registry.plugins) {
         if (plugin is! CliAwarePlugin) continue;
         for (final capability in plugin.capabilities) {
-          output.add({
+          tools.add({
             'plugin': plugin.id,
             'name': capability.name,
             'description': capability.description,
@@ -118,7 +124,12 @@ class ManifestCommand extends Command<void> {
           });
         }
       }
-      print(jsonEncode(output));
+      emitVerdict(
+        command: 'zfa manifest',
+        result: VerdictResult.ok,
+        message: '${tools.length} capability route(s) advertised',
+        data: {'count': tools.length, 'tools': tools},
+      );
     }
   }
 
@@ -160,6 +171,7 @@ class ManifestCommand extends Command<void> {
   static const _kSchemaFlagUnaccepted = 'schema-flag-unaccepted';
   static const _kHelpTextDrift = 'help-text-drift';
   static const _kUnverifiable = 'flag-surface-unverifiable';
+  static const _kEnvelopeDrift = 'envelope-shape-drift';
 
   Future<void> _runVerify(
     List<String> scope, {
@@ -201,6 +213,17 @@ class ManifestCommand extends Command<void> {
 
     final findings = <Map<String, String>>[];
     final certified = <String>[];
+
+    // ---- Leg: the canonical envelope shape check (EPIC 1150).
+    //
+    // `zuraffa.verdict.v1` IS the machine treaty every --json path speaks.
+    // This leg freezes the contract constants — the schema string, the
+    // result vocabulary, the mandated key set — and certifies the live
+    // `VerdictEnvelope` against them. Any drift (renamed key, changed
+    // schema constant, divergent result enum) is contract drift (exit 3),
+    // so CI's existing `zfa manifest --verify` gate now also holds the
+    // envelope itself sacred.
+    _verifyEnvelopeContract(findings, certified);
 
     void finding(
       String kind, {
@@ -378,18 +401,34 @@ class ManifestCommand extends Command<void> {
     if (machineFormat) {
       // One machine-verifiable document (issue #778 conventions): the
       // LAST stdout line, no prose around it.
-      print(
-        jsonEncode({
-          'schema': 'manifest-verify.v1',
-          'ok': realFindings.isEmpty,
-          'exit_code': exit,
-          'certified': certified.length,
-          'findings': realFindings,
-          'unverifiable': unverifiableFindings,
-          'fix': ?fix,
-          'timestamp': DateTime.now().toUtc().toIso8601String(),
-        }),
+      //
+      // EPIC 1150: emitted through the canonical zuraffa.verdict.v1
+      // envelope — the manifest-verify.v1 payload (ok/exit_code/certified/
+      // findings/unverifiable) lives inside `data`, so agents parse ONE
+      // shape fleet-wide. The envelope shape check below also certifies
+      // the document structurally before it ships.
+      final verifyData = <String, Object?>{
+        'ok': realFindings.isEmpty,
+        'exit_code': exit,
+        'certified': certified.length,
+        'findings': realFindings,
+        'unverifiable': unverifiableFindings,
+      };
+      final envelope = VerdictEnvelope(
+        command: 'zfa manifest verify',
+        result: realFindings.isEmpty ? VerdictResult.ok : VerdictResult.error,
+        exitCode: exit,
+        message:
+            'manifest verify: ${certified.length} certified, '
+            '${realFindings.length} drift finding(s)',
+        data: verifyData,
+        fix: fix,
       );
+      assert(
+        isVerdictEnvelope(envelope.toJson()),
+        'manifest verify envelope drifted from zuraffa.verdict.v1',
+      );
+      print(envelope.toJsonLine());
       exitCode = exit;
       return;
     }
@@ -430,5 +469,105 @@ class ManifestCommand extends Command<void> {
       );
     }
     exitCode = exit;
+  }
+
+  /// The EPIC 1150 envelope-shape leg: certifies the LIVE canonical
+  /// `VerdictEnvelope` against the frozen `zuraffa.verdict.v1` contract —
+  /// the schema constant, the result vocabulary, and the mandated key
+  /// set. Any divergence lands as a `_kEnvelopeDrift` finding (exit 3).
+  ///
+  /// A sample envelope is built with the result vocabulary and key set
+  /// the type actually produces today, so a refactor that renames a key
+  /// or changes the schema string fails THIS gate, not an agent in
+  /// production.
+  static void _verifyEnvelopeContract(
+    List<Map<String, String>> findings,
+    List<String> certified,
+  ) {
+    // 1. The schema constant.
+    const expectedSchema = 'zuraffa.verdict.v1';
+    if (VerdictEnvelope.schema != expectedSchema) {
+      findings.add({
+        'kind': _kEnvelopeDrift,
+        'plugin': 'core',
+        'capability': ?null,
+        'flag': ?null,
+        'message':
+            'envelope schema constant is "${VerdictEnvelope.schema}", '
+            'expected "$expectedSchema" (agents grep this exact key)',
+        'fix': 'restore VerdictEnvelope.schema to $expectedSchema',
+      });
+      return;
+    }
+
+    // 2. The result vocabulary — frozen by the issue: ok|error|skipped|refused.
+    const expectedResults = {'ok', 'error', 'skipped', 'refused'};
+    final actualResults = VerdictResult.values.map((r) => r.name).toSet();
+    if (!actualResults.containsAll(expectedResults) ||
+        actualResults.length != expectedResults.length) {
+      findings.add({
+        'kind': _kEnvelopeDrift,
+        'plugin': 'core',
+        'capability': ?null,
+        'flag': ?null,
+        'message':
+            'VerdictResult vocabulary drifted: $actualResults, expected '
+            '$expectedResults',
+        'fix': 'restore the ok|error|skipped|refused result vocabulary',
+      });
+      return;
+    }
+
+    // 3. The mandated key set on a real envelope (fix is the only
+    // optional key — it appears when there is something to fix).
+    final sample = VerdictEnvelope(
+      command: 'zfa manifest verify',
+      result: VerdictResult.ok,
+      message: 'contract sample',
+      fix: 'zfa manifest --verify',
+    ).toJson();
+    const mandatedKeys = {
+      'schema',
+      'command',
+      'result',
+      'exit_class',
+      'message',
+      'data',
+      'drifts',
+      'ts',
+    };
+    final missing = mandatedKeys.difference(sample.keys.toSet());
+    if (missing.isNotEmpty) {
+      findings.add({
+        'kind': _kEnvelopeDrift,
+        'plugin': 'core',
+        'capability': ?null,
+        'flag': ?null,
+        'message': 'envelope is missing mandated key(s): ${missing.join(', ')}',
+        'fix': 'restore the zuraffa.verdict.v1 mandated key set',
+      });
+      return;
+    }
+    if (!isVerdictEnvelope(sample)) {
+      findings.add({
+        'kind': _kEnvelopeDrift,
+        'plugin': 'core',
+        'capability': ?null,
+        'flag': ?null,
+        'message':
+            'a sample VerdictEnvelope failed the structural '
+            'isVerdictEnvelope check — the emitted shape and the '
+            'structural predicate have drifted apart',
+        'fix':
+            'align VerdictEnvelope.toJson() with isVerdictEnvelope so '
+            'every emitted document passes the structural check',
+      });
+      return;
+    }
+    certified.add(
+      '✓ envelope contract: zuraffa.verdict.v1 '
+      '(result=ok|error|skipped|refused, '
+      'keys=schema,command,result,exit_class,message,data,fix?,drifts,ts)',
+    );
   }
 }

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../core/verdict/verdict_envelope.dart';
 import '../core/xray_config.dart';
 import 'xray_check_command.dart';
 import 'xray_deck_command.dart';
@@ -172,11 +173,19 @@ class _XrayStatusCommand extends Command<void> {
 
     if (asJson) {
       // Machine-readable JSON for the overlay UI + CI + the MCP bridge.
-      final jsonMap = {
-        'enabled': enabled && !kXrayReleaseMode,
-        'release_mode': kXrayReleaseMode,
-      };
-      print(json.encode(jsonMap));
+      // EPIC 1150: canonical zuraffa.verdict.v1 envelope — the legacy
+      // {enabled, release_mode} keys live inside `data`.
+      final releaseMode = kXrayReleaseMode;
+      emitVerdict(
+        command: 'zfa xray status',
+        result: VerdictResult.ok,
+        message: releaseMode
+            ? 'X-Ray overlay: disabled (release mode)'
+            : enabled
+            ? 'X-Ray overlay: enabled'
+            : 'X-Ray overlay: disabled',
+        data: {'enabled': enabled && !releaseMode, 'release_mode': releaseMode},
+      );
       return;
     }
 

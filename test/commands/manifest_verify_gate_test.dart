@@ -116,10 +116,14 @@ void main() {
     );
     expect(code, 3);
     final doc = jsonDecode(out.trim().split('\n').last) as Map<String, dynamic>;
-    expect(doc['schema'], 'manifest-verify.v1');
-    expect(doc['ok'], false);
-    expect(doc['exit_code'], 3);
-    final findings = doc['findings'] as List<dynamic>;
+    // EPIC 1150: the envelope wraps the manifest-verify payload in `data`.
+    expect(doc['schema'], 'zuraffa.verdict.v1');
+    expect(doc['result'], 'error');
+    expect(doc['exit_class'], 3);
+    final payload = doc['data'] as Map<String, dynamic>;
+    expect(payload['ok'], false);
+    expect(payload['exit_code'], 3);
+    final findings = payload['findings'] as List<dynamic>;
     expect(
       findings.any(
         (f) => (f as Map<String, dynamic>)['kind'] == 'schema-flag-unaccepted',
@@ -139,9 +143,13 @@ void main() {
     );
     expect(code, 0);
     final doc = jsonDecode(out.trim().split('\n').last) as Map<String, dynamic>;
-    expect(doc['schema'], 'manifest-verify.v1');
-    expect(doc['ok'], true);
-    expect(doc['exit_code'], 0);
+    // EPIC 1150: the envelope wraps the manifest-verify payload in `data`.
+    expect(doc['schema'], 'zuraffa.verdict.v1');
+    expect(doc['result'], 'ok');
+    expect(doc['exit_class'], 0);
+    final payload = doc['data'] as Map<String, dynamic>;
+    expect(payload['ok'], true);
+    expect(payload['exit_code'], 0);
   });
 
   test('the live repo certifies green after the #904/#876 fixes', () async {

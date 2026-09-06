@@ -7,7 +7,8 @@
 ///     observable behavior is byte-identical (exceptions rethrow, the
 ///     runner prints them, no envelope appears);
 ///   * when `--json` IS set, emits ONE versioned verdict envelope
-///     (`verdict.v1`) as the FINAL stdout line on every exit path —
+///     (`zuraffa.verdict.v1`) as the FINAL stdout line on every exit
+///     path —
 ///     normal returns, refusal returns, and thrown errors (the error is
 ///     printed first, then the envelope; the exit code is forced
 ///     non-zero so the envelope and the exit agree);
@@ -38,6 +39,10 @@ class VerdictContext {
   /// The command's shipped exit-taxonomy label (`complete`,
   /// `stopped`, `runner-error`, ...). Null falls back to `ok`/`fail`.
   String? exitClass;
+
+  /// The human-readable summary line (EPIC 1150 `message`). Null
+  /// derives a terse one from the command and exit code.
+  String? message;
 
   /// The machine-actionable remediation line, when the path has one.
   String? fix;
@@ -93,8 +98,9 @@ String? tddResolveFeature(
   return null;
 }
 
-/// Runs [body] and emits the `verdict.v1` envelope as the final stdout
-/// line when the command was invoked with `--json`.
+/// Runs [body] and emits the canonical `zuraffa.verdict.v1` envelope as
+/// the final stdout line when the command was invoked with `--json`
+/// (EPIC 1150: one envelope shape for the whole fleet).
 ///
 /// [featureFromRest] marks verbs whose FIRST positional argument is the
 /// feature name (plan, run, reset, doctor, replay) — the envelope's
@@ -110,6 +116,7 @@ Future<void> runWithVerdictEnvelope(
   Future<void> Function() body, {
   bool featureFromRest = false,
   String? commandOverride,
+  String commandPrefix = 'zfa tdd',
   bool Function()? envelopeEnabled,
 }) async {
   final jsonMode = envelopeEnabled?.call() ?? tddJsonMode(command);
@@ -154,6 +161,11 @@ Future<void> runWithVerdictEnvelope(
       VerdictEnvelope.emit(
         command: verb,
         outcome: outcome,
+        // EPIC 1150: the envelope's exit_class is the INT exit code the
+        // process actually exits with — the wrapper knows it, so the
+        // envelope and `exit "$?"` can never disagree.
+        exitCode: exitCodeValue,
+        commandPrefix: commandPrefix,
         exitClass:
             ctx.exitClass ??
             (thrown != null
@@ -161,6 +173,7 @@ Future<void> runWithVerdictEnvelope(
                 : exitCodeValue == 0
                 ? 'ok'
                 : 'fail'),
+        message: ctx.message,
         fix: ctx.fix,
         drifts: ctx.drifts,
         details: ctx.details,

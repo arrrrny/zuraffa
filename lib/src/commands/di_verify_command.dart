@@ -109,6 +109,7 @@ class DiVerifyCommand extends Command<void> {
       final ok = result.success;
       VerdictEnvelope.emit(
         command: 'di verify',
+        commandPrefix: 'zfa',
         outcome: ok ? VerdictOutcome.pass : VerdictOutcome.fail,
         exitClass: ok ? 'ok' : 'fail',
         subject: <String, Object?>{

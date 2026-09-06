@@ -12,6 +12,7 @@ import 'dart:convert';
 
 import 'package:args/command_runner.dart';
 
+import '../../../core/verdict/verdict_envelope.dart' show VerdictResult;
 import '../models/verdict_envelope.dart';
 import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
@@ -28,7 +29,7 @@ class VerdictsCommand extends Command<void> {
     argParser.addFlag(
       'json',
       help:
-          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'Emit a canonical zuraffa.verdict.v1 JSON envelope as the final stdout '
           'line (VISION §5, issue #969).',
       negatable: false,
     );
@@ -75,14 +76,14 @@ class VerdictsCommand extends Command<void> {
     // Default: the human summary of the machine contract.
     print(
       'verdicts: schema=${VerdictEnvelope.schema} — every `zfa tdd` '
-      'subcommand emits the versioned envelope as its FINAL stdout line '
-      'when --json is passed.',
+      'subcommand emits the canonical envelope as its FINAL stdout line '
+      'when --json is passed (EPIC 1150).',
     );
     print(
-      '  keys: schema, command, feature?, verdict, exit_class, fix?, '
-      'drifts, details, timestamp',
+      '  keys: schema, command, result, exit_class, message, data, '
+      'fix?, drifts, ts',
     );
-    print('  verdicts: pass | fail | stopped | error');
+    print('  results: ok | error | skipped | refused');
     print(
       '  use `zfa tdd verdicts --schema` for the full machine '
       'schema (diff-stable).',
@@ -97,58 +98,65 @@ class VerdictsCommand extends Command<void> {
   Map<String, Object?> _schemaDocument() => {
     'schema': VerdictEnvelope.schema,
     'description':
-        'The versioned JSON verdict envelope every `zfa tdd` subcommand '
+        'The canonical JSON verdict envelope every `zfa tdd` subcommand '
         'emits as the FINAL stdout line when --json is passed '
-        '(issue #969).',
+        '(issue #969; EPIC 1150 unified the whole zfa fleet onto this '
+        'one shape).',
     'keys': {
       'schema': {'type': 'string', 'const': VerdictEnvelope.schema},
       'command': {
         'type': 'string',
-        'description': 'the leaf verb that emitted the envelope',
+        'description':
+            'the FULL invocation that emitted the envelope '
+            '(e.g. "zfa tdd run", "zfa tdd corpus status")',
       },
-      'feature': {
-        'type': 'string',
-        'optional': true,
-        'description': 'the feature the verb operated on, when known',
-      },
-      'verdict': {
+      'result': {
         'type': 'string',
         'enum': [
-          VerdictOutcome.pass.name,
-          VerdictOutcome.fail.name,
-          VerdictOutcome.stopped.name,
-          VerdictOutcome.error.name,
+          VerdictResult.ok.name,
+          VerdictResult.error.name,
+          VerdictResult.skipped.name,
+          VerdictResult.refused.name,
         ],
         'description':
-            'pass = the verb achieved its goal; fail = honest refusal or '
-            'gate failure; stopped = an early honest stop (skip, usage); '
-            'error = could not assess',
+            'ok = the verb achieved its goal; error = the verb ran and '
+            'gave an honest negative verdict (fail/gate/RED); '
+            'skipped = an early honest stop (skip, nothing to do); '
+            'refused = never ran as invoked (usage, gating)',
       },
       'exit_class': {
-        'type': 'string',
+        'type': 'integer',
         'description':
-            'the verb\'s shipped exit-taxonomy label (ok on exit 0; '
-            'command-specific classes otherwise). The envelope carries '
-            'the label — it never changes a taxonomy.',
+            'the INT exit code the process exits with (SPEC 917 '
+            'protocol: 0 success, 1 failure, 2 usage, 3 drift, '
+            '4 conflict) — the envelope and `exit "\$?"` never '
+            'disagree',
+      },
+      'message': {
+        'type': 'string',
+        'description': 'human-readable one-line summary of the verdict',
+      },
+      'data': {
+        'type': 'object',
+        'description':
+            'command-specific payload. Legacy key surface preserved '
+            'inside: verdict (pass|fail|stopped|error), exit_label '
+            '(the verb\'s shipped taxonomy label), feature?, '
+            'subject?, findings?, plus the verb\'s own details',
       },
       'fix': {
         'type': 'string',
         'optional': true,
         'description':
-            'the machine-actionable remediation (the `--> fix:` content), '
-            'when the path has one',
+            'the machine-actionable remediation (the `--> fix:` '
+            'content), when the path has one',
       },
       'drifts': {
         'type': 'array',
         'items': {'type': 'string'},
         'description': 'drift/diff findings the verdict is about',
       },
-      'details': {
-        'type': 'object',
-        'description':
-            'command-specific key/values mirroring the human summary line',
-      },
-      'timestamp': {
+      'ts': {
         'type': 'string',
         'format': 'iso-8601-utc',
         'description': 'when the verdict was emitted',
@@ -157,12 +165,24 @@ class VerdictsCommand extends Command<void> {
     'required_keys': const [
       'schema',
       'command',
-      'verdict',
+      'result',
       'exit_class',
+      'message',
+      'data',
       'drifts',
-      'details',
-      'timestamp',
+      'ts',
     ],
+    'legacy_key_migration': const {
+      'verdict':
+          'result (pass→ok, fail→error, stopped→skipped, '
+          'error→error); raw name kept at data.verdict',
+      'exit_class(string)':
+          'exit_class(int) — the SPEC 917 exit code; '
+          'the string label kept at data.exit_label',
+      'details': 'merged into data verbatim',
+      'feature': 'data.feature',
+      'timestamp': 'ts',
+    },
     'verbs': const [
       'compose',
       'corpus',

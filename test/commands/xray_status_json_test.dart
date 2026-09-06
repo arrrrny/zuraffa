@@ -3,6 +3,9 @@
 // Behavior B15: --json outputs JSON; default human-readable unchanged;
 // release mode reports release_mode: true.
 //
+// EPIC 1150 migration: the output is the canonical zuraffa.verdict.v1
+// envelope; the legacy {enabled, release_mode} keys live inside `data`.
+//
 // The xray subcommands now accept a `--root` flag so they can be invoked
 // hermetically against a temp dir (mirroring `zfa xray deck --root`).
 library;
@@ -41,14 +44,24 @@ void main() {
     }
   }
 
+  /// The envelope's `data` payload (EPIC 1150) — where the legacy
+  /// {enabled, release_mode} keys live.
+  Map<String, dynamic> envelopeData(String output) {
+    final parsed = tryParseJson(output.trim()) as Map<String, dynamic>;
+    expect(parsed['schema'], 'zuraffa.verdict.v1');
+    expect(parsed['command'], 'zfa xray status');
+    return parsed['data'] as Map<String, dynamic>;
+  }
+
   group('zfa xray status --json', () {
     test('--json flag emits valid JSON on stdout with `enabled` key', () async {
       await run(['disable']);
       final output = await run(['status', '--json']);
       final parsed = tryParseJson(output.trim());
       expect(parsed, isA<Map<String, dynamic>>());
-      expect(parsed, contains('enabled'));
-      expect(parsed['enabled'], isA<bool>());
+      final data = envelopeData(output);
+      expect(data, contains('enabled'));
+      expect(data['enabled'], isA<bool>());
     });
 
     test('default (no flag) emits human-readable text, NOT raw JSON', () async {
@@ -66,24 +79,22 @@ void main() {
     test('--json reflects enabled=false after `zfa xray disable`', () async {
       await run(['disable']);
       final output = await run(['status', '--json']);
-      final parsed = tryParseJson(output.trim()) as Map<String, dynamic>;
-      expect(parsed['enabled'], isFalse);
+      expect(envelopeData(output)['enabled'], isFalse);
     });
 
     test('--json reflects enabled=true after `zfa xray enable`', () async {
       await run(['enable']);
       final output = await run(['status', '--json']);
-      final parsed = tryParseJson(output.trim()) as Map<String, dynamic>;
-      expect(parsed['enabled'], isTrue);
+      expect(envelopeData(output)['enabled'], isTrue);
     });
 
     test('--json includes release_mode indicator (false in tests)', () async {
       await run(['disable']);
       final output = await run(['status', '--json']);
-      final parsed = tryParseJson(output.trim()) as Map<String, dynamic>;
-      expect(parsed, contains('release_mode'));
+      final data = envelopeData(output);
+      expect(data, contains('release_mode'));
       expect(
-        parsed['release_mode'],
+        data['release_mode'],
         isFalse,
         reason:
             'dart test runs in non-release VM, '

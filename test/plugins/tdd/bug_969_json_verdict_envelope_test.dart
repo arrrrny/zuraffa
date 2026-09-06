@@ -1,7 +1,13 @@
 /// Issue #969 (tdd A+ upgrade, T001) — `--json` on every `zfa tdd`
 /// subcommand emits ONE versioned verdict envelope as the final stdout
-/// line: `{schema: verdict.v1, command, feature?, verdict, exit_class,
-/// fix?, drifts, details, timestamp}`.
+/// line.
+///
+/// EPIC 1150 migration: the wire shape is the canonical
+/// `zuraffa.verdict.v1` envelope
+/// `{schema, command, result, exit_class, message, data, fix?, drifts, ts}`;
+/// the legacy keys (verdict/exit_label/feature/…) are preserved inside
+/// `data`. This suite now pins THAT shape, for every verb, on success
+/// AND refusal paths.
 ///
 /// Red-first contract:
 ///   * every verb (all 22, including the new `verdicts`) emits the
@@ -23,33 +29,28 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 
 import 'helpers/spec_fixture.dart';
 
-/// The keys every verdict envelope MUST carry.
+/// The keys every canonical envelope MUST carry (EPIC 1150).
 const Set<String> kRequiredEnvelopeKeys = {
   'schema',
   'command',
-  'verdict',
+  'result',
   'exit_class',
+  'message',
+  'data',
   'drifts',
-  'details',
-  'timestamp',
+  'ts',
 };
 
-/// The only keys allowed beyond the required set (optional fields).
-/// `subject` and `findings` are the SPEC 1106 verify-gate extension —
-/// the tdd verbs never set them (omitted from the JSON), so the verbs'
-/// emitted shapes are unchanged; the keys are legal envelope surface for
-/// verify-gate commands (`di verify`, `datasource check`).
-const Set<String> kOptionalEnvelopeKeys = {
-  'feature',
-  'fix',
-  'subject',
-  'findings',
-};
+/// The only key allowed beyond the required set (optional field).
+const Set<String> kOptionalEnvelopeKeys = {'fix'};
 
 /// The canonical schema name (never drifts).
 const String kSchemaName = 'zuraffa.verdict.v1';
 
-/// The allowed verdict categories.
+/// The canonical result vocabulary.
+const Set<String> kResultCategories = {'ok', 'error', 'skipped', 'refused'};
+
+/// The legacy verdict categories preserved inside `data.verdict`.
 const Set<String> kVerdictCategories = {'pass', 'fail', 'stopped', 'error'};
 
 /// The canonical envelope key set (required + optional).
@@ -79,15 +80,24 @@ void _expectEnvelopeShape(
   required String command,
 }) {
   expect(envelope['schema'], kSchemaName);
-  expect(envelope['command'], command);
+  expect(envelope['command'], 'zfa tdd $command');
   expect(
-    envelope['verdict'],
-    anyOf(kVerdictCategories.map((v) => equals(v)).toList()),
+    envelope['result'],
+    anyOf(kResultCategories.map((v) => equals(v)).toList()),
   );
-  expect(envelope['exit_class'], isA<String>());
+  expect(envelope['exit_class'], isA<int>());
+  expect(envelope['message'], isA<String>());
   expect(envelope['drifts'], isA<List<Object?>>());
-  expect(envelope['details'], isA<Map<String, Object?>>());
-  expect(envelope['timestamp'], isA<String>());
+  expect(envelope['data'], isA<Map<String, Object?>>());
+  expect(envelope['ts'], isA<String>());
+  // The legacy verdict vocabulary is preserved inside data.verdict.
+  // Verbs ship their own custom verdict names here (`created`, `reset`,
+  // `refused`, …) — the CANONICAL vocabulary is `result`, this is the
+  // legacy surface, so a non-empty string is the contract.
+  expect(
+    (envelope['data'] as Map<String, Object?>)['verdict'],
+    isA<String>().having((v) => v, 'verdict', isNotEmpty),
+  );
   // The exact-schema contract: no key outside the canonical set.
   expect(
     envelope.keys.toSet().difference(kCanonicalKeySet),
@@ -148,7 +158,7 @@ void main() {
         ]);
         final envelope = _decodeEnvelope(out);
         _expectEnvelopeShape(envelope, command: 'plan');
-        expect(envelope['feature'], feature);
+        expect((envelope['data'] as Map<String, Object?>)['feature'], feature);
       },
     );
 
@@ -166,8 +176,8 @@ void main() {
         ]);
         final envelope = _decodeEnvelope(out);
         _expectEnvelopeShape(envelope, command: 'plan');
-        expect(envelope['verdict'], 'pass');
-        expect(envelope['exit_class'], 'ok');
+        expect(envelope['result'], 'ok');
+        expect(envelope['exit_class'], 0);
         // The exact-schema assertion the acceptance names for `plan`.
         expect(envelope.keys.toSet(), containsAll(kRequiredEnvelopeKeys));
         expect(envelope.keys.toSet().difference(kCanonicalKeySet), isEmpty);
@@ -206,7 +216,7 @@ void main() {
       ]);
       final envelope = _decodeEnvelope(out);
       _expectEnvelopeShape(envelope, command: 'gen');
-      expect(envelope['verdict'], 'pass');
+      expect(envelope['result'], 'ok');
       expect(kRequiredEnvelopeKeys.difference(envelope.keys.toSet()), isEmpty);
     });
 

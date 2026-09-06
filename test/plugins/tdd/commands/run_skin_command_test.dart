@@ -320,22 +320,26 @@ Lanes:
     );
   });
 
-  test('--json emits the verdict.v1 envelope as the final line', () async {
-    final out = await drive(['--json']);
+  test(
+    '--json emits the zuraffa.verdict.v1 envelope as the final line',
+    () async {
+      final out = await drive(['--json']);
 
-    final lines = out
-        .trim()
-        .split('\n')
-        .where((l) => l.trim().isNotEmpty)
-        .toList();
-    final last = lines.last;
-    expect(last.startsWith('{'), isTrue, reason: 'last line is JSON: $last');
-    final envelope = jsonDecode(last) as Map<String, dynamic>;
-    expect(envelope['schema'], 'zuraffa.verdict.v1');
-    expect(envelope['command'], 'run-skin');
-    expect(envelope['verdict'], 'pass');
-    expect(envelope['details']['result'], 'complete');
-  });
+      final lines = out
+          .trim()
+          .split('\n')
+          .where((l) => l.trim().isNotEmpty)
+          .toList();
+      final last = lines.last;
+      expect(last.startsWith('{'), isTrue, reason: 'last line is JSON: $last');
+      final envelope = jsonDecode(last) as Map<String, dynamic>;
+      expect(envelope['schema'], 'zuraffa.verdict.v1');
+      expect(envelope['command'], 'zfa tdd run-skin');
+      expect(envelope['result'], 'ok');
+      expect(envelope['data']['verdict'], 'pass');
+      expect(envelope['data']['result'], 'complete');
+    },
+  );
 
   test('a feature with no SKIN lane is an honest empty complete', () async {
     // Rewrite the spec with no SKIN lane and drop the W1 row. With no

@@ -20,6 +20,7 @@ import '../core/dependencies/generated_import_scanner.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/plugin_context.dart';
 import '../core/project/project_root.dart';
+import '../core/verdict/verdict_envelope.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_manager.dart';
 import '../engine/engine_checker.dart';
@@ -1536,12 +1537,17 @@ class MakeCommand extends Command<void> {
     final jsonMode =
         argResults?['format'] == 'json' || argResults?['json'] == true;
     if (jsonMode) {
-      print(
-        jsonEncode({
+      // EPIC 1150: canonical zuraffa.verdict.v1 envelope — the legacy
+      // {success, plan, emission} payload lives inside `data` verbatim.
+      emitVerdict(
+        command: 'zfa make',
+        result: VerdictResult.ok,
+        message: 'normalized plan for ${plan.name}',
+        data: {
           'success': true,
           'plan': plan.toJson(),
           if (emission != null) 'emission': emission.toJson(),
-        }),
+        },
       );
       return;
     }
@@ -1570,8 +1576,14 @@ class MakeCommand extends Command<void> {
     PubspecDependencyGap? pubsyncGap,
   }) {
     if (argResults?['format'] == 'json') {
-      print(
-        jsonEncode({
+      // EPIC 1150: canonical zuraffa.verdict.v1 envelope — the legacy
+      // {success, plan, files, warnings, tier, missing_pubspec_deps}
+      // payload lives inside `data` verbatim.
+      emitVerdict(
+        command: 'zfa make',
+        result: VerdictResult.ok,
+        message: 'generated ${files.length} file(s) for ${plan.name}',
+        data: {
           'success': true,
           'plan': plan.toJson(),
           'files': files.map((file) => file.toJson()).toList(),
@@ -1588,7 +1600,7 @@ class MakeCommand extends Command<void> {
               'suggested_fix': pubsyncGap.pubAddOneLiner,
               'sdk_packages': pubsyncGap.sdkMissingPackages,
             },
-        }),
+        },
       );
       return;
     }
@@ -1792,8 +1804,20 @@ class MakeCommand extends Command<void> {
     final v2ReceiptPath = p.relative(v2ReceiptFile.path, from: projectRoot);
 
     if (format == 'json') {
-      print(
-        jsonEncode({
+      // EPIC 1150: canonical zuraffa.verdict.v1 envelope — the legacy
+      // {engine_receipt, engine_receipt_v2, engine_check} payload lives
+      // inside `data` verbatim.
+      emitVerdict(
+        command: 'zfa make',
+        result: checkResult.passed ? VerdictResult.ok : VerdictResult.error,
+        exitCode: checkResult.passed ? ExitClass.success : ExitClass.failure,
+        message: checkResult.passed
+            ? 'engine check passed for "$entityName" '
+                  '(${checkResult.resolutions.length} getIt references '
+                  'resolved)'
+            : 'engine check FAILED for "$entityName" '
+                  '(${checkResult.failures.length} failure(s))',
+        data: {
           'engine_receipt': receiptPath,
           'engine_receipt_v2': v2ReceiptPath,
           'engine_check': {
@@ -1805,7 +1829,7 @@ class MakeCommand extends Command<void> {
               for (final failure in checkResult.failures) failure.toJson(),
             ],
           },
-        }),
+        },
       );
     } else {
       print('\n🔍 Engine check: $entityName');

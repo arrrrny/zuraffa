@@ -128,11 +128,11 @@ void main() {
             .split('\n')
             .lastWhere(
               (l) => l.trim().startsWith('{'),
-              orElse: () => fail('no verdict.v1 envelope on stdout'),
+              orElse: () => fail('no zuraffa.verdict.v1 envelope on stdout'),
             );
         final verdict = jsonDecode(verdictLine) as Map<String, dynamic>;
         expect(verdict['schema'], 'zuraffa.verdict.v1');
-        final details = verdict['details'] as Map<String, dynamic>;
+        final details = verdict['data'] as Map<String, dynamic>;
         final spec = details['spec'] as String?;
         expect(spec, isNotNull, reason: 'the envelope carries the spec path');
         expect(

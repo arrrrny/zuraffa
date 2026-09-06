@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../migration/migration.dart';
 import '../version.dart';
 import '../core/project/project_root.dart';
+import '../core/verdict/verdict_envelope.dart';
 import 'doctor_checks.dart';
 
 class DoctorCommand extends Command<void> {
@@ -63,11 +63,24 @@ class DoctorCommand extends Command<void> {
       // Single parseable verdict object for the named environment checks
       // (issue #793, format per #778). Prose sections are suppressed so
       // agents/CI can consume stdout directly.
+      // EPIC 1150: the doctor.v1 payload (checks/ok) lives inside `data`
+      // of the canonical zuraffa.verdict.v1 envelope.
       final results = migrationOnly
           ? const <DoctorCheckResult>[]
           : await DoctorChecksRunner().runAll(fix: shouldFix && !dryRun);
-      _print(jsonEncode(doctorChecksJson(results)));
-      exitCode = results.every((r) => r.ok) ? 0 : 1;
+      final ok = results.every((r) => r.ok);
+      emitVerdict(
+        command: 'zfa doctor',
+        result: ok ? VerdictResult.ok : VerdictResult.error,
+        exitCode: ok ? ExitClass.success : ExitClass.failure,
+        message: ok
+            ? 'doctor: ${results.length} check(s) passed'
+            : 'doctor: '
+                  '${results.where((r) => !r.ok).length} of '
+                  '${results.length} check(s) failed',
+        data: doctorChecksJson(results),
+      );
+      exitCode = ok ? 0 : 1;
       return;
     }
 

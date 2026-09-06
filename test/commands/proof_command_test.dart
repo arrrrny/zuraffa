@@ -100,11 +100,15 @@ void main() {
 
       expect(result.exitCode, 0);
       final decoded = jsonDecode(result.stdout) as Map<String, dynamic>;
-      expect(decoded['schema'], 'proof.v1');
-      expect(decoded['ok'], isTrue);
-      expect(decoded['receipts'], 1);
-      expect(decoded['filesChecked'], 1);
-      expect(decoded['findings'], isEmpty);
+      // EPIC 1150: the envelope wraps the proof.v1 payload inside `data`.
+      expect(decoded['schema'], 'zuraffa.verdict.v1');
+      expect(decoded['result'], 'ok');
+      final payload = decoded['data'] as Map<String, dynamic>;
+      expect(payload['schema'], 'proof.v1');
+      expect(payload['ok'], isTrue);
+      expect(payload['receipts'], 1);
+      expect(payload['filesChecked'], 1);
+      expect(payload['findings'], isEmpty);
     });
 
     test('editing a receipted artifact fails with a diff and exit 1', () async {
@@ -125,8 +129,10 @@ void main() {
 
       expect(result.exitCode, 1);
       final decoded = jsonDecode(result.stdout) as Map<String, dynamic>;
-      expect(decoded['ok'], isFalse);
-      final findings = (decoded['findings'] as List)
+      expect(decoded['result'], 'error');
+      final payload = decoded['data'] as Map<String, dynamic>;
+      expect(payload['ok'], isFalse);
+      final findings = (payload['findings'] as List)
           .cast<Map<String, dynamic>>();
       expect(findings, hasLength(1));
       expect(findings.single['kind'], 'modified');
@@ -179,8 +185,10 @@ void main() {
 
       expect(result.exitCode, 1);
       final decoded = jsonDecode(result.stdout) as Map<String, dynamic>;
-      expect(decoded['ok'], isFalse);
-      final findings = (decoded['findings'] as List)
+      expect(decoded['result'], 'error');
+      final payload = decoded['data'] as Map<String, dynamic>;
+      expect(payload['ok'], isFalse);
+      final findings = (payload['findings'] as List)
           .cast<Map<String, dynamic>>();
       expect(
         findings.any(
@@ -201,8 +209,10 @@ void main() {
 
       expect(result.exitCode, 0);
       final decoded = jsonDecode(result.stdout) as Map<String, dynamic>;
-      expect(decoded['ok'], isTrue);
-      expect(decoded['receipts'], 0);
+      expect(decoded['result'], 'ok');
+      final payload = decoded['data'] as Map<String, dynamic>;
+      expect(payload['ok'], isTrue);
+      expect(payload['receipts'], 0);
     });
   });
 }

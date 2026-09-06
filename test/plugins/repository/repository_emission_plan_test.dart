@@ -217,8 +217,11 @@ environment:
           );
 
       final decoded = jsonDecode(jsonLine) as Map<String, dynamic>;
-      expect(decoded['success'], isTrue);
-      final emission = decoded['emission'] as Map<String, dynamic>;
+      // EPIC 1150: the envelope wraps the plan payload inside `data`.
+      expect(decoded['schema'], 'zuraffa.verdict.v1');
+      final payload = decoded['data'] as Map<String, dynamic>;
+      expect(payload['success'], isTrue);
+      final emission = payload['emission'] as Map<String, dynamic>;
       expect(emission['plugin'], 'repository');
       expect(emission['entity'], 'Product');
       // The resolved plan surfaces the cache+sync conflict instead of

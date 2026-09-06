@@ -61,8 +61,11 @@ environment:
       reason: 'stdout=${result.stdout}\nstderr=${result.stderr}',
     );
     final decoded = jsonDecode(result.stdout as String) as Map<String, dynamic>;
-    expect(decoded['success'], isTrue);
-    return decoded['plan'] as Map<String, dynamic>;
+    // EPIC 1150: the envelope wraps the plan payload inside `data`.
+    expect(decoded['schema'], 'zuraffa.verdict.v1');
+    final payload = decoded['data'] as Map<String, dynamic>;
+    expect(payload['success'], isTrue);
+    return payload['plan'] as Map<String, dynamic>;
   }
 
   test(
@@ -147,7 +150,10 @@ environment:
       reason: 'stdout=${result.stdout}\nstderr=${result.stderr}',
     );
     final decoded = jsonDecode(result.stdout as String) as Map<String, dynamic>;
-    final plan = decoded['plan'] as Map<String, dynamic>;
+    // EPIC 1150: the envelope wraps the plan payload inside `data`.
+    final plan =
+        (decoded['data'] as Map<String, dynamic>)['plan']
+            as Map<String, dynamic>;
     final pluginIds = (plan['plugin_ids'] as List).cast<String>();
     expect(
       pluginIds,

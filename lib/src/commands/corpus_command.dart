@@ -110,6 +110,7 @@ class CorpusImportCommand extends Command<void> {
     _verdict,
     _run,
     commandOverride: 'corpus import',
+    commandPrefix: 'zfa',
   );
 
   Future<void> _run() async {
@@ -219,6 +220,7 @@ class CorpusCatalogCommand extends Command<void> {
     _verdict,
     _run,
     commandOverride: 'corpus catalog',
+    commandPrefix: 'zfa',
   );
 
   Future<void> _run() async {
@@ -370,6 +372,7 @@ class CorpusRunCommand extends Command<void> {
     _verdict,
     _run,
     commandOverride: 'corpus run',
+    commandPrefix: 'zfa',
   );
 
   Future<void> _run() async {
@@ -531,6 +534,7 @@ class CorpusLedgerCommand extends Command<void> {
     _verdict,
     _run,
     commandOverride: 'corpus ledger',
+    commandPrefix: 'zfa',
   );
 
   Future<void> _run() async {

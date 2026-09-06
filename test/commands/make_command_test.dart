@@ -99,8 +99,11 @@ class Product {
       ]);
 
       final decoded = jsonDecode(output) as Map<String, dynamic>;
-      expect(decoded['success'], isTrue);
-      final plan = decoded['plan'] as Map<String, dynamic>;
+      // EPIC 1150: the envelope wraps the plan payload inside `data`.
+      expect(decoded['schema'], 'zuraffa.verdict.v1');
+      final payload = decoded['data'] as Map<String, dynamic>;
+      expect(payload['success'], isTrue);
+      final plan = payload['plan'] as Map<String, dynamic>;
       expect(
         (plan['plugin_ids'] as List).cast<String>(),
         containsAll([
@@ -169,8 +172,11 @@ class Product {
       ]);
 
       final decoded = jsonDecode(output) as Map<String, dynamic>;
-      expect(decoded['success'], isTrue);
-      final plan = decoded['plan'] as Map<String, dynamic>;
+      // EPIC 1150: the envelope wraps the plan payload inside `data`.
+      expect(decoded['schema'], 'zuraffa.verdict.v1');
+      final payload = decoded['data'] as Map<String, dynamic>;
+      expect(payload['success'], isTrue);
+      final plan = payload['plan'] as Map<String, dynamic>;
       expect(plan['preset'], 'crud');
       expect((plan['plugin_ids'] as List).cast<String>(), contains('usecase'));
     });
@@ -201,8 +207,11 @@ class Product {
       ]);
 
       final decoded = jsonDecode(output) as Map<String, dynamic>;
-      expect(decoded['success'], isTrue);
-      final plan = decoded['plan'] as Map<String, dynamic>;
+      // EPIC 1150: the envelope wraps the plan payload inside `data`.
+      expect(decoded['schema'], 'zuraffa.verdict.v1');
+      final payload = decoded['data'] as Map<String, dynamic>;
+      expect(payload['success'], isTrue);
+      final plan = payload['plan'] as Map<String, dynamic>;
       final pluginIds = (plan['plugin_ids'] as List).cast<String>();
       expect(pluginIds, contains('di'));
       expect(pluginIds, isNot(contains('route')));
@@ -252,8 +261,11 @@ class Product {
         );
         final decoded =
             jsonDecode(jsonMatch!.group(0)!) as Map<String, dynamic>;
-        expect(decoded['success'], isTrue);
-        final plan = decoded['plan'] as Map<String, dynamic>;
+        // EPIC 1150: the envelope wraps the plan payload inside `data`.
+        expect(decoded['schema'], 'zuraffa.verdict.v1');
+        final payload = decoded['data'] as Map<String, dynamic>;
+        expect(payload['success'], isTrue);
+        final plan = payload['plan'] as Map<String, dynamic>;
         expect(plan['preset'], 'crud');
         expect(
           (plan['plugin_ids'] as List).cast<String>(),

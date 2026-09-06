@@ -1,10 +1,10 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
 import '../core/proof/proof_checker.dart';
 import '../cli/exit_protocol.dart';
+import '../core/verdict/verdict_envelope.dart';
 
 /// Proof-carrying generation (issue #807): every generated artifact ships
 /// a verifiable receipt, and `zfa proof check` re-derives the proof.
@@ -68,7 +68,17 @@ class ProofCheckCommand extends Command<void> {
     if (jsonMode) {
       // Single parseable verdict object (format per issue #778). No prose
       // so agents/CI can consume stdout directly.
-      print(jsonEncode(report.toJson()));
+      // EPIC 1150: the proof.v1 payload (ok/valid/receipts/filesChecked/
+      // findings) lives inside `data` of the canonical envelope.
+      emitVerdict(
+        command: 'zfa proof check',
+        result: report.ok ? VerdictResult.ok : VerdictResult.error,
+        exitCode: report.ok ? ExitClass.success : ExitClass.failure,
+        message: report.ok
+            ? 'proof check: ${report.receipts} receipt(s) valid'
+            : 'proof check: ${report.findings.length} finding(s)',
+        data: report.toJson(),
+      );
     } else {
       _printText(report, coverageRoots);
     }

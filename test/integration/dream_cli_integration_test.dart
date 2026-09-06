@@ -4,7 +4,7 @@
 // deterministic drafter (no LLM configured), REAL subprocess ingest +
 // plan through an exec-forwarder fake zfa bin (the sc_018 pattern:
 // ingest/plan exec the real CLI; run/view are canned), the two
-// receipts, and the verdict.v1 envelope. The LIVE equivalent (same
+// receipts, and the zuraffa.verdict.v1 envelope. The LIVE equivalent (same
 // flow, real dart spawns, recorded from this session) is in
 // specs/1010-zfa-dream-one-command-app/tdd/verification.md.
 library;
@@ -88,7 +88,7 @@ void main() {
     expect(bodies, contains('"command": "dream-engine"'));
     expect(bodies, contains('"command": "dream-skin"'));
 
-    // --json emits the verdict.v1 envelope as the final line.
+    // --json emits the zuraffa.verdict.v1 envelope as the final line.
     final tmp2 = await Directory.systemTemp.createTemp('dream_cli_int2_');
     addTearDown(() => tmp2.delete(recursive: true));
     final out2 = await runner.runCapturing([

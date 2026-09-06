@@ -331,18 +331,18 @@ class ProductSqliteDataSource implements ProductDataSource {
       return decoded as Map<String, Object?>;
     }
 
-    /// The exact top-level key set SPEC 1106 orders for the
-    /// datasource check envelope (plus the treaty-mandated `timestamp`).
+    /// The exact top-level key set the canonical zuraffa.verdict.v1
+    /// envelope orders (EPIC 1150; `fix` appears only when there is one,
+    /// so the pass path pins exactly these).
     const envelopeKeys = {
       'schema',
       'command',
-      'verdict',
+      'result',
       'exit_class',
-      'subject',
-      'findings',
+      'message',
+      'data',
       'drifts',
-      'details',
-      'timestamp',
+      'ts',
     };
 
     test('parity: pass envelope with exact schema', () async {
@@ -357,14 +357,16 @@ class ProductSqliteDataSource implements ProductDataSource {
       final envelope = decodeEnvelope(output);
       expect(envelope.keys.toSet(), envelopeKeys);
       expect(envelope['schema'], 'zuraffa.verdict.v1');
-      expect(envelope['command'], 'datasource check');
-      expect(envelope['verdict'], 'pass');
-      expect(envelope['exit_class'], 'ok');
-      expect((envelope['subject'] as Map)['kind'], 'datasource');
-      expect((envelope['subject'] as Map)['entity'], 'Product');
-      expect(envelope['findings'], isEmpty);
+      expect(envelope['command'], 'zfa datasource check');
+      expect(envelope['result'], 'ok');
+      expect(envelope['exit_class'], 0);
+      final data = envelope['data'] as Map<String, Object?>;
+      expect((data['subject'] as Map)['kind'], 'datasource');
+      expect((data['subject'] as Map)['entity'], 'Product');
+      expect(data['verdict'], 'pass');
+      expect(data['findings'], isEmpty);
       expect(envelope['drifts'], isEmpty);
-      expect(envelope['timestamp'], isA<String>());
+      expect(envelope['ts'], isA<String>());
     });
 
     test(
@@ -402,13 +404,14 @@ class ProductSqliteDataSource implements ProductDataSource {
         final envelope = decodeEnvelope(output);
         expect(envelope.keys.toSet(), envelopeKeys);
         expect(envelope['schema'], 'zuraffa.verdict.v1');
-        expect(envelope['command'], 'datasource check');
-        expect(envelope['verdict'], 'fail');
-        expect(envelope['exit_class'], 'drift');
-        expect((envelope['subject'] as Map)['kind'], 'datasource');
-        expect((envelope['subject'] as Map)['entity'], 'Product');
+        expect(envelope['command'], 'zfa datasource check');
+        expect(envelope['result'], 'error');
+        final data = envelope['data'] as Map<String, Object?>;
+        expect(data['verdict'], 'fail');
+        expect((data['subject'] as Map)['kind'], 'datasource');
+        expect((data['subject'] as Map)['entity'], 'Product');
 
-        final findings = envelope['findings'] as List;
+        final findings = data['findings'] as List;
         expect(findings, hasLength(1));
         final finding = findings.first as Map;
         expect(finding.keys.toSet(), {'kind', 'file', 'member', 'fix'});
@@ -444,8 +447,10 @@ class ProductSqliteDataSource implements ProductDataSource {
 
       expect(exitCode, 1, reason: '@override drift must fail the gate');
       final envelope = decodeEnvelope(output);
-      expect(envelope['verdict'], 'fail');
-      final findings = envelope['findings'] as List;
+      expect(envelope['result'], 'error');
+      final data = envelope['data'] as Map<String, Object?>;
+      expect(data['verdict'], 'fail');
+      final findings = data['findings'] as List;
       expect((findings.first as Map)['kind'], 'undeclared override');
       expect((findings.first as Map)['member'], 'purge');
     });
@@ -463,9 +468,11 @@ class ProductSqliteDataSource implements ProductDataSource {
       expect(exitCode, 1);
       final envelope = decodeEnvelope(output);
       expect(envelope.keys.toSet(), envelopeKeys);
-      expect(envelope['verdict'], 'fail');
-      expect(envelope['exit_class'], 'fail');
-      final findings = envelope['findings'] as List;
+      expect(envelope['result'], 'error');
+      final data = envelope['data'] as Map<String, Object?>;
+      expect(data['verdict'], 'fail');
+      expect(data['exit_label'], 'fail');
+      final findings = data['findings'] as List;
       expect(findings, hasLength(1));
       expect((findings.first as Map)['kind'], 'missing interface');
       expect((findings.first as Map)['fix'], isNotEmpty);
@@ -487,9 +494,12 @@ class ProductSqliteDataSource implements ProductDataSource {
       );
       final envelope = decodeEnvelope(output);
       expect(envelope['schema'], 'zuraffa.verdict.v1');
-      expect(envelope['command'], 'datasource check');
-      expect(envelope['verdict'], 'error');
-      expect(envelope['exit_class'], 'insufficient-input');
+      expect(envelope['command'], 'zfa datasource check');
+      expect(envelope['result'], 'refused');
+      expect(envelope['exit_class'], 2);
+      final data = envelope['data'] as Map<String, Object?>;
+      expect(data['verdict'], 'refused');
+      expect(data['exit_label'], 'insufficient-input');
     });
 
     test(

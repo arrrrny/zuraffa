@@ -59,7 +59,7 @@ const String kStreamFlagHelp =
 
 /// The `--json` flag's help text for the driving commands.
 const String kJsonFlagHelp =
-    'Emit a versioned verdict.v1 JSON envelope as the final stdout line '
+    'Emit a canonical zuraffa.verdict.v1 JSON envelope as the final stdout line '
     '(VISION §5, issue #964/#838).';
 
 class RunCommand extends Command<void> {
