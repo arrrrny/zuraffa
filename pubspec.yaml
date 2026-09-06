@@ -37,7 +37,13 @@ dependencies:
   opentelemetry: ^0.18.11
   code_builder: ^4.11.1
   dart_style: ^3.1.12
-  analyzer: ^14.3.0
+  # Issue #1189: lower bound widened from ^14.3.0 so Flutter-consumer graphs
+  # that cap analyzer in the 14.0-14.2 range can still resolve. analyzer MUST
+  # stay a REGULAR dependency: lib/zuraffa.dart publicly exports
+  # src/core/ast/* (ast_helper, file_parser, ast_modifier, node_finder), which
+  # hard-import package:analyzer — every consumer compiles these sources, so a
+  # dev_dependencies move would break consumers at compile time.
+  analyzer: ">=14.0.0 <15.0.0"
   graphql: ^5.2.3
   gql: ^1.0.1
 
@@ -62,14 +68,22 @@ dependencies:
 # and eliminates any path-override risk for CI. Do NOT reintroduce path:
 # overrides — CI has no sibling checkouts and every branch goes red when
 # they are present.
-
-  test: any
 executables:
   zuraffa:
   zfa:
   zuraffa_mcp_server:
 
 dev_dependencies:
+  # Issue #1189: `test` is dev-only. As a REGULAR dependency it made every
+  # Flutter consumer unresolvable: flutter_test pins test_api 0.7.12 and
+  # matcher 0.12.20, and NO published `test` version is compatible with
+  # those pins once graphql ^5.2.3 (web_socket_channel ^3.0.1) is in the
+  # graph — `dart pub get` failed with "zuraffa from path is incompatible
+  # with flutter_test from sdk". lib/src only references package:test inside
+  # string templates for GENERATED consumer projects (those write test into
+  # their own dev_dependencies); the lib/tdd/** self-hosting subjects resolve
+  # against THIS package's dev_dependencies.
+  test: any
   build_runner: ^2.15.2
   lints: ^6.0.0
   # mutation_test: wired in by spec 041 follow-up (Phase 11, tasks T077-T081)
