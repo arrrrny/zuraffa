@@ -26,6 +26,7 @@ import '../commands/generate_commands_command.dart';
 import '../commands/apply_command.dart';
 import '../commands/module_command.dart';
 import '../commands/xray_command.dart';
+import '../commands/observer_removed_command.dart';
 import '../commands/setup_command.dart';
 import '../commands/replay_command.dart';
 import '../commands/spec_command.dart';
@@ -215,6 +216,11 @@ class CliRunner {
     _runner.addCommand(ApplyCommand(registry));
     _runner.addCommand(ModuleCommand());
     _runner.addCommand(XrayCommand());
+    // Issue #1149 (kill list): the observer plugin is gone; the command
+    // name now delivers an honest removal verdict (exit 2 — the legacy 64
+    // canonicalized by SPEC 917) instead of silently vanishing or —
+    // worse — lying about generation.
+    _runner.addCommand(ObserverRemovedCommand());
     _runner.addCommand(UpdateCommand());
     _runner.addCommand(SetupCommand());
     _runner.addCommand(CorpusCommand());

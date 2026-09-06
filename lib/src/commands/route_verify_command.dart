@@ -40,6 +40,8 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
 import '../core/project/receipt_store.dart';
+import '../core/verdict_envelope.dart';
+import '../cli/exit_protocol.dart';
 import '../plugins/route/builders/route_table_test_builder.dart';
 import '../plugins/route/route_receipt.dart';
 import '../utils/string_utils.dart';
@@ -409,7 +411,7 @@ class RouteVerifyCommand extends Command<void> {
 
     // 5. Emit the verdict receipt (order 4): the #963 ledger and CI can
     //    read the LATEST verdict at the deterministic path.
-    await _writeVerdictReceipt(
+    final receiptWritten = await _writeVerdictReceipt(
       entity: entity,
       ok: ok,
       declaredRoutes: declaredRoutes,
@@ -419,45 +421,40 @@ class RouteVerifyCommand extends Command<void> {
       findings: findings,
     );
 
-    final envelope = <String, dynamic>{
-      'schema': 1,
-      'verdict': ok ? 'pass' : 'fail',
-      'entity': entity,
-      'routes': declaredRoutes,
-      'resolvedRoutes': manifest.declaredRoutes
-          .map((r) => r.path)
-          .toList(growable: false),
-      'deepLinks': declaredLinks,
-      'routeTableTestPath': testPath,
-      'testRun': testRun,
-      'findings': findings,
-    };
+    // SPEC 1105: the canonical envelope. The route-specific surface
+    // (tables, test run) lives in details; the proof receipt the run
+    // wrote is listed under receipts when it actually landed.
+    final envelope = VerdictEnvelope(
+      command: 'zfa route verify $entity',
+      verdict: ok ? VerdictKind.pass : VerdictKind.fail,
+      exitClass: ok ? ExitProtocol.success : ExitProtocol.failure,
+      subject: VerdictSubject(kind: 'route', id: entity),
+      receipts: receiptWritten
+          ? [
+              '.zfa/receipts/${RouteReceiptWriter.receiptFileName('$entity-verify')}',
+            ]
+          : const <String>[],
+      findings: [
+        for (final finding in findings) VerdictFinding.fromJson(finding),
+      ],
+      details: {
+        'routes': declaredRoutes,
+        'resolvedRoutes': manifest.declaredRoutes
+            .map((r) => r.path)
+            .toList(growable: false),
+        'deepLinks': declaredLinks,
+        'routeTableTestPath': testPath,
+        'testRun': testRun,
+      },
+    );
 
-    // Issue #1122: the explain prose is strictly additive — the base
-    // envelope stays byte-compatible; `explain` exists only when the
-    // flag was requested.
-    if (argResults?['explain'] == true) {
-      envelope['explain'] = _entityExplainProse(
-        entity: entity,
-        ok: ok,
-        declaredRoutes: declaredRoutes,
-        declaredLinks: declaredLinks,
-        testRun: testRun,
-        findings: findings,
-      );
-    }
-
-    final encoded = jsonEncode(envelope);
+final encoded = envelope.toJsonLine();
     if (outPath != null) {
       await File(outPath).writeAsString('$encoded\n');
     } else if (asJson) {
-      print(encoded);
+      VerdictEnvelope.emit(envelope);
     } else {
       _printEntityVerdict(entity, ok, findings, testRun, plain: plain);
-      if (envelope['explain'] case final Map<String, dynamic> explain) {
-        print('explain:');
-        print('  ${explain['prose']}');
-      }
     }
 
     exitCode = ok ? 0 : 1;
@@ -564,7 +561,9 @@ class RouteVerifyCommand extends Command<void> {
     return (exitCode: result.exitCode, output: output);
   }
 
-  Future<void> _writeVerdictReceipt({
+  /// Returns true when the verdict receipt actually landed on disk (the
+  /// envelope's `receipts` list only lists receipts that exist).
+  Future<bool> _writeVerdictReceipt({
     required String entity,
     required bool ok,
     required List<Map<String, dynamic>> declaredRoutes,
@@ -601,9 +600,11 @@ class RouteVerifyCommand extends Command<void> {
           },
         },
       );
+      return true;
     } catch (_) {
       // Best-effort: the verdict is already on stdout; a receipt-write
       // failure must not flip the exit code.
+      return false;
     }
   }
 
@@ -618,23 +619,31 @@ class RouteVerifyCommand extends Command<void> {
     required List<Map<String, dynamic>> deepLinks,
     required Map<String, dynamic>? testRun,
   }) {
-    final envelope = <String, dynamic>{
-      'schema': 1,
-      'verdict': 'fail',
-      'entity': entity,
-      'routes': routes,
-      'deepLinks': deepLinks,
-      'routeTableTestPath': null,
-      'testRun': testRun,
-      'findings': [
-        ...findings,
-        {'kind': 'verify-error', 'detail': message, 'fix': fix},
+    final envelope = VerdictEnvelope(
+      command: 'zfa route verify $entity',
+      verdict: VerdictKind.fail,
+      exitClass: ExitProtocol.failure,
+      subject: VerdictSubject(kind: 'route', id: entity),
+      findings: [
+        for (final finding in findings) VerdictFinding.fromJson(finding),
+        VerdictFinding(
+          kind: 'verify-error',
+          fix: fix,
+          extra: {'detail': message},
+        ),
       ],
-    };
+      details: {
+        'routes': routes,
+        'deepLinks': deepLinks,
+        'routeTableTestPath': null,
+        'testRun': testRun,
+      },
+    );
+    final encoded = envelope.toJsonLine();
     if (outPath != null) {
-      File(outPath).writeAsStringSync('${jsonEncode(envelope)}\n');
+      File(outPath).writeAsStringSync('$encoded\n');
     } else if (asJson) {
-      print(jsonEncode(envelope));
+      VerdictEnvelope.emit(envelope);
     } else {
       print('❌ $message');
       print('--> fix: $fix');
@@ -669,37 +678,6 @@ class RouteVerifyCommand extends Command<void> {
       print('  - $detail');
       print('    --> fix: ${finding['fix']}');
     }
-  }
-
-  /// Issue #1122: the entity-mode explain prose — what the verdict
-  /// means for this entity's declared table, in one sentence.
-  Map<String, dynamic> _entityExplainProse({
-    required String entity,
-    required bool ok,
-    required List<Map<String, dynamic>> declaredRoutes,
-    required List<Map<String, dynamic>> declaredLinks,
-    required Map<String, dynamic>? testRun,
-    required List<Map<String, dynamic>> findings,
-  }) {
-    final testRunSummary = testRun == null
-        ? 'not run'
-        : switch (testRun['status'] as String? ?? '') {
-            'pass' => 'passed',
-            'failed' => 'FAILED (exit ${testRun['exitCode']})',
-            'unavailable' =>
-              'unavailable (${testRun['reason'] ?? 'no runner on PATH'})',
-            _ => 'unknown',
-          };
-    final prose = ok
-        ? 'verdict: pass — the declared table for $entity is proven: '
-              '${declaredRoutes.length} route(s), ${declaredLinks.length} '
-              'deep link(s); route-table test $testRunSummary; no findings '
-              '(exit 0).'
-        : 'verdict: fail — the declared table for $entity has '
-              '${findings.length} finding(s): '
-              '${findings.map((f) => f['kind']).join(', ')}. Route-table '
-              'test $testRunSummary (exit 1).';
-    return {'verdict': ok ? 'pass' : 'fail', 'prose': prose};
   }
 
   // ---------------------------------------------------------------------------

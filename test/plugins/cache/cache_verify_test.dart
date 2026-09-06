@@ -8,6 +8,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/cache/cache_verify.dart';
+import 'package:zuraffa/src/core/verdict_envelope.dart';
 
 import '../../helpers/run_zfa_source.dart';
 
@@ -135,20 +136,20 @@ extension HiveRegistrar on HiveInterface {}
       );
     });
 
-    test('JSON report round-trips through toJson()', () async {
+    test('report projects onto the canonical envelope (SPEC 1105)', () async {
       await writeRegistrar('''
 @GenerateAdapters([AdapterSpec<Product>()])
 extension HiveRegistrar on HiveInterface {}
 ''');
 
-      final json = (await verifier().verify('Product')).toJson();
-      expect(json['schema'], 'cache.verify.v1');
-      expect(json['entity'], 'Product');
-      expect(json['ok'], isFalse);
-      expect(
-        json['findings'],
-        isA<List>().having((l) => l.length, 'count', greaterThanOrEqualTo(2)),
-      );
+      final envelope = (await verifier().verify('Product')).toEnvelope();
+      expect(envelope.verdict, VerdictKind.fail);
+      expect(envelope.exitClass, 1);
+      expect(envelope.subject?.kind, 'cache');
+      expect(envelope.subject?.id, 'Product');
+      expect(envelope.findings, hasLength(greaterThanOrEqualTo(2)));
+      expect(envelope.findings.first.fix, contains('zfa cache adapter'));
+      expect(envelope.findings.first.member, isA<String>());
     });
 
     test(
@@ -386,27 +387,33 @@ environment:
       expect(result.stdout, contains('--> fix:'));
     });
 
-    test('--json emits a parseable cache.verify.v1 verdict object', () async {
-      await runZfa(['cache', 'adapter', 'Product']);
-      final registrarFile = File(
-        p.join(workspace.path, 'lib', 'src', 'cache', 'hive_registrar.dart'),
-      );
-      await registrarFile.writeAsString(
-        '${await registrarFile.readAsString()}\n// hand edit\n',
-      );
+    test(
+      '--json emits a parseable canonical verdict object (SPEC 1105)',
+      () async {
+        await runZfa(['cache', 'adapter', 'Product']);
+        final registrarFile = File(
+          p.join(workspace.path, 'lib', 'src', 'cache', 'hive_registrar.dart'),
+        );
+        await registrarFile.writeAsString(
+          '${await registrarFile.readAsString()}\n// hand edit\n',
+        );
 
-      final result = await runZfa(['cache', 'verify', 'Product', '--json']);
+        final result = await runZfa(['cache', 'verify', 'Product', '--json']);
 
-      expect(result.exitCode, 1, reason: 'drift must set the exit code');
-      final stdout = (result.stdout as String).trim();
-      final decoded = _decodeJson(stdout);
-      expect(decoded['schema'], 'cache.verify.v1');
-      expect(decoded['ok'], isFalse);
-      expect((decoded['findings'] as List), isNotEmpty);
-      for (final finding in decoded['findings'] as List) {
-        expect(finding['fix'], contains('zfa cache adapter'));
-      }
-    });
+        expect(result.exitCode, 1, reason: 'drift must set the exit code');
+        final stdout = (result.stdout as String).trim();
+        final decoded = _decodeJson(stdout);
+        expect(decoded['schema'], 'zuraffa.verdict.v1');
+        expect(decoded['command'], 'zfa cache verify Product');
+        expect(decoded['verdict'], 'fail');
+        expect(decoded['exit_class'], 1);
+        expect(decoded['subject'], {'kind': 'cache', 'id': 'Product'});
+        expect((decoded['findings'] as List), isNotEmpty);
+        for (final finding in decoded['findings'] as List) {
+          expect(finding['fix'], contains('zfa cache adapter'));
+        }
+      },
+    );
   });
 }
 

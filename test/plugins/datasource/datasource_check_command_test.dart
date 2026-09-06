@@ -356,7 +356,7 @@ class ProductSqliteDataSource implements ProductDataSource {
       expect(exitCode, 0, reason: 'fresh generation must pass parity');
       final envelope = decodeEnvelope(output);
       expect(envelope.keys.toSet(), envelopeKeys);
-      expect(envelope['schema'], 'verdict.v1');
+      expect(envelope['schema'], 'zuraffa.verdict.v1');
       expect(envelope['command'], 'datasource check');
       expect(envelope['verdict'], 'pass');
       expect(envelope['exit_class'], 'ok');
@@ -401,7 +401,7 @@ class ProductSqliteDataSource implements ProductDataSource {
         expect(exitCode, 1, reason: 'diverged impl must fail the parity gate');
         final envelope = decodeEnvelope(output);
         expect(envelope.keys.toSet(), envelopeKeys);
-        expect(envelope['schema'], 'verdict.v1');
+        expect(envelope['schema'], 'zuraffa.verdict.v1');
         expect(envelope['command'], 'datasource check');
         expect(envelope['verdict'], 'fail');
         expect(envelope['exit_class'], 'drift');
@@ -486,7 +486,7 @@ class ProductSqliteDataSource implements ProductDataSource {
             'legacy 64 is retired)',
       );
       final envelope = decodeEnvelope(output);
-      expect(envelope['schema'], 'verdict.v1');
+      expect(envelope['schema'], 'zuraffa.verdict.v1');
       expect(envelope['command'], 'datasource check');
       expect(envelope['verdict'], 'error');
       expect(envelope['exit_class'], 'insufficient-input');
@@ -524,7 +524,7 @@ class ProductSqliteDataSource implements ProductDataSource {
 
         expect(exitCode, 1);
         expect(output, contains('--> fix:'));
-        expect(output, isNot(contains('"schema":"verdict.v1"')));
+        expect(output, isNot(contains('"schema":"zuraffa.verdict.v1"')));
       },
     );
   });

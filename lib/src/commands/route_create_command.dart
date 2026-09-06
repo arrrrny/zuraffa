@@ -1,17 +1,17 @@
-// RouteCreateCommand — `zfa route create <Entity>` (spec 0971, T002/T003/T005).
+// RouteCreateCommand — `zfa route create <Entity>` (spec 0971, T002/T003/T005;
+// envelope unified onto the canonical `zuraffa.verdict.v1` by SPEC 1105).
 //
 // A manual subcommand replacing the schema-generated CapabilityCommand for
 // `create` so the flag surface can carry `--json` as an OUTPUT verdict
-// envelope ({routes[], deepLinks, schemeRegistrations, routeTableTestPath,
-// schema:1}) instead of the generic input-args JSON option. Generation
-// itself is untouched: the command delegates to CreateRouteCapability
-// (issue #971 constraint — do not change route emission semantics).
+// envelope — the ONE canonical VerdictEnvelope — instead of the generic
+// input-args JSON option. Generation itself is untouched: the command
+// delegates to CreateRouteCapability (issue #971 constraint — do not
+// change route emission semantics).
 //
 // Error contract (order 5): every error path prints a `--> fix:` line;
 // the pure-Dart skip is a structured verdict in the JSON envelope
-// (verdict=skip + skip.reason), not a bare warning.
+// (verdict=skip + details.skip.reason), not a bare warning.
 
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -19,14 +19,12 @@ import 'package:path/path.dart' as p;
 
 import '../models/generated_file.dart';
 import '../cli/exit_protocol.dart';
+import '../core/verdict_envelope.dart';
 import '../plugins/route/route_plugin.dart';
 import '../plugins/route/builders/route_table_test_builder.dart';
 import '../plugins/route/route_receipt.dart';
 import '../utils/project_flavor.dart';
 import '../utils/string_utils.dart';
-
-/// The JSON verdict envelope schema version (issue #971 order 2).
-const int routeEnvelopeSchema = 1;
 
 class RouteCreateCommand extends Command<void> {
   RouteCreateCommand(this.plugin, {String? projectRoot})
@@ -42,9 +40,10 @@ class RouteCreateCommand extends Command<void> {
       'json',
       negatable: false,
       help:
-          'Emit a machine verdict envelope '
-          '({routes[], deepLinks, schemeRegistrations, routeTableTestPath, '
-          'schema:1}) instead of the emoji file list.',
+          'Emit the canonical zuraffa.verdict.v1 machine verdict envelope '
+          '(SPEC 1105; route surface in details: routes[], deepLinks, '
+          'schemeRegistrations, routeTableTestPath) instead of the emoji '
+          'file list.',
     );
     argParser.addFlag(
       'explain',
@@ -277,11 +276,13 @@ class RouteCreateCommand extends Command<void> {
     final isRevert = argResults?['revert'] == true;
     if (!isDryRun && !isRevert) {
       try {
-        await RouteReceiptWriter().writeForCreate(
+        final receiptFile = await RouteReceiptWriter().writeForCreate(
           projectRoot: projectRoot,
           entity: entity,
           files: files,
-          envelope: envelope,
+          // The receipt's route-table ride-along is exactly the
+          // envelope's plugin-specific details surface.
+          envelope: envelope.toJson()['details'] as Map<String, dynamic>,
           input: {
             'name': entity,
             'methods':
@@ -293,6 +294,7 @@ class RouteCreateCommand extends Command<void> {
             if (argResults?['auto-verify'] == true) 'autoVerify': true,
           },
         );
+        envelope.receipts.add(_projectRelative(receiptFile.path));
       } catch (e) {
         // Best-effort by design (entity_command precedent): the artifacts
         // exist; a receipt-write failure degrades to a warning.
@@ -303,19 +305,22 @@ class RouteCreateCommand extends Command<void> {
     // Issue #1122: the explain block is strictly additive — the base
     // envelope (and the receipt digest above) stay byte-compatible; the
     // `explain` key exists only when --explain was requested.
-    if (argResults?['explain'] == true) {
-      envelope['explain'] = await _buildExplain(
-        entity: entity,
-        files: files,
-        envelope: envelope,
-      );
-    }
+    final emittedEnvelope = argResults?['explain'] == true
+        ? envelope.withExplain(
+            await _buildExplain(
+              entity: entity,
+              files: files,
+              envelope:
+                  envelope.toJson()['details'] as Map<String, dynamic>,
+            ),
+          )
+        : envelope;
 
     if (asJson) {
-      print(jsonEncode(envelope));
+      VerdictEnvelope.emit(emittedEnvelope);
     } else {
-      _printTextSummary(files, envelope, plain: plain);
-      if (envelope['explain'] case final Map<String, dynamic> explain) {
+      _printTextSummary(files, emittedEnvelope, plain: plain);
+      if (emittedEnvelope.explain case final Map<String, dynamic> explain) {
         _printExplain(explain);
       }
     }
@@ -352,9 +357,11 @@ class RouteCreateCommand extends Command<void> {
   /// entity has not been generated yet (the capability resolves it too).
   String? _probeIdFieldType(String entity) => null;
 
-  /// Builds the machine verdict envelope from what this run actually
-  /// produced (issue #971 order 2).
-  Future<Map<String, dynamic>> _buildEnvelope({
+  /// Builds the canonical verdict envelope from what this run actually
+  /// produced (issue #971 order 2; SPEC 1105 shape). The route-specific
+  /// surface lives in `details` — the schema's only plugin-specific
+  /// area — so the frame stays uniform across every emitter.
+  Future<VerdictEnvelope> _buildEnvelope({
     required String entity,
     required List<GeneratedFile> files,
   }) async {
@@ -394,17 +401,35 @@ class RouteCreateCommand extends Command<void> {
     ];
     final routeTableTest = files.where((f) => f.type == 'route_table_test');
 
-    return {
-      'schema': routeEnvelopeSchema,
-      'verdict': 'pass',
-      'entity': entity,
-      'routes': routes,
-      'deepLinks': deepLinks,
-      'schemeRegistrations': schemeRegistrations,
-      'routeTableTestPath': routeTableTest.isEmpty
-          ? null
-          : _projectRelative(routeTableTest.first.path),
-    };
+    return VerdictEnvelope(
+      command: 'zfa route create $entity',
+      verdict: VerdictKind.pass,
+      exitClass: ExitProtocol.success,
+      subject: VerdictSubject(kind: 'route', id: entity),
+      artifacts: VerdictArtifacts(
+        created: [
+          for (final f in files)
+            if (f.action == 'created') _projectRelative(f.path),
+        ],
+        modified: [
+          for (final f in files)
+            if (f.action == 'overwritten' || f.action == 'updated')
+              _projectRelative(f.path),
+        ],
+        deleted: [
+          for (final f in files)
+            if (f.action == 'deleted') _projectRelative(f.path),
+        ],
+      ),
+      details: {
+        'routes': routes,
+        'deepLinks': deepLinks,
+        'schemeRegistrations': schemeRegistrations,
+        'routeTableTestPath': routeTableTest.isEmpty
+            ? null
+            : _projectRelative(routeTableTest.first.path),
+      },
+    );
   }
 
   /// Builds the `--explain` block (issue #1122): which routes are
@@ -605,17 +630,20 @@ class RouteCreateCommand extends Command<void> {
     bool plain = false,
   }) {
     if (asJson) {
-      print(
-        jsonEncode({
-          'schema': routeEnvelopeSchema,
-          'verdict': 'skip',
-          'entity': entity,
-          'routes': const [],
-          'deepLinks': const [],
-          'schemeRegistrations': const [],
-          'routeTableTestPath': null,
-          'skip': {'reason': reason},
-        }),
+      VerdictEnvelope.emit(
+        VerdictEnvelope(
+          command: 'zfa route create $entity',
+          verdict: VerdictKind.skip,
+          exitClass: ExitProtocol.failure,
+          subject: VerdictSubject(kind: 'route', id: entity),
+          details: {
+            'routes': const [],
+            'deepLinks': const [],
+            'schemeRegistrations': const [],
+            'routeTableTestPath': null,
+            'skip': {'reason': reason},
+          },
+        ),
       );
       return;
     }
@@ -635,17 +663,22 @@ class RouteCreateCommand extends Command<void> {
     required int code,
   }) {
     if (asJson) {
-      print(
-        jsonEncode({
-          'schema': routeEnvelopeSchema,
-          'verdict': 'fail',
-          'entity': entity,
-          'routes': const [],
-          'deepLinks': const [],
-          'schemeRegistrations': const [],
-          'routeTableTestPath': null,
-          'error': {'message': message, 'fix': fix},
-        }),
+      VerdictEnvelope.emit(
+        VerdictEnvelope(
+          command: 'zfa route create $entity',
+          verdict: VerdictKind.fail,
+          exitClass: ExitProtocol.canonicalize(code),
+          subject: VerdictSubject(kind: 'route', id: entity),
+          findings: [
+            VerdictFinding(kind: 'error', fix: fix, extra: {'detail': message}),
+          ],
+          details: {
+            'routes': const [],
+            'deepLinks': const [],
+            'schemeRegistrations': const [],
+            'routeTableTestPath': null,
+          },
+        ),
       );
     } else {
       print('❌ $message');
@@ -656,11 +689,11 @@ class RouteCreateCommand extends Command<void> {
 
   void _printTextSummary(
     List<GeneratedFile> files,
-    Map<String, dynamic> envelope, {
+    VerdictEnvelope envelope, {
     required bool plain,
   }) {
     final mark = plain ? '' : '✅ ';
-    print('${mark}route create: ${envelope['entity']}');
+    print('${mark}route create: ${envelope.subject?.id ?? ''}');
     for (final f in files) {
       if (f.action == 'created' || f.action == 'overwritten') {
         final emoji = plain ? '' : (f.action == 'created' ? '✨ ' : '📝 ');
@@ -671,12 +704,12 @@ class RouteCreateCommand extends Command<void> {
       }
     }
     print(
-      '  routes: ${(envelope['routes'] as List).length}, '
-      'deep links: ${(envelope['deepLinks'] as List).length}, '
+      '  routes: ${(envelope.details['routes'] as List).length}, '
+      'deep links: ${(envelope.details['deepLinks'] as List).length}, '
       'scheme registrations: '
-      '${(envelope['schemeRegistrations'] as List).length}',
+      '${(envelope.details['schemeRegistrations'] as List).length}',
     );
-    final testPath = envelope['routeTableTestPath'];
+    final testPath = envelope.details['routeTableTestPath'];
     if (testPath != null) {
       print('  route-table test: $testPath');
     }
