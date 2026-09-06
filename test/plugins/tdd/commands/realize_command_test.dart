@@ -20,7 +20,7 @@ import 'package:test/test.dart';
 import '../helpers/tdd_fixture.dart';
 import 'package:zuraffa/src/core/project/receipt_store.dart';
 import 'package:zuraffa/src/plugins/tdd/commands/realize_command.dart';
-import 'package:zuraffa/src/plugins/tdd/services/differential_gate.dart';
+import 'package:zuraffa/src/plugins/tdd/services/differential_harness.dart';
 import 'package:zuraffa/src/plugins/tdd/tdd_plugin.dart';
 
 const datasourceDi = '''
@@ -403,8 +403,8 @@ void main() {
     );
   });
 
-  test('A4a: drift within the .zfa.json threshold passes with a drift '
-      'report', () async {
+  test('A4a: divergence rows within the .zfa.json threshold pass with a '
+      'named-row receipt', () async {
     await writeFixtures();
     await File(p.join(fx.root.path, '.zfa.json')).writeAsString(
       jsonEncode({
@@ -412,12 +412,13 @@ void main() {
       }),
     );
 
-    // A driver whose REAL side drifts one field of two.
+    // A driver whose REAL side breaks the entity shape on one field of
+    // two (string vs null — a type break, not a value drift).
     final out = await runRealize(
       adapter: 'UserRealAdapter',
       fixtureDriver: (binding, entity, input) async => binding == 'mock'
           ? {'id': 'u1', 'email': 'a@b.c'}
-          : {'id': 'u1', 'email': 'drifted@z.c'},
+          : {'id': 'u1', 'email': null},
     );
 
     expect(exitCode, 0, reason: 'out: $out');
@@ -426,12 +427,14 @@ void main() {
     expect(out, contains('result=realized'));
     expect(
       File(
-        p.join(fx.featureDir, 'tdd', 'differential-report.json'),
+        p.join(fx.featureDir, 'tdd', 'differential-receipt.json'),
       ).existsSync(),
       isTrue,
-      reason: 'a passing gate still writes the drift report',
+      reason: 'a passing gate still writes the differential receipt',
     );
-    // The drift is carried into the transition evidence.
+    // The within-threshold row is still NAMED (never silenced).
+    expect(out, contains('get-by-id-u1/email'));
+    // The divergence is carried into the transition evidence.
     final state =
         jsonDecode(
               await File(
@@ -440,10 +443,11 @@ void main() {
             )
             as Map<String, dynamic>;
     expect(state['transitions'].first['evidence']['differential'], 'pass');
+    expect(state['transitions'].first['evidence']['rows'], 1);
   });
 
-  test('A4b: drift beyond the .zfa.json threshold blocks the transition '
-      'and rolls the rebind back', () async {
+  test('A4b: divergence beyond the .zfa.json threshold blocks the '
+      'transition and rolls the rebind back', () async {
     await writeFixtures();
     await File(p.join(fx.root.path, '.zfa.json')).writeAsString(
       jsonEncode({
@@ -455,12 +459,17 @@ void main() {
       adapter: 'UserRealAdapter',
       fixtureDriver: (binding, entity, input) async => binding == 'mock'
           ? {'id': 'u1', 'email': 'a@b.c'}
-          : {'id': 'u1', 'email': 'drifted@z.c'},
+          : {'id': 'u1', 'email': null},
     );
 
     expect(exitCode, 1, reason: 'out: $out');
-    expect(out, contains('differential=drift'));
+    expect(out, contains('differential=divergence'));
     expect(out, contains('result=blocked'));
+    // The named row is printed with its four fields: input, mock
+    // output, real output, contract clause.
+    expect(out, contains('get-by-id-u1/email'));
+    expect(out, contains('entity shape'));
+    expect(out, contains('clause:'));
     // The rebind was rolled back and no REAL transition persisted.
     final datasourceDiFile = await File(
       p.join(
@@ -473,7 +482,7 @@ void main() {
     expect(
       datasourceDiFile,
       datasourceDi,
-      reason: 'a drift-blocked swap restores the mock-era bytes',
+      reason: 'a divergence-blocked swap restores the mock-era bytes',
     );
     expect(
       File(p.join(fx.featureDir, 'tdd', 'realize-state.json')).existsSync(),
