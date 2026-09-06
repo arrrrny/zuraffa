@@ -1,5 +1,7 @@
 # Feature Specification: [FEATURE NAME]
 
+**Template Version**: `zuraffa-1.0`
+
 **Feature Branch**: `[###-feature-name]`
 
 **Created**: [DATE]
