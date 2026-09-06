@@ -42,6 +42,7 @@
 /// into `argResults.command`, and `run()` dispatches manually below.
 library;
 
+import 'dart:convert' as convert;
 import 'dart:io';
 
 import 'package:args/args.dart' show ArgResults;
@@ -59,10 +60,13 @@ import '../simulation/worlds/world_manifest.dart';
 import '../simulation/worlds/world_run_receipt.dart';
 import '../simulation/worlds/world_runtime.dart';
 import '../simulation/worlds/world_store.dart';
+import '../skin/driver/vm_tap_driver.dart';
+import '../skin/tap_result.dart';
 import '../cli/exit_protocol.dart';
+import 'skin_command.dart' show SkinDriveExitCode, SkinDriveFn;
 
 class SimulateCommand extends Command<void> {
-  SimulateCommand() {
+  SimulateCommand({SkinDriveFn? skinDriver}) {
     argParser.addOption(
       'scaffold',
       valueHelp: 'feature-dir',
@@ -113,16 +117,22 @@ class SimulateCommand extends Command<void> {
     _run = SimulateRunCommand();
     _certify = SimulateCertifyCommand();
     _verifyWorld = SimulateVerifyWorldCommand();
+    _skin = SimulateSkinCommand(driver: skinDriver);
     argParser.addCommand(_init.name, _init.argParser);
     argParser.addCommand(_run.name, _run.argParser);
     argParser.addCommand(_certify.name, _certify.argParser);
     argParser.addCommand(_verifyWorld.name, _verifyWorld.argParser);
+    // Issue #1112: skin behaviors through the debugTapAnchorJson seam —
+    // parser-only registration, exactly like the spec-968 subcommands
+    // (bug #856: a real subcommand would break the legacy flag mode).
+    argParser.addCommand(_skin.name, _skin.argParser);
   }
 
   late final SimulateInitCommand _init;
   late final SimulateRunCommand _run;
   late final SimulateCertifyCommand _certify;
   late final SimulateVerifyWorldCommand _verifyWorld;
+  late final SimulateSkinCommand _skin;
 
   @override
   String get name => 'simulate';
@@ -161,6 +171,9 @@ class SimulateCommand extends Command<void> {
           return;
         case 'verify-world':
           await _verifyWorld.runWith(nested, parentFeature: parentFeature);
+          return;
+        case 'skin':
+          await _skin.runWith(nested);
           return;
         default:
           break;
@@ -1018,5 +1031,156 @@ class SimulateVerifyWorldCommand extends Command<void> {
       print('❌ ${e.message}');
       exitCode = ExitProtocol.usage;
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// simulate skin (issue #1112) — skin behaviors through debugTapAnchor
+// ---------------------------------------------------------------------------
+
+/// `zfa simulate skin` (issue #1112) — drives skin behaviors through
+/// the debugTapAnchor VM-service seam, NEVER synthetic clicks:
+///
+/// ```text
+/// zfa simulate skin --dart-uri=<vm-service-uri> \\
+///     --behaviors zfa:signin-guest,zfa:signin-logOut
+/// ```
+///
+/// Every behavior is one anchor tap in the LIVE app (or the
+/// widget-test runner — the same wire): the REAL onPressed runs, and
+/// the verdict is the honest [TapResult]. One JSON verdict line per
+/// behavior plus a summary line — sub-agent friendly, deterministic
+/// across platforms. The exit code is the most severe verdict in the
+/// ladder [SkinDriveExitCode] (found 0 < disabled 1 < notFound 2 <
+/// error 3).
+class SimulateSkinCommand extends Command<void> {
+  SimulateSkinCommand({SkinDriveFn? driver})
+    : _driver = driver ?? VmTapDriver.drive {
+    argParser
+      ..addOption(
+        'dart-uri',
+        valueHelp: 'vm-service-uri',
+        help:
+            'The live app\'s Dart VM service URI (http:// or ws:// — the '
+            'one `flutter run` / the widget-test runner prints).',
+      )
+      ..addMultiOption(
+        'behaviors',
+        valueHelp: 'zfa-key',
+        splitCommas: true,
+        help:
+            'The anchors to tap, in order (repeatable or comma-separated; '
+            '\'zfa:signin-guest\' or the bare id).',
+      )
+      ..addOption(
+        'timeout',
+        valueHelp: 'seconds',
+        help:
+            'Deadline per behavior (default 20; the driver polls a '
+            'booting runner).',
+        defaultsTo: '20',
+      )
+      ..addFlag('verbose', abbr: 'v', negatable: false);
+  }
+
+  /// The drive seam ([VmTapDriver.drive] in production; a stub in
+  /// tests — the same injectable seam the `skin drive` CLI uses).
+  final SkinDriveFn _driver;
+
+  @override
+  String get name => 'skin';
+
+  @override
+  String get description =>
+      'Drive skin behaviors through the VM-service debugTapAnchor seam '
+      '(no synthetic clicks): one TapResult JSON line per behavior plus '
+      'a summary line; exit = the most severe verdict.';
+
+  @override
+  Future<void> run() async {
+    await runWith(argResults!);
+  }
+
+  Future<void> runWith(ArgResults args) async {
+    if (args.flag('help')) {
+      _printSubUsage(
+        'zfa simulate skin --dart-uri=<vm-service-uri> '
+        '--behaviors=<zfa-keys> [--timeout N]',
+        argParser.usage,
+      );
+      return;
+    }
+    final dartUri = args['dart-uri'] as String?;
+    final behaviors =
+        (args['behaviors'] as List?)?.cast<String>() ?? const <String>[];
+    if (dartUri == null || dartUri.isEmpty) {
+      print(
+        'zfa simulate skin: missing --dart-uri — the VM service URI the '
+        'live app printed (flutter run --print-dtd).',
+      );
+      print(
+        '   --> fix: zfa simulate skin --dart-uri=<uri> --behaviors '
+        'zfa:signin-guest',
+      );
+      exitCode = SkinDriveExitCode.error;
+      return;
+    }
+    if (behaviors.isEmpty) {
+      print(
+        'zfa simulate skin: missing --behaviors — the skin behaviors to '
+        'drive (one anchor tap each, in order).',
+      );
+      print(
+        '   --> fix: zfa simulate skin --dart-uri=<uri> --behaviors '
+        'zfa:signin-guest,zfa:signin-logOut',
+      );
+      exitCode = SkinDriveExitCode.error;
+      return;
+    }
+    final timeoutSeconds =
+        int.tryParse(args['timeout'] as String? ?? '20') ?? 20;
+    final verbose = args.flag('verbose');
+
+    var found = 0;
+    var disabled = 0;
+    var notFound = 0;
+    var errors = 0;
+
+    for (final behavior in behaviors) {
+      final result = await _driver(
+        dartUri: dartUri,
+        anchor: behavior,
+        connectTimeout: Duration(seconds: timeoutSeconds),
+        driveTimeout: Duration(seconds: timeoutSeconds),
+        log: verbose ? (line) => print('   $line') : null,
+      );
+      // One machine verdict line per behavior: the behavior key first,
+      // then the TapResult wire fields (the zfa skin drive envelope,
+      // prefixed with the behavior).
+      print(convert.jsonEncode({'behavior': behavior, ...result.toJson()}));
+      switch (result) {
+        case TapFound():
+          found++;
+        case TapDisabled():
+          disabled++;
+        case TapNotFound():
+          notFound++;
+        case TapError():
+          errors++;
+      }
+    }
+
+    print(
+      'simulate skin: behaviors=${behaviors.length} found=$found '
+      'disabled=$disabled notFound=$notFound error=$errors',
+    );
+    // The most severe verdict wins (the SkinDriveExitCode ladder).
+    exitCode = errors > 0
+        ? SkinDriveExitCode.error
+        : notFound > 0
+        ? SkinDriveExitCode.notFound
+        : disabled > 0
+        ? SkinDriveExitCode.disabled
+        : SkinDriveExitCode.found;
   }
 }
