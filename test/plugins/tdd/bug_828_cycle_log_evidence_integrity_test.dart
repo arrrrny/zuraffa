@@ -55,9 +55,11 @@ void main() {
       jsonDecode(await File(fx.runStatePath).readAsString())
           as Map<String, dynamic>;
 
-  /// The write-ahead journal path (`tdd/journal.json`), sibling of the
-  /// run state file.
-  String journalPath() => p.join(p.dirname(fx.runStatePath), 'journal.json');
+  /// The write-ahead transaction path (`tdd/transaction.json`), sibling
+  /// of the run state file (renamed from `tdd/journal.json` by spec 1113
+  /// — the unified TDD journal owns that name now).
+  String journalPath() =>
+      p.join(p.dirname(fx.runStatePath), 'transaction.json');
 
   Future<void> seedJournal({
     required String behavior,

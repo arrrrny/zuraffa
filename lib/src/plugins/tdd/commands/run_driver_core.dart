@@ -48,6 +48,7 @@ import '../services/artifact_registry.dart';
 import '../services/cycle_evidence.dart';
 import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
+import '../services/journal.dart';
 import '../services/lane_plans.dart';
 import '../services/lane_receipts.dart';
 import '../services/run_baseline_cache.dart';
@@ -148,9 +149,13 @@ class RunDriverCore {
     String label = 'run',
     bool announce = true,
     bool skipWidget = false,
+    Map<String, int>? mockCounts,
   }) async {
     final featureDir = p.join(projectRoot, 'specs', feature);
     final receipts = LaneReceipts(featureDir);
+    // Spec 1113: the lane's journal entry bounds — the cycle started
+    // when the driver began, finished when it records its outcome.
+    final journalStartedAt = DateTime.now().toUtc().toIso8601String();
 
     // -----------------------------------------------------------------
     // 1. Feature directory (misfire-stop when absent).
@@ -300,6 +305,7 @@ class RunDriverCore {
         lane: lane,
         laneRows: rows,
         receipts: receipts,
+        journalStartedAt: journalStartedAt,
         stoppedAt: null,
         message: null,
       );
@@ -351,6 +357,7 @@ class RunDriverCore {
             lane: lane,
             laneRows: rows,
             receipts: receipts,
+            journalStartedAt: journalStartedAt,
             stoppedAt: stop.stoppedAt,
             message: stop.message,
           );
@@ -481,6 +488,7 @@ class RunDriverCore {
           lane: lane,
           laneRows: rows,
           receipts: receipts,
+          journalStartedAt: journalStartedAt,
           skippedWidgets: skippedWidgets,
           stoppedAt: result.stop!.stoppedAt,
           message: result.stop!.message,
@@ -531,6 +539,7 @@ class RunDriverCore {
           lane: lane,
           laneRows: rows,
           receipts: receipts,
+          journalStartedAt: journalStartedAt,
           skippedWidgets: skippedWidgets,
           stoppedAt: result.stop!.stoppedAt,
           message: result.stop!.message,
@@ -591,6 +600,7 @@ class RunDriverCore {
           lane: lane,
           laneRows: rows,
           receipts: receipts,
+          journalStartedAt: journalStartedAt,
           skippedWidgets: skippedWidgets,
           stoppedAt: result.stop!.stoppedAt,
           message: result.stop!.message,
@@ -651,6 +661,7 @@ class RunDriverCore {
         lane: lane,
         laneRows: rows,
         receipts: receipts,
+        journalStartedAt: journalStartedAt,
         stoppedAt: skippedRefactors.isNotEmpty
             ? '${skippedRefactors.keys.first}:refactor'
             : '${skippedWidgets.keys.first}:gen',
@@ -672,6 +683,7 @@ class RunDriverCore {
         lane: lane,
         laneRows: rows,
         receipts: receipts,
+        journalStartedAt: journalStartedAt,
         stoppedAt: null,
         message: 'internal error — loop finished with non-DONE behaviors',
       );
@@ -685,6 +697,7 @@ class RunDriverCore {
       lane: lane,
       laneRows: rows,
       receipts: receipts,
+      journalStartedAt: journalStartedAt,
       stoppedAt: null,
       message: null,
     );
@@ -726,9 +739,11 @@ class RunDriverCore {
     required String? lane,
     required List<BehaviorRow> laneRows,
     required LaneReceipts receipts,
+    required String journalStartedAt,
     Map<String, String> skippedWidgets = const {},
     String? stoppedAt,
     String? message,
+    Map<String, int>? mockCounts,
   }) async {
     final counts = laneCounts(laneRows, state?.behaviorStates ?? const {});
     if (lane != null && drove) {
@@ -750,6 +765,60 @@ class RunDriverCore {
         stderr.writeln(
           'zfa tdd: failed to write the $lane receipt at '
           '${receipts.receiptPath(lane)}',
+        );
+      }
+
+      // Spec 1113 (issue #1113): every lane cycle ALSO appends its
+      // structured entry to tdd/journal.json — the unified, machine-
+      // parseable record of run-engine then run-skin that status,
+      // prove and theater read through JournalReader. Same discipline
+      // as the receipt write: a record, never a gate — a failed
+      // journal write is reported, never fatal to the driving that
+      // already happened.
+      final journalWriter = JournalWriter(receipts.featureDir);
+      try {
+        final refs = await journalWriter.resolveRefs(
+          engineOverride: lane == 'engine'
+              ? JournalWriter.engineReceiptRef
+              : null,
+          skinOverride: lane == 'skin' ? JournalWriter.skinReceiptRef : null,
+        );
+        final violations = <String>[
+          if (stoppedAt != null) 'stopped_at=$stoppedAt',
+          for (final id in skippedWidgets.keys)
+            'skipped-widget=$id (${skippedWidgets[id]})',
+        ];
+        await journalWriter.append(
+          JournalEntry(
+            feature: p.basename(receipts.featureDir),
+            cycle: lane,
+            phase: 'drive',
+            startedAt: journalStartedAt,
+            finishedAt: DateTime.now().toUtc().toIso8601String(),
+            gateState: switch (verdictForDriverResult(result)) {
+              'green' => 'green',
+              _ => 'red',
+            },
+            receipts: [
+              lane == 'skin'
+                  ? JournalWriter.skinReceiptRef
+                  : JournalWriter.engineReceiptRef,
+            ],
+            violations: violations,
+            engineReceipt: refs.engine,
+            skinReceipt: refs.skin,
+            contractSchema: refs.contract,
+            result: result,
+            behaviors: laneRows.map((r) => r.id).toList(),
+            counts: counts,
+            stoppedAt: stoppedAt,
+            mocks: lane == 'engine' ? mockCounts : null,
+          ),
+        );
+      } on FileSystemException {
+        stderr.writeln(
+          'zfa tdd: failed to write the $lane journal entry at '
+          '${journalWriter.journalPath}',
         );
       }
     }

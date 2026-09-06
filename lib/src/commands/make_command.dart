@@ -30,6 +30,7 @@ import '../plugins/provider/provider_receipt.dart';
 import '../plugins/provider/provider_verifier.dart';
 import '../plugins/repository/plan/repository_emission_plan.dart';
 import '../plugins/repository/repository_plugin.dart';
+import '../plugins/mock/services/mock_certification.dart';
 import '../plugins/usecase/usecase_expectation_post_pass.dart';
 import '../utils/entity_field_resolver.dart';
 import '../utils/string_utils.dart';
@@ -137,6 +138,28 @@ class MakeCommand extends Command<void> {
     'update',
     'delete',
   ];
+
+  /// Issue #1185: plugin ids that make a `zfa make` run view-bearing.
+  /// When the resolved plan carries any of these, the run produces
+  /// presentation-layer output whose usecase bindings hang off the
+  /// method set.
+  static const Set<String> _viewBearingPluginIds = {
+    'view',
+    'presenter',
+    'controller',
+  };
+
+  /// Issue #1185: the default method set for entity-backed view-bearing
+  /// runs when neither `--methods` nor a `--from-json` config supplies
+  /// one — the same set the presenter/controller plugins already fall
+  /// back to when no method set reaches them
+  /// (`['get', 'update', 'toggle']`), made authoritative in one place
+  /// the way spec 1002 did for the engine preset. Applied AFTER plan
+  /// resolution so it can never change the resolved plugin chain, and
+  /// only for entity-backed runs: with `--no-entity` there is no entity
+  /// surface to hang methods on, so the honest default stays "no entity
+  /// methods" and the guarded presenter path emits the bare VPC scaffold.
+  static const List<String> _viewDefaultMethods = ['get', 'update', 'toggle'];
 
   final PluginRegistry registry;
   late final PluginManager manager;
@@ -327,6 +350,21 @@ class MakeCommand extends Command<void> {
           '(issues #1102/#1166); the auditor kit file is emitted when '
           'missing',
     );
+    // Issue #1194 (part of #908 P0 "make-default→mock + mocked tier"):
+    // the mocked tier is the DEFAULT — a fresh data-preset slice boots on
+    // certified mocks (--dart-define=SIMULATION=true). This flag opts
+    // OUT for teams who want compile-only slices (no mock datasource,
+    // no simulation binding, no seeds).
+    argParser.addFlag(
+      'compile-only',
+      negatable: false,
+      help:
+          'Opt out of the mocked tier (issue #1194): generate the slice '
+          'without the certified mock datasource / simulation-mode '
+          'binding — compile-only, not demo-green. The mocked tier is the '
+          'default (boots on certified mocks via '
+          '--dart-define=SIMULATION=true).',
+    );
   }
 
   void _addPluginOptions() {
@@ -373,6 +411,7 @@ class MakeCommand extends Command<void> {
       'append',
       'xray',
       'skin',
+      'compile-only',
     };
 
     for (final plugin in registry.plugins) {
@@ -455,6 +494,16 @@ class MakeCommand extends Command<void> {
   }
 
   String? _uiProjectRootOverride;
+
+  /// Issue #1194: the tier this run landed in ('MOCKED' or
+  /// 'COMPILE-ONLY'), or null when the plan had no data tier. Recorded in
+  /// the run context (→ proof.v1 receipt input + run artifact) and
+  /// surfaced in the JSON summary.
+  String? _tierLabel;
+
+  /// Read by [_logSummary] so the JSON summary carries the tier.
+  @visibleForTesting
+  String? get contextTierLabel => _tierLabel;
 
   /// Runs the `zfa make <Name> --ui` composite scaffolding flow (spec 024
   /// FR-002). Exposed for in-process tests; the CLI path reaches it via
@@ -594,6 +643,26 @@ class MakeCommand extends Command<void> {
       argResults: argResults!,
       options: normalizedOptions,
     );
+
+    // Issue #1185: default the method set for entity-backed view-bearing
+    // runs the way spec 1002 did for the engine preset. Without it, a
+    // `--with=vpc --view` run with no method set used to reach
+    // PresenterPlugin._buildMethods with an empty usecase list and crash
+    // with "Bad state: No element" on the unguarded `useCases.first`.
+    // The default is injected AFTER plan resolution (PlanResolver
+    // ._hasEntityMethods implies the usecase plugin from a non-empty
+    // method set — that stays the user's explicit choice) and skipped for
+    // --no-entity runs, where the guarded plugin path emits the bare VPC
+    // scaffold the same way `--methods=get --no-entity` always has.
+    final noEntityRequested =
+        argResults?['no-entity'] == true ||
+        normalizedOptions['no-entity'] == true;
+    if (plan.pluginIds.any(_viewBearingPluginIds.contains) &&
+        !argResults!.wasParsed('methods') &&
+        !normalizedOptions.containsKey('methods') &&
+        !noEntityRequested) {
+      normalizedOptions['methods'] = List<String>.from(_viewDefaultMethods);
+    }
 
     final planOnly =
         argResults?['plan'] == true || argResults?['explain'] == true;
@@ -863,6 +932,34 @@ class MakeCommand extends Command<void> {
       );
     }
 
+    // ── Issue #1194 (part of #908 P0): the make-default mocked tier ──
+    // A fresh data-preset slice lands in the MOCKED tier: the mock plugin
+    // emits the certified mock datasource + mock data seeds + the
+    // simulation-mode binding (registerLazySingleton<EntityDataSource>
+    // (() => EntityMockDataSource()) behind the real interface), and di
+    // wires registerSimulationBindings into di/index.dart — the app boots
+    // on mocks via --dart-define=SIMULATION=true on first run, before any
+    // real adapter is written. `--compile-only` opts out (compile-only
+    // slice: no mocked tier, the pre-#1194 shape). The tier is recorded in
+    // the run context so the proof.v1 generation receipt, the run
+    // artifact, and the JSON summary all carry it (receipt/ladder
+    // vocabulary: MOCKED; swapping to REAL is `zfa tdd realize`'s job —
+    // companion issue).
+    final compileOnly =
+        normalizedOptions['compile-only'] == true ||
+        argResults!['compile-only'] == true;
+    final mockedTier = !compileOnly && activePlugins.any((p) => p.id == 'mock');
+    _tierLabel = compileOnly
+        ? 'COMPILE-ONLY'
+        : mockedTier
+        ? 'MOCKED'
+        : null;
+    if (compileOnly) {
+      context.data['tier'] = 'COMPILE-ONLY';
+    } else if (mockedTier) {
+      context.data['tier'] = 'MOCKED';
+    }
+
     try {
       final files = await manager.run(context, activePlugins);
 
@@ -910,6 +1007,42 @@ class MakeCommand extends Command<void> {
       }
 
       _logSummary(files, context.core.verbose, plan: plan);
+
+      // ── Issue #1194: certified mocks BY DEFAULT ──────────────────────
+      // A mocked-tier run structurally certifies the emitted mock against
+      // the interface it implements (AST member conformance + fixture
+      // digests of the final on-disk bytes) and ships the
+      // `.zfa/receipts/mock-<entity>.json` receipt — the same
+      // certification `zfa mock create --certify` computes. A fresh slice
+      // is demo-green without a separate certify step. Best-effort by
+      // design (issue #807 convention): the artifacts already exist, so a
+      // receipt failure degrades to a warning instead of failing the run.
+      if (mockedTier && !isDryRun && !isRevert) {
+        await _certifyEmittedMock(
+          entityName: entityName,
+          files: files,
+          context: context,
+        );
+      }
+
+      // Issue #1194: name the tier in the run output so the developer
+      // knows which tier they are on and how to run/swap it. JSON mode
+      // carries the tier inside the summary document instead.
+      if (argResults?['format'] != 'json') {
+        if (mockedTier) {
+          print(
+            '🧪 Tier: MOCKED — boots on certified mocks with '
+            '--dart-define=SIMULATION=true (zfa tdd realize swaps to '
+            'REAL).',
+          );
+        } else if (compileOnly) {
+          print(
+            '⚙️  Tier: COMPILE-ONLY (--compile-only) — no mocked tier '
+            'emitted; the slice is compile-green, not demo-green.',
+          );
+        }
+      }
+
       // Spec 1002: the engine tail — mock certification, engine check,
       // and the auto-receipt — runs after the generation transaction
       // committed, so the checker reads the real on-disk tree.
@@ -1113,6 +1246,74 @@ class MakeCommand extends Command<void> {
     return rel.replaceAll('\\', '/');
   }
 
+  /// Issue #1194 (part of #908 P0 "make-default→mock + mocked tier"):
+  /// certified mocks BY DEFAULT. A make run that emitted the mocked tier
+  /// structurally certifies the mock against the interface it implements
+  /// (AST member conformance + fixture digests of the final on-disk
+  /// bytes) and ships the `.zfa/receipts/mock-<entity>.json` receipt —
+  /// the same certification `zfa mock create --certify` computes — so a
+  /// fresh slice is demo-green (certified mocks, not just mocks) without
+  /// a separate certify step. Best-effort by design (issue #807
+  /// convention): the artifacts already exist, so a receipt failure
+  /// degrades to a warning instead of failing the run.
+  Future<void> _certifyEmittedMock({
+    required String entityName,
+    required List<GeneratedFile> files,
+    required PluginContext context,
+  }) async {
+    // Only certify when the run actually emitted mock artifacts. A
+    // value-object or enum-entity run may keep the mock plugin active
+    // without a datasource mock; certifying nothing is honest there (the
+    // mock data emission, when present, is still covered via the fixture
+    // digests below).
+    final emittedMock = files.any(
+      (f) => f.type == 'mock_datasource' || f.type == 'mock_data',
+    );
+    if (!emittedMock) return;
+
+    try {
+      // Mirror MockPlugin's method resolution so the certification reads
+      // the same generation shape the run used.
+      final methods =
+          context.data['methods']?.cast<String>().toList() ??
+          (context.get<bool>('no-entity') == true ||
+                  context.data['service'] != null
+              ? <String>[]
+              : ['get', 'update', 'toggle']);
+      final service = context.data['service'] is String
+          ? context.data['service'] as String?
+          : null;
+
+      final certification = await MockCertificationService.certify(
+        entity: entityName,
+        outputDir: context.core.outputDir,
+        files: files,
+        projectRoot: manager.projectRoot,
+        service: service,
+        domain: context.data['domain'] as String?,
+        methods: methods,
+        repo: context.data['repo'] as String?,
+      );
+      await MockCertificationService.writeReceipt(
+        projectRoot: manager.projectRoot,
+        entity: entityName,
+        commandLine: 'zfa make $entityName (mocked tier default)',
+        certification: certification,
+        files: files,
+        capabilityName: 'make',
+        methodset: methods,
+      );
+      if (argResults?['format'] != 'json') {
+        print(
+          '🧪 Certified mock for "$entityName": '
+          '${certification.registryId}',
+        );
+      }
+    } catch (e) {
+      print('⚠️  Mock-certification receipt not written: $e');
+    }
+  }
+
   Future<Map<String, dynamic>?> _loadJsonConfig() async {
     try {
       if (argResults?['from-stdin'] == true) {
@@ -1311,6 +1512,10 @@ class MakeCommand extends Command<void> {
           'plan': plan.toJson(),
           'files': files.map((file) => file.toJson()).toList(),
           'warnings': plan.warnings,
+          // Issue #1194: the tier the run landed in — MOCKED (default,
+          // boots on certified mocks) or COMPILE-ONLY (--compile-only
+          // opt-out). Absent when the plan had no data tier at all.
+          if (contextTierLabel != null) 'tier': contextTierLabel,
         }),
       );
       return;
