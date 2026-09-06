@@ -134,7 +134,7 @@ exit 1
   test('runSuite normalizes the same shape for preflight evidence', () async {
     const record = SingleTestRunner();
     final suite = await record.runSuite(
-      suiteTemplate: 'bash ${fixtureScript.path}',
+      suiteTemplate: 'bash "${fixtureScript.path}"',
       workingDirectory: tmpDir.path,
     );
 

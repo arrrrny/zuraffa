@@ -66,6 +66,10 @@ void main() {
       // fail against the inert stub's empty view — red is certified on
       // these assertions, never a placeholder a bare SizedBox() would
       // satisfy, never a route outcome flattened into presence-of-text.
+      // The signIn anchor keeps the pass honest: find.byWidget(view)
+      // mounts the widget under test itself, so absence assertions alone
+      // would let an empty view through (CodeRabbit review, PR #1219).
+      expect(find.text(t.auth.signIn), findsOneWidget);
       expect(find.text(t.auth.error), findsNothing);
       expect(find.byWidget(view), findsOneWidget);
     });

@@ -562,3 +562,54 @@ To run this test again: /home/z/flutter/bin/cache/dart-sdk/bin/dart test /home/z
 - prev-hash: 997fec97e979df3486bcfcaa7fbb238625b6cdc01fde927cf8ec9544c36748f2
 - hash: 2e1b0f203fdd28ac32f62e9720b7f621a00a90e1b4a31da492ddb9ee384e43af
 
+## Cycle: A5 (red)
+
+- behavior: A5
+- kind: red
+- classification: assertionFailure
+- evidence: A5 (AC-5) A5 — the 'Sign in failed' banner is not shown
+- subject-hash: 07d86a8963f372eafb8028e5d6ff140d2e4fd0d1bde2de338afa8703fe0f4056
+- criterion: AC-5
+- test: test/tdd/004-login-ui/a5_test.dart
+- command: `flutter test /Users/ahmettok/Developer/zuraffa/example/test/tdd/004-login-ui/a5_test.dart --plain-name "the 'Sign in failed' banner is not shown"`
+- exit: 1
+- at: 2026-09-06T13:21:34.806982Z
+- output:
+```
+00:00 +0: loading /Users/ahmettok/Developer/zuraffa/example/test/tdd/004-login-ui/a5_test.dart
+00:00 +0: A5 (AC-5) A5 — the 'Sign in failed' banner is not shown
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: exactly one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "Sign in": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure>.<anonymous closure> (file:///Users/ahmettok/Developer/zuraffa/example/test/tdd/004-login-ui/a5_test.dart:72:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/ahmettok/Developer/zuraffa/example/test/tdd/004-login-ui/a5_test.dart line 72
+The test description was:
+  A5 — the 'Sign in failed' banner is not shown
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:02 +0 -1: A5 (AC-5) A5 — the 'Sign in failed' banner is not shown [E]
+  Test failed. See exception logs above.
+  The test description was: A5 — the 'Sign in failed' banner is not shown
+  
+00:02 +0 -1: Some tests failed.
+
+Failing tests:
+  /Users/ahmettok/Developer/zuraffa/example/test/tdd/004-login-ui/a5_test.dart: A5 (AC-5) A5 — the 'Sign in failed' banner is not shown
+```
+
+- schema: 1
+- prev-hash: genesis
+- hash: 03251892e400f59bfea3bd2ae2770d68ee6cfda141e424e7879e0b278249d30f
+

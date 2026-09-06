@@ -368,7 +368,12 @@ class SingleTestRunner {
         workingDirectory: workingDirectory,
         timeout: timeout ?? TddTimeouts.defaultSingleTest,
       );
-      final output = '${result.stdout}${result.stderr}'.replaceAll('\r', '\n');
+      // CRLF first: a lone-`\r` fold would turn every Windows-style
+      // CRLF into two newlines, and the blank line breaks the trailing
+      // failure-block regex in SuiteGuard.parse.
+      final output = '${result.stdout}${result.stderr}'
+          .replaceAll('\r\n', '\n')
+          .replaceAll('\r', '\n');
       return RunRecord(
         command: display,
         exitCode: result.exitCode,
@@ -426,7 +431,11 @@ class SingleTestRunner {
         workingDirectory: workingDirectory,
         timeout: timeout ?? TddTimeouts.defaultSuite,
       );
-      final output = '${result.stdout}${result.stderr}'.replaceAll('\r', '\n');
+      // CRLF first (see runSingle): two-newline folds break the trailing
+      // failure-block regex in SuiteGuard.parse.
+      final output = '${result.stdout}${result.stderr}'
+          .replaceAll('\r\n', '\n')
+          .replaceAll('\r', '\n');
       return SuiteRunRecord(
         command: command,
         exitCode: result.exitCode,
