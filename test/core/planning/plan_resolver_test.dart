@@ -14,6 +14,7 @@ void main() {
       _FakePlugin('usecase'),
       _FakePlugin('repository'),
       _FakePlugin('datasource', dependsOn: const ['repository']),
+      _FakePlugin('mock'),
       _FakePlugin('view'),
       _FakePlugin('presenter'),
       _FakePlugin('controller'),
@@ -47,12 +48,17 @@ void main() {
     // before the presentation layer added via `--with=vpc`. Previously `di`
     // appeared at the tail because it was only contributed by
     // `ZfaConfig(diByDefault: true)` after the preset+with expansion.
+    //
+    // #1194: `crud` also bundles `mock` — the make-default mocked tier
+    // (certified mock datasource + simulation binding + seeds), the same
+    // default the engine preset already had.
     expect(
       plan.pluginIds,
       equals([
         'usecase',
         'repository',
         'datasource',
+        'mock',
         'di',
         'view',
         'presenter',
@@ -62,6 +68,29 @@ void main() {
     expect(plan.executionOrder, plan.pluginIds);
     expect(plan.warnings, isEmpty);
   });
+
+  test(
+    '#1194 — --compile-only drops the mock plugin from the plan (opt-out)',
+    () {
+      final resolver = PlanResolver(registry: registry);
+
+      final plan = resolver.resolve(
+        name: 'Product',
+        options: const {'preset': 'crud', 'compile-only': true},
+      );
+
+      expect(plan.pluginIds, isNot(contains('mock')));
+      expect(
+        plan.pluginIds,
+        equals(['usecase', 'repository', 'datasource', 'di']),
+      );
+      // The opt-out names what it dropped.
+      expect(
+        plan.warnings.join(' '),
+        contains('compile-only: dropping the mock plugin'),
+      );
+    },
+  );
 
   test('warns when unknown preset or plugin is requested', () {
     final resolver = PlanResolver(registry: registry);
