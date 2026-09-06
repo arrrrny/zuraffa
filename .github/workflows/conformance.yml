@@ -31,7 +31,11 @@ jobs:
           sdk: stable
 
       - name: Install dependencies
-        run: dart pub get
+        # --no-example: this job only uses dart-lang/setup-dart (no Flutter
+        # SDK). example/ depends on flutter_test from sdk, which fails to
+        # resolve under a pure-Dart SDK; every other workflow scopes pub get
+        # the same way (see ci.yaml, skew-matrix.yaml).
+        run: dart pub get --no-example
 
       - name: Analyze
         run: dart analyze
