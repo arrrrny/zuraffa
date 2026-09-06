@@ -1,4 +1,5 @@
 import '../../domain/entities/feature_contract/feature_contract.dart';
+import '../../domain/entities/feature_contract/feature_id.dart';
 import '../../models/generator_config.dart';
 import '../context/file_system.dart';
 import 'discovery_engine.dart';
@@ -73,6 +74,14 @@ extension PluginContextFeatureContract on PluginContext {
   /// The active typed feature contract, or `null` on an unscoped run
   /// (no contract was resolved — validation off, back-compat).
   FeatureContract? get activeFeatureContract => core.feature;
+
+  /// Spec 1115 (issue #1115 item 5): the active feature id as a TYPED
+  /// [FeatureId] — the wire xray, slice, FeaturePlugin and the auditor all
+  /// read. `null` on an unscoped run, or when the active contract's id is
+  /// not a valid FeatureId (defensive: never throws at a read site).
+  FeatureId? get featureId => activeFeatureContract == null
+      ? null
+      : FeatureId.tryParse(activeFeatureContract!.id);
 }
 
 /// A shared context providing configuration and shared data to plugins.
