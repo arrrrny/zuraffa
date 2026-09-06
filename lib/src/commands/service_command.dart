@@ -6,32 +6,12 @@ class ServiceCommand extends PluginCommand {
   final ServicePlugin plugin;
 
   ServiceCommand(this.plugin) : super(plugin) {
-    argParser.addOption(
-      'params',
-      abbr: 'p',
-      help: 'Parameter type for the service method (e.g. String, MyParams)',
-      defaultsTo: 'NoParams',
-    );
-    argParser.addOption(
-      'returns',
-      abbr: 'r',
-      help: 'Return type for the service method (e.g. String, List<int>)',
-      defaultsTo: 'void',
-    );
-    argParser.addOption(
-      'type',
-      abbr: 't',
-      help: 'Service method type (sync, stream, completable)',
-      allowed: ['sync', 'stream', 'completable', 'usecase'],
-      defaultsTo: 'usecase',
-    );
-    argParser.addFlag(
-      'init',
-      abbr: 'i',
-      help: 'Generate initialization and disposal methods',
-      defaultsTo: false,
-      negatable: false,
-    );
+    // SPEC 917 / #876 sweep: the parent-level generator flags
+    // (--params/--returns/--type/--init) were parsed and advertised but
+    // NEVER read — run() is dispatch-only (the live surface is
+    // `zfa service create ...` from the capability schema). Silent parent
+    // options are the #876 "flags that lie" family; they are gone and
+    // `zfa manifest --verify` certifies the parent surface (spec #979).
   }
 
   @override

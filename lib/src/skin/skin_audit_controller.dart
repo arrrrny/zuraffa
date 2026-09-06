@@ -19,12 +19,21 @@
 library;
 
 import 'skin_violation.dart';
+import '../domain/entities/feature_contract/feature_id.dart';
 
 class SkinAuditController {
   /// Creates a bus core. [historyLimit] caps the retained history
   /// ring (default 50 — enough to diagnose a session, bounded enough
-  /// to never grow unbounded in a long debug run).
-  SkinAuditController({int historyLimit = 50}) : _historyLimit = historyLimit;
+  /// to never grow unbounded in a long debug run). [feature] is the
+  /// active feature contract id (spec 1115, issue #1115 item 4) — the
+  /// SAME identifier the slice manifest's xrayLayer and the xray deck's
+  /// @FeatureOwned carry: one FeatureContract.id flows through slice +
+  /// xray + auditor + receipt.
+  SkinAuditController({int historyLimit = 50, this.feature})
+    : _historyLimit = historyLimit;
+
+  /// The active feature (spec 1115), typed.
+  final FeatureId? feature;
 
   final int _historyLimit;
   final List<void Function()> _listeners = [];

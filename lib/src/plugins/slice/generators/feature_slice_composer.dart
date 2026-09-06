@@ -45,13 +45,17 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../domain/entities/feature_contract/feature_contract.dart';
 import '../../../domain/entities/feature_contract/feature_contract_decorators.dart';
+import '../../../domain/entities/feature_contract/xray_layer_decorators.dart';
 import '../models/feature_slice_manifest.dart';
+import '../receipts/slice_receipt.dart'
+    show sliceReceiptFileName, sliceReceiptSkeleton;
 import '_pascal_case.dart';
 
 /// The result of composing a slice.
@@ -150,6 +154,7 @@ class FeatureSliceComposer {
           entity: entity,
           engineEntities: engineEntities,
           written: written,
+          featureId: contract.id,
         ),
       );
     }
@@ -166,7 +171,12 @@ class FeatureSliceComposer {
             .replaceAll('\\', '/');
         final already = engineFiles.any((f) => f.relativePath == rel);
         if (!already) {
-          _copyFile(source, p.join(sliceRoot, rel));
+          final bytes = _copySliceFile(
+            source,
+            p.join(sliceRoot, rel),
+            sliceRel: rel,
+            featureId: contract.id,
+          );
           written.add(rel);
           engineFiles.add(
             FeatureSliceFile(
@@ -176,7 +186,7 @@ class FeatureSliceComposer {
                 p.basenameWithoutExtension(source.path),
                 contract,
               ),
-              hashAtCut: _hashOf(source),
+              hashAtCut: _hashBytes(bytes),
             ),
           );
         }
@@ -188,7 +198,11 @@ class FeatureSliceComposer {
       final mockRel = 'engine/mocks/${_snake(boundary.typeName)}.dart';
       _writeGenerated(
         p.join(sliceRoot, mockRel),
-        _boundaryMockSource(boundary.typeName),
+        XrayLayerDecorators.stampSplit(
+          source: _boundaryMockSource(boundary.typeName),
+          split: XraySplit.engine,
+          featureId: contract.id,
+        ),
       );
       generatedFiles.add(mockRel);
       written.add(mockRel);
@@ -196,7 +210,11 @@ class FeatureSliceComposer {
       final diRel = 'engine/di/slice_di.dart';
       _writeGenerated(
         p.join(sliceRoot, diRel),
-        _sliceDiSource(boundary.typeName),
+        XrayLayerDecorators.stampSplit(
+          source: _sliceDiSource(boundary.typeName),
+          split: XraySplit.engine,
+          featureId: contract.id,
+        ),
       );
       generatedFiles.add(diRel);
       written.add(diRel);
@@ -217,13 +235,21 @@ class FeatureSliceComposer {
         route: route,
         skinFiles: skinFiles,
         written: written,
+        featureId: contract.id,
       );
     }
     // Manifest records routes path-sorted (deterministic).
     skinRoutes.sort((a, b) => a.path.compareTo(b.path));
     if (routes.isNotEmpty) {
       const routerRel = 'skin/routes/router.dart';
-      _writeGenerated(p.join(sliceRoot, routerRel), _routerSource(skinRoutes));
+      _writeGenerated(
+        p.join(sliceRoot, routerRel),
+        XrayLayerDecorators.stampSplit(
+          source: _routerSource(skinRoutes),
+          split: XraySplit.skin,
+          featureId: contract.id,
+        ),
+      );
       generatedFiles.add(routerRel);
       written.add(routerRel);
     }
@@ -256,6 +282,18 @@ class FeatureSliceComposer {
         written.add(mountRel);
       }
     }
+
+    // — receipt: the slice receipt SKELETON (spec 1116) — every
+    // section `pending`; `zfa slice verify` fills it with the
+    // aggregation and is the merge gate.
+    const receiptRel = sliceReceiptFileName;
+    _writeGenerated(
+      p.join(sliceRoot, receiptRel),
+      const JsonEncoder.withIndent(
+        '  ',
+      ).convert(sliceReceiptSkeleton(contract.id)),
+    );
+    written.add(receiptRel);
 
     // — manifest: the feature-centric record —
     final (parentBranch, parentHead) = _gitFacts(projectRoot);
@@ -297,6 +335,7 @@ class FeatureSliceComposer {
     required String entity,
     required Map<String, List<String>> engineEntities,
     required List<String> written,
+    required String featureId,
   }) {
     final files = <FeatureSliceFile>[];
     final variants = nameVariants(entity);
@@ -314,14 +353,19 @@ class FeatureSliceComposer {
             .relative(entityFile.path, from: dir.path)
             .replaceAll('\\', '/');
         final rel = 'engine/entities/$entity/$relInside';
-        _copyFile(entityFile, p.join(sliceRoot, rel));
+        final bytes = _copySliceFile(
+          entityFile,
+          p.join(sliceRoot, rel),
+          sliceRel: rel,
+          featureId: featureId,
+        );
         written.add(rel);
         files.add(
           FeatureSliceFile(
             relativePath: rel,
             layer: 'domain',
             entity: entity,
-            hashAtCut: _hashOf(entityFile),
+            hashAtCut: _hashBytes(bytes),
           ),
         );
       }
@@ -342,14 +386,19 @@ class FeatureSliceComposer {
             .replaceAll('\\', '/');
         final rel = '$engineSection/$sourceRel';
         if (files.any((f) => f.relativePath == rel)) continue;
-        _copyFile(file, p.join(sliceRoot, rel));
+        final bytes = _copySliceFile(
+          file,
+          p.join(sliceRoot, rel),
+          sliceRel: rel,
+          featureId: featureId,
+        );
         written.add(rel);
         files.add(
           FeatureSliceFile(
             relativePath: rel,
             layer: layer,
             entity: entity,
-            hashAtCut: _hashOf(file),
+            hashAtCut: _hashBytes(bytes),
           ),
         );
       }
@@ -394,14 +443,19 @@ class FeatureSliceComposer {
         if (!variants.any(base.contains)) continue;
         final rel = 'engine/mocks/${p.basename(file.path)}';
         if (files.any((f) => f.relativePath == rel)) continue;
-        _copyFile(file, p.join(sliceRoot, rel));
+        final bytes = _copySliceFile(
+          file,
+          p.join(sliceRoot, rel),
+          sliceRel: rel,
+          featureId: featureId,
+        );
         written.add(rel);
         files.add(
           FeatureSliceFile(
             relativePath: rel,
             layer: 'data',
             entity: entity,
-            hashAtCut: _hashOf(file),
+            hashAtCut: _hashBytes(bytes),
           ),
         );
       }
@@ -423,14 +477,19 @@ class FeatureSliceComposer {
         if (!referencesEntity) continue;
         final rel = 'engine/di/${p.basename(file.path)}';
         if (files.any((f) => f.relativePath == rel)) continue;
-        _copyFile(file, p.join(sliceRoot, rel));
+        final bytes = _copySliceFile(
+          file,
+          p.join(sliceRoot, rel),
+          sliceRel: rel,
+          featureId: featureId,
+        );
         written.add(rel);
         files.add(
           FeatureSliceFile(
             relativePath: rel,
             layer: 'data',
             entity: entity,
-            hashAtCut: _hashOf(file),
+            hashAtCut: _hashBytes(bytes),
           ),
         );
       }
@@ -450,6 +509,7 @@ class FeatureSliceComposer {
     required String route,
     required List<FeatureSliceFile> skinFiles,
     required List<String> written,
+    required String featureId,
   }) {
     final segments = _routeSegments(route);
 
@@ -481,14 +541,19 @@ class FeatureSliceComposer {
         } else {
           if (segments.toSet().intersection(tokens).isEmpty) continue;
         }
-        _copyFile(file, p.join(sliceRoot, rel));
+        final bytes = _copySliceFile(
+          file,
+          p.join(sliceRoot, rel),
+          sliceRel: rel,
+          featureId: featureId,
+        );
         written.add(rel);
         skinFiles.add(
           FeatureSliceFile(
             relativePath: rel,
             layer: 'presentation',
             route: route,
-            hashAtCut: _hashOf(file),
+            hashAtCut: _hashBytes(bytes),
           ),
         );
       }
@@ -694,9 +759,50 @@ Object throwUnsupported() => throw UnsupportedError(
     return out.toString();
   }
 
-  static String _hashOf(File file) =>
-      sha256.convert(file.readAsBytesSync()).toString();
+  /// The split the SLICE tree assigns [sliceRel] — engine/**, skin/**;
+  /// everything else (contract/receipts/specs) is not layer-bearing code.
+  static XraySplit sliceSplitOf(String sliceRel) {
+    final normalized = sliceRel.replaceAll('\\', '/');
+    if (normalized.startsWith('engine/')) return XraySplit.engine;
+    if (normalized.startsWith('skin/')) return XraySplit.skin;
+    return XraySplit.shared;
+  }
 
+  /// Copies [source] into the slice at [targetPath], stamping the
+  /// `@FeatureOwned` + `@XrayLayer` decorators onto `.dart` files under
+  /// the engine/ and skin/ halves (spec 1115, issue #1115: the slice is
+  /// where the decorator PERSISTS). Returns the copied bytes so the
+  /// manifest hashes the STAMPED file (hashAtCut = the file AS IT EXISTS
+  /// in the slice at compose time).
+  static Uint8List _copySliceFile(
+    File source,
+    String targetPath, {
+    required String sliceRel,
+    required String featureId,
+  }) {
+    final target = File(targetPath);
+    target.parent.createSync(recursive: true);
+    final split = sliceSplitOf(sliceRel);
+    Uint8List bytes;
+    if (targetPath.endsWith('.dart') &&
+        (split == XraySplit.engine || split == XraySplit.skin)) {
+      final stamped = XrayLayerDecorators.stampSplit(
+        source: source.readAsStringSync(),
+        split: split,
+        featureId: featureId,
+      );
+      bytes = utf8.encode(stamped);
+    } else {
+      bytes = source.readAsBytesSync();
+    }
+    target.writeAsBytesSync(bytes);
+    return bytes;
+  }
+
+  static String _hashBytes(Uint8List bytes) => sha256.convert(bytes).toString();
+
+  /// Plain byte copy for the record mounts (receipts/, specs/) — NOT
+  /// layer-bearing code, so no xray_layer decorator (spec 1115).
   static void _copyFile(File source, String targetPath) {
     final target = File(targetPath);
     target.parent.createSync(recursive: true);
