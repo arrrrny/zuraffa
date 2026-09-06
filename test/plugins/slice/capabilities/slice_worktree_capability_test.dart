@@ -14,9 +14,9 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/core/project/project_root.dart';
-import 'package:zuraffa/src/plugins/tdd/services/tdd_transaction.dart';
 import 'package:zuraffa/src/plugins/slice/capabilities/compose_slice_capability.dart';
 import 'package:zuraffa/src/plugins/slice/capabilities/slice_worktree_capability.dart';
+import 'package:zuraffa/src/plugins/tdd/services/journal.dart';
 
 import '../helpers/feature_slice_fixture.dart';
 
@@ -297,16 +297,19 @@ void main() {
 
       // Parent-side journal (specs/login/tdd/journal.json).
       final parentFeatureDir = p.join(workspace.path, 'specs', 'login');
-      final parentTx = TddTransaction(parentFeatureDir);
-      await parentTx.begin(behavior: 'U1', step: 'red');
-
-      // The SAME write driven from inside the slice worktree: the tdd
-      // mount is <sliceRoot()>/specs/login, so the journal lands at
-      // <sliceRoot()>/specs/login/tdd/journal.json — the same record,
-      // paths rewritten relative to the slice root.
       final sliceFeatureDir = p.join(sliceRoot(), 'specs', 'login');
-      final sliceTx = TddTransaction(sliceFeatureDir);
-      await sliceTx.begin(behavior: 'U1', step: 'red');
+      final now = DateTime.now().toUtc().toIso8601String();
+      final entry = JournalEntry(
+        feature: 'login',
+        cycle: 'engine',
+        phase: 'drive',
+        startedAt: now,
+        finishedAt: now,
+        gateState: 'not_assessed',
+        behaviors: const ['U1'],
+      );
+      await JournalWriter(parentFeatureDir).append(entry);
+      await JournalWriter(sliceFeatureDir).append(entry);
 
       final parentJournal =
           jsonDecode(
@@ -326,9 +329,14 @@ void main() {
       // Same journal record: the feature axis is identical.
       expect(sliceJournal['feature'], parentJournal['feature']);
       expect(sliceJournal['feature'], 'login');
-      expect(sliceJournal['behavior'], parentJournal['behavior']);
-      expect(sliceJournal['step'], parentJournal['step']);
-      expect(sliceJournal['status'], 'pending');
+      final parentEntry =
+          (parentJournal['entries'] as List).single as Map<String, dynamic>;
+      final sliceEntry =
+          (sliceJournal['entries'] as List).single as Map<String, dynamic>;
+      expect(sliceEntry['behaviors'], parentEntry['behaviors']);
+      expect(sliceEntry['behaviors'], ['U1']);
+      expect(sliceEntry['phase'], parentEntry['phase']);
+      expect(sliceEntry['gate_state'], 'not_assessed');
 
       // Paths rewritten: the journal file sits at the same relative
       // structure under each root (specs/<feature>/tdd/journal.json).
