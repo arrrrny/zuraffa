@@ -1,18 +1,26 @@
 import 'base_plugin_command.dart';
 import '../plugins/repository/repository_plugin.dart';
+import 'repository_create_command.dart';
 
 class RepositoryCommand extends PluginCommand {
   @override
   final RepositoryPlugin plugin;
 
   RepositoryCommand(this.plugin) : super(plugin) {
-    // SPEC 917 / #876 sweep: the parent-level generator flags
-    // (--methods/--data/--datasource/--init) were parsed and advertised but
-    // NEVER read — run() is dispatch-only (the live surface is
-    // `zfa repository create ...` from the capability schema). Silent
-    // parent options are the #876 "flags that lie" family; they are gone
-    // and `zfa manifest --verify` certifies the parent surface (spec #979).
+    // SPEC 1124 (issue #1124): `create` is a first-party subcommand —
+    // [RepositoryCreateCommand] carries the canonical `zuraffa.verdict.v1`
+    // `--json` envelope. Declared here so the auto-registration in the
+    // super constructor skips it (manualSubcommandNames) and this
+    // registration cannot collide (issue #761).
+    addSubcommand(RepositoryCreateCommand(plugin));
   }
+
+  /// The `create` subcommand is registered manually above — the
+  /// auto-registered generic [CapabilityCommand] would collide and
+  /// cannot carry the `--json` verdict flag (its `--json` is the
+  /// input-JSON option).
+  @override
+  Set<String> get manualSubcommandNames => const {'create'};
 
   @override
   String get name => 'repository';
