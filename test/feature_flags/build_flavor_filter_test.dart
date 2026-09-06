@@ -14,6 +14,11 @@ import '../helpers/run_zfa_source.dart';
 /// with the helper's 75s child guard / 100s AOT compile budget on slow
 /// machines (2019 Intel Mac baseline) instead of staying fixed regardless
 /// of hardware. These tests drive multi-spawn `zfa build` runs.
+///
+/// Note: an explicit `Timeout(Duration)` constructor bypasses
+/// `dart_test.yaml`'s `slow: timeout: 4x` factor — the override is
+/// intentional so the ceiling can stretch together with the child guard at
+/// any scale.
 final Timeout kZfaScaledSuiteTimeout = Timeout(
   scaleDuration(const Duration(minutes: 3)),
 );

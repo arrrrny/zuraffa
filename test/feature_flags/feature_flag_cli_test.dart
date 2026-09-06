@@ -15,6 +15,11 @@ import '../helpers/run_zfa_source.dart';
 /// with headroom, and grows with the child guard at any scale so the
 /// guard's fail-fast diagnostic always fires before the test dies. These
 /// tests exercise flag plumbing, not speed (issue #1187).
+///
+/// Note: an explicit `Timeout(Duration)` constructor bypasses
+/// `dart_test.yaml`'s `slow: timeout: 4x` factor — the override is
+/// intentional so the ceiling can stretch together with the child guard at
+/// any scale.
 final Timeout kZfaScaledSuiteTimeout = Timeout(
   scaleDuration(const Duration(minutes: 3)),
 );
