@@ -73,6 +73,12 @@ class GeneratorConfig {
   final String? mockJsonDomain;
   final bool useMockInDi;
   final bool generateDi;
+
+  /// Issue #1109: the engine preset's test scaffold emits the pure-Dart
+  /// `package:test` framework import even when the host project is a
+  /// Flutter app (the engine lane is CORE — zero flutter_test in the
+  /// engine test tree).
+  final bool engineSlice;
   final bool generateXRay;
 
   /// Issue #1102: when true, the view plugin wraps the generated
@@ -81,6 +87,16 @@ class GeneratorConfig {
   /// contract, and emits the auditor kit file when it is not already
   /// present (skip-if-exists, the #1005 hand-written-seam precedent).
   final bool generateSkin;
+
+  /// Spec 1110 (issue #1110): the mock failure preset. When true, the
+  /// mock chain additionally emits a `<Entity>FailingMockProvider` whose
+  /// every method throws the framework's sealed failure type (a
+  /// `ServerFailure`, an `AppFailure` subtype) — the framework feature
+  /// that replaces the pilot's hand-written `_FailingAuthService`
+  /// (005-login-engine). The succeeding (certifiable) mock artifacts are
+  /// still generated: the failure-path double is a twin, not a
+  /// replacement.
+  final bool failMock;
 
   /// Spec 1001 (issue #1001): deterministic mock generation seed. When
   /// non-null, every generated mock record derives from this seed, so
@@ -170,8 +186,10 @@ class GeneratorConfig {
     this.mockJsonDomain,
     this.useMockInDi = false,
     this.generateDi = false,
+    this.engineSlice = false,
     this.generateXRay = false,
     this.generateSkin = false,
+    this.failMock = false,
     this.seed,
     this.generateV6State = false,
     this.diFramework = 'get_it',
@@ -244,6 +262,7 @@ class GeneratorConfig {
           : null,
       enableSqlite: json['sqlite'] == true || json['enable_sqlite'] == true,
       generateMock: json['mock'] == true || json['generate_mock'] == true,
+      engineSlice: json['engine'] == true || json['engine_slice'] == true,
       generateMockDataOnly:
           json['mock_data_only'] == true ||
           json['generate_mock_data_only'] == true,
@@ -353,8 +372,10 @@ class GeneratorConfig {
     String? mockJsonDomain,
     bool? useMockInDi,
     bool? generateDi,
+    bool? engineSlice,
     bool? generateXRay,
     bool? generateSkin,
+    bool? failMock,
     int? seed,
     bool? generateV6State,
     String? diFramework,
@@ -424,6 +445,7 @@ class GeneratorConfig {
       syncBackoffBaseMs: syncBackoffBaseMs ?? this.syncBackoffBaseMs,
       syncBackoffMaxMs: syncBackoffMaxMs ?? this.syncBackoffMaxMs,
       generateMock: generateMock ?? this.generateMock,
+      engineSlice: engineSlice ?? this.engineSlice,
       generateMockDataOnly: generateMockDataOnly ?? this.generateMockDataOnly,
       generateMockJson: generateMockJson ?? this.generateMockJson,
       mockJsonDomain: mockJsonDomain ?? this.mockJsonDomain,
@@ -431,6 +453,7 @@ class GeneratorConfig {
       generateDi: generateDi ?? this.generateDi,
       generateXRay: generateXRay ?? this.generateXRay,
       generateSkin: generateSkin ?? this.generateSkin,
+      failMock: failMock ?? this.failMock,
       seed: seed ?? this.seed,
       generateV6State: generateV6State ?? this.generateV6State,
       diFramework: diFramework ?? this.diFramework,
@@ -699,6 +722,7 @@ class GeneratorConfig {
     'sync_backoff_base_ms': syncBackoffBaseMs,
     'sync_backoff_max_ms': syncBackoffMaxMs,
     'mock': generateMock,
+    'engine_slice': engineSlice,
     'mock_data_only': generateMockDataOnly,
     'mock_json': generateMockJson,
     'mock_json_domain': mockJsonDomain,

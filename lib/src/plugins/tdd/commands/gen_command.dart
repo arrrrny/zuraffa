@@ -83,6 +83,7 @@ import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/behavior_test_writer.dart';
 import '../services/contract_test_writer.dart';
+import '../services/finder_taxonomy.dart';
 import '../services/generated_shape.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
@@ -692,6 +693,7 @@ class GenCommand extends Command<void> {
             sourceCriterion: behavior.sourceCriterion,
             target: behavior.target,
             state: behavior.state,
+            finderKinds: behavior.finderKinds,
           );
 
     // Validate required fields up front (FR-002).
@@ -705,6 +707,50 @@ class GenCommand extends Command<void> {
       throw StateError(
         'zfa tdd gen: missing required field(s): ${missingFields.join(', ')}',
       );
+    }
+
+    // Issue #1140 kind reconciliation: a WIDGET row planned with a
+    // finder-kind column declares the assertion classes its scenario
+    // verbs demand. gen re-derives the prediction from the SAME
+    // description the writer will assert from and refuses on drift —
+    // a description hand-edited after plan would otherwise generate
+    // stale assertions under a column that no longer describes them
+    // (the same certified-lie shape issue #964 closed, one artifact
+    // earlier in the loop). Re-running `zfa tdd plan <feature>` re-derives
+    // the column and heals the row. Legacy rows without the column
+    // (finderKinds == null) keep the derive-only behavior.
+    if (effectiveBehavior.kind == BehaviorKind.widget &&
+        effectiveBehavior.finderKinds != null) {
+      final declared = effectiveBehavior.finderKinds!.toSet();
+      final predicted = FinderTaxonomy.predictedKinds(
+        effectiveBehavior.description,
+      );
+      final drifted =
+          declared.length != predicted.length ||
+          !declared.containsAll(predicted);
+      if (drifted) {
+        String cell(Set<ScenarioAssertionClass> kinds) => kinds.isEmpty
+            ? 'none'
+            : ScenarioAssertionClass.values
+                  .where(kinds.contains)
+                  .map((c) => c.label)
+                  .join(', ');
+        stderr.writeln(
+          'zfa tdd gen: behavior "$behaviorId" declares finder kind '
+          '[${cell(declared)}] but its description derives '
+          '[${cell(predicted)}] — the kind column drifted from the '
+          'scenario prose (issue #1140; hand-edited after plan?).',
+        );
+        stderr.writeln(
+          '   --> fix: re-run `zfa tdd plan <feature>` to re-derive the '
+          'kind column, then gen again.',
+        );
+        throw StateError(
+          'zfa tdd gen: finder kind drift for "$behaviorId" — declared '
+          '[${cell(declared)}], description derives '
+          '[${cell(predicted)}] — Refusing to write any file.',
+        );
+      }
     }
 
     // Issue #938 preflight (VISION §4 errors-are-an-API): the shadapp
@@ -1672,6 +1718,7 @@ class GenCommand extends Command<void> {
         sourceCriterion: row.traces,
         target: row.target,
         persistence: row.persistence,
+        finderKinds: row.finderKinds,
       );
     }
     return null;

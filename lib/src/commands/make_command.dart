@@ -138,6 +138,28 @@ class MakeCommand extends Command<void> {
     'delete',
   ];
 
+  /// Issue #1185: plugin ids that make a `zfa make` run view-bearing.
+  /// When the resolved plan carries any of these, the run produces
+  /// presentation-layer output whose usecase bindings hang off the
+  /// method set.
+  static const Set<String> _viewBearingPluginIds = {
+    'view',
+    'presenter',
+    'controller',
+  };
+
+  /// Issue #1185: the default method set for entity-backed view-bearing
+  /// runs when neither `--methods` nor a `--from-json` config supplies
+  /// one — the same set the presenter/controller plugins already fall
+  /// back to when no method set reaches them
+  /// (`['get', 'update', 'toggle']`), made authoritative in one place
+  /// the way spec 1002 did for the engine preset. Applied AFTER plan
+  /// resolution so it can never change the resolved plugin chain, and
+  /// only for entity-backed runs: with `--no-entity` there is no entity
+  /// surface to hang methods on, so the honest default stays "no entity
+  /// methods" and the guarded presenter path emits the bare VPC scaffold.
+  static const List<String> _viewDefaultMethods = ['get', 'update', 'toggle'];
+
   final PluginRegistry registry;
   late final PluginManager manager;
 
@@ -236,6 +258,17 @@ class MakeCommand extends Command<void> {
     );
 
     argParser.addMultiOption('methods', help: 'Entity methods to generate');
+    // Named --engine-feature, not --feature: the `feature` plugin id
+    // already occupies the --feature flag (enable/disable that plugin)
+    // in _addPluginOptions.
+    argParser.addOption(
+      'engine-feature',
+      help:
+          'Feature directory the engine receipt is written to '
+          '(specs/<feature>/tdd/engine.receipt.json; issue #1109). '
+          'Defaults to the active feature contract, the pinned '
+          '.specify/feature.json, or the entity snake name.',
+    );
     argParser.addMultiOption(
       'usecases',
       help: 'UseCases to inject into presenter/controller',
@@ -560,6 +593,16 @@ class MakeCommand extends Command<void> {
       // The engine preset is implied by the mode token; the plan resolves
       // through the same PresetRegistry entry `--preset=engine` uses.
       normalizedOptions['preset'] = 'engine';
+      // Issue #1109 markers read downstream:
+      //   - 'engine': the test plugin forces the pure-Dart `package:test`
+      //     framework import (the engine lane is CORE — zero flutter_test,
+      //     even when the host project is a Flutter app).
+      //   - 'feature': the explicit --engine-feature override for the v2
+      //     engine receipt's specs/<feature>/tdd/ location.
+      normalizedOptions['engine'] = true;
+      if (argResults?.wasParsed('engine-feature') == true) {
+        normalizedOptions['feature'] = argResults?['engine-feature'] as String?;
+      }
       // Spec 1002 default method set — only when neither the CLI flag
       // nor a --from-json config supplied one.
       if (!argResults!.wasParsed('methods') &&
@@ -573,6 +616,26 @@ class MakeCommand extends Command<void> {
       argResults: argResults!,
       options: normalizedOptions,
     );
+
+    // Issue #1185: default the method set for entity-backed view-bearing
+    // runs the way spec 1002 did for the engine preset. Without it, a
+    // `--with=vpc --view` run with no method set used to reach
+    // PresenterPlugin._buildMethods with an empty usecase list and crash
+    // with "Bad state: No element" on the unguarded `useCases.first`.
+    // The default is injected AFTER plan resolution (PlanResolver
+    // ._hasEntityMethods implies the usecase plugin from a non-empty
+    // method set — that stays the user's explicit choice) and skipped for
+    // --no-entity runs, where the guarded plugin path emits the bare VPC
+    // scaffold the same way `--methods=get --no-entity` always has.
+    final noEntityRequested =
+        argResults?['no-entity'] == true ||
+        normalizedOptions['no-entity'] == true;
+    if (plan.pluginIds.any(_viewBearingPluginIds.contains) &&
+        !argResults!.wasParsed('methods') &&
+        !normalizedOptions.containsKey('methods') &&
+        !noEntityRequested) {
+      normalizedOptions['methods'] = List<String>.from(_viewDefaultMethods);
+    }
 
     final planOnly =
         argResults?['plan'] == true || argResults?['explain'] == true;
@@ -1418,13 +1481,61 @@ class MakeCommand extends Command<void> {
       // Spec 1098: attribute the receipt to the active feature contract
       // when one is in play (grouped copy lands under .zfa/receipts/<id>/).
       featureId: context.core.feature?.id,
+      // Spec 1110: record which mock double the cycle targets — the
+      // --fail preset's throwing twin ('failing') vs the certified mock
+      // ('succeeding', the default).
+      failureMode: context.data['fail'] == true ? 'failing' : 'succeeding',
     );
     final receiptPath = p.relative(receiptFile.path, from: projectRoot);
+
+    // Issue #1109: the v2 engine receipt — specs/<feature>/tdd/
+    // engine.receipt.json with the CERT-GATE shape (per-method
+    // mock_certified + mock_class, sorted source_files). Resolution:
+    // explicit --engine-feature → active feature contract → pinned
+    // .specify/feature.json → the entity snake (fresh projects).
+    // Written even when some methods are uncertified — the `false`
+    // values are the #1014 CERT-GATE signal.
+    final v2Feature = (context.data['feature'] as String?)?.isNotEmpty == true
+        ? context.data['feature'] as String
+        : context.core.feature?.id ??
+              EngineReceiptWriter.pinnedFeature(projectRoot) ??
+              EngineReceiptWriter.engineFeatureFallback(entityName);
+    final v2ReceiptFile = await writer.writeV2(
+      projectRoot: projectRoot,
+      feature: v2Feature,
+      entityName: entityName,
+      methods: [
+        for (final method in methods)
+          EngineReceiptMethod(
+            name: method,
+            mockCertified:
+                checkResult.mockCertification?.methods[method] == true,
+            mockClass: checkResult.mockCertification?.mockClass,
+          ),
+      ],
+      // Contract: project-root relative, deduped, sorted (the writer
+      // sorts; generators may report absolute or relative paths). The
+      // entity file is included — the chain's `entity create` step
+      // writes it before the plugin transaction, so it never appears in
+      // the transaction's generated-file list.
+      sourceFiles: [
+        slice.entityFile,
+        ...files
+            .map((file) => file.path)
+            .map(
+              (path) => p.isAbsolute(path)
+                  ? p.relative(path, from: projectRoot)
+                  : path,
+            ),
+      ].toSet().toList(),
+    );
+    final v2ReceiptPath = p.relative(v2ReceiptFile.path, from: projectRoot);
 
     if (format == 'json') {
       print(
         jsonEncode({
           'engine_receipt': receiptPath,
+          'engine_receipt_v2': v2ReceiptPath,
           'engine_check': {
             'passed': checkResult.passed,
             'getit_types': checkResult.resolutions.length,
@@ -1456,6 +1567,7 @@ class MakeCommand extends Command<void> {
         );
       }
       print('🧾 Engine receipt: $receiptPath');
+      print('🧾 Engine receipt v2: $v2ReceiptPath');
     }
 
     if (checkResult.passed) {

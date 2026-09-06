@@ -97,6 +97,17 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         'default': false,
         'description': 'Generate JSON mock data with fromJson-based helpers',
       },
+      // Spec 1110 (issue #1110): declared on the plugin schema so
+      // MakeCommand auto-exposes `--fail` and buildContext flows the
+      // parsed value into the generation context.
+      'fail': {
+        'type': 'boolean',
+        'default': false,
+        'description':
+            'Emit the <Entity>FailingMockProvider: a throwing double whose '
+            'every method throws the sealed failure type (the failure-path '
+            'twin of the certified mock; spec 1110)',
+      },
     },
   };
 
@@ -129,6 +140,10 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       generateMockJson: context.get<bool>('mock-json') ?? false,
       mockJsonDomain: context.data['mock-json-domain'],
       noEntity: context.data['no-entity'] == true,
+      // Spec 1110 (issue #1110): the `--fail` mock preset flows from the
+      // CLI (make engine Login --fail / mock create Login --fail) through
+      // the shared context into the generator chain.
+      failMock: context.data['fail'] == true,
       // #294: read id-field / query-field from the CLI/MakeCommand-resolved
       // context so generators don't hardcode `EntityFields.id` for
       // entities whose id field is e.g. `depotId`.
