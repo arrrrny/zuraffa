@@ -414,31 +414,35 @@ void main() {
     );
   });
 
-  test('SCAF-3: a refused scaffold leaves no adapter or ledger receipt',
-      () async {
-    final out = await runRealize(
-      adapter: 'UserRealAdapter',
-      scaffold: true,
-      suiteExitCode: 1,
-    );
+  test(
+    'SCAF-3: a refused scaffold leaves no adapter or ledger receipt',
+    () async {
+      final out = await runRealize(
+        adapter: 'UserRealAdapter',
+        scaffold: true,
+        suiteExitCode: 1,
+      );
 
-    expect(exitCode, 1, reason: 'out: $out');
-    expect(out, contains('contract gate RED'));
-    expect(
-      File(
-        p.join(
-          fx.root.path,
-          'lib/src/data/datasources/user',
-          'user_real_adapter.dart',
-        ),
-      ).existsSync(),
-      isFalse,
-    );
-    expect(
-      File(p.join(fx.featureDir, 'tdd', 'provenance-ledger.json')).existsSync(),
-      isFalse,
-    );
-  });
+      expect(exitCode, 1, reason: 'out: $out');
+      expect(out, contains('contract gate RED'));
+      expect(
+        File(
+          p.join(
+            fx.root.path,
+            'lib/src/data/datasources/user',
+            'user_real_adapter.dart',
+          ),
+        ).existsSync(),
+        isFalse,
+      );
+      expect(
+        File(
+          p.join(fx.featureDir, 'tdd', 'provenance-ledger.json'),
+        ).existsSync(),
+        isFalse,
+      );
+    },
+  );
 
   // ------------------------------------------------------------------
   // The journal advance (issue #1193 step 6): MOCKED → REAL → DONE in

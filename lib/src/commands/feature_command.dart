@@ -17,6 +17,13 @@ class FeatureCommand extends Command<void> {
       help: 'Feature name (alternative to the positional argument)',
     );
     argParser.addOption(
+      'feature',
+      help:
+          'Feature contract id for feature-scoped capabilities '
+          '(e.g. 004-login-ui) — validated against the registered contracts',
+    );
+    argParser.addOption('project-root', help: 'Project root directory');
+    argParser.addOption(
       'output',
       abbr: 'o',
       help:
@@ -241,10 +248,18 @@ class FeatureCommand extends Command<void> {
     }
 
     final featureName = rest.length > nameIndex ? rest[nameIndex] : flagName!;
-    final translatedArgs = _buildMakeArgs(featureName, mode: mode);
+    final featureId = argResults?['feature'] as String?;
+    final projectRoot = argResults?['project-root'] as String?;
+    final translatedArgs = _buildMakeArgs(
+      featureName,
+      mode: mode,
+      featureId: featureId,
+    );
 
     final runner = CommandRunner<void>('zfa', 'Zuraffa Code Generator')
-      ..addCommand(MakeCommand(PluginRegistry.instance));
+      ..addCommand(
+        MakeCommand(PluginRegistry.instance, projectRoot: projectRoot),
+      );
     await runner.run(translatedArgs);
   }
 
@@ -280,7 +295,11 @@ class FeatureCommand extends Command<void> {
     }
   }
 
-  List<String> _buildMakeArgs(String featureName, {required String mode}) {
+  List<String> _buildMakeArgs(
+    String featureName, {
+    required String mode,
+    String? featureId,
+  }) {
     final args = <String>[
       'make',
       featureName,
@@ -321,6 +340,9 @@ class FeatureCommand extends Command<void> {
     addOptionIfParsed('query-field-type');
     addOptionIfParsed('id-field');
     addOptionIfParsed('id-field-type');
+    if (featureId != null && featureId.isNotEmpty) {
+      args.add('--engine-feature=$featureId');
+    }
 
     switch (mode) {
       case 'scaffold':

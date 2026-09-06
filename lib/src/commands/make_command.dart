@@ -166,7 +166,7 @@ class MakeCommand extends Command<void> {
   final PluginRegistry registry;
   late final PluginManager manager;
 
-  MakeCommand(this.registry) {
+  MakeCommand(this.registry, {String? projectRoot}) {
     argParser.addFlag(
       'ui',
       negatable: false,
@@ -174,12 +174,12 @@ class MakeCommand extends Command<void> {
           'Scaffold a composite UI component (spec 024): node entity + '
           'renderer extension + schema registration',
     );
-    final projectRoot = _findProjectRoot();
+    final resolvedProjectRoot = projectRoot ?? _findProjectRoot();
     manager = PluginManager(
       registry: registry,
-      config: ZfaConfig.load(projectRoot: projectRoot),
-      pluginConfig: PluginConfig.load(projectRoot: projectRoot),
-      projectRoot: projectRoot,
+      config: ZfaConfig.load(projectRoot: resolvedProjectRoot),
+      pluginConfig: PluginConfig.load(projectRoot: resolvedProjectRoot),
+      projectRoot: resolvedProjectRoot,
     );
     _addCoreOptions();
     _addPluginOptions();
