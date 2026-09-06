@@ -73,6 +73,8 @@ environment:
 
   /// Runs `zfa service create --json` against [ws] via [runner] and returns
   /// the parsed verdict envelope (the last `{...}` line of the output).
+  /// SPEC 1127: `--json` is the machine-OUTPUT flag; the name travels via
+  /// `--name` (the #771/#904 spelling of the service name-slot).
   Future<Map<String, dynamic>?> createServiceVerdict(
     CliRunner runner,
     String ws,
@@ -84,8 +86,12 @@ environment:
       'service',
       'create',
       '--json',
-      '{"name":"$serviceName","params":"NoParams","returns":"void",'
-          '"type":"usecase"}',
+      '--name',
+      serviceName,
+      '--params',
+      'NoParams',
+      '--returns',
+      'void',
     ]);
     Map<String, dynamic>? verdict;
     for (final line in output.split('\n')) {
@@ -200,8 +206,8 @@ environment:
             isTrue,
             reason: 'suite B artifact must be written under suite B\'s root',
           );
-          expect(verdicts[0]?['ok'], isTrue);
-          expect(verdicts[1]?['ok'], isTrue);
+          expect(verdicts[0]?['verdict'], equals('pass'));
+          expect(verdicts[1]?['verdict'], equals('pass'));
         } finally {
           if (wsA.existsSync()) wsA.deleteSync(recursive: true);
           if (wsB.existsSync()) wsB.deleteSync(recursive: true);
@@ -286,8 +292,12 @@ environment:
         'service',
         'create',
         '--json',
-        '{"name":"$name","params":"NoParams","returns":"void",'
-            '"type":"usecase"}',
+        '--name',
+        name,
+        '--params',
+        'NoParams',
+        '--returns',
+        'void',
       ]);
       final artifact = File(
         p.join(
