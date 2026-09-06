@@ -96,3 +96,36 @@ Failing tests:
   - The keyed emission itself (Text(t.auth.signIn), the slang test
     shell, the scaffold) was already green on master via #965 — the
     honest baseline, same as 0965's zero-drift cases.
+
+## Cycle: U1..U9, A1, A2 (green) — the wiring lands
+
+- behavior: all rows of this spec's test list
+- kind: green
+- classification: allSuitesGreen
+- criterion: FR-001..FR-004
+- command: `dart test test/plugins/tdd/commands/bug_1141_ledger_wiring_test.dart test/plugins/tdd/commands/bug_1141_view_audit_test.dart test/commands/build_command_slang_stage_test.dart test/plugins/tdd/commands/bug_1141_login_ui_regeneration_test.dart`
+- exit: 0
+- at: 2026-09-06T10:10:00Z (this session, post-implementation)
+- output:
+```
+00:02 +23: All tests passed!
+```
+- implementation (commit 76cdc1c2):
+  - lib/src/plugins/tdd/services/ui_ledger_projection.dart (new):
+    UiLedgerProjection (derive/rows/componentTokensOf) + UiViewAudit
+  - lib/src/plugins/tdd/commands/plan_command.dart: ledger artifact write
+    (both plan paths) + i18n-contract refusal + backtick round-trip fix
+  - lib/src/plugins/tdd/commands/view_command.dart: pre-write audit +
+    inert-stub (#959) rewrite + post-audit scaffold ordering
+  - lib/src/tdd/services/ui_ledger_builder.dart: public
+    quotedUserFacingStrings + any-kind row tracing + allowLiterals
+  - lib/src/commands/build_slang_stage.dart (new) + build_command wiring
+  - lib/src/plugins/tdd/services/lane_split.dart: backtick round-trip fix
+  - example/specs/004-login-ui/spec.md: the keyed Presentation contract
+- root-cause fixes discovered by the RED phase (both pre-existing):
+  1. `zfa tdd view` could not rewrite the #959 INERT stub (fresh gen'd
+     subjects no-op'd) — the regeneration loop was broken end-to-end.
+  2. plan rendered layer-contract methods UNBACKTICKED, so
+     TestListReader.readLayerContracts lost the whole contract (the #919
+     reader contract is backtick-based) — components and `key:` tokens
+     never survived the plan → test-list leg.
