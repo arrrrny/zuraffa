@@ -11,8 +11,6 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/cli/plugin_loader.dart';
 import 'package:zuraffa/src/core/planning/plan_resolver.dart';
-import 'package:zuraffa/src/core/plugin_system/plugin_registry.dart';
-import 'package:zuraffa/src/core/plugin_system/plugin_interface.dart';
 
 void main() {
   group('observer removal verdict (issue #1149)', () {

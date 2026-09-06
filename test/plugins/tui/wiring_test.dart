@@ -10,7 +10,6 @@
 import 'dart:io';
 
 import 'package:test/test.dart';
-import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_interface.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_manager.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_registry.dart';
