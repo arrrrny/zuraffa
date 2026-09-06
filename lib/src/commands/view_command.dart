@@ -71,6 +71,7 @@ class ViewCommand extends PluginCommand {
   /// (spec #979).
   @override
   Set<String> get consumedParentFlags => const {
+    'anchor',
     'di',
     'methods',
     'route',
