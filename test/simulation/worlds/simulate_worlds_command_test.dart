@@ -108,7 +108,8 @@ void main() {
         '--feature',
         _feature,
       ]);
-      expect(code, 64, reason: output);
+      // SPEC 917: the canonical usage code — the legacy 64 is retired.
+      expect(code, 2, reason: output);
       expect(output, contains('Usage: zfa simulate init'));
     });
   });
@@ -776,7 +777,9 @@ void main() {
         '--project',
         ws.path,
       ]);
-      expect(code, 64, reason: output);
+      // SPEC 917: the unknown scenario refuses with the canonical usage
+      // code (the legacy 64 is retired).
+      expect(code, 2, reason: output);
       expect(output, contains('no world manifest'));
       expect(output, contains('zfa simulate init ghost'));
     });

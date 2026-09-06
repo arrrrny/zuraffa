@@ -6,6 +6,7 @@ import 'package:args/command_runner.dart';
 import '../core/project/project_root.dart';
 import '../engine/engine_checker.dart';
 import '../engine/engine_receipt_writer.dart';
+import '../cli/exit_protocol.dart';
 
 /// `zfa engine` — engine-slice tooling (spec 1002; legs extended by
 /// issue #1109).
@@ -75,7 +76,7 @@ class EngineCheckCommand extends Command<void> {
     if (rest.isEmpty) {
       print('❌ Usage: zfa engine check <Entity> [options]');
       print('Example: zfa engine check Login');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final entity = rest.first;
