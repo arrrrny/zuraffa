@@ -150,7 +150,14 @@ extension TestBuilderEntity on TestBuilder {
     // #354: detect Flutter vs pure-Dart from pubspec.yaml so the test
     // framework + zuraffa core imports resolve. `zfa setup --dart` only
     // wires `test` + `zuraffa` (no `flutter_test`, no `zuraffa_flutter`).
-    final isFlutter = await _isFlutterProject(projectRoot);
+    // Issue #1109: the engine preset forces the pure-Dart test framework
+    // import regardless — the engine lane is CORE, so the engine test
+    // tree must carry zero `flutter_test` imports even when the host
+    // project is a Flutter app (`flutter test` runs package:test tests
+    // fine).
+    final isFlutter = config.engineSlice
+        ? false
+        : await _isFlutterProject(projectRoot);
     // Always import zuraffa core: every generated test defines a
     // `Throwing{Entity}DataSource` (mixin `Loggable`/`FailureHandler`, params
     // types `QueryParams`/`ToggleParams`/`Field`/…) regardless of the use case

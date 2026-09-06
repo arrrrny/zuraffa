@@ -6,6 +6,7 @@ import '../../../core/plugin_system/capability.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
 import '../builders/simulation_fixture_writer.dart';
+import '../certification/mock_certification_sandbox.dart';
 import '../certification/mock_certifier.dart';
 import '../mock_plugin.dart';
 
@@ -99,6 +100,15 @@ class CreateMockCapability implements ZuraffaCapability {
             'satisfied flags and the contract digest (spec 1001)',
         'default': false,
       },
+      // Spec 1110 (issue #1110): the mock failure preset — a throwing
+      // twin of the certified mock for failure-path behaviors.
+      'fail': {
+        'type': 'boolean',
+        'description':
+            'Emit the <Entity>FailingMockProvider: a throwing double whose '
+            'every method throws the sealed failure type (spec 1110)',
+        'default': false,
+      },
       'seed': {
         'type': 'integer',
         'description':
@@ -167,6 +177,41 @@ class CreateMockCapability implements ZuraffaCapability {
     // resolves it before dispatch).
     final projectRoot = Directory.current.path;
     final certifier = MockCertifier();
+
+    // Spec 1110 composition: the spec 1001 sandbox certification is an
+    // ENVIRONMENT-DEPENDENT proof — it needs a resolvable zuraffa
+    // package root (the target project's package_config, the running
+    // CLI's bin/ entrypoint, or a repo pubspec). When the root cannot
+    // be resolved (in-process hosts like `dart test`'s CliRunner, or a
+    // project without the zuraffa dependency), the sandbox is not
+    // runnable. That is NOT drift: the command's exit code stays
+    // governed by the generation + the #970 structural gate, and the
+    // un-certified state stays loud — no mock-cert receipt is written,
+    // so the spec 1110 engine cert-gate refuses the entity downstream
+    // until it is certified in a resolvable environment.
+    final frameworkRoot = MockCertificationSandbox.resolveFrameworkRoot(
+      projectRoot,
+    );
+    if (frameworkRoot == null) {
+      stdout.writeln(
+        '⚠️  mock-cert: the certification sandbox cannot resolve the '
+        'zuraffa package root — no mock-cert.$name.json receipt written. '
+        'The engine cert-gate (spec 1110) will refuse "$name" as '
+        'uncertified until `zfa mock create $name --certify` runs in an '
+        'environment that resolves the framework (a real CLI invocation '
+        'or a project with the zuraffa dependency).',
+      );
+      return ExecutionResult(
+        success: true,
+        files: files.map((f) => f.path).toList(),
+        data: {
+          'generatedFiles': files,
+          'certified': false,
+          'certSandboxUnresolved': true,
+        },
+      );
+    }
+
     final outcome = await certifier.certify(
       entityName: name,
       projectRoot: projectRoot,
@@ -281,6 +326,9 @@ class CreateMockCapability implements ZuraffaCapability {
       dryRun: dryRun,
       force: force,
       verbose: verbose,
+      // Spec 1110: the --fail preset — the throwing twin of the
+      // certified mock.
+      failMock: args['fail'] == true,
       // Spec 1001: deterministic, replayable mock generation.
       seed: seed,
     );

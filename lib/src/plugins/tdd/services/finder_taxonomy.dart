@@ -452,6 +452,53 @@ abstract final class FinderTaxonomy {
     return '// scenario-assertions: ${parts.join(', ')}';
   }
 
+  /// The full predicted kind set for [description] (issue #1140): every
+  /// quoted literal's derived class, plus the sequence marker when the
+  /// scenario carries an in-flight clause. This is the same derivation
+  /// [kindCellFor] renders and [BehaviorTestWriter] emits — one
+  /// classification, three consumers.
+  static Set<ScenarioAssertionClass> predictedKinds(String description) {
+    final analysis = analyze(description);
+    return {
+      ...analysis.requiredClasses,
+      if (analysis.sequence) ScenarioAssertionClass.sequence,
+    };
+  }
+
+  /// The plan table's finder-kind cell for [description] (issue #1140):
+  /// [predictedKinds] rendered as comma-joined labels in enum order, or
+  /// `none` when no finder kind is derivable (a scenario without quoted
+  /// literals — gen keeps it an honest scaffolded placeholder).
+  static String kindCellFor(String description) {
+    final kinds = predictedKinds(description);
+    if (kinds.isEmpty) return 'none';
+    return ScenarioAssertionClass.values
+        .where(kinds.contains)
+        .map((c) => c.label)
+        .join(', ');
+  }
+
+  /// Parses the plan table's finder-kind cell (issue #1140): comma-joined
+  /// [ScenarioAssertionClass.label] tokens, or `none` for a scenario with
+  /// no derivable finder kind. Returns null for an unknown token — the
+  /// reader turns null into a malformed-row error naming the vocabulary,
+  /// so a hand-typo'd cell fails loudly instead of silently losing the
+  /// declared kinds.
+  static Set<ScenarioAssertionClass>? tryParseKindCell(String cell) {
+    final trimmed = cell.trim();
+    if (trimmed.isEmpty || trimmed == 'none') {
+      return const <ScenarioAssertionClass>{};
+    }
+    final kinds = <ScenarioAssertionClass>{};
+    for (final token in trimmed.split(',')) {
+      final t = token.trim().toLowerCase();
+      final match = ScenarioAssertionClass.values.where((c) => c.label == t);
+      if (match.isEmpty) return null;
+      kinds.add(match.first);
+    }
+    return kinds;
+  }
+
   /// The kind gate (issue #964 proposal 3): given the scenario analysis
   /// derived from a test's description and the test's source, return the
   /// required assertion classes the file does NOT satisfy. Empty means
