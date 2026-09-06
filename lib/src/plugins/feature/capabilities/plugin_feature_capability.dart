@@ -5,16 +5,38 @@ import '../../../config/zfa_config.dart';
 import '../../../core/plugin_system/plugin_manager.dart';
 import '../../../core/plugin_system/plugin_registry.dart';
 
-class StateFeatureCapability implements ZuraffaCapability {
+/// Issue #1149 (kill list — fix list): ONE parameterized capability that
+/// replaces the EIGHT copy-pasted `XxxFeatureCapability` classes
+/// (di / view / presenter / controller / route / state / mock / test).
+///
+/// The clones were line-for-line identical apart from the plugin id, the
+/// description and (for `di`) mapping the `mock` argument onto the
+/// `use-mock` context key. This class carries the shared body once; the
+/// MCP-visible capability NAME stays the plugin id, so the external
+/// contract is unchanged.
+class PluginFeatureCapability implements ZuraffaCapability {
   final FeaturePlugin plugin;
 
-  StateFeatureCapability(this.plugin);
+  @override
+  final String description;
+
+  /// The downstream generator plugin to run (also the capability name).
+  final String pluginId;
+
+  /// Whether the `mock` argument is additionally mirrored onto the
+  /// `use-mock` context key (only the `di` clone did this — mock
+  /// datasource selection inside DI registration).
+  final bool mapsMockArgToUseMock;
+
+  PluginFeatureCapability(
+    this.plugin, {
+    required this.pluginId,
+    required this.description,
+    this.mapsMockArgToUseMock = false,
+  });
 
   @override
-  String get name => 'state';
-
-  @override
-  String get description => 'Add state to an existing feature';
+  String get name => pluginId;
 
   @override
   JsonSchema get inputSchema => {
@@ -30,7 +52,16 @@ class StateFeatureCapability implements ZuraffaCapability {
       'id-field-type': {'type': 'string', 'default': 'String'},
       'query-field': {'type': 'string', 'default': 'id'},
       'query-field-type': {'type': 'string', 'default': 'String'},
-
+      'mock': {
+        'type': 'boolean',
+        'description': 'Use mock datasource in DI',
+        'default': false,
+      },
+      'local': {
+        'type': 'boolean',
+        'description': 'Generate local data source instead of remote',
+        'default': false,
+      },
       'dryRun': {'type': 'boolean', 'default': false},
       'force': {'type': 'boolean', 'default': false},
       'verbose': {'type': 'boolean', 'default': false},
@@ -88,7 +119,7 @@ class StateFeatureCapability implements ZuraffaCapability {
     );
 
     final activePlugins = manager.resolveActivePlugins(
-      explicitPluginIds: ['state'],
+      explicitPluginIds: [pluginId],
       argResults: null,
     );
 
@@ -106,6 +137,9 @@ class StateFeatureCapability implements ZuraffaCapability {
     context.data['force'] = args['force'] ?? false;
     context.data['verbose'] = args['verbose'] ?? false;
     context.data['revert'] = args['revert'] ?? false;
+    if (mapsMockArgToUseMock) {
+      context.data['use-mock'] = args['mock'] ?? false;
+    }
 
     return await manager.run(context, activePlugins);
   }

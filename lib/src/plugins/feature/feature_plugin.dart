@@ -8,14 +8,10 @@ import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'capabilities/scaffold_feature_capability.dart';
-import 'capabilities/route_feature_capability.dart';
-import 'capabilities/di_feature_capability.dart';
-import 'capabilities/mock_feature_capability.dart';
-import 'capabilities/test_feature_capability.dart';
-import 'capabilities/view_feature_capability.dart';
-import 'capabilities/presenter_feature_capability.dart';
-import 'capabilities/controller_feature_capability.dart';
-import 'capabilities/state_feature_capability.dart';
+// Issue #1149 (kill list — fix list): ONE parameterized capability
+// replaces the eight copy-pasted per-plugin clones. The MCP-visible
+// capability names are unchanged.
+import 'capabilities/plugin_feature_capability.dart';
 
 /// Manages high-level feature scaffolding.
 ///
@@ -42,14 +38,47 @@ class FeaturePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   @override
   List<ZuraffaCapability> get capabilities => [
     ScaffoldFeatureCapability(this),
-    RouteFeatureCapability(this),
-    DiFeatureCapability(this),
-    MockFeatureCapability(this),
-    TestFeatureCapability(this),
-    ViewFeatureCapability(this),
-    PresenterFeatureCapability(this),
-    ControllerFeatureCapability(this),
-    StateFeatureCapability(this),
+    PluginFeatureCapability(
+      this,
+      pluginId: 'route',
+      description: 'Add routes to an existing feature',
+    ),
+    PluginFeatureCapability(
+      this,
+      pluginId: 'di',
+      description: 'Add dependency injection to an existing feature',
+      mapsMockArgToUseMock: true,
+    ),
+    PluginFeatureCapability(
+      this,
+      pluginId: 'mock',
+      description: 'Add mock data to an existing feature',
+    ),
+    PluginFeatureCapability(
+      this,
+      pluginId: 'test',
+      description: 'Add tests to an existing feature',
+    ),
+    PluginFeatureCapability(
+      this,
+      pluginId: 'view',
+      description: 'Add view to an existing feature',
+    ),
+    PluginFeatureCapability(
+      this,
+      pluginId: 'presenter',
+      description: 'Add presenter to an existing feature',
+    ),
+    PluginFeatureCapability(
+      this,
+      pluginId: 'controller',
+      description: 'Add controller to an existing feature',
+    ),
+    PluginFeatureCapability(
+      this,
+      pluginId: 'state',
+      description: 'Add state to an existing feature',
+    ),
   ];
 
   @override
