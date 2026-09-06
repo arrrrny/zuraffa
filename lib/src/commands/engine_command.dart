@@ -52,9 +52,8 @@ class EngineCheckCommand extends Command<void> {
       'feature',
       help:
           'Feature directory holding the engine receipt '
-          '(specs/<feature>/tdd/engine.receipt.json). Defaults to the '
-          'pinned .specify/feature.json, or a scan of specs/*/tdd/ for '
-          'the entity.',
+          '(specs/<feature>/tdd/engine.receipt.json). Defaults to a '
+          'scan of specs/*/tdd/ for the entity.',
     );
   }
 
