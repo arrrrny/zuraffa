@@ -126,9 +126,10 @@ class GeneratedImportScanner {
         // A statement ends at its terminating `;` (conditional-import
         // arms contain no semicolons, so this is unambiguous here).
         final text = statement.toString();
-        final semicolon = text.lastIndexOf(';');
-        if (semicolon >= 0 && semicolon == text.trim().length - 1) {
-          for (final match in _packageUri.allMatches(text)) {
+        final semicolon = text.indexOf(';');
+        if (semicolon >= 0) {
+          final statementText = text.substring(0, semicolon + 1);
+          for (final match in _packageUri.allMatches(statementText)) {
             final name = match.group(1)!;
             if (hostPackage == null || name != hostPackage) {
               packages.add(name);

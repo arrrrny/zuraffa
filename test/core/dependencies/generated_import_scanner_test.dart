@@ -43,6 +43,13 @@ import 'bridge_stub.dart'
       expect(imports, contains('zuraffa'));
     });
 
+    test('finds directives with trailing comments', () {
+      final imports = GeneratedImportScanner.extractPackageImports([
+        "import 'package:get_it/get_it.dart'; // generated dependency",
+      ]);
+      expect(imports, contains('get_it'));
+    });
+
     test('excludes the host package itself', () {
       final imports = GeneratedImportScanner.extractPackageImports([
         "import 'package:myapp/src/domain/entities/product/product.dart';",
