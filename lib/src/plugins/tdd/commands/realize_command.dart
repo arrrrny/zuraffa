@@ -11,7 +11,10 @@
 ///   2. runs the MOCK-era suite unchanged against the real binding
 ///      (contract gate — any red names which side broke the contract),
 ///   3. runs real vs mock over the same committed fixtures
-///      (differential gate — drift report, threshold from `.zfa.json`),
+///      (differential gate — the #1195 harness: contract-relevant
+///      outputs (entity shapes, state transitions, error kinds) diff
+///      with NAMED rows; a divergence blocks with the row's input,
+///      mock output, real output, and contract clause),
 ///   4. records hand-written deltas as nuance receipts in the feature's
 ///      provenance ledger (legal gated; ungated blocked),
 ///   5. transitions the state MOCKED → REAL with era-tagged cycle-log
@@ -32,14 +35,15 @@ import 'package:path/path.dart' as p;
 
 import '../../../core/project/project_root.dart';
 import '../../../core/project/receipt_store.dart';
+import '../../../version.dart';
 import '../services/artifact_registry.dart';
 import '../services/entity_lookup.dart' show toSnakeCase;
 import '../services/contract_gate.dart';
 import '../services/di_rebind.dart';
-import '../services/differential_gate.dart';
 import '../services/era_tagged_log.dart';
 import '../services/nuance_receipts.dart';
 import '../services/realize_state.dart';
+import '../services/differential_harness.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
@@ -58,7 +62,10 @@ enum RealizeOutcome {
   realized('realized'),
   alreadyReal('already-real'),
   blocked('blocked'),
-  runnerError('runner-error');
+  runnerError('runner-error'),
+  diffClean('diff-clean'),
+  diffDivergence('diff-divergence'),
+  diffSkipped('diff-skipped');
 
   const RealizeOutcome(this.label);
   final String label;
@@ -78,11 +85,24 @@ class RealizeCommand extends Command<void> {
           'line (VISION §5, issue #964).',
       negatable: false,
     );
+    argParser.addFlag(
+      'diff-only',
+      negatable: false,
+      help:
+          'Run ONLY the differential harness (spec 1195): replay the '
+          'committed fixtures through the certified mock side and the '
+          'real adapter, diff the contract-relevant outputs (entity '
+          'shapes, state transitions, error kinds), and write the '
+          'deterministic, journal-consumable receipt. Nothing is '
+          'rebound, no suite runs, no state transitions — the receipt '
+          'and an era-tagged entry are the only writes.',
+    );
     argParser.addOption(
       'adapter',
       help:
           'The real adapter class to bind (must already exist in lib/ — '
-          'realize never generates real implementations). Required.',
+          'realize never generates real implementations). Required for the '
+          'swap flow; optional receipt metadata with --diff-only.',
     );
     argParser.addOption(
       'feature',
@@ -128,13 +148,15 @@ class RealizeCommand extends Command<void> {
 
   @override
   String get description =>
-      'Swap the mock datasource for a real adapter behind the same '
-      'generated interface, gated by the contract suite and the '
-      'real-vs-mock differential (spec 913).';
+      'Run the mock-to-real swap flow (spec 913; --adapter required), gated '
+      'by the contract suite and real-vs-mock differential; --diff-only '
+      'replays ONLY the standalone differential harness (spec 1195; '
+      '--adapter optional) without touching the tree.';
 
   @override
   String get invocation =>
-      'zfa tdd realize <entity|behavior> --adapter <real> [options]';
+      'zfa tdd realize <entity|behavior> [--adapter <real>] [--diff-only] '
+      '[options]';
 
   @override
   Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
@@ -145,6 +167,7 @@ class RealizeCommand extends Command<void> {
     final adapter = (argResults?['adapter'] as String?)?.trim() ?? '';
     final featureFlag = (argResults?['feature'] as String?)?.trim() ?? '';
     final projectFlag = (argResults?['project'] as String?)?.trim() ?? '';
+    final diffOnly = (argResults?['diff-only'] as bool? ?? false);
 
     // ---------------------------------------------------------------
     // Argument validation (misfire-stop, never a guess).
@@ -159,7 +182,10 @@ class RealizeCommand extends Command<void> {
       );
       return;
     }
-    if (adapter.isEmpty) {
+    // --diff-only replays the differential WITHOUT binding anything, so
+    // --adapter is optional metadata there (named in the receipt when
+    // given); the swap path still refuses to guess.
+    if (adapter.isEmpty && !diffOnly) {
       _fail(
         'zfa tdd realize: --adapter <RealAdapter> is required — the swap '
         'binds a named real adapter class that already exists in lib/ '
@@ -213,7 +239,11 @@ class RealizeCommand extends Command<void> {
     final feature = resolved.feature;
     final entity = resolved.entity;
     final featureDir = p.join(cwd, 'specs', feature);
-    print('zfa tdd realize: entity $entity -> adapter $adapter');
+    print(
+      'zfa tdd realize${diffOnly ? ' --diff-only' : ''}: entity $entity '
+      '${diffOnly ? 'replayed against' : '-> adapter'} '
+      '${adapter.isEmpty ? 'the real binding' : adapter}',
+    );
     print('   feature: $feature');
 
     // ---------------------------------------------------------------
@@ -225,6 +255,25 @@ class RealizeCommand extends Command<void> {
       entity: entity,
     );
     print('   era: ${state.era.name.toUpperCase()}');
+
+    // ---------------------------------------------------------------
+    // The standalone differential replay (spec 1195): the harness runs
+    // ALONE — no nuance scan, no baseline suite, no rebind, no contract
+    // suite, no state transition. The receipt (mode diff-only) and an
+    // era-tagged entry are the only writes; the tree is untouched.
+    // ---------------------------------------------------------------
+    if (diffOnly) {
+      await _runDiffOnly(
+        cwd: cwd,
+        entity: entity,
+        adapter: adapter,
+        feature: feature,
+        featureDir: featureDir,
+        state: state,
+        featureFlag: featureFlag,
+      );
+      return;
+    }
     if (state.era == RealizeEra.real && state.adapter == adapter) {
       print(
         '   already realized: $entity is bound to $adapter — nothing to '
@@ -413,43 +462,53 @@ class RealizeCommand extends Command<void> {
     print('   contract gate green: ${gate.attribution}');
 
     // ---------------------------------------------------------------
-    // The differential gate: real vs mock run the same committed
-    // fixtures; the output diff becomes a drift report judged against
-    // the .zfa.json threshold. Drift beyond it rolls the rebind back.
+    // The differential gate (spec 1195, the REAL tier's honesty gate):
+    // the same committed fixtures replay through the certified mock
+    // side and the real adapter, the contract-relevant outputs (entity
+    // shapes, state transitions, error kinds) diff with NAMED rows, and
+    // a divergence blocks the promotion with the row's input, mock
+    // output, real output, and contract clause. The receipt lands in
+    // the feature's tdd/ directory (journal-consumable, #1113).
     // ---------------------------------------------------------------
-    final diffGate = DifferentialGate(
+    final harness = DifferentialHarness(
       featureDir: featureDir,
       projectRoot: cwd,
       driver: _fixtureDriver(),
+      mode: 'embedded',
     );
-    final differential = await diffGate.run(entity: entity);
+    final differential = await harness.run(entity: entity, adapter: adapter);
     switch (differential.verdict) {
       case DifferentialVerdict.skipped:
         print(
           '   differential gate skipped: no committed fixtures under '
           '${p.relative(p.join(featureDir, 'tdd', 'fixtures'), from: cwd)} — '
-          'the gate is marked skipped, never silently passed',
+          'the gate is marked skipped (not_assessed), never silently '
+          'passed',
         );
       case DifferentialVerdict.pass:
         print(
-          '   differential gate pass: drift ${differential.driftLabel} '
-          '<= threshold ${differential.threshold}',
+          '   differential gate pass: ${differential.rows.length} row(s) / '
+          '${differential.compared} compared field(s) <= threshold '
+          '${differential.threshold}',
         );
-      case DifferentialVerdict.drift:
+        _printNamedRows(differential, withinThreshold: true);
+      case DifferentialVerdict.divergence:
         await DiRebinder(projectRoot: cwd).rollback(rebind);
         print(
-          '   differential gate DRIFT: drift ${differential.driftLabel} > '
-          'threshold ${differential.threshold} — the rebind was rolled '
-          'back. Raise tdd.realizeDifferentialThreshold in .zfa.json only '
-          'if the drift is intended.',
+          '   differential gate DIVERGENCE: ${differential.rows.length} '
+          'named row(s) — the rebind was rolled back. The mock and the '
+          'real adapter disagree on contract behavior; fix the real side '
+          'or raise tdd.realizeDifferentialThreshold in .zfa.json only '
+          'if the divergence is intended.',
         );
+        _printNamedRows(differential, withinThreshold: false);
         _printSummary(
           entity: entity,
           adapter: adapter,
           feature: feature,
           contract: _contractLabel(gate.verdict),
-          differential: 'drift',
-          drift: differential.driftLabel,
+          differential: 'divergence',
+          drift: differential.divergenceLabel,
           threshold: '${differential.threshold}',
           era: state.era.name.toUpperCase(),
           outcome: RealizeOutcome.blocked,
@@ -492,9 +551,11 @@ class RealizeCommand extends Command<void> {
         'contract': _contractLabel(gate.verdict),
         'suitePaths': suitePaths.length,
         'differential': differential.verdict.name,
-        'drift': differential.driftLabel,
+        'rows': differential.rows.length,
+        'compared': differential.compared,
+        'drift': differential.divergenceLabel,
         'threshold': differential.threshold,
-        'fixtures': differential.fixturesRun,
+        'fixtures': differential.replayed,
         'handDeltas': gatedDeltas.length,
       },
     );
@@ -517,7 +578,8 @@ class RealizeCommand extends Command<void> {
         output:
             'contract=${_contractLabel(gate.verdict)} '
             'differential=${differential.verdict.name} '
-            'drift=${differential.driftLabel} '
+            'rows=${differential.rows.length} '
+            'drift=${differential.divergenceLabel} '
             'handDeltas=$gatedDeltas'
             ' era=MOCKED->REAL result=realized',
       ),
@@ -530,12 +592,150 @@ class RealizeCommand extends Command<void> {
       feature: feature,
       contract: _contractLabel(gate.verdict),
       differential: differential.verdict.name,
-      drift: differential.driftLabel,
+      drift: differential.divergenceLabel,
       threshold: '${differential.threshold}',
       era: 'MOCKED->REAL',
       outcome: RealizeOutcome.realized,
     );
     exitCode = 0;
+  }
+
+  /// The standalone differential replay (spec 1195, SC-5): the harness
+  /// runs ALONE against the committed fixtures — no nuance scan, no
+  /// baseline suite, no rebind, no contract suite, no state transition,
+  /// no rebind receipt. The receipt (mode diff-only) and an era-tagged
+  /// cycle-log entry (kind realize-diff, era unchanged) are the only
+  /// writes. Exit 0 on pass/skipped (skipped is named, never silent),
+  /// 1 on divergence / runner-error — a divergent real adapter is
+  /// proven BEFORE the swap is attempted.
+  Future<void> _runDiffOnly({
+    required String cwd,
+    required String entity,
+    required String adapter,
+    required String feature,
+    required String featureDir,
+    required RealizeState state,
+    required String featureFlag,
+  }) async {
+    final harness = DifferentialHarness(
+      featureDir: featureDir,
+      projectRoot: cwd,
+      driver: _fixtureDriver(),
+      mode: 'diff-only',
+    );
+    final differential = await harness.run(
+      entity: entity,
+      adapter: adapter.isEmpty ? '-' : adapter,
+    );
+    switch (differential.verdict) {
+      case DifferentialVerdict.skipped:
+        print(
+          '   differential replay skipped: no committed fixtures under '
+          '${p.relative(p.join(featureDir, 'tdd', 'fixtures'), from: cwd)} — '
+          'the gate is marked skipped (not_assessed), never silently '
+          'passed',
+        );
+      case DifferentialVerdict.pass:
+        print(
+          '   differential replay pass: ${differential.rows.length} '
+          'row(s) / ${differential.compared} compared field(s) <= '
+          'threshold ${differential.threshold}',
+        );
+        _printNamedRows(differential, withinThreshold: true);
+      case DifferentialVerdict.divergence:
+        print(
+          '   differential replay DIVERGENCE: ${differential.rows.length} '
+          'named row(s) — the mock and the real adapter disagree on '
+          'contract behavior (the receipt records gate_state red for the '
+          'journal).',
+        );
+        _printNamedRows(differential, withinThreshold: false);
+      case DifferentialVerdict.runnerError:
+        print(
+          '   differential replay RUNNER-ERROR: ${differential.error} '
+          '(the gate fails closed).',
+        );
+    }
+    print(
+      '   receipt: ${p.relative(p.join(featureDir, 'tdd', 'differential-receipt.json'), from: cwd)} '
+      '(mode diff-only, digest ${differential.fixturesDigest.substring(0, 19)}...)',
+    );
+
+    final outcome = switch (differential.verdict) {
+      DifferentialVerdict.pass => RealizeOutcome.diffClean,
+      DifferentialVerdict.skipped => RealizeOutcome.diffSkipped,
+      DifferentialVerdict.divergence => RealizeOutcome.diffDivergence,
+      DifferentialVerdict.runnerError => RealizeOutcome.runnerError,
+    };
+
+    await EraTaggedLog(featureDir).append(
+      EraTaggedLogEntry(
+        behaviorId: '${toSnakeCase(entity)}-diff',
+        kind: 'realize-diff',
+        era: state.era,
+        criterion: 'SC-1195',
+        test: differential.replayed == 0
+            ? '-'
+            : '${differential.replayed} fixture(s)',
+        command:
+            'zfa tdd realize $entity --diff-only'
+            '${adapter.isEmpty ? '' : ' --adapter $adapter'}'
+            '${featureFlag.isEmpty ? '' : ' --feature $featureFlag'}',
+        exitCode: switch (differential.verdict) {
+          DifferentialVerdict.divergence => 1,
+          DifferentialVerdict.runnerError => 1,
+          _ => 0,
+        },
+        output:
+            'differential=${differential.verdict.name} '
+            'rows=${differential.rows.length} '
+            'compared=${differential.compared} '
+            'drift=${differential.divergenceLabel} '
+            'era=${state.era.name.toUpperCase()} '
+            'result=${outcome.label}',
+      ),
+    );
+
+    _printSummary(
+      entity: entity,
+      adapter: adapter.isEmpty ? '-' : adapter,
+      feature: feature,
+      contract: '-',
+      differential: differential.verdict.name,
+      drift: differential.verdict == DifferentialVerdict.runnerError
+          ? '-'
+          : differential.divergenceLabel,
+      threshold: '${differential.threshold}',
+      era: state.era.name.toUpperCase(),
+      outcome: outcome,
+    );
+    exitCode = switch (differential.verdict) {
+      DifferentialVerdict.divergence => 1,
+      DifferentialVerdict.runnerError => 1,
+      _ => 0,
+    };
+  }
+
+  /// Print the harness's named rows: the row id, its contract clause,
+  /// and — for a blocking divergence — the full four-field row (input,
+  /// mock output, real output). Rows within a consciously raised
+  /// threshold are still named (never silenced), compactly.
+  void _printNamedRows(
+    DifferentialHarnessResult differential, {
+    required bool withinThreshold,
+  }) {
+    for (final row in differential.rows) {
+      print(
+        '   ${withinThreshold ? 'row (within threshold)' : 'divergence'}: '
+        '${row.id} (${row.dimension.label}) — ${row.detail}',
+      );
+      print('     clause: ${row.clause}');
+      if (!withinThreshold) {
+        print('     input: ${jsonEncode(row.input)}');
+        print('     mock:  ${jsonEncode(row.mockOutput)}');
+        print('     real:  ${jsonEncode(row.realOutput)}');
+      }
+    }
   }
 
   /// The machine-summary label for a contract verdict.
@@ -752,6 +952,8 @@ class RealizeCommand extends Command<void> {
       ..outcome = switch (outcome) {
         RealizeOutcome.realized => VerdictOutcome.pass,
         RealizeOutcome.alreadyReal => VerdictOutcome.pass,
+        RealizeOutcome.diffClean => VerdictOutcome.pass,
+        RealizeOutcome.diffSkipped => VerdictOutcome.pass,
         _ => VerdictOutcome.fail,
       }
       ..details['entity'] = entity
@@ -783,7 +985,7 @@ class RealizeCommand extends Command<void> {
             'zfa tdd realize ${rebind.entity} '
             '--adapter ${rebind.adapterClass}',
         at: DateTime.now().toUtc(),
-        generatorVersion: '6.1.0',
+        generatorVersion: version,
         input: {
           'entity': rebind.entity,
           'mockClass': rebind.mockClass,

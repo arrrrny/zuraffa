@@ -9,6 +9,7 @@ import '../models/generated_file.dart';
 import '../package/package_mode.dart';
 import '../plugins/app_shell/builders/app_shell_builder.dart';
 import '../skin/builders/skin_contract_kit_builder.dart';
+import '../skew/skew_contract.dart';
 import '../utils/file_utils.dart';
 import '../utils/project_flavor.dart';
 import '../core/project/project_root.dart';
@@ -155,6 +156,38 @@ class AppShellCommand extends Command<void> {
 
     final config = ZfaConfig.load(projectRoot: projectRoot);
     final xray = xrayFlag || (config?.xrayByDefault ?? false);
+
+    // Issue #1197: --skin-audit emits imports of package:zuraffa/skin.dart.
+    // When the target's resolved core predates the skin barrel, refuse
+    // up front (before any file is written) with the actionable skew
+    // report instead of emitting an app shell that cannot compile.
+    if (skinAudit) {
+      try {
+        SkewContract.requireSurfaces(
+          projectRoot: projectRoot,
+          command: 'zfa app shell --skin-audit',
+          requiredUris: ['skin.dart'],
+        );
+      } on VersionSkewException catch (e) {
+        throw AppShellException(e.toString());
+      }
+    }
+
+    // Issue #1197: --xray emits an import of the core-internal
+    // XRayOverlayState registry (src/plugins/xray/xray_overlay.dart,
+    // spec 036) — also post-v6.1.0. Same two-end floor, same refusal.
+    if (xray) {
+      try {
+        SkewContract.requireSurfaces(
+          projectRoot: projectRoot,
+          command: 'zfa app shell --xray',
+          requiredUris: ['src/plugins/xray/xray_overlay.dart'],
+        );
+      } on VersionSkewException catch (e) {
+        throw AppShellException(e.toString());
+      }
+    }
+
     final pubspecPath = p.join(projectRoot, 'pubspec.yaml');
     final pubspecFile = File(pubspecPath);
     if (!await _fileSystem.exists(pubspecPath) && !pubspecFile.existsSync()) {
