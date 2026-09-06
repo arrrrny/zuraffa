@@ -138,6 +138,28 @@ class MakeCommand extends Command<void> {
     'delete',
   ];
 
+  /// Issue #1185: plugin ids that make a `zfa make` run view-bearing.
+  /// When the resolved plan carries any of these, the run produces
+  /// presentation-layer output whose usecase bindings hang off the
+  /// method set.
+  static const Set<String> _viewBearingPluginIds = {
+    'view',
+    'presenter',
+    'controller',
+  };
+
+  /// Issue #1185: the default method set for entity-backed view-bearing
+  /// runs when neither `--methods` nor a `--from-json` config supplies
+  /// one — the same set the presenter/controller plugins already fall
+  /// back to when no method set reaches them
+  /// (`['get', 'update', 'toggle']`), made authoritative in one place
+  /// the way spec 1002 did for the engine preset. Applied AFTER plan
+  /// resolution so it can never change the resolved plugin chain, and
+  /// only for entity-backed runs: with `--no-entity` there is no entity
+  /// surface to hang methods on, so the honest default stays "no entity
+  /// methods" and the guarded presenter path emits the bare VPC scaffold.
+  static const List<String> _viewDefaultMethods = ['get', 'update', 'toggle'];
+
   final PluginRegistry registry;
   late final PluginManager manager;
 
@@ -573,6 +595,26 @@ class MakeCommand extends Command<void> {
       argResults: argResults!,
       options: normalizedOptions,
     );
+
+    // Issue #1185: default the method set for entity-backed view-bearing
+    // runs the way spec 1002 did for the engine preset. Without it, a
+    // `--with=vpc --view` run with no method set used to reach
+    // PresenterPlugin._buildMethods with an empty usecase list and crash
+    // with "Bad state: No element" on the unguarded `useCases.first`.
+    // The default is injected AFTER plan resolution (PlanResolver
+    // ._hasEntityMethods implies the usecase plugin from a non-empty
+    // method set — that stays the user's explicit choice) and skipped for
+    // --no-entity runs, where the guarded plugin path emits the bare VPC
+    // scaffold the same way `--methods=get --no-entity` always has.
+    final noEntityRequested =
+        argResults?['no-entity'] == true ||
+        normalizedOptions['no-entity'] == true;
+    if (plan.pluginIds.any(_viewBearingPluginIds.contains) &&
+        !argResults!.wasParsed('methods') &&
+        !normalizedOptions.containsKey('methods') &&
+        !noEntityRequested) {
+      normalizedOptions['methods'] = List<String>.from(_viewDefaultMethods);
+    }
 
     final planOnly =
         argResults?['plan'] == true || argResults?['explain'] == true;
