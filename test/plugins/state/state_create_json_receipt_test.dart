@@ -3,7 +3,8 @@
 //
 // `zfa state create` must speak to automation: the last stdout line
 // under `--json` is a single-line envelope
-// `{path, fields[], modes[], flavor, schema:1}`, and every real
+// canonical `zuraffa.verdict.v1` (SPEC 1105; state surface in `details`),
+// and every real
 // generation ships a receipt at `.zfa/receipts/state-<entity>.json`
 // (via ReceiptStore) binding the final on-disk bytes, so `zfa proof
 // check` covers state artifacts (SC-2, AC-2).
@@ -46,8 +47,8 @@ environment:
     }
   });
 
-  test('SC-2a: --json emits the {path, fields[], modes[], flavor, schema:1} '
-      'envelope as the last stdout line', () async {
+  test('SC-2a: --json emits the canonical zuraffa.verdict.v1 envelope with '
+      'the state surface in details, as the last stdout line', () async {
     final output = await runner.runCapturing([
       '-C',
       workspace.path,
@@ -78,18 +79,27 @@ environment:
       );
     }
 
+    final details = envelope['details'] as Map<String, dynamic>;
     expect(
       envelope['schema'],
-      1,
-      reason: 'the envelope carries integer schema version 1',
+      'zuraffa.verdict.v1',
+      reason: 'SPEC 1105: the ONE canonical schema identifier',
+    );
+    expect(envelope['command'], 'zfa state create --name Product');
+    expect(envelope['verdict'], 'pass');
+    expect(envelope['exit_class'], 0);
+    expect(envelope['subject'], {'kind': 'state', 'id': 'Product'});
+    expect(
+      (envelope['artifacts'] as Map)['created'],
+      contains('lib/src/presentation/pages/product/product_state.dart'),
     );
     expect(
-      envelope['path'],
+      details['path'],
       'lib/src/presentation/pages/product/product_state.dart',
-      reason: 'path is project-relative POSIX, agent-consumable',
+      reason: 'path is project-relative POSIX, agent-consumable (in details)',
     );
     expect(
-      envelope['fields'],
+      details['fields'],
       containsAll(<String>[
         'error',
         'product',
@@ -103,13 +113,13 @@ environment:
       reason: 'fields list the emitted state fields (declaration order)',
     );
     expect(
-      envelope['fields'] is List && (envelope['fields'] as List).isNotEmpty,
+      details['fields'] is List && (details['fields'] as List).isNotEmpty,
       isTrue,
     );
-    expect(envelope['modes'], [
+    expect(details['modes'], [
       'entity',
     ], reason: 'the entity emission mode is reported as a list');
-    expect(envelope['flavor'], 'pureDart');
+    expect(details['flavor'], 'pureDart');
   }, timeout: const Timeout(Duration(minutes: 2)));
 
   test('SC-2b: a real generation ships a proof.v1 receipt at '

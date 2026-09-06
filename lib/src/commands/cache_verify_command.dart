@@ -1,8 +1,8 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../core/verdict_envelope.dart';
 import '../plugins/cache/cache_plugin.dart';
 import '../plugins/cache/cache_verify.dart';
 import '../cli/exit_protocol.dart';
@@ -13,8 +13,8 @@ import '../cli/exit_protocol.dart';
 /// Reads the registrar + the entity graph; lists entities whose adapters
 /// are missing or stale; exits 1 with one `--> fix:` line per finding so
 /// cache drift becomes a CI gate. `--json` emits a single parseable
-/// `cache.verify.v1` verdict object (mirrors `zfa proof check --format
-/// json`, issue #778).
+/// canonical `zuraffa.verdict.v1` verdict object (SPEC 1105; mirrors
+/// `zfa proof check --format json`, issue #778).
 ///
 /// Registered manually on [CacheCommand] (the `manualSubcommandNames`
 /// hook, issue #761) rather than auto-derived from a capability: the
@@ -28,8 +28,8 @@ class CacheVerifyCommand extends Command<void> {
       'json',
       negatable: false,
       help:
-          'Emit a single cache.verify.v1 verdict object on stdout '
-          '(CI-able).',
+          'Emit a single canonical zuraffa.verdict.v1 verdict object on '
+          'stdout (CI-able).',
     );
   }
 
@@ -73,8 +73,9 @@ class CacheVerifyCommand extends Command<void> {
     }
 
     if (jsonMode) {
-      // No prose: agents/CI consume stdout directly.
-      print(jsonEncode(report.toJson()));
+      // No prose: agents/CI consume stdout directly. SPEC 1105: the wire
+      // form is the ONE canonical envelope.
+      VerdictEnvelope.emit(report.toEnvelope());
     } else {
       _printText(report);
     }

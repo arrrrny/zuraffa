@@ -74,7 +74,9 @@ class GetProductUseCase extends UseCase<Product, QueryParams<Product>> {
     ]);
 
     final envelope = jsonDecode(output.trim()) as Map<String, dynamic>;
-    final methods = (envelope['methods'] as List).cast<Map<String, dynamic>>();
+    final methods =
+        ((envelope['details'] as Map<String, dynamic>)['methods'] as List)
+            .cast<Map<String, dynamic>>();
     expect(methods, hasLength(1));
     expect(methods.single['name'], 'get');
     expect(
@@ -105,8 +107,9 @@ class GetProductUseCase extends UseCase<Product, QueryParams<Product>> {
       '--json',
     ]);
     final firstEnvelope = jsonDecode(first.trim()) as Map<String, dynamic>;
-    final firstVerdicts = (firstEnvelope['methods'] as List)
-        .cast<Map<String, dynamic>>();
+    final firstVerdicts =
+        ((firstEnvelope['details'] as Map<String, dynamic>)['methods'] as List)
+            .cast<Map<String, dynamic>>();
     expect(firstVerdicts, hasLength(1));
     expect(firstVerdicts.single['name'], 'watch');
     expect(firstVerdicts.single['action'], 'created');
@@ -139,8 +142,9 @@ class GetProductUseCase extends UseCase<Product, QueryParams<Product>> {
       '--json',
     ]);
     final secondEnvelope = jsonDecode(second.trim()) as Map<String, dynamic>;
-    final secondVerdicts = (secondEnvelope['methods'] as List)
-        .cast<Map<String, dynamic>>();
+    final secondVerdicts =
+        ((secondEnvelope['details'] as Map<String, dynamic>)['methods'] as List)
+            .cast<Map<String, dynamic>>();
     expect(secondVerdicts.single['name'], 'watch');
     expect(
       secondVerdicts.single['action'],
