@@ -110,8 +110,9 @@ otherwise it equals the full branch name. Treat this as an explicit,
 deliberate override only: automatic runs allocate the next sequential number
 from the same counter the spec-directory resolution uses (the highest
 `specs/NNN-*` directory + 1) and never parse numbers out of branch names or
-description text, so the created branch always matches the eventual spec
-directory name.
+description text. The allocated feature number and final feature segment align
+with the eventual spec directory; with the default `{number}-{slug}` template,
+the complete branch name matches the directory name.
 
 ## Installation
 

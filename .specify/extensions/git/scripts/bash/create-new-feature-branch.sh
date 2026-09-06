@@ -561,6 +561,9 @@ _emit_feature_number() {
         if grep -q '"feature_number"' "$fj" 2>/dev/null; then
             sed -E 's/"feature_number"[[:space:]]*:[[:space:]]*[^,}]*/"feature_number":"'"$FEATURE_NUM"'"/' "$fj" > "$fj.tmp" 2>/dev/null \
                 && mv -f "$fj.tmp" "$fj" || rm -f "$fj.tmp"
+        elif grep -Eq '^\{[[:space:]]*\}[[:space:]]*$' "$fj" 2>/dev/null; then
+            printf '{"feature_number":"%s"}\n' "$FEATURE_NUM" > "$fj.tmp" \
+                && mv -f "$fj.tmp" "$fj" || rm -f "$fj.tmp"
         elif grep -q '}[[:space:]]*$' "$fj" 2>/dev/null; then
             sed -E 's/}[[:space:]]*$/,"feature_number":"'"$FEATURE_NUM"'"}/' "$fj" > "$fj.tmp" 2>/dev/null \
                 && mv -f "$fj.tmp" "$fj" || rm -f "$fj.tmp"
