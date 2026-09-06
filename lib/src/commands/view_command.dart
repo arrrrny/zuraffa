@@ -1,5 +1,5 @@
 import 'dart:io';
-
+import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../models/generated_file.dart';
 import '../core/plugin_system/capability.dart';
 import 'base_plugin_command.dart';
@@ -93,7 +93,12 @@ class ViewCommand extends PluginCommand {
 
     if (capabilityName == 'register') {
       final entities = argResults!.rest.skip(2).toList();
-      final result = await capability.execute({
+      // Issue #1138: wrapper-persisted proof.v1 receipt (best-effort).
+      final wrapper = CapabilityInvocationWrapper(
+        capability: capability,
+        pluginId: plugin.id,
+      );
+      final result = await wrapper.execute({
         'target': entityName,
         'entities': entities,
         'dryRun': isDryRun,
@@ -114,7 +119,12 @@ class ViewCommand extends PluginCommand {
       final routeResult = await _generateRoutes(entityName, capabilityName);
 
       // Generate view
-      final viewResult = await capability.execute({
+      // Issue #1138: wrapper-persisted proof.v1 receipt (best-effort).
+      final viewWrapper = CapabilityInvocationWrapper(
+        capability: capability,
+        pluginId: plugin.id,
+      );
+      final viewResult = await viewWrapper.execute({
         'name': entityName,
         'methods': methods,
         'di': generateDi,
@@ -154,7 +164,12 @@ class ViewCommand extends PluginCommand {
       logSummary(allFiles);
     } else {
       // Generate only view
-      final result = await capability.execute({
+      // Issue #1138: wrapper-persisted proof.v1 receipt (best-effort).
+      final wrapper = CapabilityInvocationWrapper(
+        capability: capability,
+        pluginId: plugin.id,
+      );
+      final result = await wrapper.execute({
         'name': entityName,
         'methods': methods,
         'di': generateDi,
@@ -209,7 +224,14 @@ class ViewCommand extends PluginCommand {
           .toList();
     }
 
-    final result = await routeCapability.execute({
+    // Issue #1138: the route capability runs as its own standalone
+    // invocation here — persist its own proof.v1 receipt under the
+    // route plugin id (best-effort inside the wrapper).
+    final wrapper = CapabilityInvocationWrapper(
+      capability: routeCapability,
+      pluginId: routePlugin.id,
+    );
+    final result = await wrapper.execute({
       'name': entityName,
       'methods': routeMethods,
       'dryRun': isDryRun,

@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
 import '../core/context/file_system.dart';
+import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/project/receipt_store.dart';
 import '../models/generated_file.dart';
 import '../models/generator_config.dart';
@@ -239,7 +240,23 @@ class StateCreateCommand extends Command<void> {
       final artifact = File(file.path);
       if (!artifact.existsSync()) return;
       final bytes = artifact.readAsBytesSync();
-      await ReceiptStore(projectRoot: Directory.current.path).save(
+      final receiptFiles = [
+        GenerationReceiptFile(
+          path: relativePath,
+          action: file.action == 'overwritten' ? 'modify' : 'create',
+          sha256: crypto.sha256.convert(bytes).toString(),
+          bytes: bytes.length,
+          snapshot: bytes.length <= ReceiptStore.maxSnapshotBytes
+              ? artifact.readAsStringSync()
+              : null,
+        ),
+      ];
+      // Issue #1138: full capability provenance on the standalone
+      // receipt — same schema and hash derivation as the wrapper's
+      // receipts, keyed
+      // state-create-<entity>-<timestamp>.json like every other
+      // standalone capability receipt.
+      await ReceiptStore(projectRoot: Directory.current.path).saveCapability(
         GenerationReceipt(
           command: 'state create',
           target: entityName,
@@ -251,19 +268,18 @@ class StateCreateCommand extends Command<void> {
             'methods': methods,
             if (force) 'force': true,
           },
-          files: [
-            GenerationReceiptFile(
-              path: relativePath,
-              action: file.action == 'overwritten' ? 'modify' : 'create',
-              sha256: crypto.sha256.convert(bytes).toString(),
-              bytes: bytes.length,
-              snapshot: bytes.length <= ReceiptStore.maxSnapshotBytes
-                  ? artifact.readAsStringSync()
-                  : null,
-            ),
-          ],
+          files: receiptFiles,
+          plugin: 'state',
+          capability: 'create',
+          entity: entityName,
+          methodset: methods,
+          runHash: CapabilityInvocationWrapper.computeRunHash(
+            files: receiptFiles,
+            entity: entityName,
+            methodset: methods,
+          ),
+          receiptVersion: CapabilityInvocationWrapper.receiptVersion,
         ),
-        fileName: 'state-$entityName.json',
       );
     } catch (e) {
       // Provenance is best-effort at this layer (the artifact already

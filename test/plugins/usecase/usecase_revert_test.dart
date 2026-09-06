@@ -63,13 +63,14 @@ environment:
       isNotEmpty,
       reason: 'generation must have emitted files before the revert',
     );
-    final receiptPath = p.join(
-      workspace.path,
-      '.zfa',
-      'receipts',
-      'usecase-Product.json',
-    );
-    expect(File(receiptPath).existsSync(), isTrue);
+    // Issue #1138: keyed usecase-create-<entity>-<timestamp>.json.
+    final receiptsDir = Directory(p.join(workspace.path, '.zfa', 'receipts'));
+    final receiptFile = receiptsDir
+        .listSync()
+        .whereType<File>()
+        .where((f) => p.basename(f.path).startsWith('usecase-create-Product-'))
+        .single;
+    expect(receiptFile.existsSync(), isTrue);
 
     // 2. Revert.
     final output = await runner.runCapturing([
@@ -111,9 +112,9 @@ environment:
     //    artifacts so `zfa proof check` can report them as deleted), but
     //    a revert must never claim generation.
     final receipt =
-        jsonDecode(await File(receiptPath).readAsString())
-            as Map<String, dynamic>;
-    expect(receipt['command'], 'usecase');
+        jsonDecode(await receiptFile.readAsString()) as Map<String, dynamic>;
+    expect(receipt['command'], 'usecase create');
+    expect(receipt['plugin'], 'usecase');
     final filesAfterRevert = (receipt['files'] as List)
         .cast<Map<String, dynamic>>()
         .map((f) => f['path'] as String)

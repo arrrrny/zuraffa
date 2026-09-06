@@ -1,5 +1,5 @@
 import 'dart:io';
-
+import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../models/generated_file.dart';
 import '../plugins/api/api_plugin.dart';
 import '../plugins/api/capabilities/create_api_bridge_capability.dart';
@@ -72,7 +72,16 @@ class ApiCommand extends PluginCommand {
       return;
     }
 
-    final result = await capability.execute({
+    // Issue #1138: execute through the CapabilityInvocationWrapper so the
+    // standalone invocation auto-persists a proof.v1 receipt (schema
+    // {plugin, capability, entity, hash, methodset, files,
+    // receipt_version: 1}) — the same contract the capability-subcommand
+    // path already ships. Best-effort inside the wrapper.
+    final wrapper = CapabilityInvocationWrapper(
+      capability: capability,
+      pluginId: plugin.id,
+    );
+    final result = await wrapper.execute({
       'name': entityName,
       'domain': domain,
       'dryRun': isDryRun,

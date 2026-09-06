@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 import 'package:zorphy/zorphy.dart';
 import '../config/zfa_config.dart';
+import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/project/receipt_store.dart';
 import '../utils/entity_field_injector.dart';
 import '../utils/entity_type_validator.dart';
@@ -454,6 +455,9 @@ ${missing.map((d) => '   • $d').join('\n')}
         );
       }
       if (files.isEmpty) return;
+      // Issue #1138: full capability provenance on the standalone
+      // receipt. The capability name is the command's second segment
+      // (`entity create` → create, `entity add-field` → add-field).
       await ReceiptStore(projectRoot: Directory.current.path).save(
         GenerationReceipt(
           command: command,
@@ -463,6 +467,18 @@ ${missing.map((d) => '   • $d').join('\n')}
           generatorVersion: version,
           input: input,
           files: files,
+          plugin: 'entity',
+          capability: command.startsWith('entity ')
+              ? command.substring('entity '.length)
+              : command,
+          entity: target,
+          methodset: const [],
+          runHash: CapabilityInvocationWrapper.computeRunHash(
+            files: files,
+            entity: target,
+            methodset: const [],
+          ),
+          receiptVersion: CapabilityInvocationWrapper.receiptVersion,
         ),
       );
     } catch (e) {

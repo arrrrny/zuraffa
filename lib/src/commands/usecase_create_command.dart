@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
+import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/project/receipt_store.dart';
 import '../models/generator_config.dart';
 import '../plugins/usecase/usecase_plugin.dart';
@@ -24,11 +25,16 @@ import '../version.dart';
 ///        {"name": "toggle", "action": "skipped",
 ///         "reason": "interface_missing_method:TaskRepository.toggle"}]}`
 ///     with action ∈ {created, appended, skipped} (deleted on revert).
-///   * Every successful run ships a proof-carrying receipt at
-///     `.zfa/receipts/usecase-<entity>.json` (schema `proof.v1`) binding
+///   * Every successful run ships a proof-carrying receipt in
+///     `.zfa/receipts/` (schema `proof.v1`) binding
 ///     the emitted files to their on-disk digests and recording
 ///     requested vs generated vs skipped methods plus the guard reason
 ///     codes — `zfa proof check` verifies it like any other receipt.
+///     Issue #1138: the receipt carries the full capability provenance
+///     contract `{plugin, capability, entity, hash, methodset, files,
+///     receipt_version: 1}` and is keyed
+///     `usecase-create-<entity>-<timestamp>.json` like every other
+///     standalone capability receipt.
 ///   * Exit codes tell the truth: 64 for usage errors, 1 when the
 ///     request produced nothing (issue #769 semantics), 0 on success.
 ///
@@ -317,12 +323,14 @@ class UseCaseCreateCommand extends Command<void> {
     }
   }
 
-  /// Writes the proof.v1 receipt at `.zfa/receipts/usecase-<entity>.json`.
+  /// Writes the proof.v1 capability receipt (issue #1138) keyed
+  /// `usecase-create-<entity>-<timestamp>.json`.
   ///
   /// Best-effort by design (the artifacts already exist; a receipt
-  /// failure degrades to a warning), but unlike the timestamped make
-  /// receipts this one uses the deterministic spec #972 name so a
-  /// rerun replaces its own proof instead of accumulating one per run.
+  /// failure degrades to a warning). The provenance fields match the
+  /// CapabilityInvocationWrapper contract exactly — same schema, same
+  /// `hash` derivation via [CapabilityInvocationWrapper.computeRunHash] —
+  /// so `zfa proof check` and machine readers need no special cases.
   Future<String?> _writeReceipt({
     required String entityName,
     required List<String> requestedMethods,
@@ -366,8 +374,13 @@ class UseCaseCreateCommand extends Command<void> {
       }
       if (files.isEmpty) return null;
 
+      // Issue #1138 provenance: the generated+appended methods ARE the
+      // methodset the run wired; the hash binds entity + methodset +
+      // every file tuple via the shared wrapper derivation.
+      final methodset = [...generated, ...appended];
+
       final receipt = GenerationReceipt(
-        command: 'usecase',
+        command: 'usecase create',
         target: entityName,
         repro:
             'zfa usecase create $entityName'
@@ -384,15 +397,21 @@ class UseCaseCreateCommand extends Command<void> {
         },
         spec: _entitySpecReceipt(entityName, projectRoot),
         files: files,
+        plugin: 'usecase',
+        capability: 'create',
+        entity: entityName,
+        methodset: methodset,
+        runHash: CapabilityInvocationWrapper.computeRunHash(
+          files: files,
+          entity: entityName,
+          methodset: methodset,
+        ),
+        receiptVersion: CapabilityInvocationWrapper.receiptVersion,
       );
 
-      final dir = Directory(p.join(projectRoot, '.zfa', 'receipts'));
-      await dir.create(recursive: true);
-      final target = _sanitize(entityName);
-      final path = p.join(dir.path, 'usecase-$target.json');
-      const encoder = JsonEncoder.withIndent('  ');
-      await File(path).writeAsString(encoder.convert(receipt.toJson()));
-      return _projectRelativePosix(path, projectRoot);
+      final store = ReceiptStore(projectRoot: projectRoot);
+      final written = await store.saveCapability(receipt);
+      return _projectRelativePosix(written.path, projectRoot);
     } catch (e) {
       print('⚠️  Generation receipt not written: $e');
       return null;
@@ -422,7 +441,4 @@ class UseCaseCreateCommand extends Command<void> {
         : p.normalize(filePath);
     return rel.replaceAll('\\', '/');
   }
-
-  static String _sanitize(String value) =>
-      value.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '_');
 }

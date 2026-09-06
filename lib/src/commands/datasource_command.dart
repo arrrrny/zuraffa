@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
 import '../version.dart';
+import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/project/receipt_store.dart';
 import '../models/generated_file.dart';
 import '../utils/string_utils.dart';
@@ -187,8 +188,19 @@ class DataSourceCommand extends PluginCommand {
       final snake = StringUtils.camelToSnake(entityName);
       final resolvedInput =
           result.data?['input'] as Map<String, dynamic>? ?? const {};
+      // Issue #1138: full capability provenance on the standalone
+      // receipt (keeps its deterministic spec-#977 name — no other
+      // writer for this invocation exists). The methodset is the one
+      // the capability resolved (echoed back in its input), empty when
+      // the run wired none.
+      final methodset =
+          (resolvedInput['methods'] as List?)
+              ?.map((m) => m.toString())
+              .toList(growable: false) ??
+          const [];
 
-      await ReceiptStore(projectRoot: Directory.current.path).save(
+      await ReceiptStore(projectRoot: Directory.current.path).saveNamed(
+        'datasource-$snake.json',
         GenerationReceipt(
           command: 'datasource create',
           target: entityName,
@@ -197,8 +209,17 @@ class DataSourceCommand extends PluginCommand {
           generatorVersion: version,
           input: resolvedInput,
           files: receiptFiles,
+          plugin: 'datasource',
+          capability: 'create',
+          entity: entityName,
+          methodset: methodset,
+          runHash: CapabilityInvocationWrapper.computeRunHash(
+            files: receiptFiles,
+            entity: entityName,
+            methodset: methodset,
+          ),
+          receiptVersion: CapabilityInvocationWrapper.receiptVersion,
         ),
-        fileName: 'datasource-$snake.json',
       );
     } catch (e) {
       print('⚠️  Generation receipt not written: $e');

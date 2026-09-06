@@ -1,5 +1,5 @@
 import 'dart:io';
-
+import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/sync/sync_plugin.dart';
@@ -51,7 +51,14 @@ class SyncCommand extends PluginCommand {
         plugin.capabilities.firstWhere((c) => c is CreateSyncCapability)
             as CreateSyncCapability;
 
-    final result = await capability.execute({
+    // Issue #1138: route the standalone invocation through the
+    // CapabilityInvocationWrapper so a successful run persists its
+    // proof.v1 receipt (best-effort inside the wrapper).
+    final wrapper = CapabilityInvocationWrapper(
+      capability: capability,
+      pluginId: plugin.id,
+    );
+    final result = await wrapper.execute({
       'name': entityName,
       'direction': direction,
       'batchSize': batchSize,

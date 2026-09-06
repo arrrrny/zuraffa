@@ -7,9 +7,11 @@
 //      {"name": "toggle", "action": "skipped", "reason": "..."}]}
 // with action ∈ {created, appended, skipped} (deleted on the revert path).
 //
-// The receipt lands at .zfa/receipts/usecase-<entity>.json (proof.v1):
-// requested vs generated vs skipped methods + guard reason codes, with
-// per-file digests, so `zfa proof check` can verify it end-to-end.
+// Issue #1138: the receipt is keyed
+// usecase-create-<entity>-<timestamp>.json (proof.v1): requested vs
+// generated vs skipped methods + guard reason codes, with per-file
+// digests + the full capability provenance contract, so
+// `zfa proof check` can verify it end-to-end.
 library;
 
 import 'dart:convert';
@@ -73,22 +75,21 @@ environment:
     expect(methods.last['action'], 'created');
 
     // The receipt: requested vs generated vs skipped + guard codes.
-    final receiptPath = p.join(
-      workspace.path,
-      '.zfa',
-      'receipts',
-      'usecase-Product.json',
-    );
-    expect(
-      File(receiptPath).existsSync(),
-      isTrue,
-      reason: 'receipt must land at .zfa/receipts/usecase-<entity>.json',
-    );
+    // Issue #1138: keyed usecase-create-<entity>-<timestamp>.json.
+    final receiptsDir = Directory(p.join(workspace.path, '.zfa', 'receipts'));
+    final receiptFile = receiptsDir
+        .listSync()
+        .whereType<File>()
+        .where((f) => p.basename(f.path).startsWith('usecase-create-Product-'))
+        .single;
     final receipt =
-        jsonDecode(await File(receiptPath).readAsString())
-            as Map<String, dynamic>;
+        jsonDecode(await receiptFile.readAsString()) as Map<String, dynamic>;
     expect(receipt['schema'], 'proof.v1');
-    expect(receipt['command'], 'usecase');
+    expect(receipt['command'], 'usecase create');
+    expect(receipt['plugin'], 'usecase');
+    expect(receipt['capability'], 'create');
+    expect(receipt['entity'], 'Product');
+    expect(receipt['receipt_version'], 1);
     expect(receipt['target'], 'Product');
     expect(receipt['repro'], contains('zfa usecase create Product'));
 
@@ -197,13 +198,15 @@ environment:
     );
 
     // The receipt records requested vs generated vs skipped + codes.
+    // Issue #1138: keyed usecase-create-<entity>-<timestamp>.json.
+    final receiptsDir = Directory(p.join(workspace.path, '.zfa', 'receipts'));
+    final receiptFile = receiptsDir
+        .listSync()
+        .whereType<File>()
+        .where((f) => p.basename(f.path).startsWith('usecase-create-Task-'))
+        .single;
     final receipt =
-        jsonDecode(
-              await File(
-                p.join(workspace.path, '.zfa', 'receipts', 'usecase-Task.json'),
-              ).readAsString(),
-            )
-            as Map<String, dynamic>;
+        jsonDecode(await receiptFile.readAsString()) as Map<String, dynamic>;
     final input = receipt['input'] as Map<String, dynamic>;
     expect(input['requested_methods'], ['get', 'toggle']);
     expect(input['generated_methods'], ['get']);

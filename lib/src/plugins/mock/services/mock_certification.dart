@@ -26,6 +26,7 @@ import 'package:path/path.dart' as p;
 
 import '../../../core/ast/ast_helper.dart';
 import '../../../core/context/file_system.dart';
+import '../../../core/plugin_system/capability_invocation_wrapper.dart';
 import '../../../core/project/receipt_store.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
@@ -372,6 +373,8 @@ abstract final class MockCertificationService {
     required String commandLine,
     required MockCertification certification,
     required List<GeneratedFile> files,
+    String capabilityName = 'create',
+    List<String> methodset = const [],
     FileSystem? fileSystem,
   }) async {
     final fs = fileSystem ?? const DefaultFileSystem();
@@ -395,6 +398,12 @@ abstract final class MockCertificationService {
     if (receiptFiles.isEmpty) return null;
 
     final entitySnake = StringUtils.camelToSnake(entity);
+    // Issue #1138: the certification receipt carries the full capability
+    // provenance contract ({plugin, capability, entity, hash, methodset,
+    // receipt_version: 1}) alongside its certification ledger data. The
+    // document keeps its stable `mock-<entity>.json` name; the hash uses
+    // the shared wrapper derivation so `zfa proof check` re-derives it
+    // without special cases.
     final receipt = GenerationReceipt(
       command: commandLine,
       target: entity,
@@ -403,6 +412,16 @@ abstract final class MockCertificationService {
       generatorVersion: version,
       input: {'certification': certification.toReceiptInput()},
       files: receiptFiles,
+      plugin: 'mock',
+      capability: capabilityName,
+      entity: entity,
+      methodset: methodset,
+      runHash: CapabilityInvocationWrapper.computeRunHash(
+        files: receiptFiles,
+        entity: entity,
+        methodset: methodset,
+      ),
+      receiptVersion: CapabilityInvocationWrapper.receiptVersion,
     );
     final store = ReceiptStore(projectRoot: projectRoot);
     final written = await store.saveAs('mock-$entitySnake.json', receipt);

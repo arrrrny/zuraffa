@@ -4,6 +4,7 @@ import 'package:args/args.dart';
 import 'package:path/path.dart' as p;
 
 import '../cli/plugin_loader.dart';
+import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../models/generated_file.dart';
 import '../plugins/mcp/capabilities/scaffold_mcp_server_capability.dart';
@@ -179,7 +180,14 @@ class PluginCommand {
     final capability = mcpPlugin.capabilities
         .whereType<ScaffoldMcpServerCapability>()
         .first;
-    final result = await capability.execute({
+    // Issue #1138: route the standalone invocation through the
+    // CapabilityInvocationWrapper so a successful run persists its
+    // proof.v1 receipt (best-effort inside the wrapper).
+    final wrapper = CapabilityInvocationWrapper(
+      capability: capability,
+      pluginId: mcpPlugin.id,
+    );
+    final result = await wrapper.execute({
       if (force) 'force': true,
       if (dryRun) 'dryRun': true,
       if (verbose) 'verbose': true,
