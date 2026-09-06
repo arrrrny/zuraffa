@@ -84,17 +84,25 @@ for #259).
 
 ## 6. Post-merge re-verification (master integrated, 2026-09-06)
 
-The epic branch was re-based onto current `master` (28 commits, including
-merged PR #1233 and SPEC 917's ratified exit-code protocol, which
-canonicalizes the legacy `64` to `ExitProtocol.usage` = `2` and forbids
-emitting raw `64` from new code). Consequences, all verified on the
-integrated tree:
+The epic branch was integrated onto current `master` in TWO passes as
+upstream moved (28 + 8 commits, including merged PRs #1233 and #1234 and
+SPEC 917's ratified exit-code protocol, which canonicalizes the legacy
+`64` to `ExitProtocol.usage` = `2` and forbids emitting raw `64` from new
+code). Consequences, all verified on the integrated tree:
 
 - Merge conflict resolved in `shadcn_command.dart`: the fix-list's honest
   two-tier refusal ("not implemented (issue #1149)" for grid/table vs
   "Unknown layout") was kept, and the exit code moved from raw `64` to
   `ExitProtocol.usage`. Master's sweep assertion `shadcn banana` → exit 2
   passes unchanged.
+- Second pass (master merged #1234 and spec/1115): a second conflict in
+  `feature_plugin.dart` was resolved so that the 8 parameterized
+  `PluginFeatureCapability` registrations (fix-list deliverable) coexist
+  with master's NEW typed `XrayFeatureCapability` (spec 1115) — which is
+  NOT one of the 8 clones (its `feature` argument is a typed FeatureId
+  contract), so it keeps its own class. Master's 7 new xray-capability
+  tests pass against the resolved file; the fix-list suite still asserts
+  exactly 8 parameterized clone registrations.
 - `observer_removed_command` now exits `ExitProtocol.usage` (= 2); the
   observer test's exit-code assertion was added (it previously asserted
   only output content), and a new fix-list test pins
@@ -119,11 +127,12 @@ integrated tree:
 | `test/plugins/module` + `test/core/planning` | 20 / 20 (7 + 13) |
 | `test/plugins/tui` | 71 / 71 |
 | `test/plugins/cli` | 3 / 3 |
-| `test/plugins/benchmark` + `test/plugins/feature` | 65 / 65 (59 + 6) |
+| `test/plugins/benchmark` | 59 / 59 |
+| `test/plugins/feature` (incl. master's spec/1115 xray tests) | 13 / 13 |
 | `test/cli/standard` | 124 / 124 |
 | `test/regression/issue_259…` (`--preset=regression`) | 6 / 6 |
 
-**Total: 385 assertions passed, 0 failed.** `dart analyze` over all files
+**Total: 392 assertions passed, 0 failed.** `dart analyze` over all files
 changed by the merge resolution + canonicalization: **No issues found**
 (after dropping two unused and one unnecessary import in the touched test
 files). Additionally, a generated debris file accidentally committed by the
