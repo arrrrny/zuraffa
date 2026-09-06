@@ -45,8 +45,7 @@ void main() {
       );
     });
 
-    test(
-        'issue #1149: the standalone gql command is GONE '
+    test('issue #1149: the standalone gql command is GONE '
         '(plugin deleted)', () async {
       final output = await runner.runCapturing(['gql', '--help']);
       expect(
@@ -94,23 +93,20 @@ void main() {
       );
     });
 
-    test(
-      'PluginLoader.buildRegistry registers GraphqlPlugin (gql deleted, '
-      'issue #1149)',
-      () {
-        final loader = PluginLoader(
-          outputDir: 'lib/src',
-          dryRun: false,
-          force: false,
-          verbose: false,
-          config: PluginConfig(),
-        );
-        final registry = loader.buildRegistry();
-        final ids = registry.plugins.map((p) => p.id).toSet();
-        expect(ids, contains('graphql'));
-        expect(ids, isNot(contains('gql')));
-      },
-    );
+    test('PluginLoader.buildRegistry registers GraphqlPlugin (gql deleted, '
+        'issue #1149)', () {
+      final loader = PluginLoader(
+        outputDir: 'lib/src',
+        dryRun: false,
+        force: false,
+        verbose: false,
+        config: PluginConfig(),
+      );
+      final registry = loader.buildRegistry();
+      final ids = registry.plugins.map((p) => p.id).toSet();
+      expect(ids, contains('graphql'));
+      expect(ids, isNot(contains('gql')));
+    });
 
     test(
       'PluginRegistry.instance has graphql (and no gql) after CliRunner init',

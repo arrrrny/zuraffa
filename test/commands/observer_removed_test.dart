@@ -1,6 +1,6 @@
 // Issue #1149 (kill list, part of EPIC #1132 Machine Contract):
-// observer fate decision — deprecate honestly with an exit-64
-// "removed" verdict.
+// observer fate decision — deprecate honestly with a "removed" verdict
+// exiting ExitProtocol.usage (the legacy 64, canonicalized by SPEC 917).
 //
 // The observer plugin had zero tests, zero artifacts in zik_zak or
 // zikzak_demo, and generated files importing entity barrels that do not
@@ -16,7 +16,7 @@ import 'package:zuraffa/src/core/plugin_system/plugin_interface.dart';
 
 void main() {
   group('observer removal verdict (issue #1149)', () {
-    test('zfa observer prints the removed verdict and exits 64', () async {
+    test('zfa observer prints the removed verdict and exits 2 (legacy 64 canonicalized)', () async {
       final runner = CliRunner(exitOnCompletion: false);
       final output = await runner.runCapturing(['observer', 'create', 'X']);
       expect(output.toUpperCase(), contains('REMOVED'));

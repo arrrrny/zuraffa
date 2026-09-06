@@ -10,14 +10,11 @@ class SqliteCommand extends PluginCommand {
   final SqlitePlugin plugin;
 
   SqliteCommand(this.plugin) : super(plugin) {
-    argParser.addOption(
-      'methods',
-      abbr: 'm',
-      help:
-          'Comma-separated list of methods '
-          '(get,getList,list,create,update,toggle,delete,watch,watchList,initialize)',
-      defaultsTo: 'get,getList,create,update,delete',
-    );
+    // SPEC 917 / #876 sweep: the parent-level --methods was parsed and
+    // advertised but NEVER read — run() is dispatch-only (the live surface
+    // is `zfa sqlite create --name <Entity> --methods ...` from the
+    // capability schema). Silent parent options are the #876 "flags that
+    // lie" family; `zfa manifest --verify` certifies the surface.
   }
 
   @override

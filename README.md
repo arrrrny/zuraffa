@@ -260,6 +260,26 @@ Zuraffa owns the architecture skeleton. Human or agent implementation work shoul
 
 ---
 
+## The exit-code protocol + machine verdicts (SPEC 917)
+
+zfa exits are a **protocol**, not a grab-bag of codes — the golden table is asserted against the live CLI by `test/commands/exit_protocol_golden_test.dart` and enforced in CI by `.github/workflows/conformance.yml`:
+
+| code | name      | meaning                                                                  |
+|------|-----------|--------------------------------------------------------------------------|
+| 0    | success   | GREEN / complete — the operation ran and passed                          |
+| 1    | failure   | RED (honest, in-loop) / stopped / audit failure (see the verdict's `exit_class`) |
+| 2    | usage     | the operation could not run as invoked (legacy 64 maps here)             |
+| 3    | drift     | contract/spec drift — manifest ↔ CLI flag drift, corrupt state evidence  |
+| 4    | conflict  | state conflict — concurrent run ownership, evidence lock inconsistency   |
+
+Every non-zero exit ends with a machine-actionable `--> fix:` line: errors are an API, not an apology. `255`/`-9`/`137` are external-kill signals zfa never emits.
+
+**The treaty gate**: `zfa manifest --verify [pluginIds...]` certifies manifest `inputSchemas` ↔ CLI flags ↔ help text for every CLI-aware plugin (schema→flags, help text, dead-flag, and resolution legs). Drift exits **3**; a clean pass exits 0 and drops into CI. `--format json` emits one machine-verifiable `manifest-verify.v1` document.
+
+**Machine verdicts**: every `zfa tdd` verb and every `zfa corpus` subcommand accepts `--json` and closes with a versioned `verdict.v1` envelope as the final stdout line (errors included — the envelope carries the same `--> fix:` remediation). The driving verbs (`tdd run`, `run-engine`, `run-skin`) also accept `--stream`: one NDJSON `step-verdict.v1` event per completed loop step as it happens, terminated by the final `verdict.v1` envelope. The table itself is printed by `zfa --help` and embedded in `zfa schema` (`x-zfa-exit-protocol`).
+
+---
+
 ## Migration notes
 
 If you are coming from pre-v5 guidance:

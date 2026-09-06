@@ -211,8 +211,7 @@ class ZfaConfig {
   /// key acts as an explicit opt-IN fallback (`true` wins).
   bool isPluginEnabledByDefault(String pluginId) {
     if (pluginId == 'graphql') {
-      return pluginDefaults['graphql'] == true ||
-          pluginDefaults['gql'] == true;
+      return pluginDefaults['graphql'] == true || pluginDefaults['gql'] == true;
     }
     return pluginDefaults[pluginId] ?? false;
   }

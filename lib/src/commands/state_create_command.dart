@@ -13,6 +13,7 @@ import '../models/generator_config.dart';
 import '../plugins/state/state_plugin.dart';
 import '../utils/project_flavor.dart';
 import '../version.dart';
+import '../cli/exit_protocol.dart';
 
 /// `zfa state create` — the state plugin's first-party create verb
 /// (issue #976).
@@ -94,7 +95,7 @@ class StateCreateCommand extends Command<void> {
     if (entityName == null || entityName.isEmpty) {
       print('❌ Error: Missing required arguments: name');
       print('Usage: zfa state create --name <Entity> [--methods get,update]');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 

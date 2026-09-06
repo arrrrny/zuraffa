@@ -62,10 +62,7 @@ class GraphqlPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         'type': 'string',
         'description': 'GraphQL operation type (query, mutation, subscription)',
       },
-      'gql-returns': {
-        'type': 'string',
-        'description': 'GraphQL return fields',
-      },
+      'gql-returns': {'type': 'string', 'description': 'GraphQL return fields'},
       'input-type': {'type': 'string', 'description': 'Input type name'},
       'input-name': {'type': 'string', 'description': 'Input variable name'},
       'op-name': {'type': 'string', 'description': 'Operation name'},

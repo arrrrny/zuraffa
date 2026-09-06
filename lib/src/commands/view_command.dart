@@ -57,6 +57,21 @@ class ViewCommand extends PluginCommand {
     );
   }
 
+  /// SPEC 917 / #876 sweep: run()'s programmatic positional path reads
+  /// every parent-level flag listed below — they are LIVE, declared here so
+  /// `zfa manifest --verify` certifies them instead of flagging them dead
+  /// (spec #979).
+  @override
+  Set<String> get consumedParentFlags => const {
+    'di',
+    'methods',
+    'route',
+    'skin',
+    'state',
+    'v6-state',
+    'xray',
+  };
+
   @override
   Future<void> run() async {
     if (argResults!.rest.isEmpty) {

@@ -57,7 +57,8 @@ void main() {
     // plugin; `--with=gql` aliases to graphql for one deprecation cycle.
     'graphql',
     // 'observer' removed (issue #1149): the observer plugin is gone; the
-    // command name now delivers an exit-64 removal verdict — covered in
+    // command name now delivers an exit-2 removal verdict (legacy 64
+    // canonicalized, SPEC 917) — covered in
     // test/commands/observer_removed_test.dart.
     'cache',
     'sync',

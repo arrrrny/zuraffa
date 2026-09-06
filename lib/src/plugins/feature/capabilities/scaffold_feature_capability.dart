@@ -108,10 +108,6 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         'description': 'Type of the query field',
         'default': 'String',
       },
-      'outputDir': {
-        'type': 'string',
-        'description': 'Target directory for generation',
-      },
       'dryRun': {
         'type': 'boolean',
         'description': 'Run without writing files',

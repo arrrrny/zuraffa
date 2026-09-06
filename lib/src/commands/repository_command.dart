@@ -6,30 +6,12 @@ class RepositoryCommand extends PluginCommand {
   final RepositoryPlugin plugin;
 
   RepositoryCommand(this.plugin) : super(plugin) {
-    argParser.addOption(
-      'methods',
-      abbr: 'm',
-      help:
-          'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
-      defaultsTo: 'get,update',
-    );
-    argParser.addFlag(
-      'data',
-      help: 'Generate repository implementation',
-      defaultsTo: true,
-    );
-    argParser.addFlag(
-      'datasource',
-      help: 'Generate data sources along with repository',
-      defaultsTo: true,
-    );
-    argParser.addFlag(
-      'init',
-      abbr: 'i',
-      help: 'Generate initialization and disposal methods',
-      defaultsTo: false,
-      negatable: false,
-    );
+    // SPEC 917 / #876 sweep: the parent-level generator flags
+    // (--methods/--data/--datasource/--init) were parsed and advertised but
+    // NEVER read — run() is dispatch-only (the live surface is
+    // `zfa repository create ...` from the capability schema). Silent
+    // parent options are the #876 "flags that lie" family; they are gone
+    // and `zfa manifest --verify` certifies the parent surface (spec #979).
   }
 
   @override

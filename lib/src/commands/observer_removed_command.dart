@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../cli/exit_protocol.dart';
+
 /// Issue #1149 (kill list, part of EPIC #1132 Machine Contract): the
 /// observer plugin was REMOVED.
 ///
@@ -14,7 +16,8 @@ import 'package:args/command_runner.dart';
 ///
 /// Instead of vanishing silently, the command survives as an honest
 /// removal verdict: it prints why the plugin is gone, points at the
-/// replacement, and exits 64 (usage/availability failure) — never 0.
+/// replacement, and exits [ExitProtocol.usage] (SPEC 917 usage code — the
+/// legacy 64 canonicalized) — never 0.
 class ObserverRemovedCommand extends Command<void> {
   static const String verdict = '''
 ❌ The observer plugin was REMOVED (issue #1149, part of EPIC #1132
@@ -53,6 +56,7 @@ class ObserverRemovedCommand extends Command<void> {
     // print() (zone-capturable) so scripted pipelines, test harnesses and
     // `runCapturing` all see the verdict; the exit code carries the failure.
     print(verdict);
-    exitCode = 64;
+    // SPEC 917 canonical usage code (the legacy 64, canonicalized).
+    exitCode = ExitProtocol.usage;
   }
 }
