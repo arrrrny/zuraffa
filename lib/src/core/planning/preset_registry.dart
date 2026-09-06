@@ -38,8 +38,21 @@ class PresetRegistry {
     // already includes di; crud/read-only were the only two that didn't,
     // and the resulting app compiled but crashed at runtime with
     // `GetIt: DataSource is not registered` (issue #346).
-    'crud': ['usecase', 'repository', 'datasource', 'di'],
-    'read-only': ['usecase', 'repository', 'datasource', 'di'],
+    //
+    // #1194 (part of #908 P0 "make-default→mock + mocked tier"): `mock`
+    // is bundled with the data presets too — the SAME default the engine
+    // preset already had. A fresh slice lands in the MOCKED tier: the
+    // mock plugin emits the certified mock datasource + mock data seeds
+    // + the simulation-mode binding (registerLazySingleton<Entity
+    // DataSource>(() => EntityMockDataSource()) behind the real
+    // interface), and di wires registerSimulationBindings into
+    // di/index.dart — the app boots on certified mocks under
+    // --dart-define=SIMULATION=true on first run, before any real
+    // adapter is written. Swapping to REAL is `zfa tdd realize`'s job
+    // (companion issue). Teams who want the old compile-only slices pass
+    // `--compile-only`.
+    'crud': ['usecase', 'repository', 'datasource', 'mock', 'di'],
+    'read-only': ['usecase', 'repository', 'datasource', 'mock', 'di'],
     'service-feature': [
       'service',
       'provider',
