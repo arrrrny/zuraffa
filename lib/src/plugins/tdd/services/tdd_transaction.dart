@@ -5,23 +5,32 @@
 /// child appends its evidence to `tdd/cycle-log.md`, and the driver
 /// advances `tdd/run-state.json` after the child exits. A crash inside
 /// that window leaves the stores independent — exactly the disagreement
-/// the bug reports. The journal closes the window:
+/// the bug reports. The transaction closes the window:
 ///
 /// 1. **Write-ahead** — before a step is spawned, [begin] records the
 ///    intended transition (`behavior`, `step`, `pid`, `at`) in
-///    `tdd/journal.json` and fsyncs it. The journal is intent, never a
-///    claim of success.
+///    `tdd/transaction.json` and fsyncs it. The transaction is intent,
+///    never a claim of success.
 /// 2. **Apply** — the child appends its evidence (fsync'd), the driver
 ///    saves the advanced run-state (fsync'd).
-/// 3. **Commit** — [clear] removes the journal. A journal that survives
-///    the run is a crash marker.
+/// 3. **Commit** — [clear] removes the transaction. A transaction file
+///    that survives the run is a crash marker.
 ///
 /// On resume, [pending] exposes the interrupted transition: when the
 /// step's evidence landed, the driver replays the state advance without
 /// re-spawning the step (the transaction completes); when it did not, the
-/// journal is discarded and the in-flight marker re-drives the step
+/// transaction is discarded and the in-flight marker re-drives the step
 /// honestly. Either way the stores converge with the evidence — the
 /// agent never hand-edits run-state to recover.
+///
+/// Spec 1113 (issue #1113) renamed this file from `tdd/journal.json` to
+/// `tdd/transaction.json`: the write-ahead crash marker is a TRANSACTION
+/// record, and `tdd/journal.json` is now the unified TDD journal
+/// (`JournalWriter`/`JournalReader`) every cycle appends to — the name
+/// collision clobbered unified entries on every `clear()`. A surviving
+/// pre-1113 `journal.json` carrying the transaction shape is read as an
+/// EMPTY unified journal (`JournalReader`'s legacy tolerance), never a
+/// corrupt one.
 library;
 
 import 'dart:convert';
@@ -46,8 +55,9 @@ class TddTransaction {
   /// The feature directory (`specs/<feature>`).
   final String featureDir;
 
-  /// The journal file: `<featureDir>/tdd/journal.json`.
-  String get path => p.join(featureDir, 'tdd', 'journal.json');
+  /// The write-ahead transaction file: `<featureDir>/tdd/transaction.json`
+  /// (renamed from `tdd/journal.json` by spec 1113 — see the library doc).
+  String get path => p.join(featureDir, 'tdd', 'transaction.json');
 
   /// Record the intent to run [step] for [behavior] — write-ahead, fsync'd
   /// before the step spawns. Any surviving record marks an interrupted
@@ -86,8 +96,8 @@ class TddTransaction {
     }
   }
 
-  /// Complete the transaction: remove the journal after the state advance
-  /// reached the disk.
+  /// Complete the transaction: remove the transaction file after the
+  /// state advance reached the disk.
   Future<void> clear() async {
     final file = File(path);
     if (await file.exists()) await file.delete();
