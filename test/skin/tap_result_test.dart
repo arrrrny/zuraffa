@@ -52,5 +52,31 @@ void main() {
       expect(TapResult.found, isNot(TapResult.disabled));
       expect(TapResult.found.hashCode, TapResult.found.hashCode);
     });
+
+    test('T1.6 an unknown verdict decodes into an honest error', () {
+      final result = TapResult.fromJson({'result': 'mystery', 'tapped': true});
+      expect(result, isA<TapError>());
+      expect(result.name, 'error');
+      expect(result.tapped, isFalse);
+      expect((result as TapError).message, contains('mystery'));
+    });
+
+    test('T1.7 the verdict names are the cross-surface vocabulary', () {
+      expect(TapResult.found.name, 'found');
+      expect(TapResult.disabled.name, 'disabled');
+      expect(TapResult.notFound.name, 'notFound');
+      expect(TapResult.error('x').name, 'error');
+      // Only error carries a message; the others omit the key entirely.
+      expect(TapResult.error('x').toJson()['message'], 'x');
+      expect(TapResult.notFound.toJson().containsKey('message'), isFalse);
+    });
+
+    test('T1.8 toString names the verdict (diagnostics)', () {
+      expect(TapResult.found.toString(), 'TapResult.found');
+      expect(
+        TapResult.error('boom').toString(),
+        'TapResult.error(boom)',
+      );
+    });
   });
 }

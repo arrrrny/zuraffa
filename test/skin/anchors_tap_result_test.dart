@@ -63,5 +63,26 @@ void main() {
       expect(registry.tapResult('signin-guest'), TapResult.found);
       expect(tapped, 1);
     });
+
+    test('T2.7 isAnchorKey needs BOTH length and the zfa: prefix', () {
+      // Length alone must not satisfy the predicate (kills the &&->||
+      // mutant and the negated-startsWith mutant).
+      expect(ZfaAnchors.isAnchorKey('signinguest'), isFalse);
+      expect(ZfaAnchors.isAnchorKey('zfa:'), isFalse);
+      expect(ZfaAnchors.isAnchorKey('zfa:'), isFalse,
+          reason: 'the bare prefix is not an anchor');
+      // Prefix without length still does not qualify alone.
+      expect(ZfaAnchors.isAnchorKey('zfa:g'), isTrue);
+    });
+
+    test('T2.8 unregister removes the handler (the unmount half)', () {
+      final registry = ZfaAnchorRegistry();
+      var tapped = 0;
+      registry
+        ..register('signin-guest', () => tapped++, enabled: true)
+        ..unregister('zfa:signin-guest');
+      expect(registry.tapResult('signin-guest'), TapResult.notFound);
+      expect(tapped, 0);
+    });
   });
 }
