@@ -97,6 +97,23 @@ void setupDependencies(GetIt getIt) {
   registerLoginRepository(getIt);
 }
 ''');
+    // Spec 1110: a clean engine slice is a CERTIFIED slice — the
+    // canonical fixture commits the all-satisfied mock-cert receipt
+    // (written after the entity source, so it is fresh).
+    await writeFile('test/mock/login/mock-cert.Login.json', '''
+{
+  "schema": 1,
+  "spec": 1001,
+  "entity": "Login",
+  "interface": "LoginDataSource",
+  "contract_digest": "fixture",
+  "methods": [
+    {"name": "get", "satisfied": true}
+  ],
+  "sandbox": {"runner": "dart", "analyze_issues": 0, "analyze_errors": 0},
+  "certified_at": "2026-09-05T00:00:00.000Z"
+}
+''');
   }
 
   test('passes on a fully-resolved engine slice', () async {

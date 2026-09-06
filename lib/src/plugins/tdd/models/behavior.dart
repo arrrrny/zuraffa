@@ -1,6 +1,8 @@
 /// Behavior entity for the `zfa tdd` plugin.
 library;
 
+import '../services/finder_taxonomy.dart';
+
 /// The subject kind a behavior's paired test + subject express.
 ///
 /// `widget` (bug #830): the behavior's acceptance scenario is UI-observable
@@ -66,6 +68,15 @@ class Behavior {
   /// drill + registrar gate surfaces).
   final bool persistence;
 
+  /// The test-list row's declared finder kinds (issue #1140) — the plan
+  /// table's `kind` cell for widget rows, carried through gen so the
+  /// emitted assertion templates are the DECLARED ones and a drifted
+  /// column is refused. Null = the row carries no kind column (legacy
+  /// 4-column lists); empty = the plan declared `none`; non-empty = a
+  /// declared contract. `zfa tdd gen` reconciles it against the
+  /// description-derived prediction for widget rows.
+  final List<ScenarioAssertionClass>? finderKinds;
+
   Behavior({
     required this.id,
     required this.feature,
@@ -75,6 +86,7 @@ class Behavior {
     required this.target,
     this.persistence = false,
     this.state = BehaviorState.pending,
+    this.finderKinds,
   });
 
   @override
