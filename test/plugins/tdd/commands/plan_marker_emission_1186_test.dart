@@ -194,9 +194,10 @@ void main() {
         }
       });
 
-      test('a refused plan (skin-contract gate) never touches the spec either',
-          () async {
-        final tmp = await _featureDir('''
+      test(
+        'a refused plan (skin-contract gate) never touches the spec either',
+        () async {
+          final tmp = await _featureDir('''
 **Template Version**: `zuraffa-1.0`
 
 # Spec: 1186-prov
@@ -218,27 +219,28 @@ Skin Contract:
   routes: [home]
 ```
 ''');
-        try {
-          final before = await File(
-            p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
-          ).readAsString();
-          final out = await _plan(tmp);
-          expect(exitCode, 2, reason: out);
-          expect(out, contains('skin contract refused'));
-          final after = await File(
-            p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
-          ).readAsString();
-          expect(
-            after,
-            before,
-            reason:
-                'every refusal path (strict, skin, lanes) must run '
-                'BEFORE the marker emission touches the spec',
-          );
-        } finally {
-          tmp.deleteSync(recursive: true);
-        }
-      });
+          try {
+            final before = await File(
+              p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
+            ).readAsString();
+            final out = await _plan(tmp);
+            expect(exitCode, 2, reason: out);
+            expect(out, contains('skin contract refused'));
+            final after = await File(
+              p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
+            ).readAsString();
+            expect(
+              after,
+              before,
+              reason:
+                  'every refusal path (strict, skin, lanes) must run '
+                  'BEFORE the marker emission touches the spec',
+            );
+          } finally {
+            tmp.deleteSync(recursive: true);
+          }
+        },
+      );
 
       test('a refused plan (strict gate) never touches the spec', () async {
         final tmp = await _featureDir(_speckitShapedSpec);
