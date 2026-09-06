@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import '../cli/exit_protocol.dart';
 
 import '../plugins/shadcn/vocabulary/payload_validator.dart';
 import '../plugins/shadcn/vocabulary/ui_node_registry.dart';
@@ -135,7 +136,7 @@ class UiValidateCommand extends Command<void> {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       print('❌ Usage: zfa ui validate <payload.json> [--project-root=<dir>]');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final path = rest.first;
@@ -218,7 +219,7 @@ class UiPreviewCommand extends Command<void> {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       print('❌ Usage: zfa ui preview <payload.json> [--project-root=<dir>]');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final path = rest.first;

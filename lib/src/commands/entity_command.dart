@@ -14,14 +14,30 @@ import '../utils/framework_export_surface.dart';
 import '../utils/string_utils.dart';
 import '../version.dart';
 import '../plugins/cli/cli_plugin.dart';
+import '../cli/exit_protocol.dart';
 
 class EntityCommand {
   static const String fixedEntityOutput = ZfaConfig.fixedEntityOutput;
+
+  /// SPEC 917: whether this invocation owns the process (CLI mode) or is
+  /// embedded (in-process dispatch / MCP), where a raw `exit()` would kill
+  /// the host isolate mid-run. Set by [execute]; consulted by [_bail].
+  bool _exitsOnCompletion = true;
+
+  /// SPEC 917: terminate the command with [code] in BOTH modes — raw
+  /// `exit(code)` when we own the process, an unwinding [_EntityBail]
+  /// sentinel when embedded (the host runner reads `exitCode`).
+  Never _bail(int code) {
+    exitCode = code;
+    if (_exitsOnCompletion) exit(code);
+    throw _EntityBail(code);
+  }
 
   Future<void> execute(
     List<String> args, {
     bool exitOnCompletion = true,
   }) async {
+    _exitsOnCompletion = exitOnCompletion;
     if (args.isEmpty) {
       _printHelp();
       // Issue #1059: bare `zfa entity` prints usage and did nothing — that is
@@ -32,8 +48,8 @@ class EntityCommand {
       // must stay exit 0 with clean help text (the #764 contract).
       stderr.writeln('❌ Usage: zfa entity <subcommand> [arguments]');
       stderr.writeln('   Run `zfa entity --help` to list subcommands.');
-      exitCode = 64;
-      if (exitOnCompletion) exit(64);
+      exitCode = ExitProtocol.usage;
+      if (exitOnCompletion) exit(ExitProtocol.usage);
       return;
     }
 
@@ -62,7 +78,17 @@ class EntityCommand {
     final depCheck = _checkDependencies();
     if (depCheck != null) {
       print(depCheck);
-      if (exitOnCompletion) exit(1);
+      // SPEC 917: the missing-dependency failure closes with the
+      // machine-actionable fix line (the check text already suggests
+      // `dart pub add` / `zfa doctor` — the canonical remediation).
+      print(
+        ExitProtocol.fixLine(
+          'add the missing dependencies (see above: `dart pub add '
+          'zorphy_annotation build_runner`) or run `zfa doctor`',
+        ),
+      );
+      exitCode = ExitProtocol.failure;
+      if (exitOnCompletion) exit(ExitProtocol.failure);
       return;
     }
 
@@ -102,8 +128,16 @@ class EntityCommand {
           // Issue #1059 sweep: with exitOnCompletion=false (in-process/MCP
           // embedding) this path used to fall through with exitCode still 0 —
           // the same lying-success pattern. Propagate the failure code.
-          exitCode = 1;
-          if (exitOnCompletion) exit(1);
+          // SPEC 917: an unknown subcommand is a usage error (canonical 2,
+          // was 1) and the output closes with the machine-actionable fix.
+          print(
+            ExitProtocol.fixLine(
+              're-run with `zfa entity --help` to list the valid '
+              'subcommands, then re-invoke',
+            ),
+          );
+          exitCode = ExitProtocol.usage;
+          if (exitOnCompletion) exit(ExitProtocol.usage);
       }
 
       if (runBuild) {
@@ -115,9 +149,21 @@ class EntityCommand {
         print('\n🎨 Formatting generated code...');
         await _runFormat();
       }
+    } on _EntityBail {
+      // SPEC 917 embedded-mode unwind: _bail already reported the failure
+      // and set exitCode — the embedding runner dispatches the exit.
+      return;
     } catch (e) {
       print('❌ Error: $e');
-      if (exitOnCompletion) exit(1);
+      // SPEC 917: every non-zero exit closes with the machine-actionable
+      // fix line — the honest failure points at the doctor.
+      print(
+        ExitProtocol.fixLine(
+          're-run with --verbose for the stack trace, then run `zfa doctor`',
+        ),
+      );
+      exitCode = ExitProtocol.failure;
+      if (exitOnCompletion) exit(ExitProtocol.failure);
     }
   }
 
@@ -180,9 +226,13 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     if (name == null || name.isEmpty) {
       print('Error: Entity name is required. Use -n or --name to specify.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'pass the entity name: `zfa entity create -n <Name> --fields=...`',
+        ),
+      );
+      _bail(ExitProtocol.usage);
     }
-
     // Issue #942: refuse entity names that collide with the framework's
     // export surface BEFORE writing anything. The generated
     // datasource/mock/repository/usecase/provider templates import the
@@ -216,7 +266,7 @@ ${missing.map((d) => '   • $d').join('\n')}
         '`zfa entity create ${name}Entity --fields=...` — pick a name '
         'that does not match a zuraffa export.',
       );
-      exit(1);
+      _bail(ExitProtocol.failure);
     }
 
     final outputDir = fixedEntityOutput;
@@ -246,7 +296,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       }
       print('');
       print('No files were written. See \'zfa entity --help\' for details.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the errors above and re-run `zfa entity create`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
 
     // Validate field types BEFORE writing anything (issue #296):
@@ -273,7 +328,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       }
       print('');
       print('No files were written. Resolve the above and re-run.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the errors above and re-run `zfa entity create`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
 
     final useFilter =
@@ -331,7 +391,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       );
       print('');
       print('No files were written. See \'zfa entity --help\' for details.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the errors above and re-run `zfa entity create`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
 
     // Spec 0806-zfa-replay FR-006 (convergent generation): `entity create`
@@ -405,7 +470,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       }
     } else {
       print('❌ ${result.error}');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the error above and re-run `zfa entity add-field`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
   }
 
@@ -509,7 +579,12 @@ ${missing.map((d) => '   • $d').join('\n')}
         return ZorphyKind.valueObject;
       default:
         print('❌ Unknown kind "$kind". Expected: entity | value_object.');
-        exit(1);
+        print(
+          ExitProtocol.fixLine(
+            'pass --kind entity (or --kind value_object) and re-run',
+          ),
+        );
+        _bail(ExitProtocol.usage);
     }
   }
 
@@ -519,7 +594,12 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     if (name == null || name.isEmpty) {
       print('Error: Enum name is required. Use -n or --name to specify.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'pass the enum name: `zfa entity enum -n <Name> --value=...`',
+        ),
+      );
+      _bail(ExitProtocol.usage);
     }
 
     final values = _asStringList(parsed['value']);
@@ -527,7 +607,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       print(
         'Error: Enum values are required. Use --value with comma-separated values.',
       );
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'pass at least one value: `zfa entity enum -n <Name> --value=a,b`',
+        ),
+      );
+      _bail(ExitProtocol.usage);
     }
 
     final enumConfig = EnumConfig(
@@ -561,7 +646,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       print('✓ Created enum: ${result.filePath}');
     } else {
       print('❌ ${result.error}');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the error above and re-run `zfa entity enum`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
   }
 
@@ -571,7 +661,12 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     if (name == null || name.isEmpty) {
       print('Error: Entity name is required. Use -n or --name to specify.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'pass the entity name: `zfa entity add-field -n <Name> --field=...`',
+        ),
+      );
+      _bail(ExitProtocol.usage);
     }
 
     final fieldStrings = [
@@ -582,7 +677,13 @@ ${missing.map((d) => '   • $d').join('\n')}
       print(
         'Error: At least one field is required. Use --field or --fields to specify.',
       );
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'pass at least one field: `zfa entity add-field -n <Name> '
+          '--field=name:String`',
+        ),
+      );
+      _bail(ExitProtocol.usage);
     }
 
     final fields = _parseFields(fieldStrings);
@@ -608,7 +709,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       }
       print('');
       print('No files were modified. See \'zfa entity --help\' for details.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the errors above and re-run `zfa entity add-field`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
 
     // Validate field types BEFORE writing anything (issue #296):
@@ -633,7 +739,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       }
       print('');
       print('No files were modified. Resolve the above and re-run.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the errors above and re-run `zfa entity add-field`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
 
     final dryRun = parsed['dry_run'] as bool? ?? false;
@@ -688,7 +799,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       }
     } else {
       print('❌ ${result.error}');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the error above and re-run `zfa entity add-field`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
   }
 
@@ -904,13 +1020,24 @@ ${missing.map((d) => '   • $d').join('\n')}
     final rest = args.where((a) => !a.startsWith('-')).toList();
     if (rest.isEmpty) {
       print('Error: JSON file path is required.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'pass the JSON file: `zfa entity from-json <path/to/file.json>`',
+        ),
+      );
+      _bail(ExitProtocol.usage);
     }
 
     final jsonFile = File(rest.first);
     if (!await jsonFile.exists()) {
       print('Error: JSON file not found: ${jsonFile.path}');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'check the path (missing file: ${jsonFile.path}) and re-run '
+          '`zfa entity from-json`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
 
     final parsed = _parseArgs(args);
@@ -945,7 +1072,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       }
     } else {
       print('❌ ${result.error}');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the error above and re-run `zfa entity from-json`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
   }
 
@@ -1313,7 +1445,7 @@ ${missing.map((d) => '   • $d').join('\n')}
       // is the lying-success family bug #1107 pins.
       stderr.writeln('❌ Usage: zfa entity cli <EntityName>');
       stderr.writeln('   Run `zfa entity cli --help` for the full contract.');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     // Delegate to the CliGeneratorPlugin which handles writing + receipts.
@@ -1442,4 +1574,17 @@ NOTES:
 For more information, visit: https://github.com/arrrrny/zorphy
 ''');
   }
+}
+
+/// SPEC 917: the embedded-mode unwind sentinel — thrown by [_bail] when the
+/// command does NOT own the process, so the failure unwinds through the
+/// switch to [execute]'s `on _EntityBail` handler instead of a raw `exit()`
+/// killing the host isolate (the embedding runner reads `exitCode`).
+final class _EntityBail implements Exception {
+  _EntityBail(this.code);
+
+  final int code;
+
+  @override
+  String toString() => '_EntityBail($code)';
 }

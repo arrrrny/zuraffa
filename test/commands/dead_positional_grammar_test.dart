@@ -6,7 +6,7 @@
 // with "Could not find a subcommand" BEFORE the command's run() ever
 // executes. run() is therefore reachable only via direct (programmatic)
 // invocation, and its only honest behavior is to print the SUBCOMMAND
-// grammar, never generate, and signal a usage error (exit 64). The usage
+// grammar, never generate, and signal a usage error (exit 2). The usage
 // strings may no longer advertise the unreachable positional grammar.
 //
 // The contract runs each real command's run() in a SUBPROCESS (the probe
@@ -19,6 +19,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/cli/exit_protocol.dart';
 
 /// The unreachable positional usage string each command advertised on
 /// master (bug #856 evidence), keyed by CLI command name.
@@ -44,14 +45,14 @@ void main() {
   group('dead positional grammar (bug #856)', () {
     for (final entry in _deadUsageStrings.entries) {
       test(
-        'FR-1: ${entry.key} run() prints the subcommand grammar and exits 64 — '
+        'FR-1: ${entry.key} run() prints the subcommand grammar and exits 2 — '
         'never the dead positional hint, never the generator',
         () async {
           final result = await _runProbe(entry.key);
 
           expect(
             result.exitCode,
-            64,
+            ExitProtocol.usage,
             reason:
                 'a usage error must not look successful; '
                 'stdout=${result.stdout} stderr=${result.stderr}',

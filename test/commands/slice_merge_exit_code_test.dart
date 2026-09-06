@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/cli/exit_protocol.dart';
 
 /// Issue #767 — the systemic ❌-and-0 contract at the PROCESS boundary.
 ///
@@ -16,7 +17,7 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 ///   zfa slice merge DoesNotExist                  → exit 0  (bug)
 ///   zfa slice verify DoesNotExist                 → exit 0  (bug)
 ///   zfa slice export DoesNotExist --format tar.gz → exit 0  (bug)
-///   zfa slice teleport (usage error)              → exit 64 (ok)
+///   zfa slice teleport (usage error)              → exit 2 (ok)
 ///
 ///   FR-1: a failed slice capability (merge/verify/export) must exit 1 at
 ///         the process boundary — the instance outcome must be published
@@ -67,7 +68,7 @@ void main() {
 
   test('FR-2a — unknown subcommand keeps exiting 64 (usage family)', () async {
     final (_, code) = await runSlice(['teleport']);
-    expect(code, equals(64));
+    expect(code, equals(ExitProtocol.usage));
   });
 
   test('FR-2b — slice list success keeps exiting 0', () async {

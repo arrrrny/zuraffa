@@ -30,6 +30,7 @@ import '../services/requirement_scan.dart';
 import '../services/spec_fuzz_auditor.dart';
 import '../services/tdd_timeout.dart';
 import '../services/verdict_emitter.dart';
+import '../../../cli/exit_protocol.dart';
 
 class SpecFuzzCommand extends Command<void> {
   SpecFuzzCommand() {
@@ -196,7 +197,7 @@ class SpecFuzzCommand extends Command<void> {
             "(got '$runnerFlag') --> fix: pass dart|flutter, or set the "
             'file: key in .specify/memory/tdd-profile.md and omit --runner',
           );
-          exitCode = 64;
+          exitCode = ExitProtocol.usage;
           return;
       }
     }

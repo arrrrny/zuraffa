@@ -117,12 +117,13 @@ void main() {
     );
   });
 
-  test('mini treaty, both directions: every plugin-specific ServiceCommand '
+  test('mini treaty, both directions: every plugin-specific create-subcommand '
       'flag is in configSchema, and every configSchema property (other than '
-      'the service name-slot) is a ServiceCommand flag', () {
-    // Grammar side: the plugin-specific flags declared on the service
-    // command itself (base flags + package:args' automatic --help
-    // filtered out).
+      'the service name-slot) is a create-subcommand flag', () {
+    // Grammar side: the plugin-specific flags on the CREATE SUBCOMMAND —
+    // the live surface since the SPEC 917 / #876 purge removed the dead
+    // parent-level duplicates (the parent is dispatch-only; its parser
+    // carries only the standard machinery, spec #979).
     const baseFlags = {
       'output',
       'dry-run',
@@ -132,7 +133,8 @@ void main() {
       'help',
     };
     final command = plugin().createCommand();
-    final commandFlags = command.argParser.options.keys
+    final create = command.subcommands['create']!;
+    final commandFlags = create.argParser.options.keys
         .where((f) => !baseFlags.contains(f))
         .toSet();
 
@@ -152,9 +154,13 @@ void main() {
           'not offer: $schemaOnly (grammar drift)',
     );
 
-    // command grammar ⊆ configSchema — every CLI knob must be visible to
-    // JSON agents / make.
-    final grammarOnly = commandFlags.difference(schemaProps);
+    // command grammar ⊆ configSchema — every CLI GENERATION KNOB must be
+    // visible to JSON agents / make. Not knobs: --name (the #771/#904
+    // manifest-driven spelling of the `service` name-slot's positional
+    // entity) and --json (the #970-class OUTPUT envelope flag, not a
+    // generation input).
+    const nonKnobs = {'name', 'json'};
+    final grammarOnly = commandFlags.difference({...schemaProps, ...nonKnobs});
     expect(
       grammarOnly,
       isEmpty,

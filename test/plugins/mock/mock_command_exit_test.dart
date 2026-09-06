@@ -36,17 +36,18 @@ void main() {
   });
 
   test(
-    'A1: zfa mock json with no entity survives in-process and sets exit 64',
+    'A1: zfa mock json with no entity survives in-process and sets exit 2',
     () async {
       final runner = CliRunner(exitOnCompletion: false);
       // Pre-fix, the bare exit(64) inside JsonMockCommand kills THIS
       // process before the future below ever completes — reaching the
-      // assertions is itself the survival proof.
+      // assertions is itself the survival proof. SPEC 917: the usage
+      // error publishes the CANONICAL 2 (the legacy 64 is retired).
       final out = await CwdGuard.exclusive(
         () => runner.runCapturing(['-C', tempDir.path, 'mock', 'json']),
       );
 
-      expect(exitCode, 64, reason: 'usage error must publish exit code 64');
+      expect(exitCode, 2, reason: 'usage error must publish exit code 2');
       expect(
         out,
         contains('Usage'),
@@ -67,7 +68,7 @@ void main() {
     await CwdGuard.exclusive(
       () => runner.runCapturing(['-C', tempDir.path, 'mock', 'json']),
     );
-    expect(exitCode, 64);
+    expect(exitCode, 2);
 
     // Same host, second dispatch: proves the first refusal did not
     // terminate the process.
@@ -80,7 +81,7 @@ void main() {
       0,
       reason:
           'runCapturing resets exitCode per invocation (hermetic) — the '
-          '64 from the refusal was observed BEFORE this second dispatch',
+          '2 from the refusal was observed BEFORE this second dispatch',
     );
   }, timeout: const Timeout(Duration(minutes: 2)));
 }

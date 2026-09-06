@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 
 import '../plugins/tdd/models/verdict_envelope.dart';
 import '../utils/string_utils.dart';
+import '../cli/exit_protocol.dart';
 
 /// A method-parity divergence between the datasource interface and one
 /// implementation.
@@ -101,7 +102,7 @@ class DataSourceCheckCommand extends Command<void> {
         print('❌ Usage: zfa datasource check <Entity>');
         print('   Example: zfa datasource check Product');
       }
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
