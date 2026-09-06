@@ -7,7 +7,7 @@ import 'package:path/path.dart' as p;
 import '../core/project/project_root.dart';
 import '../core/project/receipt_store.dart';
 import '../domain/entities/feature_contract/feature_contract.dart';
-import '../domain/entities/feature_contract/feature_contract_registry.dart';
+import '../plugins/slice/services/feature_contract_resolution.dart';
 import '../plugins/xray/xray_deck_barrel_writer.dart';
 import '../version.dart';
 
@@ -155,20 +155,27 @@ class XrayDeckCommand extends Command<void> {
       return;
     }
 
-    // Spec 1098: resolve the feature contract BEFORE generating — an
+    // Spec 1098/1114: resolve the feature contract BEFORE generating — an
     // unresolvable feature id must fail loudly, never stamp a deck with a
-    // fabricated ownership anchor.
+    // fabricated ownership anchor. Resolution runs through the shared
+    // typed resolver (the SAME definition slice composes from — contract.yaml,
+    // the spec's ## Skin Contract, or its ## Lanes CORE block), so xray and
+    // slice can never disagree about what a feature is.
     FeatureContract? featureContract;
     if (featureId != null && featureId.isNotEmpty) {
-      final registry = FeatureContractRegistry.scanProject(projectRoot);
-      featureContract = registry.findById(featureId);
+      final resolved = resolveFeatureContract(
+        projectRoot: projectRoot,
+        featureId: featureId,
+      );
+      featureContract = resolved?.contract;
       if (featureContract == null) {
-        final known = registry.knownIds.toList()..sort();
+        final known = knownFeatureContractIds(projectRoot);
         print(
           'Error: unknown feature contract: "$featureId". '
           'Known contracts: '
           '${known.isEmpty ? "(none)" : known.join(", ")}. '
-          'Declare it at specs/<feature-id>/contract.yaml (spec 1098).',
+          'Declare it at specs/<feature-id>/contract.yaml (spec 1098) '
+          'or in the spec\'s ## Skin Contract / ## Lanes section (spec 1114).',
         );
         exitCode = 64;
         return;
