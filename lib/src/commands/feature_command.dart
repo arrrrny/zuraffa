@@ -17,6 +17,13 @@ class FeatureCommand extends Command<void> {
       help: 'Feature name (alternative to the positional argument)',
     );
     argParser.addOption(
+      'feature',
+      help:
+          'Feature contract id for feature-scoped capabilities '
+          '(e.g. 004-login-ui) — validated against the registered contracts',
+    );
+    argParser.addOption('project-root', help: 'Project root directory');
+    argParser.addOption(
       'output',
       abbr: 'o',
       help:

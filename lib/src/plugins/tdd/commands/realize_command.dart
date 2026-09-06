@@ -551,6 +551,7 @@ class RealizeCommand extends Command<void> {
         await ledgerFile.writeAsBytes(scaffoldLedgerBefore);
       }
     }
+
     try {
       await rebinder.locateAdapter(adapterClass: adapter);
     } on DiRebindException catch (_) {
