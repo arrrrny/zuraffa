@@ -2,6 +2,7 @@ import 'package:code_builder/code_builder.dart';
 import 'package:dart_style/dart_style.dart';
 
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../skin/anchors.dart';
 import 'lifecycle_builder.dart';
 import 'view_constructor_builder.dart';
 
@@ -28,6 +29,14 @@ class ViewClassSpec {
   // seam users extend). Without the flag the output is
   // byte-identical to the pre-1102 emission.
   final bool withSkinAudit;
+  // #1112: the zfa: anchor contract ids this view declares (the
+  // `zfa:signin-*` vocabulary the pilot proved). Each anchor gets
+  // its SkinContractRow.anchorExists contract row AND a generated
+  // `debugTap<PascalAnchor>()` VM-service driver function — the
+  // per-view seam so the function lookup is just
+  // `debugTap<PascalAnchor>()`. Empty (the default) emits neither —
+  // byte-compat with pre-1112 generation.
+  final List<String> anchors;
   // #359: when non-null, the view body renders the entity's mock data
   // (a ListView over <Entity>MockData.sampleList for list views, a Card
   // with <Entity>MockData.sample<Entity> for detail views) instead of
@@ -52,6 +61,7 @@ class ViewClassSpec {
     this.isStateful = false,
     this.withXRay = false,
     this.withSkinAudit = false,
+    this.anchors = const [],
     this.stateClassName,
     this.mockDataImportPath,
   });
@@ -158,11 +168,27 @@ class ViewClassBuilder {
   /// extend this list (the #1005 hand-written-seam precedent: the
   /// file is theirs once generated; regeneration never touches an
   /// existing file without --force).
+  ///
+  /// #1112: every declared anchor also gains its
+  /// `SkinContractRow.anchorExists` row AND its generated
+  /// `debugTap<PascalAnchor>()` VM-service driver function — the
+  /// per-view seam (`zfa make --skin --anchor signin-guest` emits
+  /// `debugTapSigninGuest()`), so the function lookup is just
+  /// `debugTap<PascalAnchor>()`.
   String _buildSkinRowsSource(ViewClassSpec spec) {
     final title = spec.entityName ?? spec.viewName;
     final rowsName = 'k${spec.viewName}SkinRows';
-    return '''
+    final anchorRows = spec.anchors
+        .map(
+          (anchor) =>
+              "  SkinContractRow.anchorExists(\n"
+              "    id: '$anchor-anchor',\n"
+              "    anchor: '$anchor',\n"
+              "  ),",
+        )
+        .join('\n');
 
+    final buffer = StringBuffer('''
 /// The runtime skin contract for ${spec.viewName} (issue #1102).
 ///
 /// The auditor evaluates every row against the live tree on every
@@ -177,9 +203,48 @@ final List<SkinContractRow> $rowsName = [
     id: '${spec.viewName.toLowerCase()}-title',
     text: '$title',
   ),
-];
-''';
+''');
+    if (anchorRows.isNotEmpty) buffer.writeln(anchorRows);
+    buffer.writeln('];');
+
+    if (spec.anchors.isNotEmpty) {
+      buffer.writeln('''
+/// The per-view VM-service driver seam (issue #1112): one function
+/// per `zfa:` anchor, so the function lookup is just
+/// `debugTap<PascalAnchor>()` — the pilot's
+/// `debugTapAnchor('zfa:<id>')` walk, named. Generated; hand edits
+/// belong in new helpers, the anchors list drives these.
+///''');
+      for (final fn in _driverSeamFunctions(spec.anchors)) {
+        buffer.writeln(fn);
+      }
+    }
+    return buffer.toString();
   }
+
+  /// The deduplicated `debugTap<PascalAnchor>()` sources for
+  /// [anchors], in declaration order (issue #1112).
+  static List<String> _driverSeamFunctions(Iterable<String> anchors) {
+    final seen = <String>{};
+    final functions = <String>[];
+    for (final anchor in anchors) {
+      final pascal = _pascalCase(anchor);
+      if (pascal.isEmpty || !seen.add(pascal)) continue;
+      functions.add(
+        "Future<TapResult> debugTap$pascal() => "
+        "debugTapAnchor('${ZfaAnchors.keyFor(anchor)}');",
+      );
+    }
+    return functions;
+  }
+
+  /// `signin-guest` → `SigninGuest`, `log-out` → `LogOut`,
+  /// `guest` → `Guest` (the `debugTap<PascalAnchor>()` naming).
+  static String _pascalCase(String raw) => raw
+      .split(RegExp(r'[-_\s]+'))
+      .where((part) => part.isNotEmpty)
+      .map((part) => part[0].toUpperCase() + part.substring(1))
+      .join();
 
   String _buildCustomView(ViewClassSpec spec, {String? leadingComment}) {
     if (spec.isStateful) {

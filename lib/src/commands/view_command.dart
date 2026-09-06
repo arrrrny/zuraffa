@@ -55,6 +55,14 @@ class ViewCommand extends PluginCommand {
           '(skin/skin_contract_auditor.dart) is emitted when missing.',
       defaultsTo: false,
     );
+    argParser.addMultiOption(
+      'anchor',
+      help:
+          'A zfa: anchor contract id this view declares (repeatable; '
+          'issue #1112, requires --skin). Each anchor gains its '
+          'anchorExists contract row and a generated '
+          'debugTap<PascalAnchor>() VM-service driver function.',
+    );
   }
 
   @override
@@ -86,6 +94,7 @@ class ViewCommand extends PluginCommand {
         ? (argResults?['xray'] as bool? ?? false)
         : (config?.xrayByDefault ?? false);
     final generateSkin = argResults?['skin'] as bool? ?? false;
+    final anchors = (argResults?['anchor'] as List<String>?) ?? const [];
 
     final capability = plugin.capabilities.firstWhere(
       (c) => c.name == capabilityName,
@@ -133,6 +142,7 @@ class ViewCommand extends PluginCommand {
         'route': false, // Don't generate route in view capability
         'xray': generateXRay,
         'skin': generateSkin,
+        'anchors': anchors,
         'dryRun': isDryRun,
         'force': isForce,
         'verbose': isVerbose,
@@ -178,6 +188,7 @@ class ViewCommand extends PluginCommand {
         'route': false,
         'xray': generateXRay,
         'skin': generateSkin,
+        'anchors': anchors,
         'dryRun': isDryRun,
         'force': isForce,
         'verbose': isVerbose,

@@ -20,4 +20,5 @@ export 'skin_audit_controller.dart';
 export 'skin_audit_scheduler.dart';
 export 'skin_contract_row.dart';
 export 'skin_violation.dart';
+export 'tap_result.dart';
 export 'tree_facts.dart';

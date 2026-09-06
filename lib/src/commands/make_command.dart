@@ -350,6 +350,13 @@ class MakeCommand extends Command<void> {
           '(issues #1102/#1166); the auditor kit file is emitted when '
           'missing',
     );
+    argParser.addMultiOption(
+      'anchor',
+      help:
+          'A zfa: anchor the generated --skin view declares (repeatable; '
+          'issue #1112) — emits the anchorExists contract row and the '
+          'debugTap<PascalAnchor>() VM-service driver function per anchor.',
+    );
     // Issue #1194 (part of #908 P0 "make-default→mock + mocked tier"):
     // the mocked tier is the DEFAULT — a fresh data-preset slice boots on
     // certified mocks (--dart-define=SIMULATION=true). This flag opts
@@ -411,6 +418,7 @@ class MakeCommand extends Command<void> {
       'append',
       'xray',
       'skin',
+      'anchor',
       'compile-only',
     };
 
