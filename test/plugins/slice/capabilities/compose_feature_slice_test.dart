@@ -154,6 +154,7 @@ void main() {
       final routerSrc = router.readAsStringSync();
       expect(routerSrc, contains('/login'));
       expect(routerSrc, contains('/login/forgot'));
+      expect(routerSrc, contains("'/login': 'LoginView'"));
       expect(routerSrc, isNot(contains('/other')));
     });
 
@@ -280,6 +281,107 @@ void main() {
           File(slicePath('skin/routes/router.dart')).readAsStringSync(),
           firstRouter,
         );
+      },
+    );
+
+    test(
+      're-compose excludes its generated plan from receipts and mount',
+      () async {
+        await ComposeSliceCapability().execute(
+          projectRoot: workspace.path,
+          featureId: 'login',
+        );
+        final second = await ComposeSliceCapability().execute(
+          projectRoot: workspace.path,
+          featureId: 'login',
+        );
+
+        expect(second.success, isTrue, reason: second.message);
+        expect(
+          second.manifest!.receiptsFiles,
+          isNot(contains('receipts/compose.plan.json')),
+        );
+        expect(
+          File(slicePath('receipts/compose.plan.json')).existsSync(),
+          isFalse,
+        );
+        expect(
+          File(slicePath('specs/login/compose.plan.json')).existsSync(),
+          isFalse,
+        );
+      },
+    );
+
+    test(
+      'nested engine and skin files preserve source-relative subpaths',
+      () async {
+        writeFile(
+          workspace.path,
+          'lib/src/domain/usecases/admin/user_lookup.dart',
+          'class AdminUserLookup {}\n',
+        );
+        writeFile(
+          workspace.path,
+          'lib/src/domain/usecases/member/user_lookup.dart',
+          'class MemberUserLookup {}\n',
+        );
+        writeFile(
+          workspace.path,
+          'lib/src/presentation/views/mobile/login_view.dart',
+          'class MobileLoginView {}\n',
+        );
+        writeFile(
+          workspace.path,
+          'lib/src/presentation/views/desktop/login_view.dart',
+          'class DesktopLoginView {}\n',
+        );
+
+        final result = await ComposeSliceCapability().execute(
+          projectRoot: workspace.path,
+          featureId: 'login',
+        );
+
+        expect(result.success, isTrue, reason: result.message);
+        for (final rel in [
+          'engine/usecases/admin/user_lookup.dart',
+          'engine/usecases/member/user_lookup.dart',
+          'skin/views/mobile/login_view.dart',
+          'skin/views/desktop/login_view.dart',
+        ]) {
+          expect(File(slicePath(rel)).existsSync(), isTrue, reason: rel);
+        }
+      },
+    );
+
+    test(
+      'active worktree slices require an explicit force to re-compose',
+      () async {
+        final first = await ComposeSliceCapability().execute(
+          projectRoot: workspace.path,
+          featureId: 'login',
+        );
+        final manifestFile = File(slicePath('slice.yaml'));
+        manifestFile.writeAsStringSync(
+          first.manifest!.copyWith(worktreePath: '.zfa/slices/login').toYaml(),
+        );
+        final sentinel = File(slicePath('agent-work.txt'))
+          ..writeAsStringSync('keep');
+
+        final refused = await ComposeSliceCapability().execute(
+          projectRoot: workspace.path,
+          featureId: 'login',
+        );
+        expect(refused.success, isFalse);
+        expect(refused.message, contains('active worktree'));
+        expect(sentinel.existsSync(), isTrue);
+
+        final forced = await ComposeSliceCapability().execute(
+          projectRoot: workspace.path,
+          featureId: 'login',
+          force: true,
+        );
+        expect(forced.success, isTrue, reason: forced.message);
+        expect(sentinel.existsSync(), isFalse);
       },
     );
 

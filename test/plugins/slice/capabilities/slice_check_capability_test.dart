@@ -193,5 +193,20 @@ void main() {
       expect(result.success, isFalse);
       expect(result.message, contains('checkout'));
     });
+
+    test('corrupt contract JSON returns a typed user-facing failure', () async {
+      await composeAndOpenWorktree();
+      File(slicePath('contract/contract.json')).writeAsStringSync('{broken');
+
+      final result = await SliceCheckCapability().execute(
+        projectRoot: workspace.path,
+        featureId: 'login',
+      );
+
+      expect(result.success, isFalse);
+      expect(result.message, contains('contract'));
+      expect(result.message, contains('corrupt'));
+      expect(result.message, isNot(contains('Stack trace')));
+    });
   });
 }

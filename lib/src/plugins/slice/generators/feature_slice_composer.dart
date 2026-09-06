@@ -96,6 +96,7 @@ class FeatureSliceComposer {
     required String origin,
     String? slicesDir,
     DateTime? createdAt,
+    bool force = false,
   }) {
     final root = slicesDir ?? slicesRootOf(projectRoot);
     final sliceRoot = p.join(root, contract.id);
@@ -104,6 +105,28 @@ class FeatureSliceComposer {
     // Idempotent re-compose: wipe the previous composition.
     final existing = Directory(sliceRoot);
     if (existing.existsSync()) {
+      final manifestFile = File(p.join(sliceRoot, 'slice.yaml'));
+      if (!force && manifestFile.existsSync()) {
+        final FeatureSliceManifest manifest;
+        try {
+          manifest = FeatureSliceManifest.fromYaml(
+            manifestFile.readAsStringSync(),
+          );
+        } on FeatureSliceManifestYamlError {
+          throw StateError(
+            'Refusing to re-compose feature "${contract.id}": its existing '
+            'slice manifest is corrupt, so worktree state cannot be verified. '
+            'Use force only when discarding that slice is intentional.',
+          );
+        }
+        if (manifest.worktreePath != null) {
+          throw StateError(
+            'Refusing to re-compose feature "${contract.id}": its slice '
+            'is an active worktree at ${manifest.worktreePath}. Use force '
+            'only when discarding that worktree is intentional.',
+          );
+        }
+      }
       existing.deleteSync(recursive: true);
     }
     Directory(sliceRoot).createSync(recursive: true);
@@ -220,6 +243,7 @@ class FeatureSliceComposer {
         final specRel = p
             .relative(entity.path, from: specDir.path)
             .replaceAll('\\', '/');
+        if (specRel == 'compose.plan.json') continue;
         final receiptsRel = 'receipts/$specRel';
         _copyFile(entity, p.join(sliceRoot, receiptsRel));
         receiptsFiles.add(receiptsRel);
@@ -313,7 +337,10 @@ class FeatureSliceComposer {
         if (p.extension(file.path) != '.dart') continue;
         final base = p.basenameWithoutExtension(file.path).toLowerCase();
         if (!variants.any(base.contains)) continue;
-        final rel = '$engineSection/${p.basename(file.path)}';
+        final sourceRel = p
+            .relative(file.path, from: dir.path)
+            .replaceAll('\\', '/');
+        final rel = '$engineSection/$sourceRel';
         if (files.any((f) => f.relativePath == rel)) continue;
         _copyFile(file, p.join(sliceRoot, rel));
         written.add(rel);
@@ -441,7 +468,10 @@ class FeatureSliceComposer {
             .split(RegExp(r'[_\-.]'))
             .where((t) => t.isNotEmpty)
             .toSet();
-        final rel = '$skinSection/${p.basename(file.path)}';
+        final sourceRel = p
+            .relative(file.path, from: dir.path)
+            .replaceAll('\\', '/');
+        final rel = '$skinSection/$sourceRel';
         if (skinFiles.any((f) => f.relativePath == rel)) continue;
         if (views) {
           // A view serves the route whose segments its name carries
@@ -498,7 +528,7 @@ class FeatureSliceComposer {
   /// routable (pure Dart — the skin slice stays Flutter-free until the
   /// agent writes skin).
   static String _routerSource(List<FeatureSkinRoute> routes) {
-    final entries = routes.map((r) => "  '${r.path}': ${r.view},").join('\n');
+    final entries = routes.map((r) => "  '${r.path}': '${r.view}',").join('\n');
     return '''
 // GENERATED — slice routes barrel (spec 1114).
 //

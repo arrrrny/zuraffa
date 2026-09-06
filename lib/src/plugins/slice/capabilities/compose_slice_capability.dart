@@ -22,7 +22,6 @@ import 'package:path/path.dart' as p;
 
 import '../../../domain/entities/feature_contract/feature_contract.dart';
 import '../../../domain/entities/feature_contract/feature_contract_decorators.dart';
-import '../../../domain/entities/feature_contract/feature_contract_registry.dart';
 import '../generators/feature_slice_composer.dart';
 import '../models/feature_slice_manifest.dart';
 import '../services/feature_contract_resolution.dart';
@@ -73,6 +72,7 @@ class ComposeSliceCapability {
     required String projectRoot,
     required String featureId,
     FeatureContract? contract,
+    bool force = false,
   }) async {
     // Spec 1114: the typed carrier wins; the string is only a fallback.
     FeatureContract? typed = contract;
@@ -96,7 +96,7 @@ class ComposeSliceCapability {
     }
 
     if (typed == null) {
-      final known = _knownFeatureIds(projectRoot);
+      final known = knownFeatureContractIds(projectRoot);
       return ComposeResult(
         success: false,
         message:
@@ -151,11 +151,21 @@ class ComposeSliceCapability {
     // contract/receipts at .zfa/slices/<id>/ — so the receipts copy
     // exactly the feature's pre-existing spec tree (never this run's
     // own plan output).
-    final composition = FeatureSliceComposer().compose(
-      projectRoot: projectRoot,
-      contract: feature,
-      origin: origin,
-    );
+    final FeatureSliceComposition composition;
+    try {
+      composition = FeatureSliceComposer().compose(
+        projectRoot: projectRoot,
+        contract: feature,
+        origin: origin,
+        force: force,
+      );
+    } on StateError catch (error) {
+      return ComposeResult(
+        success: false,
+        contract: feature,
+        message: error.message,
+      );
+    }
 
     final planFile = File(
       p.join(projectRoot, 'specs', feature.id, 'compose.plan.json'),
@@ -189,28 +199,5 @@ class ComposeSliceCapability {
           '${composition.manifest.receiptsFiles.length} receipt(s)) — '
           'open it with `zfa slice worktree ${feature.id}` (spec 1114).',
     );
-  }
-
-  /// Every discoverable feature id: contract.yaml declarations plus
-  /// spec.md-only declarations (Skin Contract / Lanes CORE).
-  static List<String> _knownFeatureIds(String projectRoot) {
-    final registry = FeatureContractRegistry.scanProject(projectRoot);
-    final known = registry.knownIds.toSet();
-    final specsDir = Directory(p.join(projectRoot, 'specs'));
-    if (specsDir.existsSync()) {
-      for (final entity in specsDir.listSync()) {
-        if (entity is! Directory) continue;
-        final id = p.basename(entity.path);
-        if (known.contains(id)) continue;
-        final specFile = File(p.join(entity.path, 'spec.md'));
-        if (!specFile.existsSync()) continue;
-        if (resolveFeatureContract(projectRoot: projectRoot, featureId: id) !=
-            null) {
-          known.add(id);
-        }
-      }
-    }
-    final sorted = known.toList()..sort();
-    return sorted;
   }
 }

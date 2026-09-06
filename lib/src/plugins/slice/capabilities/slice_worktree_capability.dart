@@ -84,7 +84,31 @@ class SliceWorktreeCapability {
     required String featureId,
     bool composeIfMissing = true,
   }) async {
+    if (featureId.isEmpty ||
+        featureId == '.' ||
+        featureId == '..' ||
+        featureId.contains('/') ||
+        featureId.contains(r'\')) {
+      return SliceWorktreeResult(
+        success: false,
+        message:
+            'Invalid feature id "$featureId": expected one safe path '
+            'component (spec 1114).',
+      );
+    }
+    final slicesRoot = p.canonicalize(
+      FeatureSliceComposer.slicesRootOf(projectRoot),
+    );
     final sliceRoot = FeatureSliceComposer.sliceRootOf(projectRoot, featureId);
+    final canonicalSliceRoot = p.canonicalize(sliceRoot);
+    if (!p.isWithin(slicesRoot, canonicalSliceRoot)) {
+      return SliceWorktreeResult(
+        success: false,
+        message:
+            'Invalid feature id "$featureId": the slice path escapes the '
+            'slices root (spec 1114).',
+      );
+    }
     final manifestFile = File(p.join(sliceRoot, 'slice.yaml'));
 
     // 1. Ensure the slice is composed (typed contract resolution runs
@@ -217,13 +241,34 @@ class SliceWorktreeCapability {
 
     // 5. Commit the composition (re-open re-commits; a clean tree is
     // not an error).
-    await _git(['add', '-A'], sliceRoot);
-    await _git([
+    final add = await _git(['add', '-A'], sliceRoot);
+    if (add.exitCode != 0) {
+      return SliceWorktreeResult(
+        success: false,
+        message:
+            'git add failed at the slice root: '
+            '${add.stderr.toString().trim()} (spec 1114).',
+      );
+    }
+    final commit = await _git([
       'commit',
       '-m',
       'slice worktree: ${contract.id} (spec 1114) — the feature base, '
           'not the whole repo',
     ], sliceRoot);
+    if (commit.exitCode != 0) {
+      final status = await _git(['status', '--porcelain'], sliceRoot);
+      final clean =
+          status.exitCode == 0 && status.stdout.toString().trim().isEmpty;
+      if (!clean) {
+        return SliceWorktreeResult(
+          success: false,
+          message:
+              'the slice worktree commit failed: '
+              '${commit.stderr.toString().trim()} (spec 1114).',
+        );
+      }
+    }
     final head = await _git(['rev-parse', 'HEAD'], sliceRoot);
     if (head.exitCode != 0) {
       return SliceWorktreeResult(

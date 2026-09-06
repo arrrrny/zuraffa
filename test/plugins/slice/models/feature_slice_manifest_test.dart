@@ -105,15 +105,15 @@ void main() {
       final yaml = manifest().toYaml();
       // The feature block comes before engine/skin/contract/receipts —
       // feature-first, entity-nested.
-      final featureAt = yaml.indexOf('feature:\n  id: login');
+      final featureAt = yaml.indexOf('feature:\n  id: "login"');
       final engineAt = yaml.indexOf('engine:');
       final skinAt = yaml.indexOf('skin:');
       expect(featureAt, greaterThanOrEqualTo(0));
       expect(engineAt, greaterThan(featureAt));
       expect(skinAt, greaterThan(featureAt));
       expect(yaml, contains('entities:'));
-      expect(yaml, contains('- User'));
-      expect(yaml, contains('- /login/forgot'));
+      expect(yaml, contains('- "User"'));
+      expect(yaml, contains('- "/login/forgot"'));
     });
 
     test('YAML round-trip: fromYaml(toYaml(m)) == m (feature axis intact)', () {
@@ -173,6 +173,103 @@ void main() {
         () => FeatureSliceManifest.fromYaml('schema: slice.manifest.v2\n'),
         throwsA(isA<FeatureSliceManifestYamlError>()),
       );
+    });
+
+    test('all emitted string values with YAML syntax round-trip', () {
+      final special = FeatureSliceManifest(
+        createdAt: DateTime.parse('2026-09-06T00:00:00Z'),
+        feature: FeatureContract(
+          id: '# login',
+          displayName: 'Login: "quoted"',
+          entities: ["- User's"],
+          routes: {'/{login}: #value'},
+          xrayLayer: XRayLayer.presentation,
+          boundary: SliceBoundary(
+            typeName: 'Login:Repository',
+            interfaceFile: 'lib/#special:repo.dart',
+            diRegistrationFile: '- di.dart',
+            mockStrategy: '{auto}',
+          ),
+        ),
+        origin: 'spec.md: #skin',
+        projectRoot: '/tmp/root: #one',
+        parentBranch: '- branch',
+        parentHead: 'yes',
+        sliceRoot: '.zfa/slices/# login',
+        engineFiles: [
+          FeatureSliceFile(
+            relativePath: 'engine/a: #b.dart',
+            layer: 'domain:core',
+            entity: "- User's",
+            hashAtCut: '#digest',
+          ),
+        ],
+        engineEntities: {
+          "- User's": ['engine/a: #b.dart'],
+        },
+        skinFiles: [
+          FeatureSliceFile(
+            relativePath: 'skin/{view}.dart',
+            layer: 'presentation #1',
+            route: '/{login}: #value',
+            hashAtCut: 'digest:two',
+          ),
+        ],
+        skinRoutes: [
+          FeatureSkinRoute(path: '/{login}: #value', view: 'Login:View'),
+        ],
+        contractFile: 'contract/#contract.json',
+        contractDigest: 'digest: #three',
+        receiptsFiles: ['receipts/- spec.md'],
+        generatedFiles: ['skin/routes/#router.dart'],
+        worktreePath: '.zfa/slices/# login',
+        worktreeBranch: '- slice/login',
+        worktreeCommit: '#commit',
+      );
+
+      final back = FeatureSliceManifest.fromYaml(special.toYaml());
+
+      expect(back.feature.id, special.feature.id);
+      expect(back.feature.displayName, special.feature.displayName);
+      expect(back.feature.entities, special.feature.entities);
+      expect(back.feature.routes, special.feature.routes);
+      expect(
+        back.feature.boundary?.interfaceFile,
+        special.feature.boundary?.interfaceFile,
+      );
+      expect(back.origin, special.origin);
+      expect(back.projectRoot, special.projectRoot);
+      expect(back.parentBranch, special.parentBranch);
+      expect(
+        back.engineFiles.first.relativePath,
+        special.engineFiles.first.relativePath,
+      );
+      expect(back.engineEntities, special.engineEntities);
+      expect(back.skinRoutes.first.view, special.skinRoutes.first.view);
+      expect(back.contractDigest, special.contractDigest);
+      expect(back.receiptsFiles, special.receiptsFiles);
+      expect(back.worktreeCommit, special.worktreeCommit);
+    });
+
+    test('fromYaml wraps invalid scalar values in the typed error', () {
+      final valid = manifest().toYaml();
+      final invalidDocuments = [
+        valid.replaceFirst('schema: "slice.manifest.v2"', 'schema: 2'),
+        valid.replaceFirst(
+          'createdAt: "2026-09-06T00:00:00.000Z"',
+          'createdAt: "not-a-time"',
+        ),
+        valid.replaceFirst('xray_layer: "presentation"', 'xray_layer: "bogus"'),
+        valid.replaceFirst('contract:\n  file:', 'contract: invalid\nignored:'),
+        valid.replaceFirst('type_name: "LoginRepository"', 'type_name: []'),
+      ];
+
+      for (final source in invalidDocuments) {
+        expect(
+          () => FeatureSliceManifest.fromYaml(source),
+          throwsA(isA<FeatureSliceManifestYamlError>()),
+        );
+      }
     });
   });
 }

@@ -7,7 +7,6 @@ import 'package:path/path.dart' as p;
 import '../core/project/project_root.dart';
 import '../core/project/receipt_store.dart';
 import '../domain/entities/feature_contract/feature_contract.dart';
-import '../domain/entities/feature_contract/feature_contract_registry.dart';
 import '../plugins/slice/services/feature_contract_resolution.dart';
 import '../plugins/xray/xray_deck_barrel_writer.dart';
 import '../version.dart';
@@ -170,8 +169,7 @@ class XrayDeckCommand extends Command<void> {
       );
       featureContract = resolved?.contract;
       if (featureContract == null) {
-        final registry = FeatureContractRegistry.scanProject(projectRoot);
-        final known = registry.knownIds.toList()..sort();
+        final known = knownFeatureContractIds(projectRoot);
         print(
           'Error: unknown feature contract: "$featureId". '
           'Known contracts: '

@@ -65,6 +65,30 @@ ResolvedFeatureContract? resolveFeatureContract({
   return null;
 }
 
+/// Every feature id with a declaration resolvable by
+/// [resolveFeatureContract].
+///
+/// This includes registry-backed `contract.yaml` declarations and
+/// spec.md-only Skin Contract / Lanes CORE declarations.
+List<String> knownFeatureContractIds(String projectRoot) {
+  final known = FeatureContractRegistry.scanProject(
+    projectRoot,
+  ).knownIds.toSet();
+  final specsDir = Directory(p.join(projectRoot, 'specs'));
+  if (specsDir.existsSync()) {
+    for (final entity in specsDir.listSync()) {
+      if (entity is! Directory) continue;
+      final id = p.basename(entity.path);
+      if (known.contains(id)) continue;
+      if (resolveFeatureContract(projectRoot: projectRoot, featureId: id) !=
+          null) {
+        known.add(id);
+      }
+    }
+  }
+  return known.toList()..sort();
+}
+
 /// The `## Skin Contract: <name>` declaration as a FeatureContract:
 /// routes are the declared paths, the layer is presentation (a skin
 /// declaration), entities stay undeclared (declared facts only).

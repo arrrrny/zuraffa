@@ -9,9 +9,10 @@
 ///
 /// Serialized as `slice.yaml` (schema `slice.manifest.v2`) at the slice
 /// root `.zfa/slices/<feature-id>/`. Emission is hand-rolled (the repo
-/// pins no yaml_writer) with plain scalars; `createdAt` is quoted so the
-/// ISO timestamp reads back as a string (the 043 convention).
+/// pins no yaml_writer) with safely quoted string scalars.
 library;
+
+import 'dart:convert';
 
 import 'package:yaml/yaml.dart';
 
@@ -204,17 +205,17 @@ class FeatureSliceManifest {
   /// `feature:` block leads, engine/skin/contract/receipts nest below.
   String toYaml() {
     final buffer = StringBuffer();
-    buffer.writeln('schema: $schema');
-    buffer.writeln('createdAt: "${createdAt.toIso8601String()}"');
-    buffer.writeln('origin: $origin');
-    buffer.writeln('projectRoot: $projectRoot');
-    buffer.writeln('parentBranch: ${parentBranch ?? 'null'}');
-    buffer.writeln('parentHead: ${parentHead ?? 'null'}');
-    buffer.writeln('sliceRoot: $sliceRoot');
+    buffer.writeln('schema: ${_yamlString(schema)}');
+    buffer.writeln('createdAt: ${_yamlString(createdAt.toIso8601String())}');
+    buffer.writeln('origin: ${_yamlString(origin)}');
+    buffer.writeln('projectRoot: ${_yamlString(projectRoot)}');
+    buffer.writeln('parentBranch: ${_yamlNullable(parentBranch)}');
+    buffer.writeln('parentHead: ${_yamlNullable(parentHead)}');
+    buffer.writeln('sliceRoot: ${_yamlString(sliceRoot)}');
     buffer.writeln('feature:');
-    buffer.writeln('  id: ${feature.id}');
-    buffer.writeln('  display_name: ${feature.displayName}');
-    buffer.writeln('  xray_layer: ${feature.xrayLayer?.name ?? 'null'}');
+    buffer.writeln('  id: ${_yamlString(feature.id)}');
+    buffer.writeln('  display_name: ${_yamlString(feature.displayName)}');
+    buffer.writeln('  xray_layer: ${_yamlNullable(feature.xrayLayer?.name)}');
     buffer.writeln('  entities:');
     _writeStringList(buffer, feature.entities ?? const <String>[], indent: 4);
     buffer.writeln('  routes:');
@@ -228,12 +229,17 @@ class FeatureSliceManifest {
     if (boundary == null) {
       buffer.writeln('    null');
     } else {
-      buffer.writeln('    type_name: ${boundary.typeName}');
-      buffer.writeln('    interface_file: ${boundary.interfaceFile}');
+      buffer.writeln('    type_name: ${_yamlString(boundary.typeName)}');
       buffer.writeln(
-        '    di_registration_file: ${boundary.diRegistrationFile ?? 'null'}',
+        '    interface_file: ${_yamlString(boundary.interfaceFile)}',
       );
-      buffer.writeln('    mock_strategy: ${boundary.mockStrategy}');
+      buffer.writeln(
+        '    di_registration_file: '
+        '${_yamlNullable(boundary.diRegistrationFile)}',
+      );
+      buffer.writeln(
+        '    mock_strategy: ${_yamlString(boundary.mockStrategy)}',
+      );
     }
     buffer.writeln('engine:');
     buffer.writeln('  files:');
@@ -241,10 +247,10 @@ class FeatureSliceManifest {
       buffer.writeln('    []');
     } else {
       for (final file in engineFiles) {
-        buffer.writeln('    - path: ${file.relativePath}');
-        buffer.writeln('      layer: ${file.layer}');
-        buffer.writeln('      entity: ${file.entity ?? 'null'}');
-        buffer.writeln('      hashAtCut: ${file.hashAtCut}');
+        buffer.writeln('    - path: ${_yamlString(file.relativePath)}');
+        buffer.writeln('      layer: ${_yamlString(file.layer)}');
+        buffer.writeln('      entity: ${_yamlNullable(file.entity)}');
+        buffer.writeln('      hashAtCut: ${_yamlString(file.hashAtCut)}');
       }
     }
     buffer.writeln('  entities:');
@@ -253,7 +259,7 @@ class FeatureSliceManifest {
     } else {
       final entities = engineEntities.keys.toList()..sort();
       for (final entity in entities) {
-        buffer.writeln('    $entity:');
+        buffer.writeln('    ${_yamlString(entity)}:');
         _writeStringList(buffer, engineEntities[entity] ?? const [], indent: 6);
       }
     }
@@ -263,10 +269,10 @@ class FeatureSliceManifest {
       buffer.writeln('    []');
     } else {
       for (final file in skinFiles) {
-        buffer.writeln('    - path: ${file.relativePath}');
-        buffer.writeln('      layer: ${file.layer}');
-        buffer.writeln('      route: ${file.route ?? 'null'}');
-        buffer.writeln('      hashAtCut: ${file.hashAtCut}');
+        buffer.writeln('    - path: ${_yamlString(file.relativePath)}');
+        buffer.writeln('      layer: ${_yamlString(file.layer)}');
+        buffer.writeln('      route: ${_yamlNullable(file.route)}');
+        buffer.writeln('      hashAtCut: ${_yamlString(file.hashAtCut)}');
       }
     }
     buffer.writeln('  routes:');
@@ -274,21 +280,21 @@ class FeatureSliceManifest {
       buffer.writeln('    []');
     } else {
       for (final route in skinRoutes) {
-        buffer.writeln('    - path: ${route.path}');
-        buffer.writeln('      view: ${route.view}');
+        buffer.writeln('    - path: ${_yamlString(route.path)}');
+        buffer.writeln('      view: ${_yamlString(route.view)}');
       }
     }
     buffer.writeln('contract:');
-    buffer.writeln('  file: $contractFile');
-    buffer.writeln('  digest: $contractDigest');
+    buffer.writeln('  file: ${_yamlString(contractFile)}');
+    buffer.writeln('  digest: ${_yamlString(contractDigest)}');
     buffer.writeln('receipts:');
     _writeStringList(buffer, receiptsFiles, indent: 2);
     buffer.writeln('generatedFiles:');
     _writeStringList(buffer, generatedFiles, indent: 2);
     buffer.writeln('worktree:');
-    buffer.writeln('  path: ${worktreePath ?? 'null'}');
-    buffer.writeln('  branch: ${worktreeBranch ?? 'null'}');
-    buffer.writeln('  commit: ${worktreeCommit ?? 'null'}');
+    buffer.writeln('  path: ${_yamlNullable(worktreePath)}');
+    buffer.writeln('  branch: ${_yamlNullable(worktreeBranch)}');
+    buffer.writeln('  commit: ${_yamlNullable(worktreeCommit)}');
     return buffer.toString();
   }
 
@@ -302,9 +308,14 @@ class FeatureSliceManifest {
       return;
     }
     for (final value in values) {
-      buffer.writeln('${' ' * indent}- $value');
+      buffer.writeln('${' ' * indent}- ${_yamlString(value)}');
     }
   }
+
+  static String _yamlString(String value) => jsonEncode(value);
+
+  static String _yamlNullable(String? value) =>
+      value == null ? 'null' : _yamlString(value);
 
   /// Parses a `slice.yaml` document body.
   static FeatureSliceManifest fromYaml(String source) {
@@ -319,84 +330,92 @@ class FeatureSliceManifest {
         'corrupt slice.yaml: not a mapping',
       );
     }
-    final schema = doc['schema'] as String?;
-    if (schema == null) {
-      throw const FeatureSliceManifestYamlError(
-        'corrupt slice.yaml: missing schema',
-      );
-    }
-    final createdAt = doc['createdAt'] as String?;
-    if (createdAt == null) {
-      throw const FeatureSliceManifestYamlError(
-        'corrupt slice.yaml: missing createdAt',
-      );
-    }
-    final featureNode = doc['feature'];
-    if (featureNode is! Map) {
-      throw const FeatureSliceManifestYamlError(
-        'corrupt slice.yaml: missing the feature axis',
-      );
-    }
-    final featureId = featureNode['id'] as String?;
-    if (featureId == null || featureId.isEmpty) {
-      throw const FeatureSliceManifestYamlError(
-        'corrupt slice.yaml: feature.id missing',
-      );
-    }
+    try {
+      final schema = doc['schema'] as String?;
+      if (schema == null) {
+        throw const FeatureSliceManifestYamlError(
+          'corrupt slice.yaml: missing schema',
+        );
+      }
+      final createdAt = doc['createdAt'] as String?;
+      if (createdAt == null) {
+        throw const FeatureSliceManifestYamlError(
+          'corrupt slice.yaml: missing createdAt',
+        );
+      }
+      final featureNode = doc['feature'];
+      if (featureNode is! Map) {
+        throw const FeatureSliceManifestYamlError(
+          'corrupt slice.yaml: missing the feature axis',
+        );
+      }
+      final featureId = featureNode['id'] as String?;
+      if (featureId == null || featureId.isEmpty) {
+        throw const FeatureSliceManifestYamlError(
+          'corrupt slice.yaml: feature.id missing',
+        );
+      }
 
-    final boundaryNode = featureNode['boundary'];
-    final SliceBoundary? boundary;
-    if (boundaryNode is Map) {
-      boundary = SliceBoundary(
-        typeName: boundaryNode['type_name'] as String? ?? '',
-        interfaceFile: boundaryNode['interface_file'] as String? ?? '',
-        diRegistrationFile:
-            boundaryNode['di_registration_file'] == 'null' ||
-                boundaryNode['di_registration_file'] == null
-            ? null
-            : boundaryNode['di_registration_file'] as String,
-        mockStrategy: boundaryNode['mock_strategy'] as String? ?? 'auto',
+      final boundaryNode = featureNode['boundary'];
+      final SliceBoundary? boundary;
+      if (boundaryNode is Map) {
+        boundary = SliceBoundary(
+          typeName: boundaryNode['type_name'] as String? ?? '',
+          interfaceFile: boundaryNode['interface_file'] as String? ?? '',
+          diRegistrationFile:
+              boundaryNode['di_registration_file'] == 'null' ||
+                  boundaryNode['di_registration_file'] == null
+              ? null
+              : boundaryNode['di_registration_file'] as String,
+          mockStrategy: boundaryNode['mock_strategy'] as String? ?? 'auto',
+        );
+      } else {
+        boundary = null;
+      }
+
+      final xrayLayerValue = featureNode['xray_layer'];
+      final XRayLayer? xrayLayer =
+          xrayLayerValue == null || xrayLayerValue == 'null'
+          ? null
+          : XRayLayer.parse(xrayLayerValue.toString());
+
+      return FeatureSliceManifest(
+        schema: schema,
+        createdAt: DateTime.parse(createdAt),
+        feature: FeatureContract(
+          id: featureId,
+          displayName: featureNode['display_name'] as String? ?? featureId,
+          entities: _stringList(featureNode['entities']),
+          boundary: boundary,
+          routes: {for (final r in _stringList(featureNode['routes'])) r},
+          xrayLayer: xrayLayer,
+        ),
+        origin: doc['origin'] as String? ?? 'contract.yaml',
+        projectRoot: doc['projectRoot'] as String? ?? '',
+        parentBranch: _nullableString(doc['parentBranch']),
+        parentHead: _nullableString(doc['parentHead']),
+        sliceRoot: doc['sliceRoot'] as String? ?? '',
+        engineFiles: _featureFiles(doc['engine'], entityKey: true),
+        engineEntities: _entityMap(doc['engine']),
+        skinFiles: _featureFiles(doc['skin'], entityKey: false),
+        skinRoutes: _skinRoutes(doc['skin']),
+        contractFile:
+            (doc['contract'] as Map?)?['file'] as String? ??
+            'contract/contract.json',
+        contractDigest: (doc['contract'] as Map?)?['digest'] as String? ?? '',
+        receiptsFiles: _stringList(doc['receipts']),
+        generatedFiles: _stringList(doc['generatedFiles']),
+        worktreePath: _worktreeField(doc['worktree'], 'path'),
+        worktreeBranch: _worktreeField(doc['worktree'], 'branch'),
+        worktreeCommit: _worktreeField(doc['worktree'], 'commit'),
       );
-    } else {
-      boundary = null;
+    } on FeatureSliceManifestYamlError {
+      rethrow;
+    } on Object {
+      throw const FeatureSliceManifestYamlError(
+        'corrupt slice.yaml: invalid values',
+      );
     }
-
-    final xrayLayerValue = featureNode['xray_layer'];
-    final XRayLayer? xrayLayer =
-        xrayLayerValue == null || xrayLayerValue == 'null'
-        ? null
-        : XRayLayer.parse(xrayLayerValue.toString());
-
-    return FeatureSliceManifest(
-      schema: schema,
-      createdAt: DateTime.parse(createdAt),
-      feature: FeatureContract(
-        id: featureId,
-        displayName: featureNode['display_name'] as String? ?? featureId,
-        entities: _stringList(featureNode['entities']),
-        boundary: boundary,
-        routes: {for (final r in _stringList(featureNode['routes'])) r},
-        xrayLayer: xrayLayer,
-      ),
-      origin: doc['origin'] as String? ?? 'contract.yaml',
-      projectRoot: doc['projectRoot'] as String? ?? '',
-      parentBranch: _nullableString(doc['parentBranch']),
-      parentHead: _nullableString(doc['parentHead']),
-      sliceRoot: doc['sliceRoot'] as String? ?? '',
-      engineFiles: _featureFiles(doc['engine'], entityKey: true),
-      engineEntities: _entityMap(doc['engine']),
-      skinFiles: _featureFiles(doc['skin'], entityKey: false),
-      skinRoutes: _skinRoutes(doc['skin']),
-      contractFile:
-          (doc['contract'] as Map?)?['file'] as String? ??
-          'contract/contract.json',
-      contractDigest: (doc['contract'] as Map?)?['digest'] as String? ?? '',
-      receiptsFiles: _stringList(doc['receipts']),
-      generatedFiles: _stringList(doc['generatedFiles']),
-      worktreePath: _worktreeField(doc['worktree'], 'path'),
-      worktreeBranch: _worktreeField(doc['worktree'], 'branch'),
-      worktreeCommit: _worktreeField(doc['worktree'], 'commit'),
-    );
   }
 
   static String? _nullableString(dynamic node) =>

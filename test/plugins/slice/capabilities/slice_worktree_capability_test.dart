@@ -15,6 +15,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/core/project/project_root.dart';
 import 'package:zuraffa/src/plugins/tdd/services/tdd_transaction.dart';
+import 'package:zuraffa/src/plugins/slice/capabilities/compose_slice_capability.dart';
 import 'package:zuraffa/src/plugins/slice/capabilities/slice_worktree_capability.dart';
 
 import '../helpers/feature_slice_fixture.dart';
@@ -47,6 +48,12 @@ void main() {
 
   Future<ProcessResult> gitIn(String dir, List<String> args) =>
       Process.run('git', args, workingDirectory: dir);
+
+  ProcessResult processResult(
+    int exitCode, {
+    String out = '',
+    String err = '',
+  }) => ProcessResult(1, exitCode, out, err);
 
   group('SliceWorktreeCapability (spec 1114: worktree at the slice root)', () {
     test('opens a worktree at the slice root on branch slice/<id>', () async {
@@ -154,6 +161,123 @@ void main() {
       expect(result.message, contains('checkout'));
       expect(result.message, contains('login'));
     });
+
+    test(
+      'rejects feature ids that are not a single safe path component',
+      () async {
+        for (final featureId in [
+          '../escape',
+          'nested/login',
+          r'nested\login',
+          '.',
+          '..',
+          '',
+        ]) {
+          final result = await SliceWorktreeCapability().execute(
+            projectRoot: workspace.path,
+            featureId: featureId,
+          );
+          expect(result.success, isFalse, reason: featureId);
+          expect(result.message, contains('Invalid feature id'));
+        }
+        expect(
+          Directory(p.join(workspace.path, '.zfa', 'escape')).existsSync(),
+          isFalse,
+        );
+      },
+    );
+
+    test('reports git add failures with stderr', () async {
+      await ComposeSliceCapability().execute(
+        projectRoot: workspace.path,
+        featureId: 'login',
+      );
+      final result = await SliceWorktreeCapability(
+        gitLauncher: (args, workingDir) async {
+          if (args case ['rev-parse', '--show-toplevel']) {
+            return processResult(0, out: sliceRoot());
+          }
+          if (args case ['rev-parse', '--abbrev-ref', 'HEAD']) {
+            return processResult(0, out: 'slice/login');
+          }
+          if (args case ['add', '-A']) {
+            return processResult(1, err: 'index is locked');
+          }
+          return processResult(0, out: 'parent-head');
+        },
+      ).execute(projectRoot: workspace.path, featureId: 'login');
+
+      expect(result.success, isFalse);
+      expect(result.message, contains('index is locked'));
+    });
+
+    test('reports git commit failures and does not resolve HEAD', () async {
+      await ComposeSliceCapability().execute(
+        projectRoot: workspace.path,
+        featureId: 'login',
+      );
+      var resolvedHead = false;
+      final result = await SliceWorktreeCapability(
+        gitLauncher: (args, workingDir) async {
+          if (args case ['rev-parse', '--show-toplevel']) {
+            return processResult(0, out: sliceRoot());
+          }
+          if (args case ['rev-parse', '--abbrev-ref', 'HEAD']) {
+            return processResult(0, out: 'slice/login');
+          }
+          if (args.first == 'commit') {
+            return processResult(1, err: 'commit hook rejected');
+          }
+          if (args case ['status', '--porcelain']) {
+            return processResult(0, out: 'M slice.yaml');
+          }
+          if (workingDir == sliceRoot() &&
+              args.length == 2 &&
+              args[0] == 'rev-parse' &&
+              args[1] == 'HEAD') {
+            resolvedHead = true;
+          }
+          return processResult(0, out: 'parent-head');
+        },
+      ).execute(projectRoot: workspace.path, featureId: 'login');
+
+      expect(result.success, isFalse);
+      expect(result.message, contains('commit hook rejected'));
+      expect(resolvedHead, isFalse);
+    });
+
+    test(
+      'a clean-tree commit no-op still resolves the existing HEAD',
+      () async {
+        await ComposeSliceCapability().execute(
+          projectRoot: workspace.path,
+          featureId: 'login',
+        );
+        final result = await SliceWorktreeCapability(
+          gitLauncher: (args, workingDir) async {
+            if (args case ['rev-parse', '--show-toplevel']) {
+              return processResult(0, out: sliceRoot());
+            }
+            if (args case ['rev-parse', '--abbrev-ref', 'HEAD']) {
+              return processResult(0, out: 'slice/login');
+            }
+            if (args.first == 'commit') {
+              return processResult(1, err: 'nothing to commit');
+            }
+            if (args case ['status', '--porcelain']) {
+              return processResult(0);
+            }
+            if (args case ['rev-parse', 'HEAD']) {
+              return processResult(0, out: 'abc123');
+            }
+            return processResult(0, out: 'parent-head');
+          },
+        ).execute(projectRoot: workspace.path, featureId: 'login');
+
+        expect(result.success, isTrue, reason: result.message);
+        expect(result.commit, 'abc123');
+      },
+    );
 
     test('zfa tdd run journal equivalence: the journal inside the worktree is '
         'the parent journal with paths rewritten (#1113 glue-back)', () async {

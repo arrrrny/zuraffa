@@ -125,7 +125,7 @@ example:
   zfa slice cut product_feature --entry product
   zfa slice cut checkout --entry cart --entry payment --depth full --verify''',
     'compose': '''
-usage: zfa slice compose <feature-id>
+usage: zfa slice compose <feature-id> [--force]
 
 Resolves the feature's declared contract (specs/<feature-id>/contract.yaml,
 or the spec's ## Skin Contract JSON, or its ## Lanes CORE block) into
@@ -135,7 +135,8 @@ contract's routes), contract/ (the contract JSON), receipts/ (the feature's
 spec receipts) plus the specs/ mount the tdd cycles run against (spec 1114).
 
 example:
-  zfa slice compose login''',
+  zfa slice compose login
+  zfa slice compose login --force''',
     'worktree': '''
 usage: zfa slice worktree <feature-id>
 
@@ -445,6 +446,7 @@ example:
     final result = await ComposeSliceCapability().execute(
       projectRoot: projectRoot,
       featureId: id,
+      force: rest.contains('--force'),
     );
 
     print(result.message);

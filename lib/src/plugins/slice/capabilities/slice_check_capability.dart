@@ -141,7 +141,18 @@ class SliceCheckCapability {
             '— re-run `zfa slice compose $featureId` (spec 1114).',
       );
     }
-    final contract = _contractFromJson(contractFile.readAsStringSync());
+    final FeatureContract contract;
+    try {
+      contract = _contractFromJson(contractFile.readAsStringSync());
+    } on Object {
+      return SliceCheckResult(
+        success: false,
+        message:
+            'The slice contract at ${contractFile.path} is corrupt '
+            '(unparseable) — re-run `zfa slice compose $featureId` '
+            '(spec 1114).',
+      );
+    }
 
     final violations = <SliceCheckViolation>[];
     var checked = 0;
