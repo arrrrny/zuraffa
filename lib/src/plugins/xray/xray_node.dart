@@ -11,6 +11,8 @@
 // Track 4.2 — Spec 036 (issue #181, FR-002 / FR-003).
 library;
 
+import 'package:zuraffa/src/domain/entities/feature_contract/feature_id.dart';
+
 import 'xray_state_summary.dart';
 
 /// One node in the X-Ray widget tree.
@@ -43,7 +45,11 @@ class XRayNode {
   /// The owning feature contract id (spec 1098, issue #1098), when the
   /// node is attributed to a feature — the deck can then answer
   /// file→feature, not only file→layer. Null on legacy nodes.
-  final String? featureId;
+  ///
+  /// Spec 1115 (issue #1115): TYPED — a [FeatureId], not a raw string —
+  /// so the deck groups nodes by feature contract and a malformed id
+  /// cannot ride the wire.
+  final FeatureId? featureId;
 
   /// Recursive child nodes (for the MCP tree).
   final List<XRayNode> children;
@@ -65,12 +71,16 @@ class XRayNode {
     'viewType': viewType,
     'enabled': enabled,
     if (boundAction != null) 'boundAction': boundAction,
-    if (featureId != null) 'featureId': featureId,
+    if (featureId != null) 'featureId': featureId?.value,
     'stateSummary': stateSummary.toJson(),
     'children': children.map((c) => c.toJson()).toList(),
   };
 
   /// Deserialize from JSON.
+  ///
+  /// A legacy/corrupt `featureId` string that fails [FeatureId] validation
+  /// degrades to `null` instead of throwing — the bridge never loses the
+  /// tree over one bad node.
   factory XRayNode.fromJson(Map<String, dynamic> json) {
     return XRayNode(
       id: json['id'] as String,
@@ -80,7 +90,11 @@ class XRayNode {
       stateSummary: XRayStateSummary.fromJson(
         (json['stateSummary'] as Map<String, dynamic>?) ?? const {},
       ),
-      featureId: json['featureId'] as String?,
+      featureId: switch (json['featureId']) {
+        null => null,
+        final String value => FeatureId.tryParse(value),
+        _ => null,
+      },
       children: ((json['children'] as List<dynamic>?) ?? const [])
           .map((c) => XRayNode.fromJson(c as Map<String, dynamic>))
           .toList(),
