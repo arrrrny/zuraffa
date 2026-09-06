@@ -27,6 +27,7 @@ import '../skin/builders/skin_contract_kit_builder.dart';
 import '../skew/skew_contract.dart';
 import '../utils/file_utils.dart';
 import '../core/project/project_root.dart';
+import 'skin_drive_command.dart';
 
 /// The honest verdict of a `zfa skin verify` reconciliation. Never
 /// collapse a missing input into a pass (the route-verify contract).
@@ -167,6 +168,9 @@ class SkinCommand extends Command<void> {
     addSubcommand(
       SkinVerifyCommand(projectRoot: projectRoot, fileSystem: _fileSystem),
     );
+    // Issue #1112: the VM-service driver — the seam that replaces the
+    // pilot's synthetic clicks (which never reached the Flutter view).
+    addSubcommand(SkinDriveCommand());
   }
 
   final FileSystem _fileSystem;
@@ -178,7 +182,8 @@ class SkinCommand extends Command<void> {
   String get description =>
       'Runtime skin-contract auditor (issue #1102): emit the kit '
       '(skin kit) and statically verify the route-contract table '
-      'against the routing barrel (skin verify).';
+      'against the routing barrel (skin verify); drive a LIVE app\'s '
+      'anchors through the VM service (skin drive, issue #1112).';
 
   @override
   String get invocation => 'zfa skin <subcommand> [options]';
