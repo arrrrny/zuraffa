@@ -58,10 +58,12 @@ class EngineGateReceipt {
     String? command,
     String? featureDir,
   }) async {
-    final rel = featureDir != null && featureDir.isNotEmpty
-        ? refusedPathInFeature(featureDir, entity)
-        : refusedPath(entity);
-    final file = File(p.join(projectRoot, rel));
+    final absPath = featureDir != null && featureDir.isNotEmpty
+        ? (p.isAbsolute(featureDir)
+            ? refusedPathInFeature(featureDir, entity)
+            : p.join(projectRoot, refusedPathInFeature(featureDir, entity)))
+        : p.join(projectRoot, refusedPath(entity));
+    final file = File(absPath);
     await file.parent.create(recursive: true);
     final doc = <String, dynamic>{
       'schema': schemaName,
@@ -74,7 +76,7 @@ class EngineGateReceipt {
     };
     const encoder = JsonEncoder.withIndent('  ');
     await file.writeAsString('${encoder.convert(doc)}\n');
-    return rel;
+    return p.relative(file.path, from: projectRoot);
   }
 
   /// Loads the receipt for [entity] (`.zfa/` home by default; the
