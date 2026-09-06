@@ -10,6 +10,7 @@ import '../domain/entities/feature_contract/feature_contract.dart';
 import '../plugins/slice/services/feature_contract_resolution.dart';
 import '../plugins/xray/xray_deck_barrel_writer.dart';
 import '../version.dart';
+import '../cli/exit_protocol.dart';
 
 /// CLI subcommand for generating X-Ray Control Deck code.
 class XrayDeckCommand extends Command<void> {
@@ -151,7 +152,7 @@ class XrayDeckCommand extends Command<void> {
 
     if (sourcePath == null && yamlPath == null) {
       print('Error: provide --source and/or --yaml');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -177,7 +178,7 @@ class XrayDeckCommand extends Command<void> {
           'Declare it at specs/<feature-id>/contract.yaml (spec 1098) '
           'or in the spec\'s ## Skin Contract / ## Lanes section (spec 1114).',
         );
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
     }

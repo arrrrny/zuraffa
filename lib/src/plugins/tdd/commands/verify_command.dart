@@ -39,6 +39,7 @@ import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 import '../services/mutation_scope.dart';
+import '../../../cli/exit_protocol.dart';
 
 class VerifyCommand extends Command<void> {
   VerifyCommand(this.plugin) {
@@ -145,7 +146,7 @@ class VerifyCommand extends Command<void> {
             "(got '$runnerFlag') --> fix: pass dart|flutter, or set the "
             'file: key in .specify/memory/tdd-profile.md and omit --runner',
           );
-          exitCode = 64;
+          exitCode = ExitProtocol.usage;
           return;
       }
     }

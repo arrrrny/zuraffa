@@ -216,7 +216,7 @@ environment:
     expect(codes['toggle'], contains('TaskRepository.toggle'));
   });
 
-  test('missing entity name is a usage error (exit 64), not a crash', () async {
+  test('missing entity name is a usage error (exit 2), not a crash', () async {
     final output = await runner.runCapturing([
       '-C',
       workspace.path,
@@ -225,7 +225,13 @@ environment:
       '--json',
     ]);
     expect(output, contains('Usage'));
-    expect(exitCode, 64, reason: 'usage-error family: $output');
+    expect(
+      exitCode,
+      2,
+      reason:
+          'usage-error family: $output (SPEC 917: canonical usage 2 — the '
+          'legacy 64 is retired)',
+    );
   });
 }
 

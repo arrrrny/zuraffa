@@ -10,6 +10,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/exit_protocol.dart';
 import 'package:zuraffa/src/plugins/slice/slice_command.dart';
 
 import 'helpers/capture_output.dart';
@@ -77,7 +78,7 @@ void main() {
       );
 
       expect(output, contains('usage'), reason: 'INV-1: usage, not stack');
-      expect(command.exitCode, 64);
+      expect(command.exitCode, ExitProtocol.usage);
     });
 
     test('an unknown feature id fails with the known ids (exit 1)', () async {
@@ -125,7 +126,7 @@ void main() {
       final output = await captureOutput(() => runner.run(['slice', 'check']));
 
       expect(output, contains('usage'), reason: 'INV-1: usage, not stack');
-      expect(command.exitCode, 64);
+      expect(command.exitCode, ExitProtocol.usage);
     });
   });
 

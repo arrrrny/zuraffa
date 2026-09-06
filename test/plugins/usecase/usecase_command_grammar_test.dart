@@ -23,16 +23,17 @@ Future<ProcessResult> _runProbe(String commandName) => Process.run(
 
 void main() {
   group('spec 972 FR-1 — bare zfa usecase grammar', () {
-    test('run() prints the subcommand grammar and exits 64 — never the dead '
+    test('run() prints the subcommand grammar and exits 2 — never the dead '
         'positional hint, never the generator', () async {
       final result = await _runProbe('usecase');
 
       expect(
         result.exitCode,
-        64,
+        2,
         reason:
             'a bare-command usage error must not look successful '
-            '(silent no-op). stdout=${result.stdout} '
+            '(silent no-op) — SPEC 917: the canonical usage code, the '
+            'legacy 64 is retired. stdout=${result.stdout} '
             'stderr=${result.stderr}',
       );
       expect(

@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 
 import '../plugins/cache/cache_plugin.dart';
 import '../plugins/cache/cache_verify.dart';
+import '../cli/exit_protocol.dart';
 
 /// `zfa cache verify <Entity> [--json]` — the cache drift gate
 /// (spec #975, Order 3).
@@ -50,7 +51,7 @@ class CacheVerifyCommand extends Command<void> {
         '   Run `zfa cache adapter <Entity>` to (re-)register the '
         'adapters first.',
       );
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final entityName = rest.first;

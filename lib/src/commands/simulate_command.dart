@@ -59,6 +59,7 @@ import '../simulation/worlds/world_manifest.dart';
 import '../simulation/worlds/world_run_receipt.dart';
 import '../simulation/worlds/world_runtime.dart';
 import '../simulation/worlds/world_store.dart';
+import '../cli/exit_protocol.dart';
 
 class SimulateCommand extends Command<void> {
   SimulateCommand() {
@@ -183,13 +184,13 @@ class SimulateCommand extends Command<void> {
         return;
       }
       _usage();
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
     } on FixtureMismatch catch (e) {
       print('SIMULATE -> RED (${e.toString()})');
       exitCode = 1;
     } on FormatException catch (e) {
       print('SIMULATE -> RED (bad input: ${e.message})');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
     }
   }
 
@@ -413,7 +414,7 @@ class SimulateInitCommand extends Command<void> {
         '❌ Usage: zfa simulate init <scenario> --feature <feature> '
         '[--seed N] [--force]',
       );
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final scenario = rest.first;
@@ -540,7 +541,7 @@ class SimulateInitCommand extends Command<void> {
       exitCode = 1;
     } on _UsageError catch (e) {
       print('❌ ${e.message}');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
     }
   }
 }
@@ -609,7 +610,7 @@ class SimulateRunCommand extends Command<void> {
         '❌ Usage: zfa simulate run <scenario> --feature <feature> '
         '[--seed N] [--replay]',
       );
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final scenario = rest.first;
@@ -805,7 +806,7 @@ class SimulateRunCommand extends Command<void> {
       exitCode = 1;
     } on _UsageError catch (e) {
       print('❌ ${e.message}');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
     }
   }
 }
@@ -845,7 +846,7 @@ class SimulateCertifyCommand extends Command<void> {
     final rest = args.rest;
     if (rest.isEmpty) {
       print('❌ Usage: zfa simulate certify <scenario> --feature <feature>');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final scenario = rest.first;
@@ -896,7 +897,7 @@ class SimulateCertifyCommand extends Command<void> {
       exitCode = 1;
     } on _UsageError catch (e) {
       print('❌ ${e.message}');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
     }
   }
 }
@@ -939,7 +940,7 @@ class SimulateVerifyWorldCommand extends Command<void> {
       print(
         '❌ Usage: zfa simulate verify-world <scenario> --feature <feature>',
       );
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final scenario = rest.first;
@@ -1015,7 +1016,7 @@ class SimulateVerifyWorldCommand extends Command<void> {
       exitCode = 1;
     } on _UsageError catch (e) {
       print('❌ ${e.message}');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
     }
   }
 }
