@@ -36,6 +36,19 @@ class GraphqlCommand extends PluginCommand {
   @override
   String get description => 'Generate GraphQL files';
 
+  /// SPEC 917 / #876 sweep: run()'s programmatic positional path reads
+  /// every parent-level flag listed below — they are LIVE, declared here so
+  /// `zfa manifest --verify` certifies them instead of flagging them dead
+  /// (spec #979).
+  @override
+  Set<String> get consumedParentFlags => const {
+    'input-name',
+    'input-type',
+    'op-name',
+    'returns',
+    'type',
+  };
+
   @override
   Future<void> run() async {
     if (argResults?.rest.isEmpty ?? true) {
