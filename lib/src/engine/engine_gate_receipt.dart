@@ -60,8 +60,8 @@ class EngineGateReceipt {
   }) async {
     final absPath = featureDir != null && featureDir.isNotEmpty
         ? (p.isAbsolute(featureDir)
-            ? refusedPathInFeature(featureDir, entity)
-            : p.join(projectRoot, refusedPathInFeature(featureDir, entity)))
+              ? refusedPathInFeature(featureDir, entity)
+              : p.join(projectRoot, refusedPathInFeature(featureDir, entity)))
         : p.join(projectRoot, refusedPath(entity));
     final file = File(absPath);
     await file.parent.create(recursive: true);
