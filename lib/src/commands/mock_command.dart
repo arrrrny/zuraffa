@@ -211,6 +211,7 @@ class CreateMockCommand extends Command<void> {
     await _runMockGeneration(
       commandLine: 'zfa mock create $entityName',
       entity: entityName,
+      capabilityName: 'create',
       execute: () => capability.execute(args),
       jsonMode: results['json'] == true,
       verbose: verbose,
@@ -284,6 +285,7 @@ class DataMockCommand extends Command<void> {
     await _runMockGeneration(
       commandLine: 'zfa mock data $entityName',
       entity: entityName,
+      capabilityName: 'create',
       execute: () => capability.execute({
         'name': entityName,
         'dataOnly': true,
@@ -370,6 +372,7 @@ class JsonMockCommand extends Command<void> {
     await _runMockGeneration(
       commandLine: 'zfa mock json $entityName',
       entity: entityName,
+      capabilityName: 'json',
       execute: () => capability.execute({
         'name': entityName,
         'domain': results['domain'],
@@ -542,6 +545,7 @@ Future<void> _runMockGeneration({
   String? domain,
   List<String> methods = const [],
   bool certify = false,
+  String capabilityName = 'create',
 }) async {
   final projectRoot = Directory.current.path;
 
@@ -609,6 +613,8 @@ Future<void> _runMockGeneration({
         commandLine: commandLine,
         certification: certification,
         files: files,
+        capabilityName: capabilityName,
+        methodset: methods,
       );
     } catch (e) {
       // Best-effort (issue #807 convention): the artifacts already exist,

@@ -265,6 +265,19 @@ class CapabilityInvocationWrapper {
     required String entity,
     required List<String> methodset,
   }) {
+    return computeRunHash(files: files, entity: entity, methodset: methodset);
+  }
+
+  /// The single `hash` derivation for EVERY proof.v1 capability receipt
+  /// (issue #1138): the wrapper's own receipts and the first-party
+  /// bespoke receipt writers (usecase/state/route/mock/datasource/entity)
+  /// share this one function so `zfa proof check` re-derives the same
+  /// digest regardless of which writer produced the document.
+  static String computeRunHash({
+    required List<GenerationReceiptFile> files,
+    required String entity,
+    required List<String> methodset,
+  }) {
     final canonical = StringBuffer()
       ..writeln('entity:$entity')
       ..writeln('methodset:${methodset.join(',')}');

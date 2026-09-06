@@ -133,15 +133,20 @@ environment:
           '$output',
     );
 
-    final receiptFile = File(
-      p.join(workspace.path, '.zfa', 'receipts', 'state-Product.json'),
-    );
+    // Issue #1138: keyed state-create-<entity>-<timestamp>.json with the
+    // full capability provenance contract.
+    final receiptsDir = Directory(p.join(workspace.path, '.zfa', 'receipts'));
+    final receiptFile = receiptsDir
+        .listSync()
+        .whereType<File>()
+        .where((f) => p.basename(f.path).startsWith('state-create-Product-'))
+        .single;
     expect(
       receiptFile.existsSync(),
       isTrue,
       reason:
-          'the receipt lives at .zfa/receipts/state-<entity>.json '
-          '(written via ReceiptStore)',
+          'the receipt lives in .zfa/receipts/ keyed '
+          'state-create-<entity>-<timestamp>.json (written via ReceiptStore)',
     );
 
     final receipt = GenerationReceipt.fromJson(
@@ -149,6 +154,11 @@ environment:
     );
     expect(receipt.schema, 'proof.v1');
     expect(receipt.command, 'state create');
+    expect(receipt.plugin, 'state');
+    expect(receipt.capability, 'create');
+    expect(receipt.entity, 'Product');
+    expect(receipt.receiptVersion, 1);
+    expect(receipt.runHash, isNotNull);
     expect(receipt.target, 'Product');
     expect(receipt.repro, contains('zfa state create'));
     expect(receipt.generatorVersion, isNotEmpty);

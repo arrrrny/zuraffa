@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:args/args.dart';
 
+import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../models/generator_config.dart';
 import '../models/generated_file.dart';
 import '../models/generator_result.dart';
@@ -156,7 +157,14 @@ class GymCommand extends PluginCommand {
         plugin.capabilities.firstWhere((c) => c is CreateGymCapability)
             as CreateGymCapability;
 
-    final result = await capability.execute({
+    // Issue #1138: route the standalone invocation through the
+    // CapabilityInvocationWrapper so a successful run persists its
+    // proof.v1 receipt (best-effort inside the wrapper).
+    final wrapper = CapabilityInvocationWrapper(
+      capability: capability,
+      pluginId: plugin.id,
+    );
+    final result = await wrapper.execute({
       'name': entityName,
       'domain': domain,
       'dryRun': isDryRun,
