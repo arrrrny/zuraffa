@@ -97,9 +97,9 @@ dependencies:
       p.join(libSrc, 'data', 'repositories', 'data_product_repository.dart'),
       "import '../../domain/entities/product/product.dart';\n"
       "import '../../domain/repositories/product_repository.dart';\n"
-      "import '../datasources/product/product_remote_datasource.dart';\n"
+      "import '../datasources/product/product_datasource.dart';\n"
       'class DataProductRepository implements ProductRepository {\n'
-      '  final ProductRemoteDataSource dataSource;\n'
+      '  final ProductDataSource dataSource;\n'
       '  DataProductRepository(this.dataSource);\n'
       '  @override\n'
       '  Future<Product?> get(String id) async => dataSource.get(id);\n'

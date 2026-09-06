@@ -90,3 +90,15 @@ literal.
 
 **Presentation**:
 - `LoginForm`: `ShadInput` for email and password, `key: auth.signIn -> 'Sign in'`, `key: auth.email -> 'Email'`, `key: auth.password -> 'Password'`, `key: auth.sessionStarted -> 'Session started'`
+- `adaptive_layouts`: `mobile`, `macos`
+
+The platform layout contract (issue #1142, extending #1004's
+`adaptive_slots` and #1102's runtime auditor): the Presentation table
+declares the platform layout slots per feature — a regenerated view
+emits the AdaptiveViewState skeleton with one layout stub per declared
+slot (mobile, macos), each traced independently in the coverage ledger
+(a "mobile-only 100% traced" login is still missing macOS coverage).
+The slots are the scaffold-builder targets plus the SkinEvent slots the
+hand-written seam emits (`mobile`, `ios`, `android`, `macos`); this
+fixture declares the two the regenerated skeleton must provide.
+

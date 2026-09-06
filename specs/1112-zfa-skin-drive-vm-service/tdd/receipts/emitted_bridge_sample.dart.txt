@@ -1,0 +1,35 @@
+// GENERATED - DO NOT EDIT — widget test bridge (issue #1112, the
+// package:zuraffa_test surface for this project). Drives the SAME
+// anchor-by-key lookup the VM service does (`debugTapAnchor`'s
+// element walk), so a skin behavior behaves identically in a widget
+// test and under `zfa skin drive` — the same TapResult JSON verdict.
+//
+// Regeneration: `zfa skin kit --force` rewrites this file.
+// Hand-written tests import it; they are yours.
+
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:zuraffa/skin.dart';
+
+import 'package:skin_drive_app/src/skin/skin_contract_auditor.dart';
+
+/// Drives the anchor named [zfaKey] (both 'zfa:signin-guest' and
+/// 'signin-guest' accepted) in the widget tree [tester] is pumping,
+/// then settles one post-tap frame.
+///
+/// `pumpAndSettle` is SAFE here: the test-tree anchor can't
+/// reschedule itself (the auditor subscribes — never polls — pilot
+/// lesson 5), so the settle always terminates.
+///
+/// Verdicts (the TapResult JSON the VM-service lane prints):
+/// found / disabled / notFound / error — assert with
+/// `expect(result, const TapFound())` or on `result.label`.
+Future<TapResult> zfaAnchorTapped(WidgetTester tester, String zfaKey) async {
+  final result = await debugTapAnchor(zfaKey);
+  if (result is TapFound) {
+    await tester.pumpAndSettle();
+  }
+  return result;
+}
+
+// END GENERATED

@@ -11,6 +11,7 @@
 /// report drift (exit 3) when the spec is edited after planning.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -24,8 +25,11 @@ import '../services/i18n_key_contract.dart';
 import '../services/lane_split.dart';
 import '../services/routing_resolver.dart';
 import '../services/requirement_scan.dart';
+import '../services/spec_marker_emitter.dart';
 import '../services/spec_migrator.dart';
 import '../services/spec_parser.dart';
+import '../services/platform_layout_contract.dart';
+import '../services/platform_coverage_ledger.dart';
 import '../services/test_list_reader.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/ui_ledger_projection.dart';
@@ -53,7 +57,10 @@ class PlanCommand extends Command<void> {
       help:
           'Refuse undeclared routing intent instead of falling back to the '
           'legacy keyword classifiers. Undeclared behaviors exit 1 with the '
-          'spec line and the declaration to add (feature 071, issue #951).',
+          'spec line and the declaration to add (feature 071, issue #951). '
+          'Run a plain `zfa tdd plan` first (issue #1186): it emits the '
+          'classified `**Type**` markers into the spec, so the strict gate '
+          'passes on the re-run.',
       negatable: false,
     );
     argParser.addOption(
@@ -73,6 +80,18 @@ class PlanCommand extends Command<void> {
           'this flag a missing/unknown marker stays contract drift (exit '
           '3) and the spec is never touched.',
       negatable: false,
+    );
+    argParser.addFlag(
+      'emit-markers',
+      help:
+          'Emit the classified `**Type**` lane markers back into the spec '
+          'after a successful plan (issue #1186): the legacy classifier '
+          'fallback becomes a one-time migration instead of a per-run '
+          'warning, and `--strict-routing` becomes usable on '
+          'speckit-authored specs. Pass `--no-emit-markers` to leave the '
+          'spec untouched.',
+      defaultsTo: true,
+      negatable: true,
     );
   }
 
@@ -238,6 +257,30 @@ class PlanCommand extends Command<void> {
       return;
     }
 
+    // Issue #1142 (extending #1004/#1102): the platform layout contract
+    // is a DECLARED contract — the Presentation table's
+    // `adaptive_layouts` bullet. A malformed slot name refuses the plan
+    // before any artifact is written (the same errors-are-an-API
+    // discipline the i18n contract applies above).
+    List<String> layoutSlots = const [];
+    try {
+      layoutSlots =
+          PlatformLayoutContract.fromContracts(layerContracts)?.slots ??
+          const [];
+    } on PlatformLayoutContractException catch (error) {
+      print('zfa tdd plan: layout contract refused — ${error.message}');
+      print('   no artifacts were written.');
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'layout-contract'
+        ..fix =
+            'fix the malformed slot name in the `adaptive_layouts` '
+            'Presentation bullet, then re-run zfa tdd plan'
+        ..details['spec'] = specPath;
+      exitCode = 2;
+      return;
+    }
+
     // Coverage gate (bug #846): every FR/AC requirement statement must
     // map to a behavior row or to a valid `(manual: owner)` declaration.
     // Any gap = exit 2, no artifacts, offending line + fix instruction.
@@ -396,12 +439,15 @@ class PlanCommand extends Command<void> {
       }
     }
 
-    final reconciled = <Behavior>[];
+    // The rendered row may keep its historical test-list id, but spec
+    // declarations and marker emission remain keyed by the parser's current
+    // id. Preserve both through provenance resolution.
+    final reconciledEntries = <({Behavior behavior, String currentId})>[];
     for (final b in behaviors) {
       final prior = existing[b.sourceCriterion];
       if (prior != null && prior.kind == b.kind) {
-        reconciled.add(
-          Behavior(
+        reconciledEntries.add((
+          behavior: Behavior(
             id: prior.id,
             feature: b.feature,
             kind: b.kind,
@@ -409,11 +455,13 @@ class PlanCommand extends Command<void> {
             sourceCriterion: b.sourceCriterion,
             target: b.target,
           ),
-        );
+          currentId: b.id,
+        ));
       } else {
-        reconciled.add(b);
+        reconciledEntries.add((behavior: b, currentId: b.id));
       }
     }
+    final reconciled = [for (final entry in reconciledEntries) entry.behavior];
 
     // Bug #835: hand-written ffi (native-boundary) rows survive
     // re-planning. Plan derives only acceptance/unit behaviors from
@@ -452,8 +500,11 @@ class PlanCommand extends Command<void> {
       priorContract,
     );
     final ffiCriteria = preservedFfi.map((r) => r.traces).toSet();
-    final expressible = reconciled
-        .where((b) => !ffiCriteria.contains(b.sourceCriterion))
+    final expressibleEntries = reconciledEntries
+        .where((entry) => !ffiCriteria.contains(entry.behavior.sourceCriterion))
+        .toList();
+    final expressible = expressibleEntries
+        .map((entry) => entry.behavior)
         .toList();
 
     // Feature 071 (issue #951): per-behavior routing provenance — the
@@ -493,16 +544,17 @@ class PlanCommand extends Command<void> {
       return;
     }
     final provenance = _provenanceLines(
-      expressible,
+      expressibleEntries,
       preservedFfi,
       declarations,
       frTraces,
       scenarioMarkers,
       strict: strict,
     );
+    final provenanceLines = provenance.lines;
     // Strict gate (feature 071): a refusal writes no artifact.
-    if (strict && provenance.containsKey('__refused__')) {
-      for (final line in provenance.remove('__refused__')!) {
+    if (strict && provenanceLines.containsKey('__refused__')) {
+      for (final line in provenanceLines.remove('__refused__')!) {
         print(line);
       }
       _verdict
@@ -554,13 +606,42 @@ class PlanCommand extends Command<void> {
     // provenance artifact (they are spec-DECLARED through the Layer
     // Contracts section, like the ffi lane's native-loop declaration).
     for (final b in contractBehaviors) {
-      provenance.putIfAbsent(
+      provenanceLines.putIfAbsent(
         b.id,
         () => [
           'route: ${b.id} -> contract lane '
               '[declared: layer contracts section]',
         ],
       );
+    }
+
+    // Issue #1186: the one-time routing migration. Every behavior that
+    // routed via the labeled legacy fallback had its lane classified by
+    // the (accurate) description classifier — emitting the classified
+    // `**Type**` marker back into the spec turns the per-run fallback
+    // warning into a one-time migration, and makes `--strict-routing`
+    // usable on speckit-authored specs (whose templates never carried
+    // the markers). The emitted content stays in memory until every plan
+    // artifact has been written successfully, so an output failure never
+    // leaves spec.md migrated ahead of an incomplete plan. The operation is
+    // idempotent (a declared scenario is never re-declared) and is skipped
+    // entirely under `--no-emit-markers`.
+    final markerEmission = argResults?['emit-markers'] as bool? ?? true
+        ? const SpecMarkerEmitter().emit(specMd, provenance.fallbackKinds)
+        : null;
+
+    Future<void> persistMarkerEmission() async {
+      final emission = markerEmission;
+      if (emission == null || !emission.migrated) return;
+      await specFile.writeAsString(emission.content);
+      print(
+        'zfa tdd plan: emitted ${emission.emitted.length} `**Type**` '
+        'marker(s) into the spec — one-time routing migration (issue '
+        '#1186) for ${emission.emitted.keys.join(', ')} (spec: '
+        '$specPath). Re-run `zfa tdd plan`; the migrated scenarios now '
+        'carry their declared lane.',
+      );
+      _verdict.details['markers_emitted'] = emission.emitted.length;
     }
 
     await outDir.create(recursive: true);
@@ -613,7 +694,7 @@ class PlanCommand extends Command<void> {
 
       final engineProvenance = <String, List<String>>{};
       final skinProvenance = <String, List<String>>{};
-      provenance.forEach((id, lines) {
+      provenanceLines.forEach((id, lines) {
         // Ffi rows and any unclassified id default engine-side (the
         // native boundary + routing bookkeeping are engine-owned).
         final lane = laneResult.classification[id] ?? Lane.core;
@@ -656,7 +737,7 @@ class PlanCommand extends Command<void> {
         p.join(outDir.path, LaneSplitFiles.contract),
       ).writeAsString(contractMd);
       await outFile.writeAsString(metaMd);
-      for (final line in provenance.values.expand((l) => l)) {
+      for (final line in provenanceLines.values.expand((l) => l)) {
         print('   $line');
       }
       stdout.writeln(
@@ -686,7 +767,9 @@ class PlanCommand extends Command<void> {
         ],
         componentTokens: UiLedgerProjection.componentTokensOf(layerContracts),
         keys: i18nKeys,
+        layoutSlots: layoutSlots,
       );
+      await persistMarkerEmission();
       return;
     }
 
@@ -700,7 +783,7 @@ class PlanCommand extends Command<void> {
         layerContracts,
         preservedFfi,
         declarations.persistence,
-        provenance,
+        provenanceLines,
       ),
     );
     // Issue #1141: the UI surface ledger artifact (the legacy single-file
@@ -715,6 +798,7 @@ class PlanCommand extends Command<void> {
       ],
       componentTokens: UiLedgerProjection.componentTokensOf(layerContracts),
       keys: i18nKeys,
+      layoutSlots: layoutSlots,
     );
     // Issue #969 T003: the plan's artifacts become self-certifying —
     // digest-bound receipts so the preflight gate can catch hand-edits.
@@ -729,7 +813,8 @@ class PlanCommand extends Command<void> {
         ...ledgerFiles,
       },
     );
-    for (final line in provenance.values.expand((l) => l)) {
+    await persistMarkerEmission();
+    for (final line in provenanceLines.values.expand((l) => l)) {
       // print (not stdout.writeln): the observable-CLI convention the
       // tdd command suites assert on (runCapturing intercepts print).
       print('   $line');
@@ -999,27 +1084,50 @@ class PlanCommand extends Command<void> {
   /// the Presentation component tokens, `t.<key>` key rows whose provers
   /// are the behaviors quoting the anchor. Planned provers are NOT-DONE
   /// at plan time (state recomputes on read — a stored state is a cache,
-  /// never the truth). Returns the written paths (for the plan's
-  /// digest-bound receipts).
+  /// never the truth). Issue #1142: when the Presentation contract
+  /// declares platform layout slots, the ledger additionally renders the
+  /// PER-PLATFORM coverage (surfaces × slots, plan-time evidence empty ⇒
+  /// every per-slot row NOT-DONE — visible, never omitted) and the
+  /// per-platform kind-coverage heatmap. Returns the written paths (for
+  /// the plan's digest-bound receipts).
   Future<Map<String, String>> _writeUiLedger(
     Directory outDir, {
     required List<LedgerBehaviorInput> behaviors,
     required List<String> componentTokens,
     required I18nKeyTable keys,
+    List<String> layoutSlots = const [],
   }) async {
     final rows = UiLedgerProjection.rows(
       behaviors: behaviors,
       keys: keys,
       componentTokens: componentTokens,
     );
+    final mdBody = UiLedgerBuilder.toMarkdown(rows);
+    final platformRows = layoutSlots.isEmpty
+        ? const <PlatformSurfaceRow>[]
+        : PlatformCoverageLedger.derive(aggregate: rows, slots: layoutSlots);
+    final md = layoutSlots.isEmpty
+        ? mdBody
+        : '$mdBody\n${PlatformCoverageLedger.toMarkdown(platformRows)}';
+    final json = layoutSlots.isEmpty
+        ? UiLedgerBuilder.toJson(rows)
+        : jsonEncode([
+            ...jsonDecode(UiLedgerBuilder.toJson(rows)) as List<dynamic>,
+            ...jsonDecode(PlatformCoverageLedger.toJson(platformRows))
+                as List<dynamic>,
+          ]);
     final mdPath = p.join(outDir.path, 'ui-ledger.md');
     final jsonPath = p.join(outDir.path, 'ui-ledger.json');
-    await File(mdPath).writeAsString(UiLedgerBuilder.toMarkdown(rows));
-    await File(jsonPath).writeAsString(UiLedgerBuilder.toJson(rows));
+    await File(mdPath).writeAsString(md);
+    await File(jsonPath).writeAsString(json);
     final keyRows = rows.where((r) => r.kind == UiSurfaceKind.key).length;
+    final platformNote = layoutSlots.isEmpty
+        ? ''
+        : ', ${layoutSlots.length} platform slot(s) heatmap (issue #1142)';
     print(
       'zfa tdd plan: wrote $mdPath (${rows.length} row(s), '
-      '$keyRows key row(s)) — the UI surface ledger (issue #1141)',
+      '$keyRows key row(s)$platformNote) — the UI surface ledger '
+      '(issue #1141)',
     );
     return {mdPath: 'update', jsonPath: 'update'};
   }
@@ -1139,8 +1247,15 @@ class PlanCommand extends Command<void> {
   /// the resolver consults the parsed declarations; undeclared
   /// behaviors render their LABELED legacy fallback (migration window;
   /// strict mode turns these into refusals).
-  Map<String, List<String>> _provenanceLines(
-    List<Behavior> behaviors,
+  ///
+  /// Issue #1186: the fallback-routed behaviors' classified kinds also
+  /// come back (`fallbackKinds`, id → kind) so the plan can MIGRATE the
+  /// emittable ones (`**Type**` markers) into the spec post-derivation
+  /// — the one-time migration that makes the per-run fallback noise (and
+  /// the strict gate's refusal on speckit-authored specs) disappear.
+  ({Map<String, List<String>> lines, Map<String, BehaviorKind> fallbackKinds})
+  _provenanceLines(
+    List<({Behavior behavior, String currentId})> behaviors,
     List<BehaviorRow> preservedFfi,
     SpecDeclarations declarations,
     Map<String, List<String>> frTraces,
@@ -1149,6 +1264,7 @@ class PlanCommand extends Command<void> {
   }) {
     const resolver = RoutingResolver();
     final lines = <String, List<String>>{};
+    final fallbackKinds = <String, BehaviorKind>{};
     String lane(BehaviorKind kind) => switch (kind) {
       BehaviorKind.acceptance => 'acceptance lane',
       BehaviorKind.widget => 'widget lane',
@@ -1161,15 +1277,17 @@ class PlanCommand extends Command<void> {
 
     void record(String id, List<String> entry) => lines[id] = entry;
 
-    for (final b in behaviors) {
+    for (final entry in behaviors) {
+      final b = entry.behavior;
+      final currentId = entry.currentId;
       // Rung-3 kind for spec-parsed behaviors is DECLARED only via the
       // `**Type**` marker — the parse-time sniffer kind is precisely the
       // legacy fallback being labeled, so it is NOT passed as declared.
       final result = resolver.resolve(
         row: RoutingRow(
-          behaviorId: b.id,
-          kind: scenarioMarkers[b.id]?.declaredType,
-          traces: frTraces[b.id] ?? const [],
+          behaviorId: currentId,
+          kind: scenarioMarkers[currentId]?.declaredType,
+          traces: frTraces[currentId] ?? const [],
         ),
         declarations: declarations,
         strict: strict,
@@ -1218,6 +1336,7 @@ class PlanCommand extends Command<void> {
           : decision == BehaviorKind.acceptance
           ? 'add `**Type**: acceptance` to the scenario'
           : 'trace FR to a declared contract row';
+      fallbackKinds[currentId] = decision;
       record(b.id, [
         'route: ${b.id} -> ${lane(decision)} '
             '[fallback: legacy description classifier matched — $hint]',
@@ -1229,7 +1348,7 @@ class PlanCommand extends Command<void> {
             '[declared: native loop section]',
       ]);
     }
-    return lines;
+    return (lines: lines, fallbackKinds: fallbackKinds);
   }
 
   /// Bug #833: the plan MARKS the behavior persistence-kind — the

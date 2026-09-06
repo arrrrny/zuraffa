@@ -1,6 +1,48 @@
 ## [Unreleased]
 
 ### Added
+- **`zfa skin drive` — the VM-service tapAnchor seam (issue #1112, part of
+  #1015)**: synthetic clicks (cliclick, CGEvent, AX press) never reach the
+  Flutter macOS view; the VM-service evaluate does. This ships the pilot's
+  driver as a framework feature:
+  - **Typed `TapResult`** (`lib/src/skin/tap_result.dart`, exported by
+    `package:zuraffa/skin.dart`): `found | disabled | notFound |
+    error(String)` with the canonical sub-agent JSON —
+    `{"result":"found","tapped":true}` … — byte-identical on every host OS.
+  - **Element-walk `debugTapAnchor`** in the emitted kit: the pilot-proved
+    walk (`WidgetsBinding.instance.rootElement` + `visitChildElements`)
+    finds the anchor by its `zfa:<id>` key and invokes the REAL `onPressed`
+    (kDebugMode-only); `debugTapAnchorJson` is the synchronous evaluate
+    facade the CLI drives; the old `Future<bool>` signature is superseded.
+  - **Generated per-view seam**: `zfa make/view --skin --anchor <id>`
+    (repeatable) emits one `SkinContractRow.anchorExists` row AND one
+    `Future<TapResult> debugTap<PascalAnchor>() => debugTapAnchor('zfa:<id>')`
+    per anchor — the function lookup is just `debugTap<PascalAnchor>()`.
+    Without anchors the output is unchanged.
+  - **`zfa skin drive --dart-uri=<vm-service-uri> --anchor=<zfa-key>`**:
+    connects over the plain `http(s)://` URI the runner prints (converts to
+    ws), orders the isolate's libraries kit-first, evaluates the seam, and
+    prints the TapResult JSON as the final stdout line (exit codes: found 0
+    / disabled 1 / notFound 2 / error 3). It auto-resumes a paused-at-start
+    isolate — the `flutter test --start-paused` widget-test-runner lane —
+    and polls until the anchor answers or `--timeout` elapses.
+    `vm_service: ^15.3.0` is a direct dependency (pure Dart; Constitution
+    VII holds).
+  - **Widget test bridge**: `zfa skin kit` (and `--skin` view generation)
+    also emits `test/skin/zfa_anchor_test_bridge.dart` — the target
+    project's `package:zuraffa_test` surface: `zfaAnchorTapped(tester,
+    zfaKey)` drives the same anchor-by-key lookup, then `pumpAndSettle`s
+    (safe: the test-tree anchor can't reschedule itself). The bridge
+    imports the kit through the app's `package:` URI — a relative import
+    would compile a SECOND kit library (two registries; found and fixed in
+    the scratch-app proof).
+  - Real Flutter proof: emitted kit + bridge in a scratch app —
+    `flutter analyze` clean, 7/7 seam widget tests; `zfa skin drive` proven
+    LIVE against a widget-test runner (`flutter test --start-paused`) —
+    exit 0, `{"result":"found","tapped":true}`, the real handler traced in
+    the runner's own log. Skin behaviors now drive through `debugTapAnchor`
+    exclusively; the repo carries zero synthetic-click code.
+
 - **Mock-first make-default (issue #1194, part of #908 P0)**: the `crud` and
   `read-only` presets now bundle the `mock` plugin — the same default the
   `engine` preset already had — so a fresh `zfa make <Entity> --preset=crud`

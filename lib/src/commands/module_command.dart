@@ -4,6 +4,11 @@ import 'package:args/command_runner.dart';
 import '../cli/exit_protocol.dart';
 
 import '../core/context/file_system.dart';
+import '../core/generator_options.dart';
+import '../core/project/project_root.dart';
+import '../models/generator_config.dart';
+import '../plugins/module/builders/module_orchestrator_builder.dart';
+import '../core/module/post_scaffold_gate.dart';
 import '../utils/project_flavor.dart';
 
 /// CLI command that scaffolds a new Zuraffa feature package.
@@ -15,13 +20,6 @@ import '../utils/project_flavor.dart';
 /// - analysis_options.yaml
 /// - lib/src/{datasource,repository,usecase,controller,state,view,plugin}/
 /// - test/
-import '../core/project/project_root.dart';
-
-/// Flutter import emitted into *generated* feature-package files.
-///
-/// Kept as a string constant (never a real import) so this pure-Dart core
-/// command file has no `package:flutter/` dependency. See issue #495.
-const String _flutterMaterialImport = "import 'package:flutter/material.dart';";
 
 class ModuleCommand extends Command<void> {
   static const String defaultOutputDir = '.';
@@ -50,6 +48,14 @@ class ModuleCommand extends Command<void> {
       negatable: false,
       help: 'Enable detailed logging',
     );
+    // Issue #1149 (kill list — module merge): post-scaffold honesty gate.
+    // After scaffolding, run `dart pub get` + `dart analyze` inside the
+    // new package and surface real failures. --no-gate opts out.
+    argParser.addFlag(
+      'no-gate',
+      negatable: false,
+      help: 'Skip the post-scaffold `dart pub get` + `dart analyze` gate',
+    );
   }
 
   @override
@@ -76,6 +82,7 @@ class ModuleCommand extends Command<void> {
     final dryRun = argResults!['dry-run'] as bool;
     final force = argResults!['force'] as bool;
     final verbose = argResults!['verbose'] as bool;
+    final runGate = !(argResults!['no-gate'] as bool);
 
     final packageName = 'zuraffa_feature_${_toSnake(featureName)}';
     final packageDir = '$outputDir/$packageName';
@@ -135,12 +142,53 @@ class ModuleCommand extends Command<void> {
       _writePubspec(packageDir, packageName, verbose);
       _writeAnalysisOptions(packageDir);
       _writeBarrel(packageDir, featureName);
-      _writePlaceholderFiles(packageDir, featureName, verbose);
+      // Issue #1149 (kill list — module merge): the FeaturePlugin class
+      // is emitted by the ONE surviving generator
+      // (ModuleOrchestratorBuilder, shared with `zfa make --with=module`)
+      // instead of a second drifting string-template copy.
+      await _writePluginOrchestrator(packageDir, featureName, verbose);
     }
 
     print('  Feature package $packageName scaffolded successfully.');
+
+    if (!dryRun && runGate) {
+      final gate = PostScaffoldGate(
+        packageDir: packageDir,
+        packageName: packageName,
+      );
+      final gateOk = await gate.run();
+      if (!gateOk) exitCode = 1;
+    }
   }
 
+  /// Emits the FeaturePlugin orchestrator through
+  /// [ModuleOrchestratorBuilder] — the single generator shared with the
+  /// `zfa make --with=module` pipeline (issue #1149). The builder persists
+  /// through FileUtils.writeFile with force so re-scaffolding works.
+  Future<void> _writePluginOrchestrator(
+    String dir,
+    String featureName,
+    bool verbose,
+  ) async {
+    final builder = ModuleOrchestratorBuilder(
+      outputDir: '$dir/lib/src',
+      options: const GeneratorOptions(force: true),
+    );
+    final files = await builder.generate(
+      GeneratorConfig(
+        name: featureName,
+        outputDir: '$dir/lib/src',
+        force: true,
+      ),
+    );
+    for (final file in files) {
+      if (verbose) print('  Created plugin orchestrator: ${file.path}');
+    }
+  }
+
+  /// Runs the post-scaffold honesty gate (issue #1149) via
+  /// [PostScaffoldGate]: `dart pub get` then `dart analyze` inside the
+  /// scaffolded package. Failures propagate as exit 1; --no-gate skips.
   void _writePubspec(String dir, String packageName, bool verbose) {
     // Calculate relative path from generated package to zuraffa package
     final packageDirUri = Uri.directory(dir);
@@ -202,41 +250,7 @@ dev_dependencies:
     );
   }
 
-  void _writePlaceholderFiles(String dir, String featureName, bool verbose) {
-    final snake = _toSnake(featureName);
-    final className = '${_toPascal(featureName)}FeaturePlugin';
-    File('$dir/lib/src/plugin/${snake}_feature_plugin.dart').writeAsStringSync(
-      '''
-$_flutterMaterialImport
-import 'package:zuraffa_flutter/zuraffa_flutter.dart';
-
-/// Orchestrator plugin for the $snake feature.
-class $className extends ZuraffaPlugin {
-  @override
-  String get pluginId => '$snake';
-
-  @override
-  void registerDependencies(ZuraffaDIContainer di) {
-    // TODO: register this feature's dependencies.
-  }
-
-  @override
-  Map<String, ZuraffaRouteBuilder> get routes => {
-    // TODO: expose this feature's routes.
-  };
-}
-''',
-    );
-    if (verbose) print('  Created plugin orchestrator');
-  }
-
   String _toSnake(String name) => name
       .replaceAllMapped(RegExp(r'[A-Z]'), (m) => '_${m[0]!.toLowerCase()}')
       .replaceFirst(RegExp(r'^_'), '');
-
-  String _toPascal(String name) => name
-      .split('_')
-      .where((w) => w.isNotEmpty)
-      .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
-      .join();
 }
