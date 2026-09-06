@@ -38,7 +38,13 @@ jobs:
         run: dart pub get --no-example
 
       - name: Analyze
-        run: dart analyze lib test --no-fatal-warnings
+        # Scoped to the root package (lib/ + test/ + bin/): an unscoped
+        # `dart analyze` also walks the nested example packages
+        # (examples/todo_tdd resolves `package:todo_tdd` against the ROOT
+        # package config and reports 31 pre-existing uri errors — verified
+        # identical on master). Every other workflow scopes the same way
+        # (see ci.yaml, skew-matrix.yaml).
+        run: dart analyze lib test bin
 
       - name: The treaty gate — manifest --verify (drift exits 3)
         run: dart run bin/zfa.dart manifest --verify

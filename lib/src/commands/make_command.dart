@@ -16,6 +16,7 @@ import '../plugins/shadcn/vocabulary/ui_node_registry.dart';
 import '../config/zfa_config.dart';
 import '../cli/plugin_loader.dart';
 import '../core/branding/branding_writer.dart';
+import '../core/dependencies/generated_import_scanner.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/plugin_context.dart';
 import '../core/project/project_root.dart';
@@ -1020,7 +1021,22 @@ class MakeCommand extends Command<void> {
         }
       }
 
-      _logSummary(files, context.core.verbose, plan: plan);
+      // Issue #1190 — pubspec ↔ generated-imports post-pass: the files
+      // this run wrote may import packages the target's pubspec doesn't
+      // declare, which floods the first run with
+      // depend_on_referenced_packages infos (and fails strict CI).
+      // Surface the exact `pub add` one-liner on completion instead of
+      // leaving the user to translate analyzer noise.
+      final pubsyncGap = (!isDryRun && !isRevert && files.isNotEmpty)
+          ? _pubsyncGapForFiles(files)
+          : null;
+
+      _logSummary(
+        files,
+        context.core.verbose,
+        plan: plan,
+        pubsyncGap: pubsyncGap,
+      );
 
       // ── Issue #1194: certified mocks BY DEFAULT ──────────────────────
       // A mocked-tier run structurally certifies the emitted mock against
@@ -1110,6 +1126,31 @@ class MakeCommand extends Command<void> {
     if (argResults?['format'] != 'json') {
       print('✅ Done.');
     }
+  }
+
+  /// Issue #1190: diffs the package imports of the files THIS RUN wrote
+  /// against the target pubspec.yaml. Only created/overwritten/updated
+  /// `.dart` files contribute (skipped files keep their pre-run state and
+  /// deleted/reverted files no longer exist); unreadable paths are
+  /// skipped — `zfa doctor generated-imports` re-scans the whole tree.
+  PubspecDependencyGap? _pubsyncGapForFiles(List<GeneratedFile> files) {
+    final dartFiles = <File>[];
+    for (final file in files) {
+      if (file.action == 'deleted' || file.action == 'reverted') continue;
+      if (file.action == 'skipped') continue;
+      final normalized = file.path.replaceAll('\\', '/');
+      if (!normalized.endsWith('.dart')) continue;
+      final absolute = path.isAbsolute(file.path)
+          ? file.path
+          : p.join(manager.projectRoot, file.path);
+      final f = File(absolute);
+      if (f.existsSync()) dartFiles.add(f);
+    }
+    if (dartFiles.isEmpty) return null;
+    return GeneratedImportScanner.analyzeFiles(
+      dartFiles: dartFiles,
+      projectRoot: manager.projectRoot,
+    );
   }
 
   /// Spec #972 FR-4: runs the usecase interface-expectation post-pass
@@ -1518,6 +1559,7 @@ class MakeCommand extends Command<void> {
     List<GeneratedFile> files,
     bool verbose, {
     required dynamic plan,
+    PubspecDependencyGap? pubsyncGap,
   }) {
     if (argResults?['format'] == 'json') {
       print(
@@ -1530,6 +1572,14 @@ class MakeCommand extends Command<void> {
           // boots on certified mocks) or COMPILE-ONLY (--compile-only
           // opt-out). Absent when the plan had no data tier at all.
           if (contextTierLabel != null) 'tier': contextTierLabel,
+          // Issue #1190: machine-consumable pubspec-dep gap — agents can
+          // run the one-liner without parsing analyzer output.
+          if (pubsyncGap != null && pubsyncGap.hasMissing)
+            'missing_pubspec_deps': {
+              'packages': pubsyncGap.missing,
+              'suggested_fix': pubsyncGap.pubAddOneLiner,
+              'sdk_packages': pubsyncGap.sdkMissingPackages,
+            },
         }),
       );
       return;
@@ -1570,6 +1620,31 @@ class MakeCommand extends Command<void> {
         }
       }
     }
+
+    // Issue #1190 — completion-time pubspec-dep suggestion.
+    _printPubsyncSuggestion(pubsyncGap);
+  }
+
+  /// Issue #1190: prints the generated-imports ↔ pubspec gap and the exact
+  /// `pub add` one-liner that heals it. SDK-provided packages (flutter,
+  /// flutter_test, ...) cannot be `pub add`ed — they get their own note.
+  void _printPubsyncSuggestion(PubspecDependencyGap? gap) {
+    if (gap == null || !gap.hasMissing) return;
+    print(
+      '⚠️  pubspec.yaml doesn\'t declare ${gap.missing.length} '
+      'package(s) the generated code imports: ${gap.missing.join(", ")}',
+    );
+    final oneLiner = gap.pubAddOneLiner;
+    if (oneLiner != null) {
+      print('    --> fix: `$oneLiner`');
+    }
+    if (gap.sdkMissingPackages.isNotEmpty) {
+      print(
+        '    note: ${gap.sdkMissingPackages.join(", ")} come(s) from the '
+        'Flutter SDK — declare with `sdk: flutter` in pubspec.yaml',
+      );
+    }
+    print('    note: re-check the whole tree with `zfa doctor`');
   }
 
   /// Spec 1002: engine-chain step 1 — `entity create`. Generates the
