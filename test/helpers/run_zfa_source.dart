@@ -10,6 +10,61 @@ import 'project_root.dart';
 /// Resolve once per test file via [initZfaSourceBin] (call it from `setUpAll`).
 String? zfaSourceBin;
 
+/// Parses the raw `ZFA_TEST_TIMEOUT_SCALE` environment value into the
+/// multiplier applied to every subprocess timeout budget in this helper
+/// (issue #1187).
+///
+/// Rules:
+/// - missing / blank / unparsable values -> 1.0 (the validated defaults);
+/// - `NaN` / infinite values -> 1.0 (they would poison every budget into a
+///   hang);
+/// - values below 1.0 clamp up to 1.0 — the scale exists to RELAX budgets
+///   on slow machines, never to tighten them below what CI validates
+///   against.
+///
+/// Exposed as a pure function so the scale mechanism is unit-testable
+/// without spawning a subprocess (see
+/// `test/helpers/zfa_test_timeout_scale_test.dart`).
+double parseTimeoutScale(String? raw) {
+  if (raw == null) return 1.0;
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return 1.0;
+  final value = double.tryParse(trimmed);
+  if (value == null || value.isNaN || value.isInfinite) return 1.0;
+  if (value < 1.0) return 1.0;
+  return value;
+}
+
+/// The process-wide timeout scale, read once at isolate start from
+/// `ZFA_TEST_TIMEOUT_SCALE` via [parseTimeoutScale].
+///
+/// Set it to stretch every budget proportionally on slow hardware — e.g.
+/// `ZFA_TEST_TIMEOUT_SCALE=2 dart test test/feature_flags --preset=all`
+/// doubles the 75s child guard (150s), the 100s AOT compile budget (200s)
+/// and every suite `Timeout` built through [scaleDuration] (issue #1187:
+/// 2019 Intel Mac baseline, modest CI runners).
+final double zfaTestTimeoutScale = parseTimeoutScale(
+  Platform.environment['ZFA_TEST_TIMEOUT_SCALE'],
+);
+
+/// Stretch [base] by [zfaTestTimeoutScale].
+///
+/// Use this for suite-level `Timeout` declarations so the enclosing test
+/// ceiling grows together with the child guard it supervises — the child
+/// guard MUST stay shorter than the enclosing test timeout for its
+/// fail-fast diagnostic to fire first (see [runZfaSource]).
+Duration scaleDuration(Duration base) =>
+    Duration(milliseconds: (base.inMilliseconds * zfaTestTimeoutScale).round());
+
+/// Effective default child budget for [runZfaSource]: 75s x
+/// [zfaTestTimeoutScale].
+Duration get zfaDefaultChildTimeout =>
+    scaleDuration(const Duration(seconds: 75));
+
+/// Effective AOT compile budget for `_buildZfaExeIfPossible`: 100s x
+/// [zfaTestTimeoutScale].
+Duration get zfaCompileTimeout => scaleDuration(const Duration(seconds: 100));
+
 /// The absolute zuraffa project root, resolved once via [initZfaSourceBin].
 ///
 /// Used as the subprocess `workingDirectory` so the child process never
@@ -101,7 +156,11 @@ Future<String?> _buildZfaExeIfPossible() async {
     if (tmpFile.existsSync()) tmpFile.deleteSync();
     final result = await _runSupervised(
       ['dart', 'compile', 'exe', zfaSourceBin!, '--output', tmpPath],
-      timeout: const Duration(seconds: 100),
+      // 100s base, stretched by ZFA_TEST_TIMEOUT_SCALE (issue #1187): on the
+      // 2019 Intel Mac baseline the cold frontend compile alone can exceed
+      // the bare 100s budget, which silently downgrades every subsequent
+      // spawn in the file to the slow `dart bin/zfa.dart` fallback path.
+      timeout: zfaCompileTimeout,
       workingDirectory: zfaProjectRoot,
     );
     if (result.exitCode == 0 && tmpFile.existsSync()) {
@@ -179,9 +238,14 @@ bool _isNewer(String path, DateTime reference) =>
 Future<ProcessResult> runZfaSource(
   List<String> args, {
   required String workingDirectory,
-  Duration timeout = const Duration(seconds: 75),
+  Duration? timeout,
 }) async {
   assert(zfaSourceBin != null, 'call initZfaSourceBin() in setUpAll');
+
+  // Default budget: 75s base x ZFA_TEST_TIMEOUT_SCALE (issue #1187). Nullable
+  // parameter (instead of a const default) because the scaled budget is
+  // computed at isolate start, not a compile-time constant.
+  final childTimeout = timeout ?? zfaDefaultChildTimeout;
 
   final command = zfaExePath != null
       ? [zfaExePath!, ...args] // AOT fast path (milliseconds per spawn)
@@ -196,6 +260,9 @@ Future<ProcessResult> runZfaSource(
   // group cap. Callers that drive `build_runner` (e.g. `zfa build`) pass a
   // longer budget, because the first `build.dart` AOT compile + codegen can
   // legitimately exceed 75s under concurrency contention (#531, SC-001).
+  // Slow machines raise the default via ZFA_TEST_TIMEOUT_SCALE (#1187) and
+  // the feature_flags suite's scaled `Timeout` ceilings grow with it, so the
+  // guard stays inside the ceiling at any scale.
 
   // On Linux a freshly-written AOT binary can refuse to execute with
   // `Text file busy` (ETXTBSY) for a few milliseconds after the write
@@ -209,7 +276,7 @@ Future<ProcessResult> runZfaSource(
     try {
       return await _runSupervised(
         command,
-        timeout: timeout,
+        timeout: childTimeout,
         workingDirectory: workingDirectory,
       );
     } on ProcessException catch (e) {
