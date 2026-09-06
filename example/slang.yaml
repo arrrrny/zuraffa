@@ -1,0 +1,15 @@
+# slang configuration (issue #965/#1133 i18n-keyed widget contracts).
+#
+# The 004-login-ui corpus renders every user-facing surface through a
+# declared slang key (t.auth.signIn, t.auth.error, t.auth.working) with
+# the EN literal as the anchor. Flat locale files (the slang v4
+# convention) so no namespace logic applies, and eager (non-lazy)
+# loading so the generated widget tests can pump the de expansion locale
+# synchronously via LocaleSettings.setLocaleRaw.
+base_locale: en
+fallback_strategy: base_locale
+input_directory: lib/i18n
+input_file_pattern: .i18n.json
+output_directory: lib/i18n
+output_file_name: strings.g.dart
+lazy: false
