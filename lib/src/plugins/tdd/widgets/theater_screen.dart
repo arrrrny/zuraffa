@@ -145,6 +145,8 @@ class _TheaterScreenState extends nocterm.State<TheaterScreen> {
           'green=${_snapshot.greenCount} red=${_snapshot.redCount} '
           'cycles=${_snapshot.cycles.length} '
           'receipts=${_snapshot.receiptCount} '
+          'journal=${_snapshot.journal.entries.length} '
+          '${_snapshot.journal.journalPresent ? _snapshot.journal.verdict.oneLine : 'no journal (pending)'} '
           '| sel: ${selected?.id ?? '-'} ($focusHint) '
           '| Tab pane · Enter open · [?] verdict · q quit',
           style: const nocterm.TextStyle(color: nocterm.Colors.white),

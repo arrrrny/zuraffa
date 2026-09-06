@@ -36,6 +36,7 @@ import '../../../engine/engine_gate_receipt.dart';
 import '../../mock/certification/cert_registry.dart';
 import '../../mock/certification/mock_cert_receipt.dart';
 import '../services/entity_lookup.dart';
+import '../services/journal.dart';
 import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
 import '../tdd_plugin.dart';
@@ -145,6 +146,7 @@ class RunEngineCommand extends Command<void> {
   @override
   Future<void> run() async {
     const label = 'run-engine';
+    final journalStartedAt = DateTime.now().toUtc().toIso8601String();
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       throw UsageException(
@@ -187,6 +189,43 @@ class RunEngineCommand extends Command<void> {
       if (gate.refusedReceiptPath != null) {
         stderr.writeln('🧾 refusal receipt: ${gate.refusedReceiptPath}');
       }
+      // Spec 1113: the cert-gate refusal is journaled preflight_red —
+      // the skin lane and `zfa tdd status` read the same record.
+      try {
+        final writer = JournalWriter(p.join(projectRoot, 'specs', feature));
+        final refs = await writer.resolveRefs();
+        await writer.append(
+          JournalEntry(
+            feature: feature,
+            cycle: 'engine',
+            phase: 'gate',
+            startedAt: journalStartedAt,
+            finishedAt: DateTime.now().toUtc().toIso8601String(),
+            gateState: 'preflight_red',
+            receipts: const [],
+            violations: [
+              'cert-gate: entity=$entity refused '
+                  '(${gate.blockedReason ?? 'uncertified CORE mock'})',
+            ],
+            engineReceipt: refs.engine,
+            skinReceipt: refs.skin,
+            contractSchema: refs.contract,
+            result: 'preflight-refused',
+            mocks: {
+              'total': gate.mocks.length,
+              'certified': gate.certified.length,
+            },
+          ),
+        );
+      } on FileSystemException {
+        // A record, never a gate — the refusal stands on its stderr +
+        // refusal receipt; a failed journal write is only reported.
+        stderr.writeln(
+          'zfa tdd run-engine: failed to write the preflight journal '
+          'entry at '
+          '${p.join(projectRoot, 'specs', feature, 'tdd', 'journal.json')}',
+        );
+      }
       _printGateSummary(feature: feature, result: gate);
       exitCode = 1;
       return;
@@ -227,6 +266,12 @@ class RunEngineCommand extends Command<void> {
       lane: 'engine',
       label: label,
       skipWidget: argResults?['skip-widget'] as bool? ?? false,
+      // Spec 1113: the gate's mock accounting rides the engine entry
+      // (the status verdict's `mocks c/t` segment).
+      mockCounts: {
+        'total': gate.mocks.length,
+        'certified': gate.certified.length,
+      },
     );
     if (outcome.message != null) print('zfa tdd $label: ${outcome.message}');
     print(
