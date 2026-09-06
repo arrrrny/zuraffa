@@ -14,6 +14,9 @@
 ///                      reports WHY instead of silently falling back)
 /// - `config`         — `.zfa.json` parses + plugin keys are known
 /// - `profile`        — TDD project has `.specify/memory/tdd-profile.md`
+/// - `binary-staleness` — installed `zfa` binary's build commit (recorded
+///                      by `scripts/rebuild.sh`) matches the enclosing
+///                      zuraffa checkout's HEAD (issue #1184; warn-only)
 ///
 /// Fixes are mechanical and idempotent: `dart pub add` for missing dev-deps,
 /// build_runner for stale artifacts, deletion for corrupt/stale baseline
@@ -32,6 +35,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../config/zfa_config.dart';
+import '../cli/binary_staleness.dart';
 import '../plugins/tdd/tdd_plugin.dart';
 import '../version.dart';
 import 'tdd_command.dart';
@@ -80,14 +84,23 @@ class DoctorCheckResult {
 typedef ZfaProcessRunner =
     Future<ProcessResult> Function(String executable, List<String> args);
 
-/// Runs the five named environment checks against a project root.
+/// Runs the six named environment checks against a project root.
 class DoctorChecksRunner {
-  DoctorChecksRunner({ZfaProcessRunner? processRunner, String? projectDir})
-    : _processRunner = processRunner ?? _defaultProcessRunner,
-      _projectDir = projectDir;
+  DoctorChecksRunner({
+    ZfaProcessRunner? processRunner,
+    String? projectDir,
+    String? binaryDir,
+  }) : _processRunner = processRunner ?? _defaultProcessRunner,
+       _projectDir = projectDir,
+       _binaryDir = binaryDir;
 
   final ZfaProcessRunner _processRunner;
   final String? _projectDir;
+
+  /// Test seam: simulates "the process IS an installed binary in this
+  /// directory"; null derives from the running executable (source runs
+  /// under the Dart VM resolve to nothing — see `BinaryStaleness`).
+  final String? _binaryDir;
 
   /// Dev-deps the TDD loop needs after a fresh clone (issue #793).
   static const requiredDevDeps = {'mocktail', 'coverage', 'mutation_test'};
@@ -111,6 +124,7 @@ class DoctorChecksRunner {
     await _checkBaselineCache(fix: fix),
     await _checkConfig(fix: fix),
     await _checkProfile(fix: fix),
+    await _checkBinaryStaleness(),
   ];
 
   DoctorCheckResult _pass(String id, String detail) =>
@@ -499,6 +513,66 @@ class DoctorChecksRunner {
     }
     return _fail(id, 'missing .specify/memory/tdd-profile.md', suggested);
   }
+
+  // ---------------------------------------------------------------------------
+  // binary-staleness (issue #1184)
+  // ---------------------------------------------------------------------------
+
+  /// Issue #1184: `~/.local/bin/zfa` is a compiled snapshot; when the
+  /// operator runs it inside a zuraffa checkout whose HEAD differs from the
+  /// commit recorded at build time (`scripts/rebuild.sh` writes
+  /// `zfa.build_commit` next to the binary), it silently runs stale code.
+  ///
+  /// WARN, not FAIL: the binary still executes, and failing would flip
+  /// doctor's exit contract for every stale-install workflow. Every
+  /// unknowable input (source run, no marker, no zuraffa checkout, no git
+  /// HEAD) is a SKIP, never a false alarm.
+  Future<DoctorCheckResult> _checkBinaryStaleness() async {
+    const id = 'binary-staleness';
+    final result = await BinaryStaleness(
+      binaryDir: _binaryDir,
+    ).probeDetailed(cwd: _root);
+
+    if (result.isSkipped) {
+      return DoctorCheckResult(
+        id: id,
+        status: DoctorCheckStatus.skipped,
+        detail: _skipDetail(result.skipReason!),
+      );
+    }
+
+    final report = result.report!;
+    if (!report.isStale) {
+      return _pass(
+        id,
+        'installed zfa matches this checkout '
+        '(${BinaryStaleness.shortCommit(report.buildCommit)})',
+      );
+    }
+    return DoctorCheckResult(
+      id: id,
+      status: DoctorCheckStatus.warn,
+      detail:
+          'installed zfa (${BinaryStaleness.shortCommit(report.buildCommit)}) '
+          'is older than this checkout '
+          '(${BinaryStaleness.shortCommit(report.checkoutHead)})',
+      suggestedFix: 'scripts/rebuild.sh',
+    );
+  }
+
+  String _skipDetail(StalenessSkipReason reason) => switch (reason) {
+    StalenessSkipReason.sourceRun =>
+      'no installed binary (running from source — nothing to '
+          'staleness-check)',
+    StalenessSkipReason.noMarker =>
+      'no $zfaBuildCommitMarker marker next to the installed '
+          'binary — rebuild once via scripts/rebuild.sh to enable '
+          'staleness checks',
+    StalenessSkipReason.noCheckout =>
+      'not inside a zuraffa checkout — staleness not applicable',
+    StalenessSkipReason.noHead =>
+      'cannot resolve git HEAD for the zuraffa checkout',
+  };
 }
 
 /// The `--format json` verdict object for the named environment checks:
