@@ -65,8 +65,12 @@ void main() {
     final subject = File(fx.subjectPathOf('U-20')).readAsStringSync();
     expect(
       subject,
-      contains('bool subject_u_20()'),
-      reason: 'the declared signature outranks prose inference (#920)',
+      contains('bool subject_u_20(Object? template)'),
+      reason:
+          'the declared signature outranks prose inference (#920) — and the '
+          'declared PARAM travels with it (#1259: the shape is the spec\'s, '
+          'not a no-arg invention; Template is non-renderable before the '
+          'entity exists, so it degrades to Object?)',
     );
   });
 

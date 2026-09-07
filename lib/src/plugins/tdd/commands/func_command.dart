@@ -47,6 +47,7 @@ import '../services/artifact_registry.dart';
 import '../services/declared_routing.dart';
 import '../services/subject_signature_deriver.dart';
 import '../services/tdd_generation_receipt.dart';
+import '../services/unit_contract_shape.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
@@ -252,6 +253,7 @@ class FuncCommand extends Command<void> {
     // calls `subject.<name>()` and must keep compiling against the
     // scaffolded signature (044 ownership contract).
     final functionName = stub.group(2)!;
+    final stubParams = (stub.group(3) ?? '').trim();
 
     // Feature 071 (issue #920's durable fix): a DECLARED signature from
     // the behavior's function contract row outranks prose inference.
@@ -269,6 +271,28 @@ class FuncCommand extends Command<void> {
       );
     } on StateError catch (e) {
       print('zfa tdd func: declaration refused — ${e.message}');
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: FuncOutcome.runnerError,
+        feature: resolved.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // Issue #1259: a PARAMETRIZED stub without a declaration cannot be
+    // rewritten from prose — the behavior record carries no input schema
+    // (the reason the legacy surface was no-arg), so rewriting the
+    // declared parametrized shape to an invented no-arg body would break
+    // the paired test's invocation (and re-open the invented-shape
+    // class). Refuse with the remedy; the declared path below serves
+    // every stub gen writes for contract-declared behaviors.
+    if (declared == null && stubParams.isNotEmpty) {
+      print(
+        'zfa tdd func: subject at "$recordedSubject" carries a parametrized '
+        'signature but the behavior declares no contract row to derive it '
+        'from — refusing to invent a shape (issue #1259).',
+      );
       _printSummary(
         behavior: record.behaviorId,
         outcome: FuncOutcome.runnerError,
@@ -306,8 +330,16 @@ class FuncCommand extends Command<void> {
   // Resolution + rendering helpers.
   // -------------------------------------------------------------------
 
+  /// The stub declaration func rewrites: the shapes gen emits for the
+  /// unit lane — the legacy no-arg int/void stub (issue #657) and the
+  /// contract-derived shape (issue #1259: scalar declared types verbatim,
+  /// entity types degraded to `Object?`), with an optional parameter
+  /// list. A bounded type set (never an arbitrary identifier) keeps the
+  /// "this command did not generate" safety: a hand-authored subject
+  /// typed by an entity (`User login(...) => throw ...`) still refuses.
   static final RegExp _stubSignature = RegExp(
-    r'^(int|void)[ \t]+([A-Za-z_][A-Za-z0-9_]*)\(\)[ \t]*=>[ \t]*'
+    r'^((?:int|void|String|bool|double|num|Object|dynamic)\??)'
+    r'[ \t]+([A-Za-z_][A-Za-z0-9_]*)\(([^)]*)\)[ \t]*=>[ \t]*'
     r'throw[ \t]+UnimplementedError\([^;\r\n]*\);[ \t]*$',
     multiLine: true,
   );
@@ -334,8 +366,15 @@ class FuncCommand extends Command<void> {
     // present — the prose deriver runs ONLY on the fallback branch
     // (issue #920: no invented return types when a declaration exists).
     if (declared != null) {
-      return '''${declared.returnType} $functionName() {
-  ${_declaredStubBody(declared.returnType, functionName)}
+      // Issue #1259: the DECLARED SHAPE — params from the request
+      // entity, return from the result entity — not just the return
+      // type. Non-renderable declared types (entities that may not
+      // exist yet) render as `Object?` and the scaffold stays red
+      // (`UnimplementedError`) instead of a dummy value.
+      final shape = UnitContractShape.of(declared);
+      final params = shape.params.map((p) => '${p.type} ${p.name}').join(', ');
+      return '''${shape.returnType} $functionName($params) {
+  ${_declaredStubBody(shape.returnType, functionName, shape)}
 }''';
     }
     final derived = deriveSubjectSignature(description);
@@ -348,15 +387,21 @@ class FuncCommand extends Command<void> {
   /// A minimal compiling body honoring the declared return type. For
   /// non-primitive declared returns the honest scaffold stays red —
   /// `UnimplementedError` — instead of inventing a vacuous value
-  /// (issue #920: a green suite that measures nothing).
-  String _declaredStubBody(String returnType, String functionName) {
+  /// (issue #920: a green suite that measures nothing; issue #1259: the
+  /// declared entity contract is named in the error so the implementer
+  /// knows the shape the spec declared).
+  String _declaredStubBody(
+    String returnType,
+    String functionName,
+    UnitContractShape shape,
+  ) {
     if (returnType == 'String') return "return '$functionName';";
     if (returnType == 'int') return 'return 0;';
     if (returnType == 'double') return 'return 0.0;';
     if (returnType == 'bool') return 'return true;';
     if (returnType == 'void') return '';
     return "throw UnimplementedError('implement per declared signature: "
-        '$functionName -> $returnType\');';
+        '${shape.declaredSignature}\');';
   }
 
   Future<_Resolved?> _resolve(

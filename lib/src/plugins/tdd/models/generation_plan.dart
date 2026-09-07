@@ -92,6 +92,17 @@ enum MakeOutcome {
   /// removal, then re-run make.
   scaffolded('scaffolded'),
 
+  /// The target UNIT test's assertion set is only the UnimplementedError
+  /// guard (issue #1259): a green proves only "the subject does not
+  /// throw" — a func-scaffolded dummy `return 0;` flips it green with
+  /// zero declared-contract code. The unit-lane analogue of
+  /// [scaffolded] (#912 defect 3): the red surface may start at the
+  /// guard, but green requires at least one assertion on the observable
+  /// outcome named by the behavior description. Non-zero exit, no green
+  /// entry; the remedy is a real outcome assertion (+ marker removal),
+  /// then re-run make.
+  vacuousGreen('vacuous-green'),
+
   /// Runner/profile/tooling failure.
   /// Non-zero exit, no green entry.
   runnerError('runner-error');

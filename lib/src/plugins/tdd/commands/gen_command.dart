@@ -88,6 +88,7 @@ import '../services/generated_shape.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
 import '../services/tdd_generation_receipt.dart';
+import '../services/declared_routing.dart';
 import '../services/golden_harness_writer.dart';
 import '../services/platform_harness_context.dart';
 import '../services/platform_harness_subject_writer.dart';
@@ -96,6 +97,7 @@ import '../services/subject_writer.dart';
 import '../services/test_list_reader.dart';
 import '../services/theme_harness_subject_writer.dart';
 import '../services/theme_harness_test_writer.dart';
+import '../services/unit_contract_shape.dart';
 import '../tdd_plugin.dart';
 import '../services/tdd_timeout.dart';
 import '../services/verdict_emitter.dart';
@@ -772,6 +774,34 @@ class GenCommand extends Command<void> {
       }
     }
 
+    // Issue #1259: a DECLARED Layer Contract derives the unit subject's
+    // signature (params from the request entity, return from the result
+    // entity) and the paired test's assertion surface. The resolution
+    // rides the SAME declared-intent machinery `func` uses (feature 071
+    // test-list traces -> spec contract rows); a MALFORMED declaration
+    // refuses gen (errors-are-an-API) instead of silently inventing a
+    // disconnected shape. Undeclared behaviors keep the legacy pair.
+    UnitContractShape? contractShape;
+    if (effectiveBehavior.kind == BehaviorKind.unit) {
+      try {
+        final declared = await bounded(
+          DeclaredRouting.declaredSignatureFor(
+            cwd: cwd,
+            featureName: featureName,
+            behaviorId: behavior.id,
+          ),
+          'resolve declared contract',
+        );
+        if (declared != null) contractShape = UnitContractShape.of(declared);
+      } on StateError catch (e) {
+        stderr.writeln('zfa tdd gen: declaration refused — ${e.message}');
+        throw StateError(
+          'zfa tdd gen: declaration refused for "${behavior.id}" — '
+          '${e.message}',
+        );
+      }
+    }
+
     // Issue #938 preflight (VISION §4 errors-are-an-API): the zuraffaapp
     // widget shell emits `import 'package:zuraffa_ui/zuraffa_ui.dart';`.
     // When the target project's pubspec does not declare zuraffa_ui, that
@@ -1064,6 +1094,7 @@ class GenCommand extends Command<void> {
         i18nKeys: i18nKeys,
         i18nImport: i18nImport,
         i18nExpansion: i18nExpansion,
+        contractShape: contractShape,
       );
       try {
         if (!adoptTest) {
@@ -1195,6 +1226,7 @@ class GenCommand extends Command<void> {
         i18nKeys: i18nKeys,
         i18nImport: i18nImport,
         i18nExpansion: i18nExpansion,
+        contractShape: contractShape,
         bounded: bounded,
       );
     }
@@ -1352,6 +1384,7 @@ class GenCommand extends Command<void> {
     I18nKeyTable i18nKeys = I18nKeyTable.empty,
     String? i18nImport,
     List<String> i18nExpansion = const [],
+    UnitContractShape? contractShape,
   }) {
     if (behavior.kind == BehaviorKind.theme) {
       return (
@@ -1379,8 +1412,12 @@ class GenCommand extends Command<void> {
         i18nKeys: i18nKeys,
         i18nImport: i18nImport,
         i18nExpansion: i18nExpansion,
+        // Issue #1259: the contract-derived shape rides ONLY the
+        // plain-function pair (unit lane); every other lane keeps its
+        // own subject contract.
+        contractShape: contractShape,
       ).write,
-      writeSubject: const SubjectWriter().write,
+      writeSubject: SubjectWriter(contractShape: contractShape).write,
     );
   }
 
@@ -1562,6 +1599,7 @@ class GenCommand extends Command<void> {
     I18nKeyTable i18nKeys = I18nKeyTable.empty,
     String? i18nImport,
     List<String> i18nExpansion = const [],
+    UnitContractShape? contractShape,
   }) async {
     // Bug #835: an ffi harness is NEVER auto-regenerated. Its contract
     // seams are the implementer's wiring point — partial wiring (the
@@ -1599,6 +1637,7 @@ class GenCommand extends Command<void> {
         i18nKeys: i18nKeys,
         i18nImport: i18nImport,
         i18nExpansion: i18nExpansion,
+        contractShape: contractShape,
       );
       final mirroredTest = p.join(
         mirror.path,
