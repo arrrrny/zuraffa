@@ -77,6 +77,45 @@ class ProjectRoot {
     }
   }
 
+  /// Searches upward from [startPath] (default: the guarded CWD) for the
+  /// nearest ancestor (inclusive) carrying a `pubspec.yaml` and returns that
+  /// directory, or `null` when the walk reaches the filesystem root without
+  /// finding one.
+  ///
+  /// Unlike [find] this never falls back to the start path — bug #1267:
+  /// callers that must not guess a root (the generation commands `entity`,
+  /// `make`, `build` write CWD-relative paths like `lib/src/domain/...`)
+  /// branch on `null` and emit [noProjectFoundMessage] instead of silently
+  /// scattering generated files into whatever directory the shell sat in.
+  static String? findOrNull({String? startPath}) {
+    final start = startPath ?? safeCurrentPath();
+    var current = Directory(p.normalize(p.absolute(start)));
+
+    if (!current.existsSync()) {
+      current = current.parent;
+    }
+
+    while (true) {
+      if (File(p.join(current.path, 'pubspec.yaml')).existsSync()) {
+        return current.path;
+      }
+
+      final parent = current.parent;
+      // Reached filesystem root without finding a project marker.
+      if (parent.path == current.path) {
+        return null;
+      }
+      current = parent;
+    }
+  }
+
+  /// The canonical error text emitted when the upward walk for a
+  /// `pubspec.yaml` finds nothing (bug #1267 assessment — the exact string
+  /// is part of the fix's contract).
+  static const String noProjectFoundMessage =
+      'No Flutter project found. Run from inside a project directory '
+      'or use -C <path>.';
+
   /// Finds the project root and validates it exists.
   ///
   /// Throws [StateError] if the resolved root does not exist.

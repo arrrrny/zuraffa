@@ -24,6 +24,59 @@ final _brandAssetsExist = Directory(
 void main() {
   group('BrandingWriter', () {
     group('writeFlutterBranding', () {
+      // Issue found live (zik_zak migration): a target pubspec that
+      // ALREADY has `flutter: assets:` must get the icon entry MERGED
+      // into that list — a second `assets:` key is a duplicate mapping
+      // key that makes the whole pubspec unparseable.
+      test(
+        'merges the icon entry into an existing flutter.assets list',
+        () async {
+          final tmp = await Directory.systemTemp.createTemp('branding_merge_');
+          addTearDown(() => tmp.deleteSync(recursive: true));
+
+          final projectRoot = p.join(tmp.path, 'my_app');
+          Directory(p.join(projectRoot, 'assets')).createSync(recursive: true);
+          await File(p.join(projectRoot, 'pubspec.yaml')).writeAsString('''
+name: my_app
+environment:
+  sdk: ^3.11.0
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+    - assets/icons/
+''');
+
+          final writer = BrandingWriter(zuraffaRoot: _zuraffaRoot);
+          await writer.writeFlutterBranding(
+            projectRoot: projectRoot,
+            dryRun: false,
+            verbose: false,
+          );
+
+          final pubspec = File(
+            p.join(projectRoot, 'pubspec.yaml'),
+          ).readAsStringSync();
+          final assetKeys = RegExp(
+            r'^  assets:',
+            multiLine: true,
+          ).allMatches(pubspec).length;
+          expect(
+            assetKeys,
+            1,
+            reason:
+                'a second assets: key is a duplicate mapping key — '
+                'the pubspec must stay parseable',
+          );
+          expect(pubspec, contains('- assets/zuraffa_app_icons/'));
+          expect(
+            pubspec,
+            contains('- assets/icons/'),
+            reason: 'original entries are preserved',
+          );
+        },
+      );
+
       // ── U1 ────────────────────────────────────────────────────────────────
       test(
         'copies assets/zuraffa_app_icons/ to target project assets/ directory',
