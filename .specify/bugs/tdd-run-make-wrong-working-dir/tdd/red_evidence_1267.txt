@@ -1,0 +1,73 @@
+00:00 +0: loading test/commands/project_root_autodetect_test.dart
+00:00 +0: (setUpAll)
+00:00 +0: #1267 — generation commands auto-detect the project root entity create from a project SUBDIRECTORY writes into the project root
+00:00 +0 -1: #1267 — generation commands auto-detect the project root entity create from a project SUBDIRECTORY writes into the project root [E]
+  Expected: <0>
+    Actual: <1>
+  stdout=❌ No pubspec.yaml found in current directory.
+  
+     Make sure you are in a Flutter/Dart project root.
+     Run this command in the directory containing pubspec.yaml.
+  
+  --> fix: add the missing dependencies (see above: `dart pub add zorphy_annotation build_runner`) or run `zfa doctor`
+  
+  stderr=
+  
+  package:matcher                                       expect
+  test/commands/project_root_autodetect_test.dart 83:9  main.<fn>.<fn>
+  
+00:00 +0 -1: #1267 — generation commands auto-detect the project root make from a parent without any project refuses instead of scattering
+00:00 +0 -2: #1267 — generation commands auto-detect the project root make from a parent without any project refuses instead of scattering [E]
+  Expected: contains 'No Flutter project found. Run from inside a project directory or use -C <path>.'
+    Actual: '\n'
+              '✅ Generation complete:\n'
+              '  ✨ Created: 1 files\n'
+              '  ✨ lib/src/domain/usecases/catalog/item_usecase.dart\n'
+              '✅ Done.\n'
+              ''
+     Which: does not contain 'No Flutter project found. Run from inside a project directory or use -C <path>.'
+  stdout=
+  ✅ Generation complete:
+    ✨ Created: 1 files
+    ✨ lib/src/domain/usecases/catalog/item_usecase.dart
+  ✅ Done.
+  
+  stderr=
+  
+  package:matcher                                        expect
+  test/commands/project_root_autodetect_test.dart 130:9  main.<fn>.<fn>
+  
+00:00 +0 -2: #1267 — generation commands auto-detect the project root build from a parent without any project refuses instead of a lying dry-run success
+00:00 +0 -3: #1267 — generation commands auto-detect the project root build from a parent without any project refuses instead of a lying dry-run success [E]
+  Expected: contains 'No Flutter project found. Run from inside a project directory or use -C <path>.'
+    Actual: '🔍 Dry-run mode: previewing changes...\n'
+              '   Entities: 0, Dart files: 0\n'
+              '   🧠 Smart merge: will preserve user code and @preserve blocks\n'
+              '   Would scaffold: build.yaml (registers zorphy builder)\n'
+              '\n'
+              '✅ Dry-run completed\n'
+              ''
+     Which: does not contain 'No Flutter project found. Run from inside a project directory or use -C <path>.'
+  stdout=🔍 Dry-run mode: previewing changes...
+     Entities: 0, Dart files: 0
+     🧠 Smart merge: will preserve user code and @preserve blocks
+     Would scaffold: build.yaml (registers zorphy builder)
+  
+  ✅ Dry-run completed
+  
+  stderr=
+  
+  package:matcher                                        expect
+  test/commands/project_root_autodetect_test.dart 156:9  main.<fn>.<fn>
+  
+00:00 +0 -3: #1267 — generation commands auto-detect the project root -C <project> keeps the exact pre-#1267 behavior
+00:00 +1 -3: (tearDownAll)
+00:00 +1 -3: Some tests failed.
+
+Failing tests:
+  test/commands/project_root_autodetect_test.dart: #1267 — generation commands auto-detect the project root build from a parent without any project refuses instead of a lying dry-run success
+  test/commands/project_root_autodetect_test.dart: #1267 — generation commands auto-detect the project root entity create from a project SUBDIRECTORY writes into the project root
+  test/commands/project_root_autodetect_test.dart: #1267 — generation commands auto-detect the project root make from a parent without any project refuses instead of scattering
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
