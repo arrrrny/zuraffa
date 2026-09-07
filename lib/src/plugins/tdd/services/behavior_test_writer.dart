@@ -359,12 +359,7 @@ void main() {
     // configurable; the zuraffa_ui/shadcn_ui shell needs its own import
     // (material.dart stays for Scaffold + Theme).
     final shellName = widgetShell.widgetName;
-    final shellImport = switch (widgetShell) {
-      WidgetAppShell.zuraffaapp =>
-        "import 'package:zuraffa_ui/zuraffa_ui.dart';\n",
-      WidgetAppShell.shadapp => "import 'package:shadcn_ui/shadcn_ui.dart';\n",
-      WidgetAppShell.materialapp => '',
-    };
+    final shellImport = widgetShell.widgetImport ?? '';
     // Issue #964 (finder-kind taxonomy): the scenario verb decides the
     // assertion class — presence stays find.text, navigation becomes a
     // route-outcome assertion on a recording NavigatorObserver, absence

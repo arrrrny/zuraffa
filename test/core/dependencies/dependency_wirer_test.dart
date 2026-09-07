@@ -94,13 +94,13 @@ void main() {
         expect(analyzer.kind, DependencyKind.override);
         expect(
           analyzer.version,
-          DependencyWirer.flutterAnalyzerOverrideVersion,
+          DependencyWirer.resolveAnalyzerOverride(isFlutter: true),
         );
         expect(analyzer.isOverride, isTrue);
         // Flutter apps need the meta overlay too: the Flutter SDK pins
         // meta 1.18.0 while analyzer >=13.1.0 requires meta ^1.18.3.
         expect(meta.kind, DependencyKind.override);
-        expect(meta.version, DependencyWirer.flutterMetaOverrideVersion);
+        expect(meta.version, DependencyWirer.resolveMetaOverride());
         expect(meta.isOverride, isTrue);
       });
 
@@ -109,11 +109,39 @@ void main() {
         final analyzer = specs.firstWhere((s) => s.name == 'analyzer');
 
         expect(analyzer.kind, DependencyKind.override);
-        expect(analyzer.version, DependencyWirer.analyzerOverrideVersion);
+        expect(
+          analyzer.version,
+          DependencyWirer.resolveAnalyzerOverride(isFlutter: false),
+        );
         expect(analyzer.isOverride, isTrue);
         // Pure Dart packages do not overlay meta.
         expect(specs.map((s) => s.name), isNot(contains('meta')));
       });
+
+      test(
+        'resolveAnalyzerOverride falls back to the named constant when the '
+        'source package is not resolvable (no .dart_tool/package_config.json)',
+        () {
+          // Running from the zuraffa repo root: there's no
+          // .dart_tool/package_config.json at the time the unit suite runs
+          // (each chunk clears the kernel cache), so the resolver returns
+          // the fallback. This pin locks that contract so a future change
+          // to resolvePackageOverrides does not silently change the wired
+          // override value.
+          expect(
+            DependencyWirer.resolveAnalyzerOverride(isFlutter: true),
+            DependencyWirer.flutterAnalyzerFallback,
+          );
+          expect(
+            DependencyWirer.resolveAnalyzerOverride(isFlutter: false),
+            DependencyWirer.pureDartAnalyzerFallback,
+          );
+          expect(
+            DependencyWirer.resolveMetaOverride(),
+            DependencyWirer.flutterMetaFallback,
+          );
+        },
+      );
     });
 
     group('findMissing', () {
@@ -155,6 +183,7 @@ dependencies:
       url: https://github.com/arrrrny/zuraffa
       path: zuraffa_flutter
       ref: development
+  zuraffa_ui: ^0.1.0
   zorphy_annotation:
     git:
       url: https://github.com/arrrrny/zorphy
@@ -169,7 +198,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 dependency_overrides:
-  analyzer: ^13.1.0
+  analyzer: ^14.0.0
   meta: ^1.19.0
 ''';
         final missing = DependencyWirer.findMissing(pubspec, isFlutter: true);
@@ -186,6 +215,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  zuraffa_ui: ^0.1.0
   zorphy_annotation:
     git:
       url: https://github.com/arrrrny/zorphy
@@ -199,7 +229,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 dependency_overrides:
-  analyzer: ^13.1.0
+  analyzer: ^14.0.0
   meta: ^1.19.0
 ''';
         final missing = DependencyWirer.findMissing(pubspec, isFlutter: true);
@@ -221,6 +251,7 @@ dependencies:
     git:
       url: https://github.com/arrrrny/zuraffa
       path: zuraffa_flutter
+  zuraffa_ui: ^0.1.0
   zorphy_annotation:
     git:
       url: https://github.com/arrrrny/zorphy
@@ -233,7 +264,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 dependency_overrides:
-  analyzer: ^13.1.0
+  analyzer: ^14.0.0
   meta: ^1.19.0
 ''';
         final missing = DependencyWirer.findMissing(pubspec, isFlutter: true);
@@ -256,6 +287,7 @@ dependencies:
     git:
       url: https://github.com/arrrrny/zuraffa
       path: zuraffa_flutter
+  zuraffa_ui: ^0.1.0
   zorphy_annotation:
     git:
       url: https://github.com/arrrrny/zorphy
@@ -327,7 +359,7 @@ dev_dependencies:
 
 
 dependency_overrides:
-  analyzer: 14.1.0
+  analyzer: ^14.0.0
 ''';
         final missing = DependencyWirer.findMissing(pubspec, isFlutter: false);
 
@@ -349,6 +381,7 @@ dependencies:
     git:
       url: https://github.com/arrrrny/zuraffa
       path: zuraffa_flutter
+  zuraffa_ui: ^0.1.0
   zorphy_annotation:
     git:
       url: https://github.com/arrrrny/zorphy
@@ -362,19 +395,20 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 dependency_overrides:
-  analyzer: 14.1.0
+  analyzer: ^13.1.0
   meta: ^1.19.0
 ''';
           final missing = DependencyWirer.findMissing(pubspec, isFlutter: true);
 
-          // Flutter projects expect analyzer: ^13.1.0, not 14.1.0, so analyzer
-          // should be detected as needing an update.
+          // Flutter projects expect analyzer: ^14.0.0 (the v6 analyzer-14
+          // contract); ^13.1.0 is stale, so analyzer should be detected as
+          // needing an update.
           expect(missing.length, 1);
           expect(missing.first.name, 'analyzer');
           expect(missing.first.kind, DependencyKind.override);
           expect(
             missing.first.version,
-            DependencyWirer.flutterAnalyzerOverrideVersion,
+            DependencyWirer.resolveAnalyzerOverride(isFlutter: true),
           );
         },
       );

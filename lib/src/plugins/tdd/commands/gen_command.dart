@@ -773,8 +773,8 @@ class GenCommand extends Command<void> {
       widgetShell,
     );
     if (effectiveBehavior.kind == BehaviorKind.widget &&
-        WidgetShadcnPreflight.importRequired(widgetShell) &&
-        !WidgetShadcnPreflight.projectDeclares(cwd, requiredShellPackage!)) {
+        requiredShellPackage != null &&
+        !WidgetShadcnPreflight.projectDeclares(cwd, requiredShellPackage)) {
       // print() (not stdout.writeln) so the fix line lands on the same
       // captured channel as the verdict JSON — greppable by tooling and
       // by `zfa tdd run`'s step logs (the JSON verdict stays the final

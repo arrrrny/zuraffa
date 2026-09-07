@@ -63,13 +63,41 @@ enum WidgetAppShell {
     WidgetAppShell.materialapp => 'MaterialApp',
   };
 
-  /// Parses a `.zfa.json`/CLI string value; unknown/null values fall back
-  /// to the default ([zuraffaapp], issue #1256).
-  static WidgetAppShell parse(String? value) => switch (value) {
-    'shadapp' => shadapp,
-    'materialapp' => materialapp,
-    _ => zuraffaapp,
+  /// The Dart import line the emitted test needs to resolve [widgetName],
+  /// or null when no package import is required (MaterialApp ships with
+  /// flutter/material). Co-located with [widgetName] so a future rename of
+  /// the shell widget or its host package forces both ends to update
+  /// together (issue #1256 follow-up).
+  String? get widgetImport => switch (this) {
+    WidgetAppShell.zuraffaapp =>
+      "import 'package:zuraffa_ui/zuraffa_ui.dart';\n",
+    WidgetAppShell.shadapp => "import 'package:shadcn_ui/shadcn_ui.dart';\n",
+    WidgetAppShell.materialapp => null,
   };
+
+  /// Parses a `.zfa.json`/CLI string value; unknown/null values fall back
+  /// to the default ([zuraffaapp], issue #1256) and emit a one-line warning
+  /// so a typo in `tdd.widgetShell` is visible in the gen log.
+  static WidgetAppShell parse(String? value) {
+    switch (value) {
+      case 'zuraffaapp':
+        return zuraffaapp;
+      case 'shadapp':
+        return shadapp;
+      case 'materialapp':
+        return materialapp;
+      case null || '':
+        return zuraffaapp;
+      default:
+        // ignore: avoid_print
+        print(
+          "warning: tdd.widgetShell='$value' is not a recognized shell; "
+          "defaulting to 'zuraffaapp'. Valid values: zuraffaapp, "
+          'shadapp, materialapp.',
+        );
+        return zuraffaapp;
+    }
+  }
 }
 
 /// Machine-readable scaffold marker emitted by the widget template when
@@ -106,20 +134,37 @@ bool contentIsScaffolded(String content) => content.contains(scaffoldedMarker);
 /// shell and are kept for API stability.
 abstract final class WidgetShadcnPreflight {
   /// The package the shadapp shell's import needs.
+  ///
+  /// Kept for API stability; the canonical entry point is the shell-aware
+  /// [requiredPackage] / [importRequired] / [projectDeclares] / [fixLineFor]
+  /// API. Prefer those.
+  @Deprecated(
+    'Use WidgetShadcnPreflight.requiredPackage(shell) / importRequired(shell) '
+    '/ projectDeclares(root, package) / fixLineFor(shell) — the shell-aware '
+    'API is canonical since issue #1256',
+  )
   static const String shadcnPackage = 'shadcn_ui';
 
   /// The package the zuraffaapp (default) shell's import needs.
   static const String zuraffaUiPackage = 'zuraffa_ui';
 
-  /// The canonical fix line (machine-parseable: tools and humans grep for
-  /// the `--> fix:` prefix; the remainder names the exact remedy).
+  /// The canonical fix line for the legacy shadapp shell. The default
+  /// shell (zuraffaapp) has its own fix line emitted by [fixLineFor].
+  ///
+  /// Kept for API stability; the canonical entry point is
+  /// [fixLineFor](shell). Prefer that.
+  @Deprecated(
+    'Use WidgetShadcnPreflight.fixLineFor(shell) — the shell-aware API '
+    'is canonical since issue #1256',
+  )
   static const String fixLine =
       '--> fix: flutter pub add shadcn_ui '
       '(widget-lane behaviors boot a ShadApp shell)';
 
   /// The package whose import [shell] emits into the generated test, or
   /// null when the shell needs no package import (MaterialApp ships with
-  /// flutter/material).
+  /// flutter/material). Co-located with [WidgetAppShell.widgetImport] so
+  /// a future rename of the host package is a single edit.
   static String? requiredPackage(WidgetAppShell shell) => switch (shell) {
     WidgetAppShell.zuraffaapp => zuraffaUiPackage,
     WidgetAppShell.shadapp => shadcnPackage,
@@ -169,11 +214,25 @@ abstract final class WidgetShadcnPreflight {
 
   /// Whether [projectRoot]'s `pubspec.yaml` declares [shadcnPackage] in
   /// its `dependencies:` map (the shadapp-shell form of [projectDeclares]).
+  ///
+  /// Kept for API stability; the canonical entry point is
+  /// [projectDeclares](root, package). Prefer that.
+  @Deprecated(
+    'Use WidgetShadcnPreflight.projectDeclares(root, package) — the '
+    'shell-aware API is canonical since issue #1256',
+  )
   static bool projectDeclaresShadcnUi(String projectRoot) =>
       projectDeclares(projectRoot, shadcnPackage);
 
   /// Whether a gen for [shell] on [projectRoot] must stop at the #938
   /// preflight (the shadapp-shell form of [importRequired]).
+  ///
+  /// Kept for API stability; the canonical entry point is
+  /// [importRequired](shell). Prefer that.
+  @Deprecated(
+    'Use WidgetShadcnPreflight.importRequired(shell) — the shell-aware '
+    'API is canonical since issue #1256',
+  )
   static bool shadcnImportRequired(WidgetAppShell shell) =>
       shell == WidgetAppShell.shadapp;
 }

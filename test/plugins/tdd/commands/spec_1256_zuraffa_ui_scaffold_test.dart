@@ -22,6 +22,7 @@
 // surface and are RED (assertion- or compile-red) until the fix lands.
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -67,8 +68,50 @@ void main() {
       expect(WidgetAppShell.parse('materialapp'), WidgetAppShell.materialapp);
     });
 
+    test('parse warns the user when the value is unknown (issue #1256 '
+        'follow-up: typo in .zfa.json must not silently default)', () {
+      // The warning is printed via `print(...)`; capture stdout via the
+      // provided `runZonedPrint` pattern that the test runner uses to
+      // route `print` through the test reporter.
+      final buffer = StringBuffer();
+      final zoneSpec = ZoneSpecification(
+        print: (self, parent, zone, message) => buffer.write(message),
+      );
+      runZoned(
+        () => expect(WidgetAppShell.parse('shadap'), WidgetAppShell.zuraffaapp),
+        zoneSpecification: zoneSpec,
+      );
+      expect(
+        buffer.toString(),
+        contains("tdd.widgetShell='shadap'"),
+        reason:
+            'the warning must name the unknown value so a user can '
+            'fix their .zfa.json',
+      );
+      expect(buffer.toString(), contains('zuraffaapp'));
+      expect(buffer.toString(), contains('shadapp'));
+      expect(buffer.toString(), contains('materialapp'));
+    });
+
     test('the zuraffaapp shell emits the ZuraffaApp widget name', () {
       expect(WidgetAppShell.zuraffaapp.widgetName, 'ZuraffaApp');
+    });
+
+    test('each shell co-locates widgetName + widgetImport so a future rename '
+        'of the host package or the shell widget forces both to update', () {
+      expect(
+        WidgetAppShell.zuraffaapp.widgetImport,
+        "import 'package:zuraffa_ui/zuraffa_ui.dart';\n",
+        reason:
+            'issue #1256 follow-up: widgetImport names the host '
+            'package barrel — a rename of zuraffa_ui must break this '
+            'pin so both the import and the widget name update together.',
+      );
+      expect(
+        WidgetAppShell.shadapp.widgetImport,
+        "import 'package:shadcn_ui/shadcn_ui.dart';\n",
+      );
+      expect(WidgetAppShell.materialapp.widgetImport, isNull);
     });
   });
 
@@ -298,6 +341,22 @@ dependencies:
 ''';
       final missing = DependencyWirer.findMissing(pubspec, isFlutter: true);
       expect(missing.map((s) => s.name), isNot(contains('zuraffa_ui')));
+    });
+
+    test('the wired zuraffa_ui version is caret-prefixed (no explicit upper '
+        'bound past the next major) so a 0.2.0 release would be picked up', () {
+      final specs = DependencyWirer.standardSet(isFlutter: true);
+      final zui = specs.firstWhere((s) => s.name == 'zuraffa_ui');
+      expect(
+        zui.version,
+        matches(RegExp(r'^\^\d+\.\d+\.\d+$')),
+        reason:
+            'issue #1256 follow-up: the wired zuraffa_ui range must '
+            'be caret-prefixed so a 0.2.0 release is reachable without '
+            'a wired-bump PR; if this fails, the `zuraffa_ui` version '
+            'constant in `dependency_wirer.dart` is stale and needs to '
+            'track the latest stable release on pub.dev.',
+      );
     });
   });
 
