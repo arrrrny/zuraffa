@@ -133,12 +133,14 @@ class GenCommand extends Command<void> {
     );
     argParser.addOption(
       'widget-shell',
-      allowed: ['shadapp', 'materialapp'],
+      allowed: ['shadapp', 'materialapp', 'zuraffaapp'],
       help:
-          'Widget kind only (issue #912 defect 2): the app shell the '
-          'generated widget test pumps the view in. Defaults to shadapp '
-          '(zuraffa apps are shadcn_ui apps); `.zfa.json` `tdd.widgetShell` '
-          'sets the project default, this flag wins over it.',
+          'Widget kind only (issue #912 defect 2 / issue #1260): the app '
+          'shell the generated widget test pumps the view in. Defaults to '
+          'shadapp (zuraffa apps are shadcn_ui apps) — EXCEPT on skin-lane '
+          'projects (pubspec declares zuraffa_ui), which default to the '
+          'certified ZuraffaApp shell; `.zfa.json` `tdd.widgetShell` sets '
+          'the project default, this flag wins over it.',
     );
     argParser.addFlag(
       'golden',
@@ -826,6 +828,34 @@ class GenCommand extends Command<void> {
       return 'refused';
     }
 
+    // Issue #1260 preflight (same #938 discipline): the certified
+    // `zuraffaapp` widget shell emits
+    // `import 'package:zuraffa_ui/zuraffa_ui.dart';`. When the target
+    // project's pubspec does not declare zuraffa_ui, that import cannot
+    // resolve: the generated pair dies at `verify-red` with compile-error
+    // and the loop never reaches an honest RED. Stop HERE — before any
+    // artifact write, registry append, or re-render — with the
+    // machine-parseable fix line. Deterministic: the check only READS the
+    // pubspec (no silent pubspec mutation). A pubspec-less fixture context
+    // keeps gen's pre-#1260 behavior (nothing to resolve).
+    if (effectiveBehavior.kind == BehaviorKind.widget &&
+        WidgetZuraffaPreflight.zuraffaImportRequired(widgetShell) &&
+        !WidgetZuraffaPreflight.projectDeclaresZuraffaUi(cwd)) {
+      print(WidgetZuraffaPreflight.fixLine);
+      _printVerdict(
+        behaviorId: behavior.id,
+        verdict: 'refused',
+        kind: 'widget',
+        reason:
+            'pubspec.yaml does not declare zuraffa_ui — widget-lane '
+            'behaviors boot a ZuraffaApp shell (the skin lane\'s certified '
+            'shell) whose import would die at compile (issue #1260). Run: '
+            'flutter pub add zuraffa_ui',
+      );
+      exitCode = 1;
+      return 'refused';
+    }
+
     // Compute paths. Bug #827: the artifacts are namespaced by feature-slug
     // so two features planning the same behavior id never collide on one
     // flat file (the registry is per-feature; the flat layout made feature
@@ -1386,7 +1416,9 @@ class GenCommand extends Command<void> {
 
   /// Resolves the widget template's app shell (issue #912 defect 2):
   /// the explicit `--widget-shell` flag wins over the `.zfa.json`
-  /// `tdd.widgetShell` project default; the fallback is ShadApp.
+  /// `tdd.widgetShell` project default. Issue #1260: a SKIN-LANE project
+  /// (pubspec declares `zuraffa_ui`) defaults to the certified
+  /// `zuraffaapp` shell; everything else falls back to ShadApp.
   static WidgetAppShell _resolveWidgetShell(dynamic args, String cwd) {
     final flag = args?['widget-shell'] as String?;
     if (flag != null && flag.isNotEmpty) {
@@ -1395,6 +1427,13 @@ class GenCommand extends Command<void> {
     final config = ZfaConfig.load(projectRoot: cwd);
     final configured = config?.tddWidgetShell;
     if (configured != null) return WidgetAppShell.parse(configured);
+    // Issue #1260 remediation 1: skin-lane projects default to the
+    // certified shell so skin tests exercise the contract observer / audit
+    // bus / violation chrome the real app runs under. The check only
+    // READS the pubspec (no mutation, same determinism as the preflights).
+    if (WidgetZuraffaPreflight.projectIsSkinLane(cwd)) {
+      return WidgetAppShell.zuraffaapp;
+    }
     return WidgetAppShell.shadapp;
   }
 
