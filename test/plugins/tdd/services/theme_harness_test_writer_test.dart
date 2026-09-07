@@ -1,7 +1,7 @@
 // Tests for ThemeHarnessTestWriter (issue #841 — theme harness).
 //
 // The writer emits the Flutter widget test for a `theme`-kind behavior:
-// dual-ThemeMode ShadTheme assertions, the analyzer-backed hardcoded-color
+// dual-ThemeMode ZfaTheme assertions, the analyzer-backed hardcoded-color
 // audit, per-mode per-platform golden baselines, and the theme-switch
 // latency assertion. These pins hold the emitted TEXT to the contract in
 // .specify/bugs/tdd-theme-harness/assessment.md — the zuraffa CLI is pure
@@ -35,7 +35,7 @@ void main() {
     kind: BehaviorKind.theme,
     description:
         'pumps the shell under both ThemeModes and asserts '
-        'ShadTheme brand values',
+        'ZfaTheme brand values',
     sourceCriterion: 'SC-001',
     target: 'themed_shell',
   );
@@ -65,14 +65,14 @@ void main() {
     });
   });
 
-  group('proof 1 — dual-ThemeMode ShadTheme assertions', () {
+  group('proof 1 — dual-ThemeMode ZfaTheme assertions', () {
     test(
       'pumps the app shell under BOTH ThemeMode.light and ThemeMode.dark',
       () async {
         final content = await writePair();
         expect(content, contains('ThemeMode.light'));
         expect(content, contains('ThemeMode.dark'));
-        // BOTH mode-driven proofs (ShadTheme assertions AND golden
+        // BOTH mode-driven proofs (ZfaTheme assertions AND golden
         // capture) iterate every ThemeMode — a presence-only `contains`
         // is satisfied by the other proof's loop, so count occurrences
         // (deliberate mutant M3: proof-1's loop narrowed to light-only
@@ -89,10 +89,10 @@ void main() {
       expect(content, contains('subject.appShellFor(mode)'));
     });
 
-    test('asserts ShadTheme.of(context).colorScheme.primary against the '
+    test('asserts ZfaTheme.of(context).colorScheme.primary against the '
         'subject-wired spec per mode (dark inverse)', () async {
       final content = await writePair();
-      expect(content, contains('ShadTheme.of'));
+      expect(content, contains('ZfaTheme.of'));
       expect(content, contains('theme.colorScheme.primary'));
       expect(content, contains('spec!.primaryLight'));
       expect(content, contains('spec!.primaryDark'));
