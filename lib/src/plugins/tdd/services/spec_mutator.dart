@@ -44,14 +44,23 @@ final RegExp _edgeCaseVocabulary = RegExp(
   caseSensitive: false,
 );
 
-/// A strict acceptance scenario header (the parser's grammar).
-final RegExp _scenarioHeader = RegExp(r'^\s*(\d+)\.\s*\*\*Given\*\*');
+/// A strict acceptance scenario header (the parser's grammar). Issue
+/// #1196: the parser's grammar now accepts dotted/nested numbering
+/// (`1.1.`) and unbolded Given markers (`1. Given`) — the mutator's
+/// block scan stays aligned so candidate AC line addresses keep
+/// matching the behavior walk.
+final RegExp _scenarioHeader = RegExp(
+  r'^\s*(\d+(?:\.\d+)*)\.?\s*(?:\*\*)?Given(?:\*\*)?',
+);
 
-/// An FR bullet (the parser's grammar).
+/// The Then marker inside a scenario block (bold or plain — issue
+/// #1196 keeps this walk aligned with the parser's Then grammar).
+final RegExp _thenMarker = RegExp(r'(?:\*\*)?Then(?:\*\*)?');
+
+/// An FR bullet (the strict-grammar mutation target — issue #1196
+/// parses FR-table rows too, but the mutation operators address the
+/// bullet grammar only; table-FR mutation is out of scope).
 final RegExp _frPattern = RegExp(r'^\s*-\s*\*\*(FR-\d{3})\*\*:\s*(.+)$');
-
-/// The Then marker inside a scenario block.
-final RegExp _thenMarker = RegExp(r'\*\*Then\*\*');
 
 /// MUST-NOT clause: from the keyword to the sentence boundary.
 final RegExp _mustNotClause = RegExp(r'MUST\s+NOT[^.;]*[.;]?');

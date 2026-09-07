@@ -90,6 +90,46 @@ class SpecEntity {
 class SpecParser {
   const SpecParser();
 
+  /// Issue #1196 (parser hardening): normalize the spec text BEFORE
+  /// any walk — CRLF (`\r\n`) and lone-CR line endings become `\n`
+  /// (line-for-line, so every 1-based spec line number survives), and
+  /// a leading BOM is stripped (the UTF-8 decoder usually eats it,
+  /// but the parser must not depend on the I/O layer). Without this,
+  /// `.`-terminated capture patterns (`(.+)$`) silently drop every
+  /// CRLF FR bullet — a silent misroute the 120-format sweep catches.
+  static String normalizeSpecText(String specMd) {
+    var md = specMd;
+    if (md.startsWith('\uFEFF')) md = md.substring(1);
+    if (md.contains('\r')) {
+      md = md.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    }
+    return md;
+  }
+
+  /// Issue #1196: decode the common markdown-escaped HTML entities in
+  /// a HEADING line before section matching (`&amp;` in `External
+  /// Dependencies &amp; Contracts` otherwise hides the section — the
+  /// parser skips its declared contracts silently). Content lines stay
+  /// verbatim; only heading recognition decodes.
+  static String _decodeEntities(String line) => line
+      .replaceAll('&amp;', '&')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&#39;', "'")
+      .replaceAll('&apos;', "'")
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&nbsp;', ' ');
+
+  /// Issue #1196: the scenario block header. Numbering may be flat
+  /// (`1.`) or dotted/nested (`1.1.`, `2.3.` — ACs nested under user
+  /// stories), and the Given marker may be bold (`**Given**`, the
+  /// strict grammar) or plain (`Given` — inline-prose specs). The same
+  /// grammar drives the behavior walk, the marker walk, and the
+  /// requirement scanner so AC ids stay aligned document-wide.
+  static final RegExp _scenarioHeader = RegExp(
+    r'^\s*(\d+(?:\.\d+)*)\.?\s*(?:\*\*)?Given(?:\*\*)?',
+  );
+
   /// The UI-intent signature (bug #830): acceptance prose that names a
   /// UI-observable outcome — rendered surfaces, layout regions, navigation
   /// outcomes, the app shell — cannot be expressed by a plain-function
@@ -128,11 +168,6 @@ class SpecParser {
     r'^\s*\*\*Type\*\*:\s*(\S+)\s*$',
   );
 
-  /// The scenario block header (`1. **Given** ...`) — the same walk
-  /// [_extractAcceptance] uses, so marker ids stay aligned with the
-  /// document-wide AC numbers.
-  static final RegExp _scenarioHeader = RegExp(r'^\s*(\d+)\.\s*\*\*Given\*\*');
-
   /// Parse the per-scenario `**Type**` lane markers (feature 071,
   /// contracts/template-declarations.md §1) into declarations keyed by
   /// the document-wide behavior id (`A<n>`), each carrying the 1-based
@@ -152,7 +187,7 @@ class SpecParser {
     // lane nor collide with a real marker (round-2 review fix 5). Each
     // fenced span is blanked to equivalent newlines so the surviving
     // markers' spec lines stay accurate.
-    final blanked = specMd.replaceAllMapped(
+    final blanked = normalizeSpecText(specMd).replaceAllMapped(
       _fencedCodeBlock,
       (m) => '\n' * '\n'.allMatches(m.group(0)!).length,
     );
@@ -221,9 +256,11 @@ class SpecParser {
 
   /// The heading that opens a Key Entities section (corpus format:
   /// `### Key Entities`; any heading level 1-6 is accepted, matched
-  /// case-insensitively).
+  /// case-insensitively). Issue #1196: a trailing qualifier (`### Key
+  /// Entities — commerce`) is tolerated, and HTML entities are decoded
+  /// before the match (see [_matchesSectionHeading]).
   static final RegExp _keyEntitiesHeading = RegExp(
-    r'^#{1,6}\s+key\s+entities\s*$',
+    r'^#{1,6}\s+key\s+entities\b[^#]*$',
     caseSensitive: false,
   );
 
@@ -304,7 +341,7 @@ class SpecParser {
   /// marker that appears inside a "How to write a spec" example is
   /// treated as documentation and not as the spec's treaty pin.
   String? parseTemplateVersion(String specMd) {
-    final stripped = specMd.replaceAll(_fencedCodeBlock, '');
+    final stripped = normalizeSpecText(specMd).replaceAll(_fencedCodeBlock, '');
     for (final line in stripped.split('\n')) {
       final m = _templateVersionMarker.firstMatch(line.trim());
       if (m != null) return m.group(1)!.trim();
@@ -312,18 +349,31 @@ class SpecParser {
     return null;
   }
 
+  /// Issue #1196: section-heading match that first decodes HTML
+  /// entities and then applies the canonical heading pattern (which
+  /// tolerates a trailing qualifier). `## External Dependencies &amp;
+  /// Contracts` and `## Layer Contracts — epic-level` are the section
+  /// the parser owes its contracts to — silently skipping either is a
+  /// silent misroute.
+  static bool _matchesSectionHeading(String trimmedLine, RegExp heading) =>
+      heading.hasMatch(_decodeEntities(trimmedLine));
+
   /// The heading that opens the External Dependencies & Contracts section
   /// (bug #919): `## External Dependencies & Contracts` (any level,
-  /// `&` or `and`, case-insensitive).
+  /// `&` or `and`, case-insensitive). Issue #1196: trailing qualifier
+  /// tolerated; entities decoded ([_matchesSectionHeading]).
   static final RegExp _dependenciesHeading = RegExp(
-    r'^#{1,6}\s+external\s+dependencies\s+(?:&|and)\s+contracts\s*$',
+    r'^#{1,6}\s+external\s+dependencies\s+(?:&|and)\s+contracts\b[^#]*$',
     caseSensitive: false,
   );
 
   /// The heading that opens the Layer Contracts section (bug #919):
-  /// `## Layer Contracts` (any level, case-insensitive).
+  /// `## Layer Contracts` (any level, case-insensitive). Issue #1196:
+  /// a per-epic qualifier (`## Layer Contracts — epic-level`) is the
+  /// same section — contracts declared per-epic route exactly like
+  /// per-feature ones.
   static final RegExp _layerContractsHeading = RegExp(
-    r'^#{1,6}\s+layer\s+contracts\s*$',
+    r'^#{1,6}\s+layer\s+contracts\b[^#]*$',
     caseSensitive: false,
   );
 
@@ -353,10 +403,10 @@ class SpecParser {
   List<SpecDependency> parseDependencies(String specMd) {
     final dependencies = <SpecDependency>[];
     var inSection = false;
-    for (final line in specMd.split('\n')) {
+    for (final line in normalizeSpecText(specMd).split('\n')) {
       final trimmed = line.trim();
       if (trimmed.startsWith('#')) {
-        inSection = _dependenciesHeading.hasMatch(trimmed);
+        inSection = _matchesSectionHeading(trimmed, _dependenciesHeading);
         continue;
       }
       if (!inSection || !trimmed.startsWith('|')) continue;
@@ -383,10 +433,10 @@ class SpecParser {
     final contracts = <LayerContract>[];
     var inSection = false;
     var layer = '';
-    for (final line in specMd.split('\n')) {
+    for (final line in normalizeSpecText(specMd).split('\n')) {
       final trimmed = line.trim();
       if (trimmed.startsWith('#')) {
-        inSection = _layerContractsHeading.hasMatch(trimmed);
+        inSection = _matchesSectionHeading(trimmed, _layerContractsHeading);
         if (!inSection) layer = '';
         continue;
       }
@@ -413,9 +463,10 @@ class SpecParser {
   }
 
   /// The heading that opens the Lanes section (issue #1000): `## Lanes`
-  /// (any level, case-insensitive).
+  /// (any level, case-insensitive). Issue #1196: trailing qualifier
+  /// tolerated; entities decoded ([_matchesSectionHeading]).
   static final RegExp _lanesHeading = RegExp(
-    r'^#{1,6}\s+lanes\s*$',
+    r'^#{1,6}\s+lanes\b[^#]*$',
     caseSensitive: false,
   );
 
@@ -549,11 +600,11 @@ class SpecParser {
       adaptiveSlots = <String>[];
     }
 
-    for (final line in specMd.split('\n')) {
+    for (final line in normalizeSpecText(specMd).split('\n')) {
       final trimmed = line.trim();
       if (trimmed.startsWith('#')) {
         final wasInSection = inSection;
-        inSection = _lanesHeading.hasMatch(trimmed);
+        inSection = _matchesSectionHeading(trimmed, _lanesHeading);
         if (wasInSection && !inSection) flush();
         continue;
       }
@@ -610,7 +661,7 @@ class SpecParser {
   List<ContractRowDecl> parseContractRows(String specMd) {
     const functionKinds = ['presentation', 'domain', 'data', 'function'];
     final rows = <ContractRowDecl>[];
-    final lines = specMd.split('\n');
+    final lines = normalizeSpecText(specMd).split('\n');
     String? layer; // active Layer Contracts layer label
     String? section; // active declared section kind
     for (var i = 0; i < lines.length; i++) {
@@ -619,11 +670,11 @@ class SpecParser {
       if (trimmed.startsWith('#')) {
         layer = null;
         section = null;
-        if (_layerContractsHeading.hasMatch(trimmed)) {
+        if (_matchesSectionHeading(trimmed, _layerContractsHeading)) {
           section = 'layer-contracts';
-        } else if (_keyEntitiesHeading.hasMatch(trimmed)) {
+        } else if (_matchesSectionHeading(trimmed, _keyEntitiesHeading)) {
           section = 'key-entities';
-        } else if (_dependenciesHeading.hasMatch(trimmed)) {
+        } else if (_matchesSectionHeading(trimmed, _dependenciesHeading)) {
           section = 'dependencies';
         }
         continue;
@@ -740,10 +791,10 @@ class SpecParser {
     final entities = <SpecEntity>[];
     var inSection = false;
     var tableMode = false;
-    for (final line in specMd.split('\n')) {
+    for (final line in normalizeSpecText(specMd).split('\n')) {
       final trimmed = line.trim();
       if (trimmed.startsWith('#')) {
-        inSection = _keyEntitiesHeading.hasMatch(trimmed);
+        inSection = _matchesSectionHeading(trimmed, _keyEntitiesHeading);
         tableMode = false;
         continue;
       }
@@ -803,16 +854,54 @@ class SpecParser {
     return entities;
   }
 
+  /// Issue #1196: one FR declaration line, in EITHER grammar the
+  /// corpus really contains — the strict bullet
+  /// (`- **FR-001**: The system MUST ...`) or the FR-table row
+  /// (`| FR-001 | The system MUST ... | variants |`). Variant
+  /// continuation rows (empty id cell) are NOT FR lines — they are
+  /// auxiliary detail of the row above. Every FR walk (unit
+  /// derivation, contract traces, persistence declarations) routes
+  /// through this helper so the document-wide U-id numbering stays
+  /// aligned across all three.
+  static (String, String)? _frLine(String line) {
+    final bullet = RegExp(
+      r'^\s*-\s*\*\*(FR-\d{3})\*\*:\s*(.+)$',
+    ).firstMatch(line);
+    if (bullet != null) return (bullet.group(1)!, bullet.group(2)!);
+    final table = RegExp(
+      r'^\s*\|\s*(FR-\d{3})\s*\|\s*([^|]+?)\s*\|',
+    ).firstMatch(line);
+    if (table != null) return (table.group(1)!, table.group(2)!);
+    return null;
+  }
+
   List<Behavior> parse(String feature, String specMd) {
-    final acceptance = _extractAcceptance(feature, specMd);
+    final md = normalizeSpecText(specMd);
+    final acceptance = _extractAcceptance(feature, md);
     if (acceptance.isEmpty) {
+      // Issue #1196: the refusal names a line — the first content
+      // line of the spec — so the author can act on it (the #1186
+      // actionable-refusal contract). A spec with zero content lines
+      // addresses spec line 1.
+      var firstContentLine = 1;
+      for (var i = 0; i < md.split('\n').length; i++) {
+        if (md.split('\n')[i].trim().isNotEmpty) {
+          firstContentLine = i + 1;
+          break;
+        }
+      }
       throw StateError(
         'spec.md for feature "$feature" contains no acceptance scenarios '
-        '(`Given ... When ... Then ...` blocks). Cannot derive a TDD test '
-        'list from a spec with no acceptance criteria. See FR-012.',
+        '(`Given ... When ... Then ...` blocks) — first content line is '
+        'spec line $firstContentLine. Cannot derive a TDD test list from '
+        'a spec with no acceptance criteria. See FR-012.\n'
+        '   --> fix: add at least one numbered acceptance scenario '
+        '(`1. **Given** ... **When** ... **Then** ...`; bold or plain, '
+        'flat or dotted numbering), or declare the criteria '
+        '`(manual: owner)`.',
       );
     }
-    final unit = _extractUnit(feature, specMd);
+    final unit = _extractUnit(feature, md);
     return [...acceptance, ...unit];
   }
 
@@ -830,9 +919,7 @@ class SpecParser {
 
     Behavior? flush() {
       if (scenarioBuffer.isEmpty) return null;
-      final header = RegExp(
-        r'^\s*(\d+)\.\s*\*\*Given\*\*',
-      ).firstMatch(scenarioBuffer.first);
+      final header = _scenarioHeader.firstMatch(scenarioBuffer.first);
       if (header == null) {
         scenarioBuffer = <String>[];
         return null;
@@ -874,8 +961,7 @@ class SpecParser {
     }
 
     for (final line in lines) {
-      if (RegExp(r'^\s*\d+\.\s*\*\*Given\*\*').hasMatch(line) &&
-          scenarioBuffer.isNotEmpty) {
+      if (_scenarioHeader.hasMatch(line) && scenarioBuffer.isNotEmpty) {
         final flushed = flush();
         if (flushed != null) behaviors.add(flushed);
       }
@@ -886,9 +972,12 @@ class SpecParser {
     return behaviors;
   }
 
+  /// Issue #1196: the Then marker is matched bold or plain
+  /// (`**Then**` / `Then`) — inline-prose scenarios carry it unbolded;
+  /// the description is the text after it (verbatim minus bold).
   String _extractScenarioText(String line) {
     final match = RegExp(
-      r'\*\*Then\*\*\s*(.+)$',
+      r'(?:\*\*)?Then(?:\*\*)?\s*(.+)$',
       multiLine: true,
     ).firstMatch(line);
     if (match != null) {
@@ -906,19 +995,21 @@ class SpecParser {
 
   List<Behavior> _extractUnit(String feature, String specMd) {
     final behaviors = <Behavior>[];
-    final frPattern = RegExp(r'^\s*-\s*\*\*(FR-\d{3})\*\*:\s*(.+)$');
     var uIdx = 0;
     for (final line in specMd.split('\n')) {
-      final m = frPattern.firstMatch(line);
+      // Issue #1196: FR declarations arrive as strict bullets OR
+      // FR-table rows — both count in document order so the U ids stay
+      // aligned with the requirement scan and the trace walks.
+      final m = _frLine(line);
       if (m != null) {
         uIdx += 1;
-        final frId = m.group(1)!;
+        final frId = m.$1;
         // Feature 071: a `[persistent]` tag is a routing declaration,
         // not prose — strip it from the description (the persistence
         // map carries the mark; the rendered row stays clean). The tag
         // is detected on the RAW text before the `**` strip, so a
         // bold-wrapped tag is honored too (round-2 review fix 6).
-        final rawDesc = m.group(2)!;
+        final rawDesc = m.$2;
         final tagged = _carriesPersistentTag(rawDesc);
         var desc = rawDesc.replaceAll('**', '').trim();
         if (tagged) {
@@ -959,13 +1050,13 @@ class SpecParser {
   /// exercises. Keyed by the document-wide unit id.
   static Map<String, List<String>> parseFrContractTraces(String specMd) {
     final traces = <String, List<String>>{};
-    final lines = specMd.split('\n');
-    final frPattern = RegExp(r'^\s*-\s*\*\*(FR-\d{3})\*\*:\s*(.+)$');
+    final lines = normalizeSpecText(specMd).split('\n');
     final tracesLine = RegExp(r'^\s+traces:\s*(.+)$');
     var uIdx = 0;
     for (var i = 0; i < lines.length; i++) {
-      final m = frPattern.firstMatch(lines[i]);
-      if (m == null) continue;
+      // Issue #1196: the shared FR-line helper (bullet or table form)
+      // keeps the U-id numbering aligned with _extractUnit.
+      if (_frLine(lines[i]) == null) continue;
       uIdx += 1;
       final t = i + 1 < lines.length
           ? tracesLine.firstMatch(lines[i + 1])
@@ -989,16 +1080,17 @@ class SpecParser {
         .where((r) => r.kind == ContractRowKind.storage)
         .map((r) => r.name)
         .toSet();
-    final lines = specMd.split('\n');
-    final frPattern = RegExp(r'^\s*-\s*\*\*(FR-\d{3})\*\*:\s*(.+)$');
+    final lines = normalizeSpecText(specMd).split('\n');
     final tracesLine = RegExp(r'^\s+traces:\s*(.+)$');
     var uIdx = 0;
     for (var i = 0; i < lines.length; i++) {
-      final m = frPattern.firstMatch(lines[i]);
+      // Issue #1196: the shared FR-line helper (bullet or table form)
+      // keeps the U-id numbering aligned with _extractUnit.
+      final m = _frLine(lines[i]);
       if (m == null) continue;
       uIdx += 1;
       final id = 'U$uIdx';
-      final tagged = _carriesPersistentTag(m.group(2)!);
+      final tagged = _carriesPersistentTag(m.$2);
       final traceTokens = <String>[];
       if (i + 1 < lines.length) {
         final t = tracesLine.firstMatch(lines[i + 1]);
