@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:meta/meta.dart';
 import 'package:path/path.dart' as path;
 import 'package:yaml/yaml.dart';
 
@@ -438,7 +439,7 @@ class DependencyWirer {
     // standalone `dart` executable cannot resolve `sdk: flutter` deps.
     final pubExecutable = isFlutter ? 'flutter' : 'dart';
     for (final spec in pubAddSpecs) {
-      final args = _buildPubAddArgs(spec);
+      final args = buildPubAddArgs(spec);
       try {
         final result = await Process.run(pubExecutable, [
           'pub',
@@ -489,12 +490,23 @@ class DependencyWirer {
   }
 
   /// Builds the argument list for `dart pub add` from a [DependencySpec].
-  static List<String> _buildPubAddArgs(DependencySpec spec) {
+  ///
+  /// Passes [DependencySpec.version] through (e.g.
+  /// `dart pub add foo@^1.2.3`) so the wired entry preserves the required
+  /// constraint. Without this, `dart pub add foo` resolves to whatever the
+  /// latest non-prerelease happens to be on pub.dev — which can drift past
+  /// the analyzer-14 contract the rest of the wired graph assumes (issue
+  /// #1277 review: `_buildPubAddArgs` must pass the version through).
+  @visibleForTesting
+  static List<String> buildPubAddArgs(DependencySpec spec) {
     final args = <String>[];
+    final descriptor = spec.version != null && spec.version!.isNotEmpty
+        ? '${spec.name}@${spec.version}'
+        : spec.name;
     if (spec.kind == DependencyKind.dev) {
-      args.add('dev:${spec.name}');
+      args.add('dev:$descriptor');
     } else {
-      args.add(spec.name);
+      args.add(descriptor);
     }
     if (spec.isGit) {
       args.add('--git-url=${spec.gitUrl}');

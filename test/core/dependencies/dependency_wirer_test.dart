@@ -583,6 +583,60 @@ dev_dependencies:
       });
     });
 
+    group('buildPubAddArgs', () {
+      test('passes the version constraint through (foo@^1.2.3 form)', () {
+        // Issue #1277 review: without the version, `dart pub add foo`
+        // resolves to whatever pub.dev serves as the latest non-prerelease
+        // and can drift past the analyzer-14 contract the rest of the
+        // wired graph assumes. The descriptor MUST carry the constraint.
+        final args = DependencyWirer.buildPubAddArgs(
+          const DependencySpec(
+            name: 'zuraffa_ui',
+            kind: DependencyKind.regular,
+            version: '^0.1.0',
+          ),
+        );
+        expect(args, ['zuraffa_ui@^0.1.0']);
+      });
+
+      test('omits the version when the spec has none', () {
+        final args = DependencyWirer.buildPubAddArgs(
+          const DependencySpec(
+            name: 'json_annotation',
+            kind: DependencyKind.regular,
+          ),
+        );
+        expect(args, ['json_annotation']);
+      });
+
+      test('prefixes dev: for dev dependencies and keeps the version', () {
+        final args = DependencyWirer.buildPubAddArgs(
+          const DependencySpec(
+            name: 'build_runner',
+            kind: DependencyKind.dev,
+            version: '^2.4.0',
+          ),
+        );
+        expect(args, ['dev:build_runner@^2.4.0']);
+      });
+
+      test('emits git-source flags in addition to the descriptor', () {
+        final args = DependencyWirer.buildPubAddArgs(
+          const DependencySpec(
+            name: 'zuraffa',
+            kind: DependencyKind.regular,
+            gitUrl: 'https://example.com/zuraffa',
+            gitPath: 'zuraffa',
+            gitRef: 'development',
+          ),
+        );
+        expect(args.first, 'zuraffa');
+        expect(args, contains('--git-url=https://example.com/zuraffa'));
+        expect(args, contains('--git-path=zuraffa'));
+        expect(args, contains('--git-ref=development'));
+      });
+    });
+
     group('DependencySpec', () {
       test('toString renders dev deps with dev: prefix', () {
         const spec = DependencySpec(

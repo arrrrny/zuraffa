@@ -98,6 +98,11 @@ void main() {
       // zuraffa_ui alias (ZfaTheme), never a raw Shad engine name.
       expect(content, contains('ZfaTheme.of'));
       expect(content, isNot(contains('ShadTheme.of')));
+      // Issue #1277 review: also reject the bare ShadThemeData symbol —
+      // the harness uses ZfaThemeData (the certified alias) instead, and
+      // any leakage of the Shad engine vocabulary means a future
+      // regression where ZfaThemeData falls back to its shadcn parent.
+      expect(content, isNot(contains('ShadThemeData')));
       expect(content, contains('theme.colorScheme.primary'));
       expect(content, contains('spec!.primaryLight'));
       expect(content, contains('spec!.primaryDark'));
