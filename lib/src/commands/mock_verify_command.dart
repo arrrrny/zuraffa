@@ -24,8 +24,10 @@ import '../utils/string_utils.dart';
 /// Exit codes (spec 917, mirroring the sibling verify verb
 /// `ServiceVerifyCommand`, spec 1127): 0 = conforms, 1 = drift / missing
 /// artifacts (every finding carries a `--> fix:` line), 2 = usage.
-/// `--json` emits one canonical `zuraffa.verdict.v1` envelope (issue #1105)
-/// as the LAST stdout line; diagnostics go to stderr.
+/// `--json` emits one canonical `VerdictEnvelope` envelope (issue #1105;
+/// the schema identifier literal lives only in
+/// `lib/src/core/verdict_envelope.dart`) as the LAST stdout line;
+/// diagnostics go to stderr.
 class MockVerifyCommand extends Command<void> {
   final MockPlugin plugin;
 
