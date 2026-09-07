@@ -122,9 +122,13 @@ class CycleEvidence {
     for (final MapEntry(key: behaviorId, value: entry) in lastGreen.entries) {
       final test = entry.test;
       if (test == null || test.isEmpty) continue;
-      final resolved = p.isAbsolute(test)
-          ? p.normalize(test)
-          : p.normalize(p.join(projectRoot, test));
+      // The cycle-log convention appends `::behaviorId` to the test path
+      // (e.g. `test/foo_test.dart::A1`). Strip the suffix before checking
+      // file existence so the real path is resolved.
+      final cleanTest = test.contains('::') ? test.split('::').first : test;
+      final resolved = p.isAbsolute(cleanTest)
+          ? p.normalize(cleanTest)
+          : p.normalize(p.join(projectRoot, cleanTest));
       if (!File(resolved).existsSync()) {
         orphans.add(behaviorId);
       }
