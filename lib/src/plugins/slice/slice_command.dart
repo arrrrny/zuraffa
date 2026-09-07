@@ -271,7 +271,15 @@ example:
     exitCode = 0;
     try {
       final args = argResults!.arguments;
-      if (args.isEmpty || args.first == '--help' || args.first == '-h') {
+      if (args.isEmpty) {
+        // Bare `zfa slice` is a usage error — never exit 0 for a command
+        // that took no subcommand (honesty sweep, EPIC 1 #1132).
+        print(_usage);
+        exitCode = ExitProtocol.usage;
+        return;
+      }
+      if (args.first == '--help' || args.first == '-h') {
+        // Explicit help is a successful outcome and must keep exiting 0.
         print(_usage);
         return;
       }

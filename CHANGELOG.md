@@ -1,6 +1,42 @@
 ## [Unreleased]
 
 ### Added
+- **`zfa usecase verify` / `--certify` / `--explain` + entity drift gate
+  (SPEC 1119 — the usecase A+ upgrade)**: the usecase plugin gains the
+  A+ proof surface the rest of the fleet already carries:
+  - **`zfa usecase verify <Entity>`** (`UsecaseVerifyCommand`): re-runs
+    the per-method conformance gate against the generated
+    `*_usecase.dart` files — the expected shape is re-derived by driving
+    the REAL generator (`EntityUseCaseGenerator.buildUsecaseSource`,
+    grammar and gate share one derivation) and the on-disk file is
+    audited with the analyzer AST. Exit 0 when every signature matches;
+    exit 1 with `--> fix:` lines otherwise (missing_file / missing_class
+    / missing_method / signature_mismatch / parse_error). `--json`
+    emits ONE canonical `zuraffa.verdict.v1` envelope; knobs resolve
+    receipt-first with flag overrides (the service-verify resolution).
+  - **Entity drift detection** (issue #1034 pattern): the create
+    receipt binds the entity source hash (`spec.sha256`); verify exits 1
+    with the machine-stable `entity_drift` finding when the CURRENT
+    entity source diverges (edited or deleted after generation). No
+    receipt → the gate still audits via conventional file discovery and
+    reports `receiptBound: false` honestly.
+  - **`zfa usecase create --certify`** (mirrors mock's certify): after
+    generation the gate runs over the surface the run wired; exit 1
+    when generation succeeded but verify failed; the `--json` envelope
+    flips to `verdict: "fail"`; the receipt records the certification
+    outcome (`input.certification`).
+  - **`zfa usecase create --explain`**: the human-readable contract
+    block — which methods were generated, which variant each uses
+    (`Future<T>` / `Stream<T>` / `Future<void>`), which base class each
+    extends, which result/params type is bound, which exception type is
+    thrown (`CancelledException`); rides the additive `explain`
+    envelope key in `--json` mode (issue #1122 pattern).
+  - **Split (order 5)**: request resolution moves to one shared
+    `UsecaseCreateRequest` (was duplicated in the capability and the
+    command); the plugin surface is no longer one-capability-only —
+    `VerifyUsecaseCapability` ships the gate to the MCP/agent surface
+    (issue #996 provenance receipts). The per-method verdict shape on
+    create is UNCHANGED — extend, never break.
 - **`zfa skin drive` — the VM-service tapAnchor seam (issue #1112, part of
   #1015)**: synthetic clicks (cliclick, CGEvent, AX press) never reach the
   Flutter macOS view; the VM-service evaluate does. This ships the pilot's

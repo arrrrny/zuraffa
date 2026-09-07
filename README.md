@@ -312,6 +312,15 @@ zfa mock create Login --seed=42
 
 # Re-certify live and register the mock in the #832 fixture registry
 zfa mock certify Login
+
+# Re-run the certification gate against the mocks on disk — read-only,
+# exit 0 conforming / 1 with --> fix: lines on entity drift (--json emits
+# the canonical zuraffa.verdict.v1 envelope)
+zfa mock verify Login
+
+# Explain a mock: method coverage, skipped members, per-method
+certification status, MockData.forMethod fixture-selector bindings
+zfa mock explain Login
 ```
 
 `--certify` (spec 1001, VISION §9 "mocks the framework certifies, not the
@@ -324,6 +333,18 @@ feature's `tdd/fixtures/` #832 manifest (`mocks:` provenance, hash-chained
 `kind: mock-cert` cycle evidence). `zfa tdd run-engine <feature>` (and the
 `zfa tdd run` preflight) refuse to proceed when any CORE (declared Key
 Entity) mock is present but uncertified.
+
+`zfa mock verify <Entity>` (spec 1121) re-runs the SAME conformance gate
+`--certify` uses against the mock files already on disk and the current
+entity source — read-only, so re-proving after an entity edit never
+generates. Drift exits 1 with `--> fix:` lines naming the missing/incorrect
+members; `zfa mock verify <Entity> --json` emits one canonical
+`zuraffa.verdict.v1` envelope (findings, drifts, certification record).
+`zfa mock explain <Entity>` (also spec 1121) reports the mock's surface:
+covered and skipped methods, per-method certification status from the
+committed receipt (`certified`, `certified-red`, `uncertified`, `missing`),
+and the `MockData.forMethod` fixture-selector bindings (issue #1034);
+`--json` carries the full report under the envelope's `details.explain`.
 
 JSON mocks produce standalone JSON files under `data/mock_json/{domain}/` and Dart helpers that load them via `fromJson`. Swap JSON content for instant prototyping without code changes or regeneration.
 
