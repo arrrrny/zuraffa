@@ -355,9 +355,13 @@ void main() {
     // Issue #912 defect 2: the shell is configurable; the shadcn shell
     // needs its own import (material.dart stays for Scaffold + Theme).
     final shellName = widgetShell.widgetName;
-    final shellImport = widgetShell == WidgetAppShell.shadapp
-        ? "import 'package:shadcn_ui/shadcn_ui.dart';\n"
-        : '';
+    // Issue #912 defect 2 / issue #1260: the shell import follows the
+    // shell — shadapp → shadcn_ui, zuraffaapp → the skin lane's certified
+    // vocabulary (package:zuraffa_ui), materialapp → none (material.dart
+    // stays for Scaffold + Theme).
+    final shellImport = widgetShell.importPath == null
+        ? ''
+        : "import '${widgetShell.importPath}';\n";
     // Issue #964 (finder-kind taxonomy): the scenario verb decides the
     // assertion class — presence stays find.text, navigation becomes a
     // route-outcome assertion on a recording NavigatorObserver, absence

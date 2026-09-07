@@ -35,21 +35,44 @@ import 'package:yaml/yaml.dart';
 
 /// The app shell a generated widget test pumps the feature view in.
 enum WidgetAppShell {
-  /// shadcn_ui's ShadApp — the default shell for zuraffa apps (issue
-  /// #912 defect 2: ZikZak is ShadApp; SC-001 asserts ShadTheme).
+  /// shadcn_ui's ShadApp — the default shell for zuraffa apps that have
+  /// not opted into the skin lane (issue #912 defect 2: ZikZak is
+  /// ShadApp; SC-001 asserts ShadTheme).
   shadapp,
 
   /// Flutter's MaterialApp — for projects that do not use shadcn_ui.
-  materialapp;
+  materialapp,
+
+  /// The skin lane's CERTIFIED shell (issue #1260 remediation 1):
+  /// `package:zuraffa_ui`'s `ZuraffaApp` — route-contract observer +
+  /// audit bus + violation chrome mounted in one place. Skin-lane
+  /// projects (pubspec declares `zuraffa_ui`) default to it so the
+  /// generated tests exercise the certified shell the real app runs
+  /// under, never a raw engine shell.
+  zuraffaapp;
 
   /// The shell widget identifier emitted into the generated test.
-  String get widgetName =>
-      this == WidgetAppShell.shadapp ? 'ShadApp' : 'MaterialApp';
+  String get widgetName => switch (this) {
+    WidgetAppShell.shadapp => 'ShadApp',
+    WidgetAppShell.materialapp => 'MaterialApp',
+    WidgetAppShell.zuraffaapp => 'ZuraffaApp',
+  };
+
+  /// The import the shell's test emission needs (null = none beyond
+  /// material.dart, which the template always imports).
+  String? get importPath => switch (this) {
+    WidgetAppShell.shadapp => 'package:shadcn_ui/shadcn_ui.dart',
+    WidgetAppShell.zuraffaapp => 'package:zuraffa_ui/zuraffa_ui.dart',
+    WidgetAppShell.materialapp => null,
+  };
 
   /// Parses a `.zfa.json`/CLI string value; unknown values fall back to
   /// the default.
-  static WidgetAppShell parse(String? value) =>
-      value == 'materialapp' ? materialapp : shadapp;
+  static WidgetAppShell parse(String? value) => switch (value) {
+    'materialapp' => materialapp,
+    'zuraffaapp' => zuraffaapp,
+    _ => shadapp,
+  };
 }
 
 /// Machine-readable scaffold marker emitted by the widget template when
@@ -118,4 +141,77 @@ abstract final class WidgetShadcnPreflight {
   /// preflight (widget kind is enforced by the caller).
   static bool shadcnImportRequired(WidgetAppShell shell) =>
       shell == WidgetAppShell.shadapp;
+}
+
+/// Issue #1260 preflight — the widget lane boots generated widget tests
+/// in the CERTIFIED `ZuraffaApp` shell (`--widget-shell zuraffaapp`, the
+/// skin-lane default), whose import must resolve in the TARGET project.
+///
+/// Same contract as [WidgetShadcnPreflight] (VISION §4
+/// errors-are-an-API): the missing dependency surfaces as a named,
+/// machine-parseable fix BEFORE any artifact is written — never as a
+/// generated test that dies at `verify-red` with compile-error, and
+/// never as a silent pubspec mutation (this class only READS the
+/// pubspec).
+abstract final class WidgetZuraffaPreflight {
+  /// The package the certified shell's import needs — the skin lane's
+  /// certified vocabulary.
+  static const String zuraffaPackage = 'zuraffa_ui';
+
+  /// The canonical fix line (machine-parseable: tools and humans grep
+  /// for the `--> fix:` prefix; the remainder names the exact remedy).
+  static const String fixLine =
+      '--> fix: flutter pub add zuraffa_ui '
+      "(widget-lane behaviors boot a ZuraffaApp shell — the skin lane's "
+      'certified shell)';
+
+  /// Whether [projectRoot]'s `pubspec.yaml` declares [zuraffaPackage] in
+  /// its `dependencies:` map — the skin-lane project marker. A project
+  /// with NO pubspec.yaml has nothing to resolve — the check passes and
+  /// gen keeps its pre-#1260 behavior (same determinism contract as the
+  /// #938 preflight).
+  static bool projectDeclaresZuraffaUi(String projectRoot) {
+    final pubspecFile = File(p.join(projectRoot, 'pubspec.yaml'));
+    if (!pubspecFile.existsSync()) return true;
+    final YamlNode? doc;
+    try {
+      doc = loadYaml(pubspecFile.readAsStringSync());
+    } on YamlException {
+      // An unparseable pubspec is not this bug's problem (same
+      // determinism contract as the #938 preflight: the check only
+      // refuses on a READABLE pubspec that omits the dependency).
+      return true;
+    }
+    if (doc is! YamlMap) return true;
+    final dependencies = doc['dependencies'];
+    if (dependencies is! YamlMap) return false;
+    return dependencies.containsKey(zuraffaPackage);
+  }
+
+  /// Whether [projectRoot] is a SKIN-LANE project (issue #1260): its
+  /// pubspec exists, is readable, and declares [zuraffaPackage] under
+  /// `dependencies:`. This is the DEFAULT-SHELL predicate — stricter than
+  /// [projectDeclaresZuraffaUi]: a pubspec-less fixture context is NOT a
+  /// skin-lane project (it keeps the pre-#1260 ShadApp default), while a
+  /// pubspec-less project simply has nothing for the preflight to
+  /// resolve.
+  static bool projectIsSkinLane(String projectRoot) {
+    final pubspecFile = File(p.join(projectRoot, 'pubspec.yaml'));
+    if (!pubspecFile.existsSync()) return false;
+    final YamlNode? doc;
+    try {
+      doc = loadYaml(pubspecFile.readAsStringSync());
+    } on YamlException {
+      return false;
+    }
+    if (doc is! YamlMap) return false;
+    final dependencies = doc['dependencies'];
+    if (dependencies is! YamlMap) return false;
+    return dependencies.containsKey(zuraffaPackage);
+  }
+
+  /// Whether a gen for [shell] on [projectRoot] must stop at the #1260
+  /// preflight (widget kind is enforced by the caller).
+  static bool zuraffaImportRequired(WidgetAppShell shell) =>
+      shell == WidgetAppShell.zuraffaapp;
 }

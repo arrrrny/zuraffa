@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
+
 import '../config/zfa_config.dart';
 
 import '../core/context/file_system.dart';
@@ -81,6 +83,18 @@ class AppShellCommand extends Command<void> {
             'skin_contract_auditor.dart kit when missing (hand edits are '
             'preserved).',
       )
+      ..addFlag(
+        'zuraffa-app',
+        negatable: false,
+        help:
+            'Mount the CERTIFIED app shell (issue #1260): my_app.dart '
+            'builds ZuraffaApp — the skin lane\'s certified shell '
+            '(route-contract observer + audit bus + violation chrome in '
+            'one place, package:zuraffa_ui) — with the generated GoRouter '
+            'tree functional beneath it via Router.withConfig. Requires '
+            'the target pubspec to declare zuraffa_ui (refused with the '
+            'exact remedy otherwise).',
+      )
       ..addOption('title', help: 'Application title (default: "Zuraffa App")')
       ..addOption(
         'output',
@@ -123,6 +137,7 @@ class AppShellCommand extends Command<void> {
     final outputDir = argResults!['output'] as String;
     final xrayFlag = argResults!['xray'] as bool? ?? false;
     final skinAudit = argResults!['skin-audit'] as bool? ?? false;
+    final zuraffaApp = argResults!['zuraffa-app'] as bool? ?? false;
 
     // --output must live under lib/: main.dart (always at lib/main.dart)
     // imports the glue files via package: URIs, which only resolve inside
@@ -216,6 +231,36 @@ class AppShellCommand extends Command<void> {
     }
 
     final pubspecContent = await _fileSystem.read(pubspecPath);
+
+    // Issue #1260: the certified shell emits an import of
+    // package:zuraffa_ui/zuraffa_ui.dart. When the target's pubspec does
+    // not declare zuraffa_ui, that import cannot resolve: refuse up front
+    // (before any file is written) with the actionable remedy instead of
+    // emitting an app that cannot compile (#938 errors-are-an-API
+    // discipline). Deterministic: the check only READS the pubspec.
+    if (zuraffaApp) {
+      YamlNode? doc;
+      try {
+        doc = loadYaml(pubspecContent);
+      } on YamlException {
+        doc = null;
+      }
+      final dependencies = doc is YamlMap ? doc['dependencies'] : null;
+      final declaresZuraffaUi = dependencies is YamlMap
+          ? dependencies.containsKey('zuraffa_ui')
+          : false;
+      if (!declaresZuraffaUi) {
+        throw AppShellException(
+          'The certified shell requires the skin lane\'s certified '
+          'dependency (issue #1260).\n'
+          '   pubspec.yaml does not declare zuraffa_ui, and --zuraffa-app '
+          'emits `import \'package:zuraffa_ui/zuraffa_ui.dart\';` — an '
+          'import that would die at compile.\n'
+          '   --> fix: flutter pub add zuraffa_ui',
+        );
+      }
+    }
+
     final appName = AppShellBuilder.parseAppName(pubspecContent);
     if (appName == null || !RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(appName)) {
       throw AppShellException(
@@ -311,7 +356,12 @@ class AppShellCommand extends Command<void> {
     files.add(
       await FileUtils.writeFile(
         myAppPath,
-        _builder.buildMyApp(title: title, xray: xray, skinAudit: skinAudit),
+        _builder.buildMyApp(
+          title: title,
+          xray: xray,
+          skinAudit: skinAudit,
+          zuraffaApp: zuraffaApp,
+        ),
         'my_app',
         force: true,
         dryRun: dryRun,
