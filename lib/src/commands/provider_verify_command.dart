@@ -28,6 +28,15 @@ class ProviderVerifyCommand extends Command<void> {
       negatable: false,
       help: 'Emit the machine verdict envelope instead of prose.',
     );
+    argParser.addFlag(
+      'explain',
+      negatable: false,
+      help:
+          'Emit a human-readable explanation block: registered methods, '
+          'resolved types, and the verdict with --> fix: hints. '
+          'Suppressed when --json is also passed (the --json envelope '
+          'shape is unchanged). Spec 1128 order 1.',
+    );
     argParser.addOption(
       'service',
       help:
@@ -70,6 +79,8 @@ class ProviderVerifyCommand extends Command<void> {
 
     if (argResults?['json'] == true) {
       print(jsonEncode(report.toJson()));
+    } else if (argResults?['explain'] == true) {
+      _printExplain(report);
     } else {
       _printText(report);
     }
@@ -81,6 +92,62 @@ class ProviderVerifyCommand extends Command<void> {
       return Directory.current.path;
     } catch (_) {
       return '.';
+    }
+  }
+
+  /// Spec 1128 (order 1) — `--explain` presentation path.
+  ///
+  /// Emits a human-readable block derived entirely from the existing
+  /// [ProviderVerifyReport] fields (no new AST traversal, no schema
+  /// change). The block names the entity under verification, the resolved
+  /// Service interface, the provider file, the methods registered on the
+  /// provider class (the AST scan), the verdict, and every `--> fix:`
+  /// hint when there are findings. Suppressed when `--json` is also
+  /// passed (the machine envelope shape is the single source of truth
+  /// for CI consumers — spec 1128 hard constraint).
+  void _printExplain(ProviderVerifyReport report) {
+    final file = report.providerFile ?? '(no provider file found)';
+    print('Provider Verify — Explain — ${report.entity}');
+    print('  entity        : ${report.entity}');
+    print('  interface     : ${report.interface}');
+    print('  provider file : $file');
+    // Registered methods — the interface method set (what the provider
+    // is expected to mirror). Surviving stubs are flagged inline so a
+    // reader sees which methods exist but are not yet filled.
+    final stubs = report.stubFindings.map((f) => f.method).toSet();
+    if (report.methods.isEmpty) {
+      print('  methods       : (none resolved — interface file not found)');
+    } else {
+      print('  methods       : ${report.methods.length} registered');
+      for (final method in report.methods) {
+        final marker = stubs.contains(method) ? ' [STUB]' : '';
+        print('    - $method$marker');
+      }
+    }
+    print('  stub count    : ${report.stubCount}');
+    // Verdict line.
+    if (report.ok) {
+      print(
+        '  verdict       : ✅ verified — no stubs, every interface '
+        'method implemented.',
+      );
+    } else {
+      print(
+        '  verdict       : ❌ not verified — '
+        '${report.findings.length} finding(s).',
+      );
+    }
+    // --> fix: hints (when present). Each finding carries its own fix line.
+    if (report.findings.isEmpty) return;
+    print('');
+    print('  hints:');
+    for (final finding in report.findings) {
+      final method = finding.method.isEmpty ? '' : '${finding.method}: ';
+      print('    [${finding.kind}] $method${finding.detail}');
+      if (finding.file.isNotEmpty) {
+        print('      file: ${finding.file}');
+      }
+      print('      ${finding.fix}');
     }
   }
 
