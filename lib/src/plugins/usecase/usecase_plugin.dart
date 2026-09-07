@@ -8,6 +8,7 @@ import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'capabilities/create_usecase_capability.dart';
+import 'capabilities/verify_usecase_capability.dart';
 import 'generators/custom_usecase_generator.dart';
 import 'generators/entity_usecase_generator.dart';
 import 'generators/os_background_task_generator.dart';
@@ -47,7 +48,14 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   @override
-  List<ZuraffaCapability> get capabilities => [CreateUseCaseCapability(this)];
+  // SPEC 1119: the plugin surface is no longer one-capability-only —
+  // verify is a standalone capability (provenance receipts ride the
+  // standard issue #996 wrapper).
+  @override
+  List<ZuraffaCapability> get capabilities => [
+    CreateUseCaseCapability(this),
+    VerifyUsecaseCapability(this),
+  ];
 
   @override
   Command createCommand() => UseCaseCommand(this);
