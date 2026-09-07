@@ -158,6 +158,30 @@ dependencies:
       );
     });
 
+    test(
+      'pure-Dart project validates --zuraffa-app before being skipped',
+      () async {
+        await File(p.join(workspace.path, 'pubspec.yaml')).writeAsString('''
+name: my_test_app
+description: pure Dart fixture
+environment:
+  sdk: ^3.11.0
+dependencies:
+  path: ^1.9.0
+''');
+
+        final out = await runShell(['--zuraffa-app']);
+
+        expect(exitCode, isNot(0), reason: out);
+        expect(out, contains('flutter pub add zuraffa_ui'));
+        expect(
+          File(p.join(workspace.path, 'lib', 'main.dart')).existsSync(),
+          isFalse,
+          reason: 'the rejected command must not write app-shell artifacts',
+        );
+      },
+    );
+
     test('--zuraffa-app --skin-audit: chrome composes, observer stays on the '
         'GoRouter', () async {
       await withCertifiedDependency();

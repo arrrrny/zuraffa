@@ -123,6 +123,76 @@ dependencies:
       );
     });
 
+    test(
+      'empty inline dependencies mapping is converted without duplication',
+      () async {
+        await File(p.join(tmpDir.path, 'pubspec.yaml')).writeAsString('''
+name: bug1260_init_fixture
+description: flutter fixture
+environment:
+  sdk: ^3.11.0
+dependencies: {}
+''');
+
+        final out = await runInit(extra: ['--skin']);
+
+        expect(exitCode, 0, reason: out);
+        final pubspec = readPubspec();
+        expect(
+          RegExp(r'^dependencies:', multiLine: true).allMatches(pubspec).length,
+          1,
+          reason:
+              'the inline mapping must not cause a second top-level section',
+        );
+        expect(pubspec, contains(kCertifiedConstraint));
+      },
+    );
+
+    test(
+      'malformed dependencies value is reported as a writer failure',
+      () async {
+        await File(p.join(tmpDir.path, 'pubspec.yaml')).writeAsString('''
+name: bug1260_init_fixture
+description: flutter fixture
+environment:
+  sdk: ^3.11.0
+dependencies: invalid
+''');
+
+        final out = await runInit(extra: ['--skin']);
+
+        expect(exitCode, isNot(0), reason: out);
+        expect(out, contains('pubspec_skin_dependency_patcher'));
+        expect(out, contains('non-map dependencies value'));
+        expect(out, contains('writer(s) failed'));
+        expect(out, isNot(contains('_TypeError')));
+      },
+    );
+
+    test(
+      'non-empty inline dependencies mapping remains a writer failure',
+      () async {
+        await File(p.join(tmpDir.path, 'pubspec.yaml')).writeAsString('''
+name: bug1260_init_fixture
+description: flutter fixture
+environment:
+  sdk: ^3.11.0
+dependencies: {flutter: any}
+''');
+
+        final out = await runInit(extra: ['--skin']);
+
+        expect(exitCode, isNot(0), reason: out);
+        expect(out, contains('Inline `dependencies: {...}` mappings'));
+        final pubspec = readPubspec();
+        expect(pubspec, contains('dependencies: {flutter: any}'));
+        expect(
+          RegExp(r'^dependencies:', multiLine: true).allMatches(pubspec).length,
+          1,
+        );
+      },
+    );
+
     test('WITHOUT --skin the pubspec is untouched by the certified dependency '
         '(explicit opt-in)', () async {
       await seedPubspec(flutter: true);

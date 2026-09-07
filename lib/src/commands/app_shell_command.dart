@@ -212,24 +212,6 @@ class AppShellCommand extends Command<void> {
       );
     }
 
-    // #512: the app shell wires a Flutter `MaterialApp.router` entrypoint and
-    // depends on zuraffa_flutter. In a pure-Dart target package (pubspec.yaml
-    // without a `flutter:` dependency) emitting main.dart/my_app.dart/app_router.dart
-    // breaks `dart analyze` (Constitution VII: Engine Purity). Skip with a clear
-    // warning. (No pubspec found => unknown flavor => preserve historical
-    // Flutter generation.)
-    final flavor = await detectProjectFlavor(projectRoot, _fileSystem);
-    if (flavor == ProjectFlavor.pureDart) {
-      print(
-        '⚠️ Skipping app-shell generation: target project is a pure-Dart '
-        'package (no `flutter:` in pubspec.yaml). The app shell wires a '
-        'Flutter `MaterialApp.router` and depends on zuraffa_flutter '
-        '(Constitution VII: Engine Purity). Run `zfa app shell` inside a '
-        'Flutter project.',
-      );
-      return;
-    }
-
     final pubspecContent = await _fileSystem.read(pubspecPath);
 
     // Issue #1260: the certified shell emits an import of
@@ -238,6 +220,9 @@ class AppShellCommand extends Command<void> {
     // (before any file is written) with the actionable remedy instead of
     // emitting an app that cannot compile (#938 errors-are-an-API
     // discipline). Deterministic: the check only READS the pubspec.
+    // This preflight intentionally precedes the pure-Dart return so an
+    // explicitly requested --zuraffa-app is rejected with its required
+    // dependency remedy instead of being silently skipped.
     if (zuraffaApp) {
       YamlNode? doc;
       try {
@@ -259,6 +244,24 @@ class AppShellCommand extends Command<void> {
           '   --> fix: flutter pub add zuraffa_ui',
         );
       }
+    }
+
+    // #512: the app shell wires a Flutter `MaterialApp.router` entrypoint and
+    // depends on zuraffa_flutter. In a pure-Dart target package (pubspec.yaml
+    // without a `flutter:` dependency) emitting main.dart/my_app.dart/app_router.dart
+    // breaks `dart analyze` (Constitution VII: Engine Purity). Skip with a clear
+    // warning. (No pubspec found => unknown flavor => preserve historical
+    // Flutter generation.)
+    final flavor = await detectProjectFlavor(projectRoot, _fileSystem);
+    if (flavor == ProjectFlavor.pureDart) {
+      print(
+        '⚠️ Skipping app-shell generation: target project is a pure-Dart '
+        'package (no `flutter:` in pubspec.yaml). The app shell wires a '
+        'Flutter `MaterialApp.router` and depends on zuraffa_flutter '
+        '(Constitution VII: Engine Purity). Run `zfa app shell` inside a '
+        'Flutter project.',
+      );
+      return;
     }
 
     final appName = AppShellBuilder.parseAppName(pubspecContent);

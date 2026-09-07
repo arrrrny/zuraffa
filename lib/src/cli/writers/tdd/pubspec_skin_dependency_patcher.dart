@@ -12,8 +12,8 @@
 /// Same textual-patching discipline as `PubspecDevDependenciesPatcher`:
 /// the YAML is parsed for READ-ONLY detection (idempotent, hand-edit
 /// preserving) and patched TEXTUALLY so comments and formatting survive.
-/// Inline `dependencies: {...}` mappings are refused loudly instead of
-/// being silently mangled.
+/// Empty inline `dependencies: {}` mappings are expanded to block style;
+/// non-empty inline mappings are refused loudly instead of being mangled.
 library;
 
 import 'dart:io';
@@ -46,7 +46,13 @@ class PubspecSkinDependencyPatcher {
         'pubspec.yaml at ${file.path} did not parse to a Map',
       );
     }
-    final existing = (doc['dependencies'] as Map?) ?? const {};
+    final rawExisting = doc['dependencies'];
+    if (rawExisting != null && rawExisting is! Map) {
+      throw FormatException(
+        'pubspec.yaml at ${file.path} has a non-map dependencies value',
+      );
+    }
+    final existing = (rawExisting as Map?) ?? const {};
 
     final missing = <String>[];
     skinDependencies.forEach((pkg, constraint) {
@@ -56,14 +62,6 @@ class PubspecSkinDependencyPatcher {
     });
 
     if (missing.isEmpty) return missing;
-
-    if (RegExp(r'^dependencies:\s*\{[^\}]', multiLine: true).hasMatch(raw)) {
-      throw UnsupportedError(
-        'Inline `dependencies: {...}` mappings are not supported by '
-        'PubspecSkinDependencyPatcher; use a block-style `dependencies:` '
-        'section instead.',
-      );
-    }
 
     final newContent = _patchTextually(raw, missing);
     await file.writeAsString(newContent);
@@ -76,15 +74,27 @@ class PubspecSkinDependencyPatcher {
     final lines = raw.split('\n');
     var depsIdx = -1;
     var endIdx = lines.length;
+    var inlineEmpty = false;
 
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i];
       final depsMatch = RegExp(r'^dependencies:\s*(.*)$').firstMatch(line);
-      if (depsMatch != null && depsMatch.group(1)!.trim().isEmpty) {
-        depsIdx = i;
-        continue;
+      if (depsMatch != null) {
+        final rest = depsMatch.group(1)!.trim();
+        if (rest.isEmpty || rest == '{}') {
+          depsIdx = i;
+          inlineEmpty = rest == '{}';
+          continue;
+        }
+        if (rest.startsWith('{')) {
+          throw UnsupportedError(
+            'Inline `dependencies: {...}` mappings are not supported by '
+            'PubspecSkinDependencyPatcher; use a block-style `dependencies:` '
+            'section instead.',
+          );
+        }
       }
-      if (depsIdx >= 0) {
+      if (depsIdx >= 0 && !inlineEmpty) {
         if (line.trim().isEmpty || line.trimLeft().startsWith('#')) {
           continue;
         }
@@ -97,9 +107,10 @@ class PubspecSkinDependencyPatcher {
       }
     }
 
+    final buf = StringBuffer();
     if (depsIdx < 0) {
       // No dependencies section at all — append one.
-      final buf = StringBuffer()
+      buf
         ..write(raw)
         ..write(raw.endsWith('\n') ? '' : '\n')
         ..writeln('dependencies:');
@@ -109,7 +120,20 @@ class PubspecSkinDependencyPatcher {
       return buf.toString();
     }
 
-    final buf = StringBuffer();
+    if (inlineEmpty) {
+      for (var i = 0; i < lines.length; i++) {
+        if (i == depsIdx) {
+          buf.writeln('dependencies:');
+          for (final m in missing) {
+            buf.writeln('  $m');
+          }
+        } else {
+          buf.writeln(lines[i]);
+        }
+      }
+      return buf.toString();
+    }
+
     for (var i = 0; i < lines.length; i++) {
       if (i == endIdx) {
         for (final m in missing) {
