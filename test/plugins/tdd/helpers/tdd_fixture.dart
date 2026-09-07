@@ -593,8 +593,8 @@ case "$STEP" in
       refused-widget)
         # Issue #938 shape: the fix line, then the machine-parseable
         # verdict JSON as the FINAL stdout line, exit 1.
-        echo "--> fix: add shadcn_ui (flutter pub add shadcn_ui --dev) or re-run with --skip-widget"
-        echo "{\"command\":\"gen\",\"behavior\":\"$ID\",\"verdict\":\"refused\",\"reason\":\"pubspec.yaml does not declare shadcn_ui - widget-lane behaviors boot a ShadApp shell whose import would die at compile (issue #938). Run: flutter pub add shadcn_ui\",\"kind\":\"widget\"}"
+        echo "--> fix: add zuraffa_ui (flutter pub add zuraffa_ui --dev) or re-run with --skip-widget"
+        echo "{\"command\":\"gen\",\"behavior\":\"$ID\",\"verdict\":\"refused\",\"reason\":\"pubspec.yaml does not declare zuraffa_ui - widget-lane behaviors boot a ZuraffaApp shell whose import would die at compile (issue #938). Run: flutter pub add zuraffa_ui\",\"kind\":\"widget\"}"
         exit 1 ;;
       *) echo "zfa tdd gen: $OUTCOME"; exit 1 ;;
     esac

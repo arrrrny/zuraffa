@@ -186,8 +186,8 @@ class DependencyWirer {
         version: '^2.0.0',
       ),
       // Issue #1256: zuraffa_ui is the certified UI vocabulary (ZuraffaApp
-      // + identified Zfa components) and the intended ShadApp replacement.
-      // New Flutter apps created via `zfa setup` / `zfa init` integrate it
+      // + identified Zfa components) — the one UI vocabulary zuraffa apps
+      // use. New Flutter apps created via `zfa setup` / `zfa init` wire it
       // by default so the generation contract ("zfa-only output needs no
       // manual migration") holds from day zero. Flutter-only: pure Dart
       // packages have no UI surface.

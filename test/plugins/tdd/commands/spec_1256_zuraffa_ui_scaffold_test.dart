@@ -1,25 +1,21 @@
-// Spec 1256 (issue #1256) — zfa setup/scaffold must use zuraffa_ui, not
-// ShadApp/shadcn_ui.
+// Spec 1256 (issue #1256) — zfa setup/scaffold must use zuraffa_ui.
 //
 // Issue: `zfa` initialization is outdated and the generated scaffolds
-// reference `ShadApp` (shadcn_ui), forcing manual migration to
-// `zuraffa_ui` — a violation of the "zfa-only" generation contract.
+// forced manual migration to `zuraffa_ui` — a violation of the "zfa-only"
+// generation contract. The vocabulary hard cut (issues #1256 + #1276)
+// removed the legacy shell entirely: a zuraffa app IS a zuraffa_ui app.
 //
 // Expected behavior (from the issue):
 //   1. `zfa setup`/`zfa init` wire `zuraffa_ui` into new Flutter apps by
 //      default (DependencyWirer.standardSet — the shared wiring both
 //      commands use).
 //   2. New Flutter application scaffolds created by zfa use zuraffa_ui:
-//      the widget lane's default app shell becomes ZuraffaApp
-//      (package:zuraffa_ui/zuraffa_ui.dart) instead of ShadApp
-//      (package:shadcn_ui/shadcn_ui.dart), and the emitted templates
-//      import zuraffa_ui.
+//      the widget lane's default app shell is ZuraffaApp
+//      (package:zuraffa_ui/zuraffa_ui.dart) and the emitted templates
+//      import zuraffa_ui. The only opt-out is `materialapp`.
 //
-// The `shadapp` shell stays available as an explicit opt-out (back-compat
-// for projects already on shadcn_ui); the DEFAULT follows the issue.
-//
-// House pattern (issue #938 precedent): these pins import the new API
-// surface and are RED (assertion- or compile-red) until the fix lands.
+// House pattern (issue #938 precedent): these pins import the API
+// surface and pin the post-cut contract.
 library;
 
 import 'dart:async';
@@ -54,25 +50,19 @@ void main() {
     target: 'subject_$id',
   );
 
-  group('spec 1256: WidgetAppShell gains the zuraffaapp default', () {
-    test(
-      'parse(null) falls back to the ZuraffaApp shell (the new default)',
-      () {
-        expect(WidgetAppShell.parse(null), WidgetAppShell.zuraffaapp);
-      },
-    );
+  group('spec 1256: WidgetAppShell — the zuraffaapp default, zero legacy', () {
+    test('parse(null) falls back to the ZuraffaApp shell (the default)', () {
+      expect(WidgetAppShell.parse(null), WidgetAppShell.zuraffaapp);
+      expect(WidgetAppShell.parse(''), WidgetAppShell.zuraffaapp);
+    });
 
-    test('parse accepts all three shell names explicitly', () {
+    test('parse accepts both shell names explicitly', () {
       expect(WidgetAppShell.parse('zuraffaapp'), WidgetAppShell.zuraffaapp);
-      expect(WidgetAppShell.parse('shadapp'), WidgetAppShell.shadapp);
       expect(WidgetAppShell.parse('materialapp'), WidgetAppShell.materialapp);
     });
 
     test('parse warns the user when the value is unknown (issue #1256 '
         'follow-up: typo in .zfa.json must not silently default)', () {
-      // The warning is printed via `print(...)`; capture stdout via the
-      // provided `runZonedPrint` pattern that the test runner uses to
-      // route `print` through the test reporter.
       final buffer = StringBuffer();
       final zoneSpec = ZoneSpecification(
         print: (self, parent, zone, message) => buffer.write(message),
@@ -89,29 +79,25 @@ void main() {
             'fix their .zfa.json',
       );
       expect(buffer.toString(), contains('zuraffaapp'));
-      expect(buffer.toString(), contains('shadapp'));
       expect(buffer.toString(), contains('materialapp'));
     });
 
     test('the zuraffaapp shell emits the ZuraffaApp widget name', () {
       expect(WidgetAppShell.zuraffaapp.widgetName, 'ZuraffaApp');
+      expect(WidgetAppShell.materialapp.widgetName, 'MaterialApp');
     });
 
-    test('each shell co-locates widgetName + widgetImport so a future rename '
-        'of the host package or the shell widget forces both to update', () {
+    test('importPath co-locates with widgetName so a future rename of the '
+        'host package or the shell widget forces both to update', () {
       expect(
-        WidgetAppShell.zuraffaapp.widgetImport,
-        "import 'package:zuraffa_ui/zuraffa_ui.dart';\n",
+        WidgetAppShell.zuraffaapp.importPath,
+        'package:zuraffa_ui/zuraffa_ui.dart',
         reason:
-            'issue #1256 follow-up: widgetImport names the host '
-            'package barrel — a rename of zuraffa_ui must break this '
-            'pin so both the import and the widget name update together.',
+            'importPath names the host package barrel — a rename of '
+            'zuraffa_ui must break this pin so both the import and the '
+            'widget name update together.',
       );
-      expect(
-        WidgetAppShell.shadapp.widgetImport,
-        "import 'package:shadcn_ui/shadcn_ui.dart';\n",
-      );
-      expect(WidgetAppShell.materialapp.widgetImport, isNull);
+      expect(WidgetAppShell.materialapp.importPath, isNull);
     });
   });
 
@@ -135,7 +121,7 @@ void main() {
         contains('pumpWidget(ZuraffaApp('),
         reason:
             'issue #1256: new Flutter scaffolds use zuraffa_ui — the '
-            'generated widget test pumps ZuraffaApp, not ShadApp',
+            'generated widget test pumps ZuraffaApp',
       );
       expect(
         content,
@@ -144,22 +130,10 @@ void main() {
       );
       expect(
         content,
-        isNot(contains('package:shadcn_ui/shadcn_ui.dart')),
-        reason: 'the default scaffold no longer references shadcn_ui',
+        isNot(contains('ShadApp')),
+        reason: 'the legacy shell name must not leak into any emission',
       );
     });
-
-    test(
-      'the explicit shadapp shell keeps emitting ShadApp (back-compat)',
-      () async {
-        final content = await renderWidget(
-          widgetBehavior('S1256-W2'),
-          widgetShell: WidgetAppShell.shadapp,
-        );
-        expect(content, contains('pumpWidget(ShadApp('));
-        expect(content, contains("import 'package:shadcn_ui/shadcn_ui.dart';"));
-      },
-    );
 
     test('the materialapp shell still emits MaterialApp', () async {
       final content = await renderWidget(
@@ -229,61 +203,45 @@ void main() {
 
     test('the zuraffaapp shell requires zuraffa_ui; materialapp does not', () {
       expect(
-        WidgetShadcnPreflight.importRequired(WidgetAppShell.zuraffaapp),
+        WidgetSkinPreflight.skinImportRequired(WidgetAppShell.zuraffaapp),
         isTrue,
       );
       expect(
-        WidgetShadcnPreflight.importRequired(WidgetAppShell.shadapp),
-        isTrue,
-      );
-      expect(
-        WidgetShadcnPreflight.importRequired(WidgetAppShell.materialapp),
+        WidgetSkinPreflight.skinImportRequired(WidgetAppShell.materialapp),
         isFalse,
       );
     });
 
-    test('the required package maps per shell', () {
+    test('the skin package constant is zuraffa_ui', () {
+      expect(WidgetSkinPreflight.skinPackage, 'zuraffa_ui');
       expect(
-        WidgetShadcnPreflight.requiredPackage(WidgetAppShell.zuraffaapp),
-        'zuraffa_ui',
+        WidgetSkinPreflight.skinImportRequired(WidgetAppShell.zuraffaapp),
+        isTrue,
       );
       expect(
-        WidgetShadcnPreflight.requiredPackage(WidgetAppShell.shadapp),
-        'shadcn_ui',
-      );
-      expect(
-        WidgetShadcnPreflight.requiredPackage(WidgetAppShell.materialapp),
-        isNull,
+        WidgetSkinPreflight.skinImportRequired(WidgetAppShell.materialapp),
+        isFalse,
       );
     });
 
-    test('projectDeclares reports zuraffa_ui presence truthfully', () {
+    test('projectDeclaresZuraffaUi reports zuraffa_ui presence truthfully', () {
       writePubspec('''
 name: probe
 dependencies:
   flutter: {sdk: flutter}
   zuraffa_ui: ^0.1.0
 ''');
-      expect(
-        WidgetShadcnPreflight.projectDeclares(
-          tmpDir.path,
-          WidgetShadcnPreflight.requiredPackage(WidgetAppShell.zuraffaapp)!,
-        ),
-        isTrue,
-      );
+      expect(WidgetSkinPreflight.projectDeclaresZuraffaUi(tmpDir.path), isTrue);
     });
 
-    test('projectDeclares reports a missing zuraffa_ui', () {
+    test('projectDeclaresZuraffaUi reports a missing zuraffa_ui', () {
       writePubspec('''
 name: probe
 dependencies:
   flutter: {sdk: flutter}
 ''');
       expect(
-        WidgetShadcnPreflight.projectDeclares(
-          tmpDir.path,
-          WidgetShadcnPreflight.requiredPackage(WidgetAppShell.zuraffaapp)!,
-        ),
+        WidgetSkinPreflight.projectDeclaresZuraffaUi(tmpDir.path),
         isFalse,
       );
     });
@@ -291,9 +249,7 @@ dependencies:
     test(
       'the fix line for the default shell names flutter pub add zuraffa_ui',
       () {
-        final fixLine = WidgetShadcnPreflight.fixLineFor(
-          WidgetAppShell.zuraffaapp,
-        );
+        const fixLine = WidgetSkinPreflight.fixLine;
         expect(fixLine, startsWith('--> fix: flutter pub add zuraffa_ui'));
         expect(fixLine, contains('ZuraffaApp shell'));
       },

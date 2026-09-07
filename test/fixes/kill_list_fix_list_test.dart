@@ -1,6 +1,6 @@
 // Issue #1149 (kill list, part of EPIC #1132 Machine Contract) — fix list:
 //
-// 1. shadcn advertised layouts `grid`/`table` but never implemented them —
+// 1. skin advertised layouts `grid`/`table` but never implemented them —
 //    the builder switch fell through to the list template, emitting a
 //    mislabeled widget. Now only list/form are advertised and accepted.
 // 2. benchmark shipped no scenarios: `zfa benchmark list/run` printed
@@ -19,24 +19,24 @@ import 'package:zuraffa/src/plugins/feature/feature_plugin.dart';
 import 'package:zuraffa/src/plugins/feature/capabilities/plugin_feature_capability.dart';
 import 'package:zuraffa/src/plugins/feature/capabilities/scaffold_feature_capability.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
-import 'package:zuraffa/src/plugins/shadcn/shadcn_plugin.dart';
+import 'package:zuraffa/src/plugins/skin/skin_plugin.dart';
 import 'package:zuraffa/src/plugins/benchmark/first_party_scenarios.dart';
 
 void main() {
-  group('shadcn advertised layouts (fix 1)', () {
+  group('skin advertised layouts (fix 1)', () {
     test('schema advertises exactly list and form', () {
-      final plugin = ShadcnPlugin(outputDir: 'lib/src');
+      final plugin = SkinPlugin(outputDir: 'lib/src');
       final schema = plugin.configSchema;
       final layout = schema['properties']['layout'] as Map;
       expect(layout['enum'], ['list', 'form']);
     });
 
     test(
-      'zfa shadcn grid refuses loudly (post-merge: SPEC 917 usage code)',
+      'zfa skin grid refuses loudly (post-merge: SPEC 917 usage code)',
       () async {
         final runner = CliRunner(exitOnCompletion: false);
         exitCode = 0;
-        final output = await runner.runCapturing(['shadcn', 'grid', 'Product']);
+        final output = await runner.runCapturing(['skin', 'grid', 'Product']);
         expect(
           exitCode,
           ExitProtocol.usage,

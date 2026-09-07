@@ -1,7 +1,6 @@
 /// ThemeHarnessTestWriter — emits the Flutter widget test for a
 /// `theme`-kind behavior (issue #841 — theme harness: light/dark scheme +
-/// typography as executable proof; since issue #1256 the assertions run
-/// through the certified zuraffa_ui vocabulary, ZfaTheme).
+/// typography as executable proof, zuraffa_ui/ZfaTheme).
 ///
 /// The emitted file is the FOUR-PROOF harness:
 ///
@@ -39,8 +38,8 @@
 ///
 /// Target-project prerequisites (documented in the emitted header):
 /// Flutter + the flutter test profile (`TddProfile.flutter`), the
-/// `zuraffa_ui` dependency (the shell installs ZfaTheme via ZuraffaApp),
-/// and the `analyzer` dev_dependency for the audit block.
+/// `zuraffa_ui` dependency (the shell installs ZfaTheme via ZuraffaApp), and
+/// the `analyzer` dev_dependency for the audit block.
 library;
 
 import 'dart:io';
@@ -114,10 +113,9 @@ class ThemeHarnessTestWriter {
 //
 // PREREQUISITES (target project): Flutter + the flutter test profile;
 // the zuraffa_ui dependency (the shell must install ZfaTheme via
-// ZuraffaApp, issue #1256); the analyzer dev_dependency (the audit block
-// parses lib/ sources). The paired subject at `$relativeSubjectPath` must
-// be wired to the app's REAL theme constants and shell — never inline
-// values here.
+// ZuraffaApp); the analyzer dev_dependency (the audit block parses lib/
+// sources). The paired subject at `$relativeSubjectPath` must be wired to
+// the app's REAL theme constants and shell — never inline values here.
 library;
 
 import 'dart:io';

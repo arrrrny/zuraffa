@@ -38,8 +38,7 @@ const String kZuraffaUiImport = "import 'package:zuraffa_ui/zuraffa_ui.dart';";
 /// The machine-parseable fix line for a missing certified dependency.
 const String kZuraffaUiFixLine =
     '--> fix: flutter pub add zuraffa_ui '
-    '(widget-lane behaviors boot a ZuraffaApp shell — the skin lane\'s '
-    'certified shell)';
+    '(widget-lane behaviors boot a ZuraffaApp shell)';
 
 void main() {
   group('bug 1260: WidgetAppShell resolves the certified zuraffaapp shell', () {
@@ -179,18 +178,11 @@ environment:
       },
     );
 
-    test('skin-lane project (pubspec declares zuraffa_ui): the certified shell '
+    test('project declaring zuraffa_ui: the certified shell '
         'is the DEFAULT — no flag needed', () async {
       await seedWidgetBehavior();
-      // shadcn_ui is present so the PRE-1260 default (shadapp) can run
-      // un-refused: the pre-fix emission is a ShadApp pump, which is
-      // exactly what this test pins as wrong (issue #1260).
       await seedPubspec(
-        dependencies: [
-          'flutter: {sdk: flutter}',
-          'shadcn_ui: ^1.0.0',
-          'zuraffa_ui: ^0.1.0',
-        ],
+        dependencies: ['flutter: {sdk: flutter}', 'zuraffa_ui: ^0.1.0'],
       );
 
       final runner = CliRunner(exitOnCompletion: false);
@@ -210,9 +202,8 @@ environment:
         content,
         contains('pumpWidget(ZuraffaApp('),
         reason:
-            'issue #1260: skin-lane projects (pubspec declares zuraffa_ui) '
-            'must DEFAULT to the certified shell so skin tests exercise '
-            'the contract infrastructure the real app runs under',
+            'issue #1256 hard cut: every project defaults to the '
+            'certified shell — a zuraffa app IS a zuraffa_ui app',
       );
     });
 
@@ -280,12 +271,11 @@ environment:
       );
     });
 
-    test('non-skin project without flags: shadapp default is PRESERVED '
-        '(no regression)', () async {
+    test('project without zuraffa_ui and no flags: the certified shell is '
+        'still the DEFAULT, so gen refuses with the fix line (hard cut — '
+        'the legacy shell no longer exists)', () async {
       await seedWidgetBehavior();
-      await seedPubspec(
-        dependencies: ['flutter: {sdk: flutter}', 'shadcn_ui: ^1.0.0'],
-      );
+      await seedPubspec(dependencies: ['flutter: {sdk: flutter}']);
 
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing([
@@ -298,10 +288,16 @@ environment:
         'A1',
       ]);
 
-      expect(exitCode, 0, reason: out);
-      final content = File(testArtifact('A1')).readAsStringSync();
-      expect(content, contains('pumpWidget(ShadApp('));
-      expect(content, isNot(contains('pumpWidget(ZuraffaApp(')));
+      expect(
+        exitCode,
+        isNot(0),
+        reason:
+            'the hard cut removed the legacy shell: the only way a '
+            'shell-less pubspec passes is `--widget-shell materialapp` — '
+            'got:\n$out',
+      );
+      expect(out, contains(kZuraffaUiFixLine));
+      expect(File(testArtifact('A1')).existsSync(), isFalse);
     });
 
     test(

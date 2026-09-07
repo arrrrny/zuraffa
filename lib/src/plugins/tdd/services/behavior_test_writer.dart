@@ -31,10 +31,8 @@ import 'widget_scaffold.dart';
 /// Writes a Dart test file that pairs with the subject for a behavior.
 class BehaviorTestWriter {
   /// The app shell the generated WIDGET test pumps the feature view in
-  /// (issue #912 defect 2): default [WidgetAppShell.shadapp] — zuraffa
-  /// apps are shadcn_ui apps — overridable per project. The SKIN-LANE
-  /// default (zuraffaapp) is resolved by the caller (`zfa tdd gen`'s
-  /// `_resolveWidgetShell`, issue #1260), not here.
+  /// (issue #912 defect 2): default [WidgetAppShell.zuraffaapp] — zuraffa
+  /// apps are zuraffa_ui apps — overridable per project.
   ///
   /// Issue #965: [i18nKeys] carries the feature's declared i18n surfaces;
   /// a scenario literal equal to a declared anchor asserts through the
@@ -44,7 +42,7 @@ class BehaviorTestWriter {
   /// pubspec (relative fallback) — emitted only when a keyed surface is
   /// emitted. An empty table keeps the pre-#965 template byte-for-byte.
   const BehaviorTestWriter({
-    this.widgetShell = WidgetAppShell.shadapp,
+    this.widgetShell = WidgetAppShell.zuraffaapp,
     this.i18nKeys = I18nKeyTable.empty,
     this.i18nImport,
     this.i18nExpansion = const [],
@@ -327,8 +325,7 @@ void main() {
   /// Render the WIDGET test (bug #830): a `testWidgets` pair that boots
   /// the feature view through the subject's view-builder contract, pumps
   /// it inside a configurable app shell (issue #912 defect 2 — ZuraffaApp
-  /// by default since issue #1256, shadapp/materialapp as explicit
-  /// opt-outs), and asserts
+  /// by default, MaterialApp for plain-Material projects), and asserts
   /// the acceptance scenario through finders DERIVED from the scenario
   /// description (issue #912 defect 3 — a bare `findsOneWidget`
   /// placeholder is greenable by a SizedBox and marks the test
@@ -355,14 +352,9 @@ void main() {
     );
     final target = b.target.isEmpty ? 'subjectUnderTest' : b.target;
     final snakeId = _toSnakeCase(b.id);
-    // Issue #912 defect 2 (updated by issue #1256): the shell is
-    // configurable; the zuraffa_ui/shadcn_ui shell needs its own import
-    // (material.dart stays for Scaffold + Theme).
+    // Issue #912 defect 2: the shell is configurable; the skin shell
+    // needs its own import (material.dart stays for Scaffold + Theme).
     final shellName = widgetShell.widgetName;
-    // Issue #912 defect 2 / issue #1260: the shell import follows the
-    // shell — shadapp → shadcn_ui, zuraffaapp → the skin lane's certified
-    // vocabulary (package:zuraffa_ui), materialapp → none (material.dart
-    // stays for Scaffold + Theme).
     final shellImport = widgetShell.importPath == null
         ? ''
         : "import '${widgetShell.importPath}';\n";
@@ -509,15 +501,6 @@ class _RouteRecorder extends NavigatorObserver {
 }
 '''
         : '';
-    // Bug #1261: the scaffold header only promises the golden harness
-    // when a golden hook was ACTUALLY emitted — a hookless scaffold
-    // (no gate, or a route-outcome scenario whose golden can never
-    // settle, issue #964) never claims baselines are committed, so
-    // the author is never misled into expecting a harness that does
-    // not exist.
-    final goldenHeaderNote = golden && !routeObserver
-        ? "// slower tier; golden baselines are committed per platform under\n// test/tdd/goldens/."
-        : '// slower tier.';
     return '''
 // GENERATED TEST — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
 //
@@ -540,7 +523,8 @@ ${keyed ? "// i18n: slang test shell, base locale '${I18nScaffold.baseLocale}' p
 // still throws, the error lands in the guard assertion instead of
 // escaping the pump (classified runner/compile, not red — issue #830
 // widget failure taxonomy). Widget tests run on the flutter profile's
-$goldenHeaderNote
+// slower tier; golden baselines are committed per platform under
+// test/tdd/goldens/.
 library;
 
 import 'package:flutter/material.dart';
@@ -565,7 +549,7 @@ $observerDecl      final Object? built = (() {
       })();
       expect(built, isNot(isA<UnimplementedError>()));
       final view = built! as Widget;
-      // Boot the view inside an app shell so Theme.of / ShadTheme.of /
+      // Boot the view inside an app shell so Theme.of / ZfaTheme.of /
       // Navigator / MediaQuery lookups resolve (issue #830 remediation 2;
       // shell configurable per issue #912 defect 2).
 $localePin      $pumpCall

@@ -1,6 +1,4 @@
-// Tests for ThemeHarnessTestWriter (issue #841 — theme harness; the
-// asserted vocabulary moved to the certified zuraffa_ui aliases in issue
-// #1256).
+// Tests for ThemeHarnessTestWriter (issue #841 — theme harness).
 //
 // The writer emits the Flutter widget test for a `theme`-kind behavior:
 // dual-ThemeMode ZfaTheme assertions, the analyzer-backed hardcoded-color
@@ -94,14 +92,11 @@ void main() {
     test('asserts ZfaTheme.of(context).colorScheme.primary against the '
         'subject-wired spec per mode (dark inverse)', () async {
       final content = await writePair();
-      // Issue #1256: the theme assertions run through the certified
-      // zuraffa_ui alias (ZfaTheme), never a raw Shad engine name.
       expect(content, contains('ZfaTheme.of'));
-      expect(content, isNot(contains('ShadTheme.of')));
-      // Issue #1277 review: also reject the bare ShadThemeData symbol —
-      // the harness uses ZfaThemeData (the certified alias) instead, and
-      // any leakage of the Shad engine vocabulary means a future
-      // regression where ZfaThemeData falls back to its shadcn parent.
+      // Issue #1277 review: reject the raw engine vocabulary — the
+      // certified aliases (ZfaTheme/ZfaThemeData) are the only permitted
+      // spelling in emitted templates.
+      expect(content, isNot(contains('ShadTheme')));
       expect(content, isNot(contains('ShadThemeData')));
       expect(content, contains('theme.colorScheme.primary'));
       expect(content, contains('spec!.primaryLight'));
