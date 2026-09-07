@@ -37,8 +37,7 @@ void main() {
     expect(ids, contains('api'));
   });
 
-  test(
-      'plugin_loader.dart imports feature_contract via absolute package '
+  test('plugin_loader.dart imports feature_contract via absolute package '
       'import (bug 1269: relative import breaks subproject runs)', () {
     final source = File(_pluginLoaderSourcePath).readAsStringSync();
     final importLines = _featureContractImportLines(source);
@@ -65,8 +64,7 @@ void main() {
     }
   });
 
-  test(
-      'the absolute feature_contract import resolves to a real file that '
+  test('the absolute feature_contract import resolves to a real file that '
       'declares FeatureContract', () {
     final source = File(_pluginLoaderSourcePath).readAsStringSync();
     final importLines = _featureContractImportLines(source);
@@ -90,9 +88,9 @@ void main() {
             'package — the absolute import would fail to compile.',
       );
       expect(
-        RegExp(r'class\s+\$?FeatureContract').hasMatch(
-          target.readAsStringSync(),
-        ),
+        RegExp(
+          r'class\s+\$?FeatureContract',
+        ).hasMatch(target.readAsStringSync()),
         isTrue,
         reason:
             'Import target `$libPath` must declare the FeatureContract type '
