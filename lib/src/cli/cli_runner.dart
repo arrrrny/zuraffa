@@ -3,9 +3,10 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:args/args.dart';
 import 'package:path/path.dart' as p;
+import '../core/dependencies/pubspec_auto_add.dart';
 import '../commands/schema_command.dart';
 import '../commands/simulate_command.dart';
-import '../commands/skin_command.dart';
+
 import '../commands/ui_command.dart';
 import '../commands/validate_command.dart';
 import '../commands/create_command.dart' as create;
@@ -104,9 +105,16 @@ class CliRunner {
     this.exitOnCompletion = true,
     BinaryStaleness? staleness,
     void Function(String message)? onStalenessWarning,
+    PubspecProcessRunner? makeProcessRunner,
   }) : _staleness = staleness ?? BinaryStaleness(),
        _onStalenessWarning = onStalenessWarning ?? _defaultStalenessWarning,
+       _makeProcessRunner = makeProcessRunner,
        _runner = _buildRunner();
+
+  /// Issue #1265: the `pub add` spawner handed to `zfa make` for the
+  /// mechanical auto-add of undeclared generated-import packages.
+  /// Injectable so tests driving the full CLI stay hermetic (no network).
+  final PubspecProcessRunner? _makeProcessRunner;
 
   static CommandRunner<void> _buildRunner() =>
       CommandRunner<void>(
@@ -220,7 +228,9 @@ class CliRunner {
     _runner.addCommand(_InitializeCommand());
     _runner.addCommand(_EntityCommand());
     _runner.addCommand(_PluginCommand());
-    _runner.addCommand(MakeCommand(registry));
+    _runner.addCommand(
+      MakeCommand(registry, processRunner: _makeProcessRunner),
+    );
     _runner.addCommand(EngineCommand());
     _runner.addCommand(DoctorCommand());
     _runner.addCommand(ProofCommand());
@@ -249,9 +259,8 @@ class CliRunner {
     _runner.addCommand(UiCommand());
     _runner.addCommand(PackageCommand());
     _runner.addCommand(SimulateCommand());
-    // Issue #1102: runtime skin-contract auditor command group
-    // (skin kit / skin verify).
-    _runner.addCommand(SkinCommand());
+    // Spec 1276: the `zfa skin` group is owned by the skin plugin
+    // (mounted with the runtime auditor subcommands kit/verify/drive).
     _runner.addCommand(AgentCommand());
     _runner.addCommand(ZapCommand());
   }

@@ -47,8 +47,8 @@ class _A1144ViewState extends State<A1144View> {
     final slot = _resolveSlot(context);
     return Scaffold(
       body: switch (slot) {
-                'macos' => const A1144ViewMacosLayout(slotKey: Key('a1144-slot-macos')),
-_ => const A1144ViewMobileLayout(slotKey: Key('a1144-slot-mobile')),
+        'macos' => const A1144ViewMacosLayout(slotKey: Key('a1144-slot-macos')),
+        _ => const A1144ViewMobileLayout(slotKey: Key('a1144-slot-mobile')),
       },
     );
   }
@@ -74,12 +74,11 @@ class A1144ViewMobileLayout extends StatelessWidget {
         children: <Widget>[
           // TODO: Implement A1144View mobile layout — the sanctioned
           // handcraft seam (the loop certifies compile + assertions).
-          Text('TODO: Implement A1144View mobile layout',
-              textAlign: TextAlign.center),
-            ElevatedButton(
-              onPressed: () {},
-              child: Text(t.auth.signIn),
-            ),
+          Text(
+            'TODO: Implement A1144View mobile layout',
+            textAlign: TextAlign.center,
+          ),
+          ElevatedButton(onPressed: () {}, child: Text(t.auth.signIn)),
         ],
       ),
     );
@@ -106,12 +105,11 @@ class A1144ViewMacosLayout extends StatelessWidget {
         children: <Widget>[
           // TODO: Implement A1144View macos layout — the sanctioned
           // handcraft seam (the loop certifies compile + assertions).
-          Text('TODO: Implement A1144View macos layout',
-              textAlign: TextAlign.center),
-            ElevatedButton(
-              onPressed: () {},
-              child: Text(t.auth.signIn),
-            ),
+          Text(
+            'TODO: Implement A1144View macos layout',
+            textAlign: TextAlign.center,
+          ),
+          ElevatedButton(onPressed: () {}, child: Text(t.auth.signIn)),
         ],
       ),
     );

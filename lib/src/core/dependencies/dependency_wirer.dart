@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:meta/meta.dart';
 import 'package:path/path.dart' as path;
 import 'package:yaml/yaml.dart';
 
@@ -89,20 +90,77 @@ class WireResult {
 /// Used by both `zfa setup` (new app bootstrap) and `zfa init` (existing
 /// project dependency wiring) so the two commands stay in sync.
 class DependencyWirer {
-  /// The analyzer version zuraffa pins in pure-Dart packages (see root
-  /// pubspec.yaml). Overriding analyzer in downstream apps prevents
-  /// version-conflict failures when `dart pub get` resolves the transitive
-  /// graph.
-  static const analyzerOverrideVersion = '14.1.0';
+  /// Final-resort fallback when the source package's pubspec is not
+  /// reachable (pre-`pub get`, offline, package missing). Matches the
+  /// `analyzer` range zuraffa itself depends on (see root `pubspec.yaml`:
+  /// `analyzer: ">=14.0.0 <15.0.0"`). Kept as a caret-pin of the lowest
+  /// acceptable analyzer 14.x so freshly wired apps stay on the same
+  /// resolver graph the monorepo ships.
+  static const pureDartAnalyzerFallback = '^14.0.0';
 
-  /// Flutter apps cannot use the [analyzerOverrideVersion] override: the
-  /// Flutter SDK pins `meta 1.18.0` while analyzer >=13.1.0 requires
-  /// `meta ^1.18.3`, so version solving always fails. These match
-  /// `zuraffa_flutter`'s own `dependency_overrides`
-  /// (zuraffa_flutter/pubspec.yaml): analyzer is capped at ^13.1.0 and meta
-  /// is overlaid with ^1.19.0 so the graph resolves under the Flutter SDK.
-  static const flutterAnalyzerOverrideVersion = '^13.1.0';
-  static const flutterMetaOverrideVersion = '^1.19.0';
+  /// Flutter apps need both `analyzer` and `meta` overlays: the Flutter
+  /// SDK pins `meta 1.18.0` while analyzer >=13.1.0 requires
+  /// `meta ^1.18.3`, so version solving always fails. With analyzer 14.x
+  /// the meta requirement is even stricter (`^1.19.0`); overlaying both
+  /// keeps the resolver graph valid. The analyzer override is the
+  /// lowest-acceptable 14.x release so it matches the zuraffa monorepo's
+  /// own range; the meta overlay is the matching 1.19+ floor. Kept as the
+  /// final-resort fallback when `zuraffa_flutter`'s pubspec is not yet
+  /// resolved.
+  static const flutterAnalyzerFallback = '^14.0.0';
+  static const flutterMetaFallback = '^1.19.0';
+
+  /// Resolves the analyzer override version by reading the source package's
+  /// `pubspec.yaml` at runtime (via [resolvePackageOverrides]). The
+  /// canonical sources of truth are `zuraffa_flutter` (Flutter) and
+  /// `zuraffa` (pure-Dart); this helper mirrors their analyzer range so
+  /// freshly wired apps stay on the same resolver graph the zuraffa
+  /// monorepo ships (issue #1256 contract: setup must always mirror the
+  /// analyzer the monorepo actually uses — analyzer 14 for the v6 line).
+  ///
+  /// Falls back to [flutterAnalyzerFallback] / [pureDartAnalyzerFallback]
+  /// when the source package is not yet resolved.
+  static String resolveAnalyzerOverride({required bool isFlutter}) {
+    final resolved = resolvePackageOverrides(
+      isFlutter ? 'zuraffa_flutter' : 'zuraffa',
+    );
+    return resolved['analyzer'] ??
+        (isFlutter ? flutterAnalyzerFallback : pureDartAnalyzerFallback);
+  }
+
+  /// Resolves the meta override version by reading the source package's
+  /// `pubspec.yaml` at runtime (via [resolvePackageOverrides]). For Flutter
+  /// projects only — pure-Dart projects do not overlay meta.
+  ///
+  /// Falls back to [flutterMetaFallback] when the source package is not
+  /// yet resolved.
+  static String resolveMetaOverride() {
+    final resolved = resolvePackageOverrides('zuraffa_flutter');
+    return resolved['meta'] ?? flutterMetaFallback;
+  }
+
+  /// Back-compat: the historical `analyzerOverrideVersion` constant. New
+  /// callers should use [resolveAnalyzerOverride]; this remains so the
+  /// `flutterAnalyzerOverrideVersion` test pin (which asserted the literal)
+  /// continues to work without a silent drift.
+  @Deprecated(
+    'Use resolveAnalyzerOverride(isFlutter: ...) so the wired value '
+    'mirrors the source package',
+  )
+  static String get analyzerOverrideVersion => pureDartAnalyzerFallback;
+
+  /// Back-compat: see [analyzerOverrideVersion].
+  @Deprecated(
+    'Use resolveAnalyzerOverride(isFlutter: true) so the wired value '
+    'mirrors zuraffa_flutter',
+  )
+  static String get flutterAnalyzerOverrideVersion => flutterAnalyzerFallback;
+
+  /// Back-compat: see [analyzerOverrideVersion].
+  @Deprecated(
+    'Use resolveMetaOverride() so the wired value mirrors zuraffa_flutter',
+  )
+  static String get flutterMetaOverrideVersion => flutterMetaFallback;
 
   /// Returns the standard zuraffa dependency set for the given project type.
   ///
@@ -127,6 +185,18 @@ class DependencyWirer {
         kind: DependencyKind.regular,
         version: '^2.0.0',
       ),
+      // Issue #1256: zuraffa_ui is the certified UI vocabulary (ZuraffaApp
+      // + identified Zfa components) — the one UI vocabulary zuraffa apps
+      // use. New Flutter apps created via `zfa setup` / `zfa init` wire it
+      // by default so the generation contract ("zfa-only output needs no
+      // manual migration") holds from day zero. Flutter-only: pure Dart
+      // packages have no UI surface.
+      if (isFlutter)
+        const DependencySpec(
+          name: 'zuraffa_ui',
+          kind: DependencyKind.regular,
+          version: '^0.1.0',
+        ),
       // #281: Wire json_annotation as a direct regular dep so generated entity
       // files (which use @JsonSerializable / JsonKey) satisfy
       // depend_on_referenced_packages and json_serializable stops warning.
@@ -144,21 +214,21 @@ class DependencyWirer {
       if (isFlutter)
         const DependencySpec(name: 'flutter_lints', kind: DependencyKind.dev),
       if (isFlutter) ...[
-        const DependencySpec(
+        DependencySpec(
           name: 'analyzer',
           kind: DependencyKind.override,
-          version: flutterAnalyzerOverrideVersion,
+          version: resolveAnalyzerOverride(isFlutter: true),
         ),
-        const DependencySpec(
+        DependencySpec(
           name: 'meta',
           kind: DependencyKind.override,
-          version: flutterMetaOverrideVersion,
+          version: resolveMetaOverride(),
         ),
       ] else
-        const DependencySpec(
+        DependencySpec(
           name: 'analyzer',
           kind: DependencyKind.override,
-          version: analyzerOverrideVersion,
+          version: resolveAnalyzerOverride(isFlutter: false),
         ),
     ];
   }
@@ -369,7 +439,7 @@ class DependencyWirer {
     // standalone `dart` executable cannot resolve `sdk: flutter` deps.
     final pubExecutable = isFlutter ? 'flutter' : 'dart';
     for (final spec in pubAddSpecs) {
-      final args = _buildPubAddArgs(spec);
+      final args = buildPubAddArgs(spec);
       try {
         final result = await Process.run(pubExecutable, [
           'pub',
@@ -420,12 +490,23 @@ class DependencyWirer {
   }
 
   /// Builds the argument list for `dart pub add` from a [DependencySpec].
-  static List<String> _buildPubAddArgs(DependencySpec spec) {
+  ///
+  /// Passes [DependencySpec.version] through (e.g.
+  /// `dart pub add foo@^1.2.3`) so the wired entry preserves the required
+  /// constraint. Without this, `dart pub add foo` resolves to whatever the
+  /// latest non-prerelease happens to be on pub.dev — which can drift past
+  /// the analyzer-14 contract the rest of the wired graph assumes (issue
+  /// #1277 review: `_buildPubAddArgs` must pass the version through).
+  @visibleForTesting
+  static List<String> buildPubAddArgs(DependencySpec spec) {
     final args = <String>[];
+    final descriptor = spec.version != null && spec.version!.isNotEmpty
+        ? '${spec.name}@${spec.version}'
+        : spec.name;
     if (spec.kind == DependencyKind.dev) {
-      args.add('dev:${spec.name}');
+      args.add('dev:$descriptor');
     } else {
-      args.add(spec.name);
+      args.add(descriptor);
     }
     if (spec.isGit) {
       args.add('--git-url=${spec.gitUrl}');

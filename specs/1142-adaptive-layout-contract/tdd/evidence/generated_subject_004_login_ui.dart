@@ -46,8 +46,8 @@ class _A1142ViewState extends State<A1142View> {
     final slot = _resolveSlot(context);
     return Scaffold(
       body: switch (slot) {
-                'macos' => const A1142ViewMacosLayout(slotKey: Key('a1142-slot-macos')),
-_ => const A1142ViewMobileLayout(slotKey: Key('a1142-slot-mobile')),
+        'macos' => const A1142ViewMacosLayout(slotKey: Key('a1142-slot-macos')),
+        _ => const A1142ViewMobileLayout(slotKey: Key('a1142-slot-mobile')),
       },
     );
   }
@@ -73,9 +73,11 @@ class A1142ViewMobileLayout extends StatelessWidget {
         children: <Widget>[
           // TODO: Implement A1142View mobile layout — the sanctioned
           // handcraft seam (the loop certifies compile + assertions).
-          Text('TODO: Implement A1142View mobile layout',
-              textAlign: TextAlign.center),
-            Text('A1142'),
+          Text(
+            'TODO: Implement A1142View mobile layout',
+            textAlign: TextAlign.center,
+          ),
+          Text('A1142'),
         ],
       ),
     );
@@ -102,9 +104,11 @@ class A1142ViewMacosLayout extends StatelessWidget {
         children: <Widget>[
           // TODO: Implement A1142View macos layout — the sanctioned
           // handcraft seam (the loop certifies compile + assertions).
-          Text('TODO: Implement A1142View macos layout',
-              textAlign: TextAlign.center),
-            Text('A1142'),
+          Text(
+            'TODO: Implement A1142View macos layout',
+            textAlign: TextAlign.center,
+          ),
+          Text('A1142'),
         ],
       ),
     );

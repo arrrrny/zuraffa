@@ -10,7 +10,9 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:test/test.dart';
-import 'package:zuraffa/src/commands/skin_command.dart';
+import 'package:zuraffa/src/commands/skin_command.dart' as audit;
+import 'package:zuraffa/src/plugins/skin/commands/skin_command.dart';
+import 'package:zuraffa/src/plugins/skin/skin_plugin.dart';
 
 Future<(String, int)> captureOutputAndExit(Future<void> Function() body) async {
   final output = <String>[];
@@ -26,7 +28,8 @@ Future<(String, int)> captureOutputAndExit(Future<void> Function() body) async {
 }
 
 CommandRunner<void> runner() =>
-    CommandRunner<void>('zfa', 'test')..addCommand(SkinCommand());
+    CommandRunner<void>('zfa', 'test')
+      ..addCommand(SkinCommand(SkinPlugin(outputDir: 'lib/src')));
 
 void main() {
   group('issue #1112 — zfa skin drive (CLI surface)', () {
@@ -98,10 +101,10 @@ void main() {
       () {
         // The contract is documented on the command itself so agents
         // can branch on it without parsing beyond the JSON.
-        expect(SkinDriveCommand.exitCodeForLabel('found'), 0);
-        expect(SkinDriveCommand.exitCodeForLabel('disabled'), 1);
-        expect(SkinDriveCommand.exitCodeForLabel('notFound'), 2);
-        expect(SkinDriveCommand.exitCodeForLabel('error'), 3);
+        expect(audit.SkinDriveCommand.exitCodeForLabel('found'), 0);
+        expect(audit.SkinDriveCommand.exitCodeForLabel('disabled'), 1);
+        expect(audit.SkinDriveCommand.exitCodeForLabel('notFound'), 2);
+        expect(audit.SkinDriveCommand.exitCodeForLabel('error'), 3);
       },
     );
   });

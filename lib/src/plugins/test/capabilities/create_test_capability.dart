@@ -2,6 +2,7 @@ import '../../../core/plugin_system/capability.dart';
 import '../test_plugin.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
+import '../test_explain.dart';
 
 class CreateTestCapability implements ZuraffaCapability {
   final TestPlugin plugin;
@@ -43,6 +44,19 @@ class CreateTestCapability implements ZuraffaCapability {
       'verbose': {
         'type': 'boolean',
         'description': 'Enable verbose logging',
+        'default': false,
+      },
+      // Spec 1129: the human twin of the certification envelope. The
+      // schema property makes the flag surface manifest-verifiable (the
+      // #902/#904 drift classes) and advertises it to MCP clients; the
+      // CLI bespoke create grammar accepts the same flag.
+      'explain': {
+        'type': 'boolean',
+        'description':
+            'Attach the human-readable explain block (generated files, '
+            'test kinds unit/integration/widget, per-file '
+            'self-certification, trust tiers) to the result data; the '
+            'CLI prints it after the regular output (spec 1129)',
         'default': false,
       },
     },
@@ -94,6 +108,22 @@ class CreateTestCapability implements ZuraffaCapability {
       data: {
         'generatedFiles': files,
         if (certification != null) 'certification': certification.toJson(),
+        // Spec 1129: the human-readable block, additive to the spec 980
+        // data contract (the envelope shape above is untouched — the
+        // --json semantics are unchanged). The generic CapabilityCommand
+        // prints data['explain'] verbatim (Spec #1131), so MCP clients
+        // get the same block the bespoke CLI command prints.
+        if (args['explain'] == true)
+          'explain': buildTestExplain(
+            // The certified entity IS the verdict line's entity
+            // (config.name); fall back to the raw invocation name when
+            // nothing was certified (dry run / empty generation).
+            entity:
+                certification?.entity ??
+                (args['name']?.toString() ?? 'unknown'),
+            files: files,
+            certification: certification,
+          ),
       },
       message: compilePassed
           ? null

@@ -81,7 +81,7 @@ The JSON schema maps onto four sections, each parsed by `ZfaConfig.fromJson` and
 
 Sources: [zfa_config.dart](lib/src/config/zfa_config.dart#L202-L256)
 
-The `_builtinPluginDefaults` map anchors the schema: twenty plugin IDs (repository, provider, usecase, presenter, controller, view, feature, state, observer, test, mock, di, datasource, service, route, cache, gql, graphql, shadcn, method_append) all default to `false`, so a project only generates what it explicitly opts into — either via CLI flags, presets, or these defaults. Sources: [zfa_config.dart](lib/src/config/zfa_config.dart#L15-L35)
+The `_builtinPluginDefaults` map anchors the schema: twenty plugin IDs (repository, provider, usecase, presenter, controller, view, feature, state, observer, test, mock, di, datasource, service, route, cache, gql, graphql, skin, method_append) all default to `false`, so a project only generates what it explicitly opts into — either via CLI flags, presets, or these defaults. Sources: [zfa_config.dart](lib/src/config/zfa_config.dart#L15-L35)
 
 ### Managing configuration from the CLI
 

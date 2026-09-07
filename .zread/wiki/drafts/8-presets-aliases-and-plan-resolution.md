@@ -153,7 +153,7 @@ Not every selection needs a plugin ID or alias. The resolver infers plugin selec
 | `--gql` / `--graphql` | `gql` / `graphql` |
 | `--cache` | `cache` |
 | `--append`, or `--no-entity` with `--repo` | `method_append` |
-| `--shadcn` | `shadcn` |
+| `--skin` | `skin` |
 
 Sources: [plan_resolver.dart](lib/src/core/planning/plan_resolver.dart#L135-L213)
 
