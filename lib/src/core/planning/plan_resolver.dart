@@ -244,8 +244,8 @@ class PlanResolver {
         (_isTrue(options['no-entity']) && _isPresent(options['repo']))) {
       selection.add('method_append');
     }
-    if (_isTrue(options['shadcn'])) {
-      selection.add('shadcn');
+    if (_isTrue(options['skin'])) {
+      selection.add('skin');
     }
     // 029-agent-plugin-mcp-wrappers: the --agent flag surfaces the
     // AgentPlugin in the active plan. The config-default path

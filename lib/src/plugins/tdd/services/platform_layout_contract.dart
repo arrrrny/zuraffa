@@ -14,7 +14,7 @@
 ///
 /// ### Presentation
 ///
-/// - `LoginSection`: `ShadInput` for email, `ShadButton` for Sign In
+/// - `LoginSection`: `ZfaInput` for email, `ZfaButton` for Sign In
 /// - `adaptive_layouts`: `mobile`, `macos`
 /// ```
 ///

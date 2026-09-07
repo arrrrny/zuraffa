@@ -119,7 +119,7 @@ class RunSkinCommand extends Command<void> {
     argParser.addFlag(
       'skip-widget',
       help:
-          'Widget-lane behaviors whose gen refuses on the shadcn_ui gate '
+          'Widget-lane behaviors whose gen refuses on the zuraffa_ui gate '
           '(issue #938) are skipped instead of stopping the run: each keeps '
           'its current state — never a fake DONE — and the end-of-run '
           'summary names the count (issue #992). Without the flag the '

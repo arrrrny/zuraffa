@@ -8,6 +8,7 @@ import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/project/receipt_store.dart';
 import '../core/verdict_envelope.dart';
 import '../models/generator_config.dart';
+import '../plugins/usecase/conformance/usecase_gate.dart';
 import '../plugins/usecase/usecase_plugin.dart';
 import '../plugins/usecase/usecase_verdicts.dart';
 import '../utils/string_utils.dart';
@@ -129,6 +130,28 @@ class UseCaseCreateCommand extends Command<void> {
       'json',
       negatable: false,
       help: 'Print only the per-method verdict envelope (machine output)',
+    );
+    // SPEC 1119: --certify mirrors mock's certify — after generation, the
+    // verify gate runs over the methods the run wired; exit 1 when
+    // generation succeeded but verify failed.
+    argParser.addFlag(
+      'certify',
+      negatable: false,
+      help:
+          'After generation, verify the emitted usecases conform to the '
+          'contract; drift exits 1 with a `--> fix:` line naming the '
+          'mismatch',
+    );
+    // SPEC 1119: --explain emits the human-readable contract block (and
+    // the additive `explain` envelope key in --json mode, issue #1122
+    // pattern).
+    argParser.addFlag(
+      'explain',
+      negatable: false,
+      help:
+          'After generation, explain the surface: which methods were '
+          'generated, which variant each uses, which result type is '
+          'bound, which exception type is thrown',
     );
   }
 
@@ -271,6 +294,37 @@ class UseCaseCreateCommand extends Command<void> {
       return;
     }
 
+    // ── SPEC 1119: certify + explain surface ──────────────────────────
+    // The surface certify/explain describe: the methods THIS RUN wired —
+    // created + appended, plus already-present skips (their files are on
+    // disk and part of the proven surface). Guard-dropped and unknown
+    // methods are NOT part of it (there is nothing to audit).
+    final certify = results['certify'] == true;
+    final explain = results['explain'] == true;
+    final surfaceMethods = {
+      for (final verdict in report.verdicts)
+        if (verdict.action == MethodVerdict.actionCreated ||
+            verdict.action == MethodVerdict.actionAppended ||
+            (verdict.action == MethodVerdict.actionSkipped &&
+                verdict.reason == MethodVerdict.reasonAlreadyPresent))
+          verdict.name,
+    }.toList(growable: false);
+
+    // Certify (SPEC 1119, mirrors mock's certify): the gate runs right
+    // after generation, over the surface this run wired. Drift checking
+    // is the verify command's job — the receipt binding is written in
+    // THIS run, so certify proves conformance alone.
+    UsecaseGateReport? certification;
+    if (certify && !dryRun && !revert && surfaceMethods.isNotEmpty) {
+      certification = await UsecaseGate().run(
+        projectRoot: Directory.current.path,
+        entity: entityName,
+        methods: surfaceMethods,
+        config: config,
+        checkDrift: false,
+      );
+    }
+
     // ── Receipt (spec #972 FR-3) ──────────────────────────────────────
     // Revert and dry-run runs ship no receipt: nothing was generated, so
     // there is nothing to prove (mirrors the make receipt contract).
@@ -281,37 +335,78 @@ class UseCaseCreateCommand extends Command<void> {
         requestedMethods: effectiveMethods,
         report: report,
         type: useCaseType,
+        certify: certify,
+        certification: !certify
+            ? 'skipped'
+            : certification == null
+            ? 'nothing-to-certify'
+            : certification.ok
+            ? 'pass'
+            : 'fail',
       );
     }
 
+    final certifyFailed = certification != null && !certification.ok;
+    final explainBlock = explain
+        ? _explainBlock(
+            entityName: entityName,
+            config: config,
+            methods: surfaceMethods,
+          )
+        : null;
+
     if (jsonMode) {
-      VerdictEnvelope.emit(
-        VerdictEnvelope(
-          command: 'zfa usecase create $entityName',
-          verdict: VerdictKind.pass,
-          exitClass: ExitProtocol.success,
-          subject: VerdictSubject(kind: 'usecase', id: entityName),
-          artifacts: VerdictArtifacts(
-            created: [
-              for (final file in report.files)
-                if (file.action == 'created')
-                  _projectRelativePosix(file.path, fixedOutputDir),
-            ],
-            modified: [
-              for (final file in report.files)
-                if (file.action == 'overwritten' || file.action == 'updated')
-                  _projectRelativePosix(file.path, fixedOutputDir),
-            ],
-            deleted: [
-              for (final file in report.files)
-                if (file.action == 'deleted')
-                  _projectRelativePosix(file.path, fixedOutputDir),
-            ],
-          ),
-          receipts: receiptPath == null ? null : [receiptPath],
-          details: {'methods': report.verdicts.map((v) => v.toJson()).toList()},
+      var envelope = VerdictEnvelope(
+        command: 'zfa usecase create $entityName',
+        verdict: certifyFailed ? VerdictKind.fail : VerdictKind.pass,
+        exitClass: certifyFailed ? ExitProtocol.failure : ExitProtocol.success,
+        subject: VerdictSubject(kind: 'usecase', id: entityName),
+        artifacts: VerdictArtifacts(
+          created: [
+            for (final file in report.files)
+              if (file.action == 'created')
+                _projectRelativePosix(file.path, fixedOutputDir),
+          ],
+          modified: [
+            for (final file in report.files)
+              if (file.action == 'overwritten' || file.action == 'updated')
+                _projectRelativePosix(file.path, fixedOutputDir),
+          ],
+          deleted: [
+            for (final file in report.files)
+              if (file.action == 'deleted')
+                _projectRelativePosix(file.path, fixedOutputDir),
+          ],
         ),
+        receipts: receiptPath == null ? null : [receiptPath],
+        findings: certifyFailed
+            ? [
+                for (final finding in certification.findings)
+                  VerdictFinding(
+                    kind: finding.kind,
+                    member: finding.member,
+                    fix: finding.fix,
+                    extra: {'message': finding.message},
+                  ),
+              ]
+            : null,
+        details: {
+          'methods': report.verdicts.map((v) => v.toJson()).toList(),
+          if (certification != null)
+            'certification': {
+              'ok': certification.ok,
+              'methods': certification.methods,
+              'audits': certification.audits.map((a) => a.toJson()).toList(),
+            },
+        },
       );
+      if (explainBlock != null) {
+        // Issue #1122: the additive explain block rides the envelope —
+        // the base shape is byte-compatible either way.
+        envelope = envelope.withExplain(explainBlock);
+      }
+      VerdictEnvelope.emit(envelope);
+      if (certifyFailed) exitCode = ExitProtocol.failure;
       return;
     }
 
@@ -321,6 +416,71 @@ class UseCaseCreateCommand extends Command<void> {
       receiptPath: receiptPath,
       revert: revert,
     );
+    if (explainBlock != null) {
+      _printExplainBlock(explainBlock);
+    }
+    if (certification != null) {
+      if (certification.ok) {
+        print(
+          '✅ certified: ${certification.methods.length} method(s) conform '
+          'to the contract (conformance proven).',
+        );
+      } else {
+        print(
+          '❌ certification failed — generation succeeded but the surface '
+          'drifted:',
+        );
+        for (final audit in certification.audits) {
+          for (final finding in audit.findings) {
+            print('❌ [${finding.kind}] ${finding.message}');
+            print('   ${finding.fix}');
+          }
+        }
+        exitCode = ExitProtocol.failure;
+      }
+    }
+  }
+
+  /// SPEC 1119: the explain contract block — which methods were
+  /// generated, which variant each uses, which result type is bound,
+  /// which exception type is thrown — read off the SAME derivation the
+  /// generator drives.
+  Map<String, dynamic> _explainBlock({
+    required String entityName,
+    required GeneratorConfig config,
+    required List<String> methods,
+  }) {
+    final generator = plugin.entityGenerator;
+    final contracts = [
+      for (final method in methods)
+        if (generator.describeMethod(config, method) case final contract?)
+          contract.toJson(),
+    ];
+    return {
+      'entity': entityName,
+      'methods': contracts,
+      'exception': 'CancelledException',
+    };
+  }
+
+  void _printExplainBlock(Map<String, dynamic> block) {
+    print('Explain — ${block['entity']} usecases');
+    for (final raw in block['methods'] as List) {
+      final method = raw as Map<String, dynamic>;
+      final variantDisplay = method['variant'] == 'stream'
+          ? 'Stream<${method['resultType']}>'
+          : method['variant'] == 'void'
+          ? 'Future<void>'
+          : 'Future<${method['resultType']}>';
+      print(
+        '  ${method['name'].toString().padRight(10)} '
+        '${method['class'].toString().padRight(26)} '
+        '${method['baseClass']} · $variantDisplay · '
+        'result: ${method['resultType']} · '
+        'params: ${method['paramsType']} · '
+        'throws: ${method['exception']}',
+      );
+    }
   }
 
   /// Human-facing summary (non---json mode).
@@ -376,6 +536,8 @@ class UseCaseCreateCommand extends Command<void> {
     required List<String> requestedMethods,
     required UsecaseGenerationReport report,
     required String type,
+    required bool certify,
+    required String certification,
   }) async {
     try {
       final projectRoot = Directory.current.path;
@@ -434,6 +596,9 @@ class UseCaseCreateCommand extends Command<void> {
           'skipped_methods': skipped,
           'guard_reason_codes': report.guardReasonCodes,
           'interface_absent': report.interfaceAbsent,
+          // SPEC 1119: the certification outcome this run shipped.
+          'certify': certify,
+          'certification': certification,
         },
         spec: _entitySpecReceipt(entityName, projectRoot),
         files: files,

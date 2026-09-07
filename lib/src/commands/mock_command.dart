@@ -10,10 +10,12 @@ import '../models/generated_file.dart';
 import '../plugins/mock/capabilities/certify_mock_capability.dart';
 import '../plugins/mock/capabilities/create_mock_capability.dart';
 import '../plugins/mock/capabilities/dependency_mock_capability.dart';
+import '../plugins/mock/capabilities/explain_mock_capability.dart';
 import '../plugins/mock/capabilities/json_mock_capability.dart';
 import '../plugins/mock/mock_plugin.dart';
 import '../plugins/mock/services/mock_certification.dart';
 import 'base_plugin_command.dart';
+import 'mock_verify_command.dart';
 import '../cli/exit_protocol.dart';
 
 class MockCommand extends PluginCommand {
@@ -27,13 +29,17 @@ class MockCommand extends PluginCommand {
   /// manual since issue #970: its `--json` is the OUTPUT envelope flag, not
   /// CapabilityCommand's input-JSON option. Same for `DependencyMockCommand`
   /// (issue #960) and `CertifyMockCommand` (spec 1001) — both own CLI exit
-  /// codes.
+  /// codes. `verify` (spec 1121) and `explain` (spec 1121) are manual for
+  /// the same reason: MockVerifyCommand owns its exit-code contract, and
+  /// MockExplainCommand wraps MockExplainCapability's run() contract.
   @override
   Set<String> get manualSubcommandNames => {
     'create',
     'json',
     'dependency',
     'certify',
+    'verify',
+    'explain',
   };
 
   MockCommand(this.plugin) : super(plugin) {
@@ -42,6 +48,8 @@ class MockCommand extends PluginCommand {
     addSubcommand(JsonMockCommand(plugin));
     addSubcommand(DependencyMockCommand(plugin));
     addSubcommand(CertifyMockCommand(plugin));
+    addSubcommand(MockVerifyCommand(plugin));
+    addSubcommand(MockExplainCommand(plugin));
     // SPEC 917 / #876 sweep: the parent-level generator flags
     // (--data-only/--json/--service/--domain/--params/--returns) were
     // parsed and advertised but NEVER read — run() is dispatch-only (the
@@ -496,6 +504,86 @@ class CertifyMockCommand extends Command<void> {
       if (results['verbose'] == true) '--verbose',
     ];
     final capability = CertifyMockCapability(plugin);
+    exitCode = await capability.run(argv);
+  }
+}
+
+/// `zfa mock explain <Entity>` (spec 1121, issue #1121 order 3): the
+/// fleshed-out explanation of the entity's mock — method coverage, skipped
+/// members, per-method certification status, and the #1034
+/// `MockData.forMethod` selector bindings. The capability owns exit codes;
+/// this wrapper is the CLI grammar.
+class MockExplainCommand extends Command<void> {
+  final MockPlugin plugin;
+
+  MockExplainCommand(this.plugin) {
+    // SPEC 917 / #904: the capability inputSchema declares `name` as a
+    // required property — a manifest-driven client sends `--name <value>`
+    // and the CLI must accept it (the positional keeps precedence).
+    argParser.addOption(
+      'name',
+      help: 'Entity name (alternative to the positional argument)',
+    );
+    argParser.addOption(
+      'project',
+      help:
+          'Project root containing lib/src (defaults to the current '
+          'working directory)',
+    );
+    argParser.addFlag(
+      'verbose',
+      abbr: 'v',
+      negatable: false,
+      help: 'Enable detailed logging',
+    );
+    argParser.addFlag(
+      'json',
+      negatable: false,
+      help:
+          'Emit the canonical ${VerdictEnvelope.canonicalSchema} envelope '
+          'whose details.explain carries the structured report '
+          '(issue #1105)',
+    );
+  }
+
+  @override
+  String get name => 'explain';
+
+  @override
+  String get description =>
+      'Explain a mock: coverage, skipped members, per-method certification '
+      'status, fixture-selector bindings (spec 1121)';
+
+  @override
+  Future<void> run() async {
+    final results = argResults;
+    // SPEC 917 / #904: --name is the manifest-driven spelling of the
+    // positional EntityName (positional keeps precedence, issue #771).
+    final flaggedName = results?['name'] as String?;
+    if (results == null ||
+        (results.rest.isEmpty &&
+            (flaggedName == null || flaggedName.isEmpty))) {
+      final fix = ExitProtocol.fixLine(
+        're-run with the entity whose mock is explained — '
+        '`zfa mock explain <Entity>` (after `zfa mock create <Entity>`)',
+      );
+      if (results?['json'] == true) {
+        stderr.writeln('❌ Usage: zfa mock explain <Entity> [--json]');
+        stderr.writeln(fix);
+      } else {
+        print('❌ Usage: zfa mock explain <Entity> [--json] [--project <dir>]');
+        print(fix);
+      }
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+    final argv = <String>[
+      if (results.rest.isNotEmpty) results.rest.first else flaggedName!,
+      if (results['project'] != null) ...['--project', results['project']!],
+      if (results['json'] == true) '--json',
+      if (results['verbose'] == true) '--verbose',
+    ];
+    final capability = MockExplainCapability();
     exitCode = await capability.run(argv);
   }
 }

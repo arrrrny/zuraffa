@@ -429,7 +429,7 @@ class RouteTableTestBuilder {
 // onException signal), so view-level DI never leaks into this suite.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
+import 'package:zuraffa_flutter/zuraffa_flutter.dart';
 
 import '$indexImport';
 
@@ -640,7 +640,7 @@ Future<bool> _resolvesWithoutException(String location) async {
 // Deterministic: no platform channel — the fixture URI is what the engine
 // delivers after platform dispatch strips the scheme.
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
+import 'package:zuraffa_flutter/zuraffa_flutter.dart';
 
 import '$indexImport';
 
@@ -719,7 +719,7 @@ List<RouteBase> _tableWithSyntheticRoot() => <RouteBase>[
 // pumping the shell module never builds an entity view.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
+import 'package:zuraffa_flutter/zuraffa_flutter.dart';
 
 import '$shellImport';
 

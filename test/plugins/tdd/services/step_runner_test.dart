@@ -291,10 +291,10 @@ void main() {
       () => _result(
         exitCode: 1,
         stdout:
-            '--> fix: add shadcn_ui (flutter pub add shadcn_ui --dev) or '
+            '--> fix: add zuraffa_ui (flutter pub add zuraffa_ui --dev) or '
             're-run with --skip-widget\n'
             '{"command":"gen","behavior":"A8","verdict":"refused",'
-            '"reason":"pubspec.yaml does not declare shadcn_ui",'
+            '"reason":"pubspec.yaml does not declare zuraffa_ui",'
             '"kind":"widget"}\n',
       ),
     );
