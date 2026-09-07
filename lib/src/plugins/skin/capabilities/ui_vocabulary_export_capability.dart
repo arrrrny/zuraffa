@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import '../../../core/plugin_system/capability.dart';
-import '../shadcn_plugin.dart';
+import '../skin_plugin.dart';
 import '../vocabulary/ui_node_registry.dart';
 import '../vocabulary/vocabulary_schema_exporter.dart';
 
@@ -15,14 +15,14 @@ import '../vocabulary/vocabulary_schema_exporter.dart';
 class UiVocabularyExportCapability implements ZuraffaCapability {
   UiVocabularyExportCapability(this.plugin);
 
-  final ShadcnPlugin plugin;
+  final SkinPlugin plugin;
 
   @override
   String get name => 'ui.schema.export';
 
   @override
   String get description =>
-      'Export the shadcn plugin UI component vocabulary as a versioned, '
+      'Export the skin plugin UI component vocabulary as a versioned, '
       'diff-stable JSON Schema (components, props, enums, children '
       'constraints, structural rules, style tokens, action-ID grammar).';
 

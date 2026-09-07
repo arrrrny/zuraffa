@@ -133,14 +133,12 @@ class GenCommand extends Command<void> {
     );
     argParser.addOption(
       'widget-shell',
-      allowed: ['shadapp', 'materialapp', 'zuraffaapp'],
+      allowed: ['zuraffaapp', 'materialapp'],
       help:
-          'Widget kind only (issue #912 defect 2 / issue #1260): the app '
-          'shell the generated widget test pumps the view in. Defaults to '
-          'shadapp (zuraffa apps are shadcn_ui apps) — EXCEPT on skin-lane '
-          'projects (pubspec declares zuraffa_ui), which default to the '
-          'certified ZuraffaApp shell; `.zfa.json` `tdd.widgetShell` sets '
-          'the project default, this flag wins over it.',
+          'Widget kind only (issue #912 defect 2): the app shell the '
+          'generated widget test pumps the view in. Defaults to zuraffaapp '
+          '(zuraffa apps are zuraffa_ui apps); `.zfa.json` `tdd.widgetShell` '
+          'sets the project default, this flag wins over it.',
     );
     argParser.addFlag(
       'golden',
@@ -148,9 +146,7 @@ class GenCommand extends Command<void> {
           'Widget kind only (bug #830): append a matchesGoldenFile baseline '
           'hook to the generated widget test. Baselines are committed per '
           'platform under test/tdd/goldens/ and refreshed with `flutter test '
-          '--update-goldens`. A SKIN behavior whose lane plan marks it '
-          '` [golden]` (the spec `## Lanes` SKIN row\'s `golden:` '
-          'declaration, bug #1261) gets the hook WITHOUT this flag.',
+          '--update-goldens`.',
       defaultsTo: false,
       negatable: false,
     );
@@ -310,7 +306,7 @@ class GenCommand extends Command<void> {
     }
     // Issue #912 defect 2: the widget template's app shell — the explicit
     // flag wins over the `.zfa.json` `tdd.widgetShell` project default;
-    // the default is ShadApp (zuraffa apps are shadcn_ui apps).
+    // the default is ZuraffaApp (zuraffa apps are zuraffa_ui apps).
     final widgetShell = _resolveWidgetShell(argResults, cwd);
     // Issue #965: the optional i18n expansion tier — the explicit flag
     // wins over the `.zfa.json` `tdd.i18nExpansion` project default.
@@ -705,23 +701,6 @@ class GenCommand extends Command<void> {
         '(use --kind widget or mark the test-list row widget).',
       );
     }
-    // Bug #1261: the spec-declared golden gate. A behavior whose lane
-    // plan marks it ` [golden]` (the SKIN row's `golden:` declaration)
-    // carries the hook WITHOUT the flag — a regenerating agent reads
-    // the gate straight from the plan; the flag ORs in on top. The
-    // gate is widget-only exactly like the flag: a declared golden on
-    // another kind is INERT and warns (plan refuses the drift
-    // upstream; this is the hand-edited-row defense).
-    final declaredGolden =
-        behavior.golden && effectiveKind == BehaviorKind.widget;
-    if (behavior.golden && !declaredGolden) {
-      print(
-        'zfa tdd gen: behavior "$behaviorId" declares golden but is '
-        '${effectiveKind.name}-kind — the golden hook is widget-only '
-        '(bug #830); the declaration is inert for this row.',
-      );
-    }
-    final effectiveGolden = golden || declaredGolden;
     final effectiveBehavior =
         identical(kindOverride, null) || kindOverride == behavior.kind
         ? behavior
@@ -734,7 +713,6 @@ class GenCommand extends Command<void> {
             target: behavior.target,
             state: behavior.state,
             finderKinds: behavior.finderKinds,
-            golden: behavior.golden,
           );
 
     // Validate required fields up front (FR-002).
@@ -794,33 +772,33 @@ class GenCommand extends Command<void> {
       }
     }
 
-    // Issue #938 preflight (VISION §4 errors-are-an-API): the shadapp
-    // widget shell emits `import 'package:shadcn_ui/shadcn_ui.dart';`.
-    // When the target project's pubspec does not declare shadcn_ui, that
+    // Issue #938 preflight (VISION §4 errors-are-an-API): the zuraffaapp
+    // widget shell emits `import 'package:zuraffa_ui/zuraffa_ui.dart';`.
+    // When the target project's pubspec does not declare zuraffa_ui, that
     // import cannot resolve: the generated pair dies at `verify-red` with
     // compile-error and the loop never reaches an honest RED. Stop HERE —
     // before any artifact write, registry append, or re-render — with the
     // machine-parseable fix line, instead of emitting a test that can
     // only die at compile. Deterministic: the check only READS the
     // pubspec (no silent pubspec mutation). The materialapp opt-out emits
-    // no shadcn import, so it is exempt; a project with no pubspec.yaml
+    // no skin import, so it is exempt; a project with no pubspec.yaml
     // keeps gen's pre-#938 behavior (nothing to resolve).
     if (effectiveBehavior.kind == BehaviorKind.widget &&
-        WidgetShadcnPreflight.shadcnImportRequired(widgetShell) &&
-        !WidgetShadcnPreflight.projectDeclaresShadcnUi(cwd)) {
+        WidgetSkinPreflight.skinImportRequired(widgetShell) &&
+        !WidgetSkinPreflight.projectDeclaresZuraffaUi(cwd)) {
       // print() (not stdout.writeln) so the fix line lands on the same
       // captured channel as the verdict JSON — greppable by tooling and
       // by `zfa tdd run`'s step logs (the JSON verdict stays the final
       // stdout line).
-      print(WidgetShadcnPreflight.fixLine);
+      print(WidgetSkinPreflight.fixLine);
       _printVerdict(
         behaviorId: behavior.id,
         verdict: 'refused',
         kind: 'widget',
         reason:
-            'pubspec.yaml does not declare shadcn_ui — widget-lane '
-            'behaviors boot a ShadApp shell whose import would die at '
-            'compile (issue #938). Run: flutter pub add shadcn_ui',
+            'pubspec.yaml does not declare zuraffa_ui — widget-lane '
+            'behaviors boot a ZuraffaApp shell whose import would die at '
+            'compile (issue #938). Run: flutter pub add zuraffa_ui',
       );
       // House pattern (spec 048 / bug #840): signal through exitCode and
       // return, so the JSON verdict stays the final stdout line.
@@ -828,29 +806,26 @@ class GenCommand extends Command<void> {
       return 'refused';
     }
 
-    // Issue #1260 preflight (same #938 discipline): the certified
-    // `zuraffaapp` widget shell emits
-    // `import 'package:zuraffa_ui/zuraffa_ui.dart';`. When the target
-    // project's pubspec does not declare zuraffa_ui, that import cannot
-    // resolve: the generated pair dies at `verify-red` with compile-error
-    // and the loop never reaches an honest RED. Stop HERE — before any
-    // artifact write, registry append, or re-render — with the
-    // machine-parseable fix line. Deterministic: the check only READS the
-    // pubspec (no silent pubspec mutation). A pubspec-less fixture context
-    // keeps gen's pre-#1260 behavior (nothing to resolve).
-    if (effectiveBehavior.kind == BehaviorKind.widget &&
-        WidgetZuraffaPreflight.zuraffaImportRequired(widgetShell) &&
-        !WidgetZuraffaPreflight.projectDeclaresZuraffaUi(cwd)) {
-      print(WidgetZuraffaPreflight.fixLine);
+    // Issue #1277 follow-up (CodeRabbit review): the theme-kind harness
+    // (`ThemeHarnessTestWriter`) emits
+    // `import 'package:zuraffa_ui/zuraffa_ui.dart';` regardless of the
+    // --widget-shell value (the harness always uses ZfaTheme /
+    // ZuraffaApp). When the target project's pubspec does not declare
+    // zuraffa_ui, that import cannot resolve: the generated pair dies at
+    // `verify-red` with compile-error. Mirror the widget preflight's
+    // refuse-with-fix-line pattern for the theme lane.
+    if (effectiveBehavior.kind == BehaviorKind.theme &&
+        !WidgetSkinPreflight.projectDeclaresZuraffaUi(cwd)) {
+      print(WidgetSkinPreflight.fixLine);
       _printVerdict(
         behaviorId: behavior.id,
         verdict: 'refused',
-        kind: 'widget',
+        kind: 'theme',
         reason:
-            'pubspec.yaml does not declare zuraffa_ui — widget-lane '
-            'behaviors boot a ZuraffaApp shell (the skin lane\'s certified '
-            'shell) whose import would die at compile (issue #1260). Run: '
-            'flutter pub add zuraffa_ui',
+            'pubspec.yaml does not declare ${WidgetSkinPreflight.skinPackage} '
+            '— theme-lane behaviors boot a theme harness whose import '
+            'would die at compile (issue #1277 review). Run: flutter '
+            'pub add ${WidgetSkinPreflight.skinPackage}',
       );
       exitCode = 1;
       return 'refused';
@@ -1097,7 +1072,7 @@ class GenCommand extends Command<void> {
               behavior: effectiveBehavior,
               testPath: testPath,
               subjectPath: subjectPath,
-              golden: effectiveGolden,
+              golden: golden,
             ),
             'write test file',
           );
@@ -1220,11 +1195,6 @@ class GenCommand extends Command<void> {
         i18nKeys: i18nKeys,
         i18nImport: i18nImport,
         i18nExpansion: i18nExpansion,
-        // Bug #1261: the mirror must render the golden hook when the
-        // effective gate carries it — a golden-flagged (or declared)
-        // pair compared against a hookless render would report false
-        // staleness on every re-gen and strip the hook in the rewrite.
-        golden: effectiveGolden,
         bounded: bounded,
       );
     }
@@ -1362,7 +1332,7 @@ class GenCommand extends Command<void> {
   /// Writer selection by behavior kind (issue #841, issue #831, issue
   /// #1007): theme-kind behaviors get the theme-harness pair
   /// (`ThemeHarnessTestWriter` emitting the four-proof widget test —
-  /// ShadTheme assertions under both ThemeModes, hardcoded-color audit,
+  /// ZfaTheme assertions under both ThemeModes, hardcoded-color audit,
   /// golden baselines, switch latency — and `ThemeHarnessSubjectWriter`
   /// emitting the subject contract); platform-kind behaviors (issue
   /// #831) get the platform-harness pair (certified-fake channel test +
@@ -1378,7 +1348,7 @@ class GenCommand extends Command<void> {
   static _GenWriterPair _writersFor(
     Behavior behavior, {
     PlatformHarnessContext? platformContext,
-    WidgetAppShell widgetShell = WidgetAppShell.shadapp,
+    WidgetAppShell widgetShell = WidgetAppShell.zuraffaapp,
     I18nKeyTable i18nKeys = I18nKeyTable.empty,
     String? i18nImport,
     List<String> i18nExpansion = const [],
@@ -1416,9 +1386,7 @@ class GenCommand extends Command<void> {
 
   /// Resolves the widget template's app shell (issue #912 defect 2):
   /// the explicit `--widget-shell` flag wins over the `.zfa.json`
-  /// `tdd.widgetShell` project default. Issue #1260: a SKIN-LANE project
-  /// (pubspec declares `zuraffa_ui`) defaults to the certified
-  /// `zuraffaapp` shell; everything else falls back to ShadApp.
+  /// `tdd.widgetShell` project default; the fallback is ZuraffaApp.
   static WidgetAppShell _resolveWidgetShell(dynamic args, String cwd) {
     final flag = args?['widget-shell'] as String?;
     if (flag != null && flag.isNotEmpty) {
@@ -1427,14 +1395,7 @@ class GenCommand extends Command<void> {
     final config = ZfaConfig.load(projectRoot: cwd);
     final configured = config?.tddWidgetShell;
     if (configured != null) return WidgetAppShell.parse(configured);
-    // Issue #1260 remediation 1: skin-lane projects default to the
-    // certified shell so skin tests exercise the contract observer / audit
-    // bus / violation chrome the real app runs under. The check only
-    // READS the pubspec (no mutation, same determinism as the preflights).
-    if (WidgetZuraffaPreflight.projectIsSkinLane(cwd)) {
-      return WidgetAppShell.zuraffaapp;
-    }
-    return WidgetAppShell.shadapp;
+    return WidgetAppShell.zuraffaapp;
   }
 
   /// Resolves the expansion locales for the optional i18n tier (issue
@@ -1597,11 +1558,10 @@ class GenCommand extends Command<void> {
     required String subjectPath,
     required Future<T> Function<T>(Future<T> stage, String stageName) bounded,
     PlatformHarnessContext? platformContext,
-    WidgetAppShell widgetShell = WidgetAppShell.shadapp,
+    WidgetAppShell widgetShell = WidgetAppShell.zuraffaapp,
     I18nKeyTable i18nKeys = I18nKeyTable.empty,
     String? i18nImport,
     List<String> i18nExpansion = const [],
-    bool golden = false,
   }) async {
     // Bug #835: an ffi harness is NEVER auto-regenerated. Its contract
     // seams are the implementer's wiring point — partial wiring (the
@@ -1659,7 +1619,6 @@ class GenCommand extends Command<void> {
           behavior: behavior,
           testPath: mirroredTest,
           subjectPath: mirroredSubject,
-          golden: golden,
         ),
         'staleness: render current pair (test)',
       );
@@ -1804,7 +1763,6 @@ class GenCommand extends Command<void> {
         target: row.target,
         persistence: row.persistence,
         finderKinds: row.finderKinds,
-        golden: row.golden,
       );
     }
     return null;

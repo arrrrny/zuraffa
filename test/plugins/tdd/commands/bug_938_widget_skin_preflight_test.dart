@@ -1,21 +1,21 @@
-// Bug #938 — widget-lane gen must preflight the project's shadcn_ui
+// Bug #938 — widget-lane gen must preflight the project's zuraffa_ui
 // dependency BEFORE writing artifacts (VISION §4 errors-are-an-API).
 //
 // The widget-pair generator (issue #912 defect 2) boots generated widget
-// tests inside a ShadApp shell, which emits
-// `import 'package:shadcn_ui/shadcn_ui.dart';`. On a fresh zfa setup /
-// zfa-init project whose pubspec does not declare shadcn_ui, that import
+// tests inside a ZuraffaApp shell, which emits
+// `import 'package:zuraffa_ui/zuraffa_ui.dart';`. On a fresh zfa setup /
+// zfa-init project whose pubspec does not declare zuraffa_ui, that import
 // cannot resolve: `verify-red` dies at compile-error and the TDD loop can
 // never reach an honest RED.
 //
 // Fix contract (issue #938): `zfa tdd gen` (widget kind) resolves the
-// project pubspec FIRST; when `shadcn_ui` is absent it refuses — exit
+// project pubspec FIRST; when `zuraffa_ui` is absent it refuses — exit
 // non-zero, a machine-parseable `--> fix:` line on stdout, zero artifacts
 // written — instead of emitting a test that can only die at compile.
 //
 // Determinism constraints pinned here:
-//   - a pubspec that DECLARES shadcn_ui → gen proceeds unchanged;
-//   - an explicit `--widget-shell materialapp` opt-out emits no shadcn
+//   - a pubspec that DECLARES zuraffa_ui → gen proceeds unchanged;
+//   - an explicit `--widget-shell materialapp` opt-out emits no skin
 //     import → the preflight does not apply;
 //   - no pubspec.yaml at all → pre-existing behavior (nothing to resolve).
 library;
@@ -28,13 +28,13 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 
 /// The canonical, machine-parseable fix line (issue #938).
 const String kExpectedFixLine =
-    '--> fix: flutter pub add shadcn_ui '
-    '(widget-lane behaviors boot a ShadApp shell)';
+    '--> fix: flutter pub add zuraffa_ui '
+    '(widget-lane behaviors boot a ZuraffaApp shell)';
 
 void main() {
   late Directory tmpDir;
   late String featureDir;
-  const featureName = '090-shadcn-preflight-fixture';
+  const featureName = '090-skin-preflight-fixture';
 
   setUp(() {
     tmpDir = Directory.systemTemp.createTempSync('bug938_preflight_');
@@ -124,14 +124,14 @@ environment:
   );
 
   // ------------------------------------------------------------------
-  // Acceptance (issue #938): shadcn-less project → refuse with the fix.
+  // Acceptance (issue #938): skin-less project → refuse with the fix.
   // ------------------------------------------------------------------
-  group('bug938: widget gen preflights the shadcn_ui dependency', () {
-    test('shadcn-less project: widget gen exits non-zero with the --> fix: '
+  group('bug938: widget gen preflights the zuraffa_ui dependency', () {
+    test('skin-less project: widget gen exits non-zero with the --> fix: '
         'line and writes NO artifacts', () async {
       await seedWidgetBehavior();
       // A fresh zfa setup project: flutter, zorphy_annotation,
-      // zuraffa_flutter — NO shadcn_ui (issue #938 repro pubspec).
+      // zuraffa_flutter — NO zuraffa_ui (issue #938 repro pubspec).
       await seedPubspec(
         dependencies: ['flutter: {sdk: flutter}', 'zorphy_annotation: ^2.3.0'],
       );
@@ -143,7 +143,7 @@ environment:
         exitCode,
         isNot(0),
         reason:
-            'issue #938: gen must refuse on a shadcn_ui-less project — '
+            'issue #938: gen must refuse on a zuraffa_ui-less project — '
             'got stdout:\n$out',
       );
       expect(
@@ -151,7 +151,7 @@ environment:
         contains(kExpectedFixLine),
         reason:
             'the fix line must be machine-parseable and name the exact '
-            'remedy (flutter pub add shadcn_ui)',
+            'remedy (flutter pub add zuraffa_ui)',
       );
       // Errors-are-an-API: no artifact that can only die at compile.
       expect(
@@ -174,11 +174,11 @@ environment:
     });
 
     test(
-      'project declaring shadcn_ui: widget gen proceeds unchanged',
+      'project declaring zuraffa_ui: widget gen proceeds unchanged',
       () async {
         await seedWidgetBehavior();
         await seedPubspec(
-          dependencies: ['flutter: {sdk: flutter}', 'shadcn_ui: ^1.0.0'],
+          dependencies: ['flutter: {sdk: flutter}', 'zuraffa_ui: ^1.0.0'],
         );
 
         final runner = CliRunner(exitOnCompletion: false);
@@ -188,33 +188,33 @@ environment:
         final testFile = File(testArtifact('A1'));
         expect(testFile.existsSync(), isTrue, reason: out);
         final content = testFile.readAsStringSync();
-        expect(content, contains("import 'package:shadcn_ui/shadcn_ui.dart';"));
-      },
-    );
-
-    test(
-      'explicit materialapp shell: no shadcn import, no preflight',
-      () async {
-        await seedWidgetBehavior();
-        await seedPubspec(dependencies: ['flutter: {sdk: flutter}']);
-
-        final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(
-          genArgs('A1', ['--widget-shell', 'materialapp']),
-        );
-
-        expect(exitCode, 0, reason: out);
-        final content = File(testArtifact('A1')).readAsStringSync();
-        expect(content, contains('pumpWidget(MaterialApp('));
         expect(
           content,
-          isNot(contains('package:shadcn_ui')),
-          reason:
-              'a materialapp shell emits no shadcn import, so the '
-              'preflight must not fire',
+          contains("import 'package:zuraffa_ui/zuraffa_ui.dart';"),
         );
       },
     );
+
+    test('explicit materialapp shell: no skin import, no preflight', () async {
+      await seedWidgetBehavior();
+      await seedPubspec(dependencies: ['flutter: {sdk: flutter}']);
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        genArgs('A1', ['--widget-shell', 'materialapp']),
+      );
+
+      expect(exitCode, 0, reason: out);
+      final content = File(testArtifact('A1')).readAsStringSync();
+      expect(content, contains('pumpWidget(MaterialApp('));
+      expect(
+        content,
+        isNot(contains('package:zuraffa_ui')),
+        reason:
+            'a materialapp shell emits no skin import, so the '
+            'preflight must not fire',
+      );
+    });
 
     test('no pubspec.yaml: pre-existing gen behavior preserved', () async {
       await seedWidgetBehavior();
@@ -230,4 +230,4 @@ environment:
   });
 }
 // Unit pins for the preflight probe + fix-line contract live in
-// test/plugins/tdd/services/bug_938_shadcn_preflight_unit_test.dart.
+// test/plugins/tdd/services/bug_938_skin_preflight_unit_test.dart.

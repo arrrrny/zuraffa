@@ -1,12 +1,12 @@
 /// ThemeHarnessTestWriter — emits the Flutter widget test for a
 /// `theme`-kind behavior (issue #841 — theme harness: light/dark scheme +
-/// typography as executable proof, shadcn_ui/ShadTheme).
+/// typography as executable proof, zuraffa_ui/ZfaTheme).
 ///
 /// The emitted file is the FOUR-PROOF harness:
 ///
-///   1. ShadTheme assertions — pumps the app shell (subject contract
+///   1. ZfaTheme assertions — pumps the app shell (subject contract
 ///      `appShellFor(mode)`) under BOTH `ThemeMode.light` and
-///      `ThemeMode.dark` and asserts `ShadTheme.of(context)` against the
+///      `ThemeMode.dark` and asserts `ZfaTheme.of(context)` against the
 ///      certified values the subject wires from the app's constants file:
 ///      `colorScheme.primary` per mode (dark inverse), `textTheme.family`,
 ///      headline weight, and the sonner/toaster themed certification.
@@ -38,7 +38,7 @@
 ///
 /// Target-project prerequisites (documented in the emitted header):
 /// Flutter + the flutter test profile (`TddProfile.flutter`), the
-/// `shadcn_ui` dependency (the shell installs ShadTheme via ShadApp), and
+/// `zuraffa_ui` dependency (the shell installs ZfaTheme via ZuraffaApp), and
 /// the `analyzer` dev_dependency for the audit block.
 library;
 
@@ -92,8 +92,8 @@ class ThemeHarnessTestWriter {
 //
 // THEME HARNESS — four executable proofs in this one file:
 //
-//   1. ShadTheme assertions — pumps the app shell under ThemeMode.light
-//      AND ThemeMode.dark and asserts ShadTheme.of(context) against the
+//   1. ZfaTheme assertions — pumps the app shell under ThemeMode.light
+//      AND ThemeMode.dark and asserts ZfaTheme.of(context) against the
 //      values wired in the paired subject: brand primary per mode (dark
 //      inverse), typography family + headline weight, and the sonner/
 //      toaster themed certification.
@@ -112,8 +112,8 @@ class ThemeHarnessTestWriter {
 //      flaky wall-clock sleep).
 //
 // PREREQUISITES (target project): Flutter + the flutter test profile;
-// the shadcn_ui dependency (the shell must install ShadTheme via
-// ShadApp); the analyzer dev_dependency (the audit block parses lib/
+// the zuraffa_ui dependency (the shell must install ZfaTheme via
+// ZuraffaApp); the analyzer dev_dependency (the audit block parses lib/
 // sources). The paired subject at `$relativeSubjectPath` must be wired to
 // the app's REAL theme constants and shell — never inline values here.
 library;
@@ -125,32 +125,32 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:zuraffa_ui/zuraffa_ui.dart';
 
 import '$relativeSubjectPath' as subject;
 
-/// The ShadTheme installed above [element], or null when no ShadTheme
-/// ancestor exists (ShadTheme.of throws a FlutterError there — walking is
+/// The ZfaTheme installed above [element], or null when no ZfaTheme
+/// ancestor exists (ZfaTheme.of throws a FlutterError there — walking is
 /// how the harness reads the theme from an arbitrary shell structure).
-ShadThemeData? _themeAbove(Element element) {
+ZfaThemeData? _themeAbove(Element element) {
   try {
-    return ShadTheme.of(element);
+    return ZfaTheme.of(element);
   } on FlutterError {
     return null;
   }
 }
 
-/// Walks the pumped tree deepest-first and returns the first ShadTheme
-/// found. A single ShadApp installs exactly one ShadTheme, so any
+/// Walks the pumped tree deepest-first and returns the first ZfaTheme
+/// found. A single ZuraffaApp installs exactly one ZfaTheme, so any
 /// descendant read yields the same data.
-ShadThemeData _readInstalledTheme(WidgetTester tester) {
+ZfaThemeData _readInstalledTheme(WidgetTester tester) {
   for (final element in tester.allElements.reversed) {
     final theme = _themeAbove(element);
     if (theme != null) return theme;
   }
   fail(
-    'no ShadTheme found in the pumped tree — the app shell must install '
-    'ShadTheme (ShadApp) for the theme harness to assert on it',
+    'no ZfaTheme found in the pumped tree — the app shell must install '
+    'ZfaTheme (ZuraffaApp) for the theme harness to assert on it',
   );
 }
 
@@ -194,7 +194,7 @@ class _RawColorCollector extends RecursiveAstVisitor<void> {
 void main() {
   group('$escapedGroup', () {
     // ------------------------------------------------------------------
-    // Proof 1 — ShadTheme assertions under BOTH ThemeModes.
+    // Proof 1 — ZfaTheme assertions under BOTH ThemeModes.
     // ------------------------------------------------------------------
     for (final mode in ThemeMode.values) {
       testWidgets(
@@ -230,7 +230,7 @@ void main() {
             theme.colorScheme.primary,
             expectedPrimary,
             reason:
-                'ShadTheme primary must equal the constants-file brand '
+                'ZfaTheme primary must equal the constants-file brand '
                 'color in \${mode.name} mode (dark mode inverse)',
           );
 
@@ -323,7 +323,7 @@ void main() {
           await tester.pumpWidget(shell!);
           await tester.pumpAndSettle();
           await expectLater(
-            find.byType(ShadApp),
+            find.byType(ZuraffaApp),
             matchesGoldenFile(
               'goldens/\${defaultTargetPlatform.name}/\${mode.name}/'
               '$snakeId.png',

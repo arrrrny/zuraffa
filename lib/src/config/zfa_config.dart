@@ -37,7 +37,7 @@ class ZfaConfig {
     'sqlite': false,
     'gql': false,
     'graphql': false,
-    'shadcn': false,
+    'skin': false,
     'method_append': false,
     'xray': false,
     // 029-agent-plugin-mcp-wrappers: the AgentPlugin is dormant by
@@ -167,20 +167,14 @@ class ZfaConfig {
       'adaptive-feature';
 
   /// Issue #912 defect 2: the widget template's app shell from
-  /// `.zfa.json` `tdd.widgetShell` (`shadapp` | `materialapp` |
-  /// `zuraffaapp` — issue #1260), or null when unset/unknown (the caller
-  /// applies the shell default: `zuraffaapp` on skin-lane projects,
-  /// `shadapp` otherwise).
+  /// `.zfa.json` `tdd.widgetShell` (`zuraffaapp` | `materialapp`), or null
+  /// when unset/unknown (the caller applies the zuraffaapp default).
   String? get tddWidgetShell {
     final tdd = rawTdd;
     if (tdd is! Map) return null;
     for (final key in const ['widgetShell', 'widget_shell']) {
       final value = tdd[key]?.toString();
-      if (value == 'shadapp' ||
-          value == 'materialapp' ||
-          value == 'zuraffaapp') {
-        return value;
-      }
+      if (value == 'zuraffaapp' || value == 'materialapp') return value;
     }
     return null;
   }

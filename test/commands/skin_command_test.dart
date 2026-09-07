@@ -9,7 +9,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
-import 'package:zuraffa/src/commands/skin_command.dart';
+import 'package:zuraffa/src/plugins/skin/commands/skin_command.dart';
+import 'package:zuraffa/src/plugins/skin/skin_plugin.dart';
 
 Future<String> captureOutput(Future<void> Function() body) async {
   final output = <String>[];
@@ -52,8 +53,15 @@ dependencies:
 
   Future<(String, int)> runSkin(List<String> args) async {
     exitCode = 0;
+    // Spec 1276: the `zfa skin` group is the skin plugin's command, with
+    // the runtime auditor subcommands (kit/verify/drive) mounted on it.
     final runner = CommandRunner<void>('zfa', 'test')
-      ..addCommand(SkinCommand(projectRoot: projectRoot));
+      ..addCommand(
+        SkinCommand(
+          SkinPlugin(outputDir: p.join(projectRoot, 'lib', 'src')),
+          projectRoot: projectRoot,
+        ),
+      );
     final output = await captureOutput(() => runner.run(['skin', ...args]));
     return (output, exitCode);
   }

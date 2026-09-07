@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:path/path.dart' as path;
 import 'package:zuraffa/src/core/generator_options.dart';
-import 'package:zuraffa/src/plugins/shadcn/shadcn_plugin.dart';
+import 'package:zuraffa/src/plugins/skin/skin_plugin.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_context.dart';
 import 'package:zuraffa/src/core/plugin_system/discovery_engine.dart';
 
@@ -11,7 +11,7 @@ void main() {
   late String outputDir;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('zuraffa_shadcn_test_');
+    tempDir = await Directory.systemTemp.createTemp('zuraffa_skin_test_');
     outputDir = path.join(tempDir.path, 'lib', 'src');
     await Directory(outputDir).create(recursive: true);
   });
@@ -22,8 +22,8 @@ void main() {
     }
   });
 
-  test('ShadcnPlugin generates list widget with active discovery', () async {
-    final plugin = ShadcnPlugin(
+  test('SkinPlugin generates list widget with active discovery', () async {
+    final plugin = SkinPlugin(
       outputDir: outputDir,
       options: const GeneratorOptions(dryRun: false, force: true),
     );
@@ -73,18 +73,20 @@ class Product {
       ),
     );
 
-    // Verify shadcn components and logic
+    // Verify skin components and logic (certified zuraffa_ui vocabulary)
     expect(
       content,
       contains('class ProductListWidget extends StatelessWidget'),
     );
-    expect(content, contains('ShadInput('));
-    expect(content, contains('ShadButton.outline('));
-    expect(content, contains('ShadCard('));
+    expect(content, contains('ZfaInput('));
+    expect(content, contains('ZfaButton('));
+    expect(content, contains('ZfaCard('));
+    expect(content, contains("import 'package:zuraffa_ui/zuraffa_ui.dart';"));
+    expect(content, isNot(contains('Shad')));
   });
 
-  test('ShadcnPlugin generates form widget', () async {
-    final plugin = ShadcnPlugin(
+  test('SkinPlugin generates form widget', () async {
+    final plugin = SkinPlugin(
       outputDir: outputDir,
       options: const GeneratorOptions(dryRun: false, force: true),
     );
@@ -121,13 +123,19 @@ class Product {
     final content = File(results.first.path).readAsStringSync();
 
     expect(content, contains('class ProductFormWidget extends StatefulWidget'));
-    expect(content, contains('ShadForm('));
-    expect(content, contains("id: 'id'"));
-    expect(content, contains("id: 'name'"));
-    expect(content, contains("id: 'stock'"));
+    expect(content, contains('ZfaInput('));
+    expect(content, contains('ZfaButton('));
+    expect(content, contains("placeholder: 'Id',"));
+    expect(content, contains("placeholder: 'Name',"));
+    expect(content, contains("placeholder: 'Stock',"));
+    expect(
+      content,
+      contains("onChanged: (value) => _values['stock'] = value,"),
+    );
     expect(
       content,
       contains('keyboardType: TextInputType.number'),
     ); // For int stock
+    expect(content, isNot(contains('Shad')));
   });
 }

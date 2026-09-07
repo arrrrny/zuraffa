@@ -84,7 +84,7 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     'gql',
     'cache',
     'route',
-    'shadcn',
+    'skin',
   ];
 
   @override

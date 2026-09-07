@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
-import 'package:zuraffa/src/plugins/shadcn/vocabulary/payload_validator.dart';
-import 'package:zuraffa/src/plugins/shadcn/vocabulary/ui_node_registry.dart';
+import 'package:zuraffa/src/plugins/skin/vocabulary/payload_validator.dart';
+import 'package:zuraffa/src/plugins/skin/vocabulary/ui_node_registry.dart';
 
 void main() {
   late Directory tempDir;
