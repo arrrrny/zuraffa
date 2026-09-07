@@ -146,7 +146,9 @@ class GenCommand extends Command<void> {
           'Widget kind only (bug #830): append a matchesGoldenFile baseline '
           'hook to the generated widget test. Baselines are committed per '
           'platform under test/tdd/goldens/ and refreshed with `flutter test '
-          '--update-goldens`.',
+          '--update-goldens`. A SKIN behavior whose lane plan marks it '
+          '` [golden]` (the spec `## Lanes` SKIN row\'s `golden:` '
+          'declaration, bug #1261) gets the hook WITHOUT this flag.',
       defaultsTo: false,
       negatable: false,
     );
@@ -701,6 +703,23 @@ class GenCommand extends Command<void> {
         '(use --kind widget or mark the test-list row widget).',
       );
     }
+    // Bug #1261: the spec-declared golden gate. A behavior whose lane
+    // plan marks it ` [golden]` (the SKIN row's `golden:` declaration)
+    // carries the hook WITHOUT the flag — a regenerating agent reads
+    // the gate straight from the plan; the flag ORs in on top. The
+    // gate is widget-only exactly like the flag: a declared golden on
+    // another kind is INERT and warns (plan refuses the drift
+    // upstream; this is the hand-edited-row defense).
+    final declaredGolden =
+        behavior.golden && effectiveKind == BehaviorKind.widget;
+    if (behavior.golden && !declaredGolden) {
+      print(
+        'zfa tdd gen: behavior "$behaviorId" declares golden but is '
+        '${effectiveKind.name}-kind — the golden hook is widget-only '
+        '(bug #830); the declaration is inert for this row.',
+      );
+    }
+    final effectiveGolden = golden || declaredGolden;
     final effectiveBehavior =
         identical(kindOverride, null) || kindOverride == behavior.kind
         ? behavior
@@ -713,6 +732,7 @@ class GenCommand extends Command<void> {
             target: behavior.target,
             state: behavior.state,
             finderKinds: behavior.finderKinds,
+            golden: behavior.golden,
           );
 
     // Validate required fields up front (FR-002).
@@ -1047,7 +1067,7 @@ class GenCommand extends Command<void> {
               behavior: effectiveBehavior,
               testPath: testPath,
               subjectPath: subjectPath,
-              golden: golden,
+              golden: effectiveGolden,
             ),
             'write test file',
           );
@@ -1170,6 +1190,11 @@ class GenCommand extends Command<void> {
         i18nKeys: i18nKeys,
         i18nImport: i18nImport,
         i18nExpansion: i18nExpansion,
+        // Bug #1261: the mirror must render the golden hook when the
+        // effective gate carries it — a golden-flagged (or declared)
+        // pair compared against a hookless render would report false
+        // staleness on every re-gen and strip the hook in the rewrite.
+        golden: effectiveGolden,
         bounded: bounded,
       );
     }
@@ -1537,6 +1562,7 @@ class GenCommand extends Command<void> {
     I18nKeyTable i18nKeys = I18nKeyTable.empty,
     String? i18nImport,
     List<String> i18nExpansion = const [],
+    bool golden = false,
   }) async {
     // Bug #835: an ffi harness is NEVER auto-regenerated. Its contract
     // seams are the implementer's wiring point — partial wiring (the
@@ -1594,6 +1620,7 @@ class GenCommand extends Command<void> {
           behavior: behavior,
           testPath: mirroredTest,
           subjectPath: mirroredSubject,
+          golden: golden,
         ),
         'staleness: render current pair (test)',
       );
@@ -1738,6 +1765,7 @@ class GenCommand extends Command<void> {
         target: row.target,
         persistence: row.persistence,
         finderKinds: row.finderKinds,
+        golden: row.golden,
       );
     }
     return null;

@@ -186,7 +186,13 @@ class SplitCommand extends Command<void> {
 
     // The emitted lane rows: the prior rows verbatim (id, description,
     // traces, state, kind preserved — the migration never rewords a
-    // row), assigned to their lane.
+    // row), assigned to their lane. Bug #1261: the SKIN lane's golden
+    // declaration rides the migration too — widget-kind rows the SKIN
+    // lane declares golden keep the gate as a ` [golden]` tag.
+    final goldenIds = <String>{
+      for (final lane in lanes)
+        if (Lane.parse(lane.lane) == Lane.skin) ...lane.goldenIds,
+    };
     final allRows = [
       for (final row in rows)
         LaneRow(
@@ -196,6 +202,7 @@ class SplitCommand extends Command<void> {
           state: row.state.name.toUpperCase(),
           kind: row.kind,
           lane: classification[row.id]!,
+          golden: goldenIds.contains(row.id) && row.kind == BehaviorKind.widget,
         ),
     ];
     final engineRows = allRows.where((r) => r.lane.destinedForEngine).toList();
@@ -277,6 +284,9 @@ class SplitCommand extends Command<void> {
       },
       'classification_source': sources,
       'adaptive_slots': adaptiveSlots,
+      // Bug #1261: the golden ids the migrated skin plan carries — the
+      // audit record of the visual contract the spec declared.
+      'golden_ids': goldenIds.toList()..sort(),
       'files': [
         'tdd/${LaneSplitFiles.engine}',
         'tdd/${LaneSplitFiles.skin}',
