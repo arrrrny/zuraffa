@@ -1,6 +1,7 @@
 import 'base_plugin_command.dart';
 import '../plugins/state/state_plugin.dart';
 import 'state_create_command.dart';
+import 'state_verify_command.dart';
 
 class StateCommand extends PluginCommand {
   @override
@@ -11,15 +12,21 @@ class StateCommand extends PluginCommand {
     // envelope + receipt) — declared here so the auto-registration in
     // the super constructor skips it (manualSubcommandNames) and this
     // registration cannot collide (issue #761).
+    //
+    // SPEC 1126: `verify` joins as the second first-party subcommand —
+    // the receipt-contract drift gate (`zfa state verify <Entity>`),
+    // the grammar gate every A+ plugin ships (cache/provider/service/
+    // datasource precedents).
     addSubcommand(StateCreateCommand(plugin));
+    addSubcommand(StateVerifyCommand(plugin));
   }
 
-  /// The `create` subcommand is registered manually above — the
-  /// auto-registered generic [CapabilityCommand] would collide and
-  /// cannot carry the `--json` verdict flag (its `--json` is the
-  /// input-JSON option).
+  /// `create` and `verify` are registered manually above — the
+  /// auto-registered generic [CapabilityCommand] for `create` cannot
+  /// carry the `--json` verdict flag (its `--json` is the input-JSON
+  /// option), and the generic runner has no `verify` verb at all.
   @override
-  Set<String> get manualSubcommandNames => const {'create'};
+  Set<String> get manualSubcommandNames => const {'create', 'verify'};
 
   @override
   String get name => 'state';

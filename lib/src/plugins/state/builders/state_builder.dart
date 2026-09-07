@@ -11,6 +11,7 @@ import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/project_flavor.dart';
 import '../../../utils/string_utils.dart';
+import '../state_provenance.dart';
 
 /// Generates state classes for presentation controllers.
 class StateBuilder {
@@ -240,9 +241,14 @@ class StateBuilder {
         specLibrary.library(specs: [clazz], directives: directives),
       );
 
+      // Spec 1126 order 5: the provenance header stamps every fresh
+      // emission (deterministic — version + regeneration hint; the run
+      // timestamp lives in the receipt).
+      final stamped = StateProvenance.headerFor(entityName) + content;
+
       return FileUtils.writeFile(
         filePath,
-        content,
+        stamped,
         'state',
         force: options.force,
         dryRun: options.dryRun,
@@ -316,9 +322,14 @@ class StateBuilder {
         specLibrary.library(specs: [clazz], directives: directives),
       );
 
+      // Spec 1126 order 5: the provenance header stamps every fresh
+      // emission (deterministic — version + regeneration hint; the run
+      // timestamp lives in the receipt).
+      final stamped = StateProvenance.headerFor(entityName) + content;
+
       return FileUtils.writeFile(
         filePath,
-        content,
+        stamped,
         'state',
         force: options.force,
         dryRun: options.dryRun,
