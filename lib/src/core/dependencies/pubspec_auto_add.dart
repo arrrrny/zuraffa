@@ -27,13 +27,18 @@
 ///   speaks with one voice.
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 /// Signature for the process spawner used by the mechanical auto-add.
 /// Injectable so tests can record invocations without side effects
 /// (mirrors the `ZfaProcessRunner` typedef in doctor_checks.dart).
 typedef PubspecProcessRunner =
-    Future<ProcessResult> Function(String executable, List<String> args);
+    Future<ProcessResult> Function(
+      String executable,
+      List<String> args,
+      String workingDirectory,
+    );
 
 /// Outcome of one [PubspecAutoAdd.add] attempt.
 class PubspecAutoAddResult {
@@ -69,12 +74,37 @@ class PubspecAutoAddResult {
 /// reported in [PubspecAutoAddResult.failed], never thrown.
 class PubspecAutoAdd {
   /// Fallback spawner with the same generous timeout convention as the
-  /// doctor fixes (`Process.run` under a network-resolving `pub add`).
+  /// doctor fixes (a network-resolving `pub add`).
   static Future<ProcessResult> _defaultProcessRunner(
     String executable,
     List<String> args,
+    String workingDirectory,
   ) async {
-    return Process.run(executable, args).timeout(const Duration(minutes: 10));
+    final process = await Process.start(
+      executable,
+      args,
+      workingDirectory: workingDirectory,
+    );
+    final stdout = process.stdout.transform(systemEncoding.decoder).join();
+    final stderr = process.stderr.transform(systemEncoding.decoder).join();
+
+    try {
+      final completed = await Future.wait<Object>([
+        process.exitCode,
+        stdout,
+        stderr,
+      ]).timeout(const Duration(minutes: 10));
+      return ProcessResult(
+        process.pid,
+        completed[0] as int,
+        completed[1] as String,
+        completed[2] as String,
+      );
+    } on TimeoutException {
+      process.kill();
+      await process.exitCode;
+      rethrow;
+    }
   }
 
   /// Runs `<flutter|dart> pub add <packages…>` in [projectRoot].
@@ -119,7 +149,7 @@ class PubspecAutoAdd {
     final commandLine = '$executable ${args.join(' ')}';
 
     try {
-      final result = await runner(executable, args);
+      final result = await runner(executable, args, projectRoot);
       if (result.exitCode == 0) {
         return PubspecAutoAddResult(
           requested: requested,

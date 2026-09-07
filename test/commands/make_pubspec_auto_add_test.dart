@@ -34,7 +34,11 @@ class _RecordingRunner {
 
   _RecordingRunner({this.exitCode = 0, this.simulate = false, this.sandbox});
 
-  Future<ProcessResult> call(String executable, List<String> args) async {
+  Future<ProcessResult> call(
+    String executable,
+    List<String> args,
+    String workingDirectory,
+  ) async {
     invocations.add('$executable ${args.join(' ')}');
     if (simulate &&
         exitCode == 0 &&

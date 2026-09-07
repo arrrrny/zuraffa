@@ -35,7 +35,11 @@ class _RecordingRunner {
 
   _RecordingRunner({this.exitCode = 0, this.simulate = false, this.sandbox});
 
-  Future<ProcessResult> call(String executable, List<String> args) async {
+  Future<ProcessResult> call(
+    String executable,
+    List<String> args,
+    String workingDirectory,
+  ) async {
     invocations.add('$executable ${args.join(' ')}');
     if (simulate && args.length >= 3 && args[0] == 'pub' && args[1] == 'add') {
       final pubspec = File('${sandbox!.path}/pubspec.yaml');

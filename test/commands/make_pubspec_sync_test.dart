@@ -29,7 +29,11 @@ class _RecordingAddRunner {
   final int exitCode;
   _RecordingAddRunner(this.workspace, {this.exitCode = 0});
 
-  Future<ProcessResult> call(String executable, List<String> args) async {
+  Future<ProcessResult> call(
+    String executable,
+    List<String> args,
+    String workingDirectory,
+  ) async {
     invocations.add('$executable ${args.join(' ')}');
     if (exitCode == 0 &&
         args.length >= 3 &&

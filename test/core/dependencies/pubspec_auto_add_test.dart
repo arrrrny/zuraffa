@@ -20,17 +20,22 @@ import 'package:zuraffa/src/core/dependencies/pubspec_auto_add.dart';
 /// pubspec.yaml) so callers can pin the end state without a network.
 class _RecordingRunner {
   final List<String> invocations = [];
+  final List<String> workingDirectories = [];
   final bool simulate;
   final int exitCode;
-  final Directory? sandbox;
 
-  _RecordingRunner({this.simulate = false, this.exitCode = 0, this.sandbox});
+  _RecordingRunner({this.simulate = false, this.exitCode = 0});
 
-  Future<ProcessResult> call(String executable, List<String> args) async {
+  Future<ProcessResult> call(
+    String executable,
+    List<String> args,
+    String workingDirectory,
+  ) async {
     invocations.add('$executable ${args.join(' ')}');
-    if (simulate && sandbox != null && args.first == 'pub') {
+    workingDirectories.add(workingDirectory);
+    if (simulate && args.first == 'pub') {
       final packages = args.skip(2).toList(); // ['pub', 'add', ...pkgs]
-      final pubspec = File('${sandbox!.path}/pubspec.yaml');
+      final pubspec = File('$workingDirectory/pubspec.yaml');
       var content = pubspec.readAsStringSync();
       if (!content.contains('dependencies:')) {
         content = '${content}dependencies:\n';
@@ -106,7 +111,11 @@ void main() {
     test(
       'missing executable (ProcessException) → failed, not a crash',
       () async {
-        Future<ProcessResult> boom(String exe, List<String> args) async {
+        Future<ProcessResult> boom(
+          String exe,
+          List<String> args,
+          String workingDirectory,
+        ) async {
           throw ProcessException(exe, args, 'flutter: command not found');
         }
 
@@ -137,7 +146,7 @@ dependencies:
   flutter:
     sdk: flutter
 ''');
-      final runner = _RecordingRunner(simulate: true, sandbox: dir);
+      final runner = _RecordingRunner(simulate: true);
       final result = await PubspecAutoAdd.add(
         projectRoot: dir.path,
         packages: ['go_router'],
@@ -148,6 +157,44 @@ dependencies:
       expect(result.added, ['go_router']);
       final pubspec = File('${dir.path}/pubspec.yaml').readAsStringSync();
       expect(pubspec, contains('go_router:'));
+    });
+
+    test('runs pub add in projectRoot, not the caller directory', () async {
+      final caller = await Directory.systemTemp.createTemp('zfa-1265-caller-');
+      final target = await Directory.systemTemp.createTemp('zfa-1265-target-');
+      final previousDirectory = Directory.current.path;
+      addTearDown(() async {
+        Directory.current = previousDirectory;
+        for (final directory in [caller, target]) {
+          try {
+            await directory.delete(recursive: true);
+          } catch (_) {}
+        }
+      });
+      const pubspec = '''
+name: sandbox_app
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+dependencies:
+''';
+      final callerPubspec = File('${caller.path}/pubspec.yaml');
+      final targetPubspec = File('${target.path}/pubspec.yaml');
+      await callerPubspec.writeAsString(pubspec);
+      await targetPubspec.writeAsString(pubspec);
+      Directory.current = caller.path;
+      final runner = _RecordingRunner(simulate: true);
+
+      final result = await PubspecAutoAdd.add(
+        projectRoot: target.path,
+        packages: ['go_router'],
+        isFlutter: false,
+        runner: runner.call,
+      );
+
+      expect(result.added, ['go_router']);
+      expect(runner.workingDirectories, [target.path]);
+      expect(await targetPubspec.readAsString(), contains('go_router:'));
+      expect(await callerPubspec.readAsString(), isNot(contains('go_router:')));
     });
   });
 
