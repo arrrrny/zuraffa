@@ -89,6 +89,7 @@ class BehaviorRow {
     required this.target,
     this.persistence = false,
     this.lane,
+    this.golden = false,
     this.finderKinds,
   });
 
@@ -111,6 +112,14 @@ class BehaviorRow {
   /// ` [persistence]` tag (bug #833). The tag is stripped from
   /// [description] so generated assertion prose never leaks it.
   final bool persistence;
+
+  /// Whether the plan marked the behavior golden-gated with the
+  /// ` [golden]` tag (bug #1261): the lane plan's declaration that the
+  /// behavior's widget test carries a `matchesGoldenFile` baseline hook.
+  /// gen turns the mark into the golden hook WITHOUT the `--golden`
+  /// flag. The tag is stripped from [description] exactly like
+  /// `[persistence]`.
+  final bool golden;
 
   /// The finder-kind column the plan writes for WIDGET rows (issue
   /// #1140): the scenario verbs' predicted assertion classes, parsed
@@ -181,6 +190,50 @@ class PersistenceMarker {
   }
 
   /// Split a behavior cell into (description, persistence): the tag is
+  /// removed wherever it sits, everything else is kept verbatim.
+  static (String, bool) extract(String cell) {
+    var text = cell;
+    var marked = false;
+    while (true) {
+      final idx = text.toLowerCase().indexOf(tag);
+      if (idx < 0) break;
+      marked = true;
+      text = text.substring(0, idx) + text.substring(idx + tag.length);
+    }
+    if (!marked) return (cell, false);
+    return (text.replaceAll(RegExp(r'\s+'), ' ').trim(), true);
+  }
+}
+
+/// The `[golden]` marker contract (bug #1261).
+///
+/// The plan marks a SKIN behavior golden-gated by appending ` [golden]`
+/// to the behavior cell of the 04-SKIN.md row; the shared reader parses
+/// the mark into [BehaviorRow.golden] and strips it from the description
+/// prose. The marker lives here — the SINGLE format contract — so plan
+/// (mark), reader (parse) and any tooling agree on the exact tag shape.
+/// gen turns the mark into a `matchesGoldenFile` baseline hook WITHOUT
+/// the `--golden` flag: a regenerating agent can read the gate straight
+/// from the lane plan.
+class GoldenMarker {
+  const GoldenMarker._();
+
+  /// The exact tag appended by plan and parsed by the reader.
+  static const String tag = '[golden]';
+
+  /// Whether [description] carries the marker.
+  static bool isMarked(String description) =>
+      description.toLowerCase().contains(tag);
+
+  /// Append the tag to [description]; idempotent — an already-marked
+  /// description is returned unchanged.
+  static String mark(String description) {
+    final trimmed = description.trim();
+    if (isMarked(trimmed)) return trimmed;
+    return '$trimmed $tag';
+  }
+
+  /// Split a behavior cell into (description, golden): the tag is
   /// removed wherever it sits, everything else is kept verbatim.
   static (String, bool) extract(String cell) {
     var text = cell;
@@ -350,7 +403,10 @@ class TestListReader {
             header.startsWith('platform contract') ||
             header.startsWith('state machine contract') ||
             header.startsWith('route contract') ||
-            header.startsWith('skin contract');
+            header.startsWith('skin contract') ||
+            // Bug #1261: the visual-contract rows (the golden-gated
+            // behaviors) are declarations, not behaviors.
+            header.startsWith('visual contract');
         continue;
       }
       if (inDeclarativeSection) continue;
@@ -569,7 +625,8 @@ class TestListReader {
       final state = _parseState(cells[4]);
       if (state == null) malformed('unknown state "${cells[4]}"');
       final (description, persistence) = PersistenceMarker.extract(cells[2]);
-      final (untagged, lane) = LaneMarker.extract(description);
+      final (laneUntagged, lane) = LaneMarker.extract(description);
+      final (untagged, golden) = GoldenMarker.extract(laneUntagged);
       return (
         row: BehaviorRow(
           id: id,
@@ -580,6 +637,7 @@ class TestListReader {
           target: resolveDefaultTarget(id),
           persistence: persistence,
           lane: lane,
+          golden: golden,
         ),
         dialect: _DeprecatedDialect.none,
       );
@@ -608,7 +666,8 @@ class TestListReader {
       final state = _parseState(cells[5]);
       if (state == null) malformed('unknown state "${cells[5]}"');
       final (description, persistence) = PersistenceMarker.extract(cells[2]);
-      final (untagged, lane) = LaneMarker.extract(description);
+      final (laneUntagged, lane) = LaneMarker.extract(description);
+      final (untagged, golden) = GoldenMarker.extract(laneUntagged);
       return (
         row: BehaviorRow(
           id: id,
@@ -619,6 +678,7 @@ class TestListReader {
           target: resolveDefaultTarget(id),
           persistence: persistence,
           lane: lane,
+          golden: golden,
           finderKinds: declaredKinds.toList(growable: false),
         ),
         dialect: _DeprecatedDialect.none,
@@ -638,7 +698,8 @@ class TestListReader {
         final state = _parseState(cells[5]);
         if (state == null) malformed('unknown state "${cells[5]}"');
         final (description, persistence) = PersistenceMarker.extract(cells[2]);
-        final (untagged, lane) = LaneMarker.extract(description);
+        final (laneUntagged, lane) = LaneMarker.extract(description);
+        final (untagged, golden) = GoldenMarker.extract(laneUntagged);
         return (
           row: BehaviorRow(
             id: id,
@@ -649,6 +710,7 @@ class TestListReader {
             target: resolveDefaultTarget(id, cell: cells[6]),
             persistence: persistence,
             lane: lane,
+            golden: golden,
           ),
           dialect: _DeprecatedDialect.genLegacy,
         );
@@ -669,7 +731,8 @@ class TestListReader {
         final state = _parseState(cells[5]);
         if (state == null) malformed('unknown state "${cells[5]}"');
         final (description, persistence) = PersistenceMarker.extract(cells[2]);
-        final (untagged, lane) = LaneMarker.extract(description);
+        final (laneUntagged, lane) = LaneMarker.extract(description);
+        final (untagged, golden) = GoldenMarker.extract(laneUntagged);
         return (
           row: BehaviorRow(
             id: id,
@@ -680,6 +743,7 @@ class TestListReader {
             target: resolveDefaultTarget(id, cell: cells[6]),
             persistence: persistence,
             lane: lane,
+            golden: golden,
           ),
           dialect: _DeprecatedDialect.extensionShape,
         );

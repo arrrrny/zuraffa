@@ -591,9 +591,16 @@ class PlanCommand extends Command<void> {
     // + the meta-index); the lane guards refuse BEFORE any artifact —
     // an incomplete split never leaves a half-written lane plan.
     final lanes = const SpecParser().parseLanes(specMd);
+    // Bug #1261: the SKIN lanes' golden declarations resolved to behavior
+    // ids — the set the plan marks onto the SKIN lane rows (the ` [golden]`
+    // tag gen reads). Non-SKIN lanes' golden declarations refuse below.
+    final goldenIds = <String>{
+      for (final lane in lanes)
+        if (Lane.parse(lane.lane) == Lane.skin) ...lane.goldenIds,
+    };
     final laneResult = lanes.isEmpty
         ? null
-        : _resolveLanes(lanes, expressible, preservedFfi);
+        : _resolveLanes(lanes, expressible, preservedFfi, goldenIds);
     if (laneResult != null && laneResult.refusals.isNotEmpty) {
       print(
         'zfa tdd plan: lane contract FAILED — ${laneResult.refusals.length} '
@@ -618,6 +625,21 @@ class PlanCommand extends Command<void> {
     final adaptiveSkinContract = _resolveSkinContract(specMd, lanes, specPath);
     if (identical(adaptiveSkinContract, _skinContractRefused)) {
       return;
+    }
+
+    // Bug #1261: the visual-contract guidance. A SKIN lane with
+    // widget-kind behaviors but no adaptive_slots gets the slot
+    // PROPOSAL (the spec stays the source of truth — plan proposes,
+    // the author declares); a lane with neither slots nor goldens
+    // warns that the skin has no visual contract — the silent
+    // fall-through the bug closes, surfaced instead. Guidance only:
+    // the artifacts still write and the exit stays 0.
+    if (laneResult != null) {
+      _emitVisualContractGuidance(
+        lanes: lanes,
+        laneResult: laneResult,
+        expressible: expressible,
+      );
     }
 
     // Issue #1007: contract rows carry their own declared lane in the
@@ -695,13 +717,23 @@ class PlanCommand extends Command<void> {
       // files, so gen/make/run semantics are unchanged.
       final engineRows = <LaneRow>[
         for (final b in expressible)
-          ..._derivedLaneRows(b, laneResult, declarations.persistence),
+          ..._derivedLaneRows(
+            b,
+            laneResult,
+            declarations.persistence,
+            goldenIds,
+          ),
         ..._ffiLaneRows(preservedFfi, laneResult),
         ...laneResult.handRows,
       ].where((r) => r.lane.destinedForEngine).toList();
       final skinRows = <LaneRow>[
         for (final b in expressible)
-          ..._derivedLaneRows(b, laneResult, declarations.persistence),
+          ..._derivedLaneRows(
+            b,
+            laneResult,
+            declarations.persistence,
+            goldenIds,
+          ),
         ..._ffiLaneRows(preservedFfi, laneResult),
         ...laneResult.handRows,
       ].where((r) => r.lane.destinedForSkin).toList();
@@ -1192,6 +1224,52 @@ class PlanCommand extends Command<void> {
     return {mdPath: 'update', jsonPath: 'update'};
   }
 
+  /// Bug #1261: the visual-contract guidance, printed per SKIN lane
+  /// after the lane contract resolves. Widget-kind behaviors without
+  /// adaptive_slots get the slot PROPOSAL (plan proposes — the spec
+  /// stays the source of truth); a lane with neither slots nor goldens
+  /// additionally warns that the skin has no visual contract — the
+  /// silent generic-path fall-through issue #1261 closes. Guidance
+  /// never refuses: the plan artifacts still write, exit stays 0.
+  void _emitVisualContractGuidance({
+    required List<LaneDeclaration> lanes,
+    required _LaneResult laneResult,
+    required List<Behavior> expressible,
+  }) {
+    final widgetIds = <String>{
+      for (final b in expressible)
+        if (b.kind == BehaviorKind.widget) b.id,
+      for (final row in laneResult.handRows)
+        if (row.kind == BehaviorKind.widget) row.id,
+    };
+    for (final lane in lanes) {
+      if (Lane.parse(lane.lane) != Lane.skin) continue;
+      final widgetInLane = lane.behaviorIds.where(widgetIds.contains).toList();
+      if (widgetInLane.isEmpty) continue;
+      if (lane.adaptiveSlots.isEmpty) {
+        print(
+          'zfa tdd plan: SKIN lane declares widget behaviors '
+          '(${widgetInLane.join(', ')}) without adaptive_slots — '
+          'proposing adaptive_slots: [mobile, ios, android, macos] '
+          '(declare them in the `## Lanes` SKIN row; the hand-skin '
+          'conformance cycle, spec 1005, engages when slots are '
+          'declared).',
+        );
+      }
+      if (lane.adaptiveSlots.isEmpty && lane.goldenIds.isEmpty) {
+        print(
+          'zfa tdd plan: WARNING — this skin has no visual contract: '
+          'the SKIN lane\'s widget behaviors '
+          '(${widgetInLane.join(', ')}) declare neither adaptive_slots '
+          'nor golden. Visual parity is unrepresentable and run-skin '
+          'falls through to the generic path. --> fix: declare '
+          '`adaptive_slots: [...]` or `golden: true` in the `## Lanes` '
+          'SKIN row.',
+        );
+      }
+    }
+  }
+
   /// The refusal sentinel [_resolveSkinContract] returns when the
   /// skin contract refused the plan (the command already printed the
   /// fix lines and set the exit code — the caller just returns).
@@ -1553,6 +1631,7 @@ class PlanCommand extends Command<void> {
     List<LaneDeclaration> lanes,
     List<Behavior> expressible,
     List<BehaviorRow> preservedFfi,
+    Set<String> goldenIds,
   ) {
     final classification = <String, Lane>{};
     final annotations = <String, String>{};
@@ -1580,6 +1659,52 @@ class PlanCommand extends Command<void> {
     // Undeclared derived behaviors: declarations win, gaps refuse —
     // never a silent default.
     final declaredHandIds = classification.keys.toSet();
+
+    // Bug #1261: the golden gate is a SKIN-lane, widget-only surface.
+    // Drift refuses at plan time — the same fail-fast the noFlutter
+    // guard applies to the engine boundary (declarations win, inert
+    // declarations are never silently carried).
+    final derivedKinds = {for (final b in expressible) b.id: b.kind};
+    for (final lane in lanes) {
+      final parsed = Lane.parse(lane.lane);
+      if (parsed == null || lane.goldenIds.isEmpty) continue;
+      if (parsed != Lane.skin) {
+        refusals.add(
+          'lane ${parsed.label} declares golden: '
+          '[${lane.goldenIds.join(', ')}] — the golden gate is a SKIN '
+          'lane declaration (a golden hook in an engine-side test is '
+          'nonsense). --> fix: move the `golden:` declaration to the '
+          'SKIN lane row.',
+        );
+        continue;
+      }
+      final undeclared = lane.goldenIds
+          .where((id) => !lane.behaviorIds.contains(id))
+          .toList();
+      if (undeclared.isNotEmpty) {
+        refusals.add(
+          'golden drift: the SKIN lane declares golden: '
+          '[${undeclared.join(', ')}] but those ids are not in the '
+          'lane\'s `behaviors:` list. --> fix: name only behaviors the '
+          'SKIN lane declares, or use `golden: true`.',
+        );
+      }
+      for (final id in lane.goldenIds) {
+        // A hand-declared id (no derived kind) is widget-kind by
+        // construction (SKIN hand rows render the widget section).
+        final kind = derivedKinds[id];
+        if (kind != null && kind != BehaviorKind.widget) {
+          refusals.add(
+            'golden: "$id" is ${kind.name}-kind — the golden gate is '
+            'widget-only (bug #830: a golden hook in a plain-function '
+            'test is nonsense). --> fix: declare `golden:` only for '
+            'widget-kind behaviors (use the list form `golden: [W1, '
+            'W2]` when the lane mixes kinds).',
+          );
+        }
+      }
+    }
+
     for (final b in expressible) {
       final lane = classification[b.id];
       if (lane == null) {
@@ -1648,6 +1773,9 @@ class PlanCommand extends Command<void> {
           // section — the seam's skin half is the visible half).
           kind: lane == Lane.core ? BehaviorKind.unit : BehaviorKind.widget,
           lane: lane,
+          // Bug #1261: a SKIN lane's golden declaration rides the hand
+          // row too (hand SKIN rows are widget-kind by construction).
+          golden: goldenIds.contains(id) && lane != Lane.core,
         ),
       );
       classification[id] = lane;
@@ -1668,6 +1796,7 @@ class PlanCommand extends Command<void> {
     Behavior b,
     _LaneResult laneResult,
     Map<String, PersistenceDeclaration> persistenceDeclarations,
+    Set<String> goldenIds,
   ) {
     final lane = laneResult.classification[b.id];
     if (lane == null) return const [];
@@ -1679,6 +1808,10 @@ class PlanCommand extends Command<void> {
         state: 'PENDING',
         kind: b.kind,
         lane: lane,
+        // Bug #1261: a SKIN lane's golden declaration marks the row —
+        // the ` [golden]` tag gen reads. The gate is widget-only; the
+        // non-widget drift already refused above.
+        golden: goldenIds.contains(b.id) && b.kind == BehaviorKind.widget,
       ),
     ];
   }
