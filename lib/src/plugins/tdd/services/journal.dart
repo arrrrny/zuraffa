@@ -73,6 +73,9 @@ const Set<String> journalPhases = {
   'aggregate',
   // A prove invocation's incremental delta record.
   'prove',
+  // Issue #1264: a reset tombstone — the per-behavior evidence
+  // invalidation record for the dropped behaviors (behaviors field).
+  'reset',
 };
 
 /// Gate-state values: the honest state the cycle ended in.
@@ -465,6 +468,33 @@ class JournalWriter {
 
   static const String journalFileName = 'journal.json';
 
+  /// Issue #1264: the tombstone entry's phase — a reset's per-behavior
+  /// evidence invalidation record.
+  static const String resetPhase = 'reset';
+
+  /// Issue #1264: append [behaviorIds]' reset tombstone — the
+  /// per-behavior evidence invalidation record that tells every later
+  /// reader (the run driver's reconciliation, above all) that these
+  /// behaviors' surviving cycle-log evidence no longer describes the
+  /// tree (their artifacts were dropped). Append-only: prior entries are
+  /// preserved, exactly like every other journal write.
+  Future<void> appendResetTombstone({required List<String> behaviorIds}) async {
+    if (behaviorIds.isEmpty) return;
+    final now = DateTime.now().toUtc().toIso8601String();
+    await append(
+      JournalEntry(
+        feature: p.basename(featureDir),
+        cycle: 'meta',
+        phase: resetPhase,
+        startedAt: now,
+        finishedAt: now,
+        gateState: 'not_assessed',
+        result: 'reset',
+        behaviors: behaviorIds,
+      ),
+    );
+  }
+
   String get journalPath => p.join(featureDir, 'tdd', journalFileName);
 
   String get schemaPath => p.join(featureDir, 'tdd', JournalSchema.fileName);
@@ -737,6 +767,35 @@ class JournalReader {
   static const _engineLane = 'engine';
   static const _skinLane = 'skin';
 
+  /// Issue #1264: the behavior ids the feature's LAST reset tombstone
+  /// invalidated — the empty set when no tombstone exists. The run
+  /// driver's reconciliation subtracts these from the cycle-log evidence
+  /// sets, so a reset's dropped behaviors re-drive instead of skipping
+  /// as "already done" off surviving green evidence.
+  static Future<Set<String>> tombstonedBehaviors(String featureDir) async {
+    final file = File(p.join(featureDir, 'tdd', JournalWriter.journalFileName));
+    if (!await file.exists()) return const {};
+    final List<dynamic> entries;
+    try {
+      final decoded = jsonDecode(await file.readAsString());
+      if (decoded is! Map<String, dynamic>) return const {};
+      entries = decoded['entries'] as List? ?? const [];
+    } on FormatException {
+      // A corrupt journal is the reader's hard error on the full read;
+      // the tombstone probe conservatively reports none — the driver's
+      // own JournalReader consumers surface the corruption honestly.
+      return const {};
+    }
+    for (final raw in entries.reversed) {
+      if (raw is! Map<String, dynamic>) continue;
+      if (raw['phase'] != JournalWriter.resetPhase) continue;
+      final behaviors = raw['behaviors'];
+      if (behaviors is! List) return const {};
+      return behaviors.whereType<String>().toSet();
+    }
+    return const {};
+  }
+
   /// Load [feature]'s whole journal stream under [projectRoot].
   ///
   /// Throws [JournalException] for a feature directory that does not
@@ -854,6 +913,22 @@ class JournalReader {
       // A missing cycle-log yields no evidence — honest pending state.
     }
 
+    // 4b. Issue #1264: the store-to-tree check for the derived verdict —
+    //     green evidence whose backing test file is gone. A lane receipt
+    //     claiming green for such behaviors is a stale verdict (reset
+    //     drops the artifacts but never the append-only evidence), and
+    //     status must not report green on nonexistent tests.
+    final orphanedGreen = <String>{};
+    try {
+      orphanedGreen.addAll(
+        await CycleEvidence(
+          featureDir,
+        ).orphanedGreenEvidence(projectRoot: projectRoot),
+      );
+    } on FileSystemException {
+      // No cycle-log: nothing to orphan.
+    }
+
     // 5. The registered behaviors.
     final registry = ArtifactRegistry(featureDir: featureDir);
     final records = await registry.loadAll();
@@ -874,6 +949,7 @@ class JournalReader {
       entries: entries,
       receipts: receipts,
       notes: notes,
+      orphanedGreen: orphanedGreen,
     );
 
     return FeatureJournal(
@@ -894,6 +970,7 @@ class JournalReader {
     required List<JournalEntry> entries,
     required Map<String, Map<String, dynamic>?> receipts,
     required List<String> notes,
+    Set<String> orphanedGreen = const {},
   }) {
     String verdictOf(
       Map<String, dynamic>? receipt, {
@@ -968,10 +1045,37 @@ class JournalReader {
       violations += entry.violations.length;
     }
 
+    // Issue #1264: the store-to-tree demotion — a lane receipt claiming
+    // green for a behavior whose green evidence has no backing test file
+    // on disk is a stale verdict (reset drops the artifacts but never
+    // the append-only evidence). Such a lane is NOT green; the verdict
+    // demotes to red and the note names the drift and the one recovery.
+    String demoted(String lane, String verdict, Map<String, dynamic>? receipt) {
+      if (verdict != 'green' || orphanedGreen.isEmpty) return verdict;
+      final named = receipt?['behaviors'] as List? ?? const [];
+      final orphaned =
+          named.whereType<String>().where(orphanedGreen.contains).toList()
+            ..sort();
+      if (orphaned.isEmpty) return verdict;
+      notes.add(
+        'evidence-without-artifact: $lane receipt claims green for '
+        '${orphaned.join(', ')} whose green evidence names a test file '
+        'missing from disk — run `zfa tdd run $feature` to re-drive them',
+      );
+      return 'red';
+    }
+
+    final engineVerdict = demoted(_engineLane, verdictOf(engine), engine);
+    final skinVerdict = demoted(
+      _skinLane,
+      verdictOf(skin, conformance: isSkinV1),
+      skin,
+    );
+
     return JournalVerdict(
       feature: feature,
-      engineVerdict: verdictOf(engine),
-      skinVerdict: verdictOf(skin, conformance: isSkinV1),
+      engineVerdict: engineVerdict,
+      skinVerdict: skinVerdict,
       engineDone: engineCounts.done,
       engineTotal: engineCounts.total,
       skinDone: skinCounts.done,

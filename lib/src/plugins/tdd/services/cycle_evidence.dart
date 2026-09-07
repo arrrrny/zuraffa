@@ -95,6 +95,43 @@ class CycleEvidence {
   /// keyed on red+green — this set is the doctor's drift input.
   Future<Set<String>> refactorEvidence() => _evidence('refactor');
 
+  /// Behavior ids whose LAST green evidence entry names a test file that
+  /// is missing from disk — `evidence-without-artifact` (issue #1264).
+  ///
+  /// The store-to-tree check the store-to-store comparisons miss: green
+  /// evidence in the cycle-log survives artifact deletion (`zfa tdd reset`
+  /// never touches append-only evidence), and a downstream reader that
+  /// honors it without checking the tree reports done/green for behaviors
+  /// whose test files no longer exist. The green entry's `- test:` line
+  /// names the registered test path it certified (absolute or
+  /// project-relative); a missing file orphans the evidence. Entries
+  /// without a `- test:` line cannot be checked and are conservatively
+  /// treated as backed (legacy tolerance — never fails what it cannot
+  /// read).
+  Future<Set<String>> orphanedGreenEvidence({
+    required String projectRoot,
+  }) async {
+    // Append order is chronological: the LAST green entry per behavior
+    // is the live evidence (the same rule greenEvidence() applies).
+    final lastGreen = <String, ParsedCycleEntry>{};
+    for (final entry in await entries()) {
+      if (entry.kind != 'green') continue;
+      lastGreen[entry.behaviorId] = entry;
+    }
+    final orphans = <String>{};
+    for (final MapEntry(key: behaviorId, value: entry) in lastGreen.entries) {
+      final test = entry.test;
+      if (test == null || test.isEmpty) continue;
+      final resolved = p.isAbsolute(test)
+          ? p.normalize(test)
+          : p.normalize(p.join(projectRoot, test));
+      if (!File(resolved).existsSync()) {
+        orphans.add(behaviorId);
+      }
+    }
+    return orphans;
+  }
+
   /// Every parsed entry, in file order.
   Future<List<ParsedCycleEntry>> entries() async {
     final file = File(p.join(featureDir, 'tdd', 'cycle-log.md'));
