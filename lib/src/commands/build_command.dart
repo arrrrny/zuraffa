@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:analyzer/dart/ast/ast.dart';
@@ -191,7 +193,8 @@ class BuildCommand extends Command {
       return;
     }
 
-    final exitCode = await _runBuild();
+    final build = await _runBuild();
+    final exitCode = build.exitCode;
 
     if (exitCode == 0) {
       print('');
@@ -211,11 +214,32 @@ class BuildCommand extends Command {
         }
       }
     } else if (!clean) {
+      // Issue #1303: a pub RESOLUTION failure is not a cache problem —
+      // cache state cannot fix resolution, so the clean-cache retry only
+      // burns a full rebuild before dying the same way. Refuse the retry
+      // with the honest classification + remedy; every OTHER failure
+      // keeps the retry exactly as before (unchanged #276 contract).
+      if (reportsPubResolutionError(build.output)) {
+        print(
+          '\n⚠️  Build failed (exit $exitCode) — pub resolution error '
+          'detected.',
+        );
+        print(
+          '   A pub resolution failure is not a cache problem: skipping '
+          'the clean-cache retry (cache state cannot fix resolution).',
+        );
+        print(
+          '--> fix: resolve the pubspec problem reported above (e.g. a '
+          'stale dependency_overrides path), then re-run `zfa build`.',
+        );
+        exit(1);
+      }
       print(
         '\n⚠️  Build failed (exit $exitCode). Retrying with clean cache...',
       );
       await _cleanBuildCache();
-      final retryCode = await _runBuild();
+      final retry = await _runBuild();
+      final retryCode = retry.exitCode;
       if (retryCode == 0) {
         print('\n✅ Build completed successfully after cache clean');
         if (!verifyOutputsOrFail() || !verifyDeclaredPartsOrFail()) {
@@ -673,19 +697,57 @@ class BuildCommand extends Command {
   static int countAnalyzerErrors(String analyzeOutput) =>
       countAnalyzerIssues(analyzeOutput).errors;
 
-  Future<int> _runBuild() async {
+  /// Issue #1303: whether [buildOutput] carries a pub RESOLUTION failure
+  /// — the version-solving dump class (a stale `dependency_overrides`
+  /// path, an unsatisfiable constraint) rather than a compile or cache
+  /// problem. The clean-cache retry is REFUSED for this class: cache
+  /// state cannot fix resolution, so retrying only burns a full rebuild
+  /// before dying the same way. Exposed as a static so the classifier
+  /// can be unit-tested without spawning build_runner (same seam as
+  /// [analyzeReportsError]).
+  static bool reportsPubResolutionError(String buildOutput) =>
+      buildOutput.contains('version solving failed') ||
+      buildOutput.contains('No pubspec.yaml found for package');
+
+  /// One build invocation result: the exit code plus the streamed
+  /// stdout+stderr (echoed live AND captured, so the retry decision can
+  /// classify the failure — issue #1303 — without changing what the
+  /// user sees: every line still prints the moment it arrives).
+  static _BuildOutput _classify(int exitCode, String output) =>
+      _BuildOutput(exitCode: exitCode, output: output);
+
+  Future<_BuildOutput> _runBuild() async {
     // `--delete-conflicting-outputs` was removed in build_runner 2.16.0 and
     // emits a "These options have been removed" warning on every invocation.
     // build_runner now resolves conflicting outputs via the build cache, so
     // the flag is no longer needed.
     final args = <String>['run', 'build_runner', 'build'];
 
-    final process = await Process.start(
-      'dart',
-      args,
-      mode: ProcessStartMode.inheritStdio,
-    );
-    return process.exitCode;
+    final process = await Process.start('dart', args);
+    final buffer = StringBuffer();
+    // Stream live (the inheritStdio behavior the output contract relies
+    // on) while capturing for the failure classification (issue #1303).
+    final stdoutDone = process.stdout
+        .transform(systemEncoding.decoder)
+        .transform(const LineSplitter())
+        .listen((line) {
+          buffer.writeln(line);
+          // ignore: avoid_print
+          print(line);
+        })
+        .asFuture<void>();
+    final stderrDone = process.stderr
+        .transform(systemEncoding.decoder)
+        .transform(const LineSplitter())
+        .listen((line) {
+          buffer.writeln(line);
+          // ignore: avoid_print
+          print(line);
+        })
+        .asFuture<void>();
+    final exitCode = await process.exitCode;
+    await Future.wait([stdoutDone, stderrDone]);
+    return _classify(exitCode, buffer.toString());
   }
 
   Future<void> _cleanBuildCache() async {
@@ -760,4 +822,17 @@ class AnalyzerIssueCounts {
   String toString() =>
       'AnalyzerIssueCounts(errors: $errors, warnings: $warnings, '
       'infos: $infos)';
+}
+
+/// One `build_runner` invocation's captured verdict (issue #1303): the
+/// child's exit code plus its full streamed stdout+stderr, captured ONLY
+/// for the failure classification (resolution vs everything else) that
+/// decides the clean-cache retry. The visible output is unchanged —
+/// every line still prints the moment it arrives.
+@immutable
+class _BuildOutput {
+  const _BuildOutput({required this.exitCode, required this.output});
+
+  final int exitCode;
+  final String output;
 }

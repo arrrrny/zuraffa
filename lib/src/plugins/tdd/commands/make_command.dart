@@ -77,6 +77,7 @@ import '../services/artifact_registry.dart';
 import '../services/composition_planner.dart';
 import '../services/composition_targets.dart';
 import '../services/cycle_evidence.dart';
+import '../services/dependency_override_preflight.dart';
 import '../services/subject_shape.dart';
 import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
@@ -254,6 +255,33 @@ class MakeCommand extends Command<void> {
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find(anchorDir: 'specs');
+
+    // -----------------------------------------------------------------
+    // Issue #1303 preflight: a stale `dependency_overrides` path entry
+    // makes every pipeline step die with a raw version-solving dump
+    // buried mid-log, and the clean-cache retry burns a full rebuild on
+    // a resolution error no cache clean can fix. Validate every
+    // override path BEFORE anything spawns; refuse with the honest
+    // drift verdict (exit 3) instead.
+    // -----------------------------------------------------------------
+    final overrideReport = await DependencyOverridePreflight(
+      projectRoot: cwd,
+    ).check();
+    if (!overrideReport.ok) {
+      final behavior = behaviorId ?? '-';
+      for (final finding in overrideReport.findings) {
+        print(DependencyOverridePreflight.findingLine(finding));
+      }
+      print('$kOverrideFixLine `zfa tdd make`');
+      _printSummary(
+        behavior: behavior,
+        outcome: MakeOutcome.preflightRed,
+        feature: featureFlag ?? 'unknown',
+      );
+      exitCode = 3;
+      return;
+    }
+
     final zfaBinFlag = argResults?['zfa-bin'] as String?;
     final suiteBaselineFlag = argResults?['suite-baseline'] as String?;
     final suiteBaselinePath =
