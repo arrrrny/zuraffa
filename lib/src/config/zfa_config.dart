@@ -166,18 +166,19 @@ class ZfaConfig {
           ?.toString() ??
       'adaptive-feature';
 
-  /// Issue #912 defect 2 (values updated by issue #1256): the widget
-  /// template's app shell from `.zfa.json` `tdd.widgetShell`
-  /// (`zuraffaapp` | `shadapp` | `materialapp`), or null when unset or
-  /// unknown (the caller applies the zuraffaapp default).
+  /// Issue #912 defect 2: the widget template's app shell from
+  /// `.zfa.json` `tdd.widgetShell` (`shadapp` | `materialapp` |
+  /// `zuraffaapp` — issue #1260), or null when unset/unknown (the caller
+  /// applies the shell default: `zuraffaapp` on skin-lane projects,
+  /// `shadapp` otherwise).
   String? get tddWidgetShell {
     final tdd = rawTdd;
     if (tdd is! Map) return null;
     for (final key in const ['widgetShell', 'widget_shell']) {
       final value = tdd[key]?.toString();
-      if (value == 'zuraffaapp' ||
-          value == 'shadapp' ||
-          value == 'materialapp') {
+      if (value == 'shadapp' ||
+          value == 'materialapp' ||
+          value == 'zuraffaapp') {
         return value;
       }
     }

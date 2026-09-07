@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Bug #1261 mutation audit, chunk c-writer-cmds (see mutation-test-1261.xml). -->
+<mutations version="1.0">
+  <files>
+    <file>lib/src/plugins/tdd/services/lane_split.dart
+      <lines begin="28" end="28"/>
+      <lines begin="100" end="100"/>
+      <lines begin="110" end="121"/>
+      <lines begin="254" end="254"/>
+      <lines begin="340" end="341"/>
+      <lines begin="348" end="352"/>
+      <lines begin="478" end="505"/>
+    </file>
+    <file>lib/src/plugins/tdd/services/behavior_test_writer.dart
+      <lines begin="504" end="512"/>
+      <lines begin="535" end="535"/>
+    </file>
+  </files>
+  <commands>
+    <command group="test" expected-return="0" working-directory=".">bash tools/run-bug1261-tests.sh</command>
+  </commands>
+</mutations>
