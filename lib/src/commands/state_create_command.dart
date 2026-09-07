@@ -10,8 +10,11 @@ import '../core/project/receipt_store.dart';
 import '../core/verdict_envelope.dart';
 import '../models/generated_file.dart';
 import '../models/generator_config.dart';
+import '../plugins/state/state_explainer.dart';
 import '../plugins/state/state_plugin.dart';
+import '../plugins/state/state_receipt.dart';
 import '../utils/project_flavor.dart';
+import '../utils/string_utils.dart';
 import '../version.dart';
 import '../cli/exit_protocol.dart';
 
@@ -32,6 +35,13 @@ import '../cli/exit_protocol.dart';
 ///    `.zfa/receipts/state-<entity>.json` (via [ReceiptStore], stable
 ///    per-entity name, refreshed on regeneration) binding the final
 ///    on-disk bytes, so `zfa proof check` covers state artifacts;
+///  * `--explain` describes the plan WITHOUT generating: which state
+///    members are generated, which derivation methods are included
+///    (each method generates a state member), and which state class
+///    name is output (spec 1126 order 3);
+///  * the config vocabulary (`--methods`, `--no-entity`, `--domain`)
+///    validates against the plugin configSchema before anything runs
+///    (spec 1126 order 4 — unknown keys are a usage refusal);
 ///  * the emission is unchanged — the same [StatePlugin.generate] the
 ///    `zfa make --state` entry point drives (the drift gate under
 ///    test/plugins/state/ keeps both byte-identical).
@@ -55,6 +65,27 @@ class StateCreateCommand extends Command<void> {
           'Comma-separated list of methods '
           '(get,create,update,delete,watch,getList,watchList)',
       defaultsTo: const ['get', 'update'],
+    );
+    argParser.addFlag(
+      'no-entity',
+      negatable: false,
+      help:
+          'Emit entity-free state (no entity field; custom mode). '
+          'Implies an empty default methodset (spec 1126)',
+    );
+    argParser.addOption(
+      'domain',
+      help:
+          'Domain folder the state file is emitted under '
+          '(defaults to the entity snake name)',
+    );
+    argParser.addFlag(
+      'explain',
+      negatable: false,
+      help:
+          'Describe the plan — state class, output file, generated '
+          'members, the method → state-member derivation — without '
+          'generating (spec 1126)',
     );
     argParser.addFlag(
       'dry-run',
@@ -100,21 +131,86 @@ class StateCreateCommand extends Command<void> {
       return;
     }
 
-    final methods = _resolveMethods();
     final dryRun = argResults?['dry-run'] == true;
     final force = argResults?['force'] == true;
     final verbose = argResults?['verbose'] == true;
     final jsonMode = argResults?['json'] == true;
+    final explainMode = argResults?['explain'] == true;
+    final noEntity = argResults?['no-entity'] == true;
+    final domain = argResults?['domain'] as String?;
+    final methods = _resolveMethods(noEntity: noEntity);
+
+    // Spec 1126 (order 4): the config gate — the resolved config
+    // vocabulary validates against the plugin schema before anything
+    // runs. Unknown keys / type mismatches are a usage refusal.
+    final configViolations = validateStateConfig({
+      if (argResults?.wasParsed('methods') == true || methods.isNotEmpty)
+        'methods': methods,
+      if (noEntity) 'no-entity': true,
+      if (domain != null && domain.isNotEmpty) 'domain': domain,
+    });
+    if (configViolations.isNotEmpty) {
+      final fix =
+          'pass only the declared state config keys '
+          '(methods, no-entity, domain) with matching types';
+      if (jsonMode) {
+        print(
+          VerdictEnvelope(
+            command: 'zfa state create --name $entityName',
+            verdict: VerdictKind.fail,
+            exitClass: ExitProtocol.usage,
+            subject: VerdictSubject(kind: 'state', id: entityName),
+            details: {
+              'error':
+                  'state config rejected: '
+                  '${configViolations.join('; ')}',
+            },
+            fix: fix,
+          ).toJsonLine(),
+        );
+      } else {
+        print('❌ Error: state config rejected:');
+        for (final violation in configViolations) {
+          print('  - $violation');
+        }
+      }
+      print(ExitProtocol.fixLine(fix));
+      exitCode = ExitProtocol.usage;
+      return;
+    }
 
     final config = GeneratorConfig(
       name: entityName,
       outputDir: plugin.outputDir,
       generateState: true,
       methods: methods,
+      noEntity: noEntity,
+      domain: domain,
       dryRun: dryRun,
       force: force,
       verbose: verbose,
     );
+
+    // ── Explain: describe, never generate (spec 1126 order 3). ──
+    if (explainMode) {
+      final plan = const StateExplainer().explain(config: config);
+      if (jsonMode) {
+        print(
+          VerdictEnvelope(
+            command: 'zfa state create --name $entityName',
+            verdict: VerdictKind.skip,
+            exitClass: ExitProtocol.success,
+            subject: VerdictSubject(kind: 'state', id: entityName),
+            details: {'stateClass': plan['stateClass']},
+            explain: plan,
+          ).toJsonLine(),
+        );
+      } else {
+        print(const StateExplainer().format(plan));
+      }
+      exitCode = ExitProtocol.success;
+      return;
+    }
 
     final files = await plugin.generate(config);
     if (files.isEmpty) {
@@ -153,15 +249,20 @@ class StateCreateCommand extends Command<void> {
       print('ℹ️  Dry run: nothing written.');
     }
 
-    // Receipt: only for bytes that actually landed (created/overwritten,
+    // Receipts: only for bytes that actually landed (created/overwritten,
     // not dry-run, not skipped — a skipped file's provenance stays with
     // the run that wrote it; binding old bytes to this run's input would
     // be a lie). Best-effort by design, matching entity create (#807).
-    String? receiptPath;
+    // Spec 1126: BOTH receipts ship — the stable per-entity document
+    // (state-<entity>.json, the verify gate's contract) and the
+    // timestamped capability receipt (#1138, the generation history).
+    List<String> receiptPaths = const <String>[];
     if (!dryRun && (file.action == 'created' || file.action == 'overwritten')) {
-      receiptPath = await _emitReceipt(
+      receiptPaths = await _emitReceipt(
         entityName: entityName,
         methods: methods,
+        noEntity: noEntity,
+        domain: domain,
         force: force,
         file: file,
         relativePath: relativePath,
@@ -188,7 +289,7 @@ class StateCreateCommand extends Command<void> {
                 : [relativePath],
             deleted: file.action == 'deleted' ? [relativePath] : const [],
           ),
-          receipts: receiptPath == null ? null : [receiptPath],
+          receipts: receiptPaths,
           details: {
             'path': relativePath,
             'fields': _fieldNamesOf(file),
@@ -208,7 +309,11 @@ class StateCreateCommand extends Command<void> {
     return null;
   }
 
-  List<String> _resolveMethods() {
+  List<String> _resolveMethods({required bool noEntity}) {
+    final wasParsed = argResults?.wasParsed('methods') == true;
+    // The generateWithContext defaulting: an explicit --methods wins;
+    // otherwise a no-entity run wires no CRUD methods (custom mode).
+    if (!wasParsed && noEntity) return const <String>[];
     final raw =
         argResults?['methods'] as List<String>? ??
         const <String>['get', 'update'];
@@ -246,20 +351,24 @@ class StateCreateCommand extends Command<void> {
     return 'entity';
   }
 
-  /// Writes the proof receipt; returns the project-relative receipt path
-  /// (null when nothing was written — the envelope's `receipts` list only
-  /// lists receipts that exist).
-  Future<String?> _emitReceipt({
+  /// Writes BOTH receipts; returns the project-relative receipt paths
+  /// (stable per-entity first — the verify gate's contract — then the
+  /// timestamped capability receipt; empty when nothing was written —
+  /// the envelope's `receipts` list only lists receipts that exist).
+  Future<List<String>> _emitReceipt({
     required String entityName,
     required List<String> methods,
+    required bool noEntity,
+    required String? domain,
     required bool force,
     required GeneratedFile file,
     required String relativePath,
   }) async {
-    File? receiptFile;
+    final paths = <String>[];
+    final root = Directory.current.path;
     try {
       final artifact = File(file.path);
-      if (!artifact.existsSync()) return null;
+      if (!artifact.existsSync()) return paths;
       final bytes = artifact.readAsBytesSync();
       final receiptFiles = [
         GenerationReceiptFile(
@@ -272,51 +381,84 @@ class StateCreateCommand extends Command<void> {
               : null,
         ),
       ];
+
+      // Spec 1126 (order 2): the STABLE per-entity document — the
+      // proof.v1 digests plus the ledger the verify gate audits
+      // (state_sha256, entity_source, state_class, methods).
+      final stableWritten = await StateReceiptWriter().write(
+        projectRoot: root,
+        outputDir: plugin.outputDir,
+        entity: entityName,
+        files: [file],
+        stateClass: '${StringUtils.convertToPascalCase(entityName)}State',
+        methods: methods,
+        input: {
+          'name': entityName,
+          'methods': methods,
+          if (noEntity) 'no-entity': true,
+          if (domain != null && domain.isNotEmpty) 'domain': domain,
+          if (force) 'force': true,
+        },
+        repro: _reproCommand(entityName, methods, noEntity, domain, force),
+      );
+      paths.add(_projectRelativePosix(stableWritten.path, root));
+
       // Issue #1138: full capability provenance on the standalone
-      // receipt — same schema and hash derivation as the wrapper's
-      // receipts, keyed
+      // timestamped receipt — same schema and hash derivation as the
+      // wrapper's receipts, keyed
       // state-create-<entity>-<timestamp>.json like every other
       // standalone capability receipt.
-      final written = await ReceiptStore(projectRoot: Directory.current.path)
-          .saveCapability(
-            GenerationReceipt(
-              command: 'state create',
-              target: entityName,
-              repro: _reproCommand(entityName, methods, force),
-              at: DateTime.now().toUtc(),
-              generatorVersion: version,
-              input: {
-                'name': entityName,
-                'methods': methods,
-                if (force) 'force': true,
-              },
-              files: receiptFiles,
-              plugin: 'state',
-              capability: 'create',
-              entity: entityName,
-              methodset: methods,
-              runHash: CapabilityInvocationWrapper.computeRunHash(
-                files: receiptFiles,
-                entity: entityName,
-                methodset: methods,
-              ),
-              receiptVersion: CapabilityInvocationWrapper.receiptVersion,
-            ),
-          );
-      receiptFile = written;
+      final written = await ReceiptStore(projectRoot: root).saveCapability(
+        GenerationReceipt(
+          command: 'state create',
+          target: entityName,
+          repro: _reproCommand(entityName, methods, noEntity, domain, force),
+          at: DateTime.now().toUtc(),
+          generatorVersion: version,
+          input: {
+            'name': entityName,
+            'methods': methods,
+            if (noEntity) 'no-entity': true,
+            if (domain != null && domain.isNotEmpty) 'domain': domain,
+            if (force) 'force': true,
+          },
+          files: receiptFiles,
+          plugin: 'state',
+          capability: 'create',
+          entity: entityName,
+          methodset: methods,
+          runHash: CapabilityInvocationWrapper.computeRunHash(
+            files: receiptFiles,
+            entity: entityName,
+            methodset: methods,
+          ),
+          receiptVersion: CapabilityInvocationWrapper.receiptVersion,
+        ),
+      );
+      paths.add(_projectRelativePosix(written.path, root));
     } catch (e) {
       // Provenance is best-effort at this layer (the artifact already
       // exists); loud warning, never a failed generation.
       print('⚠️  Generation receipt not written: $e');
-      return null;
+      return paths;
     }
-    return _projectRelativePosix(receiptFile.path, Directory.current.path);
+    return paths;
   }
 
-  String _reproCommand(String entityName, List<String> methods, bool force) {
+  String _reproCommand(
+    String entityName,
+    List<String> methods,
+    bool noEntity,
+    String? domain,
+    bool force,
+  ) {
     final buffer = StringBuffer('zfa state create --name $entityName');
     if (methods.isNotEmpty) {
-      buffer.write(' --methods ${methods.join(',')}');
+      buffer.write(' --methods ${methods.join(",")}');
+    }
+    if (noEntity) buffer.write(' --no-entity');
+    if (domain != null && domain.isNotEmpty) {
+      buffer.write(' --domain $domain');
     }
     if (force) buffer.write(' --force');
     return buffer.toString();
