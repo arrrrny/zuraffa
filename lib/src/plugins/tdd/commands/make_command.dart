@@ -89,6 +89,7 @@ import '../services/spec_parser.dart';
 import '../services/test_list_reader.dart';
 import '../services/suite_guard.dart';
 import '../services/tdd_timeout.dart';
+import '../services/vacuous_guard.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../services/widget_scaffold.dart';
@@ -352,6 +353,51 @@ class MakeCommand extends Command<void> {
       );
       exitCode = 1;
       return;
+    }
+
+    // ---------------------------------------------------------------
+    // 3c. Vacuous greens cannot certify green (issue #1259) — the
+    //     unit-lane analogue of the scaffolded refusal above (issue
+    //     #912 defect 3). A UNIT test whose assertion set is only the
+    //     UnimplementedError guard proves only "the subject does not
+    //     throw": a func-scaffolded dummy `return 0;` flips it green
+    //     with zero declared-contract code, yet the receipt reported
+    //     complete. The red surface may START at the guard (the stub
+    //     throws, the capture returns the error, the guard fails —
+    //     honest red); green requires at least one assertion on the
+    //     observable outcome named by the behavior description. Scoped
+    //     to UNIT rows (kindless/legacy rows fail open — no test list,
+    //     no refusal); acceptance rows keep the legacy skip transition
+    //     (the composition lane is deferred by design, FR-009).
+    // ---------------------------------------------------------------
+    final BehaviorKind? vacuousRowKind = await _rowKindQuiet(
+      target.featureDir,
+      record.behaviorId,
+    );
+    if (vacuousRowKind == BehaviorKind.unit && scaffoldCheckFile.existsSync()) {
+      final testContent = await scaffoldCheckFile.readAsString();
+      if (contentIsVacuousGreen(testContent)) {
+        final description = _descriptionFor(record);
+        print(
+          'zfa tdd make: behavior "${record.behaviorId}" test is '
+          'VACUOUS-GREEN — its assertion set is only the UnimplementedError '
+          'guard (issue #1259). A green here proves nothing about the '
+          'behavior: the guard passes on any non-throwing body (a dummy '
+          '`return 0;` flips it green with zero declared-contract code).',
+        );
+        print(
+          '   --> fix: add at least one assertion on the observable outcome '
+          'named by the behavior description ("$description"), remove the '
+          '$vacuousGuardMarker marker if present, and re-run make.',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.vacuousGreen,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
     }
 
     // ---------------------------------------------------------------
@@ -1033,6 +1079,27 @@ class MakeCommand extends Command<void> {
         '   note: test list unreadable ( ${e.message}) — '
         'routing on id/description only',
       );
+    }
+    return null;
+  }
+
+  /// The row kind WITHOUT the unreadable-list note: the vacuous-green
+  /// preflight (issue #1259) runs on every make — including legacy
+  /// fixtures whose project carries no test list — and a note there
+  /// would be noise on every legacy run. Kindless (no list, unreadable,
+  /// row missing) fails open: no refusal.
+  Future<BehaviorKind?> _rowKindQuiet(
+    String featureDir,
+    String behaviorId,
+  ) async {
+    final listFile = File(p.join(featureDir, 'tdd', 'test-list.md'));
+    if (!await listFile.exists()) return null;
+    try {
+      for (final row in await TestListReader(featureDir).read()) {
+        if (row.id == behaviorId) return row.kind;
+      }
+    } on TestListReadException {
+      return null;
     }
     return null;
   }

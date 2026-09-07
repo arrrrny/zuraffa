@@ -26,6 +26,8 @@ import 'package:path/path.dart' as p;
 import '../models/behavior.dart';
 import 'finder_taxonomy.dart';
 import 'i18n_key_contract.dart';
+import 'unit_contract_shape.dart';
+import 'vacuous_guard.dart';
 import 'widget_scaffold.dart';
 
 /// Writes a Dart test file that pairs with the subject for a behavior.
@@ -46,6 +48,7 @@ class BehaviorTestWriter {
     this.i18nKeys = I18nKeyTable.empty,
     this.i18nImport,
     this.i18nExpansion = const [],
+    this.contractShape,
   });
 
   final WidgetAppShell widgetShell;
@@ -61,6 +64,14 @@ class BehaviorTestWriter {
   /// `testWidgets` per locale re-pumps the view and re-asserts every
   /// keyed presence surface through its resolved key. Empty = no tier.
   final List<String> i18nExpansion;
+
+  /// The contract-derived subject shape (issue #1259): when the spec
+  /// declares the behavior's Layer Contract, the test asserts the
+  /// DECLARED outcome surface — a typed `isA<T>()` for scalar declared
+  /// returns, or (for entity returns whose type cannot exist yet) the
+  /// guard carrying the vacuous-guard marker so `make` refuses green
+  /// until a real outcome assertion lands.
+  final UnitContractShape? contractShape;
 
   /// Escapes [raw] for safe interpolation into a single-quoted Dart
   /// string literal (issue #912 defect 1): backslash, the single quote
@@ -184,14 +195,18 @@ void main() {
   /// assertion must NOT be a placeholder `expect(true, isFalse)` — it must
   /// assert the observable behavior (FR-010).
   ///
-  /// Heuristic: if the description contains a number (`returns 42`),
-  /// assert `subject.<target>() == <number>`. Otherwise, assert that the
-  /// paired stub is no longer unimplemented. In both cases an
-  /// `UnimplementedError` is captured as the assertion's actual value, so
-  /// the generated test is deliberately red without leaking the error.
+  /// Issue #1259 ordering: a DECLARED Layer Contract derives the
+  /// assertion surface FIRST — the spec's declared outcome outranks the
+  /// prose heuristics (the #920 "declaration outranks inference"
+  /// ordering, now applied to the test half too). The heuristics below
+  /// serve undeclared behaviors only.
   String _deriveAssertion(Behavior b) {
     final target = b.target.isEmpty ? 'subjectUnderTest' : b.target;
     final description = b.description;
+    final shape = contractShape;
+    if (shape != null) {
+      return _declaredAssertion(b, target, shape);
+    }
     // Look for "returns N" or "= N".
     // On first run, capture the stub's UnimplementedError as the actual
     // result so the value comparison produces an assertion failure.
@@ -201,7 +216,7 @@ void main() {
     ).firstMatch(description);
     if (returnsMatch != null) {
       final expected = returnsMatch.group(1);
-      return '${_captureInvocation(b, target)}\n'
+      return '${_captureInvocation(b, target, null)}\n'
           '      expect(result, equals($expected));';
     }
     // Look for "throws <ExceptionName>" — only known Dart built-in types
@@ -234,11 +249,82 @@ void main() {
       // Unknown exception types and UnimplementedError fall through to the
       // generic assertion to avoid either an unimported type or a green stub.
     }
-    return '${_captureInvocation(b, target)}\n'
+    return '${_captureInvocation(b, target, null)}\n'
         '      expect(result, isNot(isA<UnimplementedError>()));';
   }
 
-  String _captureInvocation(Behavior behavior, String target) {
+  /// The contract-derived assertion surface (issue #1259).
+  ///
+  /// Scalar declared returns assert the declared outcome type
+  /// (`expect(result, isA<bool>())`) — an assertion ON the observable
+  /// outcome surface the spec declared, never the bare guard. Entity
+  /// declared returns cannot reference the declared type before it
+  /// exists, so the red surface starts at the guard — but the guard
+  /// carries the [vacuousGuardMarker] so `make` refuses green until the
+  /// author replaces it with a real outcome assertion.
+  String _declaredAssertion(
+    Behavior b,
+    String target,
+    UnitContractShape shape,
+  ) {
+    final capture = _captureInvocation(b, target, shape);
+    if (shape.scalarOutcome) {
+      return '$capture\n'
+          '      expect(result, isA<${shape.declaredReturn}>());';
+    }
+    return '$capture\n'
+        '      $vacuousGuardComment\n'
+        '      expect(result, isNot(isA<UnimplementedError>()));';
+  }
+
+  /// The declared parameters' argument expressions at the capture site:
+  /// scalar declared types get representative literals; everything else
+  /// (entity types that may not exist yet) gets an `_argN()` placeholder
+  /// helper whose throw is CAUGHT by the capture (the red stays at the
+  /// assertion level) and whose message names the exact remedy.
+  static String? _scalarLiteral(String type) {
+    switch (type) {
+      case 'String':
+        return "r'sample'";
+      case 'int':
+      case 'num':
+        return '0';
+      case 'bool':
+        return 'false';
+      case 'double':
+        return '0.0';
+    }
+    return null;
+  }
+
+  /// The capture + arg-helper block for a declared shape. Helpers are
+  /// declared BEFORE the capture (local functions must precede use) and
+  /// live inside the test closure.
+  String _captureInvocation(
+    Behavior behavior,
+    String target,
+    UnitContractShape? shape,
+  ) {
+    final helpers = StringBuffer();
+    var args = '';
+    if (shape != null) {
+      final argExprs = <String>[];
+      for (var i = 0; i < shape.params.length; i++) {
+        final param = shape.params[i];
+        final literal = _scalarLiteral(param.type);
+        if (literal != null) {
+          argExprs.add(literal);
+        } else {
+          argExprs.add('_arg$i()');
+          helpers.write(
+            "${param.type} _arg$i() => throw UnimplementedError('provide a "
+            "representative argument for $target (declared param $i: "
+            "${param.declaredType})');\n          ",
+          );
+        }
+      }
+      args = argExprs.join(', ');
+    }
     // Issue #1035: the UNIT lane's capture initializer is provably
     // non-nullable (the closure returns the subject's value or the
     // caught UnimplementedError — never null), so an explicit `Object?`
@@ -252,8 +338,8 @@ void main() {
         : 'final result';
     final invocation = behavior.kind == BehaviorKind.acceptance
         ? 'subject.$target();\n          return null;'
-        : 'return subject.$target();';
-    return '''$capture = (() {
+        : 'return subject.$target($args);';
+    return '''$helpers$capture = (() {
         try {
           $invocation
         } on UnimplementedError catch (error) {

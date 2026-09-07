@@ -163,6 +163,15 @@ Expected: <2>
     ).writeAsString(jsonEncode({'feature': featureName, 'records': _records}));
   }
 
+  /// The registry record a `zfa tdd gen` run wrote for [id] (bug #827
+  /// namespaced paths travel in the record — the single path contract).
+  Future<Map<String, dynamic>> registryRecordOf(String id) async {
+    final raw = await File(artifactsPath).readAsString();
+    final doc = jsonDecode(raw) as Map<String, dynamic>;
+    final records = (doc['records'] as List).cast<Map<String, dynamic>>();
+    return records.firstWhere((r) => r['behavior_id'] == id);
+  }
+
   // -------------------------------------------------------------------
   // Test-content variants (the dishonest-red matrix).
   // -------------------------------------------------------------------
