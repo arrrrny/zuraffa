@@ -4,7 +4,7 @@ description: >-
   entirely through zfa CLI commands (specs/031-scaffold-todo-example).
 
 publish_to: none
-version: 6.2.0
+version: 6.2.1
 
 environment:
   sdk: ^3.11.0
