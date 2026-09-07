@@ -496,6 +496,14 @@ class SpecParser {
     caseSensitive: false,
   );
 
+  /// A golden-gate line (bug #1261): `golden: true` (every behavior the
+  /// lane declares is golden-gated) or `golden: [W1, W3]` (the subset).
+  /// `golden: false` marks nothing.
+  static final RegExp _laneGoldenLine = RegExp(
+    r'^\s*golden:\s*(.+?)\s*$',
+    caseSensitive: false,
+  );
+
   /// Strip the optional brackets of a yaml list value
   /// (`[a, b]` -> `a, b`); a bare comma list passes through.
   static String _stripBrackets(String value) {
@@ -581,6 +589,11 @@ class SpecParser {
     var annotations = <String, String>{};
     var flutterAllowed = '';
     var adaptiveSlots = <String>[];
+    // Bug #1261: the lane's golden declaration, held unresolved until
+    // flush — `golden: true` must see the lane's FULL behaviors list
+    // regardless of the key's order in the yaml row.
+    var goldenAll = false;
+    var goldenTokens = <String>[];
 
     void flush() {
       if (currentLane == null) return;
@@ -590,6 +603,7 @@ class SpecParser {
           behaviorIds: behaviorIds,
           flutterAllowed: flutterAllowed,
           adaptiveSlots: adaptiveSlots,
+          goldenIds: goldenAll ? List<String>.of(behaviorIds) : goldenTokens,
           annotations: annotations,
         ),
       );
@@ -598,6 +612,8 @@ class SpecParser {
       annotations = <String, String>{};
       flutterAllowed = '';
       adaptiveSlots = <String>[];
+      goldenAll = false;
+      goldenTokens = <String>[];
     }
 
     for (final line in normalizeSpecText(specMd).split('\n')) {
@@ -639,6 +655,23 @@ class SpecParser {
       final slotsM = _laneAdaptiveSlotsLine.firstMatch(trimmed);
       if (slotsM != null) {
         adaptiveSlots = _listTokens(slotsM.group(1)!);
+        continue;
+      }
+      final goldenM = _laneGoldenLine.firstMatch(trimmed);
+      if (goldenM != null) {
+        final value = goldenM.group(1)!.trim().toLowerCase();
+        if (value == 'true') {
+          // Resolved at flush: every behavior the lane declares is
+          // golden-gated, whatever order the yaml row wrote the keys.
+          goldenAll = true;
+          goldenTokens = <String>[];
+        } else if (value == 'false' || value.isEmpty) {
+          goldenAll = false;
+          goldenTokens = <String>[];
+        } else {
+          goldenAll = false;
+          goldenTokens = _listTokens(goldenM.group(1)!);
+        }
         continue;
       }
     }

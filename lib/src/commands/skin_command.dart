@@ -1,5 +1,10 @@
-/// `zfa skin` — the runtime skin-contract auditor command group
+/// `zfa skin` subcommands — the runtime skin-contract auditor
 /// (issue #1102, #1112).
+///
+/// Spec 1276: the top-level `zfa skin` command is owned by the skin
+/// plugin (`lib/src/plugins/skin/commands/skin_command.dart`), which
+/// mounts the subcommands below. This file no longer defines a
+/// standalone `skin` group command.
 ///
 /// * `zfa skin kit [--route <name>]...` — emits the Flutter glue of
 ///   the auditor (`<output>/skin/skin_contract_auditor.dart`) into
@@ -165,40 +170,6 @@ Set<String> extractKitRouteContract(String kitSource) {
   }
   routes.remove(RouteRootMarker.root);
   return routes;
-}
-
-class SkinCommand extends Command<void> {
-  SkinCommand({String? projectRoot, FileSystem? fileSystem})
-    : _fileSystem = fileSystem ?? const DefaultFileSystem() {
-    addSubcommand(
-      SkinKitCommand(projectRoot: projectRoot, fileSystem: _fileSystem),
-    );
-    addSubcommand(
-      SkinVerifyCommand(projectRoot: projectRoot, fileSystem: _fileSystem),
-    );
-    addSubcommand(SkinDriveCommand());
-  }
-
-  final FileSystem _fileSystem;
-
-  @override
-  String get name => 'skin';
-
-  @override
-  String get description =>
-      'Runtime skin-contract auditor (issue #1102): emit the kit '
-      '(skin kit), statically verify the route-contract table '
-      'against the routing barrel (skin verify), and drive the live '
-      'app through the VM-service tapAnchor seam (skin drive, '
-      'issue #1112).';
-
-  @override
-  String get invocation => 'zfa skin <subcommand> [options]';
-
-  @override
-  Future<void> run() async {
-    printUsage();
-  }
 }
 
 class SkinKitCommand extends Command<void> {

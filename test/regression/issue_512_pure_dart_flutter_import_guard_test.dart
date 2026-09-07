@@ -11,7 +11,7 @@ import 'package:zuraffa/src/core/context/file_system.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/route/builders/route_builder.dart';
-import 'package:zuraffa/src/plugins/shadcn/builders/shadcn_builder.dart';
+import 'package:zuraffa/src/plugins/skin/builders/skin_builder.dart';
 import 'package:zuraffa/src/plugins/xray/xray_deck_barrel_writer.dart';
 
 /// #512 regression: several generators emit Flutter-only code
@@ -101,10 +101,10 @@ $deps''');
       });
     });
 
-    group('shadcn', () {
-      test('pure-Dart pubspec => no shadcn widget emitted', () async {
+    group('skin', () {
+      test('pure-Dart pubspec => no skin widget emitted', () async {
         await writePubspec(flutter: false);
-        final builder = ShadcnBuilder(
+        final builder = SkinBuilder(
           outputDir: outputDir,
           options: const GeneratorOptions(force: true),
           fileSystem: FileSystem.create(),
@@ -116,7 +116,7 @@ $deps''');
         expect(files, isEmpty);
       });
 
-      test('Flutter pubspec => emits Flutter shadcn widget', () async {
+      test('Flutter pubspec => emits Flutter skin widget', () async {
         await writePubspec(flutter: true);
         // Provide a minimal entity so the widget builder can resolve fields.
         final entityDir = Directory(
@@ -126,7 +126,7 @@ $deps''');
         await File(p.join(entityDir.path, 'product.dart')).writeAsString(
           'class Product { final String id; const Product({required this.id}); }',
         );
-        final builder = ShadcnBuilder(
+        final builder = SkinBuilder(
           outputDir: outputDir,
           options: const GeneratorOptions(force: true),
           fileSystem: FileSystem.create(),
@@ -138,7 +138,7 @@ $deps''');
         expect(files, isNotEmpty);
         final content = files.first.content ?? '';
         expect(content, contains('package:flutter/material.dart'));
-        expect(content, contains('package:shadcn_ui/shadcn_ui.dart'));
+        expect(content, contains('package:zuraffa_ui/zuraffa_ui.dart'));
       });
     });
 

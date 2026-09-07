@@ -24,8 +24,8 @@ import 'package:zuraffa/src/plugins/gym/capabilities/create_gym_capability.dart'
 import 'package:zuraffa/src/plugins/gym/gym_plugin.dart';
 import 'package:zuraffa/src/plugins/presenter/capabilities/create_presenter_capability.dart';
 import 'package:zuraffa/src/plugins/presenter/presenter_plugin.dart';
-import 'package:zuraffa/src/plugins/shadcn/commands/shadcn_command.dart';
-import 'package:zuraffa/src/plugins/shadcn/shadcn_plugin.dart';
+import 'package:zuraffa/src/plugins/skin/commands/skin_command.dart';
+import 'package:zuraffa/src/plugins/skin/skin_plugin.dart';
 import 'package:zuraffa/src/plugins/sync/capabilities/create_sync_capability.dart';
 import 'package:zuraffa/src/plugins/sync/sync_plugin.dart';
 import 'package:zuraffa/src/plugins/view/capabilities/create_view_capability.dart';
@@ -346,8 +346,8 @@ void main() {
       final out = 'lib/src';
       runner = CommandRunner<void>('zfa', 'test runner');
       runner.addCommand(
-        ShadcnCommand(
-          ShadcnPlugin(outputDir: out, options: const GeneratorOptions()),
+        SkinCommand(
+          SkinPlugin(outputDir: out, options: const GeneratorOptions()),
         ),
       );
       runner.addCommand(
@@ -364,16 +364,16 @@ void main() {
       );
     });
 
-    test('shadcn rejects an unknown layout positional with exit 2', () async {
+    test('skin rejects an unknown layout positional with exit 2', () async {
       exitCode = 0;
-      // Invalid layout: the command must refuse before generating.
-      // The zuraffa repo itself is a pure-Dart package, so the builder's
-      // pure-Dart guard means nothing is written even in the RED state.
-      await runner.run(['shadcn', 'banana', 'Product']);
-      expect(
-        exitCode,
-        ExitProtocol.usage,
-        reason: 'an unknown layout is a usage error, not a silent generation',
+      // Invalid layout: dispatch refuses before generating. Spec 1276:
+      // layouts are subcommands, so an unknown name raises args'
+      // UsageException at dispatch; the real CLI (CliRunner) maps that
+      // to ExitProtocol.usage (2) — cli_runner.dart's on UsageException
+      // arm. Nothing is generated either way.
+      await expectLater(
+        runner.run(['skin', 'banana', 'Product']),
+        throwsA(isA<UsageException>()),
       );
     });
 
@@ -497,30 +497,27 @@ void main() {
       expect(result.stdout, contains('already exists'));
     });
 
-    test(
-      'shadcn exits 1 when generation fails (blocked output tree)',
-      () async {
-        // A FILE where the generator must create the `lib` directory makes
-        // every write attempt throw a FileSystemException inside manager.run
-        // — the command's catch block must translate that into exit 1, not a
-        // lying exit 0. (Sandbox pubspec declares `flutter:` so the builder's
-        // pure-Dart guard does not skip generation.)
-        File('${sandbox.path}/lib').writeAsStringSync('not a directory\n');
-        final result = await Process.run(Platform.resolvedExecutable, [
-          zfaScript,
-          'shadcn',
-          'list',
-          'Product',
-        ], workingDirectory: sandbox.path);
-        expect(
-          result.exitCode,
-          1,
-          reason:
-              'a generation failure must exit 1, not 0 — '
-              'stdout:\n${result.stdout}\nstderr:\n${result.stderr}',
-        );
-        expect(result.stdout, contains('Failed to generate widget'));
-      },
-    );
+    test('skin exits 1 when generation fails (blocked output tree)', () async {
+      // A FILE where the generator must create the `lib` directory makes
+      // every write attempt throw a FileSystemException inside manager.run
+      // — the command's catch block must translate that into exit 1, not a
+      // lying exit 0. (Sandbox pubspec declares `flutter:` so the builder's
+      // pure-Dart guard does not skip generation.)
+      File('${sandbox.path}/lib').writeAsStringSync('not a directory\n');
+      final result = await Process.run(Platform.resolvedExecutable, [
+        zfaScript,
+        'skin',
+        'list',
+        'Product',
+      ], workingDirectory: sandbox.path);
+      expect(
+        result.exitCode,
+        1,
+        reason:
+            'a generation failure must exit 1, not 0 — '
+            'stdout:\n${result.stdout}\nstderr:\n${result.stderr}',
+      );
+      expect(result.stdout, contains('Failed to generate widget'));
+    });
   });
 }

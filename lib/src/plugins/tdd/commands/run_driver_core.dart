@@ -346,6 +346,40 @@ class RunDriverCore {
           ? assignment.skinIds
           : assignment.engineIds;
       rows = allRows.where((r) => laneIds.contains(r.id)).toList();
+      // Bug #1271 (tdd-run-widget-lane-stalls-engine): widget-kind
+      // behaviors are SKIN-lane work (spec 1008 — widget subjects run
+      // only after a green engine receipt), whatever route carried them
+      // into the engine bucket (a ` [both]` tag, the plan pair / split
+      // receipt, or the legacy CORE default). Driving them through the
+      // engine steps stalls the lane: verify-red sees the widget subject
+      // already green and refuses with not-certified-red at make.
+      //
+      // - ENGINE lane: defer every widget-kind row — it keeps its
+      //   pending state (never a fake DONE, FR-007/FR-008) and no engine
+      //   step is spawned for it.
+      // - SKIN lane: the deferral queue — the widget-kind rows deferred
+      //   OUT of the engine bucket join the skin bucket (SKIN + BOTH),
+      //   so run-skin (and the meta run's second lane) picks them up
+      //   behind the green engine receipt. The skin lane's own
+      //   widget-kind processing is unchanged (bug #1271 constraint 4).
+      if (lane == 'engine') {
+        rows = rows.where((r) => r.kind != BehaviorKind.widget).toList();
+      } else if (lane == 'skin') {
+        final deferredWidgetIds = <String>{
+          for (final r in allRows)
+            if (r.kind == BehaviorKind.widget &&
+                assignment.engineIds.contains(r.id))
+              r.id,
+        };
+        if (deferredWidgetIds.isNotEmpty) {
+          rows = allRows
+              .where(
+                (r) =>
+                    laneIds.contains(r.id) || deferredWidgetIds.contains(r.id),
+              )
+              .toList();
+        }
+      }
     }
 
     // -----------------------------------------------------------------
@@ -417,7 +451,7 @@ class RunDriverCore {
     final runner = StepRunner(zfaBin: zfaBin, timeout: timeout);
 
     // Issue #992: --skip-widget turns a widget-lane gen refusal (#938
-    // shadcn gate) into a recorded per-behavior skip instead of a run
+    // skin gate) into a recorded per-behavior skip instead of a run
     // stop. The map is keyed by behavior id (transcript + summary) and
     // gates phases 2a/2b so a skipped behavior is never re-driven.
     final skippedWidgets = <String, String>{};
@@ -743,7 +777,7 @@ class RunDriverCore {
           '${skippedWidgets.values.toSet().join(' / ')}',
         );
         print(
-          '   resume: add shadcn_ui (flutter pub add shadcn_ui --dev) or '
+          '   resume: add zuraffa_ui (flutter pub add zuraffa_ui --dev) or '
           'drop --skip-widget, then re-run `zfa tdd $label $feature`',
         );
       }
@@ -1320,7 +1354,7 @@ class RunDriverCore {
           _printOutputExcerpt(result.output);
           return (state: updated, stop: null, refactorBlocked: true);
         }
-        // Issue #992: a widget-lane gen refusal (#938 shadcn gate) is
+        // Issue #992: a widget-lane gen refusal (#938 skin gate) is
         // per-behavior information, not a run-fatal step failure — the
         // refusal is side-effect-free (gen refuses BEFORE any artifact
         // write, registry append, or re-render). With --skip-widget the
@@ -1335,10 +1369,10 @@ class RunDriverCore {
           updated = updated.advance(row.id, state);
           await store.save(updated, activeBehaviorIds: activeIds);
           await tx.clear();
-          skippedWidgets[row.id] = 'shadcn_ui not declared (issue #938)';
+          skippedWidgets[row.id] = 'zuraffa_ui not declared (issue #938)';
           print(
             '[run] ${row.id} gen -> skipped-widget '
-            '(--skip-widget; shadcn_ui not declared, issue #938)',
+            '(--skip-widget; zuraffa_ui not declared, issue #938)',
           );
           return (state: updated, stop: null, refactorBlocked: false);
         }

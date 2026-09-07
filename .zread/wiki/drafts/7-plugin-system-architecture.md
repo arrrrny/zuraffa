@@ -46,7 +46,7 @@ The key members of the base contract:
 | `capabilities` | `List<ZuraffaCapability>` | Interrogable operations (plan/execute) |
 | `validate` / `beforeGenerate` / `afterGenerate` / `onError` | lifecycle hooks | See lifecycle section |
 
-The most important specialization is `FileGeneratorPlugin`, which adds `generateWithContext(PluginContext)` — the canonical entry point — plus a legacy `generate(GeneratorConfig)` bridge. The default `generateWithContext` implementation maps the `PluginContext` back into a legacy `GeneratorConfig`, copying core flags (dryRun, force, verbose, revert, outputDir) so that older plugins keep working without changes. A separate `CliAwarePlugin` mixin lets a plugin contribute a full `Command` to the CLI runner, which is how plugins like `api` (`zfa api Product`) and `shadcn` expose dedicated subcommands.
+The most important specialization is `FileGeneratorPlugin`, which adds `generateWithContext(PluginContext)` — the canonical entry point — plus a legacy `generate(GeneratorConfig)` bridge. The default `generateWithContext` implementation maps the `PluginContext` back into a legacy `GeneratorConfig`, copying core flags (dryRun, force, verbose, revert, outputDir) so that older plugins keep working without changes. A separate `CliAwarePlugin` mixin lets a plugin contribute a full `Command` to the CLI runner, which is how plugins like `api` (`zfa api Product`) and `skin` expose dedicated subcommands.
 
 Sources: [plugin_interface.dart](lib/src/core/plugin_system/plugin_interface.dart#L65-L83), [cli_aware_plugin.dart](lib/src/core/plugin_system/cli_aware_plugin.dart#L7-L13)
 
@@ -164,7 +164,7 @@ The `PluginLoader` registers 22 built-in plugins in a fixed order, each a `FileG
 |---|---|
 | Domain | `usecase`, `service`, `strategy` |
 | Data | `repository`, `datasource`, `provider`, `cache`, `sync`, `api`, `mock` |
-| Presentation | `view`, `presenter`, `controller`, `state`, `observer`, `shadcn` |
+| Presentation | `view`, `presenter`, `controller`, `state`, `observer`, `skin` |
 | Cross-cutting | `di`, `route`, `test`, `feature`, `gql`, `method_append` |
 
 Sources: [plugin_loader.dart](lib/src/cli/plugin_loader.dart#L100-L131)
@@ -185,7 +185,7 @@ Sources: [zfa_config.dart](lib/src/config/zfa_config.dart#L19-L40), [plugin_load
 
 ## CLI Integration Points
 
-The CLI runner bootstraps the whole system in one place: `_ensureInitialized` builds a fresh `PluginLoader` registry and merges it into the global `PluginRegistry.instance` (skipping already-registered ids), then iterates `CliAwarePlugin` instances and adds each one's `createCommand()` to the root `CommandRunner`. This is why `zfa api Product`, `zfa shadcn`, and the usecase subcommands work without any per-command wiring — a plugin that implements `CliAwarePlugin` is automatically a CLI citizen. Core commands like `make`, `manifest`, and `apply` then consume the registry directly: `make` resolves the plan, builds the context, and calls `PluginManager.run`, while `manifest` reports the registered plugin inventory.
+The CLI runner bootstraps the whole system in one place: `_ensureInitialized` builds a fresh `PluginLoader` registry and merges it into the global `PluginRegistry.instance` (skipping already-registered ids), then iterates `CliAwarePlugin` instances and adds each one's `createCommand()` to the root `CommandRunner`. This is why `zfa api Product`, `zfa skin`, and the usecase subcommands work without any per-command wiring — a plugin that implements `CliAwarePlugin` is automatically a CLI citizen. Core commands like `make`, `manifest`, and `apply` then consume the registry directly: `make` resolves the plan, builds the context, and calls `PluginManager.run`, while `manifest` reports the registered plugin inventory.
 
 Sources: [cli_runner.dart](lib/src/cli/cli_runner.dart#L43-L80), [make_command.dart](lib/src/commands/make_command.dart#L334-L350)
 

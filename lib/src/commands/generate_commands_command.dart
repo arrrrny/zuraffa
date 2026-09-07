@@ -25,7 +25,7 @@ const Map<String, String> _pluginCategory = {
   'controller': 'presentation',
   'state': 'presentation',
   'tui': 'presentation',
-  'shadcn': 'presentation',
+  'skin': 'presentation',
   'graphql': 'graphql',
   'gql': 'graphql',
   'test': 'testing',
