@@ -67,9 +67,21 @@ void main() {
 
         // FR-2: operations are still blocked outside a project, with the
         // actionable message and a non-zero exit — the fix must not weaken
-        // the guard.
+        // the guard. Bug #1267 superseded the entity-level dep-check text
+        // ("No pubspec.yaml found in current directory") with the runner's
+        // canonical no-project error: the refusal now happens BEFORE the
+        // command dispatches, with the same non-zero contract.
         final out = '${result.stdout}${result.stderr}';
-        expect(out, contains('No pubspec.yaml found'));
+        expect(
+          out,
+          anyOf(
+            contains('No pubspec.yaml found'),
+            contains(
+              'No Flutter project found. Run from inside a project '
+              'directory or use -C <path>.',
+            ),
+          ),
+        );
         expect(result.exitCode, isNot(0));
       },
     );
