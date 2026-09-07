@@ -212,7 +212,7 @@ dev_dependencies:
       () async {
         await seedEntity();
 
-        final output = await captureOutput(
+        await captureOutput(
           () => commandRunner().run([
             'make',
             'car',
