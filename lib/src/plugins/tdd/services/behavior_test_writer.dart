@@ -355,9 +355,9 @@ void main() {
     // Issue #912 defect 2: the shell is configurable; the skin shell
     // needs its own import (material.dart stays for Scaffold + Theme).
     final shellName = widgetShell.widgetName;
-    final shellImport = widgetShell == WidgetAppShell.zuraffaapp
-        ? "import 'package:zuraffa_ui/zuraffa_ui.dart';\n"
-        : '';
+    final shellImport = widgetShell.importPath == null
+        ? ''
+        : "import '${widgetShell.importPath}';\n";
     // Issue #964 (finder-kind taxonomy): the scenario verb decides the
     // assertion class — presence stays find.text, navigation becomes a
     // route-outcome assertion on a recording NavigatorObserver, absence

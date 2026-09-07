@@ -93,6 +93,11 @@ void main() {
         'subject-wired spec per mode (dark inverse)', () async {
       final content = await writePair();
       expect(content, contains('ZfaTheme.of'));
+      // Issue #1277 review: reject the raw engine vocabulary — the
+      // certified aliases (ZfaTheme/ZfaThemeData) are the only permitted
+      // spelling in emitted templates.
+      expect(content, isNot(contains('ShadTheme')));
+      expect(content, isNot(contains('ShadThemeData')));
       expect(content, contains('theme.colorScheme.primary'));
       expect(content, contains('spec!.primaryLight'));
       expect(content, contains('spec!.primaryDark'));

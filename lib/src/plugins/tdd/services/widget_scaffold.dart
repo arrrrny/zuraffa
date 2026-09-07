@@ -46,10 +46,32 @@ enum WidgetAppShell {
   String get widgetName =>
       this == WidgetAppShell.zuraffaapp ? 'ZuraffaApp' : 'MaterialApp';
 
-  /// Parses a `.zfa.json`/CLI string value; unknown values fall back to
-  /// the default.
-  static WidgetAppShell parse(String? value) =>
-      value == 'materialapp' ? materialapp : zuraffaapp;
+  /// The package path the shell's test emission needs to import
+  /// (null = none beyond material.dart, which the template always
+  /// imports). Co-located with [widgetName] so a future rename of the
+  /// shell widget or its host package forces both ends to update
+  /// together (issue #1277 review).
+  String? get importPath => switch (this) {
+    WidgetAppShell.zuraffaapp => 'package:zuraffa_ui/zuraffa_ui.dart',
+    WidgetAppShell.materialapp => null,
+  };
+
+  /// Parses a `.zfa.json`/CLI string value; null/unknown values fall back
+  /// to the default ([zuraffaapp]). Unknown non-empty values emit a
+  /// one-line warning so a typo in `tdd.widgetShell` is visible in the
+  /// gen log (issue #1277 review).
+  static WidgetAppShell parse(String? value) {
+    if (value == 'materialapp') return materialapp;
+    if (value == 'zuraffaapp' || value == null || value.isEmpty) {
+      return zuraffaapp;
+    }
+    // ignore: avoid_print
+    print(
+      "warning: tdd.widgetShell='$value' is not a recognized shell; "
+      "defaulting to 'zuraffaapp'. Valid values: zuraffaapp, materialapp.",
+    );
+    return zuraffaapp;
+  }
 }
 
 /// Machine-readable scaffold marker emitted by the widget template when

@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import '../../../cli/writers/tdd/app_module_writer.dart';
 import '../../../cli/writers/tdd/dart_test_yaml_writer.dart';
 import '../../../cli/writers/tdd/pubspec_dev_dependencies_patcher.dart';
+import '../../../cli/writers/tdd/pubspec_skin_dependency_patcher.dart';
 import '../../../cli/writers/tdd/smoke_test_writer.dart';
 import '../../../cli/writers/tdd/tdd_profile_writer.dart';
 import '../services/verdict_emitter.dart';
@@ -43,6 +44,17 @@ class InitCommand extends Command<void> {
           'Flutter). With --force, those files are replaced in place.',
       negatable: false,
     );
+    argParser.addFlag(
+      'skin',
+      help:
+          'Opt into the SKIN lane (issue #1260): also adds the skin lane\'s '
+          'CERTIFIED dependency — `zuraffa_ui: ^0.1.0`, the identified '
+          'Zfa* vocabulary whose ZuraffaApp is the certified app shell — '
+          'to the project pubspec under dependencies: (runtime, not dev). '
+          'Refuses loudly on pure-Dart targets (zuraffa_ui is a Flutter '
+          'SDK package).',
+      negatable: false,
+    );
   }
 
   final TddPlugin plugin;
@@ -74,6 +86,9 @@ class InitCommand extends Command<void> {
         : ProjectRoot.find(anchorDir: 'specs');
     final isFlutter = await _isFlutterProject(cwd);
     final force = argResults?['force'] == true;
+    // Issue #1260 remediation 2: skin-lane opt-in — the certified
+    // dependency is added to the project's dependencies: (runtime).
+    final skin = argResults?['skin'] == true;
 
     stdout.writeln(
       'zfa tdd init: ensuring TDD baseline in $cwd '
@@ -166,6 +181,44 @@ class InitCommand extends Command<void> {
       failures.add('pubspec_dev_dependencies_patcher: $e');
     }
 
+    // Issue #1260 remediation 2: the skin lane's certified vocabulary is
+    // opt-in. On a pure-Dart target the opt-in is a LOUD misfire (the
+    // certified package needs the Flutter SDK — a silently corrupted
+    // pubspec is the dishonest outcome), not a warning.
+    if (skin) {
+      if (!isFlutter) {
+        final message =
+            '--skin requires a Flutter project: zuraffa_ui (the skin '
+            'lane\'s certified vocabulary) is a Flutter SDK package and '
+            'cannot resolve in a pure-Dart target.';
+        stdout.writeln('   ✗ pubspec.yaml dependencies (skin): $message');
+        failures.add('pubspec_skin_dependency_patcher: $message');
+      } else {
+        try {
+          final added = await const PubspecSkinDependencyPatcher().ensure(cwd);
+          if (added.isEmpty) {
+            stdout.writeln(
+              '   ✓ pubspec.yaml dependencies (skin: zuraffa_ui already '
+              'declared)',
+            );
+          } else {
+            stdout.writeln(
+              '   ✓ pubspec.yaml dependencies (added: ${added.join(', ')})',
+            );
+          }
+        } on FormatException catch (e) {
+          stdout.writeln('   ✗ pubspec.yaml dependencies (skin): $e');
+          failures.add('pubspec_skin_dependency_patcher: $e');
+        } on StateError catch (e) {
+          stdout.writeln('   ✗ pubspec.yaml dependencies (skin): $e');
+          failures.add('pubspec_skin_dependency_patcher: $e');
+        } on UnsupportedError catch (e) {
+          stdout.writeln('   ✗ pubspec.yaml dependencies (skin): $e');
+          failures.add('pubspec_skin_dependency_patcher: $e');
+        }
+      }
+    }
+
     if (failures.isNotEmpty) {
       stderr.writeln(
         '\nzfa tdd init: misfire — ${failures.length} writer(s) failed. '
@@ -174,7 +227,14 @@ class InitCommand extends Command<void> {
       for (final f in failures) {
         stderr.writeln('  - $f');
       }
-      throw StateError('zfa tdd init: misfire');
+      // Errors-are-an-API (VISION §4): the thrown message carries the
+      // failure details too, so captured channels (wrappers, JSON
+      // envelopes, `zfa tdd run` step logs) name the exact remedy without
+      // needing the raw stderr transcript.
+      throw StateError(
+        'zfa tdd init: misfire — ${failures.length} writer(s) failed: '
+        '${failures.join(' | ')}',
+      );
     }
 
     stdout.writeln(

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Bug #1261 mutation audit, chunk a-models-reader (see mutation-test-1261.xml). -->
+<mutations version="1.0">
+  <files>
+    <file>lib/src/plugins/tdd/models/lane.dart
+      <lines begin="23" end="23"/>
+      <lines begin="46" end="51"/>
+    </file>
+    <file>lib/src/plugins/tdd/models/behavior.dart
+      <lines begin="88" end="88"/>
+      <lines begin="93" end="98"/>
+    </file>
+  </files>
+  <commands>
+    <command group="test" expected-return="0" working-directory=".">bash tools/run-bug1261-tests.sh</command>
+  </commands>
+</mutations>

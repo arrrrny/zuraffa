@@ -806,6 +806,31 @@ class GenCommand extends Command<void> {
       return 'refused';
     }
 
+    // Issue #1277 follow-up (CodeRabbit review): the theme-kind harness
+    // (`ThemeHarnessTestWriter`) emits
+    // `import 'package:zuraffa_ui/zuraffa_ui.dart';` regardless of the
+    // --widget-shell value (the harness always uses ZfaTheme /
+    // ZuraffaApp). When the target project's pubspec does not declare
+    // zuraffa_ui, that import cannot resolve: the generated pair dies at
+    // `verify-red` with compile-error. Mirror the widget preflight's
+    // refuse-with-fix-line pattern for the theme lane.
+    if (effectiveBehavior.kind == BehaviorKind.theme &&
+        !WidgetSkinPreflight.projectDeclaresZuraffaUi(cwd)) {
+      print(WidgetSkinPreflight.fixLine);
+      _printVerdict(
+        behaviorId: behavior.id,
+        verdict: 'refused',
+        kind: 'theme',
+        reason:
+            'pubspec.yaml does not declare ${WidgetSkinPreflight.skinPackage} '
+            '— theme-lane behaviors boot a theme harness whose import '
+            'would die at compile (issue #1277 review). Run: flutter '
+            'pub add ${WidgetSkinPreflight.skinPackage}',
+      );
+      exitCode = 1;
+      return 'refused';
+    }
+
     // Compute paths. Bug #827: the artifacts are namespaced by feature-slug
     // so two features planning the same behavior id never collide on one
     // flat file (the registry is per-feature; the flat layout made feature

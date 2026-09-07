@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Bug #1261 mutation audit, chunk d-commands (see mutation-test-1261.xml). -->
+<mutations version="1.0">
+  <files>
+    <file>lib/src/plugins/tdd/commands/plan_command.dart
+      <lines begin="594" end="600"/>
+      <lines begin="603" end="603"/>
+      <lines begin="630" end="644"/>
+      <lines begin="720" end="725"/>
+      <lines begin="731" end="736"/>
+      <lines begin="1227" end="1272"/>
+      <lines begin="1634" end="1634"/>
+      <lines begin="1662" end="1707"/>
+      <lines begin="1776" end="1778"/>
+      <lines begin="1799" end="1799"/>
+      <lines begin="1811" end="1814"/>
+    </file>
+    <file>lib/src/plugins/tdd/commands/split_command.dart
+      <lines begin="189" end="195"/>
+      <lines begin="205" end="205"/>
+      <lines begin="287" end="289"/>
+    </file>
+    <file>lib/src/plugins/tdd/commands/gen_command.dart
+      <lines begin="149" end="151"/>
+      <lines begin="687" end="703"/>
+      <lines begin="716" end="716"/>
+      <lines begin="1051" end="1051"/>
+      <lines begin="1174" end="1178"/>
+      <lines begin="1546" end="1546"/>
+      <lines begin="1604" end="1604"/>
+      <lines begin="1749" end="1749"/>
+    </file>
+  </files>
+  <commands>
+    <command group="test" expected-return="0" working-directory=".">bash tools/run-bug1261-tests.sh</command>
+  </commands>
+</mutations>
