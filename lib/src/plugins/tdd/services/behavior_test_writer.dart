@@ -505,6 +505,15 @@ class _RouteRecorder extends NavigatorObserver {
 }
 '''
         : '';
+    // Bug #1261: the scaffold header only promises the golden harness
+    // when a golden hook was ACTUALLY emitted — a hookless scaffold
+    // (no gate, or a route-outcome scenario whose golden can never
+    // settle, issue #964) never claims baselines are committed, so
+    // the author is never misled into expecting a harness that does
+    // not exist.
+    final goldenHeaderNote = golden && !routeObserver
+        ? "// slower tier; golden baselines are committed per platform under\n// test/tdd/goldens/."
+        : '// slower tier.';
     return '''
 // GENERATED TEST — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
 //
@@ -527,8 +536,7 @@ ${keyed ? "// i18n: slang test shell, base locale '${I18nScaffold.baseLocale}' p
 // still throws, the error lands in the guard assertion instead of
 // escaping the pump (classified runner/compile, not red — issue #830
 // widget failure taxonomy). Widget tests run on the flutter profile's
-// slower tier; golden baselines are committed per platform under
-// test/tdd/goldens/.
+$goldenHeaderNote
 library;
 
 import 'package:flutter/material.dart';
