@@ -14,7 +14,14 @@
 ///      run-state (`tdd/run-state.json`) — the two mutable stores a
 ///      restart needs clean. The cycle-log is append-only evidence and is
 ///      never touched; the audit log is history and is never touched.
-///   5. Emits the machine-readable JSON verdict as the final stdout line
+///   5. Appends a reset TOMBSTONE to the unified journal
+///      (`tdd/journal.json`, issue #1264): one entry naming every
+///      dropped behavior id, invalidating the green evidence those
+///      behaviors left behind in the cycle-log. Without it the run
+///      driver re-derives done from the surviving evidence and skips the
+///      dropped behaviors as "already done" (the phantom done-state). The
+///      tombstone is append-only — the journal's history stays intact.
+///   6. Emits the machine-readable JSON verdict as the final stdout line
 ///      and exits 0 on success, 1 on refusal (unknown feature).
 ///
 /// Ownership rule (hard constraint): reset NEVER deletes foreign files —
@@ -28,6 +35,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
+import '../services/journal.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
@@ -136,6 +144,16 @@ class ResetCommand extends Command<void> {
       '  will keep $foreignKept foreign generated file(s) untouched '
       '(never deleted)',
     );
+    // Issue #1264: the dropped behaviors' surviving cycle-log evidence is
+    // invalidated (the journal tombstone) — announced BEFORE acting, like
+    // every other reset effect.
+    final droppedIds = records.map((record) => record.behaviorId).toList();
+    if (droppedIds.isNotEmpty) {
+      print(
+        '  will invalidate the green evidence of ${droppedIds.length} '
+        'dropped behavior(s) (journal tombstone)',
+      );
+    }
 
     // Act: owned files first, then the registry, then run-state.
     for (final path in ownedExisting) {
@@ -146,6 +164,13 @@ class ResetCommand extends Command<void> {
     final runStateFile = File(p.join(featureDir, 'tdd', 'run-state.json'));
     if (await runStateFile.exists()) await runStateFile.delete();
 
+    // Issue #1264: tombstone the dropped behaviors — append the journal
+    // entry that invalidates their surviving green evidence, so the run
+    // driver re-drives them instead of skipping them as "already done".
+    await JournalWriter(
+      featureDir,
+    ).appendResetTombstone(behaviorIds: droppedIds);
+
     print('zfa tdd reset: feature=$feature dropped=${records.length}');
     _printVerdict(
       feature: feature,
@@ -155,6 +180,7 @@ class ResetCommand extends Command<void> {
           .toList(),
       droppedRecords: records.length,
       foreignKept: foreignKept,
+      invalidatedBehaviors: droppedIds,
     );
     exitCode = 0;
   }
@@ -183,6 +209,7 @@ class ResetCommand extends Command<void> {
     List<String> droppedFiles = const [],
     int droppedRecords = 0,
     int foreignKept = 0,
+    List<String> invalidatedBehaviors = const [],
   }) {
     if (!_jsonMode) {
       print(
@@ -206,6 +233,9 @@ class ResetCommand extends Command<void> {
     if (reason != null) _verdict.details['reason'] = reason;
     if (droppedFiles.isNotEmpty) {
       _verdict.details['dropped_files'] = droppedFiles;
+    }
+    if (invalidatedBehaviors.isNotEmpty) {
+      _verdict.details['invalidated_behaviors'] = invalidatedBehaviors;
     }
   }
 }

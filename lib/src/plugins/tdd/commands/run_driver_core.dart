@@ -384,8 +384,19 @@ class RunDriverCore {
 
     // -----------------------------------------------------------------
     // 5. Reconcile state with evidence: evidence beats state (FR-003).
+    //    Issue #1264: a reset's tombstoned behaviors are subtracted from
+    //    the evidence sets first — reset drops the artifacts but never
+    //    the append-only cycle-log, and reconciling off that surviving
+    //    green evidence skipped the dropped behaviors as "already done"
+    //    (the phantom done-state). The tombstone is the per-behavior
+    //    evidence invalidation record the reset wrote.
     // -----------------------------------------------------------------
     final evidence = CycleEvidence(featureDir);
+    final tombstoned = await JournalReader.tombstonedBehaviors(featureDir);
+    final redEvidence = (await evidence.redEvidence()).difference(tombstoned);
+    final greenEvidence = (await evidence.greenEvidence()).difference(
+      tombstoned,
+    );
 
     // -----------------------------------------------------------------
     // 4b. Bug #828: replay the write-ahead journal BEFORE reconciling.
@@ -399,8 +410,8 @@ class RunDriverCore {
     var current = _reconcile(
       loaded ?? RunState.empty(feature),
       allRows,
-      await evidence.redEvidence(),
-      await evidence.greenEvidence(),
+      redEvidence,
+      greenEvidence,
     );
 
     // Persist the reconciled state only when something actually changed.

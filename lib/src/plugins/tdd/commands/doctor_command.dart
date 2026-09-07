@@ -20,9 +20,11 @@
 ///    the state cannot be reconciled without dropping the stale records
 ///    (`zfa tdd reset <feature>`).
 /// 4. **resume** — the stores disagree on progress (an in-flight marker,
-///    or claims whose matching cycle-log evidence is missing): the run
-///    driver re-drives the incomplete steps honestly (`zfa tdd run
-///    <feature>`).
+///    or claims whose matching cycle-log evidence is missing), or green
+///    evidence has no backing artifact on disk (issue #1264's
+///    `evidence-without-artifact`: the post-reset phantom done-state):
+///    the run driver re-drives the incomplete steps honestly (`zfa tdd
+///    run <feature>`).
 /// 5. **none** — the stores agree; the feature is healthy.
 ///
 /// The same state always produces the same prescription (deterministic:
@@ -279,6 +281,48 @@ class DoctorCommand extends Command<void> {
         feature: feature,
         verdict: 'drift',
         prescription: 'reset',
+        fix: fix,
+        drifts: drifts,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // ---- 2d. Evidence without artifact -> RESUME (issue #1264) -------
+    // The store-to-tree check the store-to-store comparisons miss: green
+    // evidence in the append-only cycle-log can survive the deletion of
+    // the artifacts it certified (`zfa tdd reset` drops the owned files
+    // but never the evidence). A behavior whose last green entry names a
+    // test file missing from disk is the phantom done-state: run skips
+    // it as "already done" and status reports green on a nonexistent
+    // test. Exactly one recovery: re-drive the behaviors (`zfa tdd run`
+    // reconciles them to pending and re-enters at gen).
+    final orphaned = await evidence.orphanedGreenEvidence(projectRoot: cwd);
+    if (orphaned.isNotEmpty) {
+      final ids = orphaned.toList()..sort();
+      for (final id in ids) {
+        final lastGreen = await evidence.lastEntryFor(id, kind: 'green');
+        final testPath = lastGreen?.test ?? '(unknown)';
+        drifts.add(
+          'evidence-without-artifact: "$id" has green evidence naming '
+          '${_displayPath(cwd, p.isAbsolute(testPath) ? p.normalize(testPath) : p.normalize(p.join(cwd, testPath)))} '
+          'but the file is missing from disk',
+        );
+      }
+      final fix = 'zfa tdd run $feature';
+      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      for (final drift in drifts) {
+        print('  drift: $drift');
+      }
+      print(
+        '   --> fix: $fix — re-drive every behavior whose evidence has no '
+        'backing artifact (run reconciles them to pending and re-enters '
+        'at gen; the append-only evidence history is preserved)',
+      );
+      _printVerdict(
+        feature: feature,
+        verdict: 'drift',
+        prescription: 'resume',
         fix: fix,
         drifts: drifts,
       );
