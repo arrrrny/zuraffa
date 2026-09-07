@@ -17,6 +17,7 @@ import '../config/zfa_config.dart';
 import '../cli/plugin_loader.dart';
 import '../core/branding/branding_writer.dart';
 import '../core/dependencies/generated_import_scanner.dart';
+import '../core/dependencies/pubspec_auto_add.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/plugin_context.dart';
 import '../core/project/project_root.dart';
@@ -166,7 +167,11 @@ class MakeCommand extends Command<void> {
   final PluginRegistry registry;
   late final PluginManager manager;
 
-  MakeCommand(this.registry, {String? projectRoot}) {
+  MakeCommand(
+    this.registry, {
+    String? projectRoot,
+    PubspecProcessRunner? processRunner,
+  }) : _processRunner = processRunner {
     argParser.addFlag(
       'ui',
       negatable: false,
@@ -192,6 +197,12 @@ class MakeCommand extends Command<void> {
     // See issue #441.
     return ProjectRoot.find();
   }
+
+  /// Issue #1265: the `pub add` spawner for the mechanical auto-add of
+  /// undeclared generated-import packages. Injectable so tests stay
+  /// hermetic (the doctor_checks.dart `ZfaProcessRunner` convention);
+  /// null delegates to the default `Process.run` spawner.
+  final PubspecProcessRunner? _processRunner;
 
   void _addCoreOptions() {
     argParser.addOption(
@@ -1039,11 +1050,38 @@ class MakeCommand extends Command<void> {
           ? _pubsyncGapForFiles(files)
           : null;
 
+      // Issue #1265 — auto-add, don't warn-only: the make generator now
+      // DECLARES what it emits. One mechanical `<flutter|dart> pub add`
+      // heals the hosted gap (the same fix path `zfa doctor
+      // generated-imports --fix` uses); the ⚠️ diagnostic remains only
+      // for what the add could not heal (offline, SDK-provided packages).
+      var pubsyncAutoAdded = const <String>[];
+      if (pubsyncGap != null &&
+          pubsyncGap.hasMissing &&
+          pubsyncGap.pubAddPackages.isNotEmpty) {
+        final outcome = await PubspecAutoAdd.add(
+          projectRoot: manager.projectRoot,
+          packages: pubsyncGap.pubAddPackages,
+          isFlutter: pubsyncGap.isFlutterProject,
+          runner: _processRunner,
+        );
+        pubsyncAutoAdded = outcome.added;
+        if (outcome.added.isNotEmpty) {
+          for (final line in PubspecGapReporter.successLines(
+            added: outcome.added,
+            commandLine: outcome.commandLine!,
+          )) {
+            print(line);
+          }
+        }
+      }
+
       _logSummary(
         files,
         context.core.verbose,
         plan: plan,
         pubsyncGap: pubsyncGap,
+        pubsyncAutoAdded: pubsyncAutoAdded,
       );
 
       // ── Issue #1194: certified mocks BY DEFAULT ──────────────────────
@@ -1568,8 +1606,16 @@ class MakeCommand extends Command<void> {
     bool verbose, {
     required dynamic plan,
     PubspecDependencyGap? pubsyncGap,
+    List<String> pubsyncAutoAdded = const [],
   }) {
     if (argResults?['format'] == 'json') {
+      // Issue #1265: what the run could not declare itself is what
+      // remains missing after the auto-add attempt (auto-added packages
+      // are reported separately; SDK-provided packages always remain).
+      final pubsyncRemaining = _pubsyncRemainingMissing(
+        pubsyncGap,
+        pubsyncAutoAdded,
+      );
       print(
         jsonEncode({
           'success': true,
@@ -1580,12 +1626,19 @@ class MakeCommand extends Command<void> {
           // boots on certified mocks) or COMPILE-ONLY (--compile-only
           // opt-out). Absent when the plan had no data tier at all.
           if (contextTierLabel != null) 'tier': contextTierLabel,
+          // Issue #1265: packages the run declared in pubspec.yaml
+          // itself, so agents don't re-run `pub add` for them.
+          if (pubsyncAutoAdded.isNotEmpty)
+            'auto_added_pubspec_deps': pubsyncAutoAdded,
           // Issue #1190: machine-consumable pubspec-dep gap — agents can
           // run the one-liner without parsing analyzer output.
-          if (pubsyncGap != null && pubsyncGap.hasMissing)
+          if (pubsyncRemaining.isNotEmpty)
             'missing_pubspec_deps': {
-              'packages': pubsyncGap.missing,
-              'suggested_fix': pubsyncGap.pubAddOneLiner,
+              'packages': pubsyncRemaining,
+              'suggested_fix': GeneratedImportScanner.pubAddOneLiner(
+                missing: pubsyncRemaining,
+                isFlutter: pubsyncGap!.isFlutterProject,
+              ),
               'sdk_packages': pubsyncGap.sdkMissingPackages,
             },
         }),
@@ -1629,30 +1682,46 @@ class MakeCommand extends Command<void> {
       }
     }
 
-    // Issue #1190 — completion-time pubspec-dep suggestion.
-    _printPubsyncSuggestion(pubsyncGap);
+    // Issue #1190/#1265 — completion-time pubspec-dep suggestion (now
+    // only for what the auto-add could not heal).
+    _printPubsyncSuggestion(pubsyncGap, pubsyncAutoAdded);
   }
 
-  /// Issue #1190: prints the generated-imports ↔ pubspec gap and the exact
-  /// `pub add` one-liner that heals it. SDK-provided packages (flutter,
-  /// flutter_test, ...) cannot be `pub add`ed — they get their own note.
-  void _printPubsyncSuggestion(PubspecDependencyGap? gap) {
+  /// Issue #1265: the gap packages that REMAIN undeclared after the
+  /// auto-add attempt — everything the `pub add` did not cover
+  /// (failed/offline packages and SDK-provided ones never auto-add).
+  List<String> _pubsyncRemainingMissing(
+    PubspecDependencyGap? gap,
+    List<String> autoAdded,
+  ) {
+    if (gap == null || !gap.hasMissing) return const [];
+    final added = autoAdded.toSet();
+    return gap.missing.where((name) => !added.contains(name)).toList()..sort();
+  }
+
+  /// Issue #1190/#1265: prints the generated-imports ↔ pubspec gap and
+  /// the exact `pub add` one-liner that heals it — but ONLY for the
+  /// packages the auto-add could not declare (offline/failed adds and
+  /// SDK-provided packages). The wording comes from the shared
+  /// [PubspecGapReporter] so every generator stays consistent.
+  void _printPubsyncSuggestion(
+    PubspecDependencyGap? gap,
+    List<String> autoAdded,
+  ) {
     if (gap == null || !gap.hasMissing) return;
-    print(
-      '⚠️  pubspec.yaml doesn\'t declare ${gap.missing.length} '
-      'package(s) the generated code imports: ${gap.missing.join(", ")}',
+    final remaining = _pubsyncRemainingMissing(gap, autoAdded);
+    if (remaining.isEmpty) return;
+    final oneLiner = GeneratedImportScanner.pubAddOneLiner(
+      missing: remaining,
+      isFlutter: gap.isFlutterProject,
     );
-    final oneLiner = gap.pubAddOneLiner;
-    if (oneLiner != null) {
-      print('    --> fix: `$oneLiner`');
+    for (final line in PubspecGapReporter.gapWarningLines(
+      missing: remaining,
+      pubAddOneLiner: oneLiner,
+      sdkMissingPackages: gap.sdkMissingPackages,
+    )) {
+      print(line);
     }
-    if (gap.sdkMissingPackages.isNotEmpty) {
-      print(
-        '    note: ${gap.sdkMissingPackages.join(", ")} come(s) from the '
-        'Flutter SDK — declare with `sdk: flutter` in pubspec.yaml',
-      );
-    }
-    print('    note: re-check the whole tree with `zfa doctor`');
   }
 
   /// Spec 1002: engine-chain step 1 — `entity create`. Generates the

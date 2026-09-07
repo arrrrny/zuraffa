@@ -1,6 +1,13 @@
-/// SDD-TDD suite for issue #1190 — `zfa make` prints the exact `pub add`
-/// one-liner on completion when the generated code imports packages the
+/// SDD-TDD suite for issue #1190 — `zfa make` heals the generated-imports ↔
+/// pubspec gap on completion when the generated code imports packages the
 /// target's pubspec doesn't declare.
+///
+/// Issue #1265 supersedes the warn-only contract: the completion post-pass
+/// now AUTO-ADDS the hosted gap via one mechanical `pub add` (the same fix
+/// the doctor `--fix` path runs), and the `⚠️ doesn't declare … --> fix:`
+/// diagnostic remains only for what the add could not heal. The `pub add`
+/// process is intercepted by an injectable runner so the pins stay
+/// hermetic — no network, no real dependency resolution.
 ///
 /// Drives the real make pipeline in-process (CliRunner.runCapturing, `-C`
 /// temp fixture, exactly like make_command_test.dart) so the pin covers the
@@ -13,6 +20,36 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+
+/// Records the spawned `pub add` and simulates its effect on the fixture
+/// pubspec (dependency inserted under `dependencies:`) — hermetic.
+class _RecordingAddRunner {
+  final List<String> invocations = [];
+  final Directory workspace;
+  final int exitCode;
+  _RecordingAddRunner(this.workspace, {this.exitCode = 0});
+
+  Future<ProcessResult> call(String executable, List<String> args) async {
+    invocations.add('$executable ${args.join(' ')}');
+    if (exitCode == 0 &&
+        args.length >= 3 &&
+        args[0] == 'pub' &&
+        args[1] == 'add') {
+      final pubspec = File('${workspace.path}/pubspec.yaml');
+      final content = pubspec.readAsStringSync();
+      final buf = StringBuffer();
+      for (final pkg in args.skip(2)) {
+        buf.writeln('  $pkg: ^1.0.0');
+      }
+      pubspec.writeAsStringSync(
+        content.contains('dependencies:\n')
+            ? content.replaceFirst('dependencies:\n', 'dependencies:\n$buf')
+            : '${content}dependencies:\n$buf',
+      );
+    }
+    return ProcessResult(exitCode, exitCode, '', '');
+  }
+}
 
 void main() {
   late Directory workspace;
@@ -66,27 +103,29 @@ class Product {
     if (format != 'text') ...['--format', format],
   ];
 
-  /// The single `--> fix:` suggestion line the post-pass prints.
-  String fixLineIn(String output) => output
-      .split('\n')
-      .firstWhere((l) => l.contains('--> fix:'), orElse: () => '');
-
   group('make completion pubspec-dep suggestion (issue #1190)', () {
     test(
-      'U-1190-M1: generated imports missing from pubspec print the one-liner',
+      'U-1190-M1: generated imports missing from pubspec are auto-added',
       () async {
+        final addRunner = _RecordingAddRunner(workspace);
         final output = await CliRunner(
           exitOnCompletion: false,
+          makeProcessRunner: addRunner.call,
         ).runCapturing(args());
 
         expect(output, contains('✅ Generation complete'));
-        // The generated code imports package:zuraffa (framework) — the
-        // fixture pubspec declares NOTHING, so the run must surface the
-        // gap with the exact healing command on a single fix line.
-        expect(output, contains("pubspec.yaml doesn't declare"));
-        final fixLine = fixLineIn(output);
-        expect(fixLine, contains('dart pub add'));
-        expect(fixLine, contains('zuraffa'));
+        // Issue #1265: the generated code imports package:zuraffa — the
+        // fixture pubspec declares NOTHING, so the run DECLARES the gap
+        // itself with one mechanical `pub add` (pure-Dart fixture → dart).
+        expect(output, contains('Auto-added'));
+        expect(addRunner.invocations, hasLength(1));
+        expect(addRunner.invocations.single, startsWith('dart pub add '));
+        expect(addRunner.invocations.single, contains('zuraffa'));
+        // The pubspec now declares what the generated code imports.
+        final pubspec = File(
+          path.join(workspace.path, 'pubspec.yaml'),
+        ).readAsStringSync();
+        expect(pubspec, contains('zuraffa:'));
       },
       timeout: const Timeout(Duration(minutes: 3)),
     );
@@ -106,29 +145,58 @@ dev_dependencies:
         // No --with=vpc: views are Flutter widgets (issue #420) and would
         // legitimately flag the undeclared `flutter` SDK import; this pin
         // covers the all-declared case, so keep the surface pure Dart.
+        final addRunner = _RecordingAddRunner(workspace);
         final output = await CliRunner(
           exitOnCompletion: false,
+          makeProcessRunner: addRunner.call,
         ).runCapturing(args(withVpc: false));
 
         expect(output, contains('✅ Generation complete'));
         expect(output, isNot(contains("pubspec.yaml doesn't declare")));
+        // Nothing to declare → no pub add ever spawned (issue #1265).
+        expect(addRunner.invocations, isEmpty);
       },
       timeout: const Timeout(Duration(minutes: 3)),
     );
 
     test(
-      'U-1190-M3: json mode carries the gap inside the single JSON object',
+      'U-1190-M3: json mode carries the healed gap inside the JSON object',
       () async {
+        final addRunner = _RecordingAddRunner(workspace);
         final output = await CliRunner(
           exitOnCompletion: false,
+          makeProcessRunner: addRunner.call,
         ).runCapturing(args(format: 'json'));
 
         final jsonStart = output.indexOf('{');
         expect(jsonStart, isNonNegative, reason: 'no JSON in output: $output');
         final decoded = jsonDecodeLoose(output.substring(jsonStart));
         expect(decoded['success'], isTrue);
+        // Issue #1265: the run declared the gap itself — reported as
+        // auto-added, NOT as missing (nothing left for the user to fix).
+        expect(
+          (decoded['auto_added_pubspec_deps'] as List).cast<String>(),
+          contains('zuraffa'),
+        );
+        expect(decoded['missing_pubspec_deps'], isNull);
+      },
+      timeout: const Timeout(Duration(minutes: 3)),
+    );
+
+    test(
+      'U-1190-M4: failed auto-add (offline) keeps the gap + fix in json',
+      () async {
+        final addRunner = _RecordingAddRunner(workspace, exitCode: 1);
+        final output = await CliRunner(
+          exitOnCompletion: false,
+          makeProcessRunner: addRunner.call,
+        ).runCapturing(args(format: 'json'));
+
+        final jsonStart = output.indexOf('{');
+        final decoded = jsonDecodeLoose(output.substring(jsonStart));
+        expect(decoded['success'], isTrue);
         final gap = decoded['missing_pubspec_deps'] as Map<String, dynamic>?;
-        expect(gap, isNotNull, reason: 'gap must be reported in json mode');
+        expect(gap, isNotNull, reason: 'unhealed gap must be reported in json');
         expect((gap!['packages'] as List).cast<String>(), contains('zuraffa'));
         final fix = gap['suggested_fix'] as String?;
         expect(fix, isNotNull);
