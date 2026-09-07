@@ -31,8 +31,10 @@ import 'widget_scaffold.dart';
 /// Writes a Dart test file that pairs with the subject for a behavior.
 class BehaviorTestWriter {
   /// The app shell the generated WIDGET test pumps the feature view in
-  /// (issue #912 defect 2): default [WidgetAppShell.shadapp] — zuraffa
-  /// apps are shadcn_ui apps — overridable per project.
+  /// (issue #912 defect 2): default [WidgetAppShell.zuraffaapp] since
+  /// issue #1256 — zuraffa apps are zuraffa_ui apps — overridable per
+  /// project (shadapp remains an explicit opt-in for legacy shadcn_ui
+  /// projects).
   ///
   /// Issue #965: [i18nKeys] carries the feature's declared i18n surfaces;
   /// a scenario literal equal to a declared anchor asserts through the
@@ -42,7 +44,7 @@ class BehaviorTestWriter {
   /// pubspec (relative fallback) — emitted only when a keyed surface is
   /// emitted. An empty table keeps the pre-#965 template byte-for-byte.
   const BehaviorTestWriter({
-    this.widgetShell = WidgetAppShell.shadapp,
+    this.widgetShell = WidgetAppShell.zuraffaapp,
     this.i18nKeys = I18nKeyTable.empty,
     this.i18nImport,
     this.i18nExpansion = const [],
@@ -324,8 +326,9 @@ void main() {
 
   /// Render the WIDGET test (bug #830): a `testWidgets` pair that boots
   /// the feature view through the subject's view-builder contract, pumps
-  /// it inside a configurable app shell (issue #912 defect 2 — ShadApp
-  /// by default, MaterialApp for plain-Material projects), and asserts
+  /// it inside a configurable app shell (issue #912 defect 2 — ZuraffaApp
+  /// by default since issue #1256, shadapp/materialapp as explicit
+  /// opt-outs), and asserts
   /// the acceptance scenario through finders DERIVED from the scenario
   /// description (issue #912 defect 3 — a bare `findsOneWidget`
   /// placeholder is greenable by a SizedBox and marks the test
@@ -352,12 +355,16 @@ void main() {
     );
     final target = b.target.isEmpty ? 'subjectUnderTest' : b.target;
     final snakeId = _toSnakeCase(b.id);
-    // Issue #912 defect 2: the shell is configurable; the shadcn shell
-    // needs its own import (material.dart stays for Scaffold + Theme).
+    // Issue #912 defect 2 (updated by issue #1256): the shell is
+    // configurable; the zuraffa_ui/shadcn_ui shell needs its own import
+    // (material.dart stays for Scaffold + Theme).
     final shellName = widgetShell.widgetName;
-    final shellImport = widgetShell == WidgetAppShell.shadapp
-        ? "import 'package:shadcn_ui/shadcn_ui.dart';\n"
-        : '';
+    final shellImport = switch (widgetShell) {
+      WidgetAppShell.zuraffaapp =>
+        "import 'package:zuraffa_ui/zuraffa_ui.dart';\n",
+      WidgetAppShell.shadapp => "import 'package:shadcn_ui/shadcn_ui.dart';\n",
+      WidgetAppShell.materialapp => '',
+    };
     // Issue #964 (finder-kind taxonomy): the scenario verb decides the
     // assertion class — presence stays find.text, navigation becomes a
     // route-outcome assertion on a recording NavigatorObserver, absence

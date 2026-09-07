@@ -127,6 +127,18 @@ class DependencyWirer {
         kind: DependencyKind.regular,
         version: '^2.0.0',
       ),
+      // Issue #1256: zuraffa_ui is the certified UI vocabulary (ZuraffaApp
+      // + identified Zfa components) and the intended ShadApp replacement.
+      // New Flutter apps created via `zfa setup` / `zfa init` integrate it
+      // by default so the generation contract ("zfa-only output needs no
+      // manual migration") holds from day zero. Flutter-only: pure Dart
+      // packages have no UI surface.
+      if (isFlutter)
+        const DependencySpec(
+          name: 'zuraffa_ui',
+          kind: DependencyKind.regular,
+          version: '^0.1.0',
+        ),
       // #281: Wire json_annotation as a direct regular dep so generated entity
       // files (which use @JsonSerializable / JsonKey) satisfy
       // depend_on_referenced_packages and json_serializable stops warning.

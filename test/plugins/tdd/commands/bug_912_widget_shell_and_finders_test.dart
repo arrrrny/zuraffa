@@ -50,7 +50,7 @@ void main() {
 
   group('bug 912 defect 2: shell-configurable widget template', () {
     test(
-      'default shell is ShadApp (zuraffa apps) with the shadcn import',
+      'default shell is ShadApp for the EXPLICIT shadapp fixture (shadcn import)',
       () async {
         final content = await renderWidget(
           Behavior(
@@ -66,8 +66,9 @@ void main() {
           content,
           contains('pumpWidget(ShadApp('),
           reason:
-              'issue #912 defect 2: zuraffa apps pump ShadApp, not '
-              'MaterialApp',
+              'the explicit shadapp shell pumps ShadApp (legacy path kept '
+              'for shadcn_ui projects — the default moved to ZuraffaApp in '
+              'issue #1256)',
         );
         expect(
           content,
@@ -182,12 +183,22 @@ void main() {
       return file.readAsString();
     }
 
-    test('default gen emits the ShadApp shell + scenario finder', () async {
+    test('default gen emits the ZuraffaApp shell + scenario finder (issue '
+        '#1256 default)', () async {
       await seedWidgetBehavior();
+      // The default shell (ZuraffaApp) imports zuraffa_ui — declare it so
+      // the #938 preflight passes (mirrors a post-#1256 zfa setup app).
+      await File(p.join(tmpDir.path, 'pubspec.yaml')).writeAsString('''
+name: bug912_fixture
+dependencies:
+  flutter: {sdk: flutter}
+  zuraffa_ui: ^0.1.0
+''');
       final runner = CliRunner(exitOnCompletion: false);
       await runner.runCapturing(genArgs('W-5', ['--kind', 'widget']));
       final content = await generatedWidgetTest();
-      expect(content, contains('pumpWidget(ShadApp('));
+      expect(content, contains('pumpWidget(ZuraffaApp('));
+      expect(content, contains("import 'package:zuraffa_ui/zuraffa_ui.dart';"));
       expect(content, contains("find.text('Add to cart')"));
     });
 
