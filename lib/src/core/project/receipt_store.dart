@@ -119,7 +119,7 @@ class GenerationReceipt {
 
   /// Capability name of the standalone invocation (issue #996): `create`
   /// for `zfa di create`, `adapter` for `zfa cache adapter`, `enable`
-  /// for `zfa sync enable`, the layout for `zfa shadcn <layout>`.
+  /// for `zfa sync enable`, the layout for `zfa skin <layout>`.
   final String? capability;
 
   /// The entity the capability operated on (issue #996).

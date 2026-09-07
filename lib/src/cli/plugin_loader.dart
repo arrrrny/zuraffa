@@ -28,7 +28,7 @@ import '../plugins/service/service_plugin.dart';
 import '../plugins/usecase/usecase_plugin.dart';
 import '../plugins/view/view_plugin.dart';
 import '../plugins/feature/feature_plugin.dart';
-import '../plugins/shadcn/shadcn_plugin.dart';
+import '../plugins/skin/skin_plugin.dart';
 import '../plugins/strategy/strategy_plugin.dart';
 import '../plugins/module/module_plugin.dart';
 import '../plugins/mcp/mcp_plugin.dart';
@@ -181,7 +181,7 @@ class PluginLoader {
       // GraphqlBuilder, and `--with=gql` aliases to graphql (see
       // PluginAliasResolver) for one deprecation cycle.
       GraphqlPlugin(outputDir: outputDir, options: options),
-      ShadcnPlugin(outputDir: outputDir, options: options),
+      SkinPlugin(outputDir: outputDir, options: options),
       StrategyPlugin(outputDir: outputDir, options: options),
       MethodAppendPlugin(outputDir: outputDir, options: options),
       ModuleGeneratorPlugin(outputDir: outputDir, options: options),

@@ -8,23 +8,23 @@ import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
-import 'builders/shadcn_builder.dart';
+import 'builders/skin_builder.dart';
 import 'capabilities/ui_vocabulary_export_capability.dart';
-import 'commands/shadcn_command.dart';
+import 'commands/skin_command.dart';
 
-/// Manages Shadcn UI widget generation.
-class ShadcnPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
+/// Manages Skin UI widget generation (the zuraffa_ui certified lane).
+class SkinPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final GeneratorOptions options;
-  late final ShadcnBuilder shadcnBuilder;
+  late final SkinBuilder skinBuilder;
   final FileSystem fileSystem;
 
-  ShadcnPlugin({
+  SkinPlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     FileSystem? fileSystem,
   }) : fileSystem = fileSystem ?? FileSystem.create() {
-    shadcnBuilder = ShadcnBuilder(
+    skinBuilder = SkinBuilder(
       outputDir: outputDir,
       options: options,
       fileSystem: this.fileSystem,
@@ -32,20 +32,20 @@ class ShadcnPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   @override
-  Command createCommand() => ShadcnCommand(this);
+  Command createCommand() => SkinCommand(this);
 
   /// Spec 024 FR-006: the vocabulary export is a discoverable capability
-  /// (MCP-accessible) on the shadcn plugin.
+  /// (MCP-accessible) on the skin plugin.
   @override
   List<ZuraffaCapability> get capabilities => [
     UiVocabularyExportCapability(this),
   ];
 
   @override
-  String get id => 'shadcn';
+  String get id => 'skin';
 
   @override
-  String get name => 'Shadcn UI Plugin';
+  String get name => 'Skin UI Plugin';
 
   @override
   String get version => '1.0.0';
@@ -106,13 +106,13 @@ class ShadcnPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }) async {
     final fs = context?.fileSystem ?? fileSystem;
     final builder = context != null
-        ? ShadcnBuilder(
+        ? SkinBuilder(
             outputDir: outputDir,
             options: options,
             fileSystem: fs,
             discovery: context.discovery,
           )
-        : shadcnBuilder;
+        : skinBuilder;
 
     return builder.generate(config, context?.data ?? {});
   }

@@ -10,13 +10,13 @@ import '../../../utils/file_utils.dart';
 import '../../../utils/project_flavor.dart';
 import '../../../utils/string_utils.dart';
 
-class ShadcnBuilder {
+class SkinBuilder {
   final String outputDir;
   final GeneratorOptions options;
   final DiscoveryEngine discovery;
   final FileSystem fileSystem;
 
-  ShadcnBuilder({
+  SkinBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     DiscoveryEngine? discovery,
@@ -31,10 +31,10 @@ class ShadcnBuilder {
 
   Future<List<GeneratedFile>> generate(
     GeneratorConfig config,
-    Map<String, dynamic> shadcnData,
+    Map<String, dynamic> skinData,
   ) async {
-    // #512: shadcn widgets are Flutter widgets (import
-    // `package:flutter/material.dart` and `package:shadcn_ui/shadcn_ui.dart`)
+    // #512: skin widgets are Flutter widgets (import
+    // `package:flutter/material.dart` and `package:zuraffa_ui/zuraffa_ui.dart`)
     // and depend on zuraffa_flutter. In a pure-Dart target package
     // (pubspec.yaml without a `flutter:` dependency) emitting this code
     // violates Constitution VII (Engine Purity) and breaks `dart analyze`.
@@ -42,15 +42,15 @@ class ShadcnBuilder {
     final flavor = await detectProjectFlavor(outputDir, fileSystem);
     if (flavor == ProjectFlavor.pureDart) {
       print(
-        '⚠️ Skipping shadcn widget generation: target project is a pure-Dart '
-        'package (no `flutter:` in pubspec.yaml). Shadcn widgets are Flutter '
+        '⚠️ Skipping skin widget generation: target project is a pure-Dart '
+        'package (no `flutter:` in pubspec.yaml). Skin widgets are Flutter '
         'widgets that depend on zuraffa_flutter (Constitution VII: Engine '
-        'Purity). Run `zfa shadcn create` inside a Flutter project.',
+        'Purity). Run `zfa skin create` inside a Flutter project.',
       );
       return [];
     }
 
-    final layout = shadcnData['layout'] ?? 'list';
+    final layout = skinData['layout'] ?? 'list';
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final domain = config.effectiveDomain;
@@ -62,7 +62,7 @@ class ShadcnBuilder {
       fileSystem: fileSystem,
     );
     final ignoreFields =
-        (shadcnData['ignore-fields'] as List?)?.cast<String>() ?? [];
+        (skinData['ignore-fields'] as List?)?.cast<String>() ?? [];
 
     final filteredFields = Map<String, String>.from(fields)
       ..removeWhere((key, _) => ignoreFields.contains(key));
@@ -98,7 +98,7 @@ class ShadcnBuilder {
         content = _generateList(
           entityName,
           filteredFields,
-          shadcnData,
+          skinData,
           entityImport,
         );
         break;
@@ -107,7 +107,7 @@ class ShadcnBuilder {
     final file = await FileUtils.writeFile(
       filePath,
       content,
-      'shadcn_widget',
+      'skin_widget',
       force: options.force,
       dryRun: options.dryRun,
       verbose: options.verbose,
@@ -129,7 +129,7 @@ class ShadcnBuilder {
 
     final lines = <String>[
       "import 'package:flutter/material.dart';",
-      "import 'package:shadcn_ui/shadcn_ui.dart';",
+      "import 'package:zuraffa_ui/zuraffa_ui.dart';",
       entityImport,
       '',
       'class ${entityName}ListWidget extends StatelessWidget {',
@@ -158,15 +158,15 @@ class ShadcnBuilder {
         '            children: [',
         if (hasFilter) ...[
           '              Expanded(',
-          '                child: ShadInput(',
-          "                  placeholder: const Text('Filter $entityName...'),",
+          '                child: ZfaInput(',
+          "                  placeholder: 'Filter $entityName...',",
           '                  onChanged: onFilterChanged,',
           '                ),',
           '              ),',
         ],
         if (hasSort) ...[
           '              const SizedBox(width: 8),',
-          '              ShadButton.outline(',
+          '              ZfaButton(',
           "                child: const Text('Sort'),",
           "                onPressed: () => onSortChanged?.call('name'),",
           '              ),',
@@ -183,7 +183,7 @@ class ShadcnBuilder {
       '            itemCount: items.length,',
       '            itemBuilder: (context, index) {',
       '              final item = items[index];',
-      '              return ShadCard(',
+      '              return ZfaCard(',
       if (fields.isNotEmpty) ...[
         '                title: Text(item.${fields.keys.first}),',
         if (fields.length > 1)
@@ -210,7 +210,7 @@ class ShadcnBuilder {
   ) {
     final lines = <String>[
       "import 'package:flutter/material.dart';",
-      "import 'package:shadcn_ui/shadcn_ui.dart';",
+      "import 'package:zuraffa_ui/zuraffa_ui.dart';",
       entityImport,
       '',
       'class ${entityName}FormWidget extends StatefulWidget {',
@@ -223,14 +223,13 @@ class ShadcnBuilder {
       '}',
       '',
       'class _${entityName}FormWidgetState extends State<${entityName}FormWidget> {',
-      '  final formKey = GlobalKey<ShadFormState>();',
+      '  final _values = <String, dynamic>{};',
       '',
       '  @override',
       '  Widget build(BuildContext context) {',
-      '    return ShadForm(',
-      '      key: formKey,',
-      '      child: Column(',
-      '        children: [',
+      '    return Column(',
+      '      crossAxisAlignment: CrossAxisAlignment.stretch,',
+      '      children: [',
     ];
 
     if (fields.isEmpty) {
@@ -239,10 +238,12 @@ class ShadcnBuilder {
       for (final entry in fields.entries) {
         final name = entry.key;
         final type = entry.value;
-        lines.add('          ShadInputFormField(');
-        lines.add("            id: '$name',");
+        lines.add('          ZfaInput(');
         lines.add(
-          "            label: const Text('${StringUtils.capitalize(name)}'),",
+          "            placeholder: '${StringUtils.capitalize(name)}',",
+        );
+        lines.add(
+          "            onChanged: (value) => _values['$name'] = value,",
         );
         if (type.contains('int') || type.contains('double')) {
           lines.add('            keyboardType: TextInputType.number,');
@@ -253,17 +254,12 @@ class ShadcnBuilder {
 
     lines.addAll([
       '          const SizedBox(height: 16),',
-      '          ShadButton(',
+      '          ZfaButton(',
       "            child: const Text('Submit'),",
-      '            onPressed: () {',
-      '              if (formKey.currentState!.saveAndValidate()) {',
-      '                widget.onSubmit(formKey.currentState!.value);',
-      '              }',
-      '            },',
+      '            onPressed: () => widget.onSubmit(_values),',
       '          ),',
       '        ],',
-      '      ),',
-      '    );',
+      '      );',
       '  }',
       '}',
     ]);

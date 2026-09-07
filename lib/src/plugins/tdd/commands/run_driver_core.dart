@@ -417,7 +417,7 @@ class RunDriverCore {
     final runner = StepRunner(zfaBin: zfaBin, timeout: timeout);
 
     // Issue #992: --skip-widget turns a widget-lane gen refusal (#938
-    // shadcn gate) into a recorded per-behavior skip instead of a run
+    // skin gate) into a recorded per-behavior skip instead of a run
     // stop. The map is keyed by behavior id (transcript + summary) and
     // gates phases 2a/2b so a skipped behavior is never re-driven.
     final skippedWidgets = <String, String>{};
@@ -743,7 +743,7 @@ class RunDriverCore {
           '${skippedWidgets.values.toSet().join(' / ')}',
         );
         print(
-          '   resume: add shadcn_ui (flutter pub add shadcn_ui --dev) or '
+          '   resume: add zuraffa_ui (flutter pub add zuraffa_ui --dev) or '
           'drop --skip-widget, then re-run `zfa tdd $label $feature`',
         );
       }
@@ -1320,7 +1320,7 @@ class RunDriverCore {
           _printOutputExcerpt(result.output);
           return (state: updated, stop: null, refactorBlocked: true);
         }
-        // Issue #992: a widget-lane gen refusal (#938 shadcn gate) is
+        // Issue #992: a widget-lane gen refusal (#938 skin gate) is
         // per-behavior information, not a run-fatal step failure — the
         // refusal is side-effect-free (gen refuses BEFORE any artifact
         // write, registry append, or re-render). With --skip-widget the
@@ -1335,10 +1335,10 @@ class RunDriverCore {
           updated = updated.advance(row.id, state);
           await store.save(updated, activeBehaviorIds: activeIds);
           await tx.clear();
-          skippedWidgets[row.id] = 'shadcn_ui not declared (issue #938)';
+          skippedWidgets[row.id] = 'zuraffa_ui not declared (issue #938)';
           print(
             '[run] ${row.id} gen -> skipped-widget '
-            '(--skip-widget; shadcn_ui not declared, issue #938)',
+            '(--skip-widget; zuraffa_ui not declared, issue #938)',
           );
           return (state: updated, stop: null, refactorBlocked: false);
         }

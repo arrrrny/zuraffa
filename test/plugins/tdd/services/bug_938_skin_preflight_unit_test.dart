@@ -1,4 +1,4 @@
-// Bug #938 unit pins — the WidgetShadcnPreflight probe + fix-line
+// Bug #938 unit pins — the WidgetSkinPreflight probe + fix-line
 // contract. Split from the CLI acceptance test (commands/) so the
 // acceptance red is RUNTIME-verifiable against the unfixed lib: these
 // pins import the new API surface and are COMPILE-red until the fix
@@ -31,9 +31,9 @@ void main() {
 name: probe
 dependencies:
   flutter: {sdk: flutter}
-  shadcn_ui: ^1.0.0
+  zuraffa_ui: ^1.0.0
 ''');
-    expect(WidgetShadcnPreflight.projectDeclaresShadcnUi(tmpDir.path), isTrue);
+    expect(WidgetSkinPreflight.projectDeclaresZuraffaUi(tmpDir.path), isTrue);
   });
 
   test('absent from dependencies → false', () {
@@ -42,42 +42,42 @@ name: probe
 dependencies:
   flutter: {sdk: flutter}
 ''');
-    expect(WidgetShadcnPreflight.projectDeclaresShadcnUi(tmpDir.path), isFalse);
+    expect(WidgetSkinPreflight.projectDeclaresZuraffaUi(tmpDir.path), isFalse);
   });
 
   test('no dependencies section at all → false', () {
     writePubspec('name: probe\nenvironment:\n  sdk: ^3.11.0\n');
-    expect(WidgetShadcnPreflight.projectDeclaresShadcnUi(tmpDir.path), isFalse);
+    expect(WidgetSkinPreflight.projectDeclaresZuraffaUi(tmpDir.path), isFalse);
   });
 
   test('dev_dependencies alone does not satisfy the shell import', () {
     writePubspec('''
 name: probe
 dev_dependencies:
-  shadcn_ui: ^1.0.0
+  zuraffa_ui: ^1.0.0
 ''');
-    expect(WidgetShadcnPreflight.projectDeclaresShadcnUi(tmpDir.path), isFalse);
+    expect(WidgetSkinPreflight.projectDeclaresZuraffaUi(tmpDir.path), isFalse);
   });
 
   test('no pubspec.yaml → true (nothing to resolve)', () {
-    expect(WidgetShadcnPreflight.projectDeclaresShadcnUi(tmpDir.path), isTrue);
+    expect(WidgetSkinPreflight.projectDeclaresZuraffaUi(tmpDir.path), isTrue);
   });
 
   test('fix line is machine-parseable and names the remedy', () {
     expect(
-      WidgetShadcnPreflight.fixLine,
-      '--> fix: flutter pub add shadcn_ui '
-      '(widget-lane behaviors boot a ShadApp shell)',
+      WidgetSkinPreflight.fixLine,
+      '--> fix: flutter pub add zuraffa_ui '
+      '(widget-lane behaviors boot a ZuraffaApp shell)',
     );
   });
 
-  test('the shadapp shell requires the import; materialapp does not', () {
+  test('the zuraffaapp shell requires the import; materialapp does not', () {
     expect(
-      WidgetShadcnPreflight.shadcnImportRequired(WidgetAppShell.shadapp),
+      WidgetSkinPreflight.skinImportRequired(WidgetAppShell.zuraffaapp),
       isTrue,
     );
     expect(
-      WidgetShadcnPreflight.shadcnImportRequired(WidgetAppShell.materialapp),
+      WidgetSkinPreflight.skinImportRequired(WidgetAppShell.materialapp),
       isFalse,
     );
   });

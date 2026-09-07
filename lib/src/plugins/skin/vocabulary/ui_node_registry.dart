@@ -1,7 +1,7 @@
-/// The UI node registry — the shadcn plugin's authoritative component
+/// The UI node registry — the skin plugin's authoritative component
 /// vocabulary (spec 024, FR-001 / FR-002 / FR-007).
 ///
-/// Combines the built-in component set (mirroring the flutter-shadcn-ui
+/// Combines the built-in component set (mirroring the flutter-skin-ui
 /// fork's UINode system) with project-specific composites registered under
 /// `.zfa/ui/components/*.json` (written by `zfa make <Name> --ui`).
 library;
@@ -308,7 +308,7 @@ class NodeRegistry {
   }
 
   // ------------------------------------------------------------------
-  // Built-in vocabulary (mirror of the flutter-shadcn-ui fork's UINode set)
+  // Built-in vocabulary (mirror of the flutter-skin-ui fork's UINode set)
   // ------------------------------------------------------------------
 
   static Map<String, UiNodeDefinition> _buildBuiltIns() {

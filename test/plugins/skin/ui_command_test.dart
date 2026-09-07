@@ -7,8 +7,8 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/commands/make_command.dart';
-import 'package:zuraffa/src/plugins/shadcn/capabilities/ui_vocabulary_export_capability.dart';
-import 'package:zuraffa/src/plugins/shadcn/shadcn_plugin.dart';
+import 'package:zuraffa/src/plugins/skin/capabilities/ui_vocabulary_export_capability.dart';
+import 'package:zuraffa/src/plugins/skin/skin_plugin.dart';
 
 void main() {
   late CliRunner runner;
@@ -106,7 +106,7 @@ void main() {
           '--project-root=${tempDir.path}',
           '--no-plugin',
         ]);
-        expect(output.toLowerCase(), contains('shadcn plugin not found'));
+        expect(output.toLowerCase(), contains('skin plugin not found'));
         expect(output.toLowerCase(), contains('install'));
         expect(exitCode, 1);
       },
@@ -280,8 +280,8 @@ void main() {
   });
 
   group('UiVocabularyExportCapability (FR-006)', () {
-    test('shadcn plugin exposes the vocabulary export capability', () {
-      final plugin = ShadcnPlugin(outputDir: tempDir.path);
+    test('skin plugin exposes the vocabulary export capability', () {
+      final plugin = SkinPlugin(outputDir: tempDir.path);
       final capability = plugin.capabilities
           .whereType<UiVocabularyExportCapability>()
           .single;
@@ -291,7 +291,7 @@ void main() {
     });
 
     test('execute returns the exported schema with schemaVersion', () async {
-      final plugin = ShadcnPlugin(outputDir: tempDir.path);
+      final plugin = SkinPlugin(outputDir: tempDir.path);
       final capability = plugin.capabilities
           .whereType<UiVocabularyExportCapability>()
           .single;

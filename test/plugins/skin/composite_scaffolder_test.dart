@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
-import 'package:zuraffa/src/plugins/shadcn/vocabulary/composite_scaffolder.dart';
-import 'package:zuraffa/src/plugins/shadcn/vocabulary/ui_node_registry.dart';
-import 'package:zuraffa/src/plugins/shadcn/vocabulary/vocabulary_schema_exporter.dart';
+import 'package:zuraffa/src/plugins/skin/vocabulary/composite_scaffolder.dart';
+import 'package:zuraffa/src/plugins/skin/vocabulary/ui_node_registry.dart';
+import 'package:zuraffa/src/plugins/skin/vocabulary/vocabulary_schema_exporter.dart';
 
 void main() {
   late Directory tempDir;

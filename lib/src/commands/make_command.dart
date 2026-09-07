@@ -11,8 +11,8 @@ import 'package:path/path.dart' as p;
 import 'package:zorphy/zorphy.dart'
     show EntityConfig, EntityCreator, FieldDefinition;
 
-import '../plugins/shadcn/vocabulary/composite_scaffolder.dart';
-import '../plugins/shadcn/vocabulary/ui_node_registry.dart';
+import '../plugins/skin/vocabulary/composite_scaffolder.dart';
+import '../plugins/skin/vocabulary/ui_node_registry.dart';
 import '../config/zfa_config.dart';
 import '../cli/plugin_loader.dart';
 import '../core/branding/branding_writer.dart';
@@ -66,7 +66,7 @@ class MakeCommand extends Command<void> {
     'service',
     'api',
     'sync',
-    'shadcn',
+    'skin',
     'test', // value objects generate no usecases, so there are no usecase tests to emit
   };
 
@@ -120,7 +120,7 @@ class MakeCommand extends Command<void> {
   /// Spec 1002: plugins the engine preset hard-excludes — every
   /// Flutter-importing presentation plugin. The engine slice is pure
   /// Dart (no view, no presenter, no controller, no state, no route, no
-  /// shadcn), so these are dropped with a notice even when a config
+  /// skin), so these are dropped with a notice even when a config
   /// default or an alias pulled them into the plan.
   static const Set<String> _engineExcludedPluginIds = {
     'view',
@@ -128,7 +128,7 @@ class MakeCommand extends Command<void> {
     'controller',
     'state',
     'route',
-    'shadcn',
+    'skin',
   };
 
   /// Spec 1002: the default method set for `zfa make engine <Entity>`

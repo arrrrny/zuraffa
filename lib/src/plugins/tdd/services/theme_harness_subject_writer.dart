@@ -57,7 +57,7 @@ class ThemeHarnessSubjectWriter {
 // THEME-HARNESS SUBJECT CONTRACT (issue #841).
 //
 // The paired harness test pumps the app shell under ThemeMode.light and
-// ThemeMode.dark and asserts ShadTheme values against the inputs below.
+// ThemeMode.dark and asserts ZfaTheme values against the inputs below.
 // Wire every member to the app's REAL theme surface:
 //
 //   - themeHarnessSpec() → the certified values, re-exported from the
