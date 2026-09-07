@@ -1,3 +1,41 @@
+## [6.2.0] - 2026-09-07
+
+### Added
+- **`zfa mock verify` / `--json` verdict / `--explain`** (B+ → A+ upgrade): fleshed-out explain output for the mock plugin
+- **`zfa usecase verify` / `--certify` / `--explain`** (A+ upgrade): verify gate, entity drift detection, certification
+- **`zfa test --explain`** (A- → A+ upgrade): human-readable explain output for the test plugin
+- **`zfa state verify` / receipts / `--explain` / config schema** (C+ → A+ upgrade): full verify gate for the state plugin
+- **`zfa provider --explain`** (B+ → A+ upgrade): comprehensive error handling and explain output
+- **`zfa setup` / `zfa scaffold` integrate `zuraffa_ui`** by default (replaces ShadApp)
+- **Skin contract system** (stages 1-4): typed model, strict parser, runtime binding, receipt enforcement
+- **`zfa make --skin`**: wire the auditor-wrap flag through make
+- **Contract tests** as a first-class `zfa tdd` kind
+- **`zfa tdd plan --migrate-spec`**: injects missing template version marker
+- **UI coverage ledger**: surface derivation, coverage gate, xray binding (22 subjects)
+- **Plugin merge contract**: route barrel, DI graph, conformance gate (21 subjects)
+- **Slice isolation**: sandbox scaffold, sync verifiers, merge gate (22 subjects)
+- **Dependency-table mocks**: certified mocks from declared rows
+- **`zuraffa_flutter` re-exports `go_router`**: generators never emit `package:go_router`
+- **Differential corpus gate**: directional — regressions fail, improvements pass
+
+### Fixed
+- Pre-seed corpus entries with non-vacuous tests
+- Strip `::behaviorId` suffix in orphanedGreenEvidence file check
+- Drop unused local variable in dry-run test
+- `zfa entity create` — reject primitive types as entity names
+- TDD engine — fix vacuous green detection
+- TDD reset done state phantom
+- Verdict envelope docstring literal references
+- Verdict envelope exclusion list
+- `zfa usecase verify` — register `--name` flag
+- `zfa slice` — usage-error exit 2 instead of lying zero
+- Orphaned green evidence file check
+
+### Changed
+- Hard cut to `zuraffa_ui` vocabulary (replaces `shadcn`)
+- `zfa tdd verify` — mutation testing audit + MutationVerifier service
+- Differential vector and corpus loader with ref runner
+
 ## [Unreleased]
 
 ### Added
