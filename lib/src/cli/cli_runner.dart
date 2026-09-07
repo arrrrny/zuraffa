@@ -36,6 +36,7 @@ import '../commands/package_command.dart';
 import '../commands/engine_command.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
+import '../core/project/project_root.dart';
 import '../plugins/tdd/tdd_plugin.dart';
 import '../core/error/suggestion_engine.dart';
 import '../version.dart';
@@ -134,6 +135,20 @@ class CliRunner {
               'Run as if zfa was started in <dir> (scoped; the process '
               'working directory is restored afterward).',
         );
+
+  /// Bug #1267: the generation commands whose output paths are resolved
+  /// against the process CWD (`lib/src/domain/...` and friends). When one of
+  /// these is dispatched WITHOUT the global `-C` flag, the runner auto-detects
+  /// the project root by searching upward from the CWD for the nearest
+  /// `pubspec.yaml` and applies it as the same scoped chdir `-C` uses — so an
+  /// invocation from a parent directory (or a project subdirectory) targets
+  /// the project the shell actually means instead of scattering generated
+  /// files relative to wherever the invocation happened to start.
+  static const Set<String> _rootBoundGenerationCommands = {
+    'entity',
+    'make',
+    'build',
+  };
 
   /// Top-level commands whose execution path never consumes the plugin
   /// registry (no plugin-provided subcommands, no generator plugins needed).
@@ -279,7 +294,25 @@ class CliRunner {
       // `zfa -C <dir> generate ...` are classified correctly even though `-C`
       // shifts `args.first` / `args.isEmpty`.
       final commandArgs = _stripDirectory(args);
-      await _withDirectory(directory, () async {
+      // Bug #1267: root-bound generation commands auto-detect the project
+      // root when no `-C` was given; a rootless walk refuses with the
+      // canonical error instead of scattering files under the CWD.
+      final (autoRoot, noProjectFound) = _resolveGenerationRoot(
+        directory,
+        commandArgs,
+      );
+      if (noProjectFound) {
+        print('❌ ${ProjectRoot.noProjectFoundMessage}');
+        print(
+          ExitProtocol.fixLine(
+            'cd into the project directory (the nearest folder with a '
+            'pubspec.yaml) or pass -C <path> explicitly.',
+          ),
+        );
+        _exit(ExitProtocol.usage);
+        return;
+      }
+      await _withDirectory(directory ?? autoRoot, () async {
         _ensureInitialized(args, directory: directory);
 
         // Issue #1184: the installed `zfa` binary is a compiled snapshot;
@@ -512,6 +545,41 @@ class CliRunner {
     return dir.path;
   }
 
+  /// Bug #1267 auto-detect for the root-bound generation commands.
+  ///
+  /// Returns `(autoRoot, notFound)`:
+  /// * `autoRoot` non-null — apply it as the scoped CWD before dispatch (the
+  ///   nearest ancestor of the CWD carrying a `pubspec.yaml`);
+  /// * `autoRoot` null, `notFound` false — dispatch unchanged (an explicit
+  ///   `-C` was given and wins, the command is not root-bound, or the CWD
+  ///   itself already carries a `pubspec.yaml`);
+  /// * `notFound` true — no `pubspec.yaml` exists in any ancestor: the
+  ///   caller must refuse with [ProjectRoot.noProjectFoundMessage] instead
+  ///   of guessing a root and scattering generated files.
+  (String?, bool) _resolveGenerationRoot(
+    String? directory,
+    List<String> commandArgs,
+  ) {
+    // An explicit `-C` always wins — its behavior is byte-identical to the
+    // pre-#1267 contract.
+    if (directory != null) return (null, false);
+    if (commandArgs.isEmpty ||
+        !_rootBoundGenerationCommands.contains(commandArgs.first)) {
+      return (null, false);
+    }
+    // Help must be reachable from any directory (issue #764): a help-only
+    // invocation never touches the project filesystem, so the root walk
+    // must not intercept it.
+    const helpFlags = {'--help', '-h', 'help'};
+    if (commandArgs.skip(1).any(helpFlags.contains)) return (null, false);
+    final cwd = ProjectRoot.safeCurrentPath();
+    // Fast path: the CWD already is a project root — nothing to shift.
+    if (File(p.join(cwd, 'pubspec.yaml')).existsSync()) return (null, false);
+    final detected = ProjectRoot.findOrNull(startPath: cwd);
+    if (detected == null) return (null, true);
+    return (detected, false);
+  }
+
   /// Extract the global `-C`/`--directory` value from [args] (manual scan so
   /// we can apply the scoped chdir before the command runs). The root
   /// argParser also defines the option, so `_runner.run` still parses it.
@@ -577,60 +645,78 @@ class CliRunner {
       // Strip the global `-C`/`--directory` flag so the empty / version /
       // removed-generate pre-checks classify correctly (see [run]).
       final commandArgs = _stripDirectory(args);
-      await _withDirectory(directory, () async {
-        _ensureInitialized(args, directory: directory);
-
-        if (commandArgs.isEmpty) {
-          _printHelpTo(output.add);
-          return;
-        }
-
-        if (_isVersionCommand(commandArgs)) {
-          output.add('zfa v$version');
-          output.add('Zuraffa Code Generator');
-          return;
-        }
-
-        if (_isRemovedGenerateCommand(commandArgs)) {
-          _printRemovedGenerateMessageTo(output.add);
-          // SPEC 917: the removed verb is a usage error — the canonical 2,
-          // mirroring the run() pre-dispatch path.
-          dispatchedExitCode = ExitProtocol.usage;
-          return;
-        }
-
-        await runZoned(
-          () async {
-            try {
-              await _runner.run(args);
-              dispatchedExitCode = exitCode;
-            } on UsageException catch (e) {
-              output.add('❌ ${e.message}');
-              output.add(e.usage);
-              output.add(ExitProtocol.fixLine(_usageFixFor(e.message)));
-              dispatchedExitCode = ExitProtocol.usage;
-            } catch (e, stack) {
-              output.add('❌ Error: $e');
-              _addSuggestionsTo(output.add, e.toString());
-              if (args.contains('--verbose') || args.contains('-v')) {
-                output.add('\nStack trace:\n$stack');
-              }
-              output.add(
-                ExitProtocol.fixLine(
-                  "re-run with --verbose to capture the stack trace, then "
-                  "run `zfa doctor`",
-                ),
-              );
-              dispatchedExitCode = ExitProtocol.failure;
-            }
-          },
-          zoneSpecification: ZoneSpecification(
-            print: (self, parent, zone, line) {
-              output.add(line);
-            },
+      // Bug #1267: mirrors the run() auto-detect — the MCP/embedded path
+      // refuses a rootless generation invocation with the same canonical
+      // error and the same usage exit code.
+      final (autoRoot, noProjectFound) = _resolveGenerationRoot(
+        directory,
+        commandArgs,
+      );
+      if (noProjectFound) {
+        output.add('❌ ${ProjectRoot.noProjectFoundMessage}');
+        output.add(
+          ExitProtocol.fixLine(
+            'cd into the project directory (the nearest folder with a '
+            'pubspec.yaml) or pass -C <path> explicitly.',
           ),
         );
-      });
+        dispatchedExitCode = ExitProtocol.usage;
+      } else {
+        await _withDirectory(directory ?? autoRoot, () async {
+          _ensureInitialized(args, directory: directory);
+
+          if (commandArgs.isEmpty) {
+            _printHelpTo(output.add);
+            return;
+          }
+
+          if (_isVersionCommand(commandArgs)) {
+            output.add('zfa v$version');
+            output.add('Zuraffa Code Generator');
+            return;
+          }
+
+          if (_isRemovedGenerateCommand(commandArgs)) {
+            _printRemovedGenerateMessageTo(output.add);
+            // SPEC 917: the removed verb is a usage error — the canonical 2,
+            // mirroring the run() pre-dispatch path.
+            dispatchedExitCode = ExitProtocol.usage;
+            return;
+          }
+
+          await runZoned(
+            () async {
+              try {
+                await _runner.run(args);
+                dispatchedExitCode = exitCode;
+              } on UsageException catch (e) {
+                output.add('❌ ${e.message}');
+                output.add(e.usage);
+                output.add(ExitProtocol.fixLine(_usageFixFor(e.message)));
+                dispatchedExitCode = ExitProtocol.usage;
+              } catch (e, stack) {
+                output.add('❌ Error: $e');
+                _addSuggestionsTo(output.add, e.toString());
+                if (args.contains('--verbose') || args.contains('-v')) {
+                  output.add('\nStack trace:\n$stack');
+                }
+                output.add(
+                  ExitProtocol.fixLine(
+                    "re-run with --verbose to capture the stack trace, then "
+                    "run `zfa doctor`",
+                  ),
+                );
+                dispatchedExitCode = ExitProtocol.failure;
+              }
+            },
+            zoneSpecification: ZoneSpecification(
+              print: (self, parent, zone, line) {
+                output.add(line);
+              },
+            ),
+          );
+        });
+      }
     } finally {
       _active = false;
       // Re-apply this invocation's own exit code AFTER the teardown (the

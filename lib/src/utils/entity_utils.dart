@@ -1,6 +1,38 @@
 import 'zuraffa_barrel_exports.dart';
 
 class EntityUtils {
+  /// Rewrites recognized primitive type ALIASES to their canonical Dart
+  /// built-in names inside a field type expression (issue #1270).
+  ///
+  /// `zfa entity create -n Login --field isLoading:Boolean` — users (and
+  /// other codegen ecosystems) spell the boolean primitive `Boolean`, but
+  /// the Dart built-in is `bool`. Without recognition, the alias is
+  /// classified as a custom entity reference and rejected with
+  /// `Unknown type "Boolean" — no matching entity directory or enum file
+  /// found`, forcing users to scaffold an enum/entity directory for a
+  /// Dart built-in (or to fall back to computed getters, the workaround in
+  /// the issue report).
+  ///
+  /// The alias is rewritten case-insensitively at word boundaries, so plain
+  /// fields (`Boolean`), nullables (`Boolean?`) and generic inners
+  /// (`List<Boolean>`, `Map<String, Boolean>`) all normalize to `bool`;
+  /// custom types whose name merely CONTAINS the alias (`BooleanFilter`)
+  /// are untouched, and no other token is rewritten — existing resolution
+  /// of non-primitive types is unchanged (#296/#308 semantics preserved).
+  ///
+  /// Applied to the parsed field TYPE only (never the field name or JSON
+  /// wire name) by `zfa entity create` / `zfa entity add-field` before
+  /// validation and emission, so the generated entity declares the built-in
+  /// (`bool get isLoading;`) — the inline-primitive remediation preferred
+  /// by the assessment: primitives are Dart built-ins and must not require
+  /// directory scaffolding.
+  static String normalizePrimitiveTypeAliases(String type) {
+    return type.replaceAllMapped(
+      RegExp(r'\bboolean\b', caseSensitive: false),
+      (_) => 'bool',
+    );
+  }
+
   /// Extracts entity types from a field type string (e.g. List Product -> [Product])
   static List<String> extractEntityTypes(String fieldType) {
     final types = <String>[];

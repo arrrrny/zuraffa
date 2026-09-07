@@ -346,6 +346,40 @@ class RunDriverCore {
           ? assignment.skinIds
           : assignment.engineIds;
       rows = allRows.where((r) => laneIds.contains(r.id)).toList();
+      // Bug #1271 (tdd-run-widget-lane-stalls-engine): widget-kind
+      // behaviors are SKIN-lane work (spec 1008 — widget subjects run
+      // only after a green engine receipt), whatever route carried them
+      // into the engine bucket (a ` [both]` tag, the plan pair / split
+      // receipt, or the legacy CORE default). Driving them through the
+      // engine steps stalls the lane: verify-red sees the widget subject
+      // already green and refuses with not-certified-red at make.
+      //
+      // - ENGINE lane: defer every widget-kind row — it keeps its
+      //   pending state (never a fake DONE, FR-007/FR-008) and no engine
+      //   step is spawned for it.
+      // - SKIN lane: the deferral queue — the widget-kind rows deferred
+      //   OUT of the engine bucket join the skin bucket (SKIN + BOTH),
+      //   so run-skin (and the meta run's second lane) picks them up
+      //   behind the green engine receipt. The skin lane's own
+      //   widget-kind processing is unchanged (bug #1271 constraint 4).
+      if (lane == 'engine') {
+        rows = rows.where((r) => r.kind != BehaviorKind.widget).toList();
+      } else if (lane == 'skin') {
+        final deferredWidgetIds = <String>{
+          for (final r in allRows)
+            if (r.kind == BehaviorKind.widget &&
+                assignment.engineIds.contains(r.id))
+              r.id,
+        };
+        if (deferredWidgetIds.isNotEmpty) {
+          rows = allRows
+              .where(
+                (r) =>
+                    laneIds.contains(r.id) || deferredWidgetIds.contains(r.id),
+              )
+              .toList();
+        }
+      }
     }
 
     // -----------------------------------------------------------------

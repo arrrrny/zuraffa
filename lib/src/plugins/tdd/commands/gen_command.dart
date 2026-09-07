@@ -285,6 +285,25 @@ class GenCommand extends Command<void> {
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find(anchorDir: 'specs');
+    // Bug #1272: the feature's test list is read STRICTLY from
+    // `<project>/specs/<feature>/tdd/test-list.md` under the resolved
+    // project root. The --feature reference is validated BEFORE any
+    // test-list resolution: a path-shaped reference used to resolve
+    // OUTSIDE the project root (its .. segments normalize above it) and
+    // the parser read whichever foreign test-list.md the escape hit
+    // first — monorepo siblings (`example/specs/`, `.worktrees/`,
+    // `corpus/`) carry differently-shaped lists whose parse errors then
+    // surfaced as gen's own "malformed test list" error (the reported
+    // repro). A usage-level rejection matches gen's other pre-flow
+    // usage errors; the artifact-path validation further down is
+    // unchanged (it runs after a row was found and never saw the
+    // escape).
+    if (featureFlag != null && featureFlag.isNotEmpty) {
+      final scopeRejection = testListScopeRejection(cwd, featureFlag);
+      if (scopeRejection != null) {
+        usageException('zfa tdd gen: $scopeRejection');
+      }
+    }
     // Issue #912 defect 2: the widget template's app shell — the explicit
     // flag wins over the `.zfa.json` `tdd.widgetShell` project default;
     // the default is ZuraffaApp (zuraffa apps are zuraffa_ui apps).
@@ -1775,6 +1794,44 @@ class GenCommand extends Command<void> {
         'directory name such as 044-test-tdd-generation, not a path.',
       );
     }
+  }
+
+  /// Bug #1272 — the test-list resolution contract: [featureRef] must
+  /// resolve to `<projectRoot>/specs/<feature>/tdd/test-list.md` INSIDE
+  /// the resolved project root. Returns the rejection message, or null
+  /// when the reference is acceptable.
+  ///
+  /// Two rejections, both BEFORE any test-list read:
+  ///
+  /// 1. CONTAINMENT (the remediation's letter): the reference's
+  ///    normalization must stay inside `<projectRoot>/specs` — the
+  ///    parser never walks above the project root and never reads a
+  ///    sibling directory (`example/specs/`, `.worktrees/`, `corpus/`).
+  /// 2. SEGMENT SHAPE (the house contract): a path-shaped reference that
+  ///    stays inside the root (`specs/001-login-ui`) is still rejected —
+  ///    a feature reference is ONE spec directory name, the same
+  ///    contract verify/make/refactor/compose/verify-red and the run
+  ///    driver already enforce.
+  static String? testListScopeRejection(String projectRoot, String featureRef) {
+    final specsRoot = p.normalize(p.join(projectRoot, 'specs'));
+    final resolved = p.normalize(p.join(projectRoot, 'specs', featureRef));
+    if (resolved != specsRoot && !resolved.startsWith('$specsRoot/')) {
+      return '--feature "$featureRef" resolves outside the project root '
+          '($projectRoot): $resolved — the test list is read strictly '
+          'from <project>/specs/<feature>/tdd/test-list.md, never a '
+          'test-list.md outside the project root.';
+    }
+    final pathShaped =
+        featureRef.contains('/') ||
+        featureRef.contains(r'\') ||
+        featureRef == '.' ||
+        featureRef == '..' ||
+        featureRef.isEmpty;
+    if (pathShaped) {
+      return 'invalid --feature "$featureRef": expected a single spec '
+          'directory name such as 001-login-ui, not a path.';
+    }
+    return null;
   }
 }
 
