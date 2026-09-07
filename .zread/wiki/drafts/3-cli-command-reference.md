@@ -39,7 +39,7 @@ flowchart TB
     PLUGIN --> P2["view, presenter, controller, state, observer"]
     PLUGIN --> P3["di, route, test, mock, cache, sync"]
     PLUGIN --> P4["service, provider, api, gql, graphql"]
-    PLUGIN --> P5["shadcn, strategy, method_append, feature"]
+    PLUGIN --> P5["skin, strategy, method_append, feature"]
 ```
 
 The core commands are registered in [lib/src/cli/cli_runner.dart](lib/src/cli/cli_runner.dart#L48-L75), and the plugin set comes from the loader in [lib/src/cli/plugin_loader.dart](lib/src/cli/plugin_loader.dart#L74-L132).
@@ -415,7 +415,7 @@ Every generator plugin registers a top-level command (`zfa <plugin-id> <Name> [o
 | `sync` | SyncPlugin | Offline-first sync layer |
 | `gql` / `graphql` | GqlPlugin, GraphqlPlugin | GraphQL operations |
 | `api` | ApiPlugin | API bridge integrations |
-| `shadcn`, `strategy`, `method_append`, `feature` | respective plugins | UI components, strategies, method appending, feature bundles |
+| `skin`, `strategy`, `method_append`, `feature` | respective plugins | UI components, strategies, method appending, feature bundles |
 
 Sources: [lib/src/commands/base_plugin_command.dart](lib/src/commands/base_plugin_command.dart#L17-L50), [lib/src/cli/plugin_loader.dart](lib/src/cli/plugin_loader.dart#L74-L132)
 

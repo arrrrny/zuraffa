@@ -341,9 +341,20 @@ void setupDependencies(GetIt getIt) {
         expect(src, contains('routes: getAllRoutes()'));
       });
 
-      test('imports go_router', () {
+      test('imports the zuraffa_flutter barrel (go_router via re-export, '
+          'issue #1284)', () {
         final src = builder.buildAppRouter();
-        expect(src, contains("import 'package:go_router/go_router.dart';"));
+        expect(
+          src,
+          contains("import 'package:zuraffa_flutter/zuraffa_flutter.dart';"),
+        );
+        // The direct go_router import is GONE: GoRouter reaches the
+        // generated router through the zuraffa_flutter barrel's
+        // re-export, so consumer pubspecs need no go_router entry.
+        expect(
+          src,
+          isNot(contains("import 'package:go_router/go_router.dart';")),
+        );
       });
 
       test('imports the routing index (getAllRoutes source)', () {

@@ -77,7 +77,7 @@ class GymPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     'gql',
     'cache',
     'route',
-    'shadcn',
+    'skin',
     // Gym exercises reference the generated code AND its tests, so they must
     // run after the test plugin too.
     'test',

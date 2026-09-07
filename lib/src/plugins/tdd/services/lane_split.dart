@@ -25,6 +25,7 @@ import '../../../skin/contract/adaptive_skin_contract.dart';
 import '../models/behavior.dart';
 import '../models/lane.dart';
 import 'spec_parser.dart';
+import 'test_list_reader.dart' show GoldenMarker;
 
 /// The lane-split plan file names (issue #1000 naming).
 class LaneSplitFiles {
@@ -96,6 +97,7 @@ class LaneRow {
     required this.state,
     required this.kind,
     required this.lane,
+    this.golden = false,
   });
 
   final String id;
@@ -105,8 +107,18 @@ class LaneRow {
   final BehaviorKind kind;
   final Lane lane;
 
+  /// Bug #1261: whether the behavior is golden-gated — the SKIN lane's
+  /// `golden:` declaration resolved onto this row. Rendered as the
+  /// ` [golden]` tag in the row's behavior cell (the same machine shape
+  /// as ` [persistence]`, parsed by [GoldenMarker] in the shared
+  /// reader); gen turns the tag into the matchesGoldenFile hook without
+  /// the `--golden` flag.
+  final bool golden;
+
   /// The canonical 4-column row line every lane plan table carries.
-  String get tableLine => '| $id | $description | $traces | $state |';
+  String get tableLine =>
+      '| $id | ${golden ? GoldenMarker.mark(description) : description} '
+      '| $traces | $state |';
 }
 
 /// Render the ENGINE plan (`04-ENGINE.md`).
@@ -239,6 +251,7 @@ String renderSkinPlan({
     intro: 'One per functional requirement in `spec.md`.',
     rows: unit,
   );
+  _renderVisualContract(buf, rows);
   _provenance(buf, provenance);
   buf.writeln();
   return buf.toString();
@@ -324,18 +337,19 @@ String renderMetaIndex({
     ..writeln()
     ..writeln(LaneSplitFiles.metaSection)
     ..writeln()
-    ..writeln('| lane | behaviors | flutter allowed | plan |')
-    ..writeln('| ---- | --------- | --------------- | ---- |');
+    ..writeln('| lane | behaviors | flutter allowed | golden | plan |')
+    ..writeln('| ---- | --------- | --------------- | ------ | ---- |');
   for (final lane in lanes) {
     final declared = lane.behaviorIds.join(', ');
     final resolved = classification.entries
         .where((e) => e.value.label == lane.lane.toUpperCase())
         .map((e) => e.key)
         .join(', ');
+    final golden = lane.goldenIds.isEmpty ? '-' : lane.goldenIds.join(', ');
     buf.writeln(
       '| ${lane.lane} | ${resolved.isNotEmpty ? resolved : declared} '
       '| ${lane.flutterAllowed.isEmpty ? '-' : lane.flutterAllowed} '
-      '| ${_planColumn(lane.lane)} |',
+      '| $golden | ${_planColumn(lane.lane)} |',
     );
   }
   buf
@@ -459,6 +473,34 @@ void _renderSkinContract(
     ..writeln(encoder.convert(contract.toJson()))
     ..writeln('```')
     ..writeln();
+}
+
+/// Renders the visual-contract section into the SKIN plan (bug #1261):
+/// the golden-gated SKIN behaviors — the spec's `golden:` declaration
+/// resolved onto the lane rows. The section is the human-readable
+/// surface; the machine truth rides the rows' ` [golden]` tags (parsed
+/// by the shared reader, honored by gen without the `--golden` flag).
+void _renderVisualContract(StringBuffer buf, List<LaneRow> rows) {
+  final goldenRows = rows.where((r) => r.golden).toList();
+  if (goldenRows.isEmpty) return;
+  buf
+    ..writeln('## Visual contract')
+    ..writeln()
+    ..writeln(
+      'Golden-gated skin behaviors (bug #1261): each row\'s generated '
+      'widget test carries a matchesGoldenFile baseline hook — gen '
+      'picks the gate up from the lane plan, no `--golden` flag '
+      'needed. Baselines are committed per platform under '
+      'test/tdd/goldens/ and refreshed with `flutter test '
+      '--update-goldens`.',
+    )
+    ..writeln()
+    ..writeln('| behavior | golden gate |')
+    ..writeln('| -------- | ----------- |');
+  for (final row in goldenRows) {
+    buf.writeln('| ${row.id} | matchesGoldenFile |');
+  }
+  buf.writeln();
 }
 
 void _section(

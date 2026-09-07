@@ -123,7 +123,7 @@ class _StringSinkStdout implements Stdout {
 
 const _shellFixture = '''
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:zuraffa_flutter/zuraffa_flutter.dart';
 
 class MainShell extends StatelessWidget {
   const MainShell({super.key, required this.navigationShell});
@@ -155,7 +155,7 @@ List<RouteBase> mainShellRoute() => [
 ''';
 
 const _cliFixture = '''
-import 'package:go_router/go_router.dart';
+import 'package:zuraffa_flutter/zuraffa_flutter.dart';
 
 abstract class ProductRoutes {
   static const String list = '/products';

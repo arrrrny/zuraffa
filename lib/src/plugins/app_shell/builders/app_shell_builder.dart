@@ -275,27 +275,40 @@ Future<void> _startXRayBridge() async {
   /// pass-through when X-Ray mode is disabled.
   ///
   /// When [skinAudit] is true (issue #1102), the router content is
-  /// wrapped in `SkinAuditChrome` through `MaterialApp.router`'s
-  /// `builder:` — the debug-only violation-banner mount. The chrome
-  /// is inert in release builds (kDebugMode guard inside the kit),
-  /// and without the flag the output is byte-identical to the
-  /// pre-1102 emission.
+  /// wrapped in `SkinAuditChrome` through the shell's `builder:` — the
+  /// debug-only violation-banner mount. The chrome is inert in release
+  /// builds (kDebugMode guard inside the kit), and without the flag the
+  /// output is byte-identical to the pre-1102 emission.
+  ///
+  /// When [zuraffaApp] is true (issue #1260), the shell widget is the
+  /// skin lane's CERTIFIED `ZuraffaApp` (package:zuraffa_ui) instead of
+  /// `MaterialApp.router`: the route-contract observer, audit bus and
+  /// violation chrome mount in one place, and the generated GoRouter
+  /// tree stays functional beneath the shell via `Router.withConfig`.
+  /// The target project must declare `zuraffa_ui` (preflighted by the
+  /// command).
   String buildMyApp({
     String? title,
     bool xray = false,
     bool skinAudit = false,
+    bool zuraffaApp = false,
   }) {
     // No direct go_router import: MyApp never references a go_router
     // symbol (MaterialApp.router comes from material.dart; appRouter
-    // arrives via ../routing/app_router.dart, which imports go_router
-    // itself). A direct import here is an unused_import — the only
-    // analyzer complaint left on a freshly generated shell, and it made
-    // `flutter analyze` exit 1 on every generated app (issue #469
-    // follow-up). In xray mode the zuraffa_flutter barrel re-exports
-    // go_router anyway, so downstream symbols stay reachable.
+    // arrives via ../routing/app_router.dart, which imports the
+    // zuraffa_flutter barrel — issue #1284: zuraffa_flutter re-exports
+    // go_router, so generated files never import package:go_router
+    // directly and consumer pubspecs need no go_router entry). A direct
+    // import here is an unused_import — the only analyzer complaint left
+    // on a freshly generated shell, and it made `flutter analyze` exit 1
+    // on every generated app (issue #469 follow-up).
     final directives = <Directive>[
       Directive.import('package:flutter/material.dart'),
       Directive.import('../routing/app_router.dart'),
+      // #1260: the certified shell (ZuraffaApp) comes from the skin lane's
+      // certified vocabulary package. Preflighted by the command: the
+      // target pubspec must declare zuraffa_ui before any file is written.
+      if (zuraffaApp) Directive.import('package:zuraffa_ui/zuraffa_ui.dart'),
       if (xray)
         Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
       // #1102: the debug chrome (banner) comes from the emitted kit.
@@ -332,7 +345,55 @@ Future<void> _startXRayBridge() async {
         ).closure,
     });
 
-    final returnedWidget = xray
+    // #1260: the CERTIFIED shell composition. ZuraffaApp has no
+    // routerConfig — it is a home/named-routes shell — so the generated
+    // GoRouter tree stays functional beneath it via
+    // `Router.withConfig(config: appRouter)` (GoRouter implements
+    // RouterConfig<Object?>). The certified mounts ride the shell:
+    // ZuraffaRouteObserver + ZfaAuditBus + ZfaViolationChrome come from
+    // ZuraffaApp itself; --skin-audit rides the shell's `builder:` (the
+    // same SkinAuditChrome the MaterialApp.builder carried pre-#1260);
+    // --xray wraps the routed home in XRayScope.
+    final routerHome = refer(
+      'Router',
+    ).newInstanceNamed('withConfig', [], {'config': refer('appRouter')});
+    final routedHome = xray
+        ? refer(
+            'XRayScope',
+          ).call([], {'viewId': literalString('App'), 'child': routerHome})
+        : routerHome;
+    final certifiedShell = refer('ZuraffaApp').call([], {
+      'title': literalString(title ?? 'Zuraffa App'),
+      'home': routedHome,
+      // #1102 mount point under the certified shell: the chrome wraps the
+      // navigator content through ZuraffaApp's builder (preserved inside
+      // the shell's own violation chrome); child is nullable — error
+      // screens pass null — so it falls back to an empty box, never a
+      // null crash.
+      if (skinAudit)
+        'builder': Method(
+          (m) => m
+            ..requiredParameters.add(Parameter((p) => p..name = 'context'))
+            ..requiredParameters.add(Parameter((p) => p..name = 'child'))
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('SkinAuditChrome')
+                      .call([], {
+                        'child': refer('child').ifNullThen(
+                          CodeExpression(Code('const SizedBox.shrink()')),
+                        ),
+                      })
+                      .returned
+                      .statement,
+                ),
+            ),
+        ).closure,
+    });
+
+    final returnedWidget = zuraffaApp
+        ? certifiedShell
+        : xray
         ? refer(
             'XRayScope',
           ).call([], {'viewId': literalString('App'), 'child': materialApp})
@@ -407,7 +468,7 @@ Future<void> _startXRayBridge() async {
     }
 
     final directives = [
-      Directive.import('package:go_router/go_router.dart'),
+      Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
       Directive.import('index.dart'),
       // #1102: the route observer + the pure table type.
       Directive.import('../skin/skin_contract_auditor.dart'),
@@ -479,7 +540,7 @@ Future<void> _startXRayBridge() async {
 
   String _buildBareAppRouter() {
     final directives = [
-      Directive.import('package:go_router/go_router.dart'),
+      Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
       Directive.import('index.dart'),
     ];
 

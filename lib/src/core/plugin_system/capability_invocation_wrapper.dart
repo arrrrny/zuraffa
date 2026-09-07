@@ -72,7 +72,7 @@ class CapabilityInvocationWrapper {
   /// receipt file, or null when the run wrote nothing receiptable (zero
   /// files, or only skipped/deleted entries) — issue #769: no artifact,
   /// no receipt. Public so non-capability execution paths that still
-  /// represent a standalone invocation (e.g. `zfa shadcn <layout>`) can
+  /// represent a standalone invocation (e.g. `zfa skin <layout>`) can
   /// ship the same proof.
   Future<File?> persistReceipt({
     required Map<String, dynamic> args,
@@ -310,7 +310,7 @@ class CapabilityInvocationWrapper {
 
 /// A minimal [ZuraffaCapability] view for call sites that execute a
 /// standalone invocation OUTSIDE a capability object (e.g.
-/// `zfa shadcn <layout> <Entity>`, which drives PluginManager directly)
+/// `zfa skin <layout> <Entity>`, which drives PluginManager directly)
 /// but still owe the same receipt. Only [name] carries meaning; plan and
 /// execute are inert.
 class NamedCapability implements ZuraffaCapability {

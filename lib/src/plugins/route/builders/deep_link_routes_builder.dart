@@ -14,7 +14,7 @@ import '../../../utils/string_utils.dart';
 ///
 /// ```dart
 /// // lib/src/routing/<name>_routes.dart
-/// import 'package:go_router/go_router.dart';
+/// import 'package:zuraffa_flutter/zuraffa_flutter.dart';
 /// import 'package:flutter/material.dart';
 /// import 'package:zuraffa/zuraffa.dart';
 ///
@@ -112,7 +112,7 @@ class DeepLinkRoutesBuilder {
     );
 
     final directives = <Directive>[
-      Directive.import('package:go_router/go_router.dart'),
+      Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
       Directive.import('package:flutter/material.dart'),
       Directive.import('package:zuraffa/zuraffa.dart'),
     ];

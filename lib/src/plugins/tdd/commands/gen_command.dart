@@ -135,11 +135,11 @@ class GenCommand extends Command<void> {
     );
     argParser.addOption(
       'widget-shell',
-      allowed: ['shadapp', 'materialapp'],
+      allowed: ['zuraffaapp', 'materialapp'],
       help:
           'Widget kind only (issue #912 defect 2): the app shell the '
-          'generated widget test pumps the view in. Defaults to shadapp '
-          '(zuraffa apps are shadcn_ui apps); `.zfa.json` `tdd.widgetShell` '
+          'generated widget test pumps the view in. Defaults to zuraffaapp '
+          '(zuraffa apps are zuraffa_ui apps); `.zfa.json` `tdd.widgetShell` '
           'sets the project default, this flag wins over it.',
     );
     argParser.addFlag(
@@ -287,9 +287,28 @@ class GenCommand extends Command<void> {
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find(anchorDir: 'specs');
+    // Bug #1272: the feature's test list is read STRICTLY from
+    // `<project>/specs/<feature>/tdd/test-list.md` under the resolved
+    // project root. The --feature reference is validated BEFORE any
+    // test-list resolution: a path-shaped reference used to resolve
+    // OUTSIDE the project root (its .. segments normalize above it) and
+    // the parser read whichever foreign test-list.md the escape hit
+    // first — monorepo siblings (`example/specs/`, `.worktrees/`,
+    // `corpus/`) carry differently-shaped lists whose parse errors then
+    // surfaced as gen's own "malformed test list" error (the reported
+    // repro). A usage-level rejection matches gen's other pre-flow
+    // usage errors; the artifact-path validation further down is
+    // unchanged (it runs after a row was found and never saw the
+    // escape).
+    if (featureFlag != null && featureFlag.isNotEmpty) {
+      final scopeRejection = testListScopeRejection(cwd, featureFlag);
+      if (scopeRejection != null) {
+        usageException('zfa tdd gen: $scopeRejection');
+      }
+    }
     // Issue #912 defect 2: the widget template's app shell — the explicit
     // flag wins over the `.zfa.json` `tdd.widgetShell` project default;
-    // the default is ShadApp (zuraffa apps are shadcn_ui apps).
+    // the default is ZuraffaApp (zuraffa apps are zuraffa_ui apps).
     final widgetShell = _resolveWidgetShell(argResults, cwd);
     // Issue #965: the optional i18n expansion tier — the explicit flag
     // wins over the `.zfa.json` `tdd.i18nExpansion` project default.
@@ -783,36 +802,61 @@ class GenCommand extends Command<void> {
       }
     }
 
-    // Issue #938 preflight (VISION §4 errors-are-an-API): the shadapp
-    // widget shell emits `import 'package:shadcn_ui/shadcn_ui.dart';`.
-    // When the target project's pubspec does not declare shadcn_ui, that
+    // Issue #938 preflight (VISION §4 errors-are-an-API): the zuraffaapp
+    // widget shell emits `import 'package:zuraffa_ui/zuraffa_ui.dart';`.
+    // When the target project's pubspec does not declare zuraffa_ui, that
     // import cannot resolve: the generated pair dies at `verify-red` with
     // compile-error and the loop never reaches an honest RED. Stop HERE —
     // before any artifact write, registry append, or re-render — with the
     // machine-parseable fix line, instead of emitting a test that can
     // only die at compile. Deterministic: the check only READS the
     // pubspec (no silent pubspec mutation). The materialapp opt-out emits
-    // no shadcn import, so it is exempt; a project with no pubspec.yaml
+    // no skin import, so it is exempt; a project with no pubspec.yaml
     // keeps gen's pre-#938 behavior (nothing to resolve).
     if (effectiveBehavior.kind == BehaviorKind.widget &&
-        WidgetShadcnPreflight.shadcnImportRequired(widgetShell) &&
-        !WidgetShadcnPreflight.projectDeclaresShadcnUi(cwd)) {
+        WidgetSkinPreflight.skinImportRequired(widgetShell) &&
+        !WidgetSkinPreflight.projectDeclaresZuraffaUi(cwd)) {
       // print() (not stdout.writeln) so the fix line lands on the same
       // captured channel as the verdict JSON — greppable by tooling and
       // by `zfa tdd run`'s step logs (the JSON verdict stays the final
       // stdout line).
-      print(WidgetShadcnPreflight.fixLine);
+      print(WidgetSkinPreflight.fixLine);
       _printVerdict(
         behaviorId: behavior.id,
         verdict: 'refused',
         kind: 'widget',
         reason:
-            'pubspec.yaml does not declare shadcn_ui — widget-lane '
-            'behaviors boot a ShadApp shell whose import would die at '
-            'compile (issue #938). Run: flutter pub add shadcn_ui',
+            'pubspec.yaml does not declare zuraffa_ui — widget-lane '
+            'behaviors boot a ZuraffaApp shell whose import would die at '
+            'compile (issue #938). Run: flutter pub add zuraffa_ui',
       );
       // House pattern (spec 048 / bug #840): signal through exitCode and
       // return, so the JSON verdict stays the final stdout line.
+      exitCode = 1;
+      return 'refused';
+    }
+
+    // Issue #1277 follow-up (CodeRabbit review): the theme-kind harness
+    // (`ThemeHarnessTestWriter`) emits
+    // `import 'package:zuraffa_ui/zuraffa_ui.dart';` regardless of the
+    // --widget-shell value (the harness always uses ZfaTheme /
+    // ZuraffaApp). When the target project's pubspec does not declare
+    // zuraffa_ui, that import cannot resolve: the generated pair dies at
+    // `verify-red` with compile-error. Mirror the widget preflight's
+    // refuse-with-fix-line pattern for the theme lane.
+    if (effectiveBehavior.kind == BehaviorKind.theme &&
+        !WidgetSkinPreflight.projectDeclaresZuraffaUi(cwd)) {
+      print(WidgetSkinPreflight.fixLine);
+      _printVerdict(
+        behaviorId: behavior.id,
+        verdict: 'refused',
+        kind: 'theme',
+        reason:
+            'pubspec.yaml does not declare ${WidgetSkinPreflight.skinPackage} '
+            '— theme-lane behaviors boot a theme harness whose import '
+            'would die at compile (issue #1277 review). Run: flutter '
+            'pub add ${WidgetSkinPreflight.skinPackage}',
+      );
       exitCode = 1;
       return 'refused';
     }
@@ -1320,7 +1364,7 @@ class GenCommand extends Command<void> {
   /// Writer selection by behavior kind (issue #841, issue #831, issue
   /// #1007): theme-kind behaviors get the theme-harness pair
   /// (`ThemeHarnessTestWriter` emitting the four-proof widget test —
-  /// ShadTheme assertions under both ThemeModes, hardcoded-color audit,
+  /// ZfaTheme assertions under both ThemeModes, hardcoded-color audit,
   /// golden baselines, switch latency — and `ThemeHarnessSubjectWriter`
   /// emitting the subject contract); platform-kind behaviors (issue
   /// #831) get the platform-harness pair (certified-fake channel test +
@@ -1336,7 +1380,7 @@ class GenCommand extends Command<void> {
   static _GenWriterPair _writersFor(
     Behavior behavior, {
     PlatformHarnessContext? platformContext,
-    WidgetAppShell widgetShell = WidgetAppShell.shadapp,
+    WidgetAppShell widgetShell = WidgetAppShell.zuraffaapp,
     I18nKeyTable i18nKeys = I18nKeyTable.empty,
     String? i18nImport,
     List<String> i18nExpansion = const [],
@@ -1379,7 +1423,7 @@ class GenCommand extends Command<void> {
 
   /// Resolves the widget template's app shell (issue #912 defect 2):
   /// the explicit `--widget-shell` flag wins over the `.zfa.json`
-  /// `tdd.widgetShell` project default; the fallback is ShadApp.
+  /// `tdd.widgetShell` project default; the fallback is ZuraffaApp.
   static WidgetAppShell _resolveWidgetShell(dynamic args, String cwd) {
     final flag = args?['widget-shell'] as String?;
     if (flag != null && flag.isNotEmpty) {
@@ -1388,7 +1432,7 @@ class GenCommand extends Command<void> {
     final config = ZfaConfig.load(projectRoot: cwd);
     final configured = config?.tddWidgetShell;
     if (configured != null) return WidgetAppShell.parse(configured);
-    return WidgetAppShell.shadapp;
+    return WidgetAppShell.zuraffaapp;
   }
 
   /// Resolves the expansion locales for the optional i18n tier (issue
@@ -1551,7 +1595,7 @@ class GenCommand extends Command<void> {
     required String subjectPath,
     required Future<T> Function<T>(Future<T> stage, String stageName) bounded,
     PlatformHarnessContext? platformContext,
-    WidgetAppShell widgetShell = WidgetAppShell.shadapp,
+    WidgetAppShell widgetShell = WidgetAppShell.zuraffaapp,
     I18nKeyTable i18nKeys = I18nKeyTable.empty,
     String? i18nImport,
     List<String> i18nExpansion = const [],
@@ -1814,6 +1858,44 @@ class GenCommand extends Command<void> {
         'directory name such as 044-test-tdd-generation, not a path.',
       );
     }
+  }
+
+  /// Bug #1272 — the test-list resolution contract: [featureRef] must
+  /// resolve to `<projectRoot>/specs/<feature>/tdd/test-list.md` INSIDE
+  /// the resolved project root. Returns the rejection message, or null
+  /// when the reference is acceptable.
+  ///
+  /// Two rejections, both BEFORE any test-list read:
+  ///
+  /// 1. CONTAINMENT (the remediation's letter): the reference's
+  ///    normalization must stay inside `<projectRoot>/specs` — the
+  ///    parser never walks above the project root and never reads a
+  ///    sibling directory (`example/specs/`, `.worktrees/`, `corpus/`).
+  /// 2. SEGMENT SHAPE (the house contract): a path-shaped reference that
+  ///    stays inside the root (`specs/001-login-ui`) is still rejected —
+  ///    a feature reference is ONE spec directory name, the same
+  ///    contract verify/make/refactor/compose/verify-red and the run
+  ///    driver already enforce.
+  static String? testListScopeRejection(String projectRoot, String featureRef) {
+    final specsRoot = p.normalize(p.join(projectRoot, 'specs'));
+    final resolved = p.normalize(p.join(projectRoot, 'specs', featureRef));
+    if (resolved != specsRoot && !resolved.startsWith('$specsRoot/')) {
+      return '--feature "$featureRef" resolves outside the project root '
+          '($projectRoot): $resolved — the test list is read strictly '
+          'from <project>/specs/<feature>/tdd/test-list.md, never a '
+          'test-list.md outside the project root.';
+    }
+    final pathShaped =
+        featureRef.contains('/') ||
+        featureRef.contains(r'\') ||
+        featureRef == '.' ||
+        featureRef == '..' ||
+        featureRef.isEmpty;
+    if (pathShaped) {
+      return 'invalid --feature "$featureRef": expected a single spec '
+          'directory name such as 001-login-ui, not a path.';
+    }
+    return null;
   }
 }
 
