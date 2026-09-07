@@ -74,24 +74,23 @@ enum WidgetAppShell {
     WidgetAppShell.materialapp => null,
   };
 
-  /// Parses a `.zfa.json`/CLI string value; unknown values fall back to
-  /// the default with a one-line warning so a typo in `tdd.widgetShell`
-  /// is visible in the gen log (issue #1277 review follow-up: the null
-  /// case is silent — "unset" is a legitimate configuration — but an
-  /// UNKNOWN non-empty value is almost certainly a typo).
+  /// Parses a `.zfa.json`/CLI string value; null/unknown values fall back
+  /// to the default ([zuraffaapp] — zuraffa apps ARE zuraffa_ui apps,
+  /// issue #1256). Unknown non-empty values emit a one-line warning so a
+  /// typo in `tdd.widgetShell` is visible in the gen log.
   static WidgetAppShell parse(String? value) => switch (value) {
     'materialapp' => materialapp,
-    'zuraffaapp' => zuraffaapp,
     'shadapp' => shadapp,
-    null || '' => shadapp,
+    'zuraffaapp' => zuraffaapp,
+    null || '' => zuraffaapp,
     _ => () {
       // ignore: avoid_print
       print(
         "warning: tdd.widgetShell='$value' is not a recognized shell; "
-        "defaulting to 'shadapp'. Valid values: shadapp, materialapp, "
-        'zuraffaapp.',
+        "defaulting to 'zuraffaapp'. Valid values: zuraffaapp, "
+        'shadapp, materialapp.',
       );
-      return shadapp;
+      return zuraffaapp;
     }(),
   };
 }

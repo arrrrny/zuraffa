@@ -1450,9 +1450,9 @@ class GenCommand extends Command<void> {
 
   /// Resolves the widget template's app shell (issue #912 defect 2):
   /// the explicit `--widget-shell` flag wins over the `.zfa.json`
-  /// `tdd.widgetShell` project default. Issue #1260: a SKIN-LANE project
-  /// (pubspec declares `zuraffa_ui`) defaults to the certified
-  /// `zuraffaapp` shell; everything else falls back to ShadApp.
+  /// `tdd.widgetShell` project default; the fallback is ZuraffaApp
+  /// (issue #1256 — zuraffa apps ARE zuraffa_ui apps, so the certified
+  /// shell is the default for every project, skin-lane or not).
   static WidgetAppShell _resolveWidgetShell(dynamic args, String cwd) {
     final flag = args?['widget-shell'] as String?;
     if (flag != null && flag.isNotEmpty) {
@@ -1461,14 +1461,12 @@ class GenCommand extends Command<void> {
     final config = ZfaConfig.load(projectRoot: cwd);
     final configured = config?.tddWidgetShell;
     if (configured != null) return WidgetAppShell.parse(configured);
-    // Issue #1260 remediation 1: skin-lane projects default to the
-    // certified shell so skin tests exercise the contract observer / audit
-    // bus / violation chrome the real app runs under. The check only
-    // READS the pubspec (no mutation, same determinism as the preflights).
-    if (WidgetZuraffaPreflight.projectIsSkinLane(cwd)) {
-      return WidgetAppShell.zuraffaapp;
-    }
-    return WidgetAppShell.shadapp;
+    // Issue #1256: the certified zuraffaapp shell is the DEFAULT. Every
+    // new Flutter app created via `zfa setup` wires zuraffa_ui
+    // (DependencyWirer.standardSet), so the import always resolves; the
+    // `--widget-shell shadapp` / `materialapp` flags remain the explicit
+    // opt-outs for legacy shadcn_ui / plain-Material projects.
+    return WidgetAppShell.zuraffaapp;
   }
 
   /// Resolves the expansion locales for the optional i18n tier (issue

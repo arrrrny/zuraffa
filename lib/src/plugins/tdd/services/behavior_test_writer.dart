@@ -31,10 +31,10 @@ import 'widget_scaffold.dart';
 /// Writes a Dart test file that pairs with the subject for a behavior.
 class BehaviorTestWriter {
   /// The app shell the generated WIDGET test pumps the feature view in
-  /// (issue #912 defect 2): default [WidgetAppShell.zuraffaapp] since
-  /// issue #1256 — zuraffa apps are zuraffa_ui apps — overridable per
-  /// project (shadapp remains an explicit opt-in for legacy shadcn_ui
-  /// projects).
+  /// (issue #912 defect 2): default [WidgetAppShell.shadapp] — zuraffa
+  /// apps are shadcn_ui apps — overridable per project. The SKIN-LANE
+  /// default (zuraffaapp) is resolved by the caller (`zfa tdd gen`'s
+  /// `_resolveWidgetShell`, issue #1260), not here.
   ///
   /// Issue #965: [i18nKeys] carries the feature's declared i18n surfaces;
   /// a scenario literal equal to a declared anchor asserts through the
@@ -44,7 +44,7 @@ class BehaviorTestWriter {
   /// pubspec (relative fallback) — emitted only when a keyed surface is
   /// emitted. An empty table keeps the pre-#965 template byte-for-byte.
   const BehaviorTestWriter({
-    this.widgetShell = WidgetAppShell.zuraffaapp,
+    this.widgetShell = WidgetAppShell.shadapp,
     this.i18nKeys = I18nKeyTable.empty,
     this.i18nImport,
     this.i18nExpansion = const [],
