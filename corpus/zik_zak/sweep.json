@@ -21,721 +21,721 @@
   },
   "specRows": [
     {
-      "feature": "001-login",
+      "feature": "feature-001",
       "shape": "modern",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "002-signup",
+      "feature": "feature-002",
       "shape": "modern",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "003-onboarding",
+      "feature": "feature-003",
       "shape": "modern",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "004-deal-feed",
+      "feature": "feature-004",
       "shape": "modern",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "005-deal-detail",
+      "feature": "feature-005",
       "shape": "modern",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "006-deal-search",
+      "feature": "feature-006",
       "shape": "modern",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "007-deal-bookmark",
+      "feature": "feature-007",
       "shape": "modern",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "008-deal-share",
+      "feature": "feature-008",
       "shape": "modern",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "009-price-alerts",
+      "feature": "feature-009",
       "shape": "modern",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "010-coupon-vault",
+      "feature": "feature-010",
       "shape": "modern",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "011-barcode-scan",
+      "feature": "feature-011",
       "shape": "modern",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "012-qr-scan",
+      "feature": "feature-012",
       "shape": "modern",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "013-nearby-deals",
+      "feature": "feature-013",
       "shape": "modern",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "014-map-view",
+      "feature": "feature-014",
       "shape": "modern",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "015-category-browse",
+      "feature": "feature-015",
       "shape": "modern",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "016-trending",
+      "feature": "feature-016",
       "shape": "modern",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "017-flash-sales",
+      "feature": "feature-017",
       "shape": "modern-no-lanes",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "018-price-history",
+      "feature": "feature-018",
       "shape": "modern-no-lanes",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "019-review-feed",
+      "feature": "feature-019",
       "shape": "modern-no-lanes",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "020-ratings",
+      "feature": "feature-020",
       "shape": "modern-no-lanes",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "021-photos-upload",
+      "feature": "feature-021",
       "shape": "modern-no-lanes",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "022-video-reviews",
+      "feature": "feature-022",
       "shape": "modern-no-lanes",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "023-comment-thread",
+      "feature": "feature-023",
       "shape": "modern-no-lanes",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "024-reactions",
+      "feature": "feature-024",
       "shape": "modern-no-lanes",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "025-user-profile",
+      "feature": "feature-025",
       "shape": "modern-no-lanes",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "026-profile-edit",
+      "feature": "feature-026",
       "shape": "modern-no-lanes",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "027-avatar-crop",
+      "feature": "feature-027",
       "shape": "modern-no-lanes",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "028-follow-system",
+      "feature": "feature-028",
       "shape": "modern-no-lanes",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "029-block-user",
+      "feature": "feature-029",
       "shape": "modern-undeclared",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "030-report-content",
+      "feature": "feature-030",
       "shape": "modern-undeclared",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "031-chat-list",
+      "feature": "feature-031",
       "shape": "modern-undeclared",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "032-chat-thread",
+      "feature": "feature-032",
       "shape": "modern-undeclared",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "033-typing-indicator",
+      "feature": "feature-033",
       "shape": "modern-undeclared",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "034-push-notifications",
+      "feature": "feature-034",
       "shape": "modern-undeclared",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "035-notification-center",
+      "feature": "feature-035",
       "shape": "modern-undeclared",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "036-mute-settings",
+      "feature": "feature-036",
       "shape": "modern-undeclared",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "037-wallet-balance",
+      "feature": "feature-037",
       "shape": "modern-undeclared",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "038-wallet-topup",
+      "feature": "feature-038",
       "shape": "modern-undeclared",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "039-wallet-withdrawal",
+      "feature": "feature-039",
       "shape": "modern-undeclared",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "040-transaction-history",
+      "feature": "feature-040",
       "shape": "modern-undeclared",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "041-payment-methods",
+      "feature": "feature-041",
       "shape": "legacy-002",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "042-checkout",
+      "feature": "feature-042",
       "shape": "legacy-002",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "043-order-tracking",
+      "feature": "feature-043",
       "shape": "legacy-002",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "044-refunds",
+      "feature": "feature-044",
       "shape": "legacy-002",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "045-invoices",
+      "feature": "feature-045",
       "shape": "legacy-002",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "046-loyalty-points",
+      "feature": "feature-046",
       "shape": "legacy-002",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "047-referral-code",
+      "feature": "feature-047",
       "shape": "legacy-002",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "048-credits",
+      "feature": "feature-048",
       "shape": "legacy-002",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "049-gift-cards",
+      "feature": "feature-049",
       "shape": "legacy-002",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "050-splits",
+      "feature": "feature-050",
       "shape": "legacy-002",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "051-dark-mode",
+      "feature": "feature-051",
       "shape": "crlf",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "052-theme-picker",
+      "feature": "feature-052",
       "shape": "crlf",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "053-language-settings",
+      "feature": "feature-053",
       "shape": "crlf",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "054-currency-settings",
+      "feature": "feature-054",
       "shape": "crlf",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "055-regional-pricing",
+      "feature": "feature-055",
       "shape": "crlf",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "056-offline-cache",
+      "feature": "feature-056",
       "shape": "crlf",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "057-sync-engine",
+      "feature": "feature-057",
       "shape": "crlf",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "058-conflict-resolution",
+      "feature": "feature-058",
       "shape": "crlf",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "059-delta-sync",
+      "feature": "feature-059",
       "shape": "html-entities",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "060-attachment-pipeline",
+      "feature": "feature-060",
       "shape": "html-entities",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "061-image-compression",
+      "feature": "feature-061",
       "shape": "html-entities",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "062-cdn-client",
+      "feature": "feature-062",
       "shape": "html-entities",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "063-upload-queue",
+      "feature": "feature-063",
       "shape": "html-entities",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "064-download-manager",
+      "feature": "feature-064",
       "shape": "html-entities",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "065-deep-links",
+      "feature": "feature-065",
       "shape": "html-entities",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "066-universal-links",
+      "feature": "feature-066",
       "shape": "html-entities",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "067-app-shortcuts",
+      "feature": "feature-067",
       "shape": "non-english",
       "parse": "clean",
       "behaviors": 4
     },
     {
-      "feature": "068-widget-home",
+      "feature": "feature-068",
       "shape": "non-english",
       "parse": "clean",
       "behaviors": 4
     },
     {
-      "feature": "069-watch-companion",
+      "feature": "feature-069",
       "shape": "non-english",
       "parse": "clean",
       "behaviors": 4
     },
     {
-      "feature": "070-tablet-layout",
+      "feature": "feature-070",
       "shape": "non-english",
       "parse": "clean",
       "behaviors": 4
     },
     {
-      "feature": "071-adaptive-grid",
+      "feature": "feature-071",
       "shape": "non-english",
       "parse": "clean",
       "behaviors": 4
     },
     {
-      "feature": "072-twin-turbo-cache",
+      "feature": "feature-072",
       "shape": "non-english",
       "parse": "clean",
       "behaviors": 4
     },
     {
-      "feature": "073-prefetcher",
+      "feature": "feature-073",
       "shape": "non-english",
       "parse": "clean",
       "behaviors": 4
     },
     {
-      "feature": "074-memory-budget",
+      "feature": "feature-074",
       "shape": "non-english",
       "parse": "clean",
       "behaviors": 4
     },
     {
-      "feature": "075-battery-saver",
+      "feature": "feature-075",
       "shape": "fr-table",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "076-analytics-tap",
+      "feature": "feature-076",
       "shape": "fr-table",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "077-funnel-events",
+      "feature": "feature-077",
       "shape": "fr-table",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "078-cohort-queries",
+      "feature": "feature-078",
       "shape": "fr-table",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "079-crash-reporting",
+      "feature": "feature-079",
       "shape": "fr-table",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "080-perf-tracing",
+      "feature": "feature-080",
       "shape": "fr-table",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "081-ab-flags",
+      "feature": "feature-081",
       "shape": "fr-table",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "082-remote-config",
+      "feature": "feature-082",
       "shape": "fr-table",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "083-feature-toggles",
+      "feature": "feature-083",
       "shape": "nested-ac",
       "parse": "clean",
       "behaviors": 6
     },
     {
-      "feature": "084-kill-switch",
+      "feature": "feature-084",
       "shape": "nested-ac",
       "parse": "clean",
       "behaviors": 6
     },
     {
-      "feature": "085-session-tokens",
+      "feature": "feature-085",
       "shape": "nested-ac",
       "parse": "clean",
       "behaviors": 6
     },
     {
-      "feature": "086-biometric-unlock",
+      "feature": "feature-086",
       "shape": "nested-ac",
       "parse": "clean",
       "behaviors": 6
     },
     {
-      "feature": "087-pin-lock",
+      "feature": "feature-087",
       "shape": "nested-ac",
       "parse": "clean",
       "behaviors": 6
     },
     {
-      "feature": "088-device-management",
+      "feature": "feature-088",
       "shape": "nested-ac",
       "parse": "clean",
       "behaviors": 6
     },
     {
-      "feature": "089-account-deletion",
+      "feature": "feature-089",
       "shape": "nested-ac",
       "parse": "clean",
       "behaviors": 6
     },
     {
-      "feature": "090-data-export",
+      "feature": "feature-090",
       "shape": "nested-ac",
       "parse": "clean",
       "behaviors": 6
     },
     {
-      "feature": "091-privacy-dashboard",
+      "feature": "feature-091",
       "shape": "inline-prose",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "092-consent-center",
+      "feature": "feature-092",
       "shape": "inline-prose",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "093-cookie-banner",
+      "feature": "feature-093",
       "shape": "inline-prose",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "094-gdpr-requests",
+      "feature": "feature-094",
       "shape": "inline-prose",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "095-support-tickets",
+      "feature": "feature-095",
       "shape": "inline-prose",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "096-faq-search",
+      "feature": "feature-096",
       "shape": "inline-prose",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "097-feedback-form",
+      "feature": "feature-097",
       "shape": "inline-prose",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "098-rate-app-prompt",
+      "feature": "feature-098",
       "shape": "inline-prose",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "099-updates-check",
+      "feature": "feature-099",
       "shape": "epic-contracts",
       "parse": "clean",
       "behaviors": 2
     },
     {
-      "feature": "100-migration-assistant",
+      "feature": "feature-100",
       "shape": "epic-contracts",
       "parse": "clean",
       "behaviors": 2
     },
     {
-      "feature": "101-backup-restore",
+      "feature": "feature-101",
       "shape": "epic-contracts",
       "parse": "clean",
       "behaviors": 2
     },
     {
-      "feature": "102-import-bookmarks",
+      "feature": "feature-102",
       "shape": "epic-contracts",
       "parse": "clean",
       "behaviors": 2
     },
     {
-      "feature": "103-csv-export",
+      "feature": "feature-103",
       "shape": "epic-contracts",
       "parse": "clean",
       "behaviors": 2
     },
     {
-      "feature": "104-calendar-sync",
+      "feature": "feature-104",
       "shape": "epic-contracts",
       "parse": "clean",
       "behaviors": 2
     },
     {
-      "feature": "105-reminders",
+      "feature": "feature-105",
       "shape": "pathological",
       "parse": "refused",
       "refusal": "spec line 8 declares an unknown scenario type \"**Type**: integration\"."
     },
     {
-      "feature": "106-geofence-deals",
+      "feature": "feature-106",
       "shape": "pathological",
       "parse": "refused",
       "refusal": "duplicate `**Type**` markers for scenario A1 (first at line 8, duplicate at line 9)."
     },
     {
-      "feature": "107-location-history",
+      "feature": "feature-107",
       "shape": "pathological",
       "parse": "refused",
       "refusal": "spec line 7 carries a `**Type**` marker outside any numbered scenario block."
     },
     {
-      "feature": "108-ble-beacons",
+      "feature": "feature-108",
       "shape": "pathological",
       "parse": "refused",
       "refusal": "contract row \"Broken\" declares a malformed signature \"computeWithoutReturn(x)\" — declared signatures must be `name(Params) -> Return` (spec line 8)."
     },
     {
-      "feature": "109-nfc-tap",
+      "feature": "feature-109",
       "shape": "pathological",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "110-ar-preview",
+      "feature": "feature-110",
       "shape": "pathological",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "111-3d-viewer",
+      "feature": "feature-111",
       "shape": "pathological",
       "parse": "refused",
-      "refusal": "spec.md for feature \"111-3d-viewer\" contains no acceptance scenarios (`Given ... When ... Then ...` blocks) — first content line is spec line 1. Cannot derive a TDD test list from a spec with no acceptance criteria. See FR-012."
+      "refusal": "spec.md for feature \"feature-111\" contains no acceptance scenarios (`Given ... When ... Then ...` blocks) — first content line is spec line 1. Cannot derive a TDD test list from a spec with no acceptance criteria. See FR-012."
     },
     {
-      "feature": "112-color-matcher",
+      "feature": "feature-112",
       "shape": "pathological",
       "parse": "refused",
-      "refusal": "spec.md for feature \"112-color-matcher\" contains no acceptance scenarios (`Given ... When ... Then ...` blocks) — first content line is spec line 1. Cannot derive a TDD test list from a spec with no acceptance criteria. See FR-012."
+      "refusal": "spec.md for feature \"feature-112\" contains no acceptance scenarios (`Given ... When ... Then ...` blocks) — first content line is spec line 1. Cannot derive a TDD test list from a spec with no acceptance criteria. See FR-012."
     },
     {
-      "feature": "113-size-finder",
+      "feature": "feature-113",
       "shape": "pathological",
       "parse": "clean",
       "behaviors": 5
     },
     {
-      "feature": "114-style-profile",
+      "feature": "feature-114",
       "shape": "pathological",
       "parse": "refused",
-      "refusal": "spec.md for feature \"114-style-profile\" contains no acceptance scenarios (`Given ... When ... Then ...` blocks) — first content line is spec line 1. Cannot derive a TDD test list from a spec with no acceptance criteria. See FR-012."
+      "refusal": "spec.md for feature \"feature-114\" contains no acceptance scenarios (`Given ... When ... Then ...` blocks) — first content line is spec line 1. Cannot derive a TDD test list from a spec with no acceptance criteria. See FR-012."
     },
     {
-      "feature": "115-brand-pages",
+      "feature": "feature-115",
       "shape": "manual",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "116-store-locator",
+      "feature": "feature-116",
       "shape": "manual",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "117-queue-tickets",
+      "feature": "feature-117",
       "shape": "manual",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "118-returns-label",
+      "feature": "feature-118",
       "shape": "manual",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "119-warranty-vault",
+      "feature": "feature-119",
       "shape": "manual",
       "parse": "clean",
       "behaviors": 3
     },
     {
-      "feature": "120-beta-signup",
+      "feature": "feature-120",
       "shape": "manual",
       "parse": "clean",
       "behaviors": 3
@@ -743,840 +743,840 @@
   ],
   "planRows": [
     {
-      "feature": "001-login",
+      "feature": "feature-001",
       "shape": "modern",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "002-signup",
+      "feature": "feature-002",
       "shape": "modern",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "003-onboarding",
+      "feature": "feature-003",
       "shape": "modern",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "004-deal-feed",
+      "feature": "feature-004",
       "shape": "modern",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "005-deal-detail",
+      "feature": "feature-005",
       "shape": "modern",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "006-deal-search",
+      "feature": "feature-006",
       "shape": "modern",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "007-deal-bookmark",
+      "feature": "feature-007",
       "shape": "modern",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "008-deal-share",
+      "feature": "feature-008",
       "shape": "modern",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "009-price-alerts",
+      "feature": "feature-009",
       "shape": "modern",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "010-coupon-vault",
+      "feature": "feature-010",
       "shape": "modern",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "011-barcode-scan",
+      "feature": "feature-011",
       "shape": "modern",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "012-qr-scan",
+      "feature": "feature-012",
       "shape": "modern",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "013-nearby-deals",
+      "feature": "feature-013",
       "shape": "modern",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "014-map-view",
+      "feature": "feature-014",
       "shape": "modern",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "015-category-browse",
+      "feature": "feature-015",
       "shape": "modern",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "016-trending",
+      "feature": "feature-016",
       "shape": "modern",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "017-flash-sales",
+      "feature": "feature-017",
       "shape": "modern-no-lanes",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "018-price-history",
+      "feature": "feature-018",
       "shape": "modern-no-lanes",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "019-review-feed",
+      "feature": "feature-019",
       "shape": "modern-no-lanes",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "020-ratings",
+      "feature": "feature-020",
       "shape": "modern-no-lanes",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "021-photos-upload",
+      "feature": "feature-021",
       "shape": "modern-no-lanes",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "022-video-reviews",
+      "feature": "feature-022",
       "shape": "modern-no-lanes",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "023-comment-thread",
+      "feature": "feature-023",
       "shape": "modern-no-lanes",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "024-reactions",
+      "feature": "feature-024",
       "shape": "modern-no-lanes",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "025-user-profile",
+      "feature": "feature-025",
       "shape": "modern-no-lanes",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "026-profile-edit",
+      "feature": "feature-026",
       "shape": "modern-no-lanes",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "027-avatar-crop",
+      "feature": "feature-027",
       "shape": "modern-no-lanes",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "028-follow-system",
+      "feature": "feature-028",
       "shape": "modern-no-lanes",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "029-block-user",
+      "feature": "feature-029",
       "shape": "modern-undeclared",
       "planExit": 0,
       "declaredRoutes": 3,
       "fallbackRoutes": 5
     },
     {
-      "feature": "030-report-content",
+      "feature": "feature-030",
       "shape": "modern-undeclared",
       "planExit": 0,
       "declaredRoutes": 3,
       "fallbackRoutes": 5
     },
     {
-      "feature": "031-chat-list",
+      "feature": "feature-031",
       "shape": "modern-undeclared",
       "planExit": 0,
       "declaredRoutes": 3,
       "fallbackRoutes": 5
     },
     {
-      "feature": "032-chat-thread",
+      "feature": "feature-032",
       "shape": "modern-undeclared",
       "planExit": 0,
       "declaredRoutes": 3,
       "fallbackRoutes": 5
     },
     {
-      "feature": "033-typing-indicator",
+      "feature": "feature-033",
       "shape": "modern-undeclared",
       "planExit": 0,
       "declaredRoutes": 3,
       "fallbackRoutes": 5
     },
     {
-      "feature": "034-push-notifications",
+      "feature": "feature-034",
       "shape": "modern-undeclared",
       "planExit": 0,
       "declaredRoutes": 3,
       "fallbackRoutes": 5
     },
     {
-      "feature": "035-notification-center",
+      "feature": "feature-035",
       "shape": "modern-undeclared",
       "planExit": 0,
       "declaredRoutes": 3,
       "fallbackRoutes": 5
     },
     {
-      "feature": "036-mute-settings",
+      "feature": "feature-036",
       "shape": "modern-undeclared",
       "planExit": 0,
       "declaredRoutes": 3,
       "fallbackRoutes": 5
     },
     {
-      "feature": "037-wallet-balance",
+      "feature": "feature-037",
       "shape": "modern-undeclared",
       "planExit": 0,
       "declaredRoutes": 3,
       "fallbackRoutes": 5
     },
     {
-      "feature": "038-wallet-topup",
+      "feature": "feature-038",
       "shape": "modern-undeclared",
       "planExit": 0,
       "declaredRoutes": 3,
       "fallbackRoutes": 5
     },
     {
-      "feature": "039-wallet-withdrawal",
+      "feature": "feature-039",
       "shape": "modern-undeclared",
       "planExit": 0,
       "declaredRoutes": 3,
       "fallbackRoutes": 5
     },
     {
-      "feature": "040-transaction-history",
+      "feature": "feature-040",
       "shape": "modern-undeclared",
       "planExit": 0,
       "declaredRoutes": 3,
       "fallbackRoutes": 5
     },
     {
-      "feature": "041-payment-methods",
+      "feature": "feature-041",
       "shape": "legacy-002",
       "planExit": 3,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "042-checkout",
+      "feature": "feature-042",
       "shape": "legacy-002",
       "planExit": 3,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "043-order-tracking",
+      "feature": "feature-043",
       "shape": "legacy-002",
       "planExit": 3,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "044-refunds",
+      "feature": "feature-044",
       "shape": "legacy-002",
       "planExit": 3,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "045-invoices",
+      "feature": "feature-045",
       "shape": "legacy-002",
       "planExit": 3,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "046-loyalty-points",
+      "feature": "feature-046",
       "shape": "legacy-002",
       "planExit": 3,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "047-referral-code",
+      "feature": "feature-047",
       "shape": "legacy-002",
       "planExit": 3,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "048-credits",
+      "feature": "feature-048",
       "shape": "legacy-002",
       "planExit": 3,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "049-gift-cards",
+      "feature": "feature-049",
       "shape": "legacy-002",
       "planExit": 3,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "050-splits",
+      "feature": "feature-050",
       "shape": "legacy-002",
       "planExit": 3,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "051-dark-mode",
+      "feature": "feature-051",
       "shape": "crlf",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "052-theme-picker",
+      "feature": "feature-052",
       "shape": "crlf",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "053-language-settings",
+      "feature": "feature-053",
       "shape": "crlf",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "054-currency-settings",
+      "feature": "feature-054",
       "shape": "crlf",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "055-regional-pricing",
+      "feature": "feature-055",
       "shape": "crlf",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "056-offline-cache",
+      "feature": "feature-056",
       "shape": "crlf",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "057-sync-engine",
+      "feature": "feature-057",
       "shape": "crlf",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "058-conflict-resolution",
+      "feature": "feature-058",
       "shape": "crlf",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "059-delta-sync",
+      "feature": "feature-059",
       "shape": "html-entities",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "060-attachment-pipeline",
+      "feature": "feature-060",
       "shape": "html-entities",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "061-image-compression",
+      "feature": "feature-061",
       "shape": "html-entities",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "062-cdn-client",
+      "feature": "feature-062",
       "shape": "html-entities",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "063-upload-queue",
+      "feature": "feature-063",
       "shape": "html-entities",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "064-download-manager",
+      "feature": "feature-064",
       "shape": "html-entities",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "065-deep-links",
+      "feature": "feature-065",
       "shape": "html-entities",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "066-universal-links",
+      "feature": "feature-066",
       "shape": "html-entities",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "067-app-shortcuts",
+      "feature": "feature-067",
       "shape": "non-english",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "068-widget-home",
+      "feature": "feature-068",
       "shape": "non-english",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "069-watch-companion",
+      "feature": "feature-069",
       "shape": "non-english",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "070-tablet-layout",
+      "feature": "feature-070",
       "shape": "non-english",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "071-adaptive-grid",
+      "feature": "feature-071",
       "shape": "non-english",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "072-twin-turbo-cache",
+      "feature": "feature-072",
       "shape": "non-english",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "073-prefetcher",
+      "feature": "feature-073",
       "shape": "non-english",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "074-memory-budget",
+      "feature": "feature-074",
       "shape": "non-english",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "075-battery-saver",
+      "feature": "feature-075",
       "shape": "fr-table",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "076-analytics-tap",
+      "feature": "feature-076",
       "shape": "fr-table",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "077-funnel-events",
+      "feature": "feature-077",
       "shape": "fr-table",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "078-cohort-queries",
+      "feature": "feature-078",
       "shape": "fr-table",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "079-crash-reporting",
+      "feature": "feature-079",
       "shape": "fr-table",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "080-perf-tracing",
+      "feature": "feature-080",
       "shape": "fr-table",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "081-ab-flags",
+      "feature": "feature-081",
       "shape": "fr-table",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "082-remote-config",
+      "feature": "feature-082",
       "shape": "fr-table",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 2
     },
     {
-      "feature": "083-feature-toggles",
+      "feature": "feature-083",
       "shape": "nested-ac",
       "planExit": 0,
       "declaredRoutes": 0,
       "fallbackRoutes": 6
     },
     {
-      "feature": "084-kill-switch",
+      "feature": "feature-084",
       "shape": "nested-ac",
       "planExit": 0,
       "declaredRoutes": 0,
       "fallbackRoutes": 6
     },
     {
-      "feature": "085-session-tokens",
+      "feature": "feature-085",
       "shape": "nested-ac",
       "planExit": 0,
       "declaredRoutes": 0,
       "fallbackRoutes": 6
     },
     {
-      "feature": "086-biometric-unlock",
+      "feature": "feature-086",
       "shape": "nested-ac",
       "planExit": 0,
       "declaredRoutes": 0,
       "fallbackRoutes": 6
     },
     {
-      "feature": "087-pin-lock",
+      "feature": "feature-087",
       "shape": "nested-ac",
       "planExit": 0,
       "declaredRoutes": 0,
       "fallbackRoutes": 6
     },
     {
-      "feature": "088-device-management",
+      "feature": "feature-088",
       "shape": "nested-ac",
       "planExit": 0,
       "declaredRoutes": 0,
       "fallbackRoutes": 6
     },
     {
-      "feature": "089-account-deletion",
+      "feature": "feature-089",
       "shape": "nested-ac",
       "planExit": 0,
       "declaredRoutes": 0,
       "fallbackRoutes": 6
     },
     {
-      "feature": "090-data-export",
+      "feature": "feature-090",
       "shape": "nested-ac",
       "planExit": 0,
       "declaredRoutes": 0,
       "fallbackRoutes": 6
     },
     {
-      "feature": "091-privacy-dashboard",
+      "feature": "feature-091",
       "shape": "inline-prose",
       "planExit": 0,
       "declaredRoutes": 0,
       "fallbackRoutes": 5
     },
     {
-      "feature": "092-consent-center",
+      "feature": "feature-092",
       "shape": "inline-prose",
       "planExit": 0,
       "declaredRoutes": 0,
       "fallbackRoutes": 5
     },
     {
-      "feature": "093-cookie-banner",
+      "feature": "feature-093",
       "shape": "inline-prose",
       "planExit": 0,
       "declaredRoutes": 0,
       "fallbackRoutes": 5
     },
     {
-      "feature": "094-gdpr-requests",
+      "feature": "feature-094",
       "shape": "inline-prose",
       "planExit": 0,
       "declaredRoutes": 0,
       "fallbackRoutes": 5
     },
     {
-      "feature": "095-support-tickets",
+      "feature": "feature-095",
       "shape": "inline-prose",
       "planExit": 0,
       "declaredRoutes": 0,
       "fallbackRoutes": 5
     },
     {
-      "feature": "096-faq-search",
+      "feature": "feature-096",
       "shape": "inline-prose",
       "planExit": 0,
       "declaredRoutes": 0,
       "fallbackRoutes": 5
     },
     {
-      "feature": "097-feedback-form",
+      "feature": "feature-097",
       "shape": "inline-prose",
       "planExit": 0,
       "declaredRoutes": 0,
       "fallbackRoutes": 5
     },
     {
-      "feature": "098-rate-app-prompt",
+      "feature": "feature-098",
       "shape": "inline-prose",
       "planExit": 0,
       "declaredRoutes": 0,
       "fallbackRoutes": 5
     },
     {
-      "feature": "099-updates-check",
+      "feature": "feature-099",
       "shape": "epic-contracts",
       "planExit": 0,
       "declaredRoutes": 4,
       "fallbackRoutes": 0
     },
     {
-      "feature": "100-migration-assistant",
+      "feature": "feature-100",
       "shape": "epic-contracts",
       "planExit": 0,
       "declaredRoutes": 4,
       "fallbackRoutes": 0
     },
     {
-      "feature": "101-backup-restore",
+      "feature": "feature-101",
       "shape": "epic-contracts",
       "planExit": 0,
       "declaredRoutes": 4,
       "fallbackRoutes": 0
     },
     {
-      "feature": "102-import-bookmarks",
+      "feature": "feature-102",
       "shape": "epic-contracts",
       "planExit": 0,
       "declaredRoutes": 4,
       "fallbackRoutes": 0
     },
     {
-      "feature": "103-csv-export",
+      "feature": "feature-103",
       "shape": "epic-contracts",
       "planExit": 0,
       "declaredRoutes": 4,
       "fallbackRoutes": 0
     },
     {
-      "feature": "104-calendar-sync",
+      "feature": "feature-104",
       "shape": "epic-contracts",
       "planExit": 0,
       "declaredRoutes": 4,
       "fallbackRoutes": 0
     },
     {
-      "feature": "105-reminders",
+      "feature": "feature-105",
       "shape": "pathological",
       "planExit": 1,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "106-geofence-deals",
+      "feature": "feature-106",
       "shape": "pathological",
       "planExit": 1,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "107-location-history",
+      "feature": "feature-107",
       "shape": "pathological",
       "planExit": 1,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "108-ble-beacons",
+      "feature": "feature-108",
       "shape": "pathological",
       "planExit": 2,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "109-nfc-tap",
+      "feature": "feature-109",
       "shape": "pathological",
       "planExit": 3,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "110-ar-preview",
+      "feature": "feature-110",
       "shape": "pathological",
       "planExit": 3,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "111-3d-viewer",
+      "feature": "feature-111",
       "shape": "pathological",
       "planExit": 3,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "112-color-matcher",
+      "feature": "feature-112",
       "shape": "pathological",
       "planExit": 3,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "113-size-finder",
+      "feature": "feature-113",
       "shape": "pathological",
       "planExit": 0,
       "declaredRoutes": 8,
       "fallbackRoutes": 0
     },
     {
-      "feature": "114-style-profile",
+      "feature": "feature-114",
       "shape": "pathological",
       "planExit": 1,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "115-brand-pages",
+      "feature": "feature-115",
       "shape": "manual",
       "planExit": 2,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "116-store-locator",
+      "feature": "feature-116",
       "shape": "manual",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 1
     },
     {
-      "feature": "117-queue-tickets",
+      "feature": "feature-117",
       "shape": "manual",
       "planExit": 2,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "118-returns-label",
+      "feature": "feature-118",
       "shape": "manual",
       "planExit": 0,
       "declaredRoutes": 2,
       "fallbackRoutes": 1
     },
     {
-      "feature": "119-warranty-vault",
+      "feature": "feature-119",
       "shape": "manual",
       "planExit": 2,
       "declaredRoutes": 0,
       "fallbackRoutes": 0
     },
     {
-      "feature": "120-beta-signup",
+      "feature": "feature-120",
       "shape": "manual",
       "planExit": 0,
       "declaredRoutes": 2,
