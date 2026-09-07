@@ -180,7 +180,7 @@ class BootstrapRoutingIndexWriter {
 // `zfa route <Entity>` / `zfa make <Entity> --with=route` generate the
 // route modules (they regenerate this index). `zfa app shell` reads
 // this barrel to wire the GoRouter.
-import 'package:go_router/go_router.dart';
+import 'package:zuraffa_flutter/zuraffa_flutter.dart';
 
 List<RouteBase> getAllRoutes() => const [];
 ''';

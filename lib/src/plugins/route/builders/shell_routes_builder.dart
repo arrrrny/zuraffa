@@ -115,7 +115,7 @@ class ShellRoutesBuilder {
 
     final directives = <Directive>[
       Directive.import('package:flutter/material.dart'),
-      Directive.import('package:go_router/go_router.dart'),
+      Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
     ];
 
     final library = specLibrary.library(specs: specs, directives: directives);

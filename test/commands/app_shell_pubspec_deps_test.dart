@@ -1,10 +1,12 @@
 // Issue #1265 — `zfa app shell` must declare what it emits.
 //
-// The shell's router builder hard-requires `go_router`
-// (`lib/src/routing/app_router.dart` imports package:go_router) but the
-// command never looked at the target's pubspec: a stock consumer project
-// (fresh `zfa tdd init` + `zfa app shell`) produced a shell that does not
-// compile unless the author happened to add go_router.
+// The shell's router builder emits `GoRouter` usage, but since issue
+// #1284 the generated `app_router.dart` imports the ZURAFFA_FLUTTER
+// barrel (`package:zuraffa_flutter/zuraffa_flutter.dart`, which
+// re-exports go_router) instead of `package:go_router` directly. The
+// #1265 contract is unchanged — the shell declares the imports it
+// emits — and the scenario pinned here is a stock consumer project
+// whose pubspec lacks the barrel package the shell's output needs.
 //
 // Contract pinned here (the make-generator #1190 machinery, unified):
 //   1. non-dry-run: the shell computes the import ↔ pubspec gap over the
@@ -79,9 +81,10 @@ Future<Directory> _sandbox() async {
   return dir;
 }
 
-/// A minimal stock consumer project: Flutter app with zuraffa declared but
-/// NO go_router — exactly the #1265 scenario (`zfa tdd init` + `zfa app
-/// shell`), where the shell's own output cannot compile.
+/// A minimal stock consumer project: Flutter app with `zuraffa` declared
+/// but NO `zuraffa_flutter` — exactly the #1265 scenario (`zfa tdd init` +
+/// `zfa app shell`), where the shell's own output (app_router.dart imports
+/// the zuraffa_flutter barrel for GoRouter, issue #1284) cannot compile.
 Future<Directory> _consumerApp() async {
   final dir = await _sandbox();
   await File('${dir.path}/pubspec.yaml').writeAsString('''
@@ -117,27 +120,34 @@ CommandRunner<void> _runner(Directory dir, {_RecordingRunner? runner}) {
 
 void main() {
   group('app shell declares emitted imports (issue #1265)', () {
-    test(
-      'auto-adds go_router to the consumer pubspec via flutter pub add',
-      () async {
-        final dir = await _consumerApp();
-        final runner = _RecordingRunner(simulate: true, sandbox: dir);
+    test('auto-adds zuraffa_flutter (the emitted barrel) to the consumer '
+        'pubspec via flutter pub add', () async {
+      final dir = await _consumerApp();
+      final runner = _RecordingRunner(simulate: true, sandbox: dir);
 
-        await captureOutput(
-          () => _runner(dir, runner: runner).run(['shell', '--root', dir.path]),
-        );
+      final output = await captureOutput(
+        () => _runner(dir, runner: runner).run(['shell', '--root', dir.path]),
+      );
 
-        expect(runner.invocations, hasLength(1));
-        expect(runner.invocations.single, contains('pub add'));
-        expect(runner.invocations.single, contains('go_router'));
-        // The invoked executable must match the target flavor: the sandbox
-        // pubspec declares `flutter`, so `flutter pub add` it is.
-        expect(runner.invocations.single, startsWith('flutter pub add'));
+      expect(runner.invocations, hasLength(1));
+      expect(runner.invocations.single, contains('pub add'));
+      expect(
+        runner.invocations.single,
+        contains('zuraffa_flutter'),
+        reason:
+            'issue #1284: the shell emits package:zuraffa_flutter (the '
+            'go_router re-export barrel) — never package:go_router '
+            'directly — so the auto-added gap is zuraffa_flutter',
+      );
+      expect(runner.invocations.single, isNot(contains('go_router')));
+      // The invoked executable must match the target flavor: the sandbox
+      // pubspec declares `flutter`, so `flutter pub add` it is.
+      expect(runner.invocations.single, startsWith('flutter pub add'));
 
-        final pubspec = File('${dir.path}/pubspec.yaml').readAsStringSync();
-        expect(pubspec, contains('go_router:'));
-      },
-    );
+      final pubspec = File('${dir.path}/pubspec.yaml').readAsStringSync();
+      expect(pubspec, contains('zuraffa_flutter:'));
+      expect(output, isNot(contains('package:go_router')));
+    });
 
     test(
       'when the add fails, the make-consistent ⚠️ diagnostic names the gap',
@@ -150,11 +160,11 @@ void main() {
         );
 
         expect(output, contains("pubspec.yaml doesn't declare 1 package(s)"));
-        expect(output, contains('go_router'));
-        expect(output, contains('--> fix: `flutter pub add go_router`'));
+        expect(output, contains('zuraffa_flutter'));
+        expect(output, contains('--> fix: `flutter pub add zuraffa_flutter`'));
         // Nothing was declared behind the user's back.
         final pubspec = File('${dir.path}/pubspec.yaml').readAsStringSync();
-        expect(pubspec, isNot(contains('go_router:')));
+        expect(pubspec, isNot(contains('zuraffa_flutter:')));
       },
     );
 
@@ -170,20 +180,20 @@ void main() {
       );
 
       expect(runner.invocations, isEmpty);
-      expect(output, contains('go_router'));
+      expect(output, contains('zuraffa_flutter'));
       final pubspec = File('${dir.path}/pubspec.yaml').readAsStringSync();
-      expect(pubspec, isNot(contains('go_router:')));
+      expect(pubspec, isNot(contains('zuraffa_flutter:')));
     });
 
     test(
-      'a project that already declares go_router triggers no pub add',
+      'a project that already declares zuraffa_flutter triggers no pub add',
       () async {
         final dir = await _consumerApp();
         final pubspec = File('${dir.path}/pubspec.yaml');
         await pubspec.writeAsString(
           (await pubspec.readAsString()).replaceFirst(
             '  zuraffa: ^6.0.0',
-            '  zuraffa: ^6.0.0\n  go_router: ^14.0.0',
+            '  zuraffa: ^6.0.0\n  zuraffa_flutter: ^6.0.0',
           ),
         );
         final runner = _RecordingRunner(simulate: true, sandbox: dir);
