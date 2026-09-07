@@ -121,7 +121,30 @@ class CreateProviderCapability implements ZuraffaCapability {
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
     final dryRun = args['dryRun'] ?? false;
-    final files = await _generateFiles(args, dryRun: dryRun);
+    final name = args['name']?.toString() ?? '';
+
+    // Spec 1128 (order 2) — comprehensive error handling. The full
+    // execute() path is wrapped in try/catch matching the
+    // `CreateDiCapability.execute` pattern (spec 0974, issue #974
+    // order 4): any exception from `_generateFiles` (e.g. the #768
+    // missing-service-interface `StateError`) becomes a graceful
+    // `ExecutionResult(success: false, ...)` instead of an unhandled
+    // crash. The `_emitReceipt` helper is already best-effort (its own
+    // try/catch with a `print('⚠️ ...')`), so the outer wrap is the
+    // single remaining gap from the B+ state. The diagnostic message
+    // that used to live in the StateError body now lives in
+    // `ExecutionResult.message` — same actionable substrings, prefixed
+    // with the capability name and target.
+    List<GeneratedFile> files;
+    try {
+      files = await _generateFiles(args, dryRun: dryRun);
+    } catch (e) {
+      return ExecutionResult(
+        success: false,
+        message: 'provider create failed for $name: $e',
+        data: {'generatedFiles': const <GeneratedFile>[]},
+      );
+    }
 
     // Spec #979 (order 1): persist the deterministic provider receipt —
     // proof.v1 digests plus the interface/methods/stub-count ledger.
