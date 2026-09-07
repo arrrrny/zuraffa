@@ -76,6 +76,17 @@ void main() {
         if (brokenKey.hasMatch(src)) {
           offenders.add(file.path);
         }
+        // Layout class files use StatelessWidget/Widget/BuildContext —
+        // they must import material (found live: the template shipped
+        // without it and every generated layout failed analyze). The
+        // barrel export files are exempt.
+        if (src.contains('class ') && !src.startsWith('export')) {
+          expect(
+            src,
+            contains("import 'package:flutter/material.dart';"),
+            reason: file.path,
+          );
+        }
       }
       expect(
         offenders,
