@@ -1,3 +1,12 @@
+## [6.2.1] - 2026-09-07
+
+### Fixed
+- TDD generation honors the spec-declared `[golden]` row tag — no `--golden` flag needed (#1261)
+
+### Chores
+- Untrack `pubspec.lock` files (already gitignored)
+- Add `.pubignore` to exclude `lib/tdd/` from published package
+
 ## [6.2.0] - 2026-09-07
 
 ### Added
