@@ -19,7 +19,9 @@
 /// - no interface to explain against  → exit 1 (missing_file)
 ///
 /// `--json` carries the full structured report under the canonical
-/// `zuraffa.verdict.v1` envelope's `details.explain` (issue #1105).
+/// `VerdictEnvelope.canonicalSchema` envelope's `details.explain`
+/// (issue #1105; the schema identifier literal lives in
+/// `lib/src/core/verdict_envelope.dart` only).
 library;
 
 import 'dart:io';
@@ -159,8 +161,9 @@ class MockExplainCapability implements ZuraffaCapability {
       'json': {
         'type': 'boolean',
         'description':
-            'Emit the canonical zuraffa.verdict.v1 envelope whose '
-            'details.explain carries the report',
+            'Emit the canonical VerdictEnvelope (whose schema identifier '
+            'lives only in lib/src/core/verdict_envelope.dart) with the '
+            'report under details.explain',
         'default': false,
       },
     },
