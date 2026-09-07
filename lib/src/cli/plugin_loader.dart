@@ -5,7 +5,7 @@ import '../core/plugin_system/capability.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/generator_options.dart';
-import '../domain/entities/feature_contract/feature_contract.dart';
+import 'package:zuraffa/src/domain/entities/feature_contract/feature_contract.dart';
 import '../plugins/controller/controller_plugin.dart';
 import '../plugins/datasource/datasource_plugin.dart';
 import '../plugins/di/di_plugin.dart';
