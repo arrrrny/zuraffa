@@ -17,7 +17,9 @@ import '../utils/string_utils.dart';
 /// and the state was not regenerated; the state bytes were hand-edited
 /// after create) and which are MISSING from the parsed class. Exit 0 on
 /// clean; exit 1 with one `--> fix:` line per finding on drift; exit 2
-/// on usage. `--json` emits ONE canonical `zuraffa.verdict.v1` envelope
+/// on usage. `--json` emits ONE canonical `VerdictEnvelope` envelope
+/// (the schema identifier literal lives only in
+/// `lib/src/core/verdict_envelope.dart`; issue #1105)
 /// as the last stdout line (SPEC 1105; mirrors `zfa service verify`).
 ///
 /// Registered manually on [StateCommand] (the `manualSubcommandNames`
