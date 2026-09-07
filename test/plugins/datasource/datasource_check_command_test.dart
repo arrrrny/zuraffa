@@ -288,15 +288,17 @@ class ProductSqliteDataSource implements ProductDataSource {
   });
 
   group('check verb — usage', () {
-    test('missing entity argument exits 64', () async {
+    test('missing entity argument exits 2', () async {
       exitCode = 0;
 
       final output = await captureOutput(() => runner().run(['check']));
 
       expect(
         exitCode,
-        64,
-        reason: 'missing args is a usage error, not success',
+        2,
+        reason:
+            'missing args is a usage error, not success (SPEC 917: '
+            'canonical 2 — the legacy 64 is retired)',
       );
       expect(output, contains('Usage'));
     });
@@ -354,7 +356,7 @@ class ProductSqliteDataSource implements ProductDataSource {
       expect(exitCode, 0, reason: 'fresh generation must pass parity');
       final envelope = decodeEnvelope(output);
       expect(envelope.keys.toSet(), envelopeKeys);
-      expect(envelope['schema'], 'verdict.v1');
+      expect(envelope['schema'], 'zuraffa.verdict.v1');
       expect(envelope['command'], 'datasource check');
       expect(envelope['verdict'], 'pass');
       expect(envelope['exit_class'], 'ok');
@@ -399,7 +401,7 @@ class ProductSqliteDataSource implements ProductDataSource {
         expect(exitCode, 1, reason: 'diverged impl must fail the parity gate');
         final envelope = decodeEnvelope(output);
         expect(envelope.keys.toSet(), envelopeKeys);
-        expect(envelope['schema'], 'verdict.v1');
+        expect(envelope['schema'], 'zuraffa.verdict.v1');
         expect(envelope['command'], 'datasource check');
         expect(envelope['verdict'], 'fail');
         expect(envelope['exit_class'], 'drift');
@@ -469,23 +471,26 @@ class ProductSqliteDataSource implements ProductDataSource {
       expect((findings.first as Map)['fix'], isNotEmpty);
     });
 
-    test(
-      'usage refusal with --json emits an error envelope, exit 64',
-      () async {
-        exitCode = 0;
+    test('usage refusal with --json emits an error envelope, exit 2', () async {
+      exitCode = 0;
 
-        final output = await captureOutput(
-          () => runner().run(['check', '--json']),
-        );
+      final output = await captureOutput(
+        () => runner().run(['check', '--json']),
+      );
 
-        expect(exitCode, 64, reason: 'missing args is a usage error');
-        final envelope = decodeEnvelope(output);
-        expect(envelope['schema'], 'verdict.v1');
-        expect(envelope['command'], 'datasource check');
-        expect(envelope['verdict'], 'error');
-        expect(envelope['exit_class'], 'insufficient-input');
-      },
-    );
+      expect(
+        exitCode,
+        2,
+        reason:
+            'missing args is a usage error (SPEC 917: canonical 2 — the '
+            'legacy 64 is retired)',
+      );
+      final envelope = decodeEnvelope(output);
+      expect(envelope['schema'], 'zuraffa.verdict.v1');
+      expect(envelope['command'], 'datasource check');
+      expect(envelope['verdict'], 'error');
+      expect(envelope['exit_class'], 'insufficient-input');
+    });
 
     test(
       'without --json the prose path is unchanged and no envelope appears',
@@ -519,7 +524,7 @@ class ProductSqliteDataSource implements ProductDataSource {
 
         expect(exitCode, 1);
         expect(output, contains('--> fix:'));
-        expect(output, isNot(contains('"schema":"verdict.v1"')));
+        expect(output, isNot(contains('"schema":"zuraffa.verdict.v1"')));
       },
     );
   });

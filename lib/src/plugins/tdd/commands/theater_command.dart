@@ -29,9 +29,12 @@ import 'package:nocterm/nocterm.dart' as nocterm;
 import 'package:path/path.dart' as p;
 
 import '../services/theater_data.dart';
+import '../models/verdict_envelope.dart';
+import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 import '../widgets/theater_screen.dart';
+import 'run_command.dart';
 
 /// Outcome labels for the machine-readable summary line.
 enum TheaterOutcome {
@@ -52,9 +55,13 @@ class TheaterCommand extends Command<void> {
           'The project root (default: nearest pubspec.yaml or specs/ '
           'walk-up)',
     );
+    argParser.addFlag('json', help: kJsonFlagHelp, negatable: false);
   }
 
   final TddPlugin plugin;
+
+  /// SPEC 917/#838: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
 
   @override
   String get name => 'theater';
@@ -69,7 +76,10 @@ class TheaterCommand extends Command<void> {
   String get invocation => 'zfa tdd theater <feature> [--project <dir>]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() =>
+      runWithVerdictEnvelope(this, _verdict, _run, featureFromRest: true);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       usageException('Feature id is required: zfa tdd theater <feature>');
@@ -113,6 +123,13 @@ class TheaterCommand extends Command<void> {
         snapshot: null,
         outcome: TheaterOutcome.error,
       );
+      // SPEC 917/#838: the JSON verdict carries the remediation.
+      _verdict
+        ..outcome = VerdictOutcome.error
+        ..exitClass = 'error'
+        ..fix =
+            'resolve the journal error above (missing receipts: run '
+            'the loop first with `zfa tdd run $feature`), then re-open';
       exitCode = 1;
       return;
     }
@@ -133,6 +150,13 @@ class TheaterCommand extends Command<void> {
         snapshot: snapshot,
         outcome: TheaterOutcome.nonTty,
       );
+      // SPEC 917/#838: the JSON verdict carries the remediation.
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'non-tty'
+        ..fix =
+            'run `zfa tdd theater $feature` from an interactive '
+            'terminal (a TTY) — the TUI cannot render on piped output';
       exitCode = 1;
       return;
     }
@@ -152,6 +176,12 @@ class TheaterCommand extends Command<void> {
         snapshot: snapshot,
         outcome: TheaterOutcome.error,
       );
+      _verdict
+        ..outcome = VerdictOutcome.error
+        ..exitClass = 'error'
+        ..fix =
+            're-open the theater (`zfa tdd theater $feature`) — if the '
+            'TUI engine keeps failing, run `zfa doctor`';
       exitCode = 1;
       return;
     }

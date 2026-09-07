@@ -8,6 +8,7 @@ import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/project/project_root.dart';
 import '../core/plugin_system/plan_store.dart';
 import '../utils/string_utils.dart';
+import '../cli/exit_protocol.dart';
 
 class CapabilityCommand extends Command<void> {
   final ZuraffaCapability capability;
@@ -42,7 +43,14 @@ class CapabilityCommand extends Command<void> {
       final props = schema['properties'] as Map<String, dynamic>;
       props.forEach((key, value) {
         final type = value['type'];
-        final help = value['description'];
+        // SPEC 917 (help-text leg): package:args HIDES options without a
+        // help line from `--help`. A schema property without a
+        // description would derive a parseable-but-hidden flag — the
+        // "help text and flags disagree" drift `zfa manifest --verify`
+        // exists to catch — so every derived option always carries a
+        // help line (the schema description when present, a plain
+        // sentence otherwise).
+        final help = value['description'] ?? 'The $key argument.';
         final def = value['default'];
         final isFlag = type == 'boolean';
         final isList = type == 'array';
@@ -249,7 +257,7 @@ class CapabilityCommand extends Command<void> {
           print('❌ Error: Missing required arguments: ${missing.join(', ')}');
         }
         print('   --> fix: $fix');
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
     }
@@ -327,6 +335,14 @@ class CapabilityCommand extends Command<void> {
         // in the message; surface it so a clean pass is not a silent exit 0.
         if (!isGenerator && result.message != null) {
           print('✅ ${result.message}');
+        }
+
+        // Spec #1131: `--explain` — a capability may answer with a
+        // human-readable explanation instead of artifacts (read-only).
+        // Print it verbatim; the exit stays 0.
+        final explain = result.data?['explain'];
+        if (explain is String && explain.isNotEmpty) {
+          print(explain);
         }
 
         final created = files.where((f) => f.action == 'created').toList();

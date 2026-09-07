@@ -40,6 +40,8 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/verdict_envelope.dart';
+import '../services/journal.dart';
+import '../services/explain_emitter.dart';
 import '../services/lane_receipts.dart';
 import '../services/tdd_timeout.dart';
 import '../services/verdict_emitter.dart';
@@ -48,15 +50,23 @@ import '../../../core/project/project_root.dart';
 import 'run_driver_core.dart';
 import 'run_engine_command.dart';
 
+/// The `--stream` flag's help text — shared by the three driving commands
+/// (run / run-engine / run-skin) so the flag surface stays in lockstep.
+const String kStreamFlagHelp =
+    'Stream one NDJSON `step-verdict.v1` event per completed loop step as '
+    'it happens (SPEC 917, issue #838); the final verdict.v1 envelope '
+    'still closes the output.';
+
+/// The `--json` flag's help text for the driving commands.
+const String kJsonFlagHelp =
+    'Emit a versioned verdict.v1 JSON envelope as the final stdout line '
+    '(VISION §5, issue #964/#838).';
+
 class RunCommand extends Command<void> {
   RunCommand(this.plugin) {
-    argParser.addFlag(
-      'json',
-      help:
-          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
-          'line (VISION §5, issue #964).',
-      negatable: false,
-    );
+    argParser.addFlag('json', help: kJsonFlagHelp, negatable: false);
+    argParser.addFlag('explain', help: kExplainFlagHelp, negatable: false);
+    argParser.addFlag('stream', help: kStreamFlagHelp, negatable: false);
     argParser.addOption(
       'project',
       aliases: const ['project-root'],
@@ -117,11 +127,22 @@ class RunCommand extends Command<void> {
   static const _exitRunnerError = 2;
 
   @override
-  Future<void> run() =>
-      runWithVerdictEnvelope(this, _verdict, _run, featureFromRest: true);
+  Future<void> run() => runWithVerdictEnvelope(
+    this,
+    _verdict,
+    _run,
+    featureFromRest: true,
+    // SPEC 917: --stream also closes with the envelope — the streamed
+    // step-verdict.v1 events are terminated by the final verdict.
+    envelopeEnabled: () =>
+        tddJsonMode(this) || (argResults?['stream'] as bool? ?? false),
+  );
 
   Future<void> _run() async {
     const label = 'run';
+    // Spec 1113: the meta entry's bounds — the meta cycle started when
+    // the command began, finishes at its terminal outcome.
+    final journalStartedAt = DateTime.now().toUtc().toIso8601String();
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       throw UsageException(
@@ -166,6 +187,11 @@ class RunCommand extends Command<void> {
 
     final skipWidget = argResults?['skip-widget'] as bool? ?? false;
     final core = RunDriverCore();
+    // SPEC 917 (--stream): when set, every completed step streams one
+    // NDJSON step-verdict.v1 event while the run drives.
+    if (argResults?['stream'] as bool? ?? false) {
+      core.onStepEvent = (event) => print(event.toNdjsonLine());
+    }
 
     // -----------------------------------------------------------------
     // Spec 1001 pre-start preflight: an uncertified CORE mock stops the
@@ -177,6 +203,12 @@ class RunCommand extends Command<void> {
       projectRoot: projectRoot,
       featureDir: p.join(projectRoot, 'specs', feature),
     );
+    // The gate's mock accounting rides the engine entry (the status
+    // verdict's `mocks c/t` segment — spec 1113).
+    final mockCounts = {
+      'total': gate.mocks.length,
+      'certified': gate.certified.length,
+    };
     if (!gate.ok) {
       final entity = gate.blockedEntity!;
       stderr.writeln(
@@ -187,6 +219,40 @@ class RunCommand extends Command<void> {
       stderr.writeln(
         '--> fix: zfa mock certify $entity '
         '(or zfa mock create $entity --certify), then re-run.',
+      );
+      // Spec 1113: the preflight refusal is journaled preflight_red —
+      // zero steps spawned, the refused entity named as the violation.
+      await _journalMeta(
+        featureDir: p.join(projectRoot, 'specs', feature),
+        feature: feature,
+        startedAt: journalStartedAt,
+        gateState: 'preflight_red',
+        phase: 'gate',
+        result: 'preflight-refused',
+        violations: [
+          'cert-gate: entity=$entity refused '
+              '(${gate.blockedReason ?? 'uncertified CORE mock'})',
+        ],
+      );
+      // Issue #1125: the preflight refusal's explain block — the cert
+      // gate refused BEFORE any lane drove, the fix line is the gate's
+      // own (mock certify).
+      _verdict.explain = TddExplain(
+        command: 'run',
+        features: [feature],
+        lane:
+            'none — the cert gate refused before any lane drove '
+            '(preflight red)',
+        fixHints: [
+          'zfa mock certify $entity (or zfa mock create $entity '
+              '--certify), then re-run',
+        ],
+        summary:
+            'Run stopped at the spec-1001 pre-start preflight: CORE entity '
+            '"$entity" has a mock on disk that is NOT certified '
+            '(${gate.blockedReason ?? 'uncertified CORE mock'}). No '
+            'step was spawned and no receipt was written; the refusal '
+            'is journaled preflight_red in tdd/journal.json.',
       );
       exitCode = 1;
       return;
@@ -206,6 +272,7 @@ class RunCommand extends Command<void> {
       label: label,
       announce: true,
       skipWidget: skipWidget,
+      mockCounts: mockCounts,
     );
 
     // Fail fast (issue #1008): the engine lane must be green before the
@@ -213,7 +280,29 @@ class RunCommand extends Command<void> {
     // receipt records the honest outcome; no skin step is spawned.
     if (engine.result != 'complete') {
       if (engine.message != null) print('zfa tdd $label: ${engine.message}');
-      _printSummary(feature, engine);
+      // Spec 1113: the fail-fast meta outcome is journaled red (the
+      // honest stop named as the violation).
+      await _journalMeta(
+        featureDir: p.join(projectRoot, 'specs', feature),
+        feature: feature,
+        startedAt: journalStartedAt,
+        gateState: 'red',
+        phase: 'aggregate',
+        result: engine.result,
+        receipts: [JournalWriter.engineReceiptRef],
+        violations: [
+          if (engine.stoppedAt != null)
+            'engine lane stopped at ${engine.stoppedAt}',
+          'engine lane result=${engine.result} — fail fast, no skin step '
+              'spawned',
+        ],
+      );
+      _printSummary(
+        feature,
+        engine,
+        lane: 'engine (fail fast — no skin step spawned)',
+        receipts: [JournalWriter.engineReceiptRef],
+      );
       exitCode = engine.exitCode;
       return;
     }
@@ -237,14 +326,42 @@ class RunCommand extends Command<void> {
 
     if (skin.result != 'complete') {
       if (skin.message != null) print('zfa tdd $label: ${skin.message}');
-      _printSummary(feature, skin);
+      // Spec 1113: the skin's honest stop is journaled red too — the
+      // meta record covers EVERY terminal outcome, not only the green
+      // one.
+      await _journalMeta(
+        featureDir: p.join(projectRoot, 'specs', feature),
+        feature: feature,
+        startedAt: journalStartedAt,
+        gateState: 'red',
+        phase: 'aggregate',
+        result: skin.result,
+        receipts: [
+          JournalWriter.engineReceiptRef,
+          JournalWriter.skinReceiptRef,
+        ],
+        violations: [
+          if (skin.stoppedAt != null) 'skin lane stopped at ${skin.stoppedAt}',
+          'skin lane result=${skin.result}',
+        ],
+      );
+      _printSummary(
+        feature,
+        skin,
+        lane: 'engine (green) + skin',
+        receipts: [
+          JournalWriter.engineReceiptRef,
+          JournalWriter.skinReceiptRef,
+        ],
+      );
       exitCode = skin.exitCode;
       return;
     }
 
     // -----------------------------------------------------------------
     // Both lanes green: the unified journal entry naming both receipts
-    // (issue #1008) and the final summary line over EVERY behavior.
+    // (issue #1008) and the structured meta entry (issue #1113) and the
+    // final summary line over EVERY behavior.
     // -----------------------------------------------------------------
     await LaneReceipts(
       p.join(projectRoot, 'specs', feature),
@@ -253,15 +370,90 @@ class RunCommand extends Command<void> {
       engineVerdict: engine.verdict,
       skinVerdict: skin.verdict,
     );
-    _printSummary(feature, skin);
+    await _journalMeta(
+      featureDir: p.join(projectRoot, 'specs', feature),
+      feature: feature,
+      startedAt: journalStartedAt,
+      gateState: 'green',
+      phase: 'aggregate',
+      result: 'complete',
+      receipts: [JournalWriter.engineReceiptRef, JournalWriter.skinReceiptRef],
+      behaviors:
+          (engine.rows.map((r) => r.id).toSet()
+                ..addAll(skin.rows.map((r) => r.id)))
+              .toList(),
+    );
+    _printSummary(
+      feature,
+      skin,
+      lane: 'engine + skin',
+      receipts: [
+        JournalWriter.engineReceiptRef,
+        JournalWriter.skinReceiptRef,
+        'tdd/journal.json (unified meta entry, spec 1113)',
+      ],
+    );
     exitCode = _exitComplete;
+  }
+
+  /// Spec 1113: the meta cycle's journal entry — ONE entry per terminal
+  /// outcome of `zfa tdd run` (green / red / preflight_red), the refs
+  /// cross-referencing the engine and skin receipts and the skin
+  /// contract. A failed write is reported, never fatal (the journal is
+  /// a record, not a gate — the receipt discipline).
+  Future<void> _journalMeta({
+    required String featureDir,
+    required String feature,
+    required String startedAt,
+    required String gateState,
+    required String phase,
+    String? result,
+    List<String> receipts = const [],
+    List<String> violations = const [],
+    List<String> behaviors = const [],
+  }) async {
+    try {
+      final writer = JournalWriter(featureDir);
+      final refs = await writer.resolveRefs();
+      await writer.append(
+        JournalEntry(
+          feature: feature,
+          cycle: 'meta',
+          phase: phase,
+          startedAt: startedAt,
+          finishedAt: DateTime.now().toUtc().toIso8601String(),
+          gateState: gateState,
+          receipts: receipts,
+          violations: violations,
+          engineReceipt: refs.engine,
+          skinReceipt: refs.skin,
+          contractSchema: refs.contract,
+          result: result,
+          behaviors: behaviors,
+        ),
+      );
+    } on FileSystemException {
+      stderr.writeln(
+        'zfa tdd run: failed to write the meta journal entry at '
+        '${p.join(featureDir, 'tdd', 'journal.json')}',
+      );
+    }
   }
 
   /// The final summary line over EVERY behavior of the test list (the
   /// union of the lanes) — the pre-split driver's exact shape (FR-009 /
   /// FR-010: `run: feature=<f> result=<r> pending=<n> red=<n> green=<n>
   /// done=<n>` plus ` stopped_at=...` when stopped).
-  void _printSummary(String feature, RunDriverOutcome outcome) {
+  ///
+  /// Issue #1125: the call site's lane/receipts facts also populate the
+  /// `--explain` block — the receipts are the journal's own refs
+  /// (JournalWriter), never fresh strings.
+  void _printSummary(
+    String feature,
+    RunDriverOutcome outcome, {
+    String? lane,
+    List<String> receipts = const <String>[],
+  }) {
     print(
       RunDriverCore.summaryLine(
         label: 'run',
@@ -294,5 +486,23 @@ class RunCommand extends Command<void> {
     if (outcome.stoppedAt != null) {
       _verdict.details['stopped_at'] = outcome.stoppedAt;
     }
+    // Issue #1125: the run's explain block — the counts reuse the
+    // summary line's numbers, the receipts the journal's refs, the
+    // narrative the terminal outcome the two-cycle driver recorded.
+    _verdict.explain = TddExplain(
+      command: 'run',
+      features: [feature],
+      lane: lane,
+      receipts: receipts,
+      summary:
+          'Run drove $feature through the two-cycle runner '
+          '(spec 1008): result=${outcome.result}, '
+          'pending=${outcome.counts['pending']}, '
+          'red=${outcome.counts['red']}, '
+          'green=${outcome.counts['green']}, '
+          'done=${outcome.counts['done']}'
+          '${outcome.stoppedAt == null ? '' : ', stopped_at=${outcome.stoppedAt}'}'
+          '. ${outcome.result == 'complete' ? 'Both lanes are green — the receipts and the unified journal entry record the evidence.' : 'The run stopped honestly at the first red; resume by re-running `zfa tdd run $feature` — completed behaviors are skipped (evidence beats state).'}',
+    );
   }
 }

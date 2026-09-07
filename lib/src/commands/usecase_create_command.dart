@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -7,11 +6,13 @@ import 'package:path/path.dart' as p;
 
 import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/project/receipt_store.dart';
+import '../core/verdict_envelope.dart';
 import '../models/generator_config.dart';
 import '../plugins/usecase/usecase_plugin.dart';
 import '../plugins/usecase/usecase_verdicts.dart';
 import '../utils/string_utils.dart';
 import '../version.dart';
+import '../cli/exit_protocol.dart';
 
 /// Spec #972 — the first-party `zfa usecase create` subcommand.
 ///
@@ -19,11 +20,15 @@ import '../version.dart';
 /// from CreateUseCaseCapability) with an honest, machine-friendly
 /// surface:
 ///
-///   * `--json` prints ONLY a per-method verdict envelope:
-///     `{"schema": 1, "entity": ..., "methods": [
+///   * `--json` prints ONLY the canonical verdict envelope (SPEC 1105,
+///     `zuraffa.verdict.v1`): the per-method verdict list rides in
+///     `details.methods`, the entity in `subject.id`:
+///     `{"schema": "zuraffa.verdict.v1", "command": "zfa usecase create
+///     <Entity>", "verdict": "pass|fail", "subject": {"kind": "usecase",
+///     "id": "<Entity>"}, "details": {"methods": [
 ///        {"name": "get", "action": "created"},
 ///        {"name": "toggle", "action": "skipped",
-///         "reason": "interface_missing_method:TaskRepository.toggle"}]}`
+///         "reason": "interface_missing_method:TaskRepository.toggle"}]}}`
 ///     with action ∈ {created, appended, skipped} (deleted on revert).
 ///   * Every successful run ships a proof-carrying receipt in
 ///     `.zfa/receipts/` (schema `proof.v1`) binding
@@ -139,7 +144,7 @@ class UseCaseCreateCommand extends Command<void> {
   Future<void> run() async {
     final results = argResults;
     if (results == null) {
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -149,7 +154,7 @@ class UseCaseCreateCommand extends Command<void> {
     if (entityName == null || entityName.trim().isEmpty) {
       print('❌ Usage: zfa usecase create <EntityName> [options]');
       print('   Run `zfa usecase create --help` for the full grammar.');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -230,14 +235,30 @@ class UseCaseCreateCommand extends Command<void> {
 
     if (report.files.isEmpty && !revert) {
       // Issue #769 semantics: zero files means the request produced
-      // nothing — that is not a success.
+      // nothing — that is not a success. SPEC 1105: the refusal still
+      // speaks the ONE canonical envelope (verdict=fail).
       if (jsonMode) {
-        print(
-          jsonEncode({
-            'schema': 1,
-            'entity': entityName,
-            'methods': report.verdicts.map((v) => v.toJson()).toList(),
-          }),
+        VerdictEnvelope.emit(
+          VerdictEnvelope(
+            command: 'zfa usecase create $entityName',
+            verdict: VerdictKind.fail,
+            exitClass: ExitProtocol.failure,
+            subject: VerdictSubject(kind: 'usecase', id: entityName),
+            findings: [
+              VerdictFinding(
+                kind: 'no-files',
+                fix: 're-run with --verbose to inspect the resolved args',
+                extra: {
+                  'detail':
+                      'no files were generated (nothing changed) — a '
+                      'guard skip above explains why',
+                },
+              ),
+            ],
+            details: {
+              'methods': report.verdicts.map((v) => v.toJson()).toList(),
+            },
+          ),
         );
       } else {
         print(
@@ -264,13 +285,32 @@ class UseCaseCreateCommand extends Command<void> {
     }
 
     if (jsonMode) {
-      print(
-        jsonEncode({
-          'schema': 1,
-          'entity': entityName,
-          'methods': report.verdicts.map((v) => v.toJson()).toList(),
-          'receipt': receiptPath,
-        }),
+      VerdictEnvelope.emit(
+        VerdictEnvelope(
+          command: 'zfa usecase create $entityName',
+          verdict: VerdictKind.pass,
+          exitClass: ExitProtocol.success,
+          subject: VerdictSubject(kind: 'usecase', id: entityName),
+          artifacts: VerdictArtifacts(
+            created: [
+              for (final file in report.files)
+                if (file.action == 'created')
+                  _projectRelativePosix(file.path, fixedOutputDir),
+            ],
+            modified: [
+              for (final file in report.files)
+                if (file.action == 'overwritten' || file.action == 'updated')
+                  _projectRelativePosix(file.path, fixedOutputDir),
+            ],
+            deleted: [
+              for (final file in report.files)
+                if (file.action == 'deleted')
+                  _projectRelativePosix(file.path, fixedOutputDir),
+            ],
+          ),
+          receipts: receiptPath == null ? null : [receiptPath],
+          details: {'methods': report.verdicts.map((v) => v.toJson()).toList()},
+        ),
       );
       return;
     }

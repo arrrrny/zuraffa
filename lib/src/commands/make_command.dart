@@ -16,6 +16,7 @@ import '../plugins/shadcn/vocabulary/ui_node_registry.dart';
 import '../config/zfa_config.dart';
 import '../cli/plugin_loader.dart';
 import '../core/branding/branding_writer.dart';
+import '../core/dependencies/generated_import_scanner.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/plugin_context.dart';
 import '../core/project/project_root.dart';
@@ -30,10 +31,12 @@ import '../plugins/provider/provider_receipt.dart';
 import '../plugins/provider/provider_verifier.dart';
 import '../plugins/repository/plan/repository_emission_plan.dart';
 import '../plugins/repository/repository_plugin.dart';
+import '../plugins/mock/services/mock_certification.dart';
 import '../plugins/usecase/usecase_expectation_post_pass.dart';
 import '../utils/entity_field_resolver.dart';
 import '../utils/string_utils.dart';
 import '../utils/framework_export_surface.dart';
+import '../cli/exit_protocol.dart';
 
 /// Command to run multiple plugins explicitly.
 /// Usage: `zfa make <Name> <plugin1> <plugin2> ... [flags]`
@@ -163,7 +166,7 @@ class MakeCommand extends Command<void> {
   final PluginRegistry registry;
   late final PluginManager manager;
 
-  MakeCommand(this.registry) {
+  MakeCommand(this.registry, {String? projectRoot}) {
     argParser.addFlag(
       'ui',
       negatable: false,
@@ -171,12 +174,12 @@ class MakeCommand extends Command<void> {
           'Scaffold a composite UI component (spec 024): node entity + '
           'renderer extension + schema registration',
     );
-    final projectRoot = _findProjectRoot();
+    final resolvedProjectRoot = projectRoot ?? _findProjectRoot();
     manager = PluginManager(
       registry: registry,
-      config: ZfaConfig.load(projectRoot: projectRoot),
-      pluginConfig: PluginConfig.load(projectRoot: projectRoot),
-      projectRoot: projectRoot,
+      config: ZfaConfig.load(projectRoot: resolvedProjectRoot),
+      pluginConfig: PluginConfig.load(projectRoot: resolvedProjectRoot),
+      projectRoot: resolvedProjectRoot,
     );
     _addCoreOptions();
     _addPluginOptions();
@@ -349,6 +352,41 @@ class MakeCommand extends Command<void> {
           '(issues #1102/#1166); the auditor kit file is emitted when '
           'missing',
     );
+    argParser.addMultiOption(
+      'anchor',
+      help:
+          'A zfa: anchor the generated --skin view declares (repeatable; '
+          'issue #1112) — emits the anchorExists contract row and the '
+          'debugTap<PascalAnchor>() VM-service driver function per anchor.',
+    );
+    // Issue #1194 (part of #908 P0 "make-default→mock + mocked tier"):
+    // the mocked tier is the DEFAULT — a fresh data-preset slice boots on
+    // certified mocks (--dart-define=SIMULATION=true). This flag opts
+    // OUT for teams who want compile-only slices (no mock datasource,
+    // no simulation binding, no seeds).
+    argParser.addFlag(
+      'compile-only',
+      negatable: false,
+      help:
+          'Opt out of the mocked tier (issue #1194): generate the slice '
+          'without the certified mock datasource / simulation-mode '
+          'binding — compile-only, not demo-green. The mocked tier is the '
+          'default (boots on certified mocks via '
+          '--dart-define=SIMULATION=true).',
+    );
+    // Issue #1149 (kill list): the gql plugin was deleted and `--with=gql`
+    // aliases to `graphql` for one deprecation cycle. The boolean flag
+    // used to be auto-registered from the (now gone) plugin id, so it is
+    // declared here explicitly to keep `--gql` / `--no-gql` scripts
+    // working during that cycle. PlanResolver maps it onto graphql.
+    argParser.addFlag(
+      'gql',
+      help:
+          'Deprecated alias for --graphql (issue #1149): the gql plugin '
+          'was folded into graphql. Use --graphql instead.',
+      defaultsTo: true,
+      negatable: true,
+    );
   }
 
   void _addPluginOptions() {
@@ -395,6 +433,8 @@ class MakeCommand extends Command<void> {
       'append',
       'xray',
       'skin',
+      'anchor',
+      'compile-only',
     };
 
     for (final plugin in registry.plugins) {
@@ -478,6 +518,16 @@ class MakeCommand extends Command<void> {
 
   String? _uiProjectRootOverride;
 
+  /// Issue #1194: the tier this run landed in ('MOCKED' or
+  /// 'COMPILE-ONLY'), or null when the plan had no data tier. Recorded in
+  /// the run context (→ proof.v1 receipt input + run artifact) and
+  /// surfaced in the JSON summary.
+  String? _tierLabel;
+
+  /// Read by [_logSummary] so the JSON summary carries the tier.
+  @visibleForTesting
+  String? get contextTierLabel => _tierLabel;
+
   /// Runs the `zfa make <Name> --ui` composite scaffolding flow (spec 024
   /// FR-002). Exposed for in-process tests; the CLI path reaches it via
   /// the `--ui` flag.
@@ -518,7 +568,7 @@ class MakeCommand extends Command<void> {
     if (argResults?['ui'] == true) {
       if (rest.isEmpty) {
         print('❌ Usage: zfa make <Name> --ui');
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
       await _scaffoldComposite(rest.first);
@@ -546,7 +596,7 @@ class MakeCommand extends Command<void> {
         'Example: zfa make engine Login '
         '--methods=get,getList,create,update,delete',
       );
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     if (engineMode) {
@@ -559,7 +609,7 @@ class MakeCommand extends Command<void> {
           '❌ --preset=$explicitPreset conflicts with the `engine` mode '
           'token (the engine preset is implied by the token itself).',
         );
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
     }
@@ -905,6 +955,34 @@ class MakeCommand extends Command<void> {
       );
     }
 
+    // ── Issue #1194 (part of #908 P0): the make-default mocked tier ──
+    // A fresh data-preset slice lands in the MOCKED tier: the mock plugin
+    // emits the certified mock datasource + mock data seeds + the
+    // simulation-mode binding (registerLazySingleton<EntityDataSource>
+    // (() => EntityMockDataSource()) behind the real interface), and di
+    // wires registerSimulationBindings into di/index.dart — the app boots
+    // on mocks via --dart-define=SIMULATION=true on first run, before any
+    // real adapter is written. `--compile-only` opts out (compile-only
+    // slice: no mocked tier, the pre-#1194 shape). The tier is recorded in
+    // the run context so the proof.v1 generation receipt, the run
+    // artifact, and the JSON summary all carry it (receipt/ladder
+    // vocabulary: MOCKED; swapping to REAL is `zfa tdd realize`'s job —
+    // companion issue).
+    final compileOnly =
+        normalizedOptions['compile-only'] == true ||
+        argResults!['compile-only'] == true;
+    final mockedTier = !compileOnly && activePlugins.any((p) => p.id == 'mock');
+    _tierLabel = compileOnly
+        ? 'COMPILE-ONLY'
+        : mockedTier
+        ? 'MOCKED'
+        : null;
+    if (compileOnly) {
+      context.data['tier'] = 'COMPILE-ONLY';
+    } else if (mockedTier) {
+      context.data['tier'] = 'MOCKED';
+    }
+
     try {
       final files = await manager.run(context, activePlugins);
 
@@ -951,7 +1029,58 @@ class MakeCommand extends Command<void> {
         }
       }
 
-      _logSummary(files, context.core.verbose, plan: plan);
+      // Issue #1190 — pubspec ↔ generated-imports post-pass: the files
+      // this run wrote may import packages the target's pubspec doesn't
+      // declare, which floods the first run with
+      // depend_on_referenced_packages infos (and fails strict CI).
+      // Surface the exact `pub add` one-liner on completion instead of
+      // leaving the user to translate analyzer noise.
+      final pubsyncGap = (!isDryRun && !isRevert && files.isNotEmpty)
+          ? _pubsyncGapForFiles(files)
+          : null;
+
+      _logSummary(
+        files,
+        context.core.verbose,
+        plan: plan,
+        pubsyncGap: pubsyncGap,
+      );
+
+      // ── Issue #1194: certified mocks BY DEFAULT ──────────────────────
+      // A mocked-tier run structurally certifies the emitted mock against
+      // the interface it implements (AST member conformance + fixture
+      // digests of the final on-disk bytes) and ships the
+      // `.zfa/receipts/mock-<entity>.json` receipt — the same
+      // certification `zfa mock create --certify` computes. A fresh slice
+      // is demo-green without a separate certify step. Best-effort by
+      // design (issue #807 convention): the artifacts already exist, so a
+      // receipt failure degrades to a warning instead of failing the run.
+      if (mockedTier && !isDryRun && !isRevert) {
+        await _certifyEmittedMock(
+          entityName: entityName,
+          files: files,
+          context: context,
+        );
+      }
+
+      // Issue #1194: name the tier in the run output so the developer
+      // knows which tier they are on and how to run/swap it. JSON mode
+      // carries the tier inside the summary document instead.
+      if (argResults?['format'] != 'json') {
+        if (mockedTier) {
+          print(
+            '🧪 Tier: MOCKED — boots on certified mocks with '
+            '--dart-define=SIMULATION=true (zfa tdd realize swaps to '
+            'REAL).',
+          );
+        } else if (compileOnly) {
+          print(
+            '⚙️  Tier: COMPILE-ONLY (--compile-only) — no mocked tier '
+            'emitted; the slice is compile-green, not demo-green.',
+          );
+        }
+      }
+
       // Spec 1002: the engine tail — mock certification, engine check,
       // and the auto-receipt — runs after the generation transaction
       // committed, so the checker reads the real on-disk tree.
@@ -1005,6 +1134,31 @@ class MakeCommand extends Command<void> {
     if (argResults?['format'] != 'json') {
       print('✅ Done.');
     }
+  }
+
+  /// Issue #1190: diffs the package imports of the files THIS RUN wrote
+  /// against the target pubspec.yaml. Only created/overwritten/updated
+  /// `.dart` files contribute (skipped files keep their pre-run state and
+  /// deleted/reverted files no longer exist); unreadable paths are
+  /// skipped — `zfa doctor generated-imports` re-scans the whole tree.
+  PubspecDependencyGap? _pubsyncGapForFiles(List<GeneratedFile> files) {
+    final dartFiles = <File>[];
+    for (final file in files) {
+      if (file.action == 'deleted' || file.action == 'reverted') continue;
+      if (file.action == 'skipped') continue;
+      final normalized = file.path.replaceAll('\\', '/');
+      if (!normalized.endsWith('.dart')) continue;
+      final absolute = path.isAbsolute(file.path)
+          ? file.path
+          : p.join(manager.projectRoot, file.path);
+      final f = File(absolute);
+      if (f.existsSync()) dartFiles.add(f);
+    }
+    if (dartFiles.isEmpty) return null;
+    return GeneratedImportScanner.analyzeFiles(
+      dartFiles: dartFiles,
+      projectRoot: manager.projectRoot,
+    );
   }
 
   /// Spec #972 FR-4: runs the usecase interface-expectation post-pass
@@ -1153,6 +1307,74 @@ class MakeCommand extends Command<void> {
         ? path.relative(absolutePath, from: manager.projectRoot)
         : absolutePath;
     return rel.replaceAll('\\', '/');
+  }
+
+  /// Issue #1194 (part of #908 P0 "make-default→mock + mocked tier"):
+  /// certified mocks BY DEFAULT. A make run that emitted the mocked tier
+  /// structurally certifies the mock against the interface it implements
+  /// (AST member conformance + fixture digests of the final on-disk
+  /// bytes) and ships the `.zfa/receipts/mock-<entity>.json` receipt —
+  /// the same certification `zfa mock create --certify` computes — so a
+  /// fresh slice is demo-green (certified mocks, not just mocks) without
+  /// a separate certify step. Best-effort by design (issue #807
+  /// convention): the artifacts already exist, so a receipt failure
+  /// degrades to a warning instead of failing the run.
+  Future<void> _certifyEmittedMock({
+    required String entityName,
+    required List<GeneratedFile> files,
+    required PluginContext context,
+  }) async {
+    // Only certify when the run actually emitted mock artifacts. A
+    // value-object or enum-entity run may keep the mock plugin active
+    // without a datasource mock; certifying nothing is honest there (the
+    // mock data emission, when present, is still covered via the fixture
+    // digests below).
+    final emittedMock = files.any(
+      (f) => f.type == 'mock_datasource' || f.type == 'mock_data',
+    );
+    if (!emittedMock) return;
+
+    try {
+      // Mirror MockPlugin's method resolution so the certification reads
+      // the same generation shape the run used.
+      final methods =
+          context.data['methods']?.cast<String>().toList() ??
+          (context.get<bool>('no-entity') == true ||
+                  context.data['service'] != null
+              ? <String>[]
+              : ['get', 'update', 'toggle']);
+      final service = context.data['service'] is String
+          ? context.data['service'] as String?
+          : null;
+
+      final certification = await MockCertificationService.certify(
+        entity: entityName,
+        outputDir: context.core.outputDir,
+        files: files,
+        projectRoot: manager.projectRoot,
+        service: service,
+        domain: context.data['domain'] as String?,
+        methods: methods,
+        repo: context.data['repo'] as String?,
+      );
+      await MockCertificationService.writeReceipt(
+        projectRoot: manager.projectRoot,
+        entity: entityName,
+        commandLine: 'zfa make $entityName (mocked tier default)',
+        certification: certification,
+        files: files,
+        capabilityName: 'make',
+        methodset: methods,
+      );
+      if (argResults?['format'] != 'json') {
+        print(
+          '🧪 Certified mock for "$entityName": '
+          '${certification.registryId}',
+        );
+      }
+    } catch (e) {
+      print('⚠️  Mock-certification receipt not written: $e');
+    }
   }
 
   Future<Map<String, dynamic>?> _loadJsonConfig() async {
@@ -1345,6 +1567,7 @@ class MakeCommand extends Command<void> {
     List<GeneratedFile> files,
     bool verbose, {
     required dynamic plan,
+    PubspecDependencyGap? pubsyncGap,
   }) {
     if (argResults?['format'] == 'json') {
       print(
@@ -1353,6 +1576,18 @@ class MakeCommand extends Command<void> {
           'plan': plan.toJson(),
           'files': files.map((file) => file.toJson()).toList(),
           'warnings': plan.warnings,
+          // Issue #1194: the tier the run landed in — MOCKED (default,
+          // boots on certified mocks) or COMPILE-ONLY (--compile-only
+          // opt-out). Absent when the plan had no data tier at all.
+          if (contextTierLabel != null) 'tier': contextTierLabel,
+          // Issue #1190: machine-consumable pubspec-dep gap — agents can
+          // run the one-liner without parsing analyzer output.
+          if (pubsyncGap != null && pubsyncGap.hasMissing)
+            'missing_pubspec_deps': {
+              'packages': pubsyncGap.missing,
+              'suggested_fix': pubsyncGap.pubAddOneLiner,
+              'sdk_packages': pubsyncGap.sdkMissingPackages,
+            },
         }),
       );
       return;
@@ -1393,6 +1628,31 @@ class MakeCommand extends Command<void> {
         }
       }
     }
+
+    // Issue #1190 — completion-time pubspec-dep suggestion.
+    _printPubsyncSuggestion(pubsyncGap);
+  }
+
+  /// Issue #1190: prints the generated-imports ↔ pubspec gap and the exact
+  /// `pub add` one-liner that heals it. SDK-provided packages (flutter,
+  /// flutter_test, ...) cannot be `pub add`ed — they get their own note.
+  void _printPubsyncSuggestion(PubspecDependencyGap? gap) {
+    if (gap == null || !gap.hasMissing) return;
+    print(
+      '⚠️  pubspec.yaml doesn\'t declare ${gap.missing.length} '
+      'package(s) the generated code imports: ${gap.missing.join(", ")}',
+    );
+    final oneLiner = gap.pubAddOneLiner;
+    if (oneLiner != null) {
+      print('    --> fix: `$oneLiner`');
+    }
+    if (gap.sdkMissingPackages.isNotEmpty) {
+      print(
+        '    note: ${gap.sdkMissingPackages.join(", ")} come(s) from the '
+        'Flutter SDK — declare with `sdk: flutter` in pubspec.yaml',
+      );
+    }
+    print('    note: re-check the whole tree with `zfa doctor`');
   }
 
   /// Spec 1002: engine-chain step 1 — `entity create`. Generates the

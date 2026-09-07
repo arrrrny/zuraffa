@@ -12,6 +12,7 @@ import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
 import '../../../core/builder/shared/spec_library.dart';
+import '../datasource_provenance.dart';
 
 /// Generates remote data source implementations.
 class RemoteDataSourceBuilder {
@@ -496,9 +497,16 @@ class RemoteDataSourceBuilder {
       specLibrary.library(specs: [clazz], directives: directives),
     );
 
+    // Spec #1131 (order 5): the GENERATED provenance header rides ABOVE
+    // the emitted library (before the imports); dart_style keeps it in
+    // place through FileUtils.writeFile's format pass.
+    final withHeader =
+        '${DatasourceProvenance.headerFor(entityName, 'remote datasource')}'
+        '$content';
+
     return FileUtils.writeFile(
       filePath,
-      content,
+      withHeader,
       'remote_datasource',
       force: options.force,
       dryRun: options.dryRun,

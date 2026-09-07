@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:args/command_runner.dart';
 
+import '../capabilities/ui_vocabulary_export_capability.dart';
 import '../shadcn_plugin.dart';
 import '../../../core/plugin_system/capability.dart';
 import '../../../core/plugin_system/capability_invocation_wrapper.dart';
@@ -9,6 +12,7 @@ import '../../../cli/plugin_loader.dart';
 import '../../../core/plugin_system/plugin_manager.dart';
 
 import 'dart:io';
+import '../../../cli/exit_protocol.dart';
 
 class ShadcnCommand extends Command<void> {
   final ShadcnPlugin plugin;
@@ -20,7 +24,10 @@ class ShadcnCommand extends Command<void> {
   String get description => 'Generate Shadcn UI widgets for entities';
 
   @override
-  String get invocation => 'zfa shadcn <layout> <Entity> [options]';
+  String get invocation =>
+      'zfa shadcn <layout> <Entity> [options]'
+      ' | zfa shadcn ui.schema.export [--project-root <dir>]'
+      ' [--schema-version <v>]';
 
   ShadcnCommand(this.plugin) {
     argParser.addOption(
@@ -42,7 +49,9 @@ class ShadcnCommand extends Command<void> {
     argParser.addOption(
       'layout',
       help: 'UI layout type',
-      allowed: ['list', 'grid', 'table', 'form'],
+      // Issue #1149 (kill list — fix list): only implemented layouts are
+      // allowed — grid/table were advertised but never implemented.
+      allowed: ['list', 'form'],
       defaultsTo: 'list',
     );
     // PluginManager.buildContext reads the standard PluginCommand flags
@@ -107,15 +116,42 @@ class ShadcnCommand extends Command<void> {
       negatable: false,
       help: 'Append to existing repo/service',
     );
+    // SPEC 917 / issue #904 (seed sites 4+5): the ui.schema.export
+    // capability's inputSchema declares `projectRoot` and `schemaVersion`
+    // — the manifest is a command-invocation contract, so `zfa shadcn
+    // ui.schema.export --project-root X --schema-version Y` must parse.
+    // Both are honored by the ui.schema.export dispatch branch below.
+    argParser.addOption(
+      'project-root',
+      help:
+          'Project root to load UI-vocabulary composites from (ui.schema '
+          'export; defaults to the current directory)',
+    );
+    argParser.addOption(
+      'schema-version',
+      help:
+          'Version stamp for the UI-vocabulary export (ui.schema export; '
+          'defaults to the registry version)',
+    );
   }
 
   @override
   Future<void> run() async {
     final rest = argResults!.rest;
+
+    // SPEC 917 / #904 (seed sites 4+5): the ui.schema.export capability is
+    // advertised in the manifest and must be invocable from the CLI it
+    // advertises itself through. Dispatched before the layout grammar so
+    // the dotted capability verb is never mistaken for a layout.
+    if (rest.isNotEmpty && rest.first == 'ui.schema.export') {
+      await _runUiSchemaExport(rest.skip(1).toList());
+      return;
+    }
+
     if (rest.length < 2) {
       print('❌ Usage: zfa shadcn <layout> <Entity> [options]');
-      print('Available layouts: list, form, grid, table');
-      exitCode = 64;
+      print('Available layouts: list, form');
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -126,14 +162,26 @@ class ShadcnCommand extends Command<void> {
     // usage error, not a silent generation of a bogus template. The
     // layout's argParser `allowed` set only guards --layout, never the
     // positional form, so the command itself must refuse here.
-    const knownLayouts = {'list', 'grid', 'table', 'form'};
+    // Issue #1149 (kill list — fix list): only the implemented layouts are
+    // accepted. grid/table used to be admitted here and then fell through
+    // to the list template — a mislabeled widget that lied about its shape.
+    const knownLayouts = {'list', 'form'};
+    const unimplementedAdvertised = {'grid', 'table'};
     if (!knownLayouts.contains(layout)) {
       print('❌ Usage: zfa shadcn <layout> <Entity> [options]');
-      print(
-        'Unknown layout: "$layout". '
-        'Available layouts: list, form, grid, table',
-      );
-      exitCode = 64;
+      if (unimplementedAdvertised.contains(layout)) {
+        print(
+          'Layout "$layout" is not implemented (issue #1149): the old '
+          'generator silently emitted a list widget instead. Available '
+          'layouts: list, form',
+        );
+      } else {
+        print(
+          'Unknown layout: "$layout". '
+          'Available layouts: list, form',
+        );
+      }
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -200,5 +248,37 @@ class ShadcnCommand extends Command<void> {
       dir = Directory(dir).parent.path;
     }
     return Directory.current.path;
+  }
+
+  /// SPEC 917 / #904: the CLI surface of the `ui.schema.export`
+  /// capability (spec 024 FR-006). Honors --project-root and
+  /// --schema-version exactly as the capability inputSchema declares.
+  Future<void> _runUiSchemaExport(List<String> rest) async {
+    if (rest.isNotEmpty && !rest.every((a) => !a.startsWith('-'))) {
+      print('❌ Usage: zfa shadcn ui.schema.export [options]');
+      print(
+        '   --> fix: pass --project-root <dir> / --schema-version <v> '
+        'as flags, not positionals',
+      );
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+    final capability = UiVocabularyExportCapability(plugin);
+    final result = await capability.execute({
+      if (argResults?['project-root'] != null)
+        'projectRoot': argResults!['project-root'],
+      if (argResults?['schema-version'] != null)
+        'schemaVersion': argResults!['schema-version'],
+    });
+    if (!result.success) {
+      print('❌ Failed to export the UI vocabulary schema: ${result.message}');
+      print(
+        '   --> fix: re-run inside the project whose composites to load '
+        '(or pass --project-root <dir>)',
+      );
+      exitCode = ExitProtocol.failure;
+      return;
+    }
+    print(jsonEncode(result.data?['schema']));
   }
 }

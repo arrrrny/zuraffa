@@ -1,36 +1,27 @@
 import 'base_plugin_command.dart';
 import '../plugins/repository/repository_plugin.dart';
+import 'repository_create_command.dart';
 
 class RepositoryCommand extends PluginCommand {
   @override
   final RepositoryPlugin plugin;
 
   RepositoryCommand(this.plugin) : super(plugin) {
-    argParser.addOption(
-      'methods',
-      abbr: 'm',
-      help:
-          'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
-      defaultsTo: 'get,update',
-    );
-    argParser.addFlag(
-      'data',
-      help: 'Generate repository implementation',
-      defaultsTo: true,
-    );
-    argParser.addFlag(
-      'datasource',
-      help: 'Generate data sources along with repository',
-      defaultsTo: true,
-    );
-    argParser.addFlag(
-      'init',
-      abbr: 'i',
-      help: 'Generate initialization and disposal methods',
-      defaultsTo: false,
-      negatable: false,
-    );
+    // SPEC 1124 (issue #1124): `create` is a first-party subcommand —
+    // [RepositoryCreateCommand] carries the canonical `--json` verdict
+    // envelope (ZuraffaVerdictEnvelope.schema). Declared
+    // here so the auto-registration in the super constructor skips it
+    // (manualSubcommandNames) and this
+    // registration cannot collide (issue #761).
+    addSubcommand(RepositoryCreateCommand(plugin));
   }
+
+  /// The `create` subcommand is registered manually above — the
+  /// auto-registered generic [CapabilityCommand] would collide and
+  /// cannot carry the `--json` verdict flag (its `--json` is the
+  /// input-JSON option).
+  @override
+  Set<String> get manualSubcommandNames => const {'create'};
 
   @override
   String get name => 'repository';

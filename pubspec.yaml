@@ -61,6 +61,13 @@ dependencies:
   # in this pure-Dart TUI plugin path (FR-012).
   nocterm: ^0.9.0
 
+  # Issue #1112 (zfa skin drive): the CLI drives the live app's
+  # debugTapAnchorJson seam over the Dart VM service. vm_service is
+  # pure Dart (no Flutter import — Constitution VII holds) and was
+  # already in the transitive graph; it is a DIRECT dependency now
+  # because lib/src/skin/driver/vm_tap_driver.dart imports it.
+  vm_service: ^15.3.0
+
 # dependency_overrides intentionally removed per spec 018-cli-plugin task
 # instructions ("delete the entire dependency_overrides: section"). The
 # previous section pinned analyzer: 14.1.0, which is already an exact version

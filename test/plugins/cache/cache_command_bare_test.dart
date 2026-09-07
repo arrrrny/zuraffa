@@ -25,7 +25,7 @@ void main() {
   });
 
   group('bare `zfa cache` never crashes (spec #975 FR-1)', () {
-    test('run() reports the subcommand grammar and exits 64 — no RangeError, '
+    test('run() reports the subcommand grammar and exits 2 — no RangeError, '
         'no generation', () async {
       exitCode = 0;
       final printed = <String>[];
@@ -36,7 +36,13 @@ void main() {
         ),
       );
 
-      expect(exitCode, 64, reason: 'bare invocation is a usage error');
+      expect(
+        exitCode,
+        2,
+        reason:
+            'bare invocation is a usage error (SPEC 917: canonical 2 — '
+            'the legacy 64 is retired)',
+      );
       expect(
         printed.join('\n'),
         contains('zfa cache <subcommand>'),

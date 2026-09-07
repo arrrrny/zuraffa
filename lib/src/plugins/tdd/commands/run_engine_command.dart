@@ -35,10 +35,14 @@ import '../../../core/project/project_root.dart';
 import '../../../engine/engine_gate_receipt.dart';
 import '../../mock/certification/cert_registry.dart';
 import '../../mock/certification/mock_cert_receipt.dart';
+import '../models/verdict_envelope.dart';
 import '../services/entity_lookup.dart';
+import '../services/journal.dart';
 import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
+import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
+import 'run_command.dart';
 import 'run_driver_core.dart';
 
 /// The certification gate's decision (spec 1001, issue #1001; hardened
@@ -123,9 +127,14 @@ class RunEngineCommand extends Command<void> {
           'refusal still stops the run.',
       negatable: false,
     );
+    argParser.addFlag('json', help: kJsonFlagHelp, negatable: false);
+    argParser.addFlag('stream', help: kStreamFlagHelp, negatable: false);
   }
 
   final TddPlugin plugin;
+
+  /// Issue #969/#838: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
 
   @override
   String get name => 'run-engine';
@@ -143,8 +152,19 @@ class RunEngineCommand extends Command<void> {
   static const _exitRunnerError = 2;
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(
+    this,
+    _verdict,
+    _run,
+    featureFromRest: true,
+    // SPEC 917: --stream also closes with the envelope.
+    envelopeEnabled: () =>
+        tddJsonMode(this) || (argResults?['stream'] as bool? ?? false),
+  );
+
+  Future<void> _run() async {
     const label = 'run-engine';
+    final journalStartedAt = DateTime.now().toUtc().toIso8601String();
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       throw UsageException(
@@ -187,7 +207,52 @@ class RunEngineCommand extends Command<void> {
       if (gate.refusedReceiptPath != null) {
         stderr.writeln('🧾 refusal receipt: ${gate.refusedReceiptPath}');
       }
+      // Spec 1113: the cert-gate refusal is journaled preflight_red —
+      // the skin lane and `zfa tdd status` read the same record.
+      try {
+        final writer = JournalWriter(p.join(projectRoot, 'specs', feature));
+        final refs = await writer.resolveRefs();
+        await writer.append(
+          JournalEntry(
+            feature: feature,
+            cycle: 'engine',
+            phase: 'gate',
+            startedAt: journalStartedAt,
+            finishedAt: DateTime.now().toUtc().toIso8601String(),
+            gateState: 'preflight_red',
+            receipts: const [],
+            violations: [
+              'cert-gate: entity=$entity refused '
+                  '(${gate.blockedReason ?? 'uncertified CORE mock'})',
+            ],
+            engineReceipt: refs.engine,
+            skinReceipt: refs.skin,
+            contractSchema: refs.contract,
+            result: 'preflight-refused',
+            mocks: {
+              'total': gate.mocks.length,
+              'certified': gate.certified.length,
+            },
+          ),
+        );
+      } on FileSystemException {
+        // A record, never a gate — the refusal stands on its stderr +
+        // refusal receipt; a failed journal write is only reported.
+        stderr.writeln(
+          'zfa tdd run-engine: failed to write the preflight journal '
+          'entry at '
+          '${p.join(projectRoot, 'specs', feature, 'tdd', 'journal.json')}',
+        );
+      }
       _printGateSummary(feature: feature, result: gate);
+      // SPEC 917/#838: the JSON verdict carries the same remediation.
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'blocked'
+        ..fix =
+            'zfa mock certify $entity (or zfa mock create $entity '
+            '--certify), then re-run'
+        ..details['blocked_entity'] = entity;
       exitCode = 1;
       return;
     }
@@ -215,11 +280,22 @@ class RunEngineCommand extends Command<void> {
           },
         ),
       );
+      // SPEC 917/#838: the JSON verdict carries the remediation.
+      _verdict
+        ..exitClass = 'runner-error'
+        ..outcome = VerdictOutcome.error
+        ..fix = 'pass --timeout in minutes (e.g. --timeout 10) and re-run';
       exitCode = _exitRunnerError;
       return;
     }
 
-    final outcome = await RunDriverCore().drive(
+    final driver = RunDriverCore();
+    // SPEC 917 (--stream): one NDJSON step-verdict.v1 event per completed
+    // step while the lane drives.
+    if (argResults?['stream'] as bool? ?? false) {
+      driver.onStepEvent = (event) => print(event.toNdjsonLine());
+    }
+    final outcome = await driver.drive(
       feature: feature,
       projectRoot: projectRoot,
       zfaBin: zfaBin,
@@ -227,7 +303,14 @@ class RunEngineCommand extends Command<void> {
       lane: 'engine',
       label: label,
       skipWidget: argResults?['skip-widget'] as bool? ?? false,
+      // Spec 1113: the gate's mock accounting rides the engine entry
+      // (the status verdict's `mocks c/t` segment).
+      mockCounts: {
+        'total': gate.mocks.length,
+        'certified': gate.certified.length,
+      },
     );
+    _collectVerdict(outcome);
     if (outcome.message != null) print('zfa tdd $label: ${outcome.message}');
     print(
       RunDriverCore.summaryLine(
@@ -241,6 +324,43 @@ class RunEngineCommand extends Command<void> {
       ),
     );
     exitCode = outcome.exitCode;
+  }
+
+  /// SPEC 917/#838: mirrors the shipped exit taxonomy into the envelope —
+  /// the driver's `result` IS the exit_class; the verdict derives from it
+  /// (complete → pass, stopped → stopped, else error), and every non-green
+  /// verdict carries the machine-actionable remediation.
+  void _collectVerdict(RunDriverOutcome outcome) {
+    _verdict
+      ..exitClass = outcome.result
+      ..outcome = switch (outcome.result) {
+        'complete' => VerdictOutcome.pass,
+        'stopped' => VerdictOutcome.stopped,
+        _ => VerdictOutcome.error,
+      }
+      ..details['pending'] = outcome.counts['pending']
+      ..details['red'] = outcome.counts['red']
+      ..details['green'] = outcome.counts['green']
+      ..details['done'] = outcome.counts['done']
+      ..fix = switch (outcome.result) {
+        'complete' => null,
+        'stopped' =>
+          'resume the lane: `zfa tdd run-engine '
+              '${_verdict.feature ?? '<feature>'}` (the run resumes from '
+              'tdd/run-state.json)',
+        'corrupt-state' =>
+          'recover the corrupt state named above, then re-run '
+              '`zfa tdd run-engine`',
+        'concurrent-run' =>
+          'wait for the active run to finish (or remove its stale lock), '
+              'then re-run `zfa tdd run-engine`',
+        _ =>
+          'fix the runner issue named above (missing feature dir / '
+              'entrypoint), then re-run `zfa tdd run-engine`',
+      };
+    if (outcome.stoppedAt != null) {
+      _verdict.details['stopped_at'] = outcome.stoppedAt;
+    }
   }
 
   /// The gate itself — also invoked by `zfa tdd run` as its pre-start

@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:args/command_runner.dart';
 
+import '../cli/exit_protocol.dart';
+
 class SchemaCommand extends Command<void> {
   @override
   String get name => 'schema';
@@ -14,6 +16,15 @@ class SchemaCommand extends Command<void> {
       '\$schema': 'http://json-schema.org/draft-07/schema#',
       'title': 'ZFA Generator Configuration',
       'type': 'object',
+      // SPEC 917: the ratified exit-code protocol rides the machine
+      // contract (mirror of the `zfa --help` EXIT CODES section) so a
+      // schema-driven client can classify every non-zero exit.
+      'x-zfa-exit-protocol': {
+        'table': ExitProtocol.tableDoc,
+        'fix-line':
+            'every non-zero exit ends with a machine-actionable '
+            '`--> fix:` line',
+      },
       'properties': {
         'name': {
           'type': 'string',

@@ -1,10 +1,13 @@
 /// `VerdictEnvelope` — the uniform versioned JSON verdict every TDD
 /// command emits when `--json` is passed (issue #964, VISION §3, §4, §5;
-/// machine contract finished by issue #969).
+/// machine contract finished by issue #969; schema unified onto the
+/// canonical `zuraffa.verdict.v1` by SPEC 1105, issue #1105).
 ///
 /// The contract is:
-///   - `schema` is exactly `"verdict.v1"` (a stable key agents grep for;
-///     drift is a treaty violation, VISION §3);
+///   - `schema` is exactly `"zuraffa.verdict.v1"` (the ONE canonical
+///     identifier from `lib/src/core/verdict_envelope.dart` — SPEC 1105
+///     retired the pre-1105 `"verdict.v1"` string; the shape is
+///     otherwise unchanged, so only the schema string drifts here);
 ///   - `command` is the leaf verb (`run`, `plan`, `gen`, `view`, ...);
 ///   - `verdict` is one of `pass | fail | stopped | error`;
 ///   - `exit_class` is the command's taxonomy label for how it exited
@@ -34,6 +37,8 @@
 library;
 
 import 'dart:convert';
+
+import '../../../core/verdict_envelope.dart' as core;
 
 /// The verdict categories the envelope can carry.
 enum VerdictOutcome { pass, fail, stopped, error }
@@ -93,8 +98,10 @@ class VerdictEnvelope {
   /// ISO 8601 UTC timestamp; injected in tests for determinism.
   final DateTime timestamp;
 
-  /// The stable schema name; consumers grep for it.
-  static const String schema = 'verdict.v1';
+  /// The stable schema name; consumers grep for it. SPEC 1105: this is
+  /// now a re-export of the ONE canonical identifier — the tdd envelope
+  /// keeps its class name and shape, only the schema string moved.
+  static const String schema = core.VerdictEnvelope.canonicalSchema;
 
   /// The default exit class for an outcome when the command does not
   /// declare one (issue #969: the envelope always carries exit_class).

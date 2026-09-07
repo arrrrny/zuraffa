@@ -9,7 +9,6 @@ import '../domain/entities/feature_contract/feature_contract.dart';
 import '../plugins/controller/controller_plugin.dart';
 import '../plugins/datasource/datasource_plugin.dart';
 import '../plugins/di/di_plugin.dart';
-import '../plugins/gql/gql_plugin.dart';
 import '../plugins/graphql/graphql_plugin.dart';
 import '../plugins/cache/cache_plugin.dart';
 import '../plugins/sqlite/sqlite_plugin.dart';
@@ -17,7 +16,6 @@ import '../plugins/sync/sync_plugin.dart';
 import '../plugins/route/route_plugin.dart';
 import '../plugins/provider/provider_plugin.dart';
 import '../plugins/state/state_plugin.dart';
-import '../plugins/observer/observer_plugin.dart';
 import '../plugins/test/test_plugin.dart';
 import '../plugins/gym/gym_plugin.dart';
 import '../plugins/mock/mock_plugin.dart';
@@ -166,7 +164,6 @@ class PluginLoader {
       ViewPlugin(outputDir: outputDir, options: options),
       FeaturePlugin(outputDir: outputDir, options: options),
       StatePlugin(outputDir: outputDir, options: options),
-      ObserverPlugin(outputDir: outputDir, options: options),
       TestPlugin(outputDir: outputDir, options: options),
       GymPlugin(outputDir: outputDir, options: options),
       MockPlugin(outputDir: outputDir, options: options),
@@ -178,7 +175,11 @@ class PluginLoader {
       CachePlugin(outputDir: outputDir, options: options),
       SqlitePlugin(outputDir: outputDir, options: options),
       SyncPlugin(outputDir: outputDir, options: options),
-      GqlPlugin(outputDir: outputDir, options: options),
+      // Issue #1149 (kill list): GqlPlugin deleted — it was a duplicate of
+      // GraphqlPlugin sharing the same output paths. The correct getList
+      // operation naming and FileSystem injection were folded into
+      // GraphqlBuilder, and `--with=gql` aliases to graphql (see
+      // PluginAliasResolver) for one deprecation cycle.
       GraphqlPlugin(outputDir: outputDir, options: options),
       ShadcnPlugin(outputDir: outputDir, options: options),
       StrategyPlugin(outputDir: outputDir, options: options),

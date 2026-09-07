@@ -3,15 +3,17 @@ import 'dart:io';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
-import '../version.dart';
 import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/project/receipt_store.dart';
 import '../models/generated_file.dart';
-import '../utils/string_utils.dart';
+import '../models/generator_config.dart';
 import 'base_plugin_command.dart';
 import 'datasource_check_command.dart';
 import '../plugins/datasource/datasource_plugin.dart';
 import '../plugins/datasource/capabilities/create_datasource_capability.dart';
+import '../plugins/datasource/datasource_explain.dart';
+import '../plugins/datasource/datasource_receipt.dart';
+import 'datasource_verify_command.dart';
 
 class DataSourceCommand extends PluginCommand {
   @override
@@ -29,6 +31,7 @@ class DataSourceCommand extends PluginCommand {
     'remote',
     'cache',
     'init',
+    'explain',
   };
 
   DataSourceCommand(this.plugin) : super(plugin) {
@@ -64,15 +67,52 @@ class DataSourceCommand extends PluginCommand {
       defaultsTo: false,
       negatable: false,
     );
+    // Spec #1131 order 3: `--explain` prints the datasource plan (the
+    // types generated, the entity field -> method mapping and the
+    // interface shape) instead of generating. Read-only.
+    argParser.addFlag(
+      'explain',
+      negatable: false,
+      help:
+          'Explain the datasource plan (types, entity field mapping, '
+          'interface shape) without generating anything',
+    );
 
     // Spec #977: parity gate verb (`zfa datasource check <Entity>`).
     // Registered manually — it is not a capability subcommand.
     addSubcommand(DataSourceCheckCommand());
+    // Spec #1131 order 1: the entity-conformance gate
+    // (`zfa datasource verify <Entity>`). Registered manually — it is
+    // not a capability subcommand.
+    addSubcommand(DataSourceVerifyCommand());
   }
 
   CreateDataSourceCapability get _createCapability =>
       plugin.capabilities.firstWhere((c) => c is CreateDataSourceCapability)
           as CreateDataSourceCapability;
+
+  /// The GeneratorConfig the explain path builds from the parent flags
+  /// (read-only — never handed to generate()).
+  GeneratorConfig _createCapabilityPlanConfig(String entityName) {
+    return GeneratorConfig(
+      name: entityName,
+      outputDir: outputDir,
+      generateDataSource: true,
+      generateLocal: argResults?['local'] as bool? ?? false,
+      generateRemote: argResults?['remote'] as bool? ?? true,
+      enableCache: argResults?['cache'] as bool? ?? false,
+      methods: (argResults?['methods'] as String? ?? 'get,update')
+          .split(',')
+          .map((m) => m.trim())
+          .where((m) => m.isNotEmpty)
+          .toList(),
+      generateInit: argResults?['init'] == true,
+      idField: 'id',
+      idFieldType: 'String',
+      queryField: 'id',
+      dryRun: true,
+    );
+  }
 
   static bool _schemaBoolDefault(Map<String, dynamic> schema, String key) {
     final properties = schema['properties'];
@@ -101,6 +141,19 @@ class DataSourceCommand extends PluginCommand {
     }
 
     final entityName = argResults!.rest.first;
+
+    // Spec #1131 order 3: explain mode — describe the plan instead of
+    // generating. Read-only.
+    if (argResults?['explain'] == true) {
+      final config = _createCapabilityPlanConfig(entityName);
+      final text = await const DatasourceExplainer().explain(
+        config: config,
+        projectRoot: Directory.current.path,
+      );
+      print(text);
+      return;
+    }
+
     final generateLocal = argResults?['local'] as bool? ?? false;
     final generateRemote = argResults?['remote'] as bool? ?? true;
     final enableCache = argResults?['cache'] as bool? ?? false;
@@ -159,6 +212,11 @@ class DataSourceCommand extends PluginCommand {
   /// emitted artifacts' digests and the id-field / query-field
   /// resolution the run consumed (#294 audit trail).
   ///
+  /// Spec #1131 order 2: the receipt is written through the shared
+  /// [DatasourceReceiptWriter] so the document also carries the
+  /// interface's sha256 and the entity source hash — the same shape the
+  /// capability path persists.
+  ///
   /// Best-effort by design, mirroring the entity path: the artifacts
   /// already exist, so a receipt failure degrades to a warning.
   Future<void> _emitReceipt(
@@ -167,25 +225,6 @@ class DataSourceCommand extends PluginCommand {
     result,
   ) async {
     try {
-      final receiptFiles = <GenerationReceiptFile>[];
-      for (final file in files) {
-        final artifact = File(file.path);
-        if (!artifact.existsSync()) continue;
-        final bytes = artifact.readAsBytesSync();
-        final keepSnapshot = bytes.length <= ReceiptStore.maxSnapshotBytes;
-        receiptFiles.add(
-          GenerationReceiptFile(
-            path: _projectRelativePosix(file.path),
-            action: file.action,
-            sha256: crypto.sha256.convert(bytes).toString(),
-            bytes: bytes.length,
-            snapshot: keepSnapshot ? artifact.readAsStringSync() : null,
-          ),
-        );
-      }
-      if (receiptFiles.isEmpty) return;
-
-      final snake = StringUtils.camelToSnake(entityName);
       final resolvedInput =
           result.data?['input'] as Map<String, dynamic>? ?? const {};
       // Issue #1138: full capability provenance on the standalone
@@ -199,31 +238,42 @@ class DataSourceCommand extends PluginCommand {
               .toList(growable: false) ??
           const [];
 
-      await ReceiptStore(projectRoot: Directory.current.path).saveNamed(
-        'datasource-$snake.json',
-        GenerationReceipt(
-          command: 'datasource create',
-          target: entityName,
-          repro: 'zfa datasource create $entityName',
-          at: DateTime.now().toUtc(),
-          generatorVersion: version,
-          input: resolvedInput,
-          files: receiptFiles,
-          plugin: 'datasource',
-          capability: 'create',
+      await DatasourceReceiptWriter().write(
+        projectRoot: Directory.current.path,
+        outputDir: plugin.outputDir,
+        entity: entityName,
+        files: files,
+        input: resolvedInput,
+        methodset: methodset,
+        runHash: CapabilityInvocationWrapper.computeRunHash(
+          files: _receiptEntries(files),
           entity: entityName,
           methodset: methodset,
-          runHash: CapabilityInvocationWrapper.computeRunHash(
-            files: receiptFiles,
-            entity: entityName,
-            methodset: methodset,
-          ),
-          receiptVersion: CapabilityInvocationWrapper.receiptVersion,
         ),
       );
     } catch (e) {
       print('⚠️  Generation receipt not written: $e');
     }
+  }
+
+  /// The `(path, action, sha256)` tuples the runHash binds — recomputed
+  /// from disk (the same bytes the receipt writer will digest).
+  List<GenerationReceiptFile> _receiptEntries(List<GeneratedFile> files) {
+    final entries = <GenerationReceiptFile>[];
+    for (final file in files) {
+      final artifact = File(file.path);
+      if (!artifact.existsSync()) continue;
+      final bytes = artifact.readAsBytesSync();
+      entries.add(
+        GenerationReceiptFile(
+          path: _projectRelativePosix(file.path),
+          action: file.action,
+          sha256: crypto.sha256.convert(bytes).toString(),
+          bytes: bytes.length,
+        ),
+      );
+    }
+    return entries;
   }
 
   /// Normalizes a possibly-relative file path to a project-relative POSIX

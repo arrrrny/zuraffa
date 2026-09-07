@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../core/plugin_system/capability.dart';
+import '../core/verdict_envelope.dart';
 import '../models/generated_file.dart';
 import '../plugins/mock/capabilities/certify_mock_capability.dart';
 import '../plugins/mock/capabilities/create_mock_capability.dart';
@@ -14,6 +14,7 @@ import '../plugins/mock/capabilities/json_mock_capability.dart';
 import '../plugins/mock/mock_plugin.dart';
 import '../plugins/mock/services/mock_certification.dart';
 import 'base_plugin_command.dart';
+import '../cli/exit_protocol.dart';
 
 class MockCommand extends PluginCommand {
   @override
@@ -41,20 +42,12 @@ class MockCommand extends PluginCommand {
     addSubcommand(JsonMockCommand(plugin));
     addSubcommand(DependencyMockCommand(plugin));
     addSubcommand(CertifyMockCommand(plugin));
-    argParser.addFlag(
-      'data-only',
-      help: 'Generate only mock data (fixtures)',
-      defaultsTo: false,
-    );
-    argParser.addFlag(
-      'json',
-      help: 'Generate JSON mock data with fromJson-based helpers',
-      defaultsTo: false,
-    );
-    argParser.addOption('service', help: 'Service name for mock provider');
-    argParser.addOption('domain', help: 'Domain folder for the mock provider');
-    argParser.addOption('params', help: 'Parameter type for mock methods');
-    argParser.addOption('returns', help: 'Return type for mock methods');
+    // SPEC 917 / #876 sweep: the parent-level generator flags
+    // (--data-only/--json/--service/--domain/--params/--returns) were
+    // parsed and advertised but NEVER read — run() is dispatch-only (the
+    // live surfaces are the manual subcommands above and the capability
+    // schema). Silent parent options are the #876 "flags that lie" family;
+    // `zfa manifest --verify` certifies the parent surface (spec #979).
   }
 
   @override
@@ -133,6 +126,15 @@ class CreateMockCommand extends Command<void> {
     argParser.addOption('domain', help: 'Domain folder for the mock provider');
     argParser.addOption('params', help: 'Parameter type for mock methods');
     argParser.addOption('returns', help: 'Return type for mock methods');
+    // SPEC 917 / #904: the capability inputSchema declares `seed` — the
+    // CLI must accept what the manifest advertises (deterministic,
+    // replayable generation, spec 1001).
+    argParser.addOption(
+      'seed',
+      help:
+          'Deterministic generation seed (spec 1001): the same seed '
+          'reproduces byte-identical mocks (replayable generation)',
+    );
     argParser.addFlag(
       'json',
       negatable: false,
@@ -172,7 +174,7 @@ class CreateMockCommand extends Command<void> {
     final results = argResults;
     if (results == null) {
       print('❌ Usage: zfa mock create <EntityName> [options]');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final entityName = results.rest.isNotEmpty
@@ -181,7 +183,7 @@ class CreateMockCommand extends Command<void> {
     if (entityName == null || entityName.isEmpty) {
       print('❌ Usage: zfa mock create <EntityName> [options]');
       // Published-exitCode pattern (issue #767/#970): never a bare exit().
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -216,6 +218,10 @@ class CreateMockCommand extends Command<void> {
       'domain': ?domain,
       'params': ?results['params'],
       'returns': ?results['returns'],
+      // SPEC 917 / #904: --seed is accepted at the CLI and forwarded
+      // (CreateMockCapability: integer seed, replayable generation).
+      if (results['seed'] != null)
+        'seed': int.tryParse(results['seed'] as String),
       // Spec 1110: the --fail preset flows into the generation chain.
       'fail': results['fail'] == true,
       // Spec 1001 / 1110: --certify routes into CreateMockCapability's
@@ -291,7 +297,7 @@ class DataMockCommand extends Command<void> {
     final results = argResults;
     if (results == null || results.rest.isEmpty) {
       print('❌ Usage: zfa mock data <EntityName> [options]');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -372,11 +378,11 @@ class JsonMockCommand extends Command<void> {
     final results = argResults;
     if (results == null || (results.rest.isEmpty && results['name'] == null)) {
       print('❌ Usage: zfa mock json <EntityName> [options]');
-      // Issue #970 (T001, same bug class as #767): a bare exit(64) here
+      // Issue #970 (T001, same bug class as #767): a bare exit(ExitProtocol.usage) here
       // killed the ENTIRE host process — fatal for in-process hosts (MCP
       // server, embedded runner, dart test). Publish the usage-error code
       // and return; the host observes it through dart:io exitCode.
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -415,6 +421,13 @@ class CertifyMockCommand extends Command<void> {
   final MockPlugin plugin;
 
   CertifyMockCommand(this.plugin) {
+    // SPEC 917 / #904: the capability inputSchema declares `name` as a
+    // required property — a manifest-driven client sends `--name <value>`
+    // and the CLI must accept it (the positional keeps precedence).
+    argParser.addOption(
+      'name',
+      help: 'Entity name (alternative to the positional argument)',
+    );
     argParser.addOption(
       'feature',
       help:
@@ -458,7 +471,12 @@ class CertifyMockCommand extends Command<void> {
   @override
   Future<void> run() async {
     final results = argResults;
-    if (results == null || results.rest.isEmpty) {
+    // SPEC 917 / #904: --name is the manifest-driven spelling of the
+    // positional EntityName (positional keeps precedence, issue #771).
+    final flaggedName = results?['name'] as String?;
+    if (results == null ||
+        (results.rest.isEmpty &&
+            (flaggedName == null || flaggedName.isEmpty))) {
       print(
         '❌ Usage: zfa mock certify <EntityName> [--feature <f>] '
         '[--project <dir>] [--fixtures-dir <dir>]',
@@ -467,7 +485,7 @@ class CertifyMockCommand extends Command<void> {
       return;
     }
     final argv = <String>[
-      results.rest.first,
+      if (results.rest.isNotEmpty) results.rest.first else flaggedName!,
       if (results['feature'] != null) ...['--feature', results['feature']!],
       if (results['project'] != null) ...['--project', results['project']!],
       if (results['fixtures-dir'] != null) ...[
@@ -489,6 +507,13 @@ class DependencyMockCommand extends Command<void> {
   final MockPlugin plugin;
 
   DependencyMockCommand(this.plugin) {
+    // SPEC 917 / #904: the capability inputSchema declares `name` as a
+    // required property — a manifest-driven client sends `--name <value>`
+    // and the CLI must accept it (the positional keeps precedence).
+    argParser.addOption(
+      'name',
+      help: 'Entity name (alternative to the positional argument)',
+    );
     argParser.addOption(
       'feature',
       help:
@@ -520,7 +545,12 @@ class DependencyMockCommand extends Command<void> {
   @override
   Future<void> run() async {
     final results = argResults;
-    if (results == null || results.rest.isEmpty) {
+    // SPEC 917 / #904: --name is the manifest-driven spelling of the
+    // positional EntityName (positional keeps precedence, issue #771).
+    final flaggedName = results?['name'] as String?;
+    if (results == null ||
+        (results.rest.isEmpty &&
+            (flaggedName == null || flaggedName.isEmpty))) {
       print(
         '❌ Usage: zfa mock dependency <Name> [--feature <f>] '
         '[--project <dir>] [--force]',
@@ -529,7 +559,7 @@ class DependencyMockCommand extends Command<void> {
       return;
     }
     final argv = <String>[
-      results.rest.first,
+      if (results.rest.isNotEmpty) results.rest.first else flaggedName!,
       if (results['feature'] != null) ...['--feature', results['feature']!],
       if (results['project'] != null) ...['--project', results['project']!],
       if (results['force'] == true) '--force',
@@ -671,12 +701,16 @@ Future<void> _runMockGeneration({
   }
 
   if (jsonMode) {
-    final envelope = _buildEnvelope(
-      files: files,
-      fixturesDir: _fixturesDirFor(files, jsonMock: jsonMock),
-      certification: certification?.withReceipt(receiptPath),
+    VerdictEnvelope.emit(
+      _buildEnvelope(
+        commandLine: commandLine,
+        entity: entity,
+        files: files,
+        fixturesDir: _fixturesDirFor(files, jsonMock: jsonMock),
+        certification: certification?.withReceipt(receiptPath),
+        receiptPath: receiptPath,
+      ),
     );
-    print(jsonEncode(envelope));
     return;
   }
 
@@ -720,12 +754,16 @@ Future<void> _runMockGeneration({
   }
 }
 
-/// The `--json` envelope (issue #970 order 2):
-/// `{files[], actions, fixturesDir, certification, schema:1}`.
-Map<String, dynamic> _buildEnvelope({
+/// The `--json` envelope (issue #970 order 2; SPEC 1105 canonical shape):
+/// the mock surface (files[], actions, fixturesDir, certification) lives
+/// in the canonical envelope's `details` map.
+VerdictEnvelope _buildEnvelope({
+  required String commandLine,
+  required String entity,
   required List<GeneratedFile> files,
   required String? fixturesDir,
   required MockCertification? certification,
+  required String? receiptPath,
 }) {
   final actions = <String, int>{
     'created': 0,
@@ -738,16 +776,37 @@ Map<String, dynamic> _buildEnvelope({
     final key = actions.containsKey(file.action) ? file.action : null;
     if (key != null) actions[key] = actions[key]! + 1;
   }
-  return {
-    'schema': 1,
-    'files': [
-      for (final file in files)
-        {'path': file.path, 'action': file.action, 'type': file.type},
-    ],
-    'actions': actions,
-    'fixturesDir': fixturesDir,
-    'certification': certification?.toEnvelopeJson(),
-  };
+  return VerdictEnvelope(
+    command: commandLine,
+    verdict: VerdictKind.pass,
+    exitClass: ExitProtocol.success,
+    subject: VerdictSubject(kind: 'mock', id: entity),
+    artifacts: VerdictArtifacts(
+      created: [
+        for (final file in files)
+          if (file.action == 'created') file.path,
+      ],
+      modified: [
+        for (final file in files)
+          if (file.action == 'overwritten' || file.action == 'updated')
+            file.path,
+      ],
+      deleted: [
+        for (final file in files)
+          if (file.action == 'deleted') file.path,
+      ],
+    ),
+    receipts: receiptPath == null ? null : [receiptPath],
+    details: {
+      'files': [
+        for (final file in files)
+          {'path': file.path, 'action': file.action, 'type': file.type},
+      ],
+      'actions': actions,
+      'fixturesDir': fixturesDir,
+      'certification': certification?.toEnvelopeJson(),
+    },
+  );
 }
 
 /// Where this run's mock fixtures landed: the directory of the first

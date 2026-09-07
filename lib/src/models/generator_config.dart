@@ -88,6 +88,13 @@ class GeneratorConfig {
   /// present (skip-if-exists, the #1005 hand-written-seam precedent).
   final bool generateSkin;
 
+  /// Issue #1112: the zfa: anchor contract ids the generated view
+  /// declares (`--anchor signin-guest --anchor log-out`). Each anchor
+  /// gains its `SkinContractRow.anchorExists` row and its generated
+  /// `debugTap<PascalAnchor>()` VM-service driver function. Empty by
+  /// default — byte-compat with pre-1112 generation.
+  final List<String> anchors;
+
   /// Spec 1110 (issue #1110): the mock failure preset. When true, the
   /// mock chain additionally emits a `<Entity>FailingMockProvider` whose
   /// every method throws the framework's sealed failure type (a
@@ -189,6 +196,7 @@ class GeneratorConfig {
     this.engineSlice = false,
     this.generateXRay = false,
     this.generateSkin = false,
+    this.anchors = const [],
     this.failMock = false,
     this.seed,
     this.generateV6State = false,
@@ -274,6 +282,11 @@ class GeneratorConfig {
       generateDi: json['di'] == true || json['generate_di'] == true,
       generateXRay: json['xray'] == true || json['generate_xray'] == true,
       generateSkin: json['skin'] == true || json['generate_skin'] == true,
+      anchors: (json['anchors'] ?? json['anchor']) is List
+          ? ((json['anchors'] ?? json['anchor']) as List)
+                .cast<String>()
+                .toList()
+          : const [],
       generateV6State:
           json['v6_state'] == true ||
           json['v6State'] == true ||
@@ -375,6 +388,7 @@ class GeneratorConfig {
     bool? engineSlice,
     bool? generateXRay,
     bool? generateSkin,
+    List<String>? anchors,
     bool? failMock,
     int? seed,
     bool? generateV6State,
@@ -453,6 +467,7 @@ class GeneratorConfig {
       generateDi: generateDi ?? this.generateDi,
       generateXRay: generateXRay ?? this.generateXRay,
       generateSkin: generateSkin ?? this.generateSkin,
+      anchors: anchors ?? this.anchors,
       failMock: failMock ?? this.failMock,
       seed: seed ?? this.seed,
       generateV6State: generateV6State ?? this.generateV6State,

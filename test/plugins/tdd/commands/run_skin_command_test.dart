@@ -331,7 +331,7 @@ Lanes:
     final last = lines.last;
     expect(last.startsWith('{'), isTrue, reason: 'last line is JSON: $last');
     final envelope = jsonDecode(last) as Map<String, dynamic>;
-    expect(envelope['schema'], 'verdict.v1');
+    expect(envelope['schema'], 'zuraffa.verdict.v1');
     expect(envelope['command'], 'run-skin');
     expect(envelope['verdict'], 'pass');
     expect(envelope['details']['result'], 'complete');

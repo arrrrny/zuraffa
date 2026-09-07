@@ -20,7 +20,9 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../../../cli/exit_protocol.dart';
 import '../models/verdict_envelope.dart';
+import 'explain_emitter.dart';
 
 /// Mutable carrier a command body populates with its envelope fields.
 ///
@@ -50,6 +52,13 @@ class VerdictContext {
   /// verb with legacy emit sites that could not be folded). The wrapper
   /// then stays silent — exactly one envelope, never two.
   bool emitted = false;
+
+  /// Issue #1125: the `--explain` prose the body accumulates while it
+  /// runs. Null when the body stopped before it could populate one —
+  /// the wrapper then derives a minimal block from the envelope fields
+  /// so the sections print on EVERY exit path (never a silent
+  /// `--explain`).
+  TddExplain? explain;
 }
 
 /// Extracts the `--json` flag from a command's parsed args.
@@ -92,23 +101,33 @@ String? tddResolveFeature(
 /// `feature` then defaults to it when the body did not set one.
 /// [commandOverride] names the FULL verb path for family subcommands
 /// (`corpus status`, `referee gate`) so the envelope is unambiguous.
+/// [envelopeEnabled] (SPEC 917) overrides the default `--json`-only gate:
+/// the driving verbs also close with the envelope when `--stream` is set
+/// (the streamed NDJSON events are terminated by the final verdict).
 Future<void> runWithVerdictEnvelope(
   Command<void> command,
   VerdictContext ctx,
   Future<void> Function() body, {
   bool featureFromRest = false,
   String? commandOverride,
+  bool Function()? envelopeEnabled,
 }) async {
-  final jsonMode = tddJsonMode(command);
+  final jsonMode = envelopeEnabled?.call() ?? tddJsonMode(command);
+  // Issue #1125: `--explain` prints the human-prose block AFTER the
+  // verdict envelope so the combined output reads JSON + separator +
+  // explanation. `--json` alone never prints it (semantics unchanged).
+  final explainMode = tddExplainMode(command);
   // Command instances are REUSED across invocations on the same
   // CliRunner (tests call runCapturing repeatedly) — never inherit the
   // previous run's envelope state.
   ctx
     ..emitted = false
+    ..explain = null
     ..drifts.clear()
     ..details.clear();
   Object? thrown;
   StackTrace? stack;
+  final verb = commandOverride ?? command.name;
   try {
     await body();
   } catch (e, s) {
@@ -133,7 +152,7 @@ Future<void> runWithVerdictEnvelope(
               ? VerdictOutcome.fail
               : VerdictOutcome.error);
       VerdictEnvelope.emit(
-        command: commandOverride ?? command.name,
+        command: verb,
         outcome: outcome,
         exitClass:
             ctx.exitClass ??
@@ -153,15 +172,69 @@ Future<void> runWithVerdictEnvelope(
       );
       ctx.emitted = true;
     }
+    if (explainMode) {
+      // Issue #1125: after the envelope (or after the body's own output
+      // when `--json` is absent) — the separator header opens the block,
+      // so the combined output reads JSON + separator + explanation.
+      emitExplainBlock(
+        ctx.explain ??
+            _fallbackExplain(
+              verb,
+              command,
+              ctx,
+              featureFromRest,
+              exitCodeValue: thrown != null && exitCode == 0 ? 1 : exitCode,
+            ),
+      );
+    }
   }
   if (thrown != null) {
     if (jsonMode) {
       // JSON mode consumed the error (printed + enveloped above): force
-      // the non-zero exit the runner's own catch would have produced.
-      if (exitCode == 0) exitCode = thrown is UsageException ? 64 : 1;
+      // the non-zero exit the runner's own catch would have produced —
+      // usage errors exit the CANONICAL 2 (SPEC 917; the legacy 64 is
+      // retired, ExitProtocol.canonicalize).
+      if (exitCode == 0) {
+        exitCode = thrown is UsageException ? ExitProtocol.usage : 1;
+      }
       return;
     }
     // Flag absent: propagate untouched (legacy behavior).
     Error.throwWithStackTrace(thrown, stack!);
   }
+}
+
+/// The minimal explain block the wrapper derives when the body stopped
+/// before populating one (a usage refusal, a misfire): the envelope
+/// fields the command DID set — the resolved feature, the exit class,
+/// the fix line, the drifts — rendered into the issue-#1125 sections.
+/// Every `--explain` invocation prints the sections, on every path.
+TddExplain _fallbackExplain(
+  String verb,
+  Command<void> command,
+  VerdictContext ctx,
+  bool featureFromRest, {
+  required int exitCodeValue,
+}) {
+  final feature = tddResolveFeature(
+    command,
+    ctx,
+    featureFromRest: featureFromRest,
+  );
+  final fix = <String>[if (ctx.fix != null && ctx.fix!.isNotEmpty) ctx.fix!];
+  final summary = StringBuffer()
+    ..write(
+      '$verb ended before it could record a full explanation: '
+      'verdict=${ctx.outcome?.name ?? 'derived from the exit code'}, '
+      'exit_class=${ctx.exitClass ?? 'unclassified'}',
+    )
+    ..write(exitCodeValue == 0 ? ' (exit 0).' : ' (exit $exitCodeValue).')
+    ..write(fix.isEmpty ? '' : ' Remediation: ${fix.single}')
+    ..write(ctx.drifts.isEmpty ? '' : ' Drift: ${ctx.drifts.join('; ')}.');
+  return TddExplain(
+    command: verb,
+    features: feature == null ? const <String>[] : <String>[feature],
+    fixHints: fix,
+    summary: summary.toString(),
+  );
 }

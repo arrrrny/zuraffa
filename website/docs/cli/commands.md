@@ -73,6 +73,16 @@ zfa make Product \
   --test
 ```
 
+A fresh `--preset=crud` (or `--preset=read-only`) slice lands in the
+**MOCKED tier** (issue #1194): the certified mock datasource, mock data
+seeds, and the simulation-mode binding are emitted by default, and
+`di/index.dart` wires `registerSimulationBindings` — the app boots on
+certified mocks with `dart run -DSIMULATION=true` (or
+`--dart-define=SIMULATION=true` on compiled/Flutter entrypoints) before
+any real adapter is written. Swapping to the REAL tier is
+`zfa tdd realize`'s job. Pass `--compile-only` to opt out (compile-only
+slice, no mocked tier).
+
 ### Explicit-plugin example
 
 ```bash
@@ -84,10 +94,11 @@ zfa make Product usecase repository datasource view presenter controller state d
 
 | Selector / Flag      | Purpose                                           |
 | -------------------- | ------------------------------------------------- |
-| `--preset=crud`      | Resolve the CRUD generation preset                |
+| `--preset=crud`      | Resolve the CRUD generation preset (MOCKED tier by default, #1194) |
 | `--preset=feature`   | Resolve the feature preset                        |
 | `--with=vpc`         | Expand the VPC alias to view/presenter/controller |
 | `--without=<plugin>` | Exclude a plugin or alias from the final plan     |
+| `--compile-only`     | Opt out of the mocked tier (issue #1194): no mock datasource / simulation binding — compile-only slice |
 | `--state`            | Add the state plugin                              |
 | `--di`               | Add dependency injection generation               |
 | `--test`             | Add tests                                         |
