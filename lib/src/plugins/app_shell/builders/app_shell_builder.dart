@@ -295,12 +295,13 @@ Future<void> _startXRayBridge() async {
   }) {
     // No direct go_router import: MyApp never references a go_router
     // symbol (MaterialApp.router comes from material.dart; appRouter
-    // arrives via ../routing/app_router.dart, which imports go_router
-    // itself). A direct import here is an unused_import — the only
-    // analyzer complaint left on a freshly generated shell, and it made
-    // `flutter analyze` exit 1 on every generated app (issue #469
-    // follow-up). In xray mode the zuraffa_flutter barrel re-exports
-    // go_router anyway, so downstream symbols stay reachable.
+    // arrives via ../routing/app_router.dart, which imports the
+    // zuraffa_flutter barrel — issue #1284: zuraffa_flutter re-exports
+    // go_router, so generated files never import package:go_router
+    // directly and consumer pubspecs need no go_router entry). A direct
+    // import here is an unused_import — the only analyzer complaint left
+    // on a freshly generated shell, and it made `flutter analyze` exit 1
+    // on every generated app (issue #469 follow-up).
     final directives = <Directive>[
       Directive.import('package:flutter/material.dart'),
       Directive.import('../routing/app_router.dart'),
@@ -467,7 +468,7 @@ Future<void> _startXRayBridge() async {
     }
 
     final directives = [
-      Directive.import('package:go_router/go_router.dart'),
+      Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
       Directive.import('index.dart'),
       // #1102: the route observer + the pure table type.
       Directive.import('../skin/skin_contract_auditor.dart'),
@@ -539,7 +540,7 @@ Future<void> _startXRayBridge() async {
 
   String _buildBareAppRouter() {
     final directives = [
-      Directive.import('package:go_router/go_router.dart'),
+      Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
       Directive.import('index.dart'),
     ];
 
