@@ -27,8 +27,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: dart-lang/setup-dart@v1
+        # Pinned to the SAME SDK ci.yaml's format/dart_core jobs pin. A
+        # floating `stable` here is the #1250 formatter-skew class: the
+        # stable channel bumps while ci.yaml stays pinned, and this job's
+        # analyze/format results silently diverge from the rest of CI.
         with:
-          sdk: stable
+          sdk: "3.13.2"
 
       - name: Install dependencies
         # --no-example: this job only uses dart-lang/setup-dart (no Flutter
@@ -65,4 +69,9 @@ jobs:
         run: dart test test/commands/manifest_verify_gate_test.dart
 
       - name: Machine verdicts — --json everywhere + --stream NDJSON
-        run: dart test test/commands/tdd_json_stream_test.dart
+        # The suite is slow-tagged (it spawns real `dart test` children
+        # for the --stream lane), so the default tier config excludes
+        # every test in the file and a plain invocation dies with
+        # "No tests match" (exit 79 — the #1250 conformance red).
+        # --preset=all opts this gate into the file's slow tier.
+        run: dart test --preset=all test/commands/tdd_json_stream_test.dart
