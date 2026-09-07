@@ -30,6 +30,14 @@ class UseCaseVerifyCommand extends Command<void> {
   final String? projectRoot;
 
   UseCaseVerifyCommand(this.plugin, {this.projectRoot}) {
+    argParser.addOption(
+      'name',
+      help:
+          'Entity the usecases were generated for (alias for the '
+          'positional `<Entity>` argument; the manifest capability '
+          'inputSchema advertises --name, so the gate requires the parser '
+          'to accept it — issue #902/#904)',
+    );
     argParser.addMultiOption(
       'methods',
       abbr: 'm',
@@ -65,10 +73,12 @@ class UseCaseVerifyCommand extends Command<void> {
   @override
   Future<void> run() async {
     final rest = argResults?.rest ?? const <String>[];
-    if (rest.isEmpty || rest.first.trim().isEmpty) {
+    final namedArg = (argResults?['name'] as String?)?.trim();
+    if ((rest.isEmpty || rest.first.trim().isEmpty) &&
+        (namedArg == null || namedArg.isEmpty)) {
       print(
-        '❌ Usage: zfa usecase verify <Entity> [--json] [--methods m1,m2] '
-        '[--domain d]',
+        '❌ Usage: zfa usecase verify <Entity> [--name <Entity>] '
+        '[--json] [--methods m1,m2] [--domain d]',
       );
       print(
         ExitProtocol.fixLine(
@@ -82,7 +92,9 @@ class UseCaseVerifyCommand extends Command<void> {
 
     final jsonMode = argResults?['json'] == true;
     final root = projectRoot ?? Directory.current.path;
-    final entity = StringUtils.convertToPascalCase(rest.first.trim());
+    final rawEntity =
+        namedArg ?? (rest.isNotEmpty ? rest.first.trim() : '').toString();
+    final entity = StringUtils.convertToPascalCase(rawEntity);
     if (entity.isEmpty) {
       print('❌ Error: `${rest.first}` does not name an entity');
       print(
