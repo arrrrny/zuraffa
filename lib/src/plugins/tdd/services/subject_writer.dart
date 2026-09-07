@@ -33,10 +33,19 @@ library;
 import 'dart:io';
 
 import '../models/behavior.dart';
+import 'unit_contract_shape.dart';
 
 /// Writes a minimal compilable Dart subject file for a behavior.
 class SubjectWriter {
-  const SubjectWriter();
+  const SubjectWriter({this.contractShape});
+
+  /// The contract-derived subject shape (issue #1259): when the
+  /// behavior's spec declares the Layer Contract the behavior traces
+  /// to, the subject signature is DERIVED from the declaration — params
+  /// from the request entity, return from the result entity — never
+  /// invented. Null keeps the legacy no-arg int stub for undeclared
+  /// behaviors.
+  final UnitContractShape? contractShape;
 
   /// Write the subject file at [subjectPath] for [behavior].
   Future<void> write({
@@ -66,6 +75,11 @@ class SubjectWriter {
       return _renderFfiHarness(b, target);
     }
     if (kind == BehaviorKind.unit) {
+      // Issue #1259: a DECLARED Layer Contract derives the signature —
+      // the subject shape is the spec's, not an invention.
+      if (contractShape != null) {
+        return _renderContractUnitSubject(b, target, contractShape!);
+      }
       return '''
 // GENERATED STUB — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
 //
@@ -159,6 +173,61 @@ library;
 ///
 /// Throws [UnimplementedError] until the real implementation lands.
 void $target() => throw UnimplementedError('$target not implemented');
+''';
+  }
+
+  /// The contract-derived unit subject (issue #1259).
+  ///
+  /// The declared request/result types are preserved in the header and
+  /// the doc comment; non-renderable declared types (entity types that
+  /// do not exist yet — the red phase precedes implementation) degrade
+  /// to `Object?` so the stub compiles cleanly (FR-011) while staying
+  /// honestly red. The shape itself — arity, parameter names, scalar
+  /// types — comes from the declaration, never invented.
+  static String _renderContractUnitSubject(
+    Behavior b,
+    String target,
+    UnitContractShape shape,
+  ) {
+    final params = shape.params.map((p) => '${p.type} ${p.name}').join(', ');
+    final paramDocs = shape.params.isEmpty
+        ? ''
+        : '\n// Declared parameters: ${shape.params.map((p) => '${p.name}: ${p.declaredType}').join(', ')}'
+              '${shape.params.any((p) => p.type != p.declaredType) ? ' (non-renderable declared types render as Object? until implemented)' : ''}';
+    return '''
+// GENERATED STUB — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation
+// + issue #1259 contract derivation).
+//
+// behavior_id: ${b.id}
+// source_criterion: ${b.sourceCriterion}
+// description: ${b.description}
+//
+// CONTRACT-DERIVED SUBJECT (issue #1259): the signature below is
+// derived from the spec's declared Layer Contract:
+//
+//     ${shape.declaredSignature}
+//
+// The declared request and result types are preserved above. A
+// non-renderable declared type (an entity that does not exist yet)
+// renders as `Object?` so the stub compiles cleanly (FR-011); replace
+// it with the declared type when implementing. This is a MINIMAL
+// COMPILABLE STUB: it does NOT satisfy the behavior — the paired test
+// fails on first execution (honest red). Replace this stub body with
+// the real implementation of the declared contract to make the test
+// pass.$paramDocs
+//
+// The subject name is derived from the behavior id and is deliberately
+// snake_cased — the generator KNOWS the name it emits, so the lint its
+// shape provably trips is suppressed here rather than renaming the
+// contract surface (issue #1035).
+// ignore_for_file: non_constant_identifier_names
+library;
+
+/// Subject for behavior ${b.id} — declared contract:
+/// `${shape.declaredSignature}`.
+///
+/// Throws [UnimplementedError] until the real implementation lands.
+${shape.returnType} $target($params) => throw UnimplementedError('$target not implemented: ${shape.declaredSignature}');
 ''';
   }
 

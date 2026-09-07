@@ -109,6 +109,13 @@ class RoutingResolver {
     ContractRowDecl? surfaceRow;
     ContractRowDecl? entityRow;
     ContractRowDecl? functionRow;
+    // Issue #1259: a signature declared on a DOMAIN/DATA layer row
+    // (`AuthRepo: login(AuthRequest) -> User` under `**Domain**:`) is
+    // the subject contract of the unit behavior traced to it — the
+    // signature resolution must not be a FUNCTION-row exclusivity or
+    // the engine lane invents shapes the spec never declared. Function
+    // rows keep their dedicated case below (surface: plainFunction).
+    ContractRowDecl? declaredSignatureRow;
     var storageDeclared = false;
     for (final ref in resolved) {
       switch (ref.row.kind) {
@@ -133,6 +140,7 @@ class RoutingResolver {
             ),
           );
           surfaceRow ??= ref.row;
+          declaredSignatureRow ??= ref.row;
         case ContractRowKind.entity:
           kindSources.add(
             _KindSource(
@@ -153,6 +161,7 @@ class RoutingResolver {
           );
           surfaceRow ??= ref.row;
           functionRow ??= ref.row;
+          declaredSignatureRow ??= ref.row;
         case ContractRowKind.service:
           // Issue #960: a declared service dependency is a first-class
           // declaration — its unit behavior tests against the row's
@@ -287,6 +296,29 @@ class RoutingResolver {
             source: RoutingSource.declared,
             detail: 'contract row: ${functionRow.name}.${signature.name}',
             specLine: functionRow.specLine,
+          ),
+        );
+      }
+    } else if (declaredSignatureRow != null) {
+      // Issue #1259: the same resolution for DOMAIN/DATA rows — a
+      // method-qualified trace names the method, an unqualified one
+      // resolves the row's declared signature.
+      final lookup = _signatureFor(declaredSignatureRow, row.traces);
+      if (lookup.error != null) {
+        return RoutingFailure(
+          code: RoutingFailureCode.danglingReference,
+          message: lookup.error!,
+        );
+      }
+      signature = lookup.signature;
+      if (signature != null) {
+        provenance.add(
+          ProvenanceLine(
+            aspect: RoutingAspect.signature,
+            source: RoutingSource.declared,
+            detail:
+                'contract row: ${declaredSignatureRow.name}.${signature.name}',
+            specLine: declaredSignatureRow.specLine,
           ),
         );
       }
