@@ -482,11 +482,14 @@ export 'src/state/slices/signal_slice.dart';
 
 // SlicePresenter — manages multiple slices with backward-compatible state.
 export 'src/state/presenter/slice_presenter.dart';
-// v6 state widgets (ControlledWidget, SignalBuilder, FragmentBuilder) and
-// their pure-Dart host machinery are owned solely by zuraffa_flutter and are
-// deliberately NOT exported here. Re-exporting same-named core copies makes
-// every Flutter package that depends on both packages fail `dart analyze`
-// with ambiguous_export (BUG-1173; spec 014 pure-dart-core-split).
+// v6 state widgets (ControlledWidget, SignalBuilder, FragmentBuilder): their
+// single source of truth lives at the deep paths under src/state/widgets/
+// (restored for zuraffa_flutter's re-export contract — fix #14, BUG-1263)
+// and is deliberately NOT exported from this barrel. Re-exporting them
+// publicly makes every Flutter package that depends on both packages fail
+// `dart analyze` with ambiguous_export (BUG-1173; spec 014
+// pure-dart-core-split). Deep-path imports are zuraffa_flutter's contract,
+// not the public engine API.
 
 // StateMigrator — converts v5 .state.dart to v6 slice pattern.
 // The StateMigrator class is hidden from public API but remains accessible
