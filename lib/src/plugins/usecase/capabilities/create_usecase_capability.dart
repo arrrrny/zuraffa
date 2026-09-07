@@ -1,7 +1,7 @@
 import '../../../core/plugin_system/capability.dart';
 import '../usecase_plugin.dart';
-import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
+import 'usecase_create_request.dart';
 
 class CreateUseCaseCapability implements ZuraffaCapability {
   final UseCasePlugin plugin;
@@ -103,67 +103,18 @@ class CreateUseCaseCapability implements ZuraffaCapability {
     );
   }
 
+  /// SPEC 1119 (order 5, split): the request resolution — smart type
+  /// inference, custom-usecase detection, the honest default vocabulary —
+  /// used to live here in monolithic form AND in the CLI command. Both
+  /// now resolve through [UsecaseCreateRequest]; this capability is a
+  /// thin shell over it.
   Future<List<GeneratedFile>> _generateFiles(
     Map<String, dynamic> args, {
     required bool dryRun,
   }) async {
-    final name = args['name'];
-    var useCaseType = args['type'];
-    final returns = args['returns'] as String?;
-
-    // Smart Type Inference if not explicitly set
-    if (useCaseType == null || useCaseType == 'future') {
-      if (returns != null) {
-        if (returns.startsWith('Stream<')) {
-          useCaseType = 'stream';
-        } else if (returns == 'void' || returns == 'Future<void>') {
-          // Maybe we want to default to 'completable' here?
-          // But 'future' (void) is also valid.
-          // Let's stick to future unless user asks for completable.
-        }
-      }
-    }
-    useCaseType ??= 'future';
-
-    final force = args['force'] ?? false;
-    final verbose = args['verbose'] ?? false;
-
-    final methods = (args['methods'] as List<dynamic>?)?.cast<String>() ?? [];
-
-    final repo = args['repo']?.toString();
-    final service = args['service']?.toString();
-    final params = args['params']?.toString();
-    final usecases = (args['usecases'] as List<dynamic>?)?.cast<String>() ?? [];
-    final variants = (args['variants'] as List<dynamic>?)?.cast<String>() ?? [];
-
-    final isCustomUseCase =
-        repo != null ||
-        service != null ||
-        usecases.isNotEmpty ||
-        variants.isNotEmpty ||
-        params != null ||
-        returns != null ||
-        args['domain'] != null;
-
-    final config = GeneratorConfig(
-      name: name,
-      useCaseType: useCaseType,
-      methods: (methods.isEmpty && !isCustomUseCase)
-          ? ['get', 'update']
-          : methods,
-      outputDir: plugin.outputDir,
-      domain: args['domain'],
-      repo: repo,
-      service: service,
-      usecases: usecases,
-      paramsType: params,
-      returnsType: returns,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-      revert: args['revert'] ?? false,
-    );
-
+    final config = UsecaseCreateRequest.fromMap(
+      args,
+    ).toConfig(outputDir: plugin.outputDir);
     return await plugin.generate(config);
   }
 }
