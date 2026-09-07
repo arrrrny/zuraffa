@@ -703,6 +703,19 @@ class GenCommand extends Command<void> {
         '(use --kind widget or mark the test-list row widget).',
       );
     }
+    // Bug #1261: a SPEC-DECLARED golden (the ` [golden]` row tag) on a
+    // non-widget row warns and stays inert — a warning, never a refusal
+    // (the declaration rides the plan, and a plan regression must not
+    // brick gen). The --golden FLAG misfire above keeps its fail-fast.
+    if (!golden && behavior.golden && effectiveKind != BehaviorKind.widget) {
+      print(
+        'note: the [golden] declaration on "${behavior.id}" is widget-only '
+        '— ignored for kind ${effectiveKind.name} (bug #1261). Re-declare '
+        'the row widget to gate a golden baseline.',
+      );
+    }
+    final goldenGate =
+        (golden || behavior.golden) && effectiveKind == BehaviorKind.widget;
     final effectiveBehavior =
         identical(kindOverride, null) || kindOverride == behavior.kind
         ? behavior
@@ -714,6 +727,7 @@ class GenCommand extends Command<void> {
             sourceCriterion: behavior.sourceCriterion,
             target: behavior.target,
             state: behavior.state,
+            golden: behavior.golden,
             finderKinds: behavior.finderKinds,
           );
 
@@ -1103,7 +1117,7 @@ class GenCommand extends Command<void> {
               behavior: effectiveBehavior,
               testPath: testPath,
               subjectPath: subjectPath,
-              golden: golden,
+              golden: goldenGate,
             ),
             'write test file',
           );
@@ -1221,6 +1235,7 @@ class GenCommand extends Command<void> {
         featureName: featureName,
         testPath: testPath,
         subjectPath: subjectPath,
+        golden: goldenGate,
         platformContext: platformContext,
         widgetShell: widgetShell,
         i18nKeys: i18nKeys,
@@ -1263,7 +1278,7 @@ class GenCommand extends Command<void> {
     _printVerdict(
       behaviorId: record.behaviorId,
       kind: effectiveBehavior.kind.name,
-      golden: golden,
+      golden: goldenGate,
       verdict: verdictToken,
       adopted: adoptedPaths,
       created: createdPaths,
@@ -1593,6 +1608,7 @@ class GenCommand extends Command<void> {
     required String featureName,
     required String testPath,
     required String subjectPath,
+    required bool golden,
     required Future<T> Function<T>(Future<T> stage, String stageName) bounded,
     PlatformHarnessContext? platformContext,
     WidgetAppShell widgetShell = WidgetAppShell.zuraffaapp,
@@ -1658,6 +1674,7 @@ class GenCommand extends Command<void> {
           behavior: behavior,
           testPath: mirroredTest,
           subjectPath: mirroredSubject,
+          golden: golden,
         ),
         'staleness: render current pair (test)',
       );
@@ -1801,6 +1818,7 @@ class GenCommand extends Command<void> {
         sourceCriterion: row.traces,
         target: row.target,
         persistence: row.persistence,
+        golden: row.golden,
         finderKinds: row.finderKinds,
       );
     }
