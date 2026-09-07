@@ -206,8 +206,7 @@ class $layoutClassName extends StatelessWidget {
     return $shellClass(
       title: '$title',
       body: KeyedSubtree(
-        key: ValueKey('${target}_layout_
-$controllerName'),
+        key: ValueKey('${target}_layout_$controllerName'),
         child: ControlledWidgetBuilder<$controllerName>(
           builder: (context, _) {
             return Center(
