@@ -81,8 +81,11 @@ import '../services/subject_shape.dart';
 import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
 import '../services/generation_planner.dart';
+import '../services/nuance_receipts.dart';
 import '../services/pipeline_runner.dart';
+import '../services/red_classifier.dart';
 import '../services/run_baseline_cache.dart';
+import '../services/skin_authoring.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/runner.dart';
 import '../services/spec_parser.dart';
@@ -182,6 +185,27 @@ class MakeCommand extends Command<void> {
           'Default generates contract-conforming mocks via zfa mock create.',
       defaultsTo: false,
     );
+    argParser.addFlag(
+      'author',
+      help:
+          'Sanctioned skin-authoring mode (issue #1258): transition a '
+          'SCAFFOLDED widget test (the zfa:tdd: scaffolded marker) from '
+          'placeholder finders to the author-supplied concrete finders in '
+          '--finders-file, re-certify red-before-green honestly, write the '
+          'hand-delta receipt into the provenance ledger, clear the marker, '
+          'and continue through the normal make flow. Without --author a '
+          'scaffolded test is still refused (issue #912 defect 3).',
+      negatable: false,
+    );
+    argParser.addOption(
+      'finders-file',
+      help:
+          'Path to a file holding the author-supplied concrete finder '
+          'statements (find.text / find.byType ... assertions) that '
+          'replace the scaffolded placeholder block. Required with '
+          '--author; the file must not carry the scaffold marker and must '
+          'contain at least one expect/expectLater call.',
+    );
   }
 
   final TddPlugin plugin;
@@ -201,7 +225,8 @@ class MakeCommand extends Command<void> {
   @override
   String get invocation =>
       'zfa tdd make [<behavior-id>] [--feature <name>] '
-      '[--project <path>] [--zfa-bin <path>]';
+      '[--project <path>] [--zfa-bin <path>] '
+      '[--author --finders-file <path>]';
 
   @override
   Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
@@ -279,14 +304,30 @@ class MakeCommand extends Command<void> {
     print('   feature: ${target.featureName}');
     print('   test: ${record.testPath}');
 
+    final testPath = p.isAbsolute(record.testPath)
+        ? record.testPath
+        : p.join(cwd, record.testPath);
+    final testName = _runnableNameOf(record);
+
     // ---------------------------------------------------------------
     // 2. Precondition: certified-red evidence (FR-001, US2.AC1).
+    //    Issue #1258: under --author a SCAFFOLDED target may still earn
+    //    its certified red below — the authored red is appended to the
+    //    cycle-log BEFORE any generation — so the refusal defers to the
+    //    authoring block for exactly that shape (and only that shape:
+    //    the block itself re-checks the marker).
     // ---------------------------------------------------------------
+    final authorMode = argResults?['author'] as bool? ?? false;
+    final findersFileFlag = argResults?['finders-file'] as String?;
+    final authorTestFile = File(testPath);
+    final testIsScaffolded =
+        authorTestFile.existsSync() &&
+        contentIsScaffolded(await authorTestFile.readAsString());
     final certifiedRed = await _hasCertifiedRed(
       target.featureDir,
       record.behaviorId,
     );
-    if (!certifiedRed) {
+    if (!certifiedRed && !(authorMode && testIsScaffolded)) {
       print(
         'zfa tdd make: behavior "${record.behaviorId}" has no certified-red '
         'evidence in cycle-log.md. Run `zfa tdd verify-red '
@@ -320,10 +361,198 @@ class MakeCommand extends Command<void> {
       return;
     }
 
-    final testPath = p.isAbsolute(record.testPath)
-        ? record.testPath
-        : p.join(cwd, record.testPath);
-    final testName = _runnableNameOf(record);
+    // ---------------------------------------------------------------
+    // 3a. Sanctioned skin-authoring transition (issue #1258). A
+    //     SCAFFOLDED widget test — the `zfa:tdd: scaffolded` marker —
+    //     could never reach green: gen emits placeholder finders, the
+    //     refusal demanded a replacement NO command performed, and
+    //     hand-editing a registry-owned test is an out-of-contract
+    //     mutation (no receipt, no adopt path, replay divergence).
+    //     Under --author the make performs the transition through the
+    //     pipeline, in order:
+    //       (a) replace the scaffolded scenario block with the
+    //           author-supplied concrete finders (--finders-file) and
+    //           clear the marker ([SkinAuthoring]);
+    //       (b) re-certify red-before-green HONESTLY — the authored
+    //           test must FAIL right now, and only an assertion-
+    //           classified red certifies (the same discipline as
+    //           verify-red's classify gate); the born-green vacuity
+    //           (the authored test passing against the certified-red
+    //           subject shape, issue #1036 class) and any compile/load
+    //           failure restore the scaffolded bytes and refuse —
+    //           safe-failure, never a silent pass;
+    //       (c) append the authored red evidence to the cycle-log and
+    //           write the hand-delta receipt into the feature's
+    //           provenance ledger (the realize --scaffold pattern);
+    //       (d) fall through with the marker cleared — the certified-red
+    //           precondition above now passes on the authored red, and
+    //           the normal make flow (drift check → plan → generation →
+    //           green) resumes so the run driver no longer stops at
+    //           `<id>:make`.
+    //     Without --author the 3b refusal below stands unchanged.
+    // ---------------------------------------------------------------
+    if (authorMode) {
+      if (!testIsScaffolded) {
+        print(
+          'zfa tdd make: behavior "${record.behaviorId}" test carries no '
+          'scaffold marker ($scaffoldedMarker) — --author transitions a '
+          'SCAFFOLDED skin test to concrete finders, and there is nothing '
+          'to author here. Re-run make without --author.',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.runnerError,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+      if (findersFileFlag == null || findersFileFlag.isEmpty) {
+        print(
+          'zfa tdd make: --author requires --finders-file <path> — the '
+          'author-supplied concrete finders (find.text / find.byType ... '
+          'statements) that replace the scaffolded placeholder block.',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.runnerError,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+      final findersFile = File(findersFileFlag);
+      if (!findersFile.existsSync()) {
+        print(
+          'zfa tdd make: --finders-file not found: $findersFileFlag. '
+          '--> fix: pass the path of the file holding the author-'
+          'supplied concrete finders.',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.runnerError,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+      final authorFinders = await findersFile.readAsString();
+      final originalContent = await authorTestFile.readAsString();
+      final String patchedContent;
+      try {
+        patchedContent = SkinAuthoring.patchedContent(
+          testContent: originalContent,
+          authorFinders: authorFinders,
+        );
+      } on SkinAuthoringException catch (e) {
+        print('zfa tdd make: authoring refused — ${e.message}');
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.runnerError,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+      // (a) The registry-owned test is mutated HERE — inside the
+      //     pipeline, receipted below — never by hand.
+      await authorTestFile.writeAsString(patchedContent);
+      print(
+        '   skin authoring (issue #1258): scaffolded placeholder block '
+        'replaced with concrete finders from $findersFileFlag — '
+        're-certifying red-before-green',
+      );
+
+      // (b) Honest red-before-green: the authored test must fail NOW
+      //     (the view is still the inert certified-red subject).
+      final authoringRun = await runner.runSingle(
+        singleTemplate: singleTemplate,
+        testPath: testPath,
+        testName: testName,
+        workingDirectory: cwd,
+        timeout: timeoutOverride,
+      );
+      final authoringClass = classify(authoringRun);
+      if (authoringClass != RedClassification.assertion) {
+        await authorTestFile.writeAsString(originalContent);
+        final why = authoringClass == RedClassification.unexpectedGreen
+            ? 'the authored test PASSES against the certified-red subject '
+                  'shape — the born-green vacuity (issue #1036 class): the '
+                  'supplied finders are satisfiable by the inert stub and '
+                  'prove nothing about the scenario'
+            : 'the authored test did not certify an honest red '
+                  '(classification: ${authoringClass.label})';
+        print(
+          'zfa tdd make: skin authoring refused for behavior '
+          '"${record.behaviorId}" — $why. The scaffolded test was '
+          'restored byte-identical; supply scenario-failing concrete '
+          'finders in --finders-file and re-run.',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.scaffolded,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+
+      // (c) The authored red is honest: append it (the certified-red
+      //     precondition above re-reads the log) and write the hand-delta
+      //     receipt into the provenance ledger.
+      final redEvidence = failingAssertionOf(authoringRun.output);
+      await CycleLog(target.featureDir).append(
+        CycleLogEntry(
+          behaviorId: record.behaviorId,
+          kind: CycleEntryKind.red,
+          runnerCommand: authoringRun.command,
+          exitCode: authoringRun.exitCode,
+          capturedOutput: authoringRun.output,
+          classification: FailureClass.assertionFailure,
+          redEvidence: redEvidence,
+          subjectHash: await _subjectHashAt(cwd, record),
+          sourceCriterion: record.sourceCriterion,
+          testPath: record.testPath,
+          timestamp: DateTime.now().toUtc().toIso8601String(),
+        ),
+      );
+      print(
+        '   authored red certified (assertion) — red evidence appended to '
+        'specs/${target.featureName}/tdd/cycle-log.md',
+      );
+      try {
+        await NuanceReceipts(
+          featureDir: target.featureDir,
+          projectRoot: cwd,
+        ).record(
+          file: p.relative(testPath, from: cwd).replaceAll('\\', '/'),
+          reason:
+              'skin-authored by zfa tdd make --author (issue #1258): the '
+              'scaffolded placeholder finders were replaced with '
+              'author-supplied concrete finders and the marker cleared; '
+              'the authored red was re-certified before generation',
+          adapter: record.behaviorId,
+          recordedBy: 'zfa tdd make --author',
+        );
+        print(
+          '   hand-delta receipt recorded in specs/${target.featureName}/'
+          'tdd/provenance-ledger.json',
+        );
+      } on NuanceReceiptException catch (e) {
+        // The transition is complete and evidenced in the cycle-log, but
+        // an unwritten receipt would leave an ungated hand-delta behind —
+        // the ledger is the provenance contract. Surface it (safe
+        // failure); the next make --author re-records it idempotently.
+        print('zfa tdd make: provenance ledger write failed — $e');
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.runnerError,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+    }
 
     // ---------------------------------------------------------------
     // 3b. Scaffolded widget tests cannot certify green (issue #912

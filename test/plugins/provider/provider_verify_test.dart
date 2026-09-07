@@ -218,6 +218,132 @@ $members
       },
     );
   });
+
+  // Spec 1128 — provider A+ upgrade: the `--explain` presentation path.
+  // Mutually tolerant with `--json`: when both are passed, `--json` wins
+  // on stdout (the machine-readable contract is unchanged — envelope shape
+  // stays {schema, ok, entity, providerFile, interface, methods, stubCount,
+  // findings}). `--explain` is a presentation switch only — it does NOT
+  // re-traverse the AST or change verifier semantics; it derives its block
+  // from the existing `ProviderVerifyReport` fields.
+  group('zfa provider verify --explain (spec 1128 order 1)', () {
+    test('--explain on a failing provider prints a human-readable block naming '
+        'entity, interface, provider file, registered methods, verdict, and '
+        '--> fix: hints', () async {
+      writeService(['execute', 'rollback']);
+      // Stubbed `execute` + missing `rollback` → both gates fail.
+      writeProvider(['execute'], stubbed: true);
+
+      final result = await runVerify('Product', extra: ['--explain']);
+
+      expect(
+        result.code,
+        equals(1),
+        reason: 'a surviving stub + a missing method must still fail',
+      );
+      // Header line identifies the explain block.
+      expect(
+        result.output,
+        contains('Provider Verify — Explain'),
+        reason: 'the explain block must have a distinguishing header',
+      );
+      // Resolved types: entity, interface, provider file.
+      expect(result.output, contains('Product'));
+      expect(
+        result.output,
+        contains('ProductService'),
+        reason: 'the explain block must name the resolved Service interface',
+      );
+      expect(
+        result.output,
+        contains('product_provider.dart'),
+        reason: 'the explain block must name the provider file',
+      );
+      // Registered methods (the AST scan) — must list `execute` even
+      // though it is stubbed (registered ≠ verified).
+      expect(
+        result.output,
+        contains('execute'),
+        reason:
+            'the explain block must list the registered method even '
+            'when it is a surviving stub',
+      );
+      // Verdict line.
+      expect(
+        result.output,
+        anyOf(contains('not verified'), contains('❌')),
+        reason: 'a failing provider must report a non-ok verdict',
+      );
+      // --> fix: hints (both the stub finding and the missing-method
+      // finding carry one).
+      expect(
+        result.output,
+        contains('--> fix:'),
+        reason: 'the explain block must surface the actionable fix hints',
+      );
+    });
+
+    test('--explain on a clean provider emits the same block with a verified '
+        'verdict line and no --> fix: hints', () async {
+      writeService(['execute', 'rollback']);
+      writeProvider(['execute', 'rollback'], stubbed: false);
+
+      final result = await runVerify('Product', extra: ['--explain']);
+
+      expect(result.code, equals(0));
+      expect(result.output, contains('Provider Verify — Explain'));
+      expect(result.output, contains('Product'));
+      expect(result.output, contains('ProductService'));
+      expect(result.output, contains('product_provider.dart'));
+      // Both methods registered.
+      expect(result.output, contains('execute'));
+      expect(result.output, contains('rollback'));
+      // Clean verdict — no fix hints.
+      expect(
+        result.output,
+        anyOf(contains('verified'), contains('✅')),
+        reason: 'a clean provider must report a verified verdict',
+      );
+      expect(
+        result.output,
+        isNot(contains('--> fix:')),
+        reason: 'a clean provider has nothing to fix',
+      );
+    });
+
+    test(
+      '--explain --json together: --json dominates — single machine envelope '
+      'on stdout, no explain prose',
+      () async {
+        writeService(['execute']);
+        writeProvider(['execute'], stubbed: true);
+
+        final result = await runVerify(
+          'Product',
+          extra: const ['--explain', '--json'],
+        );
+
+        expect(result.code, equals(1));
+        // Exactly one JSON object on stdout — the explain prose must NOT
+        // leak into the machine output (#778 single-object convention).
+        final jsonLine = result.output
+            .split('\n')
+            .firstWhere((l) => l.trim().startsWith('{'), orElse: () => '');
+        expect(jsonLine, isNot(''));
+        final verdict = jsonDecodeMap(jsonLine);
+        expect(verdict['schema'], equals(1));
+        expect(verdict['ok'], isFalse);
+        // No explain-specific prose lines should be present on stdout
+        // (the JSON envelope is the single source of truth when --json
+        // is set, regardless of --explain).
+        expect(
+          result.output,
+          isNot(contains('Provider Verify — Explain')),
+          reason: '--json must dominate --explain on stdout',
+        );
+      },
+    );
+  });
 }
 
 /// Parses a JSON object line defensively.

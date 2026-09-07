@@ -1161,7 +1161,19 @@ ${missing.map((d) => '   • $d').join('\n')}
       final parts = _smartSplit(group);
       for (final part in parts) {
         try {
-          fields.add(FieldDefinition.parse(part));
+          final parsed = FieldDefinition.parse(part);
+          // Issue #1270: recognize built-in primitive aliases in the field
+          // TYPE (`Boolean` → `bool`) BEFORE validation/emission so
+          // primitives are emitted directly as Dart built-ins instead of
+          // being rejected as unresolvable custom entity references. The
+          // alias rewrite applies to the parsed type only — field names and
+          // JSON wire names are untouched, and non-primitive resolution is
+          // unchanged.
+          fields.add(
+            parsed.copyWith(
+              type: EntityUtils.normalizePrimitiveTypeAliases(parsed.type),
+            ),
+          );
         } catch (e) {
           print('Warning: $e');
         }

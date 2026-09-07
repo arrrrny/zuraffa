@@ -1,0 +1,8 @@
+00:00 +0: loading test/commands/project_root_autodetect_test.dart
+00:00 +0: (setUpAll)
+00:38 +0: #1267 — generation commands auto-detect the project root entity create from a project SUBDIRECTORY writes into the project root
+00:38 +1: #1267 — generation commands auto-detect the project root make from a parent without any project refuses instead of scattering
+00:38 +2: #1267 — generation commands auto-detect the project root build from a parent without any project refuses instead of a lying dry-run success
+00:38 +3: #1267 — generation commands auto-detect the project root -C <project> keeps the exact pre-#1267 behavior
+00:38 +4: (tearDownAll)
+00:38 +4: All tests passed!
