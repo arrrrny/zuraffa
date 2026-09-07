@@ -23,6 +23,7 @@ import 'builders/mock_builder.dart';
 import 'capabilities/create_mock_capability.dart';
 import 'capabilities/certify_mock_capability.dart';
 import 'capabilities/dependency_mock_capability.dart';
+import 'capabilities/explain_mock_capability.dart';
 import 'capabilities/json_mock_capability.dart';
 
 /// Manages mock data and provider generation for testing.
@@ -60,6 +61,9 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     CertifyMockCapability(this),
     DependencyMockCapability(this),
     JsonMockCapability(this),
+    // Spec 1121: the explain surface is a capability so `zfa manifest`
+    // surfaces it; its CLI grammar is the manual MockExplainCommand.
+    MockExplainCapability(),
     MethodCapability(
       this,
       methodAppendBuilder: methodAppendBuilder,
