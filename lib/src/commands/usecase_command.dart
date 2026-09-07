@@ -1,6 +1,7 @@
 import 'base_plugin_command.dart';
 import '../plugins/usecase/usecase_plugin.dart';
 import 'usecase_create_command.dart';
+import 'usecase_verify_command.dart';
 
 class UseCaseCommand extends PluginCommand {
   @override
@@ -20,11 +21,14 @@ class UseCaseCommand extends PluginCommand {
     // [manualSubcommandNames] so the auto-registration below skips the
     // capability-derived duplicate (issue #761: a duplicate addSubcommand
     // would leave one of them unparented and crash --help).
+    // SPEC 1119: the first-party `verify` gate registers itself the same
+    // way (per-method conformance + entity drift, exit 1 with fix lines).
     addSubcommand(UseCaseCreateCommand(plugin));
+    addSubcommand(UseCaseVerifyCommand(plugin));
   }
 
   @override
-  Set<String> get manualSubcommandNames => const {'create'};
+  Set<String> get manualSubcommandNames => const {'create', 'verify'};
 
   @override
   String get name => 'usecase';

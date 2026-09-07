@@ -85,9 +85,16 @@ class Behavior {
     required this.sourceCriterion,
     required this.target,
     this.persistence = false,
+    this.golden = false,
     this.state = BehaviorState.pending,
     this.finderKinds,
   });
+
+  /// Whether the test-list row declared the behavior golden-gated (bug
+  /// #1261): the ` [golden]` tag a SKIN lane plan writes from the spec's
+  /// `golden:` declaration. gen appends the `matchesGoldenFile` baseline
+  /// hook for widget-kind rows carrying it — no `--golden` flag needed.
+  final bool golden;
 
   @override
   bool operator ==(Object other) =>

@@ -1,11 +1,11 @@
 // Bug #912 defects 2+3 — widget template shell + scenario finders.
 //
 // Defect 2: the widget test template pumps inside a hardcoded
-// MaterialApp; zuraffa apps are ShadApp/shadcn_ui apps (ZikZak: SC-001
-// asserts ShadTheme). The shell must be shell-configurable
+// MaterialApp; zuraffa apps are ZuraffaApp/zuraffa_ui apps (ZikZak: SC-001
+// asserts ZfaTheme). The shell must be shell-configurable
 // (`--widget-shell` flag > `.zfa.json` `tdd.widgetShell` > default
-// ShadApp) and the emitted test must import shadcn_ui when it pumps a
-// ShadApp shell.
+// ZuraffaApp) and the emitted test must import zuraffa_ui when it pumps a
+// ZuraffaApp shell.
 //
 // Defect 3: the widget template asserts `findsOneWidget` on the mounted
 // view as a PLACEHOLDER — green achievable by returning `SizedBox()`.
@@ -38,7 +38,7 @@ void main() {
 
   Future<String> renderWidget(
     Behavior behavior, {
-    WidgetAppShell widgetShell = WidgetAppShell.shadapp,
+    WidgetAppShell widgetShell = WidgetAppShell.zuraffaapp,
   }) async {
     final testPath = p.join(tmpDir.path, 'w_1_test.dart');
     final subjectPath = p.join(tmpDir.path, 'w_1_subject.dart');
@@ -50,7 +50,7 @@ void main() {
 
   group('bug 912 defect 2: shell-configurable widget template', () {
     test(
-      'default shell is ShadApp (zuraffa apps) with the shadcn import',
+      'default shell is ZuraffaApp (zuraffa apps) with the skin import',
       () async {
         final content = await renderWidget(
           Behavior(
@@ -64,15 +64,15 @@ void main() {
         );
         expect(
           content,
-          contains('pumpWidget(ShadApp('),
+          contains('pumpWidget(ZuraffaApp('),
           reason:
-              'issue #912 defect 2: zuraffa apps pump ShadApp, not '
+              'issue #912 defect 2: zuraffa apps pump ZuraffaApp, not '
               'MaterialApp',
         );
         expect(
           content,
-          contains("import 'package:shadcn_ui/shadcn_ui.dart';"),
-          reason: 'the ShadApp shell needs the shadcn_ui import',
+          contains("import 'package:zuraffa_ui/zuraffa_ui.dart';"),
+          reason: 'the ZuraffaApp shell needs the zuraffa_ui import',
         );
         expect(content, isNot(contains('MaterialApp(')));
       },
@@ -91,7 +91,7 @@ void main() {
         widgetShell: WidgetAppShell.materialapp,
       );
       expect(content, contains('pumpWidget(MaterialApp('));
-      expect(content, isNot(contains('ShadApp(')));
+      expect(content, isNot(contains('ZuraffaApp(')));
     });
   });
 
@@ -182,12 +182,12 @@ void main() {
       return file.readAsString();
     }
 
-    test('default gen emits the ShadApp shell + scenario finder', () async {
+    test('default gen emits the ZuraffaApp shell + scenario finder', () async {
       await seedWidgetBehavior();
       final runner = CliRunner(exitOnCompletion: false);
       await runner.runCapturing(genArgs('W-5', ['--kind', 'widget']));
       final content = await generatedWidgetTest();
-      expect(content, contains('pumpWidget(ShadApp('));
+      expect(content, contains('pumpWidget(ZuraffaApp('));
       expect(content, contains("find.text('Add to cart')"));
     });
 
@@ -199,7 +199,7 @@ void main() {
       );
       final content = await generatedWidgetTest();
       expect(content, contains('pumpWidget(MaterialApp('));
-      expect(content, isNot(contains('ShadApp(')));
+      expect(content, isNot(contains('ZuraffaApp(')));
     });
 
     test('.zfa.json tdd.widgetShell=materialapp is honored', () async {
@@ -215,7 +215,7 @@ void main() {
       await runner.runCapturing(genArgs('W-5', ['--kind', 'widget']));
       final content = await generatedWidgetTest();
       expect(content, contains('pumpWidget(MaterialApp('));
-      expect(content, isNot(contains('ShadApp(')));
+      expect(content, isNot(contains('ZuraffaApp(')));
     });
   });
 }

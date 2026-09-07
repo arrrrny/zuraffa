@@ -36,6 +36,11 @@ const Map<String, String> kExcluded = <String, String>{
   // Migrating these to the canonical envelope is the follow-up backlog
   // (SPEC 1105 covered exactly the 7 divergent verdict shapes).
   'lib/src/commands/test_command.dart': 'pre-1105 emitter (backlog)',
+  'lib/src/commands/test_create_command.dart':
+      'spec 1129 bespoke emitter — wraps CapabilityInvocationWrapper '
+      'and emits the existing self-certification envelope '
+      '(entity, tests, compile, errors[], schema:1); canonical '
+      'VerdictEnvelope migration is the follow-up backlog',
   'lib/src/commands/capability_command.dart': 'pre-1105 emitter (backlog)',
   'lib/src/commands/make_command.dart': 'pre-1105 emitter (backlog)',
   'lib/src/commands/skin_command.dart': 'pre-1105 emitter (backlog)',

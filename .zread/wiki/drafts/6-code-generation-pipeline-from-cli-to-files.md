@@ -37,7 +37,7 @@ flowchart TB
     CORE --> CR
 ```
 
-The plugin loader instantiates all 22 built-in plugins (Repository, Provider, UseCase, Presenter, Controller, View, Feature, State, Observer, Test, Mock, Api, Di, DataSource, Service, Route, Cache, Sync, Gql, Shadcn, Strategy, MethodAppend) and registers each unless it is disabled in configuration. This single list is the source of truth for both the CLI surface and the generator.
+The plugin loader instantiates all 22 built-in plugins (Repository, Provider, UseCase, Presenter, Controller, View, Feature, State, Observer, Test, Mock, Api, Di, DataSource, Service, Route, Cache, Sync, Gql, Skin, Strategy, MethodAppend) and registers each unless it is disabled in configuration. This single list is the source of truth for both the CLI surface and the generator.
 
 | Entry command | Path into the pipeline | Notes |
 |---|---|---|

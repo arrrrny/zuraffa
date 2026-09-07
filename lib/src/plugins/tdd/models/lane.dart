@@ -20,6 +20,7 @@ class LaneDeclaration {
     required this.behaviorIds,
     this.flutterAllowed = '',
     this.adaptiveSlots = const [],
+    this.goldenIds = const [],
     this.annotations = const {},
   });
 
@@ -41,6 +42,12 @@ class LaneDeclaration {
   /// slots (e.g. `mobile`, `ios`, `android`, `macos`) the skin must
   /// provide; rendered into `04-SKIN.md` and `04-CONTRACT.md`.
   final List<String> adaptiveSlots;
+
+  /// The SKIN lane's `golden` declaration (bug #1261) — the behavior ids
+  /// whose generated widget test carries a `matchesGoldenFile` baseline
+  /// hook. `golden: true` resolves to every behavior the lane declares;
+  /// a list marks the subset; `false`/absent marks nothing.
+  final List<String> goldenIds;
 
   /// Parenthetical annotations keyed by behavior id — the lane's
   /// hand-written description for ids the spec prose does not derive
