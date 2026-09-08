@@ -48,8 +48,9 @@ class PubspecFilter {
   /// imported package is declared in the emitted pubspec: host-declared
   /// packages keep the host entry verbatim, and an imported package the host
   /// only resolves transitively is declared from the host's pubspec.lock
-  /// version (or `any` + a warning when the lock has no entry — issue
-  /// #1304). Returns the filtered pubspec.yaml content.
+  /// entry with its source preserved (hosted version constraint, or the
+  /// git/path/sdk descriptor; or `any` + a warning when the lock has no
+  /// usable entry — issue #1304). Returns the filtered pubspec.yaml content.
   Future<String> filter({
     required String projectRoot,
     required String sandboxDir,
@@ -91,13 +92,13 @@ class PubspecFilter {
     bool hostDeclares(String name) =>
         (hostDeps is Map && hostDeps.containsKey(name)) ||
         (hostDevDeps is Map && hostDevDeps.containsKey(name));
-    final derived = SplayTreeMap<String, String>();
+    final derived = SplayTreeMap<String, Object?>();
     final unresolved = SplayTreeSet<String>();
     for (final name in usedPackages) {
       if (hostDeclares(name)) continue;
-      final lockedVersion = _lockedVersion(projectRoot, name);
-      if (lockedVersion != null) {
-        derived[name] = '^$lockedVersion';
+      final locked = _lockConstraint(projectRoot, name);
+      if (locked != null) {
+        derived[name] = locked;
       } else {
         derived[name] = 'any';
         unresolved.add(name);
@@ -124,12 +125,35 @@ class PubspecFilter {
         _emitEntry(buffer, section, value, 0);
       }
     });
+    // Hosts without a `dependencies:` key (e.g. dev_dependencies-only
+    // packages) never hit the section branch above — emit the derived
+    // entries in their own section so the sandbox stays self-contained.
+    if (derived.isNotEmpty && source['dependencies'] is! Map) {
+      _emitSection(
+        buffer,
+        'dependencies',
+        null,
+        usedPackages,
+        _alwaysKeepDeps,
+        derived: derived,
+        unresolved: unresolved,
+      );
+    }
     return buffer.toString();
   }
 
-  /// The version [name] resolves to in the host's pubspec.lock, or null when
-  /// the lock is missing/unreadable or has no entry for [name].
-  String? _lockedVersion(String projectRoot, String name) {
+  /// The pubspec dependency descriptor [name] resolves to in the host's
+  /// pubspec.lock, or null when the lock is missing/unreadable or has no
+  /// entry for [name].
+  ///
+  /// The lock entry's `source` is preserved rather than flattened to a
+  /// caret constraint: a `hosted` entry on the default pub.dev host yields
+  /// `^<version>` (or a `{hosted: ..., version: ...}` map for a custom
+  /// hosted repository); `git`, `path`, and `sdk` entries yield their
+  /// pubspec descriptor form so the sandbox re-resolves the same source
+  /// instead of the default host (which could name a different package
+  /// entirely or fail `pub get`).
+  Object? _lockConstraint(String projectRoot, String name) {
     final lockFile = File(p.join(projectRoot, 'pubspec.lock'));
     if (!lockFile.existsSync()) return null;
     final dynamic doc;
@@ -137,16 +161,50 @@ class PubspecFilter {
       doc = loadYaml(lockFile.readAsStringSync());
     } on YamlException {
       return null;
+    } on FileSystemException {
+      // Unreadable lock (permissions, transient I/O): fall back to the
+      // `any` + warning path instead of aborting the whole export.
+      return null;
     }
     if (doc is! Map) return null;
     final packages = doc['packages'];
     if (packages is! Map) return null;
     final entry = packages[name];
     if (entry is! Map) return null;
-    final version = entry['version'];
-    if (version == null) return null;
-    final text = version.toString().trim();
-    return text.isEmpty ? null : text;
+    final description = entry['description'];
+    switch (entry['source']?.toString()) {
+      case 'git':
+        if (description is Map) {
+          final git = <String, Object?>{};
+          for (final key in ['url', 'ref', 'path']) {
+            final value = description[key];
+            if (value != null) git[key] = value;
+          }
+          if (git.isNotEmpty) return {'git': git};
+        }
+        return null;
+      case 'path':
+        if (description is Map && description['path'] != null) {
+          return {'path': description['path']};
+        }
+        return null;
+      case 'sdk':
+        final sdkName = description is Map ? description['name'] : description;
+        return sdkName == null ? null : {'sdk': sdkName};
+      default: // hosted (explicit or legacy locks without `source`)
+        final version = entry['version'];
+        if (version == null) return null;
+        final text = version.toString().trim();
+        if (text.isEmpty) return null;
+        final url = description is Map ? description['url']?.toString() : null;
+        if (url != null && url != 'https://pub.dev') {
+          return {
+            'version': '^$text',
+            'hosted': {'name': name, 'url': url},
+          };
+        }
+        return '^$text';
+    }
   }
 
   /// Emits a filtered `dependencies:`/`dev_dependencies:` section.
@@ -161,7 +219,7 @@ class PubspecFilter {
     dynamic value,
     Set<String> used,
     Set<String> always, {
-    Map<String, String> derived = const {},
+    Map<String, Object?> derived = const {},
     Set<String> unresolved = const {},
   }) {
     final deps = value is Map ? value : const <String, dynamic>{};

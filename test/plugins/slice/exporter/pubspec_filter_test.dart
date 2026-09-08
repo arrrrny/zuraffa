@@ -336,5 +336,149 @@ packages:
         isTrue,
       );
     });
+
+    test('derived deps are emitted even when the host pubspec has no '
+        'dependencies: section (dev_dependencies-only host)', () async {
+      // Host shape: a pure tool package that only declares dev_dependencies.
+      final pubspec = File('${tmpDir.path}/pubspec.yaml');
+      await pubspec.writeAsString('''
+name: tool_host
+publish_to: 'none'
+
+environment:
+  sdk: ^3.11.0
+
+dev_dependencies:
+  test: ^1.32.0
+''');
+      final lock = File('${tmpDir.path}/pubspec.lock');
+      await lock.writeAsString('''
+packages:
+  meta:
+    dependency: transitive
+    description:
+      name: meta
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.17.0"
+''');
+      await writeSliceFile('lib/a.dart', '''
+import 'package:meta/meta.dart';
+class A {}
+''');
+
+      final filtered = await filter.filter(
+        projectRoot: tmpDir.path,
+        sandboxDir: tmpDir.path,
+        sliceDartFiles: const ['lib/a.dart'],
+      );
+
+      final doc = loadYaml(filtered) as Map;
+      final deps = doc['dependencies'] as Map;
+      expect(deps['meta'], equals('^1.17.0'));
+      // The host's dev_dependencies section is U54-filtered too: `test` is
+      // not imported by the slice, so it does not survive the cut.
+      expect((doc['dev_dependencies'] as Map).keys, isNot(contains('test')));
+    });
+
+    test('a transitive dep locked from git/path/sdk/custom-host keeps its '
+        'lock source instead of flattening to ^version', () async {
+      final projectRoot = await writeHostPubspec();
+      await writeSliceFile('lib/a.dart', '''
+import 'package:git_only/git_only.dart';
+import 'package:path_only/path_only.dart';
+import 'package:flutter/foundation.dart';
+import 'package:priv_hosted/priv_hosted.dart';
+class A {}
+''');
+      final lock = File('${tmpDir.path}/pubspec.lock');
+      await lock.writeAsString('''
+packages:
+  flutter:
+    dependency: transitive
+    description: flutter
+    source: sdk
+    version: "0.0.0"
+  git_only:
+    dependency: transitive
+    description:
+      path: "."
+      ref: main
+      resolved-ref: "0123456789abcdef0123456789abcdef01234567"
+      url: "https://github.com/example/git_only.git"
+    source: git
+    version: "1.0.0"
+  path_only:
+    dependency: transitive
+    description:
+      path: "../path_only"
+      relative: true
+    source: path
+    version: "1.0.0"
+  priv_hosted:
+    dependency: transitive
+    description:
+      name: priv_hosted
+      url: "https://pub.internal.example.com"
+    source: hosted
+    version: "2.3.4"
+''');
+
+      final filtered = await filter.filter(
+        projectRoot: projectRoot,
+        sandboxDir: tmpDir.path,
+        sliceDartFiles: const ['lib/a.dart'],
+      );
+
+      final doc = loadYaml(filtered) as Map;
+      final deps = doc['dependencies'] as Map;
+      // git: descriptor form (url/ref/path), not ^1.0.0 from pub.dev.
+      final git = (deps['git_only'] as Map)['git'] as Map;
+      expect(git['url'], equals('https://github.com/example/git_only.git'));
+      expect(git['ref'], equals('main'));
+      expect(git, isNot(contains('resolved-ref')));
+      // path: descriptor form.
+      expect((deps['path_only'] as Map)['path'], equals('../path_only'));
+      // sdk: descriptor form.
+      expect((deps['flutter'] as Map)['sdk'], equals('flutter'));
+      // custom hosted: hosted map + version constraint, not a bare caret.
+      final priv = deps['priv_hosted'] as Map;
+      expect(priv['version'], equals('^2.3.4'));
+      expect(
+        (priv['hosted'] as Map)['url'],
+        equals('https://pub.internal.example.com'),
+      );
+      expect((priv['hosted'] as Map)['name'], equals('priv_hosted'));
+    });
+
+    test('an unreadable pubspec.lock falls back to any + warning instead of '
+        'aborting the export', () async {
+      final projectRoot = await writeHostPubspec();
+      await writeSliceFile('lib/a.dart', '''
+import 'package:zuraffa/zuraffa.dart';
+class A {}
+''');
+      final lock = File('${tmpDir.path}/pubspec.lock');
+      await lock.writeAsString('packages: {}');
+      // Deny read access: existsSync() stays true but readAsStringSync()
+      // throws FileSystemException — the filter must not propagate it.
+      await Process.run('chmod', ['000', lock.path]);
+
+      String? filtered;
+      try {
+        filtered = await filter.filter(
+          projectRoot: projectRoot,
+          sandboxDir: tmpDir.path,
+          sliceDartFiles: const ['lib/a.dart'],
+        );
+      } finally {
+        await Process.run('chmod', ['644', lock.path]);
+      }
+
+      final doc = loadYaml(filtered) as Map;
+      final deps = doc['dependencies'] as Map;
+      expect(deps['zuraffa'], equals('any'));
+      expect(filtered.toUpperCase(), contains('WARNING'));
+    });
   });
 }
