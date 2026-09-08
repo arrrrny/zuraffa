@@ -371,10 +371,15 @@ class StepRunner {
                   // `green-with-failed-build` is the issue #942 honest
                   // label for a #737-tolerated terminal build failure —
                   // the loop must flow past tolerated noise, but the
-                  // accounting stays distinguishable from real green.
+                  // accounting stays distinguishable from real green;
+                  // `adopted` is the issue #1331 re-drive transition —
+                  // the last reset tombstone invalidated the surviving
+                  // certification and the make adopted the passing
+                  // subject (green evidence appended by make itself).
                   outcome == 'green' ||
                       outcome == 'skipped' ||
-                      outcome == 'green-with-failed-build'
+                      outcome == 'green-with-failed-build' ||
+                      outcome == 'adopted'
                 : outcome == 'clean' || outcome == 'refactored');
         return StepResult(
           step: step,
