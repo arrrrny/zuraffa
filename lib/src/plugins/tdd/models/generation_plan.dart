@@ -117,6 +117,19 @@ enum MakeOutcome {
   /// remedy is to correct or remove the override, then re-run.
   preflightRed('preflight-red'),
 
+  /// The target test still fails after generation because the generated
+  /// test's `_argN()` placeholder helper threw (issue #1323, spec 991):
+  /// a declared contract param the writer cannot scalar-literalize. The
+  /// DESIGNED hand-delta seam, SURFACED — the stop names the EXACT edit
+  /// ("replace _arg0() in <test> with a representative <type> — then
+  /// re-run zfa tdd make <id>") instead of the generic
+  /// `generation-error` that buried the remedy inside a thrown
+  /// exception message mid-test-output. Non-zero exit, no green entry,
+  /// the subject restored byte-identically (#1036); the run driver
+  /// reports the named hand step `stopped_at=<id>:hand` (the issue
+  /// #1308 hand-step contract).
+  handDeltaRequired('hand-delta-required'),
+
   /// A plan `build` step failed because the BUILDER package is not in the
   /// dependency graph (issue #1322): build_runner warned `Ignoring
   /// options for unknown builder <key>` and silently generated nothing —

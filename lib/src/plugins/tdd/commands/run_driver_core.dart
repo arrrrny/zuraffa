@@ -46,6 +46,7 @@ import '../models/behavior.dart';
 import '../models/cycle_entry.dart';
 import '../models/run_state.dart';
 import '../services/artifact_registry.dart';
+import '../services/arg_placeholder.dart';
 import '../services/cycle_evidence.dart';
 import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
@@ -1565,6 +1566,66 @@ class RunDriverCore {
             refactorBlocked: false,
           );
         }
+        // Issue #1323 (spec 991 FR-006): the `hand-delta-required` make
+        // stop is not a dead end — the driver names the remedy with the
+        // SAME messaging parity the #1308 vacuous-green arm established.
+        // The generated test's `_argN()` placeholder helper is the
+        // DESIGNED hand-delta seam for a non-scalar declared param; make
+        // already diagnosed it (two-signal: marker + transcript token)
+        // and stopped naming the exact edit. One explicit, named hand
+        // step `stopped_at=<id>:hand` replaces the generic make stop;
+        // messaging only — the state advance and the honest-stop
+        // semantics are the generic ones.
+        if (step == 'make' && result.outcome == 'hand-delta-required') {
+          final testPath = _existingGeneratedTestPath(
+            projectRoot: projectRoot,
+            feature: feature,
+            behaviorId: row.id,
+          );
+          updated = updated.advance(row.id, state);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
+          print(
+            'zfa tdd $label: step failed — behavior=${row.id} step=$step '
+            'outcome=${result.outcome}',
+          );
+          _printOutputExcerpt(result.output);
+          // The declared type and the placeholder index the remedy names
+          // come from the generated test's marker helper (the
+          // content-only probe — the make child already verified the
+          // transcript signal). Unreadable or hand-edited content
+          // degrades to the generic noun and index 0; the make stop's
+          // own remedy line (in the excerpt above) always carries the
+          // exact type.
+          final hit = _testArgPlaceholderHit(testPath);
+          final relPath = testPath != null
+              ? p.relative(testPath, from: projectRoot).replaceAll('\\', '/')
+              : p.join(
+                  'test',
+                  'tdd',
+                  feature,
+                  '${_snakeCase(row.id)}_test.dart',
+                );
+          print(
+            '   the generated test\'s _argN() placeholder IS the designed '
+            'hand-delta seam for a non-scalar declared param '
+            '(issue #1323): the remedy requires HAND-editing the '
+            'generated test, which make itself never does.',
+          );
+          print(
+            '   hand step: ${row.id}:hand — ${argPlaceholderRemedy(index: hit?.index ?? 0, testPath: relPath, declaredType: hit?.declaredType ?? 'value', behaviorId: row.id)}.',
+          );
+          return (
+            state: updated,
+            stop: (
+              result: 'stopped',
+              stoppedAt: '${row.id}:hand',
+              exitCode: _exitStopped,
+              message: null,
+            ),
+            refactorBlocked: false,
+          );
+        }
         // Honest stop (FR-007).
         final isRunnerError = result.outcome == 'runner-error';
         // Issue #1329: the error-outcome path records the same
@@ -1748,30 +1809,78 @@ class RunDriverCore {
     }
   }
 
+  /// Issue #1323: the generated test's FIRST (lowest-index) `_argN()`
+  /// placeholder helper — the index and declared type the hand-step
+  /// remedy names. The content-only probe (the make child already
+  /// verified the transcript signal before reporting the outcome).
+  /// Unreadable files or a hand-edited test (the placeholder already
+  /// replaced) return null — the remedy degrades to the generic noun and
+  /// index 0; the make stop's own remedy line, which the output excerpt
+  /// carries, always names the exact type.
+  ArgPlaceholderHit? _testArgPlaceholderHit(String? testPath) {
+    if (testPath == null) return null;
+    try {
+      return argPlaceholderHitInContent(File(testPath).readAsStringSync());
+    } on FileSystemException {
+      return null;
+    }
+  }
+
   /// Issue #1308: the journal hand-step violation for a stop reported at
   /// the named hand step (`<id>:hand`): what to write (an assertion on
   /// the observable outcome) and where (the generated test file,
   /// project-relative). Shared by the lane journal entries so the ONE
   /// explicit, named hand step is machine-parseable everywhere.
+  ///
+  /// Issue #1323: the dispatch keys on the test's OWN marker — the
+  /// `_argN()` placeholder helper means the hand-delta seam stop (the
+  /// #1323 vocabulary: the exact representative edit); the vacuous-guard
+  /// marker (or no marker, the degenerate fallback) keeps the #1308
+  /// vocabulary. Content-keyed because the aggregate outcome carries
+  /// only `stoppedAt` — and each arm's stop condition is itself keyed on
+  /// the same content, so the dispatch is exact for both.
   String _handStepViolationFor(String stoppedAt, String featureDir) {
     final behaviorId = stoppedAt.substring(0, stoppedAt.lastIndexOf(':'));
     final feature = p.basename(featureDir);
-    final projectRoot = p.dirname(featureDir);
+    // The feature directory is `<root>/specs/<feature>` in the standard
+    // layout — walk UP through the `specs` segment to the real project
+    // root (issue #1323: the grandparent, not dirname(featureDir), which
+    // resolved to `<root>/specs` and made `_existingGeneratedTestPath`
+    // probe `<root>/specs/test/...` — a path that never exists, so the
+    // probe always degraded to the fallback join). Non-standard layouts
+    // (featureDir directly under the root) keep the parent walk.
+    final featureParent = p.dirname(featureDir);
+    final projectRoot = p.basename(featureParent) == 'specs'
+        ? p.dirname(featureParent)
+        : featureParent;
     final testPath = _existingGeneratedTestPath(
       projectRoot: projectRoot,
       feature: feature,
       behaviorId: behaviorId,
     );
+    final relativeTestPath = testPath != null
+        ? p.relative(testPath, from: projectRoot)
+        : p.join('test', 'tdd', feature, '${_snakeCase(behaviorId)}_test.dart');
+    if (testPath != null) {
+      try {
+        final hit = argPlaceholderHitInContent(
+          File(testPath).readAsStringSync(),
+        );
+        if (hit != null) {
+          return argPlaceholderHandStepViolation(
+            index: hit.index,
+            behaviorId: behaviorId,
+            testPath: relativeTestPath,
+            declaredType: hit.declaredType,
+          );
+        }
+      } on FileSystemException {
+        // Fall through to the #1308 vocabulary — a record, never a gate.
+      }
+    }
     return vacuousGuardHandStepViolation(
       behaviorId: behaviorId,
-      testPath: testPath != null
-          ? p.relative(testPath, from: projectRoot)
-          : p.join(
-              'test',
-              'tdd',
-              feature,
-              '${_snakeCase(behaviorId)}_test.dart',
-            ),
+      testPath: relativeTestPath,
     );
   }
 

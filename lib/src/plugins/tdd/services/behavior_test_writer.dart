@@ -311,6 +311,14 @@ void main() {
   /// (entity types that may not exist yet) gets an `_argN()` placeholder
   /// helper whose throw is CAUGHT by the capture (the red stays at the
   /// assertion level) and whose message names the exact remedy.
+  ///
+  /// Issue #1323 (spec 991 FR-004): `Object` is covered — the
+  /// representative expression `Object()` — so the common Object-typed
+  /// declared param (e.g. `StreamErrorHandler: reason(Object error) ->
+  /// String`) generates a real argument at the capture site and never
+  /// dead-ends into the `_argN()` hand-delta seam. Entity-typed and
+  /// other non-scalar params keep the seam (FR-003: the escape hatch
+  /// stands for truly un-schematicable types).
   static String? _scalarLiteral(String type) {
     switch (type) {
       case 'String':
@@ -322,6 +330,8 @@ void main() {
         return 'false';
       case 'double':
         return '0.0';
+      case 'Object':
+        return 'Object()';
     }
     return null;
   }
