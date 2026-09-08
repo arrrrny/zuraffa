@@ -1,6 +1,6 @@
 # Global pub.dev Package Checklist — Zuraffa Ecosystem
 
-**Last audit:** 2026-09-08
+**Last audit:** 2026-09-08 (post-publish update: zuraffa_intents + zuraffa_permissions federated set are LIVE)
 **Scope:** every publishable Dart/Flutter package in the Zuraffa ecosystem.
 
 This is the single gate every package passes before `flutter pub publish`.
@@ -72,19 +72,21 @@ records where each package stands as of the last audit.
 | `zuraffa_ui` | ✅ 0.1.0 | 0.1.0 | ✅ | ✅ | ✅ | ⚠️ repo URL redirects (renamed repo); homepage points at the upstream shadcn port docs | Fix URLs next release |
 | `zuraffa_agent` | ❌ `publish_to: none` | — | ✅ | ❌ | ❌ | — | Intentionally private (fill docs if it ever goes public) |
 | `zuraffa_browser` | ❌ `publish_to: none` | 1.0.0+1 | ❌ | ✅ | ❌ | — | Intentionally private (needs LICENSE+CHANGELOG if promoted) |
-| `zuraffa_intents` | ❌ not yet | 1.0.0 | ✅ | ✅ | ✅ | ✅ | **READY** — Android/iOS/macOS only, 42/42 tests, mutation 0 SURVIVED, dry-run clean |
-| `zuraffa_permissions` (+4 federated) | ❌ not yet | 0.1.0×5 | ❌ all 5 | ⚠️ 1/5 | ❌ all 5 | ⚠️ missing on all 5 | **BLOCKED** — see arrrrny/zuraffa_permissions#10 |
+| `zuraffa_intents` | ✅ **1.0.0 LIVE** (2026-09-08) | 1.0.0 | ✅ | ✅ | ✅ | ✅ | Published from its repo; tagged `v1.0.0` |
+| `zuraffa_permissions` federated set | ✅ **0.1.0 LIVE** (2026-09-08) | 0.1.0 ×5 | ✅ all 5 | ✅ all 5 | ✅ all 5 | ✅ all 5 | Published in DAG order (app-facing → PI → impls); tagged `v0.1.0` |
 
 ### Open gaps, ecosystem-wide (as of this audit)
 
 1. **zuraffa**: pubspec on master lags the published 6.2.1 (tag exists, bump not merged back).
 2. **zuraffa_ui**: `repository:` URL is a stale redirect; `homepage:` points at the upstream
    flutter-shadcn-ui docs, not Zuraffa's own docs.
-3. **zuraffa_permissions**: all 5 packages blocked (LICENSE/README/CHANGELOG/repo metadata +
-   hosted deps) — tracked in arrrrny/zuraffa_permissions#10.
-4. **zuraffa_intents**: ready — publish when the 1.0.0 release is wanted, then tag `v1.0.0`.
+3. ~~**zuraffa_permissions**: blocked on packaging~~ ✅ RESOLVED 2026-09-08 — all 5 packages
+   published at 0.1.0 in dependency order (arrrrny/zuraffa_permissions#10).
+4. ~~**zuraffa_intents**: ready~~ ✅ PUBLISHED 2026-09-08 — 1.0.0 live, tagged `v1.0.0`.
 5. **TDD gate before every publish**: re-run the suite + `zfa tdd verify`/mutation sweep on the
    day of publish, not just at feature completion (this checklist makes it a standing rule).
+   — followed for the 2026-09-08 publishes: intents 42/42 + mutant matrix; permissions 22/22 +
+   25/25 mutation sweep (quality A) + PI 17/17.
 
 ---
 
