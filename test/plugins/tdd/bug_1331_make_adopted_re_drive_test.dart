@@ -219,6 +219,8 @@ void main() {
         "the reset adopts the passing subject — outcome=adopted, exit 0, "
         'green evidence binding the CURRENT subject hash', () async {
       final fx = await TddFixture.create(featureName: feature);
+      addTearDown(fx.dispose);
+      addTearDown(() => exitCode = 0);
       const desc = 'returns 42 when invoked with no args';
       const id = 'A1';
 
@@ -270,9 +272,6 @@ void main() {
       expect(cycleLog, contains('## Cycle: $id (green)'));
       final implementedHash = await subjectHashOf(fx, id);
       expect(cycleLog, contains('- subject-hash: $implementedHash'));
-
-      fx.dispose();
-      exitCode = 0;
     });
   });
 
@@ -281,6 +280,8 @@ void main() {
         'written — the real make shape) is a terminal make success — the '
         'loop advances and the run completes', () async {
       final fx = await TddFixture.create(featureName: feature);
+      addTearDown(fx.dispose);
+      addTearDown(() => exitCode = 0);
       await fx.writeFakeZfa();
       await fx.seedTestList([
         (
@@ -321,15 +322,14 @@ void main() {
       ], reason: out);
       final cycleLog = await File(fx.cycleLogPath).readAsString();
       expect(cycleLog, contains('## Cycle: U-001 (green)'));
-
-      fx.dispose();
-      exitCode = 0;
     });
 
     test('B7b: a make whose adopted token disagrees with its exit code is '
         'still terminal — the driver records the green evidence the child '
         'did not write (the #986 pattern) and advances', () async {
       final fx = await TddFixture.create(featureName: feature);
+      addTearDown(fx.dispose);
+      addTearDown(() => exitCode = 0);
       await fx.writeFakeZfa();
       await fx.seedTestList([
         (
@@ -370,9 +370,6 @@ void main() {
         contains('zfa tdd make U-001 (adopted)'),
         reason: 'the driver-recorded entry names the adopted transition',
       );
-
-      fx.dispose();
-      exitCode = 0;
     });
   });
 
@@ -380,6 +377,8 @@ void main() {
     test('B8a: a green-basis drift whose last green evidence POSTDATES the '
         'last reset still refuses subject-drift', () async {
       final fx = await TddFixture.create(featureName: feature);
+      addTearDown(fx.dispose);
+      addTearDown(() => exitCode = 0);
       const desc = 'returns 42 when invoked with no args';
       const id = 'A1';
       await fx.seedCertifiedRed(
@@ -423,14 +422,13 @@ void main() {
             'is authoritative — the drift refusal stands: $out',
       );
       expect(out, contains('outcome=subject-drift'), reason: out);
-
-      fx.dispose();
-      exitCode = 0;
     });
 
     test('B8b: an identical drift with NO reset tombstone still refuses '
         'subject-drift', () async {
       final fx = await TddFixture.create(featureName: feature);
+      addTearDown(fx.dispose);
+      addTearDown(() => exitCode = 0);
       const desc = 'returns 42 when invoked with no args';
       const id = 'A1';
       await fx.seedCertifiedRed(
@@ -452,14 +450,13 @@ void main() {
       final out = await runner.runCapturing(makeArgs(fx, id: id));
       expect(exitCode, isNot(0), reason: out);
       expect(out, contains('outcome=subject-drift'), reason: out);
-
-      fx.dispose();
-      exitCode = 0;
     });
 
     test('B8c: the born-green placeholder class still refuses (the #1036 '
         'red-basis refusal is untouched)', () async {
       final fx = await TddFixture.create(featureName: feature);
+      addTearDown(fx.dispose);
+      addTearDown(() => exitCode = 0);
       const desc = 'render returns a non-empty string for a populated task';
       const id = 'A2';
       await fx.seedCertifiedRed(
@@ -486,9 +483,6 @@ int a2_value() => 0;
       expect(out, contains('--re-certify'), reason: out);
       final cycleLog = await File(fx.cycleLogPath).readAsString();
       expect(cycleLog, isNot(contains('## Cycle: $id (green)')));
-
-      fx.dispose();
-      exitCode = 0;
     });
   });
 
@@ -496,6 +490,8 @@ int a2_value() => 0;
     test("B9: doctor's evidence-without-artifact fix line names the adoption "
         'the run actually performs', () async {
       final fx = await TddFixture.create(featureName: feature);
+      addTearDown(fx.dispose);
+      addTearDown(() => exitCode = 0);
       for (final id in const ['U-001', 'U-002']) {
         await fx.registerBehavior(id: id, description: 'the $id behavior');
         final subject = File(fx.subjectPathOf(id));
@@ -519,14 +515,13 @@ int a2_value() => 0;
       expect(out, contains('adopt'), reason: out);
       final v = envelope(out);
       expect(v['prescription'], 'resume', reason: out);
-
-      fx.dispose();
-      exitCode = 0;
     });
 
     test('B10: the recovery loop composes — reset, doctor prescribes run, '
         "run completes, doctor is healthy again", () async {
       final fx = await TddFixture.create(featureName: feature);
+      addTearDown(fx.dispose);
+      addTearDown(() => exitCode = 0);
       await fx.writeFakeZfa();
       await fx.seedTestList([
         (
@@ -578,9 +573,6 @@ int a2_value() => 0;
       expect(exitCode, 0, reason: doctor2);
       final v = envelope(doctor2);
       expect(v['verdict'], 'healthy', reason: doctor2);
-
-      fx.dispose();
-      exitCode = 0;
     });
   });
 }

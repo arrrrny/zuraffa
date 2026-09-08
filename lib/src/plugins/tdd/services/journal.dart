@@ -958,7 +958,8 @@ class JournalReader {
       if (behaviors is! List) {
         return (behaviors: const <String>{}, at: null);
       }
-      final at = DateTime.tryParse(raw['started_at'] as String? ?? '');
+      final rawAt = raw['started_at'];
+      final at = rawAt is String ? DateTime.tryParse(rawAt) : null;
       return (behaviors: behaviors.whereType<String>().toSet(), at: at);
     }
     return (behaviors: const <String>{}, at: null);
