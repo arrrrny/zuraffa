@@ -95,7 +95,7 @@ $ zfa tdd split demo --force               # the escape hatch
 | AC-1 stale split detected on re-plan, new FR regenerated into the lane plans | PROVED (test 1 of "plan regenerates stale lane plans" + live demo) |
 | AC-2 deleted FR leaves no ghost row in any lane plan; reader resolves the current set | PROVED (ghost-row test) |
 | AC-3 `split --force` re-splits over the receipt; refusal names `--force`/plan | PROVED (force tests + refusal-remedy test + live demo) |
-| AC-4 lane plans reflect the current behavior set after plan/split; mtimes ≥ spec | PROVED (unchanged-spec refresh test + mtime test); the one-time `**Type**` marker emission rewrites the spec AFTER the lane writes — the flow's own "Re-run `zfa tdd plan`" guidance restores the mtime ordering, and the behavior set itself is unchanged by markers |
+| AC-4 lane plans reflect the current behavior set after plan/split; mtimes ≥ spec | PROVED (unchanged-spec refresh test + mtime test under `--no-emit-markers`); when marker emission is enabled, `persistMarkerEmission()` rewrites the spec after `PlanCommand` writes the lane plans, so the lane mtimes may be older until the command is rerun with `--no-emit-markers` |
 | AC-5 (issue AC-4) never-split unchanged; `## Lanes` path unchanged; detection fires only with receipt + changed spec | PROVED (backward-compat group: never-split test asserts no lane artifacts; Lanes-declared test asserts the declared path; unchanged-spec test asserts no stale report) |
 | Legacy receipt (no `spec_hash`) mtime fallback | PROVED (downgraded-receipt test) |
 | Refresh bookkeeping stops re-firing | PROVED (refresh test) |
@@ -106,6 +106,5 @@ The one-time `**Type**` marker emission (issue #1186) persists the spec
 AFTER the lane plans are written, so in that specific flow the lane
 mtimes momentarily trail the spec. Markers do not change the behavior
 set (the lane plans still reflect it), and the emission message
-instructs a re-run — on which the refreshed lane plans restore the mtime
-ordering. The AC-4 mtime test covers the normal (no-emission) flow via
-`--no-emit-markers`.
+instructs a re-run. Rerun with `--no-emit-markers` to restore and require
+the mtime ordering; the AC-4 mtime test covers that no-emission flow.

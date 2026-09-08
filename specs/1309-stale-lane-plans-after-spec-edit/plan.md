@@ -54,7 +54,9 @@ MVP-first, dependency-ordered (T1 → T4):
    current behavior set; a spec edit is reported as a stale split and
    refreshes the receipt; an unchanged spec stays silent; legacy
    receipts fall back to mtime. Tests: new FR appears, deleted FR's
-   ghost row disappears, meta-index preserved, mtimes ≥ spec.
+   ghost row disappears, meta-index preserved, and mtimes ≥ spec when
+   rerun with `--no-emit-markers` (marker emission persists `spec.md`
+   after the lane writes and is the supported exception).
 4. **T4 — docs/spec artifacts (non-behavioral).** This feature's
    committed artifacts + the verification record.
 

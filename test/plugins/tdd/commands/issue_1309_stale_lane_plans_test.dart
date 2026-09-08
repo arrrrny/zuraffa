@@ -172,12 +172,12 @@ void main() {
     feature,
   ];
 
-  List<String> planArgs() => [
+  List<String> planArgs({bool emitMarkers = false}) => [
     'tdd',
     'plan',
     '--project',
     tmpDir.path,
-    '--no-emit-markers',
+    if (!emitMarkers) '--no-emit-markers',
     feature,
   ];
 
@@ -475,6 +475,41 @@ void main() {
       );
     });
 
+    test('a malformed receipt keeps split recovery, uses its mtime for '
+        'staleness, and is repaired after regeneration', () async {
+      await seed();
+      await CliRunner(exitOnCompletion: false).runCapturing(splitArgs());
+      expect(exitCode, 0);
+
+      await receiptFile().writeAsString('{malformed');
+      await receiptFile().setLastModified(
+        DateTime.now().subtract(const Duration(hours: 1)),
+      );
+      await specFile().writeAsString(editedSpecAddsFr);
+
+      final out = await CliRunner(
+        exitOnCompletion: false,
+      ).runCapturing(planArgs());
+      expect(exitCode, 0, reason: out);
+      expect(out.toLowerCase(), contains('stale'));
+      expect(
+        laneFile('test-list.md').readAsStringSync(),
+        contains('## Lane split'),
+        reason: 'receipt existence preserves the split recovery path',
+      );
+      expect(
+        laneFile('04-ENGINE.md').readAsStringSync(),
+        contains('| U3 |'),
+        reason: 'the current behaviors regenerate via the lane heuristic',
+      );
+
+      final repaired = await receiptJson();
+      expect(repaired['feature'], feature);
+      expect(repaired['classification'], isA<Map<String, dynamic>>());
+      expect(repaired['spec_hash'], isNotNull);
+      expect(repaired['refreshed_by'], 'zfa tdd plan');
+    });
+
     test('the receipt refresh stops the stale report from re-firing', () async {
       await seed();
       await CliRunner(exitOnCompletion: false).runCapturing(splitArgs());
@@ -493,6 +528,35 @@ void main() {
         reason:
             'the refreshed receipt records the current spec state — the '
             'detection fires only on the NEXT change: $out',
+      );
+    });
+
+    test('marker emission is persisted before receipt refresh so a second '
+        'plan is not stale', () async {
+      await seed();
+      await CliRunner(exitOnCompletion: false).runCapturing(splitArgs());
+      expect(exitCode, 0);
+
+      final firstOut = await CliRunner(
+        exitOnCompletion: false,
+      ).runCapturing(planArgs(emitMarkers: true));
+      expect(exitCode, 0, reason: firstOut);
+      expect(
+        await specFile().readAsString(),
+        contains('**Type**: acceptance'),
+        reason: 'precondition: the first plan emitted routing markers',
+      );
+
+      final secondOut = await CliRunner(
+        exitOnCompletion: false,
+      ).runCapturing(planArgs(emitMarkers: true));
+      expect(exitCode, 0, reason: secondOut);
+      expect(
+        secondOut.toLowerCase(),
+        isNot(contains('stale')),
+        reason:
+            'the receipt hashes the final marker-emitted spec, so the '
+            'second run is fresh: $secondOut',
       );
     });
   });

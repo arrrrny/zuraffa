@@ -636,11 +636,12 @@ class PlanCommand extends Command<void> {
     // was written (digest, or mtime for legacy receipts) is reported
     // as a stale split before the regenerated files are written.
     final receiptFile = File(p.join(outDir.path, LaneSplitFiles.receipt));
-    final splitReceipt = await receiptFile.exists()
+    final splitReceiptExists = await receiptFile.exists();
+    final splitReceipt = splitReceiptExists
         ? await _readSplitReceipt(receiptFile)
         : null;
     final splitStale =
-        splitReceipt != null &&
+        splitReceiptExists &&
         lanes.isEmpty &&
         await _splitReceiptIsStale(
           receipt: splitReceipt,
@@ -649,9 +650,9 @@ class PlanCommand extends Command<void> {
           specMd: specMd,
         );
     final laneResult = lanes.isEmpty
-        ? (splitReceipt == null
-              ? null
-              : _heuristicLaneResolution(expressible, preservedFfi))
+        ? (splitReceiptExists
+              ? _heuristicLaneResolution(expressible, preservedFfi)
+              : null)
         : _resolveLanes(lanes, expressible, preservedFfi, goldenIds);
     if (laneResult != null && laneResult.refusals.isNotEmpty) {
       print(
@@ -879,28 +880,6 @@ class PlanCommand extends Command<void> {
         p.join(outDir.path, LaneSplitFiles.contract),
       ).writeAsString(contractMd);
       await outFile.writeAsString(metaMd);
-      if (splitReceipt != null) {
-        // Issue #1309: the receipt now reflects the spec state the lane
-        // plans were regenerated from — the next plan run reports the
-        // staleness only when the spec changes again. The original
-        // split fields (split_at, classification, …) stay untouched:
-        // they remain the audit record of the migration itself.
-        final refreshed = {...splitReceipt}
-          ..['spec_hash'] = sha256.convert(utf8.encode(specMd)).toString()
-          ..['refreshed_at'] = DateTime.now().toUtc().toIso8601String()
-          ..['refreshed_by'] = 'zfa tdd plan'
-          ..['refreshed_rows'] = laneResult.classification.length;
-        try {
-          refreshed['spec_mtime'] = (await specFile.lastModified())
-              .toUtc()
-              .toIso8601String();
-        } on FileSystemException {
-          // The spec vanished mid-run: keep the prior mtime field.
-        }
-        await receiptFile.writeAsString(
-          const JsonEncoder.withIndent('  ').convert(refreshed),
-        );
-      }
       for (final line in provenanceLines.values.expand((l) => l)) {
         print('   $line');
       }
@@ -934,6 +913,37 @@ class PlanCommand extends Command<void> {
         layoutSlots: layoutSlots,
       );
       await persistMarkerEmission();
+      if (splitReceiptExists) {
+        // Issue #1309: refresh only after every generated artifact and
+        // marker emission succeeded. Hash and mtime come from the final
+        // on-disk spec, so marker migration cannot make the repaired
+        // receipt immediately stale. A malformed existing receipt is
+        // rebuilt with the current heuristic classification instead of
+        // demoting this run to the legacy single-file plan.
+        final finalSpecMd = await specFile.readAsString();
+        final refreshed = splitReceipt == null
+            ? <String, dynamic>{
+                'feature': feature,
+                'source': 'tdd/test-list.md',
+                'rows': laneResult.classification.length,
+                'classification': {
+                  for (final entry in laneResult.classification.entries)
+                    entry.key: entry.value.label,
+                },
+              }
+            : <String, dynamic>{...splitReceipt};
+        refreshed
+          ..['spec_hash'] = sha256.convert(utf8.encode(finalSpecMd)).toString()
+          ..['spec_mtime'] = (await specFile.lastModified())
+              .toUtc()
+              .toIso8601String()
+          ..['refreshed_at'] = DateTime.now().toUtc().toIso8601String()
+          ..['refreshed_by'] = 'zfa tdd plan'
+          ..['refreshed_rows'] = laneResult.classification.length;
+        await receiptFile.writeAsString(
+          const JsonEncoder.withIndent('  ').convert(refreshed),
+        );
+      }
       // Issue #1125: the laned plan's explain block — the lane split is
       // the artifact set here, the summary names exactly what was written.
       _verdict.explain = TddExplain(
@@ -1908,16 +1918,17 @@ class PlanCommand extends Command<void> {
   }
 
   /// Issue #1309: the split receipt JSON at [receiptFile], or null when
-  /// the file carries no parseable JSON object (a corrupt receipt
-  /// degrades the staleness detection to the mtime fallback — never a
-  /// crash and never a silent legacy-path demotion of the meta-index).
+  /// the file carries no parseable JSON object. Callers track existence
+  /// independently so a corrupt receipt still selects split recovery.
   static Future<Map<String, dynamic>?> _readSplitReceipt(
     File receiptFile,
   ) async {
     try {
       final decoded = jsonDecode(await receiptFile.readAsString());
       return decoded is Map<String, dynamic> ? decoded : null;
-    } on FormatException {
+    } on FormatException catch (_) {
+      return null;
+    } on FileSystemException catch (_) {
       return null;
     }
   }
@@ -1931,13 +1942,13 @@ class PlanCommand extends Command<void> {
   /// closed: the legacy path's meta-index demotion is exactly the
   /// behavior this detection exists to prevent).
   static Future<bool> _splitReceiptIsStale({
-    required Map<String, dynamic> receipt,
+    required Map<String, dynamic>? receipt,
     required File receiptFile,
     required File specFile,
     required String specMd,
   }) async {
     final currentHash = sha256.convert(utf8.encode(specMd)).toString();
-    final receiptHash = receipt['spec_hash'];
+    final receiptHash = receipt?['spec_hash'];
     if (receiptHash is String && receiptHash.isNotEmpty) {
       return receiptHash != currentHash;
     }
@@ -1945,7 +1956,7 @@ class PlanCommand extends Command<void> {
         ? await specFile.lastModified()
         : null;
     if (specModified == null) return false;
-    final splitAt = DateTime.tryParse('${receipt['split_at'] ?? ''}');
+    final splitAt = DateTime.tryParse('${receipt?['split_at'] ?? ''}');
     if (splitAt != null) {
       return specModified.isAfter(splitAt.toUtc());
     }
