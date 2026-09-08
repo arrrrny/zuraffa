@@ -100,9 +100,3 @@ dev_dependencies:
   # per mutant (which would be 2400+ test executions per mutant and would
   # not fit the rubric's "<10s per mutant" budget).
   mutation_test: ^1.1.4
-
-dependency_overrides:
-  zorphy:
-    path: ../zorphy/zorphy
-  zorphy_annotation:
-    path: ../zorphy/zorphy_annotation
