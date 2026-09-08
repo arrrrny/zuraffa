@@ -1079,8 +1079,21 @@ class SpecParser {
       .toList();
 
   /// The FR contract-trace continuation scan (feature 071): a `traces:`
-  /// line following an FR names the contract rows the requirement
+  /// line within an FR's block names the contract rows the requirement
   /// exercises. Keyed by the document-wide unit id.
+  ///
+  /// Issue #1319: the scan consumes the ENTIRE FR block — every
+  /// continuation line after the FR header until the next FR/requirement
+  /// header (bullet or FR-table row), a markdown heading, or an
+  /// acceptance scenario header — not just the single line immediately
+  /// after the header. Multi-line FRs are the common case (the
+  /// zuraffa-1.0 template wraps FR text at ~80 columns) and put
+  /// `traces:` after the wrap; the old `lines[i + 1]`-only scan silently
+  /// dropped it, the plan kept the legacy fallback routing, and
+  /// `zfa tdd run` dead-ended vacuous-green (#1308) with no hint that
+  /// the author's `traces:` line was never read. The FIRST `traces:`
+  /// line of a block wins, so a single-line FR binds byte-identically
+  /// to the pre-#1319 behavior.
   static Map<String, List<String>> parseFrContractTraces(String specMd) {
     final traces = <String, List<String>>{};
     final lines = normalizeSpecText(specMd).split('\n');
@@ -1091,13 +1104,76 @@ class SpecParser {
       // keeps the U-id numbering aligned with _extractUnit.
       if (_frLine(lines[i]) == null) continue;
       uIdx += 1;
-      final t = i + 1 < lines.length
-          ? tracesLine.firstMatch(lines[i + 1])
-          : null;
-      if (t == null) continue;
-      traces['U$uIdx'] = traceTokens(t.group(1)!);
+      // Issue #1319: walk the whole FR block — the continuation lines
+      // until the next FR/requirement header, heading, or scenario
+      // header — and bind the first `traces:` line in it.
+      for (var j = i + 1; j < lines.length; j++) {
+        if (_endsFrBlock(lines[j])) break;
+        final t = tracesLine.firstMatch(lines[j]);
+        if (t == null) continue;
+        traces['U$uIdx'] = traceTokens(t.group(1)!);
+        break;
+      }
     }
     return traces;
+  }
+
+  /// Issue #1319: a line that ends the FR block a `traces:` continuation
+  /// may visually attach to — the next FR/requirement header (bullet or
+  /// FR-table row), a markdown heading, or an acceptance scenario
+  /// header. Shared by the binding scan ([parseFrContractTraces]) and
+  /// the owner-attribution walk ([findUnboundFrTraces]) so the two
+  /// cannot disagree about where a block ends.
+  static bool _endsFrBlock(String line) =>
+      _frLine(line) != null ||
+      _frBlockBoundary.hasMatch(line) ||
+      _scenarioHeader.hasMatch(line);
+
+  /// Markdown ATX headings (`#`..`######`) — a new section starts, so
+  /// the FR block above it is over.
+  static final RegExp _frBlockBoundary = RegExp(r'^\s*#{1,6}(\s|$)');
+
+  /// Issue #1319: the FR ids whose block contains a `traces:` line that
+  /// did NOT yield a contract-row binding in [bound] (the
+  /// `parseFrContractTraces` result, keyed by unit id). An FR whose
+  /// binding is missing or EMPTY (every token dropped, e.g. a lone
+  /// backticked signature) counts as unbound — exactly the silent-
+  /// fallback input plan must never stay quiet about.
+  ///
+  /// The owner of a `traces:` line is the nearest preceding FR header;
+  /// a heading or an acceptance scenario header between the two breaks
+  /// the visual attachment (the line belongs to no FR). Plan warns
+  /// loudly for every reported FR instead of silently falling back to
+  /// the legacy classifier — the silent fallback re-created the #1308
+  /// vacuous-green dead-end with zero author-facing hint.
+  static Set<String> findUnboundFrTraces(
+    String specMd,
+    Map<String, List<String>> bound,
+  ) {
+    final unbound = <String>{};
+    final lines = normalizeSpecText(specMd).split('\n');
+    final tracesLine = RegExp(r'^\s+traces:\s*(.+)$');
+    String? owner;
+    var uIdx = 0;
+    for (final line in lines) {
+      final fr = _frLine(line);
+      if (fr != null) {
+        uIdx += 1;
+        owner = fr.$1;
+        continue;
+      }
+      if (_frBlockBoundary.hasMatch(line) || _scenarioHeader.hasMatch(line)) {
+        owner = null;
+        continue;
+      }
+      if (owner != null && tracesLine.hasMatch(line)) {
+        // The FR owns a traces: line — binding is decided by the
+        // caller's map: missing or empty = unbound.
+        final id = 'U$uIdx';
+        if ((bound[id] ?? const <String>[]).isEmpty) unbound.add(owner);
+      }
+    }
+    return unbound;
   }
 
   /// The `_persistence` declaration scan (feature 071): FR lines
