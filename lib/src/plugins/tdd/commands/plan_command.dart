@@ -653,7 +653,18 @@ class PlanCommand extends Command<void> {
         ? (splitReceiptExists
               ? _heuristicLaneResolution(expressible, preservedFfi)
               : null)
-        : _resolveLanes(lanes, expressible, preservedFfi, goldenIds);
+        : _resolveLanes(
+            lanes,
+            expressible,
+            preservedFfi,
+            goldenIds,
+            // Issue #1318: the guard's fix message distinguishes a
+            // CLASSIFIER-routed kind (a prose guess — the marker remedy
+            // leads) from a DECLARED kind (the author's word — the
+            // lane-move remedy stands). The declarations map is already
+            // parsed above; pass its id set through.
+            declaredBehaviorIds: scenarioMarkers.keys.toSet(),
+          );
     if (laneResult != null && laneResult.refusals.isNotEmpty) {
       print(
         'zfa tdd plan: lane contract FAILED — ${laneResult.refusals.length} '
@@ -1760,8 +1771,9 @@ class PlanCommand extends Command<void> {
     List<LaneDeclaration> lanes,
     List<Behavior> expressible,
     List<BehaviorRow> preservedFfi,
-    Set<String> goldenIds,
-  ) {
+    Set<String> goldenIds, {
+    Set<String> declaredBehaviorIds = const {},
+  }) {
     final classification = <String, Lane>{};
     final annotations = <String, String>{};
     final refusals = <String>[];
@@ -1860,11 +1872,26 @@ class PlanCommand extends Command<void> {
       // (testWidgets + view builder) imports Flutter.
       if (lane == Lane.core &&
           (b.kind == BehaviorKind.widget || b.kind == BehaviorKind.theme)) {
+        // Issue #1318: a CLASSIFIER-routed kind is a prose guess, so the
+        // remedy LEADS with the marker (pre-#1318 it was buried as the
+        // third option). A DECLARED kind is the author's word — the
+        // marker remedy would second-guess an explicit declaration, so
+        // the lane-move remedy stands byte-for-byte.
+        final classifierRouted = !declaredBehaviorIds.contains(b.id);
         refusals.add(
-          'noFlutter guard: behavior "${b.id}" (${b.sourceCriterion}) is '
-          'routed ${b.kind.name}-kind (a Flutter-only subject whose gen '
-          'pair imports Flutter) but declared CORE. --> fix: declare it '
-          'SKIN (or BOTH), or add `**Type**: acceptance` to the scenario.',
+          classifierRouted
+              ? 'noFlutter guard: behavior "${b.id}" '
+                    '(${b.sourceCriterion}) is routed ${b.kind.name}-kind '
+                    '(a Flutter-only subject whose gen pair imports '
+                    'Flutter) but declared CORE. --> fix: add **Type**: '
+                    'acceptance to the scenario (classifier guess, not a '
+                    'declaration).'
+              : 'noFlutter guard: behavior "${b.id}" '
+                    '(${b.sourceCriterion}) is routed ${b.kind.name}-kind '
+                    '(a Flutter-only subject whose gen pair imports '
+                    'Flutter) but declared CORE. --> fix: declare it SKIN '
+                    '(or BOTH), or add `**Type**: acceptance` to the '
+                    'scenario.',
         );
       }
     }
