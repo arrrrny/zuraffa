@@ -80,11 +80,14 @@ void main() {
 
   test('U-1308-1: the shared remedy vocabulary carries the exact strings', () {
     // The exact remedy the acceptance criteria pin — gen's warning and the
-    // run driver's stop message share ONE source (FR-005).
+    // run driver's stop message share ONE source (FR-005). Issue #1320:
+    // the remedy also names the designed hand-delta seam.
     expect(
       vacuousGuardFallbackRemedy,
       'add traces: <ContractRow> to the FR, re-run zfa tdd plan, '
-      're-run zfa tdd gen, re-run zfa tdd run',
+      're-run zfa tdd gen, re-run zfa tdd run — or hand-edit the lane plan '
+      '(04-ENGINE.md) traces cell to FR-00N, Row.method and re-run '
+      'zfa tdd gen (the designed hand-delta seam)',
     );
     // The machine-greppable warning token: distinct from the marker (the
     // fallback path's test does NOT carry the marker), greppable by the

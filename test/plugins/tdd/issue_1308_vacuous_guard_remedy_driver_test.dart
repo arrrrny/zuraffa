@@ -72,7 +72,7 @@ case "$STEP" in
       ok) exit 0 ;;
       warn)
         echo "zfa tdd gen: WARNING [zfa:tdd: guard-only] behavior \"$ID\" — the generated unit test assertion set is only the bare UnimplementedError guard: no traces: line derives a real outcome assertion (issue #1259, #1308)."
-        echo "   --> fix: add traces: <ContractRow> to the FR, re-run zfa tdd plan, re-run zfa tdd gen, re-run zfa tdd run"
+        echo "   --> fix: add traces: <ContractRow> to the FR, re-run zfa tdd plan, re-run zfa tdd gen, re-run zfa tdd run — or hand-edit the lane plan (04-ENGINE.md) traces cell to FR-00N, Row.method and re-run zfa tdd gen (the designed hand-delta seam)"
         exit 0 ;;
       *) echo "zfa tdd gen: $OUTCOME"; exit 1 ;;
     esac
