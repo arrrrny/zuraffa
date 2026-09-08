@@ -17,9 +17,11 @@
 ///
 /// - [BuilderDependencyPreflight.missingBuilderPackages] is the ONE
 ///   classifier: the effective builder set (the project's `build.yaml`
-///   UNION the canonical scaffold content) vs the dependency-graph truth
-///   store (`.dart_tool/package_config.json`), corroborated by
-///   build_runner's unknown-builder signal in the captured build output.
+///   when present — its own registration governs its build — else the
+///   canonical `DependencyWirer.buildYamlContent` scaffold) vs the
+///   dependency-graph truth store (`.dart_tool/package_config.json`),
+///   corroborated by build_runner's unknown-builder signal in the
+///   captured build output.
 /// - [BuilderDependencyPreflight.ensureBuilderDependencies] is the AC-1
 ///   phase-0 preflight: auto `dart pub add --dev <pkg>` (Flutter
 ///   projects: `flutter pub add --dev <pkg>`), blocking when the add
