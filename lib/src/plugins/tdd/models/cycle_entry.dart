@@ -12,13 +12,26 @@
 /// `refactorActions` list renders as the `actions:` block per
 /// contracts/refactor.md, and `isNoOp` flags a clean no-op entry.
 ///
+/// Extended by issue #1329: the `error` kind records a FAILED STEP's
+/// diagnostic evidence (the spawned command, the exit code, and the
+/// truncated stderr/stdout tail — the same evidence shape the red/green
+/// cycles record) appended by the run driver's error-outcome path. The
+/// kind is deliberately NOT `red`: red is CERTIFIED red evidence the
+/// reconciliation and the make skip transition key on, and an error entry
+/// must never satisfy it — the retry after a transient failure re-drives
+/// the failed step honestly. The optional `outcome` field names the
+/// step's own failure token (`error`, `crashed`, `runner-error`, ...);
+/// it renders as the `- outcome:` line only when set, outside the
+/// chain-hash payload (the `- evidence:` / `- subject-hash:` additive
+/// precedents), so the evidence schema stays v1.
+///
 /// Existing red/green rendering stays byte-compatible (U10 invariant).
 library;
 
 import 'generation_plan.dart';
 import 'refactor_action.dart';
 
-enum CycleEntryKind { red, green, refactor }
+enum CycleEntryKind { red, green, refactor, error }
 
 enum FailureClass {
   assertionFailure,
@@ -59,6 +72,14 @@ class CycleLogEntry {
 
   /// The spec criterion the behavior traces to (e.g. `FR-006`).
   final String sourceCriterion;
+
+  /// The step's own failure outcome token for `error` entries (issue
+  /// #1329): `error` (a spawned step exited non-zero), `crashed`,
+  /// `runner-error`, ... — the token the driver printed. Nullable; only
+  /// the error-outcome recording sets it. Rendered as the optional
+  /// `- outcome:` field line, outside the chain-hash payload, so the
+  /// evidence schema stays at v1 (the `- evidence:` precedent).
+  final String? outcome;
 
   /// The registry-recorded path of the test that produced this entry.
   /// For refactor entries this is the suite scope the command re-proved
@@ -107,6 +128,7 @@ class CycleLogEntry {
     required this.testPath,
     required this.timestamp,
     this.classification,
+    this.outcome,
     this.redEvidence,
     this.subjectHash,
     this.refactorActions = const [],
@@ -135,6 +157,9 @@ class CycleLogEntry {
     }
     if (subjectHash != null) {
       buf.writeln('- subject-hash: $subjectHash');
+    }
+    if (outcome != null) {
+      buf.writeln('- outcome: $outcome');
     }
     buf
       ..writeln('- criterion: $sourceCriterion')
@@ -202,6 +227,8 @@ class CycleLogEntry {
         return 'green';
       case CycleEntryKind.refactor:
         return 'refactor';
+      case CycleEntryKind.error:
+        return 'error';
     }
   }
 

@@ -1,7 +1,19 @@
 ## [6.2.2] - 2026-09-08
 
+### Added
+- Refresh stale lane plans on re-plan; split `--force` semantics (#1317)
+- Surface vacuous-green remedy in `tdd run`/`stop` messages and gen-time warnings (#1321)
+- Write contract-row names into plan traces cell (#1316)
+- Refresh proof receipts after the refactor pass (#1315)
+
 ### Fixed
-- Published package now includes `lib/src/core/benchmark/` — the `.pubignore` `benchmark/` pattern (gitignore semantics match at any depth) excluded it while `lib/zuraffa.dart` still exported it, breaking every consumer compile at day zero; the pattern is root-anchored (`/benchmark/`) and a publish-set guard test pins every transitive export/part target against the ignore rules (#1307, #1325)
+- `tdd make` preflight validates `dependency_overrides` path targets; skip cache-retry on resolution errors (#1306)
+- Slice cut — derive sandbox pubspec deps from copied closure imports (#1305)
+- Exclude event-noun subjects from the UI-intent classifier (#1328)
+- Scan the full FR block for traces in `parseFrContractTraces` (#1332)
+- Refresh cycle-log receipt at run end (#1334)
+- Relativize audited paths against `projectRoot` in receipt preflight (#1314)
+- Anchor `.pubignore` `benchmark/` to root; add publish-time export guard (#1313)
 - `zfa proof check` no longer flags the sanctioned evidence appends the run driver writes to `tdd/cycle-log.md` after the verb receipts that cover it — append-only logs verify when the receipt keeps a content snapshot and the disk bytes are an untouched extension of it (#1327, follows up #1311)
 
 ### Changed

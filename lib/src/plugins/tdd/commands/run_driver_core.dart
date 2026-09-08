@@ -46,6 +46,7 @@ import '../models/behavior.dart';
 import '../models/cycle_entry.dart';
 import '../models/run_state.dart';
 import '../services/artifact_registry.dart';
+import '../services/arg_placeholder.dart';
 import '../services/cycle_evidence.dart';
 import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
@@ -62,6 +63,7 @@ import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
 import '../services/vacuous_guard.dart';
 import '../services/tdd_transaction.dart';
+import '../../../core/dependencies/builder_dependency_preflight.dart';
 
 /// One lane invocation's machine outcome — everything the commands need to
 /// print their summary line, set the exit code, and (for the meta driver)
@@ -193,6 +195,15 @@ class RunDriverCore {
   String? _streamFeature;
   String? _streamLane;
 
+  // Issue #1329: the failed step's diagnostic evidence, staged by the
+  // error-outcome recording path and consumed by [_finish] for the lane
+  // journal entry — the same per-invocation instance-state pattern the
+  // stream context uses (drive is non-reentrant per instance). Reset at
+  // every drive; set ONLY by the error-outcome arms (the honest stop and
+  // the pre-spawn runner-error), never by the named deferral/skip/block
+  // arms or by successful steps.
+  _StepFailure? _lastStepFailure;
+
   /// Fires one step-verdict.v1 event for a completed step (a no-op when
   /// the hook is unset — the legacy byte-identical output path).
   void _emitStep(
@@ -251,6 +262,9 @@ class RunDriverCore {
     _streamCommand = label;
     _streamFeature = feature;
     _streamLane = lane;
+    // Issue #1329: one failure detail per drive — staged by the
+    // error-outcome arms below, consumed by _finish.
+    _lastStepFailure = null;
 
     // -----------------------------------------------------------------
     // 1. Feature directory (misfire-stop when absent).
@@ -932,9 +946,18 @@ class RunDriverCore {
             stoppedAt != null && stoppedAt.endsWith(':hand')
             ? _handStepViolationFor(stoppedAt, receipts.featureDir)
             : null;
+        // Issue #1329: the journal entry carries the failed step's
+        // diagnostic evidence (the structured error object) beside the
+        // machine-greppable step_error violations line — the entry no
+        // longer reads only "violations": ["stopped_at=<id>:<step>"]
+        // when the stop is a step error.
+        final failure = _lastStepFailure;
         final violations = <String>[
           if (stoppedAt != null) 'stopped_at=$stoppedAt',
           ?handStepViolation,
+          if (failure != null)
+            'step_error=${failure.behaviorId}:${failure.step} '
+                'outcome=${failure.outcome} exit=${failure.exitCode}',
           for (final id in skippedWidgets.keys)
             'skipped-widget=$id (${skippedWidgets[id]})',
         ];
@@ -963,6 +986,16 @@ class RunDriverCore {
             counts: counts,
             stoppedAt: stoppedAt,
             mocks: lane == 'engine' ? mockCounts : null,
+            error: failure == null
+                ? null
+                : JournalStepError(
+                    behavior: failure.behaviorId,
+                    step: failure.step,
+                    outcome: failure.outcome,
+                    exitCode: failure.exitCode,
+                    command: failure.command,
+                    output: failure.outputTail,
+                  ),
           ),
         );
       } on FileSystemException {
@@ -1263,6 +1296,24 @@ class RunDriverCore {
         );
       } on StateError catch (e) {
         // Entrypoint resolution failed before any spawn: runner-error.
+        // Issue #1329: record what is known — no spawned command, exit
+        // -1, the resolution error message as the captured output — so
+        // even a pre-spawn misfire leaves its diagnostic on disk.
+        await _recordStepFailure(
+          _StepFailure(
+            behaviorId: row.id,
+            step: step,
+            outcome: 'runner-error',
+            exitCode: -1,
+            command:
+                '(none — the zfa entrypoint did not resolve; no step was '
+                'spawned)',
+            outputTail: _outputTail(e.message),
+          ),
+          projectRoot: projectRoot,
+          feature: feature,
+          criterion: row.traces,
+        );
         updated = updated.advance(row.id, state);
         await store.save(updated, activeBehaviorIds: activeIds);
         await tx.clear();
@@ -1302,31 +1353,46 @@ class RunDriverCore {
       if (!result.success) {
         // Bug #986: `skipped` — make's issue #694 skip transition (the
         // target test already passes, generation skipped by design) — is a
-        // TERMINAL make success, never a step failure. StepRunner grades
-        // the exit-0 skip as success; this mapping closes the fall-through
-        // for a skipped token whose exit code disagrees (binary skew, or
-        // the #657/#694-era drift contract where the already-green report
-        // exited non-zero): make's outcome token is the step's own
-        // terminal classification, and halting the feature on an
-        // already-green behavior is the #693/#694 deadlock family. Record
-        // the green evidence when make's write did not land (idempotent —
-        // never a duplicate, the #693 driver-recorded pattern), advance
-        // the behavior GREEN, and let refactor proceed as usual.
-        if (step == 'make' && result.outcome == 'skipped') {
+        // TERMINAL make success, never a step failure. Issue #1331:
+        // `adopted` — the #1331 re-drive transition (the last reset
+        // tombstone invalidated the surviving certification, make adopted
+        // the passing subject) — is the same terminal success. StepRunner
+        // grades the exit-0 skip/adopt as success; this mapping closes the
+        // fall-through for a token whose exit code disagrees (binary
+        // skew, or the #657/#694-era drift contract where the
+        // already-green report exited non-zero): make's outcome token is
+        // the step's own terminal classification, and halting the feature
+        // on an already-green behavior is the #693/#694 deadlock family.
+        // Record the green evidence when make's write did not land
+        // (idempotent — never a duplicate, the #693 driver-recorded
+        // pattern), advance the behavior GREEN, and let refactor proceed
+        // as usual.
+        if (step == 'make' &&
+            (result.outcome == 'skipped' || result.outcome == 'adopted')) {
+          final adopted = result.outcome == 'adopted';
           if (!await _hasEvidence(evidence.greenEvidence, row.id)) {
             await CycleLog(p.join(projectRoot, 'specs', feature)).append(
               CycleLogEntry(
                 behaviorId: row.id,
                 kind: CycleEntryKind.green,
-                runnerCommand: 'zfa tdd make ${row.id} (skipped)',
+                runnerCommand: 'zfa tdd make ${row.id} (${result.outcome})',
                 exitCode: result.exitCode,
-                capturedOutput:
-                    'skipped — the target test already passes (issue #694 '
-                    'skip transition); green evidence recorded by the run '
-                    'driver (bug #986) because make did not write it. Exit '
-                    'code ${result.exitCode} disagrees with the outcome '
-                    'token; the token is the terminal classification.\n'
-                    '${result.output.split('\n').take(2).join('\n')}',
+                capturedOutput: adopted
+                    ? 'adopted — the target test already passes against the '
+                          'on-disk subject and the last reset tombstone '
+                          'invalidated the surviving certification (issue '
+                          '#1331); green evidence recorded by the run '
+                          'driver (bug #986) because make did not write it. '
+                          'Exit code ${result.exitCode} disagrees with the '
+                          'outcome token; the token is the terminal '
+                          'classification.\n'
+                          '${result.output.split('\n').take(2).join('\n')}'
+                    : 'skipped — the target test already passes (issue #694 '
+                          'skip transition); green evidence recorded by the run '
+                          'driver (bug #986) because make did not write it. Exit '
+                          'code ${result.exitCode} disagrees with the outcome '
+                          'token; the token is the terminal classification.\n'
+                          '${result.output.split('\n').take(2).join('\n')}',
                 sourceCriterion: row.traces,
                 testPath: 'test/',
                 timestamp: DateTime.now().toUtc().toIso8601String(),
@@ -1338,13 +1404,24 @@ class RunDriverCore {
           await store.save(updated, activeBehaviorIds: activeIds);
           await tx.clear();
           state = next;
-          print('[run] ${row.id} make -> green (skipped)$progressSuffix');
-          _emitStep(row.id, 'make', 'green', exitCode: result.exitCode);
+          print(
+            '[run] ${row.id} make -> green (${result.outcome})$progressSuffix',
+          );
+          _emitStep(
+            row.id,
+            'make',
+            adopted ? 'adopted' : 'green',
+            exitCode: result.exitCode,
+          );
           if (result.exitCode != 0) {
             print(
-              '   exit code ${result.exitCode} disagrees with '
-              'outcome=skipped — the token is the terminal skip transition '
-              '(issue #694); advancing (bug #986).',
+              adopted
+                  ? '   exit code ${result.exitCode} disagrees with '
+                        'outcome=adopted — the token is the terminal #1331 '
+                        'adopted re-drive transition; advancing.'
+                  : '   exit code ${result.exitCode} disagrees with '
+                        'outcome=skipped — the token is the terminal skip '
+                        'transition (issue #694); advancing (bug #986).',
             );
           }
           continue;
@@ -1515,8 +1592,87 @@ class RunDriverCore {
             refactorBlocked: false,
           );
         }
+        // Issue #1323 (spec 991 FR-006): the `hand-delta-required` make
+        // stop is not a dead end — the driver names the remedy with the
+        // SAME messaging parity the #1308 vacuous-green arm established.
+        // The generated test's `_argN()` placeholder helper is the
+        // DESIGNED hand-delta seam for a non-scalar declared param; make
+        // already diagnosed it (two-signal: marker + transcript token)
+        // and stopped naming the exact edit. One explicit, named hand
+        // step `stopped_at=<id>:hand` replaces the generic make stop;
+        // messaging only — the state advance and the honest-stop
+        // semantics are the generic ones.
+        if (step == 'make' && result.outcome == 'hand-delta-required') {
+          final testPath = _existingGeneratedTestPath(
+            projectRoot: projectRoot,
+            feature: feature,
+            behaviorId: row.id,
+          );
+          updated = updated.advance(row.id, state);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
+          print(
+            'zfa tdd $label: step failed — behavior=${row.id} step=$step '
+            'outcome=${result.outcome}',
+          );
+          _printOutputExcerpt(result.output);
+          // The declared type and the placeholder index the remedy names
+          // come from the generated test's marker helper (the
+          // content-only probe — the make child already verified the
+          // transcript signal). Unreadable or hand-edited content
+          // degrades to the generic noun and index 0; the make stop's
+          // own remedy line (in the excerpt above) always carries the
+          // exact type.
+          final hit = _testArgPlaceholderHit(testPath);
+          final relPath = testPath != null
+              ? p.relative(testPath, from: projectRoot).replaceAll('\\', '/')
+              : p.join(
+                  'test',
+                  'tdd',
+                  feature,
+                  '${_snakeCase(row.id)}_test.dart',
+                );
+          print(
+            '   the generated test\'s _argN() placeholder IS the designed '
+            'hand-delta seam for a non-scalar declared param '
+            '(issue #1323): the remedy requires HAND-editing the '
+            'generated test, which make itself never does.',
+          );
+          print(
+            '   hand step: ${row.id}:hand — ${argPlaceholderRemedy(index: hit?.index ?? 0, testPath: relPath, declaredType: hit?.declaredType ?? 'value', behaviorId: row.id)}.',
+          );
+          return (
+            state: updated,
+            stop: (
+              result: 'stopped',
+              stoppedAt: '${row.id}:hand',
+              exitCode: _exitStopped,
+              message: null,
+            ),
+            refactorBlocked: false,
+          );
+        }
         // Honest stop (FR-007).
         final isRunnerError = result.outcome == 'runner-error';
+        // Issue #1329: the error-outcome path records the same
+        // diagnostic evidence the red/green cycles record — the spawned
+        // command, the exit code, and the truncated stderr/stdout tail —
+        // in the append-only cycle log, and stages the detail for the
+        // lane journal entry (_finish). Recording is never a gate: a
+        // failed append is reported, not fatal (the receipt discipline).
+        await _recordStepFailure(
+          _StepFailure(
+            behaviorId: row.id,
+            step: step,
+            outcome: result.outcome,
+            exitCode: result.exitCode,
+            command: result.command,
+            outputTail: _outputTail(result.output),
+          ),
+          projectRoot: projectRoot,
+          feature: feature,
+          criterion: row.traces,
+        );
         updated = updated.advance(row.id, state);
         await store.save(updated, activeBehaviorIds: activeIds);
         await tx.clear();
@@ -1679,30 +1835,78 @@ class RunDriverCore {
     }
   }
 
+  /// Issue #1323: the generated test's FIRST (lowest-index) `_argN()`
+  /// placeholder helper — the index and declared type the hand-step
+  /// remedy names. The content-only probe (the make child already
+  /// verified the transcript signal before reporting the outcome).
+  /// Unreadable files or a hand-edited test (the placeholder already
+  /// replaced) return null — the remedy degrades to the generic noun and
+  /// index 0; the make stop's own remedy line, which the output excerpt
+  /// carries, always names the exact type.
+  ArgPlaceholderHit? _testArgPlaceholderHit(String? testPath) {
+    if (testPath == null) return null;
+    try {
+      return argPlaceholderHitInContent(File(testPath).readAsStringSync());
+    } on FileSystemException {
+      return null;
+    }
+  }
+
   /// Issue #1308: the journal hand-step violation for a stop reported at
   /// the named hand step (`<id>:hand`): what to write (an assertion on
   /// the observable outcome) and where (the generated test file,
   /// project-relative). Shared by the lane journal entries so the ONE
   /// explicit, named hand step is machine-parseable everywhere.
+  ///
+  /// Issue #1323: the dispatch keys on the test's OWN marker — the
+  /// `_argN()` placeholder helper means the hand-delta seam stop (the
+  /// #1323 vocabulary: the exact representative edit); the vacuous-guard
+  /// marker (or no marker, the degenerate fallback) keeps the #1308
+  /// vocabulary. Content-keyed because the aggregate outcome carries
+  /// only `stoppedAt` — and each arm's stop condition is itself keyed on
+  /// the same content, so the dispatch is exact for both.
   String _handStepViolationFor(String stoppedAt, String featureDir) {
     final behaviorId = stoppedAt.substring(0, stoppedAt.lastIndexOf(':'));
     final feature = p.basename(featureDir);
-    final projectRoot = p.dirname(featureDir);
+    // The feature directory is `<root>/specs/<feature>` in the standard
+    // layout — walk UP through the `specs` segment to the real project
+    // root (issue #1323: the grandparent, not dirname(featureDir), which
+    // resolved to `<root>/specs` and made `_existingGeneratedTestPath`
+    // probe `<root>/specs/test/...` — a path that never exists, so the
+    // probe always degraded to the fallback join). Non-standard layouts
+    // (featureDir directly under the root) keep the parent walk.
+    final featureParent = p.dirname(featureDir);
+    final projectRoot = p.basename(featureParent) == 'specs'
+        ? p.dirname(featureParent)
+        : featureParent;
     final testPath = _existingGeneratedTestPath(
       projectRoot: projectRoot,
       feature: feature,
       behaviorId: behaviorId,
     );
+    final relativeTestPath = testPath != null
+        ? p.relative(testPath, from: projectRoot)
+        : p.join('test', 'tdd', feature, '${_snakeCase(behaviorId)}_test.dart');
+    if (testPath != null) {
+      try {
+        final hit = argPlaceholderHitInContent(
+          File(testPath).readAsStringSync(),
+        );
+        if (hit != null) {
+          return argPlaceholderHandStepViolation(
+            index: hit.index,
+            behaviorId: behaviorId,
+            testPath: relativeTestPath,
+            declaredType: hit.declaredType,
+          );
+        }
+      } on FileSystemException {
+        // Fall through to the #1308 vocabulary — a record, never a gate.
+      }
+    }
     return vacuousGuardHandStepViolation(
       behaviorId: behaviorId,
-      testPath: testPath != null
-          ? p.relative(testPath, from: projectRoot)
-          : p.join(
-              'test',
-              'tdd',
-              feature,
-              '${_snakeCase(behaviorId)}_test.dart',
-            ),
+      testPath: relativeTestPath,
     );
   }
 
@@ -1882,11 +2086,91 @@ class RunDriverCore {
       );
     }
     if (build.exitCode != 0) {
+      // Issue #1322 (AC-3): a build failure caused by a MISSING builder
+      // package is project state, not runner noise — the outcome label and
+      // stop message must name the package and prescribe the exact fix,
+      // not the generic runner-error.
+      final missing = BuilderDependencyPreflight.missingBuildersForFailedBuild(
+        projectRoot: projectRoot,
+        buildOutput: '${build.stdout}${build.stderr}',
+      );
+      if (missing.isNotEmpty) {
+        print('[run] phase-0 build -> failed (missing builder dependency)');
+        return (
+          result: 'missing-builder-dependency',
+          stoppedAt: 'phase-0:build',
+          exitCode: _exitRunnerError,
+          message: BuilderDependencyPreflight.missingBuilderStopMessage(
+            missing: missing,
+            context: 'phase-0 `zfa build`',
+          ),
+        );
+      }
       print('[run] phase-0 build -> failed');
       return failedSpawn(what: 'build', r: build);
     }
     print('[run] phase-0 build -> ok');
     return null;
+  }
+
+  // -------------------------------------------------------------------
+  // Issue #1329 — the error-outcome recording path. The red/green
+  // cycles record command + exit code + output; until now a failed step
+  // discarded all of it (no cycle-log entry, a journal entry naming
+  // only stopped_at), so a transient failure left nothing to diagnose
+  // against. The recording here is evidence-shaped, append-only, and
+  // never a gate.
+  // -------------------------------------------------------------------
+
+  /// Append the failed step's diagnostic evidence to the feature's
+  /// cycle log (one `error` entry in the same evidence shape the
+  /// red/green cycles record) and stage [failure] for the lane journal
+  /// entry `_finish` writes. A failed append is reported on stderr,
+  /// never fatal to the driving that already happened.
+  Future<void> _recordStepFailure(
+    _StepFailure failure, {
+    required String projectRoot,
+    required String feature,
+    required String criterion,
+  }) async {
+    try {
+      await CycleLog(p.join(projectRoot, 'specs', feature)).append(
+        CycleLogEntry(
+          behaviorId: failure.behaviorId,
+          kind: CycleEntryKind.error,
+          outcome: failure.outcome,
+          runnerCommand: failure.command,
+          exitCode: failure.exitCode,
+          capturedOutput: failure.outputTail,
+          sourceCriterion: criterion,
+          testPath: 'test/',
+          timestamp: DateTime.now().toUtc().toIso8601String(),
+        ),
+      );
+    } on FileSystemException catch (e) {
+      stderr.writeln(
+        'zfa tdd: failed to record the failed-step diagnostics in '
+        'tdd/cycle-log.md ($e)',
+      );
+    }
+    _lastStepFailure = failure;
+  }
+
+  /// The diagnostic output tail (issue #1329): the LAST [maxLines] lines
+  /// of the step's combined stderr/stdout — failures end in the error
+  /// (stack traces, the failing summary line), the head is the least
+  /// diagnostic part — with an honest marker naming the dropped count
+  /// when truncation happens. The same tail the cycle-log error entry
+  /// and the journal error object record.
+  static String _outputTail(String output, {int maxLines = 200}) {
+    final lines = output.split('\n');
+    // A trailing newline yields a final empty segment — not a line.
+    if (lines.isNotEmpty && lines.last.isEmpty) lines.removeLast();
+    if (lines.length <= maxLines) return lines.join('\n').trimRight();
+    return '[... output truncated — showing the last $maxLines of '
+        '${lines.length} lines (first ${lines.length - maxLines} dropped) '
+        '...]\n'
+        '${lines.sublist(lines.length - maxLines).join('\n')}';
   }
 
   void _printOutputExcerpt(String output) {
@@ -1918,6 +2202,29 @@ typedef _Stop = ({
   int exitCode,
   String? message,
 });
+
+/// Issue #1329: one failed step's diagnostic evidence — what the
+/// error-outcome path records in the cycle log (the `error` entry) and
+/// the lane journal entry (the structured `error` object): the failed
+/// step's identity, the spawned command, the exit code, and the
+/// truncated stderr/stdout tail.
+class _StepFailure {
+  const _StepFailure({
+    required this.behaviorId,
+    required this.step,
+    required this.outcome,
+    required this.exitCode,
+    required this.command,
+    required this.outputTail,
+  });
+
+  final String behaviorId;
+  final String step;
+  final String outcome;
+  final int exitCode;
+  final String command;
+  final String outputTail;
+}
 
 /// The outcome of driving one behavior through its step window: the
 /// updated run state plus, when the run must stop, the [_Stop] report.

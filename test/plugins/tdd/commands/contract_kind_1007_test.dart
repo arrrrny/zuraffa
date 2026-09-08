@@ -227,13 +227,12 @@ void main() {
             'LoginUseCase.execute | PENDING |',
           ),
         );
-        // The routing provenance names the declared lane.
+        // The routing provenance names the declared lane AND the
+        // declared contract row (issue #1319): contract:A1 is derived
+        // from the `User` Layer Contracts row.
         expect(
           out,
-          contains(
-            'route: contract:A1 -> contract lane '
-            '[declared: layer contracts section]',
-          ),
+          contains('route: contract:A1 -> contract lane [declared: User]'),
         );
       });
 

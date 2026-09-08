@@ -137,23 +137,110 @@ class SpecParser {
   /// gen pair is a view-builder stub + a `testWidgets` test.
   ///
   /// Bug #936: Then-clauses are passive/past by convention ("an error
-  /// message is rendered", "the user is navigated", "a spinner is shown",
-  /// "the avatar is displayed"), so the verb alternation covers the full
-  /// conjugation (`render(?:s|ed|ing)?`, `navigat(?:e|es|ed|ion|ing)`)
-  /// and adds the missing outcome verbs `display(?:s|ed|ing)?` and
-  /// `shows?|shown`. Word boundaries stay anchored; "navigation" already
-  /// matched before #936, so this only completes the grammar — it does
-  /// not widen the concept set.
+  /// message is rendered", "the user is navigated"), so the verb
+  /// alternation covers the full conjugation (`render(?:s|ed|ing)?`,
+  /// `navigat(?:e|es|ed|ion|ing)`, `display(?:s|ed|ing)?`). Word
+  /// boundaries stay anchored; "navigation" already matched before #936.
+  ///
+  /// Issue #1318: the weak outcome verbs `shows?|shown` moved OUT of the
+  /// unconditional alternation — matched with no subject context they
+  /// routed SSE event-schema assertions ("the decision_made event shows
+  /// outcome: clarify") widget-kind, and the spec-1000 noFlutter guard
+  /// hard-refused every all-CORE server spec. They survive in
+  /// [_weakAppearanceVerb], gated on a co-occurring [_uiSurfaceNoun]; the
+  /// strong #830/#936 grammar below (render/navigate/display + layout
+  /// nouns) is unchanged.
   static final RegExp uiAcceptanceIntent = RegExp(
     r'\b(render(?:s|ed|ing)?|sidebar|bottom nav|tab bar|app bar|app shell|'
-    r'themes?|widgets?|navigat(?:e|es|ed|ion|ing)|display(?:s|ed|ing)?|'
-    r'shows?|shown)\b',
+    r'themes?|widgets?|navigat(?:e|es|ed|ion|ing)|display(?:s|ed|ing)?)\b',
+    caseSensitive: false,
+  );
+
+  /// Issue #1318: event-noun subject + content verb — "the decision_made
+  /// event shows outcome: clarify", "the content_delta events contain the
+  /// clarification", "the response includes the schema". The subject is
+  /// protocol, not surface: the verb describes the event's PAYLOAD, so
+  /// the prose is an event/protocol schema assertion even when a UI
+  /// surface noun co-occurs in the payload description ("the event shows
+  /// the dialog id in its payload"). Such scenarios route CORE by
+  /// default; an explicit `**Type**` marker is the escape hatch. The
+  /// optional modifier word before the noun keeps compound subjects
+  /// covered (`decision_made event`, `SSE response`, `error message`).
+  /// `render/navigate/display` are deliberately NOT content verbs here:
+  /// they are the #936 grammar's backbone, and #1318's named scope is the
+  /// shows/includes/carries family. `has`/`have` exclude only as MAIN
+  /// verbs — the `(?!\s+been)` lookahead keeps perfect-tense passives
+  /// ("the message has been rendered", the #936 convention) out of the
+  /// exclusion so the strong grammar still sees them.
+  static final RegExp _eventNounSubject = RegExp(
+    r'\b(?:[\w-]+\s+)?'
+    r'(?:events?|messages?|responses?|payloads?|streams?|frames?|'
+    r'notifications?)\s+'
+    r'(?:shows?|shown|includes?|contains?|carries?|presents?|returns?|'
+    r'holds?|h(?:as|ave)(?!\s+been))\b',
+    caseSensitive: false,
+  );
+
+  /// Issue #1318: the weak appearance verbs — #936's `shows?|shown` plus
+  /// `appears?` ("the dialog appears with the title") — matched with NO
+  /// subject context are ambiguous: "the decision_made event shows
+  /// outcome: clarify" is protocol prose, "the screen shows a spinner" is
+  /// UI. They no longer live in the unconditional [uiAcceptanceIntent]
+  /// alternation; [isUiAcceptance] routes them widget-kind only when a
+  /// [_uiSurfaceNoun] co-occurs.
+  static final RegExp _weakAppearanceVerb = RegExp(
+    r'\b(shows?|shown|appears?)\b',
+    caseSensitive: false,
+  );
+
+  /// Issue #1318: the UI surface nouns a weak appearance verb needs in
+  /// order to route widget-kind. `dialogs?`/`screens?`/`pages?` join the
+  /// #830 layout set here ONLY (not in [uiAcceptanceIntent]) — a noun
+  /// alone ("they see the home screen") stays acceptance, while
+  /// noun+appearance-verb prose ("the screen shows a spinner", "the
+  /// dialog appears with the title", "the page shows the settings form")
+  /// is genuine UI intent. For `shows?|shown` widening THIS set never
+  /// widens routing beyond pre-#1318 (the bare verb sufficed, so every
+  /// verb+noun pair already routed widget). `appears?` is the exception:
+  /// it was NOT in the pre-#1318 alternation, so "the dialog appears"
+  /// routed acceptance before #1318 — a deliberate widening (see the RED
+  /// table in specs/1318-noflutter-false-positive-on-event-prose/tdd/).
+  static final RegExp _uiSurfaceNoun = RegExp(
+    r'\b(sidebar|bottom nav|tab bar|app bar|app shell|themes?|widgets?|'
+    r'dialogs?|screens?|pages?)\b',
+    caseSensitive: false,
+  );
+
+  /// Separates independently asserted predicates without splitting noun
+  /// lists inside one predicate. This keeps an event-content exclusion local
+  /// to its clause while allowing a sibling UI assertion to classify.
+  static final RegExp _predicateClauseBoundary = RegExp(
+    r'(?:[.!?;]\s+|,\s*(?:and|but|while)\s+|'
+    r'\s+(?:and|but|while)\s+(?=(?:the|a|an|i|we|they|you)\b))',
     caseSensitive: false,
   );
 
   /// Whether an acceptance scenario's prose carries UI intent (bug #830).
-  static bool isUiAcceptance(String description) =>
-      uiAcceptanceIntent.hasMatch(description);
+  ///
+  /// Issue #1318 ordering: within each predicate clause, the event-noun
+  /// exclusion is checked FIRST — a content verb whose subject is an event
+  /// noun is protocol prose, never a rendered surface. A separate clause may
+  /// still carry UI intent. The weak appearance verbs
+  /// (`shows?|shown|appears?`) survive only with a co-occurring UI surface
+  /// noun. Ambiguous prose keeps its sanctioned escape hatch: declare the
+  /// scenario with a `**Type**` marker (the declaration outranks the
+  /// classifier in both directions).
+  static bool isUiAcceptance(String description) {
+    for (final clause in description.split(_predicateClauseBoundary)) {
+      if (_eventNounSubject.hasMatch(clause)) continue;
+      if (uiAcceptanceIntent.hasMatch(clause)) return true;
+      if (_weakAppearanceVerb.hasMatch(clause) &&
+          _uiSurfaceNoun.hasMatch(clause)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   /// The inline non-automatable declaration on a scenario header line
   /// (bug #846): a manual scenario consumes an AC number but emits no
@@ -1079,25 +1166,115 @@ class SpecParser {
       .toList();
 
   /// The FR contract-trace continuation scan (feature 071): a `traces:`
-  /// line following an FR names the contract rows the requirement
+  /// line within an FR's block names the contract rows the requirement
   /// exercises. Keyed by the document-wide unit id.
+  ///
+  /// Issue #1319: the scan consumes the ENTIRE FR block — every
+  /// continuation line after the FR header until the next FR/requirement
+  /// header (bullet or FR-table row), a markdown heading, or an
+  /// acceptance scenario header — not just the single line immediately
+  /// after the header. Multi-line FRs are the common case (the
+  /// zuraffa-1.0 template wraps FR text at ~80 columns) and put
+  /// `traces:` after the wrap; the old `lines[i + 1]`-only scan silently
+  /// dropped it, the plan kept the legacy fallback routing, and
+  /// `zfa tdd run` dead-ended vacuous-green (#1308) with no hint that
+  /// the author's `traces:` line was never read. The FIRST `traces:`
+  /// line of a block wins, so a single-line FR binds byte-identically
+  /// to the pre-#1319 behavior.
   static Map<String, List<String>> parseFrContractTraces(String specMd) {
     final traces = <String, List<String>>{};
-    final lines = normalizeSpecText(specMd).split('\n');
-    final tracesLine = RegExp(r'^\s+traces:\s*(.+)$');
+    // Fenced code blocks are documentation, not declarations (mirrors
+    // parseScenarioTypeMarkers): a `traces:`-looking line inside a ```
+    // example must neither bind nor count as unbound.
+    final blanked = normalizeSpecText(specMd).replaceAllMapped(
+      _fencedCodeBlock,
+      (m) => '\n' * '\n'.allMatches(m.group(0)!).length,
+    );
+    final lines = blanked.split('\n');
     var uIdx = 0;
     for (var i = 0; i < lines.length; i++) {
       // Issue #1196: the shared FR-line helper (bullet or table form)
       // keeps the U-id numbering aligned with _extractUnit.
       if (_frLine(lines[i]) == null) continue;
       uIdx += 1;
-      final t = i + 1 < lines.length
-          ? tracesLine.firstMatch(lines[i + 1])
-          : null;
-      if (t == null) continue;
-      traces['U$uIdx'] = traceTokens(t.group(1)!);
+      // Issue #1319: walk the whole FR block — the continuation lines
+      // until the next FR/requirement header, heading, or scenario
+      // header — and bind the first `traces:` line in it.
+      for (var j = i + 1; j < lines.length; j++) {
+        if (_endsFrBlock(lines[j])) break;
+        final t = _tracesLine.firstMatch(lines[j]);
+        if (t == null) continue;
+        traces['U$uIdx'] = traceTokens(t.group(1)!);
+        break;
+      }
     }
     return traces;
+  }
+
+  /// Issue #1319: a line that ends the FR block a `traces:` continuation
+  /// may visually attach to — the next FR/requirement header (bullet or
+  /// FR-table row), a markdown heading, or an acceptance scenario
+  /// header. Shared by the binding scan ([parseFrContractTraces]) and
+  /// the owner-attribution walk ([findUnboundFrTraces]) so the two
+  /// cannot disagree about where a block ends.
+  static bool _endsFrBlock(String line) =>
+      _frLine(line) != null ||
+      _frBlockBoundary.hasMatch(line) ||
+      _scenarioHeader.hasMatch(line);
+
+  /// Markdown ATX headings (`#`..`######`) — a new section starts, so
+  /// the FR block above it is over.
+  static final RegExp _frBlockBoundary = RegExp(r'^\s*#{1,6}(\s|$)');
+
+  /// The `traces:` continuation line under an FR (feature 071, #1319) —
+  /// one shared pattern so the binding scan and the attribution walk
+  /// cannot drift apart.
+  static final RegExp _tracesLine = RegExp(r'^\s+traces:\s*(.+)$');
+
+  /// Issue #1319: the FR ids whose block contains a `traces:` line that
+  /// did NOT yield a contract-row binding in [bound] (the
+  /// `parseFrContractTraces` result, keyed by unit id). An FR whose
+  /// binding is missing or EMPTY (every token dropped, e.g. a lone
+  /// backticked signature) counts as unbound — exactly the silent-
+  /// fallback input plan must never stay quiet about.
+  ///
+  /// The owner of a `traces:` line is the nearest preceding FR header;
+  /// a heading or an acceptance scenario header between the two breaks
+  /// the visual attachment (the line belongs to no FR). Plan warns
+  /// loudly for every reported FR instead of silently falling back to
+  /// the legacy classifier — the silent fallback re-created the #1308
+  /// vacuous-green dead-end with zero author-facing hint.
+  static Set<String> findUnboundFrTraces(
+    String specMd,
+    Map<String, List<String>> bound,
+  ) {
+    final unbound = <String>{};
+    final blanked = normalizeSpecText(specMd).replaceAllMapped(
+      _fencedCodeBlock,
+      (m) => '\n' * '\n'.allMatches(m.group(0)!).length,
+    );
+    final lines = blanked.split('\n');
+    String? owner;
+    var uIdx = 0;
+    for (final line in lines) {
+      final fr = _frLine(line);
+      if (fr != null) {
+        uIdx += 1;
+        owner = fr.$1;
+        continue;
+      }
+      if (_frBlockBoundary.hasMatch(line) || _scenarioHeader.hasMatch(line)) {
+        owner = null;
+        continue;
+      }
+      if (owner != null && _tracesLine.hasMatch(line)) {
+        // The FR owns a traces: line — binding is decided by the
+        // caller's map: missing or empty = unbound.
+        final id = 'U$uIdx';
+        if ((bound[id] ?? const <String>[]).isEmpty) unbound.add(owner);
+      }
+    }
+    return unbound;
   }
 
   /// The `_persistence` declaration scan (feature 071): FR lines
@@ -1114,7 +1291,6 @@ class SpecParser {
         .map((r) => r.name)
         .toSet();
     final lines = normalizeSpecText(specMd).split('\n');
-    final tracesLine = RegExp(r'^\s+traces:\s*(.+)$');
     var uIdx = 0;
     for (var i = 0; i < lines.length; i++) {
       // Issue #1196: the shared FR-line helper (bullet or table form)
@@ -1126,7 +1302,7 @@ class SpecParser {
       final tagged = _carriesPersistentTag(m.$2);
       final traceTokens = <String>[];
       if (i + 1 < lines.length) {
-        final t = tracesLine.firstMatch(lines[i + 1]);
+        final t = _tracesLine.firstMatch(lines[i + 1]);
         if (t != null) {
           traceTokens.addAll(SpecParser.traceTokens(t.group(1)!));
         }
