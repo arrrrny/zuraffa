@@ -74,6 +74,7 @@ import '../models/generation_plan.dart';
 import '../models/red_classification.dart';
 import '../models/routing.dart';
 import '../services/artifact_registry.dart';
+import '../services/arg_placeholder.dart';
 import '../services/composition_planner.dart';
 import '../services/composition_targets.dart';
 import '../services/cycle_evidence.dart';
@@ -666,6 +667,13 @@ class MakeCommand extends Command<void> {
     //    explicitly empty generation block is appended, and the summary
     //    reports `outcome=skipped` with exit 0 so `zfa tdd run`
     //    proceeds past already-completed behaviors instead of stopping.
+    //    Issue #1323 (spec 991 FR-005): this re-run is ALSO the
+    //    re-certification after a hand-delta — when the user applied
+    //    the `_argN()` remedy by hand-editing the generated test, the
+    //    certified-red entry in the cycle-log NEVER short-circuits this
+    //    verification: the UPDATED test is re-run right here and the
+    //    cycle is re-certified red (proceed to generation) or green
+    //    (the skip transition) from it.
     // ---------------------------------------------------------------
     final driftRun = await runner.runSingle(
       singleTemplate: singleTemplate,
@@ -1133,6 +1141,61 @@ class MakeCommand extends Command<void> {
             'zfa tdd make: target test still fails after generation '
             '(exit ${postRun.exitCode}).',
           );
+          // Issue #1323 (spec 991): diagnose the GENERATED `_argN()`
+          // placeholder BEFORE the generic stop. A declared contract
+          // param the writer cannot scalar-literalize emits the
+          // placeholder helper; a still-failing red whose transcript
+          // names that helper IS the designed hand-delta seam, and
+          // grading it as a bare `generation-error` dead-ended the
+          // two-cycle run with a stop output that never named the
+          // remedy (it only existed inside a thrown exception message
+          // mid-test-output). Two signals must agree (FR-001): the
+          // test file carries the marker helper AND the transcript
+          // carries the message token — an unrelated red keeps the
+          // honest generic stop.
+          final handDelta = await _argPlaceholderDiagnosis(
+            testPath: testPath,
+            runOutput: postRun.output,
+          );
+          if (handDelta != null) {
+            final relativeTest = p.isAbsolute(testPath)
+                ? p.relative(testPath, from: cwd)
+                : testPath;
+            final remedy = argPlaceholderRemedy(
+              index: handDelta.index,
+              testPath: relativeTest.replaceAll('\\', '/'),
+              declaredType: handDelta.declaredType,
+              behaviorId: record.behaviorId,
+            );
+            print(
+              'zfa tdd make: the failure is the GENERATED '
+              "_arg${handDelta.index}() placeholder for a non-scalar "
+              'declared param (issue #1323).',
+            );
+            print('   --> fix: $remedy.');
+            print(
+              '   the placeholder is the designed hand-delta seam: apply '
+              'the edit to the generated test, then re-run make — the '
+              're-run re-verifies the updated test before generating '
+              '(the drift check, FR-005) and certifies the cycle from '
+              'it.',
+            );
+            // The failed-make contract holds for the seam too (issue
+            // #1036): the certified-red subject shape survives
+            // untouched.
+            await _restoreSubjectIfMutated(
+              subjectFile,
+              subjectSnapshot,
+              reason: 'the make stopped with a hand-delta-required',
+            );
+            _printSummary(
+              behavior: record.behaviorId,
+              outcome: MakeOutcome.handDeltaRequired,
+              feature: target.featureName,
+            );
+            exitCode = 1;
+            return;
+          }
           // Issue #1036: same failed-make contract as the step-failure
           // path — the certified-red subject shape survives untouched.
           await _restoreSubjectIfMutated(
@@ -1734,6 +1797,28 @@ class MakeCommand extends Command<void> {
     final subjectFile = File(subjectPath);
     if (!await subjectFile.exists()) return null;
     return sha256.convert(await subjectFile.readAsBytes()).toString();
+  }
+
+  /// Issue #1323 (spec 991 FR-001): the two-signal `_argN()` placeholder
+  /// diagnosis over the still-failing target run — the test file must
+  /// carry the generated marker helper AND the transcript must carry the
+  /// placeholder's message token. Unreadable test files (deleted between
+  /// the run and this read, permission-denied) fail CLOSED — null, the
+  /// generic stop stands — so a filesystem hiccup can never fabricate a
+  /// hand-delta seam.
+  Future<ArgPlaceholderHit?> _argPlaceholderDiagnosis({
+    required String testPath,
+    required String runOutput,
+  }) async {
+    try {
+      final testContent = await File(testPath).readAsString();
+      return argPlaceholderHitOf(
+        testContent: testContent,
+        runOutput: runOutput,
+      );
+    } on FileSystemException {
+      return null;
+    }
   }
 
   /// Issue #1036: a FAILED make must leave the subject file byte-identical
