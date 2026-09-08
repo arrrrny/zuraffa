@@ -70,7 +70,7 @@ records where each package stands as of the last audit.
 | `zuraffa` | ✅ 6.2.1 | local pubspec **6.2.0** ⚠️ | ✅ | ✅ | ✅ | ✅ | Publish OK; **merge 6.2.1 bump back to master** |
 | `zuraffa_flutter` | ✅ 6.2.1 | 6.2.1 | ✅ | ✅ | ✅ | ✅ (points at zuraffa repo) | Healthy |
 | `zuraffa_ui` | ✅ 0.1.0 | 0.1.0 | ✅ | ✅ | ✅ | ⚠️ repo URL redirects (renamed repo); homepage points at the upstream shadcn port docs | Fix URLs next release |
-| `zuraffa_agent` | ❌ `publish_to: none` | — | ✅ | ❌ | ❌ | — | Intentionally private (fill docs if it ever goes public) |
+| `zuraffa_agent` | ✅ **0.1.1 LIVE** (2026-09-08; 0.1.0 was an early 2026-08-23 publish) | 0.1.1 | ✅ | ✅ (added) | ✅ (added) | ✅ | Template-conformant, hosted zuraffa dep, 85 specs migrated to current zfa format, 1202 tests green; 30 open issues deferred to 0.2.0 |
 | `zuraffa_browser` | ❌ `publish_to: none` | 1.0.0+1 | ❌ | ✅ | ❌ | — | Intentionally private (needs LICENSE+CHANGELOG if promoted) |
 | `zuraffa_intents` | ✅ **1.0.0 LIVE** (2026-09-08) | 1.0.0 | ✅ | ✅ | ✅ | ✅ | Published from its repo; tagged `v1.0.0` |
 | `zuraffa_permissions` federated set | ✅ **0.1.0 LIVE** (2026-09-08) | 0.1.0 ×5 | ✅ all 5 | ✅ all 5 | ✅ all 5 | ✅ all 5 | Published in DAG order (app-facing → PI → impls); tagged `v0.1.0` |
@@ -83,7 +83,12 @@ records where each package stands as of the last audit.
 3. ~~**zuraffa_permissions**: blocked on packaging~~ ✅ RESOLVED 2026-09-08 — all 5 packages
    published at 0.1.0 in dependency order (arrrrny/zuraffa_permissions#10).
 4. ~~**zuraffa_intents**: ready~~ ✅ PUBLISHED 2026-09-08 — 1.0.0 live, tagged `v1.0.0`.
-5. **TDD gate before every publish**: re-run the suite + `zfa tdd verify`/mutation sweep on the
+5. ~~**zuraffa_agent**: intentionally private~~ ✅ PUBLISHED 2026-09-08 — 0.1.1 live (0.1.0
+   was an early 2026-08-23 publish), tagged `v0.1.1`; all 85 specs migrated to the current
+   zfa format, 85/85 plan gates green, 1202 tests passing. Misfire workaround filed as
+   arrrrny/zuraffa#1344 (zuraffa 6.2.1 agent-runtime barrel collisions). 30 open
+   zuraffa_agent issues deferred to its 0.2.0.
+6. **TDD gate before every publish**: re-run the suite + `zfa tdd verify`/mutation sweep on the
    day of publish, not just at feature completion (this checklist makes it a standing rule).
    — followed for the 2026-09-08 publishes: intents 42/42 + mutant matrix; permissions 22/22 +
    25/25 mutation sweep (quality A) + PI 17/17.
