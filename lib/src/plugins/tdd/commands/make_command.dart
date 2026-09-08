@@ -718,7 +718,14 @@ class MakeCommand extends Command<void> {
     var adoptedReDrive = false;
     if (alreadyGreen) {
       final reDrive = await _tombstonedReDrive(target.featureDir, record);
-      if (reDrive) {
+      // A tombstone invalidates the certified HASH basis, not the #1036
+      // subject-shape guard: a born-green placeholder subject (scaffolded
+      // marker, still-throwing stubs) must never be adopted into green —
+      // the passing test would be vacuous against it. Placeholders keep
+      // the drift refusal below.
+      final adoptable =
+          reDrive && !await _subjectIsBornGreenPlaceholderOnDisk(cwd, record);
+      if (adoptable) {
         adoptedReDrive = true;
         print(
           '   re-drive adoption (issue #1331): the last reset tombstone '
@@ -729,6 +736,13 @@ class MakeCommand extends Command<void> {
           'post-adoption drift still refuses.',
         );
       } else {
+        if (reDrive) {
+          print(
+            '   re-drive adoption withheld: the on-disk subject is a '
+            'born-green placeholder, so the passing target test proves '
+            'nothing (issue #1036) — the subject-drift refusal stands.',
+          );
+        }
         // Issue #1036: the skip transition must verify the subject under
         // test is the SAME shape the certified evidence captured. A make
         // that rewrote the subject (the acceptance func-scaffold rewrite
@@ -1855,11 +1869,37 @@ class MakeCommand extends Command<void> {
     final lastGreen = await CycleEvidence(
       featureDir,
     ).lastEntryFor(record.behaviorId, kind: 'green');
-    final at = lastGreen?.at;
-    if (at == null || at.isEmpty) return true;
+    // No green entry left at all — the re-drive class stands.
+    if (lastGreen == null) return true;
+    // A PRESENT green entry whose timestamp is missing or unparseable
+    // cannot prove it predates the tombstone — fail closed (the #1036
+    // refusal stands exactly as before).
+    final at = lastGreen.at;
+    if (at == null || at.isEmpty) return false;
     final greenAt = DateTime.tryParse(at);
     if (greenAt == null) return false;
     return greenAt.isBefore(tombstoneAt);
+  }
+
+  /// Whether the behavior's subject file on disk is one of the
+  /// born-green placeholder shapes (issue #1036) — the gate that keeps a
+  /// tombstoned re-drive from adopting an empty scaffold into green.
+  /// Unreadable subject files fail CLOSED (treated as a placeholder —
+  /// the refusal stands), never silently adopted.
+  Future<bool> _subjectIsBornGreenPlaceholderOnDisk(
+    String cwd,
+    ArtifactRecord record,
+  ) async {
+    final subjectPath = p.isAbsolute(record.subjectPath)
+        ? record.subjectPath
+        : p.join(cwd, record.subjectPath);
+    try {
+      return subjectIsBornGreenPlaceholder(
+        await File(subjectPath).readAsString(),
+      );
+    } on FileSystemException {
+      return true; // unreadable — keep the refusal (safe failure)
+    }
   }
 
   /// Issue #1162: whether a red-basis drift is the SANCTIONED

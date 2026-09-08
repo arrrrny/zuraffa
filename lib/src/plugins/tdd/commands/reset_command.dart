@@ -252,6 +252,41 @@ class ResetCommand extends Command<void> {
         '${_displayPath(cwd, path)} — the file survives on disk',
       );
     }
+    if (survivors.isNotEmpty) {
+      // A surviving owned file must NOT lose its registry record: with
+      // the registry dropped, the survivor is outside every future
+      // reset's delete set forever (the orphan class). Retain the
+      // registry and run-state, skip the tombstone (the behaviors are
+      // NOT invalidated — they still own their records), and fail.
+      print(
+        '  reset validation: ${survivors.length} owned file(s) survived — '
+        'the registry and run-state are RETAINED so a later reset still '
+        'owns them. --> fix: resolve the cause (permissions, locks, a '
+        'running process holding the file), then re-run '
+        '`zfa tdd reset $feature`.',
+      );
+      _printVerdict(
+        feature: feature,
+        verdict: 'refused',
+        reason: '${survivors.length} owned file(s) survived deletion',
+        droppedFiles: deleteSet
+            .map((path_) => _displayPath(cwd, path_))
+            .toList(),
+        droppedRecords: records.length,
+        foreignKept: foreignKept,
+        invalidatedBehaviors: const [],
+        deletedFiles: actuallyDeleted
+            .map((path_) => _displayPath(cwd, path_))
+            .toList(),
+        pathDrift: pathDrift,
+        foreignOwnedLooking: scan.foreignOwnedLookingById.values
+            .expand((paths) => paths)
+            .map((path_) => _displayPath(cwd, path_))
+            .toList(),
+      );
+      exitCode = 1;
+      return;
+    }
     final registryFile = File(registry.registryPath);
     if (await registryFile.exists()) await registryFile.delete();
     final runStateFile = File(p.join(featureDir, 'tdd', 'run-state.json'));
@@ -311,6 +346,11 @@ class ResetCommand extends Command<void> {
   }) async {
     final recoveredById = <String, List<String>>{};
     final foreignOwnedLookingById = <String, List<String>>{};
+    // Cross-registry safety (bug #874): another feature's live registry
+    // owning the path makes it foreign-owned — adopting it into this
+    // reset's delete set would corrupt ownership. The ownership map is
+    // built ONCE (each per-file query would reload every registry).
+    final ownersByPath = await ownershipByPathAcrossFeatures(cwd);
     for (final dir in [p.join(cwd, 'test', 'tdd'), p.join(cwd, 'lib', 'tdd')]) {
       final d = Directory(dir);
       if (!d.existsSync()) continue;
@@ -330,13 +370,8 @@ class ResetCommand extends Command<void> {
             matchesGeneratedTestShape(content, id) ||
             matchesGeneratedSubjectShape(content, id);
         if (!shaped) continue;
-        // Cross-registry safety (bug #874): another feature's live
-        // registry owning the path makes it foreign-owned — adopting it
-        // into this reset's delete set would corrupt ownership.
-        final foreignOwner = await foreignOwnerOf(cwd, [
-          normalized,
-        ], excludeFeature: feature);
-        if (foreignOwner != null) {
+        final owner = ownersByPath[normalizeArtifactPath(cwd, normalized)];
+        if (owner != null && owner != feature) {
           foreignOwnedLookingById.putIfAbsent(id, () => []).add(normalized);
           continue;
         }

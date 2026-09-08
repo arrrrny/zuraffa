@@ -6,14 +6,14 @@ scaffolding the behaviors drive out.
 
 ## Group 1 — Reset owns its deletion (SC-1, SC-2, SC-3)
 
-- [ ] T1. `reset_command.dart`: normalize recorded paths against the
+- [x] T1. `reset_command.dart`: normalize recorded paths against the
   project root (`normalizeArtifactPath`) before the existence check;
   build the delete set from the normalized paths that exist.
-- [ ] T2. `reset_command.dart`: recursive generated-layout scan
+- [x] T2. `reset_command.dart`: recursive generated-layout scan
   (`test/tdd`, `lib/tdd`) for generated-shape files whose provenance
   names a dropped behavior id; consult `foreignOwnerOf` so another
   feature's live registry ownership keeps the file (reported by name).
-- [ ] T3. `reset_command.dart`: pre-action output — path-drift warnings
+- [x] T3. `reset_command.dart`: pre-action output — path-drift warnings
   per dropped record whose normalized recorded paths do not exist,
   foreign-but-owned-looking files by name, the unified will-delete list;
   post-action validation — re-stat every planned deletion, prove the

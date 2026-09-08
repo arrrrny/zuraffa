@@ -55,8 +55,9 @@ The implementation that flipped them:
   streams); `tombstonedBehaviors` now delegates to it (identical
   semantics for the run driver).
 - `commands/make_command.dart`: `_tombstonedReDrive` probe
-  (tombstoned AND last green predates the tombstone — else fail-closed);
-  the adoption path prints the re-drive note, appends green evidence
+  (tombstoned AND the last green entry either is absent entirely or its
+  timestamp predates the tombstone — a green entry that is present but
+  carries an empty/unparseable timestamp fails closed; the adoption path prints the re-drive note, appends green evidence
   binding the CURRENT subject hash, and reports `outcome=adopted`
   (verdict outcome `pass`, exit 0). The `_subjectDriftRefusal` logic is
   untouched and still runs for every non-re-drive class.
