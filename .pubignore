@@ -5,33 +5,38 @@ lib/tdd/
 test/fixtures/
 
 # Coverage
-coverage/
+# Patterns below are ROOT-ANCHORED (leading slash) on purpose: pub applies
+# gitignore semantics, and an unanchored `name/` matches directories named
+# `name` at ANY depth — `benchmark/` excluded lib/src/core/benchmark/ and
+# lib/src/plugins/benchmark/ from the published tarball of 6.2.0/6.2.1 while
+# lib/zuraffa.dart still exported it (bug 1307, day-zero compile breakage).
+/coverage/
 
 # Environment files
 .env
 
 # Worktrees
-.worktrees/
+/.worktrees/
 
 # Specs
-specs/
+/specs/
 
 # Contracts
-contracts/
+/contracts/
 
 # Apps
-apps/
+/apps/
 
 # Benchmark
-benchmark/
-benchmarks/
+/benchmark/
+/benchmarks/
 
 # Example lock files
 example/pubspec.lock
 examples/*/pubspec.lock
 
 # Build artifacts
-build/
+/build/
 
 # .zuraffa plans
 .zuraffa/plans/
