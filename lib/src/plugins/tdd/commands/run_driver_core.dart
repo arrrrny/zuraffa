@@ -1471,11 +1471,8 @@ class RunDriverCore {
             'outcome=${result.outcome}',
           );
           _printOutputExcerpt(result.output);
-          if (testPath != null &&
-              contentCarriesVacuousGuardMarker(
-                File(testPath).readAsStringSync(),
-              )) {
-            final relPath = p.relative(testPath, from: projectRoot);
+          if (_testCarriesVacuousGuardMarker(testPath)) {
+            final relPath = p.relative(testPath!, from: projectRoot);
             print(
               '   the traced contract\'s return is void/an entity — the '
               '$vacuousGuardMarker marker IS the designed hand-delta seam '
@@ -1662,6 +1659,24 @@ class RunDriverCore {
       if (File(candidate).existsSync()) return candidate;
     }
     return null;
+  }
+
+  /// Whether the generated test at [testPath] carries the
+  /// [vacuousGuardMarker]. Unreadable files (deleted between
+  /// `_existingGeneratedTestPath`'s exists check and this read,
+  /// permission-denied, or a directory at the test path) fail OPEN —
+  /// marker absent — so the vacuous-green stop falls into the
+  /// fallback-remedy arm instead of crashing the whole run with an
+  /// unhandled FileSystemException.
+  bool _testCarriesVacuousGuardMarker(String? testPath) {
+    if (testPath == null) return false;
+    try {
+      return contentCarriesVacuousGuardMarker(
+        File(testPath).readAsStringSync(),
+      );
+    } on FileSystemException {
+      return false;
+    }
   }
 
   /// Issue #1308: the journal hand-step violation for a stop reported at

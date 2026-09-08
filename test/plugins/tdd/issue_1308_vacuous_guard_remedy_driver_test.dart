@@ -168,10 +168,6 @@ void main() {
     ]);
   }
 
-  setUp(() async {});
-
-  tearDown(() async {});
-
   test(
     'U-1308-5: the fallback vacuous-green stop prescribes the exact traces remedy (stopped_at=<id>:make)',
     () async {
@@ -285,6 +281,52 @@ void main() {
       expect(violations, contains('assertion on the observable outcome'));
     },
   );
+
+  test('U-1308-7: an unreadable generated test fails OPEN — the stop is the '
+      'fallback remedy, not a crash', () async {
+    const feature = '1308-unreadable-marker';
+    fx = await TddFixture.create(featureName: feature);
+    addTearDown(fx.dispose);
+    await writeIssue1308FakeZfa();
+    // The marker-carrying file EXISTS (so the namespaced resolution
+    // finds it) but is UNREADABLE: the marker read must fail OPEN —
+    // marker absent — falling into the fallback-remedy arm instead of
+    // throwing an unhandled FileSystemException out of the driver.
+    final testPath = await seedMarkerTestFile(feature);
+    await fx.seedTestList([
+      (
+        id: 'U1',
+        description: 'creates the user entity',
+        traces: 'FR-001, UserRepo',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+    ]);
+    await File(
+      p.join(fx.fakeZfaDir, 'config', 'make-U1'),
+    ).writeAsString('vacuous-green');
+
+    await Process.run('chmod', ['000', testPath]);
+    String out;
+    try {
+      out = await drive(feature);
+    } finally {
+      await Process.run('chmod', ['644', testPath]);
+    }
+
+    // The run driver SURVIVED (no unhandled read crash) and the stop is
+    // the honest fallback arm...
+    expect(out, contains('stopped_at=U1:make'), reason: out);
+    expect(out, isNot(contains('stopped_at=U1:hand')), reason: out);
+    expect(
+      out,
+      contains(
+        'add traces: <ContractRow> to the FR, re-run zfa tdd plan, '
+        're-run zfa tdd gen, re-run zfa tdd run',
+      ),
+      reason: out,
+    );
+  });
 
   test(
     'U-1308-4: the gen child guard-only warning is forwarded into the run transcript',
