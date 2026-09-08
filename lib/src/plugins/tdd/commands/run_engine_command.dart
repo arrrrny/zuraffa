@@ -36,6 +36,7 @@ import '../../../engine/engine_gate_receipt.dart';
 import '../../mock/certification/cert_registry.dart';
 import '../../mock/certification/mock_cert_receipt.dart';
 import '../models/verdict_envelope.dart';
+import '../services/cycle_log_terminal_receipt.dart';
 import '../services/entity_lookup.dart';
 import '../services/journal.dart';
 import '../services/test_list_reader.dart';
@@ -312,6 +313,23 @@ class RunEngineCommand extends Command<void> {
     );
     _collectVerdict(outcome);
     if (outcome.message != null) print('zfa tdd $label: ${outcome.message}');
+    // Issue #1327: the lane's spawned steps appended evidence to
+    // tdd/cycle-log.md (verify-red's red witness, make's green evidence,
+    // the refactor evidence) after the last `tdd make` receipt covering
+    // the log was written. On a COMPLETE lane, close the run with ONE
+    // terminal receipt re-hashing the log to its final bytes so
+    // result=complete implies `zfa proof check` passes with zero
+    // digest-drift findings. A run that stopped early writes nothing —
+    // its receipt drift stays the honest record (criterion 4).
+    // Best-effort: a record, never a gate; the summary line stays the
+    // run's final stdout line (FR-009/FR-010).
+    if (outcome.result == 'complete') {
+      await CycleLogTerminalReceipt.refreshBestEffort(
+        projectRoot: projectRoot,
+        feature: feature,
+        command: 'tdd $label',
+      );
+    }
     print(
       RunDriverCore.summaryLine(
         label: label,
