@@ -179,14 +179,16 @@ void main() {
     test('U7: the violation names the hand step, the exact edit, and the '
         'file', () {
       final violation = argPlaceholderHandStepViolation(
+        index: 1,
         behaviorId: 'U6',
         testPath: 'test/tdd/1323-hand-delta/u6_test.dart',
-        declaredType: 'Object',
+        declaredType: 'AuthRequest',
       );
       expect(violation, contains('hand-step=U6:hand'));
-      expect(violation, contains('_arg0()'));
+      expect(violation, contains('_arg1()'));
+      expect(violation, isNot(contains('_arg0()')));
       expect(violation, contains('test/tdd/1323-hand-delta/u6_test.dart'));
-      expect(violation, contains('representative Object'));
+      expect(violation, contains('representative AuthRequest'));
       expect(violation, contains('then re-run zfa tdd make U6'));
     });
   });

@@ -1540,13 +1540,14 @@ class RunDriverCore {
             'outcome=${result.outcome}',
           );
           _printOutputExcerpt(result.output);
-          // The declared type the remedy names comes from the generated
-          // test's marker helper (the content-only probe — the make
-          // child already verified the transcript signal). Unreadable
-          // or hand-edited content degrades to the generic noun; the
-          // make stop's own remedy line (in the excerpt above) always
-          // carries the exact type.
-          final declaredType = _testArgPlaceholderDeclaredType(testPath);
+          // The declared type and the placeholder index the remedy names
+          // come from the generated test's marker helper (the
+          // content-only probe — the make child already verified the
+          // transcript signal). Unreadable or hand-edited content
+          // degrades to the generic noun and index 0; the make stop's
+          // own remedy line (in the excerpt above) always carries the
+          // exact type.
+          final hit = _testArgPlaceholderHit(testPath);
           final relPath = testPath != null
               ? p.relative(testPath, from: projectRoot).replaceAll('\\', '/')
               : p.join(
@@ -1562,7 +1563,7 @@ class RunDriverCore {
             'generated test, which make itself never does.',
           );
           print(
-            '   hand step: ${row.id}:hand — ${argPlaceholderRemedy(index: 0, testPath: relPath, declaredType: declaredType, behaviorId: row.id)}.',
+            '   hand step: ${row.id}:hand — ${argPlaceholderRemedy(index: hit?.index ?? 0, testPath: relPath, declaredType: hit?.declaredType ?? 'value', behaviorId: row.id)}.',
           );
           return (
             state: updated,
@@ -1739,22 +1740,20 @@ class RunDriverCore {
     }
   }
 
-  /// Issue #1323: the DECLARED type of the generated test's first
-  /// `_argN()` placeholder helper — the noun the hand-step remedy names.
-  /// The content-only probe (the make child already verified the
-  /// transcript signal before reporting the outcome). Unreadable files
-  /// or a hand-edited test (the placeholder already replaced) degrade to
-  /// the generic noun 'value' — the make stop's own remedy line, which
-  /// the output excerpt carries, always names the exact type.
-  String _testArgPlaceholderDeclaredType(String? testPath) {
-    if (testPath == null) return 'value';
+  /// Issue #1323: the generated test's FIRST (lowest-index) `_argN()`
+  /// placeholder helper — the index and declared type the hand-step
+  /// remedy names. The content-only probe (the make child already
+  /// verified the transcript signal before reporting the outcome).
+  /// Unreadable files or a hand-edited test (the placeholder already
+  /// replaced) return null — the remedy degrades to the generic noun and
+  /// index 0; the make stop's own remedy line, which the output excerpt
+  /// carries, always names the exact type.
+  ArgPlaceholderHit? _testArgPlaceholderHit(String? testPath) {
+    if (testPath == null) return null;
     try {
-      return argPlaceholderHitInContent(
-            File(testPath).readAsStringSync(),
-          )?.declaredType ??
-          'value';
+      return argPlaceholderHitInContent(File(testPath).readAsStringSync());
     } on FileSystemException {
-      return 'value';
+      return null;
     }
   }
 
@@ -1800,6 +1799,7 @@ class RunDriverCore {
         );
         if (hit != null) {
           return argPlaceholderHandStepViolation(
+            index: hit.index,
             behaviorId: behaviorId,
             testPath: relativeTestPath,
             declaredType: hit.declaredType,

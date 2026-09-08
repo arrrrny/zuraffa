@@ -117,10 +117,14 @@ String argPlaceholderRemedy({
 /// The #1308-parity named hand step for the run driver's stop output and
 /// the lane journal: the hand-step token, what to write (the exact edit)
 /// and where (the generated test file), then the re-run make command.
+/// [index] is the DETECTED placeholder's index — the writer numbers
+/// `_argN()` by param position, so the first placeholder of a contract
+/// with scalar params before the non-scalar one is NOT `_arg0()`.
 String argPlaceholderHandStepViolation({
+  required int index,
   required String behaviorId,
   required String testPath,
   required String declaredType,
 }) =>
     'hand-step=$behaviorId:hand — '
-    '${argPlaceholderRemedy(index: 0, testPath: testPath, declaredType: declaredType, behaviorId: behaviorId)} (issue #1323)';
+    '${argPlaceholderRemedy(index: index, testPath: testPath, declaredType: declaredType, behaviorId: behaviorId)} (issue #1323)';
