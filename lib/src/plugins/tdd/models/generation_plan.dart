@@ -115,7 +115,17 @@ enum MakeOutcome {
   /// no cache clean can fix. The SPEC 917 drift class — the stale
   /// override is corrupt project state — exit 3, no green entry; the
   /// remedy is to correct or remove the override, then re-run.
-  preflightRed('preflight-red');
+  preflightRed('preflight-red'),
+
+  /// A plan `build` step failed because the BUILDER package is not in the
+  /// dependency graph (issue #1322): build_runner warned `Ignoring
+  /// options for unknown builder <key>` and silently generated nothing —
+  /// a missing dev dependency, not generation noise. The outcome label
+  /// and stop message name the missing package and prescribe the exact
+  /// `dart pub add --dev <pkg>` fix instead of the generic
+  /// `generation-error`. Exit 1, no green entry (the same honesty class);
+  /// the remedy is to add the dependency, then re-run make.
+  missingBuilderDependency('missing-builder-dependency');
 
   const MakeOutcome(this.label);
 

@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import 'build_slang_stage.dart';
 import 'build_yaml_guard.dart';
 import '../core/ast/file_parser.dart';
+import '../core/dependencies/builder_dependency_preflight.dart';
 import '../core/project/project_root.dart';
 import '../dda/plugins/route/route_build_stage.dart';
 import '../feature_flags/feature_flag_config.dart';
@@ -206,7 +207,8 @@ class BuildCommand extends Command {
       // `generate_for` glob doesn't match the annotated sources still
       // produces 0 outputs — this catches that residual class of misconfig.
       if (!dryRun) {
-        if (!verifyOutputsOrFail() || !verifyDeclaredPartsOrFail()) {
+        if (!verifyOutputsOrFail(buildOutput: build.output) ||
+            !verifyDeclaredPartsOrFail()) {
           exit(1);
         }
         if (analyze && !await verifyAnalyzeOrFail()) {
@@ -242,7 +244,8 @@ class BuildCommand extends Command {
       final retryCode = retry.exitCode;
       if (retryCode == 0) {
         print('\n✅ Build completed successfully after cache clean');
-        if (!verifyOutputsOrFail() || !verifyDeclaredPartsOrFail()) {
+        if (!verifyOutputsOrFail(buildOutput: retry.output) ||
+            !verifyDeclaredPartsOrFail()) {
           exit(1);
         }
         if (analyze && !await verifyAnalyzeOrFail()) {
@@ -414,14 +417,36 @@ class BuildCommand extends Command {
   /// exited 0 but wrote 0 outputs despite `@Zorphy`-annotated sources being
   /// present — the "silent success with 0 outputs" misconfiguration from
   /// zuraffa#276 that the static pre-flight cannot detect.
+  ///
+  /// Issue #1322: the safety net FIRST distinguishes the
+  /// missing-builder-dependency class — a builder registered in build.yaml
+  /// whose package is not resolvable in `.dart_tool/package_config.json`,
+  /// corroborated by build_runner's `Ignoring options for unknown builder`
+  /// signal in [buildOutput] — and names the missing package with the
+  /// exact `dart pub add --dev <pkg>` fix, instead of blaming the
+  /// `generate_for` globs. The glob remedy remains the message for every
+  /// OTHER class (globs, builder-name typos, unverifiable state).
   @visibleForTesting
-  bool verifyOutputsOrFail({String? projectRoot}) {
+  bool verifyOutputsOrFail({String? projectRoot, String buildOutput = ''}) {
     try {
       final hasZorphySources = hasZorphyAnnotatedSources(
         projectRoot: projectRoot,
       );
       final hasOutputs = hasGeneratedOutputs(projectRoot: projectRoot);
       if (hasZorphySources && !hasOutputs) {
+        final missing = BuilderDependencyPreflight.missingBuilderPackages(
+          projectRoot: projectRoot,
+          buildOutput: buildOutput,
+        );
+        if (missing.isNotEmpty) {
+          print(
+            BuilderDependencyPreflight.missingBuilderDependencyLines(
+              missing: missing,
+              buildOutput: buildOutput,
+            ).join('\n'),
+          );
+          return false;
+        }
         print(
           '\n❌ build_runner wrote 0 outputs although @Zorphy sources exist.\n'
           '   This usually means build.yaml registers `zorphy:zorphy` but its\n'

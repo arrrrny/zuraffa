@@ -2135,6 +2135,68 @@ One per functional requirement in `spec.md`.
           expect(fx.stepInvocations(), isEmpty);
         },
       );
+
+      test(
+        '1322: a phase-0 build failure carrying the unknown-builder signal '
+        'in a project missing the zorphy builder package stops with '
+        'result=missing-builder-dependency, naming the package + fix',
+        () async {
+          await seedEntitiesSection('''
+## Key entities
+
+| entity | fields |
+| ------ | ------ |
+| User | name: String |
+''');
+          // The dependency-graph truth store: resolved, zorphy NOT in it —
+          // the exact #1322 state (zorphy_annotation present, builder
+          // package absent; tdd init already wired json_serializable).
+          final dartTool = Directory(p.join(fx.root.path, '.dart_tool'));
+          await dartTool.create(recursive: true);
+          final entries = [
+            'test',
+            'mocktail',
+            'json_serializable',
+            'source_gen',
+          ].map((n) => '{"name":"$n","rootUri":"../"}').join(',');
+          await File(
+            p.join(dartTool.path, 'package_config.json'),
+          ).writeAsString('{"configVersion":2,"packages":[$entries]}');
+          // Script the build_runner signal the #1322 repro quotes verbatim
+          // on the --no-analyze build invocation (config key
+          // `build---no-analyze`).
+          await fx.setStepOutcome(
+            'build',
+            '--no-analyze',
+            '[WARNING] Ignoring options for unknown builder '
+                '"zorphy:zorphy" found in build.yaml.',
+          );
+
+          final out = await drive();
+
+          expect(exitCode, 2, reason: out);
+          expect(
+            out,
+            contains(
+              '[run] phase-0 build -> failed (missing builder dependency)',
+            ),
+            reason: out,
+          );
+          // The distinct label — NOT the generic runner-error.
+          expect(
+            out,
+            contains('result=missing-builder-dependency'),
+            reason: out,
+          );
+          expect(out, isNot(contains('result=runner-error')), reason: out);
+          expect(out, contains('stopped_at=phase-0:build'), reason: out);
+          // The stop message names the package and the exact fix.
+          expect(out, contains('zorphy'), reason: out);
+          expect(out, contains('dart pub add --dev zorphy'), reason: out);
+          // No behavior was ever driven.
+          expect(fx.stepInvocations(), isEmpty);
+        },
+      );
     },
   );
 }

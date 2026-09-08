@@ -62,6 +62,7 @@ import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
 import '../services/vacuous_guard.dart';
 import '../services/tdd_transaction.dart';
+import '../../../core/dependencies/builder_dependency_preflight.dart';
 
 /// One lane invocation's machine outcome — everything the commands need to
 /// print their summary line, set the exit code, and (for the meta driver)
@@ -1882,6 +1883,26 @@ class RunDriverCore {
       );
     }
     if (build.exitCode != 0) {
+      // Issue #1322 (AC-3): a build failure caused by a MISSING builder
+      // package is project state, not runner noise — the outcome label and
+      // stop message must name the package and prescribe the exact fix,
+      // not the generic runner-error.
+      final missing = BuilderDependencyPreflight.missingBuildersForFailedBuild(
+        projectRoot: projectRoot,
+        buildOutput: '${build.stdout}${build.stderr}',
+      );
+      if (missing.isNotEmpty) {
+        print('[run] phase-0 build -> failed (missing builder dependency)');
+        return (
+          result: 'missing-builder-dependency',
+          stoppedAt: 'phase-0:build',
+          exitCode: _exitRunnerError,
+          message: BuilderDependencyPreflight.missingBuilderStopMessage(
+            missing: missing,
+            context: 'phase-0 `zfa build`',
+          ),
+        );
+      }
       print('[run] phase-0 build -> failed');
       return failedSpawn(what: 'build', r: build);
     }
