@@ -511,6 +511,12 @@ void main() {
               '      // route name rendered as on-screen text.\n'
               '      final observer = _RouteRecorder();\n'
         : '';
+    // Bug #1261 scaffold honesty: the header mentions golden baselines
+    // ONLY when a golden hook was actually emitted — never when gen ran
+    // without a golden gate, and not for a route-outcome scenario (whose
+    // hook is withheld per issue #964). The scaffold never promises a
+    // harness that does not exist.
+    final goldenHookEmitted = golden && !routeObserver;
     final pumpCall = routeObserver
         ? 'await tester.pumpWidget($shellName(\n'
               '        navigatorObservers: <NavigatorObserver>[observer],\n'
@@ -609,8 +615,7 @@ ${keyed ? "// i18n: slang test shell, base locale '${I18nScaffold.baseLocale}' p
 // still throws, the error lands in the guard assertion instead of
 // escaping the pump (classified runner/compile, not red — issue #830
 // widget failure taxonomy). Widget tests run on the flutter profile's
-// slower tier; golden baselines are committed per platform under
-// test/tdd/goldens/.
+// slower tier${goldenHookEmitted ? '; golden baselines are committed per platform under\n// test/tdd/goldens/' : ''}.
 library;
 
 import 'package:flutter/material.dart';
