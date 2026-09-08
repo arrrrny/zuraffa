@@ -30,9 +30,16 @@ class ReceiptPreflight {
 
   final ProofChecker? _checkerOverride;
 
-  /// Runs the gate. [auditedPaths] are the project-relative subject
-  /// paths the audit is about to mutate (the mutation scope); they are
-  /// coverage-checked only when the project ships receipts.
+  /// Runs the gate. [auditedPaths] are the subject paths the audit is
+  /// about to mutate (the mutation scope); they are coverage-checked
+  /// only when the project ships receipts. The scope's paths arrive in
+  /// whatever shape the artifact registry recorded — ABSOLUTE for
+  /// registries written by `zfa tdd gen` (`'$cwd/lib/tdd/...'`),
+  /// project-relative for legacy ones — so each path is relativized
+  /// against [projectRoot] before the membership test against the
+  /// receipt store's project-relative paths (issue #1312). Paths that
+  /// resolve outside the project root are not auditable subjects of
+  /// this project and are skipped rather than reported missing.
   Future<ReceiptPreflightReport> check({
     List<String> auditedPaths = const [],
   }) async {
@@ -70,6 +77,9 @@ class ReceiptPreflight {
       }
       for (final subject in auditedPaths) {
         final normalized = _normalize(subject);
+        // Outside the project root: not an auditable subject of this
+        // project — skipped, not a missing receipt.
+        if (normalized == null) continue;
         if (covered.contains(normalized)) continue;
         findings.add(
           ReceiptPreflightFinding(
@@ -92,7 +102,33 @@ class ReceiptPreflight {
     );
   }
 
-  String _normalize(String path) => p.normalize(path).replaceAll('\\', '/');
+  /// Normalizes an audited subject path to the project-relative shape
+  /// the receipt store records (`files[].path`), or returns `null` when
+  /// the path lies outside [projectRoot].
+  ///
+  /// Issue #1312: the artifact registry (`specs/<f>/tdd/artifacts.json`)
+  /// records `subject_path` ABSOLUTE while receipts store
+  /// project-relative paths — the two shapes can never intersect unless
+  /// the audited path is relativized against [projectRoot] first.
+  /// Already-relative paths pass through unchanged (idempotent), and
+  /// backslash separators are canonicalized to `/` (Windows registries).
+  String? _normalize(String path) {
+    final normalized = p.normalize(path).replaceAll('\\', '/');
+    if (!p.isAbsolute(normalized)) return normalized;
+
+    // Absolute audited path: relativize against the project root. The
+    // root is resolved to an absolute form first so a relative
+    // [projectRoot] still yields a deterministic comparison.
+    final root = p.normalize(p.absolute(projectRoot)).replaceAll('\\', '/');
+    final relative = p
+        .normalize(p.relative(normalized, from: root))
+        .replaceAll('\\', '/');
+    if (relative == '..' || relative.startsWith('../')) {
+      // Escapes the project root — not an auditable subject here.
+      return null;
+    }
+    return relative;
+  }
 }
 
 /// One preflight gate finding. [kind] is either a proof-check kind
