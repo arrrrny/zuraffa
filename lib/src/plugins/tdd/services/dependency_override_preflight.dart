@@ -123,6 +123,15 @@ class DependencyOverridePreflight {
         findings: [],
         overridesChecked: 0,
       );
+    } on FileSystemException {
+      // Unreadable pubspec (permission race between exists() and read):
+      // fail open like the unparseable case — pub itself reports the
+      // authoritative error.
+      return const DependencyOverridePreflightReport(
+        ok: true,
+        findings: [],
+        overridesChecked: 0,
+      );
     }
     final pubspec = document.contents;
     if (pubspec is! YamlMap) {

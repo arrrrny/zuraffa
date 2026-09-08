@@ -713,9 +713,6 @@ class BuildCommand extends Command {
   /// stdout+stderr (echoed live AND captured, so the retry decision can
   /// classify the failure — issue #1303 — without changing what the
   /// user sees: every line still prints the moment it arrives).
-  static _BuildOutput _classify(int exitCode, String output) =>
-      _BuildOutput(exitCode: exitCode, output: output);
-
   Future<_BuildOutput> _runBuild() async {
     // `--delete-conflicting-outputs` was removed in build_runner 2.16.0 and
     // emits a "These options have been removed" warning on every invocation.
@@ -732,7 +729,6 @@ class BuildCommand extends Command {
         .transform(const LineSplitter())
         .listen((line) {
           buffer.writeln(line);
-          // ignore: avoid_print
           print(line);
         })
         .asFuture<void>();
@@ -741,13 +737,14 @@ class BuildCommand extends Command {
         .transform(const LineSplitter())
         .listen((line) {
           buffer.writeln(line);
-          // ignore: avoid_print
-          print(line);
+          // Stderr stays on the stderr fd — the inheritStdio behavior
+          // scripts/CI grepping `zfa build` stderr rely on.
+          stderr.writeln(line);
         })
         .asFuture<void>();
     final exitCode = await process.exitCode;
     await Future.wait([stdoutDone, stderrDone]);
-    return _classify(exitCode, buffer.toString());
+    return _BuildOutput(exitCode: exitCode, output: buffer.toString());
   }
 
   Future<void> _cleanBuildCache() async {

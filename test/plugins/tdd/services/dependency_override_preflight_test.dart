@@ -228,6 +228,43 @@ dependencies:
       expect(report.findings, isEmpty);
     });
 
+    test('unreadable pubspec.yaml is a vacuous pass (fail-open on the '
+        'exists()/read() permission race)', () async {
+      // A path override pointing at a REAL target, so the verdict can
+      // only come from the read failing — not from a finding.
+      final target = Directory(p.join(tmpDir.path, 'real_target'))
+        ..createSync();
+      File(
+        p.join(target.path, 'pubspec.yaml'),
+      ).writeAsStringSync('name: real_target\n');
+      final pubspec = File(p.join(tmpDir.path, 'pubspec.yaml'));
+      await pubspec.writeAsString('''
+name: login_demo
+dependency_overrides:
+  real_target:
+    path: real_target
+''');
+
+      await Process.run('chmod', ['000', pubspec.path]);
+      try {
+        final report = await DependencyOverridePreflight(
+          projectRoot: tmpDir.path,
+        ).check();
+
+        expect(
+          report.ok,
+          isTrue,
+          reason:
+              'an unreadable pubspec fails honestly at pub itself; the '
+              'preflight must not crash with an unhandled '
+              'FileSystemException',
+        );
+        expect(report.findings, isEmpty);
+      } finally {
+        await Process.run('chmod', ['644', pubspec.path]);
+      }
+    });
+
     test('every finding renders the honest single-line verdict', () async {
       await seedPubspec('''
 name: login_demo
