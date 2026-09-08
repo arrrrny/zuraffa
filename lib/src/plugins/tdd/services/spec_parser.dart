@@ -205,21 +205,35 @@ class SpecParser {
     caseSensitive: false,
   );
 
+  /// Separates independently asserted predicates without splitting noun
+  /// lists inside one predicate. This keeps an event-content exclusion local
+  /// to its clause while allowing a sibling UI assertion to classify.
+  static final RegExp _predicateClauseBoundary = RegExp(
+    r'(?:[.!?;]\s+|,\s*(?:and|but|while)\s+|'
+    r'\s+(?:and|but|while)\s+(?=(?:the|a|an|i|we|they|you)\b))',
+    caseSensitive: false,
+  );
+
   /// Whether an acceptance scenario's prose carries UI intent (bug #830).
   ///
-  /// Issue #1318 ordering: the event-noun exclusion is checked FIRST — a
-  /// content verb whose subject is an event noun is protocol prose, never
-  /// a rendered surface, so no other token in the description may
-  /// classifier-route it widget-kind. The weak appearance verbs
-  /// (`shows?|shown|appears?`) survive only with a co-occurring UI
-  /// surface noun. Ambiguous prose keeps its sanctioned escape hatch:
-  /// declare the scenario with a `**Type**` marker (the declaration
-  /// outranks the classifier in both directions).
+  /// Issue #1318 ordering: within each predicate clause, the event-noun
+  /// exclusion is checked FIRST — a content verb whose subject is an event
+  /// noun is protocol prose, never a rendered surface. A separate clause may
+  /// still carry UI intent. The weak appearance verbs
+  /// (`shows?|shown|appears?`) survive only with a co-occurring UI surface
+  /// noun. Ambiguous prose keeps its sanctioned escape hatch: declare the
+  /// scenario with a `**Type**` marker (the declaration outranks the
+  /// classifier in both directions).
   static bool isUiAcceptance(String description) {
-    if (_eventNounSubject.hasMatch(description)) return false;
-    if (uiAcceptanceIntent.hasMatch(description)) return true;
-    return _weakAppearanceVerb.hasMatch(description) &&
-        _uiSurfaceNoun.hasMatch(description);
+    for (final clause in description.split(_predicateClauseBoundary)) {
+      if (_eventNounSubject.hasMatch(clause)) continue;
+      if (uiAcceptanceIntent.hasMatch(clause)) return true;
+      if (_weakAppearanceVerb.hasMatch(clause) &&
+          _uiSurfaceNoun.hasMatch(clause)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// The inline non-automatable declaration on a scenario header line

@@ -11,7 +11,7 @@ hard-refused with a lane violation naming acceptance scenario A10 as
 "routed widget-kind ... but declared CORE". A10's prose is an SSE event
 schema assertion:
 
-```
+```gherkin
 Given an ambiguous message, When the engine decides to clarify,
  Then the decision_made event shows outcome: clarify with the
  question, and the content_delta events contain the clarification.

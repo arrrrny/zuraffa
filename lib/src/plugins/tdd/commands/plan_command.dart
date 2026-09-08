@@ -649,6 +649,10 @@ class PlanCommand extends Command<void> {
           specFile: specFile,
           specMd: specMd,
         );
+    final declaredBehaviorIds = <String>{
+      for (final entry in expressibleEntries)
+        if (scenarioMarkers.containsKey(entry.currentId)) entry.behavior.id,
+    };
     final laneResult = lanes.isEmpty
         ? (splitReceiptExists
               ? _heuristicLaneResolution(expressible, preservedFfi)
@@ -661,9 +665,10 @@ class PlanCommand extends Command<void> {
             // Issue #1318: the guard's fix message distinguishes a
             // CLASSIFIER-routed kind (a prose guess — the marker remedy
             // leads) from a DECLARED kind (the author's word — the
-            // lane-move remedy stands). The declarations map is already
-            // parsed above; pass its id set through.
-            declaredBehaviorIds: scenarioMarkers.keys.toSet(),
+            // lane-move remedy stands). Match declarations by the parser's
+            // current ids, then pass the reconciled behavior ids consumed by
+            // the lane resolver.
+            declaredBehaviorIds: declaredBehaviorIds,
           );
     if (laneResult != null && laneResult.refusals.isNotEmpty) {
       print(

@@ -11,7 +11,7 @@ only — never the full suite.
 
 Command:
 
-```
+```shell
 rm -rf .dart_tool/test/ && rm -f $TMPDIR/dart_test.kernel.*
 dart test test/plugins/tdd/bug_1318_noflutter_event_prose_test.dart
 ```
@@ -32,7 +32,7 @@ the test list predicted:
 | B9 remedy ordering | the leading marker remedy absent from the refusal |
 
 The red output pins the root cause verbatim: `shows` matched the
-#830/#936 alternation with no subject context and the guard's fix
+`#830`/`#936` alternation with no subject context and the guard's fix
 message led with the lane move.
 
 ## Green evidence (after implementation)
@@ -51,7 +51,7 @@ feature untouched).
 
 Same command after the fix (kernel cache cleaned before the run):
 
-```
+```text
 00:00 +10: All tests passed!
 ```
 
@@ -71,7 +71,7 @@ All per-file/per-batch runs with kernel-cache cleanup before/after:
 | 3b | property/spec_corpus_fuzz_1196_test.dart, cli/services/corpus_importer_test.dart, commands/corpus_command_test.dart | `00:05 +27: All tests passed!` |
 
 Total: 250 targeted test results, 0 failures. Post-format re-run of the
-#1318 file: 10 passed, 0 failed.
+`#1318` file: 10 passed, 0 failed.
 
 Two mid-loop findings fixed during the green loop (refactor step of
 red-green-refactor):

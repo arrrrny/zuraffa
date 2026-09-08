@@ -114,6 +114,16 @@ void main() {
         ),
         isFalse,
       );
+      expect(
+        SpecParser.isUiAcceptance(
+          'the event shows the dialog id in its payload, and the widget '
+          'renders its status',
+        ),
+        isTrue,
+        reason:
+            'the event-content exclusion must not suppress UI intent '
+            'expressed by a separate predicate clause',
+      );
     });
 
     test('B4: verb-only weak matches no longer route widget', () {

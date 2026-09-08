@@ -27,18 +27,15 @@ message buries the marker remedy third.
 
 Run per file, never the full suite (disk ceiling):
 
-```
+```shell
 rm -rf .dart_tool/test/ && rm -f $TMPDIR/dart_test.kernel.*
 dart test test/plugins/tdd/bug_1318_noflutter_event_prose_test.dart
 ```
 
-Expected RED: B1-B9 fail (repro + matrix still route widget-kind; the
-guard remedy still buries the marker third). B10 fails too pre-fix
-(the declared-path message is unchanged but B10 asserts the NEW
-lead-with-marker message is NOT shown — actually B10 pins the KEPT
-lane-move remedy, so it must pass both before and after; it is the
-regression pin). B11 (existing suite) stays green pre-fix by
-definition.
+Expected RED: B1-B5, B8, and B9 fail (repro + matrix still route
+widget-kind; the guard remedy still buries the marker third). B6, B7,
+and B10 pass before the fix as regression pins. B11 (existing suite)
+stays green pre-fix by definition.
 
 ## Green protocol
 
