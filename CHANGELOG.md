@@ -1,3 +1,12 @@
+## [6.2.2] - 2026-09-08
+
+### Fixed
+- Published package now includes `lib/src/core/benchmark/` — the `.pubignore` `benchmark/` pattern (gitignore semantics match at any depth) excluded it while `lib/zuraffa.dart` still exported it, breaking every consumer compile at day zero; the pattern is root-anchored (`/benchmark/`) and a publish-set guard test pins every transitive export/part target against the ignore rules (#1307, #1325)
+- `zfa proof check` no longer flags the sanctioned evidence appends the run driver writes to `tdd/cycle-log.md` after the verb receipts that cover it — append-only logs verify when the receipt keeps a content snapshot and the disk bytes are an untouched extension of it (#1327, follows up #1311)
+
+### Changed
+- TDD generation receipts (`tdd make`, `tdd verify-red`, …) keep small-text content snapshots — the same contract the core receipt writer applies — so append-aware proof verification and precise drift diffs work on the TDD cycle's own artifacts (#1327)
+
 ## [6.2.1] - 2026-09-07
 
 ### Fixed
