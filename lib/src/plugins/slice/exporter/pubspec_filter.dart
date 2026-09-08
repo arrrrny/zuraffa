@@ -6,8 +6,19 @@
 /// dependencies the slice actually uses (plus `flutter` and `flutter_test`,
 /// always), preserving git/path/hosted sources verbatim. Emission is
 /// hand-rolled (the repo pins no yaml_writer).
+///
+/// Issue #1304: a package imported by the copied closure but only TRANSITIVE
+/// in the host (resolved via another dependency, e.g. `zuraffa` via
+/// `zuraffa_flutter`) used to be silently dropped — the sandbox could not
+/// resolve its own imports and `slice verify` self-containment failed by
+/// construction. The writer now derives every imported package from the cut
+/// closure: host-declared packages keep the host constraint verbatim, and a
+/// transitive-only import is declared with the version resolved in the
+/// host's pubspec.lock (falling back to `any` + an inline warning when the
+/// lock has no entry).
 library;
 
+import 'dart:collection';
 import 'dart:io';
 
 import 'package:analyzer/dart/ast/ast.dart';
@@ -33,8 +44,13 @@ class PubspecFilter {
   /// slice needs.
   ///
   /// [sliceDartFiles] are paths relative to [sandboxDir]; each is scanned for
-  /// `package:` imports (imports of the self package are ignored). Returns
-  /// the filtered pubspec.yaml content.
+  /// `package:` imports (imports of the self package are ignored). Every
+  /// imported package is declared in the emitted pubspec: host-declared
+  /// packages keep the host entry verbatim, and an imported package the host
+  /// only resolves transitively is declared from the host's pubspec.lock
+  /// entry with its source preserved (hosted version constraint, or the
+  /// git/path/sdk descriptor; or `any` + a warning when the lock has no
+  /// usable entry — issue #1304). Returns the filtered pubspec.yaml content.
   Future<String> filter({
     required String projectRoot,
     required String sandboxDir,
@@ -66,6 +82,29 @@ class PubspecFilter {
       }
     }
 
+    // Issue #1304: the sandbox must declare every package the copied
+    // closure imports. Packages the host declares keep the host entry
+    // (handled by _emitSection); packages the host only resolves
+    // transitively are synthesized here so the sandbox stays
+    // self-contained by construction.
+    final hostDeps = source['dependencies'];
+    final hostDevDeps = source['dev_dependencies'];
+    bool hostDeclares(String name) =>
+        (hostDeps is Map && hostDeps.containsKey(name)) ||
+        (hostDevDeps is Map && hostDevDeps.containsKey(name));
+    final derived = SplayTreeMap<String, Object?>();
+    final unresolved = SplayTreeSet<String>();
+    for (final name in usedPackages) {
+      if (hostDeclares(name)) continue;
+      final locked = _lockConstraint(projectRoot, name);
+      if (locked != null) {
+        derived[name] = locked;
+      } else {
+        derived[name] = 'any';
+        unresolved.add(name);
+      }
+    }
+
     final buffer = StringBuffer();
     source.forEach((key, value) {
       final section = key.toString();
@@ -73,22 +112,116 @@ class PubspecFilter {
         final always = section == 'dependencies'
             ? _alwaysKeepDeps
             : _alwaysKeepDevDeps;
-        _emitSection(buffer, section, value, usedPackages, always);
+        _emitSection(
+          buffer,
+          section,
+          value,
+          usedPackages,
+          always,
+          derived: section == 'dependencies' ? derived : const {},
+          unresolved: section == 'dependencies' ? unresolved : const {},
+        );
       } else {
         _emitEntry(buffer, section, value, 0);
       }
     });
+    // Hosts without a `dependencies:` key (e.g. dev_dependencies-only
+    // packages) never hit the section branch above — emit the derived
+    // entries in their own section so the sandbox stays self-contained.
+    if (derived.isNotEmpty && source['dependencies'] is! Map) {
+      _emitSection(
+        buffer,
+        'dependencies',
+        null,
+        usedPackages,
+        _alwaysKeepDeps,
+        derived: derived,
+        unresolved: unresolved,
+      );
+    }
     return buffer.toString();
   }
 
+  /// The pubspec dependency descriptor [name] resolves to in the host's
+  /// pubspec.lock, or null when the lock is missing/unreadable or has no
+  /// entry for [name].
+  ///
+  /// The lock entry's `source` is preserved rather than flattened to a
+  /// caret constraint: a `hosted` entry on the default pub.dev host yields
+  /// `^<version>` (or a `{hosted: ..., version: ...}` map for a custom
+  /// hosted repository); `git`, `path`, and `sdk` entries yield their
+  /// pubspec descriptor form so the sandbox re-resolves the same source
+  /// instead of the default host (which could name a different package
+  /// entirely or fail `pub get`).
+  Object? _lockConstraint(String projectRoot, String name) {
+    final lockFile = File(p.join(projectRoot, 'pubspec.lock'));
+    if (!lockFile.existsSync()) return null;
+    final dynamic doc;
+    try {
+      doc = loadYaml(lockFile.readAsStringSync());
+    } on YamlException {
+      return null;
+    } on FileSystemException {
+      // Unreadable lock (permissions, transient I/O): fall back to the
+      // `any` + warning path instead of aborting the whole export.
+      return null;
+    }
+    if (doc is! Map) return null;
+    final packages = doc['packages'];
+    if (packages is! Map) return null;
+    final entry = packages[name];
+    if (entry is! Map) return null;
+    final description = entry['description'];
+    switch (entry['source']?.toString()) {
+      case 'git':
+        if (description is Map) {
+          final git = <String, Object?>{};
+          for (final key in ['url', 'ref', 'path']) {
+            final value = description[key];
+            if (value != null) git[key] = value;
+          }
+          if (git.isNotEmpty) return {'git': git};
+        }
+        return null;
+      case 'path':
+        if (description is Map && description['path'] != null) {
+          return {'path': description['path']};
+        }
+        return null;
+      case 'sdk':
+        final sdkName = description is Map ? description['name'] : description;
+        return sdkName == null ? null : {'sdk': sdkName};
+      default: // hosted (explicit or legacy locks without `source`)
+        final version = entry['version'];
+        if (version == null) return null;
+        final text = version.toString().trim();
+        if (text.isEmpty) return null;
+        final url = description is Map ? description['url']?.toString() : null;
+        if (url != null && url != 'https://pub.dev') {
+          return {
+            'version': '^$text',
+            'hosted': {'name': name, 'url': url},
+          };
+        }
+        return '^$text';
+    }
+  }
+
   /// Emits a filtered `dependencies:`/`dev_dependencies:` section.
+  ///
+  /// [derived] carries the issue-#1304 synthesized entries for imported
+  /// packages the host only resolves transitively (name -> constraint,
+  /// sorted); [unresolved] names the entries that fell back to `any` and
+  /// carry an inline warning.
   void _emitSection(
     StringBuffer buffer,
     String section,
     dynamic value,
     Set<String> used,
-    Set<String> always,
-  ) {
+    Set<String> always, {
+    Map<String, Object?> derived = const {},
+    Set<String> unresolved = const {},
+  }) {
     final deps = value is Map ? value : const <String, dynamic>{};
     final kept = <MapEntry<dynamic, dynamic>>[
       for (final entry in deps.entries)
@@ -96,13 +229,30 @@ class PubspecFilter {
             used.contains(entry.key.toString()))
           entry,
     ];
-    if (kept.isEmpty) {
+    if (kept.isEmpty && derived.isEmpty) {
       buffer.writeln('$section: {}');
       return;
     }
     buffer.writeln('$section:');
     for (final entry in kept) {
       _emitEntry(buffer, entry.key.toString(), entry.value, 1);
+    }
+    for (final entry in derived.entries) {
+      if (unresolved.contains(entry.key)) {
+        buffer.writeln(
+          "  # WARNING (issue #1304): '${entry.key}' is imported by this "
+          'slice but is not declared by the host pubspec and has no '
+          "pubspec.lock entry; declared as 'any' — pin it if resolution "
+          'drifts.',
+        );
+      } else {
+        buffer.writeln(
+          "  # derived (issue #1304): '${entry.key}' is imported by this "
+          'slice and resolved transitively by the host; pinned from the '
+          "host's pubspec.lock.",
+        );
+      }
+      _emitEntry(buffer, entry.key, entry.value, 1);
     }
   }
 
