@@ -1059,7 +1059,9 @@ class RunDriverCore {
         final at = DateTime.tryParse(journal['at']?.toString() ?? '');
         if (at == null) return false;
         for (final entry in await evidence.entries()) {
-          if (entry.kind != 'refactor') continue;
+          // Failed refactor diagnostics are intentionally recorded, but they
+          // cannot certify that an interrupted refactor step completed.
+          if (entry.kind != 'refactor' || entry.exit != 0) continue;
           final stamped = DateTime.tryParse(entry.at ?? '');
           if (stamped != null && !stamped.isBefore(at)) return true;
         }

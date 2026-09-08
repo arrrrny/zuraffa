@@ -34,12 +34,13 @@ enum ReproofFailureClass {
 
 /// The kernel-cache / runner-crash signature grammar (spec 1333): the
 /// observed transient failure phrasing, case-insensitive. The sentence is
-/// the issue's primary signature; `dart_test.kernel` names the shared
-/// kernel file; a `.dill` path co-occurring with an ENOENT/errno-2 marker
-/// catches the variants the sentence does not cover.
+/// the issue's primary signature; `dart_test.kernel` only counts when the
+/// same line also carries crash evidence; a `.dill` path co-occurring with
+/// an ENOENT/errno-2 marker catches the variants the sentence does not cover.
 final RegExp _kernelCacheSignature = RegExp(
   r'cannot retrieve length of file'
-  r'|dart_test\.kernel'
+  r'|dart_test\.kernel[^\n]*(?:enoent|errno 2|no such file|cannot|failed)'
+  r'|(?:enoent|errno 2|no such file|cannot|failed)[^\n]*dart_test\.kernel'
   r'|\.dill[^\n]*(?:enoent|errno 2|no such file)'
   r'|(?:enoent|errno 2|no such file or directory)[^\n]*\.dill',
   caseSensitive: false,

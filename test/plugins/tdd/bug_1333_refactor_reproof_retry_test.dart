@@ -24,6 +24,7 @@ void main() {
   late TddFixture fx;
   late String fakeZfa;
   late File counter;
+  late List<File> tmpKernelMarkers;
 
   /// Write a counting suite script. [when] is the `test` operator applied
   /// to the invocation number (the preflight is always invocation 1);
@@ -62,14 +63,21 @@ exit 0
   /// Pre-seed the two kernel-cache markers the retry's cache clear must
   /// remove: `<project>/.dart_tool/test/probe.kernel` and a
   /// `$TMPDIR/dart_test.kernel.<unique>` file.
-  File tmpKernelMarker(String unique) => File(
-    p.join(Directory.systemTemp.path, 'dart_test.kernel.bug1333-$unique'),
-  );
+  File tmpKernelMarker(String unique) {
+    final tmpRoot =
+        Platform.environment['TMPDIR'] ??
+        Platform.environment['TEMP'] ??
+        Platform.environment['TMP'] ??
+        Directory.systemTemp.path;
+    final marker = File(p.join(tmpRoot, 'dart_test.kernel.bug1333-$unique'));
+    if (!tmpKernelMarkers.any((candidate) => candidate.path == marker.path)) {
+      tmpKernelMarkers.add(marker);
+    }
+    return marker;
+  }
 
   Future<void> seedKernelMarkers(String unique) async {
-    await Directory(
-      p.join(fx.root.path, '.dart_tool', 'test'),
-    ).create(recursive: true);
+    await Directory(p.join(fx.root.path, '.dart_tool', 'test')).create(recursive: true);
     File(
       p.join(fx.root.path, '.dart_tool', 'test', 'probe.kernel'),
     ).writeAsStringSync('stale kernel bytes');
@@ -95,10 +103,14 @@ exit 0
     fakeZfa = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
     counter = File(p.join(fx.root.path, '.zfa_suite_count'));
     counter.writeAsStringSync('0');
+    tmpKernelMarkers = [];
     exitCode = 0;
   });
 
   tearDown(() {
+    for (final marker in tmpKernelMarkers) {
+      if (marker.existsSync()) marker.deleteSync();
+    }
     fx.dispose();
     exitCode = 0;
   });
@@ -107,8 +119,10 @@ exit 0
     test('B3: one infra failure (exit 255 + kernel signature) is retried '
         'with a kernel-cache clear and the run completes green', () async {
       await seedKernelMarkers('retry');
-      const kernelRace = '''
+      final concurrentMarker = tmpKernelMarker('concurrent');
+      final kernelRace = '''
 echo Cannot retrieve length of file: /tmp/dart_test.kernel./probe_test.dart_.dill errno 2 >&2
+echo active kernel bytes > '${concurrentMarker.path}'
 exit 255
 ''';
       final suite = await writeCountingSuite(
@@ -148,6 +162,11 @@ exit 255
         tmpKernelMarker('retry').existsSync(),
         isFalse,
         reason: r'$TMPDIR/dart_test.kernel.* must be cleared',
+      );
+      expect(
+        concurrentMarker.existsSync(),
+        isTrue,
+        reason: 'a kernel file created during this command may be in use',
       );
       final log = await File(fx.cycleLogPath).readAsString();
       expect(log, contains('re-proof verdict: green (exit 0)'));

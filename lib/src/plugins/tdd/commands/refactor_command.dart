@@ -232,6 +232,7 @@ class RefactorCommand extends Command<void> {
     RefactorOutcome outcome;
     int applied = 0;
     String featureName = featureFlag ?? 'unknown';
+    final commandStartedAt = DateTime.now();
     // Issue #922: how many failures each suite verdict tolerated as
     // pre-existing (recorded in the run baseline) — 0 when the verdict
     // was absolutely green or no usable baseline was handed in. The
@@ -574,7 +575,10 @@ class RefactorCommand extends Command<void> {
         if (signature != null) {
           print('   infra signature: $signature');
         }
-        await _clearDartTestKernelCache(cwd);
+        await _clearDartTestKernelCache(
+          cwd,
+          commandStartedAt: commandStartedAt,
+        );
         reproof = await runner.runSuite(
           suiteTemplate: reproofCommand,
           workingDirectory: cwd,
@@ -911,13 +915,16 @@ class RefactorCommand extends Command<void> {
   }
 
   /// Clear the dart test incremental kernel cache (spec 1333 FR-2): the
-  /// project's `.dart_tool/test/` directory and the shared
-  /// `$TMPDIR/dart_test.kernel.*` files — the exact remedy the issue
-  /// prescribes (`rm -rf .dart_tool/test/ && rm -f
-  /// $TMPDIR/dart_test.kernel.*`). Best-effort: a clear failure prints a
-  /// note and never crashes the command; the retry simply re-runs and the
-  /// classifier grades the next attempt from its own transcript.
-  Future<void> _clearDartTestKernelCache(String projectRoot) async {
+  /// project's `.dart_tool/test/` directory and stale shared
+  /// `$TMPDIR/dart_test.kernel.*` files. Files created or updated after
+  /// [commandStartedAt] may belong to a concurrent runner and are left
+  /// untouched. Best-effort: a clear failure prints a note and never crashes
+  /// the command; the retry simply re-runs and the classifier grades the next
+  /// attempt from its own transcript.
+  Future<void> _clearDartTestKernelCache(
+    String projectRoot, {
+    required DateTime commandStartedAt,
+  }) async {
     try {
       final cacheDir = Directory(p.join(projectRoot, '.dart_tool', 'test'));
       if (await cacheDir.exists()) {
@@ -938,7 +945,10 @@ class RefactorCommand extends Command<void> {
         if (entity is File &&
             p.basename(entity.path).startsWith('dart_test.kernel.')) {
           try {
-            await entity.delete();
+            final modifiedAt = await entity.lastModified();
+            if (modifiedAt.isBefore(commandStartedAt)) {
+              await entity.delete();
+            }
           } catch (_) {
             // A kernel file pinned by a concurrent runner is skipped —
             // the next suite run re-derives it.

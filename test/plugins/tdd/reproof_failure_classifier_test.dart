@@ -58,6 +58,19 @@ Cannot retrieve length of file: /tmp/dart_test.kernel./probe_test.dart_.dill (er
       expect(cls, ReproofFailureClass.infraRunner);
     });
 
+    test('dart_test.kernel requires crash evidence on the same line', () {
+      expect(
+        hasKernelCacheSignature(
+          'test name mentions dart_test.kernel\nNo such file on a later line',
+        ),
+        isFalse,
+      );
+      expect(
+        hasKernelCacheSignature('Failed to open dart_test.kernel.worker'),
+        isTrue,
+      );
+    });
+
     test('process never started is infra (runner cannot launch)', () {
       final cls = classifyReproofFailure(
         exitCode: -1,
