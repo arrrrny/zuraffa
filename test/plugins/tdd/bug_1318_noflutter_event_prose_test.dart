@@ -138,6 +138,72 @@ void main() {
       );
       expect(SpecParser.isUiAcceptance('the report shows 0 errors'), isFalse);
     });
+
+    test('B12: perfect-tense passives are not event prose (has/have '
+        'been)', () {
+      // "has been" is the perfect-passive auxiliary — the #936 prose
+      // convention — not a payload content verb. The exclusion must not
+      // swallow the clause when a strong #936 verb shares it.
+      expect(
+        SpecParser.isUiAcceptance(
+          'an error message has been rendered on the login page',
+        ),
+        isTrue,
+        reason:
+            '"message has been rendered" is UI prose — the '
+            'content-verb lookahead must not exclude the clause',
+      );
+      // The plural auxiliary is guarded the same way.
+      expect(
+        SpecParser.isUiAcceptance('the events have been rendered'),
+        isTrue,
+      );
+      // A main-verb "has"/"have" still excludes (payload description).
+      expect(
+        SpecParser.isUiAcceptance('the event has the dialog id in its payload'),
+        isFalse,
+      );
+      expect(
+        SpecParser.isUiAcceptance('the events have the clarification'),
+        isFalse,
+      );
+    });
+
+    test('B13: the predicate-clause splitter covers its boundary forms', () {
+      // Sentence-end boundary: the exclusion stays local to clause 1.
+      expect(
+        SpecParser.isUiAcceptance(
+          'the event shows the dialog id. The form renders the header.',
+        ),
+        isTrue,
+        reason:
+            'a sentence-end boundary separates the event exclusion '
+            'from the sibling UI assertion',
+      );
+      // Bare " and the" (no comma).
+      expect(
+        SpecParser.isUiAcceptance(
+          'the response includes the schema and the dialog shows the '
+          'spinner',
+        ),
+        isTrue,
+      );
+      // "but" and "while" boundaries.
+      expect(
+        SpecParser.isUiAcceptance(
+          'the form renders the header but the response includes the '
+          'schema',
+        ),
+        isTrue,
+      );
+      expect(
+        SpecParser.isUiAcceptance(
+          'the stream carries the frames while the form renders the '
+          'header',
+        ),
+        isTrue,
+      );
+    });
   });
 
   // ------------------------------------------------------------------

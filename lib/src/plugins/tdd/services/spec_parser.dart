@@ -168,13 +168,16 @@ class SpecParser {
   /// covered (`decision_made event`, `SSE response`, `error message`).
   /// `render/navigate/display` are deliberately NOT content verbs here:
   /// they are the #936 grammar's backbone, and #1318's named scope is the
-  /// shows/includes/carries family.
+  /// shows/includes/carries family. `has`/`have` exclude only as MAIN
+  /// verbs — the `(?!\s+been)` lookahead keeps perfect-tense passives
+  /// ("the message has been rendered", the #936 convention) out of the
+  /// exclusion so the strong grammar still sees them.
   static final RegExp _eventNounSubject = RegExp(
     r'\b(?:[\w-]+\s+)?'
     r'(?:events?|messages?|responses?|payloads?|streams?|frames?|'
     r'notifications?)\s+'
     r'(?:shows?|shown|includes?|contains?|carries?|presents?|returns?|'
-    r'holds?|has?)\b',
+    r'holds?|h(?:as|ave)(?!\s+been))\b',
     caseSensitive: false,
   );
 
@@ -196,9 +199,12 @@ class SpecParser {
   /// alone ("they see the home screen") stays acceptance, while
   /// noun+appearance-verb prose ("the screen shows a spinner", "the
   /// dialog appears with the title", "the page shows the settings form")
-  /// is genuine UI intent. Widening THIS set never widens routing beyond
-  /// the pre-#1318 behavior: pre-fix the bare verb sufficed, so every
-  /// verb+noun pair already routed widget.
+  /// is genuine UI intent. For `shows?|shown` widening THIS set never
+  /// widens routing beyond pre-#1318 (the bare verb sufficed, so every
+  /// verb+noun pair already routed widget). `appears?` is the exception:
+  /// it was NOT in the pre-#1318 alternation, so "the dialog appears"
+  /// routed acceptance before #1318 — a deliberate widening (see the RED
+  /// table in specs/1318-noflutter-false-positive-on-event-prose/tdd/).
   static final RegExp _uiSurfaceNoun = RegExp(
     r'\b(sidebar|bottom nav|tab bar|app bar|app shell|themes?|widgets?|'
     r'dialogs?|screens?|pages?)\b',

@@ -58,14 +58,17 @@ specs ("event shows/includes/carries a field" is not UI intent).
    surface noun (widget/shell/bar/dialog/screen/page/sidebar) or a
    strong UI verb (render/navigate/display) co-occurs.
 4. **Backward compatibility.** Existing specs with genuine UI
-   scenarios ("the screen shows", "the widget displays", "the dialog
-   appears", "the page shows the settings form", "a loading indicator
+   scenarios ("the screen shows", "the widget displays",
+   "the page shows the settings form", "a loading indicator
    is shown and I am navigated") continue to route widget-kind
    correctly. The fix only narrows the classifier for event-noun
-   subjects and surface-less verb-only matches; the unconditional
-   strong grammar (render/navigate/display verbs + the #830 layout
-   nouns) is unchanged, and the surface-noun co-occurrence set gains
-   exactly the nouns the repo's own pinned prose requires
+   subjects and surface-less verb-only matches, with one deliberate
+   widening: `appears?` was NOT in the pre-#1318 alternation, so
+   "the dialog appears with the title" parsed acceptance before this
+   change and now routes widget — new routing, not compat. The
+   unconditional strong grammar (render/navigate/display verbs + the
+   #830 layout nouns) is unchanged, and the surface-noun co-occurrence
+   set gains exactly the nouns the repo's own pinned prose requires
    (dialog/screen/page).
 5. **Scope fence.** Only `spec_parser.dart` (the `uiAcceptanceIntent`
    regex, the new event-noun pattern, `isUiAcceptance`) and the
@@ -95,10 +98,11 @@ specs ("event shows/includes/carries a field" is not UI intent).
   `acceptance` — including when a UI surface noun co-occurs in the
   payload description ("the event shows the dialog id in its payload").
 - **SC-4** — Backward compat: "the screen shows a spinner", "the
-  widget displays the badge", "the dialog appears with the title",
-  "renders the brand theme", "the sidebar is visible", and the #936
-  trio (shown+navigated, rendered, displayed) all still parse to
-  `widget`.
+  widget displays the badge", "renders the brand theme", "the sidebar
+  is visible", and the #936 trio (shown+navigated, rendered, displayed)
+  all still parse to `widget`. ("the dialog appears with the title" is
+  excluded from this list — it is the `appears?` widening of
+  deliverable 4, not backward compat.)
 - **SC-5** — The `**Type**: acceptance` / `**Type**: widget` marker
   escape hatch is untouched: declared scenarios keep outranking the
   prose classifier (declaration wins, classifier never consulted).
