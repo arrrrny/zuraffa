@@ -56,12 +56,22 @@ class StepResult {
     required this.outcome,
     required this.success,
     required this.output,
+    required this.command,
     this.verdictKind,
   });
 
   final String step;
   final String behaviorId;
   final int exitCode;
+
+  /// The spawned command line, joined for display (issue #1329): the
+  /// argv the runner actually executed — the entrypoint (with the `dart`
+  /// prefix when it is a `.dart` script), the step argv, and the baseline
+  /// / timeout flags when handed off. Recorded verbatim by the run
+  /// driver's error-outcome path so a failed step's evidence names what
+  /// ran; never parsed (a display rendering, not a shell-quotable
+  /// command).
+  final String command;
 
   /// The step's outcome token: `ok`/`certified`/`green`/`clean`/
   /// `refactored` on success; the step's own failure class (its
@@ -286,6 +296,9 @@ class StepRunner {
     final command = entry.endsWith('.dart')
         ? ['dart', entry, ...argv]
         : [entry, ...argv];
+    // Issue #1329: the display rendering every StepResult carries — the
+    // driver's error-outcome recording records what actually ran.
+    final commandLine = command.join(' ');
 
     final ProcessResult process;
     try {
@@ -300,6 +313,7 @@ class StepRunner {
         outcome: 'runner-error',
         success: false,
         output: e.toString(),
+        command: commandLine,
       );
     } on ProcessException catch (e) {
       return StepResult(
@@ -309,6 +323,7 @@ class StepRunner {
         outcome: 'runner-error',
         success: false,
         output: 'spawn failed for ${command.first}: ${e.message}',
+        command: commandLine,
       );
     } on IOException catch (e) {
       return StepResult(
@@ -318,6 +333,7 @@ class StepRunner {
         outcome: 'runner-error',
         success: false,
         output: 'spawn failed for ${command.first}: $e',
+        command: commandLine,
       );
     }
 
@@ -342,6 +358,7 @@ class StepRunner {
           verdictKind: refusal?['kind'],
           success: exitOk,
           output: output,
+          command: commandLine,
         );
       case 'verify-red':
         final certified = kv != null && kv['certified'] == 'true';
@@ -356,6 +373,7 @@ class StepRunner {
           outcome: outcome,
           success: exitOk && certified,
           output: output,
+          command: commandLine,
         );
       case 'make':
       case 'refactor':
@@ -383,6 +401,7 @@ class StepRunner {
           outcome: outcome,
           success: success,
           output: output,
+          command: commandLine,
         );
     }
     // Unreachable: step validated against stepOrder above.
