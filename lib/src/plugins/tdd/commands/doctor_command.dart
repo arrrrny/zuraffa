@@ -295,8 +295,13 @@ class DoctorCommand extends Command<void> {
     // but never the evidence). A behavior whose last green entry names a
     // test file missing from disk is the phantom done-state: run skips
     // it as "already done" and status reports green on a nonexistent
-    // test. Exactly one recovery: re-drive the behaviors (`zfa tdd run`
-    // reconciles them to pending and re-enters at gen).
+    // test. Exactly one recovery: re-drive the behaviors (`zfa tdd run`).
+    // Issue #1331: the prescription names the mechanics the run ACTUALLY
+    // performs — run reconciles the tombstoned behaviors to pending and
+    // re-enters at gen, and make ADOPTS each re-driven subject whose
+    // certification the reset invalidated (the `adopted` outcome)
+    // instead of dead-ending at subject-drift. The old text promised a
+    // path that stopped at `<id>:make` every time.
     final orphaned = await evidence.orphanedGreenEvidence(projectRoot: cwd);
     if (orphaned.isNotEmpty) {
       final ids = orphaned.toList()..sort();
@@ -317,7 +322,10 @@ class DoctorCommand extends Command<void> {
       print(
         '   --> fix: $fix — re-drive every behavior whose evidence has no '
         'backing artifact (run reconciles them to pending and re-enters '
-        'at gen; the append-only evidence history is preserved)',
+        'at gen; make adopts each re-driven subject whose certification '
+        'the reset invalidated — the adopted outcome, issue #1331 — '
+        'instead of dead-ending at subject-drift; the append-only '
+        'evidence history is preserved)',
       );
       _printVerdict(
         feature: feature,

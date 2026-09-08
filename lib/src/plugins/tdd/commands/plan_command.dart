@@ -548,6 +548,7 @@ class PlanCommand extends Command<void> {
     final Map<String, ScenarioDeclaration> scenarioMarkers;
     final SpecDeclarations declarations;
     final Map<String, List<String>> frTraces;
+    final Set<String> unboundTraces;
     try {
       scenarioMarkers = SpecParser.parseScenarioTypeMarkers(specMd);
       declarations = SpecDeclarations(
@@ -559,6 +560,17 @@ class PlanCommand extends Command<void> {
         persistence: SpecParser.parsePersistenceDeclarations(specMd),
       );
       frTraces = SpecParser.parseFrContractTraces(specMd);
+      // Issue #1319: a `traces:` line inside an FR block that bound no
+      // contract row is the #1308 vacuous-green dead-end in the making
+      // — warn loudly instead of silently falling back to the legacy
+      // classifier.
+      unboundTraces = SpecParser.findUnboundFrTraces(specMd, frTraces);
+      for (final frId in unboundTraces) {
+        print(
+          'zfa tdd plan: WARNING: traces: line found in $frId but was not '
+          'bound to a contract row — check indentation',
+        );
+      }
     } on StateError catch (e) {
       print('zfa tdd plan: declaration refused — ${e.message}');
       print('  no artifacts were written.');
@@ -578,6 +590,7 @@ class PlanCommand extends Command<void> {
       declarations,
       frTraces,
       scenarioMarkers,
+      unboundTraces: unboundTraces,
       strict: strict,
     );
     // Issue #1310: the behavior's resolved contract-row names, keyed by
@@ -649,11 +662,27 @@ class PlanCommand extends Command<void> {
           specFile: specFile,
           specMd: specMd,
         );
+    final declaredBehaviorIds = <String>{
+      for (final entry in expressibleEntries)
+        if (scenarioMarkers.containsKey(entry.currentId)) entry.behavior.id,
+    };
     final laneResult = lanes.isEmpty
         ? (splitReceiptExists
               ? _heuristicLaneResolution(expressible, preservedFfi)
               : null)
-        : _resolveLanes(lanes, expressible, preservedFfi, goldenIds);
+        : _resolveLanes(
+            lanes,
+            expressible,
+            preservedFfi,
+            goldenIds,
+            // Issue #1318: the guard's fix message distinguishes a
+            // CLASSIFIER-routed kind (a prose guess — the marker remedy
+            // leads) from a DECLARED kind (the author's word — the
+            // lane-move remedy stands). Match declarations by the parser's
+            // current ids, then pass the reconciled behavior ids consumed by
+            // the lane resolver.
+            declaredBehaviorIds: declaredBehaviorIds,
+          );
     if (laneResult != null && laneResult.refusals.isNotEmpty) {
       print(
         'zfa tdd plan: lane contract FAILED — ${laneResult.refusals.length} '
@@ -698,13 +727,15 @@ class PlanCommand extends Command<void> {
     // Issue #1007: contract rows carry their own declared lane in the
     // provenance artifact (they are spec-DECLARED through the Layer
     // Contracts section, like the ffi lane's native-loop declaration).
+    // Issue #1319: the provenance NAMES the declared contract row —
+    // the synthesized `contract:A<n>` id is untraceable on its own, the
+    // declared interface name (the row the behavior was derived from)
+    // is what the author wrote and what they can find in the spec.
     for (final b in contractBehaviors) {
+      final declaredRow = b.sourceCriterion.split('.').first;
       provenanceLines.putIfAbsent(
         b.id,
-        () => [
-          'route: ${b.id} -> contract lane '
-              '[declared: layer contracts section]',
-        ],
+        () => ['route: ${b.id} -> contract lane [declared: $declaredRow]'],
       );
     }
 
@@ -1527,6 +1558,7 @@ class PlanCommand extends Command<void> {
     SpecDeclarations declarations,
     Map<String, List<String>> frTraces,
     Map<String, ScenarioDeclaration> scenarioMarkers, {
+    Set<String> unboundTraces = const {},
     bool strict = false,
   }) {
     const resolver = RoutingResolver();
@@ -1604,9 +1636,19 @@ class PlanCommand extends Command<void> {
           ? 'add `**Type**: acceptance` to the scenario'
           : 'trace FR to a declared contract row';
       fallbackKinds[currentId] = decision;
+      // Issue #1319: when the FR the behavior derives from carries a
+      // `traces:` line that bound nothing, the fallback is NOT silent —
+      // the author-facing warning rides the provenance record (stdout +
+      // the durable artifact) so the #1308 vacuous-green dead-end
+      // announces itself instead of hiding behind the legacy classifier.
+      final unboundTraceWarning = unboundTraces.contains(b.sourceCriterion)
+          ? 'WARNING: traces: line found in ${b.sourceCriterion} but was '
+                'not bound to a contract row — check indentation'
+          : null;
       record(b.id, [
         'route: ${b.id} -> ${lane(decision)} '
             '[fallback: legacy description classifier matched — $hint]',
+        ?unboundTraceWarning,
       ]);
     }
     for (final row in preservedFfi) {
@@ -1760,8 +1802,9 @@ class PlanCommand extends Command<void> {
     List<LaneDeclaration> lanes,
     List<Behavior> expressible,
     List<BehaviorRow> preservedFfi,
-    Set<String> goldenIds,
-  ) {
+    Set<String> goldenIds, {
+    Set<String> declaredBehaviorIds = const {},
+  }) {
     final classification = <String, Lane>{};
     final annotations = <String, String>{};
     final refusals = <String>[];
@@ -1860,11 +1903,26 @@ class PlanCommand extends Command<void> {
       // (testWidgets + view builder) imports Flutter.
       if (lane == Lane.core &&
           (b.kind == BehaviorKind.widget || b.kind == BehaviorKind.theme)) {
+        // Issue #1318: a CLASSIFIER-routed kind is a prose guess, so the
+        // remedy LEADS with the marker (pre-#1318 it was buried as the
+        // third option). A DECLARED kind is the author's word — the
+        // marker remedy would second-guess an explicit declaration, so
+        // the lane-move remedy stands byte-for-byte.
+        final classifierRouted = !declaredBehaviorIds.contains(b.id);
         refusals.add(
-          'noFlutter guard: behavior "${b.id}" (${b.sourceCriterion}) is '
-          'routed ${b.kind.name}-kind (a Flutter-only subject whose gen '
-          'pair imports Flutter) but declared CORE. --> fix: declare it '
-          'SKIN (or BOTH), or add `**Type**: acceptance` to the scenario.',
+          classifierRouted
+              ? 'noFlutter guard: behavior "${b.id}" '
+                    '(${b.sourceCriterion}) is routed ${b.kind.name}-kind '
+                    '(a Flutter-only subject whose gen pair imports '
+                    'Flutter) but declared CORE. --> fix: add **Type**: '
+                    'acceptance to the scenario (classifier guess, not a '
+                    'declaration).'
+              : 'noFlutter guard: behavior "${b.id}" '
+                    '(${b.sourceCriterion}) is routed ${b.kind.name}-kind '
+                    '(a Flutter-only subject whose gen pair imports '
+                    'Flutter) but declared CORE. --> fix: declare it SKIN '
+                    '(or BOTH), or add `**Type**: acceptance` to the '
+                    'scenario.',
         );
       }
     }
