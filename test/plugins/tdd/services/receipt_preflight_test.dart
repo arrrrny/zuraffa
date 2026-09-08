@@ -166,6 +166,72 @@ environment:
       );
     });
 
+    test('absolute audited path inside the project root matches its '
+        'receipt-covered relative form (issue #1312)', () async {
+      // artifacts.json records subject_path ABSOLUTE (gen_command builds
+      // it as '$cwd/lib/tdd/...'), while receipts store the
+      // project-relative form. The preflight must relativize before the
+      // membership test — an absolute path can never intersect a
+      // relative one.
+      await writeSubject();
+      await seedReceipt(['lib/tdd/b_001_subject.dart']);
+
+      final report = await ReceiptPreflight(projectRoot: workspace.path).check(
+        auditedPaths: [p.join(workspace.path, 'lib/tdd/b_001_subject.dart')],
+      );
+
+      expect(
+        report.ok,
+        isTrue,
+        reason:
+            'the subject zfa proof check verifies must not be reported '
+            'missing_receipt just because artifacts.json recorded the '
+            'absolute path shape',
+      );
+      expect(report.gateActive, isTrue);
+      expect(report.findings, isEmpty);
+    });
+
+    test('audited path outside the project root is skipped, not '
+        'reported missing', () async {
+      await writeSubject();
+      await seedReceipt(['lib/tdd/b_001_subject.dart']);
+
+      final report = await ReceiptPreflight(
+        projectRoot: workspace.path,
+      ).check(auditedPaths: ['/opt/elsewhere/out_of_root_subject.dart']);
+
+      expect(
+        report.ok,
+        isTrue,
+        reason:
+            'a path outside the project root is not an auditable '
+            'subject of this project — it must not fail the gate',
+      );
+      expect(report.findings, isEmpty);
+    });
+
+    test('mixed audited list — only uncovered in-root subjects produce '
+        'findings', () async {
+      await writeSubject();
+      await writeSubject('lib/tdd/b_002_uncovered.dart');
+      await seedReceipt(['lib/tdd/b_001_subject.dart']);
+
+      final report = await ReceiptPreflight(projectRoot: workspace.path).check(
+        auditedPaths: [
+          'lib/tdd/b_001_subject.dart', // relative, covered (idempotent)
+          p.join(workspace.path, 'lib/tdd/b_001_subject.dart'), // abs, covered
+          '/opt/elsewhere/out_of_root_subject.dart', // outside root → skip
+          p.join(workspace.path, 'lib/tdd/b_002_uncovered.dart'), // uncovered
+        ],
+      );
+
+      expect(report.ok, isFalse);
+      expect(report.findings, hasLength(1));
+      expect(report.findings.single.kind, 'missing_receipt');
+      expect(report.findings.single.path, 'lib/tdd/b_002_uncovered.dart');
+    });
+
     test(
       'drifted receipt (subject modified after the run) → GATE FAILURE',
       () async {
@@ -322,6 +388,77 @@ environment:
         reason:
             'the audit itself must run past the gate (its NOT_ASSESSED '
             'config verdict is the observable proof)',
+      );
+    });
+
+    test('absolute subject_path in artifacts.json (as zfa tdd gen writes '
+        'it) → preflight passes on existing registries, no re-gen '
+        '(issue #1312)', () async {
+      // Re-write the registry exactly the way the shipped writer does:
+      // gen_command.dart records subject_path as '$cwd/lib/tdd/...' —
+      // ABSOLUTE. The receipt keeps the project-relative form. This is
+      // the issue #1312 repro in miniature: zfa proof check verifies the
+      // subject, the preflight must too.
+      File(p.join(featureDir, 'tdd', 'artifacts.json'))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(
+          jsonEncode({
+            'feature': featureName,
+            'records': [
+              {
+                'behavior_id': 'B-001',
+                'feature': featureName,
+                'source_criterion': 'FR-005',
+                'test_path': 'test/tdd/b_001_test.dart',
+                'subject_path': p.join(
+                  fixtureRoot.path,
+                  'lib/tdd/b_001_subject.dart',
+                ),
+                'runnable_test_name': 'x::B-001::y',
+                'test_ownership': 'created',
+                'subject_ownership': 'created',
+                'created_at': '2026-09-05T00:00:00.000Z',
+              },
+            ],
+          }),
+        );
+      final bytes = File(
+        p.join(fixtureRoot.path, 'lib', 'tdd', 'b_001_subject.dart'),
+      ).readAsBytesSync();
+      await ReceiptStore(projectRoot: fixtureRoot.path).save(
+        GenerationReceipt(
+          command: 'di create',
+          target: 'Subject',
+          repro: 'zfa di create Subject',
+          at: DateTime.utc(2026, 9, 5, 9),
+          generatorVersion: 'test',
+          input: const {},
+          files: [
+            GenerationReceiptFile(
+              path: 'lib/tdd/b_001_subject.dart',
+              action: 'create',
+              sha256: crypto.sha256.convert(bytes).toString(),
+              bytes: bytes.length,
+            ),
+          ],
+        ),
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await _runVerify(runner, fixtureRoot.path, featureName);
+
+      expect(
+        out,
+        contains('receipt preflight: ok'),
+        reason:
+            'the receipt covers the subject — the absolute subject_path '
+            'in the existing registry must not fire missing_receipt',
+      );
+      expect(out, isNot(contains('missing_receipt')));
+      expect(
+        out,
+        contains('mutation config'),
+        reason: 'the gate must let the audit proceed after the fix',
       );
     });
 

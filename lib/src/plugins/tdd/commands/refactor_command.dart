@@ -53,6 +53,7 @@ import '../services/artifact_registry.dart';
 import '../services/cycle_log.dart';
 import '../services/pass_registry_tracker.dart';
 import '../services/refactor_passes.dart';
+import '../services/refactor_receipt_refresh.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/runner.dart';
 import '../services/suite_guard.dart';
@@ -601,6 +602,28 @@ class RefactorCommand extends Command<void> {
         return;
       }
 
+      // Issue #1311: the passes rewrote receipted artifacts — append the
+      // sanctioned refactor provenance event re-hashing those receipts to
+      // the formatted bytes, so `zfa proof check` passes after a
+      // sanctioned run and `zfa tdd verify` is not blocked by preflight
+      // drift (NOT_ASSESSED). Fires only when a receipted file was
+      // actually mutated (backward compatibility — FR-4); best-effort: a
+      // receipt failure never flips a sanctioned refactor to a failure,
+      // the loss stays fail-visible via `zfa proof check`.
+      final refresh = await RefactorReceiptRefresh.refreshBestEffort(
+        projectRoot: cwd,
+        feature: featureName,
+        changedPaths: libChanged,
+        passes: passResult.actions.map((a) => a.name).toList(),
+      );
+      if (refresh.fired) {
+        print(
+          '   receipts refreshed: ${refresh.refreshedPaths.length} '
+          'receipted artifact(s) re-hashed after the refactor passes '
+          '(sanctioned refactor provenance, issue #1311)',
+        );
+      }
+
       final reproofNote = scopedReproof
           ? 're-proof: scoped (${reproofPaths.length} covering test(s) '
                 'for ${libChanged.length} changed file(s); spec 069 T001 — '
@@ -653,6 +676,9 @@ class RefactorCommand extends Command<void> {
             capturedOutput:
                 'preflight: $preflightVerdict\nre-proof: $reproofVerdict\n'
                 '$reproofNote\n'
+                'receipts refreshed: ${refresh.fired ? refresh.refreshedPaths.length : 0} '
+                'receipted artifact(s) re-hashed (sanctioned refactor '
+                'provenance, issue #1311)\n'
                 'applied: ${passResult.actions.length} action(s), '
                 '$applied with file changes.',
             sourceCriterion: 'FR-007',

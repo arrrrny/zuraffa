@@ -437,23 +437,33 @@ class PlanCommand extends Command<void> {
         raw = combined.toString();
       }
       for (final line in raw.split('\n')) {
-        final m = RegExp(
-          r'^\|\s*([A|U]\d+)\s*\|.*?\|\s*([A-Z0-9\-, ]+)\s*\|',
-        ).firstMatch(line);
-        if (m != null) {
-          final id = m.group(1)!;
-          final traces = m.group(2)!.trim();
-          existing[traces] = Behavior(
-            id: id,
-            feature: feature,
-            kind: id.startsWith('A')
-                ? BehaviorKind.acceptance
-                : BehaviorKind.unit,
-            description: '',
-            sourceCriterion: traces,
-            target: '',
-          );
-        }
+        // Issue #1310: positional cell parse — the traces cell is the
+        // second-to-last cell (the state cell is last) in both row
+        // dialects this read serves: the 4-column
+        // `| id | behavior | traces | state |` and the 5-column widget
+        // dialect `| id | behavior | kind | traces | state |`. The key
+        // is the cell's LEADING criterion token: the #1310 cell carries
+        // the full trace set (`FR-001, TodoRepository.create`) while
+        // the lookup below is by the behavior's sourceCriterion
+        // (`FR-001`). A criterion-only cell (every pre-#1310 list)
+        // keys identically, so old lists reconcile unchanged.
+        final m = RegExp(r'^\|\s*([A|U]\d+)\s*\|(.+)\|\s*$').firstMatch(line);
+        if (m == null) continue;
+        final cells = m.group(2)!.split('|').map((c) => c.trim()).toList();
+        if (cells.length < 3) continue; // id + traces + state minimum
+        final id = m.group(1)!;
+        final criterion = cells[cells.length - 2].split(',').first.trim();
+        if (criterion.isEmpty) continue;
+        existing[criterion] = Behavior(
+          id: id,
+          feature: feature,
+          kind: id.startsWith('A')
+              ? BehaviorKind.acceptance
+              : BehaviorKind.unit,
+          description: '',
+          sourceCriterion: criterion,
+          target: '',
+        );
       }
     }
 
@@ -569,6 +579,20 @@ class PlanCommand extends Command<void> {
       scenarioMarkers,
       strict: strict,
     );
+    // Issue #1310: the behavior's resolved contract-row names, keyed by
+    // the emitted row id. frTraces is keyed by the parser's current
+    // unit id; id reconciliation may have kept a historical row id, so
+    // the pairing rides expressibleEntries (behavior <-> currentId).
+    // The writers emit these names after the criterion id so the cell
+    // carries the full trace set the declared-signature resolution
+    // (DeclaredRouting.declaredSignatureFor, issue #1259) reads back.
+    final contractTraces = <String, List<String>>{};
+    for (final entry in expressibleEntries) {
+      final tokens = frTraces[entry.currentId];
+      if (tokens != null && tokens.isNotEmpty) {
+        contractTraces[entry.behavior.id] = tokens;
+      }
+    }
     final provenanceLines = provenance.lines;
     // Strict gate (feature 071): a refusal writes no artifact.
     if (strict && provenanceLines.containsKey('__refused__')) {
@@ -722,6 +746,7 @@ class PlanCommand extends Command<void> {
             laneResult,
             declarations.persistence,
             goldenIds,
+            contractTraces,
           ),
         ..._ffiLaneRows(preservedFfi, laneResult),
         ...laneResult.handRows,
@@ -733,6 +758,7 @@ class PlanCommand extends Command<void> {
             laneResult,
             declarations.persistence,
             goldenIds,
+            contractTraces,
           ),
         ..._ffiLaneRows(preservedFfi, laneResult),
         ...laneResult.handRows,
@@ -856,6 +882,7 @@ class PlanCommand extends Command<void> {
         preservedFfi,
         declarations.persistence,
         provenanceLines,
+        contractTraces,
       ),
     );
     // Issue #1141: the UI surface ledger artifact (the legacy single-file
@@ -952,6 +979,7 @@ class PlanCommand extends Command<void> {
     List<BehaviorRow> preservedFfi,
     Map<String, PersistenceDeclaration> persistenceDeclarations,
     Map<String, List<String>> provenanceLines,
+    Map<String, List<String>> contractTraces,
   ) {
     final acceptance = behaviors
         .where((b) => b.kind == BehaviorKind.acceptance)
@@ -975,7 +1003,8 @@ class PlanCommand extends Command<void> {
       ..writeln('| -- | -------- | ------ | ----- |');
     for (final b in acceptance) {
       buf.writeln(
-        '| ${b.id} | ${_marked(b, persistenceDeclarations)} | ${b.sourceCriterion} | PENDING |',
+        '| ${b.id} | ${_marked(b, persistenceDeclarations)} | '
+        '${_tracesCell(b, contractTraces)} | PENDING |',
       );
     }
     buf
@@ -1006,7 +1035,8 @@ class PlanCommand extends Command<void> {
       // taxonomy the writer and the verify-red gate speak.
       final kindCell = FinderTaxonomy.kindCellFor(b.description);
       buf.writeln(
-        '| ${b.id} | ${b.description} | $kindCell | ${b.sourceCriterion} | PENDING |',
+        '| ${b.id} | ${b.description} | $kindCell | '
+        '${_tracesCell(b, contractTraces)} | PENDING |',
       );
     }
     buf
@@ -1019,7 +1049,8 @@ class PlanCommand extends Command<void> {
       ..writeln('| -- | -------- | ------ | ----- |');
     for (final b in unit) {
       buf.writeln(
-        '| ${b.id} | ${_marked(b, persistenceDeclarations)} | ${b.sourceCriterion} | PENDING |',
+        '| ${b.id} | ${_marked(b, persistenceDeclarations)} | '
+        '${_tracesCell(b, contractTraces)} | PENDING |',
       );
     }
     // Issue #1007: the CONTRACT lane — one row per declared entity
@@ -1788,6 +1819,22 @@ class PlanCommand extends Command<void> {
     );
   }
 
+  /// Issue #1310: the full trace set for a behavior row's traces cell
+  /// — the criterion id first, then the behavior's resolved
+  /// contract-row names (`frTraces[currentId]`), comma-separated. A
+  /// token equal to the criterion id is dropped (no self-duplicates),
+  /// and a behavior with no resolved names keeps the criterion-only
+  /// cell — the pre-#1310 shape, the fallback path acceptance
+  /// criterion 4 pins. The shape is exactly what TestListReader reads
+  /// positionally and what RoutingResolver / make tokenize via
+  /// SpecParser.traceTokens (`FR-001, Formatter.format`).
+  String _tracesCell(Behavior b, Map<String, List<String>> contractTraces) {
+    final names = contractTraces[b.id] ?? const <String>[];
+    final extra = names.where((t) => t.trim() != b.sourceCriterion).toList();
+    if (extra.isEmpty) return b.sourceCriterion;
+    return '${b.sourceCriterion}, ${extra.join(', ')}';
+  }
+
   /// The engine/skin plan row pair for a spec-derived behavior (issue
   /// #1000): CORE rows carry the persistence mark exactly like the
   /// legacy single-file plan; BOTH rows appear in both files (the
@@ -1797,6 +1844,7 @@ class PlanCommand extends Command<void> {
     _LaneResult laneResult,
     Map<String, PersistenceDeclaration> persistenceDeclarations,
     Set<String> goldenIds,
+    Map<String, List<String>> contractTraces,
   ) {
     final lane = laneResult.classification[b.id];
     if (lane == null) return const [];
@@ -1804,7 +1852,11 @@ class PlanCommand extends Command<void> {
       LaneRow(
         id: b.id,
         description: _marked(b, persistenceDeclarations),
-        traces: b.sourceCriterion,
+        // Issue #1310: the full trace set — criterion id + the resolved
+        // contract-row names — so the lane plan carries the same shape
+        // the test list does and the declared-signature path is
+        // reachable from the split files too.
+        traces: _tracesCell(b, contractTraces),
         state: 'PENDING',
         kind: b.kind,
         lane: lane,
