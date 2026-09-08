@@ -14,6 +14,10 @@
 - Refresh cycle-log receipt at run end (#1334)
 - Relativize audited paths against `projectRoot` in receipt preflight (#1314)
 - Anchor `.pubignore` `benchmark/` to root; add publish-time export guard (#1313)
+- `zfa proof check` no longer flags the sanctioned evidence appends the run driver writes to `tdd/cycle-log.md` after the verb receipts that cover it — append-only logs verify when the receipt keeps a content snapshot and the disk bytes are an untouched extension of it (#1327, follows up #1311)
+
+### Changed
+- TDD generation receipts (`tdd make`, `tdd verify-red`, …) keep small-text content snapshots — the same contract the core receipt writer applies — so append-aware proof verification and precise drift diffs work on the TDD cycle's own artifacts (#1327)
 
 ## [6.2.1] - 2026-09-07
 
