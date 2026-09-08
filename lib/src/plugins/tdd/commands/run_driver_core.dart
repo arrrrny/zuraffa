@@ -194,6 +194,15 @@ class RunDriverCore {
   String? _streamFeature;
   String? _streamLane;
 
+  // Issue #1329: the failed step's diagnostic evidence, staged by the
+  // error-outcome recording path and consumed by [_finish] for the lane
+  // journal entry — the same per-invocation instance-state pattern the
+  // stream context uses (drive is non-reentrant per instance). Reset at
+  // every drive; set ONLY by the error-outcome arms (the honest stop and
+  // the pre-spawn runner-error), never by the named deferral/skip/block
+  // arms or by successful steps.
+  _StepFailure? _lastStepFailure;
+
   /// Fires one step-verdict.v1 event for a completed step (a no-op when
   /// the hook is unset — the legacy byte-identical output path).
   void _emitStep(
@@ -252,6 +261,9 @@ class RunDriverCore {
     _streamCommand = label;
     _streamFeature = feature;
     _streamLane = lane;
+    // Issue #1329: one failure detail per drive — staged by the
+    // error-outcome arms below, consumed by _finish.
+    _lastStepFailure = null;
 
     // -----------------------------------------------------------------
     // 1. Feature directory (misfire-stop when absent).
@@ -933,9 +945,18 @@ class RunDriverCore {
             stoppedAt != null && stoppedAt.endsWith(':hand')
             ? _handStepViolationFor(stoppedAt, receipts.featureDir)
             : null;
+        // Issue #1329: the journal entry carries the failed step's
+        // diagnostic evidence (the structured error object) beside the
+        // machine-greppable step_error violations line — the entry no
+        // longer reads only "violations": ["stopped_at=<id>:<step>"]
+        // when the stop is a step error.
+        final failure = _lastStepFailure;
         final violations = <String>[
           if (stoppedAt != null) 'stopped_at=$stoppedAt',
           ?handStepViolation,
+          if (failure != null)
+            'step_error=${failure.behaviorId}:${failure.step} '
+                'outcome=${failure.outcome} exit=${failure.exitCode}',
           for (final id in skippedWidgets.keys)
             'skipped-widget=$id (${skippedWidgets[id]})',
         ];
@@ -964,6 +985,16 @@ class RunDriverCore {
             counts: counts,
             stoppedAt: stoppedAt,
             mocks: lane == 'engine' ? mockCounts : null,
+            error: failure == null
+                ? null
+                : JournalStepError(
+                    behavior: failure.behaviorId,
+                    step: failure.step,
+                    outcome: failure.outcome,
+                    exitCode: failure.exitCode,
+                    command: failure.command,
+                    output: failure.outputTail,
+                  ),
           ),
         );
       } on FileSystemException {
@@ -1264,6 +1295,24 @@ class RunDriverCore {
         );
       } on StateError catch (e) {
         // Entrypoint resolution failed before any spawn: runner-error.
+        // Issue #1329: record what is known — no spawned command, exit
+        // -1, the resolution error message as the captured output — so
+        // even a pre-spawn misfire leaves its diagnostic on disk.
+        await _recordStepFailure(
+          _StepFailure(
+            behaviorId: row.id,
+            step: step,
+            outcome: 'runner-error',
+            exitCode: -1,
+            command:
+                '(none — the zfa entrypoint did not resolve; no step was '
+                'spawned)',
+            outputTail: _outputTail(e.message),
+          ),
+          projectRoot: projectRoot,
+          feature: feature,
+          criterion: row.traces,
+        );
         updated = updated.advance(row.id, state);
         await store.save(updated, activeBehaviorIds: activeIds);
         await tx.clear();
@@ -1518,6 +1567,25 @@ class RunDriverCore {
         }
         // Honest stop (FR-007).
         final isRunnerError = result.outcome == 'runner-error';
+        // Issue #1329: the error-outcome path records the same
+        // diagnostic evidence the red/green cycles record — the spawned
+        // command, the exit code, and the truncated stderr/stdout tail —
+        // in the append-only cycle log, and stages the detail for the
+        // lane journal entry (_finish). Recording is never a gate: a
+        // failed append is reported, not fatal (the receipt discipline).
+        await _recordStepFailure(
+          _StepFailure(
+            behaviorId: row.id,
+            step: step,
+            outcome: result.outcome,
+            exitCode: result.exitCode,
+            command: result.command,
+            outputTail: _outputTail(result.output),
+          ),
+          projectRoot: projectRoot,
+          feature: feature,
+          criterion: row.traces,
+        );
         updated = updated.advance(row.id, state);
         await store.save(updated, activeBehaviorIds: activeIds);
         await tx.clear();
@@ -1910,6 +1978,66 @@ class RunDriverCore {
     return null;
   }
 
+  // -------------------------------------------------------------------
+  // Issue #1329 — the error-outcome recording path. The red/green
+  // cycles record command + exit code + output; until now a failed step
+  // discarded all of it (no cycle-log entry, a journal entry naming
+  // only stopped_at), so a transient failure left nothing to diagnose
+  // against. The recording here is evidence-shaped, append-only, and
+  // never a gate.
+  // -------------------------------------------------------------------
+
+  /// Append the failed step's diagnostic evidence to the feature's
+  /// cycle log (one `error` entry in the same evidence shape the
+  /// red/green cycles record) and stage [failure] for the lane journal
+  /// entry `_finish` writes. A failed append is reported on stderr,
+  /// never fatal to the driving that already happened.
+  Future<void> _recordStepFailure(
+    _StepFailure failure, {
+    required String projectRoot,
+    required String feature,
+    required String criterion,
+  }) async {
+    try {
+      await CycleLog(p.join(projectRoot, 'specs', feature)).append(
+        CycleLogEntry(
+          behaviorId: failure.behaviorId,
+          kind: CycleEntryKind.error,
+          outcome: failure.outcome,
+          runnerCommand: failure.command,
+          exitCode: failure.exitCode,
+          capturedOutput: failure.outputTail,
+          sourceCriterion: criterion,
+          testPath: 'test/',
+          timestamp: DateTime.now().toUtc().toIso8601String(),
+        ),
+      );
+    } on FileSystemException catch (e) {
+      stderr.writeln(
+        'zfa tdd: failed to record the failed-step diagnostics in '
+        'tdd/cycle-log.md ($e)',
+      );
+    }
+    _lastStepFailure = failure;
+  }
+
+  /// The diagnostic output tail (issue #1329): the LAST [maxLines] lines
+  /// of the step's combined stderr/stdout — failures end in the error
+  /// (stack traces, the failing summary line), the head is the least
+  /// diagnostic part — with an honest marker naming the dropped count
+  /// when truncation happens. The same tail the cycle-log error entry
+  /// and the journal error object record.
+  static String _outputTail(String output, {int maxLines = 200}) {
+    final lines = output.split('\n');
+    // A trailing newline yields a final empty segment — not a line.
+    if (lines.isNotEmpty && lines.last.isEmpty) lines.removeLast();
+    if (lines.length <= maxLines) return lines.join('\n').trimRight();
+    return '[... output truncated — showing the last $maxLines of '
+        '${lines.length} lines (first ${lines.length - maxLines} dropped) '
+        '...]\n'
+        '${lines.sublist(lines.length - maxLines).join('\n')}';
+  }
+
   void _printOutputExcerpt(String output) {
     final lines = output
         .split('\n')
@@ -1939,6 +2067,29 @@ typedef _Stop = ({
   int exitCode,
   String? message,
 });
+
+/// Issue #1329: one failed step's diagnostic evidence — what the
+/// error-outcome path records in the cycle log (the `error` entry) and
+/// the lane journal entry (the structured `error` object): the failed
+/// step's identity, the spawned command, the exit code, and the
+/// truncated stderr/stdout tail.
+class _StepFailure {
+  const _StepFailure({
+    required this.behaviorId,
+    required this.step,
+    required this.outcome,
+    required this.exitCode,
+    required this.command,
+    required this.outputTail,
+  });
+
+  final String behaviorId;
+  final String step;
+  final String outcome;
+  final int exitCode;
+  final String command;
+  final String outputTail;
+}
 
 /// The outcome of driving one behavior through its step window: the
 /// updated run state plus, when the run must stop, the [_Stop] report.

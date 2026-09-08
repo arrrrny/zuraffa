@@ -605,6 +605,18 @@ case "$STEP" in
         echo "--> fix: add zuraffa_ui (flutter pub add zuraffa_ui --dev) or re-run with --skip-widget"
         echo "{\"command\":\"gen\",\"behavior\":\"$ID\",\"verdict\":\"refused\",\"reason\":\"pubspec.yaml does not declare zuraffa_ui - widget-lane behaviors boot a ZuraffaApp shell whose import would die at compile (issue #938). Run: flutter pub add zuraffa_ui\",\"kind\":\"widget\"}"
         exit 1 ;;
+      flood)
+        # Issue #1329: >200 lines of captured noise so the driver's
+        # truncated-tail contract is provable end-to-end (250 noise
+        # lines + the final error line = 251 captured lines; the tail
+        # keeps the LAST 200 and names the dropped count).
+        i=1
+        while [ "$i" -le 250 ]; do
+          echo "gen noise line $i"
+          i=$((i + 1))
+        done
+        echo "zfa tdd gen: final error line"
+        exit 1 ;;
       *) echo "zfa tdd gen: $OUTCOME"; exit 1 ;;
     esac
     ;;

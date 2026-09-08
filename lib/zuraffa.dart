@@ -245,6 +245,7 @@ export 'src/plugins/tdd/services/journal.dart'
         JournalReader,
         JournalWriter,
         JournalEntry,
+        JournalStepError,
         JournalSchema,
         JournalException,
         FeatureJournal,

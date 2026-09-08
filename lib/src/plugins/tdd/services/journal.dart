@@ -157,6 +157,30 @@ Map<String, dynamic> _entrySchema() => {
         'certified': {'type': 'integer'},
       },
     },
+    // Issue #1329: the failed step's diagnostic evidence, carried by a
+    // lane entry that stopped on a step error — the spawned command, the
+    // exit code, and the truncated stderr/stdout tail. Optional; never
+    // written by green/red cycles without a step failure.
+    'error': {
+      'type': 'object',
+      'additionalProperties': false,
+      'required': [
+        'behavior',
+        'step',
+        'outcome',
+        'exit_code',
+        'command',
+        'output',
+      ],
+      'properties': {
+        'behavior': {'type': 'string', 'minLength': 1},
+        'step': {'type': 'string', 'minLength': 1},
+        'outcome': {'type': 'string', 'minLength': 1},
+        'exit_code': {'type': 'integer'},
+        'command': {'type': 'string'},
+        'output': {'type': 'string'},
+      },
+    },
     'fingerprints': {
       'type': 'object',
       'additionalProperties': {
@@ -295,7 +319,121 @@ class JournalSchema {
     if (fingerprints != null && fingerprints is! Map<String, dynamic>) {
       violations.add('fingerprints must be an object');
     }
+    // Issue #1329: the error object's structural walk (same discipline
+    // as the refs triple — required keys, no extras, typed values).
+    final error = entry['error'];
+    if (error != null) {
+      if (error is! Map<String, dynamic>) {
+        violations.add('error must be an object');
+      } else {
+        for (final key in const [
+          'behavior',
+          'step',
+          'outcome',
+          'exit_code',
+          'command',
+          'output',
+        ]) {
+          if (!error.containsKey(key)) {
+            violations.add('error missing "$key"');
+          }
+        }
+        if (error.length != 6) {
+          violations.add('error must carry exactly the six evidence keys');
+        }
+        if (error['exit_code'] is! int) {
+          violations.add('error.exit_code must be an integer');
+        }
+        for (final key in const ['behavior', 'step', 'outcome']) {
+          final value = error[key];
+          if (value is! String || value.isEmpty) {
+            violations.add('error.$key must be a non-empty string');
+          }
+        }
+        for (final key in const ['command', 'output']) {
+          if (error[key] is! String) {
+            violations.add('error.$key must be a string');
+          }
+        }
+      }
+    }
     return violations;
+  }
+}
+
+/// Issue #1329: one failed step's diagnostic evidence, carried by the
+/// lane journal entry's optional `error` object — the spawned command,
+/// the exit code, and the truncated stderr/stdout tail, so a transient
+/// step failure is debuggable from the journal alone (the entry no
+/// longer reads only `"violations": ["stopped_at=<id>:<step>"]`). The
+/// object is schema-declared (see [_entrySchema]'s `error` property) so
+/// writer and shipped schema cannot drift.
+class JournalStepError {
+  const JournalStepError({
+    required this.behavior,
+    required this.step,
+    required this.outcome,
+    required this.exitCode,
+    required this.command,
+    required this.output,
+  });
+
+  /// The failed step's behavior id.
+  final String behavior;
+
+  /// The step that failed (`gen` | `verify-red` | `make` | `refactor`).
+  final String step;
+
+  /// The step's own failure outcome token (`error`, `crashed`,
+  /// `runner-error`, ...).
+  final String outcome;
+
+  /// The step process's exit code (-1 when nothing spawned).
+  final int exitCode;
+
+  /// The spawned command line, joined for display.
+  final String command;
+
+  /// The step's stderr/stdout tail (the same truncated tail the
+  /// cycle-log error entry records).
+  final String output;
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'behavior': behavior,
+    'step': step,
+    'outcome': outcome,
+    'exit_code': exitCode,
+    'command': command,
+    'output': output,
+  };
+
+  /// Tolerant decode: null for a missing or malformed object (a legacy
+  /// journal never carries the field; a hand-edited one must not crash
+  /// the reader).
+  static JournalStepError? fromJson(Object? raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    final behavior = raw['behavior'];
+    final step = raw['step'];
+    final outcome = raw['outcome'];
+    final exitCode = raw['exit_code'];
+    final command = raw['command'];
+    final output = raw['output'];
+    if (behavior is! String ||
+        step is! String ||
+        outcome is! String ||
+        exitCode is! int ||
+        command is! String ||
+        output is! String) {
+      return null;
+    }
+    return JournalStepError(
+      behavior: behavior,
+      step: step,
+      outcome: outcome,
+      exitCode: exitCode,
+      command: command,
+      output: output,
+    );
   }
 }
 
@@ -321,6 +459,7 @@ class JournalEntry {
     this.mocks,
     this.fingerprints,
     this.ungated = const [],
+    this.error,
   });
 
   final String feature;
@@ -380,6 +519,10 @@ class JournalEntry {
   /// The prove entry's reported ungated behavior ids.
   final List<String> ungated;
 
+  /// Issue #1329: the failed step's diagnostic evidence when this cycle
+  /// stopped on a step error — null for every other terminal outcome.
+  final JournalStepError? error;
+
   Map<String, dynamic> toJson() => <String, dynamic>{
     'feature': feature,
     'cycle': cycle,
@@ -401,6 +544,7 @@ class JournalEntry {
     if (mocks != null) 'mocks': mocks,
     if (fingerprints != null) 'fingerprints': fingerprints,
     if (ungated.isNotEmpty) 'ungated': ungated,
+    if (error != null) 'error': error!.toJson(),
   };
 
   factory JournalEntry.fromJson(Map<String, dynamic> json) => JournalEntry(
@@ -439,6 +583,7 @@ class JournalEntry {
     ungated: [
       for (final u in (json['ungated'] as List? ?? const [])) u as String,
     ],
+    error: JournalStepError.fromJson(json['error']),
   );
 
   static Map<String, Map<String, String?>>? _fingerprintsFromJson(
