@@ -137,23 +137,110 @@ class SpecParser {
   /// gen pair is a view-builder stub + a `testWidgets` test.
   ///
   /// Bug #936: Then-clauses are passive/past by convention ("an error
-  /// message is rendered", "the user is navigated", "a spinner is shown",
-  /// "the avatar is displayed"), so the verb alternation covers the full
-  /// conjugation (`render(?:s|ed|ing)?`, `navigat(?:e|es|ed|ion|ing)`)
-  /// and adds the missing outcome verbs `display(?:s|ed|ing)?` and
-  /// `shows?|shown`. Word boundaries stay anchored; "navigation" already
-  /// matched before #936, so this only completes the grammar — it does
-  /// not widen the concept set.
+  /// message is rendered", "the user is navigated"), so the verb
+  /// alternation covers the full conjugation (`render(?:s|ed|ing)?`,
+  /// `navigat(?:e|es|ed|ion|ing)`, `display(?:s|ed|ing)?`). Word
+  /// boundaries stay anchored; "navigation" already matched before #936.
+  ///
+  /// Issue #1318: the weak outcome verbs `shows?|shown` moved OUT of the
+  /// unconditional alternation — matched with no subject context they
+  /// routed SSE event-schema assertions ("the decision_made event shows
+  /// outcome: clarify") widget-kind, and the spec-1000 noFlutter guard
+  /// hard-refused every all-CORE server spec. They survive in
+  /// [_weakAppearanceVerb], gated on a co-occurring [_uiSurfaceNoun]; the
+  /// strong #830/#936 grammar below (render/navigate/display + layout
+  /// nouns) is unchanged.
   static final RegExp uiAcceptanceIntent = RegExp(
     r'\b(render(?:s|ed|ing)?|sidebar|bottom nav|tab bar|app bar|app shell|'
-    r'themes?|widgets?|navigat(?:e|es|ed|ion|ing)|display(?:s|ed|ing)?|'
-    r'shows?|shown)\b',
+    r'themes?|widgets?|navigat(?:e|es|ed|ion|ing)|display(?:s|ed|ing)?)\b',
+    caseSensitive: false,
+  );
+
+  /// Issue #1318: event-noun subject + content verb — "the decision_made
+  /// event shows outcome: clarify", "the content_delta events contain the
+  /// clarification", "the response includes the schema". The subject is
+  /// protocol, not surface: the verb describes the event's PAYLOAD, so
+  /// the prose is an event/protocol schema assertion even when a UI
+  /// surface noun co-occurs in the payload description ("the event shows
+  /// the dialog id in its payload"). Such scenarios route CORE by
+  /// default; an explicit `**Type**` marker is the escape hatch. The
+  /// optional modifier word before the noun keeps compound subjects
+  /// covered (`decision_made event`, `SSE response`, `error message`).
+  /// `render/navigate/display` are deliberately NOT content verbs here:
+  /// they are the #936 grammar's backbone, and #1318's named scope is the
+  /// shows/includes/carries family. `has`/`have` exclude only as MAIN
+  /// verbs — the `(?!\s+been)` lookahead keeps perfect-tense passives
+  /// ("the message has been rendered", the #936 convention) out of the
+  /// exclusion so the strong grammar still sees them.
+  static final RegExp _eventNounSubject = RegExp(
+    r'\b(?:[\w-]+\s+)?'
+    r'(?:events?|messages?|responses?|payloads?|streams?|frames?|'
+    r'notifications?)\s+'
+    r'(?:shows?|shown|includes?|contains?|carries?|presents?|returns?|'
+    r'holds?|h(?:as|ave)(?!\s+been))\b',
+    caseSensitive: false,
+  );
+
+  /// Issue #1318: the weak appearance verbs — #936's `shows?|shown` plus
+  /// `appears?` ("the dialog appears with the title") — matched with NO
+  /// subject context are ambiguous: "the decision_made event shows
+  /// outcome: clarify" is protocol prose, "the screen shows a spinner" is
+  /// UI. They no longer live in the unconditional [uiAcceptanceIntent]
+  /// alternation; [isUiAcceptance] routes them widget-kind only when a
+  /// [_uiSurfaceNoun] co-occurs.
+  static final RegExp _weakAppearanceVerb = RegExp(
+    r'\b(shows?|shown|appears?)\b',
+    caseSensitive: false,
+  );
+
+  /// Issue #1318: the UI surface nouns a weak appearance verb needs in
+  /// order to route widget-kind. `dialogs?`/`screens?`/`pages?` join the
+  /// #830 layout set here ONLY (not in [uiAcceptanceIntent]) — a noun
+  /// alone ("they see the home screen") stays acceptance, while
+  /// noun+appearance-verb prose ("the screen shows a spinner", "the
+  /// dialog appears with the title", "the page shows the settings form")
+  /// is genuine UI intent. For `shows?|shown` widening THIS set never
+  /// widens routing beyond pre-#1318 (the bare verb sufficed, so every
+  /// verb+noun pair already routed widget). `appears?` is the exception:
+  /// it was NOT in the pre-#1318 alternation, so "the dialog appears"
+  /// routed acceptance before #1318 — a deliberate widening (see the RED
+  /// table in specs/1318-noflutter-false-positive-on-event-prose/tdd/).
+  static final RegExp _uiSurfaceNoun = RegExp(
+    r'\b(sidebar|bottom nav|tab bar|app bar|app shell|themes?|widgets?|'
+    r'dialogs?|screens?|pages?)\b',
+    caseSensitive: false,
+  );
+
+  /// Separates independently asserted predicates without splitting noun
+  /// lists inside one predicate. This keeps an event-content exclusion local
+  /// to its clause while allowing a sibling UI assertion to classify.
+  static final RegExp _predicateClauseBoundary = RegExp(
+    r'(?:[.!?;]\s+|,\s*(?:and|but|while)\s+|'
+    r'\s+(?:and|but|while)\s+(?=(?:the|a|an|i|we|they|you)\b))',
     caseSensitive: false,
   );
 
   /// Whether an acceptance scenario's prose carries UI intent (bug #830).
-  static bool isUiAcceptance(String description) =>
-      uiAcceptanceIntent.hasMatch(description);
+  ///
+  /// Issue #1318 ordering: within each predicate clause, the event-noun
+  /// exclusion is checked FIRST — a content verb whose subject is an event
+  /// noun is protocol prose, never a rendered surface. A separate clause may
+  /// still carry UI intent. The weak appearance verbs
+  /// (`shows?|shown|appears?`) survive only with a co-occurring UI surface
+  /// noun. Ambiguous prose keeps its sanctioned escape hatch: declare the
+  /// scenario with a `**Type**` marker (the declaration outranks the
+  /// classifier in both directions).
+  static bool isUiAcceptance(String description) {
+    for (final clause in description.split(_predicateClauseBoundary)) {
+      if (_eventNounSubject.hasMatch(clause)) continue;
+      if (uiAcceptanceIntent.hasMatch(clause)) return true;
+      if (_weakAppearanceVerb.hasMatch(clause) &&
+          _uiSurfaceNoun.hasMatch(clause)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   /// The inline non-automatable declaration on a scenario header line
   /// (bug #846): a manual scenario consumes an AC number but emits no
