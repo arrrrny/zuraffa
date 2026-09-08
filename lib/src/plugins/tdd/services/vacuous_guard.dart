@@ -33,6 +33,49 @@ const String vacuousGuardComment =
       // the observable outcome named by the behavior description, remove
       // this marker, and re-run make.''';
 
+/// Issue #1308: the exact remedy the run/stop messages and the gen-time
+/// warning prescribe when the vacuous-green guard fires on a
+/// FALLBACK-ROUTED behavior (no `traces:` line to a declared contract
+/// row, prose heuristics unmatched — the bare-guard fall-through in
+/// `behavior_test_writer.dart`'s `_deriveAssertion`). One shared constant
+/// so gen, the writer, and the run driver never drift on the wording.
+const String vacuousGuardFallbackRemedy =
+    'add traces: <ContractRow> to the FR, re-run zfa tdd plan, '
+    're-run zfa tdd gen, re-run zfa tdd run';
+
+/// Issue #1308: the machine-greppable token the gen-time guard-only
+/// warning prints — the unit-lane sibling of [vacuousGuardMarker]. The
+/// fallback path's generated test does NOT carry the marker (it is the
+/// guard WITHOUT the designed seam), so the warning token is distinct:
+/// the `zfa tdd run` driver scans the gen child's captured output for
+/// this token and forwards the lines into the run transcript (a
+/// successful gen prints nothing of its captured output otherwise, so
+/// without the forward the warning would be invisible in the run).
+const String vacuousGuardWarningToken = 'zfa:tdd: guard-only';
+
+/// Whether [content] carries the machine-readable [vacuousGuardMarker] —
+/// the DESIGNED hand-delta seam the traced entity/void-returning path
+/// emits (issue #1259). The run driver keys on this to distinguish the
+/// two vacuous-green stop classes (issue #1308): marker present → the
+/// traced hand-delta seam (`stopped_at=<id>:hand`); marker absent → the
+/// fallback-routed gap (the `traces:` remedy, `stopped_at=<id>:make`).
+bool contentCarriesVacuousGuardMarker(String content) =>
+    content.contains(vacuousGuardMarker);
+
+/// Issue #1308: the journal violation line for the named hand step the
+/// run driver records when a traced entity/void-returning behavior stops
+/// vacuous-green — ONE explicit, named hand step
+/// (`hand-step=<id>:hand`) telling the user exactly what to write (an
+/// assertion on the observable outcome) and where (the generated test
+/// file path). Rendered into the lane journal entry's violations.
+String vacuousGuardHandStepViolation({
+  required String behaviorId,
+  required String testPath,
+}) =>
+    'hand-step=$behaviorId:hand — replace the $vacuousGuardMarker guard at '
+    '$testPath with an assertion on the observable outcome, remove the '
+    'marker, then re-run make (issue #1308)';
+
 /// The guard-shaped expects the detector strips before counting: the
 /// capture-guard the gen template emits (`expect(result,
 /// isNot(isA<UnimplementedError>()))`) and the throwsA variant the

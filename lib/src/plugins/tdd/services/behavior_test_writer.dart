@@ -153,6 +153,35 @@ class BehaviorTestWriter {
         ? _renderWidgetTest(behavior, relativeSubjectPath, golden)
         : _renderTest(behavior, relativeSubjectPath);
     await testFile.writeAsString(content);
+    // Issue #1308: the gen-time guard-only warning. When THIS writer emits
+    // a guard-only UNIT test for a FALLBACK-ROUTED behavior (no traced
+    // contract row — `contractShape == null` — and the prose heuristics
+    // did not match), the paired test's only assertion is the bare
+    // UnimplementedError guard and `make`'s issue #1259 vacuous-green
+    // guard will refuse it: the two-cycle driver dead-ends one step later
+    // with no actionable guidance unless gen names the gap NOW. The
+    // warning is loud (machine-greppable [vacuousGuardWarningToken] + the
+    // shared [vacuousGuardFallbackRemedy]), names the behavior and the
+    // gap, and does NOT fail the step: the test is still emitted, exactly
+    // as before (the generated shape is unchanged — FR-002/#1308). The
+    // traced entity/void path (marker present) stays silent here — its
+    // warning is the marker itself, surfaced by the run driver as the
+    // designed hand-delta seam.
+    if (behavior.kind == BehaviorKind.unit &&
+        contractShape == null &&
+        contentIsVacuousGreen(content) &&
+        !contentCarriesVacuousGuardMarker(content)) {
+      print(
+        'zfa tdd gen: WARNING [$vacuousGuardWarningToken] behavior '
+        '"${behavior.id}" — the generated unit test\'s only assertion is '
+        'the bare UnimplementedError guard: no `traces:` line to a '
+        'declared contract row derives a real outcome assertion, and the '
+        'prose heuristics did not match. `make` will refuse this test '
+        'vacuous-green (issue #1259) and the run will stop here '
+        '(issue #1308).',
+      );
+      print('   --> fix: $vacuousGuardFallbackRemedy');
+    }
   }
 
   String _renderTest(Behavior b, String relativeSubjectPath) {

@@ -60,6 +60,7 @@ import '../services/step_runner.dart';
 import '../services/suite_guard.dart';
 import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
+import '../services/vacuous_guard.dart';
 import '../services/tdd_transaction.dart';
 
 /// One lane invocation's machine outcome — everything the commands need to
@@ -923,8 +924,17 @@ class RunDriverCore {
               : null,
           skinOverride: lane == 'skin' ? JournalWriter.skinReceiptRef : null,
         );
+        // Issue #1308: a stop at the named hand step (the traced
+        // entity/void vacuous-green seam) carries the hand-step violation
+        // — what to write (the outcome assertion) and where (the
+        // generated test file).
+        final handStepViolation =
+            stoppedAt != null && stoppedAt.endsWith(':hand')
+            ? _handStepViolationFor(stoppedAt, receipts.featureDir)
+            : null;
         final violations = <String>[
           if (stoppedAt != null) 'stopped_at=$stoppedAt',
+          ?handStepViolation,
           for (final id in skippedWidgets.keys)
             'skipped-widget=$id (${skippedWidgets[id]})',
         ];
@@ -1279,6 +1289,16 @@ class RunDriverCore {
       print('[run] ${row.id} $step -> ${result.outcome}$progressSuffix');
       _emitStep(row.id, step, result.outcome, exitCode: result.exitCode);
 
+      // Issue #1308: the gen child's guard-only warning is impossible to
+      // miss in the run output — the run captures the gen child's stdout
+      // and a successful gen prints none of it, so the warning the writer
+      // emitted would be invisible here without the forward. The token
+      // keeps the scan surgical (the writer's warning lines and the fix
+      // line are the only lines that carry it or the remedy).
+      if (step == 'gen' && result.success) {
+        _forwardGuardOnlyWarning(result.output);
+      }
+
       if (!result.success) {
         // Bug #986: `skipped` — make's issue #694 skip transition (the
         // target test already passes, generation skipped by design) — is a
@@ -1427,6 +1447,77 @@ class RunDriverCore {
             refactorBlocked: false,
           );
         }
+        // Issue #1308: the vacuous-green make stop is not a dead end —
+        // the driver names the remedy. The generated test's
+        // [vacuousGuardMarker] distinguishes the two classes: the traced
+        // entity/void path (marker present) IS the DESIGNED hand-delta
+        // seam — one explicit, named hand step `stopped_at=<id>:hand`
+        // replacing the generic make stop; the fallback-routed path
+        // (marker absent) gets the exact `traces:` remedy (the summary
+        // machine contract keeps `stopped_at=<id>:make`). Messaging only:
+        // the state advance and the honest-stop semantics are the generic
+        // ones (issue #1259's refusal stands).
+        if (step == 'make' && result.outcome == 'vacuous-green') {
+          final testPath = _existingGeneratedTestPath(
+            projectRoot: projectRoot,
+            feature: feature,
+            behaviorId: row.id,
+          );
+          updated = updated.advance(row.id, state);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
+          print(
+            'zfa tdd $label: step failed — behavior=${row.id} step=$step '
+            'outcome=${result.outcome}',
+          );
+          _printOutputExcerpt(result.output);
+          if (testPath != null &&
+              contentCarriesVacuousGuardMarker(
+                File(testPath).readAsStringSync(),
+              )) {
+            final relPath = p.relative(testPath, from: projectRoot);
+            print(
+              '   the traced contract\'s return is void/an entity — the '
+              '$vacuousGuardMarker marker IS the designed hand-delta seam '
+              '(issue #1308): the assertion set is the UnimplementedError '
+              'guard only, which make refuses vacuous-green (issue #1259).',
+            );
+            print(
+              '   hand step: ${row.id}:hand — write an assertion on the '
+              'observable outcome in $relPath (replace the vacuous-guard '
+              'guard, remove the marker), then re-run '
+              '`zfa tdd $label $feature`.',
+            );
+            return (
+              state: updated,
+              stop: (
+                result: 'stopped',
+                stoppedAt: '${row.id}:hand',
+                exitCode: _exitStopped,
+                message: null,
+              ),
+              refactorBlocked: false,
+            );
+          }
+          print(
+            '   the generated test is GUARD-ONLY [$vacuousGuardWarningToken] '
+            '— the behavior is fallback-routed (no traces: to a declared '
+            'contract row), so gen could not derive a real outcome '
+            'assertion and make refuses it vacuous-green (issue #1259, '
+            '#1308).',
+          );
+          print('   --> fix: $vacuousGuardFallbackRemedy');
+          return (
+            state: updated,
+            stop: (
+              result: 'stopped',
+              stoppedAt: '${row.id}:make',
+              exitCode: _exitStopped,
+              message: null,
+            ),
+            refactorBlocked: false,
+          );
+        }
         // Honest stop (FR-007).
         final isRunnerError = result.outcome == 'runner-error';
         updated = updated.advance(row.id, state);
@@ -1550,6 +1641,68 @@ class RunDriverCore {
 
   String _snakeCase(String id) =>
       id.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+
+  /// The generated unit test file for [behaviorId] when one exists on
+  /// disk — the #827 namespaced layout first, the legacy flat fallback
+  /// second (the same resolution `_hasPendingWithArtifacts` uses). The
+  /// file is the single source of truth the #1308 vacuous-green stop arm
+  /// keys on: the traced entity/void path's test carries the
+  /// [vacuousGuardMarker], the fallback path's does not.
+  String? _existingGeneratedTestPath({
+    required String projectRoot,
+    required String feature,
+    required String behaviorId,
+  }) {
+    final snakeId = _snakeCase(behaviorId);
+    final candidates = [
+      p.join(projectRoot, 'test', 'tdd', feature, '${snakeId}_test.dart'),
+      p.join(projectRoot, 'test', 'tdd', '${snakeId}_test.dart'),
+    ];
+    for (final candidate in candidates) {
+      if (File(candidate).existsSync()) return candidate;
+    }
+    return null;
+  }
+
+  /// Issue #1308: the journal hand-step violation for a stop reported at
+  /// the named hand step (`<id>:hand`): what to write (an assertion on
+  /// the observable outcome) and where (the generated test file,
+  /// project-relative). Shared by the lane journal entries so the ONE
+  /// explicit, named hand step is machine-parseable everywhere.
+  String _handStepViolationFor(String stoppedAt, String featureDir) {
+    final behaviorId = stoppedAt.substring(0, stoppedAt.lastIndexOf(':'));
+    final feature = p.basename(featureDir);
+    final projectRoot = p.dirname(featureDir);
+    final testPath = _existingGeneratedTestPath(
+      projectRoot: projectRoot,
+      feature: feature,
+      behaviorId: behaviorId,
+    );
+    return vacuousGuardHandStepViolation(
+      behaviorId: behaviorId,
+      testPath: testPath != null
+          ? p.relative(testPath, from: projectRoot)
+          : p.join(
+              'test',
+              'tdd',
+              feature,
+              '${_snakeCase(behaviorId)}_test.dart',
+            ),
+    );
+  }
+
+  /// Issue #1308: forward the gen child's guard-only warning lines into
+  /// the run transcript. The token and the remedy string are the only
+  /// markers the writer's warning lines carry, so the scan stays surgical
+  /// — never a dump of the whole captured output.
+  void _forwardGuardOnlyWarning(String output) {
+    for (final line in output.split('\n')) {
+      if (line.contains(vacuousGuardWarningToken) ||
+          line.contains(vacuousGuardFallbackRemedy)) {
+        print(line);
+      }
+    }
+  }
 
   BehaviorState _maxState(BehaviorState a, BehaviorState b) =>
       a.index >= b.index ? a : b;
