@@ -398,4 +398,111 @@ void main() {
       expect(json['findings'], isEmpty);
     });
   });
+
+  group('append-only logs (#1327)', () {
+    Future<void> receiptCycleLog(
+      String content, {
+      bool withSnapshot = true,
+    }) async {
+      final entry = await seedFile(
+        workspace,
+        'specs/demo/tdd/cycle-log.md',
+        content,
+        withSnapshot: withSnapshot,
+      );
+      await store.save(
+        GenerationReceipt(
+          schema: 'proof.v1',
+          command: 'tdd make',
+          target: 'U1',
+          repro: 'zfa tdd make U1',
+          at: DateTime.utc(2026, 9, 8, 10),
+          generatorVersion: '6.2.2',
+          input: const {'feature': 'demo'},
+          files: [entry],
+        ),
+      );
+    }
+
+    test('evidence appended to a receipted cycle-log verifies green '
+        '(the run driver appends after the make receipt)', () async {
+      final receipted =
+          '# Cycle log\n\n[make] U1 green at 2026-09-08T10:00:00Z\n';
+      await receiptCycleLog(receipted);
+
+      // The run driver appends refactor evidence after the receipt.
+      final log = File(p.join(workspace.path, 'specs/demo/tdd/cycle-log.md'));
+      await log.writeAsString(
+        '$receipted\n[refactor] U1 clean at 2026-09-08T10:05:00Z\n',
+        mode: FileMode.append,
+      );
+
+      final report = await checker.check();
+
+      expect(report.ok, isTrue, reason: report.findings.toString());
+      expect(report.findings, isEmpty);
+    });
+
+    test('editing the receipted region of a cycle-log stays red', () async {
+      final receipted =
+          '# Cycle log\n\n[make] U1 green at 2026-09-08T10:00:00Z\n';
+      await receiptCycleLog(receipted);
+
+      // A hand edit lands INSIDE the receipted region (timestamp forged).
+      await File(
+        p.join(workspace.path, 'specs/demo/tdd/cycle-log.md'),
+      ).writeAsString(
+        '# Cycle log\n\n[make] U1 green at 2027-01-01T00:00:00Z\n'
+        '[refactor] U1 clean at 2026-09-08T10:05:00Z\n',
+      );
+
+      final report = await checker.check();
+
+      expect(report.ok, isFalse);
+      expect(report.findings.single.kind, ProofFinding.kindModified);
+      expect(report.findings.single.path, 'specs/demo/tdd/cycle-log.md');
+    });
+
+    test('a snapshot-less receipt still drifts on append '
+        '(the exemption requires the receipted bytes)', () async {
+      await receiptCycleLog('# Cycle log\n', withSnapshot: false);
+      await File(
+        p.join(workspace.path, 'specs/demo/tdd/cycle-log.md'),
+      ).writeAsString('# Cycle log\n[refactor] appended\n');
+
+      final report = await checker.check();
+
+      expect(report.ok, isFalse);
+      expect(report.findings.single.kind, ProofFinding.kindModified);
+    });
+
+    test('the append exemption is name-scoped: appending to a receipted '
+        'non-log artifact stays red', () async {
+      final entry = await seedFile(
+        workspace,
+        'lib/tdd/demo/u1_subject.dart',
+        'int subject_u1() => 1;\n',
+      );
+      await store.save(
+        GenerationReceipt(
+          schema: 'proof.v1',
+          command: 'tdd make',
+          target: 'U1',
+          repro: 'zfa tdd make U1',
+          at: DateTime.utc(2026, 9, 8, 10),
+          generatorVersion: '6.2.2',
+          input: const {'feature': 'demo'},
+          files: [entry],
+        ),
+      );
+      await File(
+        p.join(workspace.path, 'lib/tdd/demo/u1_subject.dart'),
+      ).writeAsString('int subject_u1() => 1;\n// appended\n');
+
+      final report = await checker.check();
+
+      expect(report.ok, isFalse);
+      expect(report.findings.single.kind, ProofFinding.kindModified);
+    });
+  });
 }

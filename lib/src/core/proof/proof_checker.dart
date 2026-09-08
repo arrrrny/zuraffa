@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart' as crypto;
@@ -100,6 +101,17 @@ class ProofChecker {
   /// snapshot somehow exists; the finding degrades to a digest report.
   static const int maxDiffLines = 2000;
 
+  /// Append-only logs (issue #1327): the run driver, prove, refactor and
+  /// the journal append evidence to these AFTER the verb receipts that
+  /// cover them were written — a digest mismatch against those receipts
+  /// is the sanctioned append class, not hand-drift. When the receipt
+  /// carries a snapshot of the log at receipt time and the current disk
+  /// bytes still start with exactly those bytes (nothing before or
+  /// inside the receipted region changed), the check passes. A snapshot
+  /// is required: without the receipted bytes there is nothing to pin
+  /// the prefix against, so legacy snapshot-less receipts still drift.
+  static const Set<String> appendOnlyBasenames = {'cycle-log.md'};
+
   const ProofChecker({required this.projectRoot, this.store});
 
   /// Verifies every receipt against the current tree. When
@@ -142,8 +154,10 @@ class ProofChecker {
         );
         continue;
       }
-      final actual = _digestOf(file);
+      final actualBytes = file.readAsBytesSync();
+      final actual = crypto.sha256.convert(actualBytes).toString();
       if (actual != entry.sha256) {
+        if (_isSanctionedAppend(path, entry, actualBytes)) continue;
         final diff = _diffFor(entry.snapshot, file);
         findings.add(
           ProofFinding(
@@ -355,6 +369,27 @@ class ProofChecker {
         detail: 'no receipt covers this file under audit root "$root"',
       );
     }
+  }
+
+  /// Whether the drift on [path] is the sanctioned append class
+  /// (issue #1327): an append-only log whose receipt carries a snapshot
+  /// and whose disk bytes are exactly [snapshotBytes] followed by more
+  /// bytes. Anything that touches the receipted region — an edit, a
+  /// reformat, a truncation, a different leading byte — is still drift.
+  bool _isSanctionedAppend(
+    String path,
+    GenerationReceiptFile entry,
+    List<int> actualBytes,
+  ) {
+    final snapshot = entry.snapshot;
+    if (snapshot == null) return false;
+    if (!appendOnlyBasenames.contains(p.basename(path))) return false;
+    final receiptedBytes = const Utf8Encoder().convert(snapshot);
+    if (actualBytes.length < receiptedBytes.length) return false;
+    for (var i = 0; i < receiptedBytes.length; i++) {
+      if (actualBytes[i] != receiptedBytes[i]) return false;
+    }
+    return true;
   }
 
   String? _diffFor(String? snapshot, File current) {
