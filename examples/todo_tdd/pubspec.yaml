@@ -24,4 +24,12 @@ dev_dependencies:
   mutation_test: ^1.0.0
 dependency_overrides:
   analyzer: 14.1.0
+  zuraffa:
+    path: ../..
+  zuraffa_flutter:
+    path: ../../zuraffa_flutter
+  zorphy:
+    path: ../../../zorphy/zorphy
+  zorphy_annotation:
+    path: ../../../zorphy/zorphy_annotation
 

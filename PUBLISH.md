@@ -88,3 +88,8 @@ the freshly published `zuraffa`, never a stale hosted copy.
 - WASM is rebuilt during publish for the zuraffa Zed extension (requires `cargo` +
   `wasm32-wasip1` target + SSH access to git@github.com).
 - GitHub Actions builds binaries for all platforms after the tag push.
+- `.pubignore` is required to exclude `lib/tdd/` (which imports `package:test/test.dart`,
+  a dev-only dependency). Without it, `dart pub publish` fails with 115 validation errors.
+  Keep `.pubignore` in sync if new dev-only imports are added to `lib/`.
+- `flutter pub publish` may fail if `zuraffa` is globally activated from a local path
+  (`flutter pub global deactivate zuraffa` fixes this).

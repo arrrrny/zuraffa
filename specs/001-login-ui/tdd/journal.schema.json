@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "zuraffa unified TDD journal",
+  "description": "One feature, one journal: the machine-parseable record of run-engine then run-skin (spec 1113, issue #1113). Every cycle (engine/skin/meta) appends one entry; tdd/cycle-log.md carries the same content as prose.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "feature",
+    "entries"
+  ],
+  "properties": {
+    "schema": {
+      "const": 1
+    },
+    "feature": {
+      "type": "string",
+      "minLength": 1
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "feature",
+          "cycle",
+          "phase",
+          "started_at",
+          "finished_at",
+          "gate_state",
+          "receipts",
+          "violations",
+          "refs"
+        ],
+        "properties": {
+          "feature": {
+            "type": "string",
+            "minLength": 1
+          },
+          "cycle": {
+            "enum": [
+              "engine",
+              "skin",
+              "meta"
+            ]
+          },
+          "phase": {
+            "enum": [
+              "gate",
+              "drive",
+              "aggregate",
+              "prove"
+            ]
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "gate_state": {
+            "enum": [
+              "green",
+              "red",
+              "preflight_red",
+              "not_assessed"
+            ]
+          },
+          "receipts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "violations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "refs": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "engine_receipt",
+              "skin_receipt",
+              "contract_schema"
+            ],
+            "properties": {
+              "engine_receipt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "skin_receipt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "contract_schema": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "result": {
+            "type": "string"
+          },
+          "behaviors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "stopped_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mocks": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "required": [
+              "total",
+              "certified"
+            ],
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "certified": {
+                "type": "integer"
+              }
+            }
+          },
+          "fingerprints": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "required": [
+                "subject",
+                "test"
+              ],
+              "properties": {
+                "subject": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "test": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "ungated": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

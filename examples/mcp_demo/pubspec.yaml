@@ -11,3 +11,13 @@ dependencies:
 
 dev_dependencies:
   test: ^1.25.0
+
+dependency_overrides:
+  zuraffa:
+    path: ../..
+  zuraffa_flutter:
+    path: ../../zuraffa_flutter
+  zorphy:
+    path: ../../../zorphy/zorphy
+  zorphy_annotation:
+    path: ../../../zorphy/zorphy_annotation

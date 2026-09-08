@@ -10,3 +10,13 @@ dependencies:
   zuraffa:
     path: ../../
   logging: any
+
+dependency_overrides:
+  zuraffa:
+    path: ../..
+  zuraffa_flutter:
+    path: ../../zuraffa_flutter
+  zorphy:
+    path: ../../../zorphy/zorphy
+  zorphy_annotation:
+    path: ../../../zorphy/zorphy_annotation

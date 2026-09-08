@@ -1,0 +1,160 @@
+{
+  "schema": 1,
+  "feature": "001-login-ui",
+  "entries": [
+    {
+      "feature": "001-login-ui",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-07T13:42:57.995539Z",
+      "finished_at": "2026-09-07T13:42:57.997345Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane result=runner-error — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": null,
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "runner-error",
+      "behaviors": [],
+      "stopped_at": null
+    },
+    {
+      "feature": "001-login-ui",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-07T13:43:03.058859Z",
+      "finished_at": "2026-09-07T13:43:03.061013Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane result=runner-error — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": null,
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "runner-error",
+      "behaviors": [],
+      "stopped_at": null
+    },
+    {
+      "feature": "001-login-ui",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-07T13:43:09.181282Z",
+      "finished_at": "2026-09-07T13:43:09.183770Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane result=runner-error — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": null,
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "runner-error",
+      "behaviors": [],
+      "stopped_at": null
+    },
+    {
+      "feature": "001-login-ui",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-07T13:43:15.599006Z",
+      "finished_at": "2026-09-07T13:43:15.601249Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane result=runner-error — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": null,
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "runner-error",
+      "behaviors": [],
+      "stopped_at": null
+    },
+    {
+      "feature": "001-login-ui",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-07T13:43:24.605276Z",
+      "finished_at": "2026-09-07T13:43:24.607362Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane result=runner-error — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": null,
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "runner-error",
+      "behaviors": [],
+      "stopped_at": null
+    },
+    {
+      "feature": "001-login-ui",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-07T13:44:02.411810Z",
+      "finished_at": "2026-09-07T13:44:02.413611Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane result=runner-error — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": null,
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "runner-error",
+      "behaviors": [],
+      "stopped_at": null
+    },
+    {
+      "feature": "001-login-ui",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-07T14:06:28.640711Z",
+      "finished_at": "2026-09-07T14:06:28.641497Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane result=runner-error — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": null,
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "runner-error",
+      "behaviors": [],
+      "stopped_at": null
+    }
+  ]
+}
