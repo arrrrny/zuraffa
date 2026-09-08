@@ -68,6 +68,30 @@ void main() {
       expect(SpecParser.parseFrContractTraces(spec), isEmpty);
     });
 
+    test('a traces: line inside a fenced code example neither binds nor '
+        'counts as unbound (documentation, not declarations)', () {
+      const spec = '''
+- **FR-001**: The system MUST validate the email.
+
+  ```yaml
+  example:
+    traces: NotARealRow
+  ```
+
+  The validation runs on every submit attempt.
+- **FR-002**: The system MUST persist the session.
+          traces: SessionStore
+''';
+      final bound = SpecParser.parseFrContractTraces(spec);
+      expect(
+        bound.containsKey('U1'),
+        isFalse,
+        reason: 'the fenced example is documentation, not a declaration',
+      );
+      expect(bound['U2'], ['SessionStore']);
+      expect(SpecParser.findUnboundFrTraces(spec, bound), isEmpty);
+    });
+
     test('the FR-table form binds traces: after a variant continuation '
         'row (empty id cell)', () {
       const spec = '''

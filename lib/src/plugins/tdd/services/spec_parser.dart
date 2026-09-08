@@ -1096,8 +1096,14 @@ class SpecParser {
   /// to the pre-#1319 behavior.
   static Map<String, List<String>> parseFrContractTraces(String specMd) {
     final traces = <String, List<String>>{};
-    final lines = normalizeSpecText(specMd).split('\n');
-    final tracesLine = RegExp(r'^\s+traces:\s*(.+)$');
+    // Fenced code blocks are documentation, not declarations (mirrors
+    // parseScenarioTypeMarkers): a `traces:`-looking line inside a ```
+    // example must neither bind nor count as unbound.
+    final blanked = normalizeSpecText(specMd).replaceAllMapped(
+      _fencedCodeBlock,
+      (m) => '\n' * '\n'.allMatches(m.group(0)!).length,
+    );
+    final lines = blanked.split('\n');
     var uIdx = 0;
     for (var i = 0; i < lines.length; i++) {
       // Issue #1196: the shared FR-line helper (bullet or table form)
@@ -1109,7 +1115,7 @@ class SpecParser {
       // header — and bind the first `traces:` line in it.
       for (var j = i + 1; j < lines.length; j++) {
         if (_endsFrBlock(lines[j])) break;
-        final t = tracesLine.firstMatch(lines[j]);
+        final t = _tracesLine.firstMatch(lines[j]);
         if (t == null) continue;
         traces['U$uIdx'] = traceTokens(t.group(1)!);
         break;
@@ -1133,6 +1139,11 @@ class SpecParser {
   /// the FR block above it is over.
   static final RegExp _frBlockBoundary = RegExp(r'^\s*#{1,6}(\s|$)');
 
+  /// The `traces:` continuation line under an FR (feature 071, #1319) —
+  /// one shared pattern so the binding scan and the attribution walk
+  /// cannot drift apart.
+  static final RegExp _tracesLine = RegExp(r'^\s+traces:\s*(.+)$');
+
   /// Issue #1319: the FR ids whose block contains a `traces:` line that
   /// did NOT yield a contract-row binding in [bound] (the
   /// `parseFrContractTraces` result, keyed by unit id). An FR whose
@@ -1151,8 +1162,11 @@ class SpecParser {
     Map<String, List<String>> bound,
   ) {
     final unbound = <String>{};
-    final lines = normalizeSpecText(specMd).split('\n');
-    final tracesLine = RegExp(r'^\s+traces:\s*(.+)$');
+    final blanked = normalizeSpecText(specMd).replaceAllMapped(
+      _fencedCodeBlock,
+      (m) => '\n' * '\n'.allMatches(m.group(0)!).length,
+    );
+    final lines = blanked.split('\n');
     String? owner;
     var uIdx = 0;
     for (final line in lines) {
@@ -1166,7 +1180,7 @@ class SpecParser {
         owner = null;
         continue;
       }
-      if (owner != null && tracesLine.hasMatch(line)) {
+      if (owner != null && _tracesLine.hasMatch(line)) {
         // The FR owns a traces: line — binding is decided by the
         // caller's map: missing or empty = unbound.
         final id = 'U$uIdx';
@@ -1190,7 +1204,6 @@ class SpecParser {
         .map((r) => r.name)
         .toSet();
     final lines = normalizeSpecText(specMd).split('\n');
-    final tracesLine = RegExp(r'^\s+traces:\s*(.+)$');
     var uIdx = 0;
     for (var i = 0; i < lines.length; i++) {
       // Issue #1196: the shared FR-line helper (bullet or table form)
@@ -1202,7 +1215,7 @@ class SpecParser {
       final tagged = _carriesPersistentTag(m.$2);
       final traceTokens = <String>[];
       if (i + 1 < lines.length) {
-        final t = tracesLine.firstMatch(lines[i + 1]);
+        final t = _tracesLine.firstMatch(lines[i + 1]);
         if (t != null) {
           traceTokens.addAll(SpecParser.traceTokens(t.group(1)!));
         }
