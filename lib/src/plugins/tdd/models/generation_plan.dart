@@ -105,7 +105,17 @@ enum MakeOutcome {
 
   /// Runner/profile/tooling failure.
   /// Non-zero exit, no green entry.
-  runnerError('runner-error');
+  runnerError('runner-error'),
+
+  /// The dependency_overrides path preflight refused the make BEFORE any
+  /// resolution or generation ran (issue #1303): a `dependency_overrides`
+  /// path target does not resolve to a package, so every pipeline step
+  /// would die with a raw version-solving dump buried mid-log and the
+  /// clean-cache retry would burn a full rebuild on a resolution error
+  /// no cache clean can fix. The SPEC 917 drift class — the stale
+  /// override is corrupt project state — exit 3, no green entry; the
+  /// remedy is to correct or remove the override, then re-run.
+  preflightRed('preflight-red');
 
   const MakeOutcome(this.label);
 
