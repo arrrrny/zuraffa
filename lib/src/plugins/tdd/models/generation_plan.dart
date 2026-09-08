@@ -128,7 +128,17 @@ enum MakeOutcome {
   /// the subject restored byte-identically (#1036); the run driver
   /// reports the named hand step `stopped_at=<id>:hand` (the issue
   /// #1308 hand-step contract).
-  handDeltaRequired('hand-delta-required');
+  handDeltaRequired('hand-delta-required'),
+
+  /// A plan `build` step failed because the BUILDER package is not in the
+  /// dependency graph (issue #1322): build_runner warned `Ignoring
+  /// options for unknown builder <key>` and silently generated nothing —
+  /// a missing dev dependency, not generation noise. The outcome label
+  /// and stop message name the missing package and prescribe the exact
+  /// `dart pub add --dev <pkg>` fix instead of the generic
+  /// `generation-error`. Exit 1, no green entry (the same honesty class);
+  /// the remedy is to add the dependency, then re-run make.
+  missingBuilderDependency('missing-builder-dependency');
 
   const MakeOutcome(this.label);
 

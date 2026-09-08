@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import 'package:zuraffa/src/commands/build_command.dart';
+import 'package:zuraffa/src/core/dependencies/dependency_wirer.dart';
 
 import '../helpers/project_root.dart';
 
@@ -357,6 +358,92 @@ void main() {
           );
         },
       );
+
+      test('#1322: 0 outputs + builder package missing from the dependency '
+          'graph → names zorphy + prescribes `dart pub add --dev zorphy`, '
+          'NOT the glob remedy', () async {
+        await Directory(
+          p.join(sandbox.path, 'lib/src'),
+        ).create(recursive: true);
+        await File(
+          p.join(sandbox.path, 'lib/src/foo.dart'),
+        ).writeAsString('@Zorphy(generateJson: true)\nclass Foo {}');
+        // The canonical build.yaml `zfa build` scaffolds, registering
+        // zorphy:zorphy — with the correct globs. The real problem: the
+        // zorphy builder package is not resolvable.
+        await File(
+          p.join(sandbox.path, 'build.yaml'),
+        ).writeAsString(DependencyWirer.buildYamlContent);
+        final dartTool = Directory(p.join(sandbox.path, '.dart_tool'));
+        await dartTool.create(recursive: true);
+        final entries = [
+          'json_serializable',
+          'source_gen',
+          'test',
+        ].map((n) => '{"name":"$n","rootUri":"../"}').join(',');
+        await File(
+          p.join(dartTool.path, 'package_config.json'),
+        ).writeAsString('{"configVersion":2,"packages":[$entries]}');
+        const buildOutput =
+            '[WARNING] Ignoring options for unknown builder '
+            '"zorphy:zorphy" found in build.yaml.';
+
+        bool? result;
+        final out = capturePrintSync(() {
+          result = command.verifyOutputsOrFail(
+            projectRoot: sandbox.path,
+            buildOutput: buildOutput,
+          );
+        });
+        expect(result, isFalse);
+        // Names the missing package + the exact fix + the build_runner
+        // signal (surfaced instead of the generic glob remedy).
+        expect(out, contains('zorphy'));
+        expect(out, contains('dart pub add --dev zorphy'));
+        expect(out, contains('Ignoring options for unknown builder'));
+        expect(out, contains('package_config.json'));
+        // The misdiagnosis this spec kills: no glob remedy here.
+        expect(out, isNot(contains('generate_for')));
+        expect(out, isNot(contains('zfa setup')));
+      });
+
+      test('#1322 back-compat: 0 outputs with every builder package '
+          'resolvable → the current glob remedy, no pub add', () async {
+        await Directory(
+          p.join(sandbox.path, 'lib/src'),
+        ).create(recursive: true);
+        await File(
+          p.join(sandbox.path, 'lib/src/foo.dart'),
+        ).writeAsString('@Zorphy(generateJson: true)\nclass Foo {}');
+        await File(
+          p.join(sandbox.path, 'build.yaml'),
+        ).writeAsString(DependencyWirer.buildYamlContent);
+        final dartTool = Directory(p.join(sandbox.path, '.dart_tool'));
+        await dartTool.create(recursive: true);
+        final entries = [
+          'zorphy',
+          'json_serializable',
+          'source_gen',
+        ].map((n) => '{"name":"$n","rootUri":"../"}').join(',');
+        await File(
+          p.join(dartTool.path, 'package_config.json'),
+        ).writeAsString('{"configVersion":2,"packages":[$entries]}');
+
+        bool? result;
+        final out = capturePrintSync(() {
+          result = command.verifyOutputsOrFail(
+            projectRoot: sandbox.path,
+            buildOutput:
+                '[WARNING] Ignoring options for unknown builder '
+                '"zorphy:typo" found in build.yaml.',
+          );
+        });
+        expect(result, isFalse);
+        expect(out, contains('wrote 0 outputs'));
+        expect(out, contains('generate_for'));
+        expect(out, contains('lib/src/**'));
+        expect(out, isNot(contains('pub add')));
+      });
     });
 
     group('countEntities', () {

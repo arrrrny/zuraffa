@@ -59,6 +59,7 @@ import '../models/red_classification.dart';
 import '../models/verdict_envelope.dart';
 import '../services/artifact_registry.dart';
 import '../services/cycle_log.dart';
+import '../services/cycle_log_terminal_receipt.dart';
 import '../services/journal.dart';
 import '../services/lane_receipts.dart';
 import '../services/red_classifier.dart';
@@ -273,6 +274,18 @@ class RunSkinCommand extends Command<void> {
       skipWidget: argResults?['skip-widget'] as bool? ?? false,
     );
     if (outcome.message != null) print('zfa tdd $label: ${outcome.message}');
+    // Issue #1327: same terminal-receipt close-out as the engine lane —
+    // on a COMPLETE skin lane the log's final bytes must end covered so
+    // result=complete implies `zfa proof check` passes (criterion 4: a
+    // stopped lane writes nothing). Best-effort; the summary line stays
+    // the run's final stdout line (FR-009/FR-010).
+    if (outcome.result == 'complete') {
+      await CycleLogTerminalReceipt.refreshBestEffort(
+        projectRoot: projectRoot,
+        feature: feature,
+        command: 'tdd $label',
+      );
+    }
     _printSummary(feature, outcome.result, outcome);
     exitCode = outcome.exitCode;
   }

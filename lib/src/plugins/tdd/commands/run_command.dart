@@ -41,6 +41,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/verdict_envelope.dart';
 import '../services/journal.dart';
+import '../services/cycle_log_terminal_receipt.dart';
 import '../services/dependency_override_preflight.dart';
 import '../services/explain_emitter.dart';
 import '../services/lane_receipts.dart';
@@ -457,6 +458,19 @@ class RunCommand extends Command<void> {
           (engine.rows.map((r) => r.id).toSet()
                 ..addAll(skin.rows.map((r) => r.id)))
               .toList(),
+    );
+    // Issue #1327: the unified journal entry above is the run's LAST
+    // append to tdd/cycle-log.md, and the last `tdd make` receipt
+    // covering the log predates it (the #1311 refresh covers only the
+    // refactor passes' lib/ mutations, never the log). Close the run
+    // with ONE terminal receipt re-hashing the log to its final bytes so
+    // result=complete implies `zfa proof check` passes with zero
+    // digest-drift findings. Best-effort: a record, never a gate. The
+    // summary line stays the run's final stdout line (FR-009/FR-010).
+    await CycleLogTerminalReceipt.refreshBestEffort(
+      projectRoot: projectRoot,
+      feature: feature,
+      command: 'tdd run',
     );
     _printSummary(
       feature,

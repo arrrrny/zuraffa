@@ -13,11 +13,21 @@ import '../utils/entity_utils.dart';
 import '../utils/framework_export_surface.dart';
 import '../utils/string_utils.dart';
 import '../version.dart';
+import '../core/dependencies/builder_dependency_preflight.dart';
+import '../core/dependencies/pubspec_auto_add.dart' show PubspecProcessRunner;
 import '../plugins/cli/cli_plugin.dart';
 import '../cli/exit_protocol.dart';
 
 class EntityCommand {
   static const String fixedEntityOutput = ZfaConfig.fixedEntityOutput;
+
+  /// Issue #1322: the `pub add --dev` spawner for the phase-0
+  /// builder-dependency preflight. Injectable so tests stay hermetic (the
+  /// doctor_checks.dart `ZfaProcessRunner` convention); null delegates to
+  /// the default spawner.
+  final PubspecProcessRunner? _pubRunner;
+
+  EntityCommand({PubspecProcessRunner? pubRunner}) : _pubRunner = pubRunner;
 
   /// SPEC 917: whether this invocation owns the process (CLI mode) or is
   /// embedded (in-process dispatch / MCP), where a raw `exit()` would kill
@@ -423,6 +433,50 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
 
     final creator = EntityCreator(baseOutputDir: outputDir);
+
+    // Issue #1322 (AC-1): the phase-0 preflight. The entity we are about
+    // to write carries @Zorphy part statements the BUILDER package must
+    // generate — if the builder package is not even in the dependency
+    // graph, build_runner silently generates nothing and the #276 safety
+    // net used to misdiagnose the state as a `generate_for` glob problem.
+    // Ensure every builder package the effective build.yaml registers (or
+    // the canonical scaffold would register) is resolvable BEFORE writing:
+    // auto-add the missing dev dependency, refuse as a BLOCKING step when
+    // the add fails. A no-op when the package is already resolvable.
+    final preflight =
+        await BuilderDependencyPreflight.ensureBuilderDependencies(
+          projectRoot: Directory.current.path,
+          dryRun: entityConfig.dryRun,
+          runner: _pubRunner,
+        );
+    if (preflight.added.isNotEmpty) {
+      print(
+        '✅ Added missing builder package(s) to dev_dependencies: '
+        '${preflight.added.join(", ")}',
+      );
+      print('    ran: `${preflight.commandLine}`');
+    }
+    if (preflight.dryRun && preflight.missing.isNotEmpty) {
+      print(
+        '   Would add missing builder package(s): '
+        '${preflight.missing.map((b) => b.package).join(", ")}',
+      );
+      print('   via `${preflight.commandLine}`');
+    }
+    if (preflight.blocked) {
+      print(
+        '❌ Cannot create entity "$name": the builder package(s) '
+        '${preflight.failed.join(", ")} are not in the dependency graph '
+        '(.dart_tool/package_config.json) and the automatic add failed. '
+        'No files were written.',
+      );
+      print(
+        '--> fix: `${preflight.commandLine ?? BuilderDependencyPreflight.pubAddDevCommand(preflight.failed)}` '
+        '(then re-run `zfa entity create`) (issue #1322)',
+      );
+      _bail(ExitProtocol.failure);
+    }
+
     final result = await creator.create(entityConfig);
 
     if (result.isSuccess) {

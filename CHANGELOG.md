@@ -1,3 +1,20 @@
+## [6.2.2] - 2026-09-08
+
+### Added
+- Refresh stale lane plans on re-plan; split `--force` semantics (#1317)
+- Surface vacuous-green remedy in `tdd run`/`stop` messages and gen-time warnings (#1321)
+- Write contract-row names into plan traces cell (#1316)
+- Refresh proof receipts after the refactor pass (#1315)
+
+### Fixed
+- `tdd make` preflight validates `dependency_overrides` path targets; skip cache-retry on resolution errors (#1306)
+- Slice cut — derive sandbox pubspec deps from copied closure imports (#1305)
+- Exclude event-noun subjects from the UI-intent classifier (#1328)
+- Scan the full FR block for traces in `parseFrContractTraces` (#1332)
+- Refresh cycle-log receipt at run end (#1334)
+- Relativize audited paths against `projectRoot` in receipt preflight (#1314)
+- Anchor `.pubignore` `benchmark/` to root; add publish-time export guard (#1313)
+
 ## [6.2.1] - 2026-09-07
 
 ### Fixed

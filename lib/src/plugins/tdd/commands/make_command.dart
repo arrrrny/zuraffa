@@ -68,6 +68,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart';
+import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/generation_plan.dart';
@@ -105,6 +106,7 @@ import '../../../config/zfa_config.dart';
 import '../../../core/plugin_system/plugin_manager.dart';
 import '../../../core/plugin_system/plugin_registry.dart';
 import '../../../core/project/project_root.dart';
+import '../../../core/dependencies/builder_dependency_preflight.dart';
 
 /// Resolution-stage failure: message, outcome, and feature context if known.
 class MakeResolutionError implements Exception {
@@ -1089,6 +1091,40 @@ class MakeCommand extends Command<void> {
           postRun = toleratedRun;
           buildStepTolerated = true;
         } else {
+          // Issue #1322: a failed BUILD step whose output carries the
+          // missing-builder-dependency class is corrupt project state, not
+          // generation noise — grade it with the distinct outcome naming
+          // the package + the exact fix, NOT the generic generation-error.
+          final missingBuilders = idx >= 0 && idx < effectivePlan.steps.length
+              ? missingBuildersForBuildStep(
+                  step: failed!,
+                  stepArgs: effectivePlan.steps[idx].args,
+                  projectRoot: cwd,
+                )
+              : null;
+          if (missingBuilders != null) {
+            print(
+              BuilderDependencyPreflight.missingBuilderStopMessage(
+                missing: missingBuilders,
+                context: 'the make plan\'s `zfa build` step',
+              ),
+            );
+            // Issue #1036: same failed-make contract as the
+            // generation-error path — the certified-red subject shape
+            // survives the failed make and the retry fails honestly.
+            await _restoreSubjectIfMutated(
+              subjectFile,
+              subjectSnapshot,
+              reason: 'the make stopped with a missing-builder-dependency',
+            );
+            _printSummary(
+              behavior: record.behaviorId,
+              outcome: MakeOutcome.missingBuilderDependency,
+              feature: target.featureName,
+            );
+            exitCode = 1;
+            return;
+          }
           print(
             'zfa tdd make: generation step failed at index $idx'
             '${failed != null ? ' (${failed.purpose})' : ''}:',
@@ -1644,6 +1680,34 @@ class MakeCommand extends Command<void> {
     );
     if (!run.startedProcess || run.exitCode != 0) return null;
     return run;
+  }
+
+  /// The missing-builder-dependency classifier for a failed plan step
+  /// (issue #1322). Returns the missing builder registrations when ALL of
+  /// the following hold, null otherwise (the caller keeps the existing
+  /// grading):
+  ///
+  ///   - the failed step IS a plan `build` step ([stepArgs] starts with
+  ///     `build`) — only build failures can carry the missing-builder
+  ///     class;
+  ///   - the step actually failed (non-zero exit);
+  ///   - the shared classifier diagnoses a builder registered in
+  ///     build.yaml whose package is not resolvable in
+  ///     `.dart_tool/package_config.json` (corroborated by build_runner's
+  ///     unknown-builder signal in the captured step output).
+  @visibleForTesting
+  static List<RegisteredBuilder>? missingBuildersForBuildStep({
+    required GenerationStep step,
+    required List<String> stepArgs,
+    required String projectRoot,
+  }) {
+    if (stepArgs.isEmpty || stepArgs.first != 'build') return null;
+    if (step.exitCode == 0) return null;
+    final missing = BuilderDependencyPreflight.missingBuildersForFailedBuild(
+      projectRoot: projectRoot,
+      buildOutput: step.output,
+    );
+    return missing.isEmpty ? null : missing;
   }
 
   /// The behavior description the planner will see — the record's own
