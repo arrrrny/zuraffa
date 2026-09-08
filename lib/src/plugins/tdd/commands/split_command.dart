@@ -20,9 +20,12 @@
 ///
 /// The migration is:
 ///
-/// - **One-shot**: a feature whose `split-receipt.json` already exists
-///   (or whose test-list is already a meta-index) is REFUSED (exit 1)
-///   naming the receipt — never a silent re-split.
+/// - **One-shot, with an explicit escape (issue #1309)**: a feature
+///   whose `split-receipt.json` already exists (or whose test-list is
+///   already a meta-index) is REFUSED (exit 1) naming the receipt and
+///   the ACTUAL remedies — `--force` to re-split, or `zfa tdd plan` to
+///   refresh the lane plans from the current spec — never a silent
+///   re-split.
 /// - **Fail-honest**: a feature with no legacy test list refuses
 ///   naming the file to plan first; a prior list the shared reader
 ///   cannot parse refuses with the reader's error.
@@ -35,6 +38,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/lane.dart';
@@ -58,6 +62,14 @@ class SplitCommand extends Command<void> {
           'root here instead of mutating Directory.current.',
     );
     argParser.addFlag('json', help: kJsonFlagHelp, negatable: false);
+    argParser.addFlag(
+      'force',
+      help:
+          'Re-split even when a split receipt exists (issue #1309): the '
+          'behavior rows re-read through the shared reader and the lane '
+          'plans, the meta-index, and the receipt are overwritten.',
+      negatable: false,
+    );
   }
 
   final TddPlugin plugin;
@@ -98,24 +110,37 @@ class SplitCommand extends Command<void> {
     final listFile = File('$tddDir/test-list.md');
     final receiptFile = File('$tddDir/${LaneSplitFiles.receipt}');
 
-    // One-shot guard: the receipt is the migration record.
+    // One-shot guard: the receipt is the migration record. Issue
+    // #1309: the refusal names the ACTUAL remedies — the old message
+    // pointed only at re-planning, which (for a spec with no
+    // `## Lanes`) rewrites only test-list.md and deadlocks with this
+    // command's own "already split" refusal.
+    final force = argResults?['force'] as bool? ?? false;
     if (await receiptFile.exists()) {
+      if (!force) {
+        print(
+          'zfa tdd split: REFUSED — $feature is already split '
+          '(${receiptFile.path} exists) — use `zfa tdd split --force` '
+          'to re-split, or `zfa tdd plan $feature` to refresh lane '
+          'plans from the current spec (issue #1309).',
+        );
+        // SPEC 917/#838: the JSON verdict carries the remediation.
+        _verdict
+          ..outcome = VerdictOutcome.fail
+          ..exitClass = 'refused'
+          ..fix =
+              '$feature already has ${receiptFile.path} — use '
+              '`zfa tdd split --force $feature` to re-split, or '
+              '`zfa tdd plan $feature` to refresh lane plans from the '
+              'current spec';
+        exitCode = 1;
+        return;
+      }
       print(
-        'zfa tdd split: REFUSED — $feature is already split '
-        '(${receiptFile.path} exists). The split is one-shot; re-planning '
-        'the feature (`zfa tdd plan $feature`) rewrites the lane plans '
-        'from the spec.',
+        'zfa tdd split: --force — re-splitting over the existing '
+        'receipt (${receiptFile.path}); the old lane plans, the '
+        'meta-index, and the receipt are overwritten (issue #1309).',
       );
-      // SPEC 917/#838: the JSON verdict carries the remediation.
-      _verdict
-        ..outcome = VerdictOutcome.fail
-        ..exitClass = 'refused'
-        ..fix =
-            'the split is one-shot and $feature already has '
-            '${receiptFile.path} — re-plan with `zfa tdd plan $feature` '
-            'instead';
-      exitCode = 1;
-      return;
     }
 
     if (!await listFile.exists()) {
@@ -133,19 +158,21 @@ class SplitCommand extends Command<void> {
       return;
     }
     final listContent = await listFile.readAsString();
-    if (LaneSplitFiles.find(listContent) != null) {
+    if (!force && LaneSplitFiles.find(listContent) != null) {
       print(
         'zfa tdd split: REFUSED — ${listFile.path} is already the lane '
         'meta-index (no $receiptFile, so the migration record was lost — '
-        'restore it or re-run `zfa tdd plan $feature` to rewrite the '
-        'lane plans from the spec).',
+        'restore it, re-run `zfa tdd plan $feature` to rewrite the '
+        'lane plans from the spec, or pass `--force` to re-split '
+        'anyway — issue #1309).',
       );
       _verdict
         ..outcome = VerdictOutcome.fail
         ..exitClass = 'refused'
         ..fix =
             're-run `zfa tdd plan $feature` to rewrite the lane plans '
-            'from the spec (the migration record was lost)';
+            'from the spec (the migration record was lost), or pass '
+            '`--force` to re-split anyway';
       exitCode = 1;
       return;
     }
@@ -272,12 +299,24 @@ class SplitCommand extends Command<void> {
     ).writeAsString(contractMd);
     await listFile.writeAsString(metaMd);
 
-    // The receipt: the audit record of the one-shot migration.
+    // The receipt: the audit record of the one-shot migration. Issue
+    // #1309: the receipt also records the spec state it was derived
+    // from — the sha256 of the spec content and the spec file's mtime —
+    // so a later `zfa tdd plan` can detect a stale split (a spec edited
+    // after the split) by comparing digests instead of guessing from
+    // timestamps alone.
+    final specHash = sha256.convert(utf8.encode(specMd)).toString();
+    final specExists = await specFile.exists();
+    final specMtime = specExists
+        ? (await specFile.lastModified()).toUtc().toIso8601String()
+        : null;
     final receipt = {
       'feature': feature,
       'split_at': DateTime.now().toUtc().toIso8601String(),
       'source': 'tdd/test-list.md',
       'rows': rows.length,
+      'spec_hash': specHash,
+      'spec_mtime': ?specMtime,
       'classification': {
         for (final entry in classification.entries)
           entry.key: entry.value.label,

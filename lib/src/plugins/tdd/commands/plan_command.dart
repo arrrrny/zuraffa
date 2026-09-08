@@ -15,6 +15,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/lane.dart';
@@ -622,8 +623,36 @@ class PlanCommand extends Command<void> {
       for (final lane in lanes)
         if (Lane.parse(lane.lane) == Lane.skin) ...lane.goldenIds,
     };
+    // Issue #1309: stale-split detection. A feature migrated by `zfa
+    // tdd split` carries `tdd/split-receipt.json`; when its spec
+    // declares NO `## Lanes`, the legacy single-file path below would
+    // rewrite only test-list.md (demoting the meta-index) and leave
+    // the lane plans stale — ghost behaviors (deleted FRs) run, new
+    // FRs are missed — while `zfa tdd split` refuses with "already
+    // split". The two commands' guidance deadlocked. When a receipt
+    // exists, plan keeps the split shape: the lane plans are
+    // REGENERATED from the current behavior set through the same kind
+    // heuristic the split applies, and a spec changed since the receipt
+    // was written (digest, or mtime for legacy receipts) is reported
+    // as a stale split before the regenerated files are written.
+    final receiptFile = File(p.join(outDir.path, LaneSplitFiles.receipt));
+    final splitReceiptExists = await receiptFile.exists();
+    final splitReceipt = splitReceiptExists
+        ? await _readSplitReceipt(receiptFile)
+        : null;
+    final splitStale =
+        splitReceiptExists &&
+        lanes.isEmpty &&
+        await _splitReceiptIsStale(
+          receipt: splitReceipt,
+          receiptFile: receiptFile,
+          specFile: specFile,
+          specMd: specMd,
+        );
     final laneResult = lanes.isEmpty
-        ? null
+        ? (splitReceiptExists
+              ? _heuristicLaneResolution(expressible, preservedFfi)
+              : null)
         : _resolveLanes(lanes, expressible, preservedFfi, goldenIds);
     if (laneResult != null && laneResult.refusals.isNotEmpty) {
       print(
@@ -735,6 +764,18 @@ class PlanCommand extends Command<void> {
     await File(p.join(outDir.path, 'traceability.md')).writeAsString(matrix);
 
     if (laneResult != null) {
+      // Issue #1309: the stale-split report. Printed only when the plan
+      // actually proceeds to write artifacts (every gate has passed),
+      // so a refused plan never claims it refreshed anything.
+      if (splitStale) {
+        print(
+          'zfa tdd plan: stale lane split detected — spec.md changed '
+          'since ${p.relative(receiptFile.path, from: repoRoot)} was '
+          'written; regenerating the lane plans from the current '
+          'behavior set (issue #1309).',
+        );
+        _verdict.details['stale_split'] = true;
+      }
       // Issue #1000: the lane split — engine plan + skin plan + the
       // engine/skin contract, with the legacy filename demoted to the
       // meta-index. TestListReader resolves the rows from the split
@@ -798,9 +839,35 @@ class PlanCommand extends Command<void> {
         adaptiveSlots: adaptiveSlots,
         bothRows: engineRows.where((r) => r.lane == Lane.both).toList(),
       );
+      final metaLanes = lanes.isNotEmpty
+          ? lanes
+          : [
+              // Issue #1309: a no-Lanes regeneration synthesizes the
+              // meta-index declarations from the derived rows — the
+              // same shape `zfa tdd split` writes when the spec
+              // declares no lanes (the heuristic split is CORE for the
+              // engine rows, SKIN for the skin rows, and the heuristic
+              // never yields BOTH).
+              LaneDeclaration(
+                lane: Lane.core.label,
+                behaviorIds: engineRows
+                    .where((r) => r.lane == Lane.core)
+                    .map((r) => r.id)
+                    .toList(),
+                flutterAllowed: 'false',
+              ),
+              LaneDeclaration(
+                lane: Lane.skin.label,
+                behaviorIds: skinRows
+                    .where((r) => r.lane == Lane.skin)
+                    .map((r) => r.id)
+                    .toList(),
+                flutterAllowed: 'true',
+              ),
+            ];
       final metaMd = renderMetaIndex(
         feature: feature,
-        lanes: lanes,
+        lanes: metaLanes,
         classification: laneResult.classification,
       );
       await File(
@@ -846,6 +913,37 @@ class PlanCommand extends Command<void> {
         layoutSlots: layoutSlots,
       );
       await persistMarkerEmission();
+      if (splitReceiptExists) {
+        // Issue #1309: refresh only after every generated artifact and
+        // marker emission succeeded. Hash and mtime come from the final
+        // on-disk spec, so marker migration cannot make the repaired
+        // receipt immediately stale. A malformed existing receipt is
+        // rebuilt with the current heuristic classification instead of
+        // demoting this run to the legacy single-file plan.
+        final finalSpecMd = await specFile.readAsString();
+        final refreshed = splitReceipt == null
+            ? <String, dynamic>{
+                'feature': feature,
+                'source': 'tdd/test-list.md',
+                'rows': laneResult.classification.length,
+                'classification': {
+                  for (final entry in laneResult.classification.entries)
+                    entry.key: entry.value.label,
+                },
+              }
+            : <String, dynamic>{...splitReceipt};
+        refreshed
+          ..['spec_hash'] = sha256.convert(utf8.encode(finalSpecMd)).toString()
+          ..['spec_mtime'] = (await specFile.lastModified())
+              .toUtc()
+              .toIso8601String()
+          ..['refreshed_at'] = DateTime.now().toUtc().toIso8601String()
+          ..['refreshed_by'] = 'zfa tdd plan'
+          ..['refreshed_rows'] = laneResult.classification.length;
+        await receiptFile.writeAsString(
+          const JsonEncoder.withIndent('  ').convert(refreshed),
+        );
+      }
       // Issue #1125: the laned plan's explain block — the lane split is
       // the artifact set here, the summary names exactly what was written.
       _verdict.explain = TddExplain(
@@ -1816,6 +1914,81 @@ class PlanCommand extends Command<void> {
       classification: classification,
       handRows: handRows,
       refusals: refusals,
+    );
+  }
+
+  /// Issue #1309: the split receipt JSON at [receiptFile], or null when
+  /// the file carries no parseable JSON object. Callers track existence
+  /// independently so a corrupt receipt still selects split recovery.
+  static Future<Map<String, dynamic>?> _readSplitReceipt(
+    File receiptFile,
+  ) async {
+    try {
+      final decoded = jsonDecode(await receiptFile.readAsString());
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } on FormatException catch (_) {
+      return null;
+    } on FileSystemException catch (_) {
+      return null;
+    }
+  }
+
+  /// Issue #1309: whether the spec changed since the split receipt was
+  /// written. The recorded `spec_hash` is authoritative (content, not
+  /// timestamps); a legacy receipt — written before #1309 added the
+  /// hash fields — falls back to the spec mtime vs the receipt's
+  /// `split_at` timestamp, then to the receipt file's own mtime. When
+  /// no signal is available the receipt is treated as fresh (fail
+  /// closed: the legacy path's meta-index demotion is exactly the
+  /// behavior this detection exists to prevent).
+  static Future<bool> _splitReceiptIsStale({
+    required Map<String, dynamic>? receipt,
+    required File receiptFile,
+    required File specFile,
+    required String specMd,
+  }) async {
+    final currentHash = sha256.convert(utf8.encode(specMd)).toString();
+    final receiptHash = receipt?['spec_hash'];
+    if (receiptHash is String && receiptHash.isNotEmpty) {
+      return receiptHash != currentHash;
+    }
+    final specModified = await specFile.exists()
+        ? await specFile.lastModified()
+        : null;
+    if (specModified == null) return false;
+    final splitAt = DateTime.tryParse('${receipt?['split_at'] ?? ''}');
+    if (splitAt != null) {
+      return specModified.isAfter(splitAt.toUtc());
+    }
+    try {
+      return specModified.isAfter((await receiptFile.lastModified()).toUtc());
+    } on FileSystemException {
+      return false;
+    }
+  }
+
+  /// Issue #1309: the split kind heuristic — the SAME rule
+  /// `SplitCommand._heuristic` applies — over the CURRENT spec
+  /// derivation: widget/theme rows are SKIN (their gen pair imports
+  /// Flutter), everything else CORE; the preserved ffi rows are
+  /// engine-side (the native boundary is engine territory). No hand
+  /// rows and no refusals: with no `## Lanes` declarations there is
+  /// nothing hand-reserved and nothing to refuse.
+  _LaneResult _heuristicLaneResolution(
+    List<Behavior> expressible,
+    List<BehaviorRow> preservedFfi,
+  ) {
+    final classification = <String, Lane>{
+      for (final b in expressible)
+        b.id: b.kind == BehaviorKind.widget || b.kind == BehaviorKind.theme
+            ? Lane.skin
+            : Lane.core,
+      for (final row in preservedFfi) row.id: Lane.core,
+    };
+    return _LaneResult(
+      classification: classification,
+      handRows: const [],
+      refusals: const [],
     );
   }
 
