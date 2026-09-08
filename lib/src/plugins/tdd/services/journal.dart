@@ -917,28 +917,51 @@ class JournalReader {
   /// driver's reconciliation subtracts these from the cycle-log evidence
   /// sets, so a reset's dropped behaviors re-drive instead of skipping
   /// as "already done" off surviving green evidence.
-  static Future<Set<String>> tombstonedBehaviors(String featureDir) async {
+  static Future<Set<String>> tombstonedBehaviors(String featureDir) async =>
+      (await lastResetTombstone(featureDir)).behaviors;
+
+  /// Issue #1331: the feature's LAST reset tombstone — the invalidated
+  /// behavior ids WITH the reset's timestamp. Consumers (make's re-drive
+  /// adoption probe) compare the timestamp against the surviving
+  /// evidence's `- at:` to separate the re-drive class (the surviving
+  /// certification predates the tombstone — stale by decree) from a live
+  /// drift (the evidence postdates the reset — authoritative again).
+  ///
+  /// Fail-closed: a missing journal, a corrupt one, or a tombstone
+  /// without a parseable `started_at` returns an empty behavior set
+  /// (never an adoption class); the #1036 refusal then stands exactly as
+  /// before this probe existed.
+  static Future<({Set<String> behaviors, DateTime? at})> lastResetTombstone(
+    String featureDir,
+  ) async {
     final file = File(p.join(featureDir, 'tdd', JournalWriter.journalFileName));
-    if (!await file.exists()) return const {};
+    if (!await file.exists()) {
+      return (behaviors: const <String>{}, at: null);
+    }
     final List<dynamic> entries;
     try {
       final decoded = jsonDecode(await file.readAsString());
-      if (decoded is! Map<String, dynamic>) return const {};
+      if (decoded is! Map<String, dynamic>) {
+        return (behaviors: const <String>{}, at: null);
+      }
       entries = decoded['entries'] as List? ?? const [];
     } on FormatException {
-      // A corrupt journal is the reader's hard error on the full read;
-      // the tombstone probe conservatively reports none — the driver's
-      // own JournalReader consumers surface the corruption honestly.
-      return const {};
+      // A corrupt journal reports no tombstone — the driver's own
+      // JournalReader consumers surface the corruption honestly, and the
+      // adoption probe must never adopt off an unreadable stream.
+      return (behaviors: const <String>{}, at: null);
     }
     for (final raw in entries.reversed) {
       if (raw is! Map<String, dynamic>) continue;
       if (raw['phase'] != JournalWriter.resetPhase) continue;
       final behaviors = raw['behaviors'];
-      if (behaviors is! List) return const {};
-      return behaviors.whereType<String>().toSet();
+      if (behaviors is! List) {
+        return (behaviors: const <String>{}, at: null);
+      }
+      final at = DateTime.tryParse(raw['started_at'] as String? ?? '');
+      return (behaviors: behaviors.whereType<String>().toSet(), at: at);
     }
-    return const {};
+    return (behaviors: const <String>{}, at: null);
   }
 
   /// Load [feature]'s whole journal stream under [projectRoot].

@@ -73,6 +73,20 @@ enum MakeOutcome {
   /// Non-zero exit, no green entry.
   regression('regression'),
 
+  /// The target test already passes and the subject is the
+  /// complete-but-unowned re-drive class (issue #1331): the behavior's
+  /// surviving certification was invalidated by the LAST reset tombstone
+  /// (the registry was dropped and the behavior re-driven from gen), so
+  /// the certified-hash basis of the #1036 subject-drift guard is stale
+  /// by decree. The make ADOPTS the passing subject — the re-drive
+  /// class's own first-drive semantics — certifies green, and appends a
+  /// green evidence entry binding the CURRENT subject hash (any
+  /// post-adoption drift still refuses). Exit 0. The outcome is
+  /// EXPLICITLY `adopted`: distinguishable in accounting from `skipped`
+  /// (#694, no certification change) and from `green` (generated this
+  /// make). Every non-re-drive refusal class is untouched.
+  adopted('adopted'),
+
   /// The target test already passes but the subject file's shape no
   /// longer matches the shape the certified evidence captured (issue
   /// #1036): a skip here would certify green on a subject the red

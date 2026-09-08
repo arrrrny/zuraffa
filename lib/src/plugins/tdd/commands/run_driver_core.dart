@@ -1353,31 +1353,46 @@ class RunDriverCore {
       if (!result.success) {
         // Bug #986: `skipped` — make's issue #694 skip transition (the
         // target test already passes, generation skipped by design) — is a
-        // TERMINAL make success, never a step failure. StepRunner grades
-        // the exit-0 skip as success; this mapping closes the fall-through
-        // for a skipped token whose exit code disagrees (binary skew, or
-        // the #657/#694-era drift contract where the already-green report
-        // exited non-zero): make's outcome token is the step's own
-        // terminal classification, and halting the feature on an
-        // already-green behavior is the #693/#694 deadlock family. Record
-        // the green evidence when make's write did not land (idempotent —
-        // never a duplicate, the #693 driver-recorded pattern), advance
-        // the behavior GREEN, and let refactor proceed as usual.
-        if (step == 'make' && result.outcome == 'skipped') {
+        // TERMINAL make success, never a step failure. Issue #1331:
+        // `adopted` — the #1331 re-drive transition (the last reset
+        // tombstone invalidated the surviving certification, make adopted
+        // the passing subject) — is the same terminal success. StepRunner
+        // grades the exit-0 skip/adopt as success; this mapping closes the
+        // fall-through for a token whose exit code disagrees (binary
+        // skew, or the #657/#694-era drift contract where the
+        // already-green report exited non-zero): make's outcome token is
+        // the step's own terminal classification, and halting the feature
+        // on an already-green behavior is the #693/#694 deadlock family.
+        // Record the green evidence when make's write did not land
+        // (idempotent — never a duplicate, the #693 driver-recorded
+        // pattern), advance the behavior GREEN, and let refactor proceed
+        // as usual.
+        if (step == 'make' &&
+            (result.outcome == 'skipped' || result.outcome == 'adopted')) {
+          final adopted = result.outcome == 'adopted';
           if (!await _hasEvidence(evidence.greenEvidence, row.id)) {
             await CycleLog(p.join(projectRoot, 'specs', feature)).append(
               CycleLogEntry(
                 behaviorId: row.id,
                 kind: CycleEntryKind.green,
-                runnerCommand: 'zfa tdd make ${row.id} (skipped)',
+                runnerCommand: 'zfa tdd make ${row.id} (${result.outcome})',
                 exitCode: result.exitCode,
-                capturedOutput:
-                    'skipped — the target test already passes (issue #694 '
-                    'skip transition); green evidence recorded by the run '
-                    'driver (bug #986) because make did not write it. Exit '
-                    'code ${result.exitCode} disagrees with the outcome '
-                    'token; the token is the terminal classification.\n'
-                    '${result.output.split('\n').take(2).join('\n')}',
+                capturedOutput: adopted
+                    ? 'adopted — the target test already passes against the '
+                          'on-disk subject and the last reset tombstone '
+                          'invalidated the surviving certification (issue '
+                          '#1331); green evidence recorded by the run '
+                          'driver (bug #986) because make did not write it. '
+                          'Exit code ${result.exitCode} disagrees with the '
+                          'outcome token; the token is the terminal '
+                          'classification.\n'
+                          '${result.output.split('\n').take(2).join('\n')}'
+                    : 'skipped — the target test already passes (issue #694 '
+                          'skip transition); green evidence recorded by the run '
+                          'driver (bug #986) because make did not write it. Exit '
+                          'code ${result.exitCode} disagrees with the outcome '
+                          'token; the token is the terminal classification.\n'
+                          '${result.output.split('\n').take(2).join('\n')}',
                 sourceCriterion: row.traces,
                 testPath: 'test/',
                 timestamp: DateTime.now().toUtc().toIso8601String(),
@@ -1389,13 +1404,24 @@ class RunDriverCore {
           await store.save(updated, activeBehaviorIds: activeIds);
           await tx.clear();
           state = next;
-          print('[run] ${row.id} make -> green (skipped)$progressSuffix');
-          _emitStep(row.id, 'make', 'green', exitCode: result.exitCode);
+          print(
+            '[run] ${row.id} make -> green (${result.outcome})$progressSuffix',
+          );
+          _emitStep(
+            row.id,
+            'make',
+            adopted ? 'adopted' : 'green',
+            exitCode: result.exitCode,
+          );
           if (result.exitCode != 0) {
             print(
-              '   exit code ${result.exitCode} disagrees with '
-              'outcome=skipped — the token is the terminal skip transition '
-              '(issue #694); advancing (bug #986).',
+              adopted
+                  ? '   exit code ${result.exitCode} disagrees with '
+                        'outcome=adopted — the token is the terminal #1331 '
+                        'adopted re-drive transition; advancing.'
+                  : '   exit code ${result.exitCode} disagrees with '
+                        'outcome=skipped — the token is the terminal skip '
+                        'transition (issue #694); advancing (bug #986).',
             );
           }
           continue;
