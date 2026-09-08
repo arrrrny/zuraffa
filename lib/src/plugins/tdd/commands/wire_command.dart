@@ -194,8 +194,25 @@ class WireCommand extends Command<void> {
           ? recordedSubject
           : p.join(normalizedCwd, recordedSubject),
     );
-    if (!p.equals(normalizedCwd, subjectPath) &&
-        !p.isWithin(normalizedCwd, subjectPath)) {
+    // macOS (and any symlinked temp root): the recorded path may come
+    // through one side of a symlink (`/var/...`) while the project root
+    // resolves through the other (`/private/var/...`). Compare CANONICAL
+    // forms — an unresolved comparison misreads the project's own
+    // subject as "outside the project root".
+    String canonicalRoot;
+    try {
+      canonicalRoot = await Directory(normalizedCwd).resolveSymbolicLinks();
+    } on FileSystemException {
+      canonicalRoot = normalizedCwd;
+    }
+    String canonicalSubject;
+    try {
+      canonicalSubject = await File(subjectPath).resolveSymbolicLinks();
+    } on FileSystemException {
+      canonicalSubject = subjectPath;
+    }
+    if (!p.equals(canonicalRoot, canonicalSubject) &&
+        !p.isWithin(canonicalRoot, canonicalSubject)) {
       print(
         'zfa tdd wire: the registry record for behavior '
         '"${record.behaviorId}" points outside the project root at '
