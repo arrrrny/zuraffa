@@ -30,6 +30,7 @@ import 'package:path/path.dart' as p;
 
 import '../../../core/proof/proof_checker.dart';
 import '../../../core/project/receipt_store.dart';
+import '../services/behavior_kind_trace.dart';
 import '../services/mutation_auditor.dart';
 import '../services/explain_emitter.dart';
 import '../services/receipt_preflight.dart';
@@ -316,6 +317,18 @@ class VerifyCommand extends Command<void> {
       'timed_out=${report.timedOutCount} '
       'mutation_was_run=${report.mutationWasRun}',
     );
+    // Issue #1376 (EPIC #1133 exit criterion 3): the kind trace — WHAT
+    // KINDS the referee watched, not just how many mutants died. Print
+    // only on full-run reports (non-empty kind map), so NOT_ASSESSED
+    // output stays byte-compatible.
+    if (report.behaviorKindsByBehavior.isNotEmpty) {
+      print(
+        BehaviorKindTrace.kindCountsLine(
+          BehaviorKindTrace.kindCounts(report.behaviorKindsByBehavior),
+          notTracedCount: report.notTracedBehaviors.length,
+        ),
+      );
+    }
     // Issue #969: the gate label IS the exit class (shipped taxonomy).
     _verdict
       ..exitClass = report.gate.label
@@ -327,6 +340,14 @@ class VerifyCommand extends Command<void> {
       ..details['timed_out'] = report.timedOutCount
       ..details['mutation_was_run'] = report.mutationWasRun
       ..feature = featureName;
+    // Issue #1376: the kind trace rides the verdict envelope so machine
+    // consumers read the kinds without parsing markdown (FR-005).
+    if (report.behaviorKindsByBehavior.isNotEmpty) {
+      _verdict.details['behavior_kinds'] = BehaviorKindTrace.detailsObject(
+        kindsByBehavior: report.behaviorKindsByBehavior,
+        notTraced: report.notTracedBehaviors,
+      );
+    }
 
     // Write verification.md from the REAL run (never a stale copy).
     await _writeVerificationMd(featureDir, report);

@@ -26,6 +26,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/mutation_outcome.dart';
+import 'behavior_kind_trace.dart';
 import 'mutation_scope.dart';
 import 'mutation_verifier.dart';
 import 'runner.dart';
@@ -126,6 +127,8 @@ class MutationAuditReport {
     this.specHash,
     this.subjectHashes = const {},
     this.preflightScopeRan = const [],
+    this.behaviorKindsByBehavior = const {},
+    this.notTracedBehaviors = const {},
   });
 
   /// The feature name (e.g. `044-test-tdd-generation`).
@@ -160,6 +163,18 @@ class MutationAuditReport {
   /// The `.zfa.json` score threshold this audit was gated against, when
   /// configured (bug #837). Null = the strict policy (any survivor fails).
   final double? scoreThreshold;
+
+  /// Behavior id -> the canonical assertion kinds the behavior's generated
+  /// test declares in its `// scenario-assertions:` header (issue #1376,
+  /// EPIC #1133 exit criterion 3: the referee reports WHAT KINDS it
+  /// watched). Populated on full-run reports only — early-return
+  /// NOT_ASSESSED reports stay byte-compatible (empty).
+  final Map<String, List<String>> behaviorKindsByBehavior;
+
+  /// Behavior id -> the reason the behavior's kinds could not be traced
+  /// (missing test file, no scenario-assertions header, unknown kind
+  /// token). Honest absence — never silently dropped, never inferred.
+  final Map<String, String> notTracedBehaviors;
 
   /// Every survived mutant (bug #837): the per-mutant detail parsed from
   /// the mutation_test report, cited by file + line.
@@ -225,6 +240,38 @@ class MutationAuditReport {
       for (final id in behaviorIds) {
         final criterion = sourceCriteriaByBehavior[id] ?? '(unknown)';
         buf.writeln('- `$id` — traces: `$criterion`');
+      }
+      // Issue #1376 (EPIC #1133 exit criterion 3): the kind trace — the
+      // per-kind counts over the feature's registered behaviors, parsed
+      // from the machine-certified `// scenario-assertions:` headers.
+      // ADDITIVE reporting: the section renders only on full-run reports
+      // (non-empty scope); gate semantics are untouched.
+      final counts = <String, int>{
+        for (final k in BehaviorKindTrace.canonicalKinds) k: 0,
+      };
+      for (final kinds in behaviorKindsByBehavior.values) {
+        for (final k in kinds) {
+          counts[k] = (counts[k] ?? 0) + 1;
+        }
+      }
+      buf
+        ..writeln()
+        ..writeln('## Behavior kinds (issue #1376)')
+        ..writeln();
+      for (final k in BehaviorKindTrace.canonicalKinds) {
+        buf.writeln('- $k: ${counts[k] ?? 0}');
+      }
+      buf.writeln();
+      for (final id in behaviorIds) {
+        final kinds = behaviorKindsByBehavior[id];
+        final notTracedReason = notTracedBehaviors[id];
+        if (notTracedReason != null) {
+          buf.writeln('- `$id` — not traced: $notTracedReason');
+        } else if (kinds == null || kinds.isEmpty) {
+          buf.writeln('- `$id` — not traced');
+        } else {
+          buf.writeln('- `$id` — ${kinds.join(', ')}');
+        }
       }
     }
     buf
@@ -718,6 +765,16 @@ class MutationAuditor {
       );
     }
 
+    // Issue #1376 (EPIC #1133 exit criterion 3): trace the declared
+    // assertion kinds of every registered behavior from the generated
+    // tests' machine-certified `// scenario-assertions:` headers. One
+    // registry pass, computed for the FULL-RUN report only — early-return
+    // NOT_ASSESSED reports stay byte-compatible (no kind fields).
+    final kindTrace = await BehaviorKindTrace.trace(
+      featureDir: featureDir,
+      workingDirectory: workingDirectory,
+    );
+
     return MutationAuditReport(
       feature: p.basename(featureDir),
       gate: gate,
@@ -739,6 +796,8 @@ class MutationAuditor {
       specHash: specHash,
       subjectHashes: subjectHashes,
       preflightScopeRan: preflight.ranTestPaths,
+      behaviorKindsByBehavior: kindTrace.kindsByBehavior,
+      notTracedBehaviors: kindTrace.notTraced,
     );
   }
 
