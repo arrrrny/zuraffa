@@ -42,20 +42,18 @@ Preconditions, per touched behavior:
 - the behavior has certified green evidence (`kind: green` entry);
 - the recorded hash differs from the post-rewrite hash (equal → nothing to
   reconcile, no entry);
-- the re-proof ran green over a scope covering the behavior's test. When any
-  certified subject file was touched, the command runs the FULL re-proof
-  (equivalent to `--full-reproof`) and prints:
-
-```text
-[refactor] certified subject(s) rewritten — forcing full re-proof (issue #1430)
-```
-
+- the re-proof ran green over a scope covering the behavior's test. The
+  scope decision is the pre-#1430 one, unchanged: when the pass is scoped,
+  the covering-test mapping sends every changed registered subject to its
+  OWN paired test (each candidate's test exercised by construction); every
+  other green path is the full suite.
 - the re-proof failed → the existing failure path fires unchanged; NO
   refresh entry is written (no green-washing).
 
 Behaviors with no certified green evidence (pending/red) are never
 refreshed. A pass that changes no certified subject writes exactly what it
-writes today (FR-005).
+writes today (FR-005). A refused, misfired, or regressed pass reconciles
+nothing — every failure path returns before the reconciliation.
 
 ## `zfa tdd make` — the #1036 guard consults the refresh (new accept path)
 

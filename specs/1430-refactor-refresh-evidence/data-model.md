@@ -62,6 +62,7 @@ certify green(hash H1)
 - I2: a `refresh` entry never satisfies `greenEvidence()` / red+green
   certification contracts (#1329 precedent).
 - I3: no refresh without a green re-proof covering the touched behavior's
-  test (touched certified subjects force the full re-proof).
+  test (the scoped covering-test mapping sends each changed subject to its
+  own paired test; the other green path is the full suite).
 - I4: every refusal that fires today fires identically after this feature
   except the loop-caused drift the refresh entry proves green.

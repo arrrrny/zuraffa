@@ -2030,6 +2030,37 @@ class MakeCommand extends Command<void> {
       return null; // legacy hashless evidence — fail open (pre-#1036)
     }
     if (currentHash == certified) return null;
+    // Issue #1430: the loop's own refactor pass re-proves the suite green
+    // over a rewritten certified subject and appends a `refresh` entry
+    // re-binding the certified shape to the post-rewrite bytes. Accept the
+    // drift the loop itself produced: the behavior's LAST refresh entry
+    // matching the CURRENT subject, newer than the certified basis entry
+    // (ISO-8601; unparseable or missing timestamps fail closed — the
+    // refusal stands), proves the current shape is the re-proved one. An
+    // out-of-band edit after the refresh changes the hash and keeps the
+    // refusal, so the guard never widens beyond the loop's own rewrite.
+    final lastRefresh = await evidence.lastEntryFor(
+      record.behaviorId,
+      kind: 'refresh',
+    );
+    if (lastRefresh?.subjectHash != null &&
+        lastRefresh!.subjectHash == currentHash) {
+      final refreshedAt = DateTime.tryParse(lastRefresh.at ?? '');
+      final basisAt = DateTime.tryParse(
+        (lastGreen?.subjectHash != null ? lastGreen!.at : lastRed?.at) ?? '',
+      );
+      if (refreshedAt != null &&
+          basisAt != null &&
+          refreshedAt.isAfter(basisAt)) {
+        print(
+          '   subject drift accepted (issue #1430): the current subject '
+          "shape is the one the loop's refactor pass re-proved green "
+          '(refresh evidence at ${lastRefresh.at}) — the certified '
+          'evidence re-binds to it.',
+        );
+        return null;
+      }
+    }
     // Issue #1162: a red-basis drift is the hand-implementation
     // transition when the subject is not a born-green placeholder — the
     // drift check just proved the target test passes with its scenario

@@ -31,8 +31,8 @@ The defect repro, now expected to resume clean:
    `subject-hash`), the refactor cycle run (`dart format lib/`,
    `dart fix --apply lib/`), and the run stop at `A2:hand`.
 3. Confirm the refactor appended `## Cycle: A1 (refresh)` entries carrying
-   the post-rewrite `subject-hash` (and printed the full-re-proof note when
-   A1's subject was rewritten).
+   the post-rewrite `subject-hash` (the re-proof scope names A1's own test when
+   A1's subject was rewritten — the covering-test witness).
 4. Re-run `zfa tdd run <feature>` — expected: A1's make skip transition
    prints the `subject drift accepted (issue #1430)` note and the run
    advances to A2. NOT expected: `subject-drift (stale-artifacts)` /
