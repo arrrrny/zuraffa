@@ -134,9 +134,14 @@ class ProofPruneCommand extends Command<void> {
       );
     }
     final apply = argResults!['apply'] == true;
+    final failures = <String>[];
     if (apply) {
       for (final record in dead) {
-        File(p.join(store.directory.path, record.fileName)).deleteSync();
+        try {
+          File(p.join(store.directory.path, record.fileName)).deleteSync();
+        } on FileSystemException catch (e) {
+          failures.add('${record.fileName}: ${e.message}');
+        }
       }
     }
     print(
@@ -144,7 +149,10 @@ class ProofPruneCommand extends Command<void> {
       '${apply ? 'pruned' : 'found (dry run — pass --apply to delete)'}, '
       '${partial.length} partial, ${alive.length} alive.',
     );
-    exitCode = 0;
+    for (final failure in failures) {
+      print('  could not delete: $failure');
+    }
+    exitCode = failures.isEmpty ? 0 : 1;
   }
 }
 
