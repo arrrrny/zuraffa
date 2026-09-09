@@ -46,6 +46,25 @@ import '../../../core/project/project_root.dart';
 import '../../../utils/framework_export_surface.dart';
 
 class PlanCommand extends Command<void> {
+  /// The kinds each lane plan renders a section for (issue #1432) — the
+  /// same partition the renderers in `lane_split.dart` apply. A routed
+  /// behavior whose kind is outside its destination's set refuses instead
+  /// of silently dropping. `contract` is deliberately absent: that path is
+  /// open issue #1419.
+  static const Set<BehaviorKind> _engineLaneKinds = {
+    BehaviorKind.acceptance,
+    BehaviorKind.platform,
+    BehaviorKind.widget,
+    BehaviorKind.unit,
+    BehaviorKind.ffi,
+  };
+  static const Set<BehaviorKind> _skinLaneKinds = {
+    BehaviorKind.acceptance,
+    BehaviorKind.platform,
+    BehaviorKind.widget,
+    BehaviorKind.unit,
+  };
+
   PlanCommand(this.plugin) {
     argParser.addFlag(
       'json',
@@ -1945,6 +1964,32 @@ class PlanCommand extends Command<void> {
           'behavior "${b.id}" (${b.sourceCriterion}: '
           '"${b.description}") is declared in NO lane — every '
           'spec-derived behavior must appear in a `behaviors:` list.',
+        );
+        continue;
+      }
+      // Issue #1432: a kind no section of the destination lane plan
+      // renders would be dropped from the split artifacts while the route
+      // log claims its lane — the silent-drop class. Refuse (the gate
+      // below exits 2 writing no artifacts) instead. Home sets mirror the
+      // section filters in lane_split.dart's renderers; contract rows are
+      // not in this loop's behavior set (open issue #1419 owns that path).
+      final engineWithoutHome =
+          lane.destinedForEngine && !_engineLaneKinds.contains(b.kind);
+      final skinWithoutHome =
+          lane.destinedForSkin && !_skinLaneKinds.contains(b.kind);
+      if (engineWithoutHome || skinWithoutHome) {
+        final destinations = [
+          if (engineWithoutHome) 'engine',
+          if (skinWithoutHome) 'skin',
+        ].join(' and ');
+        refusals.add(
+          'behavior "${b.id}" (${b.sourceCriterion}) is '
+          '${b.kind.name}-kind, which no section of the $destinations '
+          'lane plan renders — the row would be dropped from the split '
+          'plan while the route log claims it (issue #1432). '
+          '--> fix: declare a rendered **Type** for the scenario '
+          '(acceptance, widget, or unit) or move the behavior to a lane '
+          'that renders it.',
         );
         continue;
       }
