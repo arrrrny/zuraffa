@@ -19,6 +19,7 @@
 
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
@@ -32,6 +33,15 @@ void main() {
     await fx.registerBehavior(
       id: 'A1',
       description: 'create entity Login with email',
+    );
+    // The run driver's baseline block needs the test list to exist.
+    await File(
+      p.join(fx.featureDir, 'tdd', 'test-list.md'),
+    ).writeAsString(
+      '# Test List: ${fx.featureName}\n\n'
+      '| id | behavior | traces | state |\n'
+      '| -- | -------- | ------ | ----- |\n'
+      '| A1 | create entity Login with email | FR-007 | PENDING |\n',
     );
   });
 
