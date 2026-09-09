@@ -295,4 +295,4 @@ for `B1` → the kind traces.
 **Function**:
 - `ProofChainChecker`: `check() -> ProofChainReport`
 - `ProofChainReport`: `toJson() -> Map<String, dynamic>`
-- `RouteVerifyReader`: `latestVerdict(projectRoot, entity) -> RouteVerifyVerdict?`
+- `RouteVerifyReader(projectRoot)`: `latestVerdict(entity) -> RouteVerifyVerdict?`

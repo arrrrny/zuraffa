@@ -759,14 +759,16 @@ void main() {
       final entry = fileEntry('lib/src/product.dart', 'class Product {}\n');
       await write(entry.path, entry.snapshot!);
       await seedReceipt(receipt('entity create', 'Product', [entry]));
-      final ledger = await write(
+      await write(
         p.posix.join('specs', 'f1', 'tdd', 'ui-ledger.md'),
         '# UI Surface Ledger\n\n| surface | kind | proven by | state |\n'
         '| --- | --- | --- | --- |\n| Sign In | text | B1 | DONE |\n',
       );
       final before = {
-        path(entry.path): File(path(entry.path)).readAsBytesSync(),
-        ledger.path: ledger.readAsBytesSync(),
+        for (final f in Directory(
+          root.path,
+        ).listSync(recursive: true).whereType<File>())
+          f.path: f.readAsBytesSync(),
       };
       final mtimes = {
         for (final f in before.keys) f: File(f).lastModifiedSync(),

@@ -265,26 +265,30 @@ class RouteVerifyReader {
     final file = File(p.join(_receipts.path, 'routes-$entity-verify.json'));
     if (!file.existsSync()) return null;
     try {
-      final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      final decoded = jsonDecode(file.readAsStringSync());
+      if (decoded is! Map) return null;
+      final json = Map<String, dynamic>.from(decoded);
       final input = json['input'] is Map
           ? Map<String, dynamic>.from(json['input'] as Map)
           : const <String, dynamic>{};
       final verdict = json['verdict'] is Map
           ? Map<String, dynamic>.from(json['verdict'] as Map)
           : const <String, dynamic>{};
-      final label = (input['verdict'] as String?) ?? 'unknown';
+      final rawLabel = input['verdict'];
+      final label = rawLabel is String ? rawLabel : 'unknown';
       final skipped =
           label == 'skip' ||
           verdict['skipped'] == true ||
           input['skipped'] == true;
+      final rawReason = verdict['reason'] ?? input['reason'];
       return RouteVerifyVerdict(
         entity: entity,
         label: label,
         ok: verdict['ok'] is bool ? verdict['ok'] as bool : false,
         skipped: skipped,
-        reason:
-            (verdict['reason'] ?? input['reason']) as String? ??
-            (skipped ? '(no reason recorded)' : null),
+        reason: rawReason is String
+            ? rawReason
+            : (skipped ? '(no reason recorded)' : null),
       );
     } on FormatException {
       // A corrupt verdict receipt is unreadable evidence — reported by
@@ -328,7 +332,12 @@ class ProofChainChecker {
       // The future may still complete late; swallow it silently
       // instead of leaking an unhandled async error.
       run.ignore();
-      return ProcessResult(0, -1, '', 'test runner exceeded its budget');
+      return ProcessResult(
+        0,
+        -1,
+        '',
+        'test runner exceeded its budget (${perTestBudget.inMinutes}m)',
+      );
     }
   }
 
@@ -702,7 +711,11 @@ class ProofChainChecker {
             resolved,
           ], workingDirectory: projectRoot);
           if (result.exitCode != 0) {
-            final out = '${result.stdout}'.trimRight();
+            final err = '${result.stderr}'.trim();
+            final out = [
+              '${result.stdout}'.trimRight(),
+              if (err.isNotEmpty) err,
+            ].where((s) => s.isNotEmpty).join('\n').trimRight();
             final tail = out.length > 600
                 ? out.substring(out.length - 600)
                 : out;
