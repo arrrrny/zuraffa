@@ -39,9 +39,18 @@ const String vacuousGuardComment =
 /// row, prose heuristics unmatched — the bare-guard fall-through in
 /// `behavior_test_writer.dart`'s `_deriveAssertion`). One shared constant
 /// so gen, the writer, and the run driver never drift on the wording.
+///
+/// Issue #1320: the remedy ALSO names the designed hand-delta seam —
+/// hand-editing the lane plan's traces cell to the method-qualified
+/// `FR-00N, Row.method` and re-running gen — the unlock that used to
+/// exist only as tribal knowledge (plan now writes the method-qualified
+/// cell itself, but the seam stays the escape hatch when a plan refuses
+/// an ambiguous trace or the list is legacy).
 const String vacuousGuardFallbackRemedy =
     'add traces: <ContractRow> to the FR, re-run zfa tdd plan, '
-    're-run zfa tdd gen, re-run zfa tdd run';
+    're-run zfa tdd gen, re-run zfa tdd run — or hand-edit the lane plan '
+    '(04-ENGINE.md) traces cell to FR-00N, Row.method and re-run '
+    'zfa tdd gen (the designed hand-delta seam)';
 
 /// Issue #1308: the machine-greppable token the gen-time guard-only
 /// warning prints — the unit-lane sibling of [vacuousGuardMarker]. The

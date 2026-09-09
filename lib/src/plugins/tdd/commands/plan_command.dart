@@ -600,12 +600,47 @@ class PlanCommand extends Command<void> {
     // The writers emit these names after the criterion id so the cell
     // carries the full trace set the declared-signature resolution
     // (DeclaredRouting.declaredSignatureFor, issue #1259) reads back.
+    //
+    // Issue #1320: the row names are METHOD-QUALIFIED before they reach
+    // either writer. A row-only trace token (`traces: RouteContentType`)
+    // resolves its method at plan time — a single-method row resolves
+    // directly, a multi-method row resolves by FR-prose verb match — so
+    // the cell carries `FR-001, RouteContentType.contentType` and the
+    // declared-signature path is reachable WITHOUT the undocumented
+    // hand-edit. A multi-method row whose prose matches nothing REFUSES
+    // (errors-are-an-API): the old shape silently let gen fall back to
+    // the row's first signature — the #920 wrong-signature class.
     final contractTraces = <String, List<String>>{};
+    final ambiguousTraces = <String>[];
     for (final entry in expressibleEntries) {
       final tokens = frTraces[entry.currentId];
-      if (tokens != null && tokens.isNotEmpty) {
-        contractTraces[entry.behavior.id] = tokens;
+      if (tokens == null || tokens.isEmpty) continue;
+      try {
+        contractTraces[entry.behavior.id] = _qualifiedTraces(
+          tokens: tokens,
+          description: entry.behavior.description,
+          criterion: entry.behavior.sourceCriterion,
+          behaviorId: entry.behavior.id,
+          contractRows: declarations.contractRows,
+        );
+      } on StateError catch (e) {
+        ambiguousTraces.add(e.message);
       }
+    }
+    if (ambiguousTraces.isNotEmpty) {
+      for (final message in ambiguousTraces) {
+        print('zfa tdd plan: ambiguous declared trace — $message');
+      }
+      print('  no artifacts were written.');
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'ambiguous-declared-trace'
+        ..fix =
+            'qualify the trace token(s) with the method named above, then '
+            're-run zfa tdd plan'
+        ..details['reason'] = ambiguousTraces.join('\n');
+      exitCode = 2;
+      return;
     }
     final provenanceLines = provenance.lines;
     // Strict gate (feature 071): a refusal writes no artifact.
@@ -2048,6 +2083,85 @@ class PlanCommand extends Command<void> {
       handRows: const [],
       refusals: const [],
     );
+  }
+
+  /// Issue #1320: resolve each trace token to its method-qualified form
+  /// (`Row.method`) before the writers render the traces cell.
+  ///
+  /// - A token that already carries a method (`Row.method`) or names no
+  ///   declared row passes through verbatim — the gen-time resolver
+  ///   validates dangling method names with its own refusal.
+  /// - A row with exactly ONE declared signature resolves directly.
+  /// - A row with several signatures resolves by FR-prose verb match
+  ///   (the method name appears as a word in the behavior description —
+  ///   the same word-match the legacy classifier uses); several or zero
+  ///   prose matches throw [StateError] — the caller refuses the plan
+  ///   (errors-are-an-API, the #920 wrong-signature class).
+  /// - A row with no declared signatures (entity/field rows) passes
+  ///   through row-only: there is nothing to qualify and the declared
+  ///   surface rides the entity pipeline, not the signature path.
+  List<String> _qualifiedTraces({
+    required List<String> tokens,
+    required String description,
+    required String criterion,
+    required String behaviorId,
+    required Map<String, ContractRowDecl> contractRows,
+  }) {
+    final qualified = <String>[];
+    for (final token in tokens) {
+      if (token.contains('.') || !contractRows.containsKey(token)) {
+        qualified.add(token);
+        continue;
+      }
+      final row = contractRows[token]!;
+      final names = <String>[];
+      void addName(String name) {
+        if (!names.contains(name)) names.add(name);
+      }
+
+      for (final s in row.signatures) {
+        addName(s.name);
+      }
+      for (final raw in row.rawSignatures) {
+        try {
+          addName(Signature.parse(raw).name);
+        } on FormatException {
+          // A malformed signature refuses at gen (the resolver names the
+          // row and the offending text); plan keeps the raw token so the
+          // refusal lands where the signature is consumed.
+        }
+      }
+      if (names.length == 1) {
+        qualified.add('$token.${names.first}');
+        continue;
+      }
+      if (names.isEmpty) {
+        qualified.add(token);
+        continue;
+      }
+      final matches = [
+        for (final n in names)
+          if (RegExp('\\b${RegExp.escape(n)}\\b').hasMatch(description)) n,
+      ];
+      if (matches.length == 1) {
+        qualified.add('$token.${matches.first}');
+        continue;
+      }
+      final proseState = matches.isEmpty
+          ? 'the FR prose matches none of them'
+          : 'the FR prose matches several of them';
+      final suggested = matches.isEmpty ? '<method>' : matches.first;
+      throw StateError(
+        'behavior "$behaviorId" ($criterion) traces contract row '
+        '"$token" which declares ${names.length} methods '
+        '(${names.join(', ')}) — $proseState, so the declared signature '
+        'is ambiguous.\n'
+        '   --> fix: qualify the trace — traces: $token.$suggested — or '
+        'hand-edit the lane plan traces cell to "$criterion, '
+        '$token.$suggested", then re-run zfa tdd plan.',
+      );
+    }
+    return qualified;
   }
 
   /// Issue #1310: the full trace set for a behavior row's traces cell

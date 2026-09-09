@@ -87,6 +87,7 @@ import '../services/finder_taxonomy.dart';
 import '../services/generated_shape.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
+import '../services/vacuous_guard.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/declared_routing.dart';
 import '../services/golden_harness_writer.dart';
@@ -541,6 +542,8 @@ class GenCommand extends Command<void> {
         ? 'created'
         : (counts['adopted'] ?? 0) > 0
         ? 'adopted'
+        : (counts['regenerated'] ?? 0) > 0
+        ? 'regenerated'
         : (counts['reused'] ?? 0) > 0
         ? 'reused'
         : (counts['planned'] ?? 0) > 0
@@ -596,6 +599,7 @@ class GenCommand extends Command<void> {
         'gen: feature=${feature ?? '-'} behaviors=$behaviors '
         'verdict=$verdict created=${counts['created'] ?? 0} '
         'reused=${counts['reused'] ?? 0} adopted=${counts['adopted'] ?? 0} '
+        'regenerated=${counts['regenerated'] ?? 0} '
         'planned=${counts['planned'] ?? 0}'
         '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}',
       );
@@ -615,6 +619,7 @@ class GenCommand extends Command<void> {
       ..['created'] = counts['created'] ?? 0
       ..['reused'] = counts['reused'] ?? 0
       ..['adopted'] = counts['adopted'] ?? 0
+      ..['regenerated'] = counts['regenerated'] ?? 0
       ..['planned'] = counts['planned'] ?? 0;
     if (stoppedAt != null) _verdict.details['stopped_at'] = stoppedAt;
   }
@@ -1226,11 +1231,18 @@ class GenCommand extends Command<void> {
     // differ, stay silent when they match. A subject that no longer
     // contains UnimplementedError has PROGRESSED (func scaffolding or a
     // real implementation) and must never be clobbered.
-    var regeneratedNote = false;
+    //
+    // Issue #1320: a regeneration whose CAUSE is the traces cell gaining
+    // a contract token since the owned artifact was generated (the cell
+    // now resolves a declared signature while the owned test is still the
+    // guard-only pair) reports `verdict=regenerated` instead of `reused`
+    // — the stale-guard re-gen is the command-surfaced remedy the issue
+    // names, and a bare `reused` verdict hid it.
+    var staleness = (regenerated: false, contractDrift: false);
     if (record.testOwnership == Ownership.reused &&
         record.subjectOwnership == Ownership.reused &&
         !dryRun) {
-      regeneratedNote = await _regenerateStaleStub(
+      staleness = await _regenerateStaleStub(
         behavior: effectiveBehavior,
         featureName: featureName,
         testPath: testPath,
@@ -1248,8 +1260,13 @@ class GenCommand extends Command<void> {
 
     // Print the structured result. Use `print` (not `stdout.writeln`) so
     // the CliRunner's runCapturing zone can capture it.
-    if (regeneratedNote) {
-      print('note: binary updated, stub regenerated');
+    if (staleness.regenerated) {
+      print(
+        staleness.contractDrift
+            ? 'note: traces cell gained a contract token since generation '
+                  '— pair regenerated (issue #1320)'
+            : 'note: binary updated, stub regenerated',
+      );
     }
     print(
       'behavior_id: ${record.behaviorId}\n'
@@ -1272,6 +1289,8 @@ class GenCommand extends Command<void> {
         ? 'adopted'
         : dryRun
         ? 'planned'
+        : staleness.regenerated && staleness.contractDrift
+        ? 'regenerated'
         : record.testOwnership == Ownership.reused
         ? 'reused'
         : 'created';
@@ -1603,7 +1622,14 @@ class GenCommand extends Command<void> {
   /// touching one file, both files are restored to their pre-attempt bytes
   /// so a failed
   /// regeneration never leaves less on disk than before.
-  Future<bool> _regenerateStaleStub({
+  ///
+  /// Issue #1320: the second field distinguishes the regeneration CAUSE.
+  /// `contractDrift` is true when the current render resolves a declared
+  /// signature ([contractShape] non-null) while the owned test on disk is
+  /// still the guard-only pair — the traces cell gained a contract token
+  /// since generation — so the caller reports `verdict=regenerated` and
+  /// prints the #1320 note instead of the binary-drift wording.
+  Future<({bool regenerated, bool contractDrift})> _regenerateStaleStub({
     required Behavior behavior,
     required String featureName,
     required String testPath,
@@ -1624,15 +1650,21 @@ class GenCommand extends Command<void> {
     // work (the same shape as the entity overwrite hazard). A stale
     // harness is self-consistent with its contract test (both generated
     // together), so the honest-red semantics survive untouched.
-    if (behavior.kind == BehaviorKind.ffi) return false;
+    if (behavior.kind == BehaviorKind.ffi) {
+      return (regenerated: false, contractDrift: false);
+    }
     final subjectFile = File(subjectPath);
-    if (!await subjectFile.exists()) return false;
+    if (!await subjectFile.exists()) {
+      return (regenerated: false, contractDrift: false);
+    }
     final onDiskSubject = await bounded(
       subjectFile.readAsString(),
       'staleness: read on-disk subject',
     );
     // A progressed artifact is never clobbered by the staleness check.
-    if (!onDiskSubject.contains('UnimplementedError')) return false;
+    if (!onDiskSubject.contains('UnimplementedError')) {
+      return (regenerated: false, contractDrift: false);
+    }
 
     // Render the expected pair into a temp mirror (no real paths touched).
     // Bug #827: the mirror must reproduce the REAL relative test→subject
@@ -1695,8 +1727,13 @@ class GenCommand extends Command<void> {
         'staleness: read on-disk test',
       );
       if (expectedSubject == onDiskSubject && expectedTest == onDiskTest) {
-        return false;
+        return (regenerated: false, contractDrift: false);
       }
+      // Issue #1320: the drift cause — the cell gained a contract token
+      // (a declared shape resolves now) while the owned test is still the
+      // guard-only pair.
+      final contractDrift =
+          contractShape != null && contentIsVacuousGreen(onDiskTest);
 
       // Rewrite the real pair; roll back if either write fails so the
       // on-disk state is exactly what it was before this attempt.
@@ -1729,7 +1766,7 @@ class GenCommand extends Command<void> {
         }
         rethrow;
       }
-      return true;
+      return (regenerated: true, contractDrift: contractDrift);
     } finally {
       if (await mirror.exists()) await mirror.delete(recursive: true);
     }
