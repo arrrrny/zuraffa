@@ -33,6 +33,13 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # Issue #1369: the TDD baseline (the set `zfa tdd init` prescribes).
+  # The engine lane's gen'd tests import package:test (pure Dart —
+  # engine discipline), and tdd verify needs the coverage + mutation
+  # runners: without these the meta-run died on its first engine
+  # behavior with `Couldn't resolve the package 'test'`.
+  test: ^1.0.0
+  coverage: ^1.15.1
   mocktail: ^1.0.4
   build_runner: ^2.15.2
   json_serializable: ^6.13.2
