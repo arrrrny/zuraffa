@@ -27,6 +27,10 @@
 ///   differential gate (#915 composes), and writes the proof-carrying
 ///   run receipt naming the world hash (#807 composes). A mutated world
 ///   invalidates the previous green before anything executes.
+/// - `replay` (spec 1356) re-executes the RECORDED run with its
+///   recorded seed and proves the digest matches the receipt — the
+///   deterministic re-execution proof. It never overwrites the
+///   receipt.
 /// - `certify` re-proves the world's contracts LIVE (registry adds are
 ///   re-proofs — never copies of old receipts).
 /// - `verify-world` is the CI gate: manifest, certification receipt,
@@ -125,11 +129,13 @@ class SimulateCommand extends Command<void> {
     // manually, so the legacy flag surface above stays reachable.
     _init = SimulateInitCommand();
     _run = SimulateRunCommand();
+    _replay = SimulateReplayCommand();
     _certify = SimulateCertifyCommand();
     _verifyWorld = SimulateVerifyWorldCommand();
     _skin = SimulateSkinCommand(driver: skinDriver);
     argParser.addCommand(_init.name, _init.argParser);
     argParser.addCommand(_run.name, _run.argParser);
+    argParser.addCommand(_replay.name, _replay.argParser);
     argParser.addCommand(_certify.name, _certify.argParser);
     argParser.addCommand(_verifyWorld.name, _verifyWorld.argParser);
     // Issue #1112: skin behaviors through the debugTapAnchorJson seam —
@@ -140,6 +146,7 @@ class SimulateCommand extends Command<void> {
 
   late final SimulateInitCommand _init;
   late final SimulateRunCommand _run;
+  late final SimulateReplayCommand _replay;
   late final SimulateCertifyCommand _certify;
   late final SimulateVerifyWorldCommand _verifyWorld;
   late final SimulateSkinCommand _skin;
@@ -157,8 +164,9 @@ class SimulateCommand extends Command<void> {
 
   @override
   String get invocation =>
-      'zfa simulate [options] | zfa simulate <init|run|certify|verify-world> '
-      '<scenario> [options]';
+      'zfa simulate [options] | '
+      'zfa simulate <init|run|replay|certify|verify-world> <scenario> '
+      '[options]';
 
   @override
   Future<void> run() async {
@@ -175,6 +183,9 @@ class SimulateCommand extends Command<void> {
           return;
         case 'run':
           await _run.runWith(nested, parentFeature: parentFeature);
+          return;
+        case 'replay':
+          await _replay.runWith(nested, parentFeature: parentFeature);
           return;
         case 'certify':
           await _certify.runWith(nested, parentFeature: parentFeature);
@@ -213,13 +224,16 @@ class SimulateCommand extends Command<void> {
             featureFlag.isNotEmpty &&
             fixturesFlag == null &&
             !featureFlag.contains('/')) {
-          final bareSpecsDir =
-              p.join(Directory.current.path, 'specs', featureFlag);
+          final bareSpecsDir = p.join(
+            Directory.current.path,
+            'specs',
+            featureFlag,
+          );
           if (Directory(bareSpecsDir).existsSync()) {
             fixturesDir = bareSpecsDir;
           }
         }
-        exitCode = await _replay(fixturesDir);
+        exitCode = await _replayLegacy(fixturesDir);
         return;
       }
       _usage();
@@ -283,7 +297,9 @@ class SimulateCommand extends Command<void> {
     return 0;
   }
 
-  Future<int> _replay(String featureOrFixturesDir) async {
+  /// Legacy replay entry (the #832 flag surface). Named _replayLegacy to
+  /// stay clear of the spec-1356 `replay` subcommand field.
+  Future<int> _replayLegacy(String featureOrFixturesDir) async {
     final world = featureOrFixturesDir.endsWith('/tdd/fixtures')
         ? await SimulationWorld.boot(fixturesDir: featureOrFixturesDir)
         : await SimulationWorld.boot(featureDir: featureOrFixturesDir);
@@ -901,6 +917,178 @@ class SimulateRunCommand extends Command<void> {
       exitCode = 1;
     } on WorldProgramError catch (e) {
       print('SIMULATE run -> RED (${e.message})');
+      exitCode = 1;
+    } on _UsageError catch (e) {
+      print('❌ ${e.message}');
+      exitCode = ExitProtocol.usage;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// simulate replay (spec 1356 — the epic's deterministic re-execution proof)
+// ---------------------------------------------------------------------------
+
+/// `zfa simulate replay <scenario>` (spec 1356) — re-executes the
+/// recorded run for the scenario against the SAME world (recorded seed)
+/// and proves the fresh digest matches the recorded receipt:
+///
+/// ```text
+/// zfa simulate replay <scenario> [--feature <feature>]
+/// ```
+///
+/// A replay is a PROOF, not a new run: the recorded receipt is never
+/// overwritten. Absent/RED receipts and world drift refuse honestly.
+class SimulateReplayCommand extends Command<void> {
+  SimulateReplayCommand() {
+    argParser.addOption(
+      'feature',
+      help:
+          'Feature name or directory under specs/. Defaults to the '
+          'pinned .specify/feature.json feature.',
+    );
+    argParser.addOption(
+      'project',
+      help: 'Project root containing specs/ (defaults to CWD).',
+    );
+  }
+
+  @override
+  String get name => 'replay';
+
+  @override
+  String get description =>
+      'Re-execute the recorded run for the scenario with its recorded '
+      'seed and prove the digest matches the receipt (deterministic '
+      're-execution proof). Never overwrites the receipt.';
+
+  @override
+  Future<void> run() async {
+    await runWith(argResults!);
+  }
+
+  Future<void> runWith(ArgResults args, {String? parentFeature}) async {
+    if (args.flag('help')) {
+      _printSubUsage(
+        'zfa simulate replay <scenario> [--feature <feature>]',
+        argParser.usage,
+      );
+      return;
+    }
+    final rest = args.rest;
+    if (rest.isEmpty) {
+      print('❌ Usage: zfa simulate replay <scenario> [--feature <feature>]');
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+    final scenario = rest.first;
+    try {
+      final resolved = _resolveFeature(
+        (args['feature'] as String?) ?? parentFeature,
+        args['project'] as String?,
+      );
+      final manifest = _loadManifest(
+        featureDir: resolved.featureDir,
+        scenario: scenario,
+      );
+      final worldHash = manifest.worldHash;
+
+      final receiptStore = WorldRunReceiptStore(
+        projectRoot: resolved.projectRoot,
+      );
+      final prior = receiptStore.load(scenario);
+      if (prior == null) {
+        print(
+          'SIMULATE replay $scenario -> RED (no recorded run receipt for '
+          'scenario "$scenario")',
+        );
+        print(
+          '   --> fix: run `zfa simulate run $scenario --feature '
+          '${resolved.featureName}` first — a replay proves an existing '
+          'run, it does not create one.',
+        );
+        exitCode = 1;
+        return;
+      }
+      if (!prior.passed) {
+        print(
+          'SIMULATE replay $scenario -> RED (the recorded run is RED — '
+          'nothing green to replay)',
+        );
+        exitCode = 1;
+        return;
+      }
+      if (prior.worldHash != worldHash) {
+        print(
+          'SIMULATE replay $scenario -> RED (world mutated since the '
+          'recorded run: receipt=${prior.worldHash.substring(0, 12)} '
+          'manifest=${worldHash.substring(0, 12)})',
+        );
+        print(
+          '   --> fix: re-run `zfa simulate run $scenario --feature '
+          '${resolved.featureName}` to record the new world, or restore '
+          'the manifest.',
+        );
+        exitCode = 1;
+        return;
+      }
+
+      // Deterministic re-execution with the RECORDED seed.
+      final runtime = WorldRuntime(
+        manifest,
+        binding: WorldBinding.world,
+        seedOverride: prior.seed,
+      );
+      final results = await runtime.executeScenario();
+      final digest = runtime.runDigest;
+      final matches = digest == prior.runDigest;
+      final failures = results.where((r) => !r.passed).toList(growable: false);
+
+      await appendWorldCycleEvidence(
+        featureDir: resolved.featureDir,
+        behaviorId: '${resolved.featureName}-world-replay-$scenario',
+        kind: 'world-replay',
+        commandLine:
+            'zfa simulate replay $scenario --feature '
+            '${resolved.featureName}',
+        hash: digest,
+        exitCode: matches ? 0 : 1,
+        criterion:
+            'replay of scenario "$scenario" re-executed with the recorded '
+            'seed ${prior.seed}: ${runtime.plays.length} plays, '
+            'digest ${matches ? 'matches' : 'MISMATCHES'} the recorded '
+            'receipt',
+        extraLines: {
+          'scenario': scenario,
+          'world-hash': worldHash,
+          'seed': '${prior.seed}',
+          'plays': '${runtime.plays.length}',
+          'recorded-digest': prior.runDigest,
+          'replayed-digest': digest,
+        },
+      );
+
+      print(
+        'simulate-replay: scenario=$scenario '
+        'world-hash=${worldHash.substring(0, 12)} '
+        'deterministic=$matches '
+        'plays=${runtime.plays.length} '
+        'digest=${digest.substring(0, 12)} '
+        'recorded=${prior.runDigest.substring(0, 12)} '
+        'seed=${prior.seed}',
+      );
+      if (!matches) {
+        print('   replay: DIGEST MISMATCH — the run is not replayable');
+      }
+      for (final failure in failures) {
+        print('  FAIL ${failure.behavior}: ${failure.detail}');
+      }
+      exitCode = matches ? 0 : 1;
+    } on WorldManifestError catch (e) {
+      print('SIMULATE replay -> RED (${e.message})');
+      exitCode = 1;
+    } on WorldProgramError catch (e) {
+      print('SIMULATE replay -> RED (${e.message})');
       exitCode = 1;
     } on _UsageError catch (e) {
       print('❌ ${e.message}');
