@@ -90,6 +90,28 @@ void main() {
     expect(bin, real.path);
   });
 
+  test('B2b: tier 2 (sibling bin/) does not return a phantom sibling '
+      'either', () async {
+    // script at <tmp>/example/tool/zfa.dart: tier 1 passes (the file
+    // exists), tier 2 probes <script dir>/bin/zfa.dart — non-existent,
+    // must fall through to the package tier.
+    final scriptFile = File(
+      p.join(tmpDir.path, 'example', 'tool', 'zfa.dart'),
+    );
+    await scriptFile.parent.create(recursive: true);
+    scriptFile.writeAsStringSync('// fixture
+');
+
+    final bin = await StepRunner.resolveEntrypoint(
+      script: Uri.file(scriptFile.path),
+      resolvedExecutable: '/usr/bin/dart',
+      environment: const {'PATH': '/usr/bin:/bin'},
+      resolvePackageUri: packageResolver,
+    );
+
+    expect(bin, p.join(tmpDir.path, 'pkg', 'bin', 'zfa.dart'));
+  });
+
   test('B3: a phantom script with nothing resolvable still throws the '
       'honest cannot-resolve error', () async {
     final phantom = Uri.file(p.join(tmpDir.path, 'example', 'bin', 'zfa.dart'));
