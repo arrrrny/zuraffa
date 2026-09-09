@@ -16,7 +16,7 @@
 library;
 
 import 'package:test/test.dart';
-import '../../../lib/tdd/004-login-ui/contract_a1_subject.dart' as subject;
+import 'package:zuraffa/tdd/004-login-ui/contract_a1_subject.dart' as subject;
 
 void main() {
   group('contract:A1 (LoginValidation.validate)', () {
