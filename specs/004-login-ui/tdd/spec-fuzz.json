@@ -1,0 +1,86 @@
+{
+  "schema": "spec-fuzz.v1",
+  "feature": "004-login-ui",
+  "gate": "notAssessed",
+  "certified": false,
+  "seed": 0,
+  "budget": 5,
+  "candidate_count": 8,
+  "operators": [
+    "drop",
+    "drop-must-not",
+    "swap-literal",
+    "weaken",
+    "widen"
+  ],
+  "mutations": [
+    {
+      "mutation_id": "SM-001",
+      "spec_line": 25,
+      "operator": "drop",
+      "element": "AC-1:scenario",
+      "behavior": "A1",
+      "verdict": "survived",
+      "evidence": "no pin fired: the plan gates pass, the regenerated suite stays green against the committed implementation, and no committed assertion pins the original value(s) 1 — the test suite does not pin the intent",
+      "pins": []
+    },
+    {
+      "mutation_id": "SM-002",
+      "spec_line": 27,
+      "operator": "drop",
+      "element": "AC-2:scenario",
+      "behavior": "A2",
+      "verdict": "notAssessed",
+      "evidence": "the pin-locator was misattributed (a5_test.dart:2 is a comment, not an assertion, and a5 is AC-5 not AC-2); no committed test asserts a literal '@' — re-run required to determine killed vs survived",
+      "pins": []
+    },
+    {
+      "mutation_id": "SM-003",
+      "spec_line": 29,
+      "operator": "drop",
+      "element": "AC-3:scenario",
+      "behavior": "A3",
+      "verdict": "survived",
+      "evidence": "no pin fired: the plan gates pass, the regenerated suite stays green against the committed implementation, and no committed assertion pins the original value(s) 3, 8 — the test suite does not pin the intent",
+      "pins": []
+    },
+    {
+      "mutation_id": "SM-004",
+      "spec_line": 48,
+      "operator": "drop",
+      "element": "AC-6:scenario",
+      "behavior": "A6",
+      "verdict": "survived",
+      "evidence": "no pin fired: the plan gates pass, the regenerated suite stays green against the committed implementation, and no committed assertion pins the original value(s) 2 — the test suite does not pin the intent",
+      "pins": []
+    },
+    {
+      "mutation_id": "SM-005",
+      "spec_line": 57,
+      "operator": "swap-literal",
+      "element": "FR-001:literal:`@`",
+      "behavior": "U1",
+      "verdict": "notAssessed",
+      "evidence": "the regenerated test for U1 failed to LOAD (issue #1045): test/tdd/004-login-ui/u1_test.dart could not be loaded",
+      "pins": []
+    }
+  ],
+  "summary": {
+    "mutations": 5,
+    "killed": 0,
+    "survived": 3,
+    "not_assessed": 2
+  },
+  "ledger_entry_ids": [
+    "gap-001",
+    "gap-002",
+    "gap-003"
+  ],
+  "restoration": {
+    "verified": true,
+    "scope": [
+      "specs/004-login-ui/spec.md"
+    ]
+  },
+  "spec_hash": "sha256:0838b8931ded7cd6bfb90e7637558ba928bc4d3f6dac8315392a4a44a862ec7d"
+}
