@@ -28,6 +28,7 @@ class McpCommand extends PluginCommand {
   McpCommand(super.plugin) : super() {
     addSubcommand(_ServeCommand());
     addSubcommand(_ListToolsCommand());
+    addSubcommand(_ReplayCommand());
   }
 
   @override
@@ -38,6 +39,281 @@ class McpCommand extends PluginCommand {
   @override
   Future<void> run() async {
     print(usage);
+  }
+}
+
+/// `zfa mcp replay <session-file>` (issue #1358) — re-executes a
+/// committed JSON scenario of MCP tool calls against the REAL
+/// scaffolded `bin/mcp_server.dart` over the stdio JSON-RPC wire.
+/// The scenario file IS the recorded session (committed, diffable):
+/// `{"session": "<name>", "calls": [{"tool": "...", "arguments": {...},
+/// "expect_contains": "..."}]}`. One verdict line per call (`ok` /
+/// `missing-tool` / `mismatch` / `error`), a summary line, and a
+/// proof-carrying receipt under `.zfa/receipts/`. Exit 0 iff every
+/// call is ok.
+class _ReplayCommand extends Command<void> {
+  @override
+  String get name => 'replay';
+
+  @override
+  String get description =>
+      'Re-execute a committed MCP tool-call scenario (JSON) against the '
+      'scaffolded server and write a verdict receipt (issue #1358)';
+
+  @override
+  String get invocation =>
+      'zfa mcp replay <session-file> [--timeout <seconds>]';
+
+  _ReplayCommand() {
+    argParser.addOption(
+      'timeout',
+      help: 'Deadline for the whole replay in seconds.',
+      defaultsTo: '120',
+    );
+  }
+
+  @override
+  Future<void> run() async {
+    final rest = argResults!.rest;
+    if (rest.isEmpty) {
+      print('❌ Usage: $invocation');
+      exitCode = 2;
+      return;
+    }
+    final scenarioPath = rest.first;
+    final scenarioFile = File(scenarioPath);
+    if (!await scenarioFile.exists()) {
+      print('❌ Usage: $invocation');
+      print('   scenario file not found: $scenarioPath');
+      exitCode = 2;
+      return;
+    }
+
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(await scenarioFile.readAsString());
+    } on FormatException catch (e) {
+      print('❌ Malformed scenario file: $scenarioPath (${e.message})');
+      exitCode = 1;
+      return;
+    }
+    if (decoded is! Map<String, dynamic>) {
+      print('❌ Malformed scenario file: $scenarioPath (not an object)');
+      exitCode = 1;
+      return;
+    }
+    final sessionName = (decoded['session'] as String?) ?? 'session';
+    final rawCalls = decoded['calls'];
+    if (rawCalls is! List) {
+      print(
+        '❌ Malformed scenario file: $scenarioPath ("calls" must be a list)',
+      );
+      exitCode = 1;
+      return;
+    }
+
+    final binPath = 'bin/mcp_server.dart';
+    if (!await File(binPath).exists()) {
+      print(
+        '❌ $binPath not found — the replay needs the scaffolded server. '
+        'Run `zfa mcp scaffold` first.',
+      );
+      exitCode = 1;
+      return;
+    }
+
+    final timeoutSeconds =
+        int.tryParse(argResults!['timeout'] as String? ?? '120') ?? 120;
+
+    final process = await Process.start('dart', ['run', binPath]);
+
+    final responses = <int, Completer<Map<String, dynamic>>>{};
+    final verdictLines = <Map<String, dynamic>>[];
+    var nextId = 0;
+
+    final stdoutLines = process.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter());
+    final subscription = stdoutLines.listen((line) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) return;
+      try {
+        final message = jsonDecode(trimmed) as Map<String, dynamic>;
+        final id = message['id'];
+        if (id is int) {
+          responses.remove(id)?.complete(message);
+        }
+      } on FormatException {
+        // Non-JSON stdout lines (banner noise) are ignored.
+      }
+    });
+
+    Future<Map<String, dynamic>?> request(
+      String method,
+      Map<String, dynamic>? params,
+    ) async {
+      final id = ++nextId;
+      final completer = Completer<Map<String, dynamic>>();
+      responses[id] = completer;
+      process.stdin.writeln(
+        jsonEncode({
+          'jsonrpc': '2.0',
+          'id': id,
+          'method': method,
+          'params': ?params,
+        }),
+      );
+      await process.stdin.flush();
+      return completer.future.timeout(
+        Duration(seconds: timeoutSeconds),
+        onTimeout: () => <String, dynamic>{},
+      );
+    }
+
+    var ok = 0;
+    var failed = 0;
+
+    Future<void> replayCall(Map<String, dynamic> call, int index) async {
+      final tool = call['tool'] as String?;
+      final rawArguments = call['arguments'];
+      if (rawArguments != null && rawArguments is! Map<String, dynamic>) {
+        failed++;
+        verdictLines.add({
+          'call': index,
+          'tool': tool,
+          'verdict': 'error',
+          'detail': '"arguments" must be an object',
+        });
+        return;
+      }
+      final arguments = (rawArguments as Map<String, dynamic>?) ?? const {};
+      final expectContains = call['expect_contains'] as String?;
+      if (tool == null || tool.isEmpty) {
+        failed++;
+        verdictLines.add({
+          'call': index,
+          'verdict': 'error',
+          'detail': 'scenario entry has no "tool"',
+        });
+        return;
+      }
+      final response = await request('tools/call', {
+        'name': tool,
+        'arguments': arguments,
+      });
+      if (response == null) {
+        failed++;
+        verdictLines.add({
+          'call': index,
+          'tool': tool,
+          'verdict': 'error',
+          'detail': 'timeout or no response',
+        });
+        return;
+      }
+      if (response['error'] != null) {
+        final error = response['error'] as Map<String, dynamic>;
+        failed++;
+        verdictLines.add({
+          'call': index,
+          'tool': tool,
+          'verdict': error['code'] == -32602 ? 'missing-tool' : 'error',
+          'detail': '${error['message']}',
+        });
+        return;
+      }
+      var text = '';
+      final result = response['result'];
+      if (result is Map<String, dynamic>) {
+        final content = result['content'];
+        if (content is List && content.isNotEmpty) {
+          final first = content.first;
+          if (first is Map<String, dynamic> && first['text'] is String) {
+            text = first['text'] as String;
+          }
+        }
+      }
+      if (expectContains != null && !text.contains(expectContains)) {
+        failed++;
+        verdictLines.add({
+          'call': index,
+          'tool': tool,
+          'verdict': 'mismatch',
+          'detail': 'output did not contain "$expectContains"',
+        });
+        return;
+      }
+      ok++;
+      verdictLines.add({
+        'call': index,
+        'tool': tool,
+        'verdict': 'ok',
+        'output': text,
+      });
+    }
+
+    try {
+      final initialize = await request('initialize', {
+        'protocolVersion': '2024-11-05',
+        'capabilities': {},
+        'clientInfo': {'name': 'zfa-mcp-replay', 'version': '1.0.0'},
+      });
+      if (initialize == null) {
+        print(
+          '❌ The scaffolded server did not answer initialize within '
+          '$timeoutSeconds seconds.',
+        );
+        process.kill();
+        exitCode = 1;
+        return;
+      }
+      process.stdin.writeln(
+        jsonEncode({'jsonrpc': '2.0', 'method': 'notifications/initialized'}),
+      );
+      await process.stdin.flush();
+
+      for (var i = 0; i < rawCalls.length; i++) {
+        final call = rawCalls[i];
+        if (call is! Map<String, dynamic>) {
+          failed++;
+          verdictLines.add({
+            'call': i,
+            'verdict': 'error',
+            'detail': 'scenario entry is not an object',
+          });
+          continue;
+        }
+        await replayCall(call, i);
+      }
+    } finally {
+      subscription.cancel();
+      process.kill();
+    }
+
+    for (final line in verdictLines) {
+      final verdict = line['verdict'];
+      final detail = line['detail'];
+      print(
+        '  $verdict ${line['tool'] ?? '(no tool)'}'
+        '${detail == null ? '' : ' — $detail'}',
+      );
+    }
+    print(
+      'mcp-replay: session=$sessionName '
+      'calls=${verdictLines.length} ok=$ok failed=$failed',
+    );
+
+    // The proof-carrying receipt (#807 family).
+    final receiptsDir = Directory('.zfa/receipts');
+    await receiptsDir.create(recursive: true);
+    final sanitized = sessionName.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '_');
+    final receiptFile = File('${receiptsDir.path}/mcp-replay-$sanitized.json');
+    await receiptFile.writeAsString(
+      '${const JsonEncoder.withIndent('  ').convert({'command': 'zfa mcp replay', 'session': sessionName, 'scenario': scenarioPath, 'at': DateTime.now().toUtc().toIso8601String(), 'calls': verdictLines, 'ok': ok, 'failed': failed, 'passed': failed == 0})}\n',
+    );
+    print('   receipt: ${receiptFile.path}');
+
+    exitCode = failed == 0 ? 0 : 1;
   }
 }
 
