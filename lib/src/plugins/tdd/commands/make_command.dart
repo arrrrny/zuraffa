@@ -755,7 +755,7 @@ class MakeCommand extends Command<void> {
         );
       } else if (reDrive &&
           placeholderOnDisk &&
-          await _rowKind(target.featureDir, record.behaviorId) ==
+          await _rowKindQuiet(target.featureDir, record.behaviorId) ==
               BehaviorKind.acceptance) {
         // Issue #1345: the placeholder re-drive class — the re-entry.
         // The subject on disk is the compose pipeline's OWN placeholder
@@ -2527,6 +2527,9 @@ class MakeCommand extends Command<void> {
         // Issue #1331: the adopted re-drive re-certified green — a pass,
         // distinguishable by its own exit class.
         MakeOutcome.adopted => VerdictOutcome.pass,
+        // Issue #1345: compose-placeholder re-entry exits 0 with green
+        // evidence — the terminal success grades as pass.
+        MakeOutcome.adoptedPlaceholder => VerdictOutcome.pass,
         MakeOutcome.skipped => VerdictOutcome.stopped,
         _ => VerdictOutcome.fail,
       }
