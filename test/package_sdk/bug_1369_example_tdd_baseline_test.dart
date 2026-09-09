@@ -38,14 +38,20 @@ void main() {
       );
     }
 
-    // Constraint equality is pinned only for the TDD-critical trio the
-    // engine tests and `tdd verify` consume — build tooling
+    // Issue #1370 (supersedes this file's original `test` pin): plain
+    // `test` is UNRESOLVABLE in this Flutter graph — the baseline must
+    // NOT declare it (flutter_test re-exports the API the gen'd tests
+    // use, issue #1351).
+    expect(
+      devDeps.keys,
+      isNot(contains('test')),
+      reason: 'the unresolvable test pin stays out of Flutter consumers',
+    );
+
+    // Constraint equality is pinned only for the TDD-critical pair the
+    // mutation auditor and coverage collector consume — build tooling
     // (build_runner, json_serializable) stays example-managed.
-    const writerCanonical = {
-      'test': '^1.0.0',
-      'coverage': '^1.15.1',
-      'mutation_test': '^1.8.0',
-    };
+    const writerCanonical = {'coverage': '^1.15.1', 'mutation_test': '^1.8.0'};
     for (final entry in writerCanonical.entries) {
       expect(
         devDeps[entry.key],

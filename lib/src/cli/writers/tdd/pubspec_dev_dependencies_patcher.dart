@@ -17,6 +17,16 @@ class PubspecDevDependenciesPatcher {
   // `test` runner package. Without an explicit `test` dependency, fresh
   // Flutter projects could not compile their generated tests.
   //
+  // Issue #1370 (supersedes the #716 reasoning above): NO published
+  // `test` version resolves in the Flutter consumer graph — zuraffa's
+  // graphql dependency pulls web_socket_channel ^3.0.1, which conflicts
+  // with every `test` release compatible with flutter_test's pins (the
+  // same #1189 conflict class, and #1189's own fix document). The gen
+  // side (issue #1351) emits `package:flutter_test/flutter_test.dart`
+  // imports on Flutter hosts — flutter_test re-exports the same
+  // group/test/expect API — so the baseline no longer prescribes plain
+  // `test` to Flutter projects.
+  //
   // Bug #755: `mutation_test` was pinned at `^1.0.0`, but the toolchain's
   // own MutationVerifier (lib/src/plugins/tdd/services/mutation_verifier
   // .dart:235,255) parses v1.8.0+ reports — the generated baseline was
@@ -28,7 +38,6 @@ class PubspecDevDependenciesPatcher {
   // so the dev dep was unused bloat.
   static const Map<String, String> flutterDevDependencies = {
     'flutter_test': 'sdk: flutter',
-    'test': '^1.0.0',
     'build_runner': '^2.4.0',
     'json_serializable': '^6.7.0',
     'coverage': '^1.15.1',

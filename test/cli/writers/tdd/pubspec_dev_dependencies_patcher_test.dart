@@ -39,9 +39,13 @@ dev_dependencies: {}
 ''');
     final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
     final added = await patcher.ensure(tmpDir.path);
-    expect(added.length, 6);
+    // Issue #1370: plain `test` is no longer prescribed to Flutter
+    // consumers (unresolvable in the graphql → web_socket_channel ^3.0.1
+    // graph) — the gen side emits flutter_test imports on Flutter hosts
+    // (issue #1351).
+    expect(added.length, 5);
     expect(added.any((e) => e.startsWith('flutter_test')), isTrue);
-    expect(added.any((e) => e.startsWith('test')), isTrue);
+    expect(added.any((e) => e.startsWith('test:')), isFalse);
     expect(
       added.any((e) => e.startsWith('mocktail')),
       isFalse,
@@ -58,7 +62,6 @@ dev_dependencies: {}
       devDeps.keys,
       containsAll([
         'flutter_test',
-        'test',
         'build_runner',
         'json_serializable',
         'coverage',
@@ -84,8 +87,9 @@ dev_dependencies:
     final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
     final added = await patcher.ensure(tmpDir.path);
     // flutter_test and build_runner are pre-declared; the patcher should
-    // add the remaining 4 (test, json_serializable, coverage, mutation_test).
-    expect(added.length, 4);
+    // add the remaining 3 (json_serializable, coverage, mutation_test —
+    // issue #1370 dropped plain `test` from the Flutter baseline).
+    expect(added.length, 3);
     expect(added.any((e) => e.startsWith('flutter_test')), isFalse);
     expect(added.any((e) => e.startsWith('build_runner')), isFalse);
     final raw = await File(p.join(tmpDir.path, 'pubspec.yaml')).readAsString();
@@ -119,8 +123,9 @@ dependencies: {}
 ''');
     final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
     final added = await patcher.ensure(tmpDir.path);
-    // bug #755 dropped mocktail from the flutter map: 7 -> 6.
-    expect(added.length, 6);
+    // bug #755 dropped mocktail (7 -> 6); issue #1370 dropped plain
+    // `test` (6 -> 5).
+    expect(added.length, 5);
     final raw = await File(p.join(tmpDir.path, 'pubspec.yaml')).readAsString();
     expect(raw, contains('dev_dependencies:'));
     expect(raw, contains('flutter_test:'));
@@ -160,12 +165,14 @@ dev_dependencies: {lints: ^5.0.0}
       });
 
       test(
-        'flutterDevDependencies includes test ^1.0.0 alongside flutter_test '
-        '(bug #716: flutter_test does NOT provide package:test/test.dart)',
+        'flutterDevDependencies EXCLUDES plain test (issue #1370: the '
+        'constraint is unresolvable in the Flutter consumer graph; #1351 '
+        'emits flutter_test imports on Flutter hosts)',
         () {
           expect(
-            PubspecDevDependenciesPatcher.flutterDevDependencies['test'],
-            '^1.0.0',
+            PubspecDevDependenciesPatcher.flutterDevDependencies
+                .containsKey('test'),
+            isFalse,
           );
           expect(
             PubspecDevDependenciesPatcher
