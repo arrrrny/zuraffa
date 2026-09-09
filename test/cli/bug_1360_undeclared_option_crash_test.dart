@@ -30,13 +30,8 @@ void main() {
     return (exitCode, output);
   }
 
-  test('B1: an undeclared subcommand option is a clean usage error',
-      () async {
-    final (code, output) = await runZfa([
-      'simulate',
-      'run',
-      '--world=v3',
-    ]);
+  test('B1: an undeclared subcommand option is a clean usage error', () async {
+    final (code, output) = await runZfa(['simulate', 'run', '--world=v3']);
     expect(code, 2, reason: output);
     expect(output, contains('Could not find an option named "--world"'));
     expect(
@@ -46,13 +41,15 @@ void main() {
     );
   });
 
-  test('B2: an undeclared parent-level option stays a clean usage error',
-      () async {
-    final (code, output) = await runZfa(['simulate', '--world=v3']);
-    expect(code, 2, reason: output);
-    expect(output, contains('Could not find an option named "--world"'));
-    expect(output, isNot(contains('Null check operator')));
-  });
+  test(
+    'B2: an undeclared parent-level option stays a clean usage error',
+    () async {
+      final (code, output) = await runZfa(['simulate', '--world=v3']);
+      expect(code, 2, reason: output);
+      expect(output, contains('Could not find an option named "--world"'));
+      expect(output, isNot(contains('Null check operator')));
+    },
+  );
 
   test('B3: valid simulate invocations are unaffected', () async {
     final (helpCode, helpOutput) = await runZfa(['simulate', '--help']);
@@ -64,5 +61,14 @@ void main() {
     final (code, output) = await runZfa(['simulate', 'run', '--world=v3']);
     expect(code, 2, reason: output);
     expect(output, contains('-->'));
+  });
+
+  test('B5: the recovery walk descends multiple command levels', () async {
+    final (code, output) = await runZfa(['sync', 'simulate', '--world=v3']);
+    // sync is a real subcommand; simulate rides the plugin capability
+    // registration; the undeclared option must refuse cleanly at the
+    // deepest resolvable command.
+    expect(code, anyOf(2, 79), reason: output);
+    expect(output, isNot(contains('Null check operator')));
   });
 }
