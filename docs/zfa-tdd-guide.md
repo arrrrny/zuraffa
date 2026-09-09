@@ -4,8 +4,10 @@ This guide takes an external agent from **zero** to a **completed zfa TDD cycle*
 (red → green → receipts) on a real project — pure-Dart engine and Flutter skin —
 using only `zfa` commands plus the project's normal test runner.
 
-Verified against zfa build `d23bde35` (2026-09-08). Check your binary first
-(Step 1): older builds hit the bugs catalogued under "Known sharp edges".
+Verified against zfa build `d23bde35` (2026-09-08); full Flutter engine+skin
+cycle additionally verified on `583d711d` (2026-09-09, §5a evidence). Check
+your binary first (Step 1): older builds hit the bugs catalogued under
+"Known sharp edges".
 
 ---
 
@@ -261,6 +263,76 @@ zfa tdd run todo-app
   annotation so the receipt can capture them. Hand-edit **only** inside that
   seam — never generated engine code.
 
+## 5a. Expected hand steps (designed stops, not misfires)
+
+A full cycle on a real Flutter app stops a few times by design. Each stop
+names the file to edit. Edit only that file, then re-run `zfa tdd run
+<feature>` — done behaviors are skipped.
+
+1. **Unit hand step — vacuous-guard** (`U<n>:hand`, issue #1259/#1308).
+   The func scaffold only auto-greens **primitive** contracts
+   (`String`/`int`/`bool`/`double`/`void`). An entity-returning contract
+   (`todos() -> List<Todo>`) scaffolds to an honest `UnimplementedError`
+   throw, and `make` refuses a green earned by the guard-only assertion set.
+   The run stops with:
+   ```
+   hand step: U4:hand — write an assertion on the observable outcome in
+   test/tdd/<feature>/u4_test.dart (replace the vacuous-guard guard, remove
+   the marker), then re-run `zfa tdd run <feature>`.
+   ```
+   **Do**: in the named test, keep the `UnimplementedError` capture block,
+   add `expect(result, isA<List>());` (pin the declared return shape), and
+   delete the marker comment — the detector keys on the literal
+   `zfa:tdd: vacuous-guard` string, so the text must not survive even inside
+   a replacement comment. Hand-implement the subject (a real domain model +
+   a delegating `subject_u4()`), then re-run. `make` sees the target test
+   already passing → records green via the drift-skip transition
+   (issue #694/#1162).
+2. **Widget hand step — scaffolded skin test** (`W<n>`, issues #912/#1258).
+   A hand-declared `W` row whose description has no scenario prose
+   (`description: skin behavior declared in ## Lanes`) generates a
+   **scaffolded** widget test: placeholder finder
+   `expect(find.byWidget(view), findsOneWidget);` with the
+   `zfa:tdd: scaffolded` marker. The placeholder passes against the inert
+   `SizedBox.shrink()` subject, so the run stops with `not-certified-red`
+   (the run driver UX gap is issue #1373 — the message does not mention the
+   author path; you are reading the author path here). **Do**, per behavior:
+   ```bash
+   # 1. author concrete finders (a plain .txt of Dart statements)
+   zfa tdd make W1 --feature <f> --author --finders-file finders/w1.txt
+   # 2. generation fails (expected — lane-only descriptions carry no
+   #    scenario tokens); the subject restores to its inert shape
+   # 3. hand-write the real view in the skin seam (a StatefulWidget next to
+   #    the subjects) and point the subject at it:
+   #    Widget subject_w1() => const MyFeatureView();
+   # 4. record green through the pipeline (drift skip):
+   zfa tdd make W1 --feature <f>
+   ```
+   Finder rules (hard gates, refusal restores the test byte-identical):
+   - **Lead with `expect` presence assertions** (`find.text` /
+     `find.byType` / `find.widgetWithText`). Interaction-first finders
+     (`await tester.tap(...)` on a finder with no match) throw
+     `StateError: Bad state: No element` → classified **runner-error** →
+     authoring refused. The authored test must certify red via an
+     *assertion* against the inert stub.
+   - The finders file must contain ≥1 `expect(`/`expectLater(` and must not
+     contain the scaffold marker string.
+   - Interaction statements (`enterText`/`tap`/`pumpAndSettle`) are allowed
+     after the leading expects — the block replaces the placeholder in place,
+     inside the `testWidgets` body.
+   - Authoring W2/W3: the test does not exist until the run generates it.
+     Resume `zfa tdd run` first (it gens W2 and stops at `not-certified-red`),
+     then run the `--author` make.
+   - **Prevention**: annotate `W` rows with real scenario prose
+     (`W1 (the empty list shows the input row and an empty-state message)`)
+     so `gen` derives concrete finders and the author step is skipped.
+3. **Skin lane dependency gate**: the first `W` gen refuses until
+   `zuraffa_ui` is a direct dependency (the widget test boots a
+   `ZuraffaApp` shell, issue #938). `flutter pub add zuraffa_ui`, re-run.
+4. **`zfa tdd status` trailing counts** (`| 40 violations |`) are ui-ledger
+   audit surfaces, not gates — `engine ✅ skin ✅` with exit 0 is the
+   machine verdict.
+
 ## 6. Verify green
 
 ```bash
@@ -301,9 +373,17 @@ dart test                      # or: flutter test — the whole suite green
 | Skin receipt written before journal entry → same flake | #1333 | fixed |
 | Planner fails to auto-migrate missing `**Type**: acceptance` | #1186 | fixed — one-time migration |
 | `zfa tdd init` on a Flutter project generates `lib/app.dart` importing `zuraffa_flutter`/`get_it` without adding the deps, and self-heals a conflicting plain `test` dev_dependency — baseline is red out of the box | #1349 | **open** — workaround: add `zuraffa_flutter` + `get_it` to `dependencies`, remove the `test` dev_dependency init added, `flutter pub get` |
+| `zfa tdd gen` emitted `package:test` test imports on Flutter hosts, where the package cannot resolve (compile-error at verify-red) | #1351 | **fixed on branch `fix/1351-gen-flutter-test-import`** (binary build `510c4aa4`) — gen now detects Flutter hosts and emits `package:flutter_test` imports |
+| `zfa tdd make`/`compose` refused not-certified-red when an older error section for the same behavior preceded the certified-red section in cycle-log.md — a resumed run with any earlier honest error was permanently blocked | #1353 | **fixed on branch `fix/1351-gen-flutter-test-import`** (binary build `583d711d`) — the check now scans all sections for any `kind: red` |
+| `zfa tdd run` stops at a scaffolded widget behavior with a cryptic `not-certified-red` instead of handing off to the `--author --finders-file` flow | #1373 | **open** — workaround: the §5a step-2 author flow |
 
 Cross-check evidence: `fix_verification_probe` spec runs 8/8 green in one
 uninterrupted run on `d23bde35` (8 behaviors: A1–A4, U1–U4, CORE lane).
+Full-cycle evidence: a Flutter macOS todo app (15 behaviors: 6 acceptance +
+6 unit CORE lane, 3 widget SKIN lane) completed end-to-end from scratch on
+binary build `583d711d` — every §5a hand step exercised, both receipts
+green, `flutter test` 16/16, and the built `.app` live-tested on macOS
+(2026-09-09).
 
 ## Reference specs (in this repo)
 
