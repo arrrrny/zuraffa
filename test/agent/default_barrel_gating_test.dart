@@ -13,6 +13,10 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+/// Collapse all whitespace runs to single spaces so multi-line hide
+/// clauses can be asserted as single-line strings.
+String _flatten(String src) => src.replaceAll(RegExp(r'\s+'), ' ');
+
 void main() {
   test('SC-1: default barrel carries ZERO agent/ references', () {
     final barrel = File('lib/zuraffa.dart').readAsStringSync();
@@ -46,11 +50,24 @@ void main() {
     );
     // The hide clauses are part of the surface contract (they arbitrate the
     // kernel-vs-runtime and ui_render-vs-policy same-name conflicts); they
-    // must survive the move verbatim.
-    expect(src, contains('hide ToolCallContext'));
+    // must survive the move verbatim. ALL FOUR clauses are guarded: dropping
+    // the kernel or ui_render hide would re-introduce intra-barrel
+    // ambiguous-export errors while this gate stays green.
+    final flat = _flatten(src);
+    expect(flat, contains('hide ToolCallContext'));
     expect(
-      src,
+      flat,
       contains('hide McpTool, AgentHook, McpToolRegistry, AgentKernel'),
+    );
+    expect(
+      flat,
+      contains('hide ValidationResult, ValidationError, MissionTraceRecorder'),
+    );
+    expect(
+      flat,
+      contains(
+        'hide CancelToken, Mission, MissionEvent, MissionEventCompleted, MissionEventFailed',
+      ),
     );
   });
 }
