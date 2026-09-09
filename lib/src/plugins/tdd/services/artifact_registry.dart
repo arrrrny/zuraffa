@@ -21,6 +21,49 @@ import '../models/artifact_record.dart';
 import '../models/ownership.dart';
 import 'run_state_store.dart';
 
+/// Normalizes a recorded artifact path to the absolute form used for
+/// ownership comparisons. Registries may record absolute paths (older
+/// binaries' gen) or project-relative ones; both must resolve to the same
+/// ownership answer. Relative forms resolve against [projectRoot] — never
+/// the process CWD, which is whatever directory the CLI ran from
+/// (issue #1397).
+String normalizeArtifactPath(String projectRoot, String recorded) =>
+    p.isAbsolute(recorded)
+    ? p.normalize(recorded)
+    : p.normalize(p.join(projectRoot, recorded));
+
+/// The portable persisted form of a recorded artifact path (issue #1397):
+/// project-relative POSIX when the path resolves inside [projectRoot],
+/// otherwise the normalized recorded form (a path outside the project
+/// root cannot be made root-relative without escaping the project).
+String canonicalArtifactPath(String projectRoot, String recorded) {
+  final absolute = normalizeArtifactPath(projectRoot, recorded);
+  final rel = p.relative(absolute, from: projectRoot).replaceAll(r'\', '/');
+  return rel == '.' || rel.startsWith('..') ? absolute : rel;
+}
+
+/// Probes for a RELOCATED artifact (issue #1397): a committed
+/// machine-absolute path whose project root does not exist on this machine
+/// (a checkout moved between machines), while the file sits at the same
+/// project-relative location under [projectRoot]. Returns the absolute
+/// path of the longest directory suffix of [recorded] that resolves to the
+/// recorded file under [projectRoot], or null when nothing matches — a
+/// genuinely missing artifact. A suffix shorter than `<dir>/<file>` is
+/// never accepted: a bare-basename match could re-own a stranger's file.
+String? probeRelocatedArtifact(String projectRoot, String recorded) {
+  if (!p.isAbsolute(recorded)) return null;
+  final segments = p
+      .normalize(recorded)
+      .split(RegExp(r'[\\/]'))
+      .where((s) => s.isNotEmpty)
+      .toList();
+  for (var i = 0; i + 2 <= segments.length; i++) {
+    final candidate = p.join(projectRoot, segments.skip(i).join(p.separator));
+    if (File(candidate).existsSync()) return p.normalize(candidate);
+  }
+  return null;
+}
+
 /// Thrown when a file exists on disk but the registry has no record for it
 /// (FR-008). The caller must leave the file untouched.
 class OwnershipConflict implements Exception {
@@ -58,6 +101,13 @@ class ArtifactRegistry {
 
   /// Absolute path to the feature spec directory.
   final String featureDir;
+
+  /// The project root recorded artifact paths resolve against (issue
+  /// #1397): alias of [projectRoot] — the standard TDD layout anchors
+  /// every feature directory at `<projectRoot>/specs/<feature>`. Relative
+  /// recorded paths must NEVER resolve against the process CWD: the CLI
+  /// can run from anywhere.
+  String get resolvedProjectRoot => projectRoot;
 
   /// Absolute path to the registry file.
   String get registryPath => p.join(featureDir, 'tdd', 'artifacts.json');
@@ -137,7 +187,7 @@ class ArtifactRegistry {
               '${_legacyHint(prior.subjectPath, record.subjectPath)}',
         );
       }
-      if (!await File(record.testPath).exists()) {
+      if (!await File(_locate(record.testPath)).exists()) {
         throw OwnershipConflict(
           record.testPath,
           'test',
@@ -146,7 +196,7 @@ class ArtifactRegistry {
               'is missing from disk',
         );
       }
-      if (!await File(record.subjectPath).exists()) {
+      if (!await File(_locate(record.subjectPath)).exists()) {
         throw OwnershipConflict(
           record.subjectPath,
           'subject',
@@ -161,10 +211,10 @@ class ArtifactRegistry {
       );
     }
 
-    if (await File(record.testPath).exists()) {
+    if (await File(_locate(record.testPath)).exists()) {
       throw OwnershipConflict(record.testPath, 'test');
     }
-    if (await File(record.subjectPath).exists()) {
+    if (await File(_locate(record.subjectPath)).exists()) {
       throw OwnershipConflict(record.subjectPath, 'subject');
     }
     return record.copyWithOwnership(
@@ -189,13 +239,13 @@ class ArtifactRegistry {
     if (prior != null) {
       return preflight(record);
     }
-    if (!await File(record.testPath).exists()) {
+    if (!await File(_locate(record.testPath)).exists()) {
       throw StateError(
         'Cannot append artifact record: test file is missing at '
         '${record.testPath}',
       );
     }
-    if (!await File(record.subjectPath).exists()) {
+    if (!await File(_locate(record.subjectPath)).exists()) {
       throw StateError(
         'Cannot append artifact record: subject file is missing at '
         '${record.subjectPath}',
@@ -211,8 +261,14 @@ class ArtifactRegistry {
   /// Load all records for this feature.
   ///
   /// Returns an empty list if the registry file does not exist (FR-012).
-  Future<List<ArtifactRecord>> loadAll() async {
-    return _loadRecords();
+  /// [reanchor] defaults to true (#1357): stale absolute paths resolve to
+  /// their repo-relative lane suffix so every reader sees a runnable view.
+  /// The form-repair commands (doctor, migrate-paths) load with
+  /// `reanchor: false` — they must see the RAW stored forms or the
+  /// reanchored view masks the very drift they detect and repair
+  /// (issue #1397 x #1357).
+  Future<List<ArtifactRecord>> loadAll({bool reanchor = true}) async {
+    return _loadRecords(reanchor: reanchor);
   }
 
   /// Find a single record by behavior id. Returns `null` if not found.
@@ -224,19 +280,16 @@ class ArtifactRegistry {
     return null;
   }
 
-  Future<List<ArtifactRecord>> _loadRecords() async {
+  Future<List<ArtifactRecord>> _loadRecords({bool reanchor = true}) async {
     final file = File(registryPath);
     if (!await file.exists()) return [];
     try {
       final raw = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       final records = (raw['records'] as List?) ?? [];
-      return records
-          .map(
-            (r) => _reanchorRecord(
-              ArtifactRecord.fromJson(r as Map<String, dynamic>),
-            ),
-          )
-          .toList();
+      return records.map((r) {
+        final record = ArtifactRecord.fromJson(r as Map<String, dynamic>);
+        return reanchor ? _reanchorRecord(record) : record;
+      }).toList();
     } on FormatException {
       return [];
     }
@@ -310,7 +363,10 @@ class ArtifactRegistry {
     await file.parent.create(recursive: true);
     final raw = jsonEncode({
       'feature': p.basename(featureDir),
-      'records': records.map((r) => r.toJson()).toList(),
+      // Issue #1397: every persisted record carries the portable
+      // project-relative POSIX form — a committed registry must survive
+      // another machine, and the ownership gate compares resolved paths.
+      'records': records.map((r) => _canonicalize(r).toJson()).toList(),
     });
     // Use a write-and-rename to avoid partial writes. Bug #828: the tmp
     // file is fsync'd before the rename so a registered artifact pair
@@ -331,8 +387,59 @@ class ArtifactRegistry {
     await _writeRecords([...existing, record]);
   }
 
-  bool _samePath(String left, String right) =>
-      p.equals(p.normalize(left), p.normalize(right));
+  bool _samePath(String left, String right) => p.equals(
+    normalizeArtifactPath(resolvedProjectRoot, left),
+    normalizeArtifactPath(resolvedProjectRoot, right),
+  );
+
+  /// A recorded path resolved for on-disk checks: absolute against the
+  /// project root — never the process CWD (issue #1397).
+  String _locate(String recorded) =>
+      normalizeArtifactPath(resolvedProjectRoot, recorded);
+
+  /// The persisted form of [record] (issue #1397): both artifact paths in
+  /// the portable project-relative POSIX form, and — when the runnable
+  /// name's first `::` segment names the test path — that segment rebuilt
+  /// with the persisted form. Every later segment (id, description) is
+  /// preserved verbatim so description extraction keeps parsing the same
+  /// name.
+  ArtifactRecord _canonicalize(ArtifactRecord record) {
+    final testPath = canonicalArtifactPath(
+      resolvedProjectRoot,
+      record.testPath,
+    );
+    final subjectPath = canonicalArtifactPath(
+      resolvedProjectRoot,
+      record.subjectPath,
+    );
+    if (testPath == record.testPath && subjectPath == record.subjectPath) {
+      return record;
+    }
+    final segments = record.runnableTestName.split('::');
+    final firstIsTestPath =
+        segments.isNotEmpty &&
+        (segments.first == record.testPath ||
+            p.equals(
+              normalizeArtifactPath(resolvedProjectRoot, segments.first),
+              normalizeArtifactPath(resolvedProjectRoot, record.testPath),
+            ));
+    final runnableTestName = firstIsTestPath
+        ? (segments.length == 1
+              ? testPath
+              : '$testPath::${segments.skip(1).join('::')}')
+        : record.runnableTestName;
+    return ArtifactRecord(
+      behaviorId: record.behaviorId,
+      feature: record.feature,
+      sourceCriterion: record.sourceCriterion,
+      testPath: testPath,
+      subjectPath: subjectPath,
+      runnableTestName: runnableTestName,
+      testOwnership: record.testOwnership,
+      subjectOwnership: record.subjectOwnership,
+      createdAt: record.createdAt,
+    );
+  }
 
   /// Bug #827 migration hint: when one of the two mismatched paths is the
   /// legacy flat gen layout (`test/tdd/<file>` / `lib/tdd/<file>`) and the

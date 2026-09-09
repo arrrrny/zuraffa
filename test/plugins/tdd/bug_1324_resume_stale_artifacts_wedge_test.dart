@@ -69,6 +69,12 @@ void main() {
   /// Seed a registry record for [id] whose pair exists on disk with an
   /// explicit [createdAt] (the fixture default is the green evidence's
   /// certification timestamp; the doctor scenarios need full control).
+  ///
+  /// Recorded paths use the portable project-relative POSIX form (issue
+  /// #1397) — the canonical form post-fix gen writes. A machine-absolute
+  /// record is the separate form-drift class doctor's 2e check
+  /// prescribes `migrate-paths` for, which would shadow the
+  /// certification-vs-generation contradiction under test here.
   Future<void> seedRegistryRecord(
     String feature,
     String id,
@@ -79,6 +85,9 @@ void main() {
     await subjectFile.parent.create(recursive: true);
     await subjectFile.writeAsString('int a1Value() => 42;\n');
     await Directory(p.join(fx.featureDir, 'tdd')).create(recursive: true);
+    String recorded(String absolute) =>
+        p.relative(absolute, from: fx.root.path).replaceAll(r'\', '/');
+    final recordedTestPath = recorded(fx.testPathOf(id));
     await File(fx.artifactsPath).writeAsString(
       jsonEncode({
         'feature': feature,
@@ -87,9 +96,9 @@ void main() {
             'behavior_id': id,
             'feature': feature,
             'source_criterion': 'FR-001',
-            'test_path': fx.testPathOf(id),
-            'subject_path': subjectPath,
-            'runnable_test_name': '${fx.testPathOf(id)}::$id::the $id behavior',
+            'test_path': recordedTestPath,
+            'subject_path': recorded(subjectPath),
+            'runnable_test_name': '$recordedTestPath::$id::the $id behavior',
             'test_ownership': 'created',
             'subject_ownership': 'created',
             'created_at': createdAt,

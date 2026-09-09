@@ -241,14 +241,14 @@ skin-event: behavior=W1 slot=macos
 - classification: assertionFailure
 - subject-hash: 27a3496766ad97ae8ce3aea3e13ba340f8d1eff264b76551331aedb61e43bedf
 - criterion: AC-3
-- test: /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a3_test.dart
-- command: `flutter test /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a3_test.dart --plain-name "the app shows 'Sign in'"`
+- test: test/tdd/004-login-ui/a3_test.dart
+- command: `flutter test test/tdd/004-login-ui/a3_test.dart --plain-name "the app shows 'Sign in'"`
 - exit: 1
 - at: 2026-09-06T11:06:42.470080Z
 - output:
 ```
-00:00 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a3_test.dart                                                                                                                
-00:01 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a3_test.dart                                                                                                                
+00:00 +0: loading test/tdd/004-login-ui/a3_test.dart                                                                                                                
+00:01 +0: loading test/tdd/004-login-ui/a3_test.dart                                                                                                                
 00:01 +0: A3 (AC-3) A3 — the app shows 'Sign in'                                                                                                                                                       
 00:02 +0: A3 (AC-3) A3 — the app shows 'Sign in'                                                                                                                                                       
 00:02 +0: A3 (AC-3) A3 — the app shows 'Sign in'                                                                                                                                                       
@@ -259,7 +259,7 @@ Expected: exactly one matching candidate
    Which: means none were found but one was expected
 
 When the exception was thrown, this was the stack:
-#4      main.<anonymous closure>.<anonymous closure> (file:///home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a3_test.dart:67:7)
+#4      main.<anonymous closure>.<anonymous closure> (file://test/tdd/004-login-ui/a3_test.dart:67:7)
 <asynchronous suspension>
 #5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
 <asynchronous suspension>
@@ -269,7 +269,7 @@ When the exception was thrown, this was the stack:
 (elided one frame from package:stack_trace)
 
 This was caught by the test expectation on the following line:
-  file:///home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a3_test.dart line 67
+  file://test/tdd/004-login-ui/a3_test.dart line 67
 The test description was:
   A3 — the app shows 'Sign in'
 ════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -279,7 +279,7 @@ The test description was:
   The test description was: A3 — the app shows 'Sign in'
   
 
-To run this test again: /home/z/flutter/bin/cache/dart-sdk/bin/dart test /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a3_test.dart -p vm --plain-name 'A3 (AC-3) A3 — the app shows '\''Sign in'\'''
+To run this test again: /home/z/flutter/bin/cache/dart-sdk/bin/dart test test/tdd/004-login-ui/a3_test.dart -p vm --plain-name 'A3 (AC-3) A3 — the app shows '\''Sign in'\'''
 
 00:02 +0 -1: Some tests failed.
 ```
@@ -295,14 +295,14 @@ To run this test again: /home/z/flutter/bin/cache/dart-sdk/bin/dart test /home/z
 - classification: assertionFailure
 - subject-hash: aaf547ebe635b551abbd23ffaff5ea20211274d380ab561fee396ef441e52a90
 - criterion: AC-4
-- test: /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a4_test.dart
-- command: `flutter test /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a4_test.dart --plain-name "the app navigates to the route 'deal_list'"`
+- test: test/tdd/004-login-ui/a4_test.dart
+- command: `flutter test test/tdd/004-login-ui/a4_test.dart --plain-name "the app navigates to the route 'deal_list'"`
 - exit: 1
 - at: 2026-09-06T11:06:45.543635Z
 - output:
 ```
-00:00 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a4_test.dart                                                                                                                
-00:01 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a4_test.dart                                                                                                                
+00:00 +0: loading test/tdd/004-login-ui/a4_test.dart                                                                                                                
+00:01 +0: loading test/tdd/004-login-ui/a4_test.dart                                                                                                                
 00:01 +0: A4 (AC-4) A4 — the app navigates to the route 'deal_list'                                                                                                                                    
 00:02 +0: A4 (AC-4) A4 — the app navigates to the route 'deal_list'                                                                                                                                    
 00:02 +0: A4 (AC-4) A4 — the app navigates to the route 'deal_list'                                                                                                                                    
@@ -314,7 +314,7 @@ Expected: contains 'deal_list'
 the scenario asserts navigation to route deal_list; a rendered string is not a navigation
 
 When the exception was thrown, this was the stack:
-#4      main.<anonymous closure>.<anonymous closure> (file:///home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a4_test.dart:67:7)
+#4      main.<anonymous closure>.<anonymous closure> (file://test/tdd/004-login-ui/a4_test.dart:67:7)
 <asynchronous suspension>
 #5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
 <asynchronous suspension>
@@ -324,7 +324,7 @@ When the exception was thrown, this was the stack:
 (elided one frame from package:stack_trace)
 
 This was caught by the test expectation on the following line:
-  file:///home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a4_test.dart line 67
+  file://test/tdd/004-login-ui/a4_test.dart line 67
 The test description was:
   A4 — the app navigates to the route 'deal_list'
 ════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -334,7 +334,7 @@ The test description was:
   The test description was: A4 — the app navigates to the route 'deal_list'
   
 
-To run this test again: /home/z/flutter/bin/cache/dart-sdk/bin/dart test /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a4_test.dart -p vm --plain-name 'A4 (AC-4) A4 — the app navigates to the route '\''deal_list'\'''
+To run this test again: /home/z/flutter/bin/cache/dart-sdk/bin/dart test test/tdd/004-login-ui/a4_test.dart -p vm --plain-name 'A4 (AC-4) A4 — the app navigates to the route '\''deal_list'\'''
 
 00:02 +0 -1: Some tests failed.
 ```
@@ -350,14 +350,14 @@ To run this test again: /home/z/flutter/bin/cache/dart-sdk/bin/dart test /home/z
 - classification: assertionFailure
 - subject-hash: 899a6959a59abd6940c89169981cc33d1f1bbd1fb515a76900f4646fdde811d5
 - criterion: AC-6
-- test: /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a6_test.dart
-- command: `flutter test /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a6_test.dart --plain-name "the 'Sign in' button is disabled"`
+- test: test/tdd/004-login-ui/a6_test.dart
+- command: `flutter test test/tdd/004-login-ui/a6_test.dart --plain-name "the 'Sign in' button is disabled"`
 - exit: 1
 - at: 2026-09-06T11:06:48.858800Z
 - output:
 ```
-00:00 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a6_test.dart                                                                                                                
-00:01 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a6_test.dart                                                                                                                
+00:00 +0: loading test/tdd/004-login-ui/a6_test.dart                                                                                                                
+00:01 +0: loading test/tdd/004-login-ui/a6_test.dart                                                                                                                
 00:01 +0: A6 (AC-6) A6 — the 'Sign in' button is disabled                                                                                                                                              
 00:02 +0: A6 (AC-6) A6 — the 'Sign in' button is disabled                                                                                                                                              
 00:02 +0: A6 (AC-6) A6 — the 'Sign in' button is disabled                                                                                                                                              
@@ -370,7 +370,7 @@ widgets with text "Sign in": []>
 the scenario asserts the t.auth.signIn control exists
 
 When the exception was thrown, this was the stack:
-#4      main.<anonymous closure>.<anonymous closure> (file:///home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a6_test.dart:69:9)
+#4      main.<anonymous closure>.<anonymous closure> (file://test/tdd/004-login-ui/a6_test.dart:69:9)
 <asynchronous suspension>
 #5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
 <asynchronous suspension>
@@ -380,7 +380,7 @@ When the exception was thrown, this was the stack:
 (elided one frame from package:stack_trace)
 
 This was caught by the test expectation on the following line:
-  file:///home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a6_test.dart line 69
+  file://test/tdd/004-login-ui/a6_test.dart line 69
 The test description was:
   A6 — the 'Sign in' button is disabled
 ════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -390,7 +390,7 @@ The test description was:
   The test description was: A6 — the 'Sign in' button is disabled
   
 
-To run this test again: /home/z/flutter/bin/cache/dart-sdk/bin/dart test /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a6_test.dart -p vm --plain-name 'A6 (AC-6) A6 — the '\''Sign in'\'' button is disabled'
+To run this test again: /home/z/flutter/bin/cache/dart-sdk/bin/dart test test/tdd/004-login-ui/a6_test.dart -p vm --plain-name 'A6 (AC-6) A6 — the '\''Sign in'\'' button is disabled'
 
 00:02 +0 -1: Some tests failed.
 ```
@@ -406,14 +406,14 @@ To run this test again: /home/z/flutter/bin/cache/dart-sdk/bin/dart test /home/z
 - classification: assertionFailure
 - subject-hash: b564c2d9bb2829813773a641c70731031799d3b5b39a0cadc37a973455bcc3ee
 - criterion: AC-7
-- test: /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a7_test.dart
-- command: `flutter test /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a7_test.dart --plain-name "the app shows 'Signing in…' and then the app navigates to the route 'deal_list'"`
+- test: test/tdd/004-login-ui/a7_test.dart
+- command: `flutter test test/tdd/004-login-ui/a7_test.dart --plain-name "the app shows 'Signing in…' and then the app navigates to the route 'deal_list'"`
 - exit: 1
 - at: 2026-09-06T11:06:56.876450Z
 - output:
 ```
-00:00 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a7_test.dart                                                                                                                
-00:01 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a7_test.dart                                                                                                                
+00:00 +0: loading test/tdd/004-login-ui/a7_test.dart                                                                                                                
+00:01 +0: loading test/tdd/004-login-ui/a7_test.dart                                                                                                                
 00:01 +0: A7 (AC-7) A7 — the app shows 'Signing in…' and then the app navigates to the route 'deal_list'                                                                                               
 00:02 +0: A7 (AC-7) A7 — the app shows 'Signing in…' and then the app navigates to the route 'deal_list'                                                                                               
 00:02 +0: A7 (AC-7) A7 — the app shows 'Signing in…' and then the app navigates to the route 'deal_list'                                                                                               
@@ -424,7 +424,7 @@ Expected: exactly one matching candidate
    Which: means none were found but one was expected
 
 When the exception was thrown, this was the stack:
-#4      main.<anonymous closure>.<anonymous closure> (file:///home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a7_test.dart:74:7)
+#4      main.<anonymous closure>.<anonymous closure> (file://test/tdd/004-login-ui/a7_test.dart:74:7)
 <asynchronous suspension>
 #5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
 <asynchronous suspension>
@@ -434,7 +434,7 @@ When the exception was thrown, this was the stack:
 (elided one frame from package:stack_trace)
 
 This was caught by the test expectation on the following line:
-  file:///home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a7_test.dart line 74
+  file://test/tdd/004-login-ui/a7_test.dart line 74
 The test description was:
   A7 — the app shows 'Signing in…' and then the app navigates to the route 'deal_list'
 ════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -444,7 +444,7 @@ The test description was:
   The test description was: A7 — the app shows 'Signing in…' and then the app navigates to the route 'deal_list'
   
 
-To run this test again: /home/z/flutter/bin/cache/dart-sdk/bin/dart test /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a7_test.dart -p vm --plain-name 'A7 (AC-7) A7 — the app shows '\''Signing in…'\'' and then the app navigates to the route '\''deal_list'\'''
+To run this test again: /home/z/flutter/bin/cache/dart-sdk/bin/dart test test/tdd/004-login-ui/a7_test.dart -p vm --plain-name 'A7 (AC-7) A7 — the app shows '\''Signing in…'\'' and then the app navigates to the route '\''deal_list'\'''
 
 00:02 +0 -1: Some tests failed.
 ```
@@ -459,16 +459,16 @@ To run this test again: /home/z/flutter/bin/cache/dart-sdk/bin/dart test /home/z
 - kind: green
 - subject-hash: 7009f5ead2dbc5cd9c334a0bdcc114207f617475110c5d8305db92736337505b
 - criterion: AC-3
-- test: /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a3_test.dart
-- command: `flutter test /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a3_test.dart --plain-name "the app shows 'Sign in'"`
+- test: test/tdd/004-login-ui/a3_test.dart
+- command: `flutter test test/tdd/004-login-ui/a3_test.dart --plain-name "the app shows 'Sign in'"`
 - exit: 0
 - at: 2026-09-06T11:15:55.707698Z
 - output:
 ```
-00:00 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a3_test.dart                                                                                                                
-00:01 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a3_test.dart                                                                                                                
-00:02 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a3_test.dart                                                                                                                
-00:03 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a3_test.dart                                                                                                                
+00:00 +0: loading test/tdd/004-login-ui/a3_test.dart                                                                                                                
+00:01 +0: loading test/tdd/004-login-ui/a3_test.dart                                                                                                                
+00:02 +0: loading test/tdd/004-login-ui/a3_test.dart                                                                                                                
+00:03 +0: loading test/tdd/004-login-ui/a3_test.dart                                                                                                                
 00:03 +0: A3 (AC-3) A3 — the app shows 'Sign in'                                                                                                                                                       
 00:03 +1: A3 (AC-3) A3 — the app shows 'Sign in'                                                                                                                                                       
 00:03 +1: All tests passed!
@@ -487,14 +487,14 @@ To run this test again: /home/z/flutter/bin/cache/dart-sdk/bin/dart test /home/z
 - kind: green
 - subject-hash: cf610e35cf6a6e1aeaa5b6a7b1cd0746280c0b692e4677c4e727c35b428538bb
 - criterion: AC-4
-- test: /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a4_test.dart
-- command: `flutter test /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a4_test.dart --plain-name "the app navigates to the route 'deal_list'"`
+- test: test/tdd/004-login-ui/a4_test.dart
+- command: `flutter test test/tdd/004-login-ui/a4_test.dart --plain-name "the app navigates to the route 'deal_list'"`
 - exit: 0
 - at: 2026-09-06T11:16:06.867455Z
 - output:
 ```
-00:00 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a4_test.dart                                                                                                                
-00:01 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a4_test.dart                                                                                                                
+00:00 +0: loading test/tdd/004-login-ui/a4_test.dart                                                                                                                
+00:01 +0: loading test/tdd/004-login-ui/a4_test.dart                                                                                                                
 00:01 +0: A4 (AC-4) A4 — the app navigates to the route 'deal_list'                                                                                                                                    
 00:02 +0: A4 (AC-4) A4 — the app navigates to the route 'deal_list'                                                                                                                                    
 00:02 +1: A4 (AC-4) A4 — the app navigates to the route 'deal_list'                                                                                                                                    
@@ -514,15 +514,15 @@ To run this test again: /home/z/flutter/bin/cache/dart-sdk/bin/dart test /home/z
 - kind: green
 - subject-hash: 5a6b2c653d885a64ca2a56f90c0673407d9daf0777066c4e85d0986b38910e6b
 - criterion: AC-6
-- test: /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a6_test.dart
-- command: `flutter test /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a6_test.dart --plain-name "the 'Sign in' button is disabled"`
+- test: test/tdd/004-login-ui/a6_test.dart
+- command: `flutter test test/tdd/004-login-ui/a6_test.dart --plain-name "the 'Sign in' button is disabled"`
 - exit: 0
 - at: 2026-09-06T11:16:10.296010Z
 - output:
 ```
-00:00 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a6_test.dart                                                                                                                
-00:01 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a6_test.dart                                                                                                                
-00:02 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a6_test.dart                                                                                                                
+00:00 +0: loading test/tdd/004-login-ui/a6_test.dart                                                                                                                
+00:01 +0: loading test/tdd/004-login-ui/a6_test.dart                                                                                                                
+00:02 +0: loading test/tdd/004-login-ui/a6_test.dart                                                                                                                
 00:02 +0: A6 (AC-6) A6 — the 'Sign in' button is disabled                                                                                                                                              
 00:02 +1: A6 (AC-6) A6 — the 'Sign in' button is disabled                                                                                                                                              
 00:02 +1: All tests passed!
@@ -541,14 +541,14 @@ To run this test again: /home/z/flutter/bin/cache/dart-sdk/bin/dart test /home/z
 - kind: green
 - subject-hash: b60c2f3f7abc86f6db69e985992431815c2290a7b5c38a6dc419a8eb82e4240a
 - criterion: AC-7
-- test: /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a7_test.dart
-- command: `flutter test /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a7_test.dart --plain-name "while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'"`
+- test: test/tdd/004-login-ui/a7_test.dart
+- command: `flutter test test/tdd/004-login-ui/a7_test.dart --plain-name "while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'"`
 - exit: 0
 - at: 2026-09-06T11:16:13.475074Z
 - output:
 ```
-00:00 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a7_test.dart                                                                                                                
-00:01 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a7_test.dart                                                                                                                
+00:00 +0: loading test/tdd/004-login-ui/a7_test.dart                                                                                                                
+00:01 +0: loading test/tdd/004-login-ui/a7_test.dart                                                                                                                
 00:01 +0: A7 (AC-7) A7 — while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'                                                        
 00:02 +0: A7 (AC-7) A7 — while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'                                                        
 00:02 +1: A7 (AC-7) A7 — while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'                                                        
