@@ -530,13 +530,18 @@ $returnType $functionName() {$body}
     final file = File(p.join(featureDir, 'tdd', 'cycle-log.md'));
     if (!await file.exists()) return false;
     final raw = await file.readAsString();
+    // Issue #1353: scan EVERY section — a stale non-red section from an
+    // earlier failed attempt must not shadow a later certified-red section
+    // for the same behavior (mirrors MakeCommand._hasCertifiedRed).
     for (final section in raw.split('\n## ')) {
       final behavior = RegExp(
         r'^- behavior: (\S+)',
         multiLine: true,
       ).firstMatch(section);
       if (behavior == null || behavior.group(1) != behaviorId) continue;
-      return RegExp(r'^- kind: red$', multiLine: true).hasMatch(section);
+      if (RegExp(r'^- kind: red$', multiLine: true).hasMatch(section)) {
+        return true;
+      }
     }
     return false;
   }
