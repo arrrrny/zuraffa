@@ -271,9 +271,17 @@ class ArtifactRegistry {
 
   /// The project root this registry's feature lives under
   /// (`<root>/specs/<feature>`); lanes (`test/`, `lib/`) hang off it.
-  String get projectRoot => p.dirname(
-    p.dirname(p.isAbsolute(featureDir) ? featureDir : p.absolute(featureDir)),
-  );
+  String get projectRoot {
+    final absolute = p.isAbsolute(featureDir)
+        ? featureDir
+        : p.absolute(featureDir);
+    // `<root>/specs/<feature>`; fall back to the immediate parent for
+    // layouts that do not nest under a `specs/` directory.
+    final parent = p.dirname(absolute);
+    return p.basename(parent) == 'specs'
+        ? p.dirname(parent)
+        : p.dirname(absolute);
+  }
 
   /// Re-anchors [stored] to a repo-relative path when it is an absolute
   /// path that does not exist as-is but whose suffix starting at the
