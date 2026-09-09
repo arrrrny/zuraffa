@@ -62,6 +62,7 @@ import '../services/suite_guard.dart';
 import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
 import '../services/vacuous_guard.dart';
+import '../services/widget_scaffold.dart' show scaffoldedMarker;
 import '../services/tdd_transaction.dart';
 import '../../../core/dependencies/builder_dependency_preflight.dart';
 
@@ -1597,6 +1598,51 @@ class RunDriverCore {
         // machine contract keeps `stopped_at=<id>:make`). Messaging only:
         // the state advance and the honest-stop semantics are the generic
         // ones (issue #1259's refusal stands).
+        // Issue #1373: a not-certified-red make stop on a SCAFFOLDED
+        // widget test (the `zfa:tdd: scaffolded` marker, issue #912
+        // defect 3) is the designed author hand-off, not a dead end —
+        // the placeholder finder trivially passes, so verify-red
+        // classified it unexpected-green and make found no certified
+        // red. Name the hand step and the exact --author remedy.
+        if (step == 'make' && result.outcome == 'not-certified-red') {
+          final testPath = _existingGeneratedTestPath(
+            projectRoot: projectRoot,
+            feature: feature,
+            behaviorId: row.id,
+          );
+          if (_testCarriesScaffoldedMarker(testPath)) {
+            updated = updated.advance(row.id, state);
+            await store.save(updated, activeBehaviorIds: activeIds);
+            await tx.clear();
+            print(
+              'zfa tdd $label: step failed — behavior=${row.id} step=$step '
+              'outcome=${result.outcome}',
+            );
+            _printOutputExcerpt(result.output);
+            print(
+              '   hand step: ${row.id}:hand — this is a SCAFFOLDED widget '
+              'test (the $scaffoldedMarker marker, issue #912 defect 3): '
+              'the placeholder finder passes trivially, so verify-red '
+              'saw unexpected-green and make found no certified red.',
+            );
+            print(
+              '   Author concrete scenario finders in the test, then '
+              'run: `zfa tdd make ${row.id} --author --finders-file '
+              '<finders.txt>` (issue #1258), then re-run '
+              '`zfa tdd $label $feature`.',
+            );
+            return (
+              state: updated,
+              stop: (
+                result: 'stopped',
+                stoppedAt: '${row.id}:hand',
+                exitCode: _exitStopped,
+                message: null,
+              ),
+              refactorBlocked: false,
+            );
+          }
+        }
         if (step == 'make' && result.outcome == 'vacuous-green') {
           final testPath = _existingGeneratedTestPath(
             projectRoot: projectRoot,
@@ -1990,6 +2036,18 @@ class RunDriverCore {
       return contentCarriesVacuousGuardMarker(
         File(testPath).readAsStringSync(),
       );
+    } on FileSystemException {
+      return false;
+    }
+  }
+
+  /// Issue #1373: whether the generated test at [testPath] carries the
+  /// [scaffoldedMarker] (issue #912 defect 3). Unreadable files fail
+  /// OPEN — marker absent — mirroring the vacuous-guard probe.
+  bool _testCarriesScaffoldedMarker(String? testPath) {
+    if (testPath == null) return false;
+    try {
+      return File(testPath).readAsStringSync().contains(scaffoldedMarker);
     } on FileSystemException {
       return false;
     }

@@ -122,35 +122,37 @@ esac
     ]);
   }
 
-  test('B1: a scaffolded widget test stops at the named author hand step',
-      () async {
-    const feature = '1373-hand-off';
-    fx = await TddFixture.create(featureName: feature);
-    addTearDown(fx.dispose);
-    await writeIssue1373FakeZfa();
-    await fx.seedTestList([
-      (
-        id: 'W1',
-        description: 'skin behavior declared in ## Lanes',
-        traces: 'FR-001',
-        state: 'PENDING',
-        kind: 'widget',
-      ),
-    ]);
-    await seedScaffoldedWidgetTest(feature);
+  test(
+    'B1: a scaffolded widget test stops at the named author hand step',
+    () async {
+      const feature = '1373-hand-off';
+      fx = await TddFixture.create(featureName: feature);
+      addTearDown(fx.dispose);
+      await writeIssue1373FakeZfa();
+      await fx.seedTestList([
+        (
+          id: 'W1',
+          description: 'skin behavior declared in ## Lanes',
+          traces: 'FR-001',
+          state: 'PENDING',
+          kind: 'widget',
+        ),
+      ]);
+      await seedScaffoldedWidgetTest(feature);
 
-    final out = await drive(feature);
+      final out = await drive(feature);
 
-    expect(
-      out,
-      contains('behavior=W1 step=make outcome=not-certified-red'),
-      reason: out,
-    );
-    expect(out, contains('scaffolded widget test'), reason: out);
-    expect(out, contains('hand step: W1:hand'), reason: out);
-    expect(out, contains('--author --finders-file'), reason: out);
-    expect(out, contains('stopped_at=W1:hand'), reason: out);
-  });
+      expect(
+        out,
+        contains('behavior=W1 step=make outcome=not-certified-red'),
+        reason: out,
+      );
+      expect(out, contains('SCAFFOLDED widget test'), reason: out);
+      expect(out, contains('hand step: W1:hand'), reason: out);
+      expect(out, contains('--author --finders-file'), reason: out);
+      expect(out, contains('stopped_at=W1:hand'), reason: out);
+    },
+  );
 
   test('B2: a not-certified-red make stop WITHOUT the marker keeps the '
       'generic stop', () async {
@@ -173,6 +175,6 @@ esac
 
     expect(out, contains('stopped_at=W1:make'), reason: out);
     expect(out, contains('resume: fix the failing step'), reason: out);
-    expect(out, isNot(contains('scaffolded widget test')), reason: out);
+    expect(out, isNot(contains('SCAFFOLDED widget test')), reason: out);
   });
 }
