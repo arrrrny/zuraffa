@@ -3,9 +3,9 @@
 # "deliberate-mutation-report" precedent applied to the #1143 seams.
 # Each mutant patches the production code, runs the 1334 + 0966 suites
 # (the pins), and MUST be killed (a test fails). Reverts after each.
-set -u
-cd /home/z/my-project/work/zuraffa
-export PATH=/home/z/tools/dart-sdk/bin:$PATH
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+command -v dart >/dev/null || export PATH=/home/z/tools/dart-sdk/bin:$PATH
 
 TARGET=lib/src/tdd/services/typed_ledger_row.dart
 BINDING=lib/src/tdd/services/xray_ledger_binding.dart

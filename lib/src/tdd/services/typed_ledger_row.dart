@@ -340,7 +340,7 @@ class ScreenKindReport {
     return ScreenTraceStatus.partiallyTraced;
   }
 
-  /// The gate predicate (FR-004): no kind gaps, no row gaps.
+  /// The gate predicate (1334 FR-004): no kind gaps, no row gaps.
   bool get fullyTraced => zeroTracedKinds.isEmpty && !hasRowGaps;
 }
 
@@ -368,14 +368,14 @@ abstract final class TypedLedgerBuilder {
   /// - absence: traced iff a green prover exists AND the row names the
   ///   state it must be hidden in (`notRenderedIn`) — an absence
   ///   assertion that never pins a state is malformed and never counts
-  ///   as proof (FR-002; honest-red discipline).
+  ///   as proof (0966 FR-002; honest-red discipline).
   /// - sequence: traced iff a green prover exists AND the row records a
   ///   chain (≥ 2 steps) — a "sequence" with no recorded steps traced
   ///   nothing; the single-pump presence assertion cannot satisfy it
-  ///   (FR-003).
+  ///   (0966 FR-003).
   /// - state: traced iff a green prover exists AND the row records the
   ///   asserted attribute — a "state" row with no attribute expresses
-  ///   nothing a presence row does not (FR-004).
+  ///   nothing a presence row does not (0966 FR-004).
   static List<TypedLedgerRow> derive({
     required List<DeclaredLedgerRow> declared,
     required Set<String> greenBehaviors,
@@ -565,6 +565,16 @@ abstract final class TypedLedgerBuilder {
   /// The ledger is LEGACY iff no row carried a typed label. State is
   /// recomputed at read time from the recorded provers (a stored state
   /// is a cache, never the truth).
+  ///
+  /// FALLBACK SEMANTICS (known follow-up, issue #1143 review): input
+  /// matching NEITHER the bare-list nor the verdict-with-`surfaces`
+  /// shape — `{}`, a scalar, or a foreign artifact such as
+  /// `TypedScreensVerdict.encode()` output — parses to ZERO rows, which
+  /// reads as a legacy, vacuously PASSING ledger (`surfaces=0`). No
+  /// production caller consumes this path against real files yet, but
+  /// a caller wiring this to the CLI MUST refuse on an unrecognized
+  /// document (exit ≠ 0 naming the file) instead of painting absence
+  /// as proof — see #963 discipline: absence is never proof.
   static LedgerParseResult fromLedgerJson(String json) {
     final decoded = jsonDecode(json);
     final List<Object?> raw;
@@ -581,24 +591,26 @@ abstract final class TypedLedgerBuilder {
     final greenBehaviors = <String>{};
     for (final entry in raw) {
       if (entry is! Map) continue;
-      final kindLabel = entry['kind'] as String?;
+      final kindRaw = entry['kind'];
+      final kindLabel = kindRaw is String ? kindRaw : null;
       final typedKind = LedgerRowKind.tryParse(kindLabel);
       final isLegacyGolden = kindLabel == 'golden';
       if (typedKind != null || isLegacyGolden) anyTyped = true;
 
-      final advisoryFlag =
-          isLegacyGolden || (entry['advisory'] as bool? ?? false);
+      final advisoryFlag = isLegacyGolden || (entry['advisory'] == true);
 
       final provers = (entry['provenBy'] as List? ?? const [])
           .whereType<String>()
           .toList();
       greenBehaviors.addAll(provers);
 
+      final surfaceRaw = entry['surface'];
+      final screenRaw = entry['screen'];
       declared.add(
         DeclaredLedgerRow(
-          surface: entry['surface'] as String? ?? '',
+          surface: surfaceRaw is String ? surfaceRaw : '',
           kind: typedKind ?? LedgerRowKind.presence,
-          screen: entry['screen'] as String? ?? '',
+          screen: screenRaw is String ? screenRaw : '',
           declaredProvers: provers,
           advisory: advisoryFlag,
           notRenderedIn: entry['notRenderedIn'] as String?,

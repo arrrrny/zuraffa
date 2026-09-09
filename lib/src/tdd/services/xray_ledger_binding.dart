@@ -173,15 +173,21 @@ abstract final class XrayLedgerDeck {
 
   /// The deck's SCREEN entries (spec 1334, issue #1143): one per
   /// screen, labeled `screen: status` — the per-kind overlay's status
-  /// line, badge DONE only when the screen is fully traced.
-  static List<DeckEntry> screenEntries(Map<String, ScreenKindReport> reports) =>
-      [
-        for (final report in reports.values)
-          DeckEntry(
-            '${report.screenLabel}: ${report.status.label}',
-            report.fullyTraced ? 'DONE' : 'NOT-DONE',
-          ),
-      ];
+  /// line, badge DONE only when the screen counts as gap-free under
+  /// the same rules as [TypedScreensVerdict.gapScreens] (legacy
+  /// ledgers: row gaps only).
+  static List<DeckEntry> screenEntries(
+    Map<String, ScreenKindReport> reports, {
+    bool legacy = false,
+  }) => [
+    for (final report in reports.values)
+      DeckEntry(
+        '${report.screenLabel}: ${report.status.label}',
+        (legacy ? !report.hasRowGaps : report.fullyTraced)
+            ? 'DONE'
+            : 'NOT-DONE',
+      ),
+  ];
 
   /// The drive-able scenario entries for a dependency touchpoint (the
   /// 072 rail): the certified mock's fixture scenarios. A touchpoint

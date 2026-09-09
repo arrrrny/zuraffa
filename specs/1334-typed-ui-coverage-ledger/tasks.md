@@ -23,7 +23,8 @@
       `sequence 0/0`, every zero-traced kind is a gap, status
       `partially-traced` — not 100% (AC-2 → FR-003).
 - [x] T002b **GREEN** — `screen` field, `kindCoverageAllKinds`,
-      `groupByScreen`, `ScreenKindReport` (+ status), `screenStatus`.
+      `groupByScreen`, `ScreenKindReport` (+ `status` — the planned
+      `screenStatus` overlay member landed model-side as this getter).
 - [x] T003 **RED** — The per-screen gate: the gaming ledger FAILS naming the
       four zero-traced kinds with fix hints; the honest five-kind `/login`
       PASSES `fully-traced`; `/deal_list` (fully traced) next to `/login`

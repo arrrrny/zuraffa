@@ -26,7 +26,7 @@ The #963/#966 binding. The #1143 changes:
 
 1. **`XrayLedgerOverlay.renderScreen(ScreenKindReport)`** — NEW: the per-kind view — a status line (`/login: partially-traced`) + one line per kind (`presence 9/9`, `absence 0/0 HIGHLIGHT` — zero-traced kinds marked, never painted as proof).
 2. **`XrayLedgerOverlay.renderByScreen(...)`** — NEW: renders every screen.
-3. **`XrayLedgerOverlay.screenStatus(coverage)`** — NEW: `fully-traced` iff every kind traced ≥ 1 and no row gaps; `untraced` iff zero traced rows overall; otherwise `partially-traced`.
+3. **Screen status** — the `fully-traced` / `partially-traced` / `untraced` decision landed MODEL-SIDE as the `ScreenKindReport.status` getter (`fully-traced` iff every kind traced ≥ 1 and no row gaps; `untraced` iff zero traced rows overall), consumed by `XrayLedgerOverlay.renderScreen` and `XrayLedgerDeck.screenEntries`. The originally planned `XrayLedgerOverlay.screenStatus(coverage)` overlay member did not land.
 4. **`paint`/`highlights`** stay for the LEGACY surface-count view only (`UiSurfaceRow` — the 075 pipeline; doc-commented as replaced for typed ledgers). The 0966 `kindCoverage`/`kindCoverageByScreen`/`partiallyTraced`/`untracedKindLabels` keep their declared-kinds semantics (0966 subjects pin them).
 5. **Deck**: `kindEntries` + `advisoryEntries` unchanged; the golden advisory entry label still reads `(golden: <tolerance>)` — golden-ness is now the advisory flag, the label describes it.
 
@@ -74,8 +74,8 @@ lib/src/tdd/services/
 │                               #   kindCoverageAllKinds, groupByScreen,
 │                               #   fromLedgerJson (legacy), ScreenKindReport,
 │                               #   TypedCoverageGate.evaluateScreens + legacy verdict
-├── xray_ledger_binding.dart    # CHANGED: renderScreen/renderByScreen/screenStatus;
-│                               #   paint/highlights documented legacy-only
+├── xray_ledger_binding.dart    # CHANGED: renderScreen/renderByScreen (status rides
+│                               #   ScreenKindReport.status); paint/highlights documented legacy-only
 ├── ui_ledger_builder.dart      # UNCHANGED (finder taxonomy, legacy JSON shape source)
 └── coverage_gate.dart          # UNCHANGED (legacy 075 gate)
 

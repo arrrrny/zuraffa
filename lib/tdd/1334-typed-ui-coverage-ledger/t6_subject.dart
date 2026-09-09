@@ -181,6 +181,27 @@ Object? subject_t6() {
   expect(unknownParsed.legacy, isTrue);
   expect(unknownParsed.rows.single.kind, LedgerRowKind.presence);
 
+  // --- dirty field types degrade, never throw (AC-6 tolerance seam) ------
+  // A stored ledger is old/foreign input: a string "advisory" flag, a
+  // numeric screen, a non-string kind/surface must reclassify to the
+  // presence fallback instead of crashing the read with a cast error.
+  final dirtyJson = jsonEncode([
+    {
+      'surface': 42,
+      'kind': 7,
+      'screen': 3,
+      'advisory': 'true',
+      'provenBy': ['A1'],
+      'state': 'DONE',
+    },
+  ]);
+  final dirtyParsed = TypedLedgerBuilder.fromLedgerJson(dirtyJson);
+  expect(dirtyParsed.rows, hasLength(1));
+  expect(dirtyParsed.rows.single.kind, LedgerRowKind.presence);
+  expect(dirtyParsed.rows.single.surface, '');
+  expect(dirtyParsed.rows.single.screen, '');
+  expect(dirtyParsed.rows.single.advisory, isFalse); // 'true' is not true
+
   // --- a verdict-shaped JSON (the 075 gate encode) also reads -----------
   final verdictJson = jsonEncode({
     'check': 'ui-coverage',

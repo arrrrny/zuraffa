@@ -7,6 +7,8 @@
 // breakdown, not a surface count.
 library;
 
+import 'dart:convert';
+
 import 'package:test/test.dart';
 import 'package:zuraffa/src/tdd/services/typed_ledger_row.dart';
 import 'package:zuraffa/src/tdd/services/ui_ledger_builder.dart';
@@ -112,6 +114,37 @@ Object? subject_t4() {
   );
   expect(dealEntry.label, '/deal_list: fully-traced');
   expect(dealEntry.state, 'DONE');
+
+  // --- the deck badge AGREES with the gate in legacy mode -----------------
+  // A legacy screen (presence rows only, all green) passes the gate
+  // (rows-only, AC-6) — the deck badge must not call it NOT-DONE for
+  // lacking typed kinds. Same rule as TypedScreensVerdict.gapScreens.
+  final legacyParse = TypedLedgerBuilder.fromLedgerJson(
+    jsonEncode([
+      {
+        'surface': 'Sign In',
+        'provenBy': ['A1'],
+        'state': 'DONE',
+      },
+      {
+        'surface': 'Home',
+        'provenBy': ['A2'],
+        'state': 'DONE',
+      },
+    ]),
+  );
+  expect(legacyParse.legacy, isTrue);
+  final legacyVerdict = TypedCoverageGate.evaluateScreens(
+    feature: 'legacy-app',
+    legacy: true,
+    ledgerByScreen: {'': legacyParse.rows},
+  );
+  expect(legacyVerdict.passed, isTrue);
+  final legacyEntry = XrayLedgerDeck.screenEntries(
+    legacyVerdict.screens,
+    legacy: true,
+  ).single;
+  expect(legacyEntry.state, 'DONE'); // gate says pass — deck must agree
 
   // --- the legacy surface-count view still serves kindless ledgers -------
   // (paint/highlights take the 075 UiSurfaceRow shape — legacy-only now;
