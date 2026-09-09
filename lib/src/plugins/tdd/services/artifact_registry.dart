@@ -97,24 +97,17 @@ class ArtifactRegistry {
   /// [featureDir] is the absolute path to the feature's spec directory,
   /// e.g. `/repo/specs/044-test-tdd-generation`. The registry file lives
   /// at `<featureDir>/tdd/artifacts.json`.
-  const ArtifactRegistry({required this.featureDir, this.projectRoot});
+  const ArtifactRegistry({required this.featureDir});
 
   /// Absolute path to the feature spec directory.
   final String featureDir;
 
-  /// Explicit project root override (issue #1397). Null means derive from
-  /// [resolvedProjectRoot] — the standard `<projectRoot>/specs/<feature>`
-  /// layout.
-  final String? projectRoot;
-
   /// The project root recorded artifact paths resolve against (issue
-  /// #1397). Null means derive: the standard TDD layout anchors every
-  /// feature directory at `<projectRoot>/specs/<feature>`, so the parent
-  /// of `specs/` is the root — the same rule `ProjectRoot.find` and every
-  /// registry-scanning command apply. Relative recorded paths must NEVER
-  /// resolve against the process CWD: the CLI can run from anywhere.
-  String get resolvedProjectRoot =>
-      projectRoot ?? p.dirname(p.dirname(p.normalize(featureDir)));
+  /// #1397): alias of [projectRoot] — the standard TDD layout anchors
+  /// every feature directory at `<projectRoot>/specs/<feature>`. Relative
+  /// recorded paths must NEVER resolve against the process CWD: the CLI
+  /// can run from anywhere.
+  String get resolvedProjectRoot => projectRoot;
 
   /// Absolute path to the registry file.
   String get registryPath => p.join(featureDir, 'tdd', 'artifacts.json');
@@ -268,8 +261,14 @@ class ArtifactRegistry {
   /// Load all records for this feature.
   ///
   /// Returns an empty list if the registry file does not exist (FR-012).
-  Future<List<ArtifactRecord>> loadAll() async {
-    return _loadRecords();
+  /// [reanchor] defaults to true (#1357): stale absolute paths resolve to
+  /// their repo-relative lane suffix so every reader sees a runnable view.
+  /// The form-repair commands (doctor, migrate-paths) load with
+  /// `reanchor: false` — they must see the RAW stored forms or the
+  /// reanchored view masks the very drift they detect and repair
+  /// (issue #1397 x #1357).
+  Future<List<ArtifactRecord>> loadAll({bool reanchor = true}) async {
+    return _loadRecords(reanchor: reanchor);
   }
 
   /// Find a single record by behavior id. Returns `null` if not found.
@@ -281,19 +280,16 @@ class ArtifactRegistry {
     return null;
   }
 
-  Future<List<ArtifactRecord>> _loadRecords() async {
+  Future<List<ArtifactRecord>> _loadRecords({bool reanchor = true}) async {
     final file = File(registryPath);
     if (!await file.exists()) return [];
     try {
       final raw = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       final records = (raw['records'] as List?) ?? [];
-      return records
-          .map(
-            (r) => _reanchorRecord(
-              ArtifactRecord.fromJson(r as Map<String, dynamic>),
-            ),
-          )
-          .toList();
+      return records.map((r) {
+        final record = ArtifactRecord.fromJson(r as Map<String, dynamic>);
+        return reanchor ? _reanchorRecord(record) : record;
+      }).toList();
     } on FormatException {
       return [];
     }

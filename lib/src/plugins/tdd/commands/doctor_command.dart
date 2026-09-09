@@ -142,7 +142,11 @@ class DoctorCommand extends Command<void> {
 
     // ---- Store loads -------------------------------------------------
     final registry = ArtifactRegistry(featureDir: featureDir);
-    final records = await registry.loadAll();
+    // Raw load (issue #1397 x #1357): doctor owns path-FORM drift
+    // detection — the reanchored view would silently heal relocated
+    // records and mask the stored non-portable forms this command must
+    // flag and prescribe `migrate-paths` for.
+    final records = await registry.loadAll(reanchor: false);
     // Bug #874: registries may record absolute (gen's default) or
     // project-relative paths — ownership comparisons normalize both sides
     // so a recorded file is never misread as unowned by path form.

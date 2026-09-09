@@ -145,7 +145,10 @@ class MigratePathsCommand extends Command<void> {
     for (final entry in _scanRegistries(cwd, featureFlag)) {
       sawAnyRegistry = true;
       final registry = ArtifactRegistry(featureDir: entry.featureDir);
-      final records = await registry.loadAll();
+      // Raw load (issue #1397 x #1357): the form rewrite must plan against
+      // the RAW stored forms — the reanchored view would make every
+      // relocated record look already-portable and migrate nothing.
+      final records = await registry.loadAll(reanchor: false);
       if (records.isEmpty) continue;
 
       final updated = <ArtifactRecord>[];
