@@ -1,0 +1,70 @@
+{
+  "schema": 1,
+  "feature": "004-login-ui",
+  "entries": [
+    {
+      "feature": "004-login-ui",
+      "cycle": "meta",
+      "phase": "reset",
+      "started_at": "2026-09-09T05:58:48.359980Z",
+      "finished_at": "2026-09-09T05:58:48.359980Z",
+      "gate_state": "not_assessed",
+      "receipts": [],
+      "violations": [],
+      "refs": {
+        "engine_receipt": null,
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "reset",
+      "behaviors": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "U1",
+        "U2",
+        "U3",
+        "U4",
+        "U5",
+        "U6",
+        "contract:A1"
+      ],
+      "stopped_at": null
+    },
+    {
+      "feature": "004-login-ui",
+      "cycle": "meta",
+      "phase": "reset",
+      "started_at": "2026-09-09T06:04:33.987980Z",
+      "finished_at": "2026-09-09T06:04:33.987980Z",
+      "gate_state": "not_assessed",
+      "receipts": [],
+      "violations": [],
+      "refs": {
+        "engine_receipt": null,
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "reset",
+      "behaviors": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "U1",
+        "U2",
+        "U3",
+        "U4",
+        "U5",
+        "U6",
+        "contract:A1"
+      ],
+      "stopped_at": null
+    }
+  ]
+}

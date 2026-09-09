@@ -1,0 +1,19 @@
+{
+  "feature": "004-login-ui",
+  "behavior_states": {
+    "A1": "pending",
+    "A2": "pending",
+    "A3": "pending",
+    "A4": "pending",
+    "A5": "pending",
+    "A6": "pending",
+    "U1": "pending",
+    "U2": "pending",
+    "U3": "pending",
+    "U4": "pending",
+    "U5": "pending",
+    "U6": "pending",
+    "contract:A1": "pending"
+  },
+  "dropped": []
+}
