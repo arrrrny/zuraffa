@@ -57,12 +57,12 @@ void main() {
     if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
   });
 
-  test('B1: a Flutter consumer is prescribed NO plain test package',
-      () async {
+  test('B1: a Flutter consumer is prescribed NO plain test package', () async {
     final project = Directory(p.join(tmpDir.path, 'flutter_app'))
       ..createSync(recursive: true);
-    await File(p.join(project.path, 'pubspec.yaml'))
-        .writeAsString(flutterPubspec);
+    await File(
+      p.join(project.path, 'pubspec.yaml'),
+    ).writeAsString(flutterPubspec);
 
     final added = await const PubspecDevDependenciesPatcher(
       isFlutter: true,
@@ -71,7 +71,8 @@ void main() {
     expect(
       added.where((e) => e.startsWith('test:')),
       isEmpty,
-      reason: 'the plain test package is unresolvable in the Flutter '
+      reason:
+          'the plain test package is unresolvable in the Flutter '
           'graph (#1189/#1370) — flutter_test re-exports the API',
     );
     expect(added.any((e) => e.startsWith('coverage')), isTrue);
@@ -87,35 +88,41 @@ void main() {
   test('B2: a pure-Dart project still gets test ^1.25.0 (guard)', () async {
     final project = Directory(p.join(tmpDir.path, 'pure_dart'))
       ..createSync(recursive: true);
-    await File(p.join(project.path, 'pubspec.yaml'))
-        .writeAsString(dartPubspec);
+    await File(p.join(project.path, 'pubspec.yaml')).writeAsString(dartPubspec);
 
     final added = await const PubspecDevDependenciesPatcher(
       isFlutter: false,
     ).ensure(project.path);
 
-    expect(added.where((e) => e.startsWith('test:')), isEmpty,
-        reason: 'test is already declared in the pure-Dart fixture');
-    final doc = loadYaml(
-      await File(p.join(project.path, 'pubspec.yaml')).readAsString(),
-    ) as YamlMap;
+    expect(
+      added.where((e) => e.startsWith('test:')),
+      isEmpty,
+      reason: 'test is already declared in the pure-Dart fixture',
+    );
+    final doc =
+        loadYaml(
+              await File(p.join(project.path, 'pubspec.yaml')).readAsString(),
+            )
+            as YamlMap;
     final devDeps = doc['dev_dependencies'] as YamlMap;
     expect(devDeps['test'], '^1.25.0');
   });
 
-  test('B3: the shipped example/ Flutter consumer declares no plain test',
-      () {
-    final doc = loadYaml(
-      File('example/pubspec.yaml').readAsStringSync(),
-    ) as YamlMap;
+  test('B3: the shipped example/ Flutter consumer declares no plain test', () {
+    final doc =
+        loadYaml(File('example/pubspec.yaml').readAsStringSync()) as YamlMap;
     final devDeps = doc['dev_dependencies'] as YamlMap;
 
     expect(
       devDeps.keys,
       isNot(contains('test')),
-      reason: 'the #1369 pin is superseded: the constraint is '
+      reason:
+          'the #1369 pin is superseded: the constraint is '
           'unresolvable in this graph (issue #1370)',
     );
-    expect(devDeps.keys, containsAll(['flutter_test', 'coverage', 'mutation_test']));
+    expect(
+      devDeps.keys,
+      containsAll(['flutter_test', 'coverage', 'mutation_test']),
+    );
   });
 }

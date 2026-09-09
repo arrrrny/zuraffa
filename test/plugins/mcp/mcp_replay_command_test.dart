@@ -85,15 +85,14 @@ void main() {
 
   Future<(int, String)> runReplay(String scenarioPath) async {
     final runner = CliRunner(exitOnCompletion: false);
-    final output = await runner.runCapturing([
-      'mcp',
-      'replay',
-      scenarioPath,
-    ]);
+    final output = await runner.runCapturing(['mcp', 'replay', scenarioPath]);
     return (exitCode, output);
   }
 
-  String writeScenario(Map<String, dynamic> scenario, {String name = 's.json'}) {
+  String writeScenario(
+    Map<String, dynamic> scenario, {
+    String name = 's.json',
+  }) {
     final file = File(p0(root.path, name))
       ..writeAsStringSync(const JsonEncoder.withIndent('  ').convert(scenario));
     return file.path;
@@ -112,37 +111,42 @@ void main() {
     exitCode = 0;
   });
 
-  test('B1: a committed scenario replays GREEN against the real server',
-      () async {
-    final scenarioPath = writeScenario({
-      'session': 'signin',
-      'calls': [
-        {
-          'tool': 'echo',
-          'arguments': {'message': 'hello'},
-        },
-        {
-          'tool': 'echo',
-          'arguments': {'message': 'world'},
-          'expect_contains': 'echo:world',
-        },
-      ],
-    });
+  test(
+    'B1: a committed scenario replays GREEN against the real server',
+    () async {
+      final scenarioPath = writeScenario({
+        'session': 'signin',
+        'calls': [
+          {
+            'tool': 'echo',
+            'arguments': {'message': 'hello'},
+          },
+          {
+            'tool': 'echo',
+            'arguments': {'message': 'world'},
+            'expect_contains': 'echo:world',
+          },
+        ],
+      });
 
-    final (code, output) = await runReplay(scenarioPath);
+      final (code, output) = await runReplay(scenarioPath);
 
-    expect(code, 0, reason: output);
-    expect(output, contains('mcp-replay: session=signin calls=2 ok=2 failed=0'));
-    expect(
-      File(p0(root.path, '.zfa', 'receipts', 'mcp-replay-signin.json'))
-          .existsSync(),
-      isTrue,
-      reason: 'the proof-carrying receipt lands on disk',
-    );
-  });
+      expect(code, 0, reason: output);
+      expect(
+        output,
+        contains('mcp-replay: session=signin calls=2 ok=2 failed=0'),
+      );
+      expect(
+        File(
+          p0(root.path, '.zfa', 'receipts', 'mcp-replay-signin.json'),
+        ).existsSync(),
+        isTrue,
+        reason: 'the proof-carrying receipt lands on disk',
+      );
+    },
+  );
 
-  test('B2: a call to an unregistered tool is missing-tool (exit 1)',
-      () async {
+  test('B2: a call to an unregistered tool is missing-tool (exit 1)', () async {
     final scenarioPath = writeScenario({
       'session': 'broken',
       'calls': [
@@ -177,10 +181,7 @@ void main() {
 
   test('B4: an unscaffolded project refuses before spawning', () async {
     await File(p0(root.path, 'bin', 'mcp_server.dart')).delete();
-    final scenarioPath = writeScenario({
-      'session': 's',
-      'calls': [],
-    });
+    final scenarioPath = writeScenario({'session': 's', 'calls': []});
 
     final (code, output) = await runReplay(scenarioPath);
 
