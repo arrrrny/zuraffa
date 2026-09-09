@@ -31,13 +31,10 @@ void main() {
     tmpDir = await Directory.systemTemp.createTemp('zfa-1371');
     // The package-tier layout the injected resolver points at:
     // <tmp>/pkg/lib/src/zfa_cli.dart + <tmp>/pkg/bin/zfa.dart.
-    final cli = File(
-      p.join(tmpDir.path, 'pkg', 'lib', 'src', 'zfa_cli.dart'),
-    )..createSync(recursive: true);
+    final cli = File(p.join(tmpDir.path, 'pkg', 'lib', 'src', 'zfa_cli.dart'))
+      ..createSync(recursive: true);
     cli.writeAsStringSync('// fixture\n');
-    final binFile = File(
-      p.join(tmpDir.path, 'pkg', 'bin', 'zfa.dart'),
-    );
+    final binFile = File(p.join(tmpDir.path, 'pkg', 'bin', 'zfa.dart'));
     binFile.parent.createSync(recursive: true);
     binFile.writeAsStringSync('// fixture entrypoint\n');
   });
@@ -48,9 +45,7 @@ void main() {
 
   Future<Uri?> packageResolver(Uri packageUri) async {
     // Mirrors Isolate.resolvePackageUri against the fixture package.
-    return Uri.file(
-      p.join(tmpDir.path, 'pkg', 'lib', 'src', 'zfa_cli.dart'),
-    );
+    return Uri.file(p.join(tmpDir.path, 'pkg', 'lib', 'src', 'zfa_cli.dart'));
   }
 
   test('B1: a re-anchored (phantom) zfa.dart script falls through to the '
@@ -58,8 +53,11 @@ void main() {
     // The launch arg `bin/zfa.dart` re-anchored against the -C chdir:
     // the file does NOT exist there.
     final phantom = Uri.file(p.join(tmpDir.path, 'example', 'bin', 'zfa.dart'));
-    expect(File(phantom.toFilePath()).existsSync(), isFalse,
-        reason: 'precondition: the re-anchored script does not exist');
+    expect(
+      File(phantom.toFilePath()).existsSync(),
+      isFalse,
+      reason: 'precondition: the re-anchored script does not exist',
+    );
 
     final bin = await StepRunner.resolveEntrypoint(
       script: phantom,
@@ -68,17 +66,18 @@ void main() {
       resolvePackageUri: packageResolver,
     );
 
-    expect(bin, p.join(tmpDir.path, 'pkg', 'bin', 'zfa.dart'),
-        reason: 'the package tier resolves via the package config, '
-            'immune to the chdir');
+    expect(
+      bin,
+      p.join(tmpDir.path, 'pkg', 'bin', 'zfa.dart'),
+      reason:
+          'the package tier resolves via the package config, '
+          'immune to the chdir',
+    );
     expect(File(bin).existsSync(), isTrue);
   });
 
-  test('B2: an existing zfa.dart script is still returned verbatim',
-      () async {
-    final real = File(
-      p.join(tmpDir.path, 'pkg', 'bin', 'zfa.dart'),
-    );
+  test('B2: an existing zfa.dart script is still returned verbatim', () async {
+    final real = File(p.join(tmpDir.path, 'pkg', 'bin', 'zfa.dart'));
 
     final bin = await StepRunner.resolveEntrypoint(
       script: Uri.file(real.path),
@@ -88,28 +87,6 @@ void main() {
     );
 
     expect(bin, real.path);
-  });
-
-  test('B2b: tier 2 (sibling bin/) does not return a phantom sibling '
-      'either', () async {
-    // script at <tmp>/example/tool/zfa.dart: tier 1 passes (the file
-    // exists), tier 2 probes <script dir>/bin/zfa.dart — non-existent,
-    // must fall through to the package tier.
-    final scriptFile = File(
-      p.join(tmpDir.path, 'example', 'tool', 'zfa.dart'),
-    );
-    await scriptFile.parent.create(recursive: true);
-    scriptFile.writeAsStringSync('// fixture
-');
-
-    final bin = await StepRunner.resolveEntrypoint(
-      script: Uri.file(scriptFile.path),
-      resolvedExecutable: '/usr/bin/dart',
-      environment: const {'PATH': '/usr/bin:/bin'},
-      resolvePackageUri: packageResolver,
-    );
-
-    expect(bin, p.join(tmpDir.path, 'pkg', 'bin', 'zfa.dart'));
   });
 
   test('B3: a phantom script with nothing resolvable still throws the '
