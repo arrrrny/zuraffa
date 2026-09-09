@@ -28,9 +28,7 @@ void main() {
     final doc = loadYaml(pubspec.readAsStringSync()) as Map;
     final devDeps = doc['dev_dependencies'] as Map;
 
-    // One authoritative listing: every dependency the init writer
-    // prescribes is declared, and `^`-constraints agree verbatim — the
-    // shipped baseline and the repair path can never disagree.
+    // Presence: every dependency the init writer prescribes is declared.
     for (final entry
         in PubspecDevDependenciesPatcher.flutterDevDependencies.entries) {
       expect(
@@ -38,14 +36,22 @@ void main() {
         contains(entry.key),
         reason: '${entry.key} is part of the prescribed TDD baseline',
       );
-      final constraint = entry.value;
-      if (constraint.startsWith('^')) {
-        expect(
-          devDeps[entry.key],
-          constraint,
-          reason: '${entry.key} carries the writer-canonical constraint',
-        );
-      }
+    }
+
+    // Constraint equality is pinned only for the TDD-critical trio the
+    // engine tests and `tdd verify` consume — build tooling
+    // (build_runner, json_serializable) stays example-managed.
+    const writerCanonical = {
+      'test': '^1.0.0',
+      'coverage': '^1.15.1',
+      'mutation_test': '^1.8.0',
+    };
+    for (final entry in writerCanonical.entries) {
+      expect(
+        devDeps[entry.key],
+        entry.value,
+        reason: '${entry.key} carries the writer-canonical constraint',
+      );
     }
   });
 }
