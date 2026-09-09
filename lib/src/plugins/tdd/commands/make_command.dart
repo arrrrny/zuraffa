@@ -988,23 +988,48 @@ class MakeCommand extends Command<void> {
       if (zfaBinFlag == null || zfaBinFlag.isEmpty) {
         final makeName = _bareMakeName(effectivePlan);
         if (makeName != null && _innerMakePlanIsEmpty(cwd, makeName)) {
-          print(
-            '   plan: `zfa make $makeName` resolves to no active plugins '
-            '— nothing to generate (bug #826).',
-          );
-          print('   verdict: no-op');
-          print(
-            '--> fix: enable generator plugins for this project in '
-            '.zfa.json (e.g. "usecase": true) or implement the subject '
-            'manually, then re-run; no subprocess was attempted.',
-          );
-          _printSummary(
-            behavior: record.behaviorId,
-            outcome: MakeOutcome.noOp,
-            feature: target.featureName,
-          );
-          exitCode = 1;
-          return;
+          // Issue #1330: the #829 entity gate turns a sibling acceptance
+          // behavior's plan into [make <E>, tdd wire ..., build] when the
+          // contract-row entity ALREADY exists. The one-shot `zfa make <E>`
+          // scaffold has nothing to generate on that already-generated
+          // entity — but the plan still carries the subject-edit step that
+          // turned the earlier siblings green. When such a step remains,
+          // drop the dead make step (the entity is reused AS-IS — hand-
+          // tuned fields preserved, the #829 contract) and let the pipeline
+          // reach the subject edit instead of hard-stopping in a no-op
+          // that phase 2 would re-attempt identically forever.
+          final fallbackPlan = _subjectEditFallbackPlan(effectivePlan);
+          if (fallbackPlan != null) {
+            print(
+              '   plan: `zfa make $makeName` resolves to no active plugins '
+              '— nothing to generate on the already-generated entity '
+              '(issue #1330).',
+            );
+            print(
+              '   falling back to the subject edit (issue #1330): the '
+              'entity is reused as-is (hand-tuned fields preserved) — '
+              'dropping the no-op make step.',
+            );
+            effectivePlan = fallbackPlan;
+          } else {
+            print(
+              '   plan: `zfa make $makeName` resolves to no active plugins '
+              '— nothing to generate (bug #826).',
+            );
+            print('   verdict: no-op');
+            print(
+              '--> fix: enable generator plugins for this project in '
+              '.zfa.json (e.g. "usecase": true) or implement the subject '
+              'manually, then re-run; no subprocess was attempted.',
+            );
+            _printSummary(
+              behavior: record.behaviorId,
+              outcome: MakeOutcome.noOp,
+              feature: target.featureName,
+            );
+            exitCode = 1;
+            return;
+          }
         }
       }
 
@@ -2357,6 +2382,48 @@ class MakeCommand extends Command<void> {
   // -------------------------------------------------------------------
   // Bug #826 — empty inner make plan pre-flight.
   // -------------------------------------------------------------------
+
+  /// Issue #1330 — the subject-edit fallback plan for a gated plan whose
+  /// FIRST step is the bare `make <name>` that resolves to nothing, or
+  /// null when the shape offers no subject-edit step to fall back to.
+  ///
+  /// After the bug-#829 entity gate drops an `entity create` step for an
+  /// already-generated entity, a sibling acceptance behavior's plan starts
+  /// with the bare `make <Entity>` — the one-shot scaffold with nothing to
+  /// generate — followed by the subject-edit step that turned the earlier
+  /// siblings green. Aborting the whole make as `no-op` (the bug #826
+  /// verdict) wastes that subject-edit path and dead-ends the run: phase 2
+  /// re-plans the identical steps and no-ops identically (issue #1330).
+  /// When the remaining steps still carry a subject-edit step (`tdd wire`
+  /// / `tdd func`), the caller drops the no-op make step and runs the
+  /// reduced plan — the entity is reused AS-IS (never regenerated,
+  /// hand-tuned fields preserved) and the subject edit proceeds. Plans
+  /// without a subject-edit step keep the bug #826 verdict (fail-closed
+  /// backward compatibility — nothing to fall back TO).
+  GenerationPlan? _subjectEditFallbackPlan(GenerationPlan plan) {
+    if (plan.steps.length < 2) return null;
+    final first = plan.steps.first.args;
+    if (first.length < 2 || first.first != 'make') return null;
+    final rest = plan.steps.sublist(1);
+    if (!rest.any(_isSubjectEditStep)) return null;
+    return GenerationPlan(
+      behaviorId: plan.behaviorId,
+      feature: plan.feature,
+      sourceCriterion: plan.sourceCriterion,
+      steps: rest,
+      unexpressibleReason: plan.unexpressibleReason,
+    );
+  }
+
+  /// Whether a pipeline step edits the behavior's subject stub in place —
+  /// the `tdd wire` / `tdd func` subject-edit surfaces (the path that
+  /// turned the earlier sibling behaviors green in the issue #1330 repro).
+  bool _isSubjectEditStep(GenerationStepSpec step) {
+    final args = step.args;
+    return args.length >= 2 &&
+        args[0] == 'tdd' &&
+        (args[1] == 'wire' || args[1] == 'func');
+  }
 
   /// The entity/slug name when [plan]'s FIRST step is a bare
   /// `zfa make <name>` invocation — no explicit plugin ids after the name
