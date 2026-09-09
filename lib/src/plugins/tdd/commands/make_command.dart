@@ -68,19 +68,23 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart';
+import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/generation_plan.dart';
 import '../models/red_classification.dart';
 import '../models/routing.dart';
 import '../services/artifact_registry.dart';
+import '../services/arg_placeholder.dart';
 import '../services/composition_planner.dart';
 import '../services/composition_targets.dart';
 import '../services/cycle_evidence.dart';
+import '../services/dependency_override_preflight.dart';
 import '../services/subject_shape.dart';
 import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
 import '../services/generation_planner.dart';
+import '../services/journal.dart';
 import '../services/nuance_receipts.dart';
 import '../services/pipeline_runner.dart';
 import '../services/red_classifier.dart';
@@ -103,6 +107,7 @@ import '../../../config/zfa_config.dart';
 import '../../../core/plugin_system/plugin_manager.dart';
 import '../../../core/plugin_system/plugin_registry.dart';
 import '../../../core/project/project_root.dart';
+import '../../../core/dependencies/builder_dependency_preflight.dart';
 
 /// Resolution-stage failure: message, outcome, and feature context if known.
 class MakeResolutionError implements Exception {
@@ -254,6 +259,33 @@ class MakeCommand extends Command<void> {
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find(anchorDir: 'specs');
+
+    // -----------------------------------------------------------------
+    // Issue #1303 preflight: a stale `dependency_overrides` path entry
+    // makes every pipeline step die with a raw version-solving dump
+    // buried mid-log, and the clean-cache retry burns a full rebuild on
+    // a resolution error no cache clean can fix. Validate every
+    // override path BEFORE anything spawns; refuse with the honest
+    // drift verdict (exit 3) instead.
+    // -----------------------------------------------------------------
+    final overrideReport = await DependencyOverridePreflight(
+      projectRoot: cwd,
+    ).check();
+    if (!overrideReport.ok) {
+      final behavior = behaviorId ?? '-';
+      for (final finding in overrideReport.findings) {
+        print(DependencyOverridePreflight.findingLine(finding));
+      }
+      print('$kOverrideFixLine `zfa tdd make`');
+      _printSummary(
+        behavior: behavior,
+        outcome: MakeOutcome.preflightRed,
+        feature: featureFlag ?? 'unknown',
+      );
+      exitCode = 3;
+      return;
+    }
+
     final zfaBinFlag = argResults?['zfa-bin'] as String?;
     final suiteBaselineFlag = argResults?['suite-baseline'] as String?;
     final suiteBaselinePath =
@@ -361,6 +393,15 @@ class MakeCommand extends Command<void> {
       exitCode = 1;
       return;
     }
+    // Issue #1402: the whole-file fallback template. OPTIONAL by design:
+    // a profile without a `file:` key degrades to the remedy-only path —
+    // the zero-match guard never fabricates a runner invocation.
+    String? fileTemplate;
+    try {
+      fileTemplate = await runner.loadFileTemplate(workingDirectory: cwd);
+    } on StateError {
+      fileTemplate = null;
+    }
 
     // ---------------------------------------------------------------
     // 3a. Sanctioned skin-authoring transition (issue #1258). A
@@ -466,8 +507,10 @@ class MakeCommand extends Command<void> {
 
       // (b) Honest red-before-green: the authored test must fail NOW
       //     (the view is still the inert certified-red subject).
-      final authoringRun = await runner.runSingle(
+      final authoringRun = await _runTargetTest(
+        runner: runner,
         singleTemplate: singleTemplate,
+        fileTemplate: fileTemplate,
         testPath: testPath,
         testName: testName,
         workingDirectory: cwd,
@@ -638,9 +681,18 @@ class MakeCommand extends Command<void> {
     //    explicitly empty generation block is appended, and the summary
     //    reports `outcome=skipped` with exit 0 so `zfa tdd run`
     //    proceeds past already-completed behaviors instead of stopping.
+    //    Issue #1323 (spec 991 FR-005): this re-run is ALSO the
+    //    re-certification after a hand-delta — when the user applied
+    //    the `_argN()` remedy by hand-editing the generated test, the
+    //    certified-red entry in the cycle-log NEVER short-circuits this
+    //    verification: the UPDATED test is re-run right here and the
+    //    cycle is re-certified red (proceed to generation) or green
+    //    (the skip transition) from it.
     // ---------------------------------------------------------------
-    final driftRun = await runner.runSingle(
+    final driftRun = await _runTargetTest(
+      runner: runner,
       singleTemplate: singleTemplate,
+      fileTemplate: fileTemplate,
       testPath: testPath,
       testName: testName,
       workingDirectory: cwd,
@@ -666,35 +718,137 @@ class MakeCommand extends Command<void> {
       exitCode = 1;
       return;
     }
-    final alreadyGreen = driftRun.exitCode == 0 && driftRun.startedProcess;
-    if (alreadyGreen) {
-      // Issue #1036: the skip transition must verify the subject under
-      // test is the SAME shape the certified evidence captured. A make
-      // that rewrote the subject (the acceptance func-scaffold rewrite
-      // class) and then failed leaves a placeholder whose vacuous test
-      // passes — the drift check alone would certify green on a subject
-      // the red evidence never exercised. Refuse with the remedy
-      // instead; legacy hashless entries fail open (the pre-#1036
-      // behavior stands), so unit skip semantics are unchanged.
-      final driftRefusal = await _subjectDriftRefusal(
-        cwd,
-        target.featureDir,
-        record,
-      );
-      if (driftRefusal != null) {
-        print(driftRefusal);
-        _printSummary(
-          behavior: record.behaviorId,
-          outcome: MakeOutcome.subjectDrift,
-          feature: target.featureName,
-        );
-        exitCode = 1;
-        return;
-      }
+    // Issue #1402: a STILL-zero-match drift record means the whole-file
+    // fallback could not produce observable evidence either (or the
+    // profile carries no `file:` template) — the targeted remedy is
+    // already printed. Misfire-stop NOW, the same no-signal contract as
+    // the #742 timeout stop above: spending generation on a behavior no
+    // runner invocation can observe dead-ends in the same phantom at the
+    // post-generation re-run, one wasted pipeline later.
+    if (singleTemplate.contains('--plain-name') && _noTestsRan(driftRun)) {
       print(
-        '   target test already passes — skipping generation (issue #694 '
-        'skip transition); the suite is not re-run (issue #741)',
+        'zfa tdd make: behavior "${record.behaviorId}" — the drift check '
+        '(target test re-run before generation) ran zero tests; the cycle '
+        'cannot be re-certified from this transcript.',
       );
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: MakeOutcome.runnerError,
+        feature: target.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+    // Issue #1345: the placeholder re-drive re-entry demotes this to
+    // false so the make falls through to generation planning — the
+    // composition fallback re-enters the acceptance pipeline at
+    // compose/make phase-2 (the same path a first drive runs).
+    var alreadyGreen = driftRun.exitCode == 0 && driftRun.startedProcess;
+    // Issue #1331: the complete-but-unowned re-drive class. When the
+    // behavior's surviving certification was invalidated by the LAST
+    // reset tombstone (the registry was dropped, the behavior re-driven
+    // from gen), the certified-hash basis of the #1036 subject-drift
+    // guard is stale by decree — the re-drive adopts the passing subject
+    // (the EXPLICIT `adopted` outcome) instead of dead-ending the
+    // documented reset → run recovery loop. Every other class — a
+    // green-basis drift whose evidence postdates the reset, a feature
+    // with no tombstone, the born-green placeholders — keeps refusing.
+    var adoptedReDrive = false;
+    // Issue #1345: the placeholder re-drive class — a tombstoned
+    // ACCEPTANCE-kind re-drive whose on-disk subject IS the born-green
+    // compose-pipeline placeholder (the exact bytes gen emits, the input
+    // shape compose rewrites). Neither the #1331 adoption (it would
+    // certify green on a vacuous subject — the #1036 guard's exact
+    // refusal class) nor the #1036 refusal (it dead-ends the documented
+    // reset → doctor → run recovery loop) applies: the make RE-ENTERS
+    // the acceptance pipeline at compose/make phase-2 by falling through
+    // to generation planning, and the outcome is the EXPLICIT
+    // `adopted-placeholder`.
+    var placeholderReDrive = false;
+    if (alreadyGreen) {
+      final reDrive = await _tombstonedReDrive(target.featureDir, record);
+      // A tombstone invalidates the certified HASH basis, not the #1036
+      // subject-shape guard: a born-green placeholder subject (scaffolded
+      // marker, still-throwing stubs) must never be adopted into green —
+      // the passing test would be vacuous against it. Placeholders take
+      // the #1345 re-entry (acceptance rows) or keep the drift refusal
+      // below.
+      final placeholderOnDisk = reDrive
+          ? await _subjectIsBornGreenPlaceholderOnDisk(cwd, record)
+          : false;
+      final adoptable = reDrive && !placeholderOnDisk;
+      if (adoptable) {
+        adoptedReDrive = true;
+        print(
+          '   re-drive adoption (issue #1331): the last reset tombstone '
+          'invalidated the surviving certification for '
+          '"${record.behaviorId}" — the passing target test re-certifies '
+          'green against the on-disk subject (outcome=adopted); the '
+          'appended evidence binds the current subject shape, so any '
+          'post-adoption drift still refuses.',
+        );
+      } else if (reDrive &&
+          placeholderOnDisk &&
+          await _rowKindQuiet(target.featureDir, record.behaviorId) ==
+              BehaviorKind.acceptance) {
+        // Issue #1345: the placeholder re-drive class — the re-entry.
+        // The subject on disk is the compose pipeline's OWN placeholder
+        // for a behavior the last reset tombstoned, so the make runs the
+        // SAME acceptance pipeline a first drive runs (the composition
+        // fallback re-enters compose → build; compose re-implements the
+        // stub against the feature's green unit anchors, or reports
+        // already-composed for a surviving composed product) and the
+        // cycle re-certifies from the pipeline's actual output with the
+        // EXPLICIT `adopted-placeholder` outcome — never from the
+        // vacuous pass itself. Zero composable anchors disengages the
+        // fallback at the honest `unexpressible` stop (FR-009,
+        // unchanged).
+        placeholderReDrive = true;
+        alreadyGreen = false; // issue #1345: fall through to generation
+        print(
+          '   re-drive compose re-entry (issue #1345): the on-disk '
+          'subject is the compose pipeline\'s own placeholder for a '
+          'tombstoned re-drive, so neither adoption (issue #1331) nor '
+          'the subject-drift refusal (issue #1036) applies — '
+          're-entering the acceptance pipeline at compose/make phase-2 '
+          '(outcome=adopted-placeholder).',
+        );
+      } else {
+        if (reDrive) {
+          print(
+            '   re-drive adoption withheld: the on-disk subject is a '
+            'born-green placeholder, so the passing target test proves '
+            'nothing (issue #1036) — the subject-drift refusal stands.',
+          );
+        }
+        // Issue #1036: the skip transition must verify the subject under
+        // test is the SAME shape the certified evidence captured. A make
+        // that rewrote the subject (the acceptance func-scaffold rewrite
+        // class) and then failed leaves a placeholder whose vacuous test
+        // passes — the drift check alone would certify green on a subject
+        // the red evidence never exercised. Refuse with the remedy
+        // instead; legacy hashless entries fail open (the pre-#1036
+        // behavior stands), so unit skip semantics are unchanged.
+        final driftRefusal = await _subjectDriftRefusal(
+          cwd,
+          target.featureDir,
+          record,
+        );
+        if (driftRefusal != null) {
+          print(driftRefusal);
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: MakeOutcome.subjectDrift,
+            feature: target.featureName,
+          );
+          exitCode = 1;
+          return;
+        }
+        print(
+          '   target test already passes — skipping generation (issue #694 '
+          'skip transition); the suite is not re-run (issue #741)',
+        );
+      }
     }
 
     // ---------------------------------------------------------------
@@ -912,23 +1066,48 @@ class MakeCommand extends Command<void> {
       if (zfaBinFlag == null || zfaBinFlag.isEmpty) {
         final makeName = _bareMakeName(effectivePlan);
         if (makeName != null && _innerMakePlanIsEmpty(cwd, makeName)) {
-          print(
-            '   plan: `zfa make $makeName` resolves to no active plugins '
-            '— nothing to generate (bug #826).',
-          );
-          print('   verdict: no-op');
-          print(
-            '--> fix: enable generator plugins for this project in '
-            '.zfa.json (e.g. "usecase": true) or implement the subject '
-            'manually, then re-run; no subprocess was attempted.',
-          );
-          _printSummary(
-            behavior: record.behaviorId,
-            outcome: MakeOutcome.noOp,
-            feature: target.featureName,
-          );
-          exitCode = 1;
-          return;
+          // Issue #1330: the #829 entity gate turns a sibling acceptance
+          // behavior's plan into [make <E>, tdd wire ..., build] when the
+          // contract-row entity ALREADY exists. The one-shot `zfa make <E>`
+          // scaffold has nothing to generate on that already-generated
+          // entity — but the plan still carries the subject-edit step that
+          // turned the earlier siblings green. When such a step remains,
+          // drop the dead make step (the entity is reused AS-IS — hand-
+          // tuned fields preserved, the #829 contract) and let the pipeline
+          // reach the subject edit instead of hard-stopping in a no-op
+          // that phase 2 would re-attempt identically forever.
+          final fallbackPlan = _subjectEditFallbackPlan(effectivePlan);
+          if (fallbackPlan != null) {
+            print(
+              '   plan: `zfa make $makeName` resolves to no active plugins '
+              '— nothing to generate on the already-generated entity '
+              '(issue #1330).',
+            );
+            print(
+              '   falling back to the subject edit (issue #1330): the '
+              'entity is reused as-is (hand-tuned fields preserved) — '
+              'dropping the no-op make step.',
+            );
+            effectivePlan = fallbackPlan;
+          } else {
+            print(
+              '   plan: `zfa make $makeName` resolves to no active plugins '
+              '— nothing to generate (bug #826).',
+            );
+            print('   verdict: no-op');
+            print(
+              '--> fix: enable generator plugins for this project in '
+              '.zfa.json (e.g. "usecase": true) or implement the subject '
+              'manually, then re-run; no subprocess was attempted.',
+            );
+            _printSummary(
+              behavior: record.behaviorId,
+              outcome: MakeOutcome.noOp,
+              feature: target.featureName,
+            );
+            exitCode = 1;
+            return;
+          }
         }
       }
 
@@ -1035,6 +1214,7 @@ class MakeCommand extends Command<void> {
           plan: effectivePlan,
           result: pipelineResult,
           singleTemplate: singleTemplate,
+          fileTemplate: fileTemplate,
           testPath: testPath,
           testName: testName,
           workingDirectory: cwd,
@@ -1053,6 +1233,40 @@ class MakeCommand extends Command<void> {
           postRun = toleratedRun;
           buildStepTolerated = true;
         } else {
+          // Issue #1322: a failed BUILD step whose output carries the
+          // missing-builder-dependency class is corrupt project state, not
+          // generation noise — grade it with the distinct outcome naming
+          // the package + the exact fix, NOT the generic generation-error.
+          final missingBuilders = idx >= 0 && idx < effectivePlan.steps.length
+              ? missingBuildersForBuildStep(
+                  step: failed!,
+                  stepArgs: effectivePlan.steps[idx].args,
+                  projectRoot: cwd,
+                )
+              : null;
+          if (missingBuilders != null) {
+            print(
+              BuilderDependencyPreflight.missingBuilderStopMessage(
+                missing: missingBuilders,
+                context: 'the make plan\'s `zfa build` step',
+              ),
+            );
+            // Issue #1036: same failed-make contract as the
+            // generation-error path — the certified-red subject shape
+            // survives the failed make and the retry fails honestly.
+            await _restoreSubjectIfMutated(
+              subjectFile,
+              subjectSnapshot,
+              reason: 'the make stopped with a missing-builder-dependency',
+            );
+            _printSummary(
+              behavior: record.behaviorId,
+              outcome: MakeOutcome.missingBuilderDependency,
+              feature: target.featureName,
+            );
+            exitCode = 1;
+            return;
+          }
           print(
             'zfa tdd make: generation step failed at index $idx'
             '${failed != null ? ' (${failed.purpose})' : ''}:',
@@ -1092,8 +1306,10 @@ class MakeCommand extends Command<void> {
       //    build step was tolerated (issue #737) the per-behavior
       //    guard's passing run IS the post-generation target run.
       if (!buildStepTolerated) {
-        postRun = await runner.runSingle(
+        postRun = await _runTargetTest(
+          runner: runner,
           singleTemplate: singleTemplate,
+          fileTemplate: fileTemplate,
           testPath: testPath,
           testName: testName,
           workingDirectory: cwd,
@@ -1105,6 +1321,61 @@ class MakeCommand extends Command<void> {
             'zfa tdd make: target test still fails after generation '
             '(exit ${postRun.exitCode}).',
           );
+          // Issue #1323 (spec 991): diagnose the GENERATED `_argN()`
+          // placeholder BEFORE the generic stop. A declared contract
+          // param the writer cannot scalar-literalize emits the
+          // placeholder helper; a still-failing red whose transcript
+          // names that helper IS the designed hand-delta seam, and
+          // grading it as a bare `generation-error` dead-ended the
+          // two-cycle run with a stop output that never named the
+          // remedy (it only existed inside a thrown exception message
+          // mid-test-output). Two signals must agree (FR-001): the
+          // test file carries the marker helper AND the transcript
+          // carries the message token — an unrelated red keeps the
+          // honest generic stop.
+          final handDelta = await _argPlaceholderDiagnosis(
+            testPath: testPath,
+            runOutput: postRun.output,
+          );
+          if (handDelta != null) {
+            final relativeTest = p.isAbsolute(testPath)
+                ? p.relative(testPath, from: cwd)
+                : testPath;
+            final remedy = argPlaceholderRemedy(
+              index: handDelta.index,
+              testPath: relativeTest.replaceAll('\\', '/'),
+              declaredType: handDelta.declaredType,
+              behaviorId: record.behaviorId,
+            );
+            print(
+              'zfa tdd make: the failure is the GENERATED '
+              "_arg${handDelta.index}() placeholder for a non-scalar "
+              'declared param (issue #1323).',
+            );
+            print('   --> fix: $remedy.');
+            print(
+              '   the placeholder is the designed hand-delta seam: apply '
+              'the edit to the generated test, then re-run make — the '
+              're-run re-verifies the updated test before generating '
+              '(the drift check, FR-005) and certifies the cycle from '
+              'it.',
+            );
+            // The failed-make contract holds for the seam too (issue
+            // #1036): the certified-red subject shape survives
+            // untouched.
+            await _restoreSubjectIfMutated(
+              subjectFile,
+              subjectSnapshot,
+              reason: 'the make stopped with a hand-delta-required',
+            );
+            _printSummary(
+              behavior: record.behaviorId,
+              outcome: MakeOutcome.handDeltaRequired,
+              feature: target.featureName,
+            );
+            exitCode = 1;
+            return;
+          }
           // Issue #1036: same failed-make contract as the step-failure
           // path — the certified-red subject shape survives untouched.
           await _restoreSubjectIfMutated(
@@ -1274,7 +1545,9 @@ class MakeCommand extends Command<void> {
       outcome: buildStepTolerated
           ? MakeOutcome.greenWithFailedBuild
           : alreadyGreen
-          ? MakeOutcome.skipped
+          ? (adoptedReDrive ? MakeOutcome.adopted : MakeOutcome.skipped)
+          : placeholderReDrive
+          ? MakeOutcome.adoptedPlaceholder
           : MakeOutcome.green,
       feature: target.featureName,
     );
@@ -1521,6 +1794,7 @@ class MakeCommand extends Command<void> {
     required GenerationPlan plan,
     required PipelineResult result,
     required String singleTemplate,
+    String? fileTemplate,
     required String testPath,
     required String testName,
     required String workingDirectory,
@@ -1545,14 +1819,144 @@ class MakeCommand extends Command<void> {
       );
       return null;
     }
-    final run = await runner.runSingle(
+    final run = await _runTargetTest(
+      runner: runner,
       singleTemplate: singleTemplate,
+      fileTemplate: fileTemplate,
       testPath: testPath,
       testName: testName,
       workingDirectory: workingDirectory,
     );
     if (!run.startedProcess || run.exitCode != 0) return null;
     return run;
+  }
+
+  /// The issue #1402 targeted remedy (the issue's minimum expected fix):
+  /// the exact sentence an agent hand-driving the cycle needs.
+  static const String _plainNameRemedy =
+      '   --> fix: test name must contain the behavior description '
+      'verbatim — rename the test(...) to embed it (issue #1402).';
+
+  /// package:test's exit code when the runner executed zero tests
+  /// (`--plain-name` / `--name` matched nothing) — issue #1402.
+  static const int _exitCodeNoTests = 79;
+
+  /// The runner's no-tests signature (issue #1402): `dart test` /
+  /// `flutter test` exit 79 with a "No tests ran." transcript when the
+  /// `--plain-name` filter matched zero tests.
+  ///
+  /// Scoped to the make command's own target-test invocations — the
+  /// `--plain-name` flag semantics and the verify-red logic are untouched.
+  static bool _noTestsRan(RunRecord run) =>
+      run.startedProcess &&
+      run.exitCode == _exitCodeNoTests &&
+      run.output.contains('No tests ran');
+
+  /// Run the behavior's target test through the profile `single` template
+  /// with the issue #1402 zero-match guard.
+  ///
+  /// `--plain-name` is a literal SUBSTRING match against the OUTER
+  /// test(...) name; a hand-edited test whose name no longer embeds the
+  /// behavior description verbatim matches ZERO tests, the runner exits
+  /// 79 ("No tests ran"), and the transcript proves nothing about the
+  /// behavior. Left alone, the drift check grades the phantom as "still
+  /// red" and spends generation the post-run can never observe — the
+  /// issue's silent exit-79 dead-end.
+  ///
+  /// When the single run carries the zero-match signature (only for a
+  /// template that actually carries `--plain-name`):
+  ///   1. WARN — name the mismatch and the exact resolved command;
+  ///   2. fall back to the WHOLE target file through the profile's `file:`
+  ///      template so the caller grades real evidence (the drift check
+  ///      then re-certifies red/green from an honest transcript);
+  ///   3. when the fallback is unavailable (no `file:` template) or ALSO
+  ///      runs zero tests, emit the targeted remedy and return the
+  ///      ORIGINAL zero-match record — callers keep today's honest
+  ///      grading, now with the diagnosis printed.
+  Future<RunRecord> _runTargetTest({
+    required SingleTestRunner runner,
+    required String singleTemplate,
+    String? fileTemplate,
+    required String testPath,
+    required String testName,
+    required String workingDirectory,
+    Duration? timeout,
+  }) async {
+    final run = await runner.runSingle(
+      singleTemplate: singleTemplate,
+      testPath: testPath,
+      testName: testName,
+      workingDirectory: workingDirectory,
+      timeout: timeout,
+    );
+    if (!singleTemplate.contains('--plain-name') || !_noTestsRan(run)) {
+      return run;
+    }
+    final display = singleTemplate
+        .replaceAll('{file}', testPath)
+        .replaceAll('{name}', testName);
+    print(
+      '   issue #1402: --plain-name matched ZERO tests — the outer '
+      'test(...) name does not contain the behavior description verbatim '
+      '(command: `$display`).',
+    );
+    final fallback = fileTemplate;
+    if (fallback == null || fallback.trim().isEmpty) {
+      print(_plainNameRemedy);
+      return run;
+    }
+    final resolvedFallback = fallback
+        .replaceAll('{file}', testPath)
+        .replaceAll('{name}', testName);
+    print('   falling back to the whole target file: $resolvedFallback');
+    final fileRun = await runner.runSingle(
+      singleTemplate: fallback,
+      testPath: testPath,
+      testName: testName,
+      workingDirectory: workingDirectory,
+      timeout: timeout,
+    );
+    if (!fileRun.startedProcess) {
+      print(
+        '   the whole-file fallback did not start (`$resolvedFallback`): '
+        '${fileRun.output}',
+      );
+      print(_plainNameRemedy);
+      return run;
+    }
+    if (_noTestsRan(fileRun)) {
+      print(_plainNameRemedy);
+      return run;
+    }
+    return fileRun;
+  }
+
+  /// The missing-builder-dependency classifier for a failed plan step
+  /// (issue #1322). Returns the missing builder registrations when ALL of
+  /// the following hold, null otherwise (the caller keeps the existing
+  /// grading):
+  ///
+  ///   - the failed step IS a plan `build` step ([stepArgs] starts with
+  ///     `build`) — only build failures can carry the missing-builder
+  ///     class;
+  ///   - the step actually failed (non-zero exit);
+  ///   - the shared classifier diagnoses a builder registered in
+  ///     build.yaml whose package is not resolvable in
+  ///     `.dart_tool/package_config.json` (corroborated by build_runner's
+  ///     unknown-builder signal in the captured step output).
+  @visibleForTesting
+  static List<RegisteredBuilder>? missingBuildersForBuildStep({
+    required GenerationStep step,
+    required List<String> stepArgs,
+    required String projectRoot,
+  }) {
+    if (stepArgs.isEmpty || stepArgs.first != 'build') return null;
+    if (step.exitCode == 0) return null;
+    final missing = BuilderDependencyPreflight.missingBuildersForFailedBuild(
+      projectRoot: projectRoot,
+      buildOutput: step.output,
+    );
+    return missing.isEmpty ? null : missing;
   }
 
   /// The behavior description the planner will see — the record's own
@@ -1654,6 +2058,61 @@ class MakeCommand extends Command<void> {
         'make.';
   }
 
+  /// Issue #1331: whether [record] is the complete-but-unowned re-drive
+  /// class — the behavior is tombstoned by the feature's LAST reset AND
+  /// its surviving green evidence predates that tombstone (or there is
+  /// none left at all). The tombstone is the user's explicit "drop the
+  /// certification and start over": the certified-hash basis the #1036
+  /// guard compares against is stale by decree, and the re-drive's make
+  /// sees exactly the state the first drive saw.
+  ///
+  /// Fail-closed: an absent journal, a corrupt one, an unparseable
+  /// tombstone timestamp, or an unparseable evidence timestamp returns
+  /// false — the #1036 refusal then stands exactly as before.
+  Future<bool> _tombstonedReDrive(
+    String featureDir,
+    ArtifactRecord record,
+  ) async {
+    final tombstone = await JournalReader.lastResetTombstone(featureDir);
+    final tombstoneAt = tombstone.at;
+    if (tombstoneAt == null) return false;
+    if (!tombstone.behaviors.contains(record.behaviorId)) return false;
+    final lastGreen = await CycleEvidence(
+      featureDir,
+    ).lastEntryFor(record.behaviorId, kind: 'green');
+    // No green entry left at all — the re-drive class stands.
+    if (lastGreen == null) return true;
+    // A PRESENT green entry whose timestamp is missing or unparseable
+    // cannot prove it predates the tombstone — fail closed (the #1036
+    // refusal stands exactly as before).
+    final at = lastGreen.at;
+    if (at == null || at.isEmpty) return false;
+    final greenAt = DateTime.tryParse(at);
+    if (greenAt == null) return false;
+    return greenAt.isBefore(tombstoneAt);
+  }
+
+  /// Whether the behavior's subject file on disk is one of the
+  /// born-green placeholder shapes (issue #1036) — the gate that keeps a
+  /// tombstoned re-drive from adopting an empty scaffold into green.
+  /// Unreadable subject files fail CLOSED (treated as a placeholder —
+  /// the refusal stands), never silently adopted.
+  Future<bool> _subjectIsBornGreenPlaceholderOnDisk(
+    String cwd,
+    ArtifactRecord record,
+  ) async {
+    final subjectPath = p.isAbsolute(record.subjectPath)
+        ? record.subjectPath
+        : p.join(cwd, record.subjectPath);
+    try {
+      return subjectIsBornGreenPlaceholder(
+        await File(subjectPath).readAsString(),
+      );
+    } on FileSystemException {
+      return true; // unreadable — keep the refusal (safe failure)
+    }
+  }
+
   /// Issue #1162: whether a red-basis drift is the SANCTIONED
   /// hand-implementation transition — the subject on disk is not one of
   /// the pipeline's born-green placeholder shapes, i.e. it was
@@ -1706,6 +2165,28 @@ class MakeCommand extends Command<void> {
     final subjectFile = File(subjectPath);
     if (!await subjectFile.exists()) return null;
     return sha256.convert(await subjectFile.readAsBytes()).toString();
+  }
+
+  /// Issue #1323 (spec 991 FR-001): the two-signal `_argN()` placeholder
+  /// diagnosis over the still-failing target run — the test file must
+  /// carry the generated marker helper AND the transcript must carry the
+  /// placeholder's message token. Unreadable test files (deleted between
+  /// the run and this read, permission-denied) fail CLOSED — null, the
+  /// generic stop stands — so a filesystem hiccup can never fabricate a
+  /// hand-delta seam.
+  Future<ArgPlaceholderHit?> _argPlaceholderDiagnosis({
+    required String testPath,
+    required String runOutput,
+  }) async {
+    try {
+      final testContent = await File(testPath).readAsString();
+      return argPlaceholderHitOf(
+        testContent: testContent,
+        runOutput: runOutput,
+      );
+    } on FileSystemException {
+      return null;
+    }
   }
 
   /// Issue #1036: a FAILED make must leave the subject file byte-identical
@@ -2022,13 +2503,18 @@ class MakeCommand extends Command<void> {
     final file = File(p.join(featureDir, 'tdd', 'cycle-log.md'));
     if (!await file.exists()) return false;
     final raw = await file.readAsString();
+    // Issue #1353: scan EVERY section — a stale non-red section from an
+    // earlier failed attempt (the normal shape of a resumed run) must not
+    // shadow a later certified-red section for the same behavior.
     for (final section in raw.split('\n## ')) {
       final behavior = RegExp(
         r'^- behavior: (\S+)',
         multiLine: true,
       ).firstMatch(section);
       if (behavior == null || behavior.group(1) != behaviorId) continue;
-      return RegExp(r'^- kind: red$', multiLine: true).hasMatch(section);
+      if (RegExp(r'^- kind: red$', multiLine: true).hasMatch(section)) {
+        return true;
+      }
     }
     return false;
   }
@@ -2088,6 +2574,48 @@ class MakeCommand extends Command<void> {
   // Bug #826 — empty inner make plan pre-flight.
   // -------------------------------------------------------------------
 
+  /// Issue #1330 — the subject-edit fallback plan for a gated plan whose
+  /// FIRST step is the bare `make <name>` that resolves to nothing, or
+  /// null when the shape offers no subject-edit step to fall back to.
+  ///
+  /// After the bug-#829 entity gate drops an `entity create` step for an
+  /// already-generated entity, a sibling acceptance behavior's plan starts
+  /// with the bare `make <Entity>` — the one-shot scaffold with nothing to
+  /// generate — followed by the subject-edit step that turned the earlier
+  /// siblings green. Aborting the whole make as `no-op` (the bug #826
+  /// verdict) wastes that subject-edit path and dead-ends the run: phase 2
+  /// re-plans the identical steps and no-ops identically (issue #1330).
+  /// When the remaining steps still carry a subject-edit step (`tdd wire`
+  /// / `tdd func`), the caller drops the no-op make step and runs the
+  /// reduced plan — the entity is reused AS-IS (never regenerated,
+  /// hand-tuned fields preserved) and the subject edit proceeds. Plans
+  /// without a subject-edit step keep the bug #826 verdict (fail-closed
+  /// backward compatibility — nothing to fall back TO).
+  GenerationPlan? _subjectEditFallbackPlan(GenerationPlan plan) {
+    if (plan.steps.length < 2) return null;
+    final first = plan.steps.first.args;
+    if (first.length < 2 || first.first != 'make') return null;
+    final rest = plan.steps.sublist(1);
+    if (!rest.any(_isSubjectEditStep)) return null;
+    return GenerationPlan(
+      behaviorId: plan.behaviorId,
+      feature: plan.feature,
+      sourceCriterion: plan.sourceCriterion,
+      steps: rest,
+      unexpressibleReason: plan.unexpressibleReason,
+    );
+  }
+
+  /// Whether a pipeline step edits the behavior's subject stub in place —
+  /// the `tdd wire` / `tdd func` subject-edit surfaces (the path that
+  /// turned the earlier sibling behaviors green in the issue #1330 repro).
+  bool _isSubjectEditStep(GenerationStepSpec step) {
+    final args = step.args;
+    return args.length >= 2 &&
+        args[0] == 'tdd' &&
+        (args[1] == 'wire' || args[1] == 'func');
+  }
+
   /// The entity/slug name when [plan]'s FIRST step is a bare
   /// `zfa make <name>` invocation — no explicit plugin ids after the name
   /// — i.e. the default-resolution shape whose active-plugin set the
@@ -2141,6 +2669,12 @@ class MakeCommand extends Command<void> {
       ..outcome = switch (outcome) {
         MakeOutcome.green => VerdictOutcome.pass,
         MakeOutcome.greenWithFailedBuild => VerdictOutcome.pass,
+        // Issue #1331: the adopted re-drive re-certified green — a pass,
+        // distinguishable by its own exit class.
+        MakeOutcome.adopted => VerdictOutcome.pass,
+        // Issue #1345: compose-placeholder re-entry exits 0 with green
+        // evidence — the terminal success grades as pass.
+        MakeOutcome.adoptedPlaceholder => VerdictOutcome.pass,
         MakeOutcome.skipped => VerdictOutcome.stopped,
         _ => VerdictOutcome.fail,
       }

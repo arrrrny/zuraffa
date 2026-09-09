@@ -1,6 +1,6 @@
 name: zuraffa
 description: AI first Clean Architecture Framework and CLI with Result types, UseCase patterns, Dependency Injection and MCP server for building type-safe, scalable apps with AI agents.
-version: 6.1.0
+version: 6.2.2
 homepage: https://zuraffa.com
 repository: https://github.com/arrrrny/zuraffa
 issue_tracker: https://github.com/arrrrny/zuraffa/issues
@@ -90,7 +90,7 @@ dev_dependencies:
   # string templates for GENERATED consumer projects (those write test into
   # their own dev_dependencies); the lib/tdd/** self-hosting subjects resolve
   # against THIS package's dev_dependencies.
-  test: any
+  test: ^1.32.0
   build_runner: ^2.15.2
   lints: ^6.0.0
   # mutation_test: wired in by spec 041 follow-up (Phase 11, tasks T077-T081)

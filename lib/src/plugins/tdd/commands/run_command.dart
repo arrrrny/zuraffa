@@ -41,6 +41,8 @@ import 'package:path/path.dart' as p;
 
 import '../models/verdict_envelope.dart';
 import '../services/journal.dart';
+import '../services/cycle_log_terminal_receipt.dart';
+import '../services/dependency_override_preflight.dart';
 import '../services/explain_emitter.dart';
 import '../services/lane_receipts.dart';
 import '../services/tdd_timeout.dart';
@@ -125,6 +127,9 @@ class RunCommand extends Command<void> {
 
   static const _exitComplete = 0;
   static const _exitRunnerError = 2;
+  // The SPEC 917 drift class (corrupt-state) — the issue #1303
+  // dependency_overrides preflight refuses with this exit code.
+  static const _exitCorruptState = 3;
 
   @override
   Future<void> run() => runWithVerdictEnvelope(
@@ -158,6 +163,77 @@ class RunCommand extends Command<void> {
         ? projectFlag
         : ProjectRoot.find(anchorDir: 'specs');
     final zfaBin = argResults?['zfa-bin'] as String?;
+
+    // -----------------------------------------------------------------
+    // Issue #1303 preflight: a stale `dependency_overrides` path entry
+    // would surface only as a raw version-solving dump buried mid-log
+    // after minutes of compiling, with the clean-cache retry burning a
+    // full rebuild on a resolution error no cache clean can fix.
+    // Validate every override path BEFORE the cert gate and any lane
+    // step spawns; refuse with the honest drift verdict (exit 3,
+    // journaled preflight_red — zero steps).
+    // -----------------------------------------------------------------
+    final overrideReport = await DependencyOverridePreflight(
+      projectRoot: projectRoot,
+    ).check();
+    if (!overrideReport.ok) {
+      for (final finding in overrideReport.findings) {
+        print(DependencyOverridePreflight.findingLine(finding));
+      }
+      print('$kOverrideFixLine `zfa tdd run`');
+      await _journalMeta(
+        featureDir: p.join(projectRoot, 'specs', feature),
+        feature: feature,
+        startedAt: journalStartedAt,
+        gateState: 'preflight_red',
+        phase: 'gate',
+        result: 'corrupt-state',
+        violations: [
+          for (final finding in overrideReport.findings)
+            'dependency_overrides["${finding.package}"] path '
+                '"${finding.path}" does not resolve to a package '
+                '(${finding.detail})',
+        ],
+      );
+      print(
+        RunDriverCore.summaryLine(
+          label: label,
+          feature: feature,
+          result: 'corrupt-state',
+          counts: const {
+            'total': 0,
+            'pending': 0,
+            'red': 0,
+            'green': 0,
+            'done': 0,
+          },
+        ),
+      );
+      _verdict
+        ..exitClass = 'corrupt-state'
+        ..outcome = VerdictOutcome.error
+        ..details['preflight'] =
+            'dependency_overrides path validation '
+            'refused the run (issue #1303)';
+      _verdict.explain = TddExplain(
+        command: 'run',
+        features: [feature],
+        lane:
+            'none — the dependency_overrides preflight refused before any '
+            'lane drove (preflight red, issue #1303)',
+        fixHints: [
+          'correct the override path or remove the entry from '
+              'pubspec.yaml, then re-run',
+        ],
+        summary:
+            'Run stopped at the issue-#1303 preflight: a '
+            'dependency_overrides path target does not resolve to a '
+            'package. No step was spawned and no receipt was written; '
+            'the refusal is journaled preflight_red in tdd/journal.json.',
+      );
+      exitCode = _exitCorruptState;
+      return;
+    }
 
     // Bug #742: the --timeout override for each spawned step command.
     Duration? timeoutOverride;
@@ -382,6 +458,19 @@ class RunCommand extends Command<void> {
           (engine.rows.map((r) => r.id).toSet()
                 ..addAll(skin.rows.map((r) => r.id)))
               .toList(),
+    );
+    // Issue #1327: the unified journal entry above is the run's LAST
+    // append to tdd/cycle-log.md, and the last `tdd make` receipt
+    // covering the log predates it (the #1311 refresh covers only the
+    // refactor passes' lib/ mutations, never the log). Close the run
+    // with ONE terminal receipt re-hashing the log to its final bytes so
+    // result=complete implies `zfa proof check` passes with zero
+    // digest-drift findings. Best-effort: a record, never a gate. The
+    // summary line stays the run's final stdout line (FR-009/FR-010).
+    await CycleLogTerminalReceipt.refreshBestEffort(
+      projectRoot: projectRoot,
+      feature: feature,
+      command: 'tdd run',
     );
     _printSummary(
       feature,

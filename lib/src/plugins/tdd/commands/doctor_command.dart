@@ -35,7 +35,15 @@
 ///    `evidence-without-artifact`: the post-reset phantom done-state):
 ///    the run driver re-drives the incomplete steps honestly (`zfa tdd
 ///    run <feature>`).
-/// 5. **none** — the stores agree; the feature is healthy.
+/// 5. **stale-artifacts** — the #1324 contradiction: green cycle-log
+///    evidence for a behavior was certified BEFORE the registry's
+///    current artifact generation for the same behavior id (gen re-ran
+///    over the certified pair without a re-certification). Every store
+///    reads self-consistent, but the next run either wedges (verify-red
+///    unexpected-green → make subject-drift) or fake-completes on the
+///    stale certification — the same recovery the run driver's stop
+///    prescribes (`zfa tdd reset <feature>`).
+/// 6. **none** — the stores agree; the feature is healthy.
 ///
 /// The same state always produces the same prescription (deterministic:
 /// pure priority order over store contents, no clocks, no randomness).
@@ -53,6 +61,7 @@ import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/cycle_evidence.dart';
 import '../services/generated_shape.dart';
+import '../services/journal.dart';
 import '../services/import_resolution.dart';
 import '../services/import_resolution_checker.dart';
 import '../services/run_state_store.dart';
@@ -377,8 +386,19 @@ class DoctorCommand extends Command<void> {
     // but never the evidence). A behavior whose last green entry names a
     // test file missing from disk is the phantom done-state: run skips
     // it as "already done" and status reports green on a nonexistent
-    // test. Exactly one recovery: re-drive the behaviors (`zfa tdd run`
-    // reconciles them to pending and re-enters at gen).
+    // test. Exactly one recovery: re-drive the behaviors (`zfa tdd run`).
+    // Issue #1331: the prescription names the mechanics the run ACTUALLY
+    // performs — run reconciles the tombstoned behaviors to pending and
+    // re-enters at gen, and make ADOPTS each re-driven subject whose
+    // certification the reset invalidated (the `adopted` outcome)
+    // instead of dead-ending at subject-drift. The old text promised a
+    // path that stopped at `<id>:make` every time. Issue #1345: the
+    // prescription also names the placeholder re-entry — a re-driven
+    // ACCEPTANCE placeholder (the compose pipeline's own born-green
+    // product) re-enters compose/make phase-2 (the
+    // `adopted-placeholder` outcome) instead of refusing, so the
+    // documented recovery loop completes for acceptance-lane behaviors
+    // too.
     final orphaned = await evidence.orphanedGreenEvidence(projectRoot: cwd);
     if (orphaned.isNotEmpty) {
       final ids = orphaned.toList()..sort();
@@ -399,7 +419,12 @@ class DoctorCommand extends Command<void> {
       print(
         '   --> fix: $fix — re-drive every behavior whose evidence has no '
         'backing artifact (run reconciles them to pending and re-enters '
-        'at gen; the append-only evidence history is preserved)',
+        'at gen; make adopts each re-driven subject whose certification '
+        'the reset invalidated — the adopted outcome, issue #1331 — and '
+        're-enters the acceptance pipeline at compose/make phase-2 for '
+        'every re-driven acceptance placeholder — the adopted-placeholder '
+        'outcome, issue #1345 — instead of dead-ending at subject-drift; '
+        'the append-only evidence history is preserved)',
       );
       _printVerdict(
         feature: feature,
@@ -454,6 +479,78 @@ class DoctorCommand extends Command<void> {
         feature: feature,
         verdict: 'drift',
         prescription: 'migrate',
+        fix: fix,
+        drifts: drifts,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // ---- 2f. Stale-artifacts contradiction -> RESET (issue #1324) ----
+    // The wedge doctor called healthy: a behavior's cycle-log carries
+    // green evidence certified at T1, but the feature's registry recorded
+    // its artifact generation for the same behavior id at T2 > T1 — gen
+    // re-ran over the certified pair without a re-certification. Every
+    // store looks self-consistent (records own existing files, claims
+    // are evidence-backed), yet the next run either wedges (verify-red
+    // unexpected-green → make subject-drift) or fake-completes on the
+    // stale certification. The prescription matches the run driver's
+    // stale-artifacts stop: reset. Legacy entries without a parseable
+    // `- at:` fail open (never failed what cannot be read).
+    final staleArtifacts = <String>[];
+    final lastGreenEntries = <String, ParsedCycleEntry>{};
+    for (final entry in await evidence.entries()) {
+      if (entry.kind != 'green') continue;
+      lastGreenEntries[entry.behaviorId] = entry;
+    }
+    // Consult the reset tombstone so a behavior whose last green entry
+    // predates the tombstone is skipped — the re-drive is the sanctioned
+    // recovery, not a contradiction (mirrors the run driver's
+    // tombstone-filtered greenEvidence gate).
+    final tombstone = await JournalReader.lastResetTombstone(featureDir);
+    final tombstoneAt = tombstone.at;
+    for (final record in records) {
+      final greenEntry = lastGreenEntries[record.behaviorId];
+      if (greenEntry == null) continue;
+      final certifiedAt = DateTime.tryParse(greenEntry.at ?? '');
+      final createdAt = DateTime.tryParse(record.createdAt);
+      if (certifiedAt == null || createdAt == null) continue;
+      // Skip behaviors whose last green entry predates the last reset
+      // tombstone — the certification is already invalidated; the
+      // re-drive's registry record (T2 > tombstone) is the sanctioned
+      // recovery state, not a stale-artifacts contradiction.
+      if (tombstoneAt != null &&
+          tombstone.behaviors.contains(record.behaviorId)) {
+        if (certifiedAt.isBefore(tombstoneAt)) continue;
+      }
+      if (createdAt.isAfter(certifiedAt)) {
+        staleArtifacts.add(record.behaviorId);
+        drifts.add(
+          'stale-artifacts: "${record.behaviorId}" has green evidence '
+          'certified at ${greenEntry.at} but the registry re-generated its '
+          'artifacts at ${record.createdAt} — the certification predates '
+          'the current artifact generation (issue #1324)',
+        );
+      }
+    }
+    if (staleArtifacts.isNotEmpty) {
+      staleArtifacts.sort();
+      final fix = 'zfa tdd reset $feature';
+      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      for (final drift in drifts) {
+        print('  drift: $drift');
+      }
+      print(
+        '   --> fix: $fix — drop the stale registry records and owned '
+        'artifacts, then re-run `zfa tdd run $feature` (re-driving gen '
+        'over the certified pair wedges the feature: a fresh guard-only '
+        'test against the implemented subject dies at verify-red '
+        'unexpected-green then make subject-drift, issue #1324)',
+      );
+      _printVerdict(
+        feature: feature,
+        verdict: 'stale-artifacts',
+        prescription: 'reset',
         fix: fix,
         drifts: drifts,
       );

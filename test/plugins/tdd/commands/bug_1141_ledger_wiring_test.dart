@@ -135,6 +135,20 @@ void main() {
       );
     });
 
+    test('possessive apostrophes do not become quoted ledger surfaces', () {
+      final declared = UiLedgerProjection.derive(
+        behaviors: const [
+          LedgerBehaviorInput(
+            id: 'U1',
+            description: "the receipt's hash and the spec's mtime stay current",
+          ),
+        ],
+        keys: I18nKeyTable.of(const []),
+      );
+
+      expect(declared, isEmpty);
+    });
+
     test('unkeyed presence literals become text rows', () async {
       await seedSpec(keyedSpec);
       await runPlan();

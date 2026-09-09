@@ -5,14 +5,14 @@ library;
 // https://github.com/arrrrny/zuraffa/issues/993
 //
 // `zfa tdd plan` accepted Key Entity names that collide with the zuraffa
-// framework export surface (e.g. `AgentState`, exported by
-// `package:zuraffa/zuraffa.dart` via `src/agent/runtime/state_storage.dart`)
+// framework export surface (e.g. `NoParams`, exported by
+// `package:zuraffa/zuraffa.dart` via `src/core/params/no_params.dart`)
 // and wrote the test list anyway. `zfa tdd run` then stopped at phase-0:
 // the #942 preflight inside `zfa entity create` refuses the colliding
 // name, so the driver recorded `phase-0 entity failed` and the run halted
 // BEFORE any behavior was driven (repro: `zfa tdd run
 // 013-agent-modes-killswitch --timeout 5` against a spec declaring
-// `**AgentState**`). The detection existed — but only at run time.
+// `**NoParams**`). The detection existed — but only at run time.
 //
 // The fix: plan runs the SAME export-surface preflight
 // (`FrameworkExportSurface`, the #942 surface, fail-open) over the spec's
@@ -119,7 +119,7 @@ $entities
           'rename suggestion and writes no artifacts', () async {
         seedZuraffaPackageConfig();
         await writeSpec(
-          '- **AgentState**: Mission-scoped session state persisted for '
+          '- **NoParams**: Mission-scoped session state persisted for '
           'resume. Contains `missionId: String`.',
         );
 
@@ -129,10 +129,10 @@ $entities
           exitCode,
           2,
           reason:
-              'the AgentState/zuraffa-export clash must be caught at plan '
+              'the NoParams/zuraffa-export clash must be caught at plan '
               'time, not at run-time phase-0:\n$out',
         );
-        expect(out, contains('AgentState'), reason: out);
+        expect(out, contains('NoParams'), reason: out);
         expect(out, contains('export'), reason: 'clash source named: $out');
         expect(
           out,
@@ -161,13 +161,13 @@ $entities
         'the refusal names the framework file the clash comes from',
         () async {
           seedZuraffaPackageConfig();
-          await writeSpec('- **AgentState**: Mission-scoped session state.');
+          await writeSpec('- **NoParams**: Mission-scoped session state.');
 
           final out = await runPlan();
 
           expect(
             out,
-            contains('package:zuraffa/src/agent/runtime/state_storage.dart'),
+            contains('package:zuraffa/src/core/params/no_params.dart'),
             reason:
                 'the clash source pins the collision for the spec author:\n'
                 '$out',
@@ -178,14 +178,14 @@ $entities
       test('a mixed section refuses on the colliding entity', () async {
         seedZuraffaPackageConfig();
         await writeSpec('''
-- **AgentState**: Mission-scoped session state.
+- **NoParams**: Mission-scoped session state.
 - **KillSwitchLog**: Append-only audit log of kill switch trips.
 ''');
 
         final out = await runPlan();
 
         expect(exitCode, 2, reason: out);
-        expect(out, contains('AgentState'), reason: out);
+        expect(out, contains('NoParams'), reason: out);
         expect(
           File(p.join(featureDir, 'tdd', 'test-list.md')).existsSync(),
           isFalse,
@@ -239,7 +239,7 @@ $entities
         // surface is unresolvable — exactly the environment the #942
         // fail-open contract protects. The clashing name must plan cleanly
         // rather than be refused on a surface nobody could resolve.
-        await writeSpec('- **AgentState**: Mission-scoped session state.');
+        await writeSpec('- **NoParams**: Mission-scoped session state.');
 
         final out = await runPlan();
 
@@ -262,7 +262,7 @@ $entities
         'suggestion and writes no test list', () async {
       seedZuraffaPackageConfig();
       await writeSpec(
-        '- **AgentState**: Mission-scoped session state persisted for '
+        '- **NoParams**: Mission-scoped session state persisted for '
         'resume. Contains `missionId: String`.',
       );
 
@@ -280,12 +280,12 @@ $entities
         2,
         reason: 'the real CLI must refuse at plan time:\n$out',
       );
-      expect(out, contains('AgentState'), reason: out);
+      expect(out, contains('NoParams'), reason: out);
       expect(out, contains('--> fix:'), reason: out);
       expect(out, contains('rename'), reason: out);
       expect(
         out,
-        contains('package:zuraffa/src/agent/runtime/state_storage.dart'),
+        contains('package:zuraffa/src/core/params/no_params.dart'),
         reason: out,
       );
       expect(

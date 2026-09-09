@@ -24,6 +24,17 @@ import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/state/builders/state_builder.dart';
 
+/// The provenance header carries the generator VERSION, which advances on
+/// every release — byte-pinning it would force a 12-file golden
+/// re-baseline per bump (it did, painfully, on 6.2.2: PR #1346 went red
+/// because the goldens still stamped 6.2.0). The stamp itself is pinned
+/// separately by `state_provenance_test.dart` against the live `version`
+/// const, so the snapshot gate normalizes ONLY this one line.
+String _normalizeVersionStamp(String source) => source.replaceAll(
+  RegExp(r'// Generator version: [0-9][^ ]*'),
+  '// Generator version: <pinned-by-state_provenance_test>',
+);
+
 /// One fixture-matrix slot. [config] fixes the derivation inputs; the
 /// label names the golden file.
 final _fixtures = <(String, GeneratorConfig Function(String outputDir))>[
@@ -182,8 +193,8 @@ environment:
         );
         final golden = await goldenFile.readAsBytes();
         expect(
-          utf8.decode(bytes),
-          equals(utf8.decode(golden)),
+          _normalizeVersionStamp(utf8.decode(bytes)),
+          equals(_normalizeVersionStamp(utf8.decode(golden))),
           reason:
               'output for ${flavor.key}-$label drifted from the golden '
               'baseline — the dedupe must be byte-neutral; if this is '

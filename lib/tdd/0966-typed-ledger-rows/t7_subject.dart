@@ -84,14 +84,24 @@ Object? subject_t7() {
     );
   }
 
-  // --- golden: advisory snapshot scenarios -----------------------------
+  // --- golden: advisory snapshot scenarios (issue #1143: a golden
+  // scenario maps to presence — the advisory flag marks it, and the
+  // plan-time classifier exposes the detection seam).
   expect(
     LedgerRowKind.fromScenarioVerb('the login view matches the golden'),
-    LedgerRowKind.golden,
+    LedgerRowKind.presence,
+  );
+  expect(
+    LedgerRowKind.isGoldenScenario('the login view matches the golden'),
+    isTrue,
   );
   expect(
     LedgerRowKind.fromScenarioVerb('the deal card passes the snapshot check'),
-    LedgerRowKind.golden,
+    LedgerRowKind.presence,
+  );
+  expect(
+    LedgerRowKind.isGoldenScenario('the deal card passes the snapshot check'),
+    isTrue,
   );
 
   // --- precedence: the richest kind wins -------------------------------

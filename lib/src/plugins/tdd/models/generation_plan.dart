@@ -73,6 +73,39 @@ enum MakeOutcome {
   /// Non-zero exit, no green entry.
   regression('regression'),
 
+  /// The target test already passes and the subject is the
+  /// complete-but-unowned re-drive class (issue #1331): the behavior's
+  /// surviving certification was invalidated by the LAST reset tombstone
+  /// (the registry was dropped and the behavior re-driven from gen), so
+  /// the certified-hash basis of the #1036 subject-drift guard is stale
+  /// by decree. The make ADOPTS the passing subject — the re-drive
+  /// class's own first-drive semantics — certifies green, and appends a
+  /// green evidence entry binding the CURRENT subject hash (any
+  /// post-adoption drift still refuses). Exit 0. The outcome is
+  /// EXPLICITLY `adopted`: distinguishable in accounting from `skipped`
+  /// (#694, no certification change) and from `green` (generated this
+  /// make). Every non-re-drive refusal class is untouched.
+  adopted('adopted'),
+
+  /// The target test already passes and the on-disk subject is the
+  /// born-green compose-pipeline placeholder for a TOMBSTONED re-drive of
+  /// an ACCEPTANCE-kind behavior (issue #1345): the placeholder is the
+  /// pipeline's OWN product — the exact bytes `zfa tdd gen` emits, the
+  /// input shape compose exists to rewrite — so neither the #1331
+  /// adoption (it would certify green on a vacuous subject) nor the
+  /// #1036 refusal (it dead-ends the documented reset → doctor → run
+  /// recovery loop) applies. The make RE-ENTERS the acceptance pipeline
+  /// at compose/make phase-2: generation planning runs the SAME
+  /// composition fallback a first drive runs (`compose` → `build`), and
+  /// the cycle re-certifies from the pipeline's actual output. Exit 0,
+  /// green entry appended binding the CURRENT post-re-entry subject hash
+  /// with the compose/build generation steps recorded. The outcome is
+  /// EXPLICITLY `adopted-placeholder`: distinguishable from `green`
+  /// (generated), `skipped` (#694), and `adopted` (#1331 — the subject
+  /// was NOT a placeholder). Every non-re-drive refusal class and every
+  /// non-acceptance re-drive refusal is untouched.
+  adoptedPlaceholder('adopted-placeholder'),
+
   /// The target test already passes but the subject file's shape no
   /// longer matches the shape the certified evidence captured (issue
   /// #1036): a skip here would certify green on a subject the red
@@ -105,7 +138,40 @@ enum MakeOutcome {
 
   /// Runner/profile/tooling failure.
   /// Non-zero exit, no green entry.
-  runnerError('runner-error');
+  runnerError('runner-error'),
+
+  /// The dependency_overrides path preflight refused the make BEFORE any
+  /// resolution or generation ran (issue #1303): a `dependency_overrides`
+  /// path target does not resolve to a package, so every pipeline step
+  /// would die with a raw version-solving dump buried mid-log and the
+  /// clean-cache retry would burn a full rebuild on a resolution error
+  /// no cache clean can fix. The SPEC 917 drift class — the stale
+  /// override is corrupt project state — exit 3, no green entry; the
+  /// remedy is to correct or remove the override, then re-run.
+  preflightRed('preflight-red'),
+
+  /// The target test still fails after generation because the generated
+  /// test's `_argN()` placeholder helper threw (issue #1323, spec 991):
+  /// a declared contract param the writer cannot scalar-literalize. The
+  /// DESIGNED hand-delta seam, SURFACED — the stop names the EXACT edit
+  /// ("replace _arg0() in <test> with a representative <type> — then
+  /// re-run zfa tdd make <id>") instead of the generic
+  /// `generation-error` that buried the remedy inside a thrown
+  /// exception message mid-test-output. Non-zero exit, no green entry,
+  /// the subject restored byte-identically (#1036); the run driver
+  /// reports the named hand step `stopped_at=<id>:hand` (the issue
+  /// #1308 hand-step contract).
+  handDeltaRequired('hand-delta-required'),
+
+  /// A plan `build` step failed because the BUILDER package is not in the
+  /// dependency graph (issue #1322): build_runner warned `Ignoring
+  /// options for unknown builder <key>` and silently generated nothing —
+  /// a missing dev dependency, not generation noise. The outcome label
+  /// and stop message name the missing package and prescribe the exact
+  /// `dart pub add --dev <pkg>` fix instead of the generic
+  /// `generation-error`. Exit 1, no green entry (the same honesty class);
+  /// the remedy is to add the dependency, then re-run make.
+  missingBuilderDependency('missing-builder-dependency');
 
   const MakeOutcome(this.label);
 

@@ -123,8 +123,12 @@ class ScenarioAnalysis {
 
 /// The scenario → assertion classifier and test-assertion emitter.
 abstract final class FinderTaxonomy {
-  /// A quoted literal: `'…'` or `"…"`.
-  static final RegExp quoted = RegExp("'([^']+)'|\"([^\"]+)\"");
+  /// A quoted literal: `'…'` or `"…"`. A single quote must begin at a
+  /// non-word boundary, so possessives such as `receipt's` never open a
+  /// literal and pair with a later apostrophe to invent a UI surface.
+  static final RegExp quoted = RegExp(
+    r'''(?:^|[^A-Za-z0-9])'([^'\r\n]+)'(?![A-Za-z0-9])|"([^"\r\n]+)"''',
+  );
 
   /// Navigation verbs — active and passive conjugations (bug #936
   /// grammar: Then-clauses are passive by convention).

@@ -87,6 +87,7 @@ import '../services/finder_taxonomy.dart';
 import '../services/generated_shape.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
+import '../services/vacuous_guard.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/declared_routing.dart';
 import '../services/golden_harness_writer.dart';
@@ -541,6 +542,8 @@ class GenCommand extends Command<void> {
         ? 'created'
         : (counts['adopted'] ?? 0) > 0
         ? 'adopted'
+        : (counts['regenerated'] ?? 0) > 0
+        ? 'regenerated'
         : (counts['reused'] ?? 0) > 0
         ? 'reused'
         : (counts['planned'] ?? 0) > 0
@@ -596,6 +599,7 @@ class GenCommand extends Command<void> {
         'gen: feature=${feature ?? '-'} behaviors=$behaviors '
         'verdict=$verdict created=${counts['created'] ?? 0} '
         'reused=${counts['reused'] ?? 0} adopted=${counts['adopted'] ?? 0} '
+        'regenerated=${counts['regenerated'] ?? 0} '
         'planned=${counts['planned'] ?? 0}'
         '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}',
       );
@@ -615,6 +619,7 @@ class GenCommand extends Command<void> {
       ..['created'] = counts['created'] ?? 0
       ..['reused'] = counts['reused'] ?? 0
       ..['adopted'] = counts['adopted'] ?? 0
+      ..['regenerated'] = counts['regenerated'] ?? 0
       ..['planned'] = counts['planned'] ?? 0;
     if (stoppedAt != null) _verdict.details['stopped_at'] = stoppedAt;
   }
@@ -703,6 +708,19 @@ class GenCommand extends Command<void> {
         '(use --kind widget or mark the test-list row widget).',
       );
     }
+    // Bug #1261: a SPEC-DECLARED golden (the ` [golden]` row tag) on a
+    // non-widget row warns and stays inert — a warning, never a refusal
+    // (the declaration rides the plan, and a plan regression must not
+    // brick gen). The --golden FLAG misfire above keeps its fail-fast.
+    if (!golden && behavior.golden && effectiveKind != BehaviorKind.widget) {
+      print(
+        'note: the [golden] declaration on "${behavior.id}" is widget-only '
+        '— ignored for kind ${effectiveKind.name} (bug #1261). Re-declare '
+        'the row widget to gate a golden baseline.',
+      );
+    }
+    final goldenGate =
+        (golden || behavior.golden) && effectiveKind == BehaviorKind.widget;
     final effectiveBehavior =
         identical(kindOverride, null) || kindOverride == behavior.kind
         ? behavior
@@ -714,6 +732,7 @@ class GenCommand extends Command<void> {
             sourceCriterion: behavior.sourceCriterion,
             target: behavior.target,
             state: behavior.state,
+            golden: behavior.golden,
             finderKinds: behavior.finderKinds,
           );
 
@@ -1084,6 +1103,10 @@ class GenCommand extends Command<void> {
     // Writer dispatch (issue #841): theme-kind behaviors get the
     // theme-harness pair (four-proof widget test + subject contract);
     // every other kind gets the plain-function pair (spec 044).
+    // Issue #1351: Flutter hosts get the flutter_test import surface in
+    // the unit/acceptance templates (plain `package:test` does not
+    // resolve under flutter_test).
+    final flutterTest = await _isFlutterProject(cwd);
     if (record.testOwnership != Ownership.reused && !dryRun) {
       final adoptTest = adoptedPaths.contains(testPath);
       final adoptSubject = adoptedPaths.contains(subjectPath);
@@ -1095,6 +1118,7 @@ class GenCommand extends Command<void> {
         i18nImport: i18nImport,
         i18nExpansion: i18nExpansion,
         contractShape: contractShape,
+        flutterTest: flutterTest,
       );
       try {
         if (!adoptTest) {
@@ -1103,7 +1127,7 @@ class GenCommand extends Command<void> {
               behavior: effectiveBehavior,
               testPath: testPath,
               subjectPath: subjectPath,
-              golden: golden,
+              golden: goldenGate,
             ),
             'write test file',
           );
@@ -1212,15 +1236,23 @@ class GenCommand extends Command<void> {
     // differ, stay silent when they match. A subject that no longer
     // contains UnimplementedError has PROGRESSED (func scaffolding or a
     // real implementation) and must never be clobbered.
-    var regeneratedNote = false;
+    //
+    // Issue #1320: a regeneration whose CAUSE is the traces cell gaining
+    // a contract token since the owned artifact was generated (the cell
+    // now resolves a declared signature while the owned test is still the
+    // guard-only pair) reports `verdict=regenerated` instead of `reused`
+    // — the stale-guard re-gen is the command-surfaced remedy the issue
+    // names, and a bare `reused` verdict hid it.
+    var staleness = (regenerated: false, contractDrift: false);
     if (record.testOwnership == Ownership.reused &&
         record.subjectOwnership == Ownership.reused &&
         !dryRun) {
-      regeneratedNote = await _regenerateStaleStub(
+      staleness = await _regenerateStaleStub(
         behavior: effectiveBehavior,
         featureName: featureName,
         testPath: testPath,
         subjectPath: subjectPath,
+        golden: goldenGate,
         platformContext: platformContext,
         widgetShell: widgetShell,
         i18nKeys: i18nKeys,
@@ -1228,13 +1260,19 @@ class GenCommand extends Command<void> {
         i18nExpansion: i18nExpansion,
         contractShape: contractShape,
         bounded: bounded,
+        flutterTest: flutterTest,
       );
     }
 
     // Print the structured result. Use `print` (not `stdout.writeln`) so
     // the CliRunner's runCapturing zone can capture it.
-    if (regeneratedNote) {
-      print('note: binary updated, stub regenerated');
+    if (staleness.regenerated) {
+      print(
+        staleness.contractDrift
+            ? 'note: traces cell gained a contract token since generation '
+                  '— pair regenerated (issue #1320)'
+            : 'note: binary updated, stub regenerated',
+      );
     }
     print(
       'behavior_id: ${record.behaviorId}\n'
@@ -1257,13 +1295,15 @@ class GenCommand extends Command<void> {
         ? 'adopted'
         : dryRun
         ? 'planned'
+        : staleness.regenerated && staleness.contractDrift
+        ? 'regenerated'
         : record.testOwnership == Ownership.reused
         ? 'reused'
         : 'created';
     _printVerdict(
       behaviorId: record.behaviorId,
       kind: effectiveBehavior.kind.name,
-      golden: golden,
+      golden: goldenGate,
       verdict: verdictToken,
       adopted: adoptedPaths,
       created: createdPaths,
@@ -1385,6 +1425,7 @@ class GenCommand extends Command<void> {
     String? i18nImport,
     List<String> i18nExpansion = const [],
     UnitContractShape? contractShape,
+    bool flutterTest = false,
   }) {
     if (behavior.kind == BehaviorKind.theme) {
       return (
@@ -1412,6 +1453,7 @@ class GenCommand extends Command<void> {
         i18nKeys: i18nKeys,
         i18nImport: i18nImport,
         i18nExpansion: i18nExpansion,
+        flutterTest: flutterTest,
         // Issue #1259: the contract-derived shape rides ONLY the
         // plain-function pair (unit lane); every other lane keeps its
         // own subject contract.
@@ -1419,6 +1461,18 @@ class GenCommand extends Command<void> {
       ).write,
       writeSubject: SubjectWriter(contractShape: contractShape).write,
     );
+  }
+
+  /// Whether the host project runs on the Flutter test runner (issue
+  /// #1351): mirrors `InitCommand._isFlutterProject` — a pubspec with a
+  /// flutter dependency means the plain `test` package is not
+  /// resolvable and generated tests must import flutter_test.
+  static Future<bool> _isFlutterProject(String cwd) async {
+    final pubspec = File(p.join(cwd, 'pubspec.yaml'));
+    if (!await pubspec.exists()) return false;
+    final raw = await pubspec.readAsString();
+    return raw.contains('environment:') &&
+        (raw.contains('flutter') || raw.contains('sdk: flutter'));
   }
 
   /// Resolves the widget template's app shell (issue #912 defect 2):
@@ -1588,11 +1642,19 @@ class GenCommand extends Command<void> {
   /// touching one file, both files are restored to their pre-attempt bytes
   /// so a failed
   /// regeneration never leaves less on disk than before.
-  Future<bool> _regenerateStaleStub({
+  ///
+  /// Issue #1320: the second field distinguishes the regeneration CAUSE.
+  /// `contractDrift` is true when the current render resolves a declared
+  /// signature ([contractShape] non-null) while the owned test on disk is
+  /// still the guard-only pair — the traces cell gained a contract token
+  /// since generation — so the caller reports `verdict=regenerated` and
+  /// prints the #1320 note instead of the binary-drift wording.
+  Future<({bool regenerated, bool contractDrift})> _regenerateStaleStub({
     required Behavior behavior,
     required String featureName,
     required String testPath,
     required String subjectPath,
+    required bool golden,
     required Future<T> Function<T>(Future<T> stage, String stageName) bounded,
     PlatformHarnessContext? platformContext,
     WidgetAppShell widgetShell = WidgetAppShell.zuraffaapp,
@@ -1600,6 +1662,7 @@ class GenCommand extends Command<void> {
     String? i18nImport,
     List<String> i18nExpansion = const [],
     UnitContractShape? contractShape,
+    bool flutterTest = false,
   }) async {
     // Bug #835: an ffi harness is NEVER auto-regenerated. Its contract
     // seams are the implementer's wiring point — partial wiring (the
@@ -1608,15 +1671,21 @@ class GenCommand extends Command<void> {
     // work (the same shape as the entity overwrite hazard). A stale
     // harness is self-consistent with its contract test (both generated
     // together), so the honest-red semantics survive untouched.
-    if (behavior.kind == BehaviorKind.ffi) return false;
+    if (behavior.kind == BehaviorKind.ffi) {
+      return (regenerated: false, contractDrift: false);
+    }
     final subjectFile = File(subjectPath);
-    if (!await subjectFile.exists()) return false;
+    if (!await subjectFile.exists()) {
+      return (regenerated: false, contractDrift: false);
+    }
     final onDiskSubject = await bounded(
       subjectFile.readAsString(),
       'staleness: read on-disk subject',
     );
     // A progressed artifact is never clobbered by the staleness check.
-    if (!onDiskSubject.contains('UnimplementedError')) return false;
+    if (!onDiskSubject.contains('UnimplementedError')) {
+      return (regenerated: false, contractDrift: false);
+    }
 
     // Render the expected pair into a temp mirror (no real paths touched).
     // Bug #827: the mirror must reproduce the REAL relative test→subject
@@ -1638,6 +1707,7 @@ class GenCommand extends Command<void> {
         i18nImport: i18nImport,
         i18nExpansion: i18nExpansion,
         contractShape: contractShape,
+        flutterTest: flutterTest,
       );
       final mirroredTest = p.join(
         mirror.path,
@@ -1658,6 +1728,7 @@ class GenCommand extends Command<void> {
           behavior: behavior,
           testPath: mirroredTest,
           subjectPath: mirroredSubject,
+          golden: golden,
         ),
         'staleness: render current pair (test)',
       );
@@ -1678,8 +1749,13 @@ class GenCommand extends Command<void> {
         'staleness: read on-disk test',
       );
       if (expectedSubject == onDiskSubject && expectedTest == onDiskTest) {
-        return false;
+        return (regenerated: false, contractDrift: false);
       }
+      // Issue #1320: the drift cause — the cell gained a contract token
+      // (a declared shape resolves now) while the owned test is still the
+      // guard-only pair.
+      final contractDrift =
+          contractShape != null && contentIsVacuousGreen(onDiskTest);
 
       // Rewrite the real pair; roll back if either write fails so the
       // on-disk state is exactly what it was before this attempt.
@@ -1712,7 +1788,7 @@ class GenCommand extends Command<void> {
         }
         rethrow;
       }
-      return true;
+      return (regenerated: true, contractDrift: contractDrift);
     } finally {
       if (await mirror.exists()) await mirror.delete(recursive: true);
     }
@@ -1801,6 +1877,7 @@ class GenCommand extends Command<void> {
         sourceCriterion: row.traces,
         target: row.target,
         persistence: row.persistence,
+        golden: row.golden,
         finderKinds: row.finderKinds,
       );
     }

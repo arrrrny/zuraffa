@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/version.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:zuraffa/src/core/project/receipt_store.dart';
 
@@ -43,7 +44,7 @@ void main() {
         target: 'Product',
         repro: 'zfa entity create Product',
         at: DateTime.utc(2026, 9, 3, 10),
-        generatorVersion: '6.1.0',
+        generatorVersion: version,
         input: const {},
         files: files,
       ),

@@ -1,5 +1,9 @@
 # Zuraffa Documentation
 
+## TDD Workflow
+
+- [ZFA TDD Cycle — External Agent Guideline](zfa-tdd-guide.md) - From zero to a completed engine+skin TDD cycle: setup, spec authoring, plan, run, verify, misfire protocol
+
 ## Architecture
 
 - [v4 vs v5 Comparison](v4_vs_v5_comparison.md) - Migration guide from legacy Zuraffa to v5

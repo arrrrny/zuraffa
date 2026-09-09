@@ -81,6 +81,21 @@ void main() {
     );
   }
 
+  Future<void> seedRefactorEvidence({required int exitCode}) async {
+    await CycleLog(p.join(fx.root.path, 'specs', feature)).append(
+      CycleLogEntry(
+        behaviorId: '$feature-refactor',
+        kind: CycleEntryKind.refactor,
+        runnerCommand: 'dart test',
+        exitCode: exitCode,
+        capturedOutput: 're-proof exit: $exitCode',
+        sourceCriterion: 'FR-3',
+        testPath: 'test/',
+        timestamp: '2026-09-01T00:00:01.000Z',
+      ),
+    );
+  }
+
   setUp(() async {
     fx = await TddFixture.create(featureName: feature);
     await fx.writeFakeZfa();
@@ -213,6 +228,65 @@ void main() {
       final state = await readState();
       expect(state['behavior_states']['B-001'], 'done', reason: out);
     });
+
+    test(
+      'a failed refactor diagnostic does not complete journal replay',
+      () async {
+        final dead = await Process.start('sh', ['-c', 'exit 0']);
+        final deadPid = dead.pid;
+        await dead.exitCode;
+        await fx.registerBehavior(id: 'B-001', description: 'first behavior');
+        await fx.seedRedEvidence('B-001');
+        await fx.seedGreenEvidence('B-001');
+        await fx.seedRunState(
+          states: {'B-001': 'green'},
+          inFlightBehaviorId: 'B-001',
+          inFlightStep: 'refactor',
+          inFlightOwnerPid: deadPid,
+        );
+        await seedJournal(
+          behavior: 'B-001',
+          step: 'refactor',
+          ownerPid: deadPid,
+        );
+        await seedRefactorEvidence(exitCode: 1);
+
+        final out = await drive();
+
+        expect(exitCode, 0, reason: out);
+        expect(fx.stepInvocations(), ['refactor B-001'], reason: out);
+      },
+    );
+
+    test(
+      'a successful refactor entry still completes journal replay',
+      () async {
+        final dead = await Process.start('sh', ['-c', 'exit 0']);
+        final deadPid = dead.pid;
+        await dead.exitCode;
+        await fx.registerBehavior(id: 'B-001', description: 'first behavior');
+        await fx.seedRedEvidence('B-001');
+        await fx.seedGreenEvidence('B-001');
+        await fx.seedRunState(
+          states: {'B-001': 'green'},
+          inFlightBehaviorId: 'B-001',
+          inFlightStep: 'refactor',
+          inFlightOwnerPid: deadPid,
+        );
+        await seedJournal(
+          behavior: 'B-001',
+          step: 'refactor',
+          ownerPid: deadPid,
+        );
+        await seedRefactorEvidence(exitCode: 0);
+
+        final out = await drive();
+
+        expect(exitCode, 0, reason: out);
+        expect(fx.stepInvocations(), isEmpty, reason: out);
+        expect(out, contains('refactor -> replayed'), reason: out);
+      },
+    );
 
     test('bug 828: every committed step clears the journal — a completed run '
         'leaves no pending transaction behind', () async {

@@ -24,7 +24,14 @@ extension TestBuilderCustom on TestBuilder {
       print(
         '  ⚠️  Skipping test generation for $useCaseName: UseCase file ($useCaseFileName) not found.',
       );
-      return GeneratedFile(path: filePath, type: 'test', action: 'skipped');
+      // Spec 1334: structured skip cause — missing dependency, not an
+      // overwrite conflict (see test_builder_entity.dart).
+      return GeneratedFile(
+        path: filePath,
+        type: 'test',
+        action: 'skipped',
+        skipReason: 'missing-dependency',
+      );
     }
 
     final packageName = await _resolvePackageName(projectRoot);

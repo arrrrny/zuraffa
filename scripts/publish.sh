@@ -103,6 +103,22 @@ else
     echo "ℹ️  CHANGELOG entry for $VERSION already exists, skipping auto-write."
 fi
 
+# Bump-drift guard: the publishable version lives in TWO files (pubspec.yaml
+# and lib/src/version.dart) — the 6.2.x releases shipped drift between them
+# and the CHANGELOG. Refuse to publish when the two sources disagree.
+PUBSPEC_VERSION=$(grep -E '^version: ' pubspec.yaml | head -1 | awk '{print $2}')
+CONST_VERSION=$(sed -n "s/.*version = '\([^']*\)'.*/\1/p" lib/src/version.dart | head -1)
+if [ "$PUBSPEC_VERSION" != "$CONST_VERSION" ]; then
+    echo "❌ Version drift: pubspec.yaml says $PUBSPEC_VERSION but lib/src/version.dart says $CONST_VERSION."
+    echo "   Fix one of them so both read $VERSION before publishing."
+    exit 1
+fi
+if [ "$PUBSPEC_VERSION" != "$VERSION" ]; then
+    echo "❌ Version bump incomplete: requested $VERSION but files read $PUBSPEC_VERSION."
+    exit 1
+fi
+echo "✅ Version sources agree: $VERSION (pubspec.yaml + lib/src/version.dart)"
+
 # ============================================================
 # Step 2: Update zuraffa-zed extension (standalone clone)
 # Must happen before main repo commit so we can reference the new SHA

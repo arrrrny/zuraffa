@@ -1,3 +1,79 @@
+## [next]
+
+### Changed
+- Agent runtime gated behind `package:zuraffa/agent.dart`; no longer
+  re-exported from the default barrel (#1344). Migration: swap
+  `import 'package:zuraffa/zuraffa.dart';` for
+  `import 'package:zuraffa/agent.dart';` where agent symbols are used.
+
+## [6.2.2] - 2026-09-08
+
+### Added
+- Refresh stale lane plans on re-plan; split `--force` semantics (#1317)
+- Surface vacuous-green remedy in `tdd run`/`stop` messages and gen-time warnings (#1321)
+- Write contract-row names into plan traces cell (#1316)
+- Refresh proof receipts after the refactor pass (#1315)
+
+### Fixed
+- `tdd make` preflight validates `dependency_overrides` path targets; skip cache-retry on resolution errors (#1306)
+- Slice cut — derive sandbox pubspec deps from copied closure imports (#1305)
+- Exclude event-noun subjects from the UI-intent classifier (#1328)
+- Scan the full FR block for traces in `parseFrContractTraces` (#1332)
+- Refresh cycle-log receipt at run end (#1334)
+- Relativize audited paths against `projectRoot` in receipt preflight (#1314)
+- Anchor `.pubignore` `benchmark/` to root; add publish-time export guard (#1313)
+- `zfa proof check` no longer flags the sanctioned evidence appends the run driver writes to `tdd/cycle-log.md` after the verb receipts that cover it — append-only logs verify when the receipt keeps a content snapshot and the disk bytes are an untouched extension of it (#1327, follows up #1311)
+
+### Changed
+- TDD generation receipts (`tdd make`, `tdd verify-red`, …) keep small-text content snapshots — the same contract the core receipt writer applies — so append-aware proof verification and precise drift diffs work on the TDD cycle's own artifacts (#1327)
+
+## [6.2.1] - 2026-09-07
+
+### Fixed
+- TDD generation honors the spec-declared `[golden]` row tag — no `--golden` flag needed (#1261)
+
+### Chores
+- Untrack `pubspec.lock` files (already gitignored)
+- Add `.pubignore` to exclude `lib/tdd/` from published package
+
+## [6.2.0] - 2026-09-07
+
+### Added
+- **`zfa mock verify` / `--json` verdict / `--explain`** (B+ → A+ upgrade): fleshed-out explain output for the mock plugin
+- **`zfa usecase verify` / `--certify` / `--explain`** (A+ upgrade): verify gate, entity drift detection, certification
+- **`zfa test --explain`** (A- → A+ upgrade): human-readable explain output for the test plugin
+- **`zfa state verify` / receipts / `--explain` / config schema** (C+ → A+ upgrade): full verify gate for the state plugin
+- **`zfa provider --explain`** (B+ → A+ upgrade): comprehensive error handling and explain output
+- **`zfa setup` / `zfa scaffold` integrate `zuraffa_ui`** by default (replaces ShadApp)
+- **Skin contract system** (stages 1-4): typed model, strict parser, runtime binding, receipt enforcement
+- **`zfa make --skin`**: wire the auditor-wrap flag through make
+- **Contract tests** as a first-class `zfa tdd` kind
+- **`zfa tdd plan --migrate-spec`**: injects missing template version marker
+- **UI coverage ledger**: surface derivation, coverage gate, xray binding (22 subjects)
+- **Plugin merge contract**: route barrel, DI graph, conformance gate (21 subjects)
+- **Slice isolation**: sandbox scaffold, sync verifiers, merge gate (22 subjects)
+- **Dependency-table mocks**: certified mocks from declared rows
+- **`zuraffa_flutter` re-exports `go_router`**: generators never emit `package:go_router`
+- **Differential corpus gate**: directional — regressions fail, improvements pass
+
+### Fixed
+- Pre-seed corpus entries with non-vacuous tests
+- Strip `::behaviorId` suffix in orphanedGreenEvidence file check
+- Drop unused local variable in dry-run test
+- `zfa entity create` — reject primitive types as entity names
+- TDD engine — fix vacuous green detection
+- TDD reset done state phantom
+- Verdict envelope docstring literal references
+- Verdict envelope exclusion list
+- `zfa usecase verify` — register `--name` flag
+- `zfa slice` — usage-error exit 2 instead of lying zero
+- Orphaned green evidence file check
+
+### Changed
+- Hard cut to `zuraffa_ui` vocabulary (replaces `shadcn`)
+- `zfa tdd verify` — mutation testing audit + MutationVerifier service
+- Differential vector and corpus loader with ref runner
+
 ## [Unreleased]
 
 ### Added

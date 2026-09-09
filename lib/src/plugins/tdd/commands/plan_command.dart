@@ -15,6 +15,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/lane.dart';
@@ -437,23 +438,37 @@ class PlanCommand extends Command<void> {
         raw = combined.toString();
       }
       for (final line in raw.split('\n')) {
-        final m = RegExp(
-          r'^\|\s*([A|U]\d+)\s*\|.*?\|\s*([A-Z0-9\-, ]+)\s*\|',
-        ).firstMatch(line);
-        if (m != null) {
-          final id = m.group(1)!;
-          final traces = m.group(2)!.trim();
-          existing[traces] = Behavior(
-            id: id,
-            feature: feature,
-            kind: id.startsWith('A')
-                ? BehaviorKind.acceptance
-                : BehaviorKind.unit,
-            description: '',
-            sourceCriterion: traces,
-            target: '',
-          );
-        }
+        // Issue #1310: positional cell parse — the traces cell is the
+        // second-to-last cell (the state cell is last) in both row
+        // dialects this read serves: the 4-column
+        // `| id | behavior | traces | state |` and the 5-column widget
+        // dialect `| id | behavior | kind | traces | state |`. The key
+        // is the cell's LEADING criterion token: the #1310 cell carries
+        // the full trace set (`FR-001, TodoRepository.create`) while
+        // the lookup below is by the behavior's sourceCriterion
+        // (`FR-001`). A criterion-only cell (every pre-#1310 list)
+        // keys identically, so old lists reconcile unchanged.
+        final m = RegExp(r'^\|\s*([AU]\d+)\s*\|(.+)\|\s*$').firstMatch(line);
+        if (m == null) continue;
+        // Issue #1401: escaped-pipe-aware split — the reconcile reader
+        // must parse the SAME dialect the writer emits (and run reads).
+        final cells = _splitRowUnescapingPipes(
+          m.group(2)!,
+        ).map((c) => c.trim()).toList();
+        if (cells.length < 3) continue; // id + traces + state minimum
+        final id = m.group(1)!;
+        final criterion = cells[cells.length - 2].split(',').first.trim();
+        if (criterion.isEmpty) continue;
+        existing[criterion] = Behavior(
+          id: id,
+          feature: feature,
+          kind: id.startsWith('A')
+              ? BehaviorKind.acceptance
+              : BehaviorKind.unit,
+          description: '',
+          sourceCriterion: criterion,
+          target: '',
+        );
       }
     }
 
@@ -537,6 +552,7 @@ class PlanCommand extends Command<void> {
     final Map<String, ScenarioDeclaration> scenarioMarkers;
     final SpecDeclarations declarations;
     final Map<String, List<String>> frTraces;
+    final Set<String> unboundTraces;
     try {
       scenarioMarkers = SpecParser.parseScenarioTypeMarkers(specMd);
       declarations = SpecDeclarations(
@@ -548,6 +564,17 @@ class PlanCommand extends Command<void> {
         persistence: SpecParser.parsePersistenceDeclarations(specMd),
       );
       frTraces = SpecParser.parseFrContractTraces(specMd);
+      // Issue #1319: a `traces:` line inside an FR block that bound no
+      // contract row is the #1308 vacuous-green dead-end in the making
+      // — warn loudly instead of silently falling back to the legacy
+      // classifier.
+      unboundTraces = SpecParser.findUnboundFrTraces(specMd, frTraces);
+      for (final frId in unboundTraces) {
+        print(
+          'zfa tdd plan: WARNING: traces: line found in $frId but was not '
+          'bound to a contract row — check indentation',
+        );
+      }
     } on StateError catch (e) {
       print('zfa tdd plan: declaration refused — ${e.message}');
       print('  no artifacts were written.');
@@ -567,8 +594,58 @@ class PlanCommand extends Command<void> {
       declarations,
       frTraces,
       scenarioMarkers,
+      unboundTraces: unboundTraces,
       strict: strict,
     );
+    // Issue #1310: the behavior's resolved contract-row names, keyed by
+    // the emitted row id. frTraces is keyed by the parser's current
+    // unit id; id reconciliation may have kept a historical row id, so
+    // the pairing rides expressibleEntries (behavior <-> currentId).
+    // The writers emit these names after the criterion id so the cell
+    // carries the full trace set the declared-signature resolution
+    // (DeclaredRouting.declaredSignatureFor, issue #1259) reads back.
+    //
+    // Issue #1320: the row names are METHOD-QUALIFIED before they reach
+    // either writer. A row-only trace token (`traces: RouteContentType`)
+    // resolves its method at plan time — a single-method row resolves
+    // directly, a multi-method row resolves by FR-prose verb match — so
+    // the cell carries `FR-001, RouteContentType.contentType` and the
+    // declared-signature path is reachable WITHOUT the undocumented
+    // hand-edit. A multi-method row whose prose matches nothing REFUSES
+    // (errors-are-an-API): the old shape silently let gen fall back to
+    // the row's first signature — the #920 wrong-signature class.
+    final contractTraces = <String, List<String>>{};
+    final ambiguousTraces = <String>[];
+    for (final entry in expressibleEntries) {
+      final tokens = frTraces[entry.currentId];
+      if (tokens == null || tokens.isEmpty) continue;
+      try {
+        contractTraces[entry.behavior.id] = _qualifiedTraces(
+          tokens: tokens,
+          description: entry.behavior.description,
+          criterion: entry.behavior.sourceCriterion,
+          behaviorId: entry.behavior.id,
+          contractRows: declarations.contractRows,
+        );
+      } on StateError catch (e) {
+        ambiguousTraces.add(e.message);
+      }
+    }
+    if (ambiguousTraces.isNotEmpty) {
+      for (final message in ambiguousTraces) {
+        print('zfa tdd plan: ambiguous declared trace — $message');
+      }
+      print('  no artifacts were written.');
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'ambiguous-declared-trace'
+        ..fix =
+            'qualify the trace token(s) with the method named above, then '
+            're-run zfa tdd plan'
+        ..details['reason'] = ambiguousTraces.join('\n');
+      exitCode = 2;
+      return;
+    }
     final provenanceLines = provenance.lines;
     // Strict gate (feature 071): a refusal writes no artifact.
     if (strict && provenanceLines.containsKey('__refused__')) {
@@ -598,9 +675,53 @@ class PlanCommand extends Command<void> {
       for (final lane in lanes)
         if (Lane.parse(lane.lane) == Lane.skin) ...lane.goldenIds,
     };
+    // Issue #1309: stale-split detection. A feature migrated by `zfa
+    // tdd split` carries `tdd/split-receipt.json`; when its spec
+    // declares NO `## Lanes`, the legacy single-file path below would
+    // rewrite only test-list.md (demoting the meta-index) and leave
+    // the lane plans stale — ghost behaviors (deleted FRs) run, new
+    // FRs are missed — while `zfa tdd split` refuses with "already
+    // split". The two commands' guidance deadlocked. When a receipt
+    // exists, plan keeps the split shape: the lane plans are
+    // REGENERATED from the current behavior set through the same kind
+    // heuristic the split applies, and a spec changed since the receipt
+    // was written (digest, or mtime for legacy receipts) is reported
+    // as a stale split before the regenerated files are written.
+    final receiptFile = File(p.join(outDir.path, LaneSplitFiles.receipt));
+    final splitReceiptExists = await receiptFile.exists();
+    final splitReceipt = splitReceiptExists
+        ? await _readSplitReceipt(receiptFile)
+        : null;
+    final splitStale =
+        splitReceiptExists &&
+        lanes.isEmpty &&
+        await _splitReceiptIsStale(
+          receipt: splitReceipt,
+          receiptFile: receiptFile,
+          specFile: specFile,
+          specMd: specMd,
+        );
+    final declaredBehaviorIds = <String>{
+      for (final entry in expressibleEntries)
+        if (scenarioMarkers.containsKey(entry.currentId)) entry.behavior.id,
+    };
     final laneResult = lanes.isEmpty
-        ? null
-        : _resolveLanes(lanes, expressible, preservedFfi, goldenIds);
+        ? (splitReceiptExists
+              ? _heuristicLaneResolution(expressible, preservedFfi)
+              : null)
+        : _resolveLanes(
+            lanes,
+            expressible,
+            preservedFfi,
+            goldenIds,
+            // Issue #1318: the guard's fix message distinguishes a
+            // CLASSIFIER-routed kind (a prose guess — the marker remedy
+            // leads) from a DECLARED kind (the author's word — the
+            // lane-move remedy stands). Match declarations by the parser's
+            // current ids, then pass the reconciled behavior ids consumed by
+            // the lane resolver.
+            declaredBehaviorIds: declaredBehaviorIds,
+          );
     if (laneResult != null && laneResult.refusals.isNotEmpty) {
       print(
         'zfa tdd plan: lane contract FAILED — ${laneResult.refusals.length} '
@@ -645,13 +766,15 @@ class PlanCommand extends Command<void> {
     // Issue #1007: contract rows carry their own declared lane in the
     // provenance artifact (they are spec-DECLARED through the Layer
     // Contracts section, like the ffi lane's native-loop declaration).
+    // Issue #1319: the provenance NAMES the declared contract row —
+    // the synthesized `contract:A<n>` id is untraceable on its own, the
+    // declared interface name (the row the behavior was derived from)
+    // is what the author wrote and what they can find in the spec.
     for (final b in contractBehaviors) {
+      final declaredRow = b.sourceCriterion.split('.').first;
       provenanceLines.putIfAbsent(
         b.id,
-        () => [
-          'route: ${b.id} -> contract lane '
-              '[declared: layer contracts section]',
-        ],
+        () => ['route: ${b.id} -> contract lane [declared: $declaredRow]'],
       );
     }
 
@@ -711,6 +834,18 @@ class PlanCommand extends Command<void> {
     await File(p.join(outDir.path, 'traceability.md')).writeAsString(matrix);
 
     if (laneResult != null) {
+      // Issue #1309: the stale-split report. Printed only when the plan
+      // actually proceeds to write artifacts (every gate has passed),
+      // so a refused plan never claims it refreshed anything.
+      if (splitStale) {
+        print(
+          'zfa tdd plan: stale lane split detected — spec.md changed '
+          'since ${p.relative(receiptFile.path, from: repoRoot)} was '
+          'written; regenerating the lane plans from the current '
+          'behavior set (issue #1309).',
+        );
+        _verdict.details['stale_split'] = true;
+      }
       // Issue #1000: the lane split — engine plan + skin plan + the
       // engine/skin contract, with the legacy filename demoted to the
       // meta-index. TestListReader resolves the rows from the split
@@ -722,6 +857,7 @@ class PlanCommand extends Command<void> {
             laneResult,
             declarations.persistence,
             goldenIds,
+            contractTraces,
           ),
         ..._ffiLaneRows(preservedFfi, laneResult),
         ...laneResult.handRows,
@@ -733,6 +869,7 @@ class PlanCommand extends Command<void> {
             laneResult,
             declarations.persistence,
             goldenIds,
+            contractTraces,
           ),
         ..._ffiLaneRows(preservedFfi, laneResult),
         ...laneResult.handRows,
@@ -772,9 +909,35 @@ class PlanCommand extends Command<void> {
         adaptiveSlots: adaptiveSlots,
         bothRows: engineRows.where((r) => r.lane == Lane.both).toList(),
       );
+      final metaLanes = lanes.isNotEmpty
+          ? lanes
+          : [
+              // Issue #1309: a no-Lanes regeneration synthesizes the
+              // meta-index declarations from the derived rows — the
+              // same shape `zfa tdd split` writes when the spec
+              // declares no lanes (the heuristic split is CORE for the
+              // engine rows, SKIN for the skin rows, and the heuristic
+              // never yields BOTH).
+              LaneDeclaration(
+                lane: Lane.core.label,
+                behaviorIds: engineRows
+                    .where((r) => r.lane == Lane.core)
+                    .map((r) => r.id)
+                    .toList(),
+                flutterAllowed: 'false',
+              ),
+              LaneDeclaration(
+                lane: Lane.skin.label,
+                behaviorIds: skinRows
+                    .where((r) => r.lane == Lane.skin)
+                    .map((r) => r.id)
+                    .toList(),
+                flutterAllowed: 'true',
+              ),
+            ];
       final metaMd = renderMetaIndex(
         feature: feature,
-        lanes: lanes,
+        lanes: metaLanes,
         classification: laneResult.classification,
       );
       await File(
@@ -820,6 +983,37 @@ class PlanCommand extends Command<void> {
         layoutSlots: layoutSlots,
       );
       await persistMarkerEmission();
+      if (splitReceiptExists) {
+        // Issue #1309: refresh only after every generated artifact and
+        // marker emission succeeded. Hash and mtime come from the final
+        // on-disk spec, so marker migration cannot make the repaired
+        // receipt immediately stale. A malformed existing receipt is
+        // rebuilt with the current heuristic classification instead of
+        // demoting this run to the legacy single-file plan.
+        final finalSpecMd = await specFile.readAsString();
+        final refreshed = splitReceipt == null
+            ? <String, dynamic>{
+                'feature': feature,
+                'source': 'tdd/test-list.md',
+                'rows': laneResult.classification.length,
+                'classification': {
+                  for (final entry in laneResult.classification.entries)
+                    entry.key: entry.value.label,
+                },
+              }
+            : <String, dynamic>{...splitReceipt};
+        refreshed
+          ..['spec_hash'] = sha256.convert(utf8.encode(finalSpecMd)).toString()
+          ..['spec_mtime'] = (await specFile.lastModified())
+              .toUtc()
+              .toIso8601String()
+          ..['refreshed_at'] = DateTime.now().toUtc().toIso8601String()
+          ..['refreshed_by'] = 'zfa tdd plan'
+          ..['refreshed_rows'] = laneResult.classification.length;
+        await receiptFile.writeAsString(
+          const JsonEncoder.withIndent('  ').convert(refreshed),
+        );
+      }
       // Issue #1125: the laned plan's explain block — the lane split is
       // the artifact set here, the summary names exactly what was written.
       _verdict.explain = TddExplain(
@@ -856,6 +1050,7 @@ class PlanCommand extends Command<void> {
         preservedFfi,
         declarations.persistence,
         provenanceLines,
+        contractTraces,
       ),
     );
     // Issue #1141: the UI surface ledger artifact (the legacy single-file
@@ -952,6 +1147,7 @@ class PlanCommand extends Command<void> {
     List<BehaviorRow> preservedFfi,
     Map<String, PersistenceDeclaration> persistenceDeclarations,
     Map<String, List<String>> provenanceLines,
+    Map<String, List<String>> contractTraces,
   ) {
     final acceptance = behaviors
         .where((b) => b.kind == BehaviorKind.acceptance)
@@ -975,7 +1171,8 @@ class PlanCommand extends Command<void> {
       ..writeln('| -- | -------- | ------ | ----- |');
     for (final b in acceptance) {
       buf.writeln(
-        '| ${b.id} | ${_marked(b, persistenceDeclarations)} | ${b.sourceCriterion} | PENDING |',
+        '| ${b.id} | ${_escapeCell(_marked(b, persistenceDeclarations))} | '
+        '${_escapeCell(_tracesCell(b, contractTraces))} | PENDING |',
       );
     }
     buf
@@ -1006,7 +1203,8 @@ class PlanCommand extends Command<void> {
       // taxonomy the writer and the verify-red gate speak.
       final kindCell = FinderTaxonomy.kindCellFor(b.description);
       buf.writeln(
-        '| ${b.id} | ${b.description} | $kindCell | ${b.sourceCriterion} | PENDING |',
+        '| ${b.id} | ${_escapeCell(b.description)} | $kindCell | '
+        '${_escapeCell(_tracesCell(b, contractTraces))} | PENDING |',
       );
     }
     buf
@@ -1019,7 +1217,8 @@ class PlanCommand extends Command<void> {
       ..writeln('| -- | -------- | ------ | ----- |');
     for (final b in unit) {
       buf.writeln(
-        '| ${b.id} | ${_marked(b, persistenceDeclarations)} | ${b.sourceCriterion} | PENDING |',
+        '| ${b.id} | ${_escapeCell(_marked(b, persistenceDeclarations))} | '
+        '${_escapeCell(_tracesCell(b, contractTraces))} | PENDING |',
       );
     }
     // Issue #1007: the CONTRACT lane — one row per declared entity
@@ -1046,7 +1245,7 @@ class PlanCommand extends Command<void> {
         ..writeln('| -- | -------- | ------ | ----- |');
       for (final b in contractBehaviors) {
         buf.writeln(
-          '| ${b.id} | ${b.description} | ${b.sourceCriterion} | '
+          '| ${b.id} | ${_escapeCell(b.description)} | ${b.sourceCriterion} | '
           '${b.state.name.toUpperCase()} |',
         );
       }
@@ -1068,10 +1267,14 @@ class PlanCommand extends Command<void> {
           ..writeln('| entity | fields | purpose |')
           ..writeln('| ------ | ------ | ------- |');
         for (final e in entities) {
+          // e.name is grammar-safe (_dartIdentifier) and field types are
+          // prose-join — both assumed pipe-free (the spec-side _fieldPair
+          // grammar does not capture pipes). If that assumption changes,
+          // wrap in _escapeCell like purpose above.
           buf.writeln(
             '| ${e.name} | '
             '${e.fields.map((f) => '${f.name}: ${f.type}').join(', ')}'
-            ' | ${e.purpose} |',
+            ' | ${_escapeCell(e.purpose)} |',
           );
         }
       } else {
@@ -1095,7 +1298,7 @@ class PlanCommand extends Command<void> {
         ..writeln('| ---------- | ---- | -------- | ------------- |');
       for (final d in dependencies) {
         buf.writeln(
-          '| ${d.dependency} | ${d.type} | ${d.contract} '
+          '| ${d.dependency} | ${d.type} | ${_escapeCell(d.contract)} '
           '| ${d.mockPriority} |',
         );
       }
@@ -1143,8 +1346,8 @@ class PlanCommand extends Command<void> {
         ..writeln('| -- | -------- | ------ | ----- |');
       for (final row in preservedFfi) {
         buf.writeln(
-          '| ${row.id} | ${row.description} | ${row.traces} | '
-          '${row.state.name.toUpperCase()} |',
+          '| ${row.id} | ${_escapeCell(row.description)} | '
+          '${_escapeCell(row.traces)} | ${row.state.name.toUpperCase()} |',
         );
       }
     }
@@ -1398,6 +1601,7 @@ class PlanCommand extends Command<void> {
     SpecDeclarations declarations,
     Map<String, List<String>> frTraces,
     Map<String, ScenarioDeclaration> scenarioMarkers, {
+    Set<String> unboundTraces = const {},
     bool strict = false,
   }) {
     const resolver = RoutingResolver();
@@ -1475,9 +1679,19 @@ class PlanCommand extends Command<void> {
           ? 'add `**Type**: acceptance` to the scenario'
           : 'trace FR to a declared contract row';
       fallbackKinds[currentId] = decision;
+      // Issue #1319: when the FR the behavior derives from carries a
+      // `traces:` line that bound nothing, the fallback is NOT silent —
+      // the author-facing warning rides the provenance record (stdout +
+      // the durable artifact) so the #1308 vacuous-green dead-end
+      // announces itself instead of hiding behind the legacy classifier.
+      final unboundTraceWarning = unboundTraces.contains(b.sourceCriterion)
+          ? 'WARNING: traces: line found in ${b.sourceCriterion} but was '
+                'not bound to a contract row — check indentation'
+          : null;
       record(b.id, [
         'route: ${b.id} -> ${lane(decision)} '
             '[fallback: legacy description classifier matched — $hint]',
+        ?unboundTraceWarning,
       ]);
     }
     for (final row in preservedFfi) {
@@ -1631,8 +1845,9 @@ class PlanCommand extends Command<void> {
     List<LaneDeclaration> lanes,
     List<Behavior> expressible,
     List<BehaviorRow> preservedFfi,
-    Set<String> goldenIds,
-  ) {
+    Set<String> goldenIds, {
+    Set<String> declaredBehaviorIds = const {},
+  }) {
     final classification = <String, Lane>{};
     final annotations = <String, String>{};
     final refusals = <String>[];
@@ -1731,11 +1946,26 @@ class PlanCommand extends Command<void> {
       // (testWidgets + view builder) imports Flutter.
       if (lane == Lane.core &&
           (b.kind == BehaviorKind.widget || b.kind == BehaviorKind.theme)) {
+        // Issue #1318: a CLASSIFIER-routed kind is a prose guess, so the
+        // remedy LEADS with the marker (pre-#1318 it was buried as the
+        // third option). A DECLARED kind is the author's word — the
+        // marker remedy would second-guess an explicit declaration, so
+        // the lane-move remedy stands byte-for-byte.
+        final classifierRouted = !declaredBehaviorIds.contains(b.id);
         refusals.add(
-          'noFlutter guard: behavior "${b.id}" (${b.sourceCriterion}) is '
-          'routed ${b.kind.name}-kind (a Flutter-only subject whose gen '
-          'pair imports Flutter) but declared CORE. --> fix: declare it '
-          'SKIN (or BOTH), or add `**Type**: acceptance` to the scenario.',
+          classifierRouted
+              ? 'noFlutter guard: behavior "${b.id}" '
+                    '(${b.sourceCriterion}) is routed ${b.kind.name}-kind '
+                    '(a Flutter-only subject whose gen pair imports '
+                    'Flutter) but declared CORE. --> fix: add **Type**: '
+                    'acceptance to the scenario (classifier guess, not a '
+                    'declaration).'
+              : 'noFlutter guard: behavior "${b.id}" '
+                    '(${b.sourceCriterion}) is routed ${b.kind.name}-kind '
+                    '(a Flutter-only subject whose gen pair imports '
+                    'Flutter) but declared CORE. --> fix: declare it SKIN '
+                    '(or BOTH), or add `**Type**: acceptance` to the '
+                    'scenario.',
         );
       }
     }
@@ -1788,6 +2018,214 @@ class PlanCommand extends Command<void> {
     );
   }
 
+  /// Issue #1309: the split receipt JSON at [receiptFile], or null when
+  /// the file carries no parseable JSON object. Callers track existence
+  /// independently so a corrupt receipt still selects split recovery.
+  static Future<Map<String, dynamic>?> _readSplitReceipt(
+    File receiptFile,
+  ) async {
+    try {
+      final decoded = jsonDecode(await receiptFile.readAsString());
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } on FormatException catch (_) {
+      return null;
+    } on FileSystemException catch (_) {
+      return null;
+    }
+  }
+
+  /// Issue #1309: whether the spec changed since the split receipt was
+  /// written. The recorded `spec_hash` is authoritative (content, not
+  /// timestamps); a legacy receipt — written before #1309 added the
+  /// hash fields — falls back to the spec mtime vs the receipt's
+  /// `split_at` timestamp, then to the receipt file's own mtime. When
+  /// no signal is available the receipt is treated as fresh (fail
+  /// closed: the legacy path's meta-index demotion is exactly the
+  /// behavior this detection exists to prevent).
+  static Future<bool> _splitReceiptIsStale({
+    required Map<String, dynamic>? receipt,
+    required File receiptFile,
+    required File specFile,
+    required String specMd,
+  }) async {
+    final currentHash = sha256.convert(utf8.encode(specMd)).toString();
+    final receiptHash = receipt?['spec_hash'];
+    if (receiptHash is String && receiptHash.isNotEmpty) {
+      return receiptHash != currentHash;
+    }
+    final specModified = await specFile.exists()
+        ? await specFile.lastModified()
+        : null;
+    if (specModified == null) return false;
+    final splitAt = DateTime.tryParse('${receipt?['split_at'] ?? ''}');
+    if (splitAt != null) {
+      return specModified.isAfter(splitAt.toUtc());
+    }
+    try {
+      return specModified.isAfter((await receiptFile.lastModified()).toUtc());
+    } on FileSystemException {
+      return false;
+    }
+  }
+
+  /// Issue #1309: the split kind heuristic — the SAME rule
+  /// `SplitCommand._heuristic` applies — over the CURRENT spec
+  /// derivation: widget/theme rows are SKIN (their gen pair imports
+  /// Flutter), everything else CORE; the preserved ffi rows are
+  /// engine-side (the native boundary is engine territory). No hand
+  /// rows and no refusals: with no `## Lanes` declarations there is
+  /// nothing hand-reserved and nothing to refuse.
+  _LaneResult _heuristicLaneResolution(
+    List<Behavior> expressible,
+    List<BehaviorRow> preservedFfi,
+  ) {
+    final classification = <String, Lane>{
+      for (final b in expressible)
+        b.id: b.kind == BehaviorKind.widget || b.kind == BehaviorKind.theme
+            ? Lane.skin
+            : Lane.core,
+      for (final row in preservedFfi) row.id: Lane.core,
+    };
+    return _LaneResult(
+      classification: classification,
+      handRows: const [],
+      refusals: const [],
+    );
+  }
+
+  /// Issue #1320: resolve each trace token to its method-qualified form
+  /// (`Row.method`) before the writers render the traces cell.
+  ///
+  /// - A token that already carries a method (`Row.method`) or names no
+  ///   declared row passes through verbatim — the gen-time resolver
+  ///   validates dangling method names with its own refusal.
+  /// - A row with exactly ONE declared signature resolves directly.
+  /// - A row with several signatures resolves by FR-prose verb match
+  ///   (the method name appears as a word in the behavior description —
+  ///   the same word-match the legacy classifier uses); several or zero
+  ///   prose matches throw [StateError] — the caller refuses the plan
+  ///   (errors-are-an-API, the #920 wrong-signature class).
+  /// - A row with no declared signatures (entity/field rows) passes
+  ///   through row-only: there is nothing to qualify and the declared
+  ///   surface rides the entity pipeline, not the signature path.
+  List<String> _qualifiedTraces({
+    required List<String> tokens,
+    required String description,
+    required String criterion,
+    required String behaviorId,
+    required Map<String, ContractRowDecl> contractRows,
+  }) {
+    final qualified = <String>[];
+    for (final token in tokens) {
+      if (token.contains('.') || !contractRows.containsKey(token)) {
+        qualified.add(token);
+        continue;
+      }
+      final row = contractRows[token]!;
+      final names = <String>[];
+      void addName(String name) {
+        if (!names.contains(name)) names.add(name);
+      }
+
+      for (final s in row.signatures) {
+        addName(s.name);
+      }
+      for (final raw in row.rawSignatures) {
+        try {
+          addName(Signature.parse(raw).name);
+        } on FormatException {
+          // A malformed signature refuses at gen (the resolver names the
+          // row and the offending text); plan keeps the raw token so the
+          // refusal lands where the signature is consumed.
+        }
+      }
+      if (names.length == 1) {
+        qualified.add('$token.${names.first}');
+        continue;
+      }
+      if (names.isEmpty) {
+        qualified.add(token);
+        continue;
+      }
+      final matches = [
+        for (final n in names)
+          if (RegExp('\\b${RegExp.escape(n)}\\b').hasMatch(description)) n,
+      ];
+      if (matches.length == 1) {
+        qualified.add('$token.${matches.first}');
+        continue;
+      }
+      final proseState = matches.isEmpty
+          ? 'the FR prose matches none of them'
+          : 'the FR prose matches several of them';
+      final suggested = matches.isEmpty ? '<method>' : matches.first;
+      throw StateError(
+        'behavior "$behaviorId" ($criterion) traces contract row '
+        '"$token" which declares ${names.length} methods '
+        '(${names.join(', ')}) — $proseState, so the declared signature '
+        'is ambiguous.\n'
+        '   --> fix: qualify the trace — traces: $token.$suggested — or '
+        'hand-edit the lane plan traces cell to "$criterion, '
+        '$token.$suggested", then re-run zfa tdd plan.',
+      );
+    }
+    return qualified;
+  }
+
+  /// Issue #1310: the full trace set for a behavior row's traces cell
+  /// — the criterion id first, then the behavior's resolved
+  /// contract-row names (`frTraces[currentId]`), comma-separated. A
+  /// token equal to the criterion id is dropped (no self-duplicates),
+  /// and a behavior with no resolved names keeps the criterion-only
+  /// cell — the pre-#1310 shape, the fallback path acceptance
+  /// criterion 4 pins. The shape is exactly what TestListReader reads
+  /// positionally and what RoutingResolver / make tokenize via
+  /// SpecParser.traceTokens (`FR-001, Formatter.format`).
+  String _tracesCell(Behavior b, Map<String, List<String>> contractTraces) {
+    final names = contractTraces[b.id] ?? const <String>[];
+    final extra = names.where((t) => t.trim() != b.sourceCriterion).toList();
+    if (extra.isEmpty) return b.sourceCriterion;
+    return '${b.sourceCriterion}, ${extra.join(', ')}';
+  }
+
+  /// Issue #1401: escape pipe characters so free-text FR/AC prose can
+  /// never change a table row's column count. GFM treats `\|` inside a
+  /// cell as a literal pipe, and the run-side row reader
+  /// (TestListReader) already splits on UNESCAPED pipes and unescapes —
+  /// so the escaped form round-trips and plan/run agree on the table
+  /// format for ALL spec prose. Backslashes are deliberately NOT
+  /// re-escaped: the readers' contract treats `\|` as the only
+  /// cell-level escape, and a lone `\` followed by any non-pipe
+  /// character survives both directions unchanged.
+  static String _escapeCell(String text) => text.replaceAll('|', r'\|');
+
+  /// Issue #1401: split a table row's cells on UNESCAPED pipes and
+  /// unescape `\|` back to a literal pipe — the exact contract the
+  /// run-side reader (TestListReader) applies. Plan's meta-index
+  /// reconcile used a naive `split('|')`, so a list plan wrote
+  /// containing escaped piped prose mis-split here even though run
+  /// parsed it fine: writer and this reader disagreed on the file plan
+  /// itself had produced (the worst of both — plan emitting a file its
+  /// own re-plan leg refuses).
+  static List<String> _splitRowUnescapingPipes(String line) {
+    final cells = <String>[];
+    final buf = StringBuffer();
+    for (var i = 0; i < line.length; i++) {
+      final ch = line[i];
+      if (ch == r'\' && i + 1 < line.length && line[i + 1] == '|') {
+        buf.write('|');
+        i++;
+      } else if (ch == '|') {
+        cells.add(buf.toString());
+        buf.clear();
+      } else {
+        buf.write(ch);
+      }
+    }
+    cells.add(buf.toString());
+    return cells;
+  }
+
   /// The engine/skin plan row pair for a spec-derived behavior (issue
   /// #1000): CORE rows carry the persistence mark exactly like the
   /// legacy single-file plan; BOTH rows appear in both files (the
@@ -1797,6 +2235,7 @@ class PlanCommand extends Command<void> {
     _LaneResult laneResult,
     Map<String, PersistenceDeclaration> persistenceDeclarations,
     Set<String> goldenIds,
+    Map<String, List<String>> contractTraces,
   ) {
     final lane = laneResult.classification[b.id];
     if (lane == null) return const [];
@@ -1804,7 +2243,11 @@ class PlanCommand extends Command<void> {
       LaneRow(
         id: b.id,
         description: _marked(b, persistenceDeclarations),
-        traces: b.sourceCriterion,
+        // Issue #1310: the full trace set — criterion id + the resolved
+        // contract-row names — so the lane plan carries the same shape
+        // the test list does and the declared-signature path is
+        // reachable from the split files too.
+        traces: _tracesCell(b, contractTraces),
         state: 'PENDING',
         kind: b.kind,
         lane: lane,

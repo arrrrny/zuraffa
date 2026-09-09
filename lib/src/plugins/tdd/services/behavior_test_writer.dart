@@ -49,6 +49,7 @@ class BehaviorTestWriter {
     this.i18nImport,
     this.i18nExpansion = const [],
     this.contractShape,
+    this.flutterTest = false,
   });
 
   final WidgetAppShell widgetShell;
@@ -72,6 +73,20 @@ class BehaviorTestWriter {
   /// guard carrying the vacuous-guard marker so `make` refuses green
   /// until a real outcome assertion lands.
   final UnitContractShape? contractShape;
+
+  /// Whether the host project runs on the Flutter test runner
+  /// (`flutter_test`) instead of plain `dart test` (issue #1349/#1351
+  /// family): on Flutter projects the plain `test` package is not
+  /// resolvable, so the unit/acceptance/ffi/persistence templates import
+  /// `package:flutter_test/flutter_test.dart` (which re-exports the same
+  /// group/test/expect API). Defaults to `false` — pure-Dart output is
+  /// byte-stable.
+  final bool flutterTest;
+
+  /// The test-framework import the non-widget templates emit.
+  String get _testImport => flutterTest
+      ? "package:flutter_test/flutter_test.dart"
+      : "package:test/test.dart";
 
   /// Escapes [raw] for safe interpolation into a single-quoted Dart
   /// string literal (issue #912 defect 1): backslash, the single quote
@@ -153,6 +168,35 @@ class BehaviorTestWriter {
         ? _renderWidgetTest(behavior, relativeSubjectPath, golden)
         : _renderTest(behavior, relativeSubjectPath);
     await testFile.writeAsString(content);
+    // Issue #1308: the gen-time guard-only warning. When THIS writer emits
+    // a guard-only UNIT test for a FALLBACK-ROUTED behavior (no traced
+    // contract row — `contractShape == null` — and the prose heuristics
+    // did not match), the paired test's only assertion is the bare
+    // UnimplementedError guard and `make`'s issue #1259 vacuous-green
+    // guard will refuse it: the two-cycle driver dead-ends one step later
+    // with no actionable guidance unless gen names the gap NOW. The
+    // warning is loud (machine-greppable [vacuousGuardWarningToken] + the
+    // shared [vacuousGuardFallbackRemedy]), names the behavior and the
+    // gap, and does NOT fail the step: the test is still emitted, exactly
+    // as before (the generated shape is unchanged — FR-002/#1308). The
+    // traced entity/void path (marker present) stays silent here — its
+    // warning is the marker itself, surfaced by the run driver as the
+    // designed hand-delta seam.
+    if (behavior.kind == BehaviorKind.unit &&
+        contractShape == null &&
+        contentIsVacuousGreen(content) &&
+        !contentCarriesVacuousGuardMarker(content)) {
+      print(
+        'zfa tdd gen: WARNING [$vacuousGuardWarningToken] behavior '
+        '"${behavior.id}" — the generated unit test\'s only assertion is '
+        'the bare UnimplementedError guard: no `traces:` line to a '
+        'declared contract row derives a real outcome assertion, and the '
+        'prose heuristics did not match. `make` will refuse this test '
+        'vacuous-green (issue #1259) and the run will stop here '
+        '(issue #1308).',
+      );
+      print('   --> fix: $vacuousGuardFallbackRemedy');
+    }
   }
 
   String _renderTest(Behavior b, String relativeSubjectPath) {
@@ -178,7 +222,7 @@ class BehaviorTestWriter {
 // stub body with real implementation to make this test pass.
 library;
 
-import 'package:test/test.dart';
+import '$_testImport';
 import '$relativeSubjectPath' as subject;
 
 void main() {
@@ -282,6 +326,14 @@ void main() {
   /// (entity types that may not exist yet) gets an `_argN()` placeholder
   /// helper whose throw is CAUGHT by the capture (the red stays at the
   /// assertion level) and whose message names the exact remedy.
+  ///
+  /// Issue #1323 (spec 991 FR-004): `Object` is covered — the
+  /// representative expression `Object()` — so the common Object-typed
+  /// declared param (e.g. `StreamErrorHandler: reason(Object error) ->
+  /// String`) generates a real argument at the capture site and never
+  /// dead-ends into the `_argN()` hand-delta seam. Entity-typed and
+  /// other non-scalar params keep the seam (FR-003: the escape hatch
+  /// stands for truly un-schematicable types).
   static String? _scalarLiteral(String type) {
     switch (type) {
       case 'String':
@@ -293,6 +345,8 @@ void main() {
         return 'false';
       case 'double':
         return '0.0';
+      case 'Object':
+        return 'Object()';
     }
     return null;
   }
@@ -511,6 +565,12 @@ void main() {
               '      // route name rendered as on-screen text.\n'
               '      final observer = _RouteRecorder();\n'
         : '';
+    // Bug #1261 scaffold honesty: the header mentions golden baselines
+    // ONLY when a golden hook was actually emitted — never when gen ran
+    // without a golden gate, and not for a route-outcome scenario (whose
+    // hook is withheld per issue #964). The scaffold never promises a
+    // harness that does not exist.
+    final goldenHookEmitted = golden && !routeObserver;
     final pumpCall = routeObserver
         ? 'await tester.pumpWidget($shellName(\n'
               '        navigatorObservers: <NavigatorObserver>[observer],\n'
@@ -609,8 +669,7 @@ ${keyed ? "// i18n: slang test shell, base locale '${I18nScaffold.baseLocale}' p
 // still throws, the error lands in the guard assertion instead of
 // escaping the pump (classified runner/compile, not red — issue #830
 // widget failure taxonomy). Widget tests run on the flutter profile's
-// slower tier; golden baselines are committed per platform under
-// test/tdd/goldens/.
+// slower tier${goldenHookEmitted ? '; golden baselines are committed per platform under\n// test/tdd/goldens/' : ''}.
 library;
 
 import 'package:flutter/material.dart';
@@ -735,7 +794,7 @@ $goldenBlock    });$expansionTests
 // gated by `dart test --preset=integration` in CI.
 library;
 
-import 'package:test/test.dart';
+import '$_testImport';
 import '$relativeSubjectPath' as subject;
 
 void main() {
@@ -804,7 +863,7 @@ Object? _captured(Object? Function() invoke) {
 //      read crash.
 library;
 
-import 'package:test/test.dart';
+import '$_testImport';
 import 'package:zuraffa/zuraffa.dart';
 import '$relativeSubjectPath' as subject;
 

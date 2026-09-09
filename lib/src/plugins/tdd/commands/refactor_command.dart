@@ -39,6 +39,19 @@
 /// (FR-001) unchanged, and a missing/corrupt cache falls back to it
 /// safely — the exclusion can never turn an unparseable red into a pass.
 ///
+/// Issue #1333 — transient runner failures are NOT regressions. A re-proof
+/// that fails through the dart test runner's own infrastructure (the
+/// incremental kernel-cache race: exit 255, "Cannot retrieve length of
+/// file ... dart_test.kernel...", ENOENT) is classified INFRA, retried up
+/// to two times with the kernel cache cleared, and — when the retries are
+/// exhausted — reported as `runner-error`, never `regression`: a crashed
+/// runner cannot certify a regression any more than it can certify a
+/// pass. Every re-proof verdict (green, tolerated, regression,
+/// infra-exhausted, timeout) appends its verdict line (verdict + exit
+/// code), the retry count, and a truncated transcript tail to the
+/// feature's `tdd/cycle-log.md`, so a false regression is auditable
+/// instead of silent.
+///
 /// Rejections and misfires are signaled through dart:io `exitCode` (which
 /// [CliRunner] honors) rather than by throwing, so the summary line stays
 /// the final stdout line.
@@ -53,6 +66,8 @@ import '../services/artifact_registry.dart';
 import '../services/cycle_log.dart';
 import '../services/pass_registry_tracker.dart';
 import '../services/refactor_passes.dart';
+import '../services/refactor_receipt_refresh.dart';
+import '../services/reproof_failure_classifier.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/runner.dart';
 import '../services/suite_guard.dart';
@@ -141,6 +156,12 @@ class RefactorCommand extends Command<void> {
   /// Issue #969: the envelope carrier the wrapper reads on exit.
   final VerdictContext _verdict = VerdictContext();
 
+  /// Issue #1333: how many times an infra-failed re-proof is retried
+  /// (with a cleared kernel cache) before the verdict stands. Two retries
+  /// ride out the observed kernel-cache race without masking genuine
+  /// regressions (which are never retried at all).
+  static const int _maxReproofRetries = 2;
+
   @override
   String get name => 'refactor';
 
@@ -211,6 +232,7 @@ class RefactorCommand extends Command<void> {
     RefactorOutcome outcome;
     int applied = 0;
     String featureName = featureFlag ?? 'unknown';
+    final commandStartedAt = DateTime.now();
     // Issue #922: how many failures each suite verdict tolerated as
     // pre-existing (recorded in the run baseline) — 0 when the verdict
     // was absolutely green or no usable baseline was handed in. The
@@ -516,19 +538,73 @@ class RefactorCommand extends Command<void> {
         }
         print('   command: $reproofCommand');
       }
-      final reproof = await runner.runSuite(
+      var reproof = await runner.runSuite(
         suiteTemplate: reproofCommand,
         workingDirectory: cwd,
         timeout: timeout,
       );
       print('   re-proof exit: ${reproof.exitCode}');
+
+      // Issue #1333 — a transient dart test runner failure (the
+      // incremental kernel-cache race: exit 255, "Cannot retrieve length
+      // of file", dart_test.kernel ENOENT) is an INFRA-level failure, not
+      // a regression. Retry the re-proof with a cleared kernel cache
+      // before believing any verdict; a crashed runner cannot certify a
+      // regression any more than it can certify a pass. Genuine assertion
+      // failures (exit 1 with parseable failing-test names) and
+      // unparseable reds never enter this loop — they regress immediately
+      // (FR-4) — and timeouts stay bug-#742 runner-errors (a legitimate
+      // long suite needs a larger --timeout, not a re-run).
+      var reproofRetries = 0;
+      while (!reproof.timedOut &&
+          (!reproof.startedProcess || reproof.exitCode != 0) &&
+          reproofRetries < _maxReproofRetries &&
+          classifyReproofFailure(
+                exitCode: reproof.exitCode,
+                output: reproof.output,
+                startedProcess: reproof.startedProcess,
+              ) ==
+              ReproofFailureClass.infraRunner) {
+        reproofRetries++;
+        print(
+          '   infra-level runner failure (exit ${reproof.exitCode}) — '
+          'clearing the dart test kernel cache and retrying '
+          '($reproofRetries/$_maxReproofRetries) [issue #1333]',
+        );
+        final signature = kernelCacheSignatureLine(reproof.output);
+        if (signature != null) {
+          print('   infra signature: $signature');
+        }
+        await _clearDartTestKernelCache(
+          cwd,
+          commandStartedAt: commandStartedAt,
+        );
+        reproof = await runner.runSuite(
+          suiteTemplate: reproofCommand,
+          workingDirectory: cwd,
+          timeout: timeout,
+        );
+        print('   re-proof exit: ${reproof.exitCode} (retry $reproofRetries)');
+      }
+
       if (reproof.timedOut) {
         // Bug #742: the re-proof child outlived the deadline and was
-        // killed — the suite safety state cannot be certified.
+        // killed — the suite safety state cannot be certified. Issue
+        // #1333 FR-3: the verdict + transcript tail still reach the
+        // cycle log, so the timeout is auditable.
         print('zfa tdd refactor: re-proof suite timed out: ${reproof.output}');
         print(
           '   re-run with a larger --timeout <minutes> if the suite '
           'legitimately needs longer.',
+        );
+        await _appendReproofDiagnostics(
+          cwd: cwd,
+          featureName: featureName,
+          reproofCommand: reproofCommand,
+          reproof: reproof,
+          verdict: 'runner-timeout',
+          retries: reproofRetries,
+          classification: FailureClass.runnerError,
         );
         outcome = RefactorOutcome.runnerError;
         _printSummary(feature: featureName, outcome: outcome, applied: applied);
@@ -537,6 +613,45 @@ class RefactorCommand extends Command<void> {
       }
 
       if (!reproof.startedProcess || reproof.exitCode != 0) {
+        // Issue #1333: classify the failure BEFORE the baseline tolerance
+        // check — an infra-level runner failure is neither tolerated red
+        // nor a regression; the retries above have been exhausted and the
+        // honest outcome is runner-error. A crashed runner cannot certify
+        // a regression any more than it can certify a pass.
+        final failureClass = classifyReproofFailure(
+          exitCode: reproof.exitCode,
+          output: reproof.output,
+          startedProcess: reproof.startedProcess,
+        );
+        if (failureClass == ReproofFailureClass.infraRunner) {
+          final signature = kernelCacheSignatureLine(reproof.output);
+          print(
+            '   infra-level runner failure persists after $reproofRetries '
+            'retry(ies) — outcome is runner-error, NOT a regression '
+            '(issue #1333).',
+          );
+          if (signature != null) {
+            print('   infra signature: $signature');
+          }
+          await _appendReproofDiagnostics(
+            cwd: cwd,
+            featureName: featureName,
+            reproofCommand: reproofCommand,
+            reproof: reproof,
+            verdict: 'infra-runner-error',
+            retries: reproofRetries,
+            classification: FailureClass.runnerError,
+            actions: passResult.actions,
+          );
+          outcome = RefactorOutcome.runnerError;
+          _printSummary(
+            feature: featureName,
+            outcome: outcome,
+            applied: applied,
+          );
+          exitCode = 1;
+          return;
+        }
         // Issue #922: with a usable run baseline, the re-proof verdict is
         // "no NEW failures" — the same pre-existing red the preflight
         // tolerated is not a regression introduced by the passes. An
@@ -583,6 +698,21 @@ class RefactorCommand extends Command<void> {
               print('   new: $name');
             }
           }
+          // Issue #1333 FR-3: the failed re-proof cycle is appended to
+          // the cycle log — verdict + exit code + retry count + transcript
+          // tail — so the regression is auditable instead of silent.
+          await _appendReproofDiagnostics(
+            cwd: cwd,
+            featureName: featureName,
+            reproofCommand: reproofCommand,
+            reproof: reproof,
+            verdict: 'regression',
+            retries: reproofRetries,
+            classification: regressedTests.isNotEmpty
+                ? FailureClass.assertionFailure
+                : null,
+            actions: passResult.actions,
+          );
           outcome = RefactorOutcome.regression;
           _printSummary(
             feature: featureName,
@@ -599,6 +729,28 @@ class RefactorCommand extends Command<void> {
         _printSummary(feature: featureName, outcome: outcome, applied: applied);
         exitCode = 1;
         return;
+      }
+
+      // Issue #1311: the passes rewrote receipted artifacts — append the
+      // sanctioned refactor provenance event re-hashing those receipts to
+      // the formatted bytes, so `zfa proof check` passes after a
+      // sanctioned run and `zfa tdd verify` is not blocked by preflight
+      // drift (NOT_ASSESSED). Fires only when a receipted file was
+      // actually mutated (backward compatibility — FR-4); best-effort: a
+      // receipt failure never flips a sanctioned refactor to a failure,
+      // the loss stays fail-visible via `zfa proof check`.
+      final refresh = await RefactorReceiptRefresh.refreshBestEffort(
+        projectRoot: cwd,
+        feature: featureName,
+        changedPaths: libChanged,
+        passes: passResult.actions.map((a) => a.name).toList(),
+      );
+      if (refresh.fired) {
+        print(
+          '   receipts refreshed: ${refresh.refreshedPaths.length} '
+          'receipted artifact(s) re-hashed after the refactor passes '
+          '(sanctioned refactor provenance, issue #1311)',
+        );
       }
 
       final reproofNote = scopedReproof
@@ -619,6 +771,17 @@ class RefactorCommand extends Command<void> {
           ? 'tolerated $reproofTolerated pre-existing failure(s) '
                 '(issue #922)'
           : 'green';
+
+      // Issue #1333 FR-3: the re-proof verdict line (verdict + exit code)
+      // and a truncated transcript tail ride along on the GREEN path too —
+      // every verdict is auditable, not just the failures.
+      final reproofVerdictLine =
+          're-proof verdict: $reproofVerdict (exit ${reproof.exitCode})';
+      final reproofDiagnostics =
+          '$reproofVerdictLine\n'
+          're-proof retries: $reproofRetries\n'
+          're-proof output tail (stdout+stderr, truncated):\n'
+          '${reproofOutputTail(reproof.output)}';
       if (applied == 0) {
         // Clean no-op — no fabricated actions.
         print('   no actions applied — clean no-op.');
@@ -632,6 +795,7 @@ class RefactorCommand extends Command<void> {
             exitCode: 0,
             capturedOutput:
                 'preflight: $preflightVerdict\nre-proof: $reproofVerdict\n'
+                '$reproofDiagnostics\n'
                 '$reproofNote\n'
                 'applied: 0 actions.',
             sourceCriterion: 'FR-008',
@@ -652,7 +816,11 @@ class RefactorCommand extends Command<void> {
             exitCode: 0,
             capturedOutput:
                 'preflight: $preflightVerdict\nre-proof: $reproofVerdict\n'
+                '$reproofDiagnostics\n'
                 '$reproofNote\n'
+                'receipts refreshed: ${refresh.fired ? refresh.refreshedPaths.length : 0} '
+                'receipted artifact(s) re-hashed (sanctioned refactor '
+                'provenance, issue #1311)\n'
                 'applied: ${passResult.actions.length} action(s), '
                 '$applied with file changes.',
             sourceCriterion: 'FR-007',
@@ -697,21 +865,99 @@ class RefactorCommand extends Command<void> {
 
   /// Extract individual failing test names from a `dart test` output.
   ///
-  /// `dart test` prints failures with the test name on a line like
-  /// `00:01 +0 -1: test name [E]`. Returns the names sorted and de-duped.
-  List<String> _extractFailingTestNames(String output) {
-    final names = <String>{};
-    for (final line in output.split('\n')) {
-      // Match lines like `00:01 +0 -1: some test name [E]`.
-      final m = RegExp(
-        r'^\s*\d{2}:\d{2}\s+\+?\d*\s+-\d+:\s+(.+?)\s+\[E\]\s*$',
-      ).firstMatch(line);
-      if (m != null) {
-        names.add(m.group(1)!);
-      }
+  /// Delegates to the pure [parseFailingTestNames] (spec 1333): the `[E]`
+  /// line grammar lives in ONE place, shared with the re-proof failure
+  /// classifier. `dart test` prints failures with the test name on a line
+  /// like `00:01 +0 -1: test name [E]`; the result is sorted and de-duped.
+  List<String> _extractFailingTestNames(String output) =>
+      parseFailingTestNames(output);
+
+  /// Append the re-proof verdict + transcript tail to the feature's
+  /// cycle-log (spec 1333 FR-3) on every non-green verdict: the failed
+  /// re-proof cycle becomes auditable (verdict + exit code + retry count
+  /// + truncated transcript tail). Best-effort: a cycle-log write failure
+  /// prints a warning and never masks the primary verdict.
+  Future<void> _appendReproofDiagnostics({
+    required String cwd,
+    required String featureName,
+    required String reproofCommand,
+    required SuiteRunRecord reproof,
+    required String verdict,
+    required int retries,
+    FailureClass? classification,
+    List<RefactorAction> actions = const [],
+  }) async {
+    try {
+      await CycleLog(p.join(cwd, 'specs', featureName)).append(
+        CycleLogEntry(
+          behaviorId: '$featureName-refactor',
+          kind: CycleEntryKind.refactor,
+          runnerCommand: reproofCommand,
+          exitCode: reproof.exitCode,
+          capturedOutput:
+              're-proof verdict: $verdict (exit ${reproof.exitCode})\n'
+              're-proof retries: $retries\n'
+              're-proof output tail (stdout+stderr, truncated):\n'
+              '${reproofOutputTail(reproof.output)}',
+          classification: classification,
+          sourceCriterion: 'FR-3',
+          testPath: 'test/',
+          timestamp: DateTime.now().toUtc().toIso8601String(),
+          refactorActions: actions,
+        ),
+      );
+    } catch (e) {
+      print(
+        '   WARNING: could not append re-proof diagnostics to '
+        'specs/$featureName/tdd/cycle-log.md: $e',
+      );
     }
-    final sorted = names.toList()..sort();
-    return sorted;
+  }
+
+  /// Clear the dart test incremental kernel cache (spec 1333 FR-2): the
+  /// project's `.dart_tool/test/` directory and stale shared
+  /// `$TMPDIR/dart_test.kernel.*` files. Files created or updated after
+  /// [commandStartedAt] may belong to a concurrent runner and are left
+  /// untouched. Best-effort: a clear failure prints a note and never crashes
+  /// the command; the retry simply re-runs and the classifier grades the next
+  /// attempt from its own transcript.
+  Future<void> _clearDartTestKernelCache(
+    String projectRoot, {
+    required DateTime commandStartedAt,
+  }) async {
+    try {
+      final cacheDir = Directory(p.join(projectRoot, '.dart_tool', 'test'));
+      if (await cacheDir.exists()) {
+        await cacheDir.delete(recursive: true);
+      }
+    } catch (e) {
+      print('   kernel cache clear (project .dart_tool/test/) failed: $e');
+    }
+    final tmpRoot =
+        Platform.environment['TMPDIR'] ??
+        Platform.environment['TEMP'] ??
+        Platform.environment['TMP'] ??
+        Directory.systemTemp.path;
+    try {
+      final tmpDir = Directory(tmpRoot);
+      if (!await tmpDir.exists()) return;
+      await for (final entity in tmpDir.list()) {
+        if (entity is File &&
+            p.basename(entity.path).startsWith('dart_test.kernel.')) {
+          try {
+            final modifiedAt = await entity.lastModified();
+            if (modifiedAt.isBefore(commandStartedAt)) {
+              await entity.delete();
+            }
+          } catch (_) {
+            // A kernel file pinned by a concurrent runner is skipped —
+            // the next suite run re-derives it.
+          }
+        }
+      }
+    } catch (e) {
+      print('   kernel cache clear (TMPDIR) failed: $e');
+    }
   }
 
   void _printSummary({

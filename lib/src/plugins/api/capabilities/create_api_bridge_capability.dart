@@ -78,10 +78,28 @@ class CreateApiBridgeCapability implements ZuraffaCapability {
 
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
-    final files = await _generateFiles(
-      args,
-      dryRun: args['dryRun'] as bool? ?? false,
-    );
+    final dryRun = args['dryRun'] as bool? ?? false;
+    final files = await _generateFiles(args, dryRun: dryRun);
+    // Spec 1334 (verify misfire #1386, EPIC #1132 honesty floor): the api
+    // verb exists to bridge UseCases. When discovery finds ZERO UseCases
+    // (the only zero-file non-dry-run outcome of the builder) the run
+    // must fail, not exit 0 as "success" — the user asked for a bridge
+    // and nothing was produced. Dry runs are exempt (preview is explicit
+    // user intent). ApiCommand already honors success:false with
+    // `❌ Failed to generate API bridge: <message>` + exit 1 (bug #1139
+    // pattern). Receipt contract unchanged (#769): nothing written, no
+    // receipt.
+    if (!dryRun && files.isEmpty) {
+      return ExecutionResult(
+        success: false,
+        files: const [],
+        message:
+            'No UseCases found for the entity — nothing to bridge. '
+            '--> fix: create UseCases first '
+            '(e.g. zfa usecase create <Entity> --methods=get,update), '
+            'then re-run zfa api <Entity>',
+      );
+    }
     return ExecutionResult(
       success: true,
       files: files.map((f) => f.path).toList(),

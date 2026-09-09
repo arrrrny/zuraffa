@@ -9,16 +9,26 @@
 /// fact shows up as digest drift.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
+import '../../../core/proof/proof_checker.dart';
 import '../../../core/project/receipt_store.dart';
 import '../../../skew/skew_contract.dart' show SkewContract, supportedCoreFloor;
 import '../../../version.dart';
 
 class TddGenerationReceipts {
+  /// Upper bound for the always-on snapshot of the append-only logs
+  /// (issue #1327): the proof checker's sanctioned-append verification
+  /// prefix-checks the disk bytes against the receipted bytes, and the
+  /// cycle log grows past [ReceiptStore.maxSnapshotBytes] within a
+  /// single run. Logs above this bound omit the snapshot and fall back
+  /// to digest-strict drift (honest, but unsatisfying).
+  static const int maxAppendLogSnapshotBytes = 1 << 20;
+
   /// Persists one proof.v1 receipt covering [files] (absolute paths the
   /// verb just wrote, each mapped to its action — `create` for new
   /// artifacts, `update` for overwrites/appends).
@@ -39,12 +49,21 @@ class TddGenerationReceipts {
       final file = File(entry.key);
       if (!file.existsSync()) continue;
       final bytes = await file.readAsBytes();
+      final relativePath = _relativePosix(entry.key, projectRoot);
       receiptFiles.add(
         GenerationReceiptFile(
-          path: _relativePosix(entry.key, projectRoot),
+          path: relativePath,
           action: entry.value,
           sha256: crypto.sha256.convert(bytes).toString(),
           bytes: bytes.length,
+          // Issue #1327: small text keeps the same content snapshot the
+          // core receipt writer pins; append-only logs (cycle-log.md)
+          // keep it at any size — the proof checker's sanctioned-append
+          // class needs the receipted bytes to verify a post-receipt
+          // evidence append instead of reporting drift.
+          snapshot: _keepSnapshot(bytes, relativePath)
+              ? await file.readAsString()
+              : null,
         ),
       );
     }
@@ -94,6 +113,22 @@ class TddGenerationReceipts {
         'zfa $command: warning: proof receipt not written '
         '($e) — re-run to restore the provenance record.',
       );
+    }
+  }
+
+  /// Small text keeps a snapshot; append-only logs keep one at any size
+  /// up to [maxAppendLogSnapshotBytes].
+  static bool _keepSnapshot(List<int> bytes, String relativePath) {
+    if (ProofChecker.appendOnlyBasenames.contains(p.basename(relativePath))) {
+      return bytes.length <= maxAppendLogSnapshotBytes;
+    }
+    if (bytes.length > ReceiptStore.maxSnapshotBytes) return false;
+    final probe = bytes.length > 1024 ? bytes.sublist(0, 1024) : bytes;
+    try {
+      const Utf8Decoder().convert(probe);
+      return true;
+    } on FormatException {
+      return false;
     }
   }
 

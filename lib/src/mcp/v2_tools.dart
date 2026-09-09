@@ -16,6 +16,7 @@ import 'package:zuraffa/src/mcp/capabilities/test_capability.dart';
 import 'package:zuraffa/src/mcp/capabilities/xray_capability.dart';
 import 'package:zuraffa/src/mcp/file_watcher.dart';
 import 'package:zuraffa/src/mcp/session_store.dart';
+import 'package:zuraffa/src/version.dart';
 
 // ------------------------------------------------------------------
 // Tool definitions
@@ -861,7 +862,7 @@ Future<HttpServer> startWebSocketServer({
                     },
                     'serverInfo': {
                       'name': 'zfa-mcp-server',
-                      'version': '6.0.0',
+                      'version': version,
                     },
                   },
                   'id': id,
