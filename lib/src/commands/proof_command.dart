@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 
+import '../core/project/receipt_store.dart';
 import '../core/proof/proof_chain_checker.dart';
 import '../core/proof/proof_checker.dart';
 import '../cli/exit_protocol.dart';
@@ -29,6 +31,7 @@ class ProofCommand extends Command<void> {
   ProofCommand() {
     addSubcommand(ProofCheckCommand());
     addSubcommand(ProofChainCommand());
+    addSubcommand(ProofPruneCommand());
   }
 
   @override
@@ -48,7 +51,100 @@ class ProofCommand extends Command<void> {
       'tests, route/usecase verifies, xray coverage) — exit 0/1/2, '
       '--json verdict (issue #1148)',
     );
+    print(
+      '  prune    Delete receipts whose every artifact is missing (dead '
+      'sandbox / interrupted-run receipts) — dry run by default, '
+      '--apply to delete (issue #1378)',
+    );
     exitCode = ExitProtocol.usage;
+  }
+}
+
+/// `zfa proof prune` (issue #1378) — receipts whose EVERY artifact is
+/// missing (a garbage-collected temp sandbox, an interrupted run) are
+/// dead: `zfa proof check` reports them as permanent deleted-artifact
+/// findings and nothing could cancel them. Prune deletes those receipts
+/// explicitly. Dry run by default; `--apply` deletes. Partial receipts
+/// (some artifacts missing) are KEPT — they may be hand-repairable, and
+/// blanket-deleting them would hide real drift.
+class ProofPruneCommand extends Command<void> {
+  @override
+  final String name = 'prune';
+
+  @override
+  final String description =
+      'Delete receipts whose every artifact is missing (dead sandbox or '
+      'interrupted-run receipts). Dry run by default; --apply deletes '
+      '(issue #1378).';
+
+  ProofPruneCommand() {
+    argParser.addFlag(
+      'apply',
+      negatable: false,
+      help: 'Actually delete the dead receipt files (default: dry run).',
+    );
+  }
+
+  @override
+  Future<void> run() async {
+    final projectRoot = Directory.current.path;
+    final store = ReceiptStore(projectRoot: projectRoot);
+    final records = await store.loadAll();
+    if (records.isEmpty) {
+      print('proof prune: no receipts in ${store.directory.path}');
+      return;
+    }
+
+    final dead = <ReceiptRecord>[];
+    final partial = <ReceiptRecord>[];
+    final alive = <ReceiptRecord>[];
+    for (final record in records) {
+      final files = record.receipt.files;
+      if (files.isEmpty) {
+        alive.add(record);
+        continue;
+      }
+      final missing = files
+          .where((f) => !File(p.join(projectRoot, f.path)).existsSync())
+          .length;
+      if (missing == files.length) {
+        dead.add(record);
+      } else if (missing > 0) {
+        partial.add(record);
+      } else {
+        alive.add(record);
+      }
+    }
+
+    for (final record in dead) {
+      print(
+        '  prune ${record.fileName} '
+        '(${record.receipt.files.length} missing artifact(s); '
+        'command: ${record.receipt.command})',
+      );
+    }
+    for (final record in partial) {
+      final missing = record.receipt.files
+          .where((f) => !File(p.join(projectRoot, f.path)).existsSync())
+          .length;
+      print(
+        '  keep ${record.fileName} ($missing of '
+        '${record.receipt.files.length} artifact(s) missing — partial '
+        'receipts are never pruned)',
+      );
+    }
+    final apply = argResults!['apply'] == true;
+    if (apply) {
+      for (final record in dead) {
+        File(p.join(store.directory.path, record.fileName)).deleteSync();
+      }
+    }
+    print(
+      'proof prune: ${dead.length} dead receipt(s) '
+      '${apply ? 'pruned' : 'found (dry run — pass --apply to delete)'}, '
+      '${partial.length} partial, ${alive.length} alive.',
+    );
+    exitCode = 0;
   }
 }
 
