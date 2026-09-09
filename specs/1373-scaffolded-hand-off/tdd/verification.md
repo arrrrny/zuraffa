@@ -6,6 +6,10 @@
 - Mutation sampling (executed): M1 — arm removed → B1 red (killed).
   M2 — arm fires without the marker (gate dropped) → B2 red (killed).
   0 survivors.
+- Envelope/journal surface: the `:hand` stop lands the hand-step
+  violation in the lane journal via the content-keyed dispatch, extended
+  with the scaffolded vocabulary (`hand-step=W1:hand ... --author
+  --finders-file`, issue #1258) — asserted in B1.
 - Smells: none.
 - AC coverage: AS-1→B1, AS-2→B2. Messaging-only fix; state/exit
   semantics follow the #1308 hand-step pattern.
