@@ -124,13 +124,13 @@ void main() {
 
     ArtifactRecord sampleRecord({
       String behaviorId = 'A4',
-      String testPath = 'test/tdd/004-login-ui/a4_test.dart',
+      String testPath = 'test/tdd/1376-kind-trace/a4_test.dart',
     }) => ArtifactRecord(
       behaviorId: behaviorId,
       feature: '1376-verify-kind-trace',
       sourceCriterion: 'AC-4',
       testPath: testPath,
-      subjectPath: 'lib/tdd/004-login-ui/a4_subject.dart',
+      subjectPath: 'lib/tdd/1376-kind-trace/a4_subject.dart',
       runnableTestName: '$testPath::$behaviorId::navigates',
       testOwnership: Ownership.created,
       subjectOwnership: Ownership.created,
@@ -148,11 +148,11 @@ void main() {
       'maps behavior ids to the kinds parsed from their test files',
       () async {
         final a3 = await writeTest(
-          'test/tdd/004-login-ui/a3_test.dart',
+          'test/tdd/1376-kind-trace/a3_test.dart',
           '// scenario-assertions: presence("t.auth.signIn")\nvoid main() {}',
         );
         final a4 = await writeTest(
-          'test/tdd/004-login-ui/a4_test.dart',
+          'test/tdd/1376-kind-trace/a4_test.dart',
           '// scenario-assertions: route-outcome("deal_list")\nvoid main() {}',
         );
         await registry.register(
@@ -189,7 +189,7 @@ void main() {
       await registry.register(
         sampleRecord(
           behaviorId: 'A5',
-          testPath: 'test/tdd/004-login-ui/a5_test.dart',
+          testPath: 'test/tdd/1376-kind-trace/a5_test.dart',
         ),
       );
       final result = await BehaviorKindTrace.trace(
@@ -203,7 +203,7 @@ void main() {
 
     test('a header-less test file lands the behavior in not-traced', () async {
       final a6 = await writeTest(
-        'test/tdd/004-login-ui/a6_test.dart',
+        'test/tdd/1376-kind-trace/a6_test.dart',
         'void main() {}',
       );
       await registry.register(
@@ -223,7 +223,7 @@ void main() {
     test('an unknown kind token lands the behavior in not-traced with the '
         'raw token preserved', () async {
       final a7 = await writeTest(
-        'test/tdd/004-login-ui/a7_test.dart',
+        'test/tdd/1376-kind-trace/a7_test.dart',
         '// scenario-assertions: golden("login_view"), presence("hi")\nvoid main() {}',
       );
       await registry.register(
@@ -250,14 +250,14 @@ void main() {
         final featureDir = '${tmpDir.path}/specs/1376-verify-kind-trace';
         final registry = ArtifactRegistry(featureDir: featureDir);
         final a3 = File(
-          p.join(tmpDir.path, 'test', 'tdd', '004-login-ui', 'a3_test.dart'),
+          p.join(tmpDir.path, 'test', 'tdd', '1376-kind-trace', 'a3_test.dart'),
         );
         await a3.create(recursive: true);
         await a3.writeAsString(
           '// scenario-assertions: presence("t.auth.signIn")\nvoid main() {}',
         );
         final a4 = File(
-          p.join(tmpDir.path, 'test', 'tdd', '004-login-ui', 'a4_test.dart'),
+          p.join(tmpDir.path, 'test', 'tdd', '1376-kind-trace', 'a4_test.dart'),
         );
         await a4.create(recursive: true);
         await a4.writeAsString(
@@ -269,7 +269,7 @@ void main() {
               tmpDir.path,
               'lib',
               'tdd',
-              '004-login-ui',
+              '1376-kind-trace',
               '${subject}_subject.dart',
             ),
           );
@@ -285,7 +285,7 @@ void main() {
             subjectPath: p.join(
               'lib',
               'tdd',
-              '004-login-ui',
+              '1376-kind-trace',
               'a3_subject.dart',
             ),
             runnableTestName: 'a3',
@@ -295,7 +295,7 @@ void main() {
           ),
         );
         final missing = File(
-          p.join(tmpDir.path, 'test', 'tdd', '004-login-ui', 'a5_test.dart'),
+          p.join(tmpDir.path, 'test', 'tdd', '1376-kind-trace', 'a5_test.dart'),
         );
         await registry.register(
           ArtifactRecord(
@@ -306,7 +306,7 @@ void main() {
             subjectPath: p.join(
               'lib',
               'tdd',
-              '004-login-ui',
+              '1376-kind-trace',
               'a4_subject.dart',
             ),
             runnableTestName: 'a4',
@@ -324,7 +324,7 @@ void main() {
             subjectPath: p.join(
               'lib',
               'tdd',
-              '004-login-ui',
+              '1376-kind-trace',
               'a5_subject.dart',
             ),
             runnableTestName: 'a5',
