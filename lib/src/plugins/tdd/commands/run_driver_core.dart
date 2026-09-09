@@ -412,13 +412,6 @@ class RunDriverCore {
     final greenEvidence = (await evidence.greenEvidence()).difference(
       tombstoned,
     );
-    // Issue #1324: the behaviors whose current-generation green evidence
-    // is backed by its certified test file on disk — computed ONCE per
-    // run (the resume-window guard consults it in the phase-1 loop).
-    final certifiedGreenBacked = await _certifiedGreenBacked(
-      evidence,
-      projectRoot,
-    );
 
     // -----------------------------------------------------------------
     // 4b. Bug #828: replay the write-ahead journal BEFORE reconciling.
@@ -428,6 +421,14 @@ class RunDriverCore {
     if (journal != null) {
       loaded = await _replayJournal(tx, loaded, evidence, journal, label);
     }
+
+    // Issue #1324: the behaviors whose current-generation green evidence
+    // is backed by its certified test file on disk — computed AFTER WAL
+    // replay so a green append pending in the journal is visible.
+    final certifiedGreenBacked = await _certifiedGreenBacked(
+      evidence,
+      projectRoot,
+    );
 
     var current = _reconcile(
       loaded ?? RunState.empty(feature),
@@ -1728,11 +1729,12 @@ class RunDriverCore {
           print(
             '   the contradiction: "${row.id}" carries green evidence in '
             'tdd/cycle-log.md for the current artifact generation, but the '
-            'on-disk pair no longer matches it — a freshly regenerated '
-            '(guard-only) test against an already-implemented subject. '
+            'on-disk pair no longer matches it — the test was regenerated '
+            'over the certification (guard-only against an implemented '
+            'subject), or the subject was rewritten to a placeholder and '
+            'make failed before re-certifying (issue #1324/#1036). '
             'Re-driving gen clobbers the certified pair and make refuses '
-            'the drift, so this state cannot resume through the loop '
-            '(issue #1324).',
+            'the drift, so this state cannot resume through the loop.',
           );
           print(
             '   --> fix: zfa tdd reset $feature — drop the stale registry '

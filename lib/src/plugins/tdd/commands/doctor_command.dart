@@ -51,6 +51,7 @@ import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/cycle_evidence.dart';
 import '../services/generated_shape.dart';
+import '../services/journal.dart';
 import '../services/import_resolution.dart';
 import '../services/import_resolution_checker.dart';
 import '../services/run_state_store.dart';
@@ -363,12 +364,26 @@ class DoctorCommand extends Command<void> {
       if (entry.kind != 'green') continue;
       lastGreenEntries[entry.behaviorId] = entry;
     }
+    // Consult the reset tombstone so a behavior whose last green entry
+    // predates the tombstone is skipped — the re-drive is the sanctioned
+    // recovery, not a contradiction (mirrors the run driver's
+    // tombstone-filtered greenEvidence gate).
+    final tombstone = await JournalReader.lastResetTombstone(featureDir);
+    final tombstoneAt = tombstone.at;
     for (final record in records) {
       final greenEntry = lastGreenEntries[record.behaviorId];
       if (greenEntry == null) continue;
       final certifiedAt = DateTime.tryParse(greenEntry.at ?? '');
       final createdAt = DateTime.tryParse(record.createdAt);
       if (certifiedAt == null || createdAt == null) continue;
+      // Skip behaviors whose last green entry predates the last reset
+      // tombstone — the certification is already invalidated; the
+      // re-drive's registry record (T2 > tombstone) is the sanctioned
+      // recovery state, not a stale-artifacts contradiction.
+      if (tombstoneAt != null &&
+          tombstone.behaviors.contains(record.behaviorId)) {
+        if (certifiedAt.isBefore(tombstoneAt)) continue;
+      }
       if (createdAt.isAfter(certifiedAt)) {
         staleArtifacts.add(record.behaviorId);
         drifts.add(
