@@ -17,13 +17,15 @@ One per functional requirement in `spec.md`.
 
 | id | behavior | traces | state |
 | -- | -------- | ------ | ----- |
-| U1 | The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos). | FR-001 | PENDING |
+| U1 | The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos). | FR-001, adaptive_layouts | PENDING |
 
 ## Layer contracts
 
 ### Presentation
 
-- `LoginView`: key: auth.signIn -> 'Sign in', key: auth.error -> 'Sign in failed', key: auth.working -> 'Signing in…'
+- `LoginView`: `key: auth.signIn -> 'Sign in'`, `key: auth.error -> 'Sign in failed'`, `key: auth.working -> 'Signing in…'`
+- `LoginForm`: `ShadInput`, `key: auth.signIn -> 'Sign in'`, `key: auth.email -> 'Email'`, `key: auth.password -> 'Password'`, `key: auth.sessionStarted -> 'Session started'`
+- `adaptive_layouts`: `mobile`, `macos`
 
 ## Routing provenance
 
@@ -31,12 +33,6 @@ Per-behavior routing decisions (issue #951): what each decision consulted — a 
 
 route: A1 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
 route: A2 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
-route: U1 -> unit lane [fallback: legacy description classifier matched — trace FR to a declared contract row]
+route: U1 -> unit lane (view generation) [declared: contract row: adaptive_layouts, spec line 94]
 
 
-
-## Layer contracts
-
-### Presentation
-
-- `LoginView`: `key: auth.signIn -> 'Sign in'`, `key: auth.error -> 'Sign in failed'`, `key: auth.working -> 'Signing in…'`
