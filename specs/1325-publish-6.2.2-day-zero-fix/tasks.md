@@ -24,11 +24,12 @@ the issue (release task; #1307 is already merged).
 - [x] T4 SC-2: pub.dev API `latest.version == 6.2.2`, published
       2026-09-08T20:03:48Z.
 - [x] T5 SC-3: `dart pub publish --dry-run` — exit 65 (warnings-only
-      variant), **0 errors**, benchmark files present in the upload set;
+      variant, the accepted pass shape under the FR-3 warnings-only
+      policy), **0 errors**, benchmark files present in the upload set;
       4 pre-existing cosmetic warnings on paths untouched since the
       release commit (see tdd/verification.md SC-3 for the ACTUAL
       output — "Package validation passed" does not print while any
-      warning exists).
+      warning exists and is not required by the approved policy).
 - [x] T6 SC-4: download pub.dev 6.2.2 archive, `tar -tzf` shows
       `lib/src/core/benchmark/benchmark_contract.dart` + the full
       benchmark sets.

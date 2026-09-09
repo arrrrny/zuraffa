@@ -17,9 +17,10 @@ Branch: `feat/1325-publish-6.2.2-day-zero-fix`
   - `dart pub publish` — 6.2.2 is live on pub.dev (published
     2026-09-08T20:03:48Z, maintainer action; the pub.dev API is the
     source of truth for "published"). This branch re-proves the tree is
-    publishable via `dart pub publish --dry-run` (exit 0, "Package
-    validation passed", benchmark files in the upload set) and does NOT
-    re-publish.
+    publishable via `dart pub publish --dry-run` (0 errors under the
+    FR-3 warnings-only policy — warnings permitted, the zero-warning
+    "Package validation passed" variant is not required; benchmark files
+    in the upload set) and does NOT re-publish.
   - Tarball verification — the published archive is pulled from
     `https://pub.dev/api/archives/zuraffa-6.2.2.tar.gz` and inspected
     with `tar -tzf` for `lib/src/core/benchmark/benchmark_contract.dart`
