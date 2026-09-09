@@ -153,6 +153,19 @@ void main() {
         reason: 'the duplicate-arg echo from the issue is gone');
   });
 
+  test('B6: a repeated declared name falls back to a unique positional name',
+      () async {
+    final subject = await _writePair(
+      _contractBehavior('LoginValidation.validate(email, email) -> LoginVerdict'),
+      tmp,
+    );
+    final source = await subject.readAsString();
+    final names = _paramNamesOf(source, 'validate');
+    expect(names.toSet().length, names.length,
+        reason: 'duplicate_definition can never return via a repeated '
+            'declared name');
+  });
+
   test('B5: a mixed row keeps every name unique', () async {
     final subject = await _writePair(
       _contractBehavior(
