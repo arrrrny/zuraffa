@@ -98,12 +98,12 @@ class SimulateSyncCapability implements ZuraffaCapability {
       final n = flapCounter++;
       if (n < 4) {
         remoteCalls['$entity#offline'] = n;
-        throw const SocketFailure('offline: connection refused');
+        throw const _SocketFailure('offline: connection refused');
       }
       if ((n - 4) % 3 != 2) {
         // fail, fail, ok — the flap cycle.
         remoteCalls['$entity#flap'] = n;
-        throw const SocketFailure('flap: connection reset by peer');
+        throw const _SocketFailure('flap: connection reset by peer');
       }
       remoteCalls[entity] = n;
       return entity;
@@ -201,8 +201,8 @@ class SimulateSyncCapability implements ZuraffaCapability {
 }
 
 /// A socket-shaped failure the strategy records verbatim.
-class SocketFailure implements Exception {
-  const SocketFailure(this.message);
+class _SocketFailure implements Exception {
+  const _SocketFailure(this.message);
   final String message;
   @override
   String toString() => message;
