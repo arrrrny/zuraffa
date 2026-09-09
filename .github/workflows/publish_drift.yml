@@ -1,0 +1,53 @@
+# Publish-drift guard (issue #1325, acceptance criterion 4).
+#
+# Root cause the guard watches for: a publish-blocking fix is merged to
+# master but the package is never republished, so pub.dev keeps serving
+# the broken artifact while the repo source is fixed (#1325: pub.dev
+# latest stayed on broken 6.2.1 for a day after the #1307 fix merged).
+#
+# The check fails when master's `pubspec.yaml` version does not equal
+# pub.dev's published latest. Drift on master means "fix merged, artifact
+# fleet not moved" — the exact #1325 gap class — and must be remedied by
+# bumping + publishing (see PUBLISH.md) before the next fix rides on top.
+#
+# Deliberately NOT triggered on pull_request: version bumps precede
+# publish by design, so in-flight PRs are EXPECTED to drift; only merged
+# master must agree with the fleet.
+name: publish_drift
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+  schedule:
+    # Daily 09:17 UTC — off the hour to avoid runner crunch.
+    - cron: "17 9 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: pubspec version == pub.dev latest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare pubspec.yaml version with pub.dev latest
+        run: |
+          set -euo pipefail
+          REPO_VERSION="$(grep '^version:' pubspec.yaml | head -1 | sed 's/^version:[[:space:]]*//; s/[[:space:]]*$//')"
+          PUB_VERSION="$(curl -fsSL --retry 3 \
+            -H "User-Agent: zuraffa-publish-drift-guard (github.com/arrrrny/zuraffa)" \
+            https://pub.dev/api/packages/zuraffa | jq -r '.latest.version')"
+          echo "repo pubspec version : ${REPO_VERSION}"
+          echo "pub.dev latest       : ${PUB_VERSION}"
+          if [ -z "${REPO_VERSION}" ] || [ "${REPO_VERSION}" = "null" ]; then
+            echo "::error::Could not read version from pubspec.yaml — guard is blind, failing closed."
+            exit 1
+          fi
+          if [ "${REPO_VERSION}" != "${PUB_VERSION}" ]; then
+            echo "::error::PUBLISH DRIFT: pubspec.yaml says ${REPO_VERSION} but pub.dev latest is ${PUB_VERSION}. A merged change is not live for consumers. Remedy: bump the version and run 'dart pub publish' (see PUBLISH.md), then re-run this workflow."
+            exit 1
+          fi
+          echo "OK: repo version ${REPO_VERSION} matches pub.dev latest — no drift."
