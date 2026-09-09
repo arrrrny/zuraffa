@@ -1370,8 +1370,11 @@ class RunDriverCore {
         // pattern), advance the behavior GREEN, and let refactor proceed
         // as usual.
         if (step == 'make' &&
-            (result.outcome == 'skipped' || result.outcome == 'adopted')) {
+            (result.outcome == 'skipped' ||
+                result.outcome == 'adopted' ||
+                result.outcome == 'adopted-placeholder')) {
           final adopted = result.outcome == 'adopted';
+          final placeholderReDrive = result.outcome == 'adopted-placeholder';
           if (!await _hasEvidence(evidence.greenEvidence, row.id)) {
             await CycleLog(p.join(projectRoot, 'specs', feature)).append(
               CycleLogEntry(
@@ -1384,6 +1387,16 @@ class RunDriverCore {
                           'on-disk subject and the last reset tombstone '
                           'invalidated the surviving certification (issue '
                           '#1331); green evidence recorded by the run '
+                          'driver (bug #986) because make did not write it. '
+                          'Exit code ${result.exitCode} disagrees with the '
+                          'outcome token; the token is the terminal '
+                          'classification.\n'
+                          '${result.output.split('\n').take(2).join('\n')}'
+                    : placeholderReDrive
+                    ? 'adopted-placeholder — the target test already passes '
+                          'and the tombstoned acceptance re-drive re-entered '
+                          'the acceptance pipeline at compose/make phase-2 '
+                          '(issue #1345); green evidence recorded by the run '
                           'driver (bug #986) because make did not write it. '
                           'Exit code ${result.exitCode} disagrees with the '
                           'outcome token; the token is the terminal '
@@ -1412,7 +1425,11 @@ class RunDriverCore {
           _emitStep(
             row.id,
             'make',
-            adopted ? 'adopted' : 'green',
+            adopted
+                ? 'adopted'
+                : placeholderReDrive
+                ? 'adopted-placeholder'
+                : 'green',
             exitCode: result.exitCode,
           );
           if (result.exitCode != 0) {
@@ -1421,6 +1438,11 @@ class RunDriverCore {
                   ? '   exit code ${result.exitCode} disagrees with '
                         'outcome=adopted — the token is the terminal #1331 '
                         'adopted re-drive transition; advancing.'
+                  : placeholderReDrive
+                  ? '   exit code ${result.exitCode} disagrees with '
+                        'outcome=adopted-placeholder — the token is the '
+                        'terminal #1345 compose re-entry transition; '
+                        'advancing.'
                   : '   exit code ${result.exitCode} disagrees with '
                         'outcome=skipped — the token is the terminal skip '
                         'transition (issue #694); advancing (bug #986).',

@@ -394,10 +394,18 @@ class StepRunner {
                   // the last reset tombstone invalidated the surviving
                   // certification and the make adopted the passing
                   // subject (green evidence appended by make itself).
+                  // `adopted-placeholder` is the issue #1345 compose
+                  // re-entry — the tombstoned acceptance re-drive whose
+                  // on-disk subject was the born-green pipeline
+                  // placeholder re-entered the acceptance pipeline at
+                  // compose/make phase-2 and re-certified from the
+                  // pipeline's actual output (green evidence appended by
+                  // make itself).
                   outcome == 'green' ||
                       outcome == 'skipped' ||
                       outcome == 'green-with-failed-build' ||
-                      outcome == 'adopted'
+                      outcome == 'adopted' ||
+                      outcome == 'adopted-placeholder'
                 : outcome == 'clean' || outcome == 'refactored');
         return StepResult(
           step: step,

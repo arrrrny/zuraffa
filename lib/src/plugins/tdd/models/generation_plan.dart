@@ -87,6 +87,25 @@ enum MakeOutcome {
   /// make). Every non-re-drive refusal class is untouched.
   adopted('adopted'),
 
+  /// The target test already passes and the on-disk subject is the
+  /// born-green compose-pipeline placeholder for a TOMBSTONED re-drive of
+  /// an ACCEPTANCE-kind behavior (issue #1345): the placeholder is the
+  /// pipeline's OWN product — the exact bytes `zfa tdd gen` emits, the
+  /// input shape compose exists to rewrite — so neither the #1331
+  /// adoption (it would certify green on a vacuous subject) nor the
+  /// #1036 refusal (it dead-ends the documented reset → doctor → run
+  /// recovery loop) applies. The make RE-ENTERS the acceptance pipeline
+  /// at compose/make phase-2: generation planning runs the SAME
+  /// composition fallback a first drive runs (`compose` → `build`), and
+  /// the cycle re-certifies from the pipeline's actual output. Exit 0,
+  /// green entry appended binding the CURRENT post-re-entry subject hash
+  /// with the compose/build generation steps recorded. The outcome is
+  /// EXPLICITLY `adopted-placeholder`: distinguishable from `green`
+  /// (generated), `skipped` (#694), and `adopted` (#1331 — the subject
+  /// was NOT a placeholder). Every non-re-drive refusal class and every
+  /// non-acceptance re-drive refusal is untouched.
+  adoptedPlaceholder('adopted-placeholder'),
+
   /// The target test already passes but the subject file's shape no
   /// longer matches the shape the certified evidence captured (issue
   /// #1036): a skip here would certify green on a subject the red
