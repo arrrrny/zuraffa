@@ -45,6 +45,17 @@ extension TestBuilderPolymorphic on TestBuilder {
             '  ⚠️  Skipping test generation for $className: Repository '
             'file (${repoSnake}_repository.dart) not found.',
           );
+          // Spec 1334: emit a structured missing-dependency skip instead
+          // of silently contributing nothing, so a zero-artifact
+          // polymorphic run still trips the capability verdict gate.
+          files.add(
+            GeneratedFile(
+              path: filePath,
+              type: 'test',
+              action: 'skipped',
+              skipReason: 'missing-dependency',
+            ),
+          );
           continue;
         }
 
