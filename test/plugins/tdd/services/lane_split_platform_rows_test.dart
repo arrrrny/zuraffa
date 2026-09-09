@@ -88,5 +88,54 @@ void main() {
       );
       expect(acceptance, isNot(contains('| U1 |')));
     });
+
+    test('every kind renders or refuses — renderability equals the home '
+        'sets the plan guard enforces (issue #1432)', () {
+      // The totality contract (SC-003): for every behavior kind, the lane
+      // plan either renders the row or the plan-time guard refuses it —
+      // never a silent drop. These sets ARE the contract (data-model.md);
+      // if this test fails after adding a kind, extend BOTH the renderer
+      // section filters in lane_split.dart AND the guard sets in
+      // plan_command.dart together. `contract` is open issue #1419.
+      const engineHomes = {
+        BehaviorKind.acceptance,
+        BehaviorKind.platform,
+        BehaviorKind.widget,
+        BehaviorKind.unit,
+        BehaviorKind.ffi,
+      };
+      const skinHomes = {
+        BehaviorKind.acceptance,
+        BehaviorKind.platform,
+        BehaviorKind.widget,
+        BehaviorKind.unit,
+      };
+      for (final kind in BehaviorKind.values) {
+        if (kind == BehaviorKind.contract) continue;
+        final renderedSkin = renderSkinPlan(
+          feature: 'f',
+          rows: [_row('X1', kind, Lane.skin)],
+          adaptiveSlots: const [],
+        ).contains('| X1 |');
+        expect(
+          renderedSkin,
+          skinHomes.contains(kind),
+          reason:
+              '${kind.name}: SKIN renderability must equal the skin home '
+              'set — a mismatch re-opens the #1432 silent drop',
+        );
+        final renderedEngine = renderEnginePlan(
+          feature: 'f',
+          rows: [_row('X1', kind, Lane.core)],
+        ).contains('| X1 |');
+        expect(
+          renderedEngine,
+          engineHomes.contains(kind),
+          reason:
+              '${kind.name}: ENGINE renderability must equal the engine '
+              'home set — a mismatch re-opens the #1432 silent drop',
+        );
+      }
+    });
   });
 }
