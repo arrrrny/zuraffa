@@ -117,7 +117,7 @@ class CliRunner {
   final PubspecProcessRunner? _makeProcessRunner;
 
   static CommandRunner<void> _buildRunner() =>
-      CommandRunner<void>(
+      _CrashSafeCommandRunner(
           'zfa',
           'Zuraffa Code Generator - Clean Architecture for Flutter',
         )
@@ -938,5 +938,48 @@ class _EntityCommand extends Command<void> {
     // SPEC 917: embedded dispatch must unwind (EntityCommand._bail →
     // exitCode), never raw-exit mid-suite — the runner dispatches the exit.
     await EntityCommand().execute(allArgs, exitOnCompletion: false);
+  }
+}
+
+/// Issue #1360: package:args' error path crashes with a null-check
+/// TypeError when a parser-only-registered subcommand (bug #856's
+/// grammar: `argParser.addCommand` without `addSubcommand`) receives an
+/// UNDECLARED option — the ArgParserException's command chain names a
+/// subcommand that [Command.subcommands] cannot resolve, and the
+/// library `!`-fires. Recover the original exception and walk the chain
+/// defensively so the user sees the clean usage error the parser
+/// intended.
+class _CrashSafeCommandRunner extends CommandRunner<void> {
+  _CrashSafeCommandRunner(super.executableName, super.description);
+
+  @override
+  ArgResults parse(Iterable<String> args) {
+    try {
+      return super.parse(args);
+    } on TypeError {
+      ArgParserException original;
+      try {
+        // Re-derive the parser's own verdict. A clean throw here is the
+        // crash's trigger; a successful parse means the TypeError came
+        // from elsewhere — rethrow it untouched.
+        argParser.parse(args);
+        rethrow;
+      } on ArgParserException catch (error) {
+        original = error;
+      }
+      // CommandRunner and Command share no base class that declares the
+      // maps, so the defensive walk is dynamically typed: the runner
+      // exposes `commands`, a Command exposes `subcommands`.
+      dynamic command = this;
+      for (final name in original.commands) {
+        final map = identical(command, this)
+            ? commands
+            : command.subcommands as Map<String, Command<void>>;
+        final next = map[name];
+        if (next == null) break;
+        command = next;
+      }
+      throw command.usageException(original.message);
+    }
   }
 }
