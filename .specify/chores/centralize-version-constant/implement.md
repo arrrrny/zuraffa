@@ -77,6 +77,8 @@ fi
 
 - `test/commands/proof_command_test.dart` exceeds its 75 s child-process
   timeout when run locally on this 2019 Intel Mac (the `zfa` source-wrapper
-  subprocess is slow here); it is environment-bound, unrelated to this chore,
-  and passes in CI. Worth a separate look at making the wrapper start faster
-  or the timeout configurable.
+  subprocess is slow here). This is environment-bound, unrelated to this
+  chore, and passes in CI. The escape hatch already exists:
+  `ZFA_TEST_TIMEOUT_SCALE=3 dart test ...` (see
+  `test/helpers/run_zfa_source.dart`, issue #1187 — written for exactly this
+  machine class).
