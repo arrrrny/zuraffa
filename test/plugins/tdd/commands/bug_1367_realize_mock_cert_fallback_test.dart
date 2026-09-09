@@ -192,6 +192,20 @@ void main() {
     expect(exit, 0);
   });
 
+  test('B5: a receipt certifying no methods names the drift', () async {
+    await seedCertReceipt(methods: []);
+
+    final (output, exit) = await runRealizeMock();
+
+    expect(output, isNot(contains('unknown entity')));
+    expect(output, contains('certifies no methods'));
+    expect(
+      output,
+      contains('--> fix: re-run `zfa mock create Login --certify`'),
+    );
+    expect(exit, 1);
+  });
+
   test('B4: a receipt naming a missing contract test refuses blocked, '
       'never unknown-entity', () async {
     await seedCertReceipt(writeContractTest: false);

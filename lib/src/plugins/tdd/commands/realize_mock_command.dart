@@ -639,6 +639,21 @@ class RealizeMockCommand extends Command<void> {
       }
     }
 
+    // A receipt certifying NOTHING is a broken certification — name it
+    // (the generic empty-fixtures BLOCKED that follows would otherwise
+    // hide the drift behind a message about fixture files).
+    if (methods.isEmpty) {
+      print(
+        'zfa tdd realize-mock: the mock-cert receipt for $entity '
+        'certifies no methods ($receiptFile) — the differential has no '
+        'proven surface to gate.',
+      );
+      print(
+        '   --> fix: re-run `zfa mock create $entity --certify` in an '
+        'environment that resolves the framework.',
+      );
+    }
+
     final fixturesDir = Directory(
       p.join(cwd, '.zfa', 'realize-mock', snake, 'fixtures'),
     );
