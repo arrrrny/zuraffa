@@ -217,6 +217,38 @@ version lives in `tools/proof_smoke.sh`:
 - run: dart run bin/zfa.dart proof check lib/src --format=json
 ```
 
+### The proof chain (v2, issue #1148)
+
+`zfa proof chain` validates the WHOLE chain end-to-end — every receipt in
+`.zfa/receipts/` AND the tdd stores under `specs/`:
+
+1. **Receipt digests** — every recorded file path + SHA-256 matches the
+   current file on disk (expected/actual digests in every drift item).
+2. **Behavior coverage** — every spec's declared behaviors have green
+   evidence in `tdd/cycle-log.md` (missing = gap).
+3. **Generated-test integrity** — every tdd-registered test exists and its
+   imports resolve (`--run-tests` executes them, exit-1 on failure).
+4. **Route verifies** — every declared route table has a passing (or
+   skipped-with-reason) verify verdict receipt.
+5. **Usecase verifies** — every usecase-create receipt entity passes the
+   conformance gate.
+6. **Xray coverage** — every declared ledger kind is traced by green
+   evidence or named as a gap.
+
+Exit codes: `0` chain intact (gaps are open links, reported — never
+silent, never failed), `1` drift detected, `2` infrastructure error.
+`--json` emits one `proof-chain.v1` verdict object with category,
+severity, file, expected, actual and fix per item:
+
+```bash
+zfa proof chain                         # human verdict, exit 0/1/2
+zfa proof chain --json                  # proof-chain.v1 envelope for CI
+zfa proof chain --run-tests             # also execute the registered suite
+```
+
+The CI dream from issue #1148: `zfa proof chain && flutter test` — no
+human reviews a black box; every commit is provable.
+
 ---
 
 ## `make` first, `feature` second
