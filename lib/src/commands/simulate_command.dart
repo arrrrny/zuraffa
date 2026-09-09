@@ -90,7 +90,10 @@ class SimulateCommand extends Command<void> {
     argParser.addOption(
       'feature',
       valueHelp: 'feature-dir',
-      help: 'Load the committed world from <feature-dir>/tdd/fixtures/.',
+      help:
+          'Load the committed world from <feature-dir>/tdd/fixtures/. '
+          'A bare feature name resolves under specs/ (the #968 fixtures '
+          'the scaffold wrote).',
     );
     argParser.addOption(
       'fixtures',
@@ -196,10 +199,26 @@ class SimulateCommand extends Command<void> {
         exitCode = await _scaffold(scaffoldDir);
         return;
       }
-      final fixturesDir =
-          (argResults!['fixtures'] as String?) ??
-          (argResults!['feature'] as String?);
+      final featureFlag = argResults!['feature'] as String?;
+      final fixturesFlag = argResults!['fixtures'] as String?;
+      var fixturesDir = fixturesFlag ?? featureFlag;
       if (fixturesDir != null) {
+        // Issue #1355: a bare `--feature` name resolves under specs/ —
+        // the same convention the scenario subcommands' --feature
+        // honors (and the form `simulate init`'s own guidance uses).
+        // Explicit paths and --fixtures values are honored verbatim; a
+        // bare name whose specs/<name> directory does not exist keeps
+        // the raw value so the boot failure names what was passed.
+        if (featureFlag != null &&
+            featureFlag.isNotEmpty &&
+            fixturesFlag == null &&
+            !featureFlag.contains('/')) {
+          final bareSpecsDir =
+              p.join(Directory.current.path, 'specs', featureFlag);
+          if (Directory(bareSpecsDir).existsSync()) {
+            fixturesDir = bareSpecsDir;
+          }
+        }
         exitCode = await _replay(fixturesDir);
         return;
       }
