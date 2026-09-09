@@ -1,3 +1,3 @@
-zikzak-review-bot webhook E2E scratch file.
+zikzak-review-bot webhook E2E scratch file (v2).
 
-If you can read this as a review posted by zikzak-ai[bot], the pipeline works.
+Second push to trigger a synchronize delivery with the fixed webhook secret.
