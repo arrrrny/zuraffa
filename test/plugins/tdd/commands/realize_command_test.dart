@@ -16,6 +16,7 @@ import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/version.dart';
 
 import '../helpers/tdd_fixture.dart';
 import 'package:zuraffa/src/core/project/receipt_store.dart';
@@ -84,7 +85,7 @@ void main() {
         target: 'User',
         repro: 'zfa di User',
         at: DateTime.now().toUtc(),
-        generatorVersion: '6.1.0',
+        generatorVersion: version,
         input: const {},
         files: [
           GenerationReceiptFile(
