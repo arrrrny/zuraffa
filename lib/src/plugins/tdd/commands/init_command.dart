@@ -353,9 +353,13 @@ class InitCommand extends Command<void> {
       final depsMatch = RegExp(r'^dependencies:\s*(.*)$').firstMatch(line);
       if (depsMatch != null) {
         final rest = depsMatch.group(1)!.trim();
-        if (rest.isEmpty || rest == '{}') {
+        // Strip a trailing `#` comment so `{} # note` still counts as an
+        // empty inline mapping (the refusal below must only fire for
+        // genuinely non-empty flow mappings).
+        final flow = rest.split('#').first.trim();
+        if (flow.isEmpty || flow == '{}') {
           depsIdx = i;
-          inlineEmpty = rest == '{}';
+          inlineEmpty = flow == '{}';
           continue;
         }
         if (rest.startsWith('{')) {
