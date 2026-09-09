@@ -58,6 +58,15 @@ const Map<String, String> kExcluded = <String, String>{
   'lib/src/commands/route_verify_command.dart':
       'the drift mode dumps the raw table diff (a data document, not a '
       'verdict); the entity verdict mode in this same file IS migrated',
+  // Issue #1148 bespoke emitter — `zfa proof chain --json` emits the
+  // proof-chain.v1 verdict and `zfa proof check --format=json` the
+  // proof.v1 verdict (schemas ratified by their own issues, #1148 and
+  // #778); canonical VerdictEnvelope migration is the follow-up backlog
+  // (same pattern as the spec 1129 test_create entry above).
+  'lib/src/commands/proof_command.dart':
+      'issue #1148 bespoke emitter — proof-chain.v1 / proof.v1 verdict '
+      'schemas (ratified by the issue); canonical VerdictEnvelope '
+      'migration is the follow-up backlog',
 };
 
 List<File> _dartFilesUnder(String dir) {
