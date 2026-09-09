@@ -17,7 +17,6 @@
 //        exact --force path).
 library;
 
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -26,12 +25,13 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 
 const String feature = '004-login-ui';
 
-const String legacyList = '''
+const String legacyList =
+    '''
 # Test List: $feature
 
 ## Outer loop: acceptance behaviors
 
-One per acceptance criterion in \`spec.md\`.
+One per acceptance criterion in `spec.md`.
 
 | id | behavior | traces | state |
 | -- | -------- | ------ | ----- |
@@ -49,7 +49,7 @@ UI acceptance scenarios (bug #830): asserted through a testWidgets pair.
 
 ## Inner loop: unit behaviors
 
-One per functional requirement in \`spec.md\`.
+One per functional requirement in `spec.md`.
 
 | id | behavior | traces | state |
 | -- | -------- | ------ | ----- |
@@ -120,10 +120,7 @@ void main() {
     if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
   });
 
-  Future<void> seed({
-    required String spec,
-    String list = legacyList,
-  }) async {
+  Future<void> seed({required String spec, String list = legacyList}) async {
     await File(p.join(featureDir, 'spec.md')).writeAsString(spec);
     await File(p.join(tddDir, 'test-list.md')).writeAsString(list);
   }
@@ -140,30 +137,44 @@ void main() {
     return out;
   }
 
-  String skinPlan() =>
-      File(p.join(tddDir, '04-SKIN.md')).readAsStringSync();
+  String skinPlan() => File(p.join(tddDir, '04-SKIN.md')).readAsStringSync();
 
-  test('B1: split renders the typed skin contract sections + machine JSON',
-      () async {
-    await seed(spec: '$specBase\n$lanesSection\n$skinContractSection');
-    final out = await split();
-    expect(exitCode, 0, reason: out);
+  test(
+    'B1: split renders the typed skin contract sections + machine JSON',
+    () async {
+      await seed(spec: '$specBase\n$lanesSection\n$skinContractSection');
+      final out = await split();
+      expect(exitCode, 0, reason: out);
 
-    final skin = skinPlan();
-    expect(skin, contains('home_indicator_safe_area'),
-        reason: 'the platform contract matrix survives the split');
-    expect(skin, contains('title_bar_alignment'));
-    expect(skin, contains('initial'),
-        reason: 'the state machine contract survives');
-    expect(skin, contains('deal_list'),
-        reason: 'the route contract survives');
-    expect(skin, contains('adaptiveSlots'),
-        reason: 'the machine-parseable skin contract JSON survives');
-  });
+      final skin = skinPlan();
+      expect(
+        skin,
+        contains('home_indicator_safe_area'),
+        reason: 'the platform contract matrix survives the split',
+      );
+      expect(skin, contains('title_bar_alignment'));
+      expect(
+        skin,
+        contains('initial'),
+        reason: 'the state machine contract survives',
+      );
+      expect(
+        skin,
+        contains('deal_list'),
+        reason: 'the route contract survives',
+      );
+      expect(
+        skin,
+        contains('adaptiveSlots'),
+        reason: 'the machine-parseable skin contract JSON survives',
+      );
+    },
+  );
 
   test('B2: a malformed Skin Contract section refuses the split', () async {
     await seed(
-      spec: '$specBase\n$lanesSection\n'
+      spec:
+          '$specBase\n$lanesSection\n'
           '## Skin Contract\n\n'
           '```yaml\nSkin Contract:\n  adaptive_slots: [broken\n```\n',
     );
@@ -195,10 +206,17 @@ void main() {
     expect(exitCode, 0, reason: out);
 
     final skin = skinPlan();
-    expect(skin, contains('home_indicator_safe_area'),
-        reason: 'the platform matrix survives the forced re-split '
-            '(the issue #1365 regression)');
-    expect(skin, contains('adaptiveSlots'),
-        reason: 'the machine JSON survives the forced re-split');
+    expect(
+      skin,
+      contains('home_indicator_safe_area'),
+      reason:
+          'the platform matrix survives the forced re-split '
+          '(the issue #1365 regression)',
+    );
+    expect(
+      skin,
+      contains('adaptiveSlots'),
+      reason: 'the machine JSON survives the forced re-split',
+    );
   });
 }

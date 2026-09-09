@@ -45,6 +45,8 @@ import '../models/lane.dart';
 import '../models/verdict_envelope.dart';
 import '../services/lane_split.dart';
 import '../services/spec_parser.dart';
+import '../../../skin/contract/adaptive_skin_contract.dart';
+import '../../../skin/contract/adaptive_skin_contract_parser.dart';
 import '../services/test_list_reader.dart';
 import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
@@ -193,6 +195,34 @@ class SplitCommand extends Command<void> {
     final lanes = specMd.isEmpty
         ? const <LaneDeclaration>[]
         : const SpecParser().parseLanes(specMd);
+
+    // Issue #1365: the split path renders the SAME typed skin contract
+    // `zfa tdd plan` renders (specs 078/1004 — platform matrix, state
+    // machine, route table, machine JSON). A malformed section refuses
+    // the split before any artifact is written — errors are an API, the
+    // fix line names the drift.
+    AdaptiveSkinContract? skinContract;
+    if (specMd.isNotEmpty) {
+      try {
+        skinContract = parseAdaptiveSkinContract(specMd);
+      } on AdaptiveSkinContractParseException catch (e) {
+        print('zfa tdd split: skin contract refused — ${e.message}');
+        print('  (spec: $specFile). No lane plans were written.');
+        print(
+          '  --> fix: correct the `## Skin Contract` yaml section named '
+          'above, then re-run `zfa tdd split --force`.',
+        );
+        _verdict
+          ..outcome = VerdictOutcome.fail
+          ..exitClass = 'skin-contract-refused'
+          ..fix =
+              'fix the `## Skin Contract` section named in the refusal, '
+              'then re-run zfa tdd split --force'
+          ..details['reason'] = e.message;
+        exitCode = 2;
+        return;
+      }
+    }
     final declared = <String, Lane>{};
     for (final lane in lanes) {
       final parsed = Lane.parse(lane.lane);
@@ -249,6 +279,7 @@ class SplitCommand extends Command<void> {
       feature: feature,
       rows: skinRows,
       adaptiveSlots: adaptiveSlots,
+      skinContract: skinContract,
     );
     final contractMd = renderContractPlan(
       feature: feature,
