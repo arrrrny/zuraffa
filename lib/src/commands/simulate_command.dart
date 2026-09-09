@@ -1083,7 +1083,7 @@ class SimulateReplayCommand extends Command<void> {
       for (final failure in failures) {
         print('  FAIL ${failure.behavior}: ${failure.detail}');
       }
-      exitCode = matches ? 0 : 1;
+      exitCode = matches && failures.isEmpty ? 0 : 1;
     } on WorldManifestError catch (e) {
       print('SIMULATE replay -> RED (${e.message})');
       exitCode = 1;
