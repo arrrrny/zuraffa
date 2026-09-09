@@ -251,6 +251,7 @@ class RunDriverCore {
     bool announce = true,
     bool skipWidget = false,
     Map<String, int>? mockCounts,
+    String? baselineScope,
   }) async {
     final featureDir = p.join(projectRoot, 'specs', feature);
     final receipts = LaneReceipts(featureDir);
@@ -557,7 +558,12 @@ class RunDriverCore {
           );
           corpusReused = null;
         }
-        if (corpusReused != null && corpusReused.parseable) {
+        // Issue #1374: a scoped baseline is per-feature — the
+        // corpus-wide cache is bypassed entirely (a scoped snapshot must
+        // not masquerade as corpus-wide reuse).
+        if (corpusReused != null &&
+            corpusReused.parseable &&
+            baselineScope == null) {
           suiteBaselinePath = await const RunBaselineCache().write(
             featureDir: featureDir,
             snapshot: corpusReused,
@@ -570,11 +576,18 @@ class RunDriverCore {
             're-run for this feature',
           );
         } else {
+          // Issue #1374: the constrained-agent escape hatch — scope the
+          // baseline suite command to a path (canonically the feature's
+          // test directory) so the FIRST baseline can be produced on a
+          // 10 GB-disk agent where the whole-tree kernel compile cannot.
+          final scopedTemplate = baselineScope == null
+              ? suiteTemplate
+              : '$suiteTemplate $baselineScope';
           print(
-            '   suite baseline: $suiteTemplate (once per run — issue #741)',
+            '   suite baseline: $scopedTemplate (once per run — issue #741)',
           );
           final baselineRecord = await const SingleTestRunner().runSuite(
-            suiteTemplate: suiteTemplate,
+            suiteTemplate: scopedTemplate,
             workingDirectory: projectRoot,
             // Issue #1159: the run-level --timeout override is ONE uniform
             // deadline for every spawned process (bug #742 contract) — the
@@ -592,7 +605,9 @@ class RunDriverCore {
               featureDir: featureDir,
               snapshot: snapshot,
             );
-            if (fingerprint != null) {
+            // Issue #1374: a scoped snapshot never enters the
+            // corpus-wide cache.
+            if (fingerprint != null && baselineScope == null) {
               await corpusCache.write(
                 projectRoot: projectRoot,
                 snapshot: snapshot,

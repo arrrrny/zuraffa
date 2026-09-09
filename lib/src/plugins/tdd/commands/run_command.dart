@@ -93,6 +93,15 @@ class RunCommand extends Command<void> {
           'default 10). Fractions are allowed. On timeout the child is '
           'killed and the run stops with result=runner-error.',
     );
+    argParser.addOption(
+      'baseline-scope',
+      valueHelp: 'dir',
+      help:
+          'Issue #1374: scope the suite baseline to a directory (canonically '
+          'the feature test dir, e.g. test/tdd/<feature>) so the FIRST '
+          'baseline can be produced on constrained agents where the '
+          'whole-tree run cannot. Bypasses the corpus-wide cache.',
+    );
     argParser.addFlag(
       'skip-widget',
       help:
@@ -235,6 +244,10 @@ class RunCommand extends Command<void> {
       return;
     }
 
+    // Issue #1374: the constrained-agent escape hatch — scope the suite
+    // baseline command to a directory (the feature test dir).
+    final baselineScope = argResults?['baseline-scope'] as String?;
+
     // Bug #742: the --timeout override for each spawned step command.
     Duration? timeoutOverride;
     try {
@@ -349,6 +362,7 @@ class RunCommand extends Command<void> {
       announce: true,
       skipWidget: skipWidget,
       mockCounts: mockCounts,
+      baselineScope: baselineScope,
     );
 
     // Fail fast (issue #1008): the engine lane must be green before the
@@ -398,6 +412,7 @@ class RunCommand extends Command<void> {
       label: label,
       announce: false,
       skipWidget: skipWidget,
+      baselineScope: baselineScope,
     );
 
     if (skin.result != 'complete') {

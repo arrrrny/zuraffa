@@ -166,6 +166,13 @@ class MakeCommand extends Command<void> {
           '#742).',
     );
     argParser.addOption(
+      'baseline-scope',
+      help:
+          'Issue #1374: scope the LIVE suite baseline to a directory '
+          '(canonically the feature test dir) so the first baseline can '
+          'be produced on constrained agents.',
+    );
+    argParser.addOption(
       'suite-baseline',
       help:
           'Path to a cached full-suite baseline snapshot (run-baseline.json) '
@@ -288,6 +295,9 @@ class MakeCommand extends Command<void> {
 
     final zfaBinFlag = argResults?['zfa-bin'] as String?;
     final suiteBaselineFlag = argResults?['suite-baseline'] as String?;
+    // Issue #1374: the constrained-agent escape hatch for the live
+    // baseline branch below.
+    final baselineScope = argResults?['baseline-scope'] as String?;
     final suiteBaselinePath =
         suiteBaselineFlag != null && suiteBaselineFlag.isNotEmpty
         ? suiteBaselineFlag
@@ -882,9 +892,14 @@ class MakeCommand extends Command<void> {
           '(issue #741)',
         );
       } else {
-        print('   suite baseline: $suiteTemplate');
+        // Issue #1374: the constrained-agent escape hatch — scope the
+        // baseline suite command to a path.
+        final scopedTemplate = baselineScope == null
+            ? suiteTemplate
+            : '$suiteTemplate $baselineScope';
+        print('   suite baseline: $scopedTemplate');
         final baselineRun = await runner.runSuite(
-          suiteTemplate: suiteTemplate,
+          suiteTemplate: scopedTemplate,
           workingDirectory: cwd,
           // Issue #1159: the --timeout override is ONE uniform deadline
           // (bug #742 contract) — the fallback live baseline included.
