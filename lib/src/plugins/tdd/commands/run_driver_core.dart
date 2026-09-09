@@ -412,6 +412,13 @@ class RunDriverCore {
     final greenEvidence = (await evidence.greenEvidence()).difference(
       tombstoned,
     );
+    // Issue #1324: the behaviors whose current-generation green evidence
+    // is backed by its certified test file on disk — computed ONCE per
+    // run (the resume-window guard consults it in the phase-1 loop).
+    final certifiedGreenBacked = await _certifiedGreenBacked(
+      evidence,
+      projectRoot,
+    );
 
     // -----------------------------------------------------------------
     // 4b. Bug #828: replay the write-ahead journal BEFORE reconciling.
@@ -615,7 +622,13 @@ class RunDriverCore {
       final hasGenArtifacts = await registry.findRecord(row.id) != null;
       final result = await _driveBehavior(
         row: row,
-        steps: _stepsFor(state, inFlightStep, hasGenArtifacts: hasGenArtifacts),
+        steps: _stepsFor(
+          state,
+          inFlightStep,
+          hasGenArtifacts: hasGenArtifacts,
+          hasGreenEvidence: greenEvidence.contains(row.id),
+          greenTestBacked: certifiedGreenBacked.contains(row.id),
+        ),
         progressSuffix: '',
         deferralAllowed: true,
         rows: allRows,
@@ -631,6 +644,7 @@ class RunDriverCore {
         skippedWidgets: skippedWidgets,
         label: label,
         feature: feature,
+        greenEvidenceIds: greenEvidence,
       );
       if (result.stop != null) {
         return _finish(
@@ -682,6 +696,7 @@ class RunDriverCore {
         skippedWidgets: skippedWidgets,
         label: label,
         feature: feature,
+        greenEvidenceIds: greenEvidence,
       );
       if (result.stop != null) {
         return _finish(
@@ -744,6 +759,7 @@ class RunDriverCore {
         skippedWidgets: skippedWidgets,
         label: label,
         feature: feature,
+        greenEvidenceIds: greenEvidence,
       );
       if (result.stop != null) {
         return _finish(
@@ -1160,6 +1176,8 @@ class RunDriverCore {
     BehaviorState state,
     String? inFlightStep, {
     required bool hasGenArtifacts,
+    bool hasGreenEvidence = false,
+    bool greenTestBacked = false,
   }) {
     const full = ['gen', 'verify-red', 'make', 'refactor'];
     var start = switch (state) {
@@ -1177,6 +1195,20 @@ class RunDriverCore {
       if (index >= 0) start = index;
     } else if (!hasGenArtifacts) {
       start = 0;
+    }
+    // Issue #1324: a behavior whose cycle-log already carries green
+    // evidence for the current artifact generation (tombstone-filtered)
+    // and whose certified test file is backed on disk must NEVER re-enter
+    // at gen — gen would clobber the certified pair with a fresh
+    // guard-only test, verify-red unexpected-greens against the
+    // implemented subject, make refuses subject-drift, and the feature
+    // is wedged (re-driving clobbers, making refuses). The window
+    // resumes at the phase-2 steps instead: make for a pending claim
+    // (the #694 skip / #1331 adoption transitions re-certify honestly),
+    // refactor for a green/mocked claim. Behaviors without backed green
+    // evidence keep the exact pre-#1324 windows (SC-4).
+    if (start == 0 && hasGreenEvidence && greenTestBacked) {
+      start = state == BehaviorState.pending ? 2 : 3;
     }
     return full.sublist(start.clamp(0, full.length));
   }
@@ -1242,10 +1274,15 @@ class RunDriverCore {
     required Map<String, String> skippedWidgets,
     required String label,
     required String feature,
+    required Set<String> greenEvidenceIds,
   }) async {
     var updated = current;
     var state = updated.behaviorStates[row.id] ?? BehaviorState.pending;
     final tx = TddTransaction(p.join(projectRoot, 'specs', feature));
+    // Issue #1324: whether THIS drive saw the verify-red unexpected-green
+    // skip — the fresh-test signal of the stale-artifacts contradiction
+    // when the following make refuses subject-drift.
+    var sawUnexpectedGreen = false;
     for (final step in steps) {
       if (deferralAllowed &&
           step == 'refactor' &&
@@ -1442,6 +1479,7 @@ class RunDriverCore {
           updated = updated.advance(row.id, state);
           await store.save(updated, activeBehaviorIds: activeIds);
           await tx.clear();
+          sawUnexpectedGreen = true;
           print('[run] ${row.id} verify-red -> skipped (already green)');
           _emitStep(row.id, 'verify-red', 'skipped');
           continue;
@@ -1654,6 +1692,66 @@ class RunDriverCore {
             refactorBlocked: false,
           );
         }
+        // Issue #1324: verify-red unexpected-green followed by make
+        // subject-drift — or a subject-drift on a behavior whose
+        // cycle-log already carries green evidence — is the
+        // stale-artifacts contradiction (a freshly regenerated test
+        // against an already-implemented subject). The generic
+        // "fix the failing step" hint wedges the feature here: re-driving
+        // gen clobbers the certified pair and make refuses the drift, so
+        // the run names the contradiction and prescribes the one
+        // recovery that works, matching the doctor's prescription.
+        if (step == 'make' &&
+            result.outcome == 'subject-drift' &&
+            (sawUnexpectedGreen || greenEvidenceIds.contains(row.id))) {
+          await _recordStepFailure(
+            _StepFailure(
+              behaviorId: row.id,
+              step: step,
+              outcome: result.outcome,
+              exitCode: result.exitCode,
+              command: result.command,
+              outputTail: _outputTail(result.output),
+            ),
+            projectRoot: projectRoot,
+            feature: feature,
+            criterion: row.traces,
+          );
+          updated = updated.advance(row.id, state);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
+          print(
+            'zfa tdd $label: step failed — behavior=${row.id} step=$step '
+            'outcome=${result.outcome} (stale-artifacts)',
+          );
+          _printOutputExcerpt(result.output);
+          print(
+            '   the contradiction: "${row.id}" carries green evidence in '
+            'tdd/cycle-log.md for the current artifact generation, but the '
+            'on-disk pair no longer matches it — a freshly regenerated '
+            '(guard-only) test against an already-implemented subject. '
+            'Re-driving gen clobbers the certified pair and make refuses '
+            'the drift, so this state cannot resume through the loop '
+            '(issue #1324).',
+          );
+          print(
+            '   --> fix: zfa tdd reset $feature — drop the stale registry '
+            'records and owned artifacts, then re-run '
+            '`zfa tdd $label $feature` in one uninterrupted pass; '
+            're-apply any test-side hand-deltas when the run stops for '
+            'them.',
+          );
+          return (
+            state: updated,
+            stop: (
+              result: 'stale-artifacts',
+              stoppedAt: '${row.id}:make',
+              exitCode: _exitStopped,
+              message: null,
+            ),
+            refactorBlocked: false,
+          );
+        }
         // Honest stop (FR-007).
         final isRunnerError = result.outcome == 'runner-error';
         // Issue #1329: the error-outcome path records the same
@@ -1752,6 +1850,42 @@ class RunDriverCore {
       }
     }
     return false;
+  }
+
+  /// Issue #1324: the behavior ids whose LAST green evidence entry is
+  /// backed by its certified test file on disk — the "current artifact
+  /// generation" backing check. The green entry's `- test:` line names
+  /// the registered test path it certified (absolute or project-relative,
+  /// with the `::behaviorId` suffix convention); a present file means the
+  /// certified pair is still the on-disk pair, so resume must not gen
+  /// over it. Entries without a `- test:` line are conservatively backed
+  /// (legacy tolerance — the same fail-open rule
+  /// [CycleEvidence.orphanedGreenEvidence] applies), so a behavior is
+  /// only re-driven from gen when its certified test file is provably
+  /// gone (the #1264 orphaned class, whose recovery re-enters at gen).
+  Future<Set<String>> _certifiedGreenBacked(
+    CycleEvidence evidence,
+    String projectRoot,
+  ) async {
+    final lastGreen = <String, ParsedCycleEntry>{};
+    for (final entry in await evidence.entries()) {
+      if (entry.kind != 'green') continue;
+      lastGreen[entry.behaviorId] = entry;
+    }
+    final backed = <String>{};
+    for (final MapEntry(key: behaviorId, value: entry) in lastGreen.entries) {
+      final test = entry.test;
+      if (test == null || test.isEmpty) {
+        backed.add(behaviorId);
+        continue;
+      }
+      final cleanTest = test.contains('::') ? test.split('::').first : test;
+      final resolved = p.isAbsolute(cleanTest)
+          ? p.normalize(cleanTest)
+          : p.normalize(p.join(projectRoot, cleanTest));
+      if (File(resolved).existsSync()) backed.add(behaviorId);
+    }
+    return backed;
   }
 
   Future<bool> _hasPendingWithArtifacts(
