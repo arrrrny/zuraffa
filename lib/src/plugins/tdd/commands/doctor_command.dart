@@ -301,7 +301,13 @@ class DoctorCommand extends Command<void> {
     // re-enters at gen, and make ADOPTS each re-driven subject whose
     // certification the reset invalidated (the `adopted` outcome)
     // instead of dead-ending at subject-drift. The old text promised a
-    // path that stopped at `<id>:make` every time.
+    // path that stopped at `<id>:make` every time. Issue #1345: the
+    // prescription also names the placeholder re-entry — a re-driven
+    // ACCEPTANCE placeholder (the compose pipeline's own born-green
+    // product) re-enters compose/make phase-2 (the
+    // `adopted-placeholder` outcome) instead of refusing, so the
+    // documented recovery loop completes for acceptance-lane behaviors
+    // too.
     final orphaned = await evidence.orphanedGreenEvidence(projectRoot: cwd);
     if (orphaned.isNotEmpty) {
       final ids = orphaned.toList()..sort();
@@ -323,9 +329,11 @@ class DoctorCommand extends Command<void> {
         '   --> fix: $fix — re-drive every behavior whose evidence has no '
         'backing artifact (run reconciles them to pending and re-enters '
         'at gen; make adopts each re-driven subject whose certification '
-        'the reset invalidated — the adopted outcome, issue #1331 — '
-        'instead of dead-ending at subject-drift; the append-only '
-        'evidence history is preserved)',
+        'the reset invalidated — the adopted outcome, issue #1331 — and '
+        're-enters the acceptance pipeline at compose/make phase-2 for '
+        'every re-driven acceptance placeholder — the adopted-placeholder '
+        'outcome, issue #1345 — instead of dead-ending at subject-drift; '
+        'the append-only evidence history is preserved)',
       );
       _printVerdict(
         feature: feature,

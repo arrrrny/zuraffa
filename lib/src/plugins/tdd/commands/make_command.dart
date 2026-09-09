@@ -705,7 +705,11 @@ class MakeCommand extends Command<void> {
       exitCode = 1;
       return;
     }
-    final alreadyGreen = driftRun.exitCode == 0 && driftRun.startedProcess;
+    // Issue #1345: the placeholder re-drive re-entry demotes this to
+    // false so the make falls through to generation planning — the
+    // composition fallback re-enters the acceptance pipeline at
+    // compose/make phase-2 (the same path a first drive runs).
+    var alreadyGreen = driftRun.exitCode == 0 && driftRun.startedProcess;
     // Issue #1331: the complete-but-unowned re-drive class. When the
     // behavior's surviving certification was invalidated by the LAST
     // reset tombstone (the registry was dropped, the behavior re-driven
@@ -716,15 +720,29 @@ class MakeCommand extends Command<void> {
     // green-basis drift whose evidence postdates the reset, a feature
     // with no tombstone, the born-green placeholders — keeps refusing.
     var adoptedReDrive = false;
+    // Issue #1345: the placeholder re-drive class — a tombstoned
+    // ACCEPTANCE-kind re-drive whose on-disk subject IS the born-green
+    // compose-pipeline placeholder (the exact bytes gen emits, the input
+    // shape compose rewrites). Neither the #1331 adoption (it would
+    // certify green on a vacuous subject — the #1036 guard's exact
+    // refusal class) nor the #1036 refusal (it dead-ends the documented
+    // reset → doctor → run recovery loop) applies: the make RE-ENTERS
+    // the acceptance pipeline at compose/make phase-2 by falling through
+    // to generation planning, and the outcome is the EXPLICIT
+    // `adopted-placeholder`.
+    var placeholderReDrive = false;
     if (alreadyGreen) {
       final reDrive = await _tombstonedReDrive(target.featureDir, record);
       // A tombstone invalidates the certified HASH basis, not the #1036
       // subject-shape guard: a born-green placeholder subject (scaffolded
       // marker, still-throwing stubs) must never be adopted into green —
-      // the passing test would be vacuous against it. Placeholders keep
-      // the drift refusal below.
-      final adoptable =
-          reDrive && !await _subjectIsBornGreenPlaceholderOnDisk(cwd, record);
+      // the passing test would be vacuous against it. Placeholders take
+      // the #1345 re-entry (acceptance rows) or keep the drift refusal
+      // below.
+      final placeholderOnDisk = reDrive
+          ? await _subjectIsBornGreenPlaceholderOnDisk(cwd, record)
+          : false;
+      final adoptable = reDrive && !placeholderOnDisk;
       if (adoptable) {
         adoptedReDrive = true;
         print(
@@ -734,6 +752,32 @@ class MakeCommand extends Command<void> {
           'green against the on-disk subject (outcome=adopted); the '
           'appended evidence binds the current subject shape, so any '
           'post-adoption drift still refuses.',
+        );
+      } else if (reDrive &&
+          placeholderOnDisk &&
+          await _rowKind(target.featureDir, record.behaviorId) ==
+              BehaviorKind.acceptance) {
+        // Issue #1345: the placeholder re-drive class — the re-entry.
+        // The subject on disk is the compose pipeline's OWN placeholder
+        // for a behavior the last reset tombstoned, so the make runs the
+        // SAME acceptance pipeline a first drive runs (the composition
+        // fallback re-enters compose → build; compose re-implements the
+        // stub against the feature's green unit anchors, or reports
+        // already-composed for a surviving composed product) and the
+        // cycle re-certifies from the pipeline's actual output with the
+        // EXPLICIT `adopted-placeholder` outcome — never from the
+        // vacuous pass itself. Zero composable anchors disengages the
+        // fallback at the honest `unexpressible` stop (FR-009,
+        // unchanged).
+        placeholderReDrive = true;
+        alreadyGreen = false; // issue #1345: fall through to generation
+        print(
+          '   re-drive compose re-entry (issue #1345): the on-disk '
+          'subject is the compose pipeline\'s own placeholder for a '
+          'tombstoned re-drive, so neither adoption (issue #1331) nor '
+          'the subject-drift refusal (issue #1036) applies — '
+          're-entering the acceptance pipeline at compose/make phase-2 '
+          '(outcome=adopted-placeholder).',
         );
       } else {
         if (reDrive) {
@@ -1465,6 +1509,8 @@ class MakeCommand extends Command<void> {
           ? MakeOutcome.greenWithFailedBuild
           : alreadyGreen
           ? (adoptedReDrive ? MakeOutcome.adopted : MakeOutcome.skipped)
+          : placeholderReDrive
+          ? MakeOutcome.adoptedPlaceholder
           : MakeOutcome.green,
       feature: target.featureName,
     );
