@@ -448,9 +448,13 @@ class PlanCommand extends Command<void> {
         // the lookup below is by the behavior's sourceCriterion
         // (`FR-001`). A criterion-only cell (every pre-#1310 list)
         // keys identically, so old lists reconcile unchanged.
-        final m = RegExp(r'^\|\s*([A|U]\d+)\s*\|(.+)\|\s*$').firstMatch(line);
+        final m = RegExp(r'^\|\s*([AU]\d+)\s*\|(.+)\|\s*$').firstMatch(line);
         if (m == null) continue;
-        final cells = m.group(2)!.split('|').map((c) => c.trim()).toList();
+        // Issue #1401: escaped-pipe-aware split — the reconcile reader
+        // must parse the SAME dialect the writer emits (and run reads).
+        final cells = _splitRowUnescapingPipes(
+          m.group(2)!,
+        ).map((c) => c.trim()).toList();
         if (cells.length < 3) continue; // id + traces + state minimum
         final id = m.group(1)!;
         final criterion = cells[cells.length - 2].split(',').first.trim();
@@ -1167,8 +1171,8 @@ class PlanCommand extends Command<void> {
       ..writeln('| -- | -------- | ------ | ----- |');
     for (final b in acceptance) {
       buf.writeln(
-        '| ${b.id} | ${_marked(b, persistenceDeclarations)} | '
-        '${_tracesCell(b, contractTraces)} | PENDING |',
+        '| ${b.id} | ${_escapeCell(_marked(b, persistenceDeclarations))} | '
+        '${_escapeCell(_tracesCell(b, contractTraces))} | PENDING |',
       );
     }
     buf
@@ -1199,8 +1203,8 @@ class PlanCommand extends Command<void> {
       // taxonomy the writer and the verify-red gate speak.
       final kindCell = FinderTaxonomy.kindCellFor(b.description);
       buf.writeln(
-        '| ${b.id} | ${b.description} | $kindCell | '
-        '${_tracesCell(b, contractTraces)} | PENDING |',
+        '| ${b.id} | ${_escapeCell(b.description)} | $kindCell | '
+        '${_escapeCell(_tracesCell(b, contractTraces))} | PENDING |',
       );
     }
     buf
@@ -1213,8 +1217,8 @@ class PlanCommand extends Command<void> {
       ..writeln('| -- | -------- | ------ | ----- |');
     for (final b in unit) {
       buf.writeln(
-        '| ${b.id} | ${_marked(b, persistenceDeclarations)} | '
-        '${_tracesCell(b, contractTraces)} | PENDING |',
+        '| ${b.id} | ${_escapeCell(_marked(b, persistenceDeclarations))} | '
+        '${_escapeCell(_tracesCell(b, contractTraces))} | PENDING |',
       );
     }
     // Issue #1007: the CONTRACT lane — one row per declared entity
@@ -1241,7 +1245,7 @@ class PlanCommand extends Command<void> {
         ..writeln('| -- | -------- | ------ | ----- |');
       for (final b in contractBehaviors) {
         buf.writeln(
-          '| ${b.id} | ${b.description} | ${b.sourceCriterion} | '
+          '| ${b.id} | ${_escapeCell(b.description)} | ${b.sourceCriterion} | '
           '${b.state.name.toUpperCase()} |',
         );
       }
@@ -1263,10 +1267,14 @@ class PlanCommand extends Command<void> {
           ..writeln('| entity | fields | purpose |')
           ..writeln('| ------ | ------ | ------- |');
         for (final e in entities) {
+          // e.name is grammar-safe (_dartIdentifier) and field types are
+          // prose-join — both assumed pipe-free (the spec-side _fieldPair
+          // grammar does not capture pipes). If that assumption changes,
+          // wrap in _escapeCell like purpose above.
           buf.writeln(
             '| ${e.name} | '
             '${e.fields.map((f) => '${f.name}: ${f.type}').join(', ')}'
-            ' | ${e.purpose} |',
+            ' | ${_escapeCell(e.purpose)} |',
           );
         }
       } else {
@@ -1290,7 +1298,7 @@ class PlanCommand extends Command<void> {
         ..writeln('| ---------- | ---- | -------- | ------------- |');
       for (final d in dependencies) {
         buf.writeln(
-          '| ${d.dependency} | ${d.type} | ${d.contract} '
+          '| ${d.dependency} | ${d.type} | ${_escapeCell(d.contract)} '
           '| ${d.mockPriority} |',
         );
       }
@@ -1338,8 +1346,8 @@ class PlanCommand extends Command<void> {
         ..writeln('| -- | -------- | ------ | ----- |');
       for (final row in preservedFfi) {
         buf.writeln(
-          '| ${row.id} | ${row.description} | ${row.traces} | '
-          '${row.state.name.toUpperCase()} |',
+          '| ${row.id} | ${_escapeCell(row.description)} | '
+          '${_escapeCell(row.traces)} | ${row.state.name.toUpperCase()} |',
         );
       }
     }
@@ -2178,6 +2186,44 @@ class PlanCommand extends Command<void> {
     final extra = names.where((t) => t.trim() != b.sourceCriterion).toList();
     if (extra.isEmpty) return b.sourceCriterion;
     return '${b.sourceCriterion}, ${extra.join(', ')}';
+  }
+
+  /// Issue #1401: escape pipe characters so free-text FR/AC prose can
+  /// never change a table row's column count. GFM treats `\|` inside a
+  /// cell as a literal pipe, and the run-side row reader
+  /// (TestListReader) already splits on UNESCAPED pipes and unescapes —
+  /// so the escaped form round-trips and plan/run agree on the table
+  /// format for ALL spec prose. Backslashes are deliberately NOT
+  /// re-escaped: the readers' contract treats `\|` as the only
+  /// cell-level escape, and a lone `\` followed by any non-pipe
+  /// character survives both directions unchanged.
+  static String _escapeCell(String text) => text.replaceAll('|', r'\|');
+
+  /// Issue #1401: split a table row's cells on UNESCAPED pipes and
+  /// unescape `\|` back to a literal pipe — the exact contract the
+  /// run-side reader (TestListReader) applies. Plan's meta-index
+  /// reconcile used a naive `split('|')`, so a list plan wrote
+  /// containing escaped piped prose mis-split here even though run
+  /// parsed it fine: writer and this reader disagreed on the file plan
+  /// itself had produced (the worst of both — plan emitting a file its
+  /// own re-plan leg refuses).
+  static List<String> _splitRowUnescapingPipes(String line) {
+    final cells = <String>[];
+    final buf = StringBuffer();
+    for (var i = 0; i < line.length; i++) {
+      final ch = line[i];
+      if (ch == r'\' && i + 1 < line.length && line[i + 1] == '|') {
+        buf.write('|');
+        i++;
+      } else if (ch == '|') {
+        cells.add(buf.toString());
+        buf.clear();
+      } else {
+        buf.write(ch);
+      }
+    }
+    cells.add(buf.toString());
+    return cells;
   }
 
   /// The engine/skin plan row pair for a spec-derived behavior (issue
