@@ -1,3 +1,5 @@
+import 'package:path/path.dart' as p;
+
 import '../../../core/plugin_system/capability.dart';
 import '../test_plugin.dart';
 import '../../../models/generator_config.dart';
@@ -91,7 +93,8 @@ class CreateTestCapability implements ZuraffaCapability {
 
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
-    final files = await _generateFiles(args, dryRun: args['dryRun'] ?? false);
+    final dryRun = args['dryRun'] ?? false;
+    final files = await _generateFiles(args, dryRun: dryRun);
 
     // Spec 980 / FR-001: self-certification gate. The plugin ran a scoped
     // `dart analyze` on every written test file and printed the machine
@@ -102,8 +105,39 @@ class CreateTestCapability implements ZuraffaCapability {
     final certification = plugin.lastCertification;
     final compilePassed = certification?.compile ?? true;
 
+    // Spec 1334 (verify misfire #1385, EPIC #1132 honesty floor): a
+    // non-dry-run that produced ZERO artifacts while at least one test was
+    // skipped for a MISSING DEPENDENCY (UseCase / native mock / repository
+    // source absent) must not report success. The old behavior printed the
+    // skips under `Skipped (use --force to overwrite)` — misattributing
+    // the cause — and exited 0, so fleet automation could not tell
+    // "generated" from "did nothing". Dry runs are exempt (preview is
+    // explicit user intent); overwrite-conflict skips (no reason, or
+    // 'overwrite-conflict') keep the historical benign semantics; runs
+    // that produced at least one artifact keep the certification gate as
+    // their only failure path. Receipt contract unchanged (#769): this
+    // run wrote nothing, so the wrapper persists no receipt.
+    final artifacts = files
+        .where(
+          (f) =>
+              f.action == 'created' ||
+              f.action == 'overwritten' ||
+              f.action == 'updated' ||
+              f.action == 'deleted',
+        )
+        .toList();
+    final missingDepSkips = files
+        .where(
+          (f) => f.action == 'skipped' && f.skipReason == 'missing-dependency',
+        )
+        .toList();
+    final honestGateFailed =
+        !dryRun && artifacts.isEmpty && missingDepSkips.isNotEmpty;
+
+    final success = compilePassed && !honestGateFailed;
+
     return ExecutionResult(
-      success: compilePassed,
+      success: success,
       files: files.map((f) => f.path).toList(),
       data: {
         'generatedFiles': files,
@@ -125,9 +159,16 @@ class CreateTestCapability implements ZuraffaCapability {
             certification: certification,
           ),
       },
-      message: compilePassed
-          ? null
-          : 'Generated tests do not compile: ${certification!.verdictLine}',
+      message: !success
+          ? (honestGateFailed
+                ? 'Nothing generated: ${missingDepSkips.length} test '
+                      'generation(s) skipped — dependency sources missing '
+                      '(${missingDepSkips.map((f) => p.basename(f.path)).join(', ')}). '
+                      '--> fix: create the missing sources first '
+                      '(e.g. zfa usecase create <Entity> --methods=get,update), '
+                      'then re-run zfa test create'
+                : 'Generated tests do not compile: ${certification!.verdictLine}')
+          : null,
     );
   }
 

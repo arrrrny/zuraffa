@@ -126,7 +126,15 @@ extension TestBuilderEntity on TestBuilder {
       print(
         '  ⚠️  Skipping test generation for $className: UseCase file ($useCaseFileName) not found.',
       );
-      return GeneratedFile(path: filePath, type: 'test', action: 'skipped');
+      // Spec 1334: structured skip cause — a missing UseCase source is a
+      // dependency problem, not an overwrite conflict (--force cannot fix
+      // it). The capability verdict gate keys on this reason.
+      return GeneratedFile(
+        path: filePath,
+        type: 'test',
+        action: 'skipped',
+        skipReason: 'missing-dependency',
+      );
     }
 
     final missingNativeMockFile =
@@ -144,7 +152,14 @@ extension TestBuilderEntity on TestBuilder {
         '  ⚠️  Skipping test generation for $className: Native mock '
         'file ($missingNativeMockFile) not found.',
       );
-      return GeneratedFile(path: filePath, type: 'test', action: 'skipped');
+      // Spec 1334: structured skip cause (missing dependency — see the
+      // UseCase-file skip above).
+      return GeneratedFile(
+        path: filePath,
+        type: 'test',
+        action: 'skipped',
+        skipReason: 'missing-dependency',
+      );
     }
 
     // #354: detect Flutter vs pure-Dart from pubspec.yaml so the test
