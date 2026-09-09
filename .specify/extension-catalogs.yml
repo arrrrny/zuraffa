@@ -1,0 +1,6 @@
+catalogs:
+- name: arrrrny-extensions
+  url: https://raw.githubusercontent.com/arrrrny/speckit-extensions/master/catalog.json
+  priority: 20
+  install_allowed: true
+  description: ARRRRNY's vetted speckit extension catalog

@@ -32,6 +32,13 @@
 /// - `verify-world` is the CI gate: manifest, certification receipt,
 ///   and run receipt must agree on the world hash.
 ///
+/// Issue #1354: `--feature` is optional on every subcommand — when
+/// absent it defaults to the speckit session pin
+/// (`.specify/feature.json`'s `feature_directory`), so the documented
+/// positional invocation `zfa simulate init <scenario>` works inside a
+/// speckit session. An explicit flag always beats the pin; an unusable
+/// or dangling pin is an honest usage error, never a guess.
+///
 /// Dispatch note (bug #856 / spec #975's grammar lesson): the legacy
 /// flag surface (`--scaffold`, `--feature`, `--fixtures`, `--scenario`,
 /// `--verify-guard`, `--family`, `--force`) MUST keep working, so the
@@ -299,7 +306,12 @@ class SimulateCommand extends Command<void> {
 
 /// Resolves `--feature`/`--project` into the feature directory + name.
 /// `--feature` accepts either a feature name (`968-simulation-worlds`)
-/// or a path (`specs/968-simulation-worlds`).
+/// or a path (`specs/968-simulation-worlds`). Issue #1354: when the
+/// flag is absent (subcommand or parent level), the feature falls back
+/// to the speckit session pin — `.specify/feature.json`'s
+/// `feature_directory`, the same default the bone command and the mock
+/// capabilities honor. No pin (or an unusable one) is an honest usage
+/// error; the resolver never scans `specs/` for a guess.
 ({String featureDir, String featureName, String projectRoot}) _resolveFeature(
   String? featureFlag,
   String? projectFlag,
@@ -308,21 +320,72 @@ class SimulateCommand extends Command<void> {
       ? p.absolute(projectFlag)
       : Directory.current.path;
   var name = featureFlag ?? '';
-  var dir = name;
+  var fromPin = false;
   if (name.isEmpty) {
-    throw const _UsageError(
-      'no --feature given --> fix: pass --feature <name-or-dir> (the '
-      'feature under specs/ whose declared dependency table the world '
-      'composes).',
-    );
+    final pin = _readPinnedFeature(projectRoot);
+    if (pin == null) {
+      throw const _UsageError(
+        'no --feature given and no usable .specify/feature.json pin --> '
+        'fix: pass --feature <name-or-dir> (the feature under specs/ '
+        'whose declared dependency table the world composes), or pin '
+        'the session feature in .specify/feature.json (zfa tdd plan '
+        '<feature> writes it).',
+      );
+    }
+    name = pin;
+    fromPin = true;
   }
+  var dir = name;
   if (!name.contains('/')) {
     dir = p.join(projectRoot, 'specs', name);
   } else if (!p.isAbsolute(dir)) {
     dir = p.join(projectRoot, dir);
   }
+  // Issue #1354 honesty: a pin naming a directory that does not exist
+  // is named as the failure — never a silent fallback to another
+  // feature. Explicit flags keep their pre-existing behavior (the
+  // declaration reader reports those gaps).
+  if (fromPin && !Directory(dir).existsSync()) {
+    throw _UsageError(
+      'the pinned .specify/feature.json feature directory does not '
+      'exist: $dir --> fix: pass --feature <name-or-dir>, or re-pin '
+      'the session feature (zfa tdd plan <feature> writes it).',
+    );
+  }
   name = p.basename(p.normalize(dir));
   return (featureDir: dir, featureName: name, projectRoot: projectRoot);
+}
+
+/// Reads the speckit session pin (`.specify/feature.json`'s
+/// `feature_directory`). Returns null when the pin file is absent or
+/// carries no usable `feature_directory`; a malformed pin is an honest
+/// usage error — silently ignoring a pin the session believes is active
+/// would be a lie by omission.
+String? _readPinnedFeature(String projectRoot) {
+  final file = File(p.join(projectRoot, '.specify', 'feature.json'));
+  if (!file.existsSync()) return null;
+  final Object? json;
+  try {
+    json = convert.jsonDecode(file.readAsStringSync());
+  } on FormatException {
+    throw const _UsageError(
+      'malformed .specify/feature.json --> fix: repair or remove the '
+      'pin, or pass --feature <name-or-dir>.',
+    );
+  } on FileSystemException catch (e) {
+    throw _UsageError(
+      'cannot read .specify/feature.json: ${e.message} --> fix: repair '
+      'the pin, or pass --feature <name-or-dir>.',
+    );
+  }
+  if (json is! Map) {
+    throw const _UsageError(
+      'malformed .specify/feature.json (not an object) --> fix: repair '
+      'or remove the pin, or pass --feature <name-or-dir>.',
+    );
+  }
+  final dir = json['feature_directory'];
+  return dir is String && dir.isNotEmpty ? dir : null;
 }
 
 final class _UsageError implements Exception {
@@ -371,7 +434,8 @@ class SimulateInitCommand extends Command<void> {
       'feature',
       help:
           'Feature name or directory under specs/ (whose declared '
-          'dependency table the world composes).',
+          'dependency table the world composes). Defaults to the pinned '
+          '.specify/feature.json feature.',
     );
     argParser.addOption(
       'project',
@@ -567,7 +631,9 @@ class SimulateRunCommand extends Command<void> {
   SimulateRunCommand() {
     argParser.addOption(
       'feature',
-      help: 'Feature name or directory under specs/.',
+      help:
+          'Feature name or directory under specs/. Defaults to the '
+          'pinned .specify/feature.json feature.',
     );
     argParser.addOption(
       'project',
@@ -830,7 +896,12 @@ class SimulateRunCommand extends Command<void> {
 
 class SimulateCertifyCommand extends Command<void> {
   SimulateCertifyCommand() {
-    argParser.addOption('feature', help: 'Feature name or directory.');
+    argParser.addOption(
+      'feature',
+      help:
+          'Feature name or directory. Defaults to the pinned '
+          '.specify/feature.json feature.',
+    );
     argParser.addOption('project', help: 'Project root (defaults to CWD).');
   }
 
@@ -921,7 +992,12 @@ class SimulateCertifyCommand extends Command<void> {
 
 class SimulateVerifyWorldCommand extends Command<void> {
   SimulateVerifyWorldCommand() {
-    argParser.addOption('feature', help: 'Feature name or directory.');
+    argParser.addOption(
+      'feature',
+      help:
+          'Feature name or directory. Defaults to the pinned '
+          '.specify/feature.json feature.',
+    );
     argParser.addOption('project', help: 'Project root (defaults to CWD).');
   }
 

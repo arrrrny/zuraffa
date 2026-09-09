@@ -27,11 +27,9 @@ const _feature = '058-demo-world-feature';
 Future<Directory> _workspace() =>
     Directory.systemTemp.createTemp('zfa-simulate-worlds');
 
-Future<void> _writeDependencyTable(Directory ws) async {
-  final featureDir = Directory('${ws.path}/specs/$_feature/tdd')
-    ..createSync(recursive: true);
-  File('${featureDir.path}/test-list.md').writeAsStringSync('''
-# Test List: $_feature
+String _dependencyTable(String feature) =>
+    '''
+# Test List: $feature
 
 ## External dependencies
 
@@ -41,7 +39,18 @@ Future<void> _writeDependencyTable(Directory ws) async {
 | RestSync | service | push(batch) -> SyncResult, pull(cursor) -> Page | P1 |
 
 ## Routing provenance
-''');
+''';
+
+Future<void> _writeDependencyTable(Directory ws) => _seedFeature(ws, _feature);
+
+/// Seeds `specs/<feature>/tdd/test-list.md` with a declared dependency
+/// table (the #960 output `simulate init` composes).
+Future<void> _seedFeature(Directory ws, String feature) async {
+  final featureDir = Directory('${ws.path}/specs/$feature/tdd')
+    ..createSync(recursive: true);
+  File(
+    '${featureDir.path}/test-list.md',
+  ).writeAsStringSync(_dependencyTable(feature));
 }
 
 Map<String, dynamic> _readManifest(Directory ws) =>
@@ -784,4 +793,244 @@ void main() {
       expect(output, contains('zfa simulate init ghost'));
     });
   });
+
+  group(
+    'issue #1354: pinned feature resolution (bare positional invocation)',
+    () {
+      /// Pins `.specify/feature.json` in the workspace to [featureDirectory].
+      void writePin(Directory scope, String featureDirectory) {
+        Directory('${scope.path}/.specify').createSync(recursive: true);
+        File(
+          '${scope.path}/.specify/feature.json',
+        ).writeAsStringSync('{"feature_directory":"$featureDirectory"}\n');
+      }
+
+      test('B1: bare init scaffolds the world under the pinned feature '
+          '(the issue #1354 repro)', () async {
+        writePin(ws, 'specs/$_feature');
+        final (code, output) = await runZfa([
+          'simulate',
+          'init',
+          'test_world',
+          '--project',
+          ws.path,
+        ]);
+        expect(code, 0, reason: output);
+        expect(output, contains('SIMULATE init -> GREEN'));
+        expect(output, contains('feature=$_feature'));
+
+        final manifestPath =
+            '${ws.path}/specs/$_feature/tdd/worlds/test_world.world.json';
+        expect(File(manifestPath).existsSync(), isTrue, reason: output);
+
+        // Same outcome as the explicit twin: byte-identical manifest from
+        // the same declared table + seed.
+        final ws2 = await _workspace();
+        addTearDown(() => ws2.delete(recursive: true));
+        await _writeDependencyTable(ws2);
+        final (twinCode, twinOutput) = await runZfa([
+          'simulate',
+          'init',
+          'test_world',
+          '--feature',
+          _feature,
+          '--project',
+          ws2.path,
+        ]);
+        expect(twinCode, 0, reason: twinOutput);
+        expect(
+          File(manifestPath).readAsStringSync(),
+          File(
+            '${ws2.path}/specs/$_feature/tdd/worlds/test_world.world.json',
+          ).readAsStringSync(),
+          reason: 'bare invocation == explicit --feature invocation',
+        );
+      });
+
+      test('B2: an explicit --feature beats the pin', () async {
+        const other = '070-other-world-feature';
+        await _seedFeature(ws, other);
+        writePin(ws, 'specs/$_feature');
+        final (code, output) = await runZfa([
+          'simulate',
+          'init',
+          'test_world',
+          '--feature',
+          other,
+          '--project',
+          ws.path,
+        ]);
+        expect(code, 0, reason: output);
+        expect(output, contains('feature=$other'));
+        expect(
+          File(
+            '${ws.path}/specs/$other/tdd/worlds/test_world.world.json',
+          ).existsSync(),
+          isTrue,
+          reason: output,
+        );
+        expect(
+          Directory('${ws.path}/specs/$_feature/tdd/worlds').existsSync(),
+          isFalse,
+          reason: 'the pinned feature must stay untouched',
+        );
+      });
+
+      test(
+        'B3: no flag + no pin refuses honestly naming both inputs',
+        () async {
+          final (code, output) = await runZfa([
+            'simulate',
+            'init',
+            'test_world',
+            '--project',
+            ws.path,
+          ]);
+          expect(code, 2, reason: output);
+          expect(output, contains('--feature'));
+          expect(
+            output,
+            contains('feature.json'),
+            reason: 'the error names the pin as the missing resolution step',
+          );
+          expect(
+            output,
+            isNot(contains('ignored')),
+            reason: 'the positional scenario parses; only resolution failed',
+          );
+          expect(
+            Directory('${ws.path}/specs/$_feature/tdd/worlds').existsSync(),
+            isFalse,
+          );
+        },
+      );
+
+      test(
+        'B4: a pin to a missing directory refuses naming the path',
+        () async {
+          writePin(ws, 'specs/1354-does-not-exist');
+          final (code, output) = await runZfa([
+            'simulate',
+            'init',
+            'test_world',
+            '--project',
+            ws.path,
+          ]);
+          expect(code, 2, reason: output);
+          expect(output, contains('1354-does-not-exist'));
+          expect(
+            Directory('${ws.path}/specs/$_feature/tdd/worlds').existsSync(),
+            isFalse,
+            reason: 'never a silent fallback to another feature',
+          );
+        },
+      );
+
+      test('B5: bare run/certify/verify-world resolve the pin like their '
+          'explicit twins', () async {
+        writePin(ws, 'specs/$_feature');
+        final init = await runZfa([
+          'simulate',
+          'init',
+          'test_world',
+          '--project',
+          ws.path,
+        ]);
+        expect(init.$1, 0, reason: init.$2);
+
+        final run = await runZfa([
+          'simulate',
+          'run',
+          'test_world',
+          '--project',
+          ws.path,
+        ]);
+        expect(run.$1, 0, reason: run.$2);
+        expect(run.$2, contains('simulate-run: scenario=test_world'));
+
+        final certify = await runZfa([
+          'simulate',
+          'certify',
+          'test_world',
+          '--project',
+          ws.path,
+        ]);
+        expect(certify.$1, 0, reason: certify.$2);
+        expect(certify.$2, contains('simulate-certify: scenario=test_world'));
+
+        final verify = await runZfa([
+          'simulate',
+          'verify-world',
+          'test_world',
+          '--project',
+          ws.path,
+        ]);
+        expect(verify.$1, 0, reason: verify.$2);
+        expect(verify.$2, contains('verdict=GREEN'));
+        expect(verify.$2, contains('run-receipt=green'));
+      });
+
+      test(
+        'B6: the parent-level --feature keeps winning over the pin',
+        () async {
+          const other = '070-other-world-feature';
+          await _seedFeature(ws, other);
+          writePin(ws, 'specs/$other');
+          final (code, output) = await runZfa([
+            'simulate',
+            '--feature',
+            _feature,
+            'init',
+            'test_world',
+            '--project',
+            ws.path,
+          ]);
+          expect(code, 0, reason: output);
+          expect(output, contains('feature=$_feature'));
+          expect(
+            File(
+              '${ws.path}/specs/$_feature/tdd/worlds/test_world.world.json',
+            ).existsSync(),
+            isTrue,
+            reason: output,
+          );
+        },
+      );
+
+      test('B7: a malformed pin refuses honestly (never crashes)', () async {
+        Directory('${ws.path}/.specify').createSync(recursive: true);
+        File(
+          '${ws.path}/.specify/feature.json',
+        ).writeAsStringSync('not json {{{');
+        final (code, output) = await runZfa([
+          'simulate',
+          'init',
+          'test_world',
+          '--project',
+          ws.path,
+        ]);
+        expect(code, 2, reason: output);
+        expect(
+          output,
+          contains('malformed'),
+          reason: 'an unreadable pin is named, not silently ignored',
+        );
+        expect(
+          Directory('${ws.path}/specs/$_feature/tdd/worlds').existsSync(),
+          isFalse,
+        );
+      });
+
+      test(
+        'B8: the subcommand help documents the pinned-feature default',
+        () async {
+          for (final sub in ['init', 'run', 'certify', 'verify-world']) {
+            final (code, output) = await runZfa(['simulate', sub, '--help']);
+            expect(code, 0, reason: output);
+            expect(output, contains('pinned'), reason: '$sub --help');
+          }
+        },
+      );
+    },
+  );
 }
