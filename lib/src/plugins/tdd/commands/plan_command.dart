@@ -983,37 +983,51 @@ class PlanCommand extends Command<void> {
         layoutSlots: layoutSlots,
       );
       await persistMarkerEmission();
-      if (splitReceiptExists) {
-        // Issue #1309: refresh only after every generated artifact and
-        // marker emission succeeded. Hash and mtime come from the final
-        // on-disk spec, so marker migration cannot make the repaired
-        // receipt immediately stale. A malformed existing receipt is
-        // rebuilt with the current heuristic classification instead of
-        // demoting this run to the legacy single-file plan.
-        final finalSpecMd = await specFile.readAsString();
-        final refreshed = splitReceipt == null
-            ? <String, dynamic>{
-                'feature': feature,
-                'source': 'tdd/test-list.md',
-                'rows': laneResult.classification.length,
-                'classification': {
-                  for (final entry in laneResult.classification.entries)
-                    entry.key: entry.value.label,
-                },
-              }
-            : <String, dynamic>{...splitReceipt};
-        refreshed
-          ..['spec_hash'] = sha256.convert(utf8.encode(finalSpecMd)).toString()
-          ..['spec_mtime'] = (await specFile.lastModified())
-              .toUtc()
-              .toIso8601String()
-          ..['refreshed_at'] = DateTime.now().toUtc().toIso8601String()
-          ..['refreshed_by'] = 'zfa tdd plan'
-          ..['refreshed_rows'] = laneResult.classification.length;
-        await receiptFile.writeAsString(
-          const JsonEncoder.withIndent('  ').convert(refreshed),
-        );
-      }
+      // Issue #1309: refresh only after every generated artifact and
+      // marker emission succeeded. Hash and mtime come from the final
+      // on-disk spec, so marker migration cannot make the repaired
+      // receipt immediately stale. A malformed existing receipt is
+      // rebuilt with the current heuristic classification instead of
+      // demoting this run to the legacy single-file plan.
+      //
+      // Issue #1366: the receipt write is UNCONDITIONAL when lane plans
+      // are emitted — plan-emitted lane plans carry the migration record
+      // themselves (`source: zfa tdd plan`), so a committed tree can
+      // never ship lane plans without the receipt the one-shot guard
+      // keys on.
+      final finalSpecMd = await specFile.readAsString();
+      final refreshed = splitReceiptExists
+          ? (splitReceipt == null
+                ? <String, dynamic>{
+                    'feature': feature,
+                    'source': 'tdd/test-list.md',
+                    'rows': laneResult.classification.length,
+                    'classification': {
+                      for (final entry in laneResult.classification.entries)
+                        entry.key: entry.value.label,
+                    },
+                  }
+                : <String, dynamic>{...splitReceipt})
+          : <String, dynamic>{
+              'feature': feature,
+              'source': 'zfa tdd plan',
+              'rows': laneResult.classification.length,
+              'classification': {
+                for (final entry in laneResult.classification.entries)
+                  entry.key: entry.value.label,
+              },
+            };
+      refreshed
+        ..['spec_hash'] = sha256.convert(utf8.encode(finalSpecMd)).toString()
+        ..['spec_mtime'] = (await specFile.lastModified())
+            .toUtc()
+            .toIso8601String()
+        ..['refreshed_at'] = DateTime.now().toUtc().toIso8601String()
+        ..['refreshed_by'] = 'zfa tdd plan'
+        ..['refreshed_rows'] = laneResult.classification.length;
+      await receiptFile.writeAsString(
+        const JsonEncoder.withIndent('  ').convert(refreshed),
+      );
       // Issue #1125: the laned plan's explain block — the lane split is
       // the artifact set here, the summary names exactly what was written.
       _verdict.explain = TddExplain(
