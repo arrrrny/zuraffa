@@ -139,13 +139,19 @@ String? unitRowOf(String rendered, String id) => rendered
 /// through it.
 Future<String> genSubjectOf(TddFixture fx, String id) async {
   final record = await fx.registryRecordOf(id);
-  return File(record['subject_path'] as String).readAsString();
+  return File(
+    fixturePath(fx, record['subject_path'] as String),
+  ).readAsString();
 }
 
 Future<String> genTestOf(TddFixture fx, String id) async {
   final record = await fx.registryRecordOf(id);
-  return File(record['test_path'] as String).readAsString();
+  return File(fixturePath(fx, record['test_path'] as String)).readAsString();
 }
+
+String fixturePath(TddFixture fx, String recordedPath) => p.isAbsolute(recordedPath)
+    ? recordedPath
+    : p.join(fx.root.path, recordedPath);
 
 void main() {
   group('issue #1310 — plan writes the full trace set into traces cells', () {
@@ -450,7 +456,9 @@ void main() {
       // certify (a guard-only test in this state is exactly the
       // vacuous-green refusal the issue dead-ends on).
       final record = await fx.registryRecordOf('U1');
-      final subjectFile = File(record['subject_path'] as String);
+      final subjectFile = File(
+        fixturePath(fx, record['subject_path'] as String),
+      );
       final subject = await subjectFile.readAsString();
       await subjectFile.writeAsString(
         // The contract-derived stub body is an expression form:
