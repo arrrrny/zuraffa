@@ -14,37 +14,38 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
+import 'package:zuraffa/src/cli/writers/tdd/pubspec_dev_dependencies_patcher.dart';
 
 void main() {
   final pubspec = File('example/pubspec.yaml');
 
-  test('B1: the example baseline declares the TDD dev_dependencies',
-      () {
-    expect(pubspec.existsSync(), isTrue,
-        reason: 'example/pubspec.yaml is the shipped baseline');
+  test('B1: the shipped baseline equals the writer-prescribed TDD set', () {
+    expect(
+      pubspec.existsSync(),
+      isTrue,
+      reason: 'example/pubspec.yaml is the shipped baseline',
+    );
     final doc = loadYaml(pubspec.readAsStringSync()) as Map;
     final devDeps = doc['dev_dependencies'] as Map;
 
-    // The gen'd engine-lane tests import package:test (pure Dart —
-    // engine discipline, zero Flutter imports).
-    expect(devDeps.keys, contains('test'),
-        reason: 'engine tests compile against the shipped baseline');
-    // The mutation auditor + coverage collector (tdd verify preflight).
-    expect(devDeps.keys, contains('coverage'));
-    expect(devDeps.keys, contains('mutation_test'));
-    // Flutter consumers keep the Flutter test kernel.
-    expect(devDeps.keys, contains('flutter_test'));
-  });
-
-  test('B2: the TDD deps carry the writer-canonical constraints', () {
-    final doc = loadYaml(pubspec.readAsStringSync()) as Map;
-    final devDeps = doc['dev_dependencies'] as Map;
-
-    // The constraints `zfa tdd init` writes (PubspecDevDependencies
-    // Patcher.flutterDevDependencies) — the repair path and the shipped
-    // baseline must agree, or init reports a misfire on its own tree.
-    expect(devDeps['test'], '^1.0.0');
-    expect(devDeps['coverage'], '^1.15.1');
-    expect(devDeps['mutation_test'], '^1.8.0');
+    // One authoritative listing: every dependency the init writer
+    // prescribes is declared, and `^`-constraints agree verbatim — the
+    // shipped baseline and the repair path can never disagree.
+    for (final entry
+        in PubspecDevDependenciesPatcher.flutterDevDependencies.entries) {
+      expect(
+        devDeps.keys,
+        contains(entry.key),
+        reason: '${entry.key} is part of the prescribed TDD baseline',
+      );
+      final constraint = entry.value;
+      if (constraint.startsWith('^')) {
+        expect(
+          devDeps[entry.key],
+          constraint,
+          reason: '${entry.key} carries the writer-canonical constraint',
+        );
+      }
+    }
   });
 }
