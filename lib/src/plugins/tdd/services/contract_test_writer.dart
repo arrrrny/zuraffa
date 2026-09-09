@@ -112,10 +112,25 @@ class ContractDeclaration {
     final close = signature.lastIndexOf(')');
     if (close < open) return null;
     final paramsText = signature.substring(open + 1, close).trim();
-    final params = _splitTopLevel(paramsText)
-        .map((cell) => ContractParam.parse(cell))
-        .whereType<ContractParam>()
-        .toList();
+    // Issue #1363: the emitted signature's names must be UNIQUE by
+    // invariant — a repeated declared name (validate(email, email)) or
+    // a bare cell colliding with a positional fallback falls back to
+    // the positional form for its position (suffix _p<N> on the rare
+    // double collision).
+    final params = <ContractParam>[];
+    final seen = <String>{};
+    for (final entry in _splitTopLevel(paramsText).asMap().entries) {
+      final parsed = ContractParam.parse(entry.value, index: entry.key);
+      if (parsed == null) continue;
+      var name = parsed.name;
+      if (seen.contains(name)) {
+        name = seen.contains('arg${entry.key}')
+            ? 'arg${entry.key}_p${entry.key}'
+            : 'arg${entry.key}';
+      }
+      seen.add(name);
+      params.add(ContractParam(type: parsed.type, name: name));
+    }
     return ContractDeclaration(
       interface: interface,
       method: method,
@@ -176,7 +191,13 @@ class ContractParam {
 
   /// Parse one parameter cell. Null when the cell is not a plausible
   /// parameter (empty or malformed).
-  static ContractParam? parse(String cell) {
+  ///
+  /// [index] is the cell's position in the declared parameter list — the
+  /// positional fallback's number. Issue #1363: every fallback hardcoded
+  /// `arg0`, so a multi-param contract of bare-name cells emitted
+  /// `arg0, arg0` — a duplicate-definition stub that could not compile
+  /// and smeared load-errors across the verify-red batch.
+  static ContractParam? parse(String cell, {int index = 0}) {
     final trimmed = cell.trim();
     if (trimmed.isEmpty) return null;
     // The LAST top-level space separates type from name when the cell
@@ -193,12 +214,19 @@ class ContractParam {
       }
     }
     if (split == null) {
-      return ContractParam(type: trimmed, name: 'arg0');
+      // A bare identifier cell is a declared NAME (the Layer Contracts
+      // grammar: `validate(email, password)`) — the type falls back to
+      // dynamic. A bare non-identifier cell is an unnamed TYPE: it keeps
+      // a positional name.
+      if (RegExp(r'^[A-Za-z_]\w*$').hasMatch(trimmed)) {
+        return ContractParam(type: 'dynamic', name: trimmed);
+      }
+      return ContractParam(type: trimmed, name: 'arg$index');
     }
     final type = trimmed.substring(0, split).trim();
     final name = trimmed.substring(split + 1).trim();
     if (type.isEmpty || !RegExp(r'^[A-Za-z_]\w*$').hasMatch(name)) {
-      return ContractParam(type: trimmed, name: 'arg0');
+      return ContractParam(type: trimmed, name: 'arg$index');
     }
     return ContractParam(type: type, name: name);
   }
