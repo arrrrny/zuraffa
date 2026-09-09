@@ -259,5 +259,20 @@ dependencies: invalid
         expect(out, isNot(contains('_TypeError')));
       },
     );
+
+    test('non-empty inline flow mapping is refused loudly', () async {
+      await File(p.join(tmpDir.path, 'pubspec.yaml')).writeAsString('''
+name: bug1349_init_fixture
+environment:
+  sdk: ^3.11.0
+dependencies: {flutter: {sdk: flutter}}
+''');
+
+      final out = await runInit();
+
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
+      expect(out, contains('writer(s) failed'));
+      expect(out, contains('not supported by'));
+    });
   });
 }

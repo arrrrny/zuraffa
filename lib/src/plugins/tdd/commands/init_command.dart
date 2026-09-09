@@ -410,6 +410,13 @@ class InitCommand extends Command<void> {
       return buf.toString();
     }
 
+    // A trailing blank line (file ending in "\n") never terminates the
+    // block scan, so endIdx stays at lines.length and entries would land
+    // after a stray blank line inside the block. Fall back to the last
+    // non-blank line instead.
+    if (endIdx >= lines.length) {
+      endIdx = lines.lastIndexWhere((l) => l.trim().isNotEmpty) + 1;
+    }
     for (var i = 0; i < lines.length; i++) {
       if (i == endIdx) {
         for (final m in missing) {
