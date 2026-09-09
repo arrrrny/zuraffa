@@ -61,6 +61,15 @@ Map<String, dynamic> _readManifest(Directory ws) =>
         )
         as Map<String, dynamic>;
 
+/// Pins `.specify/feature.json` under [scope] to [featureDirectory]
+/// (the speckit session pin the #1354/#1356 resolution honors).
+void writePin(Directory scope, String featureDirectory) {
+  Directory('${scope.path}/.specify').createSync(recursive: true);
+  File(
+    '${scope.path}/.specify/feature.json',
+  ).writeAsStringSync('{"feature_directory":"$featureDirectory"}\n');
+}
+
 void main() {
   late Directory ws;
 
@@ -797,14 +806,6 @@ void main() {
   group(
     'issue #1354: pinned feature resolution (bare positional invocation)',
     () {
-      /// Pins `.specify/feature.json` in the workspace to [featureDirectory].
-      void writePin(Directory scope, String featureDirectory) {
-        Directory('${scope.path}/.specify').createSync(recursive: true);
-        File(
-          '${scope.path}/.specify/feature.json',
-        ).writeAsStringSync('{"feature_directory":"$featureDirectory"}\n');
-      }
-
       test('B1: bare init scaffolds the world under the pinned feature '
           '(the issue #1354 repro)', () async {
         writePin(ws, 'specs/$_feature');
@@ -1119,6 +1120,130 @@ void main() {
       final (code, output) = await runZfa(['simulate', '--help']);
       expect(code, 0, reason: output);
       expect(output, contains('bare feature name'));
+    });
+  });
+
+  group('issue #1356: simulate replay subcommand', () {
+    test(
+      'B1: bare replay after init+run proves deterministic (exit 0)',
+      () async {
+        writePin(ws, 'specs/$_feature');
+        final init = await runZfa([
+          'simulate',
+          'init',
+          'test_world',
+          '--project',
+          ws.path,
+        ]);
+        expect(init.$1, 0, reason: init.$2);
+        final run = await runZfa([
+          'simulate',
+          'run',
+          'test_world',
+          '--project',
+          ws.path,
+        ]);
+        expect(run.$1, 0, reason: run.$2);
+
+        final (code, output) = await runZfa([
+          'simulate',
+          'replay',
+          'test_world',
+          '--project',
+          ws.path,
+        ]);
+        expect(code, 0, reason: output);
+        expect(output, contains('simulate-replay: scenario=test_world'));
+        expect(output, contains('deterministic=true'));
+      },
+    );
+
+    test('B2: replay with no recorded run receipt refuses with the '
+        'run-first fix', () async {
+      writePin(ws, 'specs/$_feature');
+      final init = await runZfa([
+        'simulate',
+        'init',
+        'test_world',
+        '--project',
+        ws.path,
+      ]);
+      expect(init.$1, 0, reason: init.$2);
+
+      final (code, output) = await runZfa([
+        'simulate',
+        'replay',
+        'test_world',
+        '--project',
+        ws.path,
+      ]);
+      expect(code, 1, reason: output);
+      expect(output, contains('no recorded run receipt'));
+      expect(output, contains('zfa simulate run test_world'));
+    });
+
+    test('B3: replay on a mutated world refuses naming both hashes', () async {
+      writePin(ws, 'specs/$_feature');
+      await runZfa(['simulate', 'init', 'test_world', '--project', ws.path]);
+      await runZfa(['simulate', 'run', 'test_world', '--project', ws.path]);
+
+      // Mutate the world (the corpus drifts).
+      final manifestPath =
+          '${ws.path}/specs/$_feature/tdd/worlds/test_world.world.json';
+      final manifest =
+          jsonDecode(File(manifestPath).readAsStringSync())
+              as Map<String, dynamic>;
+      final restSync = (manifest['corpus'] as Map)['RestSync'] as Map;
+      ((restSync['push'] as Map)['fixture'] as Map)['count'] = 4242;
+      File(manifestPath).writeAsStringSync(
+        '${const JsonEncoder.withIndent('  ').convert(manifest)}\n',
+      );
+
+      final (code, output) = await runZfa([
+        'simulate',
+        'replay',
+        'test_world',
+        '--project',
+        ws.path,
+      ]);
+      expect(code, 1, reason: output);
+      expect(output, contains('mutated since the recorded run'));
+    });
+
+    test('B4: a tampered recorded digest reports DIGEST MISMATCH', () async {
+      writePin(ws, 'specs/$_feature');
+      await runZfa(['simulate', 'init', 'test_world', '--project', ws.path]);
+      await runZfa(['simulate', 'run', 'test_world', '--project', ws.path]);
+
+      final receiptPath = '${ws.path}/.zfa/receipts/world-run-test_world.json';
+      final receipt =
+          jsonDecode(File(receiptPath).readAsStringSync())
+              as Map<String, dynamic>;
+      receipt['run_digest'] = '0' * 64;
+      File(receiptPath).writeAsStringSync(
+        '${const JsonEncoder.withIndent('  ').convert(receipt)}\n',
+      );
+
+      final (code, output) = await runZfa([
+        'simulate',
+        'replay',
+        'test_world',
+        '--project',
+        ws.path,
+      ]);
+      expect(code, 1, reason: output);
+      expect(output, contains('DIGEST MISMATCH'));
+    });
+
+    test('B5: --help documents the replay subcommand in the invocation '
+        'grammar', () async {
+      final (code, output) = await runZfa(['simulate', '--help']);
+      expect(code, 0, reason: output);
+      expect(
+        output,
+        contains('<init|run|replay'),
+        reason: 'the invocation grammar lists replay as a subcommand',
+      );
     });
   });
 }
