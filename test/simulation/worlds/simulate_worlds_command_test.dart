@@ -1033,4 +1033,68 @@ void main() {
       );
     },
   );
+
+  group('issue #1355: legacy --feature bare-name resolution', () {
+    late String originalCwd;
+
+    setUp(() async {
+      originalCwd = Directory.current.path;
+      Directory.current = ws.path;
+      await runZfa([
+        'simulate',
+        '--scaffold',
+        'specs/$_feature',
+        '--family',
+        'firebase-auth',
+      ]);
+    });
+
+    tearDown(() => Directory.current = originalCwd);
+
+    test('B1: bare-name --feature replays the fixtures its own scaffold '
+        'wrote (the issue #1355 repro)', () async {
+      final (code, output) = await runZfa(['simulate', '--feature', _feature]);
+      expect(code, 0, reason: output);
+      expect(output, contains('SIMULATE golden -> GREEN'));
+    });
+
+    test('B2: the path form keeps working (regression guard)', () async {
+      final (code, output) = await runZfa([
+        'simulate',
+        '--feature',
+        'specs/$_feature',
+      ]);
+      expect(code, 0, reason: output);
+      expect(output, contains('SIMULATE golden -> GREEN'));
+    });
+
+    test('B3: a bare name without a specs dir stays an honest RED naming '
+        'the raw value', () async {
+      final (code, output) = await runZfa([
+        'simulate',
+        '--feature',
+        'ghost-feature',
+      ]);
+      expect(code, 1, reason: output);
+      expect(output, contains('RED'));
+      expect(output, contains('ghost-feature/tdd/fixtures/manifest.json'));
+    });
+
+    test('B4: --fixtures is honored verbatim (no specs/ resolution)', () async {
+      final (code, output) = await runZfa([
+        'simulate',
+        '--fixtures',
+        'specs/$_feature/tdd/fixtures',
+      ]);
+      expect(code, 0, reason: output);
+      expect(output, contains('SIMULATE golden -> GREEN'));
+    });
+
+    test('B5: the parent help documents the bare-name rule', () async {
+      Directory.current = originalCwd;
+      final (code, output) = await runZfa(['simulate', '--help']);
+      expect(code, 0, reason: output);
+      expect(output, contains('bare feature name'));
+    });
+  });
 }
