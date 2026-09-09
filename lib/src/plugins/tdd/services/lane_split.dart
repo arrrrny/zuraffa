@@ -136,7 +136,17 @@ String renderEnginePlan({
   Map<String, List<String>> provenance = const {},
 }) {
   final acceptance = rows
-      .where((r) => r.kind == BehaviorKind.acceptance)
+      .where(
+        (r) =>
+            r.kind == BehaviorKind.acceptance ||
+            // Issue #1432: a platform-typed acceptance scenario routes to
+            // this lane — it renders as an outer-loop row with the same
+            // columns as the acceptance rows (the loop's reader resolves
+            // it with the same positional contract). Filtering it out was
+            // the silent drop: the route log claimed the lane while the
+            // artifact omitted the row.
+            r.kind == BehaviorKind.platform,
+      )
       .toList();
   final widget = rows.where((r) => r.kind == BehaviorKind.widget).toList();
   final unit = rows.where((r) => r.kind == BehaviorKind.unit).toList();
@@ -201,7 +211,14 @@ String renderSkinPlan({
   AdaptiveSkinContract? skinContract,
 }) {
   final acceptance = rows
-      .where((r) => r.kind == BehaviorKind.acceptance)
+      .where(
+        (r) =>
+            r.kind == BehaviorKind.acceptance ||
+            // Issue #1432: same as the engine plan — the platform-typed
+            // acceptance scenario is routed here, so its row renders in
+            // the acceptance outer-loop section instead of vanishing.
+            r.kind == BehaviorKind.platform,
+      )
       .toList();
   final widget = rows.where((r) => r.kind == BehaviorKind.widget).toList();
   final unit = rows.where((r) => r.kind == BehaviorKind.unit).toList();
