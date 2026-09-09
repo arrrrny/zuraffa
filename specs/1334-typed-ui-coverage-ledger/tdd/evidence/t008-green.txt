@@ -1,0 +1,24 @@
+T008 verification record (spec 1334, issue #1143) — ACTUAL results from this session:
+
+1. dart format --set-exit-if-changed lib test   -> Formatted 2458 files (0 changed) — PASS
+   (full-tree `dart format .` also run: the only files it would reformat are
+   3 PRE-EXISTING drifted files outside the CI gate scope (corpus/ x2,
+   specs/1256 x1) and outside this change set — reverted, not part of this PR)
+
+2. dart analyze (changed files: typed_ledger_row.dart, xray_ledger_binding.dart,
+   lib/tdd/1334-* x8 + tests x8, lib/tdd/0966 t6/t7/t8) -> 0 errors, 0 warnings;
+   16 info-level non_constant_identifier_names lints — the same class every
+   075/0966 self-hosting subject carries (CI runs --no-fatal-warnings) — PASS
+
+3. dart test (ONLY the suites this change touches — cloud budget, no full suite):
+   test/tdd/1334-typed-ui-coverage-ledger/  -> 00:00 +8: All tests passed! (8/8)
+   test/tdd/0966-typed-ledger-rows/          -> 00:00 +8: All tests passed! (8/8)
+   test/tdd/075-ui-coverage-ledger/          -> 00:02 +22: All tests passed! (22/22)
+
+4. Deliberate mutation audit (tdd/evidence/deliberate-mutation-report.md):
+   10 mutants over the #1143 seams — 9 KILLED, 1 SURVIVED documented as
+   equivalent-by-invariant (M10: the feature-wide verdict's legacy||arm is
+   unreachable when unproven==0); post-restore sanity run GREEN.
+
+5. Disk housekeeping: .dart_tool/test/ kernel cache removed after every test
+   phase; df -h . -> 17% used, healthy.

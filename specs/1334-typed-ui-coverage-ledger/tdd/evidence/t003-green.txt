@@ -1,0 +1,3 @@
+00:00 +0: loading test/tdd/1334-typed-ui-coverage-ledger/t003_per_screen_gate_test.dart
+00:00 +0: T3 (FR-004) T3 - per-screen gate.
+00:00 +1: All tests passed!
