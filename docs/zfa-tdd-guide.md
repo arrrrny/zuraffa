@@ -504,7 +504,7 @@ X-Ray bridge. None are blockers; each has a working workaround.
    without a delay settles before the first post-tap pump, so
    mid-flight assertions (loading overlay, disabled buttons) are
    nondeterministic — one run shows the overlay, the next does not.
-   Delay the throw (`Future<void>.delayed(50ms)` then throw) for a
+   Delay the throw (`await Future<void>.delayed(const Duration(milliseconds: 50));` then throw) for a
    deterministic red→green.
 12. **`make` refuses on warnings (filed as #1407).** `dart analyze`
    0 errors + 1 warning fails the gate with `generation-error`, and a

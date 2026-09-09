@@ -7,9 +7,9 @@ login screen from scratch (`~/Developer/zik_zak_v2`, fresh `zfa setup
 
 ## Result
 
-```
+```text
 status: feature=login engine=green skin=green
-login | engine ✅ 9/9 | skin ✅ 9/9 (0 platforms) | mocks 0/0 certified
+login | engine ✅ 9/9 | skin ✅ 9/9 (macOS) | mocks 0/0 certified
 ```
 
 - 9 CORE behaviors (A1–A3 acceptance, U1–U6 unit) — green, receipts written.
