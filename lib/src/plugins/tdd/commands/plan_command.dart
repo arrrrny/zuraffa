@@ -611,7 +611,7 @@ class PlanCommand extends Command<void> {
     // (errors-are-an-API): the old shape silently let gen fall back to
     // the row's first signature — the #920 wrong-signature class.
     final contractTraces = <String, List<String>>{};
-    String? ambiguousTraces;
+    final ambiguousTraces = <String>[];
     for (final entry in expressibleEntries) {
       final tokens = frTraces[entry.currentId];
       if (tokens == null || tokens.isEmpty) continue;
@@ -624,20 +624,21 @@ class PlanCommand extends Command<void> {
           contractRows: declarations.contractRows,
         );
       } on StateError catch (e) {
-        ambiguousTraces = e.message;
-        break;
+        ambiguousTraces.add(e.message);
       }
     }
-    if (ambiguousTraces != null) {
-      print('zfa tdd plan: ambiguous declared trace — $ambiguousTraces');
+    if (ambiguousTraces.isNotEmpty) {
+      for (final message in ambiguousTraces) {
+        print('zfa tdd plan: ambiguous declared trace — $message');
+      }
       print('  no artifacts were written.');
       _verdict
         ..outcome = VerdictOutcome.fail
         ..exitClass = 'ambiguous-declared-trace'
         ..fix =
-            'qualify the trace token with the method named above, then '
+            'qualify the trace token(s) with the method named above, then '
             're-run zfa tdd plan'
-        ..details['reason'] = ambiguousTraces;
+        ..details['reason'] = ambiguousTraces.join('\n');
       exitCode = 2;
       return;
     }

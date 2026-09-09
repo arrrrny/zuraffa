@@ -193,6 +193,10 @@ void main() {
   group(
     'issue #1320 — plan writes the method-qualified cell (both writers)',
     () {
+      tearDown(() {
+        exitCode = 0;
+      });
+
       test('U1: a single-method row-only trace method-qualifies the unit '
           'cell (legacy writer)', () async {
         final (:out, testList: list, engine: _, err: _) = await planSpec(

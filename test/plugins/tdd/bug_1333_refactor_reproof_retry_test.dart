@@ -77,7 +77,9 @@ exit 0
   }
 
   Future<void> seedKernelMarkers(String unique) async {
-    await Directory(p.join(fx.root.path, '.dart_tool', 'test')).create(recursive: true);
+    await Directory(
+      p.join(fx.root.path, '.dart_tool', 'test'),
+    ).create(recursive: true);
     File(
       p.join(fx.root.path, '.dart_tool', 'test', 'probe.kernel'),
     ).writeAsStringSync('stale kernel bytes');
@@ -120,7 +122,8 @@ exit 0
         'with a kernel-cache clear and the run completes green', () async {
       await seedKernelMarkers('retry');
       final concurrentMarker = tmpKernelMarker('concurrent');
-      final kernelRace = '''
+      final kernelRace =
+          '''
 echo Cannot retrieve length of file: /tmp/dart_test.kernel./probe_test.dart_.dill errno 2 >&2
 echo active kernel bytes > '${concurrentMarker.path}'
 exit 255
