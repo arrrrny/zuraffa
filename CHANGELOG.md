@@ -1,3 +1,11 @@
+## [next]
+
+### Changed
+- Agent runtime gated behind `package:zuraffa/agent.dart`; no longer
+  re-exported from the default barrel (#1344). Migration: swap
+  `import 'package:zuraffa/zuraffa.dart';` for
+  `import 'package:zuraffa/agent.dart';` where agent symbols are used.
+
 ## [6.2.2] - 2026-09-08
 
 ### Added
