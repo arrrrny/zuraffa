@@ -54,7 +54,7 @@ String? probeRelocatedArtifact(String projectRoot, String recorded) {
   if (!p.isAbsolute(recorded)) return null;
   final segments = p
       .normalize(recorded)
-      .split('/')
+      .split(RegExp(r'[\\/]'))
       .where((s) => s.isNotEmpty)
       .toList();
   for (var i = 0; i + 2 <= segments.length; i++) {
