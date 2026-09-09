@@ -385,6 +385,36 @@ binary build `583d711d` — every §5a hand step exercised, both receipts
 green, `flutter test` 16/16, and the built `.app` live-tested on macOS
 (2026-09-09).
 
+## Authoring gotchas (spec-parser grammar, hit 2026-09-09)
+
+These are not code bugs — the parser fails fast with a remedy, but the
+grammar rules are stricter than the template suggests. All discovered
+while authoring the `xray-cli` spec (CLI CRUD over the X-Ray bridge):
+
+1. **Layer Contracts labels must be exactly `Domain`, `Data`,
+   `Presentation`, or `Function`.** A label like
+   `**Domain (engine, pure Dart)**:`
+   parses for contract-behavior derivation but is dropped from the ROUTING
+   table (spec_parser.dart `parseContractRows`), so every FR tracing to a
+   row under that label refuses with `danglingReference`. Same for
+   `**Skin**:`, which is not a known layer — Flutter-facing rows belong
+   under `**Presentation**:`.
+2. **Contract bullets are ` - `Name`: `sig` `` — a parenthetical between
+   the name and the colon silently drops the row** (`TodoList` (extended):
+   never routes). Method tokens in `traces:` are validated against the
+   declared signatures, so a trace to `Foo.bar` requires `bar` to be a
+   declared method of `Foo`.
+3. **Lane `behaviors:` annotations cannot contain commas.**
+   `W1 (mount view, sync state)` splits on the comma into two bogus hand
+   rows (`W1 (mount view` + `sync state)`). Write annotations
+   comma-free: `W1 (mount view and sync state)`.
+4. **`Key Entities` rows route, `Key Entities` prose bullets do not** —
+  entities must live in the pipe table (`| Entity | Fields |`).
+5. **Anything external the FRs trace (e.g. `XRayBridgeServer.start`) must
+   be declared in an `## External Dependencies & Contracts` table** with a
+   `service` type — otherwise the trace dangles even though the symbol
+   exists in a pub dependency.
+
 ## Reference specs (in this repo)
 
 - `specs/041-tdd-setup-plugin/spec.md` — the full TDD cycle contract
