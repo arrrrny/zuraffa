@@ -19,7 +19,6 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
-import 'package:zuraffa/src/plugins/tdd/models/artifact_record.dart';
 import 'package:zuraffa/src/plugins/tdd/services/artifact_registry.dart';
 import 'package:zuraffa/src/plugins/tdd/services/mutation_scope.dart';
 
@@ -31,30 +30,31 @@ void main() {
   /// record built from [record], creating the real artifact files whose
   /// [recordPaths] (test/subject) point into it.
   Future<void> seedRegistry(Map<String, String> record) async {
-    final tdd = Directory(
-      p.join(root.path, 'specs', '035-fixture', 'tdd'),
-    )..createSync(recursive: true);
-    File(
-      p.join(tdd.path, 'artifacts.json'),
-    ).writeAsStringSync(jsonEncode({'feature': '035-fixture', 'records': [record]}));
+    final tdd = Directory(p.join(root.path, 'specs', '035-fixture', 'tdd'))
+      ..createSync(recursive: true);
+    File(p.join(tdd.path, 'artifacts.json')).writeAsStringSync(
+      jsonEncode({
+        'feature': '035-fixture',
+        'records': [record],
+      }),
+    );
   }
 
   Map<String, String> baseRecord({
     required String testPath,
     required String subjectPath,
     required String runnableTestName,
-  }) =>
-      {
-        'behavior_id': 'A1',
-        'feature': '035-fixture',
-        'source_criterion': 'AC-1',
-        'test_path': testPath,
-        'subject_path': subjectPath,
-        'runnable_test_name': runnableTestName,
-        'test_ownership': 'created',
-        'subject_ownership': 'created',
-        'created_at': '2026-09-09T06:04:00.000Z',
-      };
+  }) => {
+    'behavior_id': 'A1',
+    'feature': '035-fixture',
+    'source_criterion': 'AC-1',
+    'test_path': testPath,
+    'subject_path': subjectPath,
+    'runnable_test_name': runnableTestName,
+    'test_ownership': 'created',
+    'subject_ownership': 'created',
+    'created_at': '2026-09-09T06:04:00.000Z',
+  };
 
   setUp(() async {
     root = await Directory.systemTemp.createTemp('zfa-1357');
@@ -73,11 +73,11 @@ void main() {
 
   tearDown(() => root.delete(recursive: true));
 
-  test('B1: sandbox-absolute paths re-anchor to repo-relative on load',
-      () async {
+  test('B1: sandbox-absolute paths re-anchor to repo-relative on load', () async {
     await seedRegistry(
       baseRecord(
-        testPath: '/home/z/my-project/zuraffa/test/tdd/035-fixture/a1_test.dart',
+        testPath:
+            '/home/z/my-project/zuraffa/test/tdd/035-fixture/a1_test.dart',
         subjectPath:
             '/home/z/my-project/zuraffa/lib/tdd/035-fixture/a1_subject.dart',
         runnableTestName:
@@ -86,9 +86,7 @@ void main() {
       ),
     );
 
-    final records = await ArtifactRegistry(
-      featureDir: featureDir,
-    ).loadAll();
+    final records = await ArtifactRegistry(featureDir: featureDir).loadAll();
 
     expect(records, hasLength(1));
     expect(
@@ -96,26 +94,20 @@ void main() {
       'test/tdd/035-fixture/a1_test.dart',
       reason: 'the sandbox prefix is stripped to the repo-relative lane',
     );
-    expect(
-      records.single.subjectPath,
-      'lib/tdd/035-fixture/a1_subject.dart',
-    );
+    expect(records.single.subjectPath, 'lib/tdd/035-fixture/a1_subject.dart');
     expect(
       records.single.runnableTestName,
       startsWith('test/tdd/035-fixture/a1_test.dart::A1::'),
       reason: 'the runnable grammar keeps <path>::<id>::<name>',
     );
     expect(
-      File(
-        p.join(root.path, records.single.testPath),
-      ).existsSync(),
+      File(p.join(root.path, records.single.testPath)).existsSync(),
       isTrue,
       reason: 'the healed path is runnable under the project root',
     );
   });
 
-  test('B2: an absolute path that exists on disk is kept verbatim',
-      () async {
+  test('B2: an absolute path that exists on disk is kept verbatim', () async {
     final existing = p.join(
       root.path,
       'test',
@@ -131,30 +123,28 @@ void main() {
       ),
     );
 
-    final records = await ArtifactRegistry(
-      featureDir: featureDir,
-    ).loadAll();
+    final records = await ArtifactRegistry(featureDir: featureDir).loadAll();
 
     expect(records.single.testPath, existing);
   });
 
-  test('B3: an absolute path with no resolvable suffix passes through',
-      () async {
-    const stale = '/opt/other-checkout/test/tdd/035-fixture/a1_test.dart';
-    await seedRegistry(
-      baseRecord(
-        testPath: stale,
-        subjectPath: 'lib/tdd/035-fixture/a1_subject.dart',
-        runnableTestName: '$stale::A1::some behavior name',
-      ),
-    );
+  test(
+    'B3: an absolute path with no resolvable suffix passes through',
+    () async {
+      const stale = '/opt/other-checkout/test/other-feature/a9_test.dart';
+      await seedRegistry(
+        baseRecord(
+          testPath: stale,
+          subjectPath: 'lib/tdd/035-fixture/a1_subject.dart',
+          runnableTestName: '$stale::A9::some behavior name',
+        ),
+      );
 
-    final records = await ArtifactRegistry(
-      featureDir: featureDir,
-    ).loadAll();
+      final records = await ArtifactRegistry(featureDir: featureDir).loadAll();
 
-    expect(records.single.testPath, stale);
-  });
+      expect(records.single.testPath, stale);
+    },
+  );
 
   test('B4: relative paths pass through untouched', () async {
     await seedRegistry(
@@ -166,9 +156,7 @@ void main() {
       ),
     );
 
-    final records = await ArtifactRegistry(
-      featureDir: featureDir,
-    ).loadAll();
+    final records = await ArtifactRegistry(featureDir: featureDir).loadAll();
 
     expect(records.single.testPath, 'test/tdd/035-fixture/a1_test.dart');
     expect(records.single.subjectPath, 'lib/tdd/035-fixture/a1_subject.dart');
@@ -182,7 +170,8 @@ void main() {
       'existing test paths', () async {
     await seedRegistry(
       baseRecord(
-        testPath: '/home/z/my-project/zuraffa/test/tdd/035-fixture/a1_test.dart',
+        testPath:
+            '/home/z/my-project/zuraffa/test/tdd/035-fixture/a1_test.dart',
         subjectPath:
             '/home/z/my-project/zuraffa/lib/tdd/035-fixture/a1_subject.dart',
         runnableTestName:

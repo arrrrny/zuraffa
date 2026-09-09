@@ -231,11 +231,70 @@ class ArtifactRegistry {
       final raw = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       final records = (raw['records'] as List?) ?? [];
       return records
-          .map((r) => ArtifactRecord.fromJson(r as Map<String, dynamic>))
+          .map(
+            (r) => _reanchorRecord(
+              ArtifactRecord.fromJson(r as Map<String, dynamic>),
+            ),
+          )
           .toList();
     } on FormatException {
       return [];
     }
+  }
+
+  /// Issue #1357: a registry written in sandbox A is otherwise
+  /// unrunnable in every environment B≠A — the fuzz preflight's "the
+  /// tests never ran" forever. Re-anchor stale absolute paths to the
+  /// repo-relative lane suffix when one exists under the project root.
+  ArtifactRecord _reanchorRecord(ArtifactRecord record) {
+    final testPath = reanchorRecordPath(record.testPath, projectRoot);
+    final subjectPath = reanchorRecordPath(record.subjectPath, projectRoot);
+    var runnable = record.runnableTestName;
+    final separator = runnable.indexOf('::');
+    if (separator > 0) {
+      final pathPart = runnable.substring(0, separator);
+      final reanchored = reanchorRecordPath(pathPart, projectRoot);
+      runnable = '$reanchored${runnable.substring(separator)}';
+    }
+    return ArtifactRecord(
+      behaviorId: record.behaviorId,
+      feature: record.feature,
+      sourceCriterion: record.sourceCriterion,
+      testPath: testPath,
+      subjectPath: subjectPath,
+      runnableTestName: runnable,
+      testOwnership: record.testOwnership,
+      subjectOwnership: record.subjectOwnership,
+      createdAt: record.createdAt,
+    );
+  }
+
+  /// The project root this registry's feature lives under
+  /// (`<root>/specs/<feature>`); lanes (`test/`, `lib/`) hang off it.
+  String get projectRoot => p.dirname(
+    p.dirname(p.isAbsolute(featureDir) ? featureDir : p.absolute(featureDir)),
+  );
+
+  /// Re-anchors [stored] to a repo-relative path when it is an absolute
+  /// path that does not exist as-is but whose suffix starting at the
+  /// last `/test/` or `/lib/` lane marker exists under [projectRoot].
+  /// Relative paths, existing absolutes, and unresolvable absolutes are
+  /// returned verbatim (never invent a path).
+  // ignore: avoid_public_member_api_docs
+  static String reanchorRecordPath(String stored, String projectRoot) {
+    if (stored.isEmpty) return stored;
+    final normalized = stored.replaceAll(r'\', '/');
+    if (!p.isAbsolute(normalized)) return normalized;
+    if (File(normalized).existsSync()) return normalized;
+    for (final marker in ['/test/', '/lib/']) {
+      final index = normalized.lastIndexOf(marker);
+      if (index < 0) continue;
+      final candidate = normalized.substring(index + 1);
+      if (File(p.join(projectRoot, candidate)).existsSync()) {
+        return candidate;
+      }
+    }
+    return normalized;
   }
 
   Future<void> _writeRecords(List<ArtifactRecord> records) async {
