@@ -20,6 +20,7 @@
 //        with the generic resume hint (guard).
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -102,7 +103,7 @@ esac
     );
     await File(testPath).parent.create(recursive: true);
     await File(testPath).writeAsString('''
-// GENERATED TEST — \`zfa tdd gen W1\`.
+// GENERATED TEST — `zfa tdd gen W1`.
 //
 // zfa:tdd: scaffolded — scaffolded widget placeholder (issue #912
 // defect 3): author concrete scenario finders, then hand the file over.
@@ -151,6 +152,23 @@ esac
       expect(out, contains('hand step: W1:hand'), reason: out);
       expect(out, contains('--author --finders-file'), reason: out);
       expect(out, contains('stopped_at=W1:hand'), reason: out);
+
+      // The journal entry carries the named hand step (the machine
+      // surface, mirroring the #1308 violation shape).
+      final journalPath = p.join(fx.featureDir, 'tdd', 'journal.json');
+      final decoded =
+          jsonDecode(File(journalPath).readAsStringSync())
+              as Map<String, dynamic>;
+      final entries = (decoded['entries'] as List).cast<Map<String, dynamic>>();
+      final entry = entries.lastWhere(
+        (e) => e['cycle'] == 'skin' && e['phase'] == 'drive',
+      );
+      expect(entry['stopped_at'], 'W1:hand');
+      final violations = (entry['violations'] as List).cast<String>().join(
+        '\n',
+      );
+      expect(violations, contains('hand-step=W1:hand'));
+      expect(violations, contains('zfa:tdd: scaffolded'));
     },
   );
 

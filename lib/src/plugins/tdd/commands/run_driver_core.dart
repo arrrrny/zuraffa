@@ -2118,6 +2118,16 @@ class RunDriverCore {
             declaredType: hit.declaredType,
           );
         }
+        // Issue #1373: the scaffolded placeholder's own vocabulary — the
+        // remedy is the author finders flow, not the #1308 outcome
+        // assertion.
+        if (File(testPath).readAsStringSync().contains(scaffoldedMarker)) {
+          return 'hand-step=$behaviorId:hand — this is a SCAFFOLDED widget '
+              'test (the $scaffoldedMarker marker, issue #912 defect 3): '
+              'author concrete scenario finders, then run '
+              '`zfa tdd make $behaviorId --author --finders-file '
+              '<finders.txt>` (issue #1258)';
+        }
       } on FileSystemException {
         // Fall through to the #1308 vocabulary — a record, never a gate.
       }
