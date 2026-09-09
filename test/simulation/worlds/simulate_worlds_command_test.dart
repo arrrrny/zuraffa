@@ -1088,10 +1088,34 @@ void main() {
       ]);
       expect(code, 0, reason: output);
       expect(output, contains('SIMULATE golden -> GREEN'));
+
+      // A bare --fixtures value is NOT specs/-resolved: it names a
+      // fixtures directory relative to the CWD, so a feature name is an
+      // honest RED (this pins the fixturesFlag == null guard).
+      final (bareCode, bareOutput) = await runZfa([
+        'simulate',
+        '--fixtures',
+        _feature,
+      ]);
+      expect(bareCode, 1, reason: bareOutput);
+      expect(bareOutput, contains('RED'));
+
+      // --fixtures wins even when a resolvable bare --feature is also
+      // given — resolution must never overwrite an explicit fixtures
+      // directory.
+      final (bothCode, bothOutput) = await runZfa([
+        'simulate',
+        '--feature',
+        _feature,
+        '--fixtures',
+        'does/not/exist',
+      ]);
+      expect(bothCode, 1, reason: bothOutput);
+      expect(bothOutput, contains('RED'));
+      expect(bothOutput, contains('does/not/exist'));
     });
 
     test('B5: the parent help documents the bare-name rule', () async {
-      Directory.current = originalCwd;
       final (code, output) = await runZfa(['simulate', '--help']);
       expect(code, 0, reason: output);
       expect(output, contains('bare feature name'));
