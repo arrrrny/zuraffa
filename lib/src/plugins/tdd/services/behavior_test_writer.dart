@@ -49,6 +49,7 @@ class BehaviorTestWriter {
     this.i18nImport,
     this.i18nExpansion = const [],
     this.contractShape,
+    this.flutterTest = false,
   });
 
   final WidgetAppShell widgetShell;
@@ -72,6 +73,20 @@ class BehaviorTestWriter {
   /// guard carrying the vacuous-guard marker so `make` refuses green
   /// until a real outcome assertion lands.
   final UnitContractShape? contractShape;
+
+  /// Whether the host project runs on the Flutter test runner
+  /// (`flutter_test`) instead of plain `dart test` (issue #1349/#1351
+  /// family): on Flutter projects the plain `test` package is not
+  /// resolvable, so the unit/acceptance/ffi/persistence templates import
+  /// `package:flutter_test/flutter_test.dart` (which re-exports the same
+  /// group/test/expect API). Defaults to `false` — pure-Dart output is
+  /// byte-stable.
+  final bool flutterTest;
+
+  /// The test-framework import the non-widget templates emit.
+  String get _testImport => flutterTest
+      ? "package:flutter_test/flutter_test.dart"
+      : "package:test/test.dart";
 
   /// Escapes [raw] for safe interpolation into a single-quoted Dart
   /// string literal (issue #912 defect 1): backslash, the single quote
@@ -207,7 +222,7 @@ class BehaviorTestWriter {
 // stub body with real implementation to make this test pass.
 library;
 
-import 'package:test/test.dart';
+import '$_testImport';
 import '$relativeSubjectPath' as subject;
 
 void main() {
@@ -779,7 +794,7 @@ $goldenBlock    });$expansionTests
 // gated by `dart test --preset=integration` in CI.
 library;
 
-import 'package:test/test.dart';
+import '$_testImport';
 import '$relativeSubjectPath' as subject;
 
 void main() {
@@ -848,7 +863,7 @@ Object? _captured(Object? Function() invoke) {
 //      read crash.
 library;
 
-import 'package:test/test.dart';
+import '$_testImport';
 import 'package:zuraffa/zuraffa.dart';
 import '$relativeSubjectPath' as subject;
 

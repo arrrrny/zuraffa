@@ -1103,6 +1103,10 @@ class GenCommand extends Command<void> {
     // Writer dispatch (issue #841): theme-kind behaviors get the
     // theme-harness pair (four-proof widget test + subject contract);
     // every other kind gets the plain-function pair (spec 044).
+    // Issue #1351: Flutter hosts get the flutter_test import surface in
+    // the unit/acceptance templates (plain `package:test` does not
+    // resolve under flutter_test).
+    final flutterTest = await _isFlutterProject(cwd);
     if (record.testOwnership != Ownership.reused && !dryRun) {
       final adoptTest = adoptedPaths.contains(testPath);
       final adoptSubject = adoptedPaths.contains(subjectPath);
@@ -1114,6 +1118,7 @@ class GenCommand extends Command<void> {
         i18nImport: i18nImport,
         i18nExpansion: i18nExpansion,
         contractShape: contractShape,
+        flutterTest: flutterTest,
       );
       try {
         if (!adoptTest) {
@@ -1255,6 +1260,7 @@ class GenCommand extends Command<void> {
         i18nExpansion: i18nExpansion,
         contractShape: contractShape,
         bounded: bounded,
+        flutterTest: flutterTest,
       );
     }
 
@@ -1419,6 +1425,7 @@ class GenCommand extends Command<void> {
     String? i18nImport,
     List<String> i18nExpansion = const [],
     UnitContractShape? contractShape,
+    bool flutterTest = false,
   }) {
     if (behavior.kind == BehaviorKind.theme) {
       return (
@@ -1446,6 +1453,7 @@ class GenCommand extends Command<void> {
         i18nKeys: i18nKeys,
         i18nImport: i18nImport,
         i18nExpansion: i18nExpansion,
+        flutterTest: flutterTest,
         // Issue #1259: the contract-derived shape rides ONLY the
         // plain-function pair (unit lane); every other lane keeps its
         // own subject contract.
@@ -1453,6 +1461,18 @@ class GenCommand extends Command<void> {
       ).write,
       writeSubject: SubjectWriter(contractShape: contractShape).write,
     );
+  }
+
+  /// Whether the host project runs on the Flutter test runner (issue
+  /// #1351): mirrors `InitCommand._isFlutterProject` — a pubspec with a
+  /// flutter dependency means the plain `test` package is not
+  /// resolvable and generated tests must import flutter_test.
+  static Future<bool> _isFlutterProject(String cwd) async {
+    final pubspec = File(p.join(cwd, 'pubspec.yaml'));
+    if (!await pubspec.exists()) return false;
+    final raw = await pubspec.readAsString();
+    return raw.contains('environment:') &&
+        (raw.contains('flutter') || raw.contains('sdk: flutter'));
   }
 
   /// Resolves the widget template's app shell (issue #912 defect 2):
@@ -1642,6 +1662,7 @@ class GenCommand extends Command<void> {
     String? i18nImport,
     List<String> i18nExpansion = const [],
     UnitContractShape? contractShape,
+    bool flutterTest = false,
   }) async {
     // Bug #835: an ffi harness is NEVER auto-regenerated. Its contract
     // seams are the implementer's wiring point — partial wiring (the
@@ -1686,6 +1707,7 @@ class GenCommand extends Command<void> {
         i18nImport: i18nImport,
         i18nExpansion: i18nExpansion,
         contractShape: contractShape,
+        flutterTest: flutterTest,
       );
       final mirroredTest = p.join(
         mirror.path,
