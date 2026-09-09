@@ -448,7 +448,7 @@ class PlanCommand extends Command<void> {
         // the lookup below is by the behavior's sourceCriterion
         // (`FR-001`). A criterion-only cell (every pre-#1310 list)
         // keys identically, so old lists reconcile unchanged.
-        final m = RegExp(r'^\|\s*([A|U]\d+)\s*\|(.+)\|\s*$').firstMatch(line);
+        final m = RegExp(r'^\|\s*([AU]\d+)\s*\|(.+)\|\s*$').firstMatch(line);
         if (m == null) continue;
         // Issue #1401: escaped-pipe-aware split — the reconcile reader
         // must parse the SAME dialect the writer emits (and run reads).
@@ -1267,6 +1267,10 @@ class PlanCommand extends Command<void> {
           ..writeln('| entity | fields | purpose |')
           ..writeln('| ------ | ------ | ------- |');
         for (final e in entities) {
+          // e.name is grammar-safe (_dartIdentifier) and field types are
+          // prose-join — both assumed pipe-free (the spec-side _fieldPair
+          // grammar does not capture pipes). If that assumption changes,
+          // wrap in _escapeCell like purpose above.
           buf.writeln(
             '| ${e.name} | '
             '${e.fields.map((f) => '${f.name}: ${f.type}').join(', ')}'

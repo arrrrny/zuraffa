@@ -71,4 +71,4 @@ passing vacuously.
 | Run no longer refuses plan's own output (4-col gate holds for piped prose) | PROVED (A1/U1: reader parse succeeds; refusal note gone) |
 | Plan's reconcile agrees with its own writer (re-plan id-stable) | PROVED (U1: zero id drift) |
 | No regression on plan/reader surfaces | PROVED (109/109) |
-| Fix confined to plan_command.dart + tests (engine/run/verify/grammar untouched) | PROVED (git diff: 1 lib file + 1 test file) |
+| Fix confined to plan_command.dart + tests (engine/run/verify/grammar untouched) | PROVED (git diff: 1 lib file + 2 test files; 2nd = fixture-path hygiene in behavior_kind_trace_test.dart, commit 17f2271b) |
