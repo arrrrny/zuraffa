@@ -473,3 +473,41 @@ X-Ray bridge. None are blockers; each has a working workaround.
    through the bridge; confirm the window actually renders the new state
    (`osascript` frontmost + `screencapture -x`, then read the image) —
    state JSON equality alone does not prove the UI.
+7. **Skin-plan author can mangle the outer-loop table** (hit on the
+   `zik_zak_v2` login cycle, filed as #1405): the LLM author emitted 9
+   behavior rows whose `id` column held sentence fragments
+   (`W1 (renders the login screen pixel-perfect on macOS with the brand
+   gradient`, `a full-width guest outline button`, `an or divider`) — only
+   one row kept a valid `W2` id, so 8 of 9 skin behaviors were
+   machine-unreachable and `status` silently reported `0/1`. Workaround:
+   hand-rewrite the outer-loop table with clean `W1..Wn` ids (prose in the
+   behavior column only) and re-run `zfa tdd gen`. Check the authored
+   `04-SKIN.md` outer-loop ids against `^W\d+$` right after `zfa tdd plan`.
+8. **Interacting widget tests need a clean assertion BEFORE the first
+   interaction.** Against the inert stub, `tester.tap` /
+   `tester.widget(...)` throw runner-errors (tap on missing widget,
+   StateError on an empty finder) and verify-red classifies those
+   `runner-error`, refusing certification. Open each interaction test with
+   presence expects (`expect(find.text('Continue'), findsOneWidget)`) so
+   the stub red lands as `classification: assertion`.
+9. **Match the decoration wrapper, not the paint.** A `Container(
+   decoration: BoxDecoration(gradient: LinearGradient(...)))` asserts as
+   `decoration is BoxDecoration && decoration.gradient is LinearGradient`
+   — a `decoration is LinearGradient` predicate finds nothing.
+10. **pumpWidget state reuse swallows an injected controller.** Pumping a
+   stub view first and then pumping `View(controller: c)` with the same
+   runtimeType + no key REUSES the State — `initState` never re-runs, so
+   the injected controller is ignored and the tap drives the first
+   controller. Either pump once (construct the exact view you drive) or
+   give the second pump a different key.
+11. **Zero-delay throws race the first frame.** A data source that throws
+   without a delay settles before the first post-tap pump, so
+   mid-flight assertions (loading overlay, disabled buttons) are
+   nondeterministic — one run shows the overlay, the next does not.
+   Delay the throw (`await Future<void>.delayed(const Duration(milliseconds: 50));` then throw) for a
+   deterministic red→green.
+12. **`make` refuses on warnings (filed as #1407).** `dart analyze`
+   0 errors + 1 warning fails the gate with `generation-error`, and a
+   pre-existing engine-lane warning blocks the skin lane's make while the
+   engine receipt stays green. Clean warnings (often a leftover unused
+   import in an engine-lane test) before skin `make`s.
