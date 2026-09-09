@@ -222,6 +222,32 @@ class SplitCommand extends Command<void> {
         exitCode = 2;
         return;
       }
+      // Plan refuses a contract without declared lanes (the contract
+      // rides the SKIN lane); split must agree on the same spec —
+      // rendering it into a heuristic SKIN lane would reintroduce the
+      // plan/split drift this fix closes.
+      if (skinContract != null && lanes.isEmpty) {
+        print(
+          'zfa tdd split: skin contract refused — the `## Skin Contract` '
+          'section declares a skin contract, but the spec declares no '
+          '`## Lanes` section ($specFile). The contract rides the SKIN '
+          'lane: without the lane split there is no authoritative SKIN '
+          'assignment. No lane plans were written.',
+        );
+        print(
+          '  --> fix: declare `## Lanes` (CORE/SKIN/BOTH) alongside the '
+          'Skin Contract, or drop the `## Skin Contract` section; re-run '
+          '`zfa tdd split --force`.',
+        );
+        _verdict
+          ..outcome = VerdictOutcome.fail
+          ..exitClass = 'skin-contract-without-lanes'
+          ..fix =
+              'declare `## Lanes` alongside `## Skin Contract`, then '
+              're-run zfa tdd split --force';
+        exitCode = 2;
+        return;
+      }
     }
     final declared = <String, Lane>{};
     for (final lane in lanes) {

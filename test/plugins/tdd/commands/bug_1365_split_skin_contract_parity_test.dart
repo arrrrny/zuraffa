@@ -198,6 +198,20 @@ void main() {
     expect(skin, isNot(contains('home_indicator_safe_area')));
   });
 
+  test('B6: a contract without declared Lanes refuses (plan/split agree)',
+      () async {
+    await seed(spec: '$specBase\n$skinContractSection');
+    final out = await split();
+    expect(exitCode, 2, reason: out);
+    expect(out, contains('skin contract refused'));
+    expect(out, contains('## Lanes'));
+    expect(
+      File(p.join(tddDir, '04-SKIN.md')).existsSync(),
+      isFalse,
+      reason: 'no lane plans from a contract the lanes cannot carry',
+    );
+  });
+
   test('B4: the FORCED re-split keeps the full contract', () async {
     await seed(spec: '$specBase\n$lanesSection\n$skinContractSection');
     final first = await split();
