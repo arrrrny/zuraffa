@@ -370,6 +370,19 @@ class ResetCommand extends Command<void> {
             matchesGeneratedTestShape(content, id) ||
             matchesGeneratedSubjectShape(content, id);
         if (!shaped) continue;
+        // Issue #1380: a bare behavior id (A1, U1, ...) is SHARED across
+        // features — a generated-shape file under ANOTHER feature's
+        // namespace (test/tdd/<other-feature>/…) is foreign even when
+        // its header names a dropped id, and even when no live registry
+        // owns it. The namespace segment after the lane root must equal
+        // the feature being reset; flat (pre-namespaced) candidates keep
+        // the header-match behavior.
+        final laneRelative = p.relative(normalized, from: dir);
+        final segments = laneRelative.split('/');
+        if (segments.length >= 2 && segments.first != feature) {
+          foreignOwnedLookingById.putIfAbsent(id, () => []).add(normalized);
+          continue;
+        }
         final owner = ownersByPath[normalizeArtifactPath(cwd, normalized)];
         if (owner != null && owner != feature) {
           foreignOwnedLookingById.putIfAbsent(id, () => []).add(normalized);
