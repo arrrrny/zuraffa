@@ -393,6 +393,15 @@ class MakeCommand extends Command<void> {
       exitCode = 1;
       return;
     }
+    // Issue #1402: the whole-file fallback template. OPTIONAL by design:
+    // a profile without a `file:` key degrades to the remedy-only path —
+    // the zero-match guard never fabricates a runner invocation.
+    String? fileTemplate;
+    try {
+      fileTemplate = await runner.loadFileTemplate(workingDirectory: cwd);
+    } on StateError {
+      fileTemplate = null;
+    }
 
     // ---------------------------------------------------------------
     // 3a. Sanctioned skin-authoring transition (issue #1258). A
@@ -498,8 +507,10 @@ class MakeCommand extends Command<void> {
 
       // (b) Honest red-before-green: the authored test must fail NOW
       //     (the view is still the inert certified-red subject).
-      final authoringRun = await runner.runSingle(
+      final authoringRun = await _runTargetTest(
+        runner: runner,
         singleTemplate: singleTemplate,
+        fileTemplate: fileTemplate,
         testPath: testPath,
         testName: testName,
         workingDirectory: cwd,
@@ -678,8 +689,10 @@ class MakeCommand extends Command<void> {
     //    cycle is re-certified red (proceed to generation) or green
     //    (the skip transition) from it.
     // ---------------------------------------------------------------
-    final driftRun = await runner.runSingle(
+    final driftRun = await _runTargetTest(
+      runner: runner,
       singleTemplate: singleTemplate,
+      fileTemplate: fileTemplate,
       testPath: testPath,
       testName: testName,
       workingDirectory: cwd,
@@ -696,6 +709,27 @@ class MakeCommand extends Command<void> {
       print(
         '   re-run with a larger --timeout <minutes> if this step '
         'legitimately needs longer.',
+      );
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: MakeOutcome.runnerError,
+        feature: target.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+    // Issue #1402: a STILL-zero-match drift record means the whole-file
+    // fallback could not produce observable evidence either (or the
+    // profile carries no `file:` template) — the targeted remedy is
+    // already printed. Misfire-stop NOW, the same no-signal contract as
+    // the #742 timeout stop above: spending generation on a behavior no
+    // runner invocation can observe dead-ends in the same phantom at the
+    // post-generation re-run, one wasted pipeline later.
+    if (singleTemplate.contains('--plain-name') && _noTestsRan(driftRun)) {
+      print(
+        'zfa tdd make: behavior "${record.behaviorId}" — the drift check '
+        '(target test re-run before generation) ran zero tests; the cycle '
+        'cannot be re-certified from this transcript.',
       );
       _printSummary(
         behavior: record.behaviorId,
@@ -1180,6 +1214,7 @@ class MakeCommand extends Command<void> {
           plan: effectivePlan,
           result: pipelineResult,
           singleTemplate: singleTemplate,
+          fileTemplate: fileTemplate,
           testPath: testPath,
           testName: testName,
           workingDirectory: cwd,
@@ -1271,8 +1306,10 @@ class MakeCommand extends Command<void> {
       //    build step was tolerated (issue #737) the per-behavior
       //    guard's passing run IS the post-generation target run.
       if (!buildStepTolerated) {
-        postRun = await runner.runSingle(
+        postRun = await _runTargetTest(
+          runner: runner,
           singleTemplate: singleTemplate,
+          fileTemplate: fileTemplate,
           testPath: testPath,
           testName: testName,
           workingDirectory: cwd,
@@ -1757,6 +1794,7 @@ class MakeCommand extends Command<void> {
     required GenerationPlan plan,
     required PipelineResult result,
     required String singleTemplate,
+    String? fileTemplate,
     required String testPath,
     required String testName,
     required String workingDirectory,
@@ -1781,14 +1819,116 @@ class MakeCommand extends Command<void> {
       );
       return null;
     }
-    final run = await runner.runSingle(
+    final run = await _runTargetTest(
+      runner: runner,
       singleTemplate: singleTemplate,
+      fileTemplate: fileTemplate,
       testPath: testPath,
       testName: testName,
       workingDirectory: workingDirectory,
     );
     if (!run.startedProcess || run.exitCode != 0) return null;
     return run;
+  }
+
+  /// The issue #1402 targeted remedy (the issue's minimum expected fix):
+  /// the exact sentence an agent hand-driving the cycle needs.
+  static const String _plainNameRemedy =
+      '   --> fix: test name must contain the behavior description '
+      'verbatim — rename the test(...) to embed it (issue #1402).';
+
+  /// package:test's exit code when the runner executed zero tests
+  /// (`--plain-name` / `--name` matched nothing) — issue #1402.
+  static const int _exitCodeNoTests = 79;
+
+  /// The runner's no-tests signature (issue #1402): `dart test` /
+  /// `flutter test` exit 79 with a "No tests ran." transcript when the
+  /// `--plain-name` filter matched zero tests.
+  ///
+  /// Scoped to the make command's own target-test invocations — the
+  /// `--plain-name` flag semantics and the verify-red logic are untouched.
+  static bool _noTestsRan(RunRecord run) =>
+      run.startedProcess &&
+      run.exitCode == _exitCodeNoTests &&
+      run.output.contains('No tests ran');
+
+  /// Run the behavior's target test through the profile `single` template
+  /// with the issue #1402 zero-match guard.
+  ///
+  /// `--plain-name` is a literal SUBSTRING match against the OUTER
+  /// test(...) name; a hand-edited test whose name no longer embeds the
+  /// behavior description verbatim matches ZERO tests, the runner exits
+  /// 79 ("No tests ran"), and the transcript proves nothing about the
+  /// behavior. Left alone, the drift check grades the phantom as "still
+  /// red" and spends generation the post-run can never observe — the
+  /// issue's silent exit-79 dead-end.
+  ///
+  /// When the single run carries the zero-match signature (only for a
+  /// template that actually carries `--plain-name`):
+  ///   1. WARN — name the mismatch and the exact resolved command;
+  ///   2. fall back to the WHOLE target file through the profile's `file:`
+  ///      template so the caller grades real evidence (the drift check
+  ///      then re-certifies red/green from an honest transcript);
+  ///   3. when the fallback is unavailable (no `file:` template) or ALSO
+  ///      runs zero tests, emit the targeted remedy and return the
+  ///      ORIGINAL zero-match record — callers keep today's honest
+  ///      grading, now with the diagnosis printed.
+  Future<RunRecord> _runTargetTest({
+    required SingleTestRunner runner,
+    required String singleTemplate,
+    String? fileTemplate,
+    required String testPath,
+    required String testName,
+    required String workingDirectory,
+    Duration? timeout,
+  }) async {
+    final run = await runner.runSingle(
+      singleTemplate: singleTemplate,
+      testPath: testPath,
+      testName: testName,
+      workingDirectory: workingDirectory,
+      timeout: timeout,
+    );
+    if (!singleTemplate.contains('--plain-name') || !_noTestsRan(run)) {
+      return run;
+    }
+    final display = singleTemplate
+        .replaceAll('{file}', testPath)
+        .replaceAll('{name}', testName);
+    print(
+      '   issue #1402: --plain-name matched ZERO tests — the outer '
+      'test(...) name does not contain the behavior description verbatim '
+      '(command: `$display`).',
+    );
+    final fallback = fileTemplate;
+    if (fallback == null || fallback.trim().isEmpty) {
+      print(_plainNameRemedy);
+      return run;
+    }
+    final resolvedFallback = fallback
+        .replaceAll('{file}', testPath)
+        .replaceAll('{name}', testName);
+    print('   falling back to the whole target file: $resolvedFallback');
+    final fileRun = await runner.runSingle(
+      singleTemplate: fallback,
+      testPath: testPath,
+      testName: testName,
+      workingDirectory: workingDirectory,
+      timeout: timeout,
+    );
+    if (!fileRun.startedProcess) {
+      print(
+        '   the whole-file fallback did not start (`$resolvedFallback`): '
+        '${fileRun.output}',
+      );
+      print(_plainNameRemedy);
+      return run;
+    }
+    if (_noTestsRan(fileRun)) {
+      print(_plainNameRemedy);
+      return run;
+    }
+    return fileRun;
   }
 
   /// The missing-builder-dependency classifier for a failed plan step
