@@ -11,6 +11,8 @@
 //   B3 — the summary line carries the chaos evidence (retries, verdict).
 //   B4 — `zfa sync simulate --help` documents --scenario.
 
+import 'dart:io';
+
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
