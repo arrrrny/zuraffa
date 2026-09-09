@@ -8,8 +8,8 @@ feature: 004-login-ui
 gate: notAssessed
 certified: false
 mutations: 5
-killed: 1
-survived: 3
+killed: 0
+survived: 4
 not_assessed: 1
 seed: 0
 budget: 5
@@ -34,15 +34,17 @@ restoration_verified: true
 | mutation_id | spec_line | operator | element | verdict | evidence |
 | --- | --- | --- | --- | --- | --- |
 | SM-001 | 25 | drop | AC-1:scenario | survived | no pin fired: the plan gates pass, the regenerated suite stays green against the committed implementation, and no committed assertion pins the original value(s) 1 — the test suite does not pin the intent |
-| SM-002 | 27 | drop | AC-2:scenario | killed | P3:assertion — original value "@" is asserted at test/tdd/004-login-ui/a5_test.dart:2 |
+| SM-002 | 27 | drop | AC-2:scenario | survived | no pin fired: the plan gates pass, the regenerated suite stays green against the committed implementation, and no committed assertion pins the original value(s) @, 2 — the test suite does not pin the intent |
 | SM-003 | 29 | drop | AC-3:scenario | survived | no pin fired: the plan gates pass, the regenerated suite stays green against the committed implementation, and no committed assertion pins the original value(s) 3, 8 — the test suite does not pin the intent |
 | SM-004 | 48 | drop | AC-6:scenario | survived | no pin fired: the plan gates pass, the regenerated suite stays green against the committed implementation, and no committed assertion pins the original value(s) 2 — the test suite does not pin the intent |
-| SM-005 | 57 | swap-literal | FR-001:literal:`@` | notAssessed | the regenerated test for U1 failed to LOAD (issue #1045): 00:00 +0: loading /home/z/my-project/zuraffa/test/tdd/004-login-ui/u1_test.dart                                         … |
+| SM-005 | 57 | swap-literal | FR-001:literal:`@` | notAssessed | the regenerated test for U1 failed to LOAD (issue #1045): 00:00 +0: loading test/tdd/004-login-ui/u1_test.dart                                                                    … |
 
 ## Survived mutations (spec weaknesses)
 
 - `SM-001` — AC-1:scenario (spec line 25)
   --> fix: pin the intent — assert the original value(s) 1 in the feature's tests, or tighten the statement so the loop re-derives a stronger assertion.
+- `SM-002` — AC-2:scenario (spec line 27)
+  --> fix: pin the intent — assert the original value(s) @, 2 in the feature's tests, or tighten the statement so the loop re-derives a stronger assertion.
 - `SM-003` — AC-3:scenario (spec line 29)
   --> fix: pin the intent — assert the original value(s) 3, 8 in the feature's tests, or tighten the statement so the loop re-derives a stronger assertion.
 - `SM-004` — AC-6:scenario (spec line 48)
@@ -55,7 +57,7 @@ restoration_verified: true
 
 ## Ledger
 
-- gap-001, gap-002, gap-003
+- gap-001, gap-002, gap-003, gap-004
 
 ## Evidence binding
 

@@ -27,10 +27,21 @@
 ///   differential gate (#915 composes), and writes the proof-carrying
 ///   run receipt naming the world hash (#807 composes). A mutated world
 ///   invalidates the previous green before anything executes.
+/// - `replay` (spec 1356) re-executes the RECORDED run with its
+///   recorded seed and proves the digest matches the receipt — the
+///   deterministic re-execution proof. It never overwrites the
+///   receipt.
 /// - `certify` re-proves the world's contracts LIVE (registry adds are
 ///   re-proofs — never copies of old receipts).
 /// - `verify-world` is the CI gate: manifest, certification receipt,
 ///   and run receipt must agree on the world hash.
+///
+/// Issue #1354: `--feature` is optional on every subcommand — when
+/// absent it defaults to the speckit session pin
+/// (`.specify/feature.json`'s `feature_directory`), so the documented
+/// positional invocation `zfa simulate init <scenario>` works inside a
+/// speckit session. An explicit flag always beats the pin; an unusable
+/// or dangling pin is an honest usage error, never a guess.
 ///
 /// Dispatch note (bug #856 / spec #975's grammar lesson): the legacy
 /// flag surface (`--scaffold`, `--feature`, `--fixtures`, `--scenario`,
@@ -83,7 +94,10 @@ class SimulateCommand extends Command<void> {
     argParser.addOption(
       'feature',
       valueHelp: 'feature-dir',
-      help: 'Load the committed world from <feature-dir>/tdd/fixtures/.',
+      help:
+          'Load the committed world from <feature-dir>/tdd/fixtures/. '
+          'A bare feature name resolves under specs/ (the #968 fixtures '
+          'the scaffold wrote).',
     );
     argParser.addOption(
       'fixtures',
@@ -115,11 +129,13 @@ class SimulateCommand extends Command<void> {
     // manually, so the legacy flag surface above stays reachable.
     _init = SimulateInitCommand();
     _run = SimulateRunCommand();
+    _replay = SimulateReplayCommand();
     _certify = SimulateCertifyCommand();
     _verifyWorld = SimulateVerifyWorldCommand();
     _skin = SimulateSkinCommand(driver: skinDriver);
     argParser.addCommand(_init.name, _init.argParser);
     argParser.addCommand(_run.name, _run.argParser);
+    argParser.addCommand(_replay.name, _replay.argParser);
     argParser.addCommand(_certify.name, _certify.argParser);
     argParser.addCommand(_verifyWorld.name, _verifyWorld.argParser);
     // Issue #1112: skin behaviors through the debugTapAnchorJson seam —
@@ -130,6 +146,7 @@ class SimulateCommand extends Command<void> {
 
   late final SimulateInitCommand _init;
   late final SimulateRunCommand _run;
+  late final SimulateReplayCommand _replay;
   late final SimulateCertifyCommand _certify;
   late final SimulateVerifyWorldCommand _verifyWorld;
   late final SimulateSkinCommand _skin;
@@ -147,8 +164,9 @@ class SimulateCommand extends Command<void> {
 
   @override
   String get invocation =>
-      'zfa simulate [options] | zfa simulate <init|run|certify|verify-world> '
-      '<scenario> [options]';
+      'zfa simulate [options] | '
+      'zfa simulate <init|run|replay|certify|verify-world> <scenario> '
+      '[options]';
 
   @override
   Future<void> run() async {
@@ -165,6 +183,9 @@ class SimulateCommand extends Command<void> {
           return;
         case 'run':
           await _run.runWith(nested, parentFeature: parentFeature);
+          return;
+        case 'replay':
+          await _replay.runWith(nested, parentFeature: parentFeature);
           return;
         case 'certify':
           await _certify.runWith(nested, parentFeature: parentFeature);
@@ -189,11 +210,30 @@ class SimulateCommand extends Command<void> {
         exitCode = await _scaffold(scaffoldDir);
         return;
       }
-      final fixturesDir =
-          (argResults!['fixtures'] as String?) ??
-          (argResults!['feature'] as String?);
+      final featureFlag = argResults!['feature'] as String?;
+      final fixturesFlag = argResults!['fixtures'] as String?;
+      var fixturesDir = fixturesFlag ?? featureFlag;
       if (fixturesDir != null) {
-        exitCode = await _replay(fixturesDir);
+        // Issue #1355: a bare `--feature` name resolves under specs/ —
+        // the same convention the scenario subcommands' --feature
+        // honors (and the form `simulate init`'s own guidance uses).
+        // Explicit paths and --fixtures values are honored verbatim; a
+        // bare name whose specs/<name> directory does not exist keeps
+        // the raw value so the boot failure names what was passed.
+        if (featureFlag != null &&
+            featureFlag.isNotEmpty &&
+            fixturesFlag == null &&
+            !featureFlag.contains('/')) {
+          final bareSpecsDir = p.join(
+            Directory.current.path,
+            'specs',
+            featureFlag,
+          );
+          if (Directory(bareSpecsDir).existsSync()) {
+            fixturesDir = bareSpecsDir;
+          }
+        }
+        exitCode = await _replayLegacy(fixturesDir);
         return;
       }
       _usage();
@@ -257,7 +297,9 @@ class SimulateCommand extends Command<void> {
     return 0;
   }
 
-  Future<int> _replay(String featureOrFixturesDir) async {
+  /// Legacy replay entry (the #832 flag surface). Named _replayLegacy to
+  /// stay clear of the spec-1356 `replay` subcommand field.
+  Future<int> _replayLegacy(String featureOrFixturesDir) async {
     final world = featureOrFixturesDir.endsWith('/tdd/fixtures')
         ? await SimulationWorld.boot(fixturesDir: featureOrFixturesDir)
         : await SimulationWorld.boot(featureDir: featureOrFixturesDir);
@@ -299,7 +341,12 @@ class SimulateCommand extends Command<void> {
 
 /// Resolves `--feature`/`--project` into the feature directory + name.
 /// `--feature` accepts either a feature name (`968-simulation-worlds`)
-/// or a path (`specs/968-simulation-worlds`).
+/// or a path (`specs/968-simulation-worlds`). Issue #1354: when the
+/// flag is absent (subcommand or parent level), the feature falls back
+/// to the speckit session pin — `.specify/feature.json`'s
+/// `feature_directory`, the same default the bone command and the mock
+/// capabilities honor. No pin (or an unusable one) is an honest usage
+/// error; the resolver never scans `specs/` for a guess.
 ({String featureDir, String featureName, String projectRoot}) _resolveFeature(
   String? featureFlag,
   String? projectFlag,
@@ -308,21 +355,72 @@ class SimulateCommand extends Command<void> {
       ? p.absolute(projectFlag)
       : Directory.current.path;
   var name = featureFlag ?? '';
-  var dir = name;
+  var fromPin = false;
   if (name.isEmpty) {
-    throw const _UsageError(
-      'no --feature given --> fix: pass --feature <name-or-dir> (the '
-      'feature under specs/ whose declared dependency table the world '
-      'composes).',
-    );
+    final pin = _readPinnedFeature(projectRoot);
+    if (pin == null) {
+      throw const _UsageError(
+        'no --feature given and no usable .specify/feature.json pin --> '
+        'fix: pass --feature <name-or-dir> (the feature under specs/ '
+        'whose declared dependency table the world composes), or pin '
+        'the session feature in .specify/feature.json (zfa tdd plan '
+        '<feature> writes it).',
+      );
+    }
+    name = pin;
+    fromPin = true;
   }
+  var dir = name;
   if (!name.contains('/')) {
     dir = p.join(projectRoot, 'specs', name);
   } else if (!p.isAbsolute(dir)) {
     dir = p.join(projectRoot, dir);
   }
+  // Issue #1354 honesty: a pin naming a directory that does not exist
+  // is named as the failure — never a silent fallback to another
+  // feature. Explicit flags keep their pre-existing behavior (the
+  // declaration reader reports those gaps).
+  if (fromPin && !Directory(dir).existsSync()) {
+    throw _UsageError(
+      'the pinned .specify/feature.json feature directory does not '
+      'exist: $dir --> fix: pass --feature <name-or-dir>, or re-pin '
+      'the session feature (zfa tdd plan <feature> writes it).',
+    );
+  }
   name = p.basename(p.normalize(dir));
   return (featureDir: dir, featureName: name, projectRoot: projectRoot);
+}
+
+/// Reads the speckit session pin (`.specify/feature.json`'s
+/// `feature_directory`). Returns null when the pin file is absent or
+/// carries no usable `feature_directory`; a malformed pin is an honest
+/// usage error — silently ignoring a pin the session believes is active
+/// would be a lie by omission.
+String? _readPinnedFeature(String projectRoot) {
+  final file = File(p.join(projectRoot, '.specify', 'feature.json'));
+  if (!file.existsSync()) return null;
+  final Object? json;
+  try {
+    json = convert.jsonDecode(file.readAsStringSync());
+  } on FormatException {
+    throw const _UsageError(
+      'malformed .specify/feature.json --> fix: repair or remove the '
+      'pin, or pass --feature <name-or-dir>.',
+    );
+  } on FileSystemException catch (e) {
+    throw _UsageError(
+      'cannot read .specify/feature.json: ${e.message} --> fix: repair '
+      'the pin, or pass --feature <name-or-dir>.',
+    );
+  }
+  if (json is! Map) {
+    throw const _UsageError(
+      'malformed .specify/feature.json (not an object) --> fix: repair '
+      'or remove the pin, or pass --feature <name-or-dir>.',
+    );
+  }
+  final dir = json['feature_directory'];
+  return dir is String && dir.isNotEmpty ? dir : null;
 }
 
 final class _UsageError implements Exception {
@@ -371,7 +469,8 @@ class SimulateInitCommand extends Command<void> {
       'feature',
       help:
           'Feature name or directory under specs/ (whose declared '
-          'dependency table the world composes).',
+          'dependency table the world composes). Defaults to the pinned '
+          '.specify/feature.json feature.',
     );
     argParser.addOption(
       'project',
@@ -567,7 +666,9 @@ class SimulateRunCommand extends Command<void> {
   SimulateRunCommand() {
     argParser.addOption(
       'feature',
-      help: 'Feature name or directory under specs/.',
+      help:
+          'Feature name or directory under specs/. Defaults to the '
+          'pinned .specify/feature.json feature.',
     );
     argParser.addOption(
       'project',
@@ -825,12 +926,189 @@ class SimulateRunCommand extends Command<void> {
 }
 
 // ---------------------------------------------------------------------------
+// simulate replay (spec 1356 — the epic's deterministic re-execution proof)
+// ---------------------------------------------------------------------------
+
+/// `zfa simulate replay <scenario>` (spec 1356) — re-executes the
+/// recorded run for the scenario against the SAME world (recorded seed)
+/// and proves the fresh digest matches the recorded receipt:
+///
+/// ```text
+/// zfa simulate replay <scenario> [--feature <feature>]
+/// ```
+///
+/// A replay is a PROOF, not a new run: the recorded receipt is never
+/// overwritten. Absent/RED receipts and world drift refuse honestly.
+class SimulateReplayCommand extends Command<void> {
+  SimulateReplayCommand() {
+    argParser.addOption(
+      'feature',
+      help:
+          'Feature name or directory under specs/. Defaults to the '
+          'pinned .specify/feature.json feature.',
+    );
+    argParser.addOption(
+      'project',
+      help: 'Project root containing specs/ (defaults to CWD).',
+    );
+  }
+
+  @override
+  String get name => 'replay';
+
+  @override
+  String get description =>
+      'Re-execute the recorded run for the scenario with its recorded '
+      'seed and prove the digest matches the receipt (deterministic '
+      're-execution proof). Never overwrites the receipt.';
+
+  @override
+  Future<void> run() async {
+    await runWith(argResults!);
+  }
+
+  Future<void> runWith(ArgResults args, {String? parentFeature}) async {
+    if (args.flag('help')) {
+      _printSubUsage(
+        'zfa simulate replay <scenario> [--feature <feature>]',
+        argParser.usage,
+      );
+      return;
+    }
+    final rest = args.rest;
+    if (rest.isEmpty) {
+      print('❌ Usage: zfa simulate replay <scenario> [--feature <feature>]');
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+    final scenario = rest.first;
+    try {
+      final resolved = _resolveFeature(
+        (args['feature'] as String?) ?? parentFeature,
+        args['project'] as String?,
+      );
+      final manifest = _loadManifest(
+        featureDir: resolved.featureDir,
+        scenario: scenario,
+      );
+      final worldHash = manifest.worldHash;
+
+      final receiptStore = WorldRunReceiptStore(
+        projectRoot: resolved.projectRoot,
+      );
+      final prior = receiptStore.load(scenario);
+      if (prior == null) {
+        print(
+          'SIMULATE replay $scenario -> RED (no recorded run receipt for '
+          'scenario "$scenario")',
+        );
+        print(
+          '   --> fix: run `zfa simulate run $scenario --feature '
+          '${resolved.featureName}` first — a replay proves an existing '
+          'run, it does not create one.',
+        );
+        exitCode = 1;
+        return;
+      }
+      if (!prior.passed) {
+        print(
+          'SIMULATE replay $scenario -> RED (the recorded run is RED — '
+          'nothing green to replay)',
+        );
+        exitCode = 1;
+        return;
+      }
+      if (prior.worldHash != worldHash) {
+        print(
+          'SIMULATE replay $scenario -> RED (world mutated since the '
+          'recorded run: receipt=${prior.worldHash.substring(0, 12)} '
+          'manifest=${worldHash.substring(0, 12)})',
+        );
+        print(
+          '   --> fix: re-run `zfa simulate run $scenario --feature '
+          '${resolved.featureName}` to record the new world, or restore '
+          'the manifest.',
+        );
+        exitCode = 1;
+        return;
+      }
+
+      // Deterministic re-execution with the RECORDED seed.
+      final runtime = WorldRuntime(
+        manifest,
+        binding: WorldBinding.world,
+        seedOverride: prior.seed,
+      );
+      final results = await runtime.executeScenario();
+      final digest = runtime.runDigest;
+      final matches = digest == prior.runDigest;
+      final failures = results.where((r) => !r.passed).toList(growable: false);
+
+      await appendWorldCycleEvidence(
+        featureDir: resolved.featureDir,
+        behaviorId: '${resolved.featureName}-world-replay-$scenario',
+        kind: 'world-replay',
+        commandLine:
+            'zfa simulate replay $scenario --feature '
+            '${resolved.featureName}',
+        hash: digest,
+        exitCode: matches ? 0 : 1,
+        criterion:
+            'replay of scenario "$scenario" re-executed with the recorded '
+            'seed ${prior.seed}: ${runtime.plays.length} plays, '
+            'digest ${matches ? 'matches' : 'MISMATCHES'} the recorded '
+            'receipt',
+        extraLines: {
+          'scenario': scenario,
+          'world-hash': worldHash,
+          'seed': '${prior.seed}',
+          'plays': '${runtime.plays.length}',
+          'recorded-digest': prior.runDigest,
+          'replayed-digest': digest,
+        },
+      );
+
+      print(
+        'simulate-replay: scenario=$scenario '
+        'world-hash=${worldHash.substring(0, 12)} '
+        'deterministic=$matches '
+        'plays=${runtime.plays.length} '
+        'digest=${digest.substring(0, 12)} '
+        'recorded=${prior.runDigest.substring(0, 12)} '
+        'seed=${prior.seed}',
+      );
+      if (!matches) {
+        print('   replay: DIGEST MISMATCH — the run is not replayable');
+      }
+      for (final failure in failures) {
+        print('  FAIL ${failure.behavior}: ${failure.detail}');
+      }
+      exitCode = matches && failures.isEmpty ? 0 : 1;
+    } on WorldManifestError catch (e) {
+      print('SIMULATE replay -> RED (${e.message})');
+      exitCode = 1;
+    } on WorldProgramError catch (e) {
+      print('SIMULATE replay -> RED (${e.message})');
+      exitCode = 1;
+    } on _UsageError catch (e) {
+      print('❌ ${e.message}');
+      exitCode = ExitProtocol.usage;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // simulate certify
 // ---------------------------------------------------------------------------
 
 class SimulateCertifyCommand extends Command<void> {
   SimulateCertifyCommand() {
-    argParser.addOption('feature', help: 'Feature name or directory.');
+    argParser.addOption(
+      'feature',
+      help:
+          'Feature name or directory. Defaults to the pinned '
+          '.specify/feature.json feature.',
+    );
     argParser.addOption('project', help: 'Project root (defaults to CWD).');
   }
 
@@ -921,7 +1199,12 @@ class SimulateCertifyCommand extends Command<void> {
 
 class SimulateVerifyWorldCommand extends Command<void> {
   SimulateVerifyWorldCommand() {
-    argParser.addOption('feature', help: 'Feature name or directory.');
+    argParser.addOption(
+      'feature',
+      help:
+          'Feature name or directory. Defaults to the pinned '
+          '.specify/feature.json feature.',
+    );
     argParser.addOption('project', help: 'Project root (defaults to CWD).');
   }
 
