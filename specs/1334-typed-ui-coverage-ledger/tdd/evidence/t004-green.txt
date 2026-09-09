@@ -1,0 +1,3 @@
+00:00 +0: loading test/tdd/1334-typed-ui-coverage-ledger/t004_per_kind_overlay_rendering_test.dart
+00:00 +0: T4 (FR-005) T4 - per-kind overlay rendering.
+00:00 +1: All tests passed!
