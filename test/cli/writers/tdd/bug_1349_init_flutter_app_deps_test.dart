@@ -77,7 +77,7 @@ dependencies:
         await seedPubspec(flutter: true);
         final out = await runInit();
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final pubspec = readPubspec();
         expect(
           pubspec,
