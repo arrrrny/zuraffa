@@ -27,6 +27,17 @@
 ///   differently-broken one); any refusal or missing artifact exits non-zero.
 /// - **Idempotent**: already-namespaced records are untouched and re-runs
 ///   migrate zero records.
+/// - **Form-normalizing (issue #1397)**: an already-namespaced record
+///   whose recorded path FORM is not the portable project-relative POSIX
+///   form — typically a machine-absolute path an older gen wrote — is
+///   rewritten in the registry alone (paths + the runnable name's path
+///   segment); the files live at the same resolved location, so nothing
+///   moves and no import changes. A committed registry whose absolute
+///   paths name a project root that no longer exists on this machine (a
+///   checkout relocated between machines) is repaired the same way when
+///   the artifacts sit at the same project-relative locations under the
+///   current root. A recorded artifact missing from disk is reported and
+///   left unchanged, like any other rewrite this command cannot verify.
 /// - **Package-URI aware + self-checked (issue #912 defect 4)**: the moved
 ///   test's subject reference is rewritten in BOTH forms — the relative
 ///   path AND the `package:<host>/tdd/...` URI — composed tests get every
@@ -150,9 +161,100 @@ class MigratePathsCommand extends Command<void> {
         final plan = _plan(record, cwd, entry.featureName);
 
         // Already namespaced (or a custom layout this command does not
-        // own): leave the record exactly as it is.
+        // own): leave the record exactly as it is — unless its recorded
+        // path FORM is not the portable project-relative POSIX form
+        // (issue #1397): a machine-absolute form is rewritten in the
+        // registry alone (the file lives at the same resolved location,
+        // so no artifact moves and no import is rewritten).
         if (plan == null) {
-          updated.add(record);
+          var testFrom = _resolve(cwd, record.testPath);
+          var subjectFrom = _resolve(cwd, record.subjectPath);
+          // Relocated-registry repair (issue #1397): a committed registry's
+          // machine-absolute path may name a project root that does not
+          // exist on THIS machine (a checkout moved between machines),
+          // while the artifact sits at the same project-relative location
+          // under the current root. Before failing honest, probe the
+          // recorded path's longest suffix under the project root — a pair
+          // that relocates together is repaired, a pair that does not is
+          // still reported missing.
+          if (!File(testFrom).existsSync() || !File(subjectFrom).existsSync()) {
+            final foundTest = probeRelocatedArtifact(cwd, record.testPath);
+            final foundSubject = probeRelocatedArtifact(
+              cwd,
+              record.subjectPath,
+            );
+            if (foundTest != null && foundSubject != null) {
+              testFrom = foundTest;
+              subjectFrom = foundSubject;
+            }
+          }
+          // Fail-honest: a missing recorded artifact cannot be verified,
+          // and silently rewriting the record would just relocate the
+          // break (the same doctrine as the move path below).
+          if (!File(testFrom).existsSync() || !File(subjectFrom).existsSync()) {
+            missing++;
+            final missingHalf = File(testFrom).existsSync()
+                ? 'subject "${record.subjectPath}"'
+                : 'test "${record.testPath}"';
+            print(
+              'zfa tdd migrate-paths: MISSING for behavior '
+              '"${record.behaviorId}" in ${entry.featureName}: the recorded '
+              '$missingHalf does not exist on disk. The record is left '
+              'unchanged — restore or remove the artifact first.',
+            );
+            updated.add(record);
+            continue;
+          }
+          final formTest = _rel(cwd, testFrom);
+          final formSubject = _rel(cwd, subjectFrom);
+          if (formTest == _posix(record.testPath) &&
+              formSubject == _posix(record.subjectPath)) {
+            updated.add(record);
+            continue;
+          }
+          final formPlan = _MigrationPlan(
+            testPath: formTest,
+            subjectPath: formSubject,
+            record: _withPortablePaths(record, formTest, formSubject),
+          );
+          print(
+            'zfa tdd migrate-paths: ${dryRun ? 'would rewrite' : 'rewriting'} '
+            'the recorded form for ${record.behaviorId} in '
+            '${entry.featureName}: "${_posix(record.testPath)}" -> '
+            '${formPlan.testPath}, "${_posix(record.subjectPath)}" -> '
+            '${formPlan.subjectPath}',
+          );
+          if (!dryRun) {
+            // The cycle-log evidence may name the OLD recorded form; keep
+            // the certified evidence pointing at the strings the registry
+            // now carries. The resolved forms are identical, so only the
+            // recorded-form replaces can fire.
+            try {
+              await _rewriteCycleLogPaths(
+                featureDir: entry.featureDir,
+                cwd: cwd,
+                record: record,
+                plan: formPlan,
+                testFrom: testFrom,
+                testTo: testFrom,
+                subjectFrom: subjectFrom,
+                subjectTo: subjectFrom,
+              );
+            } on FileSystemException catch (e) {
+              refused++;
+              print(
+                'zfa tdd migrate-paths: REFUSED for behavior '
+                '"${record.behaviorId}" in ${entry.featureName}: the '
+                'cycle-log evidence rewrite failed: ${e.message}. The '
+                'record was left unchanged.',
+              );
+              updated.add(record);
+              continue;
+            }
+          }
+          migrated++;
+          registryDirty = true;
+          updated.add(formPlan.record);
           continue;
         }
 
@@ -166,8 +268,8 @@ class MigratePathsCommand extends Command<void> {
         if (!File(testFrom).existsSync() || !File(subjectFrom).existsSync()) {
           missing++;
           final missingHalf = File(testFrom).existsSync()
-              ? 'subject "$record.subjectPath"'
-              : 'test "$record.testPath"';
+              ? 'subject "${record.subjectPath}"'
+              : 'test "${record.testPath}"';
           print(
             'zfa tdd migrate-paths: MISSING for behavior '
             '"${record.behaviorId}" in ${entry.featureName}: the recorded '
@@ -562,6 +664,40 @@ class MigratePathsCommand extends Command<void> {
 
   bool _isFlat(List<String> segments, String root) =>
       segments.length == 3 && segments[0] == root && segments[1] == 'tdd';
+
+  /// Rebuild the runnable name's path segment (the first `::` segment)
+  /// with the portable test path, preserving every later segment verbatim
+  /// — unlike the flat-move rebuild, a form rewrite must not touch the id
+  /// or description. A first segment that does not name the test path
+  /// (hand-edited) is left untouched.
+  ArtifactRecord _withPortablePaths(
+    ArtifactRecord record,
+    String testPath,
+    String subjectPath,
+  ) {
+    final segments = record.runnableTestName.split('::');
+    // gen and the migration itself build the runnable name's first
+    // segment as the EXACT recorded test path string; a first segment
+    // that differs (hand-edited) is left untouched.
+    final firstIsTestPath =
+        segments.isNotEmpty && segments.first == record.testPath;
+    final runnableTestName = firstIsTestPath
+        ? (segments.length == 1
+              ? testPath
+              : '$testPath::${segments.skip(1).join('::')}')
+        : record.runnableTestName;
+    return ArtifactRecord(
+      behaviorId: record.behaviorId,
+      feature: record.feature,
+      sourceCriterion: record.sourceCriterion,
+      testPath: testPath,
+      subjectPath: subjectPath,
+      runnableTestName: runnableTestName,
+      testOwnership: record.testOwnership,
+      subjectOwnership: record.subjectOwnership,
+      createdAt: record.createdAt,
+    );
+  }
 
   /// The runnable name is `<testPath>::<id>::<description>` — rebuild it
   /// with the namespaced test path, preserving the recorded description

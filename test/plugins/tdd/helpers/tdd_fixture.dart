@@ -116,19 +116,27 @@ coverage: 'dart test --coverage'
       await file.parent.create(recursive: true);
       await file.writeAsString(testContent ?? _redTest(description));
     }
+    final subjectPath = p.join(root.path, 'lib', '${_snake(id)}_subject.dart');
     _records.add({
       'behavior_id': id,
       'feature': featureName,
       'source_criterion': sourceCriterion,
-      'test_path': path,
-      'subject_path': p.join(root.path, 'lib', '${_snake(id)}_subject.dart'),
-      'runnable_test_name': '$path::$id::$description',
+      // The portable project-relative recorded form (issue #1397): the
+      // canonical recorded form a post-fix gen writes.
+      'test_path': _recordedForm(path),
+      'subject_path': _recordedForm(subjectPath),
+      'runnable_test_name': '${_recordedForm(path)}::$id::$description',
       'test_ownership': 'created',
       'subject_ownership': 'created',
       'created_at': '2026-08-30T00:00:00.000Z',
     });
     await _flushRegistry();
   }
+
+  /// The portable recorded form of an absolute fixture path: project-
+  /// relative POSIX (issue #1397).
+  String _recordedForm(String absolute) =>
+      p.relative(absolute, from: root.path).replaceAll(r'\', '/');
 
   /// Seed an existing red-evidence entry (for no-arg inference tests).
   Future<void> seedRedEvidence(String behaviorId) async {
@@ -911,14 +919,15 @@ int ${symbol}_value() => $value;
     await File(subjectPath).parent.create(recursive: true);
     await File(subjectPath).writeAsString(subjectContent ?? _stubSubject(id));
 
-    // 3. Registry record.
+    // 3. Registry record — the portable project-relative recorded form
+    // (issue #1397).
     _records.add({
       'behavior_id': id,
       'feature': featureName,
       'source_criterion': sourceCriterion,
-      'test_path': testPath,
-      'subject_path': subjectPath,
-      'runnable_test_name': '$testPath::$id::$description',
+      'test_path': _recordedForm(testPath),
+      'subject_path': _recordedForm(subjectPath),
+      'runnable_test_name': '${_recordedForm(testPath)}::$id::$description',
       'test_ownership': 'created',
       'subject_ownership': 'created',
       'created_at': '2026-08-30T00:00:00.000Z',

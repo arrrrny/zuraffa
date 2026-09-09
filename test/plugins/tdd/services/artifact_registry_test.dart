@@ -238,6 +238,140 @@ void main() {
       expect(records, isEmpty);
     });
   });
+
+  group('ArtifactRegistry — path-form normalization (issue #1397)', () {
+    final relTest = 'test/tdd/044-test-tdd-generation/b003_test.dart';
+    final relSubject = 'lib/tdd/044-test-tdd-generation/b003_subject.dart';
+    final portableTest = 'test/tdd/044-test-tdd-generation/b003_test.dart';
+
+    /// Seed the registry file directly with one record whose paths carry
+    /// [testPath]/[subjectPath] verbatim (the recorded form).
+    Future<void> seedRegistry(String testPath, String subjectPath) async {
+      final regFile = File(registry.registryPath);
+      await regFile.parent.create(recursive: true);
+      await regFile.writeAsString(
+        jsonEncode({
+          'feature': '044-test-tdd-generation',
+          'records': [
+            {
+              'behavior_id': 'B-003',
+              'feature': '044-test-tdd-generation',
+              'source_criterion': 'FR-007',
+              'test_path': testPath,
+              'subject_path': subjectPath,
+              'runnable_test_name': '$testPath::B-003::asserts behavior',
+              'test_ownership': 'created',
+              'subject_ownership': 'created',
+              'created_at': '2026-08-29T20:00:00Z',
+            },
+          ],
+        }),
+      );
+    }
+
+    /// Create both prior artifacts on disk under the project layout.
+    Future<void> seedArtifacts() async {
+      for (final rel in [relTest, relSubject]) {
+        final file = File(p.join(tmpDir.path, rel));
+        await file.parent.create(recursive: true);
+        await file.writeAsString('// prior artifact');
+      }
+    }
+
+    ArtifactRecord offering(String testPath, String subjectPath) =>
+        ArtifactRecord(
+          behaviorId: 'B-003',
+          feature: '044-test-tdd-generation',
+          sourceCriterion: 'FR-007',
+          testPath: testPath,
+          subjectPath: subjectPath,
+          runnableTestName: '$testPath::B-003::asserts behavior',
+          testOwnership: Ownership.created,
+          subjectOwnership: Ownership.created,
+          createdAt: '2026-08-29T20:00:00Z',
+        );
+
+    test('preflight reuses when the prior record is project-relative and '
+        'the caller offers the machine-absolute form (issue #1397)', () async {
+      // The issue state: the registry's prior record (the fixture's a5
+      // shape) is project-relative, while gen computes machine-absolute
+      // paths for the SAME files. The gate must compare resolved paths,
+      // not string forms.
+      await seedArtifacts();
+      await seedRegistry(relTest, relSubject);
+
+      final result = await registry.preflight(
+        offering(p.join(tmpDir.path, relTest), p.join(tmpDir.path, relSubject)),
+      );
+
+      expect(result.testOwnership, Ownership.reused);
+      expect(result.subjectOwnership, Ownership.reused);
+    });
+
+    test('preflight reuses when the prior record is machine-absolute and '
+        'the caller offers the project-relative form (issue #1397)', () async {
+      // The inverse mix: the prior record is machine-absolute (the
+      // fixture's a3/a4/a6/a7 shape) and the caller names the same files
+      // project-relatively.
+      await seedArtifacts();
+      await seedRegistry(
+        p.join(tmpDir.path, relTest),
+        p.join(tmpDir.path, relSubject),
+      );
+
+      final result = await registry.preflight(offering(relTest, relSubject));
+
+      expect(result.testOwnership, Ownership.reused);
+      expect(result.subjectOwnership, Ownership.reused);
+    });
+
+    test('persists records in the portable project-relative POSIX form '
+        '(issue #1397)', () async {
+      // gen (pre-fix) wrote machine-absolute paths; the registry must
+      // persist the portable form so committed registries survive other
+      // machines.
+      await seedArtifacts();
+      final absolute = offering(
+        p.join(tmpDir.path, relTest),
+        p.join(tmpDir.path, relSubject),
+      );
+
+      await registry.append(absolute);
+
+      final raw = await File(registry.registryPath).readAsString();
+      expect(
+        raw,
+        isNot(contains(tmpDir.path)),
+        reason: 'no machine-specific absolute path may survive persist',
+      );
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      final stored =
+          (decoded['records'] as List).single as Map<String, dynamic>;
+      expect(stored['test_path'], relTest);
+      expect(stored['subject_path'], relSubject);
+      // The runnable name's path segment is rebuilt with the persisted
+      // form; the id and description segments are preserved verbatim.
+      expect(
+        stored['runnable_test_name'],
+        '$portableTest::B-003::asserts behavior',
+      );
+    });
+
+    test('still conflicts when the forms resolve to different files '
+        '(no over-normalization)', () async {
+      // Normalization must never merge distinct ownership boundaries: a
+      // record pointing at another tree is a real conflict.
+      await seedArtifacts();
+      await seedRegistry(relTest, relSubject);
+
+      await expectLater(
+        registry.preflight(
+          offering('test/other/b003_test.dart', 'lib/other/b003_subject.dart'),
+        ),
+        throwsA(isA<OwnershipConflict>()),
+      );
+    });
+  });
 }
 
 String _sha256(File f) {

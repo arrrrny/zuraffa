@@ -16,9 +16,19 @@
 ///    registered before anything else can run (`zfa tdd gen <id>
 ///    --adopt`).
 /// 3. **reset** — the registry records artifacts that are MISSING from
-///    disk: every later step would die at the ownership preflight, and
-///    the state cannot be reconciled without dropping the stale records
-///    (`zfa tdd reset <feature>`).
+///    disk with no relocated match (issue #1397): every later step would
+///    die at the ownership preflight, and the state cannot be reconciled
+///    without dropping the stale records (`zfa tdd reset <feature>`).
+/// 3a. **migrate (path-form)** — the registry records machine-absolute
+///    test/subject paths (issue #1397): either resolving on this machine
+///    (the mixed-form registry, the state where the gen ownership gate
+///    misfires while every store "agrees") or naming a project root that
+///    is not on this machine while the artifacts sit at the same
+///    project-relative locations under the current root (a relocated
+///    registry, which `reset` would wrongly answer by dropping certified
+///    behaviors). The migration rewrites the recorded forms to the
+///    portable project-relative POSIX form without moving any file
+///    (`zfa tdd migrate-paths <feature>`).
 /// 4. **resume** — the stores disagree on progress (an in-flight marker,
 ///    or claims whose matching cycle-log evidence is missing), or green
 ///    evidence has no backing artifact on disk (issue #1264's
@@ -247,22 +257,58 @@ class DoctorCommand extends Command<void> {
     }
 
     // ---- 2. Registry records with missing files -> RESET -------------
+    // Issue #1397: a record whose recorded path is machine-absolute may
+    // name a project root that does not exist on this machine (a checkout
+    // relocated between machines) while the artifact sits at the same
+    // project-relative location under the current root. That is path-form
+    // drift the migration repairs — NOT a missing artifact, which `reset`
+    // would answer by dropping certified behaviors. The relocation probe
+    // separates the two: a record whose missing paths all relocate is
+    // routed to migrate-paths below; a record with a genuinely missing
+    // artifact (probe finds nothing) still resets.
     final missingFiles = <String>[];
+    final relocatedRecords = <_RelocatedRecord>[];
     for (final record in records) {
-      for (final path in [record.testPath, record.subjectPath]) {
-        // Records may be absolute (gen's default) or project-relative —
-        // resolve both against the project root (issue #912: the raw
-        // relative form resolved against the process CWD, flagging
-        // healthy files as missing when doctor ran from elsewhere).
-        final resolved = p.isAbsolute(path)
-            ? p.normalize(path)
-            : p.normalize(p.join(cwd, path));
-        if (!File(resolved).existsSync()) {
-          missingFiles.add(
-            '${record.behaviorId}: ${_displayPath(cwd, resolved)} is '
-            'recorded but missing from disk',
-          );
-        }
+      // Records may be absolute (gen's default) or project-relative —
+      // resolve both against the project root (issue #912: the raw
+      // relative form resolved against the process CWD, flagging
+      // healthy files as missing when doctor ran from elsewhere).
+      final resolvedTest = p.isAbsolute(record.testPath)
+          ? p.normalize(record.testPath)
+          : p.normalize(p.join(cwd, record.testPath));
+      final resolvedSubject = p.isAbsolute(record.subjectPath)
+          ? p.normalize(record.subjectPath)
+          : p.normalize(p.join(cwd, record.subjectPath));
+      final missingTest = !File(resolvedTest).existsSync();
+      final missingSubject = !File(resolvedSubject).existsSync();
+      if (!missingTest && !missingSubject) continue;
+      final relocatedTest = missingTest
+          ? probeRelocatedArtifact(cwd, record.testPath)
+          : resolvedTest;
+      final relocatedSubject = missingSubject
+          ? probeRelocatedArtifact(cwd, record.subjectPath)
+          : resolvedSubject;
+      if (relocatedTest != null && relocatedSubject != null) {
+        relocatedRecords.add(
+          _RelocatedRecord(
+            behaviorId: record.behaviorId,
+            testPath: _displayPath(cwd, relocatedTest),
+            subjectPath: _displayPath(cwd, relocatedSubject),
+          ),
+        );
+        continue;
+      }
+      if (missingTest) {
+        missingFiles.add(
+          '${record.behaviorId}: ${_displayPath(cwd, resolvedTest)} is '
+          'recorded but missing from disk',
+        );
+      }
+      if (missingSubject) {
+        missingFiles.add(
+          '${record.behaviorId}: ${_displayPath(cwd, resolvedSubject)} is '
+          'recorded but missing from disk',
+        );
       }
     }
     if (missingFiles.isNotEmpty) {
@@ -281,6 +327,42 @@ class DoctorCommand extends Command<void> {
         feature: feature,
         verdict: 'drift',
         prescription: 'reset',
+        fix: fix,
+        drifts: drifts,
+      );
+      exitCode = 1;
+      return;
+    }
+    // ---- 2c. Relocated registry -> MIGRATE (issue #1397) -------------
+    // Every missing path of these records was found at its project-relative
+    // location under the current root: the registry was committed with
+    // machine-absolute forms from another checkout. The migration rewrites
+    // the recorded forms in place; `reset` would drop certified behaviors
+    // over a path form.
+    if (relocatedRecords.isNotEmpty) {
+      for (final relocated in relocatedRecords) {
+        drifts.add(
+          '${relocated.behaviorId}: the recorded machine-absolute path '
+          'names a project root that is not on this machine, but the '
+          'artifacts sit at ${relocated.testPath} / '
+          '${relocated.subjectPath} under the current root — a relocated '
+          'registry (the recorded form, not the artifacts, has drifted)',
+        );
+      }
+      final fix = 'zfa tdd migrate-paths $feature';
+      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      for (final drift in drifts) {
+        print('  drift: $drift');
+      }
+      print(
+        '   --> fix: $fix — rewrite the recorded forms to the portable '
+        'project-relative POSIX form (the files stay where they are; '
+        'reset would drop the certified behaviors)',
+      );
+      _printVerdict(
+        feature: feature,
+        verdict: 'drift',
+        prescription: 'migrate',
         fix: fix,
         drifts: drifts,
       );
@@ -323,6 +405,55 @@ class DoctorCommand extends Command<void> {
         feature: feature,
         verdict: 'drift',
         prescription: 'resume',
+        fix: fix,
+        drifts: drifts,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // ---- 2e. Recorded path-form drift -> MIGRATE (issue #1397) -------
+    // A record whose test/subject path is machine-absolute is not
+    // portable: another checkout reads it as a different file, and the
+    // mixed-form registry is exactly the state where the ownership gate
+    // misfires on re-gen while every store "agrees". The gate itself now
+    // compares resolved paths; the remaining hazard is the recorded form,
+    // and the migration rewrites it to the portable project-relative
+    // POSIX form without moving any file.
+    final formDrifts = <String>[];
+    for (final record in records) {
+      if (p.isAbsolute(record.testPath)) {
+        formDrifts.add(
+          '${record.behaviorId}: the recorded test path is '
+          'machine-absolute (${_displayPath(cwd, p.normalize(record.testPath))}) '
+          '— records must be project-relative to stay portable',
+        );
+      }
+      if (p.isAbsolute(record.subjectPath)) {
+        formDrifts.add(
+          '${record.behaviorId}: the recorded subject path is '
+          'machine-absolute '
+          '(${_displayPath(cwd, p.normalize(record.subjectPath))}) '
+          '— records must be project-relative to stay portable',
+        );
+      }
+    }
+    if (formDrifts.isNotEmpty) {
+      drifts.addAll(formDrifts);
+      final fix = 'zfa tdd migrate-paths $feature';
+      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      for (final drift in drifts) {
+        print('  drift: $drift');
+      }
+      print(
+        '   --> fix: $fix — rewrite the recorded path forms to the '
+        'portable project-relative POSIX form (files stay where they '
+        'are; only the recorded strings change)',
+      );
+      _printVerdict(
+        feature: feature,
+        verdict: 'drift',
+        prescription: 'migrate',
         fix: fix,
         drifts: drifts,
       );
@@ -581,4 +712,21 @@ class DoctorCommand extends Command<void> {
       }),
     );
   }
+}
+
+/// One registry record whose every missing recorded path relocated (issue
+/// #1397): the machine-absolute form names a foreign project root, the
+/// artifacts sit at the same project-relative locations under the current
+/// root, so the record is form drift for `migrate-paths` — not a missing
+/// artifact for `reset`.
+class _RelocatedRecord {
+  const _RelocatedRecord({
+    required this.behaviorId,
+    required this.testPath,
+    required this.subjectPath,
+  });
+
+  final String behaviorId;
+  final String testPath;
+  final String subjectPath;
 }

@@ -347,11 +347,15 @@ void main() {
     );
 
     test('the owning feature\'s own doctor run stays healthy', () async {
+      // The owner's record is in the portable project-relative form
+      // (issue #1397: the canonical recorded form — a machine-absolute
+      // record is its own path-form drift with a migrate prescription).
       await seedForeignOwnedPair(
         ownerFeature: owner,
         id: foreignId,
         testPath: flatTestPath(foreignId),
         subjectPath: flatSubjectPath(foreignId),
+        relativeRecord: true,
       );
 
       final out = await runCli(['doctor', owner]);

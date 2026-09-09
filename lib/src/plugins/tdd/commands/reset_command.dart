@@ -119,11 +119,18 @@ class ResetCommand extends Command<void> {
 
     // The delete set: exactly the files the registry records OWN that
     // exist on disk. Everything else on disk is foreign and survives.
+    // Recorded paths may be machine-absolute or project-relative
+    // (issue #1397): resolve both against the project root — the raw
+    // relative form would resolve against the process CWD and silently
+    // miss the owned files.
     final ownedExisting = <String>[];
     for (final record in records) {
       for (final path in [record.testPath, record.subjectPath]) {
-        if (File(path).existsSync() && !ownedExisting.contains(path)) {
-          ownedExisting.add(path);
+        final resolved = p.isAbsolute(path)
+            ? p.normalize(path)
+            : p.normalize(p.join(cwd, path));
+        if (File(resolved).existsSync() && !ownedExisting.contains(resolved)) {
+          ownedExisting.add(resolved);
         }
       }
     }
