@@ -72,10 +72,22 @@ List<String> _paramNamesOf(String subjectSource, String method) {
   final close = subjectSource.indexOf(')', open);
   final inside = subjectSource.substring(open + method.length + 1, close);
   if (inside.trim().isEmpty) return [];
-  return inside
-      .split(',')
-      .map((cell) => cell.trim().split(' ').last)
-      .toList();
+  // Depth-aware split: generic commas (`Map<String, int>`) are not
+  // parameter separators.
+  final names = <String>[];
+  var depth = 0;
+  var start = 0;
+  for (var i = 0; i < inside.length; i++) {
+    final c = inside[i];
+    if (c == '<' || c == '(') depth++;
+    if (c == '>' || c == ')') depth--;
+    if (c == ',' && depth == 0) {
+      names.add(inside.substring(start, i).trim().split(' ').last);
+      start = i + 1;
+    }
+  }
+  names.add(inside.substring(start).trim().split(' ').last);
+  return names;
 }
 
 void main() {
@@ -116,7 +128,7 @@ void main() {
   test('B3: unnamed generic-type params fall back to positional names',
       () async {
     final subject = await _writePair(
-      _contractBehavior('Processor.process(LoginParams, AuditTrail) -> void'),
+      _contractBehavior('Processor.process(List<int>, Map<String, int>) -> void'),
       tmp,
     );
     final source = await subject.readAsString();
