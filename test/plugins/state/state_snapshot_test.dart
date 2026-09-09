@@ -31,7 +31,7 @@ import 'package:zuraffa/src/plugins/state/builders/state_builder.dart';
 /// separately by `state_provenance_test.dart` against the live `version`
 /// const, so the snapshot gate normalizes ONLY this one line.
 String _normalizeVersionStamp(String source) => source.replaceAll(
-  RegExp(r'// Generator version: [0-9]+\.[0-9]+\.[0-9]+[^.\n]*'),
+  RegExp(r'// Generator version: [0-9][^ ]*'),
   '// Generator version: <pinned-by-state_provenance_test>',
 );
 
