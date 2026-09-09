@@ -1837,6 +1837,10 @@ class MakeCommand extends Command<void> {
       '   --> fix: test name must contain the behavior description '
       'verbatim — rename the test(...) to embed it (issue #1402).';
 
+  /// package:test's exit code when the runner executed zero tests
+  /// (`--plain-name` / `--name` matched nothing) — issue #1402.
+  static const int _exitCodeNoTests = 79;
+
   /// The runner's no-tests signature (issue #1402): `dart test` /
   /// `flutter test` exit 79 with a "No tests ran." transcript when the
   /// `--plain-name` filter matched zero tests.
@@ -1845,7 +1849,7 @@ class MakeCommand extends Command<void> {
   /// `--plain-name` flag semantics and the verify-red logic are untouched.
   static bool _noTestsRan(RunRecord run) =>
       run.startedProcess &&
-      run.exitCode == 79 &&
+      run.exitCode == _exitCodeNoTests &&
       run.output.contains('No tests ran');
 
   /// Run the behavior's target test through the profile `single` template
@@ -1901,7 +1905,10 @@ class MakeCommand extends Command<void> {
       print(_plainNameRemedy);
       return run;
     }
-    print('   falling back to the whole target file: $fallback');
+    final resolvedFallback = fallback
+        .replaceAll('{file}', testPath)
+        .replaceAll('{name}', testName);
+    print('   falling back to the whole target file: $resolvedFallback');
     final fileRun = await runner.runSingle(
       singleTemplate: fallback,
       testPath: testPath,
@@ -1909,7 +1916,15 @@ class MakeCommand extends Command<void> {
       workingDirectory: workingDirectory,
       timeout: timeout,
     );
-    if (!fileRun.startedProcess || _noTestsRan(fileRun)) {
+    if (!fileRun.startedProcess) {
+      print(
+        '   the whole-file fallback did not start (`$resolvedFallback`): '
+        '${fileRun.output}',
+      );
+      print(_plainNameRemedy);
+      return run;
+    }
+    if (_noTestsRan(fileRun)) {
       print(_plainNameRemedy);
       return run;
     }
