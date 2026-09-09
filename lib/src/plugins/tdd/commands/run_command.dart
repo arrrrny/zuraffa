@@ -38,6 +38,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import '../../../cli/exit_protocol.dart';
 
 import '../models/verdict_envelope.dart';
 import '../services/journal.dart';
@@ -247,6 +248,19 @@ class RunCommand extends Command<void> {
     // Issue #1374: the constrained-agent escape hatch — scope the suite
     // baseline command to a directory (the feature test dir).
     final baselineScope = argResults?['baseline-scope'] as String?;
+    if (baselineScope != null) {
+      final scopeNorm = p.normalize(baselineScope);
+      if (p.isAbsolute(scopeNorm) ||
+          scopeNorm == '..' ||
+          scopeNorm.startsWith('../')) {
+        print(
+          'zfa tdd run: --baseline-scope must be a directory relative to '
+          'the project root (got "$baselineScope")',
+        );
+        exitCode = ExitProtocol.usage;
+        return;
+      }
+    }
 
     // Bug #742: the --timeout override for each spawned step command.
     Duration? timeoutOverride;

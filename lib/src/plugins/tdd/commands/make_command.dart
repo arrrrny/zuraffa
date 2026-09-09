@@ -70,6 +70,7 @@ import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
+import '../../../cli/exit_protocol.dart';
 
 import '../models/generation_plan.dart';
 import '../models/red_classification.dart';
@@ -298,6 +299,19 @@ class MakeCommand extends Command<void> {
     // Issue #1374: the constrained-agent escape hatch for the live
     // baseline branch below.
     final baselineScope = argResults?['baseline-scope'] as String?;
+    if (baselineScope != null) {
+      final scopeNorm = p.normalize(baselineScope);
+      if (p.isAbsolute(scopeNorm) ||
+          scopeNorm == '..' ||
+          scopeNorm.startsWith('../')) {
+        print(
+          'zfa tdd make: --baseline-scope must be a directory relative to '
+          'the project root (got "$baselineScope")',
+        );
+        exitCode = ExitProtocol.usage;
+        return;
+      }
+    }
     final suiteBaselinePath =
         suiteBaselineFlag != null && suiteBaselineFlag.isNotEmpty
         ? suiteBaselineFlag
