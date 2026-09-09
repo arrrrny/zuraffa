@@ -379,6 +379,7 @@ dart test                      # or: flutter test — the whole suite green
 | `zfa tdd gen` on a fallback-routed SKIN FR (no `traces:` to a contract row) emits a guard-only unit test; `make` refuses it vacuous-green (issue #1259) and the run stops | #1402 family | **open** — workaround: hand-edit the generated `uN_test.dart` to add scenario assertions (see §8 gotcha 1), `verify-red`, hand-implement the subject, `make` |
 | `zfa tdd gen` for SKIN widget behaviors (W ids) emits placeholder finders (`expect(find.byWidget(view), findsOneWidget)`) marked `zfa:tdd: scaffolded`; verify-red goes unexpected-green and make blocks | #1373 family | **open** — workaround: replace the placeholder assertions with concrete finders/registry assertions, `verify-red`, hand-implement the subject, `make` |
 | FR body containing `|` (e.g. `<all|active|completed>`) breaks the pipe-table parser in test-list.md | [#1401](https://github.com/arrrrny/zuraffa/issues/1401) | **open** — workaround: write FR alternatives comma-separated in spec.md |
+| `--plain-name` lookup in `make` silently exits 79 ("No tests ran") when a hand-edited test name doesn't embed the behavior description verbatim | [#1402](https://github.com/arrrrny/zuraffa/issues/1402) | **open** — workaround: embed the exact behavior description as the outer test name |
 
 Cross-check evidence: `fix_verification_probe` spec runs 8/8 green in one
 uninterrupted run on `d23bde35` (8 behaviors: A1–A4, U1–U4, CORE lane).
