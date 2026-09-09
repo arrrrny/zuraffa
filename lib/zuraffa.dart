@@ -712,28 +712,10 @@ export 'src/i18n/i18n_service.dart';
 // Pure-Dart (FR-012): no package:flutter import anywhere in this subtree.
 export 'src/cli/standard/standard.dart';
 
-// ── 023-agent-plugin-ui-render — agent-authored live, interactive UI ──
-// `ui.render` tool + streaming UI event channel + action-loop closure.
-// Agents author a component tree validated against the UI Vocabulary Schema;
-// user interactions route back as semantic actions. confirm-tier actions are
-// gated by a policy shell. Per-mission-type vocabulary narrowing restricts
-// the agent's allowed components. Pure-Dart (no package:flutter import
-// anywhere in this subtree).
-//
-// `ValidationResult` is hidden here to avoid an ambiguous-export conflict with
-// `package:zuraffa/src/core/plugin_system/plugin_lifecycle.dart`, which already
-// exports a same-named type from the plugin-lifecycle subsystem. Consumers
-// that need the ui_render ValidationResult should import
-// `package:zuraffa/src/agent/ui_render/ui_vocabulary_schema.dart` directly.
-// NOTE: `MissionTraceRecorder` is defined by BOTH the ui_render plugin
-// (#023) and the policy shell (#027, this PR). They are unrelated features
-// (render-tree trace vs tool-call trace) that coincidentally share the name.
-// The policy shell's `MissionTraceRecorder` is kept in the public barrel;
-// ui_render's remains available via its own relative import and is hidden here
-// to avoid an ambiguous-export error. See zuraffa.dart policy-shell export.
-// ---------------------------------------------------------------------------
-// UI Vocabulary Authority (spec 024 — skin plugin)
-// ---------------------------------------------------------------------------
+// ── Skin UI Vocabulary Authority (spec 024 — skin plugin) ────────────
+// The skin-side vocabulary surface used by `zfa make <Name> --ui` and the
+// skin plugin. (The agent-side ui_render plugin that also consumed this
+// vocabulary moved behind the dedicated agent barrel — issue #1344.)
 
 // NodeRegistry — the authoritative built-in + composite node vocabulary.
 export 'src/plugins/skin/vocabulary/ui_node_registry.dart';
@@ -750,46 +732,25 @@ export 'src/plugins/skin/vocabulary/composite_scaffolder.dart';
 // UiVocabularyExportCapability — MCP-discoverable export (FR-006).
 export 'src/plugins/skin/capabilities/ui_vocabulary_export_capability.dart';
 
-export 'src/agent/ui_render/ui_render.dart'
-    hide ValidationResult, ValidationError, MissionTraceRecorder;
-
-// ── 026-agent-kernel-mission — mission coalescing, cancellation, partial-salvage ──
-// The agent kernel's efficiency + safety core. Identical missions coalesce
-// into one execution via a composite key (spark type + normalized value +
-// country + strategy variant); mid-execution cancellation triggers a grace
-// period that disposes resources and salvages partials as `cancelled_partial`;
-// an idempotency cache serves repeated submissions within TTL. Single-isolate
-// assumption documented; MissionExecutor is the multi-isolate extension point.
-// Pure-Dart (no package:flutter import anywhere in this subtree).
-export 'src/agent/kernel/agent_kernel.dart'
-    hide
-        CancelToken,
-        Mission,
-        MissionEvent,
-        MissionEventCompleted,
-        MissionEventFailed;
-
-// ── 027-agent-policy-shell — ToolGatingHook, MissionBudgetHook, MissionTraceRecorder ──
-// Framework-default safety/governance layer. Tool permission registry
-// (safe/confirm/admin) evaluated before every tool call; four-dimension
-// mission budgets (calls, wall-clock, tokens, per-tool-class seconds) with
-// typed budget-exceeded events and cancellation; hashed-argument Mission
-// Trace JSON with concurrent-streaming integrity and an oversized-result
-// guard. All hooks composable and individually disableable. Pure-Dart.
-export 'src/agent/policy/policy_shell.dart' hide ToolCallContext;
-
-// ── 028-agent-runtime-plugin — AgentRuntimePlugin + McpToolProvider SPI ──
-// In-proc kernel host over dart_agent_core. McpToolProvider SPI for device
-// packages to self-describe; McpToolRegistry assembles a flat, collision-safe
-// tool registry from SPI providers + generated usecase tools + remote MCP
-// servers. AgentKernel delegates the agent loop entirely to
-// StatefulAgent.runStream (no loop duplication — FR-013). Composes system
-// prompt from playbook + tool manifests; wires FallbackLLMClient as default;
-// persists per-mission session state via FileStateStorage; supports ordered
-// AgentHook registration for policy concerns; exposes kernel.status().
-// Pure-Dart (no package:flutter import anywhere in this subtree).
-export 'src/agent/runtime/agent_runtime_plugin.dart'
-    hide McpTool, AgentHook, McpToolRegistry, AgentKernel;
+// ── Agent runtime — gated behind the dedicated barrel (issue #1344) ──
+// The agent runtime (ui_render, kernel, policy shell, runtime plugin —
+// formerly the specs 023/026/027/028 export sites) is NO LONGER
+// re-exported from the default barrel. Re-exporting it from here collided
+// with ecosystem packages such as zuraffa_agent, which declare their own
+// same-named domain entities (LlmClient, RiskTier, ToolResult, and the
+// wider agent-domain name class), producing ambiguous-import errors at
+// load time for every file importing both packages.
+//
+// Consumers who WANT the agent runtime import it explicitly:
+//
+//     import 'package:zuraffa/agent.dart';
+//
+// The dedicated barrel carries the exact export surface (including the
+// hide clauses arbitrating the kernel-vs-runtime and ui_render-vs-policy
+// same-name conflicts) that the default barrel used to expose. Direct
+// deep imports of the runtime's source files are unaffected. This is a
+// non-breaking narrowing of the default export surface — the same split
+// pattern as Flutter's material vs widgets libraries.
 
 // ============================================================
 // Framework Configuration
