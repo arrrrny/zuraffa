@@ -7,9 +7,14 @@ import 'dart:io';
 import 'package:yaml/yaml.dart';
 
 class PubspecDevDependenciesPatcher {
-  const PubspecDevDependenciesPatcher({this.isFlutter = true});
+  const PubspecDevDependenciesPatcher({this.isFlutter});
 
-  final bool isFlutter;
+  /// Issue #1370: null (the default) means DETECT — the pubspec carries
+  /// the answer (`dependencies.flutter: sdk: flutter`), so a caller that
+  /// forgets the flag can no longer stamp the wrong baseline onto a
+  /// project. An explicit value keeps the override semantics for callers
+  /// that know better.
+  final bool? isFlutter;
 
   // Bug #716: the generated test templates (tdd behavior tests, package
   // scaffold tests) import `package:test/test.dart`, which `flutter_test`
@@ -63,7 +68,11 @@ class PubspecDevDependenciesPatcher {
     return entry.split('\n').map((line) => '  $line').join('\n');
   }
 
-  Future<List<String>> ensure(String projectRoot, {bool dryRun = false}) async {
+  Future<List<String>> ensure(
+    String projectRoot, {
+    bool? isFlutterOverride,
+    bool dryRun = false,
+  }) async {
     final file = File('$projectRoot/pubspec.yaml');
 
     // In dry-run mode, report what would be added without touching disk.
@@ -71,14 +80,19 @@ class PubspecDevDependenciesPatcher {
     // the dry-run is previewing what the TDD baseline writers would emit).
     if (dryRun) {
       if (!await file.exists()) {
-        return (isFlutter ? flutterDevDependencies : dartDevDependencies).keys
+        return (_resolveIsFlutter(isFlutterOverride ?? isFlutter, file)
+                ? flutterDevDependencies
+                : dartDevDependencies)
+            .keys
             .toList();
       }
       final raw = await file.readAsString();
       final doc = loadYaml(raw);
       final existing =
           (doc is Map ? (doc['dev_dependencies'] as Map?) : null) ?? const {};
-      final wanted = isFlutter ? flutterDevDependencies : dartDevDependencies;
+      final wanted = _resolveIsFlutter(isFlutterOverride ?? isFlutter, file)
+          ? flutterDevDependencies
+          : dartDevDependencies;
       return wanted.keys.where((pkg) => !existing.containsKey(pkg)).toList();
     }
 
@@ -102,7 +116,9 @@ class PubspecDevDependenciesPatcher {
     }
     final existing = (doc['dev_dependencies'] as Map?) ?? const {};
 
-    final wanted = isFlutter ? flutterDevDependencies : dartDevDependencies;
+    final wanted = _resolveIsFlutter(isFlutter, file)
+        ? flutterDevDependencies
+        : dartDevDependencies;
     final missing = <String>[];
     wanted.forEach((pkg, constraint) {
       if (!existing.containsKey(pkg)) {
@@ -199,5 +215,20 @@ class PubspecDevDependenciesPatcher {
       }
     }
     return buf.toString();
+  }
+
+  /// Issue #1370: an explicit [flag] wins; otherwise detect from the
+  /// pubspec — a Flutter project declares `dependencies.flutter`.
+  static bool _resolveIsFlutter(bool? flag, File file) {
+    if (flag != null) return flag;
+    try {
+      final doc = loadYaml(file.readAsStringSync());
+      final dependencies =
+          (doc is Map ? (doc['dependencies'] as Map?) : null) ?? const {};
+      final flutter = dependencies['flutter'];
+      return flutter is Map && flutter['sdk'] != null;
+    } catch (_) {
+      return false;
+    }
   }
 }
