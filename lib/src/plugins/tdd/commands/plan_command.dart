@@ -996,6 +996,12 @@ class PlanCommand extends Command<void> {
       // never ship lane plans without the receipt the one-shot guard
       // keys on.
       final finalSpecMd = await specFile.readAsString();
+      // The spec can vanish between the read and this stamp (a
+      // concurrent tdd reset): degrade to no mtime rather than crash
+      // after the lane plans are already written.
+      final String? specMtime = specFile.existsSync()
+          ? (await specFile.lastModified()).toUtc().toIso8601String()
+          : null;
       final refreshed = splitReceiptExists
           ? (splitReceipt == null
                 ? <String, dynamic>{
@@ -1019,9 +1025,7 @@ class PlanCommand extends Command<void> {
             };
       refreshed
         ..['spec_hash'] = sha256.convert(utf8.encode(finalSpecMd)).toString()
-        ..['spec_mtime'] = (await specFile.lastModified())
-            .toUtc()
-            .toIso8601String()
+        ..['spec_mtime'] = specMtime
         ..['refreshed_at'] = DateTime.now().toUtc().toIso8601String()
         ..['refreshed_by'] = 'zfa tdd plan'
         ..['refreshed_rows'] = laneResult.classification.length;
