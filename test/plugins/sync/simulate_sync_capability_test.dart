@@ -23,8 +23,7 @@ void main() {
     return (exitCode, output);
   }
 
-  test('B1: the offline-flap scenario drives the strategy to GREEN',
-      () async {
+  test('B1: the offline-flap scenario drives the strategy to GREEN', () async {
     final (code, output) = await runZfa([
       'sync',
       'simulate',
@@ -43,23 +42,27 @@ void main() {
       '--scenario',
       'gremlins',
     ]);
-    expect(code, 1, reason: output);
+    // The parser layer rejects it first (the schema enum is the allowed
+    // list); the capability keeps its own guard for direct invocation.
+    expect(code, 2, reason: output);
     expect(output, contains('offline-flap'));
-    expect(output, contains('Unknown scenario'));
+    expect(output, contains('not an allowed value'));
   });
 
-  test('B3: the summary carries the chaos evidence (retries + verdict)',
-      () async {
-    final (code, output) = await runZfa([
-      'sync',
-      'simulate',
-      '--scenario',
-      'offline-flap',
-    ]);
-    expect(code, 0, reason: output);
-    expect(output, contains('retries>0'));
-    expect(output, contains('sync-simulate: scenario=offline-flap'));
-  });
+  test(
+    'B3: the summary carries the chaos evidence (retries + verdict)',
+    () async {
+      final (code, output) = await runZfa([
+        'sync',
+        'simulate',
+        '--scenario',
+        'offline-flap',
+      ]);
+      expect(code, 0, reason: output);
+      expect(output, contains('retries>0'));
+      expect(output, contains('sync-simulate: scenario=offline-flap'));
+    },
+  );
 
   test('B4: --help documents --scenario', () async {
     final (code, output) = await runZfa(['sync', 'simulate', '--help']);
