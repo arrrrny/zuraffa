@@ -68,3 +68,9 @@ mutation-test-report/
 # `contracts` rule above targets generated contract build dirs, not
 # spec documents.
 !specs/**/contracts/
+
+# Local dev note (2026-09-09): apps/*/examples pubspec.yaml files carry
+# machine-local dependency_overrides (path deps to ../../ and sibling zorphy).
+# They are tracked, so they CANNOT be gitignored; they are held out of commits
+# via git update-index --skip-worktree (reversible with --no-skip-worktree).
+# A bare apps/ ignore rule is forbidden — see the BUG-1188 comment above.

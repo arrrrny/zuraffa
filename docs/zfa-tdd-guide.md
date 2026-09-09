@@ -376,6 +376,10 @@ dart test                      # or: flutter test — the whole suite green
 | `zfa tdd gen` emitted `package:test` test imports on Flutter hosts, where the package cannot resolve (compile-error at verify-red) | #1351 | **fixed on branch `fix/1351-gen-flutter-test-import`** (binary build `510c4aa4`) — gen now detects Flutter hosts and emits `package:flutter_test` imports |
 | `zfa tdd make`/`compose` refused not-certified-red when an older error section for the same behavior preceded the certified-red section in cycle-log.md — a resumed run with any earlier honest error was permanently blocked | #1353 | **fixed on branch `fix/1351-gen-flutter-test-import`** (binary build `583d711d`) — the check now scans all sections for any `kind: red` |
 | `zfa tdd run` stops at a scaffolded widget behavior with a cryptic `not-certified-red` instead of handing off to the `--author --finders-file` flow | #1373 | **open** — workaround: the §5a step-2 author flow |
+| `zfa tdd gen` on a fallback-routed SKIN FR (no `traces:` to a contract row) emits a guard-only unit test; `make` refuses it vacuous-green (issue #1259) and the run stops | #1402 family | **open** — workaround: hand-edit the generated `uN_test.dart` to add scenario assertions (see §8 gotcha 1), `verify-red`, hand-implement the subject, `make` |
+| `zfa tdd gen` for SKIN widget behaviors (W ids) emits placeholder finders (`expect(find.byWidget(view), findsOneWidget)`) marked `zfa:tdd: scaffolded`; verify-red goes unexpected-green and make blocks | #1373 family | **open** — workaround: replace the placeholder assertions with concrete finders/registry assertions, `verify-red`, hand-implement the subject, `make` |
+| FR body containing `|` (e.g. `<all|active|completed>`) breaks the pipe-table parser in test-list.md | [#1401](https://github.com/arrrrny/zuraffa/issues/1401) | **open** — workaround: write FR alternatives comma-separated in spec.md |
+| `--plain-name` lookup in `make` silently exits 79 ("No tests ran") when a hand-edited test name doesn't embed the behavior description verbatim | [#1402](https://github.com/arrrrny/zuraffa/issues/1402) | **open** — workaround: embed the exact behavior description as the outer test name |
 
 Cross-check evidence: `fix_verification_probe` spec runs 8/8 green in one
 uninterrupted run on `d23bde35` (8 behaviors: A1–A4, U1–U4, CORE lane).
@@ -384,6 +388,12 @@ Full-cycle evidence: a Flutter macOS todo app (15 behaviors: 6 acceptance +
 binary build `583d711d` — every §5a hand step exercised, both receipts
 green, `flutter test` 16/16, and the built `.app` live-tested on macOS
 (2026-09-09).
+Second full-cycle evidence (2026-09-09): the `xray-cli` spec (29 behaviors:
+22 CORE + 7 SKIN) completed end-to-end from scratch — a pure-Dart engine
+driving a live macOS Flutter app through an X-Ray bridge (GET /xray/tree +
+POST /xray/action), all CRUD+search+filter commands exercised against the
+running app via `bin/todo.dart`, visual state confirmed by screenshot. This
+validated every workaround in this guide under §8.
 
 ## Authoring gotchas (spec-parser grammar, hit 2026-09-09)
 
@@ -423,3 +433,43 @@ while authoring the `xray-cli` spec (CLI CRUD over the X-Ray bridge):
 - `specs/1005-skin-hand-written-seam/spec.md` — the skin hand-edit seam
 - `specs/1113-unified-tdd-journal/spec.md` — journal, prove, status
 - `.specify/templates/spec-template.md` — the authoritative authoring template
+
+## 8. Skin-lane gotchas (hit 2026-09-09, `xray-cli` full cycle)
+
+These were hit while completing a 29-behavior full cycle (22 CORE + 7 SKIN)
+that ended in a live-tested macOS app driven by an external CLI through the
+X-Ray bridge. None are blockers; each has a working workaround.
+
+1. **Fallback-routed unit behaviors (U9–U11 in that spec) gen guard-only
+   tests.** When an FR has no `traces:` the generator cannot derive an
+   outcome assertion and emits only the `UnimplementedError` guard; `make`
+   refuses it vacuous-green and the run stops. Fix by hand: rewrite
+   `uN_test.dart` so the scenario description becomes real assertions over
+   the subject's return value (e.g. assert the registry tree JSON), keep the
+   behavior description string as the test name verbatim (the `--plain-name`
+   matcher depends on it), then `verify-red` (expect `classification:
+   assertion`), hand-implement the subject, `make`.
+2. **Widget behaviors (W ids) gen placeholder finders.** The generated test
+   ends with `expect(find.byWidget(view), findsOneWidget)` under a
+   `zfa:tdd: scaffolded` marker — a bare stub passes it, so verify-red goes
+   `unexpected-green` and `make` blocks with `not-certified-red`. Replace the
+   placeholder with scenario-derived assertions (finders or registry
+   checks), then run `verify-red Wn` explicitly (an already-green target
+   skips red certification and make refuses), hand-implement the subject to
+   return the real view, `make`.
+3. **Subjects of every hand step return the subject value, not widgets
+   only.** Unit subjects may return plain Dart values (`Map`, `List`,
+   `Future<int?>`); the test just needs to assert on them. Widget subjects
+   return the view builder.
+4. **Registry state must merge, not overwrite.** If a global registry stores
+   per-node state and a widget's build path re-registers the node with
+   `state: null`, it will wipe dynamically-synced state. Merge with the
+   existing entry: keep `existing?['state']` when the incoming state is
+   null.
+5. **Hot restart, not hot reload.** Changes in `main()` (e.g. starting a
+   bridge server) need `R` in the `flutter run` pane; `r` re-runs only
+   `build()`. Verify the server is up with `curl` before driving it.
+6. **Drive the live app, then prove it visually.** The CLI mutates app state
+   through the bridge; confirm the window actually renders the new state
+   (`osascript` frontmost + `screencapture -x`, then read the image) —
+   state JSON equality alone does not prove the UI.
