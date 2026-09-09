@@ -210,12 +210,14 @@ class SimulateCommand extends Command<void> {
         // bare name whose specs/<name> directory does not exist keeps
         // the raw value so the boot failure names what was passed.
         if (featureFlag != null &&
+            featureFlag.isNotEmpty &&
             fixturesFlag == null &&
-            !featureFlag.contains('/') &&
-            Directory(
-              p.join(Directory.current.path, 'specs', featureFlag),
-            ).existsSync()) {
-          fixturesDir = p.join(Directory.current.path, 'specs', featureFlag);
+            !featureFlag.contains('/')) {
+          final bareSpecsDir =
+              p.join(Directory.current.path, 'specs', featureFlag);
+          if (Directory(bareSpecsDir).existsSync()) {
+            fixturesDir = bareSpecsDir;
+          }
         }
         exitCode = await _replay(fixturesDir);
         return;
