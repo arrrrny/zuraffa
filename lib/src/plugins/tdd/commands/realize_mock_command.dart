@@ -215,6 +215,13 @@ class RealizeMockCommand extends Command<void> {
     print('   feature: $feature');
 
     final contractTests = <String>[];
+    final override = resolved.contractTestOverride;
+    if (override != null) {
+      final path = p.normalize(
+        p.isAbsolute(override) ? override : p.join(cwd, override),
+      );
+      if (await File(path).exists()) contractTests.add(path);
+    }
     for (final record in resolved.records) {
       final path = p.normalize(
         p.isAbsolute(record.testPath)
@@ -276,7 +283,9 @@ class RealizeMockCommand extends Command<void> {
     // (`mockOutput`) and `seed` records pre-loaded into the Tier-2
     // store before the invocation.
     // ---------------------------------------------------------------
-    final fixturesDir = Directory(p.join(featureDir, 'tdd', 'fixtures'));
+    final fixturesDir = Directory(
+      resolved.fixturesDir ?? p.join(featureDir, 'tdd', 'fixtures'),
+    );
     if (!await fixturesDir.exists()) {
       _fail(
         'zfa tdd realize-mock: no committed contract cases — the '
@@ -586,8 +595,76 @@ class RealizeMockCommand extends Command<void> {
         return _EntityResolution(featureFlag, records);
       }
     }
-    return null;
+
+    // Issue #1367: the mock plugin's certification registry is a
+    // resolution home of its own. `zfa mock create --certify` proves the
+    // mock and writes test/mock/<entity>/mock-cert.<Entity>.json naming
+    // its contract test — but nothing in specs/ knew, so the epic's two
+    // halves could not compose. When no artifacts registry names the
+    // entity, resolve through the certification receipt: its
+    // contract_test is the Tier-1 test and each certified method
+    // synthesizes a realize-diff case under .zfa/realize-mock/.
+    return _mockCertResolution(cwd, entity);
   }
+
+  /// Issue #1367: resolves [entity] through the mock certification
+  /// receipt (`test/mock/<snake>/mock-cert.<Entity>.json`). Null when no
+  /// receipt exists — the honest unknown-entity refusal stands.
+  _EntityResolution? _mockCertResolution(String cwd, String entity) {
+    final snake = _camelToSnake(entity);
+    final receiptFile = File(
+      p.join(cwd, 'test', 'mock', snake, 'mock-cert.$entity.json'),
+    );
+    if (!receiptFile.existsSync()) return null;
+
+    final Map<String, dynamic> doc;
+    try {
+      final decoded = jsonDecode(receiptFile.readAsStringSync());
+      if (decoded is! Map<String, dynamic>) return null;
+      doc = decoded;
+    } on FormatException {
+      return null;
+    }
+    final contractTest = doc['contract_test'];
+    if (contractTest is! String || contractTest.isEmpty) return null;
+
+    // One realize-diff case per CERTIFIED method (satisfied: true) — an
+    // unsatisfied method is not a proven contract surface.
+    final methods = <String>[];
+    for (final m in (doc['methods'] as List<dynamic>? ?? const [])) {
+      if (m is Map<String, dynamic> &&
+          m['name'] is String &&
+          m['satisfied'] == true) {
+        methods.add(m['name'] as String);
+      }
+    }
+
+    final fixturesDir = Directory(
+      p.join(cwd, '.zfa', 'realize-mock', snake, 'fixtures'),
+    );
+    fixturesDir.createSync(recursive: true);
+    for (final method in methods) {
+      File(p.join(fixturesDir.path, '$method.json')).writeAsStringSync(
+        const JsonEncoder.withIndent('  ').convert({
+          'schema': 'realize-diff.v1',
+          'id': method,
+          'input': {'op': method},
+        }),
+      );
+    }
+    return _EntityResolution(
+      'mock-cert-$snake',
+      const [],
+      fixturesDir: fixturesDir.path,
+      contractTestOverride: contractTest,
+    );
+  }
+
+  /// The mock plugin's snake_case convention (MockContractTestWriter's
+  /// contractTestPath lays the files down this way).
+  static String _camelToSnake(String s) => s
+      .replaceAllMapped(RegExp('[A-Z]'), (m) => '_${m[0]!.toLowerCase()}')
+      .replaceFirst(RegExp('^_'), '');
 
   /// The records whose descriptions name [entity] (the `create entity X`
   /// convention), or null when none do.
@@ -744,7 +821,23 @@ class _RegistryEntry {
 }
 
 class _EntityResolution {
-  const _EntityResolution(this.feature, this.records);
+  const _EntityResolution(
+    this.feature,
+    this.records, {
+    this.fixturesDir,
+    this.contractTestOverride,
+  });
+
   final String feature;
   final List<ArtifactRecord> records;
+
+  /// Issue #1367 fallback home: when the resolution came from the mock
+  /// certification receipt (no spec-kit registry names the entity), the
+  /// realize-diff cases live under `.zfa/realize-mock/<entity>/fixtures/`
+  /// instead of `specs/<feature>/tdd/fixtures/`.
+  final String? fixturesDir;
+
+  /// Issue #1367: the certified mock's Tier-1 contract test, named by
+  /// the mock-cert receipt's `contract_test` field.
+  final String? contractTestOverride;
 }

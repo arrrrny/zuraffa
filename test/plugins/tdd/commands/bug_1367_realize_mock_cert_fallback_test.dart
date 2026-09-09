@@ -27,7 +27,6 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:args/command_runner.dart';
-import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/plugins/tdd/commands/realize_mock_command.dart';
 import 'package:zuraffa/src/plugins/tdd/services/tier2_firestore/tier2_mock_provider.dart';
 import 'package:zuraffa/src/plugins/tdd/tdd_plugin.dart';
@@ -39,7 +38,10 @@ class _EchoProvider extends Tier2MockProvider {
   Future<void> seed(List<Map<String, dynamic>> records) async {}
 
   @override
-  Future<Map<String, dynamic>> invoke(String op, Map<String, dynamic> args) async {
+  Future<Map<String, dynamic>> invoke(
+    String op,
+    Map<String, dynamic> args,
+  ) async {
     if (op == 'getById') return {'id': args['id'], 'attempts': '42'};
     return {'ok': op};
   }
@@ -68,7 +70,13 @@ void main() {
     bool writeContractTest = true,
   }) async {
     final testFile = File(
-      p.join(root.path, 'test', 'mock', 'login', 'login_mock_contract_test.dart'),
+      p.join(
+        root.path,
+        'test',
+        'mock',
+        'login',
+        'login_mock_contract_test.dart',
+      ),
     );
     if (writeContractTest) {
       await testFile.parent.create(recursive: true);
@@ -124,40 +132,50 @@ void main() {
     return (lines.join('\n'), exitCode);
   }
 
-  test('B1: a certified entity resolves through the receipt and certifies',
-      () async {
-    await seedCertReceipt();
+  test(
+    'B1: a certified entity resolves through the receipt and certifies',
+    () async {
+      await seedCertReceipt();
 
-    final (output, exit) = await runRealizeMock();
+      final (output, exit) = await runRealizeMock();
 
-    expect(output, isNot(contains('unknown entity')),
-        reason: 'the certification registry is a resolution home');
-    expect(output, contains('tier-1 contract test: 1 file(s)'));
-    expect(output, contains('verdict certified'));
+      expect(
+        output,
+        isNot(contains('unknown entity')),
+        reason: 'the certification registry is a resolution home',
+      );
+      expect(output, contains('tier-1 contract test: 1 file(s)'));
+      expect(output, contains('verdict certified'));
 
-    final fixturesDir = Directory(
-      p.join(root.path, '.zfa', 'realize-mock', 'login', 'fixtures'),
-    );
-    expect(fixturesDir.existsSync(), isTrue, reason: output);
-    final getById = jsonDecode(
-      File(p.join(fixturesDir.path, 'getById.json')).readAsStringSync(),
-    ) as Map<String, dynamic>;
-    expect(getById['input']['op'], 'getById');
-    expect(getById['schema'], 'realize-diff.v1');
-  });
+      final fixturesDir = Directory(
+        p.join(root.path, '.zfa', 'realize-mock', 'login', 'fixtures'),
+      );
+      expect(fixturesDir.existsSync(), isTrue, reason: output);
+      final getById =
+          jsonDecode(
+                File(
+                  p.join(fixturesDir.path, 'getById.json'),
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      expect(getById['input']['op'], 'getById');
+      expect(getById['schema'], 'realize-diff.v1');
+    },
+  );
 
-  test('B2: guard — no receipt and no registry stays unknown-entity',
-      () async {
+  test('B2: guard — no receipt and no registry stays unknown-entity', () async {
     final (output, exit) = await runRealizeMock();
     expect(output, contains('unknown entity "Login"'));
     expect(exit, 1);
   });
 
   test('B3: unsatisfied methods do not synthesize cases', () async {
-    await seedCertReceipt(methods: [
-      {'name': 'getById', 'satisfied': true},
-      {'name': 'signIn', 'satisfied': false},
-    ]);
+    await seedCertReceipt(
+      methods: [
+        {'name': 'getById', 'satisfied': true},
+        {'name': 'signIn', 'satisfied': false},
+      ],
+    );
 
     final (output, exit) = await runRealizeMock();
 
@@ -166,8 +184,11 @@ void main() {
       p.join(root.path, '.zfa', 'realize-mock', 'login', 'fixtures'),
     );
     expect(File(p.join(fixturesDir.path, 'getById.json')).existsSync(), isTrue);
-    expect(File(p.join(fixturesDir.path, 'signIn.json')).existsSync(), isFalse,
-        reason: 'an unsatisfied method is not a proven surface');
+    expect(
+      File(p.join(fixturesDir.path, 'signIn.json')).existsSync(),
+      isFalse,
+      reason: 'an unsatisfied method is not a proven surface',
+    );
     expect(exit, 0);
   });
 
