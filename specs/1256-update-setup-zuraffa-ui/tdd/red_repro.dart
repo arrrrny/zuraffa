@@ -13,8 +13,12 @@ void main() {
   print('     (expected: true — issue #1256) -> ${hasZui ? "GREEN" : "RED"}');
 
   final defaultShell = WidgetAppShell.parse(null);
-  print('RED-2 default widget shell: ${defaultShell.name} '
-      '(${defaultShell.widgetName})');
-  print('     (expected: a zuraffaapp shell emitting ZuraffaApp) -> '
-      '${defaultShell.widgetName == 'ZuraffaApp' ? "GREEN" : "RED"}');
+  print(
+    'RED-2 default widget shell: ${defaultShell.name} '
+    '(${defaultShell.widgetName})',
+  );
+  print(
+    '     (expected: a zuraffaapp shell emitting ZuraffaApp) -> '
+    '${defaultShell.widgetName == 'ZuraffaApp' ? "GREEN" : "RED"}',
+  );
 }

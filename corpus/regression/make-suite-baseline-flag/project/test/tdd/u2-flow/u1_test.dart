@@ -16,8 +16,11 @@ void main() {
         }
       })();
       expect(result, isNot(isA<UnimplementedError>()));
-      expect(result, equals(42),
-          reason: 'the flow entrypoint resolves to a resolved value');
+      expect(
+        result,
+        equals(42),
+        reason: 'the flow entrypoint resolves to a resolved value',
+      );
     });
   });
 }
