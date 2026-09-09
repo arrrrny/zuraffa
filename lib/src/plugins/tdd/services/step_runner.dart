@@ -169,7 +169,12 @@ class StepRunner {
       final base = p.basename(scriptPath);
       if (base == 'zfa.dart' || base == 'zuraffa.dart') {
         // Running from bin/zfa.dart or bin/zuraffa.dart — already the entrypoint.
-        return scriptPath;
+        // Issue #1371: only when it EXISTS. Under the global `-C <dir>`
+        // chdir, the relative launch arg re-anchors Platform.script
+        // against the new cwd, so the tier-1 path can name a file that
+        // is not there — fall through to the package tier, which
+        // resolves via the package config and is immune to the chdir.
+        if (await File(scriptPath).exists()) return scriptPath;
       }
       // Running from a compiled snapshot or sibling path.
       final derived = p.join(p.dirname(scriptPath), 'bin', 'zfa.dart');
