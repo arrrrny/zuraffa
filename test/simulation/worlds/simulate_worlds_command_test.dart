@@ -1024,9 +1024,11 @@ void main() {
       test(
         'B8: the subcommand help documents the pinned-feature default',
         () async {
-          final (code, output) = await runZfa(['simulate', 'init', '--help']);
-          expect(code, 0, reason: output);
-          expect(output, contains('pinned'));
+          for (final sub in ['init', 'run', 'certify', 'verify-world']) {
+            final (code, output) = await runZfa(['simulate', sub, '--help']);
+            expect(code, 0, reason: output);
+            expect(output, contains('pinned'), reason: '$sub --help');
+          }
         },
       );
     },

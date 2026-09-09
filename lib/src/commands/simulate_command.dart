@@ -372,8 +372,11 @@ String? _readPinnedFeature(String projectRoot) {
       'malformed .specify/feature.json --> fix: repair or remove the '
       'pin, or pass --feature <name-or-dir>.',
     );
-  } on FileSystemException {
-    return null;
+  } on FileSystemException catch (e) {
+    throw _UsageError(
+      'cannot read .specify/feature.json: ${e.message} --> fix: repair '
+      'the pin, or pass --feature <name-or-dir>.',
+    );
   }
   if (json is! Map) {
     throw const _UsageError(
