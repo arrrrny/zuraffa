@@ -175,8 +175,18 @@ class _ReplayCommand extends Command<void> {
 
     Future<void> replayCall(Map<String, dynamic> call, int index) async {
       final tool = call['tool'] as String?;
-      final arguments =
-          (call['arguments'] as Map<String, dynamic>?) ?? const {};
+      final rawArguments = call['arguments'];
+      if (rawArguments != null && rawArguments is! Map<String, dynamic>) {
+        failed++;
+        verdictLines.add({
+          'call': index,
+          'tool': tool,
+          'verdict': 'error',
+          'detail': '"arguments" must be an object',
+        });
+        return;
+      }
+      final arguments = (rawArguments as Map<String, dynamic>?) ?? const {};
       final expectContains = call['expect_contains'] as String?;
       if (tool == null || tool.isEmpty) {
         failed++;
