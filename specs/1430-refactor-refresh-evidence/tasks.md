@@ -58,7 +58,7 @@ Repo-local TDD plugin: `lib/src/plugins/tdd/` (commands + models + services), te
 ## Phase 6 — Polish & cross-cutting
 
 - [x] T014 [behavior: U-1430-6] (MANDATORY) Freshness + neighbor-guard pins: a refresh entry older than the live green certification does not accept (out-of-band edit back to a previously refreshed shape still refuses); refresh-hash ≠ current-hash refuses; the #1162 red-basis implemented-drift fail-open, born-green placeholder refusal, and #1331 tombstone re-drive all behave unchanged
-- [ ] T015 Targeted regression sweep (no whole-suite runs): existing make skip/#1036 suites, refactor command suites (re-proof classification #1333, receipts refresh #1311), run-driver stale-artifacts suite, cycle-log/chain suites — all green; `dart format` on touched files + `dart analyze lib/src/plugins/tdd test/plugins/tdd` clean; update `specs/1430-refactor-refresh-evidence/quickstart.md` only if the contract shifted during the loop
+- [x] T015 Targeted regression sweep (no whole-suite runs): existing make skip/#1036 suites, refactor command suites (re-proof classification #1333, receipts refresh #1311), run-driver stale-artifacts suite, cycle-log/chain suites — all green; `dart format` on touched files + `dart analyze lib/src/plugins/tdd test/plugins/tdd` clean; update `specs/1430-refactor-refresh-evidence/quickstart.md` only if the contract shifted during the loop
 
 ## Dependencies
 

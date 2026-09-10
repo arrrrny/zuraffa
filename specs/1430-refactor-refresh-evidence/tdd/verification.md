@@ -64,8 +64,8 @@ Reverted; `dart analyze` clean after revert.
   `two_cycle_run_commands_test.dart`) were not run to completion in this
   session (operator time-box); the targeted seam suites
   (`make_command_1036_test.dart`, `refactor_command_test.dart`) and the
-  fast-tier guard/cycle-log neighbors were run — results recorded in the
-  final report. The diff is additive (a new consult + a new append on the
+  fast-tier guard/cycle-log neighbors were run — make_command_1036 + refactor_command_test: 19/19 green,
+  exit 0. The diff is additive (a new consult + a new append on the
   success path only); the intermediate forced-full scope change that could
   have perturbed existing flows was removed before this audit.
 - Mutation coverage is the rubric's single-deliberate-mutant sample, not a
