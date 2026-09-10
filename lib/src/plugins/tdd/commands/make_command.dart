@@ -2073,7 +2073,8 @@ class MakeCommand extends Command<void> {
       kind: 'refresh',
     );
     if (lastRefresh?.subjectHash != null &&
-        lastRefresh!.subjectHash == currentHash) {
+        lastRefresh!.subjectHash == currentHash &&
+        (lastRefresh.exit ?? 1) == 0) {
       final refreshedAt = DateTime.tryParse(lastRefresh.at ?? '');
       final basisAt = DateTime.tryParse(
         (lastGreen?.subjectHash != null ? lastGreen!.at : lastRed?.at) ?? '',

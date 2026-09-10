@@ -123,6 +123,7 @@ class SubjectEvidenceRefresh {
     required String reproofCommand,
     required int reproofExit,
   }) async {
+    if (reproofExit != 0) return 0;
     final log = CycleLog(p.join(projectRoot, 'specs', featureName));
     var appended = 0;
     for (final candidate in candidates) {

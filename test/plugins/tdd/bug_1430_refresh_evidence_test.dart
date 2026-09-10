@@ -99,6 +99,7 @@ Future<void> seedHashedEvidence(
   String? subjectHash,
   String at = '2026-08-30T00:00:00.000Z',
   String criterion = 'FR-007',
+  int? exitCode,
 }) async {
   final file = File(fx.cycleLogPath);
   if (!await file.exists()) {
@@ -115,7 +116,7 @@ Future<void> seedHashedEvidence(
     '- criterion: $criterion\n'
     '- test: ${fx.testPathOf(id)}\n'
     '- command: `dart test ${fx.testPathOf(id)}`\n'
-    '- exit: ${kind == 'red' ? 1 : 0}\n'
+    '- exit: ${exitCode ?? (kind == 'red' ? 1 : 0)}\n'
     '- at: $at\n\n',
     mode: FileMode.append,
   );
@@ -432,6 +433,63 @@ void main() {
       await stub.writeAsString(
         '// zfa:tdd: scaffolded — placeholder finders only\n'
         'library;\n\nvoid a1_value() {}\n',
+      );
+
+      final out = await runner.runCapturing(makeArgs(fx, 'A1'));
+
+      expect(exitCode, 1, reason: out);
+      expect(out, contains('issue #1036'), reason: out);
+    });
+
+    test('U-1430-6e: a refresh entry with the SAME timestamp as the live '
+        'green certification is accepted (inclusive freshness)', () async {
+      // green(H1) at T; refresh(H2) at T (same second); the disk
+      // subject hand-set to H2 — same-second scripted flows must not be
+      // refused by a strict freshness gate.
+      await seedCertifiedGreen(
+        fx,
+        id: 'A1',
+        subjectContent: malformedSubject('A1'),
+        at: '2026-08-31T00:00:00.000Z',
+      );
+      final diskFile = File(fx.subjectPathOf('A1'));
+      final refreshedShape = handImplementedSubject('A1');
+      await diskFile.writeAsString(refreshedShape);
+      await seedHashedEvidence(
+        fx,
+        id: 'A1',
+        kind: 'refresh',
+        subjectHash: await sha256Of(diskFile.path),
+        at: '2026-08-31T00:00:00.000Z', // same timestamp as green
+      );
+
+      final out = await runner.runCapturing(makeArgs(fx, 'A1'));
+
+      expect(exitCode, 0, reason: out);
+      expect(out, contains('subject drift accepted'), reason: out);
+    });
+
+    test('U-1430-6f: a refresh entry with a non-zero exit code is refused '
+        '(re-proof must succeed to license refresh acceptance)', () async {
+      // green(H1) at T_late; refresh(H2) at T_late with exitCode=3
+      // (non-zero); the disk subject is H2. The non-zero exit means the
+      // re-proof did not succeed, so the refresh evidence is not trusted.
+      await seedCertifiedGreen(
+        fx,
+        id: 'A1',
+        subjectContent: malformedSubject('A1'),
+        at: '2026-08-31T00:00:00.000Z',
+      );
+      final diskFile = File(fx.subjectPathOf('A1'));
+      final refreshedShape = handImplementedSubject('A1');
+      await diskFile.writeAsString(refreshedShape);
+      await seedHashedEvidence(
+        fx,
+        id: 'A1',
+        kind: 'refresh',
+        subjectHash: await sha256Of(diskFile.path),
+        at: '2026-09-01T00:00:00.000Z',
+        exitCode: 3, // non-zero re-proof exit
       );
 
       final out = await runner.runCapturing(makeArgs(fx, 'A1'));

@@ -53,10 +53,10 @@ behavior's make step with no manual `--re-certify`.
    `subject-drift (stale-artifacts)` refusal, no manual `--re-certify`
    **Type**: acceptance
 2. **Given** the same feature reached green-plus-refactored state through
-   the loop alone, **When** the run's cycle log is read, **Then** the green
-   evidence a later make's guard consults carries a subject-hash matching
-   the on-disk post-refactor subject — the certified evidence and the disk
-   never disagree about a rewrite the loop itself performed and re-proved
+   the loop alone, **When** the run's cycle log is read, **Then** the cycle
+   log contains a `refresh` entry whose subject-hash matches the on-disk
+   post-refactor subject — the make guard accepts this refresh evidence
+   against the certified green basis when the on-disk subject hash matches
    **Type**: acceptance
 
 ---

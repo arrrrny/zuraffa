@@ -42,7 +42,7 @@ Preconditions, per touched behavior:
 - the behavior has certified green evidence (`kind: green` entry);
 - the recorded hash differs from the post-rewrite hash (equal → nothing to
   reconcile, no entry);
-- the re-proof ran green over a scope covering the behavior's test. The
+- the re-proof ran green (exit 0) over a scope covering the behavior's test. The
   scope decision is the pre-#1430 one, unchanged: when the pass is scoped,
   the covering-test mapping sends every changed registered subject to its
   OWN paired test (each candidate's test exercised by construction); every
@@ -59,8 +59,8 @@ nothing — every failure path returns before the reconciliation.
 
 `_subjectDriftRefusal` keeps today's rule order and adds one arm before the
 refusal: when the behavior's LAST `kind: refresh` entry carries a
-`subject-hash` equal to the current on-disk hash AND is newer than the
-certified basis entry (ISO-8601 `at`; unparseable → refusal stands), the
+`subject-hash` equal to the current on-disk hash AND is at least as recent as the
+certified basis entry (ISO-8601 `at`; equal timestamps accepted; unparseable → refusal stands), the
 skip proceeds, printing:
 
 ```text
@@ -86,5 +86,6 @@ never a green entry).
 1. Append-only: no cycle-log history is ever edited.
 2. No proof, no refresh: the only new accept path is witnessed by a green
    re-proof recorded in the same feature's cycle log.
-3. Freshness: a refresh re-binds only shapes newer than the certification
-   it reconciles; an older refresh never overrides a newer green.
+3. Freshness: a refresh re-binds only shapes at least as recent as the
+   certification it reconciles; an older refresh never overrides a newer green.
+   Equal timestamps are accepted (same-second scripted flows).
