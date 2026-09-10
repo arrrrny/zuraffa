@@ -1,7 +1,13 @@
 /// `zfa tdd` — top-level TDD plugin command (feature 041).
 library;
 
+import 'dart:math';
+
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+
+import '../cli/text_wrap.dart';
+import '../cli/usage_length.dart';
 
 import '../plugins/tdd/commands/compose_command.dart';
 import '../plugins/tdd/commands/corpus_command.dart';
@@ -71,6 +77,14 @@ class TddCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  // Options block wraps at kUsageLineLength even when the runner width
+  // differs — ArgParser.usageLineLength is constructor-only, so only the
+  // description/summary wrapping in this class follows the runner.
+  final ArgParser _argParser = ArgParser(usageLineLength: kUsageLineLength);
+
+  @override
+  ArgParser get argParser => _argParser;
+
   @override
   String get name => 'tdd';
 
@@ -90,5 +104,58 @@ class TddCommand extends Command<void> {
   @override
   Future<void> run() async {
     printUsage();
+  }
+
+  int get _lineLength => runner?.argParser.usageLineLength ?? kUsageLineLength;
+
+  static String _padRight(String source, int length) => source.padRight(length);
+
+  @override
+  Never usageException(String message) => throw UsageException(
+    wrapTextAsLines(message, length: _lineLength).join('\n'),
+    _formatUsage(),
+  );
+
+  @override
+  String get usage =>
+      '${wrapTextAsLines(description, length: _lineLength).join('\n')}\n\n'
+      '${_formatUsage()}';
+
+  // Diverges from base Command._usageWithoutDescription: the invocation line
+  // is not wrapped with a hanging indent and `usageFooter` is never consulted
+  // — irrelevant for TddCommand today (fixed short invocation, no footer).
+  String _formatUsage() {
+    var names = subcommands.keys.where(
+      (name) => !subcommands[name]!.aliases.contains(name),
+    );
+    var visible = names.where((name) => !subcommands[name]!.hidden);
+    if (visible.isNotEmpty) names = visible;
+    names = names.toList()..sort();
+
+    var length = names.fold(0, (n, name) => max(n, name.length));
+    var columnStart = length + 5;
+
+    var buffer = StringBuffer('Available subcommands:');
+    for (var name in names) {
+      var command = subcommands[name]!;
+      var lines = wrapTextAsLines(
+        command.summary,
+        start: columnStart,
+        length: _lineLength,
+      );
+      buffer.writeln();
+      buffer.write('  ${_padRight(name, length)}   ${lines.first}');
+      for (var line in lines.skip(1)) {
+        buffer.writeln();
+        buffer.write(' ' * columnStart);
+        buffer.write(line);
+      }
+      buffer.writeln();
+    }
+    return 'Usage: $invocation\n'
+        '${argParser.usage}\n'
+        '$buffer'
+        '\n'
+        'Run "${runner?.executableName ?? 'zfa'} help" to see global options.';
   }
 }

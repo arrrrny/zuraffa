@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:args/args.dart';
 import 'package:path/path.dart' as p;
 import '../core/dependencies/pubspec_auto_add.dart';
+import '../cli/usage_length.dart';
 import '../commands/schema_command.dart';
 import '../commands/simulate_command.dart';
 
@@ -120,6 +121,7 @@ class CliRunner {
       _CrashSafeCommandRunner(
           'zfa',
           'Zuraffa Code Generator - Clean Architecture for Flutter',
+          usageLineLength: kUsageLineLength,
         )
         ..argParser.addFlag(
           'version',
@@ -950,7 +952,11 @@ class _EntityCommand extends Command<void> {
 /// defensively so the user sees the clean usage error the parser
 /// intended.
 class _CrashSafeCommandRunner extends CommandRunner<void> {
-  _CrashSafeCommandRunner(super.executableName, super.description);
+  _CrashSafeCommandRunner(
+    super.executableName,
+    super.description, {
+    super.usageLineLength,
+  });
 
   @override
   ArgResults parse(Iterable<String> args) {

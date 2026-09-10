@@ -13,17 +13,26 @@ void main() {
   final doc = File('docs/openwiki/cli.md');
 
   test('B1: the generated fleet doc exists', () {
-    expect(doc.existsSync(), isTrue,
-        reason: 'regenerate with: dart run tool/generate_openwiki_cli_docs.dart');
+    expect(
+      doc.existsSync(),
+      isTrue,
+      reason: 'regenerate with: dart run tool/generate_openwiki_cli_docs.dart',
+    );
   });
 
   test('B2: the doc covers the fleet (>=50 command sections)', () {
     final source = doc.readAsStringSync();
-    final sections =
-        RegExp(r'^## `zfa (\S+)`', multiLine: true).allMatches(source);
-    expect(sections.length, greaterThanOrEqualTo(50),
-        reason: 'the registry exposes 59 commands — a collapse means the '
-            'generator or the doc regressed');
+    final sections = RegExp(
+      r'^## `zfa (\S+)`',
+      multiLine: true,
+    ).allMatches(source);
+    expect(
+      sections.length,
+      greaterThanOrEqualTo(50),
+      reason:
+          'the registry exposes 59 commands — a collapse means the '
+          'generator or the doc regressed',
+    );
   });
 
   test('B3: key verbs are documented', () {
@@ -38,13 +47,15 @@ void main() {
       'proof',
       'simulate',
     ]) {
-      expect(source, contains('## `zfa $verb`'),
-          reason: '$verb is part of the fleet surface');
+      expect(
+        source,
+        contains('## `zfa $verb`'),
+        reason: '$verb is part of the fleet surface',
+      );
     }
   });
 
-  test('B4: the exit-code taxonomy + envelope contract are documented',
-      () {
+  test('B4: the exit-code taxonomy + envelope contract are documented', () {
     final source = doc.readAsStringSync();
     expect(source, contains('SPEC 917'));
     expect(source, contains('zuraffa.verdict.v1'));
