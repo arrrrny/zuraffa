@@ -27,6 +27,7 @@ import '../services/explain_emitter.dart';
 import '../services/lane_split.dart';
 import '../services/routing_resolver.dart';
 import '../services/requirement_scan.dart';
+import '../services/skin_plan_author.dart';
 import '../services/spec_marker_emitter.dart';
 import '../services/spec_migrator.dart';
 import '../services/spec_parser.dart';
@@ -1904,6 +1905,15 @@ class PlanCommand extends Command<void> {
     final classification = <String, Lane>{};
     final annotations = <String, String>{};
     final refusals = <String>[];
+    // The spec-derived behavior ids (plus preserved ffi rows) — the ids
+    // the derivation algorithm produced. A SKIN declaration naming one of
+    // these is a ROUTING declaration (the example spec's `W1, A3..A7`
+    // form) and keeps the derived id's grammar; only the hand-declared
+    // W-slot tokens go through the strict author contract below.
+    final derivedIds = {
+      ...expressible.map((b) => b.id),
+      ...preservedFfi.map((r) => r.id),
+    };
 
     // Unknown lane names: the grammar is CORE/SKIN/BOTH.
     for (final lane in lanes) {
@@ -1915,7 +1925,30 @@ class PlanCommand extends Command<void> {
         );
         continue;
       }
-      for (final id in lane.behaviorIds) {
+      for (final token in lane.behaviorIds) {
+        // Issue #1405: the skin plan author emits ids STRICTLY matching
+        // `^W\d+$` — prose in the behavior column only, no truncated
+        // mid-sentence ids. A hand-declared SKIN token contaminated by
+        // leaked sentence prose (a sentence split mid-fragment at a
+        // comma leaves `W1 (renders the login screen pixel-perfect`)
+        // is sanitized: the strict W-id is emitted and the prose
+        // remainder rides the behavior column via the annotation map. A
+        // token with no W-behavior at all (`Sign In header and
+        // subtitle`) is refused by the plan validator — the malformed
+        // outer-loop table is never ingested, at plan time, never at
+        // gen/run time. Derived-behavior routing declarations and the
+        // CORE/BOTH lanes pass through untouched (the documented
+        // `A3 (acceptance: ...)` form is the derivation's own).
+        var id = token;
+        if (parsed == Lane.skin && !derivedIds.contains(token)) {
+          final sanitized = SkinPlanAuthor.sanitizeDeclaredSkinToken(token);
+          if (sanitized == null) {
+            refusals.addAll(SkinPlanAuthor.validateSkinPlanWIds([token]));
+            continue;
+          }
+          id = sanitized.id;
+          if (sanitized.prose.isNotEmpty) annotations[id] ??= sanitized.prose;
+        }
         // A later declaration for the same id wins (the last word is
         // the author's current intent).
         classification[id] = parsed;
@@ -2060,10 +2093,6 @@ class PlanCommand extends Command<void> {
     // `W1-W4` skin slots), described by the lane annotation when the
     // author wrote one.
     final handRows = <LaneRow>[];
-    final derivedIds = {
-      ...expressible.map((b) => b.id),
-      ...preservedFfi.map((r) => r.id),
-    };
     for (final id in declaredHandIds.difference(derivedIds).toList()..sort()) {
       final lane = classification[id]!;
       final note = annotations[id];
