@@ -23,6 +23,38 @@ void main() {
     expect(usage, contains('Run "zfa help" to see global options.'));
   });
 
+  test('usageException wraps message and usage at the runner width', () {
+    final runner = CommandRunner<void>(
+      'zfa',
+      'Zuraffa Code Generator',
+      usageLineLength: 80,
+    )..addCommand(TddCommand(TddPlugin()));
+    final tdd = runner.commands['tdd']!;
+
+    try {
+      tdd.usageException('a ' * 100);
+      fail('expected UsageException');
+    } on UsageException catch (e) {
+      expect(
+        e.message.split('\n'),
+        everyElement(hasLength(lessThanOrEqualTo(80))),
+      );
+      expect(e.usage, contains('Available subcommands:'));
+    }
+  });
+
+  test('usage follows the runner width, not the constant', () {
+    final runner = CommandRunner<void>(
+      'zfa',
+      'Zuraffa Code Generator',
+      usageLineLength: 80,
+    )..addCommand(TddCommand(TddPlugin()));
+
+    final lines = runner.commands['tdd']!.usage.split('\n');
+
+    expect(lines, everyElement(hasLength(lessThanOrEqualTo(80))));
+  });
+
   test('zfa tdd usage keeps the command description', () {
     final runner = CommandRunner<void>(
       'zfa',
