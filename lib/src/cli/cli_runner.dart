@@ -27,6 +27,7 @@ import '../commands/generate_commands_command.dart';
 import '../commands/apply_command.dart';
 import '../commands/module_command.dart';
 import '../commands/xray_command.dart';
+import '../cli/usage_length.dart';
 import '../commands/observer_removed_command.dart';
 import '../commands/setup_command.dart';
 import '../commands/replay_command.dart';
@@ -120,7 +121,7 @@ class CliRunner {
       _CrashSafeCommandRunner(
           'zfa',
           'Zuraffa Code Generator - Clean Architecture for Flutter',
-          usageLineLength: 120,
+          usageLineLength: kUsageLineLength,
         )
         ..argParser.addFlag(
           'version',

@@ -3,7 +3,10 @@ library;
 
 import 'dart:math';
 
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+
+import '../cli/usage_length.dart';
 
 import '../plugins/tdd/commands/compose_command.dart';
 import '../plugins/tdd/commands/corpus_command.dart';
@@ -73,6 +76,11 @@ class TddCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  final ArgParser _argParser = ArgParser(usageLineLength: kUsageLineLength);
+
+  @override
+  ArgParser get argParser => _argParser;
+
   @override
   String get name => 'tdd';
 
@@ -94,10 +102,9 @@ class TddCommand extends Command<void> {
     printUsage();
   }
 
-  int get _lineLength => runner?.argParser.usageLineLength ?? 120;
+  int get _lineLength => runner?.argParser.usageLineLength ?? kUsageLineLength;
 
-  static String _padRight(String source, int length) =>
-      source + ' ' * (length - source.length);
+  static String _padRight(String source, int length) => source.padRight(length);
 
   // Vendored from package:args 2.7.0 lib/src/utils.dart `wrapTextAsLines`
   // (not publicly exported). Diverges from base _getCommandUsage: no
@@ -163,7 +170,9 @@ class TddCommand extends Command<void> {
       throw UsageException(message, _formatUsage());
 
   @override
-  String get usage => _formatUsage();
+  String get usage =>
+      '${_wrapTextAsLines(description, length: _lineLength).join('\n')}\n\n'
+      '${_formatUsage()}';
 
   String _formatUsage() {
     var names = subcommands.keys.where(
@@ -195,7 +204,7 @@ class TddCommand extends Command<void> {
     }
     return 'Usage: $invocation\n'
         '${argParser.usage}\n'
-        '$buffer\n'
+        '$buffer'
         'Run "${runner!.executableName} help" to see global options.';
   }
 }
