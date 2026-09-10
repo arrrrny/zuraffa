@@ -31,15 +31,18 @@ void main() {
     )..addCommand(TddCommand(TddPlugin()));
     final tdd = runner.commands['tdd']!;
 
+    final caught = <UsageException>[];
     try {
       tdd.usageException('a ' * 100);
     } on UsageException catch (e) {
-      expect(
-        e.message.split('\n'),
-        everyElement(hasLength(lessThanOrEqualTo(80))),
-      );
-      expect(e.usage, contains('Available subcommands:'));
+      caught.add(e);
     }
+    expect(caught, hasLength(1));
+    expect(
+      caught.single.message.split('\n'),
+      everyElement(hasLength(lessThanOrEqualTo(80))),
+    );
+    expect(caught.single.usage, contains('Available subcommands:'));
   });
 
   test('usage follows the runner width, not the constant', () {

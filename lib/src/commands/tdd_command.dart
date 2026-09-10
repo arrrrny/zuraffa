@@ -129,7 +129,7 @@ class TddCommand extends Command<void> {
     if (visible.isNotEmpty) names = visible;
     names = names.toList()..sort();
 
-    var length = names.map((name) => name.length).reduce(max);
+    var length = names.fold(0, (n, name) => max(n, name.length));
     var columnStart = length + 5;
 
     var buffer = StringBuffer('Available subcommands:');
@@ -152,6 +152,6 @@ class TddCommand extends Command<void> {
     return 'Usage: $invocation\n'
         '${argParser.usage}\n'
         '$buffer'
-        'Run "${runner!.executableName} help" to see global options.';
+        'Run "${runner?.executableName ?? 'zfa'} help" to see global options.';
   }
 }
