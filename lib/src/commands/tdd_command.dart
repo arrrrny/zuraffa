@@ -1,8 +1,9 @@
 /// `zfa tdd` — top-level TDD plugin command (feature 041).
 library;
 
-import 'package:args/command_runner.dart';
 import 'dart:math';
+
+import 'package:args/command_runner.dart';
 
 import '../plugins/tdd/commands/compose_command.dart';
 import '../plugins/tdd/commands/corpus_command.dart';
@@ -93,11 +94,14 @@ class TddCommand extends Command<void> {
     printUsage();
   }
 
-  static const int _lineLength = 120;
+  int get _lineLength => runner?.argParser.usageLineLength ?? 120;
 
   static String _padRight(String source, int length) =>
       source + ' ' * (length - source.length);
 
+  // Vendored from package:args 2.7.0 lib/src/utils.dart `wrapTextAsLines`
+  // (not publicly exported). Diverges from base _getCommandUsage: no
+  // Command.category grouping, no usageFooter, message not wrapped.
   static List<String> _wrapTextAsLines(
     String text, {
     int start = 0,
@@ -157,6 +161,9 @@ class TddCommand extends Command<void> {
   @override
   Never usageException(String message) =>
       throw UsageException(message, _formatUsage());
+
+  @override
+  String get usage => _formatUsage();
 
   String _formatUsage() {
     var names = subcommands.keys.where(
