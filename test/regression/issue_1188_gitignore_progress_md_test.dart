@@ -1,3 +1,4 @@
+@Tags(['regression'])
 // Regression guard for BUG-1188 (stop-on-roadblock PROGRESS.md path ignored):
 // https://github.com/arrrrny/zuraffa/issues/1188
 //
