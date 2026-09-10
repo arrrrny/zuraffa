@@ -26,9 +26,11 @@ import '../core/project/project_root.dart';
 /// into a runnable Flutter app:
 ///
 ///  * `lib/main.dart` — `void main()` → `await setupDependencies()` →
-///    `runApp(const MyApp())`.
-///  * `<outputDir>/app/my_app.dart` — `MyApp` widget (`MaterialApp.router`
-///    bound to [appRouter]).
+///    `runApp(const <shellWidgetName>())`.
+///  * `<outputDir>/app/<shellStem>.dart` — the `<shellWidgetName>` widget
+///    (`MaterialApp.router` bound to [appRouter]). Both derive from the
+///    target package name (issue #1465); `my_app` keeps the legacy
+///    `my_app.dart` / `MyApp`.
 ///  * `<outputDir>/routing/app_router.dart` —
 ///    `final GoRouter appRouter = GoRouter(routes: getAllRoutes());`.
 ///
@@ -44,7 +46,7 @@ import '../core/project/project_root.dart';
 /// The command refuses to overwrite an existing `lib/main.dart` unless
 /// `--force` is passed (user apps often customize main with error
 /// zones, observability, or `WidgetsFlutterBinding.ensureInitialized()`
-/// calls). `my_app.dart` and `app_router.dart` are pure glue and are
+/// calls). The shell file and `app_router.dart` are pure glue and are
 /// always overwritten.
 class AppShellCommand extends Command<void> {
   AppShellCommand({
@@ -75,7 +77,7 @@ class AppShellCommand extends Command<void> {
         'xray',
         negatable: false,
         help:
-            'Wire the X-Ray bridge server into main.dart (debug mode) and wrap MyApp in XRayScope. Defaults to the xray key in .zfa.json plugins.defaults. Emits the <outputDir>/xray/xray_decks.dart barrel so the import in main.dart always resolves.',
+            'Wire the X-Ray bridge server into main.dart (debug mode) and wrap the shell widget in XRayScope. Defaults to the xray key in .zfa.json plugins.defaults. Emits the <outputDir>/xray/xray_decks.dart barrel so the import in main.dart always resolves.',
       )
       ..addFlag(
         'skin-audit',
@@ -84,7 +86,7 @@ class AppShellCommand extends Command<void> {
             'Mount the runtime skin-contract auditor (issue #1102): the '
             'GoRouter carries the SkinRouteContractObserver (route '
             'contract from getAllRoutes(), navigator root conforms by '
-            'construction) and MyApp wraps the router in the '
+            'construction) and the shell widget wraps the router in the '
             'SkinAuditChrome violation banner via MaterialApp.builder '
             '(debug-only). Emits the <outputDir>/skin/'
             'skin_contract_auditor.dart kit when missing (hand edits are '
@@ -94,7 +96,7 @@ class AppShellCommand extends Command<void> {
         'zuraffa-app',
         negatable: false,
         help:
-            'Mount the CERTIFIED app shell (issue #1260): my_app.dart '
+            'Mount the CERTIFIED app shell (issue #1260): the shell file '
             'builds ZuraffaApp — the skin lane\'s certified shell '
             '(route-contract observer + audit bus + violation chrome in '
             'one place, package:zuraffa_ui) — with the generated GoRouter '
@@ -135,7 +137,7 @@ class AppShellCommand extends Command<void> {
 
   @override
   String get description =>
-      'Generate the app shell (main.dart + MyApp + app_router.dart)';
+      'Generate the app shell (main.dart + shell widget + app_router.dart)';
 
   @override
   String get invocation => 'zfa app shell [options]';
@@ -171,7 +173,7 @@ class AppShellCommand extends Command<void> {
         (argResults!['root'] as String?) ?? ProjectRoot.safeCurrentPath();
 
     // Spec 025 (FR-003): package-mode projects never get an app shell —
-    // main.dart/my_app.dart/app_router.dart are app artifacts. A package
+    // main.dart/the app shell/app_router.dart are app artifacts. A package
     // contributes architecture through its registrar + module instead.
     if (PackageMode.isEnabled(projectRoot)) {
       throw AppShellException(
@@ -261,7 +263,7 @@ class AppShellCommand extends Command<void> {
 
     // #512: the app shell wires a Flutter `MaterialApp.router` entrypoint and
     // depends on zuraffa_flutter. In a pure-Dart target package (pubspec.yaml
-    // without a `flutter:` dependency) emitting main.dart/my_app.dart/app_router.dart
+    // without a `flutter:` dependency) emitting main.dart/the shell/app_router.dart
     // breaks `dart analyze` (Constitution VII: Engine Purity). Skip with a clear
     // warning. (No pubspec found => unknown flavor => preserve historical
     // Flutter generation.)
@@ -375,10 +377,19 @@ class AppShellCommand extends Command<void> {
       ),
     );
 
-    // 2. lib/src/app/my_app.dart — pure glue, always overwritten.
-    final myAppPath = p.join(projectRoot, outputDir, 'app', 'my_app.dart');
+    // 2. the name-derived shell widget — pure glue, always overwritten.
+    // Issue #1465: the file stem and class derive from the package name
+    // (zik_zak → zik_zak.dart / ZikZakApp); `my_app` collapses to the
+    // legacy literals. A shell written by an older zfa still lives at the
+    // old fixed my_app.dart — never deleted or silently overwritten; the
+    // notice below names it so the user can clean it up.
+    final naming = AppShellNaming.fromAppName(appName);
+    final shellStem = naming.stem;
+    final shellWidget = naming.widgetClass;
+    final myAppPath = p.join(projectRoot, outputDir, 'app', '$shellStem.dart');
     final myAppContent = _builder.buildMyApp(
       title: title,
+      naming: naming,
       xray: xray,
       skinAudit: skinAudit,
       zuraffaApp: zuraffaApp,
@@ -388,7 +399,7 @@ class AppShellCommand extends Command<void> {
       await FileUtils.writeFile(
         myAppPath,
         myAppContent,
-        'my_app',
+        shellStem,
         force: true,
         dryRun: dryRun,
         verbose: verbose,
@@ -398,7 +409,7 @@ class AppShellCommand extends Command<void> {
 
     // 2d. <outputDir>/skin/skin_contract_auditor.dart — the runtime
     //     skin-contract auditor kit (issue #1102). Only emitted when
-    //     --skin-audit is set so the MyApp/app_router imports resolve;
+    //     --skin-audit is set so the shell/app_router imports resolve;
     //     existing kits are preserved (the #1005 hand-written-seam
     //     precedent — hand edits survive regeneration; --force
     //     regenerates main.dart but never needs a different kit).
@@ -516,6 +527,7 @@ class AppShellCommand extends Command<void> {
         : 'package:zuraffa/zuraffa.dart';
     final mainContent = _builder.buildMain(
       appName: appName,
+      naming: naming,
       mockHint: mock,
       outputDir: outputDir,
       diTakesGetIt: diTakesGetIt,
@@ -547,9 +559,28 @@ class AppShellCommand extends Command<void> {
       } else {
         print(
           '\nℹ️  lib/main.dart already exists — skipped (use --force to '
-          'overwrite). my_app.dart and app_router.dart were regenerated.',
+          'overwrite). $shellStem.dart and app_router.dart were regenerated.',
         );
       }
+    }
+
+    // Issue #1465 migration: a shell generated by an older zfa lives at
+    // the old fixed `my_app.dart` path. Regeneration now writes the
+    // name-derived file; the legacy file is user-facing surface main.dart
+    // may still import, so it is never deleted or silently overwritten —
+    // the notice names it and leaves the decision to the user.
+    if (shellStem != 'my_app' &&
+        !dryRun &&
+        await _fileSystem.exists(
+          p.join(projectRoot, outputDir, 'app', 'my_app.dart'),
+        )) {
+      print(
+        '\nℹ️  Found the legacy app shell at ${p.join(outputDir, 'app', 'my_app.dart')} '
+        '(written by an older zfa). The new shell is '
+        '${p.join(outputDir, 'app', '$shellStem.dart')}. The legacy file '
+        'was left untouched — delete it (and update lib/main.dart) once '
+        'nothing imports it.',
+      );
     }
 
     // Issue #1265 — the shell DECLARES the imports it emits. The router
@@ -622,7 +653,8 @@ class AppShellCommand extends Command<void> {
       print('\n\u2705 App shell generated.');
       if (xray) {
         print(
-          '   \u{1FA7B} X-Ray bridge wired: server starts in debug mode, MyApp wrapped in XRayScope.',
+          '   \u{1FA7B} X-Ray bridge wired: server starts in debug mode, '
+          '$shellWidget wrapped in XRayScope.',
         );
         print(
           '   Run `zfa xray deck --entity <Entity>` to populate the Control Deck barrel.',

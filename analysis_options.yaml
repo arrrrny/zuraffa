@@ -55,6 +55,11 @@ analyzer:
     # resolve). It is test DATA read by the slice engine, never compiled or
     # analyzed as part of this package.
     - test/fixtures/slice_test_project/**
+    # Corpus regression test fixtures: hermetic mini-projects with their own
+    # pubspecs and package URIs that only resolve inside their test contexts.
+    # Each corpus test sets up its isolated project, generates missing files,
+    # and runs tests during the test execution.
+    - corpus/**
     - build/**
     - android/**
     - ios/**

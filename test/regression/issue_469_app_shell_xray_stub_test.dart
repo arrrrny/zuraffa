@@ -104,19 +104,19 @@ List<RouteBase> getAllRoutes() => [];
     expect(mainContent, contains('if (dart.library.io)'));
 
     // Follow-up regression: `flutter analyze` on a freshly generated
-    // --xray app must exit clean. my_app.dart never references a
+    // --xray app must exit clean. The shell file never references a
     // go_router symbol (MaterialApp.router comes from material.dart,
     // appRouter via the routing glue), so a direct go_router import is
     // an unused_import — previously the ONLY analyzer complaint left on
     // generated output, fatal for `flutter analyze` (warnings exit 1).
     final myAppContent = await File(
-      p.join(tempDir.path, 'lib', 'src', 'app', 'my_app.dart'),
+      p.join(tempDir.path, 'lib', 'src', 'app', 'stub_app.dart'),
     ).readAsString();
     expect(
       myAppContent,
       isNot(contains("import 'package:go_router/go_router.dart';")),
       reason:
-          'my_app.dart must not import go_router directly — it is '
+          'the shell file must not import go_router directly — it is '
           'unused there and makes generated apps fail flutter analyze',
     );
     expect(
