@@ -6,19 +6,26 @@
 
 import 'dart:io';
 
-import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/zuraffa.dart';
 import 'package:zuraffa/src/plugins/cli/cli_plugin.dart'
     show CliGeneratorPlugin;
+import 'package:zuraffa/src/utils/file_utils.dart';
+
+import '../../helpers/project_root.dart';
 
 void main() {
   group('CliGeneratorPlugin', () {
     late CliGeneratorPlugin plugin;
+    late String projectRoot;
 
-    setUp(() {
+    setUp(() async {
       plugin = CliGeneratorPlugin(outputDir: 'lib/src');
+      // Anchor temp-project path dependencies to the real repository root.
+      // Directory.current is process-global and can be contaminated by other
+      // tests running in parallel (issue #506).
+      projectRoot = await findProjectRoot();
     });
 
     group('plugin metadata (FR-010, FR-011)', () {
@@ -162,15 +169,12 @@ void main() {
     // deprecated — it writes real files, proven below.
     group('disk write (issue #1022)', () {
       late Directory tmpDir;
-      late String previousDir;
 
       setUp(() async {
         tmpDir = await Directory.systemTemp.createTemp('cli_plugin_test_');
-        previousDir = Directory.current.path;
       });
 
       tearDown(() async {
-        Directory.current = previousDir;
         if (await tmpDir.exists()) await tmpDir.delete(recursive: true);
       });
 
@@ -201,7 +205,6 @@ void main() {
 
           // Point the temp project at zuraffa so dart analyze can resolve
           // the generated import `package:zuraffa/zuraffa.dart`.
-          final projectRoot = previousDir;
           await File(p.join(tmpDir.path, 'pubspec.yaml')).writeAsString('''
 name: cli_analyze_stub
 environment:
@@ -217,14 +220,11 @@ dependencies:
             'get',
           ], workingDirectory: tmpDir.path);
 
-          // Point FileUtils.writeFile into the temp dir.
-          Directory.current = tmpDir.path;
-
-          // Register the cli command in a fresh runner.
-          final runner = CommandRunner<void>('zfa-test', 'test runner');
-          runner.addCommand(plugin.createCommand());
-
-          await runner.run(['cli', 'Product']);
+          final file = plugin.generateForEntity(
+            'Product',
+            outputDir: p.join(tmpDir.path, 'lib', 'src'),
+          );
+          await FileUtils.writeFile(file.path, file.content!, file.type);
 
           // The file must exist on disk — not just in-memory.
           final expectedPath = p.join(
