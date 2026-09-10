@@ -6,6 +6,8 @@ import 'dart:math';
 // Vendored from package:args 2.7.0 lib/src/utils.dart `wrapTextAsLines`
 // (not publicly exported). Diverges from base _getCommandUsage: no
 // Command.category grouping, no usageFooter, message not wrapped.
+// License: BSD-3-Clause, (c) the Dart project authors.
+// https://github.com/dart-lang/core/blob/main/pkgs/LICENSE
 List<String> wrapTextAsLines(String text, {int start = 0, int? length}) {
   assert(start >= 0);
   bool isWhitespace(String text, int index) {
