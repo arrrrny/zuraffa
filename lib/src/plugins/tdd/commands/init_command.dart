@@ -5,7 +5,6 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
-import 'package:yaml/yaml.dart';
 
 import '../../../cli/writers/tdd/app_module_writer.dart';
 import '../../../cli/writers/tdd/dart_test_yaml_writer.dart';
@@ -16,6 +15,7 @@ import '../../../cli/writers/tdd/smoke_test_writer.dart';
 import '../../../cli/writers/tdd/tdd_profile_writer.dart';
 import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
+import '../../../core/dependencies/dependency_wirer.dart';
 import '../../../core/project/project_root.dart';
 
 class InitCommand extends Command<void> {
@@ -282,12 +282,7 @@ class InitCommand extends Command<void> {
     final pubspec = File('$cwd/pubspec.yaml');
     if (!await pubspec.exists()) return false;
     try {
-      final raw = await pubspec.readAsString();
-      final doc = loadYaml(raw);
-      if (doc is! YamlMap) return false;
-      final deps = doc['dependencies'];
-      if (deps is! YamlMap) return false;
-      return deps.containsKey('flutter');
+      return DependencyWirer.isFlutterProject(await pubspec.readAsString());
     } catch (_) {
       return false;
     }

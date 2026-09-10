@@ -31,10 +31,14 @@ Future<void> main() async {
   final corpusMissing = !Directory(
     p.join(root, 'corpus', 'zik_zak'),
   ).existsSync();
-  const corpusSkip =
-      'corpus/zik_zak is not shipped in-repo (removed from git) — '
-      'regenerate the evidence with '
-      '`dart run tool/sweep_zikzak_corpus.dart --plan` to re-enable';
+  // Local runs stay forgiving; on CI a missing corpus is a failure, not a
+  // skip — the suite must go loud when the regen tool path drifts or the
+  // directory disappears unexpectedly.
+  final String? corpusSkip = Platform.environment.containsKey('CI')
+      ? null
+      : 'corpus/zik_zak is not shipped in-repo (removed from git) — '
+            'regenerate the evidence with '
+            '`dart run tool/sweep_zikzak_corpus.dart --plan` to re-enable';
 
   late final Directory corpusRoot;
   late final Map<String, dynamic> evidence;
