@@ -1,0 +1,242 @@
+/// The routing-provenance preflight for `zfa tdd run` (issue #1482).
+///
+/// `zfa tdd run` certified 19 reds over 27m41s on `001-todo-app` before
+/// stopping at `U1:make` — a failure whose precondition (all 21 unit
+/// behaviors fallback-routed, no derivable assertion) was already fully
+/// known at plan time. The engine cycle spawns a `flutter test` per
+/// `verify-red`, so the first fatal condition must be detected BEFORE the
+/// loop starts, not 19 certifications in.
+///
+/// The gate reads the routing provenance `zfa tdd plan` ALREADY produces
+/// (issue #951): the `## Routing provenance` section of
+/// `tdd/test-list.md`, rendered identically into the lane plans
+/// `tdd/04-ENGINE.md` / `tdd/04-SKIN.md` when the list is a lane
+/// meta-index. It does NOT re-run the routing ladder — `RoutingResolver`
+/// stays the single routing owner (the plan's decision record is consumed
+/// verbatim), and nothing in `tdd plan`, `tdd verify`, or the loop
+/// semantics changes.
+///
+/// Offending row (a unit behavior that cannot pass make) — ALL of:
+///   - the row's kind is `unit`;
+///   - its provenance line is `[fallback: ...]` (the labeled legacy
+///     fallback: no declared contract trace, no derivable assertion — the
+///     exact precondition of the #1259/#1308 vacuous-green make stop);
+///   - its loop state is not `done` (a DONE row's loop is complete —
+///     evidence beats state, FR-003 of spec 1008; refusing would block
+///     legitimate resumption);
+///   - it has no generated test carrying a REAL assertion set — the sole
+///     assertion predicate is `contentIsVacuousGreen` (issue #1259),
+///     reused, never duplicated. A hand-completed test is evidence the
+///     row CAN pass make and is never listed.
+///
+/// Fail-open boundaries — the preflight's SINGLE contract is the
+/// fallback-routed-unit refusal; everything else fails honestly
+/// downstream:
+///   - no/unreadable test list → vacuous pass (the driver's own
+///     missing-list error names the real problem);
+///   - no provenance section → vacuous pass (legacy lists predate the
+///     artifact — nothing is invented);
+///   - declared/refused `route:` lines → not fallback.
+///
+/// O(1) by construction: file reads only — no subprocess, no spec
+/// re-parse, no re-plan.
+library;
+
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+
+import '../models/behavior.dart';
+import 'spec_parser.dart';
+import 'test_list_reader.dart';
+import 'vacuous_guard.dart';
+
+/// The `Suggested:` remedy line (issue #1482) — printed after the
+/// offending-row block, before the summary line.
+const String kRoutingPreflightSuggested =
+    'Suggested: fix routing in plan, or run `zfa tdd run --force` to '
+    'skip preflight.';
+
+/// The FR/AC/SC criterion-token shape — the same class of tokens
+/// `RoutingResolver` skips (they are requirement references, never
+/// contract rows). Used ONLY to name the FR a finding falls back to in
+/// the rendered row line; the routing decision itself is the plan's.
+final RegExp _criterionToken = RegExp(
+  r'^(FR|AC|SC)[-]?\d+',
+  caseSensitive: false,
+);
+
+/// One unit behavior the routing provenance proves cannot pass make.
+class RoutingProvenanceFinding {
+  /// The behavior id exactly as the test list names it.
+  final String id;
+
+  /// The behavior description cell (the `<name>` of the row line).
+  final String description;
+
+  /// The criterion-shaped tokens (FR-001, AC-2, …) the row's traces cell
+  /// carries — what the behavior falls back to. Empty when the row
+  /// traces nothing criterion-shaped (the suffix is omitted then).
+  final List<String> criterionTraces;
+
+  const RoutingProvenanceFinding({
+    required this.id,
+    required this.description,
+    this.criterionTraces = const [],
+  });
+
+  /// The rendered row line (issue #1482's exact shape):
+  /// `  U1 — <name> (no declared contract trace, fallback to FR-001)`.
+  /// The `, fallback to ...` suffix is omitted when the row carries no
+  /// criterion token.
+  String get line {
+    final suffix = criterionTraces.isEmpty
+        ? ''
+        : ', fallback to ${criterionTraces.join(', ')}';
+    return '  $id — $description (no declared contract trace$suffix)';
+  }
+}
+
+/// The gate verdict: `ok` when no unit behavior is fallback-routed with
+/// no derivable assertion (or the artifacts to prove it are absent — the
+/// fail-open boundaries above).
+class RoutingProvenancePreflightReport {
+  final bool ok;
+
+  /// One finding per offending row, in test-list order.
+  final List<RoutingProvenanceFinding> offending;
+
+  const RoutingProvenancePreflightReport({
+    required this.ok,
+    required this.offending,
+  });
+
+  /// The refusal header naming ALL offending rows at once:
+  /// `run: preflight failed — N unit behaviour(s) cannot pass make:`.
+  String get headerLine =>
+      'run: preflight failed — ${offending.length} unit behaviour(s) '
+      'cannot pass make:';
+}
+
+/// The preflight gate. Stateless per (projectRoot, featureDir); see the
+/// library doc for the contract and the fail-open boundaries.
+class RoutingProvenancePreflight {
+  RoutingProvenancePreflight({
+    required this.projectRoot,
+    required this.featureDir,
+  });
+
+  /// The project root — the generated tests resolve against it exactly
+  /// the way `RunDriverCore` resolves them (#827 namespaced layout first,
+  /// legacy flat fallback second).
+  final String projectRoot;
+
+  /// The already-resolved feature directory (bug features live under
+  /// `.specify/bugs/<slug>/` — issue #1471).
+  final String featureDir;
+
+  /// Evaluate the gate. O(1): file reads only, no subprocess, no spec
+  /// parse, no re-plan.
+  Future<RoutingProvenancePreflightReport> check() async {
+    final List<BehaviorRow> rows;
+    try {
+      rows = await TestListReader(featureDir).read();
+    } on TestListReadException {
+      return const RoutingProvenancePreflightReport(ok: true, offending: []);
+    }
+    final fallbackById = await _fallbackRoutedIds();
+    if (fallbackById.isEmpty) {
+      return const RoutingProvenancePreflightReport(ok: true, offending: []);
+    }
+
+    final offending = <RoutingProvenanceFinding>[];
+    for (final row in rows) {
+      if (row.kind != BehaviorKind.unit) continue;
+      if (fallbackById[row.id] != true) continue;
+      // A DONE row's loop is complete — evidence beats state (FR-003,
+      // spec 1008); refusing on it would block legitimate resumption.
+      if (row.state == BehaviorState.done) continue;
+      if (_testCarriesRealAssertions(row.id)) continue;
+      offending.add(
+        RoutingProvenanceFinding(
+          id: row.id,
+          description: row.description,
+          criterionTraces: SpecParser.traceTokens(
+            row.traces,
+          ).where(_criterionToken.hasMatch).toList(),
+        ),
+      );
+    }
+    return RoutingProvenancePreflightReport(
+      ok: offending.isEmpty,
+      offending: offending,
+    );
+  }
+
+  /// The `route:` provenance lines the plan wrote — merged from
+  /// `tdd/test-list.md` and, when the list is a lane meta-index, the lane
+  /// plans (`04-ENGINE.md` first so a BOTH row's engine copy is the row
+  /// of record, mirroring `TestListReader`). Maps behavior id →
+  /// fallback-routed. Absent section / absent id → NOT fallback (never
+  /// invented).
+  Future<Map<String, bool>> _fallbackRoutedIds() async {
+    final map = <String, bool>{};
+    final files = <File>[
+      File(p.join(featureDir, 'tdd', 'test-list.md')),
+      File(p.join(featureDir, 'tdd', '04-ENGINE.md')),
+      File(p.join(featureDir, 'tdd', '04-SKIN.md')),
+    ];
+    for (final file in files) {
+      if (!await file.exists()) continue;
+      final String content;
+      try {
+        content = await file.readAsString();
+      } on FileSystemException {
+        continue; // unreadable: fail open — the loop names the real error
+      }
+      for (final raw in content.split('\n')) {
+        final line = raw.trim();
+        if (!line.startsWith('route: ')) continue;
+        final arrow = line.indexOf(' -> ');
+        if (arrow <= 0) continue;
+        final id = line.substring('route: '.length, arrow).trim();
+        if (id.isEmpty) continue;
+        // First writer wins (the engine copy of a BOTH row).
+        map.putIfAbsent(id, () => line.contains('[fallback:'));
+      }
+    }
+    return map;
+  }
+
+  /// Whether the generated unit test for [behaviorId] already carries a
+  /// REAL assertion set (`contentIsVacuousGreen` == false) — the
+  /// hand-completion evidence that the row can pass make. Unreadable
+  /// files fail CLOSED for the exemption (no proof of real assertions →
+  /// the row stays listed — the refusal is the honest side).
+  bool _testCarriesRealAssertions(String behaviorId) {
+    final snakeId = behaviorId.toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9]+'),
+      '_',
+    );
+    final candidates = [
+      p.join(
+        projectRoot,
+        'test',
+        'tdd',
+        p.basename(featureDir),
+        '${snakeId}_test.dart',
+      ),
+      p.join(projectRoot, 'test', 'tdd', '${snakeId}_test.dart'),
+    ];
+    for (final candidate in candidates) {
+      final file = File(candidate);
+      if (!file.existsSync()) continue;
+      try {
+        return !contentIsVacuousGreen(file.readAsStringSync());
+      } on FileSystemException {
+        return false; // unreadable: no proof → keep the row listed
+      }
+    }
+    return false; // no test on disk: nothing derivable, nothing to exempt
+  }
+}
