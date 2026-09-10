@@ -70,6 +70,7 @@ import '../services/refactor_receipt_refresh.dart';
 import '../services/reproof_failure_classifier.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/runner.dart';
+import '../services/subject_evidence_refresh.dart';
 import '../services/suite_guard.dart';
 import '../services/tdd_timeout.dart';
 import '../services/tree_snapshot.dart';
@@ -490,6 +491,22 @@ class RefactorCommand extends Command<void> {
       final artifacts = await ArtifactRegistry(
         featureDir: p.join(cwd, 'specs', featureName),
       ).loadAll();
+      // Issue #1430: a sanctioned rewrite of a CERTIFIED subject strands
+      // its green evidence — the next make's #1036 guard would refuse the
+      // drift the loop itself produced (subject-drift stale-artifacts, the
+      // resume dead end). Compute the refresh candidates now and, after a
+      // green re-proof, reconcile them below. The honesty gate rides the
+      // re-proof scope itself: when the pass is scoped, coveringTestsFor
+      // maps every changed registered subject to its own paired test, so
+      // each candidate's test is exercised by construction; every other
+      // green path is the full suite. A failed re-proof returns above, so
+      // a refused/misfired/regressed pass never reconciles.
+      final refreshCandidates = await SubjectEvidenceRefresh.candidates(
+        projectRoot: cwd,
+        featureName: featureName,
+        changedPaths: libChanged,
+        artifacts: artifacts,
+      );
       final coveringTests = fullReproof
           ? const <String>{}
           : PassRegistryTracker.coveringTestsFor(
@@ -834,6 +851,25 @@ class RefactorCommand extends Command<void> {
           '   refactor evidence appended to specs/$featureName/tdd/'
           'cycle-log.md',
         );
+        // Issue #1430: the green re-proof above is the witness — re-bind
+        // each touched certified subject's evidence to its post-rewrite
+        // shape. The candidates were computed BEFORE the re-proof and its
+        // scope was widened to cover their tests, so a refresh never
+        // outruns its proof; every failure path above returns before this
+        // line, so a refused/misfired/regressed pass reconciles nothing.
+        final refreshed = await SubjectEvidenceRefresh.reconcile(
+          projectRoot: cwd,
+          featureName: featureName,
+          candidates: refreshCandidates,
+          reproofCommand: reproofCommand,
+          reproofExit: reproof.exitCode,
+        );
+        if (refreshed > 0) {
+          print(
+            '   subject evidence refreshed: $refreshed certified '
+            'subject(s) re-bound to the post-rewrite shapes (issue #1430)',
+          );
+        }
       }
       _printSummary(feature: featureName, outcome: outcome, applied: applied);
       exitCode = 0;

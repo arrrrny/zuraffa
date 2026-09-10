@@ -51,6 +51,10 @@ jobs:
         run: dart pub get --no-example
 
       - name: "Generator differential: baseline vs head"
+        # The corpus ships in-repo; when it is absent from git there is
+        # nothing to gate — skip instead of a fail-closed runner-error
+        # (missing corpus stays exit 2 on the CLI, by design).
+        if: ${{ hashFiles('corpus/**') != '' }}
         run: |
           dart run bin/zfa.dart tdd corpus differential \
             --from "${{ inputs.baseline_ref || github.event.inputs.baseline_ref || format('origin/{0}', github.base_ref) }}" \

@@ -1,7 +1,0 @@
-Analyzing 3 items...                                            
-
-   info • The variable name 'subject_a1142' isn't a lowerCamelCase identifier • lib/tdd/a1142_subject.dart:12:8 • non_constant_identifier_names
-   info • The variable name 'subject_a1143' isn't a lowerCamelCase identifier • lib/tdd/a1143_subject.dart:13:8 • non_constant_identifier_names
-   info • The variable name 'subject_a1144' isn't a lowerCamelCase identifier • lib/tdd/a1144_subject.dart:13:8 • non_constant_identifier_names
-
-3 issues found. (ran in 10.5s)

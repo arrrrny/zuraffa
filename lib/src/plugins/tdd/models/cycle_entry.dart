@@ -31,7 +31,7 @@ library;
 import 'generation_plan.dart';
 import 'refactor_action.dart';
 
-enum CycleEntryKind { red, green, refactor, error }
+enum CycleEntryKind { red, green, refactor, error, refresh }
 
 enum FailureClass {
   assertionFailure,
@@ -229,6 +229,8 @@ class CycleLogEntry {
         return 'refactor';
       case CycleEntryKind.error:
         return 'error';
+      case CycleEntryKind.refresh:
+        return 'refresh';
     }
   }
 

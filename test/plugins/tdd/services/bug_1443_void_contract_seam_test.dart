@@ -24,19 +24,26 @@ import 'package:zuraffa/src/plugins/tdd/models/behavior.dart';
 import 'package:zuraffa/src/plugins/tdd/services/contract_test_writer.dart';
 
 Behavior _contract(String signature) => Behavior(
-      id: 'A1',
-      feature: '035-fixture',
-      kind: BehaviorKind.contract,
-      description: 'contract:A1 — $signature (usecase contract)',
-      sourceCriterion: 'AC-1',
-      target: signature.substring(0, signature.indexOf('(')),
-    );
+  id: 'A1',
+  feature: '035-fixture',
+  kind: BehaviorKind.contract,
+  description: 'contract:A1 — $signature (usecase contract)',
+  sourceCriterion: 'AC-1',
+  target: signature.substring(0, signature.indexOf('(')),
+);
 
 Future<String> writeSubject(Behavior b, Directory tmp) async {
-  final subjectPath =
-      p.join(tmp.path, 'lib', 'tdd', '035-fixture', 'a1_subject.dart');
-  await const ContractSubjectWriter()
-      .write(behavior: b, subjectPath: subjectPath);
+  final subjectPath = p.join(
+    tmp.path,
+    'lib',
+    'tdd',
+    '035-fixture',
+    'a1_subject.dart',
+  );
+  await const ContractSubjectWriter().write(
+    behavior: b,
+    subjectPath: subjectPath,
+  );
   return File(subjectPath).readAsStringSync();
 }
 
@@ -54,10 +61,16 @@ void main() {
       _contract('MessagingService.register(MessageTransport) -> void'),
       tmp,
     );
-    expect(source, contains('Object? register('),
-        reason: 'the seam returns Object? so the capture pattern compiles');
-    expect(source, isNot(contains('void register(')),
-        reason: 'a void seam cannot feed the capture-based guard test');
+    expect(
+      source,
+      contains('Object? register('),
+      reason: 'the seam returns Object? so the capture pattern compiles',
+    );
+    expect(
+      source,
+      isNot(contains('void register(')),
+      reason: 'a void seam cannot feed the capture-based guard test',
+    );
   });
 
   test('B2: a non-void renderable return is unchanged (guard)', () async {
@@ -68,7 +81,3 @@ void main() {
     expect(source, contains('int add('), reason: source);
   });
 }
-
-__zcode_status=$?
-if [ "$__zcode_status" -eq 0 ]; then pwd -P > '/var/folders/8p/30xfytr548l64k4bhtks_4dr0000gn/T/zcode-99a21c6d-49a9-4235-ad1e-91b4e2be4ebb-cwd'; fi
-exit "$__zcode_status"

@@ -622,8 +622,14 @@ class DoctorCommand extends Command<void> {
     const importChecker = ImportResolutionChecker();
     final runtimeDrifts = <String>[];
     for (final record in records) {
+      // Anchor the recorded path the same way check 2b does: post-#1397
+      // records carry the canonical project-relative form, which must
+      // resolve against the project root — never the process CWD.
+      final resolvedTestPath = p.isAbsolute(record.testPath)
+          ? p.normalize(record.testPath)
+          : p.normalize(p.join(cwd, record.testPath));
       final testDrifts = importChecker.checkTestFile(
-        record.testPath,
+        resolvedTestPath,
         projectRoot: cwd,
       );
       for (final td in testDrifts) {
