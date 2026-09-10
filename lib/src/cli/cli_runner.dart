@@ -120,6 +120,7 @@ class CliRunner {
       _CrashSafeCommandRunner(
           'zfa',
           'Zuraffa Code Generator - Clean Architecture for Flutter',
+          usageLineLength: 100,
         )
         ..argParser.addFlag(
           'version',
@@ -950,7 +951,11 @@ class _EntityCommand extends Command<void> {
 /// defensively so the user sees the clean usage error the parser
 /// intended.
 class _CrashSafeCommandRunner extends CommandRunner<void> {
-  _CrashSafeCommandRunner(super.executableName, super.description);
+  _CrashSafeCommandRunner(
+    super.executableName,
+    super.description, {
+    super.usageLineLength,
+  });
 
   @override
   ArgResults parse(Iterable<String> args) {
