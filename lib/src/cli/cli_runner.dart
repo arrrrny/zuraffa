@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:args/args.dart';
 import 'package:path/path.dart' as p;
 import '../core/dependencies/pubspec_auto_add.dart';
+import '../cli/usage_length.dart';
 import '../commands/schema_command.dart';
 import '../commands/simulate_command.dart';
 
@@ -27,7 +28,6 @@ import '../commands/generate_commands_command.dart';
 import '../commands/apply_command.dart';
 import '../commands/module_command.dart';
 import '../commands/xray_command.dart';
-import '../cli/usage_length.dart';
 import '../commands/observer_removed_command.dart';
 import '../commands/setup_command.dart';
 import '../commands/replay_command.dart';

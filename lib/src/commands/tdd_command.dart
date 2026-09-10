@@ -121,6 +121,9 @@ class TddCommand extends Command<void> {
       '${wrapTextAsLines(description, length: _lineLength).join('\n')}\n\n'
       '${_formatUsage()}';
 
+  // Diverges from base Command._usageWithoutDescription: the invocation line
+  // is not wrapped with a hanging indent and `usageFooter` is never consulted
+  // — irrelevant for TddCommand today (fixed short invocation, no footer).
   String _formatUsage() {
     var names = subcommands.keys.where(
       (name) => !subcommands[name]!.aliases.contains(name),

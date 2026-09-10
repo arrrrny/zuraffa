@@ -55,14 +55,15 @@ void main() {
 
     final lines = runner.commands['tdd']!.usage.split('\n');
 
-    // Description wraps at the runner width (80); the options block wraps at
-    // kUsageLineLength (120) — so 120 is the correct bound for this combined
-    // block (ArgParser.usageLineLength is constructor-only).
+    // The description wraps at the runner width (80); the options block
+    // wraps at kUsageLineLength (120 — ArgParser.usageLineLength is
+    // constructor-only) but is empty for TddCommand, so 80 is the effective
+    // bound for this combined block.
     final subHeader = lines.indexOf('Available subcommands:');
     expect(subHeader, greaterThan(0));
     expect(
       lines.sublist(0, subHeader),
-      everyElement(hasLength(lessThanOrEqualTo(120))),
+      everyElement(hasLength(lessThanOrEqualTo(80))),
     );
 
     // The subcommand section (summaries and continuation lines) wraps at the
