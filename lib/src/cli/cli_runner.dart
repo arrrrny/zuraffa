@@ -120,7 +120,7 @@ class CliRunner {
       _CrashSafeCommandRunner(
           'zfa',
           'Zuraffa Code Generator - Clean Architecture for Flutter',
-          usageLineLength: 100,
+          usageLineLength: 80,
         )
         ..argParser.addFlag(
           'version',
